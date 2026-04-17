@@ -1,27 +1,24 @@
+import Image from "next/image";
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Sparkles, Image as ImageIcon, Send, Loader2, X } from "lucide-react";
-import { db, auth } from "@/lib/firebase";
-import { collection, query, getDocs, where } from "firebase/firestore";
-import { ProjectData } from "@/lib/types";
+import { ProjectData, PromptImagePayload } from "@/lib/types";
 
 export function PromptBar({ 
   onSubmit,
-  onGenerate,
   project,
-  projectId
+  disabled = false,
 }: { 
-  onSubmit?: (options: { prompt: string, image: any, startX: number, startY: number, needsDesign: boolean }) => Promise<void>,
-  onGenerate?: (x: number, y: number) => void,
+  onSubmit?: (options: { prompt: string, image?: PromptImagePayload | null, needsDesign: boolean }) => Promise<void>,
   project?: ProjectData,
-  projectId: string
+  disabled?: boolean,
 }) {
   // Pre-fill prompt if project prompt exists but we're starting a new project canvas session
   const [prompt, setPrompt] = useState(project?.prompt || "");
   const [isGenerating, setIsGenerating] = useState(false);
   const [agentStatus, setAgentStatus] = useState("");
-  const [image, setImage] = useState<{ data: string; mimeType: string } | null>(null);
+  const [image, setImage] = useState<PromptImagePayload | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -38,47 +35,16 @@ export function PromptBar({
   };
 
   const handleGenerate = async () => {
-    if ((!prompt.trim() && !image) || !auth.currentUser) return;
+    if ((!prompt.trim() && !image) || disabled) return;
 
     setIsGenerating(true);
     // Determine if we need to kick off design tokens (true if they are completely missing)
     const needsDesign = !project?.designTokens;
-    setAgentStatus(needsDesign ? "Requesting Art Director..." : "Planning screens...");
-    
-    let startX = 4800;
-    let startY = 4600;
-
-    try {
-      const q = query(
-        collection(db, "screens"), 
-        where("userId", "==", auth.currentUser.uid),
-        where("projectId", "==", projectId)
-      );
-      const snapshot = await getDocs(q);
-      if (!snapshot.empty) {
-        let maxX = -Infinity;
-        let maxY = -Infinity;
-        snapshot.forEach(doc => {
-          const data = doc.data();
-          if (typeof data.x === 'number' && data.x > maxX) maxX = data.x;
-          if (typeof data.y === 'number' && data.y > maxY) maxY = data.y;
-        });
-        if (maxX !== -Infinity) {
-          startX = maxX + 450; // Place to the right of the rightmost existing screen
-          startY = maxY !== -Infinity ? maxY : 4600; // Align with the bottom-most screen
-        }
-      }
-    } catch (e) {
-      console.error("Error fetching existing screens for positioning", e);
-    }
-    
-    if (onGenerate) {
-      onGenerate(startX, startY);
-    }
+    setAgentStatus(needsDesign ? "Requesting Art Director..." : "Queueing generation...");
     
     try {
       if (onSubmit) {
-         await onSubmit({ prompt, image, startX, startY, needsDesign });
+         await onSubmit({ prompt, image, needsDesign });
       }
       if (!needsDesign) {
          // Only clearing if we're not heading into ArtDirector popup
@@ -105,7 +71,14 @@ export function PromptBar({
       {image && (
         <div className="px-3 pt-2 relative inline-block">
           <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200">
-            <img src={`data:${image.mimeType};base64,${image.data}`} alt="Upload" className="w-full h-full object-cover" />
+            <Image
+              src={`data:${image.mimeType};base64,${image.data}`}
+              alt="Upload"
+              width={64}
+              height={64}
+              unoptimized
+              className="w-full h-full object-cover"
+            />
             <button 
               onClick={() => setImage(null)}
               className="absolute top-1 right-1 bg-black/50 hover:bg-black/70 text-white rounded-full p-0.5"
@@ -126,6 +99,7 @@ export function PromptBar({
             handleGenerate();
           }
         }}
+        disabled={disabled}
       />
       <div className="flex items-center justify-between px-2 pb-1">
         <div className="flex items-center gap-2">
@@ -158,7 +132,7 @@ export function PromptBar({
             size="icon" 
             className="rounded-full bg-gray-900 hover:bg-gray-800 text-white"
             onClick={handleGenerate}
-            disabled={isGenerating || (!prompt.trim() && !image)}
+            disabled={disabled || isGenerating || (!prompt.trim() && !image)}
           >
             {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           </Button>

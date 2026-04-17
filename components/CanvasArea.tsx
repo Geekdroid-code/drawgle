@@ -3,9 +3,6 @@
 import { TransformWrapper, TransformComponent, useControls, useTransformContext } from "react-zoom-pan-pinch";
 import { useState, useEffect, useRef } from "react";
 import { ScreenNode } from "./ScreenNode";
-import { collection, query, onSnapshot, where } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
-import { db, auth, handleFirestoreError, OperationType } from "@/lib/firebase";
 import { ZoomIn, ZoomOut, Maximize } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -114,65 +111,22 @@ const CanvasContent = ({
 };
 
 export function CanvasArea({ 
+  screens,
   centerTarget,
   selectedScreen,
-  onSelectScreen,
-  projectId
+  onSelectScreen
 }: { 
+  screens: ScreenData[],
   centerTarget?: {x: number, y: number, timestamp: number} | null,
   selectedScreen?: ScreenData | null,
-  onSelectScreen?: (screen: ScreenData | null) => void,
-  projectId: string
+  onSelectScreen?: (screen: ScreenData | null) => void
 }) {
-  const [screens, setScreens] = useState<ScreenData[]>([]);
-  const [userId, setUserId] = useState<string | null>(null);
   const [initialScale, setInitialScale] = useState<number | null>(null);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setInitialScale(window.innerWidth < 768 ? 0.5 : 1);
   }, []);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUserId(user ? user.uid : null);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    if (!userId || !projectId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setScreens([]);
-      return;
-    }
-
-    const q = query(
-      collection(db, "screens"),
-      where("userId", "==", userId),
-      where("projectId", "==", projectId)
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const newScreens: ScreenData[] = [];
-      snapshot.forEach((doc) => {
-        newScreens.push({ id: doc.id, ...doc.data() } as ScreenData);
-      });
-      setScreens(newScreens);
-      
-      // Update selected screen data if it changed
-      if (selectedScreen) {
-        const updatedSelected = newScreens.find(s => s.id === selectedScreen.id);
-        if (updatedSelected && updatedSelected.updatedAt !== selectedScreen.updatedAt) {
-          onSelectScreen?.(updatedSelected);
-        }
-      }
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, "screens");
-    });
-
-    return () => unsubscribe();
-  }, [userId, selectedScreen, onSelectScreen]);
 
   if (initialScale === null) return null;
 

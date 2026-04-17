@@ -1,23 +1,31 @@
 {
-  "name": "ai-studio-applet",
+  "name": "drawgle",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:next": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run lint && npm run typecheck",
+    "trigger:dev": "npx trigger.dev@latest dev",
+    "trigger:deploy": "npx trigger.dev@latest deploy",
     "clean": "next clean"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.0",
     "@google/genai": "^1.17.0",
     "@hookform/resolvers": "^5.2.1",
+    "@supabase/ssr": "^0.10.2",
+    "@supabase/supabase-js": "^2.103.3",
+    "@trigger.dev/react-hooks": "^4.4.4",
+    "@trigger.dev/sdk": "^4.4.4",
     "autoprefixer": "^10.4.21",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
-    "firebase": "^12.12.0",
     "framer-motion": "^12.38.0",
     "lucide-react": "^0.553.0",
     "motion": "^12.23.24",
@@ -29,7 +37,8 @@
     "react-zoom-pan-pinch": "^4.0.3",
     "shadcn": "^4.2.0",
     "tailwind-merge": "^3.5.0",
-    "uuid": "^13.0.0"
+    "uuid": "^13.0.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.1.11",

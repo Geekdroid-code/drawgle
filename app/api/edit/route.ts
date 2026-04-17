@@ -1,62 +1,46 @@
-import { GoogleGenAI } from "@google/genai";
+import { editScreenStream } from "@/lib/generation/service";
+import { createClient } from "@/lib/supabase/server";
+
+import { NextResponse } from "next/server";
+
+export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   try {
-    const { messages, screenCode } = await req.json();
-    
-    const apiKey = process.env.MY_GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("MY_GEMINI_API_KEY is missing. Please ensure it is set in your AI Studio secrets and restart the dev server.");
+    const { screenId, messages, screenCode } = await req.json();
+
+    if (!screenId) {
+      return NextResponse.json({ error: "screenId is required." }, { status: 400 });
     }
-    
-    const ai = new GoogleGenAI({ apiKey });
 
-    const systemInstruction = `You are an expert frontend developer modifying an existing HTML/Tailwind UI.
-You MUST output ONLY the exact changes using the following XML format:
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
 
-<edit>
-<search>
-[EXACT code to be replaced, including indentation]
-</search>
-<replace>
-[New code to insert]
-</replace>
-</edit>
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-Rules:
-1. You can output multiple <edit> blocks if needed.
-2. The <search> block MUST perfectly match the existing code.
-3. To add code, include surrounding lines in <search> and <replace>.
-4. To delete code, include it in <search> and leave <replace> empty.
-5. DO NOT output the entire file. ONLY output the <edit> blocks.
-6. If the user asks a general question, you can answer in plain text outside the <edit> blocks.
-7. IMPORTANT: Do NOT wrap the UI in a phone frame, device mockup, or add a notch/status bar. The rendering environment already provides a mobile device frame. Your code should just be the app content.`;
+    const { data: screen, error: screenError } = await supabase
+      .from("screens")
+      .select("id")
+      .eq("id", screenId)
+      .maybeSingle();
 
-    const history = messages.map((m: any) => ({
-      role: m.role,
-      parts: [{ text: m.content }]
-    }));
-
-    const chat = ai.chats.create({
-      model: "gemini-3.1-pro-preview",
-      history,
-      config: {
-        systemInstruction,
-        temperature: 0.7,
-      }
-    });
-
-    const responseStream = await chat.sendMessageStream({
-      message: `Here is the current code:\n\n\`\`\`html\n${screenCode}\n\`\`\``
-    });
+    if (screenError || !screen) {
+      return NextResponse.json({ error: "Screen not found." }, { status: 404 });
+    }
 
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          for await (const chunk of responseStream) {
-            if (chunk.text) {
-              controller.enqueue(new TextEncoder().encode(chunk.text));
-            }
+          for await (const chunk of editScreenStream({
+            messages,
+            screenCode,
+          })) {
+            controller.enqueue(new TextEncoder().encode(chunk));
           }
           controller.close();
         } catch (err) {

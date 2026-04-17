@@ -1,29 +1,25 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { ScreenData } from "@/lib/types";
-import { db, auth, handleFirestoreError, OperationType } from "@/lib/firebase";
-import { collection, query, orderBy, onSnapshot, addDoc, doc, setDoc, deleteDoc } from "firebase/firestore";
+import { Message, ScreenData } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Send, Loader2, X, MessageSquare, Trash2, ChevronDown } from "lucide-react";
 import { applyEdits } from "@/lib/diff-engine";
-
-interface Message {
-  id: string;
-  role: "user" | "model";
-  content: string;
-  timestamp: string;
-}
+import { useScreenMessages } from "@/hooks/use-screen-messages";
+import { createClient } from "@/lib/supabase/client";
+import { deleteScreen, insertScreenMessage, updateScreenCode } from "@/lib/supabase/queries";
 
 export function ScreenEditorPanel({
   screen,
+  ownerId,
   onClose
 }: {
   screen: ScreenData;
+  ownerId: string;
   onClose: () => void;
 }) {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const { messages } = useScreenMessages(screen.id);
   const [prompt, setPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -35,32 +31,17 @@ export function ScreenEditorPanel({
   }, [screen.id]);
 
   useEffect(() => {
-    if (!auth.currentUser) return;
+    const timeout = window.setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 100);
 
-    const q = query(
-      collection(db, "screens", screen.id, "messages"),
-      orderBy("timestamp", "asc")
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const newMessages: Message[] = [];
-      snapshot.forEach((doc) => {
-        newMessages.push({ id: doc.id, ...doc.data() } as Message);
-      });
-      setMessages(newMessages);
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      }, 100);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, `screens/${screen.id}/messages`);
-    });
-
-    return () => unsubscribe();
-  }, [screen.id]);
+    return () => window.clearTimeout(timeout);
+  }, [messages]);
 
   const handleDelete = async () => {
     try {
-      await deleteDoc(doc(db, "screens", screen.id));
+      const supabase = createClient();
+      await deleteScreen(supabase, screen.id);
       onClose();
     } catch (error) {
       console.error("Error deleting screen:", error);
@@ -68,7 +49,9 @@ export function ScreenEditorPanel({
   };
 
   const handleSend = async () => {
-    if (!prompt.trim() || isGenerating || !auth.currentUser) return;
+    if (!prompt.trim() || isGenerating) return;
+
+    const supabase = createClient();
 
     const userMessageContent = prompt.trim();
     setPrompt("");
@@ -79,10 +62,11 @@ export function ScreenEditorPanel({
 
     try {
       // 1. Save user message
-      await addDoc(collection(db, "screens", screen.id, "messages"), {
+      await insertScreenMessage(supabase, {
+        ownerId,
+        screenId: screen.id,
         role: "user",
         content: userMessageContent,
-        timestamp: new Date().toISOString()
       });
 
       // 2. Prepare AI request
@@ -90,6 +74,7 @@ export function ScreenEditorPanel({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          screenId: screen.id,
           messages: [...messages, { role: "user", content: userMessageContent }],
           screenCode: screen.code
         })
@@ -110,10 +95,11 @@ export function ScreenEditorPanel({
       }
 
       // 3. Save AI message
-      await addDoc(collection(db, "screens", screen.id, "messages"), {
+      await insertScreenMessage(supabase, {
+        ownerId,
+        screenId: screen.id,
         role: "model",
         content: fullResponse,
-        timestamp: new Date().toISOString()
       });
 
       // 4. Apply edits
@@ -121,21 +107,23 @@ export function ScreenEditorPanel({
         const newCode = applyEdits(screen.code, fullResponse);
         
         if (newCode !== screen.code) {
-          await setDoc(doc(db, "screens", screen.id), {
-            code: newCode,
-            updatedAt: new Date().toISOString()
-          }, { merge: true });
+          await updateScreenCode(supabase, screen.id, newCode, "ready");
         }
       }
 
     } catch (error) {
       console.error("Edit error:", error);
       // Optionally add an error message to the chat
-      await addDoc(collection(db, "screens", screen.id, "messages"), {
-        role: "model",
-        content: "Sorry, I encountered an error while trying to apply those changes.",
-        timestamp: new Date().toISOString()
-      });
+      try {
+        await insertScreenMessage(supabase, {
+          ownerId,
+          screenId: screen.id,
+          role: "model",
+          content: "Sorry, I encountered an error while trying to apply those changes.",
+        });
+      } catch (messageError) {
+        console.error("Failed to persist editor error message", messageError);
+      }
     } finally {
       setIsGenerating(false);
     }

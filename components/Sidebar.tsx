@@ -1,43 +1,23 @@
 "use client";
 
-import { User } from "firebase/auth";
+import { useRouter } from "next/navigation";
+import { LayoutGrid, LogOut, ArrowLeft } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LayoutGrid, Users, Search, LogOut, ArrowLeft } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { ProjectData } from "@/lib/types";
+import { useProjects } from "@/hooks/use-projects";
+import type { AuthenticatedUser } from "@/lib/types";
 
 interface SidebarProps {
-  user: User;
+  user: AuthenticatedUser;
   onSignOut: () => void;
   currentProjectId?: string;
 }
 
 export function Sidebar({ user, onSignOut, currentProjectId }: SidebarProps) {
   const router = useRouter();
-  const [projects, setProjects] = useState<ProjectData[]>([]);
-
-  useEffect(() => {
-    if (!user) return;
-    const q = query(
-      collection(db, "projects"),
-      where("userId", "==", user.uid)
-    );
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const projs: ProjectData[] = [];
-      snapshot.forEach(doc => {
-        projs.push(doc.data() as ProjectData);
-      });
-      projs.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-      setProjects(projs);
-    });
-    return () => unsubscribe();
-  }, [user]);
+  const { projects } = useProjects(user.id, []);
 
   return (
     <div className="w-64 bg-[#f0f0f0] border-r border-gray-200 flex flex-col h-full">
@@ -50,8 +30,8 @@ export function Sidebar({ user, onSignOut, currentProjectId }: SidebarProps) {
         </div>
         <div className="flex items-center gap-2">
           <Avatar className="w-8 h-8">
-            <AvatarImage src={user.photoURL || ""} />
-            <AvatarFallback>{user.displayName?.charAt(0) || "U"}</AvatarFallback>
+            <AvatarImage src={user.avatarUrl || ""} />
+            <AvatarFallback>{user.fullName?.charAt(0) || user.email?.charAt(0) || "U"}</AvatarFallback>
           </Avatar>
         </div>
       </div>

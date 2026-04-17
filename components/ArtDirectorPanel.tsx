@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 import { Loader2, Palette, Type, Square, Sparkles, Check, ArrowRight } from "lucide-react";
 import { ProjectData } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { db } from "@/lib/firebase";
-import { doc, updateDoc } from "firebase/firestore";
+import { createClient } from "@/lib/supabase/client";
+import { updateProjectFields } from "@/lib/supabase/queries";
 
 interface ArtDirectorPanelProps {
   project: ProjectData;
@@ -20,10 +20,15 @@ export function ArtDirectorPanel({ project, onGenerationStart }: ArtDirectorPane
   const [loadingText, setLoadingText] = useState("");
 
   useEffect(() => {
+    setTokens(project.designTokens || null);
+  }, [project.designTokens, project.id]);
+
+  useEffect(() => {
     // Only auto-fetch if we have a prompt but NO tokens yet
     if (tokens || !project.prompt) return;
 
     const fetchDesign = async () => {
+      const supabase = createClient();
       setIsLoading(true);
       setLoadingText("Analyzing vibe...");
       try {
@@ -37,9 +42,8 @@ export function ArtDirectorPanel({ project, onGenerationStart }: ArtDirectorPane
         const json = await res.json();
         setTokens(json);
         
-        await updateDoc(doc(db, "projects", project.id), {
+        await updateProjectFields(supabase, project.id, {
           designTokens: json,
-          updatedAt: new Date().toISOString()
         });
       } catch (err) {
         console.error(err);
@@ -88,11 +92,11 @@ export function ArtDirectorPanel({ project, onGenerationStart }: ArtDirectorPane
     
     try {
       if (tokens) {
+        const supabase = createClient();
         // Change status to active instantly so the canvas unmounts the panel
-        await updateDoc(doc(db, "projects", project.id), {
+        await updateProjectFields(supabase, project.id, {
           designTokens: tokens,
           status: "active",
-          updatedAt: new Date().toISOString()
         });
         
         // Spin off the generation asynchronously without blocking the UI

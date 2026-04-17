@@ -1,0 +1,203 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+import type {
+  Database,
+  MessageRole,
+  ProjectStatus,
+  ScreenStatus,
+} from "@/lib/supabase/database.types";
+import {
+  mapGenerationRunRow,
+  mapProjectRow,
+  mapScreenMessageRow,
+  mapScreenRow,
+} from "@/lib/supabase/mappers";
+import type { DesignTokens, GenerationRunData, Message, ProjectData, ScreenData } from "@/lib/types";
+
+type Client = SupabaseClient<Database>;
+
+export async function fetchProjects(client: Client): Promise<ProjectData[]> {
+  const { data, error } = await client.from("projects").select("*").order("updated_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []).map(mapProjectRow);
+}
+
+export async function fetchProject(client: Client, projectId: string): Promise<ProjectData | null> {
+  const { data, error } = await client.from("projects").select("*").eq("id", projectId).maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data ? mapProjectRow(data) : null;
+}
+
+export async function fetchScreens(client: Client, projectId: string): Promise<ScreenData[]> {
+  const { data, error } = await client
+    .from("screens")
+    .select("*")
+    .eq("project_id", projectId)
+    .order("sort_index", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []).map(mapScreenRow);
+}
+
+export async function fetchScreenMessages(client: Client, screenId: string): Promise<Message[]> {
+  const { data, error } = await client
+    .from("screen_messages")
+    .select("*")
+    .eq("screen_id", screenId)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []).map(mapScreenMessageRow);
+}
+
+export async function fetchGenerationRuns(client: Client, projectId: string, limit = 6): Promise<GenerationRunData[]> {
+  const { data, error } = await client
+    .from("generation_runs")
+    .select("*")
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []).map(mapGenerationRunRow);
+}
+
+export async function createProject(
+  client: Client,
+  input: {
+    ownerId: string;
+    name: string;
+    prompt?: string;
+    status?: ProjectStatus;
+  },
+): Promise<ProjectData> {
+  const { data, error } = await client
+    .from("projects")
+    .insert({
+      owner_id: input.ownerId,
+      name: input.name,
+      prompt: input.prompt ?? "",
+      status: input.status ?? "active",
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return mapProjectRow(data);
+}
+
+export async function updateProjectFields(
+  client: Client,
+  projectId: string,
+  patch: {
+    name?: string;
+    prompt?: string;
+    status?: ProjectStatus;
+    designTokens?: DesignTokens | null;
+  },
+) {
+  const update: Database["public"]["Tables"]["projects"]["Update"] = {};
+
+  if (patch.name !== undefined) {
+    update.name = patch.name;
+  }
+  if (patch.prompt !== undefined) {
+    update.prompt = patch.prompt;
+  }
+  if (patch.status !== undefined) {
+    update.status = patch.status;
+  }
+  if (patch.designTokens !== undefined) {
+    update.design_tokens = patch.designTokens as never;
+  }
+
+  const { error } = await client.from("projects").update(update).eq("id", projectId);
+
+  if (error) {
+    throw error;
+  }
+}
+
+export async function updateScreenPosition(client: Client, screenId: string, x: number, y: number) {
+  const { error } = await client
+    .from("screens")
+    .update({
+      position_x: Math.round(x),
+      position_y: Math.round(y),
+    })
+    .eq("id", screenId);
+
+  if (error) {
+    throw error;
+  }
+}
+
+export async function updateScreenCode(
+  client: Client,
+  screenId: string,
+  code: string,
+  status?: ScreenStatus,
+) {
+  const update: Database["public"]["Tables"]["screens"]["Update"] = {
+    code,
+  };
+
+  if (status) {
+    update.status = status;
+  }
+
+  const { error } = await client.from("screens").update(update).eq("id", screenId);
+
+  if (error) {
+    throw error;
+  }
+}
+
+export async function deleteScreen(client: Client, screenId: string) {
+  const { error } = await client.from("screens").delete().eq("id", screenId);
+
+  if (error) {
+    throw error;
+  }
+}
+
+export async function insertScreenMessage(
+  client: Client,
+  input: {
+    ownerId: string;
+    screenId: string;
+    role: MessageRole;
+    content: string;
+  },
+) {
+  const { error } = await client.from("screen_messages").insert({
+    owner_id: input.ownerId,
+    screen_id: input.screenId,
+    role: input.role,
+    content: input.content,
+  });
+
+  if (error) {
+    throw error;
+  }
+}

@@ -3,5 +3,7 @@ node_modules/
 coverage/
 .DS_Store
 *.log
+.trigger/
+.trigger-build/
 .env*
 !.env.example

@@ -5,8 +5,8 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { MoreHorizontal, Download, Play, Trash2, Edit2, GripHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { db, auth, handleFirestoreError, OperationType } from "@/lib/firebase";
-import { deleteDoc, doc, setDoc } from "firebase/firestore";
+import { createClient } from "@/lib/supabase/client";
+import { deleteScreen, updateScreenPosition } from "@/lib/supabase/queries";
 
 export function ScreenNode({ 
   screen, 
@@ -43,9 +43,10 @@ export function ScreenNode({
 
   const handleDelete = async () => {
     try {
-      await deleteDoc(doc(db, "screens", screen.id));
+      const supabase = createClient();
+      await deleteScreen(supabase, screen.id);
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `screens/${screen.id}`);
+      console.error("Failed to delete screen", error);
     }
   };
 
@@ -80,11 +81,8 @@ export function ScreenNode({
     e.currentTarget.releasePointerCapture(e.pointerId);
     
     try {
-      await setDoc(doc(db, "screens", screen.id), {
-        x: position.x,
-        y: position.y,
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
+      const supabase = createClient();
+      await updateScreenPosition(supabase, screen.id, position.x, position.y);
     } catch (error) {
       console.error("Failed to save position", error);
     }

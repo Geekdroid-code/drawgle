@@ -6,8 +6,8 @@ import { cn } from "@/lib/utils";
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 export const metadata: Metadata = {
-  title: 'My Google AI Studio App',
-  description: 'My Google AI Studio App',
+  title: 'Drawgle',
+  description: 'AI UI generation on a production-grade Supabase and Trigger.dev architecture.',
 };
 
 export default function RootLayout({children}: {children: React.ReactNode}) {
