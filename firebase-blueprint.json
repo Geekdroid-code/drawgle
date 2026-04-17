@@ -1,0 +1,65 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the application.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "name": { "type": "string" },
+        "avatarUrl": { "type": "string", "format": "uri" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "createdAt"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "A project containing generated screens.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "prompt": { "type": "string" },
+        "status": { "type": "string", "enum": ["draft", "active"] },
+        "designTokens": { "type": ["object", "null"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "name", "prompt", "status", "createdAt", "updatedAt"]
+    },
+    "Screen": {
+      "title": "Screen",
+      "description": "A generated mobile screen UI.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "projectId": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "code": { "type": "string" },
+        "prompt": { "type": "string" },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "projectId", "userId", "name", "code", "prompt", "x", "y", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles."
+    },
+    "/projects/{projectId}": {
+      "schema": { "$ref": "#/entities/Project" },
+      "description": "Projects created by users."
+    },
+    "/screens/{screenId}": {
+      "schema": { "$ref": "#/entities/Screen" },
+      "description": "Generated screens belonging to projects."
+    }
+  }
+}
