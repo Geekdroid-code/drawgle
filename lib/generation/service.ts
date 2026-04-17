@@ -43,23 +43,27 @@ const fallbackScreenPlan = (prompt: string): ScreenPlan => ({
 });
 
 export const getDefaultDesignTokens = (): DesignTokens => ({
-  system_schema: "mobile_premium_flow",
+  system_schema: "mobile_universal_core",
   tokens: {
     color: {
       background: {
         primary: "#ffffff",
-        surface_elevated: "#f9fafb",
+        secondary: "#f9fafb",
+      },
+      surface: {
+        card: "#ffffff",
+        bottom_sheet: "#ffffff",
+        modal: "#ffffff",
       },
       text: {
         high_emphasis: "#111827",
         medium_emphasis: "#6b7280",
         low_emphasis: "#9ca3af",
-        action_label: "#ffffff",
       },
       action: {
-        primary_gradient_start: "#111827",
-        primary_gradient_end: "#374151",
-        on_surface_white_bg: "#ffffff",
+        primary: "#111827",
+        secondary: "#6b7280",
+        on_primary_text: "#ffffff",
         disabled: "#e5e7eb",
       },
       border: {
@@ -69,6 +73,11 @@ export const getDefaultDesignTokens = (): DesignTokens => ({
     },
     typography: {
       font_family: "Geist, Inter, sans-serif",
+      title_large: {
+        size: "32px",
+        weight: 700,
+        line_height: "40px",
+      },
       title_main: {
         size: "28px",
         weight: 700,
@@ -79,42 +88,82 @@ export const getDefaultDesignTokens = (): DesignTokens => ({
         weight: 400,
         line_height: "24px",
       },
+      body_secondary: {
+        size: "14px",
+        weight: 400,
+        line_height: "20px",
+      },
+      caption: {
+        size: "12px",
+        weight: 400,
+        line_height: "16px",
+      },
+      button_label: {
+        size: "16px",
+        weight: 600,
+        line_height: "24px",
+      },
     },
     spacing: {
+      none: "0px",
       xxs: "4px",
       xs: "8px",
       sm: "12px",
       md: "16px",
       lg: "24px",
       xl: "32px",
+      xxl: "48px",
     },
     mobile_layout: {
-      screen_margin: "24px",
+      screen_margin: "16px",
       safe_area_top: "44px",
       safe_area_bottom: "34px",
-      section_gap: "32px",
+      section_gap: "24px",
       element_gap: "16px",
     },
     sizing: {
       min_touch_target: "48px",
-      button_height_md: "48px",
+      standard_button_height: "48px",
+      standard_input_height: "48px",
+      icon_small: "20px",
+      icon_standard: "24px",
       bottom_nav_height: "80px",
-      barcode_height: "56px",
     },
     radii: {
-      none: "0px",
-      standard: "12px",
+      sharp: "0px",
+      sm: "4px",
+      md: "8px",
+      lg: "12px",
+      xl: "16px",
       pill: "9999px",
     },
     border_widths: {
       none: "0px",
-      thin: "1px",
-      focused_ring: "2px",
+      hairline: "1px",
+      thin: "2px",
+      thick: "4px",
     },
-    elevation: {
-      level_0: "none",
-      level_1: "0 2px 4px 0 rgba(0, 0, 0, 0.2)",
-      level_2: "0 4px 8px 0 rgba(0, 0, 0, 0.3)",
+    shadows: {
+      none: "none",
+      sm: "0 1px 2px 0 rgba(0, 0, 0, 0.05)",
+      md: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+      lg: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
+      upward: "0 -4px 6px -1px rgba(0, 0, 0, 0.1)",
+    },
+    opacities: {
+      transparent: "0",
+      disabled: "0.38",
+      scrim_overlay: "0.50",
+      pressed: "0.12",
+      opaque: "1",
+    },
+    z_index: {
+      base: "0",
+      sticky_header: "10",
+      bottom_nav: "20",
+      bottom_sheet: "30",
+      modal_dialog: "40",
+      toast_snackbar: "50",
     },
   },
 });

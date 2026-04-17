@@ -61,14 +61,15 @@ export function ArtDirectorPanel({ project, onGenerationStart }: ArtDirectorPane
       setTokens({
         tokens: {
           color: {
-            background: { primary: "#ffffff", surface_elevated: "#f9fafb" },
-            text: { high_emphasis: "#111827", medium_emphasis: "#6b7280", low_emphasis: "#9ca3af", action_label: "#ffffff" },
-            action: { primary_gradient_start: "#000000", primary_gradient_end: "#333333", on_surface_white_bg: "#ffffff", disabled: "#e5e7eb" },
+            background: { primary: "#ffffff", secondary: "#f9fafb" },
+            surface: { card: "#ffffff", bottom_sheet: "#ffffff", modal: "#ffffff" },
+            text: { high_emphasis: "#111827", medium_emphasis: "#6b7280", low_emphasis: "#9ca3af" },
+            action: { primary: "#000000", secondary: "#333333", on_primary_text: "#ffffff", disabled: "#e5e7eb" },
             border: { divider: "#e5e7eb", focused: "#000000" }
           },
           typography: { font_family: "Inter" },
-          radii: { none: "0px", standard: "12px", pill: "9999px" },
-          mobile_layout: { screen_margin: "24px" }
+          radii: { sharp: "0px", sm: "4px", md: "8px", lg: "12px", xl: "16px", pill: "9999px" },
+          mobile_layout: { screen_margin: "16px", safe_area_top: "44px", safe_area_bottom: "34px" }
         }
       });
     }
@@ -124,8 +125,8 @@ export function ArtDirectorPanel({ project, onGenerationStart }: ArtDirectorPane
   const t = tokens.tokens;
   const primaryBg = t.color?.background?.primary || "#ffffff";
   const primaryText = t.color?.text?.high_emphasis || "#111827";
-  const actionPrimary = t.color?.action?.primary_gradient_start || t.color?.action?.primary || "#000000";
-  const actionText = t.color?.text?.action_label || t.color?.action?.on_surface_white_bg || "#ffffff";
+  const actionPrimary = t.color?.action?.primary || t.color?.action?.primary_gradient_start || "#000000";
+  const actionText = t.color?.action?.on_primary_text || t.color?.text?.action_label || "#ffffff";
 
   return (
     <div className="absolute inset-0 bg-white md:bg-gray-50/80 md:backdrop-blur-sm z-50 flex items-center justify-center md:p-6 overflow-hidden">
@@ -145,9 +146,9 @@ export function ArtDirectorPanel({ project, onGenerationStart }: ArtDirectorPane
                 <Palette className="w-3.5 h-3.5" /> Colors
               </h3>
               <div className="grid grid-cols-2 gap-3">
-                <ColorPicker label="Accent" value={actionPrimary} onChange={(v) => handleUpdateToken(["color", "action", "primary_gradient_start"], v)} />
+                <ColorPicker label="Accent" value={actionPrimary} onChange={(v) => handleUpdateToken(["color", "action", "primary"], v)} />
                 <ColorPicker label="Background" value={primaryBg} onChange={(v) => handleUpdateToken(["color", "background", "primary"], v)} />
-                <ColorPicker label="Cards" value={t.color?.background?.surface_elevated || t.color?.surface?.card || "#ffffff"} onChange={(v) => handleUpdateToken(["color", "background", "surface_elevated"], v)} />
+                <ColorPicker label="Cards" value={t.color?.surface?.card || t.color?.background?.surface_elevated || "#ffffff"} onChange={(v) => handleUpdateToken(["color", "surface", "card"], v)} />
                 <ColorPicker label="Text" value={primaryText} onChange={(v) => handleUpdateToken(["color", "text", "high_emphasis"], v)} />
               </div>
             </div>
@@ -203,15 +204,15 @@ export function ArtDirectorPanel({ project, onGenerationStart }: ArtDirectorPane
           >
             <div className="flex-1 p-5 flex flex-col">
               <div className="flex items-center justify-between mb-6">
-                <div className="w-7 h-7 rounded-full" style={{ backgroundColor: t.color?.background?.surface_elevated || t.color?.surface?.card || '#e5e7eb' }} />
-                <div className="w-7 h-7 rounded-sm opacity-80" style={{ backgroundColor: actionPrimary, borderRadius: t.radii?.standard || t.radii?.sm || '4px' }} />
+                <div className="w-7 h-7 rounded-full" style={{ backgroundColor: t.color?.surface?.card || t.color?.background?.secondary || '#e5e7eb' }} />
+                <div className="w-7 h-7 rounded-sm opacity-80" style={{ backgroundColor: actionPrimary, borderRadius: t.radii?.sm || '4px' }} />
               </div>
               
               <h1 className="text-2xl font-bold tracking-tight mb-2" style={{ color: primaryText }}>Preview</h1>
               <p className="text-xs mb-8 opacity-60">This mock shows your active design tokens.</p>
 
               <div className="space-y-3 flex-1">
-                <div className="p-3 shadow-sm ring-1 ring-black/5" style={{ backgroundColor: t.color?.background?.surface_elevated || t.color?.surface?.card || '#ffffff', borderRadius: t.radii?.standard || t.radii?.md || '8px' }}>
+                <div className="p-3 shadow-sm ring-1 ring-black/5" style={{ backgroundColor: t.color?.surface?.card || t.color?.background?.secondary || '#ffffff', borderRadius: t.radii?.lg || t.radii?.md || '8px' }}>
                   <div className="h-3 w-1/3 rounded mb-2 opacity-20" style={{ backgroundColor: primaryText }} />
                   <div className="space-y-1.5">
                     <div className="h-2 w-full rounded opacity-10" style={{ backgroundColor: primaryText }} />
@@ -219,7 +220,7 @@ export function ArtDirectorPanel({ project, onGenerationStart }: ArtDirectorPane
                   </div>
                 </div>
                 
-                <div className="p-3 shadow-sm ring-1 ring-black/5" style={{ backgroundColor: t.color?.background?.surface_elevated || t.color?.surface?.card || '#ffffff', borderRadius: t.radii?.standard || t.radii?.md || '8px' }}>
+                <div className="p-3 shadow-sm ring-1 ring-black/5" style={{ backgroundColor: t.color?.surface?.card || t.color?.background?.secondary || '#ffffff', borderRadius: t.radii?.lg || t.radii?.md || '8px' }}>
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full opacity-10" style={{ backgroundColor: primaryText }} />
                     <div className="flex-1 space-y-1.5">
@@ -235,7 +236,7 @@ export function ArtDirectorPanel({ project, onGenerationStart }: ArtDirectorPane
                 style={{ 
                   backgroundColor: actionPrimary, 
                   color: actionText,
-                  borderRadius: t.radii?.standard || t.radii?.sm || '6px'
+                  borderRadius: t.radii?.lg || t.radii?.md || '8px'
                 }}
               >
                 Continue

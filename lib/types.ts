@@ -42,7 +42,14 @@ export interface DesignTokens {
     color?: {
       background?: {
         primary?: string;
+        secondary?: string;
         surface_elevated?: string;
+      };
+      surface?: {
+        card?: string;
+        bottom_sheet?: string;
+        modal?: string;
+        [key: string]: JsonValue | undefined;
       };
       text?: {
         high_emphasis?: string;
@@ -51,11 +58,13 @@ export interface DesignTokens {
         action_label?: string;
       };
       action?: {
+        primary?: string;
+        secondary?: string;
         primary_gradient_start?: string;
         primary_gradient_end?: string;
         on_surface_white_bg?: string;
+        on_primary_text?: string;
         disabled?: string;
-        primary?: string;
       };
       border?: {
         divider?: string;
@@ -65,12 +74,32 @@ export interface DesignTokens {
     };
     typography?: {
       font_family?: string;
+      title_large?: {
+        size?: string;
+        weight?: string | number;
+        line_height?: string;
+      };
       title_main?: {
         size?: string;
         weight?: string | number;
         line_height?: string;
       };
       body_primary?: {
+        size?: string;
+        weight?: string | number;
+        line_height?: string;
+      };
+      body_secondary?: {
+        size?: string;
+        weight?: string | number;
+        line_height?: string;
+      };
+      caption?: {
+        size?: string;
+        weight?: string | number;
+        line_height?: string;
+      };
+      button_label?: {
         size?: string;
         weight?: string | number;
         line_height?: string;
@@ -82,7 +111,10 @@ export interface DesignTokens {
     sizing?: Record<string, string>;
     radii?: Record<string, string>;
     border_widths?: Record<string, string>;
+    shadows?: Record<string, string>;
     elevation?: Record<string, string>;
+    opacities?: Record<string, string>;
+    z_index?: Record<string, string>;
     [key: string]: JsonValue | undefined;
   };
   [key: string]: JsonValue | undefined;
