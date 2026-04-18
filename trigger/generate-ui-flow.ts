@@ -1,5 +1,8 @@
 import { logger, runs, streams, task } from "@trigger.dev/sdk";
 
+import { indexScreenCode } from "@/lib/generation/block-index";
+import { assembleProjectContext } from "@/lib/generation/context";
+import { generateEmbedding, generateScreenSummary } from "@/lib/generation/embeddings";
 import { buildScreenStream, extractCode, getDefaultDesignTokens, planUiFlow } from "@/lib/generation/service";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
@@ -26,6 +29,7 @@ type BuildScreenTaskPayload = {
   designTokens?: DesignTokens | null;
   image?: PromptImagePayload | null;
   requiresBottomNav: boolean;
+  projectContext?: string | null;
 };
 
 type ReservedScreenSlot = Database["public"]["Functions"]["reserve_screen_slots"]["Returns"][number];
@@ -132,6 +136,7 @@ export const buildScreenTask = task({
         prompt: payload.prompt,
         image: payload.image,
         requiresBottomNav: payload.requiresBottomNav,
+        projectContext: payload.projectContext,
       }),
     );
 
@@ -142,6 +147,7 @@ export const buildScreenTask = task({
     }
 
     const code = extractCode(rawText);
+    const blockIndex = indexScreenCode(code);
 
     // Persist the final code directly so the parent only polls for status.
     const admin = createAdminClient();
@@ -149,6 +155,7 @@ export const buildScreenTask = task({
       .from("screens")
       .update({
         code,
+        block_index: blockIndex as never,
         status: "ready",
         error: null,
         updated_at: new Date().toISOString(),
@@ -161,6 +168,29 @@ export const buildScreenTask = task({
         error: updateError,
       });
       throw updateError;
+    }
+
+    try {
+      const summary = await generateScreenSummary(payload.screenPlan.name, code);
+      const embedding = await generateEmbedding(summary, "RETRIEVAL_DOCUMENT");
+
+      const { error: summaryUpdateError } = await admin
+        .from("screens")
+        .update({
+          summary,
+          embedding: embedding as never,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", payload.screenId);
+
+      if (summaryUpdateError) {
+        throw summaryUpdateError;
+      }
+    } catch (summaryError) {
+      logger.warn("Failed to enrich screen with summary/embedding", {
+        screenId: payload.screenId,
+        error: summaryError,
+      });
     }
 
     logger.info("Built screen", {
@@ -226,7 +256,22 @@ export const generateUiFlowTask = task({
       error: null,
     });
 
-    const promptImage = await loadPromptImage(admin, payload.imagePath);
+    const [promptImage, planningContext] = await Promise.all([
+      loadPromptImage(admin, payload.imagePath),
+      assembleProjectContext({
+        admin,
+        projectId: payload.projectId,
+        userPrompt: payload.prompt,
+      }),
+    ]);
+
+    logger.info("Assembled project context", {
+      generationRunId: payload.generationRunId,
+      projectId: payload.projectId,
+      contextChars: planningContext.length,
+      approxTokens: Math.round(planningContext.length / 4),
+    });
+
     const plan = payload.plannedScreens && payload.plannedScreens.length > 0
       ? {
           requiresBottomNav: payload.requiresBottomNav ?? false,
@@ -237,6 +282,7 @@ export const generateUiFlowTask = task({
           prompt: payload.prompt,
           image: promptImage,
           designTokens: payload.designTokens,
+          projectContext: planningContext,
         });
 
     if (plan.charter) {
@@ -244,6 +290,14 @@ export const generateUiFlowTask = task({
         project_charter: plan.charter as never,
       });
     }
+
+    const buildContext = payload.plannedScreens && payload.plannedScreens.length > 0
+      ? planningContext
+      : await assembleProjectContext({
+          admin,
+          projectId: payload.projectId,
+          userPrompt: payload.prompt,
+        });
 
     const screenPlans = plan.screens.length > 0 ? plan.screens : [{
       name: "New Screen",
@@ -290,6 +344,7 @@ export const generateUiFlowTask = task({
       designTokens: payload.designTokens,
       image: index === 0 ? promptImage : null,
       requiresBottomNav: plan.requiresBottomNav,
+      projectContext: buildContext,
     }));
 
     // Sequential "domino" execution: trigger one screen at a time so we

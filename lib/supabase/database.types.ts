@@ -153,6 +153,9 @@ export interface Database {
           name: string;
           prompt: string;
           code: string;
+          summary: string | null;
+          embedding: number[] | null;
+          block_index: Json | null;
           status: ScreenStatus;
           position_x: number;
           position_y: number;
@@ -171,6 +174,9 @@ export interface Database {
           name: string;
           prompt?: string;
           code?: string;
+          summary?: string | null;
+          embedding?: number[] | null;
+          block_index?: Json | null;
           status?: ScreenStatus;
           position_x: number;
           position_y: number;
@@ -189,6 +195,9 @@ export interface Database {
           name?: string;
           prompt?: string;
           code?: string;
+          summary?: string | null;
+          embedding?: number[] | null;
+          block_index?: Json | null;
           status?: ScreenStatus;
           position_x?: number;
           position_y?: number;
@@ -231,6 +240,20 @@ export interface Database {
     };
     Views: {};
     Functions: {
+      match_screens: {
+        Args: {
+          query_embedding: number[];
+          p_project_id: string;
+          match_threshold?: number;
+          match_count?: number;
+        };
+        Returns: {
+          screen_id: string;
+          name: string;
+          summary: string;
+          similarity: number;
+        }[];
+      };
       reserve_screen_slots: {
         Args: {
           input_project_id: string;

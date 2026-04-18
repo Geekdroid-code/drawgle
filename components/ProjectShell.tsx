@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2, Menu } from "lucide-react";
 
+import { AddScreenSidebar } from "@/components/AddScreenSidebar";
 import { CanvasArea } from "@/components/CanvasArea";
 import { GenerationProgress } from "@/components/GenerationProgress";
 import { PromptBar } from "@/components/PromptBar";
@@ -18,8 +19,10 @@ import type {
   AuthenticatedUser,
   DesignTokens,
   GenerationRunData,
+  PlannedUiFlow,
   ProjectData,
   PromptImagePayload,
+  ScreenPlan,
   ScreenData,
 } from "@/lib/types";
 
@@ -35,12 +38,44 @@ class QueueGenerationError extends Error {
   }
 }
 
+type AddScreenPlanState =
+  | {
+      status: "planning";
+      prompt: string;
+      image: PromptImagePayload | null;
+    }
+  | {
+      status: "ready";
+      prompt: string;
+      image: PromptImagePayload | null;
+      screenPlan: ScreenPlan;
+      requiresBottomNav: boolean;
+    }
+  | {
+      status: "error";
+      prompt: string;
+      image: PromptImagePayload | null;
+      error: string;
+    };
+
+class ScreenPlanningError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ScreenPlanningError";
+    this.status = status;
+  }
+}
+
 async function enqueueGeneration(input: {
   projectId: string;
   prompt: string;
   image?: PromptImagePayload | null;
   designTokens?: DesignTokens | null;
   sourceGenerationRunId?: string;
+  plannedScreens?: ScreenPlan[] | null;
+  requiresBottomNav?: boolean;
 }) {
   const response = await fetch("/api/generations", {
     method: "POST",
@@ -57,6 +92,35 @@ async function enqueueGeneration(input: {
   }
 
   return payload as { projectId: string; generationRunId: string; triggerRunId: string };
+}
+
+async function planSingleScreen(input: {
+  projectId: string;
+  prompt: string;
+  image?: PromptImagePayload | null;
+  designTokens?: DesignTokens | null;
+}) {
+  const response = await fetch("/api/plan", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      projectId: input.projectId,
+      prompt: input.prompt,
+      image: input.image ?? null,
+      designTokens: input.designTokens ?? null,
+      planningMode: "single-screen",
+    }),
+  });
+
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new ScreenPlanningError(payload.error ?? "Failed to plan screen.", response.status);
+  }
+
+  return payload as PlannedUiFlow;
 }
 
 export function ProjectShell({
@@ -79,8 +143,11 @@ export function ProjectShell({
   const [isQueueingGeneration, setIsQueueingGeneration] = useState(false);
   const [pendingQueuedRunId, setPendingQueuedRunId] = useState<string | null>(null);
   const [queueError, setQueueError] = useState<string | null>(null);
+  const [addScreenPlan, setAddScreenPlan] = useState<AddScreenPlanState | null>(null);
   const centeredRunIdRef = useRef<string | null>(null);
-  const isGenerationLocked = Boolean(generationRun) || isQueueingGeneration || Boolean(pendingQueuedRunId);
+  const planRequestIdRef = useRef(0);
+  const isGenerationBusy = Boolean(generationRun) || isQueueingGeneration || Boolean(pendingQueuedRunId);
+  const isCanvasInteractionLocked = isGenerationBusy || Boolean(addScreenPlan);
 
   useEffect(() => {
     if (!project && !isProjectLoading) {
@@ -164,8 +231,10 @@ export function ProjectShell({
     image?: PromptImagePayload | null;
     designTokens?: DesignTokens | null;
     sourceGenerationRunId?: string;
+    plannedScreens?: ScreenPlan[] | null;
+    requiresBottomNav?: boolean;
   }) => {
-    if (!project || isGenerationLocked) {
+    if (!project || isGenerationBusy) {
       return false;
     }
 
@@ -179,6 +248,8 @@ export function ProjectShell({
         image: input.image ?? null,
         designTokens: input.designTokens ?? null,
         sourceGenerationRunId: input.sourceGenerationRunId,
+        plannedScreens: input.plannedScreens ?? null,
+        requiresBottomNav: input.requiresBottomNav,
       });
 
       setPendingQueuedRunId(queuedRun.generationRunId);
@@ -206,19 +277,63 @@ export function ProjectShell({
     prompt: string;
     image?: PromptImagePayload | null;
   }) => {
-    if (!project || isGenerationLocked) {
-      return;
+    if (!project || isCanvasInteractionLocked) {
+      return false;
     }
 
-    await queueGenerationRequest({
+    setQueueError(null);
+
+    const requestId = ++planRequestIdRef.current;
+    setAddScreenPlan({
+      status: "planning",
       prompt: options.prompt,
       image: options.image ?? null,
-      designTokens: project.designTokens ?? null,
     });
+
+    try {
+      const plan = await planSingleScreen({
+        projectId: project.id,
+        prompt: options.prompt,
+        image: options.image ?? null,
+        designTokens: project.designTokens ?? null,
+      });
+
+      if (requestId !== planRequestIdRef.current) {
+        return false;
+      }
+
+      const screenPlan = plan.screens[0];
+      if (!screenPlan) {
+        throw new Error("The planner did not return a screen brief.");
+      }
+
+      setAddScreenPlan({
+        status: "ready",
+        prompt: options.prompt,
+        image: options.image ?? null,
+        screenPlan,
+        requiresBottomNav: plan.requiresBottomNav,
+      });
+
+      return true;
+    } catch (error) {
+      if (requestId !== planRequestIdRef.current) {
+        return false;
+      }
+
+      setAddScreenPlan({
+        status: "error",
+        prompt: options.prompt,
+        image: options.image ?? null,
+        error: error instanceof Error ? error.message : "Failed to plan the next screen.",
+      });
+
+      return false;
+    }
   };
 
   const handleRetryGeneration = async (run: GenerationRunData) => {
-    if (!project || isGenerationLocked) {
+    if (!project || isCanvasInteractionLocked) {
       return;
     }
 
@@ -227,6 +342,29 @@ export function ProjectShell({
       designTokens: project.designTokens ?? null,
       sourceGenerationRunId: run.id,
     });
+  };
+
+  const dismissAddScreenPlan = () => {
+    planRequestIdRef.current += 1;
+    setAddScreenPlan(null);
+  };
+
+  const handleBuildPlannedScreen = async () => {
+    if (!project || !addScreenPlan || addScreenPlan.status !== "ready") {
+      return;
+    }
+
+    const queued = await queueGenerationRequest({
+      prompt: addScreenPlan.prompt,
+      image: addScreenPlan.image,
+      designTokens: project.designTokens ?? null,
+      plannedScreens: [addScreenPlan.screenPlan],
+      requiresBottomNav: addScreenPlan.requiresBottomNav,
+    });
+
+    if (queued) {
+      dismissAddScreenPlan();
+    }
   };
 
   if (isProjectLoading || !project) {
@@ -278,15 +416,34 @@ export function ProjectShell({
               isQueueing={isQueueingGeneration || Boolean(pendingQueuedRunId)}
               queueError={queueError}
               onRetry={handleRetryGeneration}
-              retryDisabled={isGenerationLocked}
+              retryDisabled={isCanvasInteractionLocked}
             />
           </div>
 
           {!selectedScreen && (
             <div className="absolute bottom-4 left-1/2 z-40 w-full max-w-2xl -translate-x-1/2 px-4 transition-all duration-300 md:bottom-8">
-              <PromptBar project={project} onSubmit={handlePromptSubmit} disabled={isGenerationLocked} />
+              <PromptBar
+                project={project}
+                onSubmit={handlePromptSubmit}
+                disabled={isCanvasInteractionLocked}
+                submitStatusText="Planning screen..."
+              />
             </div>
           )}
+
+          <AddScreenSidebar
+            open={Boolean(addScreenPlan)}
+            projectName={project.name}
+            prompt={addScreenPlan?.prompt ?? ""}
+            image={addScreenPlan?.image ?? null}
+            screenPlan={addScreenPlan?.status === "ready" ? addScreenPlan.screenPlan : null}
+            requiresBottomNav={addScreenPlan?.status === "ready" ? addScreenPlan.requiresBottomNav : false}
+            isPlanning={addScreenPlan?.status === "planning"}
+            isBuilding={isQueueingGeneration}
+            error={addScreenPlan?.status === "error" ? addScreenPlan.error : null}
+            onCancel={dismissAddScreenPlan}
+            onBuild={() => void handleBuildPlannedScreen()}
+          />
 
           {selectedScreen && <ScreenEditorPanel screen={selectedScreen} ownerId={user.id} onClose={() => setSelectedScreen(null)} />}
         </div>

@@ -74,6 +74,8 @@ Status: implemented on Apr 18, 2026.
 
 ## Phase 2: Vector-Based Project Memory (RAG)
 
+Status: implemented on Apr 18, 2026.
+
 **Goal:** After generation, store screen summaries + vector embeddings. Use semantic similarity search (RAG) to retrieve only relevant context for new requests. Scales to 50+ screens without context blowup.
 
 ### Architecture
@@ -119,19 +121,28 @@ Status: implemented on Apr 18, 2026.
 - `npm run check` passes
 
 **Files modified:**
-- NEW: `supabase/migrations/YYYYMMDD_pgvector_screen_embeddings.sql`
+- NEW: `supabase/migrations/20260418020000_pgvector_screen_embeddings.sql`
 - NEW: `lib/generation/embeddings.ts`
 - NEW: `lib/generation/context.ts`
 - EDIT: `lib/supabase/database.types.ts` (summary + embedding columns)
 - EDIT: `lib/supabase/mappers.ts` (summary mapping — embedding stays server-side only)
 - EDIT: `lib/types.ts` (summary field on ScreenData — no embedding sent to client)
+- EDIT: `lib/supabase/queries.ts` (explicit screen column selection without embedding)
+- EDIT: `app/project/[projectId]/page.tsx` (explicit screen column selection without embedding)
 - EDIT: `trigger/generate-ui-flow.ts` (generate summaries + embeddings after build, assemble context before planning)
 - EDIT: `lib/generation/service.ts` (accept projectContext in planUiFlow, buildScreenStream)
 - EDIT: `lib/generation/prompts.ts` (context-aware planner prompt)
 
+### Implementation Notes
+- Screen enrichment is best-effort: `buildScreenTask` marks the screen `ready` first, then writes `summary` + `embedding` in a follow-up update so UI readiness is not blocked by RAG indexing.
+- `assembleProjectContext()` always includes small fixed-cost context (charter + approved design tokens) and then appends only the top semantic matches from `match_screens`.
+- Trigger logs now record retrieved context size (`contextChars` and approximate tokens) for quick verification during Phase 3 work.
+
 ---
 
 ## Phase 3: Canvas — Add-Screen Sidebar Flow
+
+Status: implemented on Apr 18, 2026.
 
 **Goal:** When user wants to add a screen on canvas, use a sidebar-based flow with planning preview before building.
 
@@ -147,9 +158,9 @@ Status: implemented on Apr 18, 2026.
   - On "Cancel": dismisses sidebar, returns to PromptBar
 
 ### 3.3 Single-Screen Generation Path
-- `app/api/generations/route.ts`: Accept optional `singleScreenPlan` parameter
-- `trigger/generate-ui-flow.ts`: If `singleScreenPlan` provided, skip planner and build just that one screen
-- Context assembler provides project memory so the new screen is coherent with existing ones
+- `app/api/plan/route.ts`: Accept optional `projectId` plus `planningMode: "single-screen"` so the planner can use RAG context and return exactly one reviewed screen brief for the existing project
+- `components/ProjectShell.tsx`: Reuse the existing `plannedScreens` path in `/api/generations` by sending an array with one reviewed screen plan after sidebar approval
+- `trigger/generate-ui-flow.ts`: Existing reviewed-plan path already skips planner when `plannedScreens` is supplied, so the canvas now reuses the same single-screen generation contract
 
 ### 3.4 Verification
 - Project with 3 screens → enter prompt in PromptBar → see sidebar with planned screen
@@ -160,9 +171,15 @@ Status: implemented on Apr 18, 2026.
 **Files modified:**
 - NEW: `components/AddScreenSidebar.tsx`
 - EDIT: `components/ProjectShell.tsx` (wire sidebar state)
-- EDIT: `components/PromptBar.tsx` (add-screen mode)
-- EDIT: `app/api/generations/route.ts` (single screen plan)
-- EDIT: `trigger/generate-ui-flow.ts` (single screen path)
+- EDIT: `components/PromptBar.tsx` (add-screen mode, no project-prompt prefill, sidebar-aware submit semantics)
+- EDIT: `app/api/plan/route.ts` (project-aware authenticated planning, single-screen mode)
+- EDIT: `lib/generation/service.ts` (single-screen planning mode)
+- EDIT: `lib/types.ts` (shared `PlanningMode` type)
+
+### Implementation Notes
+- PromptBar now clears only after a successful submit, so failed planning leaves the user's request intact for retry.
+- The add-screen sidebar opens during planning, then transitions into a reviewed brief card before any generation is queued.
+- Canvas generation still uses `/api/generations`, but now only after the user approves the reviewed single-screen plan.
 
 ---
 
@@ -212,7 +229,7 @@ Status: implemented on Apr 18, 2026.
 ---
 
 ## Decisions
-- `/api/plan` route is currently unused but will be revived in Phase 1 for the lobby page planning step
+- `/api/plan` is now used in two places: the project lobby for initial flow planning and the canvas add-screen sidebar for project-aware single-screen planning
 - `/api/build` route stays dead — building always goes through Trigger.dev
 - Draft-mode overlay is removed from canvas; the lobby now owns first-run design/planning, and `DesignSystemEditor` is the reusable editor component
 - Project prompt is no longer overwritten on each generation — charter stores the original intent, generation_runs store per-run prompts

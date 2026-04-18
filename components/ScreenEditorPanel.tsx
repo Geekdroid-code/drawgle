@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Send, Loader2, X, MessageSquare, Trash2, ChevronDown } from "lucide-react";
 import { applyEdits } from "@/lib/diff-engine";
+import { indexScreenCode } from "@/lib/generation/block-index";
 import { useScreenMessages } from "@/hooks/use-screen-messages";
 import { createClient } from "@/lib/supabase/client";
 import { deleteScreen, insertScreenMessage, updateScreenCode } from "@/lib/supabase/queries";
@@ -55,6 +56,7 @@ export function ScreenEditorPanel({
     const supabase = createClient();
 
     const userMessageContent = prompt.trim();
+    const sourceCode = screen.code;
     setPrompt("");
     setIsGenerating(true);
     
@@ -77,7 +79,8 @@ export function ScreenEditorPanel({
         body: JSON.stringify({
           screenId: screen.id,
           messages: [...messages, { role: "user", content: userMessageContent }],
-          screenCode: screen.code
+          screenCode: sourceCode,
+          blockIndex: screen.blockIndex ?? null,
         })
       });
 
@@ -105,10 +108,10 @@ export function ScreenEditorPanel({
 
       // 4. Apply edits
       if (fullResponse.includes("<edit>")) {
-        const newCode = applyEdits(screen.code, fullResponse);
+        const newCode = applyEdits(sourceCode, fullResponse);
         
-        if (newCode !== screen.code) {
-          await updateScreenCode(supabase, screen.id, newCode, "ready");
+        if (newCode !== sourceCode) {
+          await updateScreenCode(supabase, screen.id, newCode, "ready", indexScreenCode(newCode));
         }
       }
 

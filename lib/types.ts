@@ -142,6 +142,45 @@ export interface PlannedUiFlow {
   charter: ProjectCharter;
 }
 
+export type PlanningMode = "project" | "single-screen";
+
+export type ScreenBlockKind =
+  | "shell"
+  | "header"
+  | "hero"
+  | "nav"
+  | "section"
+  | "form"
+  | "list"
+  | "grid"
+  | "stats"
+  | "chart"
+  | "profile"
+  | "settings"
+  | "modal"
+  | "footer";
+
+export interface ScreenBlock {
+  id: string;
+  name: string;
+  kind: ScreenBlockKind;
+  tagName: string;
+  depth: number;
+  startOffset: number;
+  endOffset: number;
+  startLine: number;
+  endLine: number;
+  parentId?: string | null;
+  preview: string;
+  keywords: string[];
+}
+
+export interface ScreenBlockIndex {
+  version: 1;
+  rootId: string | null;
+  blocks: ScreenBlock[];
+}
+
 export interface ProjectData {
   id: string;
   ownerId?: string;
@@ -164,6 +203,8 @@ export interface ScreenData {
   name: string;
   code: string;
   prompt: string;
+  summary?: string | null;
+  blockIndex?: ScreenBlockIndex | null;
   x: number;
   y: number;
   sortIndex?: number;
@@ -205,4 +246,5 @@ export interface BuildScreenInput {
   prompt: string;
   image?: PromptImagePayload | null;
   requiresBottomNav: boolean;
+  projectContext?: string | null;
 }

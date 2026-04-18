@@ -4,6 +4,7 @@ import type {
   Database,
   MessageRole,
   ProjectStatus,
+  ScreenRow,
   ScreenStatus,
 } from "@/lib/supabase/database.types";
 import {
@@ -12,9 +13,30 @@ import {
   mapScreenMessageRow,
   mapScreenRow,
 } from "@/lib/supabase/mappers";
-import type { DesignTokens, GenerationRunData, Message, ProjectCharter, ProjectData, ScreenData } from "@/lib/types";
+import type { DesignTokens, GenerationRunData, Message, ProjectCharter, ProjectData, ScreenBlockIndex, ScreenData } from "@/lib/types";
 
 type Client = SupabaseClient<Database>;
+
+export const SCREEN_SELECT_COLUMNS = [
+  "id",
+  "project_id",
+  "owner_id",
+  "generation_run_id",
+  "name",
+  "prompt",
+  "code",
+  "summary",
+  "block_index",
+  "status",
+  "position_x",
+  "position_y",
+  "sort_index",
+  "error",
+  "trigger_run_id",
+  "stream_public_token",
+  "created_at",
+  "updated_at",
+].join(", ");
 
 export async function fetchProjects(client: Client): Promise<ProjectData[]> {
   const { data, error } = await client.from("projects").select("*").order("updated_at", { ascending: false });
@@ -39,7 +61,7 @@ export async function fetchProject(client: Client, projectId: string): Promise<P
 export async function fetchScreens(client: Client, projectId: string): Promise<ScreenData[]> {
   const { data, error } = await client
     .from("screens")
-    .select("*")
+    .select(SCREEN_SELECT_COLUMNS)
     .eq("project_id", projectId)
     .order("sort_index", { ascending: true });
 
@@ -47,7 +69,7 @@ export async function fetchScreens(client: Client, projectId: string): Promise<S
     throw error;
   }
 
-  return (data ?? []).map(mapScreenRow);
+  return ((data ?? []) as unknown as ScreenRow[]).map(mapScreenRow);
 }
 
 export async function fetchScreenMessages(client: Client, screenId: string): Promise<Message[]> {
@@ -163,6 +185,7 @@ export async function updateScreenCode(
   screenId: string,
   code: string,
   status?: ScreenStatus,
+  blockIndex?: ScreenBlockIndex | null,
 ) {
   const update: Database["public"]["Tables"]["screens"]["Update"] = {
     code,
@@ -170,6 +193,10 @@ export async function updateScreenCode(
 
   if (status) {
     update.status = status;
+  }
+
+  if (blockIndex !== undefined) {
+    update.block_index = blockIndex as never;
   }
 
   const { error } = await client.from("screens").update(update).eq("id", screenId);

@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 
 import { ProjectShell } from "@/components/ProjectShell";
+import type { ScreenRow } from "@/lib/supabase/database.types";
 import { mapAuthenticatedUser, mapGenerationRunRow, mapProjectRow, mapScreenRow } from "@/lib/supabase/mappers";
+import { SCREEN_SELECT_COLUMNS } from "@/lib/supabase/queries";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function ProjectPage({
@@ -23,7 +25,7 @@ export default async function ProjectPage({
   const [{ data: projectRow, error: projectError }, { data: screenRows, error: screensError }, { data: generationRunRows, error: generationRunsError }] =
     await Promise.all([
       supabase.from("projects").select("*").eq("id", projectId).maybeSingle(),
-      supabase.from("screens").select("*").eq("project_id", projectId).order("sort_index", { ascending: true }),
+      supabase.from("screens").select(SCREEN_SELECT_COLUMNS).eq("project_id", projectId).order("sort_index", { ascending: true }),
       supabase
         .from("generation_runs")
         .select("*")
@@ -48,7 +50,7 @@ export default async function ProjectPage({
     <ProjectShell
       user={mapAuthenticatedUser(user)}
       initialProject={mapProjectRow(projectRow)}
-      initialScreens={(screenRows ?? []).map(mapScreenRow)}
+      initialScreens={((screenRows ?? []) as unknown as ScreenRow[]).map(mapScreenRow)}
       initialGenerationRuns={(generationRunRows ?? []).map(mapGenerationRunRow)}
     />
   );

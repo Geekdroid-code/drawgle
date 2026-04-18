@@ -6,6 +6,8 @@ import type { BuildScreenInput, DesignTokens, ScreenPlan } from "@/lib/types";
 
 export const plannerInstruction = `You are an expert UX Architect. The user will describe an app, a flow, or a single screen.
 Your job is to determine the required screens to fulfill the request and produce a durable project charter for later generations.
+You may also receive CURRENT PROJECT CONTEXT containing the existing charter, approved design tokens, and semantically retrieved screen summaries from the same project.
+Use that context to stay consistent with what already exists and avoid planning duplicate screens unless the user explicitly asks for a replacement.
 
 If the user asks for a specific screen (e.g., "a profile screen") or uploads a single sketch, return 1 screen.
 If they ask for a flow or full app (e.g., "onboarding flow", "food delivery app"), return multiple screens (usually 2-8).
@@ -37,7 +39,8 @@ Rules:
 - The first screen should ALWAYS have type "root". Subsequent screens should be "detail".
 - originalPrompt must preserve the user's product intent, not just paraphrase the latest sentence fragment.
 - If an image is present, imageReferenceSummary must explain how it should influence the build; otherwise return null.
-- keyFeatures should be concise, durable product capabilities rather than screen names.`;
+- keyFeatures should be concise, durable product capabilities rather than screen names.
+- If CURRENT PROJECT CONTEXT is present, extend the existing product architecture and naming instead of reinventing it.`;
 
 // ---------------------------------------------------------------------------
 // DESIGN — Art Director / Token System
@@ -104,7 +107,9 @@ Rules:
 4. To delete code, include it in <search> and leave <replace> empty.
 5. DO NOT output the entire file. ONLY output the <edit> blocks.
 6. If the user asks a general question, you can answer in plain text outside the <edit> blocks.
-7. IMPORTANT: Do NOT wrap the UI in a phone frame, device mockup, or add a notch/status bar. The rendering environment already provides a mobile device frame. Your code should just be the app content.`;
+7. If the request includes TARGET BLOCKS and SURROUNDING CONTEXT, treat TARGET BLOCKS as the editable source of truth and only touch CONTEXT blocks when required for the requested change.
+8. Never invent edits for parts of the screen that were not provided in the current code context.
+9. IMPORTANT: Do NOT wrap the UI in a phone frame, device mockup, or add a notch/status bar. The rendering environment already provides a mobile device frame. Your code should just be the app content.`;
 
 // ---------------------------------------------------------------------------
 // BUILD — Screen Code Generator
@@ -176,5 +181,6 @@ RULES:
 5. Do NOT wrap the UI in a phone frame or add a status bar.
 6. Return ONLY valid HTML code with Tailwind classes. Do NOT wrap in markdown blocks like \`\`\`html.
 7. Do NOT include <html>, <head>, or <body> tags. Just the content.
-8. Use Lucide icons via standard SVG or <i data-lucide="icon-name"></i> tags.`;
+8. Use Lucide icons via standard SVG or <i data-lucide="icon-name"></i> tags.
+9. If additional project memory context is supplied in the request, keep naming, information architecture, and interaction patterns aligned with it without cloning an existing screen verbatim.`;
 };

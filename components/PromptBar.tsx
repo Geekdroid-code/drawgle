@@ -9,13 +9,14 @@ export function PromptBar({
   onSubmit,
   project,
   disabled = false,
+  submitStatusText = "Queueing generation...",
 }: { 
-  onSubmit?: (options: { prompt: string, image?: PromptImagePayload | null }) => Promise<void>,
+  onSubmit?: (options: { prompt: string, image?: PromptImagePayload | null }) => Promise<boolean>,
   project?: ProjectData,
   disabled?: boolean,
+  submitStatusText?: string,
 }) {
-  // Pre-fill prompt if project prompt exists but we're starting a new project canvas session
-  const [prompt, setPrompt] = useState(project?.prompt || "");
+  const [prompt, setPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [agentStatus, setAgentStatus] = useState("");
   const [image, setImage] = useState<PromptImagePayload | null>(null);
@@ -38,17 +39,19 @@ export function PromptBar({
     if ((!prompt.trim() && !image) || disabled) return;
 
     setIsGenerating(true);
-     setAgentStatus("Queueing generation...");
+    setAgentStatus(submitStatusText);
     
     try {
       if (onSubmit) {
-        await onSubmit({ prompt, image });
+        const didSubmit = await onSubmit({ prompt, image });
+
+        if (didSubmit) {
+          setPrompt("");
+          setImage(null);
+        }
       }
-      setPrompt("");
-      setImage(null);
     } catch (error: any) {
       console.error("Pipeline error:", error);
-      alert("Failed to process the request. Please try again.");
     } finally {
       setIsGenerating(false);
       setAgentStatus("");
@@ -84,7 +87,7 @@ export function PromptBar({
         </div>
       )}
       <Textarea 
-        placeholder="What native mobile app shall we design?"
+        placeholder={project ? "Describe the next screen to add to this app..." : "What native mobile app shall we design?"}
         className="min-h-[80px] resize-none border-none focus-visible:ring-0 text-base bg-transparent px-3 py-2"
         value={prompt}
         onChange={(e) => setPrompt(e.target.value)}

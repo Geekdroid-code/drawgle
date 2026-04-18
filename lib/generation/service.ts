@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { createGeminiClient } from "@/lib/ai/gemini";
 import { applyEdits } from "@/lib/diff-engine";
+import { buildScopedEditContext } from "@/lib/generation/block-index";
 import {
   buildSystemInstruction,
   designInstruction,
@@ -14,9 +15,11 @@ import type {
   BuildScreenInput,
   DesignTokens,
   Message,
+  PlanningMode,
   PlannedUiFlow,
   PromptImagePayload,
   ProjectCharter,
+  ScreenBlockIndex,
   ScreenPlan,
 } from "@/lib/types";
 
@@ -239,10 +242,14 @@ export async function planUiFlow({
   prompt,
   image,
   designTokens,
+  projectContext,
+  planningMode = "project",
 }: {
   prompt: string;
   image?: PromptImagePayload | null;
   designTokens?: DesignTokens | null;
+  projectContext?: string | null;
+  planningMode?: PlanningMode;
 }): Promise<PlannedUiFlow> {
   const ai = createGeminiClient();
   const parts: Array<Record<string, unknown>> = [];
@@ -259,6 +266,18 @@ export async function planUiFlow({
   if (designTokens?.tokens) {
     parts.push({
       text: `Approved Design Tokens:\n${JSON.stringify(designTokens.tokens, null, 2)}`,
+    });
+  }
+
+  if (projectContext?.trim()) {
+    parts.push({
+      text: `Current Project Context:\n${projectContext}`,
+    });
+  }
+
+  if (planningMode === "single-screen") {
+    parts.push({
+      text: "Planning Mode: Return exactly 1 additional screen for an existing project. Do not return a multi-screen flow.",
     });
   }
 
@@ -286,7 +305,7 @@ export async function planUiFlow({
   return {
     requiresBottomNav: parsed.data.requires_bottom_nav,
     charter: parsed.data.charter,
-    screens: parsed.data.screens,
+    screens: planningMode === "single-screen" ? parsed.data.screens.slice(0, 1) : parsed.data.screens,
   };
 }
 
@@ -352,6 +371,12 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
     text: `Build the UI for ${input.screenPlan.name}. Original context prompt: "${input.prompt || "No overarching prompt provided."}"`,
   });
 
+  if (input.projectContext?.trim()) {
+    parts.push({
+      text: `Existing Project Memory:\n${input.projectContext}`,
+    });
+  }
+
   const responseStream = await ai.models.generateContentStream({
     model: "gemini-3-flash-preview",
     contents: { parts },
@@ -388,9 +413,13 @@ export async function buildScreenCode(input: BuildScreenInput) {
 export async function* editScreenStream({
   messages,
   screenCode,
+  blockIndex,
+  targetBlockIds,
 }: {
   messages: Array<Pick<Message, "role" | "content">>;
   screenCode: string;
+  blockIndex?: ScreenBlockIndex | null;
+  targetBlockIds?: string[];
 }) {
   const ai = createGeminiClient();
   const history = messages.map((message) => ({
@@ -407,8 +436,25 @@ export async function* editScreenStream({
     },
   });
 
+  const latestUserPrompt = [...messages].reverse().find((message) => message.role === "user")?.content ?? "";
+  const scopedContext = blockIndex && targetBlockIds && targetBlockIds.length > 0
+    ? buildScopedEditContext({
+        screenCode,
+        blockIndex,
+        targetBlockIds,
+      })
+    : null;
+
+  const editMessage = scopedContext
+    ? [
+        `User edit request: ${latestUserPrompt || "Apply the requested changes."}`,
+        scopedContext,
+        "Return ONLY <edit> blocks that match the provided snippets.",
+      ].join("\n\n")
+    : `Here is the current code:\n\n\`\`\`html\n${screenCode}\n\`\`\``;
+
   const responseStream = await chat.sendMessageStream({
-    message: `Here is the current code:\n\n\`\`\`html\n${screenCode}\n\`\`\``,
+    message: editMessage,
   });
 
   for await (const chunk of responseStream) {
