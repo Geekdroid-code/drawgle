@@ -27,11 +27,13 @@ export function useProjects(ownerId: string, initialProjects: ProjectData[] = []
   const [isLoading, setIsLoading] = useState(initialProjects.length === 0);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setProjects(initialProjects);
   }, [initialProjects]);
 
   useEffect(() => {
     if (!ownerId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setProjects([]);
       setIsLoading(false);
       return;

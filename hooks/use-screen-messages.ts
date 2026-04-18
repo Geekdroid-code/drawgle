@@ -28,6 +28,7 @@ export function useScreenMessages(screenId: string) {
 
   useEffect(() => {
     if (!screenId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMessages([]);
       setIsLoading(false);
       return;

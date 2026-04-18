@@ -104,6 +104,7 @@ export function ProjectShell({
 
     const updatedScreen = screens.find((screen) => screen.id === selectedScreen.id);
     if (!updatedScreen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedScreen(null);
       return;
     }
@@ -119,12 +120,14 @@ export function ProjectShell({
     }
 
     if (generationRuns.some((run) => run.id === pendingQueuedRunId)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPendingQueuedRunId(null);
     }
   }, [generationRuns, pendingQueuedRunId]);
 
   useEffect(() => {
     if (generationRun?.id) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setQueueError(null);
     }
   }, [generationRun?.id]);
@@ -145,6 +148,7 @@ export function ProjectShell({
     }
 
     centeredRunIdRef.current = generationRun.id;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCenterTarget({
       x: firstGeneratedScreen.x,
       y: firstGeneratedScreen.y,

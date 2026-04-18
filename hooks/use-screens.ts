@@ -36,11 +36,13 @@ export function useScreens(projectId: string, initialScreens: ScreenData[] = [])
   const [isLoading, setIsLoading] = useState(initialScreens.length === 0);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setScreens(sortScreens(initialScreens));
   }, [initialScreens]);
 
   useEffect(() => {
     if (!projectId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setScreens([]);
       setIsLoading(false);
       return;

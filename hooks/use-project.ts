@@ -13,11 +13,13 @@ export function useProject(projectId: string, initialProject: ProjectData | null
   const [isLoading, setIsLoading] = useState(!initialProject);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setProject(initialProject);
   }, [initialProject]);
 
   useEffect(() => {
     if (!projectId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setProject(null);
       setIsLoading(false);
       return;

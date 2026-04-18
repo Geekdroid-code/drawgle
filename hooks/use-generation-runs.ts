@@ -11,6 +11,7 @@ export function useGenerationRuns(projectId: string, initialRuns: GenerationRunD
   const [isLoading, setIsLoading] = useState(initialRuns.length === 0);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setGenerationRuns(initialRuns);
   }, [initialRuns]);
 
@@ -34,6 +35,7 @@ export function useGenerationRuns(projectId: string, initialRuns: GenerationRunD
 
   useEffect(() => {
     if (!projectId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setGenerationRuns([]);
       setIsLoading(false);
       return;

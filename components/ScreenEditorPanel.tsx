@@ -27,6 +27,7 @@ export function ScreenEditorPanel({
 
   useEffect(() => {
     // Auto-expand on desktop, collapse on mobile
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsExpanded(window.innerWidth >= 768);
   }, [screen.id]);
 

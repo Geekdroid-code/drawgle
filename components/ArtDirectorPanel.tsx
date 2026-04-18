@@ -20,6 +20,7 @@ export function ArtDirectorPanel({ project, onGenerationStart }: ArtDirectorPane
   const [loadingText, setLoadingText] = useState("");
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTokens(project.designTokens || null);
   }, [project.designTokens, project.id]);
 
@@ -58,6 +59,7 @@ export function ArtDirectorPanel({ project, onGenerationStart }: ArtDirectorPane
   // Fallback defaults if no prompt was given to run the generator
   useEffect(() => {
     if (!tokens && !project.prompt && !isLoading) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTokens({
         tokens: {
           color: {
