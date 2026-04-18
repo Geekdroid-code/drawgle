@@ -9,6 +9,13 @@ import { createClient } from "@/lib/supabase/client";
 import { deleteScreen, updateScreenPosition } from "@/lib/supabase/queries";
 import { useRealtimeRunWithStreams } from "@trigger.dev/react-hooks";
 
+/** Strip markdown fences so the iframe always receives usable HTML. */
+const stripFences = (text: string): string => {
+  const match = text.match(/```(?:html)?\n([\s\S]*?)\n```/i);
+  if (match) return match[1].trim();
+  return text.replace(/^```html\n/i, "").replace(/\n```$/, "").trim();
+};
+
 export function ScreenNode({ 
   screen, 
   isSelected, 
@@ -43,7 +50,7 @@ export function ScreenNode({
   const streamedCode = useMemo(() => {
     const chunks = (triggerStreams as Record<string, string[]>)?.code;
     if (!chunks || chunks.length === 0) return null;
-    return chunks.join("");
+    return stripFences(chunks.join(""));
   }, [triggerStreams]);
 
   // Derive display code: prefer live stream while building, fall back to DB code.

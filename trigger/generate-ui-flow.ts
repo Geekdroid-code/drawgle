@@ -195,6 +195,19 @@ export const generateUiFlowTask = task({
     await updateProject(admin, payload.projectId, {
       status: "failed",
     });
+
+    // Mark any placeholder screens from this run as failed so they
+    // don't stay stuck in the "building" spinner forever.
+    await admin
+      .from("screens")
+      .update({
+        status: "failed",
+        error: message,
+        code: buildErrorCode(message),
+        updated_at: now(),
+      })
+      .eq("generation_run_id", payload.generationRunId)
+      .eq("status", "building");
   },
   run: async (payload: GenerateUiFlowPayload) => {
     const admin = createAdminClient();
@@ -285,10 +298,9 @@ export const generateUiFlowTask = task({
         .eq("id", screen.id);
 
       if (screenUpdateError) {
-        logger.error("Failed to save trigger_run_id to screen", {
-          screenId: screen.id,
-          error: screenUpdateError,
-        });
+        throw new Error(
+          `Failed to save trigger_run_id to screen ${screen.id}: ${screenUpdateError.message}`,
+        );
       }
     }
 
