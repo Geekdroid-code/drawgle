@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2, Menu } from "lucide-react";
 
-import { ArtDirectorPanel } from "@/components/ArtDirectorPanel";
 import { CanvasArea } from "@/components/CanvasArea";
 import { GenerationProgress } from "@/components/GenerationProgress";
 import { PromptBar } from "@/components/PromptBar";
@@ -15,8 +14,6 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useGenerationRuns } from "@/hooks/use-generation-runs";
 import { useProject } from "@/hooks/use-project";
 import { useScreens } from "@/hooks/use-screens";
-import { createClient } from "@/lib/supabase/client";
-import { updateProjectFields } from "@/lib/supabase/queries";
 import type {
   AuthenticatedUser,
   DesignTokens,
@@ -25,11 +22,6 @@ import type {
   PromptImagePayload,
   ScreenData,
 } from "@/lib/types";
-
-type PendingGenerationOptions = {
-  prompt: string;
-  image?: PromptImagePayload | null;
-};
 
 class QueueGenerationError extends Error {
   status: number;
@@ -84,7 +76,6 @@ export function ProjectShell({
   const { generationRun, generationRuns, refreshGenerationRuns } = useGenerationRuns(initialProject.id, initialGenerationRuns);
   const [centerTarget, setCenterTarget] = useState<{ x: number; y: number; timestamp: number } | null>(null);
   const [selectedScreen, setSelectedScreen] = useState<ScreenData | null>(null);
-  const [pendingGeneration, setPendingGeneration] = useState<PendingGenerationOptions | null>(null);
   const [isQueueingGeneration, setIsQueueingGeneration] = useState(false);
   const [pendingQueuedRunId, setPendingQueuedRunId] = useState<string | null>(null);
   const [queueError, setQueueError] = useState<string | null>(null);
@@ -214,21 +205,8 @@ export function ProjectShell({
   const handlePromptSubmit = async (options: {
     prompt: string;
     image?: PromptImagePayload | null;
-    needsDesign: boolean;
   }) => {
     if (!project || isGenerationLocked) {
-      return;
-    }
-
-    const supabase = createClient();
-
-    if (options.needsDesign) {
-      setPendingGeneration({ prompt: options.prompt, image: options.image ?? null });
-      setQueueError(null);
-      await updateProjectFields(supabase, project.id, {
-        prompt: options.prompt,
-        status: "draft",
-      });
       return;
     }
 
@@ -237,27 +215,6 @@ export function ProjectShell({
       image: options.image ?? null,
       designTokens: project.designTokens ?? null,
     });
-  };
-
-  const handleGenerationStart = async (designTokens: DesignTokens) => {
-    if (!project || isGenerationLocked) {
-      return;
-    }
-
-    const queuedPrompt = pendingGeneration?.prompt ?? project.prompt;
-    if (!queuedPrompt.trim()) {
-      return;
-    }
-
-    const didQueue = await queueGenerationRequest({
-      prompt: queuedPrompt,
-      image: pendingGeneration?.image ?? null,
-      designTokens,
-    });
-
-    if (didQueue) {
-      setPendingGeneration(null);
-    }
   };
 
   const handleRetryGeneration = async (run: GenerationRunData) => {
@@ -326,22 +283,12 @@ export function ProjectShell({
           </div>
 
           {!selectedScreen && (
-            <div
-              className={`absolute bottom-4 left-1/2 z-40 w-full max-w-2xl -translate-x-1/2 px-4 transition-all duration-300 md:bottom-8 ${
-                project.status === "draft" ? "pointer-events-none translate-y-8 opacity-0" : "translate-y-0 opacity-100"
-              }`}
-            >
+            <div className="absolute bottom-4 left-1/2 z-40 w-full max-w-2xl -translate-x-1/2 px-4 transition-all duration-300 md:bottom-8">
               <PromptBar project={project} onSubmit={handlePromptSubmit} disabled={isGenerationLocked} />
             </div>
           )}
 
           {selectedScreen && <ScreenEditorPanel screen={selectedScreen} ownerId={user.id} onClose={() => setSelectedScreen(null)} />}
-
-          {project.status === "draft" && (
-            <div className="absolute inset-0 z-50 flex items-center justify-center p-4 pb-20 md:p-6">
-              <ArtDirectorPanel project={project} draftImage={pendingGeneration?.image ?? null} onGenerationStart={handleGenerationStart} />
-            </div>
-          )}
         </div>
       </main>
     </div>

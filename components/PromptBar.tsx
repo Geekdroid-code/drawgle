@@ -10,7 +10,7 @@ export function PromptBar({
   project,
   disabled = false,
 }: { 
-  onSubmit?: (options: { prompt: string, image?: PromptImagePayload | null, needsDesign: boolean }) => Promise<void>,
+  onSubmit?: (options: { prompt: string, image?: PromptImagePayload | null }) => Promise<void>,
   project?: ProjectData,
   disabled?: boolean,
 }) {
@@ -38,19 +38,14 @@ export function PromptBar({
     if ((!prompt.trim() && !image) || disabled) return;
 
     setIsGenerating(true);
-    // Determine if we need to kick off design tokens (true if they are completely missing)
-    const needsDesign = !project?.designTokens;
-    setAgentStatus(needsDesign ? "Requesting Art Director..." : "Queueing generation...");
+     setAgentStatus("Queueing generation...");
     
     try {
       if (onSubmit) {
-         await onSubmit({ prompt, image, needsDesign });
+        await onSubmit({ prompt, image });
       }
-      if (!needsDesign) {
-         // Only clearing if we're not heading into ArtDirector popup
-         setPrompt("");
-         setImage(null);
-      }
+      setPrompt("");
+      setImage(null);
     } catch (error: any) {
       console.error("Pipeline error:", error);
       alert("Failed to process the request. Please try again.");

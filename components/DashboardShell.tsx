@@ -8,8 +8,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useProjects } from "@/hooks/use-projects";
-import { createClient } from "@/lib/supabase/client";
-import { createProject } from "@/lib/supabase/queries";
 import type { AuthenticatedUser, ProjectData } from "@/lib/types";
 
 export function DashboardShell({
@@ -33,21 +31,7 @@ export function DashboardShell({
     }
 
     setIsCreating(true);
-
-    try {
-      const supabase = createClient();
-      const project = await createProject(supabase, {
-        ownerId: user.id,
-        name: newProjectPrompt.trim(),
-        prompt: "",
-        status: "active",
-      });
-
-      router.push(`/project/${project.id}`);
-    } catch (error) {
-      console.error("Failed to create project", error);
-      setIsCreating(false);
-    }
+    router.push(`/project/new?prompt=${encodeURIComponent(newProjectPrompt.trim())}`);
   };
 
   const handleSignOut = async () => {

@@ -11,6 +11,7 @@ import type {
   DesignTokens,
   GenerationRunData,
   Message,
+  ProjectCharter,
   ProjectData,
   ScreenData,
 } from "@/lib/types";
@@ -32,6 +33,7 @@ export function mapProjectRow(row: ProjectRow): ProjectData {
     name: row.name,
     prompt: row.prompt,
     status: row.status,
+    charter: (row.project_charter as ProjectCharter | null) ?? null,
     designTokens: (row.design_tokens as DesignTokens | null) ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

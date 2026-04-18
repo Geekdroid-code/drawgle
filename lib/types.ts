@@ -120,10 +120,26 @@ export interface DesignTokens {
   [key: string]: JsonValue | undefined;
 }
 
+export interface ProjectCharter {
+  originalPrompt: string;
+  imageReferenceSummary?: string | null;
+  appType: string;
+  targetAudience: string;
+  navigationModel: string;
+  keyFeatures: string[];
+  designRationale: string;
+}
+
 export interface ScreenPlan {
   name: string;
   type: 'root' | 'detail';
   description: string;
+}
+
+export interface PlannedUiFlow {
+  requiresBottomNav: boolean;
+  screens: ScreenPlan[];
+  charter: ProjectCharter;
 }
 
 export interface ProjectData {
@@ -133,6 +149,7 @@ export interface ProjectData {
   name: string;
   prompt: string;
   status: ProjectStatus;
+  charter?: ProjectCharter | null;
   designTokens?: DesignTokens | null;
   createdAt: string;
   updatedAt: string;

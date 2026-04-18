@@ -12,7 +12,7 @@ import {
   mapScreenMessageRow,
   mapScreenRow,
 } from "@/lib/supabase/mappers";
-import type { DesignTokens, GenerationRunData, Message, ProjectData, ScreenData } from "@/lib/types";
+import type { DesignTokens, GenerationRunData, Message, ProjectCharter, ProjectData, ScreenData } from "@/lib/types";
 
 type Client = SupabaseClient<Database>;
 
@@ -86,6 +86,7 @@ export async function createProject(
     name: string;
     prompt?: string;
     status?: ProjectStatus;
+    charter?: ProjectCharter | null;
   },
 ): Promise<ProjectData> {
   const { data, error } = await client
@@ -95,6 +96,7 @@ export async function createProject(
       name: input.name,
       prompt: input.prompt ?? "",
       status: input.status ?? "active",
+      project_charter: (input.charter ?? null) as never,
     })
     .select("*")
     .single();
@@ -113,6 +115,7 @@ export async function updateProjectFields(
     name?: string;
     prompt?: string;
     status?: ProjectStatus;
+    charter?: ProjectCharter | null;
     designTokens?: DesignTokens | null;
   },
 ) {
@@ -126,6 +129,9 @@ export async function updateProjectFields(
   }
   if (patch.status !== undefined) {
     update.status = patch.status;
+  }
+  if (patch.charter !== undefined) {
+    update.project_charter = patch.charter as never;
   }
   if (patch.designTokens !== undefined) {
     update.design_tokens = patch.designTokens as never;

@@ -58,6 +58,7 @@ export interface Database {
           name: string;
           prompt: string;
           status: ProjectStatus;
+          project_charter: Json | null;
           design_tokens: Json | null;
           next_screen_x: number;
           screen_origin_y: number;
@@ -70,6 +71,7 @@ export interface Database {
           name: string;
           prompt?: string;
           status?: ProjectStatus;
+          project_charter?: Json | null;
           design_tokens?: Json | null;
           next_screen_x?: number;
           screen_origin_y?: number;
@@ -82,6 +84,7 @@ export interface Database {
           name?: string;
           prompt?: string;
           status?: ProjectStatus;
+          project_charter?: Json | null;
           design_tokens?: Json | null;
           next_screen_x?: number;
           screen_origin_y?: number;

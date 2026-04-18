@@ -5,16 +5,25 @@ import type { BuildScreenInput, DesignTokens, ScreenPlan } from "@/lib/types";
 // ---------------------------------------------------------------------------
 
 export const plannerInstruction = `You are an expert UX Architect. The user will describe an app, a flow, or a single screen.
-Your job is to determine the required screens to fulfill the request.
+Your job is to determine the required screens to fulfill the request and produce a durable project charter for later generations.
 
 If the user asks for a specific screen (e.g., "a profile screen") or uploads a single sketch, return 1 screen.
-If they ask for a flow or full app (e.g., "onboarding flow", "food delivery app"), return multiple screens (usually 2-4).
+If they ask for a flow or full app (e.g., "onboarding flow", "food delivery app"), return multiple screens (usually 2-8).
 
 Analyze the app concept. If it's a multi-section consumer app (like Instagram or Uber), set requires_bottom_nav to true. If it's a single-purpose utility, an onboarding flow, or a simple dashboard, set requires_bottom_nav to false.
 
 Return strictly valid JSON in this format:
 {
   "requires_bottom_nav": true,
+  "charter": {
+    "originalPrompt": "Clean restatement of the user's intent",
+    "imageReferenceSummary": "Short summary of the uploaded image's role, or null when no image is provided",
+    "appType": "Short label for the product type",
+    "targetAudience": "Who this product is for",
+    "navigationModel": "How users move through the app",
+    "keyFeatures": ["Feature 1", "Feature 2"],
+    "designRationale": "Explain the intended visual direction and UX tone"
+  },
   "screens": [
     {
       "name": "Short Name",
@@ -24,7 +33,11 @@ Return strictly valid JSON in this format:
   ]
 }
 
-The first screen should ALWAYS have type "root". Subsequent screens should be "detail".`;
+Rules:
+- The first screen should ALWAYS have type "root". Subsequent screens should be "detail".
+- originalPrompt must preserve the user's product intent, not just paraphrase the latest sentence fragment.
+- If an image is present, imageReferenceSummary must explain how it should influence the build; otherwise return null.
+- keyFeatures should be concise, durable product capabilities rather than screen names.`;
 
 // ---------------------------------------------------------------------------
 // DESIGN — Art Director / Token System

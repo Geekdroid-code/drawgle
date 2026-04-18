@@ -7,7 +7,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
-import { ACTIVE_GENERATION_STATUSES, type DesignTokens, type GenerationStatus } from "@/lib/types";
+import { ACTIVE_GENERATION_STATUSES, type DesignTokens, type GenerationStatus, type ProjectCharter, type ScreenPlan } from "@/lib/types";
 import type { generateUiFlowTask } from "@/trigger/generate-ui-flow";
 
 export const runtime = "nodejs";
@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 const requestSchema = z.object({
   projectId: z.string().uuid().optional(),
   projectName: z.string().trim().min(1).max(100).optional(),
-  prompt: z.string().trim().min(1).max(10000),
+  prompt: z.string().trim().max(10000),
   sourceGenerationRunId: z.string().uuid().optional(),
   image: z
     .object({
@@ -25,7 +25,38 @@ const requestSchema = z.object({
     })
     .nullable()
     .optional(),
+  plannedScreens: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1).max(100),
+        type: z.enum(["root", "detail"]),
+        description: z.string().trim().min(1).max(4000),
+      }),
+    )
+    .min(1)
+    .max(8)
+    .optional(),
+  requiresBottomNav: z.boolean().optional(),
+  projectCharter: z
+    .object({
+      originalPrompt: z.string().trim().min(1).max(10000),
+      imageReferenceSummary: z.string().trim().max(4000).nullable().optional(),
+      appType: z.string().trim().min(1).max(120),
+      targetAudience: z.string().trim().min(1).max(240),
+      navigationModel: z.string().trim().min(1).max(240),
+      keyFeatures: z.array(z.string().trim().min(1).max(240)).min(1).max(16),
+      designRationale: z.string().trim().min(1).max(4000),
+    })
+    .optional(),
   designTokens: z.unknown().nullable().optional(),
+}).superRefine((value, ctx) => {
+  if (!value.prompt.trim() && !value.image) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Provide a prompt, a reference image, or both.",
+      path: ["prompt"],
+    });
+  }
 });
 
 const now = () => new Date().toISOString();
@@ -99,6 +130,8 @@ export async function POST(request: Request) {
     const payload = requestSchema.parse(await request.json());
     const ownerId = authData.user.id;
     const designTokens = (payload.designTokens ?? null) as DesignTokens | null;
+    const plannedScreens = (payload.plannedScreens ?? null) as ScreenPlan[] | null;
+    const projectCharter = (payload.projectCharter ?? null) as ProjectCharter | null;
 
     projectId = payload.projectId;
 
@@ -127,7 +160,6 @@ export async function POST(request: Request) {
       }
 
       const projectUpdate: Database["public"]["Tables"]["projects"]["Update"] = {
-        prompt: payload.prompt,
         status: "queued",
         updated_at: now(),
       };
@@ -148,6 +180,7 @@ export async function POST(request: Request) {
           name: deriveProjectName(payload.prompt, payload.projectName),
           prompt: payload.prompt,
           status: "queued",
+          project_charter: projectCharter as never,
           design_tokens: designTokens as never,
           created_at: now(),
           updated_at: now(),
@@ -226,6 +259,9 @@ export async function POST(request: Request) {
         prompt: payload.prompt,
         imagePath,
         designTokens,
+        plannedScreens,
+        requiresBottomNav: payload.requiresBottomNav,
+        projectCharter,
       },
       {
         concurrencyKey: ownerId,

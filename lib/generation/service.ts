@@ -14,7 +14,9 @@ import type {
   BuildScreenInput,
   DesignTokens,
   Message,
+  PlannedUiFlow,
   PromptImagePayload,
+  ProjectCharter,
   ScreenPlan,
 } from "@/lib/types";
 
@@ -26,6 +28,15 @@ const ScreenPlanSchema = z.object({
 
 const PlanSchema = z.object({
   requires_bottom_nav: z.boolean().default(false),
+  charter: z.object({
+    originalPrompt: z.string().trim().min(1).max(10000),
+    imageReferenceSummary: z.string().trim().max(4000).nullable().optional(),
+    appType: z.string().trim().min(1).max(120),
+    targetAudience: z.string().trim().min(1).max(240),
+    navigationModel: z.string().trim().min(1).max(240),
+    keyFeatures: z.array(z.string().trim().min(1).max(240)).min(1).max(16),
+    designRationale: z.string().trim().min(1).max(4000),
+  }),
   screens: z.array(ScreenPlanSchema).min(1).max(8),
 });
 
@@ -40,6 +51,24 @@ const fallbackScreenPlan = (prompt: string): ScreenPlan => ({
   name: "New Screen",
   type: "root",
   description: prompt.trim() || "Convert this concept into a polished mobile screen.",
+});
+
+const fallbackProjectCharter = ({
+  prompt,
+  image,
+}: {
+  prompt: string;
+  image?: PromptImagePayload | null;
+}): ProjectCharter => ({
+  originalPrompt: prompt.trim() || "Create a polished mobile app experience from the provided reference.",
+  imageReferenceSummary: image
+    ? "Use the uploaded reference as inspiration for layout hierarchy, tone, and composition while adapting it into a polished product UI."
+    : null,
+  appType: "Mobile application",
+  targetAudience: "General product users",
+  navigationModel: "Single-root mobile flow",
+  keyFeatures: ["Primary workflow", "Supporting detail views"],
+  designRationale: "Prioritize clarity, mobile ergonomics, and a coherent design system that can scale across future screens.",
 });
 
 export const getDefaultDesignTokens = (): DesignTokens => ({
@@ -209,10 +238,12 @@ export const extractCode = (text: string) => {
 export async function planUiFlow({
   prompt,
   image,
+  designTokens,
 }: {
   prompt: string;
   image?: PromptImagePayload | null;
-}) {
+  designTokens?: DesignTokens | null;
+}): Promise<PlannedUiFlow> {
   const ai = createGeminiClient();
   const parts: Array<Record<string, unknown>> = [];
 
@@ -222,8 +253,14 @@ export async function planUiFlow({
   }
 
   parts.push({
-    text: prompt.trim() ? `User Prompt: "${prompt}"` : "Convert this sketch into a high-fidelity mobile UI.",
+    text: prompt.trim() ? `User Prompt: "${prompt}"` : "Convert this sketch or reference UI in the image into a high-fidelity mobile UI.",
   });
+
+  if (designTokens?.tokens) {
+    parts.push({
+      text: `Approved Design Tokens:\n${JSON.stringify(designTokens.tokens, null, 2)}`,
+    });
+  }
 
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
@@ -240,12 +277,17 @@ export async function planUiFlow({
 
   if (!parsed.success) {
     return {
-      requires_bottom_nav: false,
+      requiresBottomNav: false,
+      charter: fallbackProjectCharter({ prompt, image }),
       screens: [fallbackScreenPlan(prompt)],
     };
   }
 
-  return parsed.data;
+  return {
+    requiresBottomNav: parsed.data.requires_bottom_nav,
+    charter: parsed.data.charter,
+    screens: parsed.data.screens,
+  };
 }
 
 export async function generateDesignTokens({

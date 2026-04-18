@@ -3,7 +3,7 @@ import { logger, runs, streams, task } from "@trigger.dev/sdk";
 import { buildScreenStream, extractCode, getDefaultDesignTokens, planUiFlow } from "@/lib/generation/service";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
-import type { DesignTokens, PromptImagePayload, ScreenPlan } from "@/lib/types";
+import type { DesignTokens, PromptImagePayload, ProjectCharter, ScreenPlan } from "@/lib/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -14,6 +14,9 @@ type GenerateUiFlowPayload = {
   prompt: string;
   designTokens?: DesignTokens | null;
   imagePath?: string | null;
+  plannedScreens?: ScreenPlan[] | null;
+  requiresBottomNav?: boolean;
+  projectCharter?: ProjectCharter | null;
 };
 
 type BuildScreenTaskPayload = {
@@ -214,8 +217,8 @@ export const generateUiFlowTask = task({
 
     await updateProject(admin, payload.projectId, {
       status: "generating",
-      prompt: payload.prompt,
       design_tokens: (payload.designTokens ?? getDefaultDesignTokens()) as never,
+      project_charter: (payload.projectCharter ?? null) as never,
     });
 
     await updateGenerationRun(admin, payload.generationRunId, {
@@ -224,10 +227,23 @@ export const generateUiFlowTask = task({
     });
 
     const promptImage = await loadPromptImage(admin, payload.imagePath);
-    const plan = await planUiFlow({
-      prompt: payload.prompt,
-      image: promptImage,
-    });
+    const plan = payload.plannedScreens && payload.plannedScreens.length > 0
+      ? {
+          requiresBottomNav: payload.requiresBottomNav ?? false,
+          charter: payload.projectCharter ?? null,
+          screens: payload.plannedScreens,
+        }
+      : await planUiFlow({
+          prompt: payload.prompt,
+          image: promptImage,
+          designTokens: payload.designTokens,
+        });
+
+    if (plan.charter) {
+      await updateProject(admin, payload.projectId, {
+        project_charter: plan.charter as never,
+      });
+    }
 
     const screenPlans = plan.screens.length > 0 ? plan.screens : [{
       name: "New Screen",
@@ -239,7 +255,7 @@ export const generateUiFlowTask = task({
 
     await updateGenerationRun(admin, payload.generationRunId, {
       status: "building",
-      requires_bottom_nav: plan.requires_bottom_nav,
+      requires_bottom_nav: plan.requiresBottomNav,
       requested_screen_count: screenPlans.length,
     });
 
@@ -273,7 +289,7 @@ export const generateUiFlowTask = task({
       prompt: payload.prompt,
       designTokens: payload.designTokens,
       image: index === 0 ? promptImage : null,
-      requiresBottomNav: plan.requires_bottom_nav,
+      requiresBottomNav: plan.requiresBottomNav,
     }));
 
     // Sequential "domino" execution: trigger one screen at a time so we
