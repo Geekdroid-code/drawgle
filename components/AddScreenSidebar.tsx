@@ -114,7 +114,7 @@ export function AddScreenSidebar({
                 </div>
 
                 <h2 className="mt-4 text-2xl font-semibold tracking-[-0.03em] text-slate-950">{screenPlan.name}</h2>
-                <p className="mt-4 text-sm leading-7 text-slate-600">{screenPlan.description}</p>
+                <p className="mt-4 whitespace-pre-line text-sm leading-7 text-slate-600">{screenPlan.description}</p>
               </section>
             ) : null}
           </div>

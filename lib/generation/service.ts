@@ -10,6 +10,7 @@ import {
   designInstruction,
   editInstruction,
   plannerInstruction,
+  referenceAnalysisInstruction,
 } from "@/lib/generation/prompts";
 import type {
   BuildScreenInput,
@@ -26,7 +27,7 @@ import type {
 const ScreenPlanSchema = z.object({
   name: z.string().trim().min(1).max(100),
   type: z.enum(["root", "detail"]).default("detail"),
-  description: z.string().trim().min(1).max(4000),
+  description: z.string().trim().min(1).max(8000),
 });
 
 const PlanSchema = z.object({
@@ -43,6 +44,34 @@ const PlanSchema = z.object({
   screens: z.array(ScreenPlanSchema).min(1).max(8),
 });
 
+const ReferenceScreenSchema = z.object({
+  index: z.number().int().min(1).max(12),
+  suggestedRole: z.string().trim().min(1).max(200),
+  layoutSummary: z.string().trim().min(1).max(2500),
+  visualHierarchy: z.string().trim().min(1).max(2500),
+  components: z.array(z.string().trim().min(1).max(400)).min(1).max(20),
+  stylingCues: z.array(z.string().trim().min(1).max(400)).min(1).max(20),
+  interactionCues: z.array(z.string().trim().min(1).max(400)).max(20).default([]),
+  copyPatterns: z.array(z.string().trim().min(1).max(400)).max(20).default([]),
+  implementationNotes: z.array(z.string().trim().min(1).max(400)).max(20).default([]),
+});
+
+const ReferenceAnalysisSchema = z.object({
+  overallVisualStyle: z.string().trim().min(1).max(3000),
+  screenCountEstimate: z.number().int().min(1).max(12),
+  screenReferences: z.array(ReferenceScreenSchema).min(1).max(12),
+  designSystemSignals: z.object({
+    palette: z.string().trim().min(1).max(1200),
+    typography: z.string().trim().min(1).max(1200),
+    surfaces: z.string().trim().min(1).max(1200),
+    iconography: z.string().trim().min(1).max(1200),
+    density: z.string().trim().min(1).max(1200),
+    motionTone: z.string().trim().min(1).max(1200),
+  }),
+});
+
+type ReferenceAnalysis = z.infer<typeof ReferenceAnalysisSchema>;
+
 const DesignTokensSchema = z
   .object({
     system_schema: z.string().optional(),
@@ -50,28 +79,86 @@ const DesignTokensSchema = z
   })
   .passthrough();
 
+const humanizeReferenceRole = (value: string, index: number) => {
+  const cleaned = value
+    .replace(/\b(screen|view|page|state)\b/gi, " ")
+    .replace(/[^a-zA-Z0-9\s/-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleaned) {
+    return `Reference Screen ${index}`;
+  }
+
+  return cleaned.replace(/\b\w/g, (character) => character.toUpperCase());
+};
+
+const buildStructuredScreenDescription = (referenceScreen: ReferenceAnalysis["screenReferences"][number]) =>
+  [
+    `Visual Goal: ${referenceScreen.suggestedRole}.`,
+    `Layout: ${referenceScreen.layoutSummary}`,
+    `Hierarchy: ${referenceScreen.visualHierarchy}`,
+    `Key Components: ${referenceScreen.components.join("; ")}`,
+    referenceScreen.stylingCues.length > 0 ? `Visual Styling: ${referenceScreen.stylingCues.join("; ")}` : null,
+    referenceScreen.interactionCues.length > 0 ? `Interaction Notes: ${referenceScreen.interactionCues.join("; ")}` : null,
+    referenceScreen.copyPatterns.length > 0 ? `Copy / Typography Anchors: ${referenceScreen.copyPatterns.join("; ")}` : null,
+    referenceScreen.implementationNotes.length > 0 ? `Must-Preserve Details: ${referenceScreen.implementationNotes.join("; ")}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
 const fallbackScreenPlan = (prompt: string): ScreenPlan => ({
   name: "New Screen",
   type: "root",
   description: prompt.trim() || "Convert this concept into a polished mobile screen.",
 });
 
+const fallbackScreensFromReference = ({
+  prompt,
+  planningMode,
+  referenceAnalysis,
+}: {
+  prompt: string;
+  planningMode: PlanningMode;
+  referenceAnalysis: ReferenceAnalysis | null;
+}) => {
+  if (!referenceAnalysis || referenceAnalysis.screenReferences.length === 0) {
+    return [fallbackScreenPlan(prompt)];
+  }
+
+  const screens = referenceAnalysis.screenReferences
+    .slice(0, planningMode === "single-screen" ? 1 : 8)
+    .map((referenceScreen, index) => ({
+      name: humanizeReferenceRole(referenceScreen.suggestedRole, referenceScreen.index),
+      type: index === 0 ? "root" : "detail",
+      description: buildStructuredScreenDescription(referenceScreen),
+    })) satisfies ScreenPlan[];
+
+  return screens.length > 0 ? screens : [fallbackScreenPlan(prompt)];
+};
+
 const fallbackProjectCharter = ({
   prompt,
   image,
+  referenceAnalysis,
 }: {
   prompt: string;
   image?: PromptImagePayload | null;
+  referenceAnalysis?: ReferenceAnalysis | null;
 }): ProjectCharter => ({
   originalPrompt: prompt.trim() || "Create a polished mobile app experience from the provided reference.",
   imageReferenceSummary: image
-    ? "Use the uploaded reference as inspiration for layout hierarchy, tone, and composition while adapting it into a polished product UI."
+    ? referenceAnalysis
+      ? `Use the uploaded reference as a structural and stylistic blueprint. ${referenceAnalysis.overallVisualStyle}`
+      : "Use the uploaded reference as inspiration for layout hierarchy, tone, and composition while adapting it into a polished product UI."
     : null,
   appType: "Mobile application",
   targetAudience: "General product users",
   navigationModel: "Single-root mobile flow",
   keyFeatures: ["Primary workflow", "Supporting detail views"],
-  designRationale: "Prioritize clarity, mobile ergonomics, and a coherent design system that can scale across future screens.",
+  designRationale: referenceAnalysis
+    ? `Prioritize clarity, mobile ergonomics, and a coherent design system that preserves this visual DNA: ${referenceAnalysis.designSystemSignals.palette} ${referenceAnalysis.designSystemSignals.surfaces} ${referenceAnalysis.designSystemSignals.typography}`
+    : "Prioritize clarity, mobile ergonomics, and a coherent design system that can scale across future screens.",
 });
 
 export const getDefaultDesignTokens = (): DesignTokens => ({
@@ -229,6 +316,78 @@ const toInlineImage = (image?: PromptImagePayload | null) => {
   };
 };
 
+const formatReferenceAnalysis = (referenceAnalysis: ReferenceAnalysis) => {
+  const screenSections = referenceAnalysis.screenReferences
+    .map((referenceScreen) => [
+      `Reference Screen ${referenceScreen.index}: ${referenceScreen.suggestedRole}`,
+      `Layout: ${referenceScreen.layoutSummary}`,
+      `Hierarchy: ${referenceScreen.visualHierarchy}`,
+      `Components: ${referenceScreen.components.join("; ")}`,
+      `Styling Cues: ${referenceScreen.stylingCues.join("; ")}`,
+      referenceScreen.interactionCues.length > 0 ? `Interaction Cues: ${referenceScreen.interactionCues.join("; ")}` : null,
+      referenceScreen.copyPatterns.length > 0 ? `Copy Patterns: ${referenceScreen.copyPatterns.join("; ")}` : null,
+      referenceScreen.implementationNotes.length > 0 ? `Implementation Notes: ${referenceScreen.implementationNotes.join("; ")}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n"))
+    .join("\n\n");
+
+  return [
+    `Overall Visual Style: ${referenceAnalysis.overallVisualStyle}`,
+    "Design System Signals:",
+    `- Palette: ${referenceAnalysis.designSystemSignals.palette}`,
+    `- Typography: ${referenceAnalysis.designSystemSignals.typography}`,
+    `- Surfaces: ${referenceAnalysis.designSystemSignals.surfaces}`,
+    `- Iconography: ${referenceAnalysis.designSystemSignals.iconography}`,
+    `- Density: ${referenceAnalysis.designSystemSignals.density}`,
+    `- Motion Tone: ${referenceAnalysis.designSystemSignals.motionTone}`,
+    "",
+    "Screen Breakdown:",
+    screenSections,
+  ].join("\n");
+};
+
+async function analyzeReferenceImage({
+  prompt,
+  image,
+}: {
+  prompt: string;
+  image?: PromptImagePayload | null;
+}) {
+  const inlineImage = toInlineImage(image);
+  if (!inlineImage) {
+    return null;
+  }
+
+  try {
+    const ai = createGeminiClient();
+    const parts: Array<Record<string, unknown>> = [inlineImage];
+
+    parts.push({
+      text: prompt.trim()
+        ? `User/Product Intent: "${prompt}"`
+        : "Analyze the mobile UI reference image and describe the visible screen anatomy.",
+    });
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: { parts },
+      config: {
+        systemInstruction: referenceAnalysisInstruction,
+        responseMimeType: "application/json",
+        temperature: 0.1,
+      },
+    });
+
+    const rawAnalysis = parseJsonResponse<unknown>(response.text || "{}");
+    const parsed = ReferenceAnalysisSchema.safeParse(rawAnalysis);
+
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
 export const extractCode = (text: string) => {
   const match = text.match(/```(?:html)?\n([\s\S]*?)\n```/i);
   if (match) {
@@ -253,6 +412,7 @@ export async function planUiFlow({
 }): Promise<PlannedUiFlow> {
   const ai = createGeminiClient();
   const parts: Array<Record<string, unknown>> = [];
+  const referenceAnalysis = await analyzeReferenceImage({ prompt, image });
 
   const inlineImage = toInlineImage(image);
   if (inlineImage) {
@@ -262,6 +422,12 @@ export async function planUiFlow({
   parts.push({
     text: prompt.trim() ? `User Prompt: "${prompt}"` : "Convert this sketch or reference UI in the image into a high-fidelity mobile UI.",
   });
+
+  if (referenceAnalysis) {
+    parts.push({
+      text: `Reference Screen Analysis:\n${formatReferenceAnalysis(referenceAnalysis)}`,
+    });
+  }
 
   if (designTokens?.tokens) {
     parts.push({
@@ -287,7 +453,7 @@ export async function planUiFlow({
     config: {
       systemInstruction: plannerInstruction,
       responseMimeType: "application/json",
-      temperature: 0.2,
+      temperature: 0.1,
     },
   });
 
@@ -297,8 +463,12 @@ export async function planUiFlow({
   if (!parsed.success) {
     return {
       requiresBottomNav: false,
-      charter: fallbackProjectCharter({ prompt, image }),
-      screens: [fallbackScreenPlan(prompt)],
+      charter: fallbackProjectCharter({ prompt, image, referenceAnalysis }),
+      screens: fallbackScreensFromReference({
+        prompt,
+        planningMode,
+        referenceAnalysis,
+      }),
     };
   }
 
@@ -319,6 +489,7 @@ export async function generateDesignTokens({
   try {
     const ai = createGeminiClient();
     const parts: Array<Record<string, unknown>> = [];
+    const referenceAnalysis = await analyzeReferenceImage({ prompt, image });
 
     const inlineImage = toInlineImage(image);
     if (inlineImage) {
@@ -331,13 +502,19 @@ export async function generateDesignTokens({
         : "Create a modern, clean design system for a premium mobile app.",
     });
 
+    if (referenceAnalysis) {
+      parts.push({
+        text: `Reference Screen Analysis:\n${formatReferenceAnalysis(referenceAnalysis)}`,
+      });
+    }
+
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: { parts },
       config: {
         systemInstruction: designInstruction,
         responseMimeType: "application/json",
-        temperature: 0.3,
+        temperature: 0.2,
       },
     });
 
