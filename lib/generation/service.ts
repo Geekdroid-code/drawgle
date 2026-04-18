@@ -226,7 +226,7 @@ export async function planUiFlow({
   });
 
   const response = await ai.models.generateContent({
-    model: "gemini-3.1-pro-preview",
+    model: "gemini-3-flash-preview",
     contents: { parts },
     config: {
       systemInstruction: plannerInstruction,
@@ -255,38 +255,43 @@ export async function generateDesignTokens({
   prompt: string;
   image?: PromptImagePayload | null;
 }) {
-  const ai = createGeminiClient();
-  const parts: Array<Record<string, unknown>> = [];
+  try {
+    const ai = createGeminiClient();
+    const parts: Array<Record<string, unknown>> = [];
 
-  const inlineImage = toInlineImage(image);
-  if (inlineImage) {
-    parts.push(inlineImage);
-  }
+    const inlineImage = toInlineImage(image);
+    if (inlineImage) {
+      parts.push(inlineImage);
+    }
 
-  parts.push({
-    text: prompt.trim()
-      ? `User Prompt & Design Constraints: "${prompt}"`
-      : "Create a modern, clean design system for a premium mobile app.",
-  });
+    parts.push({
+      text: prompt.trim()
+        ? `User Prompt & Design Constraints: "${prompt}"`
+        : "Create a modern, clean design system for a premium mobile app.",
+    });
 
-  const response = await ai.models.generateContent({
-    model: "gemini-3.1-pro-preview",
-    contents: { parts },
-    config: {
-      systemInstruction: designInstruction,
-      responseMimeType: "application/json",
-      temperature: 0.3,
-    },
-  });
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: { parts },
+      config: {
+        systemInstruction: designInstruction,
+        responseMimeType: "application/json",
+        temperature: 0.3,
+      },
+    });
 
-  const rawTokens = parseJsonResponse<unknown>(response.text || "{}");
-  const parsed = DesignTokensSchema.safeParse(rawTokens);
+    const rawTokens = parseJsonResponse<unknown>(response.text || "{}");
+    const parsed = DesignTokensSchema.safeParse(rawTokens);
 
-  if (!parsed.success) {
+    if (!parsed.success) {
+      return getDefaultDesignTokens();
+    }
+
+    return parsed.data as DesignTokens;
+  } catch (error) {
+    console.error("Failed to generate design tokens", error);
     return getDefaultDesignTokens();
   }
-
-  return parsed.data as DesignTokens;
 }
 
 export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerator<string, void, void> {
@@ -306,7 +311,7 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
   });
 
   const responseStream = await ai.models.generateContentStream({
-    model: "gemini-3.1-pro-preview",
+    model: "gemini-3-flash-preview",
     contents: { parts },
     config: {
       systemInstruction: buildSystemInstruction({
@@ -352,7 +357,7 @@ export async function* editScreenStream({
   }));
 
   const chat = ai.chats.create({
-    model: "gemini-3.1-pro-preview",
+    model: "gemini-3-flash-preview",
     history,
     config: {
       systemInstruction: editInstruction,

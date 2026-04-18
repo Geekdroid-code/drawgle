@@ -2,19 +2,35 @@
 
 import { useState, useEffect } from "react";
 import { Loader2, Palette, Type, Square, Sparkles, Check, ArrowRight } from "lucide-react";
-import { ProjectData } from "@/lib/types";
+import { DesignTokens, ProjectData, PromptImagePayload } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { updateProjectFields } from "@/lib/supabase/queries";
 
+const fallbackDesignTokens: DesignTokens = {
+  tokens: {
+    color: {
+      background: { primary: "#ffffff", secondary: "#f9fafb" },
+      surface: { card: "#ffffff", bottom_sheet: "#ffffff", modal: "#ffffff" },
+      text: { high_emphasis: "#111827", medium_emphasis: "#6b7280", low_emphasis: "#9ca3af" },
+      action: { primary: "#000000", secondary: "#333333", on_primary_text: "#ffffff", disabled: "#e5e7eb" },
+      border: { divider: "#e5e7eb", focused: "#000000" }
+    },
+    typography: { font_family: "Inter" },
+    radii: { sharp: "0px", sm: "4px", md: "8px", lg: "12px", xl: "16px", pill: "9999px" },
+    mobile_layout: { screen_margin: "16px", safe_area_top: "44px", safe_area_bottom: "34px" }
+  }
+};
+
 interface ArtDirectorPanelProps {
   project: ProjectData;
-  onGenerationStart: (designTokens: any) => Promise<void>;
+  draftImage?: PromptImagePayload | null;
+  onGenerationStart: (designTokens: DesignTokens) => Promise<void>;
 }
 
-export function ArtDirectorPanel({ project, onGenerationStart }: ArtDirectorPanelProps) {
+export function ArtDirectorPanel({ project, draftImage = null, onGenerationStart }: ArtDirectorPanelProps) {
   // If we have an existing drafted token, use it. Otherwise null.
-  const [tokens, setTokens] = useState<any>(project.designTokens || null);
+  const [tokens, setTokens] = useState<DesignTokens | null>(project.designTokens || null);
   const [isLoading, setIsLoading] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [loadingText, setLoadingText] = useState("");
@@ -26,7 +42,7 @@ export function ArtDirectorPanel({ project, onGenerationStart }: ArtDirectorPane
 
   useEffect(() => {
     // Only auto-fetch if we have a prompt but NO tokens yet
-    if (tokens || !project.prompt) return;
+    if (tokens || !project.prompt || isLoading) return;
 
     const fetchDesign = async () => {
       const supabase = createClient();
@@ -36,44 +52,45 @@ export function ArtDirectorPanel({ project, onGenerationStart }: ArtDirectorPane
         const res = await fetch("/api/design", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: project.prompt })
+          body: JSON.stringify({ prompt: project.prompt, image: draftImage })
         });
-        
-        if (!res.ok) throw new Error("Failed to fetch design");
-        const json = await res.json();
-        setTokens(json);
+
+        const json = await res.json().catch(() => null);
+        const nextTokens = res.ok && json ? (json as DesignTokens) : fallbackDesignTokens;
+
+        if (!res.ok) {
+          console.error("Failed to fetch design", json);
+        }
+
+        setTokens(nextTokens);
         
         await updateProjectFields(supabase, project.id, {
-          designTokens: json,
+          designTokens: nextTokens,
         });
       } catch (err) {
-        console.error(err);
+        console.error("Failed to fetch design", err);
+        setTokens(fallbackDesignTokens);
+
+        try {
+          await updateProjectFields(supabase, project.id, {
+            designTokens: fallbackDesignTokens,
+          });
+        } catch (persistError) {
+          console.error("Failed to persist fallback design tokens", persistError);
+        }
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchDesign();
-  }, [project, tokens]);
+    void fetchDesign();
+  }, [draftImage, isLoading, project.id, project.prompt, tokens]);
 
   // Fallback defaults if no prompt was given to run the generator
   useEffect(() => {
     if (!tokens && !project.prompt && !isLoading) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setTokens({
-        tokens: {
-          color: {
-            background: { primary: "#ffffff", secondary: "#f9fafb" },
-            surface: { card: "#ffffff", bottom_sheet: "#ffffff", modal: "#ffffff" },
-            text: { high_emphasis: "#111827", medium_emphasis: "#6b7280", low_emphasis: "#9ca3af" },
-            action: { primary: "#000000", secondary: "#333333", on_primary_text: "#ffffff", disabled: "#e5e7eb" },
-            border: { divider: "#e5e7eb", focused: "#000000" }
-          },
-          typography: { font_family: "Inter" },
-          radii: { sharp: "0px", sm: "4px", md: "8px", lg: "12px", xl: "16px", pill: "9999px" },
-          mobile_layout: { screen_margin: "16px", safe_area_top: "44px", safe_area_bottom: "34px" }
-        }
-      });
+      setTokens(fallbackDesignTokens);
     }
   }, [tokens, project.prompt, isLoading]);
 

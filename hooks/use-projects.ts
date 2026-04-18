@@ -8,6 +8,8 @@ import { mapProjectRow } from "@/lib/supabase/mappers";
 import { fetchProjects } from "@/lib/supabase/queries";
 import type { ProjectData } from "@/lib/types";
 
+const EMPTY_PROJECTS: ProjectData[] = [];
+
 const sortProjects = (projects: ProjectData[]) =>
   [...projects].sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime());
 
@@ -22,14 +24,9 @@ const upsertProject = (projects: ProjectData[], project: ProjectData) => {
   return sortProjects(nextProjects);
 };
 
-export function useProjects(ownerId: string, initialProjects: ProjectData[] = []) {
-  const [projects, setProjects] = useState<ProjectData[]>(initialProjects);
+export function useProjects(ownerId: string, initialProjects: ProjectData[] = EMPTY_PROJECTS) {
+  const [projects, setProjects] = useState<ProjectData[]>(() => sortProjects(initialProjects));
   const [isLoading, setIsLoading] = useState(initialProjects.length === 0);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setProjects(initialProjects);
-  }, [initialProjects]);
 
   useEffect(() => {
     if (!ownerId) {

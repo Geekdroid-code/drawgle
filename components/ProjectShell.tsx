@@ -339,7 +339,7 @@ export function ProjectShell({
 
           {project.status === "draft" && (
             <div className="absolute inset-0 z-50 flex items-center justify-center p-4 pb-20 md:p-6">
-              <ArtDirectorPanel project={project} onGenerationStart={handleGenerationStart} />
+              <ArtDirectorPanel project={project} draftImage={pendingGeneration?.image ?? null} onGenerationStart={handleGenerationStart} />
             </div>
           )}
         </div>

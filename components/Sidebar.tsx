@@ -17,7 +17,7 @@ interface SidebarProps {
 
 export function Sidebar({ user, onSignOut, currentProjectId }: SidebarProps) {
   const router = useRouter();
-  const { projects } = useProjects(user.id, []);
+  const { projects } = useProjects(user.id);
 
   return (
     <div className="w-64 bg-[#f0f0f0] border-r border-gray-200 flex flex-col h-full">
