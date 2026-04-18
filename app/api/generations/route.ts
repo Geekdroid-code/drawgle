@@ -30,7 +30,7 @@ const requestSchema = z.object({
       z.object({
         name: z.string().trim().min(1).max(100),
         type: z.enum(["root", "detail"]),
-        description: z.string().trim().min(1).max(4000),
+        description: z.string().trim().min(1).max(8000),
       }),
     )
     .min(1)
@@ -46,6 +46,18 @@ const requestSchema = z.object({
       navigationModel: z.string().trim().min(1).max(240),
       keyFeatures: z.array(z.string().trim().min(1).max(240)).min(1).max(16),
       designRationale: z.string().trim().min(1).max(4000),
+      creativeDirection: z.object({
+        conceptName: z.string().trim().min(1).max(120),
+        styleEssence: z.string().trim().min(1).max(1600),
+        colorStory: z.string().trim().min(1).max(1200),
+        typographyMood: z.string().trim().min(1).max(1200),
+        surfaceLanguage: z.string().trim().min(1).max(1200),
+        iconographyStyle: z.string().trim().min(1).max(1200),
+        compositionPrinciples: z.array(z.string().trim().min(1).max(400)).min(3).max(8),
+        signatureMoments: z.array(z.string().trim().min(1).max(400)).min(2).max(8),
+        motionTone: z.string().trim().min(1).max(1200),
+        avoid: z.array(z.string().trim().min(1).max(400)).min(2).max(10),
+      }).nullable().optional(),
     })
     .optional(),
   designTokens: z.unknown().nullable().optional(),

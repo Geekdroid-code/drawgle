@@ -364,6 +364,13 @@ export function ProjectLobby({ initialPrompt = "" }: { initialPrompt?: string })
                       <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Design rationale</div>
                       <div className="mt-1 text-sm leading-6 text-slate-700">{plan.charter.designRationale}</div>
                     </div>
+                    {plan.charter.creativeDirection ? (
+                      <div>
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Creative direction</div>
+                        <div className="mt-1 text-sm font-medium text-slate-900">{plan.charter.creativeDirection.conceptName}</div>
+                        <div className="mt-1 text-sm leading-6 text-slate-700">{plan.charter.creativeDirection.styleEssence}</div>
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="mt-4 flex flex-wrap gap-2">
@@ -410,7 +417,7 @@ export function ProjectLobby({ initialPrompt = "" }: { initialPrompt?: string })
                           {index + 1}
                         </div>
                       </div>
-                      <p className="mt-4 text-sm leading-6 text-slate-600">{screen.description}</p>
+                      <p className="mt-4 whitespace-pre-line text-sm leading-6 text-slate-600">{screen.description}</p>
                     </article>
                   ))}
                 </div>

@@ -33,6 +33,19 @@ const formatCharter = (charter: ProjectCharter) => [
   .filter(Boolean)
   .join("\n");
 
+const formatCreativeDirection = (creativeDirection: NonNullable<ProjectCharter["creativeDirection"]>) => [
+  `Concept: ${creativeDirection.conceptName}`,
+  `Style essence: ${creativeDirection.styleEssence}`,
+  `Color story: ${creativeDirection.colorStory}`,
+  `Typography mood: ${creativeDirection.typographyMood}`,
+  `Surface language: ${creativeDirection.surfaceLanguage}`,
+  `Iconography: ${creativeDirection.iconographyStyle}`,
+  `Composition principles: ${creativeDirection.compositionPrinciples.join(", ")}`,
+  `Signature moments: ${creativeDirection.signatureMoments.join(", ")}`,
+  `Motion tone: ${creativeDirection.motionTone}`,
+  `Avoid: ${creativeDirection.avoid.join(", ")}`,
+].join("\n");
+
 const formatDesignTokens = (designTokens: DesignTokens | null) => {
   if (!designTokens?.tokens) {
     return null;
@@ -107,6 +120,9 @@ export async function assembleProjectContext({
 
   const sections = [
     charter ? `PROJECT CHARTER\n${formatCharter(charter)}` : null,
+    charter?.creativeDirection
+      ? `CREATIVE DIRECTION\n${formatCreativeDirection(charter.creativeDirection)}`
+      : null,
     formatDesignTokens(designTokens)
       ? `APPROVED DESIGN TOKENS\n${formatDesignTokens(designTokens)}`
       : null,

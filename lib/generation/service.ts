@@ -7,6 +7,7 @@ import { applyEdits } from "@/lib/diff-engine";
 import { buildScopedEditContext } from "@/lib/generation/block-index";
 import {
   buildSystemInstruction,
+  creativeDirectionInstruction,
   designInstruction,
   editInstruction,
   plannerInstruction,
@@ -14,6 +15,7 @@ import {
 } from "@/lib/generation/prompts";
 import type {
   BuildScreenInput,
+  CreativeDirection,
   DesignTokens,
   Message,
   PlanningMode,
@@ -30,6 +32,19 @@ const ScreenPlanSchema = z.object({
   description: z.string().trim().min(1).max(8000),
 });
 
+const CreativeDirectionSchema = z.object({
+  conceptName: z.string().trim().min(1).max(120),
+  styleEssence: z.string().trim().min(1).max(1600),
+  colorStory: z.string().trim().min(1).max(1200),
+  typographyMood: z.string().trim().min(1).max(1200),
+  surfaceLanguage: z.string().trim().min(1).max(1200),
+  iconographyStyle: z.string().trim().min(1).max(1200),
+  compositionPrinciples: z.array(z.string().trim().min(1).max(400)).min(3).max(8),
+  signatureMoments: z.array(z.string().trim().min(1).max(400)).min(2).max(8),
+  motionTone: z.string().trim().min(1).max(1200),
+  avoid: z.array(z.string().trim().min(1).max(400)).min(2).max(10),
+});
+
 const PlanSchema = z.object({
   requires_bottom_nav: z.boolean().default(false),
   charter: z.object({
@@ -40,6 +55,7 @@ const PlanSchema = z.object({
     navigationModel: z.string().trim().min(1).max(240),
     keyFeatures: z.array(z.string().trim().min(1).max(240)).min(1).max(16),
     designRationale: z.string().trim().min(1).max(4000),
+    creativeDirection: CreativeDirectionSchema.nullable().optional(),
   }),
   screens: z.array(ScreenPlanSchema).min(1).max(8),
 });
@@ -71,6 +87,7 @@ const ReferenceAnalysisSchema = z.object({
 });
 
 type ReferenceAnalysis = z.infer<typeof ReferenceAnalysisSchema>;
+type ParsedCreativeDirection = z.infer<typeof CreativeDirectionSchema>;
 
 const DesignTokensSchema = z
   .object({
@@ -107,6 +124,54 @@ const buildStructuredScreenDescription = (referenceScreen: ReferenceAnalysis["sc
     .filter(Boolean)
     .join("\n");
 
+const fallbackCreativeDirection = ({
+  prompt,
+  referenceAnalysis,
+}: {
+  prompt: string;
+  referenceAnalysis?: ReferenceAnalysis | null;
+}): CreativeDirection => ({
+  conceptName: referenceAnalysis ? "Reference-Led Premium Precision" : "Premium Mobile Signature",
+  styleEssence: referenceAnalysis
+    ? `Translate the observed reference into a refined product system without flattening its strongest spatial ideas. ${referenceAnalysis.overallVisualStyle}`
+    : `Create a premium mobile product identity from the brief alone: clear hierarchy, restrained surfaces, and one memorable focal move per screen for "${prompt.trim() || "the product"}".`,
+  colorStory: referenceAnalysis?.designSystemSignals.palette
+    ?? "Use a disciplined neutral base, one assertive primary accent, and selective color contrast to guide hierarchy instead of filling every region with color.",
+  typographyMood: referenceAnalysis?.designSystemSignals.typography
+    ?? "Use confident hierarchy with contrast between oversized focal headings and restrained supporting copy. Avoid bland enterprise defaults.",
+  surfaceLanguage: referenceAnalysis?.designSystemSignals.surfaces
+    ?? "Layer cards, sheets, and background regions deliberately. Surfaces should feel tactile and premium rather than like repeated template blocks.",
+  iconographyStyle: referenceAnalysis?.designSystemSignals.iconography
+    ?? "Use clean, slightly bold iconography with strong framing and purposeful circular or pill containers when emphasis is needed.",
+  compositionPrinciples: [
+    "Give each screen a clear focal hierarchy with one dominant anchor before secondary information.",
+    "Use asymmetry, overlap, floating surfaces, or sculpted grouping when it improves memorability and clarity.",
+    "Let whitespace and scale do real design work instead of filling the screen with repeated widgets.",
+  ],
+  signatureMoments: (() => {
+    const referenceMoments = referenceAnalysis
+      ? referenceAnalysis.screenReferences.flatMap((screen) => screen.implementationNotes).slice(0, 4)
+      : [];
+
+    if (referenceMoments.length >= 2) {
+      return referenceMoments;
+    }
+
+    return [
+      ...referenceMoments,
+      "Use at least one standout composition move per primary screen, such as a sculpted hero, floating metric slab, oversized title block, or layered bottom sheet.",
+      "Make the primary action feel designed, not default: custom pill CTA, anchored control bar, or expressive segmented control.",
+    ].slice(0, 4);
+  })(),
+  motionTone: referenceAnalysis?.designSystemSignals.motionTone
+    ?? "Motion should feel polished, deliberate, and tactile rather than bouncy or ornamental.",
+  avoid: [
+    "Do not default to generic evenly stacked white cards with interchangeable stats.",
+    "Do not rely on bland gray-on-white enterprise dashboard patterns unless the brief explicitly demands them.",
+    "Do not make every screen symmetrical if the product would benefit from stronger visual tension and hierarchy.",
+  ],
+});
+
 const fallbackScreenPlan = (prompt: string): ScreenPlan => ({
   name: "New Screen",
   type: "root",
@@ -141,10 +206,12 @@ const fallbackProjectCharter = ({
   prompt,
   image,
   referenceAnalysis,
+  creativeDirection,
 }: {
   prompt: string;
   image?: PromptImagePayload | null;
   referenceAnalysis?: ReferenceAnalysis | null;
+  creativeDirection?: CreativeDirection | null;
 }): ProjectCharter => ({
   originalPrompt: prompt.trim() || "Create a polished mobile app experience from the provided reference.",
   imageReferenceSummary: image
@@ -159,6 +226,7 @@ const fallbackProjectCharter = ({
   designRationale: referenceAnalysis
     ? `Prioritize clarity, mobile ergonomics, and a coherent design system that preserves this visual DNA: ${referenceAnalysis.designSystemSignals.palette} ${referenceAnalysis.designSystemSignals.surfaces} ${referenceAnalysis.designSystemSignals.typography}`
     : "Prioritize clarity, mobile ergonomics, and a coherent design system that can scale across future screens.",
+  creativeDirection: creativeDirection === undefined ? fallbackCreativeDirection({ prompt, referenceAnalysis }) : creativeDirection,
 });
 
 export const getDefaultDesignTokens = (): DesignTokens => ({
@@ -347,6 +415,19 @@ const formatReferenceAnalysis = (referenceAnalysis: ReferenceAnalysis) => {
   ].join("\n");
 };
 
+const formatCreativeDirection = (creativeDirection: CreativeDirection) => [
+  `Concept Name: ${creativeDirection.conceptName}`,
+  `Style Essence: ${creativeDirection.styleEssence}`,
+  `Color Story: ${creativeDirection.colorStory}`,
+  `Typography Mood: ${creativeDirection.typographyMood}`,
+  `Surface Language: ${creativeDirection.surfaceLanguage}`,
+  `Iconography Style: ${creativeDirection.iconographyStyle}`,
+  `Composition Principles: ${creativeDirection.compositionPrinciples.join("; ")}`,
+  `Signature Moments: ${creativeDirection.signatureMoments.join("; ")}`,
+  `Motion Tone: ${creativeDirection.motionTone}`,
+  `Avoid: ${creativeDirection.avoid.join("; ")}`,
+].join("\n");
+
 async function analyzeReferenceImage({
   prompt,
   image,
@@ -388,6 +469,55 @@ async function analyzeReferenceImage({
   }
 }
 
+async function generateCreativeDirection({
+  prompt,
+  image,
+  referenceAnalysis,
+}: {
+  prompt: string;
+  image?: PromptImagePayload | null;
+  referenceAnalysis?: ReferenceAnalysis | null;
+}): Promise<ParsedCreativeDirection | null> {
+  try {
+    const ai = createGeminiClient();
+    const parts: Array<Record<string, unknown>> = [];
+    const inlineImage = toInlineImage(image);
+
+    if (inlineImage) {
+      parts.push(inlineImage);
+    }
+
+    parts.push({
+      text: prompt.trim()
+        ? `Product Brief: "${prompt}"`
+        : "Invent a premium mobile product design direction from the available cues.",
+    });
+
+    if (referenceAnalysis) {
+      parts.push({
+        text: `Reference Screen Analysis:\n${formatReferenceAnalysis(referenceAnalysis)}`,
+      });
+    }
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: { parts },
+      config: {
+        systemInstruction: creativeDirectionInstruction,
+        responseMimeType: "application/json",
+        temperature: 0.35,
+      },
+    });
+
+    const rawDirection = parseJsonResponse<unknown>(response.text || "{}");
+    const parsed = CreativeDirectionSchema.safeParse(rawDirection);
+
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
 export const extractCode = (text: string) => {
   const match = text.match(/```(?:html)?\n([\s\S]*?)\n```/i);
   if (match) {
@@ -413,6 +543,16 @@ export async function planUiFlow({
   const ai = createGeminiClient();
   const parts: Array<Record<string, unknown>> = [];
   const referenceAnalysis = await analyzeReferenceImage({ prompt, image });
+  const creativeDirection = projectContext?.trim()
+    ? null
+    : await generateCreativeDirection({
+        prompt,
+        image,
+        referenceAnalysis,
+      });
+  const resolvedCreativeDirection = projectContext?.trim()
+    ? null
+    : creativeDirection ?? fallbackCreativeDirection({ prompt, referenceAnalysis });
 
   const inlineImage = toInlineImage(image);
   if (inlineImage) {
@@ -426,6 +566,12 @@ export async function planUiFlow({
   if (referenceAnalysis) {
     parts.push({
       text: `Reference Screen Analysis:\n${formatReferenceAnalysis(referenceAnalysis)}`,
+    });
+  }
+
+  if (resolvedCreativeDirection) {
+    parts.push({
+      text: `Creative Direction:\n${formatCreativeDirection(resolvedCreativeDirection)}`,
     });
   }
 
@@ -463,7 +609,12 @@ export async function planUiFlow({
   if (!parsed.success) {
     return {
       requiresBottomNav: false,
-      charter: fallbackProjectCharter({ prompt, image, referenceAnalysis }),
+      charter: fallbackProjectCharter({
+        prompt,
+        image,
+        referenceAnalysis,
+        creativeDirection: resolvedCreativeDirection,
+      }),
       screens: fallbackScreensFromReference({
         prompt,
         planningMode,
@@ -472,9 +623,14 @@ export async function planUiFlow({
     };
   }
 
+  const charter = {
+    ...parsed.data.charter,
+    creativeDirection: parsed.data.charter.creativeDirection ?? resolvedCreativeDirection,
+  };
+
   return {
     requiresBottomNav: parsed.data.requires_bottom_nav,
-    charter: parsed.data.charter,
+    charter,
     screens: planningMode === "single-screen" ? parsed.data.screens.slice(0, 1) : parsed.data.screens,
   };
 }
@@ -490,6 +646,11 @@ export async function generateDesignTokens({
     const ai = createGeminiClient();
     const parts: Array<Record<string, unknown>> = [];
     const referenceAnalysis = await analyzeReferenceImage({ prompt, image });
+    const creativeDirection = (await generateCreativeDirection({
+      prompt,
+      image,
+      referenceAnalysis,
+    })) ?? fallbackCreativeDirection({ prompt, referenceAnalysis });
 
     const inlineImage = toInlineImage(image);
     if (inlineImage) {
@@ -507,6 +668,10 @@ export async function generateDesignTokens({
         text: `Reference Screen Analysis:\n${formatReferenceAnalysis(referenceAnalysis)}`,
       });
     }
+
+    parts.push({
+      text: `Creative Direction:\n${formatCreativeDirection(creativeDirection)}`,
+    });
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",

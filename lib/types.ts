@@ -120,6 +120,19 @@ export interface DesignTokens {
   [key: string]: JsonValue | undefined;
 }
 
+export interface CreativeDirection {
+  conceptName: string;
+  styleEssence: string;
+  colorStory: string;
+  typographyMood: string;
+  surfaceLanguage: string;
+  iconographyStyle: string;
+  compositionPrinciples: string[];
+  signatureMoments: string[];
+  motionTone: string;
+  avoid: string[];
+}
+
 export interface ProjectCharter {
   originalPrompt: string;
   imageReferenceSummary?: string | null;
@@ -128,6 +141,7 @@ export interface ProjectCharter {
   navigationModel: string;
   keyFeatures: string[];
   designRationale: string;
+  creativeDirection?: CreativeDirection | null;
 }
 
 export interface ScreenPlan {
