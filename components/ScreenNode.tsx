@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { createClient } from "@/lib/supabase/client";
 import { deleteScreen, updateScreenPosition } from "@/lib/supabase/queries";
+import { useRealtimeRunWithStreams } from "@trigger.dev/react-hooks";
 
 export function ScreenNode({ 
   screen, 
@@ -28,6 +29,26 @@ export function ScreenNode({
   // Store initial code in state to avoid ref access during render
   const [initialCode] = useState(screen.code);
 
+  // Subscribe to the child build-screen run's "code" stream when this
+  // screen is actively being generated.  Each chunk is a Gemini text
+  // fragment; we join them to form the partial HTML rendered in the iframe.
+  const isBuilding = screen.status === "building" && !!screen.triggerRunId && !!screen.streamPublicToken;
+  const { streams: triggerStreams } = useRealtimeRunWithStreams(
+    isBuilding ? screen.triggerRunId! : undefined,
+    {
+      accessToken: screen.streamPublicToken ?? undefined,
+      enabled: isBuilding,
+    },
+  );
+  const streamedCode = useMemo(() => {
+    const chunks = (triggerStreams as Record<string, string[]>)?.code;
+    if (!chunks || chunks.length === 0) return null;
+    return chunks.join("");
+  }, [triggerStreams]);
+
+  // Derive display code: prefer live stream while building, fall back to DB code.
+  const displayCode = streamedCode ?? screen.code;
+
   useEffect(() => {
     if (!isDragging) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -37,9 +58,9 @@ export function ScreenNode({
 
   useEffect(() => {
     if (iframeRef.current && iframeRef.current.contentWindow) {
-      iframeRef.current.contentWindow.postMessage({ type: 'updateCode', code: screen.code }, '*');
+      iframeRef.current.contentWindow.postMessage({ type: 'updateCode', code: displayCode }, '*');
     }
-  }, [screen.code]);
+  }, [displayCode]);
 
   const handleDelete = async () => {
     try {

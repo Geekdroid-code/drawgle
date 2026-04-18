@@ -1,6 +1,6 @@
-import { logger, task } from "@trigger.dev/sdk";
+import { logger, runs, streams, task } from "@trigger.dev/sdk";
 
-import { buildScreenCode, getDefaultDesignTokens, planUiFlow } from "@/lib/generation/service";
+import { buildScreenStream, extractCode, getDefaultDesignTokens, planUiFlow } from "@/lib/generation/service";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 import type { DesignTokens, PromptImagePayload, ScreenPlan } from "@/lib/types";
@@ -119,24 +119,53 @@ export const buildScreenTask = task({
   },
   maxDuration: 300,
   run: async (payload: BuildScreenTaskPayload) => {
-    const { code, rawText } = await buildScreenCode({
-      screenPlan: payload.screenPlan,
-      designTokens: payload.designTokens,
-      prompt: payload.prompt,
-      image: payload.image,
-      requiresBottomNav: payload.requiresBottomNav,
-    });
+    // Pipe the Gemini async generator so the frontend can subscribe
+    // via useRealtimeRunWithStreams and render partial HTML in real time.
+    const { stream: codeStream } = await streams.pipe(
+      "code",
+      buildScreenStream({
+        screenPlan: payload.screenPlan,
+        designTokens: payload.designTokens,
+        prompt: payload.prompt,
+        image: payload.image,
+        requiresBottomNav: payload.requiresBottomNav,
+      }),
+    );
+
+    // Consume the tee'd stream locally to accumulate the full response.
+    let rawText = "";
+    for await (const chunk of codeStream) {
+      rawText += chunk;
+    }
+
+    const code = extractCode(rawText);
+
+    // Persist the final code directly so the parent only polls for status.
+    const admin = createAdminClient();
+    const { error: updateError } = await admin
+      .from("screens")
+      .update({
+        code,
+        status: "ready",
+        error: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", payload.screenId);
+
+    if (updateError) {
+      logger.error("Failed to persist screen code", {
+        screenId: payload.screenId,
+        error: updateError,
+      });
+      throw updateError;
+    }
 
     logger.info("Built screen", {
       screenId: payload.screenId,
       screenName: payload.screenPlan.name,
     });
 
-    return {
-      code,
-      rawText,
-      screenId: payload.screenId,
-    };
+    return { screenId: payload.screenId };
   },
 });
 
@@ -226,49 +255,69 @@ export const generateUiFlowTask = task({
     }
 
     const buildPayloads = (insertedScreens ?? []).map((screen, index) => ({
-      payload: {
-        screenId: screen.id,
-        screenPlan: screenPlans[index],
-        prompt: payload.prompt,
-        designTokens: payload.designTokens,
-        image: index === 0 ? promptImage : null,
-        requiresBottomNav: plan.requires_bottom_nav,
-      },
+      screenId: screen.id,
+      screenPlan: screenPlans[index],
+      prompt: payload.prompt,
+      designTokens: payload.designTokens,
+      image: index === 0 ? promptImage : null,
+      requiresBottomNav: plan.requires_bottom_nav,
     }));
 
-    const buildResults = await (buildScreenTask as any).batchTriggerAndWait(buildPayloads);
-    const runs = ((buildResults as { runs?: Array<any> }).runs ?? buildResults) as Array<any>;
+    // Trigger each screen individually so we get per-screen RunHandles
+    // with run IDs + public access tokens for frontend streaming.
+    const runHandles = await Promise.all(
+      buildPayloads.map((p) => (buildScreenTask as any).trigger(p)),
+    );
+
+    // Save child run IDs + public tokens to each screen row so the
+    // frontend can subscribe to the "code" stream in real time.
+    for (const [index, handle] of runHandles.entries()) {
+      const screen = insertedScreens?.[index];
+      if (!screen || !handle?.id) continue;
+
+      const { error: screenUpdateError } = await admin
+        .from("screens")
+        .update({
+          trigger_run_id: handle.id,
+          stream_public_token: handle.publicAccessToken ?? null,
+          updated_at: now(),
+        })
+        .eq("id", screen.id);
+
+      if (screenUpdateError) {
+        logger.error("Failed to save trigger_run_id to screen", {
+          screenId: screen.id,
+          error: screenUpdateError,
+        });
+      }
+    }
+
+    // Now wait for all child runs to complete.
+    const runResults = await Promise.all(
+      runHandles.map((handle: any) =>
+        runs.poll(handle.id, { pollIntervalMs: 2000 }),
+      ),
+    );
 
     let successfulScreens = 0;
     let failedScreens = 0;
 
-    for (const [index, result] of runs.entries()) {
+    for (const [index, result] of runResults.entries()) {
       const screen = insertedScreens?.[index];
       if (!screen) {
         continue;
       }
 
-      if (result?.ok) {
+      const isSuccess = result?.status === "COMPLETED";
+
+      if (isSuccess) {
         successfulScreens += 1;
-        const { error } = await admin
-          .from("screens")
-          .update({
-            code: result.output.code,
-            status: "ready",
-            error: null,
-            updated_at: now(),
-          })
-          .eq("id", screen.id);
-
-        if (error) {
-          throw error;
-        }
-
+        // Screen row is already updated by the child task itself.
         continue;
       }
 
       failedScreens += 1;
-      const message = result?.error instanceof Error ? result.error.message : String(result?.error ?? "Unknown error");
+      const message = result?.error?.message ?? "Unknown error";
       const { error } = await admin
         .from("screens")
         .update({

@@ -53,6 +53,8 @@ export function mapScreenRow(row: ScreenRow): ScreenData {
     sortIndex: row.sort_index,
     status: row.status,
     error: row.error,
+    triggerRunId: row.trigger_run_id,
+    streamPublicToken: row.stream_public_token,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

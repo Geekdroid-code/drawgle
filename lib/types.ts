@@ -152,6 +152,8 @@ export interface ScreenData {
   sortIndex?: number;
   status?: ScreenStatus;
   error?: string | null;
+  triggerRunId?: string | null;
+  streamPublicToken?: string | null;
   createdAt: string;
   updatedAt: string;
 }

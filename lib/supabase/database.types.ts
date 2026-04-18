@@ -155,6 +155,8 @@ export interface Database {
           position_y: number;
           sort_index: number;
           error: string | null;
+          trigger_run_id: string | null;
+          stream_public_token: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -171,6 +173,8 @@ export interface Database {
           position_y: number;
           sort_index: number;
           error?: string | null;
+          trigger_run_id?: string | null;
+          stream_public_token?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -187,6 +191,8 @@ export interface Database {
           position_y?: number;
           sort_index?: number;
           error?: string | null;
+          trigger_run_id?: string | null;
+          stream_public_token?: string | null;
           created_at?: string;
           updated_at?: string;
         };
