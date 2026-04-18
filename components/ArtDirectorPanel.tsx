@@ -176,6 +176,7 @@ export function ArtDirectorPanel({ project, draftImage = null, onGenerationStart
   const [tokens, setTokens] = useState<DesignTokens | null>(project.designTokens || null);
   const [isLoading, setIsLoading] = useState(false);
   const isFetchingDesignRef = useRef(false);
+  const tokensRef = useRef(tokens);
   const [isStarting, setIsStarting] = useState(false);
   const [loadingText, setLoadingText] = useState("");
   const [usedFallback, setUsedFallback] = useState(false);
@@ -197,9 +198,14 @@ export function ArtDirectorPanel({ project, draftImage = null, onGenerationStart
     setTokens(project.designTokens || null);
   }, [project.designTokens, project.id]);
 
+  // Keep ref in sync for the fetch-guard below
+  useEffect(() => {
+    tokensRef.current = tokens;
+  }, [tokens]);
+
   // Auto-fetch design tokens from Gemini when panel mounts with a prompt but no tokens
   useEffect(() => {
-    if (tokens || !project.prompt || isFetchingDesignRef.current) return;
+    if (tokensRef.current || !project.prompt || isFetchingDesignRef.current) return;
 
     isFetchingDesignRef.current = true;
     const controller = new AbortController();
@@ -248,7 +254,7 @@ export function ArtDirectorPanel({ project, draftImage = null, onGenerationStart
       controller.abort();
       isFetchingDesignRef.current = false;
     };
-  }, [draftImage, project.id, project.prompt, tokens]);
+  }, [draftImage, project.id, project.prompt]);
 
   // Fallback when no prompt is provided
   useEffect(() => {
