@@ -111,7 +111,6 @@ const resolveToken = (
   fallback: string,
 ) => {
   if (!designTokens?.tokens) return fallback;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let current: any = designTokens.tokens;
   for (const key of path.split(".")) {
     current = current?.[key];
