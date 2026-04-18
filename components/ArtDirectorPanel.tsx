@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Loader2,
   Palette,
@@ -175,6 +175,7 @@ interface ArtDirectorPanelProps {
 export function ArtDirectorPanel({ project, draftImage = null, onGenerationStart }: ArtDirectorPanelProps) {
   const [tokens, setTokens] = useState<DesignTokens | null>(project.designTokens || null);
   const [isLoading, setIsLoading] = useState(false);
+  const isFetchingDesignRef = useRef(false);
   const [isStarting, setIsStarting] = useState(false);
   const [loadingText, setLoadingText] = useState("");
   const [usedFallback, setUsedFallback] = useState(false);
@@ -198,8 +199,9 @@ export function ArtDirectorPanel({ project, draftImage = null, onGenerationStart
 
   // Auto-fetch design tokens from Gemini when panel mounts with a prompt but no tokens
   useEffect(() => {
-    if (tokens || !project.prompt || isLoading) return;
+    if (tokens || !project.prompt || isFetchingDesignRef.current) return;
 
+    isFetchingDesignRef.current = true;
     const controller = new AbortController();
     const fetchDesign = async () => {
       const supabase = createClient();
@@ -236,21 +238,24 @@ export function ArtDirectorPanel({ project, draftImage = null, onGenerationStart
           console.error("Failed to persist fallback design tokens", persistError);
         }
       } finally {
+        isFetchingDesignRef.current = false;
         setIsLoading(false);
       }
     };
 
     void fetchDesign();
-    return () => controller.abort();
-  }, [draftImage, isLoading, project.id, project.prompt, tokens]);
+    return () => {
+      controller.abort();
+      isFetchingDesignRef.current = false;
+    };
+  }, [draftImage, project.id, project.prompt, tokens]);
 
   // Fallback when no prompt is provided
   useEffect(() => {
-    if (!tokens && !project.prompt && !isLoading) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!tokens && !project.prompt && !isFetchingDesignRef.current) {
       setTokens(fallbackDesignTokens);
     }
-  }, [tokens, project.prompt, isLoading]);
+  }, [tokens, project.prompt]);
 
   // ---- Token updaters ----
 

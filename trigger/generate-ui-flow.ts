@@ -276,72 +276,68 @@ export const generateUiFlowTask = task({
       requiresBottomNav: plan.requires_bottom_nav,
     }));
 
-    // Trigger each screen individually so we get per-screen RunHandles
-    // with run IDs + public access tokens for frontend streaming.
-    const runHandles = await Promise.all(
-      buildPayloads.map((p) => (buildScreenTask as any).trigger(p)),
-    );
-
-    // Save child run IDs + public tokens to each screen row so the
-    // frontend can subscribe to the "code" stream in real time.
-    for (const [index, handle] of runHandles.entries()) {
-      const screen = insertedScreens?.[index];
-      if (!screen || !handle?.id) continue;
-
-      const { error: screenUpdateError } = await admin
-        .from("screens")
-        .update({
-          trigger_run_id: handle.id,
-          stream_public_token: handle.publicAccessToken ?? null,
-          updated_at: now(),
-        })
-        .eq("id", screen.id);
-
-      if (screenUpdateError) {
-        throw new Error(
-          `Failed to save trigger_run_id to screen ${screen.id}: ${screenUpdateError.message}`,
-        );
-      }
-    }
-
-    // Now wait for all child runs to complete.
-    const runResults = await Promise.all(
-      runHandles.map((handle: any) =>
-        runs.poll(handle.id, { pollIntervalMs: 2000 }),
-      ),
-    );
-
+    // Sequential "domino" execution: trigger one screen at a time so we
+    // never blast the Gemini API with concurrent requests that hit TPM /
+    // RPM rate limits (HTTP 429) and trigger exponential back-off.
+    // Each screen streams to the canvas as it builds, giving the user
+    // something to watch while the next one is queued.
     let successfulScreens = 0;
     let failedScreens = 0;
 
-    for (const [index, result] of runResults.entries()) {
+    for (const [index, buildPayload] of buildPayloads.entries()) {
       const screen = insertedScreens?.[index];
-      if (!screen) {
-        continue;
-      }
+      if (!screen) continue;
 
-      const isSuccess = result?.status === "COMPLETED";
+      try {
+        // Trigger the child run and immediately persist its stream token
+        // so the frontend can subscribe before the first chunk arrives.
+        const handle = await (buildScreenTask as any).trigger(buildPayload);
 
-      if (isSuccess) {
-        successfulScreens += 1;
-        // Screen row is already updated by the child task itself.
-        continue;
-      }
+        const { error: screenUpdateError } = await admin
+          .from("screens")
+          .update({
+            trigger_run_id: handle.id,
+            stream_public_token: handle.publicAccessToken ?? null,
+            updated_at: now(),
+          })
+          .eq("id", screen.id);
 
-      failedScreens += 1;
-      const message = result?.error?.message ?? "Unknown error";
-      const { error } = await admin
-        .from("screens")
-        .update({
-          code: buildErrorCode(message),
-          status: "failed",
-          error: message,
-          updated_at: now(),
-        })
-        .eq("id", screen.id);
+        if (screenUpdateError) {
+          throw new Error(
+            `Failed to save trigger_run_id to screen ${screen.id}: ${screenUpdateError.message}`,
+          );
+        }
 
-      if (error) {
-        throw error;
+        // Wait for this screen to finish before starting the next one.
+        const result = await runs.poll(handle.id, { pollIntervalMs: 2000 });
+
+        if (result?.status === "COMPLETED") {
+          successfulScreens += 1;
+        } else {
+          failedScreens += 1;
+          const message = result?.error?.message ?? "Unknown error";
+          await admin
+            .from("screens")
+            .update({
+              code: buildErrorCode(message),
+              status: "failed",
+              error: message,
+              updated_at: now(),
+            })
+            .eq("id", screen.id);
+        }
+      } catch (screenError) {
+        failedScreens += 1;
+        const message = screenError instanceof Error ? screenError.message : String(screenError);
+        await admin
+          .from("screens")
+          .update({
+            code: buildErrorCode(message),
+            status: "failed",
+            error: message,
+            updated_at: now(),
+          })
+          .eq("id", screen.id);
       }
     }
 
