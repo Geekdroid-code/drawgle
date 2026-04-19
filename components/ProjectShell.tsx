@@ -376,13 +376,13 @@ export function ProjectShell({
     <div className="h-screen overflow-hidden bg-[#f4f1ea] text-gray-900">
       <main className="relative z-0 flex h-full w-full overflow-hidden">
         <div className="absolute left-4 right-4 top-4 z-50 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 rounded-full border border-black/10 bg-white/80 px-2 py-2 backdrop-blur-sm">
-            <Button variant="ghost" size="sm" onClick={() => router.push("/project/new")} className="h-8 rounded-full px-3 text-neutral-700 hover:text-neutral-950">
+          <div className="flex items-center p-2 lg:px-4 lg:py-4 h-8 rounded-[20px] surface-container backdrop-blur-glass">
+            <Button variant="ghost" size="sm" onClick={() => router.push("/project/new")} className="h-8 rounded-full text-neutral-700 hover:bg-neutral-200 focus-visible:bg-neutral-200 data-[state=open]:bg-neutral-200">
               <ArrowLeft className="mr-2 h-4 w-4" />
               Workspace
             </Button>
             <div className="hidden h-5 w-px bg-black/10 sm:block" />
-            <div className="hidden max-w-[240px] truncate pr-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500 sm:block">
+            <div className="hidden max-w-[240px] truncate pl-2 text-[11px] font-semibold uppercase text-neutral-500 sm:block">
               {project.name}
             </div>
           </div>

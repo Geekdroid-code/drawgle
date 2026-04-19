@@ -19,6 +19,9 @@ const SELECTED_SCREEN_EDITOR_OFFSET = 416;
 const WHEEL_ZOOM_STEP = 0.02;
 const PAN_EXCLUDED_SELECTORS = ["canvas-pan-exclude"];
 const INITIAL_FIT_REQUEST_VERSION = 0;
+// Vertical space reserved for the external label bar above each phone frame.
+// Must match the `paddingTop` / top-shift in ScreenNode (currently 44 px).
+const SCREEN_LABEL_BAR_HEIGHT = 16;
 
 type ViewportSize = {
   width: number;
@@ -50,7 +53,8 @@ const getScreenBounds = (screens: ScreenData[]): ScreenBounds | null => {
 
   for (const screen of screens) {
     minX = Math.min(minX, screen.x);
-    minY = Math.min(minY, screen.y);
+    // Include the label bar that floats above the phone frame.
+    minY = Math.min(minY, screen.y - SCREEN_LABEL_BAR_HEIGHT);
     maxX = Math.max(maxX, screen.x + SCREEN_FRAME_WIDTH);
     maxY = Math.max(maxY, screen.y + SCREEN_FRAME_HEIGHT);
   }
@@ -84,7 +88,9 @@ const getSelectedScreenTransform = (screen: ScreenData, viewport: ViewportSize, 
   const reservedWidth = viewport.width >= 768 ? SELECTED_SCREEN_EDITOR_OFFSET : 0;
   const visualCenterX = (viewport.width - reservedWidth) / 2;
   const centerX = screen.x + SCREEN_FRAME_WIDTH / 2;
-  const centerY = screen.y + SCREEN_FRAME_HEIGHT / 2;
+  // Offset the vertical centre upward by half the label bar so the
+  // phone + its label appear visually centred in the viewport.
+  const centerY = screen.y + SCREEN_FRAME_HEIGHT / 2 - SCREEN_LABEL_BAR_HEIGHT / 2;
 
   return {
     positionX: visualCenterX - centerX * scale,
@@ -114,7 +120,7 @@ const CanvasControls = ({
   selectedScreen: ScreenData | null;
   viewport: ViewportSize | null;
 }) => {
-  const { zoomIn, zoomOut, setTransform, state } = useControls();
+  const { setTransform, state } = useControls();
   const lastHandledFitRequestRef = useRef(INITIAL_FIT_REQUEST_VERSION);
   const lastSelectedSnapshotRef = useRef<{ id: string | null; x: number | null; y: number | null; scale: number | null }>({
     id: null,
@@ -165,25 +171,27 @@ const CanvasControls = ({
     setTransform(transform.positionX, transform.positionY, transform.scale, animationTime);
   }, [selectedScreen, setTransform, state.scale, viewport]);
 
-  const handleReset = () => {
-    if (!viewport) {
-      return;
-    }
+  // Removed maximize/reset button and logic as requested
 
-    const transform = screenBounds ? getFitTransform(screenBounds, viewport) : getEmptyCanvasTransform(viewport);
-    setTransform(transform.positionX, transform.positionY, transform.scale, 450);
+  // Custom zoom handlers for smooth 10% zoom steps
+  const ZOOM_STEP = 1.05; // 5% zoom step
+  const handleZoomIn = () => {
+    const newScale = clampScale(state.scale * ZOOM_STEP);
+    setTransform(state.positionX, state.positionY, newScale, 200);
+  };
+
+  const handleZoomOut = () => {
+    const newScale = clampScale(state.scale / ZOOM_STEP);
+    setTransform(state.positionX, state.positionY, newScale, 200);
   };
 
   return (
-    <div className="absolute top-4 right-4 z-50 hidden md:flex flex-col gap-2 bg-white/90 backdrop-blur-md p-1.5 rounded-xl shadow-sm border border-gray-200">
-      <Button variant="ghost" size="icon" onClick={() => zoomIn()} className="h-8 w-8 rounded-lg hover:bg-gray-100">
+    <div className="absolute top-4 right-4 z-50 items-center justify-center bg-clip-border backdrop-blur-glass duration-75 ease-out focus-visible:outline-2 focus-visible:outline-current focus-visible:-outline-offset-2 border border-secondary enabled:hover:bg-state-hover enabled:active:bg-state-pressed text-subtitle-md surface-container backdrop-blur-glass flex gap-[6px] p-2 lg:px-4 lg:py-4 h-8 rounded-[20px]">
+      <Button variant="ghost" size="icon" onClick={handleZoomIn} className="h-8 w-8 rounded-lg hover:bg-gray-100">
         <ZoomIn className="w-4 h-4 text-gray-700" />
       </Button>
-      <Button variant="ghost" size="icon" onClick={() => zoomOut()} className="h-8 w-8 rounded-lg hover:bg-gray-100">
+      <Button variant="ghost" size="icon" onClick={handleZoomOut} className="h-8 w-8 rounded-lg hover:bg-gray-100">
         <ZoomOut className="w-4 h-4 text-gray-700" />
-      </Button>
-      <Button variant="ghost" size="icon" onClick={handleReset} className="h-8 w-8 rounded-lg hover:bg-gray-100">
-        <Maximize className="w-4 h-4 text-gray-700" />
       </Button>
     </div>
   );
@@ -203,7 +211,7 @@ const CanvasContent = ({
 
   return (
     <TransformComponent wrapperStyle={{ width: "100%", height: "100%" }}>
-      <div 
+      <div
         className="w-[10000px] h-[10000px] relative"
         onClick={(e) => {
           if (e.target === e.currentTarget) {
@@ -212,9 +220,9 @@ const CanvasContent = ({
         }}
       >
         {screens.map((screen) => (
-          <ScreenNode 
-            key={screen.id} 
-            screen={screen} 
+          <ScreenNode
+            key={screen.id}
+            screen={screen}
             isSelected={selectedScreen?.id === screen.id}
             onClick={() => onSelectScreen?.(screen)}
             scale={scale}

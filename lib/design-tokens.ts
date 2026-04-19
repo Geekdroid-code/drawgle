@@ -23,8 +23,8 @@ const GENERIC_FONT_FAMILIES = new Set([
 
 const PLATFORM_CONSTRAINT_TOKENS = {
   mobile_layout: {
-    safe_area_top: "44px",
-    safe_area_bottom: "34px",
+    safe_area_top: "16px",
+    safe_area_bottom: "16px",
   },
   sizing: {
     min_touch_target: "48px",

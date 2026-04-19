@@ -187,11 +187,11 @@ export function ScreenEditorPanel({
       {/* Backdrop for mobile */}
       <div className="md:hidden fixed inset-0 bg-black/20 z-40" onClick={() => setIsExpanded(false)} />
       
-      <div className={`absolute z-50 flex flex-col bg-white shadow-2xl overflow-hidden transition-all duration-300
+      <div className={`absolute z-50 flex flex-col p-2 lg:px-4 lg:py-4 h-8 rounded-[20px] surface-container backdrop-blur-glass overflow-hidden transition-all duration-300
         md:right-4 md:top-4 md:bottom-4 md:w-96 md:rounded-2xl md:border md:border-gray-200
         bottom-0 left-0 right-0 h-[85vh] rounded-t-3xl border-t border-gray-200
       `}>
-        <div className="h-14 border-b border-gray-100 flex items-center justify-between px-4 shrink-0 bg-white">
+        <div className="h-14 flex items-center justify-between shrink-0 p-2 lg:px-4 lg:py-4 h-8 rounded-[20px] surface-container backdrop-blur-glass">
           <div className="flex items-center gap-2">
             <MessageSquare className="w-4 h-4 text-gray-500" />
             <span className="font-medium text-sm text-gray-900 truncate max-w-[180px]">{screen.name}</span>
@@ -209,7 +209,7 @@ export function ScreenEditorPanel({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 bg-gray-50/50">
+        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 bg-gray-50/50 rounded-lg">
           {messages.length === 0 && (
             <div className="text-center text-sm text-gray-500 mt-10">
               No history yet. Ask me to change colors, layout, or add new elements!
@@ -242,7 +242,7 @@ export function ScreenEditorPanel({
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="p-3 bg-white border-t border-gray-100 shrink-0">
+        <div className="p-3 bg-white rounded-[20px] surface-container backdrop-blur-glassshrink-0">
           <div className="relative flex items-end gap-2 bg-gray-50 border border-gray-200 rounded-xl p-1 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-all">
             <Textarea 
               placeholder="Make the button blue..."

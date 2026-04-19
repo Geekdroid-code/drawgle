@@ -54,7 +54,7 @@ export function GenerationProgress({
   const activeStats = generationRun ? getRunStats(generationRun) : null;
 
   return (
-    <div className="w-80 rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-lg backdrop-blur-md">
+    <div className="w-80 p-2 lg:px-4 lg:py-4 rounded-[20px] surface-container backdrop-blur-glass">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
@@ -87,7 +87,7 @@ export function GenerationProgress({
             {activeStats ? (
               <>
                 <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                  <div className="rounded-xl bg-white px-2 py-2">
+                  <div className="rounded-xl bg-primary px-2 py-2">
                     <div className="font-semibold text-gray-900">{activeStats.totalScreens}</div>
                     <div className="text-gray-500">Total</div>
                   </div>

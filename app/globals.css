@@ -134,3 +134,12 @@
     @apply font-sans;
     }
 }
+
+
+.surface-container {
+  background-color: #dadce0;
+  border-color: #c8c8c8;
+}
+.surface-container-high {
+  background-color: #727376;
+}

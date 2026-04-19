@@ -190,7 +190,7 @@ REQUIRED JSON SCHEMA:
       "button_label": { "size": "px", "weight": "number", "line_height": "px" }
     },
     "spacing": { "none": "0px", "xxs": "px", "xs": "px", "sm": "px", "md": "px", "lg": "px", "xl": "px", "xxl": "px" },
-    "mobile_layout": { "screen_margin": "px", "safe_area_top": "44px", "safe_area_bottom": "34px", "section_gap": "px", "element_gap": "px" },
+    "mobile_layout": { "screen_margin": "px", "safe_area_top": "16px", "safe_area_bottom": "16px", "section_gap": "px", "element_gap": "px" },
     "sizing": { "min_touch_target": "48px", "standard_button_height": "px", "standard_input_height": "px", "icon_small": "px", "icon_standard": "px", "bottom_nav_height": "px" },
     "radii": { "sharp": "0px", "sm": "px", "md": "px", "lg": "px", "xl": "px", "pill": "9999px" },
     "border_widths": { "none": "0px", "hairline": "px", "thin": "px", "thick": "px" },
@@ -268,8 +268,8 @@ export const buildSystemInstruction = ({
 }: Pick<BuildScreenInput, "designTokens" | "requiresBottomNav"> & { screenPlan: ScreenPlan }) => {
   const bgPrimary = resolveToken(designTokens, "color.background.primary", "#ffffff");
   const fontFamily = resolveToken(designTokens, "typography.font_family", "sans-serif");
-  const safeTop = resolveToken(designTokens, "mobile_layout.safe_area_top", "44px");
-  const safeBottom = resolveToken(designTokens, "mobile_layout.safe_area_bottom", "34px");
+  const safeTop = resolveToken(designTokens, "mobile_layout.safe_area_top", "16px");
+  const safeBottom = resolveToken(designTokens, "mobile_layout.safe_area_bottom", "16px");
   const minTouch = resolveToken(designTokens, "sizing.min_touch_target", "48px");
   const textHigh = resolveToken(designTokens, "color.text.high_emphasis", "#000000");
 

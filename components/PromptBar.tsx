@@ -59,7 +59,7 @@ export function PromptBar({
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-2 flex flex-col gap-2 relative">
+    <div className="p-2 rounded-xl surface-container backdrop-blur-glass flex flex-col gap-2 relative">
       {isGenerating && agentStatus && (
         <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs font-medium px-4 py-2 rounded-full shadow-lg flex items-center gap-2 whitespace-nowrap">
           <Loader2 className="w-3 h-3 animate-spin" />

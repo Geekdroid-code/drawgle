@@ -274,7 +274,7 @@ export function DesignSystemEditor({
                   Platform Constraints
                 </div>
                 <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                  <ReadOnlyMetric label="Safe area top" value={tokens.mobile_layout?.safe_area_top || "44px"} />
+                  <ReadOnlyMetric label="Safe area top" value={tokens.mobile_layout?.safe_area_top || "16px"} />
                   <ReadOnlyMetric label="Safe area bottom" value={tokens.mobile_layout?.safe_area_bottom || "34px"} />
                   <ReadOnlyMetric label="Min touch target" value={tokens.sizing?.min_touch_target || "48px"} />
                 </div>
