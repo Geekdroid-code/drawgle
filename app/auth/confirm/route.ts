@@ -7,7 +7,7 @@ const supportedOtpTypes = new Set(["signup", "invite", "magiclink", "recovery", 
 
 function getSafeNextPath(next: string | null) {
   if (!next || !next.startsWith("/")) {
-    return "/";
+    return "/project/new";
   }
 
   return next;

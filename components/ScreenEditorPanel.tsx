@@ -153,7 +153,7 @@ export function ScreenEditorPanel({
           
           <Textarea 
             placeholder="How should we modify this screen?"
-            className="min-h-[80px] resize-none border-none focus-visible:ring-0 text-base bg-transparent px-3 py-2"
+            className="min-h-[60px] resize-none border-none focus-visible:ring-0 text-base bg-transparent px-3 py-2"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={(e) => {

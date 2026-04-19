@@ -88,7 +88,7 @@ export function PromptBar({
       )}
       <Textarea 
         placeholder={project ? "Describe the next screen to add to this app..." : "What native mobile app shall we design?"}
-        className="min-h-[80px] resize-none border-none focus-visible:ring-0 text-base bg-transparent px-3 py-2"
+        className="min-h-[50px] resize-none border-none focus-visible:ring-0 text-base bg-transparent px-3 py-2"
         value={prompt}
         onChange={(e) => setPrompt(e.target.value)}
         onKeyDown={(e) => {

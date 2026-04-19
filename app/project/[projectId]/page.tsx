@@ -35,7 +35,7 @@ export default async function ProjectPage({
     ]);
 
   if (projectError || !projectRow) {
-    redirect("/");
+    redirect("/project/new");
   }
 
   if (screensError) {

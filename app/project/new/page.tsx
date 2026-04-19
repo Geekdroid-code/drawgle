@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { ProjectLobby } from "@/components/ProjectLobby";
+import { mapAuthenticatedUser, mapProjectRow } from "@/lib/supabase/mappers";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function NewProjectPage({
@@ -19,7 +20,22 @@ export default async function NewProjectPage({
     redirect("/login");
   }
 
+  const { data: projectRows, error: projectError } = await supabase
+    .from("projects")
+    .select("*")
+    .order("updated_at", { ascending: false });
+
+  if (projectError) {
+    console.error("Failed to fetch workspace projects", projectError);
+  }
+
   const initialPrompt = Array.isArray(params.prompt) ? params.prompt[0] : (params.prompt ?? "");
 
-  return <ProjectLobby initialPrompt={initialPrompt} />;
+  return (
+    <ProjectLobby
+      initialPrompt={initialPrompt}
+      user={mapAuthenticatedUser(user)}
+      initialProjects={(projectRows ?? []).map(mapProjectRow)}
+    />
+  );
 }

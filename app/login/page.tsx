@@ -89,7 +89,7 @@ function LoginPageContent() {
   };
 
   const finishSignedInFlow = () => {
-    router.replace("/");
+    router.replace("/project/new");
     router.refresh();
   };
 
@@ -99,7 +99,7 @@ function LoginPageContent() {
 
     try {
       const supabase = createClient();
-      const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent("/")}`;
+      const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent("/project/new")}`;
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
@@ -166,7 +166,7 @@ function LoginPageContent() {
 
     try {
       const supabase = createClient();
-      const emailRedirectTo = `${window.location.origin}/auth/confirm?next=${encodeURIComponent("/")}`;
+      const emailRedirectTo = `${window.location.origin}/auth/confirm?next=${encodeURIComponent("/project/new")}`;
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,

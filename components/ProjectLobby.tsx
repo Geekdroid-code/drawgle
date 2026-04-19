@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useRef, useState, type ChangeEvent } from "react";
+import { useRef, useState, type CSSProperties, type ChangeEvent } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -15,14 +15,42 @@ import {
   X,
 } from "lucide-react";
 
+import { AppSidebar } from "@/components/app-sidebar";
 import { DesignSystemEditor } from "@/components/DesignSystemEditor";
 import { Button } from "@/components/ui/button";
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Textarea } from "@/components/ui/textarea";
-import type { DesignTokens, PlannedUiFlow, PromptImagePayload } from "@/lib/types";
+import type {
+  AuthenticatedUser,
+  DesignTokens,
+  PlannedUiFlow,
+  ProjectData,
+  PromptImagePayload,
+} from "@/lib/types";
 
 type LobbyStage = "brief" | "design" | "plan";
 
-export function ProjectLobby({ initialPrompt = "" }: { initialPrompt?: string }) {
+const workspaceSidebarStyles = {
+  "--sidebar-width": "20rem",
+  "--sidebar": "#ece7dc",
+  "--sidebar-foreground": "#171717",
+  "--sidebar-primary": "#171717",
+  "--sidebar-primary-foreground": "#ffffff",
+  "--sidebar-accent": "rgba(255,255,255,0.72)",
+  "--sidebar-accent-foreground": "#171717",
+  "--sidebar-border": "rgba(0,0,0,0.08)",
+  "--sidebar-ring": "rgba(0,0,0,0.18)",
+} as CSSProperties;
+
+export function ProjectLobby({
+  initialPrompt = "",
+  user,
+  initialProjects,
+}: {
+  initialPrompt?: string;
+  user: AuthenticatedUser;
+  initialProjects: ProjectData[];
+}) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [stage, setStage] = useState<LobbyStage>("brief");
@@ -36,6 +64,18 @@ export function ProjectLobby({ initialPrompt = "" }: { initialPrompt?: string })
   const [isBuilding, setIsBuilding] = useState(false);
 
   const isBriefReady = Boolean(prompt.trim() || image);
+
+  const handleSignOut = async () => {
+    try {
+      await fetch("/auth/signout", {
+        method: "POST",
+      });
+      router.replace("/login");
+      router.refresh();
+    } catch (signOutError) {
+      console.error("Failed to sign out", signOutError);
+    }
+  };
 
   const handleImageUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -155,277 +195,286 @@ export function ProjectLobby({ initialPrompt = "" }: { initialPrompt?: string })
   };
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#ffffff_0%,#f8fafc_36%,#eef2ff_100%)] text-slate-950">
-      <div className="dot-pattern min-h-screen">
-        <header className="mx-auto flex max-w-7xl items-center justify-between px-4 py-5 md:px-8">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => router.push("/")}
-              className="inline-flex h-10 items-center gap-2 rounded-full border border-black/10 bg-white/90 px-4 text-sm font-medium text-slate-700 shadow-sm backdrop-blur transition hover:border-black/20 hover:text-slate-950"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Dashboard
-            </button>
-            <div className="hidden items-center gap-2 rounded-full border border-black/10 bg-white/70 px-3 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-500 shadow-sm backdrop-blur md:inline-flex">
-              Project Lobby
-            </div>
-          </div>
+    <SidebarProvider className="min-h-svh bg-[#f4f1ea] text-neutral-950" style={workspaceSidebarStyles}>
+      <AppSidebar user={user} onSignOut={handleSignOut} initialProjects={initialProjects} />
 
-          <div className="flex items-center gap-2 rounded-full border border-black/10 bg-white/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-500 shadow-sm backdrop-blur">
-            <Sparkles className="h-3.5 w-3.5" />
-            Setup once, build cleanly
+      <SidebarInset className="min-h-svh overflow-hidden bg-transparent md:m-0 md:rounded-none md:shadow-none">
+        <header className="flex h-14 shrink-0 items-center gap-2 border-b border-black/8 bg-[#f4f1ea]/92 px-4 backdrop-blur-sm md:px-6">
+          <div className="flex flex-1 items-center gap-3">
+            <SidebarTrigger className="h-9 w-9 rounded-full border border-black/10 bg-white text-neutral-700 hover:bg-white md:hidden" />
+            <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">Protected workspace</div>
           </div>
         </header>
 
-        <main className="mx-auto max-w-7xl px-4 pb-12 md:px-8 md:pb-16">
-          {error ? (
-            <div className="mx-auto mb-6 max-w-3xl rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 shadow-sm">
-              {error}
-            </div>
-          ) : null}
-
-          {stage === "brief" ? (
-            <div className="grid min-h-[calc(100vh-140px)] items-center gap-10 py-8 lg:grid-cols-[1.1fr_0.9fr]">
-              <section className="mx-auto w-full max-w-3xl lg:mx-0">
-                <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/80 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.22em] text-slate-500 shadow-sm backdrop-blur">
-                  <WandSparkles className="h-3.5 w-3.5" />
-                  Step 1 of 3
-                </div>
-                <h1 className="max-w-3xl text-5xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-6xl">
-                  Start with the product brief, not the canvas.
-                </h1>
-                <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">
-                  Upload a reference image, describe the product in plain language, and let Drawgle lock the project memory,
-                  design system, and initial screen plan before anything is generated.
-                </p>
-
-                <div className="mt-8 rounded-[32px] border border-black/10 bg-white/90 p-4 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur sm:p-5">
-                  {image ? (
-                    <div className="mb-4 flex items-start gap-3 rounded-2xl border border-black/10 bg-slate-50 p-3">
-                      <div className="relative h-20 w-20 overflow-hidden rounded-2xl border border-black/10 bg-white">
-                        <Image
-                          src={`data:${image.mimeType};base64,${image.data}`}
-                          alt="Reference upload"
-                          fill
-                          unoptimized
-                          className="object-cover"
-                        />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-medium text-slate-900">Reference image attached</div>
-                        <div className="mt-1 text-sm text-slate-500">This image will shape the design system and first planning pass.</div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setImage(null)}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-black/10 bg-white text-slate-500 transition hover:text-slate-950"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ) : null}
-
-                  <Textarea
-                    value={prompt}
-                    onChange={(event) => setPrompt(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" && !event.shiftKey) {
-                        event.preventDefault();
-                        void handleGenerateDesign();
-                      }
-                    }}
-                    placeholder="Describe the app, feature flow, or say 'recreate this uploaded UI screen as shown'..."
-                    className="min-h-[220px] resize-none border-0 bg-transparent px-2 py-3 text-lg leading-8 shadow-none focus-visible:ring-0 sm:text-xl"
-                  />
-
-                  <div className="mt-2 flex flex-col gap-3 border-t border-black/5 px-2 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageUpload} />
-                      <Button type="button" variant="outline" className="rounded-full border-black/10 bg-white text-slate-700" onClick={() => fileInputRef.current?.click()}>
-                        <ImageIcon className="mr-2 h-4 w-4" />
-                        Upload reference
-                      </Button>
-                      <div className="inline-flex items-center rounded-full border border-black/10 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-500">
-                        Your brief drives the system
-                      </div>
-                    </div>
-
-                    <Button className="h-11 rounded-full px-5 text-sm font-medium" onClick={() => void handleGenerateDesign()} disabled={!isBriefReady || isGeneratingDesign}>
-                      {isGeneratingDesign ? <Loader2 className="h-4 w-4 animate-spin" /> : "Generate design system"}
-                    </Button>
-                  </div>
-                </div>
-              </section>
-
-              <section className="grid gap-4">
-                {[
-                  {
-                    title: "Project charter",
-                    description: "Persist the app type, target audience, navigation model, and durable product intent before the first screen is built.",
-                  },
-                  {
-                    title: "Design system",
-                    description: "Review colors, typography, spacing, corners, and elevation one time instead of bouncing back out of the canvas later.",
-                  },
-                  {
-                    title: "Reviewed plan",
-                    description: "See the initial screen briefs before Trigger.dev starts building, so the first run reflects an approved plan.",
-                  },
-                ].map((item, index) => (
-                  <div key={item.title} className="rounded-[28px] border border-black/10 bg-white/80 p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)] backdrop-blur">
-                    <div className="mb-3 inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-slate-950 text-sm font-semibold text-white">
-                      {index + 1}
-                    </div>
-                    <h2 className="text-xl font-semibold tracking-tight text-slate-950">{item.title}</h2>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">{item.description}</p>
-                  </div>
-                ))}
-              </section>
-            </div>
-          ) : null}
-
-          {stage === "design" && designTokens ? (
-            <div className="space-y-6 py-4">
-              <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                <div>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/80 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.22em] text-slate-500 shadow-sm backdrop-blur">
-                    <Sparkles className="h-3.5 w-3.5" />
-                    Step 2 of 3
-                  </div>
-                  <h1 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-slate-950 md:text-4xl">Refine the design system before planning.</h1>
-                </div>
-
-                <Button type="button" variant="outline" className="rounded-full border-black/10 bg-white/80" onClick={() => setStage("brief")}>
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Back to brief
-                </Button>
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          <div className="mx-auto flex min-h-full w-full max-w-6xl flex-col px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+            {error ? (
+              <div className="mb-5 rounded-[24px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                {error}
               </div>
+            ) : null}
 
-              <DesignSystemEditor
-                value={designTokens}
-                onChange={setDesignTokens}
-                onSubmit={handlePlanFlow}
-                submitLabel="Save Design System & Plan Screens"
-                isSubmitting={isPlanning}
-                submitStatus="Planning your initial flow..."
-                description="These tokens become the visual contract for the first build and future generations."
-              />
-            </div>
-          ) : null}
-
-          {stage === "plan" && plan ? (
-            <div className="grid gap-6 py-4 lg:grid-cols-[340px_minmax(0,1fr)]">
-              <aside className="space-y-4">
-                <div className="rounded-[28px] border border-black/10 bg-white/90 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)] backdrop-blur">
-                  <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-slate-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    Step 3 of 3
+            {stage === "brief" ? (
+              <section className="flex flex-1 items-center">
+                <div className="mx-auto w-full max-w-4xl py-6 lg:py-12">
+                  <div className="flex justify-center">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-600">
+                      <WandSparkles className="h-3.5 w-3.5" />
+                      Protected project workspace
+                    </div>
                   </div>
-                  <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">Review the plan, then build.</h1>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
-                    This plan is what Trigger.dev will build from. No hidden re-planning after you approve it.
+
+                  <h1 className="mx-auto mt-6 max-w-4xl text-center text-5xl font-semibold tracking-[-0.06em] text-neutral-950 sm:text-6xl">
+                    What native mobile app shall we design?
+                  </h1>
+                  <p className="mx-auto mt-5 max-w-2xl text-center text-base leading-7 text-neutral-600 sm:text-lg">
+                    Start the brief here. Design generation, token review, planning, and build kickoff stay in this one protected page before you ever touch the canvas.
                   </p>
 
-                  <div className="mt-5 space-y-4 rounded-2xl border border-black/10 bg-slate-50 p-4">
-                    <div>
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">App type</div>
-                      <div className="mt-1 text-sm font-medium text-slate-900">{plan.charter.appType}</div>
-                    </div>
-                    <div>
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Audience</div>
-                      <div className="mt-1 text-sm font-medium text-slate-900">{plan.charter.targetAudience}</div>
-                    </div>
-                    <div>
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Navigation</div>
-                      <div className="mt-1 text-sm font-medium text-slate-900">{plan.charter.navigationModel}</div>
-                    </div>
-                    <div>
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Design rationale</div>
-                      <div className="mt-1 text-sm leading-6 text-slate-700">{plan.charter.designRationale}</div>
-                    </div>
-                    {plan.charter.creativeDirection ? (
-                      <div>
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Creative direction</div>
-                        <div className="mt-1 text-sm font-medium text-slate-900">{plan.charter.creativeDirection.conceptName}</div>
-                        <div className="mt-1 text-sm leading-6 text-slate-700">{plan.charter.creativeDirection.styleEssence}</div>
-                      </div>
-                    ) : null}
-                    {designTokens?.meta?.rationale ? (
-                      <div>
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Design system logic</div>
-                        <div className="mt-2 space-y-2">
-                          {[
-                            designTokens.meta.rationale.typography,
-                            designTokens.meta.rationale.spacing,
-                            designTokens.meta.rationale.radii,
-                            designTokens.meta.rationale.shadows,
-                            designTokens.meta.rationale.surfaces,
-                          ].filter(Boolean).map((entry) => (
-                            <div key={entry} className="text-sm leading-6 text-slate-700">{entry}</div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {plan.charter.keyFeatures.map((feature) => (
-                      <span key={feature} className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">
-                        {feature}
-                      </span>
-                    ))}
-                    {designTokens?.meta?.recommendedFonts?.map((font) => (
-                      <span key={font} className="rounded-full border border-black/10 bg-slate-950 px-3 py-1.5 text-xs font-medium text-white">
-                        {font}
+                  <div className="mt-5 flex flex-wrap justify-center gap-2 text-xs font-medium text-neutral-500">
+                    {[
+                      "Prompt + reference aware",
+                      "Design tokens before generation",
+                      "Plan reviewed before build",
+                    ].map((item) => (
+                      <span key={item} className="rounded-full border border-black/10 bg-white/60 px-3 py-1.5">
+                        {item}
                       </span>
                     ))}
                   </div>
 
-                  <div className="mt-6 flex flex-col gap-3">
-                    <Button className="h-11 rounded-full text-sm font-medium" onClick={() => void handleBuildProject()} disabled={isBuilding}>
-                      {isBuilding ? <Loader2 className="h-4 w-4 animate-spin" /> : "Build all screens"}
-                      {!isBuilding ? <ArrowRight className="ml-1.5 h-4 w-4" /> : null}
-                    </Button>
-                    <Button type="button" variant="outline" className="h-11 rounded-full border-black/10 bg-white" onClick={() => setStage("design")} disabled={isBuilding}>
-                      Adjust design system
-                    </Button>
-                  </div>
-                </div>
-              </aside>
-
-              <section className="space-y-4">
-                <div className="flex items-center justify-between rounded-[28px] border border-black/10 bg-white/80 px-5 py-4 shadow-sm backdrop-blur">
-                  <div>
-                    <div className="text-sm font-semibold text-slate-950">Initial screen plan</div>
-                    <div className="text-sm text-slate-500">{plan.screens.length} screens queued for the first generation pass.</div>
-                  </div>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                    <LayoutTemplate className="h-3.5 w-3.5" />
-                    {plan.requiresBottomNav ? "Bottom nav flow" : "Single-flow layout"}
-                  </div>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  {plan.screens.map((screen, index) => (
-                    <article key={`${screen.name}-${index}`} className="rounded-[28px] border border-black/10 bg-white/90 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] backdrop-blur">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">{screen.type}</div>
-                          <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">{screen.name}</h2>
+                  <div className="mt-8 overflow-hidden rounded-[32px] border border-black/10 bg-white/78">
+                    {image ? (
+                      <div className="flex items-start gap-3 border-b border-black/8 bg-[#f8f5ee] px-4 py-4">
+                        <div className="relative h-20 w-20 overflow-hidden rounded-[20px] border border-black/10 bg-white">
+                          <Image
+                            src={`data:${image.mimeType};base64,${image.data}`}
+                            alt="Reference upload"
+                            fill
+                            unoptimized
+                            className="object-cover"
+                          />
                         </div>
-                        <div className="inline-flex h-8 w-8 items-center justify-center rounded-2xl bg-slate-950 text-xs font-semibold text-white">
-                          {index + 1}
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-medium text-neutral-950">Reference attached</div>
+                          <div className="mt-1 text-sm leading-6 text-neutral-500">This will influence the design system and the first planning pass.</div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setImage(null)}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-black/10 bg-white text-neutral-500 transition hover:text-neutral-950"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : null}
+
+                    <Textarea
+                      value={prompt}
+                      onChange={(event) => setPrompt(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && !event.shiftKey) {
+                          event.preventDefault();
+                          void handleGenerateDesign();
+                        }
+                      }}
+                      placeholder="Describe the app, the flow, or the exact UI you want recreated..."
+                      className="min-h-[260px] resize-none border-0 bg-transparent px-5 py-5 text-lg leading-8 text-neutral-900 shadow-none focus-visible:ring-0 sm:text-[22px]"
+                    />
+
+                    <div className="flex flex-col gap-3 border-t border-black/8 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageUpload} />
+                        <Button type="button" variant="outline" className="rounded-full border-black/10 bg-white text-neutral-700" onClick={() => fileInputRef.current?.click()}>
+                          <ImageIcon className="mr-2 h-4 w-4" />
+                          Upload reference
+                        </Button>
+                        <div className="inline-flex items-center rounded-full border border-black/10 bg-[#f8f5ee] px-3 py-2 text-xs font-medium text-neutral-500">
+                          The workspace keeps the creation flow off the canvas
                         </div>
                       </div>
-                      <p className="mt-4 whitespace-pre-line text-sm leading-6 text-slate-600">{screen.description}</p>
-                    </article>
-                  ))}
+
+                      <Button className="h-11 rounded-full px-5 text-sm font-medium" onClick={() => void handleGenerateDesign()} disabled={!isBriefReady || isGeneratingDesign}>
+                        {isGeneratingDesign ? <Loader2 className="h-4 w-4 animate-spin" /> : "Generate design system"}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 grid gap-3 md:grid-cols-3">
+                    {[
+                      {
+                        title: "Project brief",
+                        description: "Lock the product intent before building screens.",
+                      },
+                      {
+                        title: "Design approval",
+                        description: "Review tokens once so the build follows a defined system.",
+                      },
+                      {
+                        title: "Plan review",
+                        description: "Approve the first screen set before the generation run begins.",
+                      },
+                    ].map((item) => (
+                      <div key={item.title} className="border border-black/8 bg-white/60 px-4 py-4">
+                        <div className="text-sm font-semibold text-neutral-950">{item.title}</div>
+                        <p className="mt-2 text-sm leading-6 text-neutral-600">{item.description}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </section>
-            </div>
-          ) : null}
-        </main>
+            ) : null}
+
+            {stage === "design" && designTokens ? (
+              <section className="space-y-6 py-2 lg:py-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                  <div>
+                    <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-600">
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Step 2 of 3
+                    </div>
+                    <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-neutral-950 md:text-4xl">Refine the design system before planning.</h1>
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-neutral-600">This approved token set becomes the visual contract for the first build and later project generations.</p>
+                  </div>
+
+                  <Button type="button" variant="outline" className="rounded-full border-black/10 bg-white" onClick={() => setStage("brief")}>
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Back to brief
+                  </Button>
+                </div>
+
+                <DesignSystemEditor
+                  value={designTokens}
+                  onChange={setDesignTokens}
+                  onSubmit={handlePlanFlow}
+                  submitLabel="Save design system & plan screens"
+                  isSubmitting={isPlanning}
+                  submitStatus="Planning your initial flow..."
+                  description="Review the canonical token JSON here, then move straight into the first screen plan."
+                />
+              </section>
+            ) : null}
+
+            {stage === "plan" && plan ? (
+              <section className="grid gap-5 py-2 lg:grid-cols-[320px_minmax(0,1fr)] lg:py-4">
+                <aside className="space-y-4">
+                  <div className="border border-black/8 bg-white/75 px-5 py-5">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-[#f8f5ee] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-600">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      Step 3 of 3
+                    </div>
+                    <h1 className="mt-3 text-2xl font-semibold tracking-[-0.03em] text-neutral-950">Review the plan, then build.</h1>
+                    <p className="mt-2 text-sm leading-6 text-neutral-600">This is the exact plan Trigger.dev will build from. There is no hidden re-planning after approval.</p>
+
+                    <div className="mt-5 space-y-4 border border-black/8 bg-[#f8f5ee] px-4 py-4">
+                      <MetadataBlock label="App type" value={plan.charter.appType} />
+                      <MetadataBlock label="Audience" value={plan.charter.targetAudience} />
+                      <MetadataBlock label="Navigation" value={plan.charter.navigationModel} />
+                      <MetadataBlock label="Design rationale" value={plan.charter.designRationale} multiline />
+
+                      {plan.charter.creativeDirection ? (
+                        <MetadataBlock
+                          label="Creative direction"
+                          value={`${plan.charter.creativeDirection.conceptName}\n${plan.charter.creativeDirection.styleEssence}`}
+                          multiline
+                        />
+                      ) : null}
+
+                      {designTokens?.meta?.rationale ? (
+                        <div>
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-500">Design system logic</div>
+                          <div className="mt-2 space-y-2 text-sm leading-6 text-neutral-700">
+                            {[
+                              designTokens.meta.rationale.typography,
+                              designTokens.meta.rationale.spacing,
+                              designTokens.meta.rationale.radii,
+                              designTokens.meta.rationale.shadows,
+                              designTokens.meta.rationale.surfaces,
+                            ].filter(Boolean).map((entry) => (
+                              <div key={entry}>{entry}</div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {plan.charter.keyFeatures.map((feature) => (
+                        <span key={feature} className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs font-medium text-neutral-600">
+                          {feature}
+                        </span>
+                      ))}
+                      {designTokens?.meta?.recommendedFonts?.map((font) => (
+                        <span key={font} className="rounded-full border border-black/10 bg-neutral-950 px-3 py-1.5 text-xs font-medium text-white">
+                          {font}
+                        </span>
+                      ))}
+                    </div>
+
+                    <div className="mt-6 flex flex-col gap-3">
+                      <Button className="h-11 rounded-full text-sm font-medium" onClick={() => void handleBuildProject()} disabled={isBuilding}>
+                        {isBuilding ? <Loader2 className="h-4 w-4 animate-spin" /> : "Build all screens"}
+                        {!isBuilding ? <ArrowRight className="ml-1.5 h-4 w-4" /> : null}
+                      </Button>
+                      <Button type="button" variant="outline" className="h-11 rounded-full border-black/10 bg-white" onClick={() => setStage("design")} disabled={isBuilding}>
+                        Adjust design system
+                      </Button>
+                    </div>
+                  </div>
+                </aside>
+
+                <section className="space-y-4">
+                  <div className="flex flex-col gap-4 border border-black/8 bg-white/75 px-5 py-4 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <div className="text-sm font-semibold text-neutral-950">Initial screen plan</div>
+                      <div className="text-sm text-neutral-500">{plan.screens.length} screens queued for the first generation pass.</div>
+                    </div>
+                    <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-[#f8f5ee] px-3 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-neutral-600">
+                      <LayoutTemplate className="h-3.5 w-3.5" />
+                      {plan.requiresBottomNav ? "Bottom nav flow" : "Single-flow layout"}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {plan.screens.map((screen, index) => (
+                      <article key={`${screen.name}-${index}`} className="border border-black/8 bg-white/75 px-5 py-5">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">{screen.type}</div>
+                            <h2 className="mt-2 text-xl font-semibold tracking-tight text-neutral-950">{screen.name}</h2>
+                          </div>
+                          <div className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-neutral-950 text-xs font-semibold text-white">
+                            {index + 1}
+                          </div>
+                        </div>
+                        <p className="mt-4 whitespace-pre-line text-sm leading-6 text-neutral-600">{screen.description}</p>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              </section>
+            ) : null}
+          </div>
+        </div>
+      </SidebarInset>
+    </SidebarProvider>
+  );
+}
+
+function MetadataBlock({
+  label,
+  value,
+  multiline = false,
+}: {
+  label: string;
+  value: string;
+  multiline?: boolean;
+}) {
+  return (
+    <div>
+      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-500">{label}</div>
+      <div className={`mt-1 text-sm ${multiline ? "whitespace-pre-line leading-6 text-neutral-700" : "font-medium text-neutral-900"}`}>
+        {value}
       </div>
     </div>
   );

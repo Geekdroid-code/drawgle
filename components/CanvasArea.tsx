@@ -1,63 +1,174 @@
 "use client";
 
-import { TransformWrapper, TransformComponent, useControls, useTransformContext } from "react-zoom-pan-pinch";
-import { useState, useEffect, useRef } from "react";
-import { ScreenNode } from "./ScreenNode";
+import { TransformComponent, TransformWrapper, useControls } from "react-zoom-pan-pinch";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ZoomIn, ZoomOut, Maximize } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
+import { ScreenNode, SCREEN_FRAME_HEIGHT, SCREEN_FRAME_WIDTH } from "./ScreenNode";
 
-import { ScreenData } from "@/lib/types";
+import type { ScreenData } from "@/lib/types";
 
-const CanvasControls = ({ 
-  centerTarget,
-  selectedScreen
-}: { 
-  centerTarget: {x: number, y: number, timestamp: number} | null;
+const CANVAS_SIZE = 10000;
+const DEFAULT_EMPTY_SCALE_DESKTOP = 0.7;
+const DEFAULT_EMPTY_SCALE_MOBILE = 0.45;
+const MIN_CANVAS_SCALE = 0.1;
+const MAX_CANVAS_SCALE = 4;
+const FIT_SCALE_REDUCTION = 0.9;
+const SELECTED_SCREEN_EDITOR_OFFSET = 416;
+const WHEEL_ZOOM_STEP = 0.02;
+const PAN_EXCLUDED_SELECTORS = ["canvas-pan-exclude"];
+const INITIAL_FIT_REQUEST_VERSION = 0;
+
+type ViewportSize = {
+  width: number;
+  height: number;
+};
+
+type ScreenBounds = {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+  width: number;
+  height: number;
+  centerX: number;
+  centerY: number;
+};
+
+const clampScale = (scale: number) => Math.min(MAX_CANVAS_SCALE, Math.max(MIN_CANVAS_SCALE, scale));
+
+const getScreenBounds = (screens: ScreenData[]): ScreenBounds | null => {
+  if (screens.length === 0) {
+    return null;
+  }
+
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+
+  for (const screen of screens) {
+    minX = Math.min(minX, screen.x);
+    minY = Math.min(minY, screen.y);
+    maxX = Math.max(maxX, screen.x + SCREEN_FRAME_WIDTH);
+    maxY = Math.max(maxY, screen.y + SCREEN_FRAME_HEIGHT);
+  }
+
+  const width = Math.max(maxX - minX, SCREEN_FRAME_WIDTH);
+  const height = Math.max(maxY - minY, SCREEN_FRAME_HEIGHT);
+
+  return {
+    minX,
+    minY,
+    maxX,
+    maxY,
+    width,
+    height,
+    centerX: minX + width / 2,
+    centerY: minY + height / 2,
+  };
+};
+
+const getFitTransform = (screenBounds: ScreenBounds, viewport: ViewportSize) => {
+  const scale = clampScale(Math.min(viewport.width / screenBounds.width, viewport.height / screenBounds.height) * FIT_SCALE_REDUCTION);
+
+  return {
+    positionX: viewport.width / 2 - screenBounds.centerX * scale,
+    positionY: viewport.height / 2 - screenBounds.centerY * scale,
+    scale,
+  };
+};
+
+const getSelectedScreenTransform = (screen: ScreenData, viewport: ViewportSize, scale: number) => {
+  const reservedWidth = viewport.width >= 768 ? SELECTED_SCREEN_EDITOR_OFFSET : 0;
+  const visualCenterX = (viewport.width - reservedWidth) / 2;
+  const centerX = screen.x + SCREEN_FRAME_WIDTH / 2;
+  const centerY = screen.y + SCREEN_FRAME_HEIGHT / 2;
+
+  return {
+    positionX: visualCenterX - centerX * scale,
+    positionY: viewport.height / 2 - centerY * scale,
+    scale: clampScale(scale),
+  };
+};
+
+const getEmptyCanvasTransform = (viewport: ViewportSize) => {
+  const scale = viewport.width < 768 ? DEFAULT_EMPTY_SCALE_MOBILE : DEFAULT_EMPTY_SCALE_DESKTOP;
+
+  return {
+    positionX: viewport.width / 2 - (CANVAS_SIZE / 2) * scale,
+    positionY: viewport.height / 2 - (CANVAS_SIZE / 2) * scale,
+    scale,
+  };
+};
+
+const CanvasControls = ({
+  fitRequestVersion,
+  screenBounds,
+  selectedScreen,
+  viewport,
+}: {
+  fitRequestVersion: number;
+  screenBounds: ScreenBounds | null;
   selectedScreen: ScreenData | null;
+  viewport: ViewportSize | null;
 }) => {
-  const { zoomIn, zoomOut, setTransform } = useControls();
-  const transformContext = useTransformContext();
-  const lastTargetTimestamp = useRef<number>(0);
-  const lastSelectedScreenId = useRef<string | null>(null);
+  const { zoomIn, zoomOut, setTransform, state } = useControls();
+  const lastHandledFitRequestRef = useRef(INITIAL_FIT_REQUEST_VERSION);
+  const lastSelectedSnapshotRef = useRef<{ id: string | null; x: number | null; y: number | null; scale: number | null }>({
+    id: null,
+    x: null,
+    y: null,
+    scale: null,
+  });
 
   useEffect(() => {
-    if (centerTarget && centerTarget.timestamp !== lastTargetTimestamp.current) {
-      lastTargetTimestamp.current = centerTarget.timestamp;
-      
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
-      
-      const scale = window.innerWidth < 768 ? 0.5 : 1;
-      const posX = (viewportWidth / 2) - ((centerTarget.x + 195) * scale); // 195 is half of 390 (screen width)
-      const posY = (viewportHeight / 2) - ((centerTarget.y + 422) * scale); // 422 is half of 844 (screen height)
-      
-      setTransform(posX, posY, scale, 500);
+    if (!viewport || fitRequestVersion === lastHandledFitRequestRef.current) {
+      return;
     }
-  }, [centerTarget, setTransform]);
+
+    lastHandledFitRequestRef.current = fitRequestVersion;
+
+    if (!screenBounds || selectedScreen) {
+      return;
+    }
+
+    const transform = getFitTransform(screenBounds, viewport);
+    setTransform(transform.positionX, transform.positionY, transform.scale, 450);
+  }, [fitRequestVersion, screenBounds, selectedScreen, setTransform, viewport]);
 
   useEffect(() => {
-    if (selectedScreen && selectedScreen.id !== lastSelectedScreenId.current) {
-      lastSelectedScreenId.current = selectedScreen.id;
-      
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
-      
-      const currentScale = (transformContext as any)?.transformState?.scale || (transformContext as any)?.state?.scale || (window.innerWidth < 768 ? 0.5 : 0.8);
-      
-      const isMobile = window.innerWidth < 768;
-      // Editor panel offset: leaves space when the right sidebar opens on desktop
-      const editorOffset = isMobile ? 0 : 400; 
-      
-      const posX = ((viewportWidth - editorOffset) / 2) - ((selectedScreen.x + 195) * currentScale); 
-      const posY = (viewportHeight / 2) - ((selectedScreen.y + 422) * currentScale); 
-      
-      setTransform(posX, posY, currentScale, 400); 
-    } else if (!selectedScreen) {
-      lastSelectedScreenId.current = null;
+    if (!viewport || !selectedScreen) {
+      lastSelectedSnapshotRef.current = { id: null, x: null, y: null, scale: null };
+      return;
     }
-    // Intentionally omitting transformContext to stop jumpy camera issues
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedScreen, setTransform]);
+
+    const previousSnapshot = lastSelectedSnapshotRef.current;
+    const positionChanged = previousSnapshot.id !== selectedScreen.id || previousSnapshot.x !== selectedScreen.x || previousSnapshot.y !== selectedScreen.y;
+    const scaleChanged = previousSnapshot.scale !== state.scale;
+
+    lastSelectedSnapshotRef.current = {
+      id: selectedScreen.id,
+      x: selectedScreen.x,
+      y: selectedScreen.y,
+      scale: state.scale,
+    };
+
+    const transform = getSelectedScreenTransform(selectedScreen, viewport, state.scale);
+    const animationTime = positionChanged ? 400 : scaleChanged ? 120 : 0;
+
+    setTransform(transform.positionX, transform.positionY, transform.scale, animationTime);
+  }, [selectedScreen, setTransform, state.scale, viewport]);
+
+  const handleReset = () => {
+    if (!viewport) {
+      return;
+    }
+
+    const transform = screenBounds ? getFitTransform(screenBounds, viewport) : getEmptyCanvasTransform(viewport);
+    setTransform(transform.positionX, transform.positionY, transform.scale, 450);
+  };
 
   return (
     <div className="absolute top-4 right-4 z-50 hidden md:flex flex-col gap-2 bg-white/90 backdrop-blur-md p-1.5 rounded-xl shadow-sm border border-gray-200">
@@ -67,24 +178,24 @@ const CanvasControls = ({
       <Button variant="ghost" size="icon" onClick={() => zoomOut()} className="h-8 w-8 rounded-lg hover:bg-gray-100">
         <ZoomOut className="w-4 h-4 text-gray-700" />
       </Button>
-      <Button variant="ghost" size="icon" onClick={() => setTransform(window.innerWidth / 2 - 5000, window.innerHeight / 2 - 5000, 1, 500)} className="h-8 w-8 rounded-lg hover:bg-gray-100">
+      <Button variant="ghost" size="icon" onClick={handleReset} className="h-8 w-8 rounded-lg hover:bg-gray-100">
         <Maximize className="w-4 h-4 text-gray-700" />
       </Button>
     </div>
   );
 };
 
-const CanvasContent = ({ 
-  screens, 
-  selectedScreen, 
-  onSelectScreen 
-}: { 
-  screens: ScreenData[], 
-  selectedScreen?: ScreenData | null, 
-  onSelectScreen?: (screen: ScreenData | null) => void 
+const CanvasContent = ({
+  screens,
+  selectedScreen,
+  onSelectScreen,
+}: {
+  screens: ScreenData[];
+  selectedScreen?: ScreenData | null;
+  onSelectScreen?: (screen: ScreenData | null) => void;
 }) => {
-  const transformContext = useTransformContext();
-  const scale = (transformContext as any)?.transformState?.scale || (transformContext as any)?.state?.scale || 1;
+  const { state } = useControls();
+  const scale = state.scale;
 
   return (
     <TransformComponent wrapperStyle={{ width: "100%", height: "100%" }}>
@@ -110,47 +221,78 @@ const CanvasContent = ({
   );
 };
 
-export function CanvasArea({ 
+export function CanvasArea({
   screens,
-  centerTarget,
+  fitRequestVersion = INITIAL_FIT_REQUEST_VERSION,
   selectedScreen,
-  onSelectScreen
-}: { 
-  screens: ScreenData[],
-  centerTarget?: {x: number, y: number, timestamp: number} | null,
-  selectedScreen?: ScreenData | null,
-  onSelectScreen?: (screen: ScreenData | null) => void
+  onSelectScreen,
+}: {
+  screens: ScreenData[];
+  fitRequestVersion?: number;
+  selectedScreen?: ScreenData | null;
+  onSelectScreen?: (screen: ScreenData | null) => void;
 }) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [initialScale, setInitialScale] = useState<number | null>(null);
+  const [viewport, setViewport] = useState<ViewportSize | null>(null);
+  const screenBounds = useMemo(() => getScreenBounds(screens), [screens]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setInitialScale(window.innerWidth < 768 ? 0.5 : 1);
+    setInitialScale(window.innerWidth < 768 ? DEFAULT_EMPTY_SCALE_MOBILE : DEFAULT_EMPTY_SCALE_DESKTOP);
+  }, []);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const updateViewport = () => {
+      setViewport({
+        width: container.clientWidth,
+        height: container.clientHeight,
+      });
+    };
+
+    updateViewport();
+
+    const observer = new ResizeObserver(() => {
+      updateViewport();
+    });
+
+    observer.observe(container);
+
+    return () => {
+      observer.disconnect();
+    };
   }, []);
 
   if (initialScale === null) return null;
 
   return (
-    <div className="w-full h-full bg-[#f8f8f8] dot-pattern relative">
+    <div ref={containerRef} className="w-full h-full bg-[#f8f8f8] dot-pattern relative">
       <TransformWrapper
         initialScale={initialScale}
-        minScale={0.1}
-        maxScale={4}
+        minScale={MIN_CANVAS_SCALE}
+        maxScale={MAX_CANVAS_SCALE}
         centerOnInit
         limitToBounds={false}
         doubleClick={{ disabled: true }}
-        panning={{ allowMiddleClickPan: true, activationKeys: [" "] }}
-        wheel={{ step: 0.1 }}
+        panning={{ allowLeftClickPan: true, allowMiddleClickPan: true, excluded: PAN_EXCLUDED_SELECTORS }}
+        wheel={{ step: WHEEL_ZOOM_STEP }}
       >
         <>
-          <CanvasControls 
-            centerTarget={centerTarget || null} 
-            selectedScreen={selectedScreen || null} 
+          <CanvasControls
+            fitRequestVersion={fitRequestVersion}
+            screenBounds={screenBounds}
+            selectedScreen={selectedScreen || null}
+            viewport={viewport}
           />
-          <CanvasContent 
-            screens={screens} 
-            selectedScreen={selectedScreen} 
-            onSelectScreen={onSelectScreen} 
+          <CanvasContent
+            screens={screens}
+            selectedScreen={selectedScreen}
+            onSelectScreen={onSelectScreen}
           />
         </>
       </TransformWrapper>

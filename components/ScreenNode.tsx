@@ -9,6 +9,9 @@ import { createClient } from "@/lib/supabase/client";
 import { deleteScreen, updateScreenPosition } from "@/lib/supabase/queries";
 import { useRealtimeRunWithStreams } from "@trigger.dev/react-hooks";
 
+export const SCREEN_FRAME_WIDTH = 390;
+export const SCREEN_FRAME_HEIGHT = 844;
+
 /** Strip markdown fences so the iframe always receives usable HTML. */
 const stripFences = (text: string): string => {
   const match = text.match(/```(?:html)?\n([\s\S]*?)\n```/i);
@@ -28,13 +31,14 @@ export function ScreenNode({
   scale?: number
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const safeCode = typeof screen.code === "string" ? screen.code : "";
   
   const [position, setPosition] = useState({ x: screen.x, y: screen.y });
   const [isDragging, setIsDragging] = useState(false);
   const dragStart = useRef({ x: 0, y: 0, nodeX: 0, nodeY: 0 });
 
   // Store initial code in state to avoid ref access during render
-  const [initialCode] = useState(screen.code);
+  const [initialCode] = useState(safeCode);
 
   // Subscribe to the child build-screen run's "code" stream when this
   // screen is actively being generated.  Each chunk is a Gemini text
@@ -54,7 +58,7 @@ export function ScreenNode({
   }, [triggerStreams]);
 
   // Derive display code: prefer live stream while building, fall back to DB code.
-  const displayCode = streamedCode ?? screen.code;
+  const displayCode = streamedCode ?? safeCode;
 
   useEffect(() => {
     if (!isDragging) {
@@ -150,12 +154,12 @@ export function ScreenNode({
   return (
     <div 
       onClick={onClick}
-      className={`absolute bg-white rounded-[40px] shadow-2xl border-[8px] overflow-hidden flex flex-col transition-shadow duration-200 ${isSelected ? 'border-blue-500 ring-4 ring-blue-500/50 cursor-default' : 'border-gray-900 cursor-pointer hover:border-gray-700'}`}
+      className={`canvas-pan-exclude absolute bg-white rounded-[40px] shadow-2xl border-[8px] overflow-hidden flex flex-col transition-shadow duration-200 ${isSelected ? 'border-blue-500 ring-4 ring-blue-500/50 cursor-default' : 'border-gray-900 cursor-pointer hover:border-gray-700'}`}
       style={{
         left: position.x,
         top: position.y,
-        width: 390,
-        height: 844,
+        width: SCREEN_FRAME_WIDTH,
+        height: SCREEN_FRAME_HEIGHT,
         zIndex: isSelected || isDragging ? 50 : 10,
       }}
     >

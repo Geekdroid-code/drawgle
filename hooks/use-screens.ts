@@ -31,6 +31,17 @@ const upsertScreen = (screens: ScreenData[], screen: ScreenData) => {
   return sortScreens(nextScreens);
 };
 
+const mergeScreenPatch = (currentScreen: ScreenData, nextScreen: ScreenData): ScreenData => {
+  const patch = Object.fromEntries(
+    Object.entries(nextScreen).filter(([, value]) => value !== undefined),
+  ) as Partial<ScreenData>;
+
+  return {
+    ...currentScreen,
+    ...patch,
+  };
+};
+
 export function useScreens(projectId: string, initialScreens: ScreenData[] = []) {
   const [screens, setScreens] = useState<ScreenData[]>(sortScreens(initialScreens));
   const [isLoading, setIsLoading] = useState(initialScreens.length === 0);
@@ -85,7 +96,12 @@ export function useScreens(projectId: string, initialScreens: ScreenData[] = [])
             return;
           }
 
-          setScreens((currentScreens) => upsertScreen(currentScreens, mapScreenRow(payload.new as ScreenRow)));
+          setScreens((currentScreens) => {
+            const nextScreen = mapScreenRow(payload.new as ScreenRow);
+            const currentScreen = currentScreens.find((screen) => screen.id === nextScreen.id);
+
+            return upsertScreen(currentScreens, currentScreen ? mergeScreenPatch(currentScreen, nextScreen) : nextScreen);
+          });
         },
       )
       .subscribe();

@@ -2,16 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, Menu } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 
 import { AddScreenSidebar } from "@/components/AddScreenSidebar";
 import { CanvasArea } from "@/components/CanvasArea";
 import { GenerationProgress } from "@/components/GenerationProgress";
 import { PromptBar } from "@/components/PromptBar";
 import { ScreenEditorPanel } from "@/components/ScreenEditorPanel";
-import { Sidebar } from "@/components/Sidebar";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useGenerationRuns } from "@/hooks/use-generation-runs";
 import { useProject } from "@/hooks/use-project";
 import { useScreens } from "@/hooks/use-screens";
@@ -138,20 +136,21 @@ export function ProjectShell({
   const { project, isLoading: isProjectLoading } = useProject(initialProject.id, initialProject);
   const { screens } = useScreens(initialProject.id, initialScreens);
   const { generationRun, generationRuns, refreshGenerationRuns } = useGenerationRuns(initialProject.id, initialGenerationRuns);
-  const [centerTarget, setCenterTarget] = useState<{ x: number; y: number; timestamp: number } | null>(null);
+  const [fitRequestVersion, setFitRequestVersion] = useState(0);
   const [selectedScreen, setSelectedScreen] = useState<ScreenData | null>(null);
   const [isQueueingGeneration, setIsQueueingGeneration] = useState(false);
   const [pendingQueuedRunId, setPendingQueuedRunId] = useState<string | null>(null);
   const [queueError, setQueueError] = useState<string | null>(null);
   const [addScreenPlan, setAddScreenPlan] = useState<AddScreenPlanState | null>(null);
   const centeredRunIdRef = useRef<string | null>(null);
+  const hasQueuedInitialFitRef = useRef(false);
   const planRequestIdRef = useRef(0);
   const isGenerationBusy = Boolean(generationRun) || isQueueingGeneration || Boolean(pendingQueuedRunId);
   const isCanvasInteractionLocked = isGenerationBusy || Boolean(addScreenPlan);
 
   useEffect(() => {
     if (!project && !isProjectLoading) {
-      router.replace("/");
+      router.replace("/project/new");
     }
   }, [project, isProjectLoading, router]);
 
@@ -167,10 +166,24 @@ export function ProjectShell({
       return;
     }
 
-    if (updatedScreen.updatedAt !== selectedScreen.updatedAt || updatedScreen.code !== selectedScreen.code) {
+    if (
+      updatedScreen.updatedAt !== selectedScreen.updatedAt ||
+      updatedScreen.code !== selectedScreen.code ||
+      updatedScreen.x !== selectedScreen.x ||
+      updatedScreen.y !== selectedScreen.y
+    ) {
       setSelectedScreen(updatedScreen);
     }
   }, [screens, selectedScreen]);
+
+  useEffect(() => {
+    if (screens.length === 0 || hasQueuedInitialFitRef.current) {
+      return;
+    }
+
+    hasQueuedInitialFitRef.current = true;
+    setFitRequestVersion((currentVersion) => currentVersion + 1);
+  }, [screens.length]);
 
   useEffect(() => {
     if (!pendingQueuedRunId) {
@@ -200,31 +213,15 @@ export function ProjectShell({
       return;
     }
 
-    const firstGeneratedScreen = screens.find((screen) => screen.generationRunId === generationRun.id);
-    if (!firstGeneratedScreen) {
+    const hasGeneratedScreens = screens.some((screen) => screen.generationRunId === generationRun.id);
+    if (!hasGeneratedScreens) {
       return;
     }
 
     centeredRunIdRef.current = generationRun.id;
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setCenterTarget({
-      x: firstGeneratedScreen.x,
-      y: firstGeneratedScreen.y,
-      timestamp: Date.now(),
-    });
+    setFitRequestVersion((currentVersion) => currentVersion + 1);
   }, [generationRun?.id, screens]);
-
-  const handleSignOut = async () => {
-    try {
-      await fetch("/auth/signout", {
-        method: "POST",
-      });
-      router.replace("/login");
-      router.refresh();
-    } catch (error) {
-      console.error("Failed to sign out", error);
-    }
-  };
 
   const queueGenerationRequest = async (input: {
     prompt: string;
@@ -376,38 +373,25 @@ export function ProjectShell({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#f5f5f5] font-sans text-gray-900">
-      <div className="hidden h-full shrink-0 md:block">
-        <Sidebar user={user} onSignOut={handleSignOut} currentProjectId={project.id} />
-      </div>
-
-      <main className="relative z-0 flex h-full w-full flex-1 overflow-hidden">
-        <div className="absolute left-4 top-4 z-50 flex items-center gap-2 md:hidden">
-          <Sheet>
-            <SheetTrigger render={<Button variant="outline" size="icon" className="border-gray-200 bg-white/90 shadow-sm backdrop-blur-md" />}>
-              <Menu className="h-5 w-5" />
-            </SheetTrigger>
-            <SheetContent side="left" className="w-64 border-r-0 p-0">
-              <Sidebar user={user} onSignOut={handleSignOut} currentProjectId={project.id} />
-            </SheetContent>
-          </Sheet>
-          <Button variant="outline" size="sm" onClick={() => router.push("/")} className="border-gray-200 bg-white/90 shadow-sm backdrop-blur-md">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Dashboard
-          </Button>
-        </div>
-
-        <div className="absolute left-4 top-4 z-50 hidden md:block">
-          <Button variant="outline" size="sm" onClick={() => router.push("/")} className="border-gray-200 bg-white/90 shadow-sm backdrop-blur-md">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Dashboard
-          </Button>
+    <div className="h-screen overflow-hidden bg-[#f4f1ea] text-gray-900">
+      <main className="relative z-0 flex h-full w-full overflow-hidden">
+        <div className="absolute left-4 right-4 top-4 z-50 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 rounded-full border border-black/10 bg-white/80 px-2 py-2 backdrop-blur-sm">
+            <Button variant="ghost" size="sm" onClick={() => router.push("/project/new")} className="h-8 rounded-full px-3 text-neutral-700 hover:text-neutral-950">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Workspace
+            </Button>
+            <div className="hidden h-5 w-px bg-black/10 sm:block" />
+            <div className="hidden max-w-[240px] truncate pr-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500 sm:block">
+              {project.name}
+            </div>
+          </div>
         </div>
 
         <div className="relative h-full min-w-0 flex-1">
-          <CanvasArea screens={screens} centerTarget={centerTarget} selectedScreen={selectedScreen} onSelectScreen={setSelectedScreen} />
+          <CanvasArea screens={screens} fitRequestVersion={fitRequestVersion} selectedScreen={selectedScreen} onSelectScreen={setSelectedScreen} />
 
-          <div className="absolute right-4 top-16 z-40 md:right-6 md:top-4">
+          <div className="absolute right-4 hidden md:block z-40 md:right-6 md:bottom-4">
             <GenerationProgress
               project={project}
               generationRun={generationRun}
