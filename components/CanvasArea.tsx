@@ -156,7 +156,11 @@ const CanvasControls = ({
     };
 
     const transform = getSelectedScreenTransform(selectedScreen, viewport, state.scale);
-    const animationTime = positionChanged ? 400 : scaleChanged ? 120 : 0;
+    if (!positionChanged && !scaleChanged) {
+      return;
+    }
+
+    const animationTime = positionChanged ? 400 : 0;
 
     setTransform(transform.positionX, transform.positionY, transform.scale, animationTime);
   }, [selectedScreen, setTransform, state.scale, viewport]);
@@ -278,6 +282,7 @@ export function CanvasArea({
         maxScale={MAX_CANVAS_SCALE}
         centerOnInit
         limitToBounds={false}
+        smooth={false}
         doubleClick={{ disabled: true }}
         panning={{ allowLeftClickPan: true, allowMiddleClickPan: true, excluded: PAN_EXCLUDED_SELECTORS }}
         wheel={{ step: WHEEL_ZOOM_STEP }}
