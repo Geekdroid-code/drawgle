@@ -5,12 +5,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Sparkles, Image as ImageIcon, Send, Loader2, X } from "lucide-react";
 import { ProjectData, PromptImagePayload } from "@/lib/types";
 
-export function PromptBar({ 
+export function PromptBar({
   onSubmit,
   project,
   disabled = false,
   submitStatusText = "Queueing generation...",
-}: { 
+}: {
   onSubmit?: (options: { prompt: string, image?: PromptImagePayload | null }) => Promise<boolean>,
   project?: ProjectData,
   disabled?: boolean,
@@ -40,7 +40,7 @@ export function PromptBar({
 
     setIsGenerating(true);
     setAgentStatus(submitStatusText);
-    
+
     try {
       if (onSubmit) {
         const didSubmit = await onSubmit({ prompt, image });
@@ -59,7 +59,7 @@ export function PromptBar({
   };
 
   return (
-    <div className="p-2 rounded-xl surface-container backdrop-blur-glass flex flex-col gap-2 relative">
+    <div className="p-2 rounded-xl surface-container backdrop-blur-glass flex flex-col relative">
       {isGenerating && agentStatus && (
         <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs font-medium px-4 py-2 rounded-full shadow-lg flex items-center gap-2 whitespace-nowrap">
           <Loader2 className="w-3 h-3 animate-spin" />
@@ -77,7 +77,7 @@ export function PromptBar({
               unoptimized
               className="w-full h-full object-cover"
             />
-            <button 
+            <button
               onClick={() => setImage(null)}
               className="absolute top-1 right-1 bg-black/50 hover:bg-black/70 text-white rounded-full p-0.5"
             >
@@ -86,8 +86,8 @@ export function PromptBar({
           </div>
         </div>
       )}
-      <Textarea 
-        placeholder={project ? "Describe the next screen to add to this app..." : "What native mobile app shall we design?"}
+      <Textarea
+        placeholder={project ? "What would you like to edit or create in this app?" : "What native mobile app shall we design?"}
         className="min-h-[50px] resize-none border-none focus-visible:ring-0 text-base bg-transparent px-3 py-2"
         value={prompt}
         onChange={(e) => setPrompt(e.target.value)}
@@ -101,33 +101,26 @@ export function PromptBar({
       />
       <div className="flex items-center justify-between px-2 pb-1">
         <div className="flex items-center gap-2">
-          <input 
-            type="file" 
-            accept="image/*" 
-            className="hidden" 
-            ref={fileInputRef} 
-            onChange={handleImageUpload} 
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            ref={fileInputRef}
+            onChange={handleImageUpload}
           />
-          <Button 
-            variant="ghost" 
-            size="icon" 
+          <Button
+            variant="ghost"
+            size="icon"
             className="rounded-full text-gray-500 hover:text-gray-900"
             onClick={() => fileInputRef.current?.click()}
           >
             <ImageIcon className="w-5 h-5" />
           </Button>
-          <div className="flex items-center gap-1 bg-gray-100 rounded-full px-3 py-1.5">
-            <span className="text-xs font-medium text-gray-600">App</span>
-            <span className="text-xs font-medium text-gray-400 px-2 border-l border-gray-300 ml-1">Web</span>
-          </div>
+
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 bg-gray-100 rounded-full px-3 py-1.5">
-            <Sparkles className="w-4 h-4 text-gray-600" />
-            <span className="text-xs font-medium text-gray-600">3.1 Flash</span>
-          </div>
-          <Button 
-            size="icon" 
+          <Button
+            size="icon"
             className="rounded-full bg-gray-900 hover:bg-gray-800 text-white"
             onClick={handleGenerate}
             disabled={disabled || isGenerating || (!prompt.trim() && !image)}

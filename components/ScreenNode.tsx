@@ -557,7 +557,7 @@ export function ScreenNode({
       {/* 44 px label-bar paddingTop so they align with the phone body.      */}
 
       {/* Silent / ring switch */}
-      <div style={{ position: 'absolute', left: -4, top: 44 + 76,  width: 4, height: 26, background: 'linear-gradient(90deg,#141416,#38383a)', borderRadius: '3px 0 0 3px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12),inset 0 -1px 0 rgba(0,0,0,0.4)', pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', left: -4, top: 44 + 76, width: 4, height: 26, background: 'linear-gradient(90deg,#141416,#38383a)', borderRadius: '3px 0 0 3px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12),inset 0 -1px 0 rgba(0,0,0,0.4)', pointerEvents: 'none' }} />
       {/* Volume + */}
       <div style={{ position: 'absolute', left: -4, top: 44 + 118, width: 4, height: 34, background: 'linear-gradient(90deg,#141416,#38383a)', borderRadius: '3px 0 0 3px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12),inset 0 -1px 0 rgba(0,0,0,0.4)', pointerEvents: 'none' }} />
       {/* Volume − */}
