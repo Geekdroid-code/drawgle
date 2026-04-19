@@ -11,7 +11,7 @@ type MatchedScreen = Database["public"]["Functions"]["match_screens"]["Returns"]
 
 const DEFAULT_MATCH_COUNT = 5;
 const DEFAULT_MATCH_THRESHOLD = 0.55;
-const MAX_DESIGN_TOKEN_CHARS = 1800;
+const MAX_DESIGN_TOKEN_CHARS = 3000;
 
 const truncate = (value: string, maxLength: number) => {
   if (value.length <= maxLength) {
@@ -52,6 +52,26 @@ const formatDesignTokens = (designTokens: DesignTokens | null) => {
   }
 
   return truncate(JSON.stringify(designTokens.tokens), MAX_DESIGN_TOKEN_CHARS);
+};
+
+const formatDesignTokenMetadata = (designTokens: DesignTokens | null) => {
+  if (!designTokens?.meta) {
+    return null;
+  }
+
+  const lines = [
+    designTokens.meta.recommendedFonts?.length
+      ? `Recommended fonts: ${designTokens.meta.recommendedFonts.join(", ")}`
+      : null,
+    designTokens.meta.rationale?.color ? `Color rationale: ${designTokens.meta.rationale.color}` : null,
+    designTokens.meta.rationale?.typography ? `Typography rationale: ${designTokens.meta.rationale.typography}` : null,
+    designTokens.meta.rationale?.spacing ? `Spacing rationale: ${designTokens.meta.rationale.spacing}` : null,
+    designTokens.meta.rationale?.radii ? `Radii rationale: ${designTokens.meta.rationale.radii}` : null,
+    designTokens.meta.rationale?.shadows ? `Shadow rationale: ${designTokens.meta.rationale.shadows}` : null,
+    designTokens.meta.rationale?.surfaces ? `Surface rationale: ${designTokens.meta.rationale.surfaces}` : null,
+  ].filter(Boolean);
+
+  return lines.length > 0 ? lines.join("\n") : null;
 };
 
 const formatMatches = (matches: MatchedScreen[]) =>
@@ -125,6 +145,9 @@ export async function assembleProjectContext({
       : null,
     formatDesignTokens(designTokens)
       ? `APPROVED DESIGN TOKENS\n${formatDesignTokens(designTokens)}`
+      : null,
+    formatDesignTokenMetadata(designTokens)
+      ? `DESIGN TOKEN RATIONALE\n${formatDesignTokenMetadata(designTokens)}`
       : null,
     matches.length > 0
       ? `RELEVANT EXISTING SCREENS\n${formatMatches(matches)}`

@@ -4,6 +4,7 @@ import { tasks } from "@trigger.dev/sdk";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { hasApprovedDesignTokens, normalizeDesignTokens } from "@/lib/design-tokens";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
@@ -141,9 +142,12 @@ export async function POST(request: Request) {
 
     const payload = requestSchema.parse(await request.json());
     const ownerId = authData.user.id;
-    const designTokens = (payload.designTokens ?? null) as DesignTokens | null;
+    const requestedDesignTokens = payload.designTokens
+      ? normalizeDesignTokens(payload.designTokens as DesignTokens)
+      : null;
     const plannedScreens = (payload.plannedScreens ?? null) as ScreenPlan[] | null;
     const projectCharter = (payload.projectCharter ?? null) as ProjectCharter | null;
+    let designTokens = hasApprovedDesignTokens(requestedDesignTokens) ? requestedDesignTokens : null;
 
     projectId = payload.projectId;
 
@@ -154,12 +158,23 @@ export async function POST(request: Request) {
     if (projectId) {
       const { data: project, error: projectError } = await admin
         .from("projects")
-        .select("id, owner_id")
+        .select("id, owner_id, design_tokens")
         .eq("id", projectId)
         .single();
 
       if (projectError || !project || project.owner_id !== ownerId) {
         return NextResponse.json({ error: "Project not found" }, { status: 404 });
+      }
+
+      if (!designTokens && hasApprovedDesignTokens(project.design_tokens as DesignTokens | null)) {
+        designTokens = normalizeDesignTokens(project.design_tokens as DesignTokens);
+      }
+
+      if (!designTokens) {
+        return NextResponse.json(
+          { error: "Approved design tokens are required before building screens." },
+          { status: 400 },
+        );
       }
 
       const activeGenerationRun = await findActiveGenerationRun(admin, projectId);
@@ -176,7 +191,7 @@ export async function POST(request: Request) {
         updated_at: now(),
       };
 
-      if (payload.designTokens !== undefined) {
+      if (payload.designTokens !== undefined || !project.design_tokens) {
         projectUpdate.design_tokens = designTokens as never;
       }
 
@@ -185,6 +200,13 @@ export async function POST(request: Request) {
         throw updateError;
       }
     } else {
+      if (!designTokens) {
+        return NextResponse.json(
+          { error: "Approved design tokens are required before building screens." },
+          { status: 400 },
+        );
+      }
+
       const { data: project, error: projectInsertError } = await admin
         .from("projects")
         .insert({

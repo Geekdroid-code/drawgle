@@ -1,9 +1,10 @@
 import { logger, runs, streams, task } from "@trigger.dev/sdk";
 
+import { hasApprovedDesignTokens } from "@/lib/design-tokens";
 import { indexScreenCode } from "@/lib/generation/block-index";
 import { assembleProjectContext } from "@/lib/generation/context";
 import { generateEmbedding, generateScreenSummary } from "@/lib/generation/embeddings";
-import { buildScreenStream, extractCode, getDefaultDesignTokens, planUiFlow } from "@/lib/generation/service";
+import { buildScreenStream, extractCode, planUiFlow } from "@/lib/generation/service";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 import type { DesignTokens, PromptImagePayload, ProjectCharter, ScreenPlan } from "@/lib/types";
@@ -245,9 +246,15 @@ export const generateUiFlowTask = task({
   run: async (payload: GenerateUiFlowPayload) => {
     const admin = createAdminClient();
 
+    if (!hasApprovedDesignTokens(payload.designTokens)) {
+      throw new Error("Approved design tokens are required before planning or building screens.");
+    }
+
+    const designTokens = payload.designTokens;
+
     await updateProject(admin, payload.projectId, {
       status: "generating",
-      design_tokens: (payload.designTokens ?? getDefaultDesignTokens()) as never,
+      design_tokens: designTokens as never,
       project_charter: (payload.projectCharter ?? null) as never,
     });
 
@@ -281,7 +288,7 @@ export const generateUiFlowTask = task({
       : await planUiFlow({
           prompt: payload.prompt,
           image: promptImage,
-          designTokens: payload.designTokens,
+          designTokens,
           projectContext: planningContext,
         });
 
@@ -319,7 +326,7 @@ export const generateUiFlowTask = task({
       generation_run_id: payload.generationRunId,
       name: screenPlan.name,
       prompt: screenPlan.description,
-      code: buildPlaceholderCode(screenPlan.name, payload.designTokens),
+      code: buildPlaceholderCode(screenPlan.name, designTokens),
       status: "building",
       position_x: reservedSlots[index]?.position_x ?? 4800 + index * 450,
       position_y: reservedSlots[index]?.position_y ?? 4600,
@@ -341,7 +348,7 @@ export const generateUiFlowTask = task({
       screenId: screen.id,
       screenPlan: screenPlans[index],
       prompt: payload.prompt,
-      designTokens: payload.designTokens,
+      designTokens,
       image: index === 0 ? promptImage : null,
       requiresBottomNav: plan.requiresBottomNav,
       projectContext: buildContext,

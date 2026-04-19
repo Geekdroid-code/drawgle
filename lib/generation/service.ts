@@ -3,6 +3,7 @@ import "server-only";
 import { z } from "zod";
 
 import { createGeminiClient } from "@/lib/ai/gemini";
+import { hasApprovedDesignTokens, normalizeDesignTokens } from "@/lib/design-tokens";
 import { applyEdits } from "@/lib/diff-engine";
 import { buildScopedEditContext } from "@/lib/generation/block-index";
 import {
@@ -16,6 +17,8 @@ import {
 import type {
   BuildScreenInput,
   CreativeDirection,
+  DesignTokenMetadata,
+  DesignTokenValues,
   DesignTokens,
   Message,
   PlanningMode,
@@ -89,12 +92,72 @@ const ReferenceAnalysisSchema = z.object({
 type ReferenceAnalysis = z.infer<typeof ReferenceAnalysisSchema>;
 type ParsedCreativeDirection = z.infer<typeof CreativeDirectionSchema>;
 
+const StringRecordSchema = z.record(z.string(), z.string());
+const TypographyScaleSchema = z.object({
+  size: z.string().optional(),
+  weight: z.union([z.string(), z.number()]).optional(),
+  line_height: z.string().optional(),
+}).passthrough();
+
 const DesignTokensSchema = z
   .object({
     system_schema: z.string().optional(),
-    tokens: z.record(z.string(), z.unknown()).optional(),
+    meta: z.object({
+      recommendedFonts: z.array(z.string().trim().min(1).max(120)).max(8).optional(),
+      rationale: z.object({
+        color: z.string().trim().max(1200).optional(),
+        typography: z.string().trim().max(1200).optional(),
+        spacing: z.string().trim().max(1200).optional(),
+        radii: z.string().trim().max(1200).optional(),
+        shadows: z.string().trim().max(1200).optional(),
+        surfaces: z.string().trim().max(1200).optional(),
+      }).partial().optional(),
+    }).partial().optional(),
+    tokens: z.object({
+      color: z.object({
+        background: StringRecordSchema.optional(),
+        surface: StringRecordSchema.optional(),
+        text: StringRecordSchema.optional(),
+        action: StringRecordSchema.optional(),
+        border: StringRecordSchema.optional(),
+      }).partial().passthrough().optional(),
+      typography: z.object({
+        font_family: z.string().optional(),
+        title_large: TypographyScaleSchema.optional(),
+        title_main: TypographyScaleSchema.optional(),
+        body_primary: TypographyScaleSchema.optional(),
+        body_secondary: TypographyScaleSchema.optional(),
+        caption: TypographyScaleSchema.optional(),
+        button_label: TypographyScaleSchema.optional(),
+      }).passthrough().optional(),
+      spacing: StringRecordSchema.optional(),
+      mobile_layout: StringRecordSchema.optional(),
+      sizing: StringRecordSchema.optional(),
+      radii: StringRecordSchema.optional(),
+      border_widths: StringRecordSchema.optional(),
+      shadows: StringRecordSchema.optional(),
+      elevation: StringRecordSchema.optional(),
+      opacities: StringRecordSchema.optional(),
+      z_index: StringRecordSchema.optional(),
+    }).passthrough().optional(),
   })
   .passthrough();
+
+const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+const buildApprovedDesignTokens = (candidate: unknown): DesignTokens => {
+  if (!isRecord(candidate)) {
+    throw new Error("Design generation did not return a valid mobile_universal_core token object.");
+  }
+
+  const next = normalizeDesignTokens(candidate as Partial<DesignTokens>);
+
+  if (!hasApprovedDesignTokens(next)) {
+    throw new Error("Design generation did not return a usable mobile_universal_core token set.");
+  }
+
+  return next;
+};
 
 const humanizeReferenceRole = (value: string, index: number) => {
   const cleaned = value
@@ -227,132 +290,6 @@ const fallbackProjectCharter = ({
     ? `Prioritize clarity, mobile ergonomics, and a coherent design system that preserves this visual DNA: ${referenceAnalysis.designSystemSignals.palette} ${referenceAnalysis.designSystemSignals.surfaces} ${referenceAnalysis.designSystemSignals.typography}`
     : "Prioritize clarity, mobile ergonomics, and a coherent design system that can scale across future screens.",
   creativeDirection: creativeDirection === undefined ? fallbackCreativeDirection({ prompt, referenceAnalysis }) : creativeDirection,
-});
-
-export const getDefaultDesignTokens = (): DesignTokens => ({
-  system_schema: "mobile_universal_core",
-  tokens: {
-    color: {
-      background: {
-        primary: "#ffffff",
-        secondary: "#f9fafb",
-      },
-      surface: {
-        card: "#ffffff",
-        bottom_sheet: "#ffffff",
-        modal: "#ffffff",
-      },
-      text: {
-        high_emphasis: "#111827",
-        medium_emphasis: "#6b7280",
-        low_emphasis: "#9ca3af",
-      },
-      action: {
-        primary: "#111827",
-        secondary: "#6b7280",
-        on_primary_text: "#ffffff",
-        disabled: "#e5e7eb",
-      },
-      border: {
-        divider: "#e5e7eb",
-        focused: "#111827",
-      },
-    },
-    typography: {
-      font_family: "Geist, Inter, sans-serif",
-      title_large: {
-        size: "32px",
-        weight: 700,
-        line_height: "40px",
-      },
-      title_main: {
-        size: "28px",
-        weight: 700,
-        line_height: "32px",
-      },
-      body_primary: {
-        size: "16px",
-        weight: 400,
-        line_height: "24px",
-      },
-      body_secondary: {
-        size: "14px",
-        weight: 400,
-        line_height: "20px",
-      },
-      caption: {
-        size: "12px",
-        weight: 400,
-        line_height: "16px",
-      },
-      button_label: {
-        size: "16px",
-        weight: 600,
-        line_height: "24px",
-      },
-    },
-    spacing: {
-      none: "0px",
-      xxs: "4px",
-      xs: "8px",
-      sm: "12px",
-      md: "16px",
-      lg: "24px",
-      xl: "32px",
-      xxl: "48px",
-    },
-    mobile_layout: {
-      screen_margin: "16px",
-      safe_area_top: "44px",
-      safe_area_bottom: "34px",
-      section_gap: "24px",
-      element_gap: "16px",
-    },
-    sizing: {
-      min_touch_target: "48px",
-      standard_button_height: "48px",
-      standard_input_height: "48px",
-      icon_small: "20px",
-      icon_standard: "24px",
-      bottom_nav_height: "80px",
-    },
-    radii: {
-      sharp: "0px",
-      sm: "4px",
-      md: "8px",
-      lg: "12px",
-      xl: "16px",
-      pill: "9999px",
-    },
-    border_widths: {
-      none: "0px",
-      hairline: "1px",
-      thin: "2px",
-      thick: "4px",
-    },
-    shadows: {
-      none: "none",
-      sm: "0 1px 2px 0 rgba(0, 0, 0, 0.05)",
-      md: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-      lg: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
-      upward: "0 -4px 6px -1px rgba(0, 0, 0, 0.1)",
-    },
-    opacities: {
-      transparent: "0",
-      disabled: "0.38",
-      scrim_overlay: "0.50",
-      pressed: "0.12",
-      opaque: "1",
-    },
-    z_index: {
-      base: "0",
-      sticky_header: "10",
-      bottom_nav: "20",
-      bottom_sheet: "30",
-      modal_dialog: "40",
-      toast_snackbar: "50",
-    },
-  },
 });
 
 const parseJsonResponse = <T>(text: string): T => {
@@ -679,7 +616,7 @@ export async function generateDesignTokens({
       config: {
         systemInstruction: designInstruction,
         responseMimeType: "application/json",
-        temperature: 0.2,
+        temperature: 0.35,
       },
     });
 
@@ -687,13 +624,19 @@ export async function generateDesignTokens({
     const parsed = DesignTokensSchema.safeParse(rawTokens);
 
     if (!parsed.success) {
-      return getDefaultDesignTokens();
+      return buildApprovedDesignTokens(rawTokens);
     }
 
-    return parsed.data as DesignTokens;
+    return buildApprovedDesignTokens(parsed.data as {
+      system_schema?: string;
+      meta?: DesignTokenMetadata;
+      tokens?: DesignTokenValues;
+    });
   } catch (error) {
     console.error("Failed to generate design tokens", error);
-    return getDefaultDesignTokens();
+    throw error instanceof Error
+      ? error
+      : new Error("Failed to generate design tokens.");
   }
 }
 

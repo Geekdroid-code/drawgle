@@ -36,87 +36,97 @@ export interface PromptImagePayload {
   mimeType: string;
 }
 
-export interface DesignTokens {
-  system_schema?: string;
-  tokens?: {
-    color?: {
-      background?: {
-        primary?: string;
-        secondary?: string;
-        surface_elevated?: string;
-      };
-      surface?: {
-        card?: string;
-        bottom_sheet?: string;
-        modal?: string;
-        [key: string]: JsonValue | undefined;
-      };
-      text?: {
-        high_emphasis?: string;
-        medium_emphasis?: string;
-        low_emphasis?: string;
-        action_label?: string;
-      };
-      action?: {
-        primary?: string;
-        secondary?: string;
-        primary_gradient_start?: string;
-        primary_gradient_end?: string;
-        on_surface_white_bg?: string;
-        on_primary_text?: string;
-        disabled?: string;
-      };
-      border?: {
-        divider?: string;
-        focused?: string;
-      };
-      [key: string]: JsonValue | undefined;
-    };
-    typography?: {
-      font_family?: string;
-      title_large?: {
-        size?: string;
-        weight?: string | number;
-        line_height?: string;
-      };
-      title_main?: {
-        size?: string;
-        weight?: string | number;
-        line_height?: string;
-      };
-      body_primary?: {
-        size?: string;
-        weight?: string | number;
-        line_height?: string;
-      };
-      body_secondary?: {
-        size?: string;
-        weight?: string | number;
-        line_height?: string;
-      };
-      caption?: {
-        size?: string;
-        weight?: string | number;
-        line_height?: string;
-      };
-      button_label?: {
-        size?: string;
-        weight?: string | number;
-        line_height?: string;
-      };
-      [key: string]: JsonValue | undefined;
-    };
-    spacing?: Record<string, string>;
-    mobile_layout?: Record<string, string>;
-    sizing?: Record<string, string>;
-    radii?: Record<string, string>;
-    border_widths?: Record<string, string>;
-    shadows?: Record<string, string>;
-    elevation?: Record<string, string>;
-    opacities?: Record<string, string>;
-    z_index?: Record<string, string>;
+export interface DesignColorTokens {
+  background?: {
+    primary?: string;
+    secondary?: string;
+    surface_elevated?: string;
     [key: string]: JsonValue | undefined;
   };
+  surface?: {
+    card?: string;
+    bottom_sheet?: string;
+    modal?: string;
+    [key: string]: JsonValue | undefined;
+  };
+  text?: {
+    high_emphasis?: string;
+    medium_emphasis?: string;
+    low_emphasis?: string;
+    action_label?: string;
+    [key: string]: JsonValue | undefined;
+  };
+  action?: {
+    primary?: string;
+    secondary?: string;
+    primary_gradient_start?: string;
+    primary_gradient_end?: string;
+    on_surface_white_bg?: string;
+    on_primary_text?: string;
+    disabled?: string;
+    [key: string]: JsonValue | undefined;
+  };
+  border?: {
+    divider?: string;
+    focused?: string;
+    [key: string]: JsonValue | undefined;
+  };
+  [key: string]: JsonValue | undefined;
+}
+
+export interface DesignTypographyScale {
+  size?: string;
+  weight?: string | number;
+  line_height?: string;
+  [key: string]: JsonValue | undefined;
+}
+
+export interface DesignTypographyTokens {
+  font_family?: string;
+  title_large?: DesignTypographyScale;
+  title_main?: DesignTypographyScale;
+  body_primary?: DesignTypographyScale;
+  body_secondary?: DesignTypographyScale;
+  caption?: DesignTypographyScale;
+  button_label?: DesignTypographyScale;
+  [key: string]: JsonValue | undefined;
+}
+
+export interface DesignTokenValues {
+  color?: DesignColorTokens;
+  typography?: DesignTypographyTokens;
+  spacing?: Record<string, string>;
+  mobile_layout?: Record<string, string>;
+  sizing?: Record<string, string>;
+  radii?: Record<string, string>;
+  border_widths?: Record<string, string>;
+  shadows?: Record<string, string>;
+  elevation?: Record<string, string>;
+  opacities?: Record<string, string>;
+  z_index?: Record<string, string>;
+  [key: string]: JsonValue | undefined;
+}
+
+export interface DesignTokenRationale {
+  color?: string;
+  typography?: string;
+  spacing?: string;
+  radii?: string;
+  shadows?: string;
+  surfaces?: string;
+  [key: string]: JsonValue | undefined;
+}
+
+export interface DesignTokenMetadata {
+  recommendedFonts?: string[];
+  rationale?: DesignTokenRationale;
+  [key: string]: JsonValue | undefined;
+}
+
+export interface DesignTokens {
+  system_schema?: string;
+  tokens?: DesignTokenValues;
+  meta?: DesignTokenMetadata;
   [key: string]: JsonValue | undefined;
 }
 

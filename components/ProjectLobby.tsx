@@ -20,13 +20,6 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { DesignTokens, PlannedUiFlow, PromptImagePayload } from "@/lib/types";
 
-const EXAMPLE_PROMPTS = [
-  "A wealth-tracking app for couples with shared goals and calm charts",
-  "Recreate this uploaded mobile UI as a polished production-ready screen",
-  "A restaurant ordering app with loyalty, saved carts, and order tracking",
-  "A study planner for competitive exams with streaks, mock tests, and revision boards",
-];
-
 type LobbyStage = "brief" | "design" | "plan";
 
 export function ProjectLobby({ initialPrompt = "" }: { initialPrompt?: string }) {
@@ -254,7 +247,7 @@ export function ProjectLobby({ initialPrompt = "" }: { initialPrompt?: string })
                         Upload reference
                       </Button>
                       <div className="inline-flex items-center rounded-full border border-black/10 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-500">
-                        Mobile app first
+                        Your brief drives the system
                       </div>
                     </div>
 
@@ -262,19 +255,6 @@ export function ProjectLobby({ initialPrompt = "" }: { initialPrompt?: string })
                       {isGeneratingDesign ? <Loader2 className="h-4 w-4 animate-spin" /> : "Generate design system"}
                     </Button>
                   </div>
-                </div>
-
-                <div className="mt-5 flex flex-wrap gap-2">
-                  {EXAMPLE_PROMPTS.map((example) => (
-                    <button
-                      key={example}
-                      type="button"
-                      onClick={() => setPrompt(example)}
-                      className="rounded-full border border-black/10 bg-white/80 px-3 py-2 text-sm text-slate-600 shadow-sm transition hover:border-black/20 hover:text-slate-950"
-                    >
-                      {example}
-                    </button>
-                  ))}
                 </div>
               </section>
 
@@ -371,12 +351,33 @@ export function ProjectLobby({ initialPrompt = "" }: { initialPrompt?: string })
                         <div className="mt-1 text-sm leading-6 text-slate-700">{plan.charter.creativeDirection.styleEssence}</div>
                       </div>
                     ) : null}
+                    {designTokens?.meta?.rationale ? (
+                      <div>
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Design system logic</div>
+                        <div className="mt-2 space-y-2">
+                          {[
+                            designTokens.meta.rationale.typography,
+                            designTokens.meta.rationale.spacing,
+                            designTokens.meta.rationale.radii,
+                            designTokens.meta.rationale.shadows,
+                            designTokens.meta.rationale.surfaces,
+                          ].filter(Boolean).map((entry) => (
+                            <div key={entry} className="text-sm leading-6 text-slate-700">{entry}</div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="mt-4 flex flex-wrap gap-2">
                     {plan.charter.keyFeatures.map((feature) => (
                       <span key={feature} className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">
                         {feature}
+                      </span>
+                    ))}
+                    {designTokens?.meta?.recommendedFonts?.map((font) => (
+                      <span key={font} className="rounded-full border border-black/10 bg-slate-950 px-3 py-1.5 text-xs font-medium text-white">
+                        {font}
                       </span>
                     ))}
                   </div>
