@@ -104,7 +104,15 @@ export function useScreens(projectId: string, initialScreens: ScreenData[] = [])
           });
         },
       )
-      .subscribe();
+      .subscribe((status) => {
+        // Re-fetch once the WebSocket subscription is confirmed live to pick up
+        // any INSERT events that happened during the handshake window (the gap
+        // between the initial fetch completing with 0 rows and the channel
+        // being fully acknowledged by Supabase Realtime).
+        if (status === "SUBSCRIBED" && !cancelled) {
+          void loadScreens();
+        }
+      });
 
     return () => {
       cancelled = true;

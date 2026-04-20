@@ -1,3 +1,5 @@
+import { randomUUID } from "crypto";
+
 import { logger, runs, streams, task } from "@trigger.dev/sdk";
 
 import { hasApprovedDesignTokens } from "@/lib/design-tokens";
@@ -25,6 +27,7 @@ type GenerateUiFlowPayload = {
 
 type BuildScreenTaskPayload = {
   screenId: string;
+  projectId: string;
   screenPlan: ScreenPlan;
   prompt: string;
   designTokens?: DesignTokens | null;
@@ -123,7 +126,11 @@ export const buildScreenTask = task({
     randomize: true,
   },
   queue: {
-    concurrencyLimit: 8,
+    // Per-project limit via concurrencyKey at trigger time.  Each project
+    // gets its own virtual queue capped at 2 concurrent Gemini streaming
+    // calls, which avoids 429 rate-limit errors while still letting
+    // different users build in parallel.
+    concurrencyLimit: 2,
   },
   maxDuration: 300,
   run: async (payload: BuildScreenTaskPayload) => {
@@ -171,28 +178,23 @@ export const buildScreenTask = task({
       throw updateError;
     }
 
-    try {
-      const summary = await generateScreenSummary(payload.screenPlan.name, code);
-      const embedding = await generateEmbedding(summary, "RETRIEVAL_DOCUMENT");
-
-      const { error: summaryUpdateError } = await admin
-        .from("screens")
-        .update({
-          summary,
-          embedding: embedding as never,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", payload.screenId);
-
-      if (summaryUpdateError) {
-        throw summaryUpdateError;
-      }
-    } catch (summaryError) {
-      logger.warn("Failed to enrich screen with summary/embedding", {
+    // Fire-and-forget: enrich the screen with a semantic embedding so it
+    // can be retrieved as context for future generations.  This runs as a
+    // separate child task so buildScreenTask reaches COMPLETED immediately
+    // after saving the code — unblocking the parent from starting the next
+    // screen without waiting 1-2 minutes for extra Gemini API calls.
+    await enrichScreenTask.trigger(
+      {
         screenId: payload.screenId,
-        error: summaryError,
-      });
-    }
+        screenName: payload.screenPlan.name,
+        code,
+      },
+      {
+        // Use a separate concurrency namespace so embedding calls never
+        // compete with build-screen streaming for Gemini API quota.
+        concurrencyKey: `enrich-${payload.projectId}`,
+      },
+    );
 
     logger.info("Built screen", {
       screenId: payload.screenId,
@@ -200,6 +202,38 @@ export const buildScreenTask = task({
     });
 
     return { screenId: payload.screenId };
+  },
+});
+
+export const enrichScreenTask = task({
+  id: "enrich-screen",
+  retry: {
+    maxAttempts: 2,
+    factor: 2,
+    minTimeoutInMs: 1000,
+    maxTimeoutInMs: 15000,
+  },
+  maxDuration: 120,
+  run: async ({ screenId, screenName, code }: { screenId: string; screenName: string; code: string }) => {
+    const admin = createAdminClient();
+
+    const summary = await generateScreenSummary(screenName, code);
+    const embedding = await generateEmbedding(summary, "RETRIEVAL_DOCUMENT");
+
+    const { error } = await admin
+      .from("screens")
+      .update({
+        summary,
+        embedding: embedding as never,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", screenId);
+
+    if (error) {
+      throw error;
+    }
+
+    logger.info("Enriched screen embedding", { screenId, screenName });
   },
 });
 
@@ -320,80 +354,114 @@ export const generateUiFlowTask = task({
       requested_screen_count: screenPlans.length,
     });
 
-    const placeholderScreens: Database["public"]["Tables"]["screens"]["Insert"][] = screenPlans.map((screenPlan, index) => ({
-      owner_id: payload.ownerId,
-      project_id: payload.projectId,
-      generation_run_id: payload.generationRunId,
-      name: screenPlan.name,
-      prompt: screenPlan.description,
-      code: buildPlaceholderCode(screenPlan.name, designTokens),
-      status: "building",
-      position_x: reservedSlots[index]?.position_x ?? 4800 + index * 450,
-      position_y: reservedSlots[index]?.position_y ?? 4600,
-      sort_index: reservedSlots[index]?.sort_index ?? index,
-      created_at: now(),
-      updated_at: now(),
-    }));
-
-    const { data: insertedScreens, error: insertError } = await admin
-      .from("screens")
-      .insert(placeholderScreens)
-      .select("id, name, sort_index");
-
-    if (insertError) {
-      throw insertError;
-    }
-
-    const buildPayloads = (insertedScreens ?? []).map((screen, index) => ({
-      screenId: screen.id,
-      screenPlan: screenPlans[index],
-      prompt: payload.prompt,
-      designTokens,
-      image: index === 0 ? promptImage : null,
-      requiresBottomNav: plan.requiresBottomNav,
-      projectContext: buildContext,
-    }));
-
-    // Sequential "domino" execution: trigger one screen at a time so we
-    // never blast the Gemini API with concurrent requests that hit TPM /
-    // RPM rate limits (HTTP 429) and trigger exponential back-off.
-    // Each screen streams to the canvas as it builds, giving the user
-    // something to watch while the next one is queued.
+    // Concurrent execution: trigger ALL build-screen tasks at once so
+    // every screen starts streaming to the canvas immediately.  Trigger.dev's
+    // per-project concurrencyKey (limit 2) ensures at most 2 Gemini streaming
+    // calls per project — avoiding 429 rate limits while keeping throughput
+    // high.  Screens beyond the limit queue in Trigger.dev and auto-start
+    // as slots open.  All screens get stream tokens from the trigger call
+    // immediately, so the frontend can subscribe before execution begins.
+    //
+    // For each screen we trigger the build task FIRST, grab the handle
+    // (which carries publicAccessToken), then INSERT the placeholder row
+    // with trigger_run_id + stream_public_token already set so the
+    // frontend subscribes from the very first Realtime INSERT event.
     let successfulScreens = 0;
     let failedScreens = 0;
 
-    for (const [index, buildPayload] of buildPayloads.entries()) {
-      const screen = insertedScreens?.[index];
-      if (!screen) continue;
+    type ScreenHandle = {
+      screenId: string;
+      handleId: string;
+    };
 
-      try {
-        // Trigger the child run and immediately persist its stream token
-        // so the frontend can subscribe before the first chunk arrives.
-        const handle = await (buildScreenTask as any).trigger(buildPayload);
+    // Phase 1: trigger all builds and insert placeholders concurrently.
+    const screenHandles: ScreenHandle[] = [];
 
-        const { error: screenUpdateError } = await admin
-          .from("screens")
-          .update({
-            trigger_run_id: handle.id,
-            stream_public_token: handle.publicAccessToken ?? null,
-            updated_at: now(),
-          })
-          .eq("id", screen.id);
+    await Promise.all(
+      screenPlans.map(async (screenPlan, index) => {
+        const screenId = randomUUID();
 
-        if (screenUpdateError) {
-          throw new Error(
-            `Failed to save trigger_run_id to screen ${screen.id}: ${screenUpdateError.message}`,
+        try {
+          const handle = await (buildScreenTask as any).trigger(
+            {
+              screenId,
+              projectId: payload.projectId,
+              screenPlan,
+              prompt: payload.prompt,
+              designTokens,
+              image: index === 0 ? promptImage : null,
+              requiresBottomNav: plan.requiresBottomNav,
+              projectContext: buildContext,
+            },
+            {
+              // Each unique concurrencyKey gets its own copy of the task's
+              // queue (concurrencyLimit: 2).  This means each project can
+              // run at most 2 Gemini streaming calls at once — enough
+              // throughput to feel fast while staying under rate limits.
+              // Different projects are fully independent.
+              concurrencyKey: `project-${payload.projectId}`,
+            },
           );
-        }
 
-        // Wait for this screen to finish before starting the next one.
-        const result = await runs.poll(handle.id, { pollIntervalMs: 2000 });
+          const { error: insertError } = await admin
+            .from("screens")
+            .insert({
+              id: screenId,
+              owner_id: payload.ownerId,
+              project_id: payload.projectId,
+              generation_run_id: payload.generationRunId,
+              name: screenPlan.name,
+              prompt: screenPlan.description,
+              code: buildPlaceholderCode(screenPlan.name, designTokens),
+              status: "building",
+              trigger_run_id: handle.id,
+              stream_public_token: handle.publicAccessToken ?? null,
+              position_x: reservedSlots[index]?.position_x ?? 4800 + index * 450,
+              position_y: reservedSlots[index]?.position_y ?? 4600,
+              sort_index: reservedSlots[index]?.sort_index ?? index,
+              created_at: now(),
+              updated_at: now(),
+            });
 
-        if (result?.status === "COMPLETED") {
-          successfulScreens += 1;
-        } else {
+          if (insertError) {
+            throw new Error(`Failed to insert placeholder for "${screenPlan.name}": ${insertError.message}`);
+          }
+
+          screenHandles.push({ screenId, handleId: handle.id });
+        } catch (triggerError) {
           failedScreens += 1;
-          const message = result?.error?.message ?? "Unknown error";
+          logger.error("Failed to trigger/insert screen", {
+            screenName: screenPlan.name,
+            error: triggerError,
+          });
+        }
+      }),
+    );
+
+    // Phase 2: poll all running builds concurrently.
+    await Promise.all(
+      screenHandles.map(async ({ screenId, handleId }) => {
+        try {
+          const result = await runs.poll(handleId, { pollIntervalMs: 2000 });
+
+          if (result?.status === "COMPLETED") {
+            successfulScreens += 1;
+          } else {
+            failedScreens += 1;
+            const message = result?.error?.message ?? "Unknown error";
+            await admin
+              .from("screens")
+              .update({
+                code: buildErrorCode(message),
+                status: "failed",
+                error: message,
+                updated_at: now(),
+              })
+              .eq("id", screenId);
+          }
+        } catch (pollError) {
+          failedScreens += 1;
+          const message = pollError instanceof Error ? pollError.message : String(pollError);
           await admin
             .from("screens")
             .update({
@@ -402,22 +470,10 @@ export const generateUiFlowTask = task({
               error: message,
               updated_at: now(),
             })
-            .eq("id", screen.id);
+            .eq("id", screenId);
         }
-      } catch (screenError) {
-        failedScreens += 1;
-        const message = screenError instanceof Error ? screenError.message : String(screenError);
-        await admin
-          .from("screens")
-          .update({
-            code: buildErrorCode(message),
-            status: "failed",
-            error: message,
-            updated_at: now(),
-          })
-          .eq("id", screen.id);
-      }
-    }
+      }),
+    );
 
     const finishedStatus = successfulScreens === 0 ? "failed" : "completed";
     const errorSummary = failedScreens > 0 ? `${failedScreens} screen(s) failed during generation.` : null;
