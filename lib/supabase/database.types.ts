@@ -21,6 +21,14 @@ export type ScreenStatus = "queued" | "building" | "ready" | "failed";
 
 export type MessageRole = "user" | "model" | "system";
 
+export type ProjectMessageType =
+  | "chat"
+  | "edit_applied"
+  | "screen_created"
+  | "generation_started"
+  | "generation_completed"
+  | "error";
+
 export interface Database {
   public: {
     Tables: {
@@ -237,6 +245,48 @@ export interface Database {
         };
         Relationships: [];
       };
+      project_messages: {
+        Row: {
+          id: string;
+          project_id: string;
+          owner_id: string;
+          screen_id: string | null;
+          role: MessageRole;
+          content: string;
+          message_type: ProjectMessageType;
+          metadata: Json;
+          summary: string | null;
+          embedding: number[] | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          project_id: string;
+          owner_id: string;
+          screen_id?: string | null;
+          role: MessageRole;
+          content: string;
+          message_type?: ProjectMessageType;
+          metadata?: Json;
+          summary?: string | null;
+          embedding?: number[] | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          project_id?: string;
+          owner_id?: string;
+          screen_id?: string | null;
+          role?: MessageRole;
+          content?: string;
+          message_type?: ProjectMessageType;
+          metadata?: Json;
+          summary?: string | null;
+          embedding?: number[] | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {};
     Functions: {
@@ -265,12 +315,30 @@ export interface Database {
           position_y: number;
         }[];
       };
+      match_project_messages: {
+        Args: {
+          query_embedding: number[];
+          p_project_id: string;
+          match_threshold?: number;
+          match_count?: number;
+        };
+        Returns: {
+          message_id: string;
+          role: MessageRole;
+          content: string;
+          message_type: ProjectMessageType;
+          screen_id: string | null;
+          created_at: string;
+          similarity: number;
+        }[];
+      };
     };
     Enums: {
       project_status: ProjectStatus;
       generation_status: GenerationStatus;
       screen_status: ScreenStatus;
       message_role: MessageRole;
+      project_message_type: ProjectMessageType;
     };
   };
 }
@@ -280,3 +348,4 @@ export type ProjectRow = Database["public"]["Tables"]["projects"]["Row"];
 export type GenerationRunRow = Database["public"]["Tables"]["generation_runs"]["Row"];
 export type ScreenRow = Database["public"]["Tables"]["screens"]["Row"];
 export type ScreenMessageRow = Database["public"]["Tables"]["screen_messages"]["Row"];
+export type ProjectMessageRow = Database["public"]["Tables"]["project_messages"]["Row"];

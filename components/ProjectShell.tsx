@@ -6,9 +6,8 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 
 import { AddScreenSidebar } from "@/components/AddScreenSidebar";
 import { CanvasArea } from "@/components/CanvasArea";
+import { ChatPanel } from "@/components/ChatPanel";
 import { GenerationProgress } from "@/components/GenerationProgress";
-import { PromptBar } from "@/components/PromptBar";
-import { ScreenEditorPanel } from "@/components/ScreenEditorPanel";
 import { Button } from "@/components/ui/button";
 import { useGenerationRuns } from "@/hooks/use-generation-runs";
 import { useProject } from "@/hooks/use-project";
@@ -406,11 +405,14 @@ export function ProjectShell({
 
           {!selectedScreen && (
             <div className="absolute bottom-4 left-1/2 z-40 w-full max-w-2xl -translate-x-1/2 px-4 transition-all duration-300 md:bottom-8">
-              <PromptBar
+              <ChatPanel
                 project={project}
-                onSubmit={handlePromptSubmit}
+                screens={screens}
+                selectedScreen={null}
+                ownerId={user.id}
+                onSelectScreen={setSelectedScreen}
                 disabled={isCanvasInteractionLocked}
-                submitStatusText="Planning screen..."
+                onPromptSubmit={handlePromptSubmit}
               />
             </div>
           )}
@@ -429,7 +431,17 @@ export function ProjectShell({
             onBuild={() => void handleBuildPlannedScreen()}
           />
 
-          {selectedScreen && <ScreenEditorPanel screen={selectedScreen} ownerId={user.id} onClose={() => setSelectedScreen(null)} />}
+          {selectedScreen && (
+            <ChatPanel
+              project={project}
+              screens={screens}
+              selectedScreen={selectedScreen}
+              ownerId={user.id}
+              onSelectScreen={setSelectedScreen}
+              disabled={isCanvasInteractionLocked}
+              onPromptSubmit={handlePromptSubmit}
+            />
+          )}
         </div>
       </main>
     </div>

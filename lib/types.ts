@@ -264,6 +264,26 @@ export interface Message {
   timestamp: string;
 }
 
+export type ProjectMessageType =
+  | 'chat'
+  | 'edit_applied'
+  | 'screen_created'
+  | 'generation_started'
+  | 'generation_completed'
+  | 'error';
+
+export interface ProjectMessage {
+  id: string;
+  projectId: string;
+  ownerId: string;
+  screenId: string | null;
+  role: 'user' | 'model' | 'system';
+  content: string;
+  messageType: ProjectMessageType;
+  metadata: Record<string, unknown>;
+  timestamp: string;
+}
+
 export interface BuildScreenInput {
   screenPlan: ScreenPlan;
   designTokens?: DesignTokens | null;

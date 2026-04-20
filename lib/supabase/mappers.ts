@@ -2,6 +2,7 @@ import type { User } from "@supabase/supabase-js";
 
 import type {
   GenerationRunRow,
+  ProjectMessageRow,
   ProjectRow,
   ScreenMessageRow,
   ScreenRow,
@@ -11,6 +12,7 @@ import type {
   DesignTokens,
   GenerationRunData,
   Message,
+  ProjectMessage,
   ScreenBlockIndex,
   ProjectCharter,
   ProjectData,
@@ -89,6 +91,22 @@ export function mapScreenMessageRow(row: ScreenMessageRow): Message {
     id: row.id,
     role: row.role,
     content: row.content,
+    timestamp: row.created_at,
+  };
+}
+
+export function mapProjectMessageRow(row: ProjectMessageRow): ProjectMessage {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    ownerId: row.owner_id,
+    screenId: row.screen_id,
+    role: row.role,
+    content: row.content,
+    messageType: row.message_type,
+    metadata: typeof row.metadata === "object" && row.metadata && !Array.isArray(row.metadata)
+      ? (row.metadata as Record<string, unknown>)
+      : {},
     timestamp: row.created_at,
   };
 }

@@ -116,6 +116,30 @@ async function reserveScreenSlots(admin: AdminClient, projectId: string, slotCou
   return (data ?? []) as ReservedScreenSlot[];
 }
 
+async function postStatusMessage(
+  admin: AdminClient,
+  projectId: string,
+  ownerId: string,
+  content: string,
+  messageType: Database["public"]["Tables"]["project_messages"]["Insert"]["message_type"],
+  metadata: Record<string, unknown> = {},
+  screenId?: string | null,
+) {
+  try {
+    await admin.from("project_messages").insert({
+      project_id: projectId,
+      owner_id: ownerId,
+      screen_id: screenId ?? null,
+      role: "system",
+      content,
+      message_type: messageType ?? "chat",
+      metadata: metadata as never,
+    });
+  } catch (err) {
+    logger.warn("Failed to post status message", { content, error: err });
+  }
+}
+
 export const buildScreenTask = task({
   id: "build-screen",
   retry: {
@@ -297,6 +321,15 @@ export const generateUiFlowTask = task({
       error: null,
     });
 
+    await postStatusMessage(
+      admin,
+      payload.projectId,
+      payload.ownerId,
+      "Planning screens...",
+      "generation_started",
+      { generationRunId: payload.generationRunId },
+    );
+
     const [promptImage, planningContext] = await Promise.all([
       loadPromptImage(admin, payload.imagePath),
       assembleProjectContext({
@@ -372,6 +405,7 @@ export const generateUiFlowTask = task({
     type ScreenHandle = {
       screenId: string;
       handleId: string;
+      screenName: string;
     };
 
     // Phase 1: trigger all builds and insert placeholders concurrently.
@@ -427,7 +461,17 @@ export const generateUiFlowTask = task({
             throw new Error(`Failed to insert placeholder for "${screenPlan.name}": ${insertError.message}`);
           }
 
-          screenHandles.push({ screenId, handleId: handle.id });
+          screenHandles.push({ screenId, handleId: handle.id, screenName: screenPlan.name });
+
+          await postStatusMessage(
+            admin,
+            payload.projectId,
+            payload.ownerId,
+            `Building ${screenPlan.name}...`,
+            "generation_started",
+            { screenName: screenPlan.name, generationRunId: payload.generationRunId },
+            screenId,
+          );
         } catch (triggerError) {
           failedScreens += 1;
           logger.error("Failed to trigger/insert screen", {
@@ -440,12 +484,22 @@ export const generateUiFlowTask = task({
 
     // Phase 2: poll all running builds concurrently.
     await Promise.all(
-      screenHandles.map(async ({ screenId, handleId }) => {
+      screenHandles.map(async ({ screenId, handleId, screenName }) => {
         try {
           const result = await runs.poll(handleId, { pollIntervalMs: 2000 });
 
           if (result?.status === "COMPLETED") {
             successfulScreens += 1;
+
+            await postStatusMessage(
+              admin,
+              payload.projectId,
+              payload.ownerId,
+              `✓ ${screenName} ready`,
+              "generation_completed",
+              { generationRunId: payload.generationRunId, screenName },
+              screenId,
+            );
           } else {
             failedScreens += 1;
             const message = result?.error?.message ?? "Unknown error";
@@ -491,6 +545,19 @@ export const generateUiFlowTask = task({
     await updateProject(admin, payload.projectId, {
       status: finishedStatus === "completed" ? "completed" : "failed",
     });
+
+    const completionContent = finishedStatus === "completed"
+      ? `✓ Created ${successfulScreens} screen${successfulScreens > 1 ? "s" : ""}`
+      : `Generation finished with ${failedScreens} failure${failedScreens > 1 ? "s" : ""}`;
+
+    await postStatusMessage(
+      admin,
+      payload.projectId,
+      payload.ownerId,
+      completionContent,
+      finishedStatus === "completed" ? "generation_completed" : "error",
+      { generationRunId: payload.generationRunId, successfulScreens, failedScreens },
+    );
 
     logger.info("UI flow generation completed", {
       generationRunId: payload.generationRunId,

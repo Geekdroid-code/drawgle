@@ -3,17 +3,19 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   Database,
   MessageRole,
+  ProjectMessageType,
   ProjectStatus,
   ScreenRow,
   ScreenStatus,
 } from "@/lib/supabase/database.types";
 import {
   mapGenerationRunRow,
+  mapProjectMessageRow,
   mapProjectRow,
   mapScreenMessageRow,
   mapScreenRow,
 } from "@/lib/supabase/mappers";
-import type { DesignTokens, GenerationRunData, Message, ProjectCharter, ProjectData, ScreenBlockIndex, ScreenData } from "@/lib/types";
+import type { DesignTokens, GenerationRunData, Message, ProjectCharter, ProjectData, ProjectMessage, ScreenBlockIndex, ScreenData } from "@/lib/types";
 
 type Client = SupabaseClient<Database>;
 
@@ -229,6 +231,78 @@ export async function insertScreenMessage(
     role: input.role,
     content: input.content,
   });
+
+  if (error) {
+    throw error;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Project Messages
+// ---------------------------------------------------------------------------
+
+export async function fetchProjectMessages(
+  client: Client,
+  projectId: string,
+  limit = 50,
+): Promise<ProjectMessage[]> {
+  const { data, error } = await client
+    .from("project_messages")
+    .select("*")
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: true })
+    .limit(limit);
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []).map(mapProjectMessageRow);
+}
+
+export async function insertProjectMessage(
+  client: Client,
+  input: {
+    projectId: string;
+    ownerId: string;
+    screenId?: string | null;
+    role: MessageRole;
+    content: string;
+    messageType?: ProjectMessageType;
+    metadata?: Record<string, unknown>;
+  },
+): Promise<ProjectMessage> {
+  const { data, error } = await client
+    .from("project_messages")
+    .insert({
+      project_id: input.projectId,
+      owner_id: input.ownerId,
+      screen_id: input.screenId ?? null,
+      role: input.role,
+      content: input.content,
+      message_type: input.messageType ?? "chat",
+      metadata: (input.metadata ?? {}) as never,
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return mapProjectMessageRow(data);
+}
+
+export async function updateProjectMessageEmbedding(
+  client: Client,
+  messageId: string,
+  summary: string,
+  embedding: number[],
+) {
+  const { error } = await client
+    .from("project_messages")
+    .update({ summary, embedding })
+    .eq("id", messageId);
 
   if (error) {
     throw error;
