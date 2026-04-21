@@ -25,6 +25,12 @@ import type {
   ScreenData,
 } from "@/lib/types";
 
+const TERMINAL_GENERATION_STATUSES = new Set<GenerationRunData["status"]>([
+  "completed",
+  "failed",
+  "canceled",
+]);
+
 class QueueGenerationError extends Error {
   status: number;
   activeGenerationRunId: string | null;
@@ -116,15 +122,19 @@ export function ProjectShell({
 }) {
   const router = useRouter();
   const { project, isLoading: isProjectLoading } = useProject(initialProject.id, initialProject);
-  const { screens } = useScreens(initialProject.id, initialScreens);
+  const { screens, refreshScreens } = useScreens(initialProject.id, initialScreens);
   const { generationRun, generationRuns, refreshGenerationRuns } = useGenerationRuns(initialProject.id, initialGenerationRuns);
   const [fitRequestVersion, setFitRequestVersion] = useState(0);
   const [selectedScreen, setSelectedScreen] = useState<ScreenData | null>(null);
   const [isQueueingGeneration, setIsQueueingGeneration] = useState(false);
   const [pendingQueuedRunId, setPendingQueuedRunId] = useState<string | null>(null);
+  const [pendingAddScreenRunId, setPendingAddScreenRunId] = useState<string | null>(null);
   const [queueError, setQueueError] = useState<string | null>(null);
   const [addScreenPlan, setAddScreenPlan] = useState<ScreenPlanState | null>(null);
   const centeredRunIdRef = useRef<string | null>(null);
+  const knownScreenIdsRef = useRef<Set<string>>(new Set());
+  const hasHydratedScreenIdsRef = useRef(false);
+  const addScreenRefreshAttemptedRunIdRef = useRef<string | null>(null);
   const hasQueuedInitialFitRef = useRef(false);
   const planRequestIdRef = useRef(0);
   const isGenerationBusy = Boolean(generationRun) || isQueueingGeneration || Boolean(pendingQueuedRunId);
@@ -168,6 +178,41 @@ export function ProjectShell({
   }, [screens.length]);
 
   useEffect(() => {
+    if (screens.length === 0) {
+      knownScreenIdsRef.current = new Set();
+      return;
+    }
+
+    const currentScreenIds = new Set(screens.map((screen) => screen.id));
+
+    if (!hasHydratedScreenIdsRef.current) {
+      hasHydratedScreenIdsRef.current = true;
+      knownScreenIdsRef.current = currentScreenIds;
+      return;
+    }
+
+    const hasNewScreen = screens.some((screen) => !knownScreenIdsRef.current.has(screen.id));
+    knownScreenIdsRef.current = currentScreenIds;
+
+    if (!hasNewScreen) {
+      return;
+    }
+
+    setFitRequestVersion((currentVersion) => currentVersion + 1);
+  }, [screens]);
+
+  useEffect(() => {
+    if (!pendingQueuedRunId) {
+      return;
+    }
+
+    if (screens.some((screen) => screen.generationRunId === pendingQueuedRunId)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPendingQueuedRunId(null);
+    }
+  }, [screens, pendingQueuedRunId]);
+
+  useEffect(() => {
     if (!pendingQueuedRunId) {
       return;
     }
@@ -177,6 +222,19 @@ export function ProjectShell({
       setPendingQueuedRunId(null);
     }
   }, [generationRuns, pendingQueuedRunId]);
+
+  useEffect(() => {
+    if (!pendingAddScreenRunId) {
+      addScreenRefreshAttemptedRunIdRef.current = null;
+      return;
+    }
+
+    if (screens.some((screen) => screen.generationRunId === pendingAddScreenRunId)) {
+      addScreenRefreshAttemptedRunIdRef.current = null;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPendingAddScreenRunId(null);
+    }
+  }, [screens, pendingAddScreenRunId]);
 
   useEffect(() => {
     if (generationRun?.id) {
@@ -205,6 +263,45 @@ export function ProjectShell({
     setFitRequestVersion((currentVersion) => currentVersion + 1);
   }, [generationRun?.id, screens]);
 
+  useEffect(() => {
+    if (!pendingAddScreenRunId) {
+      return;
+    }
+
+    const trackedRun = generationRuns.find((run) => run.id === pendingAddScreenRunId);
+    if (!trackedRun || !TERMINAL_GENERATION_STATUSES.has(trackedRun.status)) {
+      return;
+    }
+
+    if (screens.some((screen) => screen.generationRunId === pendingAddScreenRunId)) {
+      addScreenRefreshAttemptedRunIdRef.current = null;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPendingAddScreenRunId(null);
+      return;
+    }
+
+    if (addScreenRefreshAttemptedRunIdRef.current === pendingAddScreenRunId) {
+      return;
+    }
+
+    addScreenRefreshAttemptedRunIdRef.current = pendingAddScreenRunId;
+
+    let cancelled = false;
+
+    void (async () => {
+      await refreshScreens();
+
+      if (!cancelled) {
+        addScreenRefreshAttemptedRunIdRef.current = null;
+        setPendingAddScreenRunId(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [generationRuns, pendingAddScreenRunId, refreshScreens, screens]);
+
   const queueGenerationRequest = async (input: {
     prompt: string;
     image?: PromptImagePayload | null;
@@ -217,6 +314,8 @@ export function ProjectShell({
     if (!project || isGenerationBusy) {
       return false;
     }
+
+    const isPlannedAddScreenRequest = (input.plannedScreens?.length ?? 0) === 1;
 
     setQueueError(null);
     setIsQueueingGeneration(true);
@@ -234,9 +333,16 @@ export function ProjectShell({
       });
 
       setPendingQueuedRunId(queuedRun.generationRunId);
+      setPendingAddScreenRunId(isPlannedAddScreenRequest ? queuedRun.generationRunId : null);
+      addScreenRefreshAttemptedRunIdRef.current = null;
       await refreshGenerationRuns();
       return true;
     } catch (error) {
+      if (isPlannedAddScreenRequest) {
+        setPendingAddScreenRunId(null);
+        addScreenRefreshAttemptedRunIdRef.current = null;
+      }
+
       await refreshGenerationRuns();
 
       if (error instanceof QueueGenerationError && error.status === 409) {
