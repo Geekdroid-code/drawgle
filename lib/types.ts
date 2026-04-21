@@ -92,15 +92,64 @@ export interface DesignTypographyTokens {
   [key: string]: JsonValue | undefined;
 }
 
+export interface DesignSpacingTokens {
+  none?: string;
+  xxs?: string;
+  xs?: string;
+  sm?: string;
+  md?: string;
+  lg?: string;
+  xl?: string;
+  xxl?: string;
+  [key: string]: JsonValue | undefined;
+}
+
+export interface DesignMobileLayoutTokens {
+  screen_margin?: string;
+  safe_area_top?: string;
+  safe_area_bottom?: string;
+  section_gap?: string;
+  element_gap?: string;
+  [key: string]: JsonValue | undefined;
+}
+
+export interface DesignSizingTokens {
+  min_touch_target?: string;
+  standard_button_height?: string;
+  standard_input_height?: string;
+  icon_small?: string;
+  icon_standard?: string;
+  bottom_nav_height?: string;
+  [key: string]: JsonValue | undefined;
+}
+
+export interface DesignRadiiTokens {
+  app?: string;
+  pill?: string;
+  [key: string]: JsonValue | undefined;
+}
+
+export interface DesignBorderWidthTokens {
+  standard?: string;
+  [key: string]: JsonValue | undefined;
+}
+
+export interface DesignShadowTokens {
+  none?: string;
+  surface?: string;
+  overlay?: string;
+  [key: string]: JsonValue | undefined;
+}
+
 export interface DesignTokenValues {
   color?: DesignColorTokens;
   typography?: DesignTypographyTokens;
-  spacing?: Record<string, string>;
-  mobile_layout?: Record<string, string>;
-  sizing?: Record<string, string>;
-  radii?: Record<string, string>;
-  border_widths?: Record<string, string>;
-  shadows?: Record<string, string>;
+  spacing?: DesignSpacingTokens;
+  mobile_layout?: DesignMobileLayoutTokens;
+  sizing?: DesignSizingTokens;
+  radii?: DesignRadiiTokens;
+  border_widths?: DesignBorderWidthTokens;
+  shadows?: DesignShadowTokens;
   elevation?: Record<string, string>;
   opacities?: Record<string, string>;
   z_index?: Record<string, string>;
@@ -143,12 +192,32 @@ export interface CreativeDirection {
   avoid: string[];
 }
 
+export type PrimaryNavigationKind = "bottom-tabs" | "none";
+
+export type ScreenChromeKind = "bottom-tabs" | "top-bar" | "top-bar-back" | "modal-sheet" | "immersive";
+
+export interface ScreenChromePolicy {
+  chrome: ScreenChromeKind;
+  showPrimaryNavigation: boolean;
+  showsBackButton: boolean;
+}
+
+export interface NavigationArchitecture {
+  kind: "bottom-tabs-app" | "hierarchical" | "single-screen";
+  primaryNavigation: PrimaryNavigationKind;
+  rootChrome: ScreenChromeKind;
+  detailChrome: ScreenChromeKind;
+  consistencyRules: string[];
+  rationale: string;
+}
+
 export interface ProjectCharter {
   originalPrompt: string;
   imageReferenceSummary?: string | null;
   appType: string;
   targetAudience: string;
   navigationModel: string;
+  navigationArchitecture?: NavigationArchitecture | null;
   keyFeatures: string[];
   designRationale: string;
   creativeDirection?: CreativeDirection | null;
@@ -158,10 +227,12 @@ export interface ScreenPlan {
   name: string;
   type: 'root' | 'detail';
   description: string;
+  chromePolicy?: ScreenChromePolicy | null;
 }
 
 export interface PlannedUiFlow {
   requiresBottomNav: boolean;
+  navigationArchitecture: NavigationArchitecture;
   screens: ScreenPlan[];
   charter: ProjectCharter;
 }
@@ -250,6 +321,7 @@ export interface GenerationRunData {
   status: GenerationStatus;
   triggerRunId?: string | null;
   requiresBottomNav?: boolean;
+  navigationArchitecture?: NavigationArchitecture | null;
   error?: string | null;
   metadata?: Record<string, JsonValue>;
   createdAt: string;
@@ -290,5 +362,6 @@ export interface BuildScreenInput {
   prompt: string;
   image?: PromptImagePayload | null;
   requiresBottomNav: boolean;
+  navigationArchitecture?: NavigationArchitecture | null;
   projectContext?: string | null;
 }

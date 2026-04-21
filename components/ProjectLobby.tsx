@@ -20,6 +20,7 @@ import { DesignSystemEditor } from "@/components/DesignSystemEditor";
 import { Button } from "@/components/ui/button";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Textarea } from "@/components/ui/textarea";
+import { describeNavigationArchitecture } from "@/lib/navigation";
 import type {
   AuthenticatedUser,
   DesignTokens,
@@ -177,6 +178,7 @@ export function ProjectLobby({
           designTokens,
           plannedScreens: plan.screens,
           requiresBottomNav: plan.requiresBottomNav,
+          navigationArchitecture: plan.navigationArchitecture,
           projectCharter: plan.charter,
         }),
       });
@@ -431,7 +433,7 @@ export function ProjectLobby({
                     </div>
                     <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-[#f8f5ee] px-3 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-neutral-600">
                       <LayoutTemplate className="h-3.5 w-3.5" />
-                      {plan.requiresBottomNav ? "Bottom nav flow" : "Single-flow layout"}
+                      {describeNavigationArchitecture(plan.navigationArchitecture)}
                     </div>
                   </div>
 

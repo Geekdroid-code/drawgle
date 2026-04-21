@@ -3,13 +3,15 @@ import { randomUUID } from "crypto";
 import { logger, runs, streams, task } from "@trigger.dev/sdk";
 
 import { hasApprovedDesignTokens } from "@/lib/design-tokens";
+import { auditScreenCode, formatAuditFailureMessage } from "@/lib/generation/audit";
 import { indexScreenCode } from "@/lib/generation/block-index";
 import { assembleProjectContext } from "@/lib/generation/context";
 import { generateEmbedding, generateScreenSummary } from "@/lib/generation/embeddings";
 import { buildScreenStream, extractCode, planUiFlow } from "@/lib/generation/service";
+import { createNavigationArchitecture, deriveRequiresBottomNav } from "@/lib/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
-import type { DesignTokens, PromptImagePayload, ProjectCharter, ScreenPlan } from "@/lib/types";
+import type { DesignTokens, NavigationArchitecture, PromptImagePayload, ProjectCharter, ScreenPlan } from "@/lib/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -22,10 +24,12 @@ type GenerateUiFlowPayload = {
   imagePath?: string | null;
   plannedScreens?: ScreenPlan[] | null;
   requiresBottomNav?: boolean;
+  navigationArchitecture?: NavigationArchitecture | null;
   projectCharter?: ProjectCharter | null;
 };
 
 type BuildScreenTaskPayload = {
+  generationRunId: string;
   screenId: string;
   projectId: string;
   screenPlan: ScreenPlan;
@@ -33,6 +37,7 @@ type BuildScreenTaskPayload = {
   designTokens?: DesignTokens | null;
   image?: PromptImagePayload | null;
   requiresBottomNav: boolean;
+  navigationArchitecture?: NavigationArchitecture | null;
   projectContext?: string | null;
 };
 
@@ -84,6 +89,33 @@ async function updateGenerationRun(
   if (error) {
     throw error;
   }
+}
+
+async function mergeGenerationRunMetadata(
+  admin: AdminClient,
+  generationRunId: string,
+  metadataPatch: Record<string, unknown>,
+) {
+  const { data, error } = await admin
+    .from("generation_runs")
+    .select("metadata")
+    .eq("id", generationRunId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  const currentMetadata = data?.metadata && typeof data.metadata === "object" && !Array.isArray(data.metadata)
+    ? data.metadata as Record<string, unknown>
+    : {};
+
+  await updateGenerationRun(admin, generationRunId, {
+    metadata: {
+      ...currentMetadata,
+      ...metadataPatch,
+    } as never,
+  });
 }
 
 async function loadPromptImage(admin: AdminClient, imagePath?: string | null): Promise<PromptImagePayload | null> {
@@ -168,6 +200,7 @@ export const buildScreenTask = task({
         prompt: payload.prompt,
         image: payload.image,
         requiresBottomNav: payload.requiresBottomNav,
+        navigationArchitecture: payload.navigationArchitecture,
         projectContext: payload.projectContext,
       }),
     );
@@ -179,6 +212,30 @@ export const buildScreenTask = task({
     }
 
     const code = extractCode(rawText);
+    const auditResult = auditScreenCode({
+      code,
+      designTokens: payload.designTokens,
+      navigationArchitecture: payload.navigationArchitecture,
+      screenPlan: payload.screenPlan,
+    });
+
+    if (!auditResult.compliant) {
+      const message = formatAuditFailureMessage(auditResult, `Generated screen \"${payload.screenPlan.name}\" rejected by design audit.`);
+      const admin = createAdminClient();
+
+      await admin
+        .from("screens")
+        .update({
+          code: buildErrorCode(message),
+          status: "failed",
+          error: message,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", payload.screenId);
+
+      throw new Error(message);
+    }
+
     const blockIndex = indexScreenCode(code);
 
     // Persist the final code directly so the parent only polls for status.
@@ -309,12 +366,27 @@ export const generateUiFlowTask = task({
     }
 
     const designTokens = payload.designTokens;
+    const { data: existingProject } = await admin
+      .from("projects")
+      .select("project_charter")
+      .eq("id", payload.projectId)
+      .maybeSingle();
+    const existingCharter = (existingProject?.project_charter as ProjectCharter | null) ?? null;
+    const requestedNavigationArchitecture = createNavigationArchitecture({
+      navigationArchitecture: payload.navigationArchitecture ?? payload.projectCharter?.navigationArchitecture ?? existingCharter?.navigationArchitecture ?? null,
+      requiresBottomNav: payload.requiresBottomNav ?? deriveRequiresBottomNav(existingCharter?.navigationArchitecture),
+    });
 
-    await updateProject(admin, payload.projectId, {
+    const projectUpdate: Database["public"]["Tables"]["projects"]["Update"] = {
       status: "generating",
       design_tokens: designTokens as never,
-      project_charter: (payload.projectCharter ?? null) as never,
-    });
+    };
+
+    if (payload.projectCharter !== undefined) {
+      projectUpdate.project_charter = (payload.projectCharter ?? null) as never;
+    }
+
+    await updateProject(admin, payload.projectId, projectUpdate);
 
     await updateGenerationRun(admin, payload.generationRunId, {
       status: "planning",
@@ -338,6 +410,7 @@ export const generateUiFlowTask = task({
         userPrompt: payload.prompt,
       }),
     ]);
+    const requestedCharter = payload.projectCharter ?? existingCharter;
 
     logger.info("Assembled project context", {
       generationRunId: payload.generationRunId,
@@ -346,10 +419,15 @@ export const generateUiFlowTask = task({
       approxTokens: Math.round(planningContext.length / 4),
     });
 
+    if (payload.plannedScreens && payload.plannedScreens.length > 0 && !requestedCharter) {
+      throw new Error("A project charter is required when building preplanned screens.");
+    }
+
     const plan = payload.plannedScreens && payload.plannedScreens.length > 0
       ? {
-          requiresBottomNav: payload.requiresBottomNav ?? false,
-          charter: payload.projectCharter ?? null,
+          requiresBottomNav: deriveRequiresBottomNav(requestedNavigationArchitecture),
+          navigationArchitecture: requestedNavigationArchitecture,
+          charter: requestedCharter!,
           screens: payload.plannedScreens,
         }
       : await planUiFlow({
@@ -357,6 +435,7 @@ export const generateUiFlowTask = task({
           image: promptImage,
           designTokens,
           projectContext: planningContext,
+          existingCharter: requestedCharter,
         });
 
     if (plan.charter) {
@@ -364,6 +443,15 @@ export const generateUiFlowTask = task({
         project_charter: plan.charter as never,
       });
     }
+
+    await mergeGenerationRunMetadata(admin, payload.generationRunId, {
+      navigationArchitecture: plan.navigationArchitecture,
+      plannedScreens: plan.screens.map((screenPlan) => ({
+        name: screenPlan.name,
+        type: screenPlan.type,
+        chromePolicy: screenPlan.chromePolicy ?? null,
+      })),
+    });
 
     const buildContext = payload.plannedScreens && payload.plannedScreens.length > 0
       ? planningContext
@@ -418,6 +506,7 @@ export const generateUiFlowTask = task({
         try {
           const handle = await (buildScreenTask as any).trigger(
             {
+              generationRunId: payload.generationRunId,
               screenId,
               projectId: payload.projectId,
               screenPlan,
@@ -425,6 +514,7 @@ export const generateUiFlowTask = task({
               designTokens,
               image: index === 0 ? promptImage : null,
               requiresBottomNav: plan.requiresBottomNav,
+              navigationArchitecture: plan.navigationArchitecture,
               projectContext: buildContext,
             },
             {
@@ -536,10 +626,11 @@ export const generateUiFlowTask = task({
       status: finishedStatus,
       error: errorSummary,
       completed_at: now(),
-      metadata: {
-        successfulScreens,
-        failedScreens,
-      } as never,
+    });
+
+    await mergeGenerationRunMetadata(admin, payload.generationRunId, {
+      successfulScreens,
+      failedScreens,
     });
 
     await updateProject(admin, payload.projectId, {

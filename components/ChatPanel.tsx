@@ -17,7 +17,8 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { useProjectMessages } from "@/hooks/use-project-messages";
-import type { GenerationRunData, ProjectData, ProjectMessage, PromptImagePayload, ScreenData, ScreenPlan } from "@/lib/types";
+import { describeScreenNavigation } from "@/lib/navigation";
+import type { GenerationRunData, NavigationArchitecture, ProjectData, ProjectMessage, PromptImagePayload, ScreenData, ScreenPlan } from "@/lib/types";
 
 export type ScreenPlanState =
   | {
@@ -31,6 +32,7 @@ export type ScreenPlanState =
       image: PromptImagePayload | null;
       screenPlan: ScreenPlan;
       requiresBottomNav: boolean;
+      navigationArchitecture: NavigationArchitecture;
     }
   | {
       status: "error";
@@ -302,7 +304,7 @@ function PlanCard({
     );
   }
 
-  const { screenPlan: plan, image, requiresBottomNav } = screenPlan;
+  const { screenPlan: plan, image, navigationArchitecture } = screenPlan;
 
   return (
     <section className="self-start w-full rounded-2xl border border-black/[0.04] bg-white/40 px-4 py-4">
@@ -316,7 +318,7 @@ function PlanCard({
           {plan.type}
         </div>
         <div className="rounded-full border border-black/10 bg-slate-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-          {requiresBottomNav && plan.type === "root" ? "Bottom nav aware" : "Single screen build"}
+          {describeScreenNavigation(plan, navigationArchitecture)}
         </div>
       </div>
 

@@ -11,14 +11,13 @@ import { Button } from "@/components/ui/button";
 import { useGenerationRuns } from "@/hooks/use-generation-runs";
 import { useProject } from "@/hooks/use-project";
 import { useScreens } from "@/hooks/use-screens";
-import { applyEdits } from "@/lib/diff-engine";
-import { indexScreenCode } from "@/lib/generation/block-index";
 import { createClient } from "@/lib/supabase/client";
-import { deleteScreen, insertProjectMessage, updateScreenCode } from "@/lib/supabase/queries";
+import { deleteScreen, insertProjectMessage } from "@/lib/supabase/queries";
 import type {
   AuthenticatedUser,
   DesignTokens,
   GenerationRunData,
+  NavigationArchitecture,
   PlannedUiFlow,
   ProjectData,
   PromptImagePayload,
@@ -56,6 +55,7 @@ async function enqueueGeneration(input: {
   sourceGenerationRunId?: string;
   plannedScreens?: ScreenPlan[] | null;
   requiresBottomNav?: boolean;
+  navigationArchitecture?: NavigationArchitecture | null;
 }) {
   const response = await fetch("/api/generations", {
     method: "POST",
@@ -212,6 +212,7 @@ export function ProjectShell({
     sourceGenerationRunId?: string;
     plannedScreens?: ScreenPlan[] | null;
     requiresBottomNav?: boolean;
+    navigationArchitecture?: NavigationArchitecture | null;
   }) => {
     if (!project || isGenerationBusy) {
       return false;
@@ -229,6 +230,7 @@ export function ProjectShell({
         sourceGenerationRunId: input.sourceGenerationRunId,
         plannedScreens: input.plannedScreens ?? null,
         requiresBottomNav: input.requiresBottomNav,
+        navigationArchitecture: input.navigationArchitecture ?? null,
       });
 
       setPendingQueuedRunId(queuedRun.generationRunId);
@@ -292,6 +294,7 @@ export function ProjectShell({
         image: options.image ?? null,
         screenPlan,
         requiresBottomNav: plan.requiresBottomNav,
+        navigationArchitecture: plan.navigationArchitecture,
       });
 
       return true;
@@ -320,6 +323,7 @@ export function ProjectShell({
       prompt: run.prompt,
       designTokens: project.designTokens ?? null,
       sourceGenerationRunId: run.id,
+      navigationArchitecture: project.charter?.navigationArchitecture ?? null,
     });
   };
 
@@ -339,6 +343,7 @@ export function ProjectShell({
       designTokens: project.designTokens ?? null,
       plannedScreens: [addScreenPlan.screenPlan],
       requiresBottomNav: addScreenPlan.requiresBottomNav,
+      navigationArchitecture: addScreenPlan.navigationArchitecture,
     });
 
     if (queued) {
@@ -394,30 +399,11 @@ export function ProjectShell({
         }
 
         const reader = editRes.body.getReader();
-        const decoder = new TextDecoder();
-        let fullResponse = "";
 
         while (true) {
-          const { done, value } = await reader.read();
+          const { done } = await reader.read();
           if (done) {
             break;
-          }
-
-          fullResponse += decoder.decode(value, { stream: true });
-        }
-
-        if (fullResponse.includes("<edit>")) {
-          const supabase = createClient();
-          const nextCode = applyEdits(selectedScreen.code, fullResponse);
-
-          if (nextCode !== selectedScreen.code) {
-            await updateScreenCode(
-              supabase,
-              selectedScreen.id,
-              nextCode,
-              "ready",
-              indexScreenCode(nextCode),
-            );
           }
         }
 

@@ -6,7 +6,7 @@ import { planUiFlow } from "@/lib/generation/service";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
-import type { DesignTokens, PlanningMode, PromptImagePayload } from "@/lib/types";
+import type { DesignTokens, PlanningMode, ProjectCharter, PromptImagePayload } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -48,17 +48,20 @@ export async function POST(req: Request) {
     const payload = requestSchema.parse(await req.json());
 
     let projectContext: string | null = null;
+    let existingCharter: ProjectCharter | null = null;
 
     if (payload.projectId) {
       const { data: project, error: projectError } = await admin
         .from("projects")
-        .select("id, owner_id")
+        .select("id, owner_id, project_charter")
         .eq("id", payload.projectId)
         .maybeSingle();
 
       if (projectError || !project || project.owner_id !== user.id) {
         return NextResponse.json({ error: "Project not found" }, { status: 404 });
       }
+
+      existingCharter = (project.project_charter as ProjectCharter | null) ?? null;
 
       projectContext = await assembleProjectContext({
         admin,
@@ -72,6 +75,7 @@ export async function POST(req: Request) {
       image: (payload.image ?? null) as PromptImagePayload | null,
       designTokens: (payload.designTokens ?? null) as DesignTokens | null,
       projectContext,
+      existingCharter,
       planningMode: payload.planningMode as PlanningMode,
     });
 

@@ -8,7 +8,14 @@ import { hasApprovedDesignTokens, normalizeDesignTokens } from "@/lib/design-tok
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
-import { ACTIVE_GENERATION_STATUSES, type DesignTokens, type GenerationStatus, type ProjectCharter, type ScreenPlan } from "@/lib/types";
+import {
+  ACTIVE_GENERATION_STATUSES,
+  type DesignTokens,
+  type GenerationStatus,
+  type NavigationArchitecture,
+  type ProjectCharter,
+  type ScreenPlan,
+} from "@/lib/types";
 import type { generateUiFlowTask } from "@/trigger/generate-ui-flow";
 
 export const runtime = "nodejs";
@@ -32,12 +39,25 @@ const requestSchema = z.object({
         name: z.string().trim().min(1).max(100),
         type: z.enum(["root", "detail"]),
         description: z.string().trim().min(1).max(8000),
+        chromePolicy: z.object({
+          chrome: z.enum(["bottom-tabs", "top-bar", "top-bar-back", "modal-sheet", "immersive"]),
+          showPrimaryNavigation: z.boolean(),
+          showsBackButton: z.boolean(),
+        }).nullable().optional(),
       }),
     )
     .min(1)
     .max(8)
     .optional(),
   requiresBottomNav: z.boolean().optional(),
+  navigationArchitecture: z.object({
+    kind: z.enum(["bottom-tabs-app", "hierarchical", "single-screen"]),
+    primaryNavigation: z.enum(["bottom-tabs", "none"]),
+    rootChrome: z.enum(["bottom-tabs", "top-bar", "top-bar-back", "modal-sheet", "immersive"]),
+    detailChrome: z.enum(["bottom-tabs", "top-bar", "top-bar-back", "modal-sheet", "immersive"]),
+    consistencyRules: z.array(z.string().trim().min(1).max(300)).min(2).max(6),
+    rationale: z.string().trim().min(1).max(1200),
+  }).nullable().optional(),
   projectCharter: z
     .object({
       originalPrompt: z.string().trim().min(1).max(10000),
@@ -45,6 +65,14 @@ const requestSchema = z.object({
       appType: z.string().trim().min(1).max(120),
       targetAudience: z.string().trim().min(1).max(240),
       navigationModel: z.string().trim().min(1).max(240),
+      navigationArchitecture: z.object({
+        kind: z.enum(["bottom-tabs-app", "hierarchical", "single-screen"]),
+        primaryNavigation: z.enum(["bottom-tabs", "none"]),
+        rootChrome: z.enum(["bottom-tabs", "top-bar", "top-bar-back", "modal-sheet", "immersive"]),
+        detailChrome: z.enum(["bottom-tabs", "top-bar", "top-bar-back", "modal-sheet", "immersive"]),
+        consistencyRules: z.array(z.string().trim().min(1).max(300)).min(2).max(6),
+        rationale: z.string().trim().min(1).max(1200),
+      }).nullable().optional(),
       keyFeatures: z.array(z.string().trim().min(1).max(240)).min(1).max(16),
       designRationale: z.string().trim().min(1).max(4000),
       creativeDirection: z.object({
@@ -147,6 +175,7 @@ export async function POST(request: Request) {
       : null;
     const plannedScreens = (payload.plannedScreens ?? null) as ScreenPlan[] | null;
     const projectCharter = (payload.projectCharter ?? null) as ProjectCharter | null;
+    const navigationArchitecture = (payload.navigationArchitecture ?? projectCharter?.navigationArchitecture ?? null) as NavigationArchitecture | null;
     let designTokens = hasApprovedDesignTokens(requestedDesignTokens) ? requestedDesignTokens : null;
 
     projectId = payload.projectId;
@@ -193,6 +222,10 @@ export async function POST(request: Request) {
 
       if (payload.designTokens !== undefined || !project.design_tokens) {
         projectUpdate.design_tokens = designTokens as never;
+      }
+
+      if (payload.projectCharter !== undefined) {
+        projectUpdate.project_charter = projectCharter as never;
       }
 
       const { error: updateError } = await admin.from("projects").update(projectUpdate).eq("id", projectId);
@@ -271,6 +304,7 @@ export async function POST(request: Request) {
         metadata: {
           requestedFrom: payload.sourceGenerationRunId ? "retry" : "nextjs-route",
           sourceGenerationRunId: payload.sourceGenerationRunId ?? null,
+          navigationArchitecture,
         } as never,
         created_at: now(),
         updated_at: now(),
@@ -295,6 +329,7 @@ export async function POST(request: Request) {
         designTokens,
         plannedScreens,
         requiresBottomNav: payload.requiresBottomNav,
+        navigationArchitecture,
         projectCharter,
       },
       {

@@ -2,6 +2,8 @@ import { detectTargetBlocks, indexScreenCode } from "@/lib/generation/block-inde
 import { assembleChatContext } from "@/lib/generation/context";
 import { generateEmbedding } from "@/lib/generation/embeddings";
 import { editScreenStream } from "@/lib/generation/service";
+import { auditScreenCode, diffAuditFindings, formatAuditFailureMessage } from "@/lib/generation/audit";
+import { applyEdits } from "@/lib/diff-engine";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -9,7 +11,7 @@ import {
   insertProjectMessage,
   updateProjectMessageEmbedding,
 } from "@/lib/supabase/queries";
-import type { ScreenBlockIndex } from "@/lib/types";
+import type { DesignTokens, NavigationArchitecture, ProjectCharter, ScreenBlockIndex } from "@/lib/types";
 
 import { NextResponse } from "next/server";
 
@@ -46,7 +48,7 @@ export async function POST(req: Request) {
     // Verify project ownership
     const { data: project, error: projectError } = await admin
       .from("projects")
-      .select("id, owner_id")
+      .select("id, owner_id, design_tokens, project_charter")
       .eq("id", projectId)
       .maybeSingle();
 
@@ -73,6 +75,8 @@ export async function POST(req: Request) {
         screenId: selectedScreenId,
         prompt: prompt.trim(),
         userMessageId: userMessage.id,
+        designTokens: (project.design_tokens as DesignTokens | null) ?? null,
+        navigationArchitecture: ((project.project_charter as ProjectCharter | null)?.navigationArchitecture ?? null) as NavigationArchitecture | null,
       });
     }
 
@@ -103,6 +107,8 @@ async function handleEditIntent({
   screenId,
   prompt,
   userMessageId,
+  designTokens,
+  navigationArchitecture,
 }: {
   admin: ReturnType<typeof createAdminClient>;
   projectId: string;
@@ -110,6 +116,8 @@ async function handleEditIntent({
   screenId: string;
   prompt: string;
   userMessageId: string;
+  designTokens?: DesignTokens | null;
+  navigationArchitecture?: NavigationArchitecture | null;
 }) {
   // Fetch screen (use admin to bypass RLS — ownership already verified)
   const { data: screen, error: screenError } = await admin
@@ -164,25 +172,101 @@ async function handleEditIntent({
           screenCode,
           blockIndex,
           targetBlockIds,
+          designTokens,
+          navigationArchitecture,
         })) {
           fullResponse += chunk;
           controller.enqueue(new TextEncoder().encode(chunk));
         }
 
-        // Save model response as a project message
+        if (fullResponse.includes("<edit>")) {
+          const nextCode = applyEdits(screenCode, fullResponse);
+
+          if (nextCode === screenCode) {
+            await insertProjectMessage(admin, {
+              projectId,
+              ownerId,
+              screenId,
+              role: "system",
+              content: `No material code changes were applied to ${screen.name}.`,
+              messageType: "chat",
+              metadata: { action: "edit_noop" },
+            });
+
+            controller.close();
+            return;
+          }
+
+          const previousAudit = auditScreenCode({
+            code: screenCode,
+            designTokens,
+            navigationArchitecture,
+          });
+          const nextAudit = auditScreenCode({
+            code: nextCode,
+            designTokens,
+            navigationArchitecture,
+          });
+          const introducedFindings = diffAuditFindings(previousAudit, nextAudit).filter((finding) => finding.severity === "error");
+
+          if (introducedFindings.length > 0) {
+            await insertProjectMessage(admin, {
+              projectId,
+              ownerId,
+              screenId,
+              role: "system",
+              content: formatAuditFailureMessage(introducedFindings, "Edit rejected by design audit."),
+              messageType: "error",
+              metadata: {
+                action: "edit_audit_failed",
+                findings: introducedFindings,
+              },
+            });
+
+            controller.close();
+            return;
+          }
+
+          const { error: updateError } = await admin
+            .from("screens")
+            .update({
+              code: nextCode,
+              block_index: indexScreenCode(nextCode) as never,
+              status: "ready",
+              error: null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", screenId);
+
+          if (updateError) {
+            throw updateError;
+          }
+
+          const modelMessage = await insertProjectMessage(admin, {
+            projectId,
+            ownerId,
+            screenId,
+            role: "model",
+            content: fullResponse,
+            messageType: "edit_applied",
+            metadata: { screenName: screen.name },
+          });
+
+          void embedMessagePair(admin, userMessageId, prompt, modelMessage.id, fullResponse);
+          controller.close();
+          return;
+        }
+
         const modelMessage = await insertProjectMessage(admin, {
           projectId,
           ownerId,
           screenId,
           role: "model",
           content: fullResponse,
-          messageType: fullResponse.includes("<edit>") ? "edit_applied" : "chat",
-          metadata: fullResponse.includes("<edit>")
-            ? { screenName: screen.name }
-            : {},
+          messageType: "chat",
+          metadata: {},
         });
 
-        // Fire-and-forget: embed user message + model response
         void embedMessagePair(admin, userMessageId, prompt, modelMessage.id, fullResponse);
 
         controller.close();

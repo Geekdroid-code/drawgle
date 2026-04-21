@@ -32,9 +32,6 @@ const TYPOGRAPHY_STYLES = [
 const SPACING_KEYS = ["xxs", "xs", "sm", "md", "lg", "xl", "xxl"] as const;
 const LAYOUT_KEYS = ["screen_margin", "section_gap", "element_gap"] as const;
 const SIZE_KEYS = ["standard_button_height", "standard_input_height", "icon_small", "icon_standard", "bottom_nav_height"] as const;
-const RADIUS_KEYS = ["sharp", "sm", "md", "lg", "xl", "pill"] as const;
-const BORDER_KEYS = ["none", "hairline", "thin", "thick"] as const;
-const SHADOW_KEYS = ["sm", "md", "lg", "upward"] as const;
 
 type DesignSystemEditorProps = {
   value: DesignTokens;
@@ -115,10 +112,10 @@ export function DesignSystemEditor({
   const actionText = tokens.color?.action?.on_primary_text || "#ffffff";
   const cardBg = tokens.color?.surface?.card || "#ffffff";
   const borderDivider = tokens.color?.border?.divider || "#e5e7eb";
-  const radius = tokens.radii?.md || "8px";
-  const radiusLg = tokens.radii?.lg || "12px";
-  const shadowMd = tokens.shadows?.md || "0 4px 6px -1px rgba(0, 0, 0, 0.1)";
-  const borderHairline = tokens.border_widths?.hairline || "1px";
+  const radius = tokens.radii?.app || "18px";
+  const radiusPill = tokens.radii?.pill || "9999px";
+  const shadowSurface = tokens.shadows?.surface || "0 12px 32px rgba(15, 23, 42, 0.14)";
+  const borderStandard = tokens.border_widths?.standard || "1px";
   const fontFamily = tokens.typography?.font_family?.trim() || undefined;
 
   return (
@@ -285,40 +282,42 @@ export function DesignSystemEditor({
           <SectionHeader icon={Square} label="Shape & Elevation" sectionKey="shape" expanded={expandedSections.shape} onToggle={toggleSection} />
           {expandedSections.shape ? (
             <div className="space-y-4 px-5 pb-5 md:px-6">
-              <SubGroup label="Radii">
-                {RADIUS_KEYS.map((key) => (
-                  <TextField
-                    key={key}
-                    label={key}
-                    value={tokens.radii?.[key] || ""}
-                    onChange={(nextValue) => handleUpdateToken(["radii", key], nextValue)}
-                  />
-                ))}
-              </SubGroup>
-              <SubGroup label="Border Widths">
-                {BORDER_KEYS.map((key) => (
-                  <TextField
-                    key={key}
-                    label={key}
-                    value={tokens.border_widths?.[key] || ""}
-                    onChange={(nextValue) => handleUpdateToken(["border_widths", key], nextValue)}
-                  />
-                ))}
-              </SubGroup>
-              <div className="space-y-2">
-                <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400">Shadows</span>
-                <div className="grid gap-3">
-                  {SHADOW_KEYS.map((key) => (
-                    <ShadowField
-                      key={key}
-                      label={key.replace(/_/g, " ")}
-                      value={tokens.shadows?.[key] || ""}
-                      onChange={(nextValue) => handleUpdateToken(["shadows", key], nextValue)}
-                    />
-                  ))}
-                </div>
+              <div className="rounded-[20px] border border-black/8 bg-[#f7f3eb] p-4 text-sm leading-6 text-slate-600">
+                One geometry and elevation language should carry the entire app. Use a single standard radius, one standard border width, and one standard surface shadow. Reserve pill geometry only for chips, segmented controls, or deliberate capsule actions.
               </div>
-              <Field label="Shadow None" icon={SunMedium}>
+              <SubGroup label="Corner Geometry">
+                <TextField
+                  label="app radius"
+                  value={tokens.radii?.app || ""}
+                  onChange={(nextValue) => handleUpdateToken(["radii", "app"], nextValue)}
+                />
+                <TextField
+                  label="pill radius"
+                  value={tokens.radii?.pill || ""}
+                  onChange={(nextValue) => handleUpdateToken(["radii", "pill"], nextValue)}
+                />
+              </SubGroup>
+              <SubGroup label="Surface Outline">
+                <TextField
+                  label="standard border"
+                  value={tokens.border_widths?.standard || ""}
+                  onChange={(nextValue) => handleUpdateToken(["border_widths", "standard"], nextValue)}
+                />
+              </SubGroup>
+              <div className="space-y-3">
+                <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400">Elevation Language</span>
+                <ShadowField
+                  label="surface shadow"
+                  value={tokens.shadows?.surface || ""}
+                  onChange={(nextValue) => handleUpdateToken(["shadows", "surface"], nextValue)}
+                />
+                <ShadowField
+                  label="overlay shadow"
+                  value={tokens.shadows?.overlay || ""}
+                  onChange={(nextValue) => handleUpdateToken(["shadows", "overlay"], nextValue)}
+                />
+              </div>
+              <Field label="No Elevation" icon={SunMedium}>
                 <input
                   type="text"
                   value={tokens.shadows?.none || "none"}
@@ -344,8 +343,8 @@ export function DesignSystemEditor({
           style={{ backgroundColor: primaryBg, color: primaryText, fontFamily }}
         >
           <div className="flex items-center justify-between px-5 pt-5">
-            <div className="h-7 w-7 rounded-full" style={{ backgroundColor: secondaryBg, border: `${borderHairline} solid ${borderDivider}` }} />
-            <div className="h-7 w-20 rounded-full" style={{ backgroundColor: actionPrimary, opacity: 0.12 }} />
+            <div className="h-7 w-7 rounded-full" style={{ backgroundColor: secondaryBg, border: `${borderStandard} solid ${borderDivider}` }} />
+            <div className="h-7 w-20 rounded-full" style={{ backgroundColor: actionPrimary, opacity: 0.12, borderRadius: radiusPill }} />
           </div>
 
           <div className="flex flex-1 flex-col px-5 pb-5 pt-4">
@@ -373,15 +372,15 @@ export function DesignSystemEditor({
               </p>
             </div>
 
-            <div className="mt-5" style={{ borderBottom: `${borderHairline} solid ${borderDivider}` }} />
+            <div className="mt-5" style={{ borderBottom: `${borderStandard} solid ${borderDivider}` }} />
 
             <div
               className="mt-5 rounded-[24px] p-4"
               style={{
                 backgroundColor: cardBg,
-                borderRadius: radiusLg,
-                boxShadow: shadowMd,
-                border: `${borderHairline} solid ${borderDivider}`,
+                borderRadius: radius,
+                boxShadow: shadowSurface,
+                border: `${borderStandard} solid ${borderDivider}`,
               }}
             >
               <div style={{ fontSize: tokens.typography?.body_primary?.size || "16px", lineHeight: tokens.typography?.body_primary?.line_height || "24px", color: primaryText }}>
@@ -410,9 +409,9 @@ export function DesignSystemEditor({
               className="mt-4 flex items-center gap-3 rounded-[24px] p-4"
               style={{
                 backgroundColor: cardBg,
-                borderRadius: radiusLg,
-                boxShadow: shadowMd,
-                border: `${borderHairline} solid ${borderDivider}`,
+                borderRadius: radius,
+                boxShadow: shadowSurface,
+                border: `${borderStandard} solid ${borderDivider}`,
               }}
             >
               <div className="h-10 w-10 rounded-full" style={{ backgroundColor: actionPrimary, opacity: 0.14 }} />
@@ -427,7 +426,7 @@ export function DesignSystemEditor({
               style={{
                 backgroundColor: secondaryBg,
                 borderRadius: radius,
-                border: `${borderHairline} solid ${borderDivider}`,
+                border: `${borderStandard} solid ${borderDivider}`,
                 height: tokens.sizing?.standard_input_height || "48px",
               }}
             >
@@ -442,7 +441,7 @@ export function DesignSystemEditor({
               style={{
                 backgroundColor: actionPrimary,
                 color: actionText,
-                borderRadius: radiusLg,
+                borderRadius: radius,
                 fontSize: tokens.typography?.button_label?.size || "16px",
                 fontWeight: Number(tokens.typography?.button_label?.weight ?? 600),
               }}

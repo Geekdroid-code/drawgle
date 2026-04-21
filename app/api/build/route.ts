@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { screenPlan, designTokens, prompt, image, requiresBottomNav } = body;
+    const { screenPlan, designTokens, prompt, image, requiresBottomNav, navigationArchitecture } = body;
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -17,6 +17,7 @@ export async function POST(req: Request) {
             prompt,
             image,
             requiresBottomNav,
+            navigationArchitecture,
           })) {
             controller.enqueue(new TextEncoder().encode(chunk));
           }

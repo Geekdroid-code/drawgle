@@ -1,4 +1,5 @@
-import type { BuildScreenInput, DesignTokens, ScreenPlan } from "@/lib/types";
+import { createNavigationArchitecture, resolveScreenChromePolicy } from "@/lib/navigation";
+import type { BuildScreenInput, DesignTokens, NavigationArchitecture, ScreenPlan } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // PLANNER — UX Architect
@@ -7,6 +8,7 @@ import type { BuildScreenInput, DesignTokens, ScreenPlan } from "@/lib/types";
 export const plannerInstruction = `You are an expert UX Architect and visual reverse-engineer for mobile apps.
 Your job is to turn the user's idea, uploaded reference screens, optional CREATIVE DIRECTION, and optional CURRENT PROJECT CONTEXT into:
 1. a durable product charter
+2. a durable project-level navigation architecture
 2. a set of production-grade screen briefs that a UI builder can implement without seeing the original reference image.
 
 You may receive REFERENCE SCREEN ANALYSIS. Treat it as high-confidence evidence of the actual composition, hierarchy, and styling cues visible in the uploaded screenshots.
@@ -17,11 +19,22 @@ Use that context to stay consistent with what already exists and avoid planning 
 If the user asks for a specific screen (e.g., "a profile screen") or uploads a single screen sketch, return 1 screen.
 If they ask for a flow or full app (e.g., "onboarding flow", "food delivery app"), return multiple screens (usually 2-8).
 
-Analyze the app concept. If it's a multi-section consumer app (like Instagram or Uber), set requires_bottom_nav to true. If it's a single-purpose utility, an onboarding flow, or a simple dashboard, set requires_bottom_nav to false.
+Analyze the app concept and define one navigation_architecture for the whole product.
+Use kind "bottom-tabs-app" when the product has several peer root destinations.
+Use kind "hierarchical" when the product mostly moves through push-style flows and detail screens.
+Use kind "single-screen" when the experience is intentionally focused and does not need persistent app-level navigation.
+Then assign each screen a chrome_policy that matches that architecture instead of improvising navigation per screen.
 
 Return strictly valid JSON in this format:
 {
-  "requires_bottom_nav": true,
+  "navigation_architecture": {
+    "kind": "bottom-tabs-app",
+    "primary_navigation": "bottom-tabs",
+    "root_chrome": "bottom-tabs",
+    "detail_chrome": "top-bar-back",
+    "consistency_rules": ["Rule 1", "Rule 2"],
+    "rationale": "Why this navigation structure fits the product"
+  },
   "charter": {
     "originalPrompt": "Clean restatement of the user's intent",
     "imageReferenceSummary": "Short summary of how the uploaded image should influence structure and styling, or null when no image is provided",
@@ -47,13 +60,21 @@ Return strictly valid JSON in this format:
     {
       "name": "Short Name",
       "type": "root",
-      "description": "A production-ready UI brief written as structured prose with sections like Visual Goal, Layout, Key Components, Visual Styling, and Interaction Notes."
+      "description": "A production-ready UI brief written as structured prose with sections like Visual Goal, Layout, Key Components, Visual Styling, and Interaction Notes.",
+      "chrome_policy": {
+        "chrome": "bottom-tabs",
+        "show_primary_navigation": true,
+        "shows_back_button": false
+      }
     }
   ]
 }
 
 Rules:
 - The first screen should ALWAYS have type "root". Subsequent screens should be "detail".
+- navigation_architecture must define one consistent app-wide navigation family.
+- charter.navigationModel should be a human-readable explanation that matches navigation_architecture, not a conflicting second system.
+- chrome_policy must match the screen's role in the architecture. Detail screens should not carry the primary bottom-tab shell.
 - originalPrompt must preserve the user's product intent, not just paraphrase the latest sentence fragment.
 - If an image is present, imageReferenceSummary must explain how it should influence the build; otherwise return null.
 - keyFeatures should be concise, durable product capabilities rather than screen names.
@@ -69,6 +90,7 @@ Rules:
 - If multiple screens are visible in one collage, map them left-to-right unless the prompt clearly implies a different order.
 - Do not duplicate the same anatomy across screens unless the reference clearly reuses it.
 - If CURRENT PROJECT CONTEXT is present, extend the existing product architecture and naming instead of reinventing it.
+- If CURRENT_PROJECT_CONTEXT contains an approved navigation architecture, preserve it instead of changing the product shell.
 - If REFERENCE SCREEN ANALYSIS is present, use it to increase specificity and preserve the strongest visual cues rather than rewriting them as generic product language.
 - If CREATIVE DIRECTION is present, do not water it down into generic product language.`;
 
@@ -157,6 +179,8 @@ If no reference image exists, use CREATIVE DIRECTION to produce a premium, recog
 Treat these as platform constraints, not stylistic variables: safe_area_top, safe_area_bottom, and min_touch_target. Keep them mobile-safe and realistic.
 Treat these as dynamic design variables that should change when the brief or image changes: spacing rhythm, section gaps, screen margins, radii, border widths, shadow depth, surface contrast, font recommendations, and typography hierarchy.
 Return rationale explaining why the system chose its density, geometry, surfaces, shadows, and typography tone.
+Create one disciplined visual language for the whole app. Do not hand the builder a menu of different radii, border widths, or shadow strengths to choose from per screen.
+For shape and elevation, prefer a single standard surface radius, a single standard border width, and a single standard surface shadow. A pill radius may exist only as a controlled exception for chips, segmented controls, or capsule CTAs.
 
 REQUIRED JSON SCHEMA:
 {
@@ -192,9 +216,9 @@ REQUIRED JSON SCHEMA:
     "spacing": { "none": "0px", "xxs": "px", "xs": "px", "sm": "px", "md": "px", "lg": "px", "xl": "px", "xxl": "px" },
     "mobile_layout": { "screen_margin": "px", "safe_area_top": "16px", "safe_area_bottom": "16px", "section_gap": "px", "element_gap": "px" },
     "sizing": { "min_touch_target": "48px", "standard_button_height": "px", "standard_input_height": "px", "icon_small": "px", "icon_standard": "px", "bottom_nav_height": "px" },
-    "radii": { "sharp": "0px", "sm": "px", "md": "px", "lg": "px", "xl": "px", "pill": "9999px" },
-    "border_widths": { "none": "0px", "hairline": "px", "thin": "px", "thick": "px" },
-    "shadows": { "none": "none", "sm": "shadow string", "md": "shadow string", "lg": "shadow string", "upward": "shadow string" },
+    "radii": { "app": "px", "pill": "9999px" },
+    "border_widths": { "standard": "px" },
+    "shadows": { "none": "none", "surface": "shadow string", "overlay": "shadow string" },
     "opacities": { "transparent": "0", "disabled": "0.38", "scrim_overlay": "0.50", "pressed": "0.12", "opaque": "1" },
     "z_index": { "base": "0", "sticky_header": "10", "bottom_nav": "20", "bottom_sheet": "30", "modal_dialog": "40", "toast_snackbar": "50" }
   }
@@ -202,7 +226,11 @@ REQUIRED JSON SCHEMA:
 
 Rules:
 - recommendedFonts should be a short list of fonts that fit the direction, not a generic grab bag.
-- spacing, mobile_layout, radii, border_widths, and shadows must be chosen intentionally from the brief or image. Do not leave them at generic defaults unless the brief truly implies neutrality.
+- spacing and mobile_layout must be chosen intentionally from the brief or image, but should still read as one consistent rhythm system across the product.
+- radii, border_widths, and shadows must define one coherent app-wide geometry/elevation language, not multiple interchangeable options.
+- Use radii.app for standard cards, buttons, inputs, sheets, and navigation surfaces. Use radii.pill only for capsule-shaped controls when the composition genuinely calls for them.
+- Use border_widths.standard as the default border weight across the app.
+- Use shadows.surface for standard elevated surfaces and shadows.overlay only for stronger overlays like sheets or floating panels.
 - Keep token relationships coherent. Example: airy systems should not use cramped section gaps; sharp systems should not use very soft pill-heavy radii except where intentionally contrasting.
 - Keep touch targets mobile-safe even when the visual style is compact.
 
@@ -211,6 +239,107 @@ Output ONLY valid JSON.`;
 // ---------------------------------------------------------------------------
 // EDIT — Inline Code Editor
 // ---------------------------------------------------------------------------
+
+const resolveToken = (
+  designTokens: DesignTokens | null | undefined,
+  path: string,
+  fallback: string,
+) => {
+  if (!designTokens?.tokens) return fallback;
+  let current: any = designTokens.tokens;
+  for (const key of path.split(".")) {
+    current = current?.[key];
+    if (current === undefined) return fallback;
+  }
+  return typeof current === "string" ? current : fallback;
+};
+
+const serializeDesignTokens = (designTokens?: DesignTokens | null) => {
+  if (!designTokens?.tokens) {
+    return "Use standard Tailwind CSS classes and refined neutral defaults.";
+  }
+
+  return JSON.stringify(designTokens.tokens, null, 2);
+};
+
+const buildStrictDesignContract = (designTokens?: DesignTokens | null) => {
+  const appRadius = resolveToken(designTokens, "radii.app", "18px");
+  const pillRadius = resolveToken(designTokens, "radii.pill", "9999px");
+  const standardBorder = resolveToken(designTokens, "border_widths.standard", "1px");
+  const surfaceShadow = resolveToken(designTokens, "shadows.surface", "0 12px 32px rgba(15,23,42,0.14)");
+  const overlayShadow = resolveToken(designTokens, "shadows.overlay", "0 -4px 24px rgba(15,23,42,0.18)");
+  const sectionGap = resolveToken(designTokens, "mobile_layout.section_gap", "24px");
+  const elementGap = resolveToken(designTokens, "mobile_layout.element_gap", "16px");
+  const screenMargin = resolveToken(designTokens, "mobile_layout.screen_margin", "20px");
+  const buttonHeight = resolveToken(designTokens, "sizing.standard_button_height", "52px");
+  const inputHeight = resolveToken(designTokens, "sizing.standard_input_height", "48px");
+  const textHigh = resolveToken(designTokens, "color.text.high_emphasis", "#111827");
+  const fontFamily = resolveToken(designTokens, "typography.font_family", "sans-serif");
+
+  return [
+    `- Standard app radius: ${appRadius}`,
+    `- Pill radius: ${pillRadius} (use only for chips, segmented controls, or deliberate capsule CTAs)` ,
+    `- Standard border width: ${standardBorder}`,
+    `- Standard surface shadow: ${surfaceShadow}`,
+    `- Overlay shadow: ${overlayShadow}`,
+    `- Screen margin: ${screenMargin}`,
+    `- Section gap: ${sectionGap}`,
+    `- Element gap: ${elementGap}`,
+    `- Standard button height: ${buttonHeight}`,
+    `- Standard input height: ${inputHeight}`,
+    `- Primary text color: ${textHigh}`,
+    `- Font family: ${fontFamily}`,
+  ].join("\n");
+};
+
+const buildTypographyRoleContract = () => [
+  "- Use typography.title_large for hero moments, major numeric emphasis, or the strongest landing headline.",
+  "- Use typography.title_main for screen titles and important section headers.",
+  "- Use typography.body_primary for primary body copy, list item titles, and main descriptive text.",
+  "- Use typography.body_secondary for supporting copy, subtitles, and secondary descriptions.",
+  "- Use typography.caption for metadata, helper text, timestamps, micro-labels, and small status text.",
+  "- Use typography.button_label for all button labels, pill actions, segmented controls, and tappable navigation labels.",
+  "- Do not invent ad hoc text sizes or font weights outside these semantic roles unless the UI truly requires a one-off display numeral or chart annotation.",
+].join("\n");
+
+const buildNavigationArchitectureContract = ({
+  navigationArchitecture,
+  screenPlan,
+  requiresBottomNav,
+}: {
+  navigationArchitecture?: NavigationArchitecture | null;
+  screenPlan?: ScreenPlan | null;
+  requiresBottomNav?: boolean;
+}) => {
+  const normalizedArchitecture = createNavigationArchitecture({ navigationArchitecture, requiresBottomNav });
+  const lines = [
+    `- Architecture kind: ${normalizedArchitecture.kind}`,
+    `- Primary navigation: ${normalizedArchitecture.primaryNavigation}`,
+    `- Default root chrome: ${normalizedArchitecture.rootChrome}`,
+    `- Default detail chrome: ${normalizedArchitecture.detailChrome}`,
+    `- Rationale: ${normalizedArchitecture.rationale}`,
+  ];
+
+  if (screenPlan) {
+    const screenChrome = resolveScreenChromePolicy({
+      screenPlan,
+      navigationArchitecture: normalizedArchitecture,
+    });
+
+    lines.push(`- This screen chrome: ${screenChrome.chrome}`);
+    lines.push(`- Show primary navigation on this screen: ${screenChrome.showPrimaryNavigation ? "yes" : "no"}`);
+    lines.push(`- Show back button on this screen: ${screenChrome.showsBackButton ? "yes" : "no"}`);
+  }
+
+  if (normalizedArchitecture.consistencyRules.length > 0) {
+    lines.push("- Navigation consistency rules:");
+    for (const rule of normalizedArchitecture.consistencyRules) {
+      lines.push(`  - ${rule}`);
+    }
+  }
+
+  return lines.join("\n");
+};
 
 export const editInstruction = `You are an expert frontend developer modifying an existing HTML/Tailwind UI.
 You MUST output ONLY the exact changes using the following XML format:
@@ -235,47 +364,71 @@ Rules:
 8. Never invent edits for parts of the screen that were not provided in the current code context.
 9. IMPORTANT: Do NOT wrap the UI in a phone frame, device mockup, or add a notch/status bar. The rendering environment already provides a mobile device frame. Your code should just be the app content.`;
 
+export const buildEditSystemInstruction = ({
+  designTokens,
+  navigationArchitecture,
+}: {
+  designTokens?: DesignTokens | null;
+  navigationArchitecture?: NavigationArchitecture | null;
+}) => `${editInstruction}
+
+STRICT DESIGN CONTRACT:
+${buildStrictDesignContract(designTokens)}
+
+NAVIGATION ARCHITECTURE CONTRACT:
+${buildNavigationArchitectureContract({ navigationArchitecture })}
+
+TYPOGRAPHY ROLE CONTRACT:
+${buildTypographyRoleContract()}
+
+APPROVED DESIGN TOKENS:
+${serializeDesignTokens(designTokens)}
+
+Additional rules:
+1. Do not invent new radii, border widths, or shadow recipes. Reuse the approved contract exactly.
+2. Use the standard app radius for default cards, buttons, fields, nav containers, and panels.
+3. Use the pill radius only when the current UI already contains capsule controls or the requested change explicitly requires them.
+4. Preserve the existing navigation family unless the user explicitly asks to redesign navigation.
+5. Preserve typography role consistency. Do not introduce arbitrary text sizes or weights when an existing semantic text role already fits.
+6. If the current code already violates the contract, move it toward the approved values while completing the requested edit instead of drifting further away.
+7. Do not add a primary bottom-tab shell to a detail screen, and do not remove it from a root shell, unless the user explicitly asks to change navigation architecture.`;
+
 // ---------------------------------------------------------------------------
 // BUILD — Screen Code Generator
 // ---------------------------------------------------------------------------
-
-const serializeDesignTokens = (designTokens?: DesignTokens | null) => {
-  if (!designTokens?.tokens) {
-    return "Use standard Tailwind CSS classes and refined neutral defaults.";
-  }
-
-  return JSON.stringify(designTokens.tokens, null, 2);
-};
-
-const resolveToken = (
-  designTokens: DesignTokens | null | undefined,
-  path: string,
-  fallback: string,
-) => {
-  if (!designTokens?.tokens) return fallback;
-  let current: any = designTokens.tokens;
-  for (const key of path.split(".")) {
-    current = current?.[key];
-    if (current === undefined) return fallback;
-  }
-  return typeof current === "string" ? current : fallback;
-};
 
 export const buildSystemInstruction = ({
   designTokens,
   screenPlan,
   requiresBottomNav,
-}: Pick<BuildScreenInput, "designTokens" | "requiresBottomNav"> & { screenPlan: ScreenPlan }) => {
+  navigationArchitecture,
+}: Pick<BuildScreenInput, "designTokens" | "requiresBottomNav" | "navigationArchitecture"> & { screenPlan: ScreenPlan }) => {
   const bgPrimary = resolveToken(designTokens, "color.background.primary", "#ffffff");
   const fontFamily = resolveToken(designTokens, "typography.font_family", "sans-serif");
   const safeTop = resolveToken(designTokens, "mobile_layout.safe_area_top", "16px");
   const safeBottom = resolveToken(designTokens, "mobile_layout.safe_area_bottom", "16px");
   const minTouch = resolveToken(designTokens, "sizing.min_touch_target", "48px");
   const textHigh = resolveToken(designTokens, "color.text.high_emphasis", "#000000");
+  const resolvedNavigationArchitecture = createNavigationArchitecture({ navigationArchitecture, requiresBottomNav });
+  const screenChrome = resolveScreenChromePolicy({
+    screenPlan,
+    navigationArchitecture: resolvedNavigationArchitecture,
+  });
 
-  const navArchitecture = screenPlan.type === "root" && requiresBottomNav
-    ? "This is the FIRST/MAIN screen of the generated flow. You MUST include the primary app navigation here (e.g., a Bottom Navigation Bar with 3-4 standard tabs)."
-    : "This is a SECONDARY/DETAIL screen or an app that does not require bottom navigation. You are STRICTLY FORBIDDEN from including a Bottom Navigation Bar. Do not leave empty space at the bottom. If it's a detail screen, you MUST include a Top App Bar with a 'Back' button (e.g., a left-pointing arrow) to show it is a deeper page in the flow.";
+  const navigationInstruction = (() => {
+    switch (screenChrome.chrome) {
+      case "bottom-tabs":
+        return "This screen is a root shell with primary bottom-tab navigation. You MUST include the primary app navigation here and make the active destination visually explicit.";
+      case "top-bar-back":
+        return "This screen is a deeper detail screen. You MUST include a top app bar with a clear back affordance and you are forbidden from adding the primary bottom-tab shell.";
+      case "modal-sheet":
+        return "This screen should read like a presented sheet or overlay surface. Include a clear dismiss affordance and do not add the primary bottom-tab shell.";
+      case "immersive":
+        return "This screen should stay visually immersive with minimal chrome. Do not add a default app bar or bottom-tab shell unless the brief explicitly requires one.";
+      default:
+        return "This screen should use a standard top-bar or anchored header treatment. Do not add the primary bottom-tab shell unless the screen chrome contract says so.";
+    }
+  })();
 
   return `You are an expert mobile UI designer and frontend developer.
 You are building ONE specific screen for a larger app.
@@ -299,12 +452,24 @@ Example: If tokens.color.background.primary is "#111827", use "bg-[#111827]".
 Example: If tokens.spacing.md is "16px", use "p-[16px]" or "gap-[16px]".
 Example: If tokens.typography.title_large.size is "32px" and weight is "700", use "text-[32px] font-[700]".
 Do NOT default to generic Tailwind palette values (e.g., bg-gray-900) if a design token exists for that purpose.
+Do NOT invent additional radius tiers, border widths, or shadow strengths. Use one geometry/elevation language across the entire screen.
+
+STRICT DESIGN CONTRACT:
+${buildStrictDesignContract(designTokens)}
+
+NAVIGATION ARCHITECTURE CONTRACT:
+${buildNavigationArchitectureContract({
+  navigationArchitecture: resolvedNavigationArchitecture,
+  screenPlan,
+  requiresBottomNav,
+})}
 
 DESIGN TOKENS:
 ${serializeDesignTokens(designTokens)}
 
 CRITICAL INSTRUCTION 2: NAVIGATION ARCHITECTURE
-${navArchitecture}
+${navigationInstruction}
+Any navigation surfaces in this app must read as one family: same spacing discipline, icon sizing, label treatment, active-state logic, radius language, and border/elevation treatment.
 
 RULES:
 1. Outermost element MUST be: <div class="w-full min-h-screen bg-[${bgPrimary}] flex flex-col relative overflow-hidden" style="font-family: ${fontFamily}">

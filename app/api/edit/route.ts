@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 
 import { NextResponse } from "next/server";
 
-import type { ScreenBlockIndex } from "@/lib/types";
+import type { DesignTokens, NavigationArchitecture, ProjectCharter, ScreenBlockIndex } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -28,7 +28,7 @@ export async function POST(req: Request) {
 
     const { data: screen, error: screenError } = await supabase
       .from("screens")
-      .select("id, owner_id, code, block_index")
+      .select("id, owner_id, code, block_index, project_id")
       .eq("id", screenId)
       .eq("owner_id", user.id)
       .maybeSingle();
@@ -43,6 +43,14 @@ export async function POST(req: Request) {
     const latestUserPrompt = [...messages].reverse().find((message: { role?: string }) => message.role === "user")?.content ?? "";
     const resolution = detectTargetBlocks(latestUserPrompt, latestBlockIndex);
     const targetBlockIds = resolution.scope === "scoped" ? resolution.targetBlockIds : [];
+    const { data: project } = await supabase
+      .from("projects")
+      .select("design_tokens, project_charter")
+      .eq("id", screen.project_id)
+      .eq("owner_id", user.id)
+      .maybeSingle();
+    const designTokens = (project?.design_tokens as DesignTokens | null) ?? null;
+    const navigationArchitecture = ((project?.project_charter as ProjectCharter | null)?.navigationArchitecture ?? null) as NavigationArchitecture | null;
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -52,6 +60,8 @@ export async function POST(req: Request) {
             screenCode: latestCode,
             blockIndex: latestBlockIndex,
             targetBlockIds,
+            designTokens,
+            navigationArchitecture,
           })) {
             controller.enqueue(new TextEncoder().encode(chunk));
           }

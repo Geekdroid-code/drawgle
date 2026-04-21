@@ -5,7 +5,8 @@ import { ArrowRight, Image as ImageIcon, Loader2, Sparkles } from "lucide-react"
 
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import type { PromptImagePayload, ScreenPlan } from "@/lib/types";
+import { describeScreenNavigation } from "@/lib/navigation";
+import type { NavigationArchitecture, PromptImagePayload, ScreenPlan } from "@/lib/types";
 
 export function AddScreenSidebar({
   open,
@@ -16,7 +17,7 @@ export function AddScreenSidebar({
   error,
   isPlanning,
   isBuilding,
-  requiresBottomNav,
+  navigationArchitecture,
   onCancel,
   onBuild,
 }: {
@@ -28,7 +29,7 @@ export function AddScreenSidebar({
   error?: string | null;
   isPlanning?: boolean;
   isBuilding?: boolean;
-  requiresBottomNav?: boolean;
+  navigationArchitecture?: NavigationArchitecture | null;
   onCancel: () => void;
   onBuild: () => void;
 }) {
@@ -109,7 +110,7 @@ export function AddScreenSidebar({
                     {screenPlan.type}
                   </div>
                   <div className="rounded-full border border-black/10 bg-slate-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    {requiresBottomNav && screenPlan.type === "root" ? "Bottom nav aware" : "Single screen build"}
+                    {describeScreenNavigation(screenPlan, navigationArchitecture)}
                   </div>
                 </div>
 

@@ -12,6 +12,7 @@ import type {
   DesignTokens,
   GenerationRunData,
   Message,
+  NavigationArchitecture,
   ProjectMessage,
   ScreenBlockIndex,
   ProjectCharter,
@@ -68,6 +69,10 @@ export function mapScreenRow(row: ScreenRow): ScreenData {
 }
 
 export function mapGenerationRunRow(row: GenerationRunRow): GenerationRunData {
+  const metadata = typeof row.metadata === "object" && row.metadata && !Array.isArray(row.metadata)
+    ? (row.metadata as Record<string, unknown>)
+    : undefined;
+
   return {
     id: row.id,
     projectId: row.project_id,
@@ -78,8 +83,9 @@ export function mapGenerationRunRow(row: GenerationRunRow): GenerationRunData {
     status: row.status,
     triggerRunId: row.trigger_run_id,
     requiresBottomNav: row.requires_bottom_nav,
+    navigationArchitecture: (metadata?.navigationArchitecture as NavigationArchitecture | null) ?? null,
     error: row.error,
-    metadata: typeof row.metadata === "object" && row.metadata ? (row.metadata as Record<string, unknown>) as GenerationRunData["metadata"] : undefined,
+    metadata: metadata as GenerationRunData["metadata"] | undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     completedAt: row.completed_at,

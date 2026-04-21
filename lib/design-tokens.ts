@@ -6,6 +6,12 @@ import type {
 
 type UnknownRecord = Record<string, unknown>;
 
+const DEFAULT_APP_RADIUS = "18px";
+const DEFAULT_PILL_RADIUS = "9999px";
+const DEFAULT_BORDER_WIDTH = "1px";
+const DEFAULT_SURFACE_SHADOW = "0 12px 32px rgba(15,23,42,0.14)";
+const DEFAULT_OVERLAY_SHADOW = "0 -4px 24px rgba(15,23,42,0.18)";
+
 const GENERIC_FONT_FAMILIES = new Set([
   "sans-serif",
   "serif",
@@ -40,6 +46,8 @@ const RUNTIME_ONLY_TOKEN_PATHS = new Set([
 const deepClone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
 const isRecord = (value: unknown): value is UnknownRecord => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+const pickFirstString = (...values: unknown[]) => values.find((value): value is string => typeof value === "string" && value.trim().length > 0)?.trim();
 
 const uniqueStrings = (values: string[]) => {
   const seen = new Set<string>();
@@ -141,6 +149,10 @@ const enforcePlatformConstraints = (tokens: DesignTokenValues | undefined) => {
   }
 
   const next = deepClone(tokens);
+  const legacyRadii = isRecord(next.radii) ? next.radii : {};
+  const legacyBorderWidths = isRecord(next.border_widths) ? next.border_widths : {};
+  const legacyShadows = isRecord(next.shadows) ? next.shadows : {};
+
   next.mobile_layout = {
     ...(next.mobile_layout ?? {}),
     ...PLATFORM_CONSTRAINT_TOKENS.mobile_layout,
@@ -148,6 +160,55 @@ const enforcePlatformConstraints = (tokens: DesignTokenValues | undefined) => {
   next.sizing = {
     ...(next.sizing ?? {}),
     ...PLATFORM_CONSTRAINT_TOKENS.sizing,
+  };
+  next.spacing = {
+    none: "0px",
+    ...(next.spacing ?? {}),
+  };
+  next.radii = {
+    ...(legacyRadii as DesignTokenValues["radii"]),
+    app: pickFirstString(
+      legacyRadii.app,
+      legacyRadii.lg,
+      legacyRadii.md,
+      legacyRadii.xl,
+      legacyRadii.sm,
+      legacyRadii.sharp,
+      DEFAULT_APP_RADIUS,
+    ),
+    pill: pickFirstString(
+      legacyRadii.pill,
+      DEFAULT_PILL_RADIUS,
+    ),
+  };
+  next.border_widths = {
+    ...(legacyBorderWidths as DesignTokenValues["border_widths"]),
+    standard: pickFirstString(
+      legacyBorderWidths.standard,
+      legacyBorderWidths.thin,
+      legacyBorderWidths.hairline,
+      legacyBorderWidths.thick,
+      DEFAULT_BORDER_WIDTH,
+    ),
+  };
+  next.shadows = {
+    ...(legacyShadows as DesignTokenValues["shadows"]),
+    none: pickFirstString(legacyShadows.none, "none"),
+    surface: pickFirstString(
+      legacyShadows.surface,
+      legacyShadows.md,
+      legacyShadows.sm,
+      legacyShadows.lg,
+      DEFAULT_SURFACE_SHADOW,
+    ),
+    overlay: pickFirstString(
+      legacyShadows.overlay,
+      legacyShadows.upward,
+      legacyShadows.lg,
+      legacyShadows.surface,
+      legacyShadows.md,
+      DEFAULT_OVERLAY_SHADOW,
+    ),
   };
 
   return next;

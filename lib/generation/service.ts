@@ -6,11 +6,12 @@ import { createGeminiClient } from "@/lib/ai/gemini";
 import { hasApprovedDesignTokens, normalizeDesignTokens } from "@/lib/design-tokens";
 import { applyEdits } from "@/lib/diff-engine";
 import { buildScopedEditContext } from "@/lib/generation/block-index";
+import { createNavigationArchitecture, deriveRequiresBottomNav, resolveScreenChromePolicy } from "@/lib/navigation";
 import {
   buildSystemInstruction,
+  buildEditSystemInstruction,
   creativeDirectionInstruction,
   designInstruction,
-  editInstruction,
   plannerInstruction,
   referenceAnalysisInstruction,
 } from "@/lib/generation/prompts";
@@ -21,6 +22,7 @@ import type {
   DesignTokenValues,
   DesignTokens,
   Message,
+  NavigationArchitecture,
   PlanningMode,
   PlannedUiFlow,
   PromptImagePayload,
@@ -33,6 +35,20 @@ const ScreenPlanSchema = z.object({
   name: z.string().trim().min(1).max(100),
   type: z.enum(["root", "detail"]).default("detail"),
   description: z.string().trim().min(1).max(8000),
+  chrome_policy: z.object({
+    chrome: z.enum(["bottom-tabs", "top-bar", "top-bar-back", "modal-sheet", "immersive"]),
+    show_primary_navigation: z.boolean().optional(),
+    shows_back_button: z.boolean().optional(),
+  }).optional(),
+});
+
+const NavigationArchitectureSchema = z.object({
+  kind: z.enum(["bottom-tabs-app", "hierarchical", "single-screen"]),
+  primary_navigation: z.enum(["bottom-tabs", "none"]).default("none"),
+  root_chrome: z.enum(["bottom-tabs", "top-bar", "top-bar-back", "modal-sheet", "immersive"]),
+  detail_chrome: z.enum(["bottom-tabs", "top-bar", "top-bar-back", "modal-sheet", "immersive"]),
+  consistency_rules: z.array(z.string().trim().min(1).max(300)).min(2).max(6),
+  rationale: z.string().trim().min(1).max(1200),
 });
 
 const CreativeDirectionSchema = z.object({
@@ -49,7 +65,8 @@ const CreativeDirectionSchema = z.object({
 });
 
 const PlanSchema = z.object({
-  requires_bottom_nav: z.boolean().default(false),
+  requires_bottom_nav: z.boolean().optional(),
+  navigation_architecture: NavigationArchitectureSchema.optional(),
   charter: z.object({
     originalPrompt: z.string().trim().min(1).max(10000),
     imageReferenceSummary: z.string().trim().max(4000).nullable().optional(),
@@ -133,9 +150,18 @@ const DesignTokensSchema = z
       spacing: StringRecordSchema.optional(),
       mobile_layout: StringRecordSchema.optional(),
       sizing: StringRecordSchema.optional(),
-      radii: StringRecordSchema.optional(),
-      border_widths: StringRecordSchema.optional(),
-      shadows: StringRecordSchema.optional(),
+      radii: z.object({
+        app: z.string().optional(),
+        pill: z.string().optional(),
+      }).passthrough().optional(),
+      border_widths: z.object({
+        standard: z.string().optional(),
+      }).passthrough().optional(),
+      shadows: z.object({
+        none: z.string().optional(),
+        surface: z.string().optional(),
+        overlay: z.string().optional(),
+      }).passthrough().optional(),
       elevation: StringRecordSchema.optional(),
       opacities: StringRecordSchema.optional(),
       z_index: StringRecordSchema.optional(),
@@ -241,6 +267,78 @@ const fallbackScreenPlan = (prompt: string): ScreenPlan => ({
   description: prompt.trim() || "Convert this concept into a polished mobile screen.",
 });
 
+const inferLegacyRequiresBottomNav = ({
+  prompt,
+  planningMode,
+  referenceAnalysis,
+}: {
+  prompt: string;
+  planningMode: PlanningMode;
+  referenceAnalysis?: ReferenceAnalysis | null;
+}) => {
+  if (planningMode === "single-screen") {
+    return false;
+  }
+
+  const normalizedPrompt = prompt.trim().toLowerCase();
+
+  if (/(\btab\b|bottom nav|bottom navigation)/i.test(normalizedPrompt)) {
+    return true;
+  }
+
+  if (referenceAnalysis && referenceAnalysis.screenCountEstimate >= 4) {
+    return true;
+  }
+
+  return /(marketplace|delivery|commerce|shopping|social|feed|discover|orders|wallet|library|travel|booking|ride|food)/i.test(normalizedPrompt);
+};
+
+const coerceNavigationArchitecture = ({
+  parsedNavigationArchitecture,
+  existingNavigationArchitecture,
+  requiresBottomNav,
+  lockToExistingArchitecture = false,
+}: {
+  parsedNavigationArchitecture?: z.infer<typeof NavigationArchitectureSchema> | null;
+  existingNavigationArchitecture?: ProjectCharter["navigationArchitecture"];
+  requiresBottomNav?: boolean;
+  lockToExistingArchitecture?: boolean;
+}): NavigationArchitecture => {
+  if (lockToExistingArchitecture && existingNavigationArchitecture) {
+    return createNavigationArchitecture({ navigationArchitecture: existingNavigationArchitecture });
+  }
+
+  const nextArchitecture = parsedNavigationArchitecture
+    ? {
+        kind: parsedNavigationArchitecture.kind,
+        primaryNavigation: parsedNavigationArchitecture.primary_navigation,
+        rootChrome: parsedNavigationArchitecture.root_chrome,
+        detailChrome: parsedNavigationArchitecture.detail_chrome,
+        consistencyRules: parsedNavigationArchitecture.consistency_rules,
+        rationale: parsedNavigationArchitecture.rationale,
+      }
+    : existingNavigationArchitecture ?? null;
+
+  return createNavigationArchitecture({
+    navigationArchitecture: nextArchitecture,
+    requiresBottomNav,
+  });
+};
+
+const resolvePlannedScreen = ({
+  screenPlan,
+  navigationArchitecture,
+}: {
+  screenPlan: ScreenPlan;
+  navigationArchitecture: NavigationArchitecture;
+}): ScreenPlan => ({
+  ...screenPlan,
+  chromePolicy: resolveScreenChromePolicy({
+    screenPlan,
+    navigationArchitecture,
+  }),
+});
+
 const fallbackScreensFromReference = ({
   prompt,
   planningMode,
@@ -270,26 +368,34 @@ const fallbackProjectCharter = ({
   image,
   referenceAnalysis,
   creativeDirection,
+  navigationArchitecture,
+  existingCharter,
 }: {
   prompt: string;
   image?: PromptImagePayload | null;
   referenceAnalysis?: ReferenceAnalysis | null;
   creativeDirection?: CreativeDirection | null;
+  navigationArchitecture: NavigationArchitecture;
+  existingCharter?: ProjectCharter | null;
 }): ProjectCharter => ({
-  originalPrompt: prompt.trim() || "Create a polished mobile app experience from the provided reference.",
+  originalPrompt: prompt.trim() || existingCharter?.originalPrompt || "Create a polished mobile app experience from the provided reference.",
   imageReferenceSummary: image
     ? referenceAnalysis
       ? `Use the uploaded reference as a structural and stylistic blueprint. ${referenceAnalysis.overallVisualStyle}`
       : "Use the uploaded reference as inspiration for layout hierarchy, tone, and composition while adapting it into a polished product UI."
     : null,
-  appType: "Mobile application",
-  targetAudience: "General product users",
-  navigationModel: "Single-root mobile flow",
-  keyFeatures: ["Primary workflow", "Supporting detail views"],
+  appType: existingCharter?.appType ?? "Mobile application",
+  targetAudience: existingCharter?.targetAudience ?? "General product users",
+  navigationModel: existingCharter?.navigationModel
+    ?? (deriveRequiresBottomNav(navigationArchitecture) ? "Bottom-tab mobile application" : "Hierarchical mobile flow"),
+  navigationArchitecture,
+  keyFeatures: existingCharter?.keyFeatures?.length ? existingCharter.keyFeatures : ["Primary workflow", "Supporting detail views"],
   designRationale: referenceAnalysis
     ? `Prioritize clarity, mobile ergonomics, and a coherent design system that preserves this visual DNA: ${referenceAnalysis.designSystemSignals.palette} ${referenceAnalysis.designSystemSignals.surfaces} ${referenceAnalysis.designSystemSignals.typography}`
-    : "Prioritize clarity, mobile ergonomics, and a coherent design system that can scale across future screens.",
-  creativeDirection: creativeDirection === undefined ? fallbackCreativeDirection({ prompt, referenceAnalysis }) : creativeDirection,
+    : existingCharter?.designRationale ?? "Prioritize clarity, mobile ergonomics, and a coherent design system that can scale across future screens.",
+  creativeDirection: creativeDirection === undefined
+    ? existingCharter?.creativeDirection ?? fallbackCreativeDirection({ prompt, referenceAnalysis })
+    : creativeDirection,
 });
 
 const parseJsonResponse = <T>(text: string): T => {
@@ -469,17 +575,24 @@ export async function planUiFlow({
   image,
   designTokens,
   projectContext,
+  existingCharter,
   planningMode = "project",
 }: {
   prompt: string;
   image?: PromptImagePayload | null;
   designTokens?: DesignTokens | null;
   projectContext?: string | null;
+  existingCharter?: ProjectCharter | null;
   planningMode?: PlanningMode;
 }): Promise<PlannedUiFlow> {
   const ai = createGeminiClient();
   const parts: Array<Record<string, unknown>> = [];
   const referenceAnalysis = await analyzeReferenceImage({ prompt, image });
+  const fallbackRequiresBottomNav = inferLegacyRequiresBottomNav({
+    prompt,
+    planningMode,
+    referenceAnalysis,
+  });
   const creativeDirection = projectContext?.trim()
     ? null
     : await generateCreativeDirection({
@@ -544,31 +657,67 @@ export async function planUiFlow({
   const parsed = PlanSchema.safeParse(rawPlan);
 
   if (!parsed.success) {
+    const navigationArchitecture = coerceNavigationArchitecture({
+      existingNavigationArchitecture: existingCharter?.navigationArchitecture,
+      requiresBottomNav: fallbackRequiresBottomNav,
+      lockToExistingArchitecture: Boolean(projectContext?.trim() && existingCharter?.navigationArchitecture),
+    });
+    const screens = fallbackScreensFromReference({
+      prompt,
+      planningMode,
+      referenceAnalysis,
+    }).map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture }));
+
     return {
-      requiresBottomNav: false,
+      requiresBottomNav: deriveRequiresBottomNav(navigationArchitecture),
+      navigationArchitecture,
       charter: fallbackProjectCharter({
         prompt,
         image,
         referenceAnalysis,
         creativeDirection: resolvedCreativeDirection,
+        navigationArchitecture,
+        existingCharter,
       }),
-      screens: fallbackScreensFromReference({
-        prompt,
-        planningMode,
-        referenceAnalysis,
-      }),
+      screens,
     };
   }
+
+  const navigationArchitecture = coerceNavigationArchitecture({
+    parsedNavigationArchitecture: parsed.data.navigation_architecture ?? null,
+    existingNavigationArchitecture: existingCharter?.navigationArchitecture,
+    requiresBottomNav: parsed.data.requires_bottom_nav ?? fallbackRequiresBottomNav,
+    lockToExistingArchitecture: Boolean(projectContext?.trim() && existingCharter?.navigationArchitecture),
+  });
 
   const charter = {
     ...parsed.data.charter,
     creativeDirection: parsed.data.charter.creativeDirection ?? resolvedCreativeDirection,
+    navigationArchitecture,
   };
 
+  const parsedScreens = planningMode === "single-screen" ? parsed.data.screens.slice(0, 1) : parsed.data.screens;
+  const screens = parsedScreens.map((screenPlan) => resolvePlannedScreen({
+    screenPlan: {
+      name: screenPlan.name,
+      type: screenPlan.type,
+      description: screenPlan.description,
+      chromePolicy: screenPlan.chrome_policy
+        ? {
+            chrome: screenPlan.chrome_policy.chrome,
+            showPrimaryNavigation: screenPlan.chrome_policy.show_primary_navigation ?? false,
+            showsBackButton: screenPlan.chrome_policy.shows_back_button ?? false,
+          }
+        : null,
+    },
+    navigationArchitecture,
+  }));
+
   return {
-    requiresBottomNav: parsed.data.requires_bottom_nav,
+    requiresBottomNav: deriveRequiresBottomNav(navigationArchitecture),
+    navigationArchitecture,
     charter,
-    screens: planningMode === "single-screen" ? parsed.data.screens.slice(0, 1) : parsed.data.screens,
+    screens,
   };
 }
 
@@ -670,6 +819,7 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
         designTokens: input.designTokens,
         screenPlan: input.screenPlan,
         requiresBottomNav: input.requiresBottomNav,
+        navigationArchitecture: input.navigationArchitecture,
       }),
       temperature: 0.2,
     },
@@ -700,11 +850,15 @@ export async function* editScreenStream({
   screenCode,
   blockIndex,
   targetBlockIds,
+  designTokens,
+  navigationArchitecture,
 }: {
   messages: Array<Pick<Message, "role" | "content">>;
   screenCode: string;
   blockIndex?: ScreenBlockIndex | null;
   targetBlockIds?: string[];
+  designTokens?: DesignTokens | null;
+  navigationArchitecture?: NavigationArchitecture | null;
 }) {
   const ai = createGeminiClient();
   const history = messages.map((message) => ({
@@ -716,7 +870,7 @@ export async function* editScreenStream({
     model: "gemini-3-flash-preview",
     history,
     config: {
-      systemInstruction: editInstruction,
+      systemInstruction: buildEditSystemInstruction({ designTokens, navigationArchitecture }),
       temperature: 0.7,
     },
   });
@@ -752,13 +906,17 @@ export async function* editScreenStream({
 export async function editScreenCode({
   messages,
   screenCode,
+  designTokens,
+  navigationArchitecture,
 }: {
   messages: Array<Pick<Message, "role" | "content">>;
   screenCode: string;
+  designTokens?: DesignTokens | null;
+  navigationArchitecture?: NavigationArchitecture | null;
 }) {
   let rawText = "";
 
-  for await (const chunk of editScreenStream({ messages, screenCode })) {
+  for await (const chunk of editScreenStream({ messages, screenCode, designTokens, navigationArchitecture })) {
     rawText += chunk;
   }
 
