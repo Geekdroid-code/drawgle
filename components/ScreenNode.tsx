@@ -215,7 +215,7 @@ export function ScreenNode({
   const [isDraggingState, setIsDraggingState] = useState(false);
 
   // ── "Interact mode" lets the user scroll/tap the iframe content.
-  // Automatically exits when the screen is deselected.
+  // It is only active while the screen is selected.
   const [interactMode, setInteractMode] = useState(false);
 
   // ── Refs that survive re-renders without triggering them.
@@ -278,9 +278,7 @@ export function ScreenNode({
     if (isDraggingRef.current) return;
     const newPos = { x: screen.x, y: screen.y };
     livePositionRef.current = newPos;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPosition(newPos);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen.x, screen.y]); // ← isDragging deliberately omitted — see above
 
   // ── Push code updates into the iframe without a full remount
@@ -291,23 +289,15 @@ export function ScreenNode({
     );
   }, [displayCode]);
 
-  // ── Exit interact mode when the screen is deselected
-  useEffect(() => {
-    if (!isSelected) {
-      setInteractMode(false);
-      lastTapTimeRef.current = 0;
-    }
-  }, [isSelected]);
-
   // ── Escape key exits interact mode
   useEffect(() => {
-    if (!interactMode) return;
+    if (!isSelected || !interactMode) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setInteractMode(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [interactMode]);
+  }, [isSelected, interactMode]);
 
   // ── Delete
   const handleDelete = useCallback(async () => {
@@ -318,6 +308,12 @@ export function ScreenNode({
       console.error("Failed to delete screen", err);
     }
   }, [screen.id]);
+
+  const handleSelect = useCallback(() => {
+    setInteractMode(false);
+    lastTapTimeRef.current = 0;
+    onClick?.();
+  }, [onClick]);
 
   // =========================================================================
   // Drag — all handled on the TRANSPARENT OVERLAY inside the phone frame.
@@ -412,10 +408,7 @@ export function ScreenNode({
       if (!wasDragging) {
         if (!isSelected) {
           // Unselected screen tapped → select it
-          onClick?.();
-          // Reset tap timer so first tap after selection doesn't immediately
-          // double-click into interact mode.
-          lastTapTimeRef.current = 0;
+          handleSelect();
         } else {
           // Already selected — check for double-tap to enter interact mode.
           const now = Date.now();
@@ -444,7 +437,7 @@ export function ScreenNode({
         (err) => console.error("Failed to save screen position", err),
       );
     },
-    [isSelected, onClick, screen.id],
+    [handleSelect, isSelected, screen.id],
   );
 
   const handleOverlayPointerCancel = useCallback(
@@ -506,7 +499,8 @@ export function ScreenNode({
   // Render
   // =========================================================================
 
-  const overlayActive = !interactMode;        // overlay present = drag mode
+  const isInteractModeActive = Boolean(isSelected && interactMode);
+  const overlayActive = !isInteractModeActive;        // overlay present = drag mode
   const overlayPointerStyle: React.CSSProperties = {
     cursor: isDraggingState
       ? "grabbing"
@@ -540,13 +534,13 @@ export function ScreenNode({
       }}
       // Click on unselected screens selects them.
       // For selected screens the overlay's pointerup handles click detection.
-      onClick={!isSelected ? onClick : undefined}
+      onClick={!isSelected ? handleSelect : undefined}
     >
       {/* ── External label bar ─────────────────────────────────────────── */}
       <ScreenLabelBar
         screen={screen}
         isSelected={!!isSelected}
-        interactMode={interactMode}
+        interactMode={isInteractModeActive}
         onInteractToggle={() => setInteractMode((m) => !m)}
         onDelete={handleDelete}
       />
@@ -590,7 +584,7 @@ export function ScreenNode({
             const ambient =
               '0 48px 120px rgba(0,0,0,0.42),' +
               '0 16px 48px rgba(0,0,0,0.22)';
-            if (interactMode)
+            if (isInteractModeActive)
               return `0 0 0 2px #10b981,0 0 18px rgba(16,185,129,0.38),${ambient},${frame}`;
             if (isSelected)
               return `0 0 0 2px #6366f1,0 0 22px rgba(99,102,241,0.3),${ambient},${frame}`;

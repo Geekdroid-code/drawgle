@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Image as ImageIcon, Send, Loader2, X, Trash2 } from "lucide-react";
@@ -27,12 +27,7 @@ export function PromptBar({
   const [agentStatus, setAgentStatus] = useState("");
   const [image, setImage] = useState<PromptImagePayload | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (selectedScreen && image) {
-      setImage(null);
-    }
-  }, [selectedScreen, image]);
+  const activeImage = selectedScreen ? null : image;
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -49,8 +44,9 @@ export function PromptBar({
 
   const handleGenerate = async () => {
     const nextPrompt = prompt.trim();
+    const imageToSubmit = activeImage;
 
-    if ((!nextPrompt && !image) || disabled || isGenerating || !onSubmit) {
+    if ((!nextPrompt && !imageToSubmit) || disabled || isGenerating || !onSubmit) {
       return;
     }
 
@@ -58,11 +54,13 @@ export function PromptBar({
     setAgentStatus(submitStatusText);
 
     try {
-      const didSubmit = await onSubmit({ prompt: nextPrompt, image });
+      const didSubmit = await onSubmit({ prompt: nextPrompt, image: imageToSubmit });
 
       if (didSubmit) {
         setPrompt("");
-        setImage(null);
+        if (imageToSubmit) {
+          setImage(null);
+        }
       }
     } catch (error: any) {
       console.error("Pipeline error:", error);
@@ -112,11 +110,11 @@ export function PromptBar({
           {agentStatus}
         </div>
       )}
-      {image && (
+      {activeImage && (
         <div className="px-3 pt-2 relative inline-block">
           <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200">
             <Image
-              src={`data:${image.mimeType};base64,${image.data}`}
+              src={`data:${activeImage.mimeType};base64,${activeImage.data}`}
               alt="Upload"
               width={64}
               height={64}
@@ -178,7 +176,7 @@ export function PromptBar({
             size="icon"
             className="rounded-full bg-gray-900 hover:bg-gray-800 text-white"
             onClick={() => void handleGenerate()}
-            disabled={disabled || isGenerating || (!prompt.trim() && !image)}
+            disabled={disabled || isGenerating || (!prompt.trim() && !activeImage)}
           >
             {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           </Button>
