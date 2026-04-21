@@ -1,8 +1,7 @@
 "use client";
 
-import { formatDistanceToNow } from "date-fns";
 import Image from "next/image";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Loader2,
   MessageSquare,
@@ -12,6 +11,8 @@ import {
   Pencil,
   Plus,
   ArrowRight,
+  Minimize2,
+  Maximize2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -350,6 +351,59 @@ function PlanCard({
   );
 }
 
+function CollapsedChatBubble({
+  eyebrow,
+  title,
+  isBusy,
+  hasAlert,
+  onExpand,
+}: {
+  eyebrow: string;
+  title: string;
+  isBusy: boolean;
+  hasAlert: boolean;
+  onExpand: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onExpand}
+      aria-label="Expand agent history"
+      className="absolute bottom-28 left-4 z-50 text-left animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-2 duration-300 transition-transform hover:scale-[1.02] md:bottom-4"
+    >
+      <span className="pointer-events-none absolute inset-0 translate-y-3 rounded-[30px] bg-slate-950/20 blur-2xl" />
+      <span className="pointer-events-none absolute -inset-1 rounded-[32px] bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.35),transparent_42%),radial-gradient(circle_at_bottom_right,rgba(148,163,184,0.22),transparent_36%)] opacity-90" />
+
+      <span className="relative flex min-w-[214px] items-center gap-3 overflow-hidden rounded-[28px] border border-white/40 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(30,41,59,0.88))] px-3 py-3 text-white shadow-[0_22px_50px_rgba(15,23,42,0.22)] backdrop-blur-xl">
+        <span className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[18px] border border-white/12 bg-white/10">
+          <span className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.32),transparent_48%)]" />
+          <span className="absolute left-2 top-2 h-1.5 w-1.5 rounded-full bg-white/60" />
+          <MessageSquare className="h-5 w-5 text-white" />
+        </span>
+
+        <span className="min-w-0 flex-1">
+          <span className="block text-[10px] font-semibold uppercase tracking-[0.24em] text-white/50">{eyebrow}</span>
+          <span className="block truncate pt-1 text-sm font-medium text-white">{title}</span>
+        </span>
+
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/10">
+          {hasAlert ? (
+            <AlertCircle className="h-4 w-4 text-white/80" />
+          ) : isBusy ? (
+            <Loader2 className="h-4 w-4 animate-spin text-white/80" />
+          ) : (
+            <Maximize2 className="h-4 w-4 text-white/80" />
+          )}
+        </span>
+
+        <span className="absolute -right-1 -top-1 flex h-7 w-7 items-center justify-center rounded-full border border-white/20 bg-white text-slate-900 shadow-[0_10px_24px_rgba(15,23,42,0.18)]">
+          <Sparkles className="h-3.5 w-3.5" />
+        </span>
+      </span>
+    </button>
+  );
+}
+
 export function ChatPanel({
   project,
   screens,
@@ -381,30 +435,93 @@ export function ChatPanel({
 }) {
   const { messages, isLoading } = useProjectMessages(project.id);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const isGenerationActive = Boolean(
+    generationRun &&
+    (generationRun.status === "queued" || generationRun.status === "planning" || generationRun.status === "building"),
+  );
+  const hasAlert = Boolean(queueError || screenPlan?.status === "error");
+  const isBusy = isGenerationActive || isQueueing || screenPlan?.status === "planning";
+
+  let collapsedEyebrow = "Agent history";
+  let collapsedTitle = project.name;
+
+  if (queueError) {
+    collapsedEyebrow = "Agent alert";
+    collapsedTitle = "Review the latest issue";
+  } else if (screenPlan?.status === "error") {
+    collapsedEyebrow = "Planner alert";
+    collapsedTitle = "Screen plan needs attention";
+  } else if (screenPlan?.status === "ready") {
+    collapsedEyebrow = "Proposal ready";
+    collapsedTitle = screenPlan.screenPlan.name;
+  } else if (screenPlan?.status === "planning") {
+    collapsedEyebrow = "Planning";
+    collapsedTitle = "Shaping the next screen";
+  } else if (isGenerationActive) {
+    collapsedEyebrow = "Agent live";
+    collapsedTitle = "Building screens";
+  } else if (isQueueing) {
+    collapsedEyebrow = "Queued";
+    collapsedTitle = "Waiting to start";
+  } else if (selectedScreen) {
+    collapsedEyebrow = "Editing";
+    collapsedTitle = selectedScreen.name;
+  }
 
   useEffect(() => {
+    if (isCollapsed) {
+      return;
+    }
+
     const timeout = window.setTimeout(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, 100);
 
     return () => window.clearTimeout(timeout);
-  }, [messages, screenPlan, generationRun?.id, generationRun?.status, isQueueing, queueError]);
+  }, [isCollapsed, messages, screenPlan, generationRun?.id, generationRun?.status, isQueueing, queueError]);
+
+  if (isCollapsed) {
+    return (
+      <CollapsedChatBubble
+        eyebrow={collapsedEyebrow}
+        title={collapsedTitle}
+        isBusy={isBusy}
+        hasAlert={hasAlert}
+        onExpand={() => setIsCollapsed(false)}
+      />
+    );
+  }
 
   return (
     <div
       className={`absolute z-50 flex flex-col overflow-hidden transition-all duration-300
+        animate-in fade-in-0 slide-in-from-left-2 duration-300
         md:left-4 md:bottom-4 md:h-[calc(100vh-5rem)] md:w-96 md:rounded-2xl md:border md:border-black/[0.06]
         bottom-0 left-0 right-0 h-[85vh] rounded-t-3xl border-t border-black/[0.06]
         surface-container backdrop-blur-glass
       `}
     >
       <div className="h-14 shrink-0 border-b border-black/[0.05] px-4 py-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <MessageSquare className="w-4 h-4 text-slate-400 shrink-0" />
-          <div className="min-w-0">
-            <div className="truncate text-sm font-medium text-slate-900">{project.name}</div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400">Agent history</div>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <MessageSquare className="w-4 h-4 shrink-0 text-slate-400" />
+            <div className="min-w-0">
+              <div className="truncate text-sm font-medium text-slate-900">{project.name}</div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400">Agent history</div>
+            </div>
           </div>
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Minimize agent history"
+            className="h-9 w-9 rounded-full border border-black/[0.06] bg-white/55 text-slate-500 hover:bg-white/85 hover:text-slate-800"
+            onClick={() => setIsCollapsed(true)}
+          >
+            <Minimize2 className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 
