@@ -15,7 +15,7 @@ const DEFAULT_EMPTY_SCALE_MOBILE = 0.45;
 const MIN_CANVAS_SCALE = 0.1;
 const MAX_CANVAS_SCALE = 4;
 const FIT_SCALE_REDUCTION = 0.9;
-const SELECTED_SCREEN_EDITOR_OFFSET = 416;
+const CHAT_PANEL_RESERVED_WIDTH = 416;
 const WHEEL_ZOOM_STEP = 0.02;
 const PAN_EXCLUDED_SELECTORS = ["canvas-pan-exclude"];
 const INITIAL_FIT_REQUEST_VERSION = 0;
@@ -85,8 +85,8 @@ const getFitTransform = (screenBounds: ScreenBounds, viewport: ViewportSize) => 
 };
 
 const getSelectedScreenTransform = (screen: ScreenData, viewport: ViewportSize, scale: number) => {
-  const reservedWidth = viewport.width >= 768 ? SELECTED_SCREEN_EDITOR_OFFSET : 0;
-  const visualCenterX = (viewport.width - reservedWidth) / 2;
+  const reservedWidth = viewport.width >= 768 ? CHAT_PANEL_RESERVED_WIDTH : 0;
+  const visualCenterX = viewport.width / 2 + reservedWidth / 2;
   const centerX = screen.x + SCREEN_FRAME_WIDTH / 2;
   // Offset the vertical centre upward by half the label bar so the
   // phone + its label appear visually centred in the viewport.

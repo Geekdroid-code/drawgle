@@ -4,14 +4,17 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
-import { AddScreenSidebar } from "@/components/AddScreenSidebar";
 import { CanvasArea } from "@/components/CanvasArea";
-import { ChatPanel } from "@/components/ChatPanel";
-import { GenerationProgress } from "@/components/GenerationProgress";
+import { ChatPanel, type ScreenPlanState } from "@/components/ChatPanel";
+import { PromptBar } from "@/components/PromptBar";
 import { Button } from "@/components/ui/button";
 import { useGenerationRuns } from "@/hooks/use-generation-runs";
 import { useProject } from "@/hooks/use-project";
 import { useScreens } from "@/hooks/use-screens";
+import { applyEdits } from "@/lib/diff-engine";
+import { indexScreenCode } from "@/lib/generation/block-index";
+import { createClient } from "@/lib/supabase/client";
+import { deleteScreen, insertProjectMessage, updateScreenCode } from "@/lib/supabase/queries";
 import type {
   AuthenticatedUser,
   DesignTokens,
@@ -34,26 +37,6 @@ class QueueGenerationError extends Error {
     this.activeGenerationRunId = activeGenerationRunId ?? null;
   }
 }
-
-type AddScreenPlanState =
-  | {
-      status: "planning";
-      prompt: string;
-      image: PromptImagePayload | null;
-    }
-  | {
-      status: "ready";
-      prompt: string;
-      image: PromptImagePayload | null;
-      screenPlan: ScreenPlan;
-      requiresBottomNav: boolean;
-    }
-  | {
-      status: "error";
-      prompt: string;
-      image: PromptImagePayload | null;
-      error: string;
-    };
 
 class ScreenPlanningError extends Error {
   status: number;
@@ -140,12 +123,12 @@ export function ProjectShell({
   const [isQueueingGeneration, setIsQueueingGeneration] = useState(false);
   const [pendingQueuedRunId, setPendingQueuedRunId] = useState<string | null>(null);
   const [queueError, setQueueError] = useState<string | null>(null);
-  const [addScreenPlan, setAddScreenPlan] = useState<AddScreenPlanState | null>(null);
+  const [addScreenPlan, setAddScreenPlan] = useState<ScreenPlanState | null>(null);
   const centeredRunIdRef = useRef<string | null>(null);
   const hasQueuedInitialFitRef = useRef(false);
   const planRequestIdRef = useRef(0);
   const isGenerationBusy = Boolean(generationRun) || isQueueingGeneration || Boolean(pendingQueuedRunId);
-  const isCanvasInteractionLocked = isGenerationBusy || Boolean(addScreenPlan);
+  const isCanvasInteractionLocked = isGenerationBusy;
 
   useEffect(() => {
     if (!project && !isProjectLoading) {
@@ -363,6 +346,127 @@ export function ProjectShell({
     }
   };
 
+  const handleDeleteSelectedScreen = async () => {
+    if (!selectedScreen) {
+      return;
+    }
+
+    try {
+      const supabase = createClient();
+      await deleteScreen(supabase, selectedScreen.id);
+      setSelectedScreen(null);
+    } catch (error) {
+      console.error("Error deleting screen:", error);
+    }
+  };
+
+  const handlePromptAction = async (options: {
+    prompt: string;
+    image?: PromptImagePayload | null;
+  }) => {
+    if (!project || isCanvasInteractionLocked) {
+      return false;
+    }
+
+    const prompt = options.prompt.trim();
+    if (!prompt && !options.image) {
+      return false;
+    }
+
+    if (selectedScreen) {
+      try {
+        const editRes = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId: project.id,
+            prompt,
+            selectedScreenId: selectedScreen.id,
+          }),
+        });
+
+        if (!editRes.ok) {
+          throw new Error("Failed to edit screen");
+        }
+
+        if (!editRes.body) {
+          throw new Error("No response body");
+        }
+
+        const reader = editRes.body.getReader();
+        const decoder = new TextDecoder();
+        let fullResponse = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            break;
+          }
+
+          fullResponse += decoder.decode(value, { stream: true });
+        }
+
+        if (fullResponse.includes("<edit>")) {
+          const supabase = createClient();
+          const nextCode = applyEdits(selectedScreen.code, fullResponse);
+
+          if (nextCode !== selectedScreen.code) {
+            await updateScreenCode(
+              supabase,
+              selectedScreen.id,
+              nextCode,
+              "ready",
+              indexScreenCode(nextCode),
+            );
+          }
+        }
+
+        return true;
+      } catch (error) {
+        console.error("Edit flow error:", error);
+
+        try {
+          const supabase = createClient();
+          await insertProjectMessage(supabase, {
+            projectId: project.id,
+            ownerId: user.id,
+            screenId: selectedScreen.id,
+            role: "model",
+            content: "Sorry, I encountered an error while processing your request.",
+            messageType: "error",
+          });
+        } catch (messageError) {
+          console.error("Failed to persist edit error message", messageError);
+          return false;
+        }
+
+        return true;
+      }
+    }
+
+    try {
+      const supabase = createClient();
+
+      await insertProjectMessage(supabase, {
+        projectId: project.id,
+        ownerId: user.id,
+        role: "user",
+        content: prompt,
+        messageType: "chat",
+      });
+    } catch (error) {
+      console.error("Failed to persist create prompt", error);
+      return false;
+    }
+
+    await handlePromptSubmit({
+      prompt,
+      image: options.image ?? null,
+    });
+
+    return true;
+  };
+
   if (isProjectLoading || !project) {
     return (
       <div className="flex h-screen items-center justify-center bg-[#f5f5f5]">
@@ -390,58 +494,33 @@ export function ProjectShell({
         <div className="relative h-full min-w-0 flex-1">
           <CanvasArea screens={screens} fitRequestVersion={fitRequestVersion} selectedScreen={selectedScreen} onSelectScreen={setSelectedScreen} />
 
-          <div className="absolute right-4 hidden md:block z-40 md:right-6 md:bottom-4">
-            <GenerationProgress
-              project={project}
-              generationRun={generationRun}
-              generationRuns={generationRuns}
-              screens={screens}
-              isQueueing={isQueueingGeneration || Boolean(pendingQueuedRunId)}
-              queueError={queueError}
-              onRetry={handleRetryGeneration}
-              retryDisabled={isCanvasInteractionLocked}
-            />
-          </div>
-
-          {!selectedScreen && (
-            <div className="absolute bottom-4 left-1/2 z-40 w-full max-w-2xl -translate-x-1/2 px-4 transition-all duration-300 md:bottom-8">
-              <ChatPanel
-                project={project}
-                screens={screens}
-                selectedScreen={null}
-                ownerId={user.id}
-                onSelectScreen={setSelectedScreen}
-                disabled={isCanvasInteractionLocked}
-                onPromptSubmit={handlePromptSubmit}
-              />
-            </div>
-          )}
-
-          <AddScreenSidebar
-            open={Boolean(addScreenPlan)}
-            projectName={project.name}
-            prompt={addScreenPlan?.prompt ?? ""}
-            image={addScreenPlan?.image ?? null}
-            screenPlan={addScreenPlan?.status === "ready" ? addScreenPlan.screenPlan : null}
-            requiresBottomNav={addScreenPlan?.status === "ready" ? addScreenPlan.requiresBottomNav : false}
-            isPlanning={addScreenPlan?.status === "planning"}
+          <ChatPanel
+            project={project}
+            screens={screens}
+            selectedScreen={selectedScreen}
+            generationRun={generationRun}
+            generationRuns={generationRuns}
+            isQueueing={isQueueingGeneration || Boolean(pendingQueuedRunId)}
+            queueError={queueError}
+            retryDisabled={isCanvasInteractionLocked}
+            screenPlan={addScreenPlan}
             isBuilding={isQueueingGeneration}
-            error={addScreenPlan?.status === "error" ? addScreenPlan.error : null}
-            onCancel={dismissAddScreenPlan}
-            onBuild={() => void handleBuildPlannedScreen()}
+            onRetryGeneration={handleRetryGeneration}
+            onBuildPlannedScreen={() => void handleBuildPlannedScreen()}
+            onCancelPlan={dismissAddScreenPlan}
           />
 
-          {selectedScreen && (
-            <ChatPanel
+          <div className="absolute bottom-4 left-1/2 z-40 w-full max-w-2xl -translate-x-1/2 px-4 transition-all duration-300 md:bottom-8">
+            <PromptBar
               project={project}
-              screens={screens}
               selectedScreen={selectedScreen}
-              ownerId={user.id}
-              onSelectScreen={setSelectedScreen}
+              onClearSelectedScreen={() => setSelectedScreen(null)}
+              onDeleteSelectedScreen={handleDeleteSelectedScreen}
+              onSubmit={handlePromptAction}
               disabled={isCanvasInteractionLocked}
-              onPromptSubmit={handlePromptSubmit}
+              submitStatusText={selectedScreen ? `Editing ${selectedScreen.name}...` : "Planning screen..."}
             />
-          )}
+          </div>
         </div>
       </main>
     </div>

@@ -24,6 +24,7 @@ export function GenerationProgress({
   queueError,
   onRetry,
   retryDisabled = false,
+  embedded = false,
 }: {
   project: ProjectData;
   generationRun: GenerationRunData | null;
@@ -33,6 +34,7 @@ export function GenerationProgress({
   queueError?: string | null;
   onRetry?: (run: GenerationRunData) => void;
   retryDisabled?: boolean;
+  embedded?: boolean;
 }) {
   const terminalRuns = generationRuns.filter((run) => isTerminalGenerationStatus(run.status)).slice(0, 4);
 
@@ -54,7 +56,7 @@ export function GenerationProgress({
   const activeStats = generationRun ? getRunStats(generationRun) : null;
 
   return (
-    <div className="w-80 p-2 lg:px-4 lg:py-4 rounded-[20px] surface-container backdrop-blur-glass">
+    <div className={embedded ? "w-full rounded-2xl border border-black/10 bg-white/90 p-4 shadow-sm" : "w-80 p-2 lg:px-4 lg:py-4 rounded-[20px] surface-container backdrop-blur-glass"}>
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">

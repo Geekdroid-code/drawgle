@@ -1,66 +1,125 @@
 "use client";
 
+import { formatDistanceToNow } from "date-fns";
 import Image from "next/image";
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import {
-  Send,
   Loader2,
   MessageSquare,
-  ChevronDown,
-  X,
-  Trash2,
-  Image as ImageIcon,
   CheckCircle2,
   AlertCircle,
   Sparkles,
   Pencil,
   Plus,
+  ArrowRight,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { useProjectMessages } from "@/hooks/use-project-messages";
-import { applyEdits } from "@/lib/diff-engine";
-import { indexScreenCode } from "@/lib/generation/block-index";
-import { createClient } from "@/lib/supabase/client";
-import {
-  deleteScreen,
-  insertProjectMessage,
-  updateScreenCode,
-} from "@/lib/supabase/queries";
-import type {
-  PlannedUiFlow,
-  ProjectData,
-  ProjectMessage,
-  PromptImagePayload,
-  ScreenData,
-  ScreenPlan,
-} from "@/lib/types";
+import type { GenerationRunData, ProjectData, ProjectMessage, PromptImagePayload, ScreenData, ScreenPlan } from "@/lib/types";
 
-// ---------------------------------------------------------------------------
-// Message type indicator icons
-// ---------------------------------------------------------------------------
+export type ScreenPlanState =
+  | {
+      status: "planning";
+      prompt: string;
+      image: PromptImagePayload | null;
+    }
+  | {
+      status: "ready";
+      prompt: string;
+      image: PromptImagePayload | null;
+      screenPlan: ScreenPlan;
+      requiresBottomNav: boolean;
+    }
+  | {
+      status: "error";
+      prompt: string;
+      image: PromptImagePayload | null;
+      error: string;
+    };
+
+const generationStatusLabels: Record<GenerationRunData["status"], string> = {
+  queued: "Queued",
+  planning: "Planning",
+  building: "Building",
+  completed: "Completed",
+  failed: "Failed",
+  canceled: "Canceled",
+};
 
 function MessageTypeIcon({ messageType }: { messageType: ProjectMessage["messageType"] }) {
   switch (messageType) {
     case "edit_applied":
-      return <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0" />;
+      return <CheckCircle2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />;
     case "generation_started":
-      return <Sparkles className="w-3.5 h-3.5 text-blue-500 shrink-0 animate-pulse" />;
+      return <Sparkles className="w-3.5 h-3.5 text-slate-400 shrink-0 animate-pulse" />;
     case "generation_completed":
-      return <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0" />;
+      return <CheckCircle2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />;
     case "screen_created":
-      return <Plus className="w-3.5 h-3.5 text-purple-500 shrink-0" />;
+      return <Plus className="w-3.5 h-3.5 text-slate-400 shrink-0" />;
     case "error":
-      return <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />;
+      return <AlertCircle className="w-3.5 h-3.5 text-slate-400 shrink-0" />;
     default:
-      return null;
+      return <Sparkles className="w-3.5 h-3.5 text-slate-400 shrink-0" />;
   }
 }
 
-// ---------------------------------------------------------------------------
-// Message bubble
-// ---------------------------------------------------------------------------
+function ActivityNote({
+  label,
+  icon,
+  title,
+  detail,
+  tone = "neutral",
+  action,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  title: string;
+  detail?: string;
+  tone?: "neutral" | "active" | "success" | "error";
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="self-start w-full rounded-2xl border border-black/[0.04] bg-white/40 px-4 py-3">
+      <div className="flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400">
+        {icon}
+        {label}
+      </div>
+      <p className="mt-2 text-sm leading-6 text-slate-700">{title}</p>
+      {detail ? <p className="mt-0.5 text-xs leading-5 text-slate-500">{detail}</p> : null}
+      {action ? <div className="mt-3">{action}</div> : null}
+    </div>
+  );
+}
+
+function SystemMessageRow({ message }: { message: ProjectMessage }) {
+  const tone = message.messageType === "error"
+    ? "error"
+    : message.messageType === "generation_completed" || message.messageType === "edit_applied"
+      ? "success"
+      : message.messageType === "generation_started"
+        ? "active"
+        : "neutral";
+
+  const label = message.messageType === "error"
+    ? "Agent alert"
+    : message.messageType === "generation_started"
+      ? "Agent working"
+      : message.messageType === "generation_completed"
+        ? "Agent update"
+        : message.messageType === "edit_applied"
+          ? "Edit applied"
+          : "Agent note";
+
+  return (
+    <ActivityNote
+      label={label}
+      icon={<MessageTypeIcon messageType={message.messageType} />}
+      title={message.content}
+      tone={tone}
+    />
+  );
+}
 
 function MessageBubble({
   message,
@@ -72,510 +131,327 @@ function MessageBubble({
   const isUser = message.role === "user";
   const isSystem = message.role === "system";
   const linkedScreen = message.screenId
-    ? screens.find((s) => s.id === message.screenId)
+    ? screens.find((screen) => screen.id === message.screenId)
     : null;
 
   if (isSystem) {
-    return (
-      <div className="flex items-center gap-2 justify-center py-1">
-        <MessageTypeIcon messageType={message.messageType} />
-        <span className="text-xs text-gray-500">{message.content}</span>
-      </div>
-    );
+    return <SystemMessageRow message={message} />;
   }
 
-  const isEditApplied = message.messageType === "edit_applied" || (message.role === "model" && message.content.includes("<edit>"));
+  const isEditApplied =
+    message.messageType === "edit_applied" ||
+    (message.role === "model" && message.content.includes("<edit>"));
 
   return (
     <div className={`flex flex-col max-w-[90%] ${isUser ? "self-end" : "self-start"}`}>
-      {linkedScreen && !isUser && (
-        <div className="flex items-center gap-1 mb-0.5 ml-1">
-          <Pencil className="w-3 h-3 text-gray-400" />
-          <span className="text-[10px] text-gray-400 font-medium">{linkedScreen.name}</span>
+      {linkedScreen && !isUser ? (
+        <div className="mb-1 ml-1 flex items-center gap-1">
+          <Pencil className="w-3 h-3 text-slate-400" />
+          <span className="text-[10px] font-medium tracking-[0.08em] text-slate-400 uppercase">{linkedScreen.name}</span>
         </div>
-      )}
+      ) : null}
+
       <div
-        className={`px-3 py-2 rounded-2xl text-sm ${
+        className={`rounded-2xl px-4 py-3 text-sm leading-6 ${
           isUser
-            ? "bg-blue-600 text-white rounded-tr-sm"
-            : "bg-white border border-gray-200 text-gray-800 rounded-tl-sm shadow-sm"
+            ? "rounded-tr-md bg-slate-900 text-white border border-transparent"
+            : "rounded-tl-md border border-black/[0.04] bg-white/40 text-slate-800"
         }`}
       >
         {isEditApplied ? (
-          <div className="flex items-center gap-2 text-green-600 font-medium">
-            <CheckCircle2 className="w-4 h-4" />
+          <div className="flex items-center gap-2 font-medium text-slate-600">
+            <CheckCircle2 className="w-4 h-4 text-slate-400" />
             Applied changes{linkedScreen ? ` to ${linkedScreen.name}` : ""}
           </div>
         ) : (
           <div className="whitespace-pre-wrap break-words">{message.content}</div>
         )}
       </div>
-      {linkedScreen && isUser && (
-        <div className="flex items-center gap-1 mt-0.5 mr-1 self-end">
-          <span className="text-[10px] text-blue-300 font-medium">{linkedScreen.name}</span>
+
+      {linkedScreen && isUser ? (
+        <div className="mt-1 mr-1 flex items-center gap-1 self-end">
+          <span className="text-[10px] font-medium tracking-[0.08em] text-blue-200 uppercase">{linkedScreen.name}</span>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// ChatPanel
-// ---------------------------------------------------------------------------
+function getRunStats(run: GenerationRunData, screens: ScreenData[]) {
+  const runScreens = screens.filter((screen) => screen.generationRunId === run.id);
+
+  return {
+    totalScreens: run.requestedScreenCount ?? runScreens.length,
+    readyScreens: runScreens.filter((screen) => screen.status === "ready").length,
+    failedScreens: runScreens.filter((screen) => screen.status === "failed").length,
+    buildingScreens: runScreens.filter((screen) => screen.status === "building").length,
+  };
+}
+
+function LiveCanvasActivity({
+  generationRun,
+  generationRuns,
+  screens,
+  isQueueing,
+  queueError,
+  retryDisabled,
+  screenPlan,
+  onRetryGeneration,
+}: {
+  generationRun: GenerationRunData | null;
+  generationRuns: GenerationRunData[];
+  screens: ScreenData[];
+  isQueueing: boolean;
+  queueError?: string | null;
+  retryDisabled?: boolean;
+  screenPlan?: ScreenPlanState | null;
+  onRetryGeneration?: (run: GenerationRunData) => void;
+}) {
+  const latestTerminalRun = [...generationRuns]
+    .filter((run) => run.status === "completed" || run.status === "failed" || run.status === "canceled")
+    .sort(
+      (left, right) =>
+        new Date(right.completedAt ?? right.updatedAt).getTime() -
+        new Date(left.completedAt ?? left.updatedAt).getTime(),
+    )[0] ?? null;
+
+  if (queueError) {
+    return (
+      <ActivityNote
+        label="Agent alert"
+        icon={<AlertCircle className="w-3.5 h-3.5 text-slate-400" />}
+        title={queueError}
+        tone="error"
+      />
+    );
+  }
+
+  if (screenPlan?.status === "planning") {
+    return (
+      <ActivityNote
+        label="Analyzing request"
+        icon={<Loader2 className="w-3.5 h-3.5 animate-spin text-slate-500" />}
+        title="Drafting one coherent screen brief from project memory and design tokens."
+        detail="This stays in chat so the user can see the agent working without switching surfaces."
+        tone="active"
+      />
+    );
+  }
+
+  if (isQueueing && !generationRun) {
+    return (
+      <ActivityNote
+        label="Queued"
+        icon={<Loader2 className="w-3.5 h-3.5 animate-spin text-slate-500" />}
+        title="Your generation request is being queued."
+        detail="The builder will start as soon as the current project slot is free."
+        tone="active"
+      />
+    );
+  }
+
+  if (generationRun && (generationRun.status === "queued" || generationRun.status === "planning" || generationRun.status === "building")) {
+    const stats = getRunStats(generationRun, screens);
+    const detail = generationRun.status === "building"
+      ? `${stats.readyScreens}/${stats.totalScreens} ready${stats.failedScreens > 0 ? ` · ${stats.failedScreens} failed` : ""}${stats.buildingScreens > 0 ? ` · ${stats.buildingScreens} building` : ""}`
+      : generationRun.error ?? "Waiting for the next persisted update from the background run.";
+
+    return (
+      <ActivityNote
+        label="Agent working"
+        icon={<Loader2 className="w-3.5 h-3.5 animate-spin text-slate-500" />}
+        title={generationRun.status === "building" ? "Building screens on the canvas." : `${generationStatusLabels[generationRun.status]} screens.`}
+        detail={detail}
+        tone="active"
+      />
+    );
+  }
+
+  return null;
+}
+
+function PlanCard({
+  screenPlan,
+  isBuilding,
+  onBuildPlannedScreen,
+  onCancelPlan,
+}: {
+  screenPlan: ScreenPlanState;
+  isBuilding: boolean;
+  onBuildPlannedScreen: () => void;
+  onCancelPlan: () => void;
+}) {
+  if (screenPlan.status === "planning") {
+    return null;
+  }
+
+  if (screenPlan.status === "error") {
+    return (
+      <ActivityNote
+        label="Planner error"
+        icon={<AlertCircle className="w-3.5 h-3.5 text-slate-400" />}
+        title={screenPlan.error}
+        tone="error"
+        action={
+          <Button type="button" variant="outline" className="rounded-full border-black/10 bg-white text-slate-700 hover:bg-slate-50" onClick={onCancelPlan}>
+            Dismiss
+          </Button>
+        }
+      />
+    );
+  }
+
+  const { screenPlan: plan, image, requiresBottomNav } = screenPlan;
+
+  return (
+    <section className="self-start w-full rounded-2xl border border-black/[0.04] bg-white/40 px-4 py-4">
+      <div className="flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400">
+        <Sparkles className="w-3.5 h-3.5 text-slate-400" />
+        Proposed screen
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <div className="rounded-full border border-black/10 bg-slate-950 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-white">
+          {plan.type}
+        </div>
+        <div className="rounded-full border border-black/10 bg-slate-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+          {requiresBottomNav && plan.type === "root" ? "Bottom nav aware" : "Single screen build"}
+        </div>
+      </div>
+
+      <h3 className="mt-3 text-base font-semibold tracking-[-0.02em] text-slate-950">{plan.name}</h3>
+      <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-600">{plan.description}</p>
+
+      {image ? (
+        <div className="mt-3 flex items-center gap-3 rounded-2xl border border-black/10 bg-slate-50 p-3">
+          <div className="relative h-11 w-11 overflow-hidden rounded-xl border border-black/10 bg-white">
+            <Image
+              src={`data:${image.mimeType};base64,${image.data}`}
+              alt="Screen planning reference"
+              fill
+              unoptimized
+              className="object-cover"
+            />
+          </div>
+          <div className="text-sm text-slate-600">Reference image will be used when this screen is built.</div>
+        </div>
+      ) : null}
+
+      <div className="mt-4 flex items-center gap-2">
+        <Button type="button" variant="outline" className="rounded-full border-black/10 bg-white" onClick={onCancelPlan} disabled={isBuilding}>
+          Cancel
+        </Button>
+        <Button type="button" className="rounded-full px-5" onClick={onBuildPlannedScreen} disabled={isBuilding}>
+          {isBuilding ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+          Build Screen
+        </Button>
+      </div>
+    </section>
+  );
+}
 
 export function ChatPanel({
   project,
   screens,
   selectedScreen,
-  ownerId,
-  onSelectScreen,
-  disabled,
-  onPromptSubmit,
+  generationRun,
+  generationRuns,
+  isQueueing,
+  queueError,
+  retryDisabled,
+  screenPlan,
+  isBuilding = false,
+  onRetryGeneration,
+  onBuildPlannedScreen,
+  onCancelPlan,
 }: {
   project: ProjectData;
   screens: ScreenData[];
   selectedScreen: ScreenData | null;
-  ownerId: string;
-  onSelectScreen: (screen: ScreenData | null) => void;
-  disabled?: boolean;
-  onPromptSubmit?: (options: {
-    prompt: string;
-    image?: PromptImagePayload | null;
-  }) => Promise<boolean>;
+  generationRun: GenerationRunData | null;
+  generationRuns: GenerationRunData[];
+  isQueueing: boolean;
+  queueError?: string | null;
+  retryDisabled?: boolean;
+  screenPlan?: ScreenPlanState | null;
+  isBuilding?: boolean;
+  onRetryGeneration?: (run: GenerationRunData) => void;
+  onBuildPlannedScreen?: () => void;
+  onCancelPlan?: () => void;
 }) {
-  const { messages } = useProjectMessages(project.id);
-  const [prompt, setPrompt] = useState("");
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [image, setImage] = useState<PromptImagePayload | null>(null);
-  const [agentStatus, setAgentStatus] = useState("");
+  const { messages, isLoading } = useProjectMessages(project.id);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, 100);
+
     return () => window.clearTimeout(timeout);
-  }, [messages]);
+  }, [messages, screenPlan, generationRun?.id, generationRun?.status, isQueueing, queueError]);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64String = reader.result as string;
-      const base64Data = base64String.split(",")[1];
-      setImage({ data: base64Data, mimeType: file.type });
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleDelete = async () => {
-    if (!selectedScreen) return;
-    try {
-      const supabase = createClient();
-      await deleteScreen(supabase, selectedScreen.id);
-      onSelectScreen(null);
-    } catch (error) {
-      console.error("Error deleting screen:", error);
-    }
-  };
-
-  const handleSend = async () => {
-    if ((!prompt.trim() && !image) || isGenerating || disabled) return;
-
-    const userPrompt = prompt.trim();
-    setPrompt("");
-    setIsGenerating(true);
-
-    // Auto-expand to see the response
-    if (!isExpanded) setIsExpanded(true);
-
-    try {
-      if (selectedScreen) {
-        // ----- EDIT FLOW -----
-        setAgentStatus(`Editing ${selectedScreen.name}...`);
-
-        const sourceCode = selectedScreen.code;
-
-        const editRes = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            projectId: project.id,
-            prompt: userPrompt,
-            selectedScreenId: selectedScreen.id,
-          }),
-        });
-
-        if (!editRes.ok) throw new Error("Failed to edit screen");
-        if (!editRes.body) throw new Error("No response body");
-
-        const reader = editRes.body.getReader();
-        const decoder = new TextDecoder();
-        let fullResponse = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          fullResponse += decoder.decode(value, { stream: true });
-        }
-
-        // Apply edits to the screen code
-        if (fullResponse.includes("<edit>")) {
-          const newCode = applyEdits(sourceCode, fullResponse);
-          if (newCode !== sourceCode) {
-            const supabase = createClient();
-            await updateScreenCode(
-              supabase,
-              selectedScreen.id,
-              newCode,
-              "ready",
-              indexScreenCode(newCode),
-            );
-          }
-        }
-      } else {
-        // ----- CREATE FLOW -----
-        // Post user message to project_messages for visibility
-        const admin = createClient();
-        await insertProjectMessage(admin, {
-          projectId: project.id,
-          ownerId,
-          role: "user",
-          content: userPrompt,
-          messageType: "chat",
-        });
-
-        // Delegate to existing plan+build pipeline via onPromptSubmit
-        if (onPromptSubmit) {
-          setAgentStatus("Planning screen...");
-          await onPromptSubmit({ prompt: userPrompt, image });
-        }
-      }
-    } catch (error) {
-      console.error("Chat error:", error);
-      // Post error message
-      try {
-        const supabase = createClient();
-        await insertProjectMessage(supabase, {
-          projectId: project.id,
-          ownerId,
-          screenId: selectedScreen?.id ?? null,
-          role: "model",
-          content: "Sorry, I encountered an error while processing your request.",
-          messageType: "error",
-        });
-      } catch (msgErr) {
-        console.error("Failed to persist error message", msgErr);
-      }
-    } finally {
-      setIsGenerating(false);
-      setAgentStatus("");
-      setImage(null);
-    }
-  };
-
-  // ---- Collapsed bar ----
-  if (!isExpanded) {
-    return (
-      <div className="absolute bottom-4 md:bottom-8 left-1/2 -translate-x-1/2 z-50 w-full max-w-2xl px-4">
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-2 flex flex-col gap-2">
-          {/* Header */}
-          {selectedScreen && (
-            <div className="flex items-center justify-between bg-blue-50 px-3 py-2 rounded-t-xl border-b border-blue-100 mb-1 -mx-2 -mt-2">
-              <span className="text-xs font-medium text-blue-700 truncate max-w-[200px] md:max-w-md">
-                Editing: {selectedScreen.name}
-              </span>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-red-600 hover:text-red-700 hover:bg-red-100 rounded-full"
-                  onClick={handleDelete}
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-blue-600 hover:text-blue-700 hover:bg-blue-100 rounded-full"
-                  onClick={() => onSelectScreen(null)}
-                >
-                  <X className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {isGenerating && agentStatus && (
-            <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs font-medium px-4 py-2 rounded-full shadow-lg flex items-center gap-2 whitespace-nowrap">
-              <Loader2 className="w-3 h-3 animate-spin" />
-              {agentStatus}
-            </div>
-          )}
-
-          {/* Image preview */}
-          {image && (
-            <div className="px-3 pt-2 relative inline-block">
-              <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200">
-                <Image
-                  src={`data:${image.mimeType};base64,${image.data}`}
-                  alt="Upload"
-                  width={64}
-                  height={64}
-                  unoptimized
-                  className="w-full h-full object-cover"
-                />
-                <button
-                  onClick={() => setImage(null)}
-                  className="absolute top-1 right-1 bg-black/50 hover:bg-black/70 text-white rounded-full p-0.5"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            </div>
-          )}
-
-          <Textarea
-            placeholder={
-              selectedScreen
-                ? `How should we modify ${selectedScreen.name}?`
-                : "What screen would you like to create?"
-            }
-            className="min-h-[50px] resize-none border-none focus-visible:ring-0 text-base bg-transparent px-3 py-2"
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-            disabled={disabled}
-          />
-          <div className="flex items-center justify-between px-2 pb-1">
-            <div className="flex items-center gap-2">
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                ref={fileInputRef}
-                onChange={handleImageUpload}
-              />
-              {!selectedScreen && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="rounded-full text-gray-500 hover:text-gray-900"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <ImageIcon className="w-5 h-5" />
-                </Button>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-gray-500 hover:text-gray-900 rounded-full"
-                onClick={() => setIsExpanded(true)}
-              >
-                <MessageSquare className="w-4 h-4 mr-2" />
-                {messages.length} messages
-              </Button>
-            </div>
-            <Button
-              size="icon"
-              className="rounded-full bg-gray-900 hover:bg-gray-800 text-white"
-              onClick={handleSend}
-              disabled={disabled || isGenerating || (!prompt.trim() && !image)}
-            >
-              {isGenerating ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Send className="w-4 h-4" />
-              )}
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ---- Expanded panel ----
   return (
-    <>
-      {/* Mobile backdrop */}
-      <div
-        className="md:hidden fixed inset-0 bg-black/20 z-40"
-        onClick={() => setIsExpanded(false)}
-      />
-
-      <div
-        className={`absolute z-50 flex flex-col overflow-hidden transition-all duration-300
-        md:right-4 md:top-4 md:bottom-4 md:w-96 md:rounded-2xl md:border md:border-gray-200
-        bottom-0 left-0 right-0 h-[85vh] rounded-t-3xl border-t border-gray-200
+    <div
+      className={`absolute z-50 flex flex-col overflow-hidden transition-all duration-300
+        md:left-4 md:bottom-4 md:h-[calc(100vh-5rem)] md:w-96 md:rounded-2xl md:border md:border-black/[0.06]
+        bottom-0 left-0 right-0 h-[85vh] rounded-t-3xl border-t border-black/[0.06]
         surface-container backdrop-blur-glass
       `}
-      >
-        {/* Header */}
-        <div className="h-14 flex items-center justify-between shrink-0 px-4 py-3 border-b border-gray-100">
-          <div className="flex items-center gap-2">
-            <MessageSquare className="w-4 h-4 text-gray-500" />
-            {selectedScreen ? (
-              <span className="font-medium text-sm text-gray-900 truncate max-w-[180px]">
-                {selectedScreen.name}
-              </span>
-            ) : (
-              <span className="font-medium text-sm text-gray-900">
-                {project.name}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-1">
-            {selectedScreen && (
-              <>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-full"
-                  onClick={handleDelete}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 rounded-full hover:bg-gray-100"
-                  onClick={() => onSelectScreen(null)}
-                >
-                  <X className="w-4 h-4 text-gray-500" />
-                </Button>
-              </>
-            )}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsExpanded(false)}
-              className="h-8 w-8 rounded-full hover:bg-gray-100 md:hidden"
-            >
-              <ChevronDown className="w-5 h-5 text-gray-500" />
-            </Button>
-          </div>
-        </div>
-
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 bg-gray-50/50">
-          {messages.length === 0 && (
-            <div className="text-center text-sm text-gray-500 mt-10">
-              {selectedScreen
-                ? "Ask me to change colors, layout, or add new elements!"
-                : "Describe a screen you'd like to create, or select a screen to edit."}
-            </div>
-          )}
-          {messages.map((msg) => (
-            <MessageBubble key={msg.id} message={msg} screens={screens} />
-          ))}
-          {isGenerating && (
-            <div className="self-start px-3 py-2 rounded-2xl bg-white border border-gray-200 shadow-sm rounded-tl-sm flex items-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-              <span className="text-sm text-gray-500">
-                {agentStatus || "Working on it..."}
-              </span>
-            </div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Selected screen indicator */}
-        {selectedScreen && (
-          <div className="px-4 py-2 bg-blue-50 border-t border-blue-100 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Pencil className="w-3.5 h-3.5 text-blue-600" />
-              <span className="text-xs font-medium text-blue-700 truncate max-w-[200px]">
-                Editing: {selectedScreen.name}
-              </span>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 text-blue-600 hover:text-blue-700 hover:bg-blue-100 rounded-full"
-              onClick={() => onSelectScreen(null)}
-            >
-              <X className="w-3.5 h-3.5" />
-            </Button>
-          </div>
-        )}
-
-        {/* Input */}
-        <div className="p-3 bg-white border-t border-gray-100 shrink-0">
-          {image && (
-            <div className="px-1 pb-2 relative inline-block">
-              <div className="relative w-12 h-12 rounded-lg overflow-hidden border border-gray-200">
-                <Image
-                  src={`data:${image.mimeType};base64,${image.data}`}
-                  alt="Upload"
-                  width={48}
-                  height={48}
-                  unoptimized
-                  className="w-full h-full object-cover"
-                />
-                <button
-                  onClick={() => setImage(null)}
-                  className="absolute top-0.5 right-0.5 bg-black/50 hover:bg-black/70 text-white rounded-full p-0.5"
-                >
-                  <X className="w-2.5 h-2.5" />
-                </button>
-              </div>
-            </div>
-          )}
-          <div className="relative flex items-end gap-2 bg-gray-50 border border-gray-200 rounded-xl p-1 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-all">
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              ref={fileInputRef}
-              onChange={handleImageUpload}
-            />
-            {!selectedScreen && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="rounded-lg text-gray-400 hover:text-gray-700 h-8 w-8 shrink-0 mb-1 ml-1"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <ImageIcon className="w-4 h-4" />
-              </Button>
-            )}
-            <Textarea
-              placeholder={
-                selectedScreen
-                  ? "Make the button blue..."
-                  : "Describe a new screen..."
-              }
-              className="min-h-[40px] max-h-[120px] resize-none border-none focus-visible:ring-0 text-sm bg-transparent px-3 py-2"
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-              disabled={disabled}
-            />
-            <Button
-              size="icon"
-              className="rounded-lg bg-blue-600 hover:bg-blue-700 text-white h-8 w-8 shrink-0 mb-1 mr-1"
-              onClick={handleSend}
-              disabled={disabled || isGenerating || (!prompt.trim() && !image)}
-            >
-              <Send className="w-3.5 h-3.5" />
-            </Button>
+    >
+      <div className="h-14 shrink-0 border-b border-black/[0.05] px-4 py-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <MessageSquare className="w-4 h-4 text-slate-400 shrink-0" />
+          <div className="min-w-0">
+            <div className="truncate text-sm font-medium text-slate-900">{project.name}</div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400">Agent history</div>
           </div>
         </div>
       </div>
-    </>
+
+      {selectedScreen ? (
+        <div className="flex items-center gap-2 border-b border-black/[0.05] bg-white/50 px-4 py-2">
+          <Pencil className="w-3.5 h-3.5 text-slate-400" />
+          <span className="max-w-[220px] truncate text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+            Focused on {selectedScreen.name}
+          </span>
+        </div>
+      ) : null}
+
+      <div className="chat-history-scrollbar flex-1 overflow-y-auto bg-[#f7f5ef]/70 px-4 py-4">
+        <div className="flex flex-col gap-3">
+          {!isLoading && messages.length === 0 && !screenPlan ? (
+            <div className="mt-10 text-center text-sm leading-6 text-slate-500">
+              Start from the main prompt box. This panel will narrate what the agent is doing.
+            </div>
+          ) : null}
+
+          {messages.map((message) => (
+            <MessageBubble key={message.id} message={message} screens={screens} />
+          ))}
+
+          <LiveCanvasActivity
+            generationRun={generationRun}
+            generationRuns={generationRuns}
+            screens={screens}
+            isQueueing={isQueueing}
+            queueError={queueError}
+            retryDisabled={retryDisabled}
+            screenPlan={screenPlan}
+            onRetryGeneration={onRetryGeneration}
+          />
+
+          {screenPlan && onBuildPlannedScreen && onCancelPlan ? (
+            <PlanCard
+              screenPlan={screenPlan}
+              isBuilding={isBuilding}
+              onBuildPlannedScreen={onBuildPlannedScreen}
+              onCancelPlan={onCancelPlan}
+            />
+          ) : null}
+
+          <div ref={messagesEndRef} />
+        </div>
+      </div>
+    </div>
   );
 }
