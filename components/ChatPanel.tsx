@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import {
   Loader2,
   MessageSquare,
@@ -352,18 +352,20 @@ function PlanCard({
   );
 }
 
-function CollapsedChatBubble({
+export function CollapsedChatTrigger({
   eyebrow,
   title,
   isBusy,
   hasAlert,
   onExpand,
+  variant = "floating",
 }: {
   eyebrow: string;
   title: string;
   isBusy: boolean;
   hasAlert: boolean;
   onExpand: () => void;
+  variant?: "floating" | "attached";
 }) {
   const statusToneClass = hasAlert
     ? "bg-rose-500"
@@ -378,17 +380,15 @@ function CollapsedChatBubble({
       ? "Working"
       : "Open chat";
 
-  return (
-    <button
-      type="button"
-      onClick={onExpand}
-      aria-label={accessibilityLabel}
-      title={accessibilityLabel}
-      className="absolute bottom-28 left-5 z-50 animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-2 duration-300 md:bottom-4 md:left-4"
-    >
-      <span className="pointer-events-none absolute left-2 right-2 bottom-0 h-5 rounded-full bg-slate-950/12 blur-xl md:hidden" />
-
-      <span className="relative flex items-center gap-2 overflow-hidden rounded-[18px] rounded-bl-[10px] border border-black/[0.06] bg-white/86 px-2.5 py-2 text-slate-800 shadow-[0_12px_28px_rgba(15,23,42,0.12)] backdrop-blur-xl transition-all duration-200 hover:bg-white md:hidden">
+  if (variant === "attached") {
+    return (
+      <button
+        type="button"
+        onClick={onExpand}
+        aria-label={accessibilityLabel}
+        title={accessibilityLabel}
+        className="relative flex items-center gap-2 overflow-hidden rounded-[18px] rounded-bl-[10px] border border-black/[0.06] bg-[#f5f2ea]/95 px-2.5 py-2 text-slate-800 shadow-[0_10px_22px_rgba(15,23,42,0.1)] backdrop-blur-xl transition-all duration-200 hover:bg-[#faf7f0]"
+      >
         <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-900 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
           {hasAlert ? (
             <AlertCircle className="h-4 w-4" />
@@ -405,11 +405,22 @@ function CollapsedChatBubble({
         </span>
 
         <span className={`absolute right-2 top-2 h-2.5 w-2.5 rounded-full border border-white ${statusToneClass} ${isBusy && !hasAlert ? "animate-pulse" : ""}`} />
-      </span>
+        <span className="sr-only">{accessibilityLabel}</span>
+      </button>
+    );
+  }
 
-      <span className="pointer-events-none absolute inset-1 translate-y-2 rounded-full bg-slate-950/16 blur-xl hidden md:block" />
+  return (
+    <button
+      type="button"
+      onClick={onExpand}
+      aria-label={accessibilityLabel}
+      title={accessibilityLabel}
+      className="absolute bottom-4 left-4 z-50 animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-2 duration-300"
+    >
+      <span className="pointer-events-none absolute inset-1 translate-y-2 rounded-full bg-slate-950/16 blur-xl" />
 
-      <span className="relative hidden h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-black/10 bg-white/90 text-slate-800 shadow-[0_14px_28px_rgba(15,23,42,0.14)] backdrop-blur-xl transition-all duration-200 hover:bg-white md:flex md:h-auto md:min-w-[156px] md:justify-start md:gap-3 md:px-3 md:py-2.5">
+      <span className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-black/10 bg-white/90 text-slate-800 shadow-[0_14px_28px_rgba(15,23,42,0.14)] backdrop-blur-xl transition-all duration-200 hover:bg-white md:h-auto md:min-w-[156px] md:justify-start md:gap-3 md:px-3 md:py-2.5">
         <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-900 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
           {hasAlert ? (
             <AlertCircle className="h-4 w-4" />
@@ -447,6 +458,8 @@ export function ChatPanel({
   onRetryGeneration,
   onBuildPlannedScreen,
   onCancelPlan,
+  isCollapsed,
+  onCollapseChange,
 }: {
   project: ProjectData;
   screens: ScreenData[];
@@ -461,10 +474,11 @@ export function ChatPanel({
   onRetryGeneration?: (run: GenerationRunData) => void;
   onBuildPlannedScreen?: () => void;
   onCancelPlan?: () => void;
+  isCollapsed: boolean;
+  onCollapseChange: (collapsed: boolean) => void;
 }) {
   const { messages, isLoading } = useProjectMessages(project.id);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [isCollapsed, setIsCollapsed] = useState(false);
   const isGenerationActive = Boolean(
     generationRun &&
     (generationRun.status === "queued" || generationRun.status === "planning" || generationRun.status === "building"),
@@ -512,13 +526,15 @@ export function ChatPanel({
 
   if (isCollapsed) {
     return (
-      <CollapsedChatBubble
-        eyebrow={collapsedEyebrow}
-        title={collapsedTitle}
-        isBusy={isBusy}
-        hasAlert={hasAlert}
-        onExpand={() => setIsCollapsed(false)}
-      />
+      <div className="hidden md:block">
+        <CollapsedChatTrigger
+          eyebrow={collapsedEyebrow}
+          title={collapsedTitle}
+          isBusy={isBusy}
+          hasAlert={hasAlert}
+          onExpand={() => onCollapseChange(false)}
+        />
+      </div>
     );
   }
 
@@ -547,7 +563,7 @@ export function ChatPanel({
             size="icon"
             aria-label="Minimize agent history"
             className="h-9 w-9 rounded-full border border-black/[0.06] bg-white/55 text-slate-500 hover:bg-white/85 hover:text-slate-800"
-            onClick={() => setIsCollapsed(true)}
+            onClick={() => onCollapseChange(true)}
           >
             <Minimize2 className="h-4 w-4" />
           </Button>

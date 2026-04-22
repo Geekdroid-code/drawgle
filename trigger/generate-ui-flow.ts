@@ -176,7 +176,7 @@ export const buildScreenTask = task({
   retry: {
     // One generation attempt per screen build avoids silent duplicate LLM
     // charges when upstream output or infrastructure is flaky.
-    maxAttempts: 2,
+    maxAttempts: 1,
     factor: 1.8,
     minTimeoutInMs: 1000,
     maxTimeoutInMs: 30000,

@@ -13,6 +13,7 @@ export function PromptBar({
   selectedScreen = null,
   onClearSelectedScreen,
   onDeleteSelectedScreen,
+  mobileTopAccessory,
 }: {
   onSubmit?: (options: { prompt: string; image?: PromptImagePayload | null }) => Promise<boolean>;
   project?: ProjectData;
@@ -21,6 +22,7 @@ export function PromptBar({
   selectedScreen?: ScreenData | null;
   onClearSelectedScreen?: () => void;
   onDeleteSelectedScreen?: () => void | Promise<void>;
+  mobileTopAccessory?: React.ReactNode;
 }) {
   const [prompt, setPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -72,6 +74,12 @@ export function PromptBar({
 
   return (
     <div className="p-2 rounded-xl surface-container backdrop-blur-glass flex flex-col relative">
+      {mobileTopAccessory ? (
+        <div className="absolute left-3 top-0 z-10 -translate-y-[38%] md:hidden">
+          {mobileTopAccessory}
+        </div>
+      ) : null}
+
       {selectedScreen ? (
         <div className="flex items-center justify-between bg-blue-50 px-3 py-2 rounded-t-xl border-b border-blue-100 mb-1 -mx-2 -mt-2">
           <span className="text-xs font-medium text-blue-700 truncate max-w-[200px] md:max-w-md">

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
 import { CanvasArea } from "@/components/CanvasArea";
-import { ChatPanel, type ScreenPlanState } from "@/components/ChatPanel";
+import { ChatPanel, CollapsedChatTrigger, type ScreenPlanState } from "@/components/ChatPanel";
 import { PromptBar } from "@/components/PromptBar";
 import { Button } from "@/components/ui/button";
 import { useGenerationRuns } from "@/hooks/use-generation-runs";
@@ -126,6 +126,7 @@ export function ProjectShell({
   const { generationRun, generationRuns, refreshGenerationRuns } = useGenerationRuns(initialProject.id, initialGenerationRuns);
   const [fitRequestVersion, setFitRequestVersion] = useState(0);
   const [selectedScreen, setSelectedScreen] = useState<ScreenData | null>(null);
+  const [isChatCollapsed, setIsChatCollapsed] = useState(false);
   const [isQueueingGeneration, setIsQueueingGeneration] = useState(false);
   const [pendingQueuedRunId, setPendingQueuedRunId] = useState<string | null>(null);
   const [pendingAddScreenRunId, setPendingAddScreenRunId] = useState<string | null>(null);
@@ -139,6 +140,38 @@ export function ProjectShell({
   const planRequestIdRef = useRef(0);
   const isGenerationBusy = Boolean(generationRun) || isQueueingGeneration || Boolean(pendingQueuedRunId);
   const isCanvasInteractionLocked = isGenerationBusy;
+  const isGenerationActive = Boolean(
+    generationRun &&
+    (generationRun.status === "queued" || generationRun.status === "planning" || generationRun.status === "building"),
+  );
+  const hasChatAlert = Boolean(queueError || addScreenPlan?.status === "error");
+  const isChatBusy = isGenerationActive || isQueueingGeneration || addScreenPlan?.status === "planning";
+
+  let collapsedChatEyebrow = "Agent history";
+  let collapsedChatTitle = project?.name ?? initialProject.name;
+
+  if (queueError) {
+    collapsedChatEyebrow = "Agent alert";
+    collapsedChatTitle = "Review the latest issue";
+  } else if (addScreenPlan?.status === "error") {
+    collapsedChatEyebrow = "Planner alert";
+    collapsedChatTitle = "Screen plan needs attention";
+  } else if (addScreenPlan?.status === "ready") {
+    collapsedChatEyebrow = "Proposal ready";
+    collapsedChatTitle = addScreenPlan.screenPlan.name;
+  } else if (addScreenPlan?.status === "planning") {
+    collapsedChatEyebrow = "Planning";
+    collapsedChatTitle = "Shaping the next screen";
+  } else if (isGenerationActive) {
+    collapsedChatEyebrow = "Agent live";
+    collapsedChatTitle = "Building screens";
+  } else if (isQueueingGeneration || pendingQueuedRunId) {
+    collapsedChatEyebrow = "Queued";
+    collapsedChatTitle = "Waiting to start";
+  } else if (selectedScreen) {
+    collapsedChatEyebrow = "Editing";
+    collapsedChatTitle = selectedScreen.name;
+  }
 
   useEffect(() => {
     if (!project && !isProjectLoading) {
@@ -600,6 +633,8 @@ export function ProjectShell({
             onRetryGeneration={handleRetryGeneration}
             onBuildPlannedScreen={() => void handleBuildPlannedScreen()}
             onCancelPlan={dismissAddScreenPlan}
+            isCollapsed={isChatCollapsed}
+            onCollapseChange={setIsChatCollapsed}
           />
 
           <div className="absolute bottom-4 left-1/2 z-40 w-full max-w-2xl -translate-x-1/2 px-4 transition-all duration-300 md:bottom-8">
@@ -611,6 +646,16 @@ export function ProjectShell({
               onSubmit={handlePromptAction}
               disabled={isCanvasInteractionLocked}
               submitStatusText={selectedScreen ? `Editing ${selectedScreen.name}...` : "Planning screen..."}
+              mobileTopAccessory={isChatCollapsed ? (
+                <CollapsedChatTrigger
+                  eyebrow={collapsedChatEyebrow}
+                  title={collapsedChatTitle}
+                  isBusy={isChatBusy}
+                  hasAlert={hasChatAlert}
+                  onExpand={() => setIsChatCollapsed(false)}
+                  variant="attached"
+                />
+              ) : null}
             />
           </div>
         </div>

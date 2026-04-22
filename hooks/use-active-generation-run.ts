@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
-import { fetchActiveGenerationRun } from "@/lib/supabase/queries";
-import type { GenerationRunData } from "@/lib/types";
+import { fetchGenerationRuns } from "@/lib/supabase/queries";
+import { isActiveGenerationStatus, type GenerationRunData } from "@/lib/types";
 
 export function useActiveGenerationRun(projectId: string, initialRun: GenerationRunData | null) {
   const [generationRun, setGenerationRun] = useState<GenerationRunData | null>(initialRun);
@@ -27,7 +27,9 @@ export function useActiveGenerationRun(projectId: string, initialRun: Generation
     const loadGenerationRun = async () => {
       try {
         setIsLoading(true);
-        const nextRun = await fetchActiveGenerationRun(supabase, projectId);
+        const nextRuns = await fetchGenerationRuns(supabase, projectId);
+        const nextRun = nextRuns.find((run) => isActiveGenerationStatus(run.status)) ?? null;
+
         if (!cancelled) {
           setGenerationRun(nextRun);
         }
