@@ -363,7 +363,7 @@ const fallbackScreensFromReference = ({
   return screens.length > 0 ? screens : [fallbackScreenPlan(prompt)];
 };
 
-const fallbackProjectCharter = ({
+export const fallbackProjectCharter = ({
   prompt,
   image,
   referenceAnalysis,

@@ -2,11 +2,10 @@ import { randomUUID } from "crypto";
 
 import { logger, runs, streams, task } from "@trigger.dev/sdk";
 
-import { hasApprovedDesignTokens } from "@/lib/design-tokens";
 import { indexScreenCode } from "@/lib/generation/block-index";
 import { assembleProjectContext } from "@/lib/generation/context";
 import { generateEmbedding, generateScreenSummary } from "@/lib/generation/embeddings";
-import { buildScreenStream, extractCode, planUiFlow } from "@/lib/generation/service";
+import { buildScreenStream, extractCode, fallbackProjectCharter, planUiFlow } from "@/lib/generation/service";
 import { createNavigationArchitecture, deriveRequiresBottomNav } from "@/lib/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
@@ -266,7 +265,7 @@ export const buildScreenTask = task({
 export const enrichScreenTask = task({
   id: "enrich-screen",
   retry: {
-    maxAttempts: 2,
+    maxAttempts: 1,
     factor: 2,
     minTimeoutInMs: 1000,
     maxTimeoutInMs: 15000,
@@ -298,7 +297,7 @@ export const enrichScreenTask = task({
 export const generateUiFlowTask = task({
   id: "generate-ui-flow",
   retry: {
-    maxAttempts: 2,
+    maxAttempts: 1,
     factor: 2,
     minTimeoutInMs: 2000,
     maxTimeoutInMs: 30000,
@@ -337,10 +336,6 @@ export const generateUiFlowTask = task({
   },
   run: async (payload: GenerateUiFlowPayload) => {
     const admin = createAdminClient();
-
-    if (!hasApprovedDesignTokens(payload.designTokens)) {
-      throw new Error("Approved design tokens are required before planning or building screens.");
-    }
 
     const designTokens = payload.designTokens;
     const { data: existingProject } = await admin
@@ -387,7 +382,16 @@ export const generateUiFlowTask = task({
         userPrompt: payload.prompt,
       }),
     ]);
-    const requestedCharter = payload.projectCharter ?? existingCharter;
+    const requestedCharter = payload.projectCharter ?? existingCharter ?? (
+      payload.plannedScreens && payload.plannedScreens.length > 0
+        ? fallbackProjectCharter({
+            prompt: payload.prompt,
+            image: promptImage,
+            navigationArchitecture: requestedNavigationArchitecture,
+            existingCharter,
+          })
+        : null
+    );
 
     logger.info("Assembled project context", {
       generationRunId: payload.generationRunId,
@@ -395,10 +399,6 @@ export const generateUiFlowTask = task({
       contextChars: planningContext.length,
       approxTokens: Math.round(planningContext.length / 4),
     });
-
-    if (payload.plannedScreens && payload.plannedScreens.length > 0 && !requestedCharter) {
-      throw new Error("A project charter is required when building preplanned screens.");
-    }
 
     const plan = payload.plannedScreens && payload.plannedScreens.length > 0
       ? {

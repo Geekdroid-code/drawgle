@@ -4,7 +4,7 @@ import { tasks } from "@trigger.dev/sdk";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { hasApprovedDesignTokens, normalizeDesignTokens } from "@/lib/design-tokens";
+import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
@@ -176,7 +176,7 @@ export async function POST(request: Request) {
     const plannedScreens = (payload.plannedScreens ?? null) as ScreenPlan[] | null;
     const projectCharter = (payload.projectCharter ?? null) as ProjectCharter | null;
     const navigationArchitecture = (payload.navigationArchitecture ?? projectCharter?.navigationArchitecture ?? null) as NavigationArchitecture | null;
-    let designTokens = hasApprovedDesignTokens(requestedDesignTokens) ? requestedDesignTokens : null;
+    let designTokens = requestedDesignTokens;
 
     projectId = payload.projectId;
 
@@ -195,15 +195,8 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Project not found" }, { status: 404 });
       }
 
-      if (!designTokens && hasApprovedDesignTokens(project.design_tokens as DesignTokens | null)) {
+      if (!designTokens && project.design_tokens) {
         designTokens = normalizeDesignTokens(project.design_tokens as DesignTokens);
-      }
-
-      if (!designTokens) {
-        return NextResponse.json(
-          { error: "Approved design tokens are required before building screens." },
-          { status: 400 },
-        );
       }
 
       const activeGenerationRun = await findActiveGenerationRun(admin, projectId);
@@ -233,13 +226,6 @@ export async function POST(request: Request) {
         throw updateError;
       }
     } else {
-      if (!designTokens) {
-        return NextResponse.json(
-          { error: "Approved design tokens are required before building screens." },
-          { status: 400 },
-        );
-      }
-
       const { data: project, error: projectInsertError } = await admin
         .from("projects")
         .insert({
