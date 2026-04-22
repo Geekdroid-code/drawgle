@@ -12,7 +12,6 @@ import {
   Plus,
   ArrowRight,
   Minimize2,
-  Maximize2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -366,42 +365,70 @@ function CollapsedChatBubble({
   hasAlert: boolean;
   onExpand: () => void;
 }) {
+  const statusToneClass = hasAlert
+    ? "bg-rose-500"
+    : isBusy
+      ? "bg-amber-400"
+      : "bg-emerald-400";
+
+  const accessibilityLabel = `${eyebrow}: ${title}`;
+  const mobileStatusText = hasAlert
+    ? "Needs review"
+    : isBusy
+      ? "Working"
+      : "Open chat";
+
   return (
     <button
       type="button"
       onClick={onExpand}
-      aria-label="Expand agent history"
-      className="absolute bottom-28 left-4 z-50 text-left animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-2 duration-300 transition-transform hover:scale-[1.02] md:bottom-4"
+      aria-label={accessibilityLabel}
+      title={accessibilityLabel}
+      className="absolute bottom-28 left-5 z-50 animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-2 duration-300 md:bottom-4 md:left-4"
     >
-      <span className="pointer-events-none absolute inset-0 translate-y-3 rounded-[30px] bg-slate-950/20 blur-2xl" />
-      <span className="pointer-events-none absolute -inset-1 rounded-[32px] bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.35),transparent_42%),radial-gradient(circle_at_bottom_right,rgba(148,163,184,0.22),transparent_36%)] opacity-90" />
+      <span className="pointer-events-none absolute left-2 right-2 bottom-0 h-5 rounded-full bg-slate-950/12 blur-xl md:hidden" />
 
-      <span className="relative flex min-w-[214px] items-center gap-3 overflow-hidden rounded-[28px] border border-white/40 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(30,41,59,0.88))] px-3 py-3 text-white shadow-[0_22px_50px_rgba(15,23,42,0.22)] backdrop-blur-xl">
-        <span className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[18px] border border-white/12 bg-white/10">
-          <span className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.32),transparent_48%)]" />
-          <span className="absolute left-2 top-2 h-1.5 w-1.5 rounded-full bg-white/60" />
-          <MessageSquare className="h-5 w-5 text-white" />
-        </span>
-
-        <span className="min-w-0 flex-1">
-          <span className="block text-[10px] font-semibold uppercase tracking-[0.24em] text-white/50">{eyebrow}</span>
-          <span className="block truncate pt-1 text-sm font-medium text-white">{title}</span>
-        </span>
-
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/10">
+      <span className="relative flex items-center gap-2 overflow-hidden rounded-[18px] rounded-bl-[10px] border border-black/[0.06] bg-white/86 px-2.5 py-2 text-slate-800 shadow-[0_12px_28px_rgba(15,23,42,0.12)] backdrop-blur-xl transition-all duration-200 hover:bg-white md:hidden">
+        <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-900 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
           {hasAlert ? (
-            <AlertCircle className="h-4 w-4 text-white/80" />
+            <AlertCircle className="h-4 w-4" />
           ) : isBusy ? (
-            <Loader2 className="h-4 w-4 animate-spin text-white/80" />
+            <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
-            <Maximize2 className="h-4 w-4 text-white/80" />
+            <MessageSquare className="h-4 w-4" />
           )}
         </span>
 
-        <span className="absolute -right-1 -top-1 flex h-7 w-7 items-center justify-center rounded-full border border-white/20 bg-white text-slate-900 shadow-[0_10px_24px_rgba(15,23,42,0.18)]">
-          <Sparkles className="h-3.5 w-3.5" />
+        <span className="min-w-0 pr-3 text-left">
+          <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">History</span>
+          <span className="block max-w-[78px] truncate text-[11px] font-medium leading-4 text-slate-700">{mobileStatusText}</span>
         </span>
+
+        <span className={`absolute right-2 top-2 h-2.5 w-2.5 rounded-full border border-white ${statusToneClass} ${isBusy && !hasAlert ? "animate-pulse" : ""}`} />
       </span>
+
+      <span className="pointer-events-none absolute inset-1 translate-y-2 rounded-full bg-slate-950/16 blur-xl hidden md:block" />
+
+      <span className="relative hidden h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-black/10 bg-white/90 text-slate-800 shadow-[0_14px_28px_rgba(15,23,42,0.14)] backdrop-blur-xl transition-all duration-200 hover:bg-white md:flex md:h-auto md:min-w-[156px] md:justify-start md:gap-3 md:px-3 md:py-2.5">
+        <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-900 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
+          {hasAlert ? (
+            <AlertCircle className="h-4 w-4" />
+          ) : isBusy ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <MessageSquare className="h-4 w-4" />
+          )}
+        </span>
+
+        <span className="hidden min-w-0 md:flex md:flex-1 md:flex-col md:items-start md:text-left">
+          <span className="block text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400">{eyebrow}</span>
+          <span className="block max-w-[112px] truncate pt-0.5 text-sm font-medium text-slate-800">{title}</span>
+        </span>
+
+        <span className={`absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full border border-white ${statusToneClass} ${isBusy && !hasAlert ? "animate-pulse" : ""}`} />
+      </span>
+
+      <span className="sr-only">{accessibilityLabel}</span>
     </button>
   );
 }

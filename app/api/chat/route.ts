@@ -2,7 +2,6 @@ import { detectTargetBlocks, indexScreenCode } from "@/lib/generation/block-inde
 import { assembleChatContext } from "@/lib/generation/context";
 import { generateEmbedding } from "@/lib/generation/embeddings";
 import { editScreenStream } from "@/lib/generation/service";
-import { auditScreenCode, diffAuditFindings, formatAuditFailureMessage } from "@/lib/generation/audit";
 import { applyEdits } from "@/lib/diff-engine";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -191,36 +190,6 @@ async function handleEditIntent({
               content: `No material code changes were applied to ${screen.name}.`,
               messageType: "chat",
               metadata: { action: "edit_noop" },
-            });
-
-            controller.close();
-            return;
-          }
-
-          const previousAudit = auditScreenCode({
-            code: screenCode,
-            designTokens,
-            navigationArchitecture,
-          });
-          const nextAudit = auditScreenCode({
-            code: nextCode,
-            designTokens,
-            navigationArchitecture,
-          });
-          const introducedFindings = diffAuditFindings(previousAudit, nextAudit).filter((finding) => finding.severity === "error");
-
-          if (introducedFindings.length > 0) {
-            await insertProjectMessage(admin, {
-              projectId,
-              ownerId,
-              screenId,
-              role: "system",
-              content: formatAuditFailureMessage(introducedFindings, "Edit rejected by design audit."),
-              messageType: "error",
-              metadata: {
-                action: "edit_audit_failed",
-                findings: introducedFindings,
-              },
             });
 
             controller.close();

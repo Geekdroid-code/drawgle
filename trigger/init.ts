@@ -14,4 +14,3 @@ tasks.onFailure(({ ctx, task, error }) => {
     error: error instanceof Error ? error.message : String(error),
   });
 });
-

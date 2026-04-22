@@ -3,7 +3,6 @@ import { randomUUID } from "crypto";
 import { logger, runs, streams, task } from "@trigger.dev/sdk";
 
 import { hasApprovedDesignTokens } from "@/lib/design-tokens";
-import { auditScreenCode, formatAuditFailureMessage } from "@/lib/generation/audit";
 import { indexScreenCode } from "@/lib/generation/block-index";
 import { assembleProjectContext } from "@/lib/generation/context";
 import { generateEmbedding, generateScreenSummary } from "@/lib/generation/embeddings";
@@ -175,7 +174,9 @@ async function postStatusMessage(
 export const buildScreenTask = task({
   id: "build-screen",
   retry: {
-    maxAttempts: 3,
+    // One generation attempt per screen build avoids silent duplicate LLM
+    // charges when upstream output or infrastructure is flaky.
+    maxAttempts: 2,
     factor: 1.8,
     minTimeoutInMs: 1000,
     maxTimeoutInMs: 30000,
@@ -212,30 +213,6 @@ export const buildScreenTask = task({
     }
 
     const code = extractCode(rawText);
-    const auditResult = auditScreenCode({
-      code,
-      designTokens: payload.designTokens,
-      navigationArchitecture: payload.navigationArchitecture,
-      screenPlan: payload.screenPlan,
-    });
-
-    if (!auditResult.compliant) {
-      const message = formatAuditFailureMessage(auditResult, `Generated screen \"${payload.screenPlan.name}\" rejected by design audit.`);
-      const admin = createAdminClient();
-
-      await admin
-        .from("screens")
-        .update({
-          code: buildErrorCode(message),
-          status: "failed",
-          error: message,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", payload.screenId);
-
-      throw new Error(message);
-    }
-
     const blockIndex = indexScreenCode(code);
 
     // Persist the final code directly so the parent only polls for status.

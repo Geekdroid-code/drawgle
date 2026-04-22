@@ -1,7 +1,9 @@
 import { defineConfig } from "@trigger.dev/sdk";
 
+import { getTriggerProjectRef } from "@/lib/env/server";
+
 export default defineConfig({
-  project: process.env.TRIGGER_PROJECT_REF ?? "drawgle-local",
+  project: getTriggerProjectRef(),
   dirs: ["./trigger"],
   runtime: "node-22",
   logLevel: "info",

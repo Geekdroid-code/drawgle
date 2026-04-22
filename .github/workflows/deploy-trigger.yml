@@ -31,8 +31,11 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Pin npm version
+        run: npm install --global npm@10.9.8
+
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Validate Trigger.dev secrets
         shell: bash
