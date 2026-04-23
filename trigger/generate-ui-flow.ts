@@ -39,6 +39,7 @@ type BuildScreenTaskPayload = {
   projectContext?: string | null;
 };
 
+
 type ReservedScreenSlot = Database["public"]["Functions"]["reserve_screen_slots"]["Returns"][number];
 
 const now = () => new Date().toISOString();
