@@ -54,4 +54,4 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Deploy Trigger.dev tasks
-        run: pnpm dlx "trigger.dev@${{ steps.trigger_cli.outputs.version }}" deploy --env prod --skip-update-check --log-level info
+        run: npx "trigger.dev@${{ steps.trigger_cli.outputs.version }}" deploy --env prod --skip-update-check --log-level info
