@@ -1,20 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
 import { fetchGenerationRuns } from "@/lib/supabase/queries";
 import { isActiveGenerationStatus, type GenerationRunData } from "@/lib/types";
 
 export function useGenerationRuns(projectId: string, initialRuns: GenerationRunData[]) {
+  // React-documented pattern: "Storing information from previous renders"
+  // https://react.dev/reference/react/useState#storing-information-from-previous-renders
+  const [prevInitial, setPrevInitial] = useState(initialRuns);
   const [generationRuns, setGenerationRuns] = useState(initialRuns);
   const [isLoading, setIsLoading] = useState(initialRuns.length === 0);
 
-  // Sync initialRuns prop changes into state without using setState inside an effect.
-  // We track the previous reference and update synchronously during render.
-  const prevInitialRunsRef = useRef(initialRuns);
-  if (prevInitialRunsRef.current !== initialRuns) {
-    prevInitialRunsRef.current = initialRuns;
+  if (prevInitial !== initialRuns) {
+    setPrevInitial(initialRuns);
     setGenerationRuns(initialRuns);
   }
 
@@ -37,11 +37,24 @@ export function useGenerationRuns(projectId: string, initialRuns: GenerationRunD
   }, [projectId]);
 
   useEffect(() => {
-    if (!projectId) {
-      return;
-    }
+    if (!projectId) return;
 
-    void refreshGenerationRuns();
+    let cancelled = false;
+
+    // Inline async fetch so all setState calls happen after the await,
+    // avoiding synchronous setState in the effect body.
+    (async () => {
+      try {
+        const nextRuns = await fetchGenerationRuns(createClient(), projectId);
+        if (!cancelled) {
+          setGenerationRuns(nextRuns);
+        }
+      } catch (error) {
+        console.error("Failed to load generation runs", error);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
 
     const supabase = createClient();
     const channel = supabase
@@ -61,6 +74,7 @@ export function useGenerationRuns(projectId: string, initialRuns: GenerationRunD
       .subscribe();
 
     return () => {
+      cancelled = true;
       void supabase.removeChannel(channel);
     };
   }, [projectId, refreshGenerationRuns]);
