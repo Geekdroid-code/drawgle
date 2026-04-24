@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
 import { fetchGenerationRuns } from "@/lib/supabase/queries";
@@ -10,9 +10,13 @@ export function useGenerationRuns(projectId: string, initialRuns: GenerationRunD
   const [generationRuns, setGenerationRuns] = useState(initialRuns);
   const [isLoading, setIsLoading] = useState(initialRuns.length === 0);
 
-  useEffect(() => {
+  // Sync initialRuns prop changes into state without using setState inside an effect.
+  // We track the previous reference and update synchronously during render.
+  const prevInitialRunsRef = useRef(initialRuns);
+  if (prevInitialRunsRef.current !== initialRuns) {
+    prevInitialRunsRef.current = initialRuns;
     setGenerationRuns(initialRuns);
-  }, [initialRuns]);
+  }
 
   const refreshGenerationRuns = useCallback(async () => {
     if (!projectId) {
@@ -34,8 +38,6 @@ export function useGenerationRuns(projectId: string, initialRuns: GenerationRunD
 
   useEffect(() => {
     if (!projectId) {
-      setGenerationRuns([]);
-      setIsLoading(false);
       return;
     }
 
