@@ -2,7 +2,7 @@ import Image from "next/image";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Image as ImageIcon, Send, Loader2, X, Trash2 } from "lucide-react";
+import { Image as ImageIcon, Send, Loader2, X, Trash2, Crosshair } from "lucide-react";
 import type { ProjectData, PromptImagePayload, ScreenData } from "@/lib/types";
 
 export function PromptBar({
@@ -14,6 +14,10 @@ export function PromptBar({
   onClearSelectedScreen,
   onDeleteSelectedScreen,
   mobileTopAccessory,
+  selectionMode = false,
+  onToggleSelectionMode,
+  selectedElementPreview,
+  onClearSelectedElement,
 }: {
   onSubmit?: (options: { prompt: string; image?: PromptImagePayload | null }) => Promise<boolean>;
   project?: ProjectData;
@@ -23,6 +27,14 @@ export function PromptBar({
   onClearSelectedScreen?: () => void;
   onDeleteSelectedScreen?: () => void | Promise<void>;
   mobileTopAccessory?: React.ReactNode;
+  /** Whether element selection mode is active on the screen */
+  selectionMode?: boolean;
+  /** Toggle element selection mode on the selected screen */
+  onToggleSelectionMode?: () => void;
+  /** Text preview of the currently selected element (null = no element selected) */
+  selectedElementPreview?: string | null;
+  /** Clear the currently selected element */
+  onClearSelectedElement?: () => void;
 }) {
   const [prompt, setPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -112,6 +124,27 @@ export function PromptBar({
         </div>
       ) : null}
 
+      {/* Selected element pill — shown when the user has visually selected an element */}
+      {selectedScreen && selectedElementPreview ? (
+        <div className="flex items-center gap-2 bg-teal-50 px-3 py-1.5 rounded-lg border border-teal-100 mx-1 mb-1">
+          <Crosshair className="w-3 h-3 text-teal-600 shrink-0" />
+          <span className="text-xs text-teal-700 truncate max-w-[260px] md:max-w-md" title={selectedElementPreview}>
+            {selectedElementPreview}
+          </span>
+          {onClearSelectedElement ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5 text-teal-500 hover:text-teal-700 hover:bg-teal-100 rounded-full shrink-0 ml-auto"
+              onClick={onClearSelectedElement}
+              disabled={disabled || isGenerating}
+            >
+              <X className="w-3 h-3" />
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
       {isGenerating && agentStatus && (
         <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs font-medium px-4 py-2 rounded-full shadow-lg flex items-center gap-2 whitespace-nowrap">
           <Loader2 className="w-3 h-3 animate-spin" />
@@ -175,6 +208,24 @@ export function PromptBar({
               disabled={disabled || isGenerating}
             >
               <ImageIcon className="w-5 h-5" />
+            </Button>
+          ) : null}
+          {selectedScreen && onToggleSelectionMode ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-full transition-colors duration-150"
+              style={selectionMode ? {
+                background: 'rgba(20,184,166,0.12)',
+                color: '#0d9488',
+              } : {
+                color: '#6b7280',
+              }}
+              onClick={onToggleSelectionMode}
+              disabled={disabled || isGenerating}
+              title={selectionMode ? "Exit select mode" : "Select an element to edit"}
+            >
+              <Crosshair className="w-5 h-5" />
             </Button>
           ) : null}
 

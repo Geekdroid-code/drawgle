@@ -6,6 +6,7 @@ import { ZoomIn, ZoomOut, Maximize } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ScreenNode, SCREEN_FRAME_HEIGHT, SCREEN_FRAME_WIDTH } from "./ScreenNode";
+import type { SelectedElementInfo } from "./ScreenNode";
 
 import type { ScreenData } from "@/lib/types";
 
@@ -201,10 +202,14 @@ const CanvasContent = ({
   screens,
   selectedScreen,
   onSelectScreen,
+  selectionMode,
+  onElementSelected,
 }: {
   screens: ScreenData[];
   selectedScreen?: ScreenData | null;
   onSelectScreen?: (screen: ScreenData | null) => void;
+  selectionMode?: boolean;
+  onElementSelected?: (info: SelectedElementInfo) => void;
 }) => {
   const { state } = useControls();
   const scale = state.scale;
@@ -226,6 +231,8 @@ const CanvasContent = ({
             isSelected={selectedScreen?.id === screen.id}
             onClick={() => onSelectScreen?.(screen)}
             scale={scale}
+            selectionMode={selectedScreen?.id === screen.id ? selectionMode : false}
+            onElementSelected={selectedScreen?.id === screen.id ? onElementSelected : undefined}
           />
         ))}
       </div>
@@ -238,11 +245,15 @@ export function CanvasArea({
   fitRequestVersion = INITIAL_FIT_REQUEST_VERSION,
   selectedScreen,
   onSelectScreen,
+  selectionMode,
+  onElementSelected,
 }: {
   screens: ScreenData[];
   fitRequestVersion?: number;
   selectedScreen?: ScreenData | null;
   onSelectScreen?: (screen: ScreenData | null) => void;
+  selectionMode?: boolean;
+  onElementSelected?: (info: SelectedElementInfo) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [initialScale, setInitialScale] = useState<number | null>(null);
@@ -306,6 +317,8 @@ export function CanvasArea({
             screens={screens}
             selectedScreen={selectedScreen}
             onSelectScreen={onSelectScreen}
+            selectionMode={selectionMode}
+            onElementSelected={onElementSelected}
           />
         </>
       </TransformWrapper>

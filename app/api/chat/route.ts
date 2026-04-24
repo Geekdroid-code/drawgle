@@ -22,6 +22,7 @@ export async function POST(req: Request) {
       projectId,
       prompt,
       selectedScreenId,
+      selectedElementHtml,
     } = await req.json();
 
     if (!projectId || !prompt?.trim()) {
@@ -76,6 +77,9 @@ export async function POST(req: Request) {
         userMessageId: userMessage.id,
         designTokens: (project.design_tokens as DesignTokens | null) ?? null,
         navigationArchitecture: ((project.project_charter as ProjectCharter | null)?.navigationArchitecture ?? null) as NavigationArchitecture | null,
+        selectedElementHtml: typeof selectedElementHtml === "string" && selectedElementHtml.length > 0
+          ? selectedElementHtml
+          : null,
       });
     }
 
@@ -108,6 +112,7 @@ async function handleEditIntent({
   userMessageId,
   designTokens,
   navigationArchitecture,
+  selectedElementHtml,
 }: {
   admin: ReturnType<typeof createAdminClient>;
   projectId: string;
@@ -117,6 +122,8 @@ async function handleEditIntent({
   userMessageId: string;
   designTokens?: DesignTokens | null;
   navigationArchitecture?: NavigationArchitecture | null;
+  /** The outerHTML of a visually selected element, or null for block-index fallback. */
+  selectedElementHtml?: string | null;
 }) {
   // Fetch screen (use admin to bypass RLS — ownership already verified)
   const { data: screen, error: screenError } = await admin
@@ -132,9 +139,11 @@ async function handleEditIntent({
   const screenCode = typeof screen.code === "string" && screen.code.length > 0 ? screen.code : "";
   const blockIndex = ((screen.block_index as ScreenBlockIndex | null) ?? indexScreenCode(screenCode));
 
-  // Detect target blocks for scoped editing
-  const resolution = detectTargetBlocks(prompt, blockIndex);
-  const targetBlockIds = resolution.scope === "scoped" ? resolution.targetBlockIds : [];
+  // Detect target blocks for scoped editing (skipped when visual element selection is available)
+  const resolution = selectedElementHtml
+    ? { scope: "scoped" as const, targetBlockIds: [] }
+    : detectTargetBlocks(prompt, blockIndex);
+  const targetBlockIds = resolution.scope === "scoped" && !selectedElementHtml ? resolution.targetBlockIds : [];
 
   // Build chat context from project_messages
   const allMessages = await fetchProjectMessages(admin, projectId);
@@ -146,9 +155,11 @@ async function handleEditIntent({
   });
 
   // Post system status message
-  const targetNames = targetBlockIds.length > 0
-    ? targetBlockIds.map((id) => blockIndex.blocks.find((b) => b.id === id)?.name ?? id).join(", ")
-    : "full screen";
+  const targetNames = selectedElementHtml
+    ? "selected element"
+    : targetBlockIds.length > 0
+      ? targetBlockIds.map((id) => blockIndex.blocks.find((b) => b.id === id)?.name ?? id).join(", ")
+      : "full screen";
 
   await insertProjectMessage(admin, {
     projectId,
@@ -173,6 +184,7 @@ async function handleEditIntent({
           targetBlockIds,
           designTokens,
           navigationArchitecture,
+          selectedElementHtml,
         })) {
           fullResponse += chunk;
           controller.enqueue(new TextEncoder().encode(chunk));

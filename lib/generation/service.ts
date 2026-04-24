@@ -952,6 +952,7 @@ export async function* editScreenStream({
   targetBlockIds,
   designTokens,
   navigationArchitecture,
+  selectedElementHtml,
 }: {
   messages: Array<Pick<Message, "role" | "content">>;
   screenCode: string;
@@ -959,6 +960,8 @@ export async function* editScreenStream({
   targetBlockIds?: string[];
   designTokens?: DesignTokens | null;
   navigationArchitecture?: NavigationArchitecture | null;
+  /** The outerHTML of a visually selected element (from the visual DOM selector). */
+  selectedElementHtml?: string | null;
 }) {
   const ai = createGeminiClient();
   const history = messages.map((message) => ({
@@ -976,21 +979,50 @@ export async function* editScreenStream({
   });
 
   const latestUserPrompt = [...messages].reverse().find((message) => message.role === "user")?.content ?? "";
-  const scopedContext = blockIndex && targetBlockIds && targetBlockIds.length > 0
-    ? buildScopedEditContext({
-        screenCode,
-        blockIndex,
-        targetBlockIds,
-      })
-    : null;
 
-  const editMessage = scopedContext
-    ? [
-        `User edit request: ${latestUserPrompt || "Apply the requested changes."}`,
-        scopedContext,
-        "Return ONLY <edit> blocks that match the provided snippets.",
-      ].join("\n\n")
-    : `Here is the current code:\n\n\`\`\`html\n${screenCode}\n\`\`\``;
+  // ---------------------------------------------------------------------------
+  // Priority 1: Visual element selection — the user clicked on an element in
+  // the rendered screen.  This gives us the exact outerHTML, which is far more
+  // precise than keyword-based block matching.
+  // ---------------------------------------------------------------------------
+  let editMessage: string;
+
+  if (selectedElementHtml) {
+    editMessage = [
+      `User edit request: ${latestUserPrompt || "Apply the requested changes."}`,
+      "",
+      "The user **visually selected** the following element in the rendered screen.",
+      "Apply the requested changes ONLY to this element and its children.",
+      "Use <edit> blocks where the <search> content exactly matches the snippet below (or a portion of it).",
+      "",
+      "SELECTED ELEMENT:",
+      "```html",
+      selectedElementHtml,
+      "```",
+      "",
+      "FULL SCREEN CODE (for surrounding context only — do NOT rewrite unrelated sections):",
+      "```html",
+      screenCode,
+      "```",
+    ].join("\n");
+  } else {
+    // Priority 2: Block-index scoped context (existing path)
+    const scopedContext = blockIndex && targetBlockIds && targetBlockIds.length > 0
+      ? buildScopedEditContext({
+          screenCode,
+          blockIndex,
+          targetBlockIds,
+        })
+      : null;
+
+    editMessage = scopedContext
+      ? [
+          `User edit request: ${latestUserPrompt || "Apply the requested changes."}`,
+          scopedContext,
+          "Return ONLY <edit> blocks that match the provided snippets.",
+        ].join("\n\n")
+      : `Here is the current code:\n\n\`\`\`html\n${screenCode}\n\`\`\``;
+  }
 
   const responseStream = await chat.sendMessageStream({
     message: editMessage,

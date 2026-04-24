@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
 import type { ScreenRow } from "@/lib/supabase/database.types";
@@ -45,40 +45,6 @@ const mergeScreenPatch = (currentScreen: ScreenData, nextScreen: ScreenData): Sc
 export function useScreens(projectId: string, initialScreens: ScreenData[] = []) {
   const [screens, setScreens] = useState<ScreenData[]>(sortScreens(initialScreens));
   const [isLoading, setIsLoading] = useState(initialScreens.length === 0);
-  const refreshRequestIdRef = useRef(0);
-
-  const refreshScreens = useCallback(async () => {
-    const requestId = refreshRequestIdRef.current + 1;
-    refreshRequestIdRef.current = requestId;
-
-    if (!projectId) {
-      setScreens([]);
-      setIsLoading(false);
-      return [];
-    }
-
-    try {
-      setIsLoading(true);
-      const supabase = createClient();
-      const nextScreens = await fetchScreens(supabase, projectId);
-
-      if (refreshRequestIdRef.current === requestId) {
-        setScreens(nextScreens);
-      }
-
-      return nextScreens;
-    } catch (error) {
-      if (refreshRequestIdRef.current === requestId) {
-        console.error("Failed to load screens", error);
-      }
-
-      return null;
-    } finally {
-      if (refreshRequestIdRef.current === requestId) {
-        setIsLoading(false);
-      }
-    }
-  }, [projectId]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -87,7 +53,6 @@ export function useScreens(projectId: string, initialScreens: ScreenData[] = [])
 
   useEffect(() => {
     if (!projectId) {
-      refreshRequestIdRef.current += 1;
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setScreens([]);
       setIsLoading(false);
@@ -95,8 +60,25 @@ export function useScreens(projectId: string, initialScreens: ScreenData[] = [])
     }
 
     const supabase = createClient();
+    let cancelled = false;
 
-    void refreshScreens();
+    const loadScreens = async () => {
+      try {
+        setIsLoading(true);
+        const nextScreens = await fetchScreens(supabase, projectId);
+        if (!cancelled) {
+          setScreens(nextScreens);
+        }
+      } catch (error) {
+        console.error("Failed to load screens", error);
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadScreens();
 
     const channel = supabase
       .channel(`screens:${projectId}`)
@@ -127,16 +109,27 @@ export function useScreens(projectId: string, initialScreens: ScreenData[] = [])
         // any INSERT events that happened during the handshake window (the gap
         // between the initial fetch completing with 0 rows and the channel
         // being fully acknowledged by Supabase Realtime).
-        if (status === "SUBSCRIBED") {
-          void refreshScreens();
+        if (status === "SUBSCRIBED" && !cancelled) {
+          void loadScreens();
         }
       });
 
     return () => {
-      refreshRequestIdRef.current += 1;
+      cancelled = true;
       void supabase.removeChannel(channel);
     };
-  }, [projectId, refreshScreens]);
+  }, [projectId]);
+
+  const refreshScreens = async () => {
+    if (!projectId) return;
+    try {
+      const supabase = createClient();
+      const nextScreens = await fetchScreens(supabase, projectId);
+      setScreens(nextScreens);
+    } catch (error) {
+      console.error("Failed to refresh screens", error);
+    }
+  };
 
   return {
     screens,

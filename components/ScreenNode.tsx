@@ -2,12 +2,22 @@
 
 import { ScreenData } from "@/lib/types";
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { MoreHorizontal, Download, Trash2, Edit2, Smartphone, MousePointerClick } from "lucide-react";
+import { MoreHorizontal, Download, Trash2, Edit2, Smartphone, MousePointerClick, Crosshair } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { createClient } from "@/lib/supabase/client";
 import { deleteScreen, updateScreenPosition } from "@/lib/supabase/queries";
 import { useRealtimeRunWithStreams } from "@trigger.dev/react-hooks";
+
+/** Data sent from the iframe when the user clicks an element in selection mode. */
+export interface SelectedElementInfo {
+  /** The outerHTML of the selected element — used as the LLM's edit target. */
+  outerHTML: string;
+  /** A short human-readable text preview of the element (max ~120 chars). */
+  textPreview: string;
+  /** CSS breadcrumb path from root to the selected element. */
+  breadcrumb: string;
+}
 
 export const SCREEN_FRAME_WIDTH = 390;
 export const SCREEN_FRAME_HEIGHT = 844;
@@ -38,12 +48,14 @@ function ScreenLabelBar({
   screen,
   isSelected,
   interactMode,
+  selectionMode,
   onInteractToggle,
   onDelete,
 }: {
   screen: ScreenData;
   isSelected: boolean;
   interactMode: boolean;
+  selectionMode: boolean;
   onInteractToggle: () => void;
   onDelete: () => void;
 }) {
@@ -59,12 +71,32 @@ function ScreenLabelBar({
         transition: "opacity 0.18s ease, transform 0.18s ease",
       }}
     >
+      {/* SELECTION MODE badge — floated above label bar */}
+      {selectionMode && (
+        <div
+          className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-2.5 py-1 rounded-full pointer-events-none"
+          style={{
+            bottom: '100%',
+            marginBottom: 6,
+            background: 'rgba(20,184,166,0.12)',
+            border: '1px solid rgba(20,184,166,0.35)',
+            backdropFilter: 'blur(8px)',
+          }}
+        >
+          <Crosshair className="w-3 h-3" style={{ color: '#0d9488' }} />
+          <span className="text-[10px] font-bold tracking-wide" style={{ color: '#0d9488' }}>
+            SELECT AN ELEMENT
+          </span>
+        </div>
+      )}
       {/* Left: device icon + name + interact badge */}
       <div className="flex items-center gap-1.5 min-w-0">
         <div
           className="flex items-center justify-center w-6 h-6 rounded-md shrink-0 transition-colors duration-200"
           style={{
-            background: interactMode
+            background: selectionMode
+              ? "rgba(20,184,166,0.15)"
+              : interactMode
               ? "rgba(16,185,129,0.15)"
               : isSelected
                 ? "rgba(99,102,241,0.12)"
@@ -73,12 +105,12 @@ function ScreenLabelBar({
         >
           <Smartphone
             className="w-3.5 h-3.5 transition-colors duration-200"
-            style={{ color: interactMode ? "#10b981" : isSelected ? "#6366f1" : "#6b7280" }}
+            style={{ color: selectionMode ? "#0d9488" : interactMode ? "#10b981" : isSelected ? "#6366f1" : "#6b7280" }}
           />
         </div>
         <span
           className="text-[13px] font-semibold truncate max-w-[150px] leading-none transition-colors duration-200"
-          style={{ color: interactMode ? "#064e3b" : isSelected ? "#1e1b4b" : "#374151" }}
+          style={{ color: selectionMode ? "#115e59" : interactMode ? "#064e3b" : isSelected ? "#1e1b4b" : "#374151" }}
         >
           {screen.name}
         </span>
@@ -199,11 +231,17 @@ export function ScreenNode({
   isSelected,
   onClick,
   scale = 1,
+  selectionMode = false,
+  onElementSelected,
 }: {
   screen: ScreenData;
   isSelected?: boolean;
   onClick?: () => void;
   scale?: number;
+  /** When true, the iframe enters element-selection mode (hover outlines, click-to-select). */
+  selectionMode?: boolean;
+  /** Called when the user clicks an element inside the iframe during selection mode. */
+  onElementSelected?: (info: SelectedElementInfo) => void;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const safeCode = typeof screen.code === "string" ? screen.code : "";
@@ -298,6 +336,40 @@ export function ScreenNode({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [isSelected, interactMode]);
+
+  // ── Selection mode: tell the iframe to enable/disable element picking
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe?.contentWindow) return;
+    iframe.contentWindow.postMessage(
+      { type: selectionMode ? 'enableSelectionMode' : 'disableSelectionMode' },
+      '*',
+    );
+  }, [selectionMode]);
+
+  // ── Listen for elementSelected messages from the iframe
+  useEffect(() => {
+    if (!selectionMode || !onElementSelected) return;
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.source !== iframeRef.current?.contentWindow) return;
+      if (event.data?.type !== 'elementSelected') return;
+
+      const { outerHTML, textPreview, breadcrumb } = event.data as {
+        type: string;
+        outerHTML: string;
+        textPreview: string;
+        breadcrumb: string;
+      };
+
+      if (outerHTML) {
+        onElementSelected({ outerHTML, textPreview, breadcrumb });
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [selectionMode, onElementSelected]);
 
   // ── Delete
   const handleDelete = useCallback(async () => {
@@ -470,25 +542,173 @@ export function ScreenNode({
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <script src="https://cdn.tailwindcss.com"></script>
-        <script src="https://unpkg.com/lucide@latest"></script>
+        <script src="https://cdn.tailwindcss.com"><\/script>
+        <script src="https://unpkg.com/lucide@latest"><\/script>
         <style>
           body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow-x: hidden; }
           ::-webkit-scrollbar { display: none; width: 0; height: 0; }
           * { -ms-overflow-style: none; scrollbar-width: none; }
+          .__drawgle-hover-outline { outline: 2px solid rgba(20,184,166,0.8) !important; outline-offset: -1px; cursor: crosshair !important; }
+          .__drawgle-selected-outline { outline: 2.5px solid #0d9488 !important; outline-offset: -1px; background-color: rgba(20,184,166,0.06) !important; }
         </style>
       </head>
       <body>
         <div id="root">${initialCode}</div>
         <script>
           lucide.createIcons();
-          window.addEventListener('message', (event) => {
-            if (event.data && event.data.type === 'updateCode') {
-              document.getElementById('root').innerHTML = event.data.code;
-              lucide.createIcons();
+
+          /* ── Element selection engine ──────────────────────────── */
+          (function() {
+            var selectionActive = false;
+            var hoveredEl = null;
+            var selectedEl = null;
+
+            /* Tags that are too granular to be useful edit targets */
+            var LEAF_TAGS = new Set([
+              'SPAN','B','I','EM','STRONG','SMALL','BR','HR','IMG',
+              'SVG','PATH','CIRCLE','RECT','LINE','POLYLINE','POLYGON',
+              'ELLIPSE','G','DEFS','CLIPPATH','USE','STOP',
+              'LINEARGRADIENT','RADIALGRADIENT','TEXT','TSPAN',
+            ]);
+
+            /* Walk up from a clicked leaf to the nearest meaningful container */
+            function resolveTarget(el) {
+              var root = document.getElementById('root');
+              if (!root) return el;
+              var node = el;
+              var maxWalk = 12;
+              while (node && node !== root && maxWalk-- > 0) {
+                /* Stop bubbling if this element has layout classes or multiple children */
+                if (!LEAF_TAGS.has(node.tagName)) {
+                  var childElements = node.querySelectorAll(':scope > *');
+                  if (childElements.length >= 2 || (node.innerHTML && node.innerHTML.length > 80)) {
+                    return node;
+                  }
+                }
+                node = node.parentElement;
+              }
+              /* Fallback: if we walked all the way to root, return the original */
+              return el === root ? el : el;
             }
-          });
-        </script>
+
+            function stripHtml(html) {
+              var tmp = document.createElement('div');
+              tmp.innerHTML = html;
+              return (tmp.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 120);
+            }
+
+            function buildBreadcrumb(el) {
+              var parts = [];
+              var node = el;
+              var root = document.getElementById('root');
+              while (node && node !== root && node !== document.body) {
+                var tag = node.tagName.toLowerCase();
+                var parent = node.parentElement;
+                if (parent) {
+                  var siblings = Array.from(parent.children).filter(function(c) { return c.tagName === node.tagName; });
+                  if (siblings.length > 1) {
+                    tag += ':nth-child(' + (Array.from(parent.children).indexOf(node) + 1) + ')';
+                  }
+                }
+                parts.unshift(tag);
+                node = parent;
+              }
+              return parts.join(' > ');
+            }
+
+            function clearHover() {
+              if (hoveredEl) {
+                hoveredEl.classList.remove('__drawgle-hover-outline');
+                hoveredEl = null;
+              }
+            }
+
+            function clearSelected() {
+              if (selectedEl) {
+                selectedEl.classList.remove('__drawgle-selected-outline');
+                selectedEl = null;
+              }
+            }
+
+            function onMouseOver(e) {
+              if (!selectionActive) return;
+              e.stopPropagation();
+              var target = resolveTarget(e.target);
+              if (target === hoveredEl) return;
+              clearHover();
+              hoveredEl = target;
+              hoveredEl.classList.add('__drawgle-hover-outline');
+            }
+
+            function onMouseOut(e) {
+              if (!selectionActive) return;
+              clearHover();
+            }
+
+            function onClick(e) {
+              if (!selectionActive) return;
+              e.preventDefault();
+              e.stopPropagation();
+              clearHover();
+              clearSelected();
+              var target = resolveTarget(e.target);
+              selectedEl = target;
+              selectedEl.classList.add('__drawgle-selected-outline');
+
+              /* Build a clean outerHTML without our injected classes */
+              var clone = target.cloneNode(true);
+              clone.querySelectorAll('.__drawgle-hover-outline').forEach(function(el) {
+                el.classList.remove('__drawgle-hover-outline');
+              });
+              clone.querySelectorAll('.__drawgle-selected-outline').forEach(function(el) {
+                el.classList.remove('__drawgle-selected-outline');
+              });
+              clone.classList.remove('__drawgle-hover-outline', '__drawgle-selected-outline');
+
+              window.parent.postMessage({
+                type: 'elementSelected',
+                outerHTML: clone.outerHTML,
+                textPreview: stripHtml(target.innerHTML),
+                breadcrumb: buildBreadcrumb(target),
+              }, '*');
+            }
+
+            function enableSelection() {
+              if (selectionActive) return;
+              selectionActive = true;
+              document.body.style.cursor = 'crosshair';
+              document.addEventListener('mouseover', onMouseOver, true);
+              document.addEventListener('mouseout', onMouseOut, true);
+              document.addEventListener('click', onClick, true);
+            }
+
+            function disableSelection() {
+              selectionActive = false;
+              document.body.style.cursor = '';
+              clearHover();
+              clearSelected();
+              document.removeEventListener('mouseover', onMouseOver, true);
+              document.removeEventListener('mouseout', onMouseOut, true);
+              document.removeEventListener('click', onClick, true);
+            }
+
+            window.addEventListener('message', function(event) {
+              if (!event.data) return;
+              if (event.data.type === 'updateCode') {
+                /* Preserve selection state across live code updates */
+                var wasActive = selectionActive;
+                if (wasActive) disableSelection();
+                document.getElementById('root').innerHTML = event.data.code;
+                lucide.createIcons();
+                if (wasActive) enableSelection();
+              } else if (event.data.type === 'enableSelectionMode') {
+                enableSelection();
+              } else if (event.data.type === 'disableSelectionMode') {
+                disableSelection();
+              }
+            });
+          })();
+        <\/script>
       </body>
     </html>
   `,
@@ -500,7 +720,9 @@ export function ScreenNode({
   // =========================================================================
 
   const isInteractModeActive = Boolean(isSelected && interactMode);
-  const overlayActive = !isInteractModeActive;        // overlay present = drag mode
+  const isSelectionModeActive = Boolean(isSelected && selectionMode);
+  // Overlay is removed for interact mode AND selection mode (iframe needs pointer events)
+  const overlayActive = !isInteractModeActive && !isSelectionModeActive;
   const overlayPointerStyle: React.CSSProperties = {
     cursor: isDraggingState
       ? "grabbing"
@@ -541,6 +763,7 @@ export function ScreenNode({
         screen={screen}
         isSelected={!!isSelected}
         interactMode={isInteractModeActive}
+        selectionMode={isSelectionModeActive}
         onInteractToggle={() => setInteractMode((m) => !m)}
         onDelete={handleDelete}
       />
@@ -584,6 +807,8 @@ export function ScreenNode({
             const ambient =
               '0 48px 120px rgba(0,0,0,0.42),' +
               '0 16px 48px rgba(0,0,0,0.22)';
+             if (isSelectionModeActive)
+              return `0 0 0 2px #0d9488,0 0 22px rgba(13,148,136,0.35),${ambient},${frame}`;
             if (isInteractModeActive)
               return `0 0 0 2px #10b981,0 0 18px rgba(16,185,129,0.38),${ambient},${frame}`;
             if (isSelected)
@@ -637,6 +862,7 @@ export function ScreenNode({
             srcDoc={srcDoc}
             style={{
               pointerEvents: isDraggingState || overlayActive ? 'none' : 'auto',
+              cursor: isSelectionModeActive ? 'crosshair' : undefined,
             }}
           />
 

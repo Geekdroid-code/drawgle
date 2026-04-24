@@ -7,6 +7,7 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import { CanvasArea } from "@/components/CanvasArea";
 import { ChatPanel, CollapsedChatTrigger, type ScreenPlanState } from "@/components/ChatPanel";
 import { PromptBar } from "@/components/PromptBar";
+import type { SelectedElementInfo } from "@/components/ScreenNode";
 import { Button } from "@/components/ui/button";
 import { useGenerationRuns } from "@/hooks/use-generation-runs";
 import { useProject } from "@/hooks/use-project";
@@ -132,6 +133,8 @@ export function ProjectShell({
   const [pendingAddScreenRunId, setPendingAddScreenRunId] = useState<string | null>(null);
   const [queueError, setQueueError] = useState<string | null>(null);
   const [addScreenPlan, setAddScreenPlan] = useState<ScreenPlanState | null>(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedElementInfo, setSelectedElementInfo] = useState<SelectedElementInfo | null>(null);
   const centeredRunIdRef = useRef<string | null>(null);
   const knownScreenIdsRef = useRef<Set<string>>(new Set());
   const hasHydratedScreenIdsRef = useRef(false);
@@ -200,6 +203,12 @@ export function ProjectShell({
       setSelectedScreen(updatedScreen);
     }
   }, [screens, selectedScreen]);
+
+  // Clear element selection when the selected screen changes or is deselected
+  useEffect(() => {
+    setSelectionMode(false);
+    setSelectedElementInfo(null);
+  }, [selectedScreen?.id]);
 
   useEffect(() => {
     if (screens.length === 0 || hasQueuedInitialFitRef.current) {
@@ -526,8 +535,13 @@ export function ProjectShell({
             projectId: project.id,
             prompt,
             selectedScreenId: selectedScreen.id,
+            selectedElementHtml: selectedElementInfo?.outerHTML ?? null,
           }),
         });
+
+        // Clear element selection after submitting the edit
+        setSelectedElementInfo(null);
+        setSelectionMode(false);
 
         if (!editRes.ok) {
           throw new Error("Failed to edit screen");
@@ -617,7 +631,17 @@ export function ProjectShell({
         </div>
 
         <div className="relative h-full min-w-0 flex-1">
-          <CanvasArea screens={screens} fitRequestVersion={fitRequestVersion} selectedScreen={selectedScreen} onSelectScreen={setSelectedScreen} />
+          <CanvasArea
+            screens={screens}
+            fitRequestVersion={fitRequestVersion}
+            selectedScreen={selectedScreen}
+            onSelectScreen={setSelectedScreen}
+            selectionMode={selectionMode}
+            onElementSelected={(info) => {
+              setSelectedElementInfo(info);
+              setSelectionMode(false);
+            }}
+          />
 
           <ChatPanel
             project={project}
@@ -646,6 +670,15 @@ export function ProjectShell({
               onSubmit={handlePromptAction}
               disabled={isCanvasInteractionLocked}
               submitStatusText={selectedScreen ? `Editing ${selectedScreen.name}...` : "Planning screen..."}
+              selectionMode={selectionMode}
+              onToggleSelectionMode={() => {
+                setSelectionMode((m) => !m);
+                if (selectedElementInfo) {
+                  setSelectedElementInfo(null);
+                }
+              }}
+              selectedElementPreview={selectedElementInfo?.textPreview ?? null}
+              onClearSelectedElement={() => setSelectedElementInfo(null)}
               mobileTopAccessory={isChatCollapsed ? (
                 <CollapsedChatTrigger
                   eyebrow={collapsedChatEyebrow}
