@@ -9,19 +9,28 @@ import { isActiveGenerationStatus, type GenerationRunData } from "@/lib/types";
 export function useActiveGenerationRun(projectId: string, initialRun: GenerationRunData | null) {
   const [generationRun, setGenerationRun] = useState<GenerationRunData | null>(initialRun);
   const [isLoading, setIsLoading] = useState(!initialRun);
+  const [prevInitialRun, setPrevInitialRun] = useState(initialRun);
+  const [prevProjectId, setPrevProjectId] = useState(projectId);
 
-  useEffect(() => {
+  if (prevInitialRun !== initialRun) {
+    setPrevInitialRun(initialRun);
     setGenerationRun(initialRun);
-  }, [initialRun]);
+  }
 
-  useEffect(() => {
+  if (prevProjectId !== projectId) {
+    setPrevProjectId(projectId);
     if (!projectId) {
       setGenerationRun(null);
       setIsLoading(false);
-      return;
     }
+  }
+
+  useEffect(() => {
+    if (!projectId) return;
 
     const supabase = createClient();
+    if (!supabase) return;
+
     let cancelled = false;
 
     const loadGenerationRun = async () => {

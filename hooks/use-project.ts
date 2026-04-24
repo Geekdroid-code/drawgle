@@ -11,19 +11,28 @@ import type { ProjectData } from "@/lib/types";
 export function useProject(projectId: string, initialProject: ProjectData | null) {
   const [project, setProject] = useState<ProjectData | null>(initialProject);
   const [isLoading, setIsLoading] = useState(!initialProject);
+  const [prevInitialProject, setPrevInitialProject] = useState(initialProject);
+  const [prevProjectId, setPrevProjectId] = useState(projectId);
 
-  useEffect(() => {
+  if (prevInitialProject !== initialProject) {
+    setPrevInitialProject(initialProject);
     setProject(initialProject);
-  }, [initialProject]);
+  }
 
-  useEffect(() => {
+  if (prevProjectId !== projectId) {
+    setPrevProjectId(projectId);
     if (!projectId) {
       setProject(null);
       setIsLoading(false);
-      return;
     }
+  }
+
+  useEffect(() => {
+    if (!projectId) return;
 
     const supabase = createClient();
+    if (!supabase) return;
+
     let cancelled = false;
 
     const loadProject = async () => {
@@ -54,7 +63,7 @@ export function useProject(projectId: string, initialProject: ProjectData | null
           table: "projects",
           filter: `id=eq.${projectId}`,
         },
-        (payload) => {
+        (payload: any) => {
           if (payload.eventType === "DELETE") {
             setProject(null);
             return;

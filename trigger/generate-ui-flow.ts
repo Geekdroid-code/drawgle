@@ -1,4 +1,4 @@
-import { randomUUID } from "crypto";
+import { randomUUID } from "node:crypto";
 
 import { logger, runs, streams, task } from "@trigger.dev/sdk";
 
@@ -308,7 +308,7 @@ export const generateUiFlowTask = task({
     concurrencyLimit: 4,
   },
   maxDuration: 900,
-  onFailure: async ({ payload, error }) => {
+  onFailure: async ({ payload, error }: { payload: GenerateUiFlowPayload; error: unknown }) => {
     const admin = createAdminClient();
     const message = error instanceof Error ? error.message : String(error);
 

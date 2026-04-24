@@ -25,15 +25,22 @@ const upsertMessage = (messages: Message[], message: Message) => {
 export function useScreenMessages(screenId: string) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [prevScreenId, setPrevScreenId] = useState(screenId);
 
-  useEffect(() => {
+  if (prevScreenId !== screenId) {
+    setPrevScreenId(screenId);
     if (!screenId) {
       setMessages([]);
       setIsLoading(false);
-      return;
     }
+  }
+
+  useEffect(() => {
+    if (!screenId) return;
 
     const supabase = createClient();
+    if (!supabase) return;
+
     let cancelled = false;
 
     const loadMessages = async () => {
@@ -64,7 +71,7 @@ export function useScreenMessages(screenId: string) {
           table: "screen_messages",
           filter: `screen_id=eq.${screenId}`,
         },
-        (payload) => {
+        (payload: any) => {
           if (payload.eventType === "DELETE") {
             setMessages((currentMessages) => currentMessages.filter((message) => message.id !== payload.old.id));
             return;
