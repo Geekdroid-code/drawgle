@@ -439,11 +439,18 @@ export const generateUiFlowTask = task({
           userPrompt: payload.prompt,
         });
 
-    const screenPlans = plan.screens.length > 0 ? plan.screens : [{
-      name: "New Screen",
-      type: "root",
-      description: payload.prompt,
-    }];
+    const screenPlans = plan.screens.length > 0 ? plan.screens : (() => {
+      logger.warn("Plan returned zero screens — falling back to raw prompt as screen description", {
+        generationRunId: payload.generationRunId,
+        projectId: payload.projectId,
+        prompt: payload.prompt.slice(0, 200),
+      });
+      return [{
+        name: "New Screen",
+        type: "root" as const,
+        description: payload.prompt,
+      }];
+    })();
 
     const reservedSlots = await reserveScreenSlots(admin, payload.projectId, screenPlans.length);
 

@@ -47,21 +47,21 @@ const NavigationArchitectureSchema = z.object({
   primary_navigation: z.enum(["bottom-tabs", "none"]).default("none"),
   root_chrome: z.enum(["bottom-tabs", "top-bar", "top-bar-back", "modal-sheet", "immersive"]),
   detail_chrome: z.enum(["bottom-tabs", "top-bar", "top-bar-back", "modal-sheet", "immersive"]),
-  consistency_rules: z.array(z.string().trim().min(1).max(300)).min(2).max(6),
-  rationale: z.string().trim().min(1).max(1200),
+  consistency_rules: z.array(z.string().trim().min(1).max(500)).min(1).max(10),
+  rationale: z.string().trim().min(1).max(2400),
 });
 
 const CreativeDirectionSchema = z.object({
-  conceptName: z.string().trim().min(1).max(120),
-  styleEssence: z.string().trim().min(1).max(1600),
-  colorStory: z.string().trim().min(1).max(1200),
-  typographyMood: z.string().trim().min(1).max(1200),
-  surfaceLanguage: z.string().trim().min(1).max(1200),
-  iconographyStyle: z.string().trim().min(1).max(1200),
-  compositionPrinciples: z.array(z.string().trim().min(1).max(400)).min(3).max(8),
-  signatureMoments: z.array(z.string().trim().min(1).max(400)).min(2).max(8),
-  motionTone: z.string().trim().min(1).max(1200),
-  avoid: z.array(z.string().trim().min(1).max(400)).min(2).max(10),
+  conceptName: z.string().trim().min(1).max(200),
+  styleEssence: z.string().trim().min(1).max(2400),
+  colorStory: z.string().trim().min(1).max(2400),
+  typographyMood: z.string().trim().min(1).max(2400),
+  surfaceLanguage: z.string().trim().min(1).max(2400),
+  iconographyStyle: z.string().trim().min(1).max(2400),
+  compositionPrinciples: z.array(z.string().trim().min(1).max(600)).min(1).max(10),
+  signatureMoments: z.array(z.string().trim().min(1).max(600)).min(1).max(10),
+  motionTone: z.string().trim().min(1).max(2400),
+  avoid: z.array(z.string().trim().min(1).max(600)).min(1).max(12),
 });
 
 const PlanSchema = z.object({
@@ -69,15 +69,15 @@ const PlanSchema = z.object({
   navigation_architecture: NavigationArchitectureSchema.optional(),
   charter: z.object({
     originalPrompt: z.string().trim().min(1).max(10000),
-    imageReferenceSummary: z.string().trim().max(4000).nullable().optional(),
-    appType: z.string().trim().min(1).max(120),
-    targetAudience: z.string().trim().min(1).max(240),
-    navigationModel: z.string().trim().min(1).max(240),
-    keyFeatures: z.array(z.string().trim().min(1).max(240)).min(1).max(16),
-    designRationale: z.string().trim().min(1).max(4000),
+    imageReferenceSummary: z.string().trim().max(6000).nullable().optional(),
+    appType: z.string().trim().min(1).max(240),
+    targetAudience: z.string().trim().min(1).max(800),
+    navigationModel: z.string().trim().min(1).max(800),
+    keyFeatures: z.array(z.string().trim().min(1).max(400)).min(1).max(20),
+    designRationale: z.string().trim().min(1).max(8000),
     creativeDirection: CreativeDirectionSchema.nullable().optional(),
   }),
-  screens: z.array(ScreenPlanSchema).min(1).max(8),
+  screens: z.array(ScreenPlanSchema).min(1).max(12),
 });
 
 const ReferenceScreenSchema = z.object({
@@ -414,6 +414,72 @@ const parseJsonResponse = <T>(text: string): T => {
   }
 };
 
+/**
+ * Attempt to independently recover valid screens (and optionally navigation
+ * architecture) from the raw Gemini planner JSON when the full PlanSchema
+ * parse fails.  This avoids discarding perfectly good screen plans just
+ * because an unrelated charter field exceeded its length limit.
+ */
+const salvageScreensFromRawPlan = (rawPlan: unknown): {
+  screens: ScreenPlan[];
+  navigationArchitecture: z.infer<typeof NavigationArchitectureSchema> | null;
+  requiresBottomNav: boolean | null;
+} => {
+  const empty = { screens: [], navigationArchitecture: null, requiresBottomNav: null };
+
+  if (!isRecord(rawPlan)) {
+    return empty;
+  }
+
+  const raw = rawPlan as Record<string, unknown>;
+
+  // --- screens ---
+  let screens: ScreenPlan[] = [];
+  if (Array.isArray(raw.screens)) {
+    const validScreens: ScreenPlan[] = [];
+    for (const item of raw.screens) {
+      const parsed = ScreenPlanSchema.safeParse(item);
+      if (parsed.success) {
+        validScreens.push({
+          name: parsed.data.name,
+          type: parsed.data.type,
+          description: parsed.data.description,
+          chromePolicy: parsed.data.chrome_policy
+            ? {
+                chrome: parsed.data.chrome_policy.chrome,
+                showPrimaryNavigation: parsed.data.chrome_policy.show_primary_navigation ?? false,
+                showsBackButton: parsed.data.chrome_policy.shows_back_button ?? false,
+              }
+            : null,
+        });
+      } else {
+        console.warn(
+          "[salvageScreensFromRawPlan] Skipping invalid screen",
+          {
+            screenName: isRecord(item) ? (item as Record<string, unknown>).name : "unknown",
+            issues: parsed.error.issues.map((i) => i.path.join(".") + ": " + i.message),
+          },
+        );
+      }
+    }
+    screens = validScreens;
+  }
+
+  // --- navigation_architecture ---
+  let navigationArchitecture: z.infer<typeof NavigationArchitectureSchema> | null = null;
+  if (isRecord(raw.navigation_architecture)) {
+    const navParsed = NavigationArchitectureSchema.safeParse(raw.navigation_architecture);
+    if (navParsed.success) {
+      navigationArchitecture = navParsed.data;
+    }
+  }
+
+  // --- requires_bottom_nav ---
+  const requiresBottomNav = typeof raw.requires_bottom_nav === "boolean" ? raw.requires_bottom_nav : null;
+
+  return { screens, navigationArchitecture, requiresBottomNav };
+};
+
 const toInlineImage = (image?: PromptImagePayload | null) => {
   if (!image) {
     return null;
@@ -657,16 +723,50 @@ export async function planUiFlow({
   const parsed = PlanSchema.safeParse(rawPlan);
 
   if (!parsed.success) {
+    // -----------------------------------------------------------------------
+    // DIAGNOSTIC: Log the exact Zod issues so silent fallbacks become visible.
+    // -----------------------------------------------------------------------
+    console.error(
+      "[planUiFlow] PlanSchema validation failed — attempting screen salvage",
+      {
+        zodIssues: parsed.error.issues.map((issue) => ({
+          path: issue.path.join("."),
+          code: issue.code,
+          message: issue.message,
+        })),
+        rawPlanKeys: isRecord(rawPlan) ? Object.keys(rawPlan) : typeof rawPlan,
+        rawScreenCount: isRecord(rawPlan) && Array.isArray((rawPlan as Record<string, unknown>).screens)
+          ? ((rawPlan as Record<string, unknown>).screens as unknown[]).length
+          : 0,
+      },
+    );
+
+    // -------------------------------------------------------------------
+    // SALVAGE: Try to independently recover the screens array even though
+    // the full plan schema failed (e.g. a charter field was too long).
+    // -------------------------------------------------------------------
+    const salvaged = salvageScreensFromRawPlan(rawPlan);
+
     const navigationArchitecture = coerceNavigationArchitecture({
+      parsedNavigationArchitecture: salvaged.navigationArchitecture,
       existingNavigationArchitecture: existingCharter?.navigationArchitecture,
-      requiresBottomNav: fallbackRequiresBottomNav,
+      requiresBottomNav: salvaged.requiresBottomNav ?? fallbackRequiresBottomNav,
       lockToExistingArchitecture: Boolean(projectContext?.trim() && existingCharter?.navigationArchitecture),
     });
-    const screens = fallbackScreensFromReference({
-      prompt,
-      planningMode,
-      referenceAnalysis,
-    }).map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture }));
+
+    const salvageSource = salvaged.screens.length > 0 ? "salvaged" : "fallback";
+    const screens = salvaged.screens.length > 0
+      ? salvaged.screens.map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture }))
+      : fallbackScreensFromReference({
+          prompt,
+          planningMode,
+          referenceAnalysis,
+        }).map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture }));
+
+    console.warn(
+      `[planUiFlow] Using ${salvageSource} screens (${screens.length}) after PlanSchema failure`,
+      { salvageSource, screenCount: screens.length, screenNames: screens.map((s) => s.name) },
+    );
 
     return {
       requiresBottomNav: deriveRequiresBottomNav(navigationArchitecture),
