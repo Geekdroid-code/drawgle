@@ -51,7 +51,7 @@ export function PromptBox({
   };
 
   return (
-    <div className="absolute bottom-4 md:bottom-8 left-1/2 -translate-x-1/2 z-50 w-full max-w-2xl px-4">
+    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-2xl px-4">
       <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-2 flex flex-col gap-2">
         {selectedScreen ? (
           <div className="flex items-center justify-between bg-blue-50 px-3 py-2 rounded-t-xl border-b border-blue-100 mb-1 -mx-2 -mt-2">

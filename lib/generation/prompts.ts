@@ -207,7 +207,6 @@ Do not output a safe generic palette if the reference or creative direction clea
 If no reference image exists, use CREATIVE DIRECTION to produce a premium, recognizable system rather than a generic white-card app kit.
 Treat these as platform constraints, not stylistic variables: safe_area_top, safe_area_bottom, and min_touch_target. Keep them mobile-safe and realistic.
 Treat these as dynamic design variables that should change when the brief or image changes: spacing rhythm, section gaps, screen margins, radii, border widths, shadow depth, surface contrast, font recommendations, and typography hierarchy.
-Return rationale explaining why the system chose its density, geometry, surfaces, shadows, and typography tone.
 Create one disciplined visual language for the whole app. Do not hand the builder a menu of different radii, border widths, or shadow strengths to choose from per screen.
 For shape and elevation, prefer a single standard surface radius, a single standard border width, and a single standard surface shadow. A pill radius may exist only as a controlled exception for chips, segmented controls, or capsule CTAs.
 
@@ -215,15 +214,7 @@ REQUIRED JSON SCHEMA:
 {
   "system_schema": "mobile_universal_core",
   "meta": {
-    "recommendedFonts": ["Font Name", "Fallback Font Name"],
-    "rationale": {
-      "color": "Why the palette works for this product",
-      "typography": "Why the type system fits the product and audience",
-      "spacing": "Why the spacing rhythm is compact / balanced / airy",
-      "radii": "Why the corner geometry fits the product tone",
-      "shadows": "Why the elevation language is flat / soft / pronounced",
-      "surfaces": "Why the surface treatment supports the composition"
-    }
+    "recommendedFonts": ["Font Name", "Fallback Font Name"]
   },
   "tokens": {
     "color": {

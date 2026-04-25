@@ -751,7 +751,7 @@ function AgentActivityRow({
         transition={{ duration: 0.18 }}
         className="ml-10 flex justify-end py-1"
       >
-        <div className="max-w-[88%] border-b border-slate-950/[0.08] pb-2 text-right text-sm leading-6 text-slate-700">
+        <div className="max-w-[88%] rounded-[12px] border border-slate-950/[0.07] bg-[#f7f7f8] px-3 py-2 text-right text-sm leading-6 text-slate-700">
           <div className="whitespace-pre-wrap break-words">{item.title}</div>
           {item.detail ? <div className="mt-1 text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">{item.detail}</div> : null}
         </div>
@@ -775,13 +775,13 @@ function AgentActivityRow({
         <ActivityIcon item={item} reduceMotion={reduceMotion} />
       </div>
 
-      <div className="px-2.5 py-3 transition-colors duration-200 group-hover:bg-slate-950/[0.018] rounded-lg">
-        <div className="flex min-w-0 items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#667894]">
+      <div className="rounded-[10px] px-2.5 py-2.5 transition-colors duration-200 group-hover:bg-slate-950/[0.016]">
+        <div className="flex min-w-0 items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#667894]">
           <span>{item.label}</span>
           {item.screenName ? <span className="h-1 w-1 rounded-full bg-slate-300" /> : null}
           {item.screenName ? <span className="min-w-0 max-w-[132px] truncate">{item.screenName}</span> : null}
         </div>
-        <div className={`text-[13px] leading-6 ${mutedTitle}`}>{item.title}</div>
+        <div className={`mt-0.5 text-[13px] leading-5 ${mutedTitle}`}>{item.title}</div>
         {item.detail && item.kind !== "proposal" ? (
           <div className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{item.detail}</div>
         ) : null}
@@ -853,7 +853,7 @@ function AgentActivityTimeline({
     <LayoutGroup>
       <div className="relative pl-1">
         <div className="pointer-events-none absolute bottom-4 left-[17px] top-4 border-l border-dashed border-slate-300" />
-        <motion.ul layout className="space-y-0.5">
+        <motion.ul layout className="space-y-0">
           <AnimatePresence initial={false}>
             {activities.map((item) => (
               <AgentActivityRow
@@ -890,17 +890,17 @@ function AgentStatusDock({
   );
 
   return (
-    <div className="shrink-0 border-t border-slate-950/[0.08] bg-white/94 px-3 py-2.5 backdrop-blur-xl">
-      <div className="flex items-center gap-3 rounded-[12px] border border-slate-950/[0.08] bg-[#fcfcfc] px-3 py-2">
+    <div className="shrink-0 border-t border-slate-950/[0.07] bg-white/96 px-3 py-2 backdrop-blur-xl">
+      <div className="flex items-center gap-2.5 rounded-[10px] border border-slate-950/[0.07] bg-white px-2.5 py-2">
         <motion.div
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-dashed border-slate-300 bg-white text-slate-800"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-dashed border-slate-300 bg-[#f7f7f8] text-slate-800"
           animate={status.busy && !reduceMotion ? { rotate: 360 } : undefined}
           transition={{ duration: 3.2, repeat: Infinity, ease: "linear" }}
         >
           {iconNode}
         </motion.div>
         <div className="min-w-0 flex-1">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#667894]">{status.label}</div>
+          {status.label ? <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#667894]">{status.label}</div> : null}
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={`${status.text}-${status.detail ?? ""}`}
@@ -908,7 +908,7 @@ function AgentStatusDock({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: reduceMotion ? 0 : -4 }}
               transition={{ duration: 0.18 }}
-              className="truncate text-sm font-medium text-slate-800"
+              className="truncate text-sm font-medium leading-5 text-slate-800"
             >
               {status.text}
             </motion.div>
@@ -1088,18 +1088,20 @@ export function ChatPanel({
     <div
       className={`absolute z-50 flex flex-col overflow-hidden transition-all duration-300
         animate-in fade-in-0 slide-in-from-left-2 duration-300
-        left-2 right-2 top-[var(--dg-mobile-top-reserve)] bottom-[calc(var(--dg-mobile-prompt-reserve)+var(--dg-mobile-prompt-bottom)+0.5rem)] h-auto rounded-[16px]
+        left-2 right-2 top-[var(--dg-mobile-top-reserve)] bottom-[calc(var(--dg-mobile-prompt-reserve)+var(--dg-mobile-prompt-bottom)+0.35rem)] h-auto rounded-[14px]
         md:left-4 md:right-auto md:top-auto md:bottom-4 md:h-[calc(100dvh-5rem)] md:w-96 md:rounded-[14px]
-        dg-metal-shell backdrop-blur-xl
+        dg-chat-shell backdrop-blur-xl
       `}
     >
-      <div className="h-14 shrink-0 border-b border-slate-950/[0.1] px-4 py-3">
+      <div className="h-[52px] shrink-0 border-b border-slate-950/[0.08] bg-white/70 px-3.5 py-2.5">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
-            <Bot className="h-4 w-4 shrink-0 text-slate-500" />
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-950/[0.08] bg-[#f7f7f8] text-slate-600">
+              <Bot className="h-3.5 w-3.5" />
+            </span>
             <div className="min-w-0">
               <div className="truncate text-sm font-medium text-slate-950">{project.name}</div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">Agent history</div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#667894]">Agent history</div>
             </div>
           </div>
 
@@ -1108,7 +1110,7 @@ export function ChatPanel({
             variant="ghost"
             size="icon"
             aria-label="Minimize agent history"
-            className="h-9 w-9 rounded-[10px] dg-metal-plate text-slate-600 hover:text-slate-950"
+            className="h-8 w-8 rounded-[9px] border border-slate-950/[0.08] bg-white text-slate-600 hover:bg-[#f7f7f8] hover:text-slate-950"
             onClick={() => onCollapseChange(true)}
           >
             <Minimize2 className="h-4 w-4" />
@@ -1117,7 +1119,7 @@ export function ChatPanel({
       </div>
 
       {selectedScreen ? (
-        <div className="flex items-center gap-2 border-b border-slate-950/[0.08] bg-[#f7f7f8] px-4 py-2">
+        <div className="flex items-center gap-2 border-b border-slate-950/[0.07] bg-[#f7f7f8]/80 px-3.5 py-2">
           <Pencil className="w-3.5 h-3.5 text-slate-400" />
           <span className="max-w-[220px] truncate text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
             Focused on {selectedScreen.name}
@@ -1125,7 +1127,7 @@ export function ChatPanel({
         </div>
       ) : null}
 
-      <div className="chat-history-scrollbar min-h-0 flex-1 overflow-y-auto bg-white px-4 py-5">
+      <div className="chat-history-scrollbar min-h-0 flex-1 overflow-y-auto bg-white px-3.5 py-4">
         <AgentActivityTimeline
           activities={activities}
           isLoading={isLoading}

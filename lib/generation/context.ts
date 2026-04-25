@@ -128,26 +128,6 @@ const formatTypographyRoleContract = () => [
   "button_label: all buttons, segmented controls, and tappable nav labels",
 ].join("\n");
 
-const formatDesignTokenMetadata = (designTokens: DesignTokens | null) => {
-  if (!designTokens?.meta) {
-    return null;
-  }
-
-  const lines = [
-    designTokens.meta.recommendedFonts?.length
-      ? `Recommended fonts: ${designTokens.meta.recommendedFonts.join(", ")}`
-      : null,
-    designTokens.meta.rationale?.color ? `Color rationale: ${designTokens.meta.rationale.color}` : null,
-    designTokens.meta.rationale?.typography ? `Typography rationale: ${designTokens.meta.rationale.typography}` : null,
-    designTokens.meta.rationale?.spacing ? `Spacing rationale: ${designTokens.meta.rationale.spacing}` : null,
-    designTokens.meta.rationale?.radii ? `Radii rationale: ${designTokens.meta.rationale.radii}` : null,
-    designTokens.meta.rationale?.shadows ? `Shadow rationale: ${designTokens.meta.rationale.shadows}` : null,
-    designTokens.meta.rationale?.surfaces ? `Surface rationale: ${designTokens.meta.rationale.surfaces}` : null,
-  ].filter(Boolean);
-
-  return lines.length > 0 ? lines.join("\n") : null;
-};
-
 const formatMatches = (matches: MatchedScreen[]) =>
   matches
     .map((match, index) => {
@@ -235,9 +215,6 @@ export async function assembleProjectContext({
     `TYPOGRAPHY ROLE CONTRACT\n${formatTypographyRoleContract()}`,
     formatDesignTokens(designTokens)
       ? `APPROVED DESIGN TOKENS\n${formatDesignTokens(designTokens)}`
-      : null,
-    formatDesignTokenMetadata(designTokens)
-      ? `DESIGN TOKEN RATIONALE\n${formatDesignTokenMetadata(designTokens)}`
       : null,
     matches.length > 0
       ? `RELEVANT EXISTING SCREENS\n${formatMatches(matches)}`

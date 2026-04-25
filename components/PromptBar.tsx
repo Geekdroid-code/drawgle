@@ -2,7 +2,7 @@ import Image from "next/image";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Image as ImageIcon, Send, Loader2, X, Trash2, Crosshair } from "lucide-react";
+import { Crosshair, Image as ImageIcon, Loader2, Pencil, Send, Trash2, X } from "lucide-react";
 import type { ProjectData, PromptImagePayload, ScreenData } from "@/lib/types";
 
 export function PromptBar({
@@ -42,6 +42,7 @@ export function PromptBar({
   const [image, setImage] = useState<PromptImagePayload | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const activeImage = selectedScreen ? null : image;
+  const isActiveComposer = Boolean(prompt.trim() || activeImage || selectedScreen);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -85,7 +86,7 @@ export function PromptBar({
   };
 
   return (
-    <div className={`relative flex flex-col rounded-[24px] p-2 backdrop-blur-xl ${prompt.trim() || activeImage || selectedScreen ? "dg-gradient-ring" : "dg-panel"}`}>
+    <div className={`relative flex flex-col rounded-[20px] p-1.5 backdrop-blur-xl ${isActiveComposer ? "dg-prompt-composer-active" : "dg-prompt-composer"}`}>
       {mobileTopAccessory ? (
         <div className="absolute left-3 top-0 z-10 -translate-y-[38%] md:hidden">
           {mobileTopAccessory}
@@ -93,11 +94,56 @@ export function PromptBar({
       ) : null}
 
       {selectedScreen ? (
-        <div className="mb-1 -mx-2 -mt-2 flex items-center justify-between rounded-t-[22px] border-b border-slate-950/[0.08] bg-[#f7f7f8] px-3 py-2">
-          <span className="max-w-[200px] truncate text-xs font-medium text-slate-700 md:max-w-md">
-            Editing: {selectedScreen.name}
-          </span>
-          <div className="flex items-center gap-1">
+        <div className="mb-1 flex min-h-9 items-center justify-between gap-2 rounded-[16px] border border-slate-950/[0.08] bg-[#f7f7f8] px-2.5 py-1.5">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-950/[0.08] bg-white text-slate-600">
+              {selectedElementPreview ? <Crosshair className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+            </span>
+            <div className="min-w-0">
+              <div className="truncate text-[11px] font-semibold uppercase tracking-[0.12em] text-[#667894]">
+                Editing {selectedScreen.name}
+              </div>
+              {selectedElementPreview ? (
+                <div className="truncate text-xs leading-4 text-slate-700" title={selectedElementPreview}>
+                  {selectedElementPreview}
+                </div>
+              ) : null}
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            {onToggleSelectionMode ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 rounded-full transition-colors duration-150"
+                style={selectionMode ? {
+                  background: "#ffffff",
+                  border: "1px solid rgba(0,47,167,0.24)",
+                  color: "#002fa7",
+                } : {
+                  background: "#ffffff",
+                  border: "1px solid rgba(15,23,42,0.09)",
+                  color: "#606773",
+                }}
+                onClick={onToggleSelectionMode}
+                disabled={disabled || isGenerating}
+                title={selectionMode ? "Exit select mode" : "Select an element to edit"}
+              >
+                <Crosshair className="h-3.5 w-3.5" />
+              </Button>
+            ) : null}
+            {selectedElementPreview && onClearSelectedElement ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 rounded-full text-slate-500 hover:bg-white hover:text-slate-900"
+                onClick={onClearSelectedElement}
+                disabled={disabled || isGenerating}
+                title="Clear selected element"
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            ) : null}
             {onDeleteSelectedScreen ? (
               <Button
                 variant="ghost"
@@ -125,28 +171,8 @@ export function PromptBar({
       ) : null}
 
       {/* Selected element pill — shown when the user has visually selected an element */}
-      {selectedScreen && selectedElementPreview ? (
-        <div className="mx-1 mb-1 flex items-center gap-2 rounded-[16px] border border-slate-950/[0.08] bg-[#fcfcfc] px-3 py-1.5">
-          <Crosshair className="h-3 w-3 shrink-0 text-slate-600" />
-          <span className="max-w-[260px] truncate text-xs text-slate-700 md:max-w-md" title={selectedElementPreview}>
-            {selectedElementPreview}
-          </span>
-          {onClearSelectedElement ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="ml-auto h-5 w-5 shrink-0 rounded-full text-slate-500 hover:bg-white hover:text-slate-900"
-              onClick={onClearSelectedElement}
-              disabled={disabled || isGenerating}
-            >
-              <X className="w-3 h-3" />
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
-
       {isGenerating && agentStatus && (
-        <div className="absolute -top-11 left-1/2 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-full dg-button-primary px-4 py-2 text-xs font-medium text-white">
+        <div className="absolute -top-10 left-1/2 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-full dg-button-primary px-3.5 py-1.5 text-xs font-medium text-white">
           <Loader2 className="w-3 h-3 animate-spin" />
           {agentStatus}
         </div>
@@ -179,7 +205,7 @@ export function PromptBar({
               ? "What would you like to edit or create in this app?"
               : "What native mobile app shall we design?"
         }
-        className="min-h-[58px] resize-none border-none bg-transparent px-3 py-3 text-base leading-6 text-slate-950 shadow-none placeholder:text-slate-400 focus-visible:ring-0"
+        className="min-h-[54px] resize-none border-none bg-transparent px-3 py-2.5 text-base leading-6 text-slate-950 shadow-none placeholder:text-slate-400 focus-visible:ring-0"
         value={prompt}
         onChange={(e) => setPrompt(e.target.value)}
         onKeyDown={(e) => {
@@ -190,7 +216,7 @@ export function PromptBar({
         }}
         disabled={disabled || isGenerating}
       />
-      <div className="flex items-center justify-between px-2 pb-1 pt-2">
+      <div className="flex items-center justify-between px-2 pb-1 pt-1">
         <div className="flex items-center gap-2">
           <input
             type="file"
@@ -210,28 +236,6 @@ export function PromptBar({
               <ImageIcon className="w-5 h-5" />
             </Button>
           ) : null}
-          {selectedScreen && onToggleSelectionMode ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 rounded-full transition-colors duration-150"
-              style={selectionMode ? {
-                background: "#fcfcfc",
-                border: "1px solid rgba(15,23,42,0.09)",
-                color: "#002fa7",
-              } : {
-                background: "#ffffff",
-                border: "1px solid rgba(15,23,42,0.09)",
-                color: "#606773",
-              }}
-              onClick={onToggleSelectionMode}
-              disabled={disabled || isGenerating}
-              title={selectionMode ? "Exit select mode" : "Select an element to edit"}
-            >
-              <Crosshair className="w-5 h-5" />
-            </Button>
-          ) : null}
-
         </div>
         <div className="flex items-center gap-2">
           <Button

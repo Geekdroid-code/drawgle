@@ -154,14 +154,12 @@ export function ProjectShell({
     generationRun &&
     (generationRun.status === "queued" || generationRun.status === "planning" || generationRun.status === "building"),
   );
-  const mobilePromptReserve = selectedElementInfo
-    ? 218
-    : selectedScreen
-      ? 178
-      : 150;
+  const mobilePromptReserve = selectedScreen
+    ? 166
+    : 136;
   const shellLayoutVars = {
     "--dg-mobile-prompt-reserve": `${mobilePromptReserve}px`,
-    "--dg-mobile-prompt-bottom": "calc(env(safe-area-inset-bottom, 0px) + 1rem)",
+    "--dg-mobile-prompt-bottom": "calc(env(safe-area-inset-bottom, 0px) + 0.75rem)",
     "--dg-mobile-top-reserve": "calc(env(safe-area-inset-top, 0px) + 5rem)",
   } as CSSProperties;
   useEffect(() => {
@@ -657,7 +655,7 @@ export function ProjectShell({
             onCollapseChange={setIsChatCollapsed}
           />
 
-          <div className="absolute bottom-[var(--dg-mobile-prompt-bottom)] left-1/2 z-[60] w-full max-w-2xl -translate-x-1/2 px-4 transition-all duration-300 md:bottom-8">
+          <div className="absolute bottom-[var(--dg-mobile-prompt-bottom)] left-1/2 z-[60] w-full max-w-2xl -translate-x-1/2 px-4 transition-all duration-300 ease-in-out">
             <PromptBar
               project={project}
               selectedScreen={selectedScreen}

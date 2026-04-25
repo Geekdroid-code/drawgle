@@ -102,31 +102,14 @@ const sanitizeStringArray = (value: unknown) => uniqueStrings(
     .filter((entry) => entry && !GENERIC_FONT_FAMILIES.has(entry.toLowerCase())),
 );
 
-const sanitizeRationale = (value: unknown): DesignTokenMetadata["rationale"] | undefined => {
-  if (!isRecord(value)) {
-    return undefined;
-  }
-
-  const entries = Object.fromEntries(
-    Object.entries(value)
-      .filter((entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].trim().length > 0)
-      .map(([key, entryValue]) => [key, entryValue.trim()]),
-  );
-
-  return Object.keys(entries).length > 0
-    ? entries as DesignTokenMetadata["rationale"]
-    : undefined;
-};
-
 const sanitizeMetadata = (value: unknown): DesignTokenMetadata | undefined => {
   if (!isRecord(value)) {
     return undefined;
   }
 
   const recommendedFonts = sanitizeStringArray(value.recommendedFonts);
-  const rationale = sanitizeRationale(value.rationale);
 
-  if (!recommendedFonts.length && !rationale) {
+  if (!recommendedFonts.length) {
     return undefined;
   }
 
@@ -134,10 +117,6 @@ const sanitizeMetadata = (value: unknown): DesignTokenMetadata | undefined => {
 
   if (recommendedFonts.length > 0) {
     next.recommendedFonts = recommendedFonts;
-  }
-
-  if (rationale) {
-    next.rationale = rationale;
   }
 
   return next;
@@ -262,18 +241,11 @@ const mergeMetadata = (base: DesignTokenMetadata | undefined, incoming: unknown)
   }
 
   const recommendedFonts = sanitized.recommendedFonts ?? base.recommendedFonts;
-  const rationale = sanitized.rationale
-    ? { ...(base.rationale ?? {}), ...sanitized.rationale }
-    : base.rationale;
 
   const next: DesignTokenMetadata = {};
 
   if (recommendedFonts?.length) {
     next.recommendedFonts = recommendedFonts;
-  }
-
-  if (rationale && Object.keys(rationale).length > 0) {
-    next.rationale = rationale;
   }
 
   return Object.keys(next).length > 0 ? next : undefined;

@@ -101,7 +101,7 @@ export function Sidebar({ user, onSignOut, currentProjectId, initialProjects = [
         <Button
           type="button"
           onClick={() => router.push("/project/new")}
-          className={`mt-5 h-10 w-full justify-start rounded-full px-4 text-sm font-medium ${
+          className={`mt-5 h-10 w-full justify-start rounded-lg px-4 text-sm font-medium ${
             currentProjectId
               ? "bg-white text-neutral-700 hover:bg-white/90"
               : "bg-neutral-950 text-white hover:bg-neutral-800"
@@ -117,7 +117,7 @@ export function Sidebar({ user, onSignOut, currentProjectId, initialProjects = [
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search projects"
-            className="h-11 rounded-full border-black/10 bg-white pl-10 text-sm text-neutral-900 shadow-none focus-visible:ring-0"
+            className="h-11 rounded-lg border-black/10 bg-white pl-10 text-sm text-neutral-900 shadow-none focus-visible:ring-0"
           />
         </div>
       </div>

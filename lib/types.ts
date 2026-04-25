@@ -156,19 +156,8 @@ export interface DesignTokenValues {
   [key: string]: JsonValue | undefined;
 }
 
-export interface DesignTokenRationale {
-  color?: string;
-  typography?: string;
-  spacing?: string;
-  radii?: string;
-  shadows?: string;
-  surfaces?: string;
-  [key: string]: JsonValue | undefined;
-}
-
 export interface DesignTokenMetadata {
   recommendedFonts?: string[];
-  rationale?: DesignTokenRationale;
   [key: string]: JsonValue | undefined;
 }
 

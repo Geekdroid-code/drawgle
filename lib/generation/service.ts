@@ -147,14 +147,6 @@ const DesignTokensSchema = z
     system_schema: z.string().optional(),
     meta: z.object({
       recommendedFonts: z.array(z.string().trim().min(1).max(120)).max(8).optional(),
-      rationale: z.object({
-        color: z.string().trim().max(1200).optional(),
-        typography: z.string().trim().max(1200).optional(),
-        spacing: z.string().trim().max(1200).optional(),
-        radii: z.string().trim().max(1200).optional(),
-        shadows: z.string().trim().max(1200).optional(),
-        surfaces: z.string().trim().max(1200).optional(),
-      }).partial().optional(),
     }).partial().optional(),
     tokens: z.object({
       color: z.object({

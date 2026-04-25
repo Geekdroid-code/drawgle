@@ -3,13 +3,13 @@
 import { useState, type ComponentType, type ReactNode } from "react";
 import {
   ArrowRight,
-  ChevronDown,
+  Eye,
   Layers,
   Loader2,
-  MousePointerClick,
   Palette,
-  Square,
-  SunMedium,
+  Ruler,
+  Shapes,
+  Sparkles,
   Type,
 } from "lucide-react";
 
@@ -33,6 +33,9 @@ const SPACING_KEYS = ["xxs", "xs", "sm", "md", "lg", "xl", "xxl"] as const;
 const LAYOUT_KEYS = ["screen_margin", "section_gap", "element_gap"] as const;
 const SIZE_KEYS = ["standard_button_height", "standard_input_height", "icon_small", "icon_standard", "bottom_nav_height"] as const;
 
+type EditorTab = "colors" | "type" | "spacing" | "shape";
+type MobileView = "tokens" | "preview";
+
 type DesignSystemEditorProps = {
   value: DesignTokens;
   onChange: (tokens: DesignTokens) => void;
@@ -44,6 +47,13 @@ type DesignSystemEditorProps = {
   submitStatus?: string;
 };
 
+const EDITOR_TABS: Array<{ id: EditorTab; label: string; icon: ComponentType<{ className?: string }> }> = [
+  { id: "colors", label: "Colors", icon: Palette },
+  { id: "type", label: "Type", icon: Type },
+  { id: "spacing", label: "Spacing", icon: Ruler },
+  { id: "shape", label: "Shape", icon: Shapes },
+];
+
 export function DesignSystemEditor({
   value,
   onChange,
@@ -54,13 +64,8 @@ export function DesignSystemEditor({
   isSubmitting = false,
   submitStatus,
 }: DesignSystemEditorProps) {
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
-    colors: true,
-    typography: true,
-    layout: false,
-    shape: false,
-  });
-
+  const [activeTab, setActiveTab] = useState<EditorTab>("colors");
+  const [mobileView, setMobileView] = useState<MobileView>("tokens");
   const normalizedValue = normalizeDesignTokens(value);
 
   if (!normalizedValue.tokens) {
@@ -68,9 +73,23 @@ export function DesignSystemEditor({
   }
 
   const tokens = normalizedValue.tokens;
-  const recommendedFonts = getFontRecommendations(normalizedValue).slice(0, 8);
+  const recommendedFonts = getFontRecommendations(normalizedValue).slice(0, 6);
 
-  const toggleSection = (key: string) => setExpandedSections((current) => ({ ...current, [key]: !current[key] }));
+  const primaryBg = tokens.color?.background?.primary || "#ffffff";
+  const secondaryBg = tokens.color?.background?.secondary || "#f9fafb";
+  const primaryText = tokens.color?.text?.high_emphasis || "#111827";
+  const mediumText = tokens.color?.text?.medium_emphasis || "#6b7280";
+  const lowText = tokens.color?.text?.low_emphasis || "#9ca3af";
+  const actionPrimary = tokens.color?.action?.primary || "#000000";
+  const actionSecondary = tokens.color?.action?.secondary || "#333333";
+  const actionText = tokens.color?.action?.on_primary_text || "#ffffff";
+  const cardBg = tokens.color?.surface?.card || "#ffffff";
+  const borderDivider = tokens.color?.border?.divider || "#e5e7eb";
+  const radius = tokens.radii?.app || "18px";
+  const radiusPill = tokens.radii?.pill || "9999px";
+  const shadowSurface = tokens.shadows?.surface || "0 12px 32px rgba(15, 23, 42, 0.14)";
+  const borderStandard = tokens.border_widths?.standard || "1px";
+  const fontFamily = tokens.typography?.font_family?.trim() || undefined;
 
   const deepUpdate = (mutator: (draft: DesignTokens) => void) => {
     const draft = normalizeDesignTokens(value);
@@ -93,36 +112,11 @@ export function DesignSystemEditor({
     });
   };
 
-  const rationaleEntries = [
-    { label: "Color", value: normalizedValue.meta?.rationale?.color },
-    { label: "Typography", value: normalizedValue.meta?.rationale?.typography },
-    { label: "Spacing", value: normalizedValue.meta?.rationale?.spacing },
-    { label: "Radii", value: normalizedValue.meta?.rationale?.radii },
-    { label: "Shadows", value: normalizedValue.meta?.rationale?.shadows },
-    { label: "Surfaces", value: normalizedValue.meta?.rationale?.surfaces },
-  ].filter((entry): entry is { label: string; value: string } => Boolean(entry.value));
-
-  const primaryBg = tokens.color?.background?.primary || "#ffffff";
-  const secondaryBg = tokens.color?.background?.secondary || "#f9fafb";
-  const primaryText = tokens.color?.text?.high_emphasis || "#111827";
-  const mediumText = tokens.color?.text?.medium_emphasis || "#6b7280";
-  const lowText = tokens.color?.text?.low_emphasis || "#9ca3af";
-  const actionPrimary = tokens.color?.action?.primary || "#000000";
-  const actionSecondary = tokens.color?.action?.secondary || "#333333";
-  const actionText = tokens.color?.action?.on_primary_text || "#ffffff";
-  const cardBg = tokens.color?.surface?.card || "#ffffff";
-  const borderDivider = tokens.color?.border?.divider || "#e5e7eb";
-  const radius = tokens.radii?.app || "18px";
-  const radiusPill = tokens.radii?.pill || "9999px";
-  const shadowSurface = tokens.shadows?.surface || "0 12px 32px rgba(15, 23, 42, 0.14)";
-  const borderStandard = tokens.border_widths?.standard || "1px";
-  const fontFamily = tokens.typography?.font_family?.trim() || undefined;
-
   return (
-    <div className="relative grid min-h-[720px] overflow-hidden rounded-[28px] dg-panel-flat md:grid-cols-[minmax(0,520px)_minmax(0,1fr)]">
+    <div className="relative flex min-h-[680px] flex-1 flex-col overflow-hidden lg:h-[calc(100dvh-6.25rem)] lg:min-h-[620px]">
       {isSubmitting && submitStatus ? (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/70 backdrop-blur-sm">
-          <div className="rounded-[18px] dg-panel-flat px-5 py-4 text-sm font-medium text-slate-700">
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-white/72 backdrop-blur-sm">
+          <div className="rounded-[14px] border border-slate-950/[0.08] bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-[0_18px_50px_-36px_rgba(15,23,42,0.6)]">
             <div className="flex items-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin" />
               {submitStatus}
@@ -131,382 +125,210 @@ export function DesignSystemEditor({
         </div>
       ) : null}
 
-      <div className="flex min-h-0 flex-col border-b border-slate-950/[0.08] md:border-b-0 md:border-r md:border-slate-950/[0.08]">
-        <div className="space-y-2 px-5 pb-4 pt-5 md:px-6 md:pt-6">
-          <div className="inline-flex items-center rounded-full dg-control px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-            Design Pass
-          </div>
-          <div>
-            <h2 className="text-2xl font-semibold tracking-tight text-slate-950">{title}</h2>
-            <p className="mt-1 text-sm text-slate-500">{description}</p>
-          </div>
+      <div className="flex shrink-0 flex-col gap-3 rounded-[16px] border border-slate-950/[0.1] bg-white/92 px-4 py-3 backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          
+          <h2 className="mt-1 truncate text-xl font-semibold tracking-[-0.03em] text-slate-950">{title}</h2>
+          <p className="mt-0.5 line-clamp-1 text-sm text-slate-500">{description}</p>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto pb-24">
-          <div className="px-5 pb-5 md:px-6">
-            <div className="rounded-[22px] border border-slate-950/[0.08] bg-[#f7f7f8] p-4">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">AI Rationale</div>
-              {recommendedFonts.length > 0 ? (
-                <div className="mt-3 space-y-2">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Recommended Fonts</div>
-                  <div className="flex flex-wrap gap-2">
-                  {recommendedFonts.map((font) => (
-                    <span
-                      key={font}
-                      className="rounded-full dg-control px-3 py-1.5 text-xs font-medium text-slate-700"
-                    >
-                      {font}
-                    </span>
-                  ))}
-                  </div>
-                </div>
-              ) : null}
-              {rationaleEntries.length > 0 ? (
-                <div className="mt-4 divide-y divide-slate-950/[0.08] rounded-[20px] border border-slate-950/[0.08] bg-white">
-                  {rationaleEntries.map((entry) => (
-                    <div key={entry.label} className="px-4 py-3">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">{entry.label}</div>
-                      <p className="mt-1 text-sm leading-6 text-slate-700">{entry.value}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
+        <div className="grid grid-cols-2 rounded-[12px] border border-slate-950/[0.08] bg-[#f7f7f8] p-1 text-xs font-medium lg:hidden">
+          {[
+            { id: "tokens", label: "Tokens" },
+            { id: "preview", label: "Preview" },
+          ].map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`rounded-[9px] px-2 py-1.5 transition ${mobileView === item.id ? "bg-white text-slate-950 shadow-sm" : "text-slate-500"}`}
+              onClick={() => setMobileView(item.id as MobileView)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="hidden items-center gap-2 lg:flex">
+          <span className="inline-flex h-9 items-center gap-2 rounded-[10px] border border-slate-950/[0.08] bg-[#f7f7f8] px-3 text-xs font-medium text-slate-600">
+            <Eye className="h-3.5 w-3.5" />
+            Live preview
+          </span>
+          <span className="inline-flex h-9 items-center rounded-[10px] border border-slate-950/[0.08] bg-white px-3 text-xs font-medium text-slate-600">
+            {recommendedFonts.length || 0} font candidates
+          </span>
+        </div>
+      </div>
+
+      <div className="grid min-h-0 flex-1 gap-4 pt-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <section className={`${mobileView === "tokens" ? "flex" : "hidden"} min-h-0 flex-col overflow-hidden rounded-[16px] border border-slate-950/[0.1] bg-white lg:flex`}>
+          <div className="shrink-0 border-b border-slate-950/[0.08] bg-white px-3 py-2">
+            <div className="grid grid-cols-4 gap-1 rounded-[12px] bg-[#f7f7f8] p-1">
+              {EDITOR_TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex h-9 items-center justify-center gap-1.5 rounded-[9px] text-xs font-semibold transition ${
+                    activeTab === tab.id ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  <tab.icon className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">{tab.label}</span>
+                </button>
+              ))}
             </div>
           </div>
 
-          <SectionHeader icon={Palette} label="Colors" sectionKey="colors" expanded={expandedSections.colors} onToggle={toggleSection} />
-          {expandedSections.colors ? (
-            <div className="space-y-4 px-5 pb-5 md:px-6">
-              <SubGroup label="Background">
-                <ColorField label="Primary" value={primaryBg} onChange={(nextValue) => handleUpdateToken(["color", "background", "primary"], nextValue)} />
-                <ColorField label="Secondary" value={secondaryBg} onChange={(nextValue) => handleUpdateToken(["color", "background", "secondary"], nextValue)} />
-              </SubGroup>
-              <SubGroup label="Surfaces">
-                <ColorField label="Card" value={cardBg} onChange={(nextValue) => handleUpdateToken(["color", "surface", "card"], nextValue)} />
-                <ColorField label="Sheet" value={tokens.color?.surface?.bottom_sheet || "#ffffff"} onChange={(nextValue) => handleUpdateToken(["color", "surface", "bottom_sheet"], nextValue)} />
-                <ColorField label="Modal" value={tokens.color?.surface?.modal || "#ffffff"} onChange={(nextValue) => handleUpdateToken(["color", "surface", "modal"], nextValue)} />
-              </SubGroup>
-              <SubGroup label="Text">
-                <ColorField label="High" value={primaryText} onChange={(nextValue) => handleUpdateToken(["color", "text", "high_emphasis"], nextValue)} />
-                <ColorField label="Medium" value={mediumText} onChange={(nextValue) => handleUpdateToken(["color", "text", "medium_emphasis"], nextValue)} />
-                <ColorField label="Low" value={lowText} onChange={(nextValue) => handleUpdateToken(["color", "text", "low_emphasis"], nextValue)} />
-              </SubGroup>
-              <SubGroup label="Actions">
-                <ColorField label="Primary" value={actionPrimary} onChange={(nextValue) => handleUpdateToken(["color", "action", "primary"], nextValue)} />
-                <ColorField label="Secondary" value={actionSecondary} onChange={(nextValue) => handleUpdateToken(["color", "action", "secondary"], nextValue)} />
-                <ColorField label="On Primary" value={actionText} onChange={(nextValue) => handleUpdateToken(["color", "action", "on_primary_text"], nextValue)} />
-                <ColorField label="Disabled" value={tokens.color?.action?.disabled || "#e5e7eb"} onChange={(nextValue) => handleUpdateToken(["color", "action", "disabled"], nextValue)} />
-              </SubGroup>
-              <SubGroup label="Borders">
-                <ColorField label="Divider" value={borderDivider} onChange={(nextValue) => handleUpdateToken(["color", "border", "divider"], nextValue)} />
-                <ColorField label="Focused" value={tokens.color?.border?.focused || "#111827"} onChange={(nextValue) => handleUpdateToken(["color", "border", "focused"], nextValue)} />
-              </SubGroup>
-            </div>
-          ) : null}
-
-          <SectionHeader icon={Type} label="Typography" sectionKey="typography" expanded={expandedSections.typography} onToggle={toggleSection} />
-          {expandedSections.typography ? (
-            <div className="space-y-4 px-5 pb-5 md:px-6">
-              <Field label="Font Family">
-                <input
-                  value={tokens.typography?.font_family || ""}
-                  onChange={(event) => handleUpdateToken(["typography", "font_family"], event.target.value)}
-                  className="h-10 w-full rounded-xl border border-slate-950/[0.08] bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[#002fa7]/40"
-                />
-                <p className="text-xs leading-5 text-slate-500">Edit the saved CSS stack directly. Leave it blank only if you intend the downstream builder to rely on its internal runtime fallback.</p>
-              </Field>
-              <div className="grid gap-3">
-                {TYPOGRAPHY_STYLES.map((style) => (
-                  <TypographyFieldCard
-                    key={style.key}
-                    label={style.label}
-                    size={tokens.typography?.[style.key]?.size || ""}
-                    weight={String(tokens.typography?.[style.key]?.weight ?? "")}
-                    lineHeight={tokens.typography?.[style.key]?.line_height || ""}
-                    onSizeChange={(nextValue) => handleUpdateToken(["typography", style.key, "size"], nextValue)}
-                    onWeightChange={(nextValue) => handleUpdateToken(["typography", style.key, "weight"], nextValue)}
-                    onLineHeightChange={(nextValue) => handleUpdateToken(["typography", style.key, "line_height"], nextValue)}
-                  />
-                ))}
+          <div className="min-h-0 flex-1 overflow-y-auto bg-white px-4 py-4">
+            {activeTab === "colors" ? (
+              <div className="grid gap-4 xl:grid-cols-2">
+                <TokenGroup label="Background">
+                  <ColorField label="Primary" value={primaryBg} onChange={(nextValue) => handleUpdateToken(["color", "background", "primary"], nextValue)} />
+                  <ColorField label="Secondary" value={secondaryBg} onChange={(nextValue) => handleUpdateToken(["color", "background", "secondary"], nextValue)} />
+                </TokenGroup>
+                <TokenGroup label="Surfaces">
+                  <ColorField label="Card" value={cardBg} onChange={(nextValue) => handleUpdateToken(["color", "surface", "card"], nextValue)} />
+                  <ColorField label="Sheet" value={tokens.color?.surface?.bottom_sheet || "#ffffff"} onChange={(nextValue) => handleUpdateToken(["color", "surface", "bottom_sheet"], nextValue)} />
+                  <ColorField label="Modal" value={tokens.color?.surface?.modal || "#ffffff"} onChange={(nextValue) => handleUpdateToken(["color", "surface", "modal"], nextValue)} />
+                </TokenGroup>
+                <TokenGroup label="Text">
+                  <ColorField label="High" value={primaryText} onChange={(nextValue) => handleUpdateToken(["color", "text", "high_emphasis"], nextValue)} />
+                  <ColorField label="Medium" value={mediumText} onChange={(nextValue) => handleUpdateToken(["color", "text", "medium_emphasis"], nextValue)} />
+                  <ColorField label="Low" value={lowText} onChange={(nextValue) => handleUpdateToken(["color", "text", "low_emphasis"], nextValue)} />
+                </TokenGroup>
+                <TokenGroup label="Actions">
+                  <ColorField label="Primary" value={actionPrimary} onChange={(nextValue) => handleUpdateToken(["color", "action", "primary"], nextValue)} />
+                  <ColorField label="Secondary" value={actionSecondary} onChange={(nextValue) => handleUpdateToken(["color", "action", "secondary"], nextValue)} />
+                  <ColorField label="On Primary" value={actionText} onChange={(nextValue) => handleUpdateToken(["color", "action", "on_primary_text"], nextValue)} />
+                  <ColorField label="Disabled" value={tokens.color?.action?.disabled || "#e5e7eb"} onChange={(nextValue) => handleUpdateToken(["color", "action", "disabled"], nextValue)} />
+                </TokenGroup>
+                <TokenGroup label="Borders">
+                  <ColorField label="Divider" value={borderDivider} onChange={(nextValue) => handleUpdateToken(["color", "border", "divider"], nextValue)} />
+                  <ColorField label="Focused" value={tokens.color?.border?.focused || "#111827"} onChange={(nextValue) => handleUpdateToken(["color", "border", "focused"], nextValue)} />
+                </TokenGroup>
               </div>
-            </div>
-          ) : null}
+            ) : null}
 
-          <SectionHeader icon={Layers} label="Layout & Spacing" sectionKey="layout" expanded={expandedSections.layout} onToggle={toggleSection} />
-          {expandedSections.layout ? (
-            <div className="space-y-4 px-5 pb-5 md:px-6">
-              <SubGroup label="Spacing Scale">
-                {SPACING_KEYS.map((key) => (
+            {activeTab === "type" ? (
+              <div className="grid gap-4">
+                <TokenGroup label="Font Stack">
                   <TextField
-                    key={key}
-                    label={key.toUpperCase()}
-                    value={tokens.spacing?.[key] || ""}
-                    onChange={(nextValue) => handleUpdateToken(["spacing", key], nextValue)}
+                    label="Font family"
+                    value={tokens.typography?.font_family || ""}
+                    onChange={(nextValue) => handleUpdateToken(["typography", "font_family"], nextValue)}
+                    wide
                   />
-                ))}
-              </SubGroup>
-              <SubGroup label="Layout Rhythm">
-                {LAYOUT_KEYS.map((key) => (
-                  <TextField
-                    key={key}
-                    label={key.replace(/_/g, " ")}
-                    value={tokens.mobile_layout?.[key] || ""}
-                    onChange={(nextValue) => handleUpdateToken(["mobile_layout", key], nextValue)}
-                  />
-                ))}
-              </SubGroup>
-              <SubGroup label="Component Sizing">
-                {SIZE_KEYS.map((key) => (
-                  <TextField
-                    key={key}
-                    label={key.replace(/_/g, " ")}
-                    value={tokens.sizing?.[key] || ""}
-                    onChange={(nextValue) => handleUpdateToken(["sizing", key], nextValue)}
-                  />
-                ))}
-              </SubGroup>
-              <div className="rounded-[18px] border border-slate-950/[0.08] bg-[#f7f7f8] px-4 py-3">
-                <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  <MousePointerClick className="h-3.5 w-3.5" />
-                  Platform Constraints
+                </TokenGroup>
+                <div className="overflow-hidden rounded-[14px] border border-slate-950/[0.08]">
+                  <div className="grid grid-cols-[1.2fr_0.8fr_0.8fr_0.9fr] gap-2 border-b border-slate-950/[0.08] bg-[#f7f7f8] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    <span>Style</span>
+                    <span>Size</span>
+                    <span>Weight</span>
+                    <span>Line</span>
+                  </div>
+                  {TYPOGRAPHY_STYLES.map((style) => (
+                    <TypographyRow
+                      key={style.key}
+                      label={style.label}
+                      size={tokens.typography?.[style.key]?.size || ""}
+                      weight={String(tokens.typography?.[style.key]?.weight ?? "")}
+                      lineHeight={tokens.typography?.[style.key]?.line_height || ""}
+                      onSizeChange={(nextValue) => handleUpdateToken(["typography", style.key, "size"], nextValue)}
+                      onWeightChange={(nextValue) => handleUpdateToken(["typography", style.key, "weight"], nextValue)}
+                      onLineHeightChange={(nextValue) => handleUpdateToken(["typography", style.key, "line_height"], nextValue)}
+                    />
+                  ))}
                 </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              </div>
+            ) : null}
+
+            {activeTab === "spacing" ? (
+              <div className="grid gap-4 xl:grid-cols-2">
+                <TokenGroup label="Spacing Scale">
+                  {SPACING_KEYS.map((key) => (
+                    <TextField key={key} label={key.toUpperCase()} value={tokens.spacing?.[key] || ""} onChange={(nextValue) => handleUpdateToken(["spacing", key], nextValue)} />
+                  ))}
+                </TokenGroup>
+                <TokenGroup label="Layout Rhythm">
+                  {LAYOUT_KEYS.map((key) => (
+                    <TextField key={key} label={key.replace(/_/g, " ")} value={tokens.mobile_layout?.[key] || ""} onChange={(nextValue) => handleUpdateToken(["mobile_layout", key], nextValue)} />
+                  ))}
+                </TokenGroup>
+                <TokenGroup label="Component Sizing">
+                  {SIZE_KEYS.map((key) => (
+                    <TextField key={key} label={key.replace(/_/g, " ")} value={tokens.sizing?.[key] || ""} onChange={(nextValue) => handleUpdateToken(["sizing", key], nextValue)} />
+                  ))}
+                </TokenGroup>
+                <TokenGroup label="Platform Constraints">
                   <ReadOnlyMetric label="Safe area top" value={tokens.mobile_layout?.safe_area_top || "16px"} />
                   <ReadOnlyMetric label="Safe area bottom" value={tokens.mobile_layout?.safe_area_bottom || "34px"} />
-                  <ReadOnlyMetric label="Min touch target" value={tokens.sizing?.min_touch_target || "48px"} />
-                </div>
+                  <ReadOnlyMetric label="Min touch" value={tokens.sizing?.min_touch_target || "48px"} />
+                </TokenGroup>
               </div>
-            </div>
-          ) : null}
+            ) : null}
 
-          <SectionHeader icon={Square} label="Shape & Elevation" sectionKey="shape" expanded={expandedSections.shape} onToggle={toggleSection} />
-          {expandedSections.shape ? (
-            <div className="space-y-4 px-5 pb-5 md:px-6">
-              <div className="rounded-[18px] border border-slate-950/[0.08] bg-[#f7f7f8] p-4 text-sm leading-6 text-slate-600">
-                One geometry and elevation language should carry the entire app. Use a single standard radius, one standard border width, and one standard surface shadow. Reserve pill geometry only for chips, segmented controls, or deliberate capsule actions.
+            {activeTab === "shape" ? (
+              <div className="grid gap-4 xl:grid-cols-2">
+                <TokenGroup label="Corner Geometry">
+                  <TextField label="App radius" value={tokens.radii?.app || ""} onChange={(nextValue) => handleUpdateToken(["radii", "app"], nextValue)} />
+                  <TextField label="Pill radius" value={tokens.radii?.pill || ""} onChange={(nextValue) => handleUpdateToken(["radii", "pill"], nextValue)} />
+                </TokenGroup>
+                <TokenGroup label="Surface Outline">
+                  <TextField label="Standard border" value={tokens.border_widths?.standard || ""} onChange={(nextValue) => handleUpdateToken(["border_widths", "standard"], nextValue)} />
+                </TokenGroup>
+                <TokenGroup label="Elevation">
+                  <ShadowField label="Surface shadow" value={tokens.shadows?.surface || ""} onChange={(nextValue) => handleUpdateToken(["shadows", "surface"], nextValue)} />
+                  <ShadowField label="Overlay shadow" value={tokens.shadows?.overlay || ""} onChange={(nextValue) => handleUpdateToken(["shadows", "overlay"], nextValue)} />
+                  <TextField label="No elevation" value={tokens.shadows?.none || "none"} onChange={(nextValue) => handleUpdateToken(["shadows", "none"], nextValue)} wide />
+                </TokenGroup>
               </div>
-              <SubGroup label="Corner Geometry">
-                <TextField
-                  label="app radius"
-                  value={tokens.radii?.app || ""}
-                  onChange={(nextValue) => handleUpdateToken(["radii", "app"], nextValue)}
-                />
-                <TextField
-                  label="pill radius"
-                  value={tokens.radii?.pill || ""}
-                  onChange={(nextValue) => handleUpdateToken(["radii", "pill"], nextValue)}
-                />
-              </SubGroup>
-              <SubGroup label="Surface Outline">
-                <TextField
-                  label="standard border"
-                  value={tokens.border_widths?.standard || ""}
-                  onChange={(nextValue) => handleUpdateToken(["border_widths", "standard"], nextValue)}
-                />
-              </SubGroup>
-              <div className="space-y-3">
-                <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400">Elevation Language</span>
-                <ShadowField
-                  label="surface shadow"
-                  value={tokens.shadows?.surface || ""}
-                  onChange={(nextValue) => handleUpdateToken(["shadows", "surface"], nextValue)}
-                />
-                <ShadowField
-                  label="overlay shadow"
-                  value={tokens.shadows?.overlay || ""}
-                  onChange={(nextValue) => handleUpdateToken(["shadows", "overlay"], nextValue)}
-                />
-              </div>
-              <Field label="No Elevation" icon={SunMedium}>
-                <input
-                  type="text"
-                  value={tokens.shadows?.none || "none"}
-                  onChange={(event) => handleUpdateToken(["shadows", "none"], event.target.value)}
-                  className="h-10 w-full rounded-xl border border-slate-950/[0.08] bg-[#f7f7f8] px-3 font-mono text-xs text-slate-900 outline-none transition focus:border-[#002fa7]/40 focus:bg-white"
-                />
-              </Field>
-            </div>
-          ) : null}
-        </div>
+            ) : null}
+          </div>
+        </section>
 
-        <div className="sticky bottom-0 border-t border-slate-950/[0.08] bg-white/95 p-4 backdrop-blur md:p-5">
-          <Button className="h-11 w-full rounded-[16px] dg-button-primary text-sm font-medium" onClick={() => void onSubmit()} disabled={isSubmitting}>
-            {submitLabel}
-            <ArrowRight className="ml-1.5 h-4 w-4" />
-          </Button>
-        </div>
+        <section className={`${mobileView === "preview" ? "flex" : "hidden"} min-h-0 items-center justify-center overflow-hidden rounded-[16px] border border-slate-950/[0.1] bg-[#eaedf1] p-3 sm:p-4 lg:flex`}>
+          <PhonePreview
+            primaryBg={primaryBg}
+            secondaryBg={secondaryBg}
+            primaryText={primaryText}
+            mediumText={mediumText}
+            lowText={lowText}
+            actionPrimary={actionPrimary}
+            actionSecondary={actionSecondary}
+            actionText={actionText}
+            cardBg={cardBg}
+            borderDivider={borderDivider}
+            radius={radius}
+            radiusPill={radiusPill}
+            shadowSurface={shadowSurface}
+            borderStandard={borderStandard}
+            fontFamily={fontFamily}
+            tokens={tokens}
+          />
+        </section>
       </div>
 
-      <div className="hidden items-center justify-center border-t border-slate-950/[0.08] bg-[#eaedf1] p-8 md:border-t-0 md:flex">
-        <div
-          className="relative flex h-[620px] w-[310px] flex-col overflow-hidden rounded-[32px] border border-slate-950/[0.1] bg-white shadow-[0_28px_70px_-42px_rgba(15,23,42,0.75)]"
-          style={{ backgroundColor: primaryBg, color: primaryText, fontFamily }}
-        >
-          <div className="flex items-center justify-between px-5 pt-5">
-            <div className="h-7 w-7 rounded-full" style={{ backgroundColor: secondaryBg, border: `${borderStandard} solid ${borderDivider}` }} />
-            <div className="h-7 w-20 rounded-full" style={{ backgroundColor: actionPrimary, opacity: 0.12, borderRadius: radiusPill }} />
-          </div>
-
-          <div className="flex flex-1 flex-col px-5 pb-5 pt-4">
-            <div>
-              <h3
-                className="tracking-tight"
-                style={{
-                  color: primaryText,
-                  fontSize: tokens.typography?.title_main?.size || "28px",
-                  fontWeight: Number(tokens.typography?.title_main?.weight ?? 700),
-                  lineHeight: tokens.typography?.title_main?.line_height || "32px",
-                }}
-              >
-                Preview
-              </h3>
-              <p
-                className="mt-1"
-                style={{
-                  color: mediumText,
-                  fontSize: tokens.typography?.body_secondary?.size || "14px",
-                  lineHeight: tokens.typography?.body_secondary?.line_height || "20px",
-                }}
-              >
-                Live token preview for the current generation contract.
-              </p>
-            </div>
-
-            <div className="mt-5" style={{ borderBottom: `${borderStandard} solid ${borderDivider}` }} />
-
-            <div
-              className="mt-5 rounded-[24px] p-4"
-              style={{
-                backgroundColor: cardBg,
-                borderRadius: radius,
-                boxShadow: shadowSurface,
-                border: `${borderStandard} solid ${borderDivider}`,
-              }}
-            >
-              <div style={{ fontSize: tokens.typography?.body_primary?.size || "16px", lineHeight: tokens.typography?.body_primary?.line_height || "24px", color: primaryText }}>
-                Weekly activity
-              </div>
-              <div className="mt-1" style={{ fontSize: tokens.typography?.caption?.size || "12px", color: lowText }}>
-                Spacing, elevation, and geometry respond directly to the live token set.
-              </div>
-              <div className="mt-4 grid grid-cols-4 gap-2">
-                {[36, 54, 42, 64].map((height, index) => (
-                  <div key={height} className="flex items-end">
-                    <div
-                      className="w-full rounded-full"
-                      style={{
-                        height,
-                        background: index % 2 === 0 ? actionPrimary : actionSecondary,
-                        opacity: index % 2 === 0 ? 1 : 0.34,
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div
-              className="mt-4 flex items-center gap-3 rounded-[24px] p-4"
-              style={{
-                backgroundColor: cardBg,
-                borderRadius: radius,
-                boxShadow: shadowSurface,
-                border: `${borderStandard} solid ${borderDivider}`,
-              }}
-            >
-              <div className="h-10 w-10 rounded-full" style={{ backgroundColor: actionPrimary, opacity: 0.14 }} />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-semibold" style={{ color: primaryText }}>Reusable list item</div>
-                <div className="text-xs" style={{ color: mediumText }}>Current system values, not preset buckets</div>
-              </div>
-            </div>
-
-            <div
-              className="mt-4 flex items-center rounded-[18px] px-4"
-              style={{
-                backgroundColor: secondaryBg,
-                borderRadius: radius,
-                border: `${borderStandard} solid ${borderDivider}`,
-                height: tokens.sizing?.standard_input_height || "48px",
-              }}
-            >
-              <span style={{ fontSize: tokens.typography?.body_secondary?.size || "14px", color: lowText }}>Search interactions</span>
-            </div>
-
-            <div className="flex-1" />
-
-            <button
-              type="button"
-              className="mt-4 flex h-[52px] w-full items-center justify-center gap-2 rounded-[20px] transition active:scale-[0.99]"
-              style={{
-                backgroundColor: actionPrimary,
-                color: actionText,
-                borderRadius: radius,
-                fontSize: tokens.typography?.button_label?.size || "16px",
-                fontWeight: Number(tokens.typography?.button_label?.weight ?? 600),
-              }}
-            >
-              Continue
-            </button>
-          </div>
+      <div className="mt-4 flex shrink-0 flex-col gap-2 rounded-[16px] border border-slate-950/[0.1] bg-white/94 p-3 backdrop-blur lg:flex-row lg:items-center lg:justify-between">
+        <div className="hidden items-center gap-2 text-xs text-slate-500 lg:flex">
+          <Eye className="h-3.5 w-3.5" />
+          Preview stays live while tokens change.
         </div>
+        <Button className="h-10 rounded-[12px] dg-button-primary px-4 text-sm font-medium lg:min-w-[250px]" onClick={() => void onSubmit()} disabled={isSubmitting}>
+          {submitLabel}
+          <ArrowRight className="ml-1.5 h-4 w-4" />
+        </Button>
       </div>
     </div>
   );
 }
 
-function SectionHeader({
-  icon: Icon,
-  label,
-  sectionKey,
-  expanded,
-  onToggle,
-}: {
-  icon: ComponentType<{ className?: string }>;
-  label: string;
-  sectionKey: string;
-  expanded: boolean;
-  onToggle: (key: string) => void;
-}) {
+function TokenGroup({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <button
-      type="button"
-      onClick={() => onToggle(sectionKey)}
-      className="flex w-full items-center justify-between px-5 py-3 text-left transition hover:bg-[#f7f7f8] md:px-6"
-    >
-      <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-        <Icon className="h-3.5 w-3.5" />
+    <div className="rounded-[14px] border border-slate-950/[0.08] bg-[#fbfbfc] p-3">
+      <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+        <Layers className="h-3.5 w-3.5" />
         {label}
-      </span>
-      <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expanded ? "rotate-180" : ""}`} />
-    </button>
-  );
-}
-
-function Field({
-  label,
-  icon: Icon,
-  children,
-}: {
-  label: string;
-  icon?: ComponentType<{ className?: string }>;
-  children: ReactNode;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <label className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.18em] text-slate-500">
-        {Icon ? <Icon className="h-3.5 w-3.5" /> : null}
-        {label}
-      </label>
-      {children}
-    </div>
-  );
-}
-
-function SubGroup({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="space-y-2">
-      <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400">{label}</span>
+      </div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{children}</div>
     </div>
   );
@@ -520,51 +342,61 @@ function ColorField({ label, value, onChange }: { label: string; value: string; 
       : "#000000";
 
   return (
-    <div className="relative flex w-full flex-col gap-1">
-      <label className="text-[11px] font-medium text-slate-500">{label}</label>
-      <div className="relative flex items-center overflow-hidden rounded-xl border border-slate-950/[0.08] bg-white px-2 py-1.5 transition hover:border-slate-950/[0.16] focus-within:border-[#002fa7]/40">
-        <input type="color" value={safeHex} onChange={(event) => onChange(event.target.value)} className="absolute -left-2 -top-2 h-[200%] w-[200%] cursor-pointer opacity-0" />
-        <div className="h-5 w-5 shrink-0 rounded-md border border-slate-950/[0.08]" style={{ backgroundColor: value }} />
+    <label className="group relative flex cursor-pointer items-center gap-2 rounded-[12px] border border-slate-950/[0.08] bg-white px-2 py-2 transition hover:border-slate-950/[0.18]">
+      <input type="color" value={safeHex} onChange={(event) => onChange(event.target.value)} className="absolute inset-0 cursor-pointer opacity-0" />
+      <span className="h-7 w-7 shrink-0 rounded-[8px] border border-slate-950/[0.1]" style={{ backgroundColor: value }} />
+      <span className="min-w-0">
+        <span className="block truncate text-xs font-medium text-slate-700">{label}</span>
         <input
           type="text"
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="ml-2 w-full bg-transparent font-mono text-xs font-medium uppercase text-slate-900 outline-none"
+          className="block w-full bg-transparent font-mono text-[11px] uppercase text-slate-500 outline-none"
         />
-      </div>
-    </div>
+      </span>
+    </label>
   );
 }
 
-function TextField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+function TextField({
+  label,
+  value,
+  onChange,
+  wide = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  wide?: boolean;
+}) {
   return (
-    <div className="space-y-1">
-      <label className="text-[11px] font-medium capitalize text-slate-500">{label}</label>
+    <label className={wide ? "col-span-full space-y-1" : "space-y-1"}>
+      <span className="block truncate text-[11px] font-medium capitalize text-slate-500">{label}</span>
       <input
         type="text"
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-10 w-full rounded-xl border border-slate-950/[0.08] bg-white px-3 font-mono text-xs text-slate-900 outline-none transition focus:border-[#002fa7]/40"
+        className="h-9 w-full rounded-[10px] border border-slate-950/[0.08] bg-white px-2.5 font-mono text-xs text-slate-900 outline-none transition focus:border-[#002fa7]/40"
       />
-    </div>
+    </label>
   );
 }
 
 function ShadowField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (
-    <div className="space-y-1.5">
-      <label className="text-[11px] font-medium capitalize text-slate-500">{label}</label>
+    <label className="col-span-full space-y-1">
+      <span className="block text-[11px] font-medium capitalize text-slate-500">{label}</span>
       <textarea
         value={value}
         onChange={(event) => onChange(event.target.value)}
         rows={2}
-        className="w-full rounded-xl border border-slate-950/[0.08] bg-white px-3 py-2 font-mono text-xs text-slate-900 outline-none transition focus:border-[#002fa7]/40"
+        className="w-full resize-none rounded-[10px] border border-slate-950/[0.08] bg-white px-2.5 py-2 font-mono text-xs text-slate-900 outline-none transition focus:border-[#002fa7]/40"
       />
-    </div>
+    </label>
   );
 }
 
-function TypographyFieldCard({
+function TypographyRow({
   label,
   size,
   weight,
@@ -582,22 +414,173 @@ function TypographyFieldCard({
   onLineHeightChange: (value: string) => void;
 }) {
   return (
-    <div className="rounded-[18px] border border-slate-950/[0.08] bg-[#f7f7f8] p-3">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</div>
-      <div className="mt-3 grid gap-2 sm:grid-cols-3">
-        <TextField label="Size" value={size} onChange={onSizeChange} />
-        <TextField label="Weight" value={weight} onChange={onWeightChange} />
-        <TextField label="Line Height" value={lineHeight} onChange={onLineHeightChange} />
-      </div>
+    <div className="grid grid-cols-[1.2fr_0.8fr_0.8fr_0.9fr] gap-2 border-b border-slate-950/[0.06] px-3 py-2 last:border-b-0">
+      <div className="flex items-center text-sm font-medium text-slate-800">{label}</div>
+      <CompactInput value={size} onChange={onSizeChange} />
+      <CompactInput value={weight} onChange={onWeightChange} />
+      <CompactInput value={lineHeight} onChange={onLineHeightChange} />
     </div>
+  );
+}
+
+function CompactInput({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return (
+    <input
+      type="text"
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      className="h-8 min-w-0 rounded-[9px] border border-slate-950/[0.08] bg-[#fbfbfc] px-2 font-mono text-xs text-slate-900 outline-none transition focus:border-[#002fa7]/40 focus:bg-white"
+    />
   );
 }
 
 function ReadOnlyMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[16px] border border-slate-950/[0.08] bg-white px-3 py-2">
-      <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400">{label}</div>
+    <div className="rounded-[12px] border border-slate-950/[0.08] bg-white px-2.5 py-2">
+      <div className="truncate text-[11px] font-medium uppercase tracking-[0.08em] text-slate-400">{label}</div>
       <div className="mt-1 font-mono text-xs text-slate-900">{value}</div>
+    </div>
+  );
+}
+
+function PhonePreview({
+  primaryBg,
+  secondaryBg,
+  primaryText,
+  mediumText,
+  lowText,
+  actionPrimary,
+  actionSecondary,
+  actionText,
+  cardBg,
+  borderDivider,
+  radius,
+  radiusPill,
+  shadowSurface,
+  borderStandard,
+  fontFamily,
+  tokens,
+}: {
+  primaryBg: string;
+  secondaryBg: string;
+  primaryText: string;
+  mediumText: string;
+  lowText: string;
+  actionPrimary: string;
+  actionSecondary: string;
+  actionText: string;
+  cardBg: string;
+  borderDivider: string;
+  radius: string;
+  radiusPill: string;
+  shadowSurface: string;
+  borderStandard: string;
+  fontFamily?: string;
+  tokens: NonNullable<DesignTokens["tokens"]>;
+}) {
+  return (
+    <div
+      className="relative flex aspect-[9/18] h-[min(100%,clamp(360px,68dvh,560px))] max-h-full w-auto max-w-[min(78vw,280px)] flex-col overflow-hidden rounded-[clamp(22px,7vw,30px)] border border-slate-950/[0.12] bg-white shadow-[0_24px_60px_-42px_rgba(15,23,42,0.75)]"
+      style={{ backgroundColor: primaryBg, color: primaryText, fontFamily }}
+    >
+      <div className="flex items-center justify-between px-[7%] pt-[7%]">
+        <div className="h-[clamp(20px,6vw,28px)] w-[clamp(20px,6vw,28px)] rounded-full" style={{ backgroundColor: secondaryBg, border: `${borderStandard} solid ${borderDivider}` }} />
+        <div className="h-[clamp(20px,6vw,28px)] w-[28%] rounded-full" style={{ backgroundColor: actionPrimary, opacity: 0.12, borderRadius: radiusPill }} />
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col px-[7%] pb-[7%] pt-[5%]">
+        <h3
+          className="tracking-tight"
+          style={{
+            color: primaryText,
+            fontSize: `clamp(18px, 5.4vw, ${tokens.typography?.title_main?.size || "28px"})`,
+            fontWeight: Number(tokens.typography?.title_main?.weight ?? 700),
+            lineHeight: "1.12",
+          }}
+        >
+          Preview
+        </h3>
+        <p className="mt-1 line-clamp-2" style={{ color: mediumText, fontSize: `clamp(12px, 3.2vw, ${tokens.typography?.body_secondary?.size || "14px"})`, lineHeight: "1.45" }}>
+          Live token response across surfaces, type, spacing, and action states.
+        </p>
+
+        <div className="mt-[7%]" style={{ borderBottom: `${borderStandard} solid ${borderDivider}` }} />
+
+        <div
+          className="mt-[7%] p-[7%]"
+          style={{
+            backgroundColor: cardBg,
+            borderRadius: radius,
+            boxShadow: shadowSurface,
+            border: `${borderStandard} solid ${borderDivider}`,
+          }}
+        >
+          <div style={{ fontSize: `clamp(13px, 3.8vw, ${tokens.typography?.body_primary?.size || "16px"})`, lineHeight: "1.35", color: primaryText }}>
+            Weekly activity
+          </div>
+          <div className="mt-1 line-clamp-1" style={{ fontSize: `clamp(10px, 3vw, ${tokens.typography?.caption?.size || "12px"})`, color: lowText }}>
+            Token changes land here immediately.
+          </div>
+          <div className="mt-[7%] grid grid-cols-4 gap-[5%]">
+            {[36, 54, 42, 64].map((height, index) => (
+              <div key={`${height}-${index}`} className="flex items-end">
+                <div
+                  className="w-full rounded-full"
+                  style={{
+                    height: `clamp(24px, ${height / 5}vw, ${height}px)`,
+                    background: index % 2 === 0 ? actionPrimary : actionSecondary,
+                    opacity: index % 2 === 0 ? 1 : 0.34,
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div
+          className="mt-[6%] flex items-center gap-[5%] p-[6%]"
+          style={{
+            backgroundColor: cardBg,
+            borderRadius: radius,
+            boxShadow: shadowSurface,
+            border: `${borderStandard} solid ${borderDivider}`,
+          }}
+        >
+          <div className="h-[clamp(30px,9vw,40px)] w-[clamp(30px,9vw,40px)] shrink-0 rounded-full" style={{ backgroundColor: actionPrimary, opacity: 0.14 }} />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[clamp(12px,3.4vw,14px)] font-semibold" style={{ color: primaryText }}>Reusable row</div>
+            <div className="truncate text-[clamp(10px,3vw,12px)]" style={{ color: mediumText }}>Surface plus text rhythm</div>
+          </div>
+        </div>
+
+        <div
+          className="mt-[6%] flex items-center px-[6%]"
+          style={{
+            backgroundColor: secondaryBg,
+            borderRadius: radius,
+            border: `${borderStandard} solid ${borderDivider}`,
+            height: `clamp(40px, 10vw, ${tokens.sizing?.standard_input_height || "48px"})`,
+          }}
+        >
+          <span className="truncate" style={{ fontSize: `clamp(12px, 3.2vw, ${tokens.typography?.body_secondary?.size || "14px"})`, color: lowText }}>Search interactions</span>
+        </div>
+
+        <div className="flex-1" />
+
+        <button
+          type="button"
+          className="mt-[6%] flex h-[clamp(42px,11vw,52px)] w-full items-center justify-center gap-2 transition active:scale-[0.99]"
+          style={{
+            backgroundColor: actionPrimary,
+            color: actionText,
+            borderRadius: radius,
+            fontSize: `clamp(13px, 3.6vw, ${tokens.typography?.button_label?.size || "16px"})`,
+            fontWeight: Number(tokens.typography?.button_label?.weight ?? 600),
+          }}
+        >
+          Continue
+        </button>
+      </div>
     </div>
   );
 }
