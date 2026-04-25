@@ -147,12 +147,15 @@ async function handleEditIntent({
 
   // Build chat context from project_messages
   const allMessages = await fetchProjectMessages(admin, projectId);
-  const chatHistory = await assembleChatContext({
-    admin,
-    projectId,
-    userPrompt: prompt,
-    recentMessages: allMessages,
-  });
+  
+  const chatHistory = selectedElementHtml 
+    ? [{ role: "user" as const, content: prompt }]
+    : await assembleChatContext({
+        admin,
+        projectId,
+        userPrompt: prompt,
+        recentMessages: allMessages,
+      });
 
   // Post system status message
   const targetNames = selectedElementHtml

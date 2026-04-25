@@ -206,7 +206,9 @@ export function ProjectShell({
 
   // Clear element selection when the selected screen changes or is deselected
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectionMode(false);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedElementInfo(null);
   }, [selectedScreen?.id]);
 

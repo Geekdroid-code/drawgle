@@ -864,6 +864,16 @@ export function ScreenNode({
               pointerEvents: isDraggingState || overlayActive ? 'none' : 'auto',
               cursor: isSelectionModeActive ? 'crosshair' : undefined,
             }}
+            onLoad={() => {
+              // Ensure selection mode is enabled if the iframe finishes loading
+              // after the selectionMode state has already been set.
+              if (selectionMode && iframeRef.current?.contentWindow) {
+                iframeRef.current.contentWindow.postMessage(
+                  { type: 'enableSelectionMode' },
+                  '*'
+                );
+              }
+            }}
           />
 
           {/* Home indicator pill */}

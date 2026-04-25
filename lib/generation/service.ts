@@ -999,11 +999,6 @@ export async function* editScreenStream({
       "```html",
       selectedElementHtml,
       "```",
-      "",
-      "FULL SCREEN CODE (for surrounding context only — do NOT rewrite unrelated sections):",
-      "```html",
-      screenCode,
-      "```",
     ].join("\n");
   } else {
     // Priority 2: Block-index scoped context (existing path)

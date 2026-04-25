@@ -381,8 +381,18 @@ ${buildNavigationArchitectureContract({ navigationArchitecture })}
 TYPOGRAPHY ROLE CONTRACT:
 ${buildTypographyRoleContract()}
 
-APPROVED DESIGN TOKENS:
-${serializeDesignTokens(designTokens)}
+/*
+  NOTE for V1:
+  We intentionally DO NOT include the full raw JSON \`serializeDesignTokens(designTokens)\` here anymore.
+  It added ~1500 tokens of noise that duplicated the Strict Design Contract and degraded LLM precision,
+  especially for targeted visual edits.
+  
+  If users report issues where the LLM "forgets" specific colors or spacings during large area edits,
+  you can restore the full approved design tokens by uncommenting the following lines:
+  
+  APPROVED DESIGN TOKENS:
+  \${serializeDesignTokens(designTokens)}
+*/
 
 Additional rules:
 1. Do not invent new radii, border widths, or shadow recipes. Reuse the approved contract exactly.
