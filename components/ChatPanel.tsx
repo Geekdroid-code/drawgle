@@ -536,7 +536,7 @@ function getAgentStatus({
 }): AgentStatus {
   if (queueError) {
     return {
-      label: "Agent alert",
+      label: "Drawgle Agent alert",
       text: "Needs review",
       detail: queueError,
       busy: false,
@@ -546,7 +546,7 @@ function getAgentStatus({
 
   if (screenPlan?.status === "error") {
     return {
-      label: "Planner alert",
+      label: "Drawgle Planner alert",
       text: "Screen plan needs attention",
       detail: screenPlan.error,
       busy: false,
@@ -556,7 +556,7 @@ function getAgentStatus({
 
   if (screenPlan?.status === "ready") {
     return {
-      label: "Proposal ready",
+      label: "Drawgle Proposal ready",
       text: "Screen proposal ready",
       detail: screenPlan.screenPlan.name,
       busy: false,
@@ -566,7 +566,7 @@ function getAgentStatus({
 
   if (screenPlan?.status === "planning") {
     return {
-      label: "Agent working",
+      label: "Drawgle Agent working",
       text: "Planning next screen...",
       busy: true,
       alert: false,
@@ -575,7 +575,7 @@ function getAgentStatus({
 
   if (isQueueing && !generationRun) {
     return {
-      label: "Agent working",
+      label: "Drawgle Agent working",
       text: "Queueing generation...",
       busy: true,
       alert: false,
@@ -586,7 +586,7 @@ function getAgentStatus({
     const stats = getRunStats(generationRun, screens);
     if (generationRun.status === "building") {
       return {
-        label: "Agent working",
+        label: "Drawgle Agent working",
         text: stats.firstBuildingScreen ? `Building ${stats.firstBuildingScreen.name}...` : "Building screens...",
         detail: stats.totalScreens > 0 ? `${stats.readyScreens}/${stats.totalScreens} screens ready` : undefined,
         busy: true,
@@ -595,7 +595,7 @@ function getAgentStatus({
     }
 
     return {
-      label: "Agent working",
+      label: "Drawgle Agent working",
       text: `${generationStatusLabels[generationRun.status]} screens...`,
       busy: true,
       alert: false,
@@ -603,8 +603,8 @@ function getAgentStatus({
   }
 
   return {
-    label: "Agent ready",
-    text: "Agent is ready",
+    label: "",
+    text: "Drawgle is ready",
     busy: false,
     alert: false,
   };
@@ -776,7 +776,7 @@ function AgentActivityRow({
       </div>
 
       <div className="px-2.5 py-3 transition-colors duration-200 group-hover:bg-slate-950/[0.018] rounded-lg">
-        <div className="flex min-w-0 items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.26em] text-[#667894]">
+        <div className="flex min-w-0 items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#667894]">
           <span>{item.label}</span>
           {item.screenName ? <span className="h-1 w-1 rounded-full bg-slate-300" /> : null}
           {item.screenName ? <span className="min-w-0 max-w-[132px] truncate">{item.screenName}</span> : null}
@@ -1086,10 +1086,10 @@ export function ChatPanel({
 
   return (
     <div
-      className={`mx-2 absolute z-50 flex flex-col overflow-hidden transition-all duration-300
+      className={`absolute z-50 flex flex-col overflow-hidden transition-all duration-300
         animate-in fade-in-0 slide-in-from-left-2 duration-300
-        md:left-4 md:bottom-4 md:h-[calc(100vh-5rem)] md:w-96 md:rounded-[14px]
-        bottom-0 left-0 right-0 h-[85vh] rounded-t-[16px]
+        left-2 right-2 top-[var(--dg-mobile-top-reserve)] bottom-[calc(var(--dg-mobile-prompt-reserve)+var(--dg-mobile-prompt-bottom)+0.5rem)] h-auto rounded-[16px]
+        md:left-4 md:right-auto md:top-auto md:bottom-4 md:h-[calc(100dvh-5rem)] md:w-96 md:rounded-[14px]
         dg-metal-shell backdrop-blur-xl
       `}
     >

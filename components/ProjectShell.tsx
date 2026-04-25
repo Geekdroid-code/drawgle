@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
@@ -154,6 +154,16 @@ export function ProjectShell({
     generationRun &&
     (generationRun.status === "queued" || generationRun.status === "planning" || generationRun.status === "building"),
   );
+  const mobilePromptReserve = selectedElementInfo
+    ? 218
+    : selectedScreen
+      ? 178
+      : 150;
+  const shellLayoutVars = {
+    "--dg-mobile-prompt-reserve": `${mobilePromptReserve}px`,
+    "--dg-mobile-prompt-bottom": "calc(env(safe-area-inset-bottom, 0px) + 1rem)",
+    "--dg-mobile-top-reserve": "calc(env(safe-area-inset-top, 0px) + 5rem)",
+  } as CSSProperties;
   useEffect(() => {
     if (!project && !isProjectLoading) {
       router.replace("/project/new");
@@ -592,16 +602,16 @@ export function ProjectShell({
 
   if (isProjectLoading || !project) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[#f7f7f8]">
+      <div className="flex h-[100dvh] items-center justify-center bg-[#f7f7f8]">
         <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
       </div>
     );
   }
 
   return (
-    <div className="h-screen overflow-hidden bg-[#f7f7f8] text-gray-900">
+    <div className="h-[100dvh] overflow-hidden bg-[#f7f7f8] text-gray-900" style={shellLayoutVars}>
       <main className="relative z-0 flex h-full w-full overflow-hidden">
-        <div className="absolute left-4 right-4 top-4 z-50 flex items-center justify-between gap-3">
+        <div className="absolute left-4 right-4 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-50 flex items-center justify-between gap-3">
           <div className="flex h-8 items-center rounded-full dg-panel px-2 backdrop-blur-xl lg:px-3">
             <Button variant="ghost" size="sm" onClick={() => router.push("/project/new")} className="h-8 rounded-full text-neutral-700 hover:bg-[#f7f7f8] focus-visible:bg-[#f7f7f8] data-[state=open]:bg-[#f7f7f8]">
               <ArrowLeft className="mr-2 h-4 w-4" />
@@ -620,6 +630,7 @@ export function ProjectShell({
             projectNavigation={projectNavigation}
             fitRequestVersion={fitRequestVersion}
             selectedScreen={selectedScreen}
+            mobileBottomReserve={mobilePromptReserve}
             onSelectScreen={setSelectedScreen}
             selectionMode={selectionMode}
             onElementSelected={(info) => {
@@ -646,7 +657,7 @@ export function ProjectShell({
             onCollapseChange={setIsChatCollapsed}
           />
 
-          <div className="absolute bottom-4 left-1/2 z-40 w-full max-w-2xl -translate-x-1/2 px-4 transition-all duration-300 md:bottom-8">
+          <div className="absolute bottom-[var(--dg-mobile-prompt-bottom)] left-1/2 z-[60] w-full max-w-2xl -translate-x-1/2 px-4 transition-all duration-300 md:bottom-8">
             <PromptBar
               project={project}
               selectedScreen={selectedScreen}

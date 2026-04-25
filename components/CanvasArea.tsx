@@ -20,6 +20,8 @@ const CHAT_PANEL_RESERVED_WIDTH = 416;
 const WHEEL_ZOOM_STEP = 0.02;
 const PAN_EXCLUDED_SELECTORS = ["canvas-pan-exclude"];
 const INITIAL_FIT_REQUEST_VERSION = 0;
+const MOBILE_TOP_RESERVED_HEIGHT = 88;
+const MOBILE_DEFAULT_BOTTOM_RESERVED_HEIGHT = 150;
 // Vertical space reserved for the external label bar above each phone frame.
 // Must match the `paddingTop` / top-shift in ScreenNode (currently 44 px).
 const SCREEN_LABEL_BAR_HEIGHT = 16;
@@ -41,6 +43,30 @@ type ScreenBounds = {
 };
 
 const clampScale = (scale: number) => Math.min(MAX_CANVAS_SCALE, Math.max(MIN_CANVAS_SCALE, scale));
+
+const getUsableViewport = (viewport: ViewportSize, mobileBottomReserve = MOBILE_DEFAULT_BOTTOM_RESERVED_HEIGHT) => {
+  if (viewport.width >= 768) {
+    return {
+      top: 0,
+      bottom: 0,
+      width: viewport.width,
+      height: viewport.height,
+      centerY: viewport.height / 2,
+    };
+  }
+
+  const top = MOBILE_TOP_RESERVED_HEIGHT;
+  const bottom = mobileBottomReserve;
+  const height = Math.max(280, viewport.height - top - bottom);
+
+  return {
+    top,
+    bottom,
+    width: viewport.width,
+    height,
+    centerY: top + height / 2,
+  };
+};
 
 const getScreenBounds = (screens: ScreenData[]): ScreenBounds | null => {
   if (screens.length === 0) {
@@ -75,17 +101,19 @@ const getScreenBounds = (screens: ScreenData[]): ScreenBounds | null => {
   };
 };
 
-const getFitTransform = (screenBounds: ScreenBounds, viewport: ViewportSize) => {
-  const scale = clampScale(Math.min(viewport.width / screenBounds.width, viewport.height / screenBounds.height) * FIT_SCALE_REDUCTION);
+const getFitTransform = (screenBounds: ScreenBounds, viewport: ViewportSize, mobileBottomReserve?: number) => {
+  const usableViewport = getUsableViewport(viewport, mobileBottomReserve);
+  const scale = clampScale(Math.min(usableViewport.width / screenBounds.width, usableViewport.height / screenBounds.height) * FIT_SCALE_REDUCTION);
 
   return {
     positionX: viewport.width / 2 - screenBounds.centerX * scale,
-    positionY: viewport.height / 2 - screenBounds.centerY * scale,
+    positionY: usableViewport.centerY - screenBounds.centerY * scale,
     scale,
   };
 };
 
-const getSelectedScreenTransform = (screen: ScreenData, viewport: ViewportSize, scale: number) => {
+const getSelectedScreenTransform = (screen: ScreenData, viewport: ViewportSize, scale: number, mobileBottomReserve?: number) => {
+  const usableViewport = getUsableViewport(viewport, mobileBottomReserve);
   const reservedWidth = viewport.width >= 768 ? CHAT_PANEL_RESERVED_WIDTH : 0;
   const visualCenterX = viewport.width / 2 + reservedWidth / 2;
   const centerX = screen.x + SCREEN_FRAME_WIDTH / 2;
@@ -95,17 +123,18 @@ const getSelectedScreenTransform = (screen: ScreenData, viewport: ViewportSize, 
 
   return {
     positionX: visualCenterX - centerX * scale,
-    positionY: viewport.height / 2 - centerY * scale,
+    positionY: usableViewport.centerY - centerY * scale,
     scale: clampScale(scale),
   };
 };
 
-const getEmptyCanvasTransform = (viewport: ViewportSize) => {
+const getEmptyCanvasTransform = (viewport: ViewportSize, mobileBottomReserve?: number) => {
+  const usableViewport = getUsableViewport(viewport, mobileBottomReserve);
   const scale = viewport.width < 768 ? DEFAULT_EMPTY_SCALE_MOBILE : DEFAULT_EMPTY_SCALE_DESKTOP;
 
   return {
     positionX: viewport.width / 2 - (CANVAS_SIZE / 2) * scale,
-    positionY: viewport.height / 2 - (CANVAS_SIZE / 2) * scale,
+    positionY: usableViewport.centerY - (CANVAS_SIZE / 2) * scale,
     scale,
   };
 };
@@ -115,11 +144,13 @@ const CanvasControls = ({
   screenBounds,
   selectedScreen,
   viewport,
+  mobileBottomReserve,
 }: {
   fitRequestVersion: number;
   screenBounds: ScreenBounds | null;
   selectedScreen: ScreenData | null;
   viewport: ViewportSize | null;
+  mobileBottomReserve?: number;
 }) => {
   const { setTransform, state } = useControls();
   const lastHandledFitRequestRef = useRef(INITIAL_FIT_REQUEST_VERSION);
@@ -141,9 +172,9 @@ const CanvasControls = ({
       return;
     }
 
-    const transform = getFitTransform(screenBounds, viewport);
+    const transform = getFitTransform(screenBounds, viewport, mobileBottomReserve);
     setTransform(transform.positionX, transform.positionY, transform.scale, 450);
-  }, [fitRequestVersion, screenBounds, selectedScreen, setTransform, viewport]);
+  }, [fitRequestVersion, mobileBottomReserve, screenBounds, selectedScreen, setTransform, viewport]);
 
   useEffect(() => {
     if (!viewport || !selectedScreen) {
@@ -162,7 +193,7 @@ const CanvasControls = ({
       scale: state.scale,
     };
 
-    const transform = getSelectedScreenTransform(selectedScreen, viewport, state.scale);
+    const transform = getSelectedScreenTransform(selectedScreen, viewport, state.scale, mobileBottomReserve);
     if (!positionChanged && !scaleChanged) {
       return;
     }
@@ -170,7 +201,7 @@ const CanvasControls = ({
     const animationTime = positionChanged ? 400 : 0;
 
     setTransform(transform.positionX, transform.positionY, transform.scale, animationTime);
-  }, [selectedScreen, setTransform, state.scale, viewport]);
+  }, [mobileBottomReserve, selectedScreen, setTransform, state.scale, viewport]);
 
   // Removed maximize/reset button and logic as requested
 
@@ -187,7 +218,7 @@ const CanvasControls = ({
   };
 
   return (
-    <div className="absolute right-4 top-4 z-50 flex h-8 items-center gap-1 rounded-full dg-panel px-1.5 backdrop-blur-xl">
+    <div className="absolute right-4 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-50 flex h-8 items-center gap-1 rounded-full dg-panel px-1.5 backdrop-blur-xl">
       <Button variant="ghost" size="icon" onClick={handleZoomIn} className="h-8 w-8 rounded-full hover:bg-[#f7f7f8]">
         <ZoomIn className="h-4 w-4 text-gray-700" />
       </Button>
@@ -248,6 +279,7 @@ export function CanvasArea({
   projectNavigation,
   fitRequestVersion = INITIAL_FIT_REQUEST_VERSION,
   selectedScreen,
+  mobileBottomReserve = MOBILE_DEFAULT_BOTTOM_RESERVED_HEIGHT,
   onSelectScreen,
   selectionMode,
   onElementSelected,
@@ -256,6 +288,7 @@ export function CanvasArea({
   projectNavigation?: ProjectNavigationData | null;
   fitRequestVersion?: number;
   selectedScreen?: ScreenData | null;
+  mobileBottomReserve?: number;
   onSelectScreen?: (screen: ScreenData | null) => void;
   selectionMode?: boolean;
   onElementSelected?: (info: SelectedElementInfo) => void;
@@ -317,6 +350,7 @@ export function CanvasArea({
             screenBounds={screenBounds}
             selectedScreen={selectedScreen || null}
             viewport={viewport}
+            mobileBottomReserve={mobileBottomReserve}
           />
           <CanvasContent
             screens={screens}
