@@ -2,6 +2,7 @@ import type { User } from "@supabase/supabase-js";
 
 import type {
   GenerationRunRow,
+  ProjectNavigationRow,
   ProjectMessageRow,
   ProjectRow,
   ScreenMessageRow,
@@ -13,8 +14,11 @@ import type {
   GenerationRunData,
   Message,
   NavigationArchitecture,
+  NavigationPlan,
   ProjectMessage,
+  ProjectNavigationData,
   ScreenBlockIndex,
+  ScreenChromePolicy,
   ProjectCharter,
   ProjectData,
   ScreenData,
@@ -56,6 +60,8 @@ export function mapScreenRow(row: ScreenRow): ScreenData {
     prompt: row.prompt,
     summary: row.summary,
     blockIndex: (row.block_index as ScreenBlockIndex | null) ?? null,
+    chromePolicy: (row.chrome_policy as ScreenChromePolicy | null) ?? null,
+    navigationItemId: row.navigation_item_id,
     x: row.position_x,
     y: row.position_y,
     sortIndex: row.sort_index,
@@ -114,5 +120,20 @@ export function mapProjectMessageRow(row: ProjectMessageRow): ProjectMessage {
       ? (row.metadata as Record<string, unknown>)
       : {},
     timestamp: row.created_at,
+  };
+}
+
+export function mapProjectNavigationRow(row: ProjectNavigationRow): ProjectNavigationData {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    ownerId: row.owner_id,
+    plan: row.plan as unknown as NavigationPlan,
+    shellCode: row.shell_code,
+    blockIndex: (row.block_index as ScreenBlockIndex | null) ?? null,
+    status: row.status,
+    error: row.error,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }

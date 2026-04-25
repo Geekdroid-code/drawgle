@@ -8,6 +8,11 @@ import { applyEdits } from "@/lib/diff-engine";
 import { buildScopedEditContext } from "@/lib/generation/block-index";
 import { createNavigationArchitecture, deriveRequiresBottomNav, resolveScreenChromePolicy } from "@/lib/navigation";
 import {
+  applyNavigationPlanToScreens,
+  buildFallbackNavigationShell,
+  normalizeNavigationPlan,
+} from "@/lib/project-navigation";
+import {
   buildSystemInstruction,
   buildEditSystemInstruction,
   creativeDirectionInstruction,
@@ -23,6 +28,7 @@ import type {
   DesignTokens,
   Message,
   NavigationArchitecture,
+  NavigationPlan,
   PlanningMode,
   PlannedUiFlow,
   PromptImagePayload,
@@ -51,6 +57,25 @@ const NavigationArchitectureSchema = z.object({
   rationale: z.string().trim().min(1).max(2400),
 });
 
+const NavigationPlanSchema = z.object({
+  enabled: z.boolean(),
+  kind: z.enum(["bottom-tabs", "none"]),
+  items: z.array(z.object({
+    id: z.string().trim().min(1).max(80),
+    label: z.string().trim().min(1).max(40),
+    icon: z.string().trim().min(1).max(80),
+    role: z.string().trim().min(1).max(240),
+    linked_screen_name: z.string().trim().min(1).max(100),
+  })).max(5).default([]),
+  visual_brief: z.string().trim().min(1).max(1600),
+  screen_chrome: z.array(z.object({
+    screen_name: z.string().trim().min(1).max(100),
+    chrome: z.enum(["bottom-tabs", "top-bar", "top-bar-back", "modal-sheet", "immersive"]),
+    navigation_item_id: z.string().trim().min(1).max(80).nullable().optional(),
+  })).default([]),
+}).optional();
+type ParsedNavigationPlan = NonNullable<z.infer<typeof NavigationPlanSchema>>;
+
 const CreativeDirectionSchema = z.object({
   conceptName: z.string().trim().min(1).max(200),
   styleEssence: z.string().trim().min(1).max(2400),
@@ -67,6 +92,7 @@ const CreativeDirectionSchema = z.object({
 const PlanSchema = z.object({
   requires_bottom_nav: z.boolean().optional(),
   navigation_architecture: NavigationArchitectureSchema.optional(),
+  navigation_plan: NavigationPlanSchema,
   charter: z.object({
     originalPrompt: z.string().trim().min(1).max(10000),
     imageReferenceSummary: z.string().trim().max(6000).nullable().optional(),
@@ -339,6 +365,30 @@ const resolvePlannedScreen = ({
   }),
 });
 
+const toNavigationPlan = (parsed?: ParsedNavigationPlan | null): NavigationPlan | null => {
+  if (!parsed) {
+    return null;
+  }
+
+  return {
+    enabled: parsed.enabled,
+    kind: parsed.enabled ? parsed.kind : "none",
+    items: parsed.items.map((item) => ({
+      id: item.id,
+      label: item.label,
+      icon: item.icon,
+      role: item.role,
+      linkedScreenName: item.linked_screen_name,
+    })),
+    visualBrief: parsed.visual_brief,
+    screenChrome: parsed.screen_chrome.map((entry) => ({
+      screenName: entry.screen_name,
+      chrome: entry.chrome,
+      navigationItemId: entry.navigation_item_id ?? null,
+    })),
+  };
+};
+
 const fallbackScreensFromReference = ({
   prompt,
   planningMode,
@@ -423,9 +473,10 @@ const parseJsonResponse = <T>(text: string): T => {
 const salvageScreensFromRawPlan = (rawPlan: unknown): {
   screens: ScreenPlan[];
   navigationArchitecture: z.infer<typeof NavigationArchitectureSchema> | null;
+  navigationPlan: NavigationPlan | null;
   requiresBottomNav: boolean | null;
 } => {
-  const empty = { screens: [], navigationArchitecture: null, requiresBottomNav: null };
+  const empty = { screens: [], navigationArchitecture: null, navigationPlan: null, requiresBottomNav: null };
 
   if (!isRecord(rawPlan)) {
     return empty;
@@ -474,10 +525,18 @@ const salvageScreensFromRawPlan = (rawPlan: unknown): {
     }
   }
 
+  let navigationPlan: NavigationPlan | null = null;
+  if (isRecord(raw.navigation_plan)) {
+    const navPlanParsed = NavigationPlanSchema.safeParse(raw.navigation_plan);
+    if (navPlanParsed.success) {
+      navigationPlan = toNavigationPlan(navPlanParsed.data);
+    }
+  }
+
   // --- requires_bottom_nav ---
   const requiresBottomNav = typeof raw.requires_bottom_nav === "boolean" ? raw.requires_bottom_nav : null;
 
-  return { screens, navigationArchitecture, requiresBottomNav };
+  return { screens, navigationArchitecture, navigationPlan, requiresBottomNav };
 };
 
 const toInlineImage = (image?: PromptImagePayload | null) => {
@@ -642,6 +701,7 @@ export async function planUiFlow({
   designTokens,
   projectContext,
   existingCharter,
+  existingNavigationPlan,
   planningMode = "project",
 }: {
   prompt: string;
@@ -649,6 +709,7 @@ export async function planUiFlow({
   designTokens?: DesignTokens | null;
   projectContext?: string | null;
   existingCharter?: ProjectCharter | null;
+  existingNavigationPlan?: NavigationPlan | null;
   planningMode?: PlanningMode;
 }): Promise<PlannedUiFlow> {
   const ai = createGeminiClient();
@@ -762,6 +823,13 @@ export async function planUiFlow({
           planningMode,
           referenceAnalysis,
         }).map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture }));
+    const navigationPlan = normalizeNavigationPlan({
+      navigationPlan: salvaged.navigationPlan ?? (planningMode === "single-screen" ? existingNavigationPlan : null),
+      screens,
+      navigationArchitecture,
+      requiresBottomNav: deriveRequiresBottomNav(navigationArchitecture),
+    });
+    const plannedScreens = applyNavigationPlanToScreens(screens, navigationPlan);
 
     console.warn(
       `[planUiFlow] Using ${salvageSource} screens (${screens.length}) after PlanSchema failure`,
@@ -771,6 +839,7 @@ export async function planUiFlow({
     return {
       requiresBottomNav: deriveRequiresBottomNav(navigationArchitecture),
       navigationArchitecture,
+      navigationPlan,
       charter: fallbackProjectCharter({
         prompt,
         image,
@@ -779,7 +848,7 @@ export async function planUiFlow({
         navigationArchitecture,
         existingCharter,
       }),
-      screens,
+      screens: plannedScreens,
     };
   }
 
@@ -812,12 +881,20 @@ export async function planUiFlow({
     },
     navigationArchitecture,
   }));
+  const navigationPlan = normalizeNavigationPlan({
+    navigationPlan: toNavigationPlan(parsed.data.navigation_plan) ?? (planningMode === "single-screen" ? existingNavigationPlan : null),
+    screens,
+    navigationArchitecture,
+    requiresBottomNav: deriveRequiresBottomNav(navigationArchitecture),
+  });
+  const plannedScreens = applyNavigationPlanToScreens(screens, navigationPlan);
 
   return {
     requiresBottomNav: deriveRequiresBottomNav(navigationArchitecture),
     navigationArchitecture,
+    navigationPlan,
     charter,
-    screens,
+    screens: plannedScreens,
   };
 }
 
@@ -920,6 +997,7 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
         screenPlan: input.screenPlan,
         requiresBottomNav: input.requiresBottomNav,
         navigationArchitecture: input.navigationArchitecture,
+        navigationPlan: input.navigationPlan,
       }),
       temperature: 0.2,
     },
@@ -1051,4 +1129,55 @@ export async function editScreenCode({
     rawText,
     code: rawText.includes("<edit>") ? applyEdits(screenCode, rawText) : screenCode,
   };
+}
+
+export async function buildNavigationShellCode({
+  navigationPlan,
+  designTokens,
+  prompt,
+}: {
+  navigationPlan: NavigationPlan;
+  designTokens?: DesignTokens | null;
+  prompt: string;
+}) {
+  if (!navigationPlan.enabled || navigationPlan.kind === "none") {
+    return "";
+  }
+
+  try {
+    const ai = createGeminiClient();
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: {
+        parts: [{
+          text: [
+            `Project prompt: ${prompt || "No prompt provided."}`,
+            `Navigation plan: ${JSON.stringify(navigationPlan, null, 2)}`,
+            `Design tokens: ${JSON.stringify(designTokens?.tokens ?? {}, null, 2)}`,
+          ].join("\n\n"),
+        }],
+      },
+      config: {
+        temperature: 0.15,
+        systemInstruction: [
+          "You are building the single shared bottom navigation shell for a mobile app preview system.",
+          "Return ONLY valid HTML for the navigation shell. Do not include markdown fences, html, head, body, scripts, or the screen content.",
+          "The nav must be project-specific and must follow the provided navigation plan and design tokens.",
+          "Use one <nav data-drawgle-primary-nav> root.",
+          "Each item must be a button or anchor with data-nav-item-id exactly matching the plan item id.",
+          "Use Lucide icons with <i data-lucide=\"icon-name\"></i>.",
+          "The shell is injected into a relative mobile screen, so position it absolute/fixed at the bottom and keep it mobile-safe.",
+          "Do not hard-code generic tab labels. Use only the planned items.",
+        ].join("\n"),
+      },
+    });
+
+    const code = extractCode(response.text || "").trim();
+    return code.includes("data-drawgle-primary-nav")
+      ? code
+      : buildFallbackNavigationShell(navigationPlan, designTokens);
+  } catch (error) {
+    console.error("Failed to generate navigation shell", error);
+    return buildFallbackNavigationShell(navigationPlan, designTokens);
+  }
 }

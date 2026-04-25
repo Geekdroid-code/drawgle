@@ -126,6 +126,99 @@ async function handleEditIntent({
   selectedElementHtml?: string | null;
 }) {
   // Fetch screen (use admin to bypass RLS — ownership already verified)
+  const requestedNavigationEdit = /\b(nav|navigation|tab bar|tabs|bottom bar|bottom nav|bottom navigation)\b/i.test(prompt);
+  const selectedNavigationElement = /data-drawgle-primary-nav|data-nav-item-id/i.test(selectedElementHtml ?? "");
+
+  if (requestedNavigationEdit || selectedNavigationElement) {
+    const { data: projectNavigation, error: navigationError } = await admin
+      .from("project_navigation")
+      .select("id, shell_code, block_index")
+      .eq("project_id", projectId)
+      .maybeSingle();
+
+    if (!navigationError && projectNavigation?.shell_code) {
+      const navigationCode = projectNavigation.shell_code;
+      const navigationBlockIndex = ((projectNavigation.block_index as ScreenBlockIndex | null) ?? indexScreenCode(navigationCode));
+      const allMessages = await fetchProjectMessages(admin, projectId);
+      const chatHistory = await assembleChatContext({
+        admin,
+        projectId,
+        userPrompt: prompt,
+        recentMessages: allMessages,
+      });
+
+      await insertProjectMessage(admin, {
+        projectId,
+        ownerId,
+        screenId,
+        role: "system",
+        content: "Editing shared project navigation...",
+        messageType: "chat",
+        metadata: { action: "navigation_edit_start" },
+      });
+
+      const stream = new ReadableStream({
+        async start(controller) {
+          let fullResponse = "";
+
+          try {
+            for await (const chunk of editScreenStream({
+              messages: chatHistory,
+              screenCode: navigationCode,
+              blockIndex: navigationBlockIndex,
+              targetBlockIds: [],
+              designTokens,
+              navigationArchitecture,
+            })) {
+              fullResponse += chunk;
+              controller.enqueue(new TextEncoder().encode(chunk));
+            }
+
+            if (fullResponse.includes("<edit>")) {
+              const nextCode = applyEdits(navigationCode, fullResponse);
+              if (nextCode !== navigationCode) {
+                const { error: updateError } = await admin
+                  .from("project_navigation")
+                  .update({
+                    shell_code: nextCode,
+                    block_index: indexScreenCode(nextCode) as never,
+                    status: "ready",
+                    error: null,
+                    updated_at: new Date().toISOString(),
+                  })
+                  .eq("id", projectNavigation.id);
+
+                if (updateError) {
+                  throw updateError;
+                }
+              }
+
+              const modelMessage = await insertProjectMessage(admin, {
+                projectId,
+                ownerId,
+                screenId,
+                role: "model",
+                content: fullResponse,
+                messageType: "edit_applied",
+                metadata: { target: "project_navigation" },
+              });
+
+              void embedMessagePair(admin, userMessageId, prompt, modelMessage.id, fullResponse);
+            }
+
+            controller.close();
+          } catch (err) {
+            controller.error(err);
+          }
+        },
+      });
+
+      return new Response(stream, {
+        headers: { "Content-Type": "text/plain" },
+      });
+    }
+  }
+
   const { data: screen, error: screenError } = await admin
     .from("screens")
     .select("id, name, code, block_index")

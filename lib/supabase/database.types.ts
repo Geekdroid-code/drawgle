@@ -164,6 +164,8 @@ export interface Database {
           summary: string | null;
           embedding: number[] | null;
           block_index: Json | null;
+          chrome_policy: Json | null;
+          navigation_item_id: string | null;
           status: ScreenStatus;
           position_x: number;
           position_y: number;
@@ -185,6 +187,8 @@ export interface Database {
           summary?: string | null;
           embedding?: number[] | null;
           block_index?: Json | null;
+          chrome_policy?: Json | null;
+          navigation_item_id?: string | null;
           status?: ScreenStatus;
           position_x: number;
           position_y: number;
@@ -206,6 +210,8 @@ export interface Database {
           summary?: string | null;
           embedding?: number[] | null;
           block_index?: Json | null;
+          chrome_policy?: Json | null;
+          navigation_item_id?: string | null;
           status?: ScreenStatus;
           position_x?: number;
           position_y?: number;
@@ -213,6 +219,45 @@ export interface Database {
           error?: string | null;
           trigger_run_id?: string | null;
           stream_public_token?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      project_navigation: {
+        Row: {
+          id: string;
+          project_id: string;
+          owner_id: string;
+          plan: Json;
+          shell_code: string;
+          block_index: Json | null;
+          status: ScreenStatus;
+          error: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          project_id: string;
+          owner_id: string;
+          plan?: Json;
+          shell_code?: string;
+          block_index?: Json | null;
+          status?: ScreenStatus;
+          error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          project_id?: string;
+          owner_id?: string;
+          plan?: Json;
+          shell_code?: string;
+          block_index?: Json | null;
+          status?: ScreenStatus;
+          error?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -347,5 +392,6 @@ export type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
 export type ProjectRow = Database["public"]["Tables"]["projects"]["Row"];
 export type GenerationRunRow = Database["public"]["Tables"]["generation_runs"]["Row"];
 export type ScreenRow = Database["public"]["Tables"]["screens"]["Row"];
+export type ProjectNavigationRow = Database["public"]["Tables"]["project_navigation"]["Row"];
 export type ScreenMessageRow = Database["public"]["Tables"]["screen_messages"]["Row"];
 export type ProjectMessageRow = Database["public"]["Tables"]["project_messages"]["Row"];

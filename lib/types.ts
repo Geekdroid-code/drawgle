@@ -211,6 +211,30 @@ export interface NavigationArchitecture {
   rationale: string;
 }
 
+export type NavigationPlanKind = "bottom-tabs" | "none";
+
+export interface NavigationPlanItem {
+  id: string;
+  label: string;
+  icon: string;
+  role: string;
+  linkedScreenName: string;
+}
+
+export interface NavigationPlanScreenChrome {
+  screenName: string;
+  chrome: ScreenChromeKind;
+  navigationItemId?: string | null;
+}
+
+export interface NavigationPlan {
+  enabled: boolean;
+  kind: NavigationPlanKind;
+  items: NavigationPlanItem[];
+  visualBrief: string;
+  screenChrome: NavigationPlanScreenChrome[];
+}
+
 export interface ProjectCharter {
   originalPrompt: string;
   imageReferenceSummary?: string | null;
@@ -228,11 +252,13 @@ export interface ScreenPlan {
   type: 'root' | 'detail';
   description: string;
   chromePolicy?: ScreenChromePolicy | null;
+  navigationItemId?: string | null;
 }
 
 export interface PlannedUiFlow {
   requiresBottomNav: boolean;
   navigationArchitecture: NavigationArchitecture;
+  navigationPlan: NavigationPlan;
   screens: ScreenPlan[];
   charter: ProjectCharter;
 }
@@ -300,6 +326,8 @@ export interface ScreenData {
   prompt: string;
   summary?: string | null;
   blockIndex?: ScreenBlockIndex | null;
+  chromePolicy?: ScreenChromePolicy | null;
+  navigationItemId?: string | null;
   x: number;
   y: number;
   sortIndex?: number;
@@ -307,6 +335,19 @@ export interface ScreenData {
   error?: string | null;
   triggerRunId?: string | null;
   streamPublicToken?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectNavigationData {
+  id: string;
+  projectId: string;
+  ownerId: string;
+  plan: NavigationPlan;
+  shellCode: string;
+  blockIndex?: ScreenBlockIndex | null;
+  status: ScreenStatus;
+  error?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -363,5 +404,6 @@ export interface BuildScreenInput {
   image?: PromptImagePayload | null;
   requiresBottomNav: boolean;
   navigationArchitecture?: NavigationArchitecture | null;
+  navigationPlan?: NavigationPlan | null;
   projectContext?: string | null;
 }

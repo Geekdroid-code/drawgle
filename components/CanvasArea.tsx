@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ScreenNode, SCREEN_FRAME_HEIGHT, SCREEN_FRAME_WIDTH } from "./ScreenNode";
 import type { SelectedElementInfo } from "./ScreenNode";
 
-import type { ScreenData } from "@/lib/types";
+import type { ProjectNavigationData, ScreenData } from "@/lib/types";
 
 const CANVAS_SIZE = 10000;
 const DEFAULT_EMPTY_SCALE_DESKTOP = 0.7;
@@ -200,12 +200,14 @@ const CanvasControls = ({
 
 const CanvasContent = ({
   screens,
+  projectNavigation,
   selectedScreen,
   onSelectScreen,
   selectionMode,
   onElementSelected,
 }: {
   screens: ScreenData[];
+  projectNavigation?: ProjectNavigationData | null;
   selectedScreen?: ScreenData | null;
   onSelectScreen?: (screen: ScreenData | null) => void;
   selectionMode?: boolean;
@@ -228,6 +230,7 @@ const CanvasContent = ({
           <ScreenNode
             key={screen.id}
             screen={screen}
+            projectNavigation={projectNavigation}
             isSelected={selectedScreen?.id === screen.id}
             onClick={() => onSelectScreen?.(screen)}
             scale={scale}
@@ -242,6 +245,7 @@ const CanvasContent = ({
 
 export function CanvasArea({
   screens,
+  projectNavigation,
   fitRequestVersion = INITIAL_FIT_REQUEST_VERSION,
   selectedScreen,
   onSelectScreen,
@@ -249,6 +253,7 @@ export function CanvasArea({
   onElementSelected,
 }: {
   screens: ScreenData[];
+  projectNavigation?: ProjectNavigationData | null;
   fitRequestVersion?: number;
   selectedScreen?: ScreenData | null;
   onSelectScreen?: (screen: ScreenData | null) => void;
@@ -315,6 +320,7 @@ export function CanvasArea({
           />
           <CanvasContent
             screens={screens}
+            projectNavigation={projectNavigation}
             selectedScreen={selectedScreen}
             onSelectScreen={onSelectScreen}
             selectionMode={selectionMode}

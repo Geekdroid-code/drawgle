@@ -5,17 +5,19 @@ import type {
   MessageRole,
   ProjectMessageType,
   ProjectStatus,
+  ProjectNavigationRow,
   ScreenRow,
   ScreenStatus,
 } from "@/lib/supabase/database.types";
 import {
   mapGenerationRunRow,
+  mapProjectNavigationRow,
   mapProjectMessageRow,
   mapProjectRow,
   mapScreenMessageRow,
   mapScreenRow,
 } from "@/lib/supabase/mappers";
-import type { DesignTokens, GenerationRunData, Message, ProjectCharter, ProjectData, ProjectMessage, ScreenBlockIndex, ScreenData } from "@/lib/types";
+import type { DesignTokens, GenerationRunData, Message, ProjectCharter, ProjectData, ProjectMessage, ProjectNavigationData, ScreenBlockIndex, ScreenData } from "@/lib/types";
 
 type Client = SupabaseClient<Database>;
 
@@ -29,6 +31,8 @@ export const SCREEN_SELECT_COLUMNS = [
   "code",
   "summary",
   "block_index",
+  "chrome_policy",
+  "navigation_item_id",
   "status",
   "position_x",
   "position_y",
@@ -36,6 +40,19 @@ export const SCREEN_SELECT_COLUMNS = [
   "error",
   "trigger_run_id",
   "stream_public_token",
+  "created_at",
+  "updated_at",
+].join(", ");
+
+export const PROJECT_NAVIGATION_SELECT_COLUMNS = [
+  "id",
+  "project_id",
+  "owner_id",
+  "plan",
+  "shell_code",
+  "block_index",
+  "status",
+  "error",
   "created_at",
   "updated_at",
 ].join(", ");
@@ -307,4 +324,18 @@ export async function updateProjectMessageEmbedding(
   if (error) {
     throw error;
   }
+}
+
+export async function fetchProjectNavigation(client: Client, projectId: string): Promise<ProjectNavigationData | null> {
+  const { data, error } = await client
+    .from("project_navigation")
+    .select(PROJECT_NAVIGATION_SELECT_COLUMNS)
+    .eq("project_id", projectId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data ? mapProjectNavigationRow(data as unknown as ProjectNavigationRow) : null;
 }

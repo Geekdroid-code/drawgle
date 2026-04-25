@@ -1,15 +1,21 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID } from "crypto";
 
 import { logger, runs, streams, task } from "@trigger.dev/sdk";
 
 import { indexScreenCode } from "@/lib/generation/block-index";
 import { assembleProjectContext } from "@/lib/generation/context";
 import { generateEmbedding, generateScreenSummary } from "@/lib/generation/embeddings";
-import { buildScreenStream, extractCode, fallbackProjectCharter, planUiFlow } from "@/lib/generation/service";
+import { buildNavigationShellCode, buildScreenStream, extractCode, fallbackProjectCharter, planUiFlow } from "@/lib/generation/service";
 import { createNavigationArchitecture, deriveRequiresBottomNav } from "@/lib/navigation";
+import {
+  applyNavigationPlanToScreens,
+  indexNavigationShell,
+  normalizeNavigationPlan,
+  sanitizeScreenCodeForSharedNavigation,
+} from "@/lib/project-navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
-import type { DesignTokens, NavigationArchitecture, PromptImagePayload, ProjectCharter, ScreenPlan } from "@/lib/types";
+import type { DesignTokens, NavigationArchitecture, NavigationPlan, PromptImagePayload, ProjectCharter, ScreenPlan } from "@/lib/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -23,6 +29,7 @@ type GenerateUiFlowPayload = {
   plannedScreens?: ScreenPlan[] | null;
   requiresBottomNav?: boolean;
   navigationArchitecture?: NavigationArchitecture | null;
+  navigationPlan?: NavigationPlan | null;
   projectCharter?: ProjectCharter | null;
 };
 
@@ -36,6 +43,7 @@ type BuildScreenTaskPayload = {
   image?: PromptImagePayload | null;
   requiresBottomNav: boolean;
   navigationArchitecture?: NavigationArchitecture | null;
+  navigationPlan?: NavigationPlan | null;
   projectContext?: string | null;
 };
 
@@ -202,6 +210,7 @@ export const buildScreenTask = task({
         image: payload.image,
         requiresBottomNav: payload.requiresBottomNav,
         navigationArchitecture: payload.navigationArchitecture,
+        navigationPlan: payload.navigationPlan,
         projectContext: payload.projectContext,
       }),
     );
@@ -212,7 +221,8 @@ export const buildScreenTask = task({
       rawText += chunk;
     }
 
-    const code = extractCode(rawText);
+    const extractedCode = extractCode(rawText);
+    const code = sanitizeScreenCodeForSharedNavigation(extractedCode, payload.screenPlan);
     const blockIndex = indexScreenCode(code);
 
     // Persist the final code directly so the parent only polls for status.
@@ -222,6 +232,8 @@ export const buildScreenTask = task({
       .update({
         code,
         block_index: blockIndex as never,
+        chrome_policy: (payload.screenPlan.chromePolicy ?? null) as never,
+        navigation_item_id: payload.screenPlan.navigationItemId ?? null,
         status: "ready",
         error: null,
         updated_at: new Date().toISOString(),
@@ -405,6 +417,12 @@ export const generateUiFlowTask = task({
       ? {
           requiresBottomNav: deriveRequiresBottomNav(requestedNavigationArchitecture),
           navigationArchitecture: requestedNavigationArchitecture,
+          navigationPlan: normalizeNavigationPlan({
+            navigationPlan: payload.navigationPlan,
+            screens: payload.plannedScreens,
+            navigationArchitecture: requestedNavigationArchitecture,
+            requiresBottomNav: deriveRequiresBottomNav(requestedNavigationArchitecture),
+          }),
           charter: requestedCharter!,
           screens: payload.plannedScreens,
         }
@@ -415,6 +433,30 @@ export const generateUiFlowTask = task({
           projectContext: planningContext,
           existingCharter: requestedCharter,
         });
+    plan.screens = applyNavigationPlanToScreens(plan.screens, plan.navigationPlan);
+
+    const navigationShellCode = await buildNavigationShellCode({
+      navigationPlan: plan.navigationPlan,
+      designTokens,
+      prompt: payload.prompt,
+    });
+
+    const { error: navigationUpsertError } = await admin
+      .from("project_navigation")
+      .upsert({
+        project_id: payload.projectId,
+        owner_id: payload.ownerId,
+        plan: plan.navigationPlan as never,
+        shell_code: navigationShellCode,
+        block_index: indexNavigationShell(navigationShellCode) as never,
+        status: plan.navigationPlan.enabled ? "ready" : "queued",
+        error: null,
+        updated_at: now(),
+      }, { onConflict: "project_id" });
+
+    if (navigationUpsertError) {
+      throw navigationUpsertError;
+    }
 
     if (plan.charter) {
       await updateProject(admin, payload.projectId, {
@@ -424,10 +466,12 @@ export const generateUiFlowTask = task({
 
     await mergeGenerationRunMetadata(admin, payload.generationRunId, {
       navigationArchitecture: plan.navigationArchitecture,
+      navigationPlan: plan.navigationPlan,
       plannedScreens: plan.screens.map((screenPlan) => ({
         name: screenPlan.name,
         type: screenPlan.type,
         chromePolicy: screenPlan.chromePolicy ?? null,
+        navigationItemId: screenPlan.navigationItemId ?? null,
       })),
     });
 
@@ -439,18 +483,11 @@ export const generateUiFlowTask = task({
           userPrompt: payload.prompt,
         });
 
-    const screenPlans = plan.screens.length > 0 ? plan.screens : (() => {
-      logger.warn("Plan returned zero screens — falling back to raw prompt as screen description", {
-        generationRunId: payload.generationRunId,
-        projectId: payload.projectId,
-        prompt: payload.prompt.slice(0, 200),
-      });
-      return [{
-        name: "New Screen",
-        type: "root" as const,
-        description: payload.prompt,
-      }];
-    })();
+    const screenPlans: ScreenPlan[] = plan.screens.length > 0 ? plan.screens : [{
+      name: "New Screen",
+      type: "root",
+      description: payload.prompt,
+    }];
 
     const reservedSlots = await reserveScreenSlots(admin, payload.projectId, screenPlans.length);
 
@@ -500,6 +537,7 @@ export const generateUiFlowTask = task({
               image: index === 0 ? promptImage : null,
               requiresBottomNav: plan.requiresBottomNav,
               navigationArchitecture: plan.navigationArchitecture,
+              navigationPlan: plan.navigationPlan,
               projectContext: buildContext,
             },
             {
@@ -522,6 +560,8 @@ export const generateUiFlowTask = task({
               name: screenPlan.name,
               prompt: screenPlan.description,
               code: buildPlaceholderCode(screenPlan.name, designTokens),
+              chrome_policy: (screenPlan.chromePolicy ?? null) as never,
+              navigation_item_id: screenPlan.navigationItemId ?? null,
               status: "building",
               trigger_run_id: handle.id,
               stream_public_token: handle.publicAccessToken ?? null,

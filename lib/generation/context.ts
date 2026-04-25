@@ -2,7 +2,7 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
-import type { DesignTokens, ProjectCharter, ProjectMessage } from "@/lib/types";
+import type { DesignTokens, NavigationPlan, ProjectCharter, ProjectMessage } from "@/lib/types";
 
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { generateEmbedding } from "@/lib/generation/embeddings";
@@ -66,6 +66,23 @@ const formatNavigationArchitecture = (charter: ProjectCharter) => {
     `Detail chrome: ${normalized.detailChrome}`,
     `Rationale: ${normalized.rationale}`,
     `Consistency rules: ${normalized.consistencyRules.join(", ")}`,
+  ].join("\n");
+};
+
+const formatNavigationPlan = (navigationPlan: NavigationPlan | null) => {
+  if (!navigationPlan) {
+    return null;
+  }
+
+  if (!navigationPlan.enabled) {
+    return "Persistent navigation: disabled";
+  }
+
+  return [
+    `Persistent navigation: ${navigationPlan.kind}`,
+    `Items: ${navigationPlan.items.map((item) => `${item.label} (${item.id}, ${item.icon}) -> ${item.linkedScreenName}`).join(", ")}`,
+    `Visual brief: ${navigationPlan.visualBrief}`,
+    `Screen chrome: ${navigationPlan.screenChrome.map((entry) => `${entry.screenName}: ${entry.chrome}${entry.navigationItemId ? `/${entry.navigationItemId}` : ""}`).join(", ")}`,
   ].join("\n");
 };
 
@@ -173,6 +190,12 @@ export async function assembleProjectContext({
 
   const charter = (project.project_charter as ProjectCharter | null) ?? null;
   const designTokens = (project.design_tokens as DesignTokens | null) ?? null;
+  const { data: projectNavigation } = await client
+    .from("project_navigation")
+    .select("plan")
+    .eq("project_id", projectId)
+    .maybeSingle();
+  const navigationPlan = (projectNavigation?.plan as NavigationPlan | null) ?? null;
 
   let matches: MatchedScreen[] = [];
   const queryText = userPrompt.trim() || charter?.originalPrompt || project.prompt || "Extend this product with a coherent new screen.";
@@ -199,6 +222,9 @@ export async function assembleProjectContext({
     charter ? `PROJECT CHARTER\n${formatCharter(charter)}` : null,
     charter?.navigationArchitecture
       ? `NAVIGATION ARCHITECTURE\n${formatNavigationArchitecture(charter)}`
+      : null,
+    formatNavigationPlan(navigationPlan)
+      ? `APPROVED NAVIGATION PLAN\n${formatNavigationPlan(navigationPlan)}`
       : null,
     charter?.creativeDirection
       ? `CREATIVE DIRECTION\n${formatCreativeDirection(charter.creativeDirection)}`

@@ -11,6 +11,7 @@ import type { SelectedElementInfo } from "@/components/ScreenNode";
 import { Button } from "@/components/ui/button";
 import { useGenerationRuns } from "@/hooks/use-generation-runs";
 import { useProject } from "@/hooks/use-project";
+import { useProjectNavigation } from "@/hooks/use-project-navigation";
 import { useScreens } from "@/hooks/use-screens";
 import { createClient } from "@/lib/supabase/client";
 import { deleteScreen, insertProjectMessage } from "@/lib/supabase/queries";
@@ -19,8 +20,10 @@ import type {
   DesignTokens,
   GenerationRunData,
   NavigationArchitecture,
+  NavigationPlan,
   PlannedUiFlow,
   ProjectData,
+  ProjectNavigationData,
   PromptImagePayload,
   ScreenPlan,
   ScreenData,
@@ -63,6 +66,7 @@ async function enqueueGeneration(input: {
   plannedScreens?: ScreenPlan[] | null;
   requiresBottomNav?: boolean;
   navigationArchitecture?: NavigationArchitecture | null;
+  navigationPlan?: NavigationPlan | null;
 }) {
   const response = await fetch("/api/generations", {
     method: "POST",
@@ -115,15 +119,18 @@ export function ProjectShell({
   initialProject,
   initialScreens,
   initialGenerationRuns,
+  initialProjectNavigation,
 }: {
   user: AuthenticatedUser;
   initialProject: ProjectData;
   initialScreens: ScreenData[];
   initialGenerationRuns: GenerationRunData[];
+  initialProjectNavigation: ProjectNavigationData | null;
 }) {
   const router = useRouter();
   const { project, isLoading: isProjectLoading } = useProject(initialProject.id, initialProject);
   const { screens, refreshScreens } = useScreens(initialProject.id, initialScreens);
+  const { projectNavigation } = useProjectNavigation(initialProject.id, initialProjectNavigation);
   const { generationRun, generationRuns, refreshGenerationRuns } = useGenerationRuns(initialProject.id, initialGenerationRuns);
   const [fitRequestVersion, setFitRequestVersion] = useState(0);
   const [selectedScreen, setSelectedScreen] = useState<ScreenData | null>(null);
@@ -208,7 +215,6 @@ export function ProjectShell({
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectionMode(false);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedElementInfo(null);
   }, [selectedScreen?.id]);
 
@@ -354,6 +360,7 @@ export function ProjectShell({
     plannedScreens?: ScreenPlan[] | null;
     requiresBottomNav?: boolean;
     navigationArchitecture?: NavigationArchitecture | null;
+    navigationPlan?: NavigationPlan | null;
   }) => {
     if (!project || isGenerationBusy) {
       return false;
@@ -374,6 +381,7 @@ export function ProjectShell({
         plannedScreens: input.plannedScreens ?? null,
         requiresBottomNav: input.requiresBottomNav,
         navigationArchitecture: input.navigationArchitecture ?? null,
+        navigationPlan: input.navigationPlan ?? null,
       });
 
       setPendingQueuedRunId(queuedRun.generationRunId);
@@ -445,6 +453,7 @@ export function ProjectShell({
         screenPlan,
         requiresBottomNav: plan.requiresBottomNav,
         navigationArchitecture: plan.navigationArchitecture,
+        navigationPlan: plan.navigationPlan,
       });
 
       return true;
@@ -474,6 +483,7 @@ export function ProjectShell({
       designTokens: project.designTokens ?? null,
       sourceGenerationRunId: run.id,
       navigationArchitecture: project.charter?.navigationArchitecture ?? null,
+      navigationPlan: projectNavigation?.plan ?? null,
     });
   };
 
@@ -494,6 +504,7 @@ export function ProjectShell({
       plannedScreens: [addScreenPlan.screenPlan],
       requiresBottomNav: addScreenPlan.requiresBottomNav,
       navigationArchitecture: addScreenPlan.navigationArchitecture,
+      navigationPlan: addScreenPlan.navigationPlan,
     });
 
     if (queued) {
@@ -635,6 +646,7 @@ export function ProjectShell({
         <div className="relative h-full min-w-0 flex-1">
           <CanvasArea
             screens={screens}
+            projectNavigation={projectNavigation}
             fitRequestVersion={fitRequestVersion}
             selectedScreen={selectedScreen}
             onSelectScreen={setSelectedScreen}

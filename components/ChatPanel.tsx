@@ -17,7 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useProjectMessages } from "@/hooks/use-project-messages";
 import { describeScreenNavigation } from "@/lib/navigation";
-import type { GenerationRunData, NavigationArchitecture, ProjectData, ProjectMessage, PromptImagePayload, ScreenData, ScreenPlan } from "@/lib/types";
+import type { GenerationRunData, NavigationArchitecture, NavigationPlan, ProjectData, ProjectMessage, PromptImagePayload, ScreenData, ScreenPlan } from "@/lib/types";
 
 export type ScreenPlanState =
   | {
@@ -32,6 +32,7 @@ export type ScreenPlanState =
       screenPlan: ScreenPlan;
       requiresBottomNav: boolean;
       navigationArchitecture: NavigationArchitecture;
+      navigationPlan: NavigationPlan;
     }
   | {
       status: "error";

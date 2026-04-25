@@ -9,7 +9,8 @@ export const plannerInstruction = `You are an expert UX Architect and visual rev
 Your job is to turn the user's idea, uploaded reference screens, optional CREATIVE DIRECTION, and optional CURRENT PROJECT CONTEXT into:
 1. a durable product charter
 2. a durable project-level navigation architecture
-2. a set of production-grade screen briefs that a UI builder can implement without seeing the original reference image.
+3. a concrete project-level navigation plan when persistent navigation is appropriate
+4. a set of production-grade screen briefs that a UI builder can implement without seeing the original reference image.
 
 You may receive REFERENCE SCREEN ANALYSIS. Treat it as high-confidence evidence of the actual composition, hierarchy, and styling cues visible in the uploaded screenshots.
 You may receive CREATIVE DIRECTION. Treat it as the intentional art-direction thesis for the product and carry it through the charter and screen briefs.
@@ -24,6 +25,7 @@ Use kind "bottom-tabs-app" when the product has several peer root destinations.
 Use kind "hierarchical" when the product mostly moves through push-style flows and detail screens.
 Use kind "single-screen" when the experience is intentionally focused and does not need persistent app-level navigation.
 Then assign each screen a chrome_policy that matches that architecture instead of improvising navigation per screen.
+If persistent primary navigation is useful, also define navigation_plan before any screen is built. This plan must be dynamic for this project: choose tab labels, icons, linked root screens, roles, and a visual brief that match the app concept and design direction.
 
 Return strictly valid JSON in this format:
 {
@@ -34,6 +36,27 @@ Return strictly valid JSON in this format:
     "detail_chrome": "top-bar-back",
     "consistency_rules": ["Rule 1", "Rule 2"],
     "rationale": "Why this navigation structure fits the product"
+  },
+  "navigation_plan": {
+    "enabled": true,
+    "kind": "bottom-tabs",
+    "items": [
+      {
+        "id": "home",
+        "label": "Home",
+        "icon": "home",
+        "role": "Primary dashboard and launch point",
+        "linked_screen_name": "Home"
+      }
+    ],
+    "visual_brief": "Describe the project-specific visual treatment for the shared nav shell.",
+    "screen_chrome": [
+      {
+        "screen_name": "Home",
+        "chrome": "bottom-tabs",
+        "navigation_item_id": "home"
+      }
+    ]
   },
   "charter": {
     "originalPrompt": "Clean restatement of the user's intent",
@@ -73,6 +96,11 @@ Return strictly valid JSON in this format:
 Rules:
 - The first screen should ALWAYS have type "root". Subsequent screens should be "detail".
 - navigation_architecture must define one consistent app-wide navigation family.
+- navigation_plan must be present. Use enabled false and kind "none" when the product should not have persistent navigation.
+- navigation_plan.items must contain only project-specific primary destinations, usually 3-5 items for bottom-tabs apps.
+- Each navigation_plan item must link to a planned root screen by linked_screen_name unless it is an intentional future placeholder.
+- Use Lucide icon names for navigation_plan.items.icon.
+- navigation_plan.screen_chrome must list every planned screen and must match each screen's chrome_policy.
 - charter.navigationModel should be a human-readable explanation that matches navigation_architecture, not a conflicting second system.
 - chrome_policy must match the screen's role in the architecture. Detail screens should not carry the primary bottom-tab shell.
 - originalPrompt must preserve the user's product intent, not just paraphrase the latest sentence fragment.
@@ -91,6 +119,7 @@ Rules:
 - Do not duplicate the same anatomy across screens unless the reference clearly reuses it.
 - If CURRENT PROJECT CONTEXT is present, extend the existing product architecture and naming instead of reinventing it.
 - If CURRENT_PROJECT_CONTEXT contains an approved navigation architecture, preserve it instead of changing the product shell.
+- If CURRENT_PROJECT_CONTEXT contains an approved navigation plan, preserve it unless the user explicitly asks to add, remove, or redesign primary navigation.
 - If REFERENCE SCREEN ANALYSIS is present, use it to increase specificity and preserve the strongest visual cues rather than rewriting them as generic product language.
 - If CREATIVE DIRECTION is present, do not water it down into generic product language.`;
 
@@ -412,7 +441,8 @@ export const buildSystemInstruction = ({
   screenPlan,
   requiresBottomNav,
   navigationArchitecture,
-}: Pick<BuildScreenInput, "designTokens" | "requiresBottomNav" | "navigationArchitecture"> & { screenPlan: ScreenPlan }) => {
+  navigationPlan,
+}: Pick<BuildScreenInput, "designTokens" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan"> & { screenPlan: ScreenPlan }) => {
   const bgPrimary = resolveToken(designTokens, "color.background.primary", "#ffffff");
   const fontFamily = resolveToken(designTokens, "typography.font_family", "sans-serif");
   const safeTop = resolveToken(designTokens, "mobile_layout.safe_area_top", "16px");
@@ -428,7 +458,9 @@ export const buildSystemInstruction = ({
   const navigationInstruction = (() => {
     switch (screenChrome.chrome) {
       case "bottom-tabs":
-        return "This screen is a root shell with primary bottom-tab navigation. You MUST include the primary app navigation here and make the active destination visually explicit.";
+        return navigationPlan?.enabled
+          ? "This screen is a root tab destination, but Drawgle injects the shared project navigation shell separately. You are forbidden from adding bottom-tab, tab-bar, footer-nav, or primary navigation markup inside this screen. Build only the screen content above the shared shell."
+          : "This screen is a root shell with primary bottom-tab navigation. You MUST include the primary app navigation here and make the active destination visually explicit.";
       case "top-bar-back":
         return "This screen is a deeper detail screen. You MUST include a top app bar with a clear back affordance and you are forbidden from adding the primary bottom-tab shell.";
       case "modal-sheet":
@@ -480,6 +512,7 @@ ${serializeDesignTokens(designTokens)}
 CRITICAL INSTRUCTION 2: NAVIGATION ARCHITECTURE
 ${navigationInstruction}
 Any navigation surfaces in this app must read as one family: same spacing discipline, icon sizing, label treatment, active-state logic, radius language, and border/elevation treatment.
+${navigationPlan?.enabled ? `The shared navigation plan has already been created for this project. Active tab for this screen: ${screenPlan.navigationItemId ?? "none"}. Shared nav items: ${navigationPlan.items.map((item) => `${item.label} (${item.icon})`).join(", ")}. Visual brief: ${navigationPlan.visualBrief}` : ""}
 
 RULES:
 1. Outermost element MUST be: <div class="w-full min-h-screen bg-[${bgPrimary}] flex flex-col relative overflow-hidden" style="font-family: ${fontFamily}">
@@ -491,5 +524,6 @@ RULES:
 7. Do NOT include <html>, <head>, or <body> tags. Just the content.
 8. Use Lucide icons via standard SVG or <i data-lucide="icon-name"></i> tags.
 9. If additional project memory context is supplied in the request, keep naming, information architecture, interaction patterns, and art direction aligned with it without cloning an existing screen verbatim.
-10. If project memory includes a creative direction or signature moments, reflect them in the composition instead of ignoring them.`;
+10. If project memory includes a creative direction or signature moments, reflect them in the composition instead of ignoring them.
+${navigationPlan?.enabled ? "11. Do NOT create a <nav>, bottom tab bar, footer navigation, or persistent primary navigation. Leave bottom space visually compatible with the injected shared shell, but do not draw the shell yourself." : ""}`;
 };

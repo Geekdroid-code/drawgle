@@ -13,6 +13,7 @@ import {
   type DesignTokens,
   type GenerationStatus,
   type NavigationArchitecture,
+  type NavigationPlan,
   type ProjectCharter,
   type ScreenPlan,
 } from "@/lib/types";
@@ -44,6 +45,7 @@ const requestSchema = z.object({
           showPrimaryNavigation: z.boolean(),
           showsBackButton: z.boolean(),
         }).nullable().optional(),
+        navigationItemId: z.string().trim().min(1).max(80).nullable().optional(),
       }),
     )
     .min(1)
@@ -57,6 +59,23 @@ const requestSchema = z.object({
     detailChrome: z.enum(["bottom-tabs", "top-bar", "top-bar-back", "modal-sheet", "immersive"]),
     consistencyRules: z.array(z.string().trim().min(1).max(300)).min(2).max(6),
     rationale: z.string().trim().min(1).max(1200),
+  }).nullable().optional(),
+  navigationPlan: z.object({
+    enabled: z.boolean(),
+    kind: z.enum(["bottom-tabs", "none"]),
+    items: z.array(z.object({
+      id: z.string().trim().min(1).max(80),
+      label: z.string().trim().min(1).max(40),
+      icon: z.string().trim().min(1).max(80),
+      role: z.string().trim().min(1).max(240),
+      linkedScreenName: z.string().trim().min(1).max(100),
+    })).max(5),
+    visualBrief: z.string().trim().min(1).max(1600),
+    screenChrome: z.array(z.object({
+      screenName: z.string().trim().min(1).max(100),
+      chrome: z.enum(["bottom-tabs", "top-bar", "top-bar-back", "modal-sheet", "immersive"]),
+      navigationItemId: z.string().trim().min(1).max(80).nullable().optional(),
+    })),
   }).nullable().optional(),
   projectCharter: z
     .object({
@@ -176,6 +195,7 @@ export async function POST(request: Request) {
     const plannedScreens = (payload.plannedScreens ?? null) as ScreenPlan[] | null;
     const projectCharter = (payload.projectCharter ?? null) as ProjectCharter | null;
     const navigationArchitecture = (payload.navigationArchitecture ?? projectCharter?.navigationArchitecture ?? null) as NavigationArchitecture | null;
+    const navigationPlan = (payload.navigationPlan ?? null) as NavigationPlan | null;
     let designTokens = requestedDesignTokens;
 
     projectId = payload.projectId;
@@ -291,6 +311,7 @@ export async function POST(request: Request) {
           requestedFrom: payload.sourceGenerationRunId ? "retry" : "nextjs-route",
           sourceGenerationRunId: payload.sourceGenerationRunId ?? null,
           navigationArchitecture,
+          navigationPlan,
         } as never,
         created_at: now(),
         updated_at: now(),
@@ -316,6 +337,7 @@ export async function POST(request: Request) {
         plannedScreens,
         requiresBottomNav: payload.requiresBottomNav,
         navigationArchitecture,
+        navigationPlan,
         projectCharter,
       },
       {

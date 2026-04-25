@@ -1,12 +1,13 @@
 "use client";
 
-import { ScreenData } from "@/lib/types";
+import type { ProjectNavigationData, ScreenData } from "@/lib/types";
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { MoreHorizontal, Download, Trash2, Edit2, Smartphone, MousePointerClick, Crosshair } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { createClient } from "@/lib/supabase/client";
 import { deleteScreen, updateScreenPosition } from "@/lib/supabase/queries";
+import { composeScreenCode } from "@/lib/project-navigation";
 import { useRealtimeRunWithStreams } from "@trigger.dev/react-hooks";
 
 /** Data sent from the iframe when the user clicks an element in selection mode. */
@@ -228,6 +229,7 @@ function DimensionBadge({ visible }: { visible: boolean }) {
 
 export function ScreenNode({
   screen,
+  projectNavigation,
   isSelected,
   onClick,
   scale = 1,
@@ -235,6 +237,7 @@ export function ScreenNode({
   onElementSelected,
 }: {
   screen: ScreenData;
+  projectNavigation?: ProjectNavigationData | null;
   isSelected?: boolean;
   onClick?: () => void;
   scale?: number;
@@ -302,7 +305,11 @@ export function ScreenNode({
     return stripFences(chunks.join(""));
   }, [triggerStreams]);
 
-  const displayCode = streamedCode ?? safeCode;
+  const rawDisplayCode = streamedCode ?? safeCode;
+  const displayCode = useMemo(
+    () => composeScreenCode({ screen, code: rawDisplayCode, projectNavigation }),
+    [projectNavigation, rawDisplayCode, screen],
+  );
 
   // ── Position sync from DB
   //
@@ -553,7 +560,7 @@ export function ScreenNode({
         </style>
       </head>
       <body>
-        <div id="root">${initialCode}</div>
+        <div id="root">${composeScreenCode({ screen, code: initialCode, projectNavigation })}</div>
         <script>
           lucide.createIcons();
 
@@ -712,7 +719,7 @@ export function ScreenNode({
       </body>
     </html>
   `,
-    [initialCode],
+    [initialCode, projectNavigation, screen],
   );
 
   // =========================================================================
