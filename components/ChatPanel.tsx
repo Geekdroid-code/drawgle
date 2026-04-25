@@ -1,23 +1,33 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
-  Loader2,
+  AlertCircle,
+  ArrowRight,
   Bot,
   CheckCircle2,
-  AlertCircle,
-  Sparkles,
+  CircleDotDashed,
+  Loader2,
+  Minimize2,
   Pencil,
   Plus,
-  ArrowRight,
-  Minimize2,
 } from "lucide-react";
+import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "framer-motion";
 
 import { Button } from "@/components/ui/button";
 import { useProjectMessages } from "@/hooks/use-project-messages";
 import { describeScreenNavigation } from "@/lib/navigation";
-import type { GenerationRunData, NavigationArchitecture, NavigationPlan, ProjectData, ProjectMessage, PromptImagePayload, ScreenData, ScreenPlan } from "@/lib/types";
+import type {
+  GenerationRunData,
+  NavigationArchitecture,
+  NavigationPlan,
+  ProjectData,
+  ProjectMessage,
+  PromptImagePayload,
+  ScreenData,
+  ScreenPlan,
+} from "@/lib/types";
 
 export type ScreenPlanState =
   | {
@@ -41,6 +51,31 @@ export type ScreenPlanState =
       error: string;
     };
 
+type ReadyScreenPlanState = Extract<ScreenPlanState, { status: "ready" }>;
+
+type AgentActivityKind = "user_request" | "working" | "update" | "error" | "proposal";
+
+type AgentActivityItem = {
+  id: string;
+  kind: AgentActivityKind;
+  label: string;
+  title: string;
+  detail?: string;
+  screenName?: string | null;
+  timestamp?: string;
+  proposal?: ReadyScreenPlanState;
+  retryRun?: GenerationRunData;
+  dismissPlan?: boolean;
+};
+
+type AgentStatus = {
+  label: string;
+  text: string;
+  detail?: string;
+  busy: boolean;
+  alert: boolean;
+};
+
 const generationStatusLabels: Record<GenerationRunData["status"], string> = {
   queued: "Queued",
   planning: "Planning",
@@ -50,137 +85,41 @@ const generationStatusLabels: Record<GenerationRunData["status"], string> = {
   canceled: "Canceled",
 };
 
-function MessageTypeIcon({ messageType }: { messageType: ProjectMessage["messageType"] }) {
-  switch (messageType) {
-    case "edit_applied":
-      return <CheckCircle2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />;
-    case "generation_started":
-      return <Sparkles className="w-3.5 h-3.5 text-slate-400 shrink-0 animate-pulse" />;
-    case "generation_completed":
-      return <CheckCircle2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />;
-    case "screen_created":
-      return <Plus className="w-3.5 h-3.5 text-slate-400 shrink-0" />;
-    case "error":
-      return <AlertCircle className="w-3.5 h-3.5 text-slate-400 shrink-0" />;
-    default:
-      return <Sparkles className="w-3.5 h-3.5 text-slate-400 shrink-0" />;
+const isActiveGenerationRun = (run: GenerationRunData | null) =>
+  Boolean(run && (run.status === "queued" || run.status === "planning" || run.status === "building"));
+
+const getMetadataString = (metadata: Record<string, unknown>, key: string) => {
+  const value = metadata[key];
+  return typeof value === "string" && value.trim() ? value : null;
+};
+
+const getMetadataNumber = (metadata: Record<string, unknown>, key: string) => {
+  const value = metadata[key];
+  return typeof value === "number" ? value : null;
+};
+
+const getScreenForMessage = (message: ProjectMessage, screens: ScreenData[]) => {
+  const metadataName = getMetadataString(message.metadata, "screenName");
+
+  if (message.screenId) {
+    return screens.find((screen) => screen.id === message.screenId) ?? null;
   }
-}
 
-function ActivityNote({
-  label,
-  icon,
-  title,
-  detail,
-  tone = "neutral",
-  action,
-}: {
-  label: string;
-  icon: React.ReactNode;
-  title: string;
-  detail?: string;
-  tone?: "neutral" | "active" | "success" | "error";
-  action?: React.ReactNode;
-}) {
-  return (
-    <div className="self-start w-full rounded-[10px] dg-metal-plate px-4 py-3">
-      <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-        {icon}
-        {label}
-      </div>
-      <p className="mt-2 text-sm leading-6 text-slate-800">{title}</p>
-      {detail ? <p className="mt-0.5 text-xs leading-5 text-slate-600">{detail}</p> : null}
-      {action ? <div className="mt-3">{action}</div> : null}
-    </div>
-  );
-}
-
-function SystemMessageRow({ message }: { message: ProjectMessage }) {
-  const tone = message.messageType === "error"
-    ? "error"
-    : message.messageType === "generation_completed" || message.messageType === "edit_applied"
-      ? "success"
-      : message.messageType === "generation_started"
-        ? "active"
-        : "neutral";
-
-  const label = message.messageType === "error"
-    ? "Agent alert"
-    : message.messageType === "generation_started"
-      ? "Agent working"
-      : message.messageType === "generation_completed"
-        ? "Agent update"
-        : message.messageType === "edit_applied"
-          ? "Edit applied"
-          : "Agent note";
-
-  return (
-    <ActivityNote
-      label={label}
-      icon={<MessageTypeIcon messageType={message.messageType} />}
-      title={message.content}
-      tone={tone}
-    />
-  );
-}
-
-function MessageBubble({
-  message,
-  screens,
-}: {
-  message: ProjectMessage;
-  screens: ScreenData[];
-}) {
-  const isUser = message.role === "user";
-  const isSystem = message.role === "system";
-  const linkedScreen = message.screenId
-    ? screens.find((screen) => screen.id === message.screenId)
+  return metadataName
+    ? screens.find((screen) => screen.name === metadataName) ?? null
     : null;
+};
 
-  if (isSystem) {
-    return <SystemMessageRow message={message} />;
+const getScreenName = (message: ProjectMessage, screens: ScreenData[]) => {
+  const metadataName = getMetadataString(message.metadata, "screenName");
+  if (metadataName) {
+    return metadataName;
   }
 
-  const isEditApplied =
-    message.messageType === "edit_applied" ||
-    (message.role === "model" && message.content.includes("<edit>"));
+  return getScreenForMessage(message, screens)?.name ?? null;
+};
 
-  return (
-    <div className={`flex flex-col max-w-[90%] ${isUser ? "self-end" : "self-start"}`}>
-      {linkedScreen && !isUser ? (
-        <div className="mb-1 ml-1 flex items-center gap-1">
-          <Pencil className="w-3 h-3 text-slate-400" />
-          <span className="text-[10px] font-medium tracking-[0.08em] text-slate-400 uppercase">{linkedScreen.name}</span>
-        </div>
-      ) : null}
-
-      <div
-        className={`rounded-2xl px-4 py-3 text-sm leading-6 ${
-          isUser
-            ? "rounded-tr-[4px] dg-metal-dark-plate text-white"
-            : "rounded-tl-[4px] dg-metal-plate text-slate-900"
-        }`}
-      >
-        {isEditApplied ? (
-          <div className="flex items-center gap-2 font-medium text-slate-600">
-            <CheckCircle2 className="w-4 h-4 text-slate-400" />
-            Applied changes{linkedScreen ? ` to ${linkedScreen.name}` : ""}
-          </div>
-        ) : (
-          <div className="whitespace-pre-wrap break-words">{message.content}</div>
-        )}
-      </div>
-
-      {linkedScreen && isUser ? (
-        <div className="mt-1 mr-1 flex items-center gap-1 self-end">
-          <span className="text-[10px] font-medium tracking-[0.08em] text-blue-200 uppercase">{linkedScreen.name}</span>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function getRunStats(run: GenerationRunData, screens: ScreenData[]) {
+const getRunStats = (run: GenerationRunData, screens: ScreenData[]) => {
   const runScreens = screens.filter((screen) => screen.generationRunId === run.id);
 
   return {
@@ -188,168 +127,804 @@ function getRunStats(run: GenerationRunData, screens: ScreenData[]) {
     readyScreens: runScreens.filter((screen) => screen.status === "ready").length,
     failedScreens: runScreens.filter((screen) => screen.status === "failed").length,
     buildingScreens: runScreens.filter((screen) => screen.status === "building").length,
+    firstBuildingScreen: runScreens.find((screen) => screen.status === "building") ?? null,
   };
-}
+};
 
-function LiveCanvasActivity({
+const screenCountLabel = (count: number) => `${count} screen${count === 1 ? "" : "s"}`;
+
+const titleFromMessage = (message: ProjectMessage, screens: ScreenData[]) => {
+  const screenName = getScreenName(message, screens);
+
+  if (message.messageType === "edit_applied") {
+    return screenName ? `Applied changes to ${screenName}` : "Applied changes";
+  }
+
+  if (message.messageType === "generation_completed") {
+    const successfulScreens = getMetadataNumber(message.metadata, "successfulScreens");
+    if (screenName) {
+      return `${screenName} ready`;
+    }
+    if (successfulScreens !== null) {
+      return `Created ${screenCountLabel(successfulScreens)}`;
+    }
+  }
+
+  if (message.messageType === "screen_created" && screenName) {
+    return `${screenName} created`;
+  }
+
+  return message.content.trim() || "Agent update";
+};
+
+const getMessageGenerationRunId = (message: ProjectMessage) =>
+  getMetadataString(message.metadata, "generationRunId");
+
+const isPlanningMessage = (message: ProjectMessage) => {
+  const normalizedContent = message.content.trim().toLowerCase();
+  return normalizedContent.includes("planning screen") || normalizedContent.startsWith("planned ");
+};
+
+const isRunSummaryMessage = (message: ProjectMessage, screens: ScreenData[]) => {
+  const generationRunId = getMessageGenerationRunId(message);
+  if (!generationRunId || getScreenName(message, screens) || message.screenId) {
+    return false;
+  }
+
+  const normalizedContent = message.content.trim().toLowerCase();
+  return (
+    getMetadataNumber(message.metadata, "successfulScreens") !== null ||
+    normalizedContent.startsWith("created ") ||
+    normalizedContent.startsWith("generation finished") ||
+    normalizedContent.startsWith("generation failed")
+  );
+};
+
+const getMessageAction = (message: ProjectMessage) =>
+  getMetadataString(message.metadata, "action");
+
+const isEditStartMessage = (message: ProjectMessage) => {
+  const action = getMessageAction(message);
+  const normalizedContent = message.content.trim().toLowerCase();
+  return (
+    action === "edit_start" ||
+    action === "navigation_edit_start" ||
+    (message.role === "system" && message.messageType === "chat" && normalizedContent.startsWith("editing ") && normalizedContent.endsWith("..."))
+  );
+};
+
+const isEditNoopMessage = (message: ProjectMessage) => {
+  const action = getMessageAction(message);
+  const normalizedContent = message.content.trim().toLowerCase();
+  return action === "edit_noop" || normalizedContent.startsWith("no material ");
+};
+
+const isEditActivityMessage = (message: ProjectMessage) =>
+  isEditStartMessage(message) || isEditNoopMessage(message) || message.messageType === "edit_applied";
+
+const getMessageActivityKey = (message: ProjectMessage, screens: ScreenData[]) => {
+  if (message.role === "user") {
+    return null;
+  }
+
+  const explicitActivityKey = getMetadataString(message.metadata, "activityKey");
+  if (explicitActivityKey) {
+    return explicitActivityKey;
+  }
+
+  const generationRunId = getMessageGenerationRunId(message);
+  if (!generationRunId) {
+    return null;
+  }
+
+  const screenName = getScreenName(message, screens);
+  const isStatusMessage =
+    message.messageType === "generation_started" ||
+    message.messageType === "generation_completed" ||
+    message.messageType === "screen_created" ||
+    message.messageType === "error";
+
+  if (!isStatusMessage) {
+    return null;
+  }
+
+  if (screenName || message.screenId) {
+    return `legacy-screen:${generationRunId}:${message.screenId ?? screenName}`;
+  }
+
+  if (getMetadataNumber(message.metadata, "successfulScreens") !== null) {
+    return `legacy-run:${generationRunId}:summary`;
+  }
+
+  if (isPlanningMessage(message)) {
+    return `legacy-run:${generationRunId}:planning`;
+  }
+
+  return null;
+};
+
+const collapseActivityMessages = (
+  messages: ProjectMessage[],
+  screens: ScreenData[],
+  generationRuns: GenerationRunData[],
+) => {
+  const orderedKeys: string[] = [];
+  const messagesByKey = new Map<string, ProjectMessage>();
+  const terminalRunIds = new Set(
+    generationRuns
+      .filter((run) => run.status === "completed" || run.status === "failed" || run.status === "canceled")
+      .map((run) => run.id),
+  );
+
+  for (const message of messages) {
+    const generationRunId = getMessageGenerationRunId(message);
+    if (generationRunId && isRunSummaryMessage(message, screens)) {
+      terminalRunIds.add(generationRunId);
+    }
+  }
+
+  let latestUserMessageId: string | null = null;
+
+  for (const message of messages) {
+    if (message.role === "user") {
+      latestUserMessageId = message.id;
+      const activityKey = `message:${message.id}`;
+      orderedKeys.push(activityKey);
+      messagesByKey.set(activityKey, message);
+      continue;
+    }
+
+    const generationRunId = getMessageGenerationRunId(message);
+    if (generationRunId && terminalRunIds.has(generationRunId) && message.messageType === "generation_started" && isPlanningMessage(message)) {
+      continue;
+    }
+
+    const explicitActivityKey = getMetadataString(message.metadata, "activityKey");
+    const userMessageId = getMetadataString(message.metadata, "userMessageId");
+    const activityKey =
+      explicitActivityKey ??
+      (isEditActivityMessage(message)
+        ? `legacy-edit:${userMessageId ?? latestUserMessageId ?? message.screenId ?? getScreenName(message, screens) ?? message.id}`
+        : getMessageActivityKey(message, screens) ?? `message:${message.id}`);
+
+    if (!messagesByKey.has(activityKey)) {
+      orderedKeys.push(activityKey);
+    }
+
+    messagesByKey.set(activityKey, message);
+  }
+
+  return orderedKeys
+    .map((key) => messagesByKey.get(key))
+    .filter((message): message is ProjectMessage => Boolean(message));
+};
+
+const activityFromMessage = (message: ProjectMessage, screens: ScreenData[]): AgentActivityItem => {
+  const screenName = getScreenName(message, screens);
+  const screen = getScreenForMessage(message, screens);
+
+  if (message.role === "user") {
+    return {
+      id: `message-${message.id}`,
+      kind: "user_request",
+      label: "User request",
+      title: message.content.trim() || "Reference image request",
+      detail: screenName ? `Editing ${screenName}` : undefined,
+      screenName,
+      timestamp: message.timestamp,
+    };
+  }
+
+  if (message.messageType === "error") {
+    return {
+      id: `message-${message.id}`,
+      kind: "error",
+      label: "Agent alert",
+      title: message.content.trim() || "Something needs review.",
+      screenName,
+      timestamp: message.timestamp,
+    };
+  }
+
+  if (isEditStartMessage(message)) {
+    return {
+      id: `message-${message.id}`,
+      kind: "working",
+      label: "Agent working",
+      title: titleFromMessage(message, screens),
+      screenName,
+      timestamp: message.timestamp,
+    };
+  }
+
+  if (isEditNoopMessage(message)) {
+    return {
+      id: `message-${message.id}`,
+      kind: "update",
+      label: "Agent update",
+      title: message.content.trim() || (screenName ? `No material changes for ${screenName}` : "No material changes applied"),
+      screenName,
+      timestamp: message.timestamp,
+    };
+  }
+
+  if (message.messageType === "generation_started") {
+    if (screen?.status === "ready") {
+      return {
+        id: `message-${message.id}`,
+        kind: "update",
+        label: "Agent update",
+        title: `${screen.name} ready`,
+        screenName: screen.name,
+        timestamp: message.timestamp,
+      };
+    }
+
+    if (screen?.status === "failed") {
+      return {
+        id: `message-${message.id}`,
+        kind: "error",
+        label: "Agent alert",
+        title: `${screen.name} failed`,
+        detail: screen.error ?? undefined,
+        screenName: screen.name,
+        timestamp: message.timestamp,
+      };
+    }
+
+    return {
+      id: `message-${message.id}`,
+      kind: "working",
+      label: "Agent working",
+      title: titleFromMessage(message, screens),
+      screenName,
+      timestamp: message.timestamp,
+    };
+  }
+
+  if (
+    message.messageType === "generation_completed" ||
+    message.messageType === "screen_created" ||
+    message.messageType === "edit_applied"
+  ) {
+    return {
+      id: `message-${message.id}`,
+      kind: "update",
+      label: message.messageType === "edit_applied" ? "Edit applied" : "Agent update",
+      title: titleFromMessage(message, screens),
+      screenName,
+      timestamp: message.timestamp,
+    };
+  }
+
+  return {
+    id: `message-${message.id}`,
+    kind: message.role === "model" ? "update" : "working",
+    label: message.role === "model" ? "Agent reply" : "Agent note",
+    title: message.content.trim() || "Agent update",
+    screenName,
+    timestamp: message.timestamp,
+  };
+};
+
+function buildAgentActivities({
+  messages,
+  screens,
   generationRun,
   generationRuns,
-  screens,
   isQueueing,
   queueError,
-  retryDisabled,
   screenPlan,
-  onRetryGeneration,
 }: {
+  messages: ProjectMessage[];
+  screens: ScreenData[];
   generationRun: GenerationRunData | null;
   generationRuns: GenerationRunData[];
-  screens: ScreenData[];
   isQueueing: boolean;
   queueError?: string | null;
-  retryDisabled?: boolean;
   screenPlan?: ScreenPlanState | null;
-  onRetryGeneration?: (run: GenerationRunData) => void;
 }) {
-  const latestTerminalRun = [...generationRuns]
-    .filter((run) => run.status === "completed" || run.status === "failed" || run.status === "canceled")
+  const activities = collapseActivityMessages(messages, screens, generationRuns).map((message) => activityFromMessage(message, screens));
+
+  if (queueError) {
+    activities.push({
+      id: "live-queue-error",
+      kind: "error",
+      label: "Agent alert",
+      title: queueError,
+    });
+  }
+
+  if (screenPlan?.status === "planning") {
+    activities.push({
+      id: "live-screen-planning",
+      kind: "working",
+      label: "Agent working",
+      title: "Planning the next screen...",
+      detail: screenPlan.prompt,
+    });
+  }
+
+  if (screenPlan?.status === "ready") {
+    activities.push({
+      id: `proposal-${screenPlan.screenPlan.name}`,
+      kind: "proposal",
+      label: "Proposal ready",
+      title: screenPlan.screenPlan.name,
+      detail: screenPlan.screenPlan.description,
+      proposal: screenPlan,
+    });
+  }
+
+  if (screenPlan?.status === "error") {
+    activities.push({
+      id: "live-screen-plan-error",
+      kind: "error",
+      label: "Planner alert",
+      title: screenPlan.error,
+      dismissPlan: true,
+    });
+  }
+
+  if (isQueueing && !generationRun) {
+    activities.push({
+      id: "live-queueing",
+      kind: "working",
+      label: "Agent working",
+      title: "Queueing generation...",
+      detail: "The builder will start as soon as the project slot is free.",
+    });
+  }
+
+  if (generationRun && isActiveGenerationRun(generationRun)) {
+    const stats = getRunStats(generationRun, screens);
+    const detail = generationRun.status === "building" && stats.totalScreens > 0
+      ? `${stats.readyScreens}/${stats.totalScreens} ready${stats.failedScreens > 0 ? ` - ${stats.failedScreens} failed` : ""}`
+      : generationRun.error ?? undefined;
+
+    activities.push({
+      id: `live-generation-${generationRun.id}-${generationRun.status}`,
+      kind: "working",
+      label: "Agent working",
+      title: stats.firstBuildingScreen
+        ? `Building ${stats.firstBuildingScreen.name}...`
+        : `${generationStatusLabels[generationRun.status]} screens...`,
+      detail,
+    });
+  }
+
+  const latestRetryRun = [...generationRuns]
+    .filter((run) => run.status === "failed" || run.status === "canceled")
     .sort(
       (left, right) =>
         new Date(right.completedAt ?? right.updatedAt).getTime() -
         new Date(left.completedAt ?? left.updatedAt).getTime(),
     )[0] ?? null;
 
+  if (!generationRun && latestRetryRun) {
+    const alreadyHasRunError = messages.some((message) => (
+      message.messageType === "error" &&
+      getMetadataString(message.metadata, "generationRunId") === latestRetryRun.id
+    ));
+
+    if (!alreadyHasRunError) {
+      activities.push({
+        id: `retry-${latestRetryRun.id}`,
+        kind: "error",
+        label: "Generation ended",
+        title: latestRetryRun.error ?? "Generation finished with an issue.",
+        retryRun: latestRetryRun,
+      });
+    }
+  }
+
+  return activities;
+}
+
+function getAgentStatus({
+  generationRun,
+  screens,
+  isQueueing,
+  queueError,
+  screenPlan,
+}: {
+  generationRun: GenerationRunData | null;
+  screens: ScreenData[];
+  isQueueing: boolean;
+  queueError?: string | null;
+  screenPlan?: ScreenPlanState | null;
+}): AgentStatus {
   if (queueError) {
-    return (
-      <ActivityNote
-        label="Agent alert"
-        icon={<AlertCircle className="w-3.5 h-3.5 text-slate-400" />}
-        title={queueError}
-        tone="error"
-      />
-    );
+    return {
+      label: "Agent alert",
+      text: "Needs review",
+      detail: queueError,
+      busy: false,
+      alert: true,
+    };
+  }
+
+  if (screenPlan?.status === "error") {
+    return {
+      label: "Planner alert",
+      text: "Screen plan needs attention",
+      detail: screenPlan.error,
+      busy: false,
+      alert: true,
+    };
+  }
+
+  if (screenPlan?.status === "ready") {
+    return {
+      label: "Proposal ready",
+      text: "Screen proposal ready",
+      detail: screenPlan.screenPlan.name,
+      busy: false,
+      alert: false,
+    };
   }
 
   if (screenPlan?.status === "planning") {
-    return (
-      <ActivityNote
-        label="Analyzing request"
-        icon={<Loader2 className="w-3.5 h-3.5 animate-spin text-slate-500" />}
-        title="Drafting one coherent screen brief from project memory and design tokens."
-        detail="This stays in chat so the user can see the agent working without switching surfaces."
-        tone="active"
-      />
-    );
+    return {
+      label: "Agent working",
+      text: "Planning next screen...",
+      busy: true,
+      alert: false,
+    };
   }
 
   if (isQueueing && !generationRun) {
-    return (
-      <ActivityNote
-        label="Queued"
-        icon={<Loader2 className="w-3.5 h-3.5 animate-spin text-slate-500" />}
-        title="Your generation request is being queued."
-        detail="The builder will start as soon as the current project slot is free."
-        tone="active"
-      />
-    );
+    return {
+      label: "Agent working",
+      text: "Queueing generation...",
+      busy: true,
+      alert: false,
+    };
   }
 
-  if (generationRun && (generationRun.status === "queued" || generationRun.status === "planning" || generationRun.status === "building")) {
+  if (generationRun && isActiveGenerationRun(generationRun)) {
     const stats = getRunStats(generationRun, screens);
-    const detail = generationRun.status === "building"
-      ? `${stats.readyScreens}/${stats.totalScreens} ready${stats.failedScreens > 0 ? ` - ${stats.failedScreens} failed` : ""}${stats.buildingScreens > 0 ? ` - ${stats.buildingScreens} building` : ""}`
-      : generationRun.error ?? "Waiting for the next persisted update from the background run.";
+    if (generationRun.status === "building") {
+      return {
+        label: "Agent working",
+        text: stats.firstBuildingScreen ? `Building ${stats.firstBuildingScreen.name}...` : "Building screens...",
+        detail: stats.totalScreens > 0 ? `${stats.readyScreens}/${stats.totalScreens} screens ready` : undefined,
+        busy: true,
+        alert: false,
+      };
+    }
 
-    return (
-      <ActivityNote
-        label="Agent working"
-        icon={<Loader2 className="w-3.5 h-3.5 animate-spin text-slate-500" />}
-        title={generationRun.status === "building" ? "Building screens on the canvas." : `${generationStatusLabels[generationRun.status]} screens.`}
-        detail={detail}
-        tone="active"
-      />
-    );
+    return {
+      label: "Agent working",
+      text: `${generationStatusLabels[generationRun.status]} screens...`,
+      busy: true,
+      alert: false,
+    };
   }
 
-  return null;
+  return {
+    label: "Agent ready",
+    text: "Agent is ready",
+    busy: false,
+    alert: false,
+  };
 }
 
-function PlanCard({
-  screenPlan,
+function ActivityIcon({
+  item,
+  reduceMotion,
+}: {
+  item: AgentActivityItem;
+  reduceMotion: boolean;
+}) {
+  const iconClass = "h-4 w-4";
+
+  if (item.kind === "working") {
+    return (
+      <motion.span
+        className="flex h-[26px] w-[26px] items-center justify-center rounded-full border border-dashed border-[#2563eb]/70 bg-white text-[#2563eb]"
+        animate={reduceMotion ? undefined : { rotate: 360 }}
+        transition={{ duration: 3.2, repeat: Infinity, ease: "linear" }}
+      >
+        <CircleDotDashed className={iconClass} />
+      </motion.span>
+    );
+  }
+
+  if (item.kind === "error") {
+    return (
+      <span className="flex h-[26px] w-[26px] items-center justify-center rounded-full border border-rose-200 bg-white text-rose-600">
+        <AlertCircle className={iconClass} />
+      </span>
+    );
+  }
+
+  if (item.kind === "proposal") {
+    return (
+      <span className="flex h-[26px] w-[26px] items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500">
+        <Plus className={iconClass} />
+      </span>
+    );
+  }
+
+  return (
+    <span className="flex h-[26px] w-[26px] items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500">
+      <CheckCircle2 className={iconClass} />
+    </span>
+  );
+}
+
+function ProposalBody({
+  item,
   isBuilding,
   onBuildPlannedScreen,
   onCancelPlan,
 }: {
-  screenPlan: ScreenPlanState;
+  item: AgentActivityItem;
   isBuilding: boolean;
-  onBuildPlannedScreen: () => void;
-  onCancelPlan: () => void;
+  onBuildPlannedScreen?: () => void;
+  onCancelPlan?: () => void;
 }) {
-  if (screenPlan.status === "planning") {
+  const proposal = item.proposal;
+  if (!proposal) {
     return null;
   }
 
-  if (screenPlan.status === "error") {
-    return (
-      <ActivityNote
-        label="Planner error"
-        icon={<AlertCircle className="w-3.5 h-3.5 text-slate-400" />}
-        title={screenPlan.error}
-        tone="error"
-        action={
-          <Button type="button" variant="outline" className="rounded-[10px] dg-metal-plate text-slate-800" onClick={onCancelPlan}>
-            Dismiss
-          </Button>
-        }
-      />
-    );
-  }
-
-  const { screenPlan: plan, image, navigationArchitecture } = screenPlan;
+  const plan = proposal.screenPlan;
 
   return (
-    <section className="self-start w-full rounded-[12px] dg-metal-plate px-4 py-4">
-      <div className="flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400">
-        <Sparkles className="w-3.5 h-3.5 text-slate-400" />
-        Proposed screen
-      </div>
-
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <div className="rounded-[8px] dg-metal-dark-plate px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-white">
+    <div className="mt-3 rounded-[12px] border border-slate-950/[0.08] bg-white/80 p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="rounded-[7px] border border-slate-950/[0.12] bg-[#f7f7f8] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-700">
           {plan.type}
-        </div>
-        <div className="rounded-[8px] border border-slate-950/[0.12] bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-600">
-          {describeScreenNavigation(plan, navigationArchitecture)}
-        </div>
+        </span>
+        <span className="rounded-[7px] border border-slate-950/[0.08] bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+          {describeScreenNavigation(plan, proposal.navigationArchitecture)}
+        </span>
       </div>
 
-      <h3 className="mt-3 text-base font-semibold tracking-[-0.02em] text-slate-950">{plan.name}</h3>
-      <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-600">{plan.description}</p>
+      <p className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-700">{plan.description}</p>
 
-      {image ? (
-        <div className="mt-3 flex items-center gap-3 rounded-[10px] border border-slate-950/[0.12] bg-white p-3">
-          <div className="relative h-11 w-11 overflow-hidden rounded-[8px] border border-slate-950/[0.12] bg-white">
+      {proposal.image ? (
+        <div className="mt-3 flex items-center gap-3 rounded-[10px] border border-slate-950/[0.08] bg-[#f7f7f8] p-2.5">
+          <div className="relative h-11 w-11 overflow-hidden rounded-[8px] border border-slate-950/[0.1] bg-white">
             <Image
-              src={`data:${image.mimeType};base64,${image.data}`}
+              src={`data:${proposal.image.mimeType};base64,${proposal.image.data}`}
               alt="Screen planning reference"
               fill
               unoptimized
               className="object-cover"
             />
           </div>
-          <div className="text-sm text-slate-600">Reference image will be used when this screen is built.</div>
+          <div className="text-xs leading-5 text-slate-600">Reference image will be used when this screen is built.</div>
         </div>
       ) : null}
 
       <div className="mt-4 flex items-center gap-2">
-        <Button type="button" variant="outline" className="rounded-[10px] dg-metal-plate" onClick={onCancelPlan} disabled={isBuilding}>
-          Cancel
-        </Button>
-        <Button type="button" className="rounded-[10px] dg-button-primary px-5" onClick={onBuildPlannedScreen} disabled={isBuilding}>
-          {isBuilding ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-          Build Screen
-        </Button>
+        {onCancelPlan ? (
+          <Button type="button" variant="outline" className="h-8 rounded-[9px] dg-metal-plate px-3 text-xs" onClick={onCancelPlan} disabled={isBuilding}>
+            Cancel
+          </Button>
+        ) : null}
+        {onBuildPlannedScreen ? (
+          <Button type="button" className="h-8 rounded-[9px] dg-button-primary px-3 text-xs" onClick={onBuildPlannedScreen} disabled={isBuilding}>
+            {isBuilding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowRight className="h-3.5 w-3.5" />}
+            Build Screen
+          </Button>
+        ) : null}
       </div>
-    </section>
+    </div>
+  );
+}
+
+function AgentActivityRow({
+  item,
+  reduceMotion,
+  isBuilding,
+  retryDisabled,
+  onRetryGeneration,
+  onBuildPlannedScreen,
+  onCancelPlan,
+}: {
+  item: AgentActivityItem;
+  reduceMotion: boolean;
+  isBuilding: boolean;
+  retryDisabled?: boolean;
+  onRetryGeneration?: (run: GenerationRunData) => void;
+  onBuildPlannedScreen?: () => void;
+  onCancelPlan?: () => void;
+}) {
+  const rowVariants = {
+    hidden: { opacity: 0, y: reduceMotion ? 0 : 8 },
+    visible: { opacity: 1, y: 0 },
+    exit: { opacity: 0, y: reduceMotion ? 0 : -4 },
+  };
+
+  if (item.kind === "user_request") {
+    return (
+      <motion.li
+        layout
+        initial="hidden"
+        animate="visible"
+        exit="exit"
+        variants={rowVariants}
+        transition={{ duration: 0.18 }}
+        className="ml-10 flex justify-end py-1"
+      >
+        <div className="max-w-[88%] border-b border-slate-950/[0.08] pb-2 text-right text-sm leading-6 text-slate-700">
+          <div className="whitespace-pre-wrap break-words">{item.title}</div>
+          {item.detail ? <div className="mt-1 text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">{item.detail}</div> : null}
+        </div>
+      </motion.li>
+    );
+  }
+
+  const mutedTitle = item.kind === "update" ? "text-slate-700" : "text-slate-900";
+
+  return (
+    <motion.li
+      layout
+      initial="hidden"
+      animate="visible"
+      exit="exit"
+      variants={rowVariants}
+      transition={{ duration: 0.2 }}
+      className="group relative pl-10"
+    >
+      <div className="absolute left-0 top-2.5 z-10">
+        <ActivityIcon item={item} reduceMotion={reduceMotion} />
+      </div>
+
+      <div className="px-2.5 py-3 transition-colors duration-200 group-hover:bg-slate-950/[0.018] rounded-lg">
+        <div className="flex min-w-0 items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.26em] text-[#667894]">
+          <span>{item.label}</span>
+          {item.screenName ? <span className="h-1 w-1 rounded-full bg-slate-300" /> : null}
+          {item.screenName ? <span className="min-w-0 max-w-[132px] truncate">{item.screenName}</span> : null}
+        </div>
+        <div className={`text-[13px] leading-6 ${mutedTitle}`}>{item.title}</div>
+        {item.detail && item.kind !== "proposal" ? (
+          <div className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{item.detail}</div>
+        ) : null}
+
+        {item.kind === "proposal" ? (
+          <ProposalBody
+            item={item}
+            isBuilding={isBuilding}
+            onBuildPlannedScreen={onBuildPlannedScreen}
+            onCancelPlan={onCancelPlan}
+          />
+        ) : null}
+
+        {item.dismissPlan && onCancelPlan ? (
+          <Button type="button" variant="outline" className="mt-3 h-8 rounded-[9px] dg-metal-plate px-3 text-xs" onClick={onCancelPlan}>
+            Dismiss
+          </Button>
+        ) : null}
+
+        {item.retryRun && onRetryGeneration ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-3 h-8 rounded-[9px] dg-metal-plate px-3 text-xs"
+            disabled={retryDisabled}
+            onClick={() => onRetryGeneration(item.retryRun as GenerationRunData)}
+          >
+            Retry
+          </Button>
+        ) : null}
+      </div>
+    </motion.li>
+  );
+}
+
+function AgentActivityTimeline({
+  activities,
+  isLoading,
+  reduceMotion,
+  isBuilding,
+  retryDisabled,
+  onRetryGeneration,
+  onBuildPlannedScreen,
+  onCancelPlan,
+}: {
+  activities: AgentActivityItem[];
+  isLoading: boolean;
+  reduceMotion: boolean;
+  isBuilding: boolean;
+  retryDisabled?: boolean;
+  onRetryGeneration?: (run: GenerationRunData) => void;
+  onBuildPlannedScreen?: () => void;
+  onCancelPlan?: () => void;
+}) {
+  if (!isLoading && activities.length === 0) {
+    return (
+      <div className="flex min-h-[280px] items-center justify-center px-5 text-center">
+        <div>
+          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full dg-bot-bubble">
+            <Bot className="h-4 w-4" />
+          </div>
+          <p className="mt-4 text-sm leading-6 text-slate-500">Start from the main prompt box. Agent activity will appear here as a live timeline.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <LayoutGroup>
+      <div className="relative pl-1">
+        <div className="pointer-events-none absolute bottom-4 left-[17px] top-4 border-l border-dashed border-slate-300" />
+        <motion.ul layout className="space-y-0.5">
+          <AnimatePresence initial={false}>
+            {activities.map((item) => (
+              <AgentActivityRow
+                key={item.id}
+                item={item}
+                reduceMotion={reduceMotion}
+                isBuilding={isBuilding}
+                retryDisabled={retryDisabled}
+                onRetryGeneration={onRetryGeneration}
+                onBuildPlannedScreen={onBuildPlannedScreen}
+                onCancelPlan={onCancelPlan}
+              />
+            ))}
+          </AnimatePresence>
+        </motion.ul>
+      </div>
+    </LayoutGroup>
+  );
+}
+
+function AgentStatusDock({
+  status,
+  reduceMotion,
+}: {
+  status: AgentStatus;
+  reduceMotion: boolean;
+}) {
+  const iconNode = status.alert ? (
+    <AlertCircle className="h-4 w-4 text-rose-600" />
+  ) : status.busy ? (
+    <CircleDotDashed className="h-4 w-4 text-[#2563eb]" />
+  ) : (
+    <Bot className="h-4 w-4 text-slate-700" />
+  );
+
+  return (
+    <div className="shrink-0 border-t border-slate-950/[0.08] bg-white/94 px-3 py-2.5 backdrop-blur-xl">
+      <div className="flex items-center gap-3 rounded-[12px] border border-slate-950/[0.08] bg-[#fcfcfc] px-3 py-2">
+        <motion.div
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-dashed border-slate-300 bg-white text-slate-800"
+          animate={status.busy && !reduceMotion ? { rotate: 360 } : undefined}
+          transition={{ duration: 3.2, repeat: Infinity, ease: "linear" }}
+        >
+          {iconNode}
+        </motion.div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#667894]">{status.label}</div>
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={`${status.text}-${status.detail ?? ""}`}
+              initial={{ opacity: 0, y: reduceMotion ? 0 : 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: reduceMotion ? 0 : -4 }}
+              transition={{ duration: 0.18 }}
+              className="truncate text-sm font-medium text-slate-800"
+            >
+              {status.text}
+            </motion.div>
+          </AnimatePresence>
+          {status.detail ? <div className="truncate text-xs text-slate-500">{status.detail}</div> : null}
+        </div>
+        {status.busy ? (
+          <span className="relative flex h-2.5 w-2.5 shrink-0">
+            <span className="absolute inline-flex h-full w-full rounded-full bg-[#2563eb] opacity-35 motion-safe:animate-ping" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#2563eb]" />
+          </span>
+        ) : (
+          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${status.alert ? "bg-rose-500" : "bg-emerald-400"}`} />
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -430,12 +1005,34 @@ export function ChatPanel({
 }) {
   const { messages, isLoading } = useProjectMessages(project.id);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const isGenerationActive = Boolean(
-    generationRun &&
-    (generationRun.status === "queued" || generationRun.status === "planning" || generationRun.status === "building"),
-  );
+  const reduceMotion = Boolean(useReducedMotion());
+  const isGenerationActive = isActiveGenerationRun(generationRun);
   const hasAlert = Boolean(queueError || screenPlan?.status === "error");
   const isBusy = isGenerationActive || isQueueing || screenPlan?.status === "planning";
+
+  const activities = useMemo(
+    () => buildAgentActivities({
+      messages,
+      screens,
+      generationRun,
+      generationRuns,
+      isQueueing,
+      queueError,
+      screenPlan,
+    }),
+    [generationRun, generationRuns, isQueueing, messages, queueError, screenPlan, screens],
+  );
+
+  const agentStatus = useMemo(
+    () => getAgentStatus({
+      generationRun,
+      screens,
+      isQueueing,
+      queueError,
+      screenPlan,
+    }),
+    [generationRun, isQueueing, queueError, screenPlan, screens],
+  );
 
   let collapsedEyebrow = "Agent history";
   let collapsedTitle = project.name;
@@ -473,7 +1070,7 @@ export function ChatPanel({
     }, 100);
 
     return () => window.clearTimeout(timeout);
-  }, [isCollapsed, messages, screenPlan, generationRun?.id, generationRun?.status, isQueueing, queueError]);
+  }, [activities.length, generationRun?.id, generationRun?.status, isCollapsed, isQueueing, queueError, screenPlan]);
 
   if (isCollapsed) {
     return (
@@ -489,7 +1086,7 @@ export function ChatPanel({
 
   return (
     <div
-      className={`absolute z-50 flex flex-col overflow-hidden transition-all duration-300
+      className={`mx-2 absolute z-50 flex flex-col overflow-hidden transition-all duration-300
         animate-in fade-in-0 slide-in-from-left-2 duration-300
         md:left-4 md:bottom-4 md:h-[calc(100vh-5rem)] md:w-96 md:rounded-[14px]
         bottom-0 left-0 right-0 h-[85vh] rounded-t-[16px]
@@ -528,41 +1125,21 @@ export function ChatPanel({
         </div>
       ) : null}
 
-      <div className="chat-history-scrollbar flex-1 overflow-y-auto bg-[#fcfcfc] px-4 py-4">
-        <div className="flex flex-col gap-3">
-          {!isLoading && messages.length === 0 && !screenPlan ? (
-            <div className="mt-10 text-center text-sm leading-6 text-slate-500">
-              Start from the main prompt box. This panel will narrate what the agent is doing.
-            </div>
-          ) : null}
-
-          {messages.map((message) => (
-            <MessageBubble key={message.id} message={message} screens={screens} />
-          ))}
-
-          <LiveCanvasActivity
-            generationRun={generationRun}
-            generationRuns={generationRuns}
-            screens={screens}
-            isQueueing={isQueueing}
-            queueError={queueError}
-            retryDisabled={retryDisabled}
-            screenPlan={screenPlan}
-            onRetryGeneration={onRetryGeneration}
-          />
-
-          {screenPlan && onBuildPlannedScreen && onCancelPlan ? (
-            <PlanCard
-              screenPlan={screenPlan}
-              isBuilding={isBuilding}
-              onBuildPlannedScreen={onBuildPlannedScreen}
-              onCancelPlan={onCancelPlan}
-            />
-          ) : null}
-
-          <div ref={messagesEndRef} />
-        </div>
+      <div className="chat-history-scrollbar min-h-0 flex-1 overflow-y-auto bg-white px-4 py-5">
+        <AgentActivityTimeline
+          activities={activities}
+          isLoading={isLoading}
+          reduceMotion={reduceMotion}
+          isBuilding={isBuilding}
+          retryDisabled={retryDisabled}
+          onRetryGeneration={onRetryGeneration}
+          onBuildPlannedScreen={onBuildPlannedScreen}
+          onCancelPlan={onCancelPlan}
+        />
+        <div ref={messagesEndRef} />
       </div>
+
+      <AgentStatusDock status={agentStatus} reduceMotion={reduceMotion} />
     </div>
   );
 }

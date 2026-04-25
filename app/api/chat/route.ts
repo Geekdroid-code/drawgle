@@ -16,6 +16,68 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
+type ProjectMessageInput = Parameters<typeof insertProjectMessage>[1];
+
+async function upsertActivityMessage(
+  admin: ReturnType<typeof createAdminClient>,
+  activityKey: string,
+  input: ProjectMessageInput,
+) {
+  const metadata = {
+    ...(input.metadata ?? {}),
+    activityKey,
+  };
+
+  const { data: existingMessage, error: existingError } = await admin
+    .from("project_messages")
+    .select("id, metadata")
+    .eq("project_id", input.projectId)
+    .eq("owner_id", input.ownerId)
+    .contains("metadata", { activityKey })
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingError) {
+    throw existingError;
+  }
+
+  if (!existingMessage) {
+    return insertProjectMessage(admin, {
+      ...input,
+      metadata,
+    });
+  }
+
+  const existingMetadata = existingMessage.metadata &&
+    typeof existingMessage.metadata === "object" &&
+    !Array.isArray(existingMessage.metadata)
+    ? existingMessage.metadata as Record<string, unknown>
+    : {};
+
+  const { data, error } = await admin
+    .from("project_messages")
+    .update({
+      screen_id: input.screenId ?? null,
+      role: input.role,
+      content: input.content,
+      message_type: input.messageType ?? "chat",
+      metadata: {
+        ...existingMetadata,
+        ...metadata,
+      } as never,
+    })
+    .eq("id", existingMessage.id)
+    .select("id")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return { id: data.id };
+}
+
 export async function POST(req: Request) {
   try {
     const {
@@ -126,6 +188,7 @@ async function handleEditIntent({
   selectedElementHtml?: string | null;
 }) {
   // Fetch screen (use admin to bypass RLS — ownership already verified)
+  const editActivityKey = `edit:${userMessageId}`;
   const requestedNavigationEdit = /\b(nav|navigation|tab bar|tabs|bottom bar|bottom nav|bottom navigation)\b/i.test(prompt);
   const selectedNavigationElement = /data-drawgle-primary-nav|data-nav-item-id/i.test(selectedElementHtml ?? "");
 
@@ -147,14 +210,14 @@ async function handleEditIntent({
         recentMessages: allMessages,
       });
 
-      await insertProjectMessage(admin, {
+      await upsertActivityMessage(admin, editActivityKey, {
         projectId,
         ownerId,
         screenId,
         role: "system",
         content: "Editing shared project navigation...",
         messageType: "chat",
-        metadata: { action: "navigation_edit_start" },
+        metadata: { action: "navigation_edit_start", userMessageId },
       });
 
       const stream = new ReadableStream({
@@ -193,17 +256,27 @@ async function handleEditIntent({
                 }
               }
 
-              const modelMessage = await insertProjectMessage(admin, {
+              const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
                 projectId,
                 ownerId,
                 screenId,
                 role: "model",
                 content: fullResponse,
                 messageType: "edit_applied",
-                metadata: { target: "project_navigation" },
+                metadata: { action: "edit_applied", target: "project_navigation", userMessageId },
               });
 
               void embedMessagePair(admin, userMessageId, prompt, modelMessage.id, fullResponse);
+            } else {
+              await upsertActivityMessage(admin, editActivityKey, {
+                projectId,
+                ownerId,
+                screenId,
+                role: "system",
+                content: "No material navigation changes were applied.",
+                messageType: "chat",
+                metadata: { action: "edit_noop", target: "project_navigation", userMessageId },
+              });
             }
 
             controller.close();
@@ -257,14 +330,14 @@ async function handleEditIntent({
       ? targetBlockIds.map((id) => blockIndex.blocks.find((b) => b.id === id)?.name ?? id).join(", ")
       : "full screen";
 
-  await insertProjectMessage(admin, {
+  await upsertActivityMessage(admin, editActivityKey, {
     projectId,
     ownerId,
     screenId,
     role: "system",
     content: `Editing ${targetNames} in ${screen.name}...`,
     messageType: "chat",
-    metadata: { action: "edit_start", targetBlockIds },
+    metadata: { action: "edit_start", targetBlockIds, screenName: screen.name, userMessageId },
   });
 
   // Stream the edit response
@@ -290,14 +363,14 @@ async function handleEditIntent({
           const nextCode = applyEdits(screenCode, fullResponse);
 
           if (nextCode === screenCode) {
-            await insertProjectMessage(admin, {
+            await upsertActivityMessage(admin, editActivityKey, {
               projectId,
               ownerId,
               screenId,
               role: "system",
               content: `No material code changes were applied to ${screen.name}.`,
               messageType: "chat",
-              metadata: { action: "edit_noop" },
+              metadata: { action: "edit_noop", screenName: screen.name, userMessageId },
             });
 
             controller.close();
@@ -319,14 +392,14 @@ async function handleEditIntent({
             throw updateError;
           }
 
-          const modelMessage = await insertProjectMessage(admin, {
+          const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
             projectId,
             ownerId,
             screenId,
             role: "model",
             content: fullResponse,
             messageType: "edit_applied",
-            metadata: { screenName: screen.name },
+            metadata: { action: "edit_applied", screenName: screen.name, userMessageId },
           });
 
           void embedMessagePair(admin, userMessageId, prompt, modelMessage.id, fullResponse);
@@ -334,17 +407,18 @@ async function handleEditIntent({
           return;
         }
 
-        const modelMessage = await insertProjectMessage(admin, {
+        const noEditContent = fullResponse.trim() || `No material code changes were applied to ${screen.name}.`;
+        const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
           projectId,
           ownerId,
           screenId,
           role: "model",
-          content: fullResponse,
+          content: noEditContent,
           messageType: "chat",
-          metadata: {},
+          metadata: { action: "edit_noop", screenName: screen.name, userMessageId },
         });
 
-        void embedMessagePair(admin, userMessageId, prompt, modelMessage.id, fullResponse);
+        void embedMessagePair(admin, userMessageId, prompt, modelMessage.id, noEditContent);
 
         controller.close();
       } catch (err) {

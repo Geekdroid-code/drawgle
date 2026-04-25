@@ -187,7 +187,7 @@ const CanvasControls = ({
   };
 
   return (
-    <div className="absolute right-4 top-4 z-50 flex h-11 items-center gap-1 rounded-full dg-panel px-1.5 backdrop-blur-xl">
+    <div className="absolute right-4 top-4 z-50 flex h-8 items-center gap-1 rounded-full dg-panel px-1.5 backdrop-blur-xl">
       <Button variant="ghost" size="icon" onClick={handleZoomIn} className="h-8 w-8 rounded-full hover:bg-[#f7f7f8]">
         <ZoomIn className="h-4 w-4 text-gray-700" />
       </Button>

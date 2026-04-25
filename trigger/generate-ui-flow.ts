@@ -51,6 +51,9 @@ type BuildScreenTaskPayload = {
 type ReservedScreenSlot = Database["public"]["Functions"]["reserve_screen_slots"]["Returns"][number];
 
 const now = () => new Date().toISOString();
+const planningActivityKey = (generationRunId: string) => `run:${generationRunId}:planning`;
+const summaryActivityKey = (generationRunId: string) => `run:${generationRunId}:summary`;
+const screenBuildActivityKey = (screenId: string) => `screen:${screenId}:build`;
 
 const escapeHtml = (text: string) =>
   text
@@ -165,6 +168,63 @@ async function postStatusMessage(
   screenId?: string | null,
 ) {
   try {
+    const activityKey = typeof metadata.activityKey === "string" && metadata.activityKey.trim()
+      ? metadata.activityKey
+      : null;
+
+    if (activityKey) {
+      let existingMessageQuery = admin
+        .from("project_messages")
+        .select("id, metadata")
+        .eq("project_id", projectId)
+        .eq("owner_id", ownerId)
+        .contains("metadata", { activityKey })
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      existingMessageQuery = screenId
+        ? existingMessageQuery.eq("screen_id", screenId)
+        : existingMessageQuery.is("screen_id", null);
+
+      const { data: existingMessage, error: existingMessageError } = await existingMessageQuery.maybeSingle();
+
+      if (existingMessageError) {
+        logger.warn("Failed to find existing status message; inserting a new one", {
+          activityKey,
+          error: existingMessageError,
+        });
+      } else if (existingMessage) {
+        const existingMetadata = existingMessage.metadata &&
+          typeof existingMessage.metadata === "object" &&
+          !Array.isArray(existingMessage.metadata)
+          ? existingMessage.metadata as Record<string, unknown>
+          : {};
+
+        const { error: updateError } = await admin
+          .from("project_messages")
+          .update({
+            content,
+            message_type: messageType ?? "chat",
+            metadata: {
+              ...existingMetadata,
+              ...metadata,
+            } as never,
+            screen_id: screenId ?? null,
+          })
+          .eq("id", existingMessage.id);
+
+        if (updateError) {
+          logger.warn("Failed to update existing status message; inserting a new one", {
+            activityKey,
+            messageId: existingMessage.id,
+            error: updateError,
+          });
+        } else {
+          return;
+        }
+      }
+    }
+
     await admin.from("project_messages").insert({
       project_id: projectId,
       owner_id: ownerId,
@@ -336,6 +396,12 @@ export const generateUiFlowTask = task({
 
     // Mark any placeholder screens from this run as failed so they
     // don't stay stuck in the "building" spinner forever.
+    const { data: stuckScreens } = await admin
+      .from("screens")
+      .select("id, name")
+      .eq("generation_run_id", payload.generationRunId)
+      .eq("status", "building");
+
     await admin
       .from("screens")
       .update({
@@ -346,6 +412,36 @@ export const generateUiFlowTask = task({
       })
       .eq("generation_run_id", payload.generationRunId)
       .eq("status", "building");
+
+    await Promise.all((stuckScreens ?? []).map((screen) =>
+      postStatusMessage(
+        admin,
+        payload.projectId,
+        payload.ownerId,
+        `${screen.name} failed`,
+        "error",
+        {
+          generationRunId: payload.generationRunId,
+          screenName: screen.name,
+          activityKey: screenBuildActivityKey(screen.id),
+          error: message,
+        },
+        screen.id,
+      ),
+    ));
+
+    await postStatusMessage(
+      admin,
+      payload.projectId,
+      payload.ownerId,
+      "Generation failed",
+      "error",
+      {
+        generationRunId: payload.generationRunId,
+        activityKey: summaryActivityKey(payload.generationRunId),
+        error: message,
+      },
+    );
   },
   run: async (payload: GenerateUiFlowPayload) => {
     const admin = createAdminClient();
@@ -384,7 +480,10 @@ export const generateUiFlowTask = task({
       payload.ownerId,
       "Planning screens...",
       "generation_started",
-      { generationRunId: payload.generationRunId },
+      {
+        generationRunId: payload.generationRunId,
+        activityKey: planningActivityKey(payload.generationRunId),
+      },
     );
 
     const [promptImage, planningContext] = await Promise.all([
@@ -489,6 +588,19 @@ export const generateUiFlowTask = task({
       description: payload.prompt,
     }];
 
+    await postStatusMessage(
+      admin,
+      payload.projectId,
+      payload.ownerId,
+      `Planned ${screenPlans.length} screen${screenPlans.length === 1 ? "" : "s"}`,
+      "generation_completed",
+      {
+        generationRunId: payload.generationRunId,
+        plannedScreenCount: screenPlans.length,
+        activityKey: planningActivityKey(payload.generationRunId),
+      },
+    );
+
     const reservedSlots = await reserveScreenSlots(admin, payload.projectId, screenPlans.length);
 
     await updateGenerationRun(admin, payload.generationRunId, {
@@ -584,7 +696,11 @@ export const generateUiFlowTask = task({
             payload.ownerId,
             `Building ${screenPlan.name}...`,
             "generation_started",
-            { screenName: screenPlan.name, generationRunId: payload.generationRunId },
+            {
+              screenName: screenPlan.name,
+              generationRunId: payload.generationRunId,
+              activityKey: screenBuildActivityKey(screenId),
+            },
             screenId,
           );
         } catch (triggerError) {
@@ -610,9 +726,13 @@ export const generateUiFlowTask = task({
               admin,
               payload.projectId,
               payload.ownerId,
-              `✓ ${screenName} ready`,
+              `${screenName} ready`,
               "generation_completed",
-              { generationRunId: payload.generationRunId, screenName },
+              {
+                generationRunId: payload.generationRunId,
+                screenName,
+                activityKey: screenBuildActivityKey(screenId),
+              },
               screenId,
             );
           } else {
@@ -627,6 +747,21 @@ export const generateUiFlowTask = task({
                 updated_at: now(),
               })
               .eq("id", screenId);
+
+            await postStatusMessage(
+              admin,
+              payload.projectId,
+              payload.ownerId,
+              `${screenName} failed`,
+              "error",
+              {
+                generationRunId: payload.generationRunId,
+                screenName,
+                activityKey: screenBuildActivityKey(screenId),
+                error: message,
+              },
+              screenId,
+            );
           }
         } catch (pollError) {
           failedScreens += 1;
@@ -640,6 +775,21 @@ export const generateUiFlowTask = task({
               updated_at: now(),
             })
             .eq("id", screenId);
+
+          await postStatusMessage(
+            admin,
+            payload.projectId,
+            payload.ownerId,
+            `${screenName} failed`,
+            "error",
+            {
+              generationRunId: payload.generationRunId,
+              screenName,
+              activityKey: screenBuildActivityKey(screenId),
+              error: message,
+            },
+            screenId,
+          );
         }
       }),
     );
@@ -663,7 +813,7 @@ export const generateUiFlowTask = task({
     });
 
     const completionContent = finishedStatus === "completed"
-      ? `✓ Created ${successfulScreens} screen${successfulScreens > 1 ? "s" : ""}`
+      ? `Created ${successfulScreens} screen${successfulScreens === 1 ? "" : "s"}`
       : `Generation finished with ${failedScreens} failure${failedScreens > 1 ? "s" : ""}`;
 
     await postStatusMessage(
@@ -672,7 +822,12 @@ export const generateUiFlowTask = task({
       payload.ownerId,
       completionContent,
       finishedStatus === "completed" ? "generation_completed" : "error",
-      { generationRunId: payload.generationRunId, successfulScreens, failedScreens },
+      {
+        generationRunId: payload.generationRunId,
+        successfulScreens,
+        failedScreens,
+        activityKey: summaryActivityKey(payload.generationRunId),
+      },
     );
 
     logger.info("UI flow generation completed", {

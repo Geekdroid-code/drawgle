@@ -602,7 +602,7 @@ export function ProjectShell({
     <div className="h-screen overflow-hidden bg-[#f7f7f8] text-gray-900">
       <main className="relative z-0 flex h-full w-full overflow-hidden">
         <div className="absolute left-4 right-4 top-4 z-50 flex items-center justify-between gap-3">
-          <div className="flex h-10 items-center rounded-full dg-panel px-2 backdrop-blur-xl lg:px-3">
+          <div className="flex h-8 items-center rounded-full dg-panel px-2 backdrop-blur-xl lg:px-3">
             <Button variant="ghost" size="sm" onClick={() => router.push("/project/new")} className="h-8 rounded-full text-neutral-700 hover:bg-[#f7f7f8] focus-visible:bg-[#f7f7f8] data-[state=open]:bg-[#f7f7f8]">
               <ArrowLeft className="mr-2 h-4 w-4" />
               Workspace

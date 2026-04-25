@@ -228,8 +228,8 @@ export function ProjectLobby({
 
                   <div className="mt-8 overflow-hidden rounded-[28px] dg-gradient-ring">
                     {image ? (
-                      <div className="flex items-start gap-3 border-b border-slate-950/[0.08] bg-[#f7f7f8] px-4 py-4">
-                        <div className="relative h-20 w-20 overflow-hidden rounded-[18px] border border-slate-950/[0.08] bg-white">
+                      <div className="flex items-start gap-3 border-b border-slate-950/[0.08] bg-[#f7f7f8] px-2 py-2">
+                        <div className="relative h-12 w-12 overflow-hidden rounded-lg border border-slate-950/[0.08] bg-white">
                           <Image
                             src={`data:${image.mimeType};base64,${image.data}`}
                             alt="Reference upload"
@@ -240,7 +240,7 @@ export function ProjectLobby({
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="text-sm font-medium text-neutral-950">Reference attached</div>
-                          <div className="mt-1 text-sm leading-6 text-neutral-500">This will influence the design system and the first planning pass.</div>
+                          <div className="mt-1 text-xs leading-0.1 text-neutral-500">This will influence the design system and the first planning pass.</div>
                         </div>
                         <button
                           type="button"
@@ -262,7 +262,7 @@ export function ProjectLobby({
                         }
                       }}
                       placeholder="Describe the app, the flow, or the exact UI you want recreated..."
-                      className="min-h-[280px] resize-none border-0 bg-white px-5 py-5 text-lg leading-8 text-neutral-900 shadow-none placeholder:text-neutral-400 focus-visible:ring-0 sm:text-[22px]"
+                      className="min-h-[180px] resize-none border-0 bg-white px-5 py-5 text-lg leading-8 text-neutral-900 shadow-none placeholder:text-neutral-400 focus-visible:ring-0 sm:text-[22px]"
                     />
 
                     <div className="flex flex-col gap-3 border-t border-slate-950/[0.08] bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
