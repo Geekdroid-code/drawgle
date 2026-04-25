@@ -97,7 +97,7 @@ export function AppSidebar({
   const visibleGroups = PROJECT_GROUP_ORDER.filter((label) => groupedProjects[label]?.length);
 
   return (
-    <SidebarRoot collapsible="offcanvas" className="border-r-0" {...props}>
+    <SidebarRoot collapsible="offcanvas" className="border-r border-slate-950/[0.08] bg-white" {...props}>
       <SidebarHeader className="gap-4 px-4 py-5">
         <div className="flex items-center justify-between gap-3">
           <button
@@ -105,7 +105,7 @@ export function AppSidebar({
             onClick={() => router.push("/project/new")}
             className="flex items-center gap-3 text-left"
           >
-            <span className="flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-white text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-950">
+            <span className="flex h-10 w-10 items-center justify-center rounded-full dg-control text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-950">
               DG
             </span>
             <span>
@@ -114,7 +114,7 @@ export function AppSidebar({
             </span>
           </button>
 
-          <Avatar className="h-9 w-9 border border-black/10">
+          <Avatar className="h-9 w-9 border border-slate-950/[0.08]">
             <AvatarImage src={user.avatarUrl || ""} />
             <AvatarFallback>{user.fullName?.charAt(0) || user.email?.charAt(0) || "U"}</AvatarFallback>
           </Avatar>
@@ -125,8 +125,8 @@ export function AppSidebar({
           onClick={() => router.push("/project/new")}
           className={`h-10 w-full justify-start rounded-full px-4 text-sm font-medium ${
             currentProjectId
-              ? "bg-white text-neutral-700 hover:bg-white/90"
-              : "bg-neutral-950 text-white hover:bg-neutral-800"
+              ? "dg-control text-neutral-700 hover:bg-white"
+              : "dg-button-primary text-white"
           }`}
         >
           <Plus className="mr-2 h-4 w-4" />
@@ -139,7 +139,7 @@ export function AppSidebar({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search projects"
-            className="h-11 rounded-full border-black/10 bg-white pl-10 text-sm text-neutral-900"
+            className="h-11 rounded-full border-slate-950/[0.08] bg-[#f7f7f8] pl-10 text-sm text-neutral-900 shadow-none focus-visible:ring-[#002fa7]/15"
           />
         </div>
       </SidebarHeader>
@@ -174,7 +174,7 @@ export function AppSidebar({
 
         {filteredProjects.length === 0 ? (
           <SidebarGroup className="px-3 pt-0">
-            <div className="rounded-[24px] border border-dashed border-black/10 bg-white/55 px-4 py-5 text-sm leading-6 text-neutral-500">
+            <div className="rounded-[20px] border border-dashed border-slate-950/[0.12] bg-[#f7f7f8] px-4 py-5 text-sm leading-6 text-neutral-500">
               {query.trim() ? "No projects match that search." : "No projects yet. Start the first one from this workspace."}
             </div>
           </SidebarGroup>
@@ -182,7 +182,7 @@ export function AppSidebar({
 
         {!currentProjectId ? (
           <SidebarGroup className="mt-auto px-3 pb-3 pt-2">
-            <div className="rounded-[24px] border border-black/8 bg-white/60 px-4 py-4 text-sm leading-6 text-neutral-600">
+            <div className="rounded-[20px] dg-panel-flat bg-[#f7f7f8] px-4 py-4 text-sm leading-6 text-neutral-600">
               New projects start here. The brief, design system, planning, and build kickoff stay inside this protected workspace.
             </div>
           </SidebarGroup>
@@ -192,8 +192,8 @@ export function AppSidebar({
       <SidebarSeparator className="mx-0" />
 
       <SidebarFooter className="px-4 py-4">
-        <div className="flex items-center gap-3 rounded-[22px] bg-white/70 px-3 py-3">
-          <Avatar className="h-10 w-10 border border-black/10">
+        <div className="flex items-center gap-3 rounded-[22px] dg-panel-flat px-3 py-3">
+          <Avatar className="h-10 w-10 border border-slate-950/[0.08]">
             <AvatarImage src={user.avatarUrl || ""} />
             <AvatarFallback>{user.fullName?.charAt(0) || user.email?.charAt(0) || "U"}</AvatarFallback>
           </Avatar>
@@ -201,7 +201,7 @@ export function AppSidebar({
             <div className="truncate text-sm font-medium text-neutral-950">{user.fullName ?? "Drawgle account"}</div>
             <div className="truncate text-xs text-neutral-500">{user.email ?? "Signed in"}</div>
           </div>
-          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-neutral-500 hover:text-neutral-950" onClick={onSignOut}>
+          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-neutral-500 hover:bg-[#f7f7f8] hover:text-neutral-950" onClick={onSignOut}>
             <LogOut className="h-4 w-4" />
           </Button>
         </div>
@@ -230,7 +230,7 @@ function ProjectMenuItem({
       <SidebarMenuButton
         render={<button type="button" onClick={() => router.push(`/project/${id}`)} />}
         isActive={active}
-        className="h-auto items-start gap-3 rounded-[22px] border border-transparent px-3 py-3 text-neutral-950 hover:border-black/8 hover:bg-white/70 data-[active=true]:border-black/12 data-[active=true]:bg-white [&>svg]:mt-0.5 [&>svg]:size-4 [&>svg]:text-neutral-400"
+        className="h-auto items-start gap-3 rounded-[18px] border border-transparent px-3 py-3 text-neutral-950 hover:border-slate-950/[0.08] hover:bg-[#f7f7f8] data-[active=true]:border-slate-950/[0.12] data-[active=true]:bg-white data-[active=true]:shadow-[0_18px_40px_-34px_rgba(15,23,42,0.8)] [&>svg]:mt-0.5 [&>svg]:size-4 [&>svg]:text-neutral-400"
       >
         <LayoutGrid />
         <div className="min-w-0 flex-1">

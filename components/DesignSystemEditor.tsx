@@ -119,10 +119,10 @@ export function DesignSystemEditor({
   const fontFamily = tokens.typography?.font_family?.trim() || undefined;
 
   return (
-    <div className="relative grid min-h-[720px] overflow-hidden rounded-[28px] border border-black/8 bg-[#fcfaf6] md:grid-cols-[minmax(0,520px)_minmax(0,1fr)]">
+    <div className="relative grid min-h-[720px] overflow-hidden rounded-[28px] dg-panel-flat md:grid-cols-[minmax(0,520px)_minmax(0,1fr)]">
       {isSubmitting && submitStatus ? (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/70 backdrop-blur-sm">
-          <div className="rounded-2xl border border-black/10 bg-white px-5 py-4 text-sm font-medium text-slate-700">
+          <div className="rounded-[18px] dg-panel-flat px-5 py-4 text-sm font-medium text-slate-700">
             <div className="flex items-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin" />
               {submitStatus}
@@ -131,9 +131,9 @@ export function DesignSystemEditor({
         </div>
       ) : null}
 
-      <div className="flex min-h-0 flex-col border-b border-black/5 md:border-b-0 md:border-r md:border-black/5">
+      <div className="flex min-h-0 flex-col border-b border-slate-950/[0.08] md:border-b-0 md:border-r md:border-slate-950/[0.08]">
         <div className="space-y-2 px-5 pb-4 pt-5 md:px-6 md:pt-6">
-          <div className="inline-flex items-center rounded-full border border-black/10 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+          <div className="inline-flex items-center rounded-full dg-control px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
             Design Pass
           </div>
           <div>
@@ -144,7 +144,7 @@ export function DesignSystemEditor({
 
         <div className="min-h-0 flex-1 overflow-y-auto pb-24">
           <div className="px-5 pb-5 md:px-6">
-            <div className="rounded-[24px] border border-black/8 bg-[#f4efe4] p-4">
+            <div className="rounded-[22px] border border-slate-950/[0.08] bg-[#f7f7f8] p-4">
               <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">AI Rationale</div>
               {recommendedFonts.length > 0 ? (
                 <div className="mt-3 space-y-2">
@@ -153,7 +153,7 @@ export function DesignSystemEditor({
                   {recommendedFonts.map((font) => (
                     <span
                       key={font}
-                      className="rounded-full border border-black/10 bg-white/80 px-3 py-1.5 text-xs font-medium text-slate-700"
+                      className="rounded-full dg-control px-3 py-1.5 text-xs font-medium text-slate-700"
                     >
                       {font}
                     </span>
@@ -162,7 +162,7 @@ export function DesignSystemEditor({
                 </div>
               ) : null}
               {rationaleEntries.length > 0 ? (
-                <div className="mt-4 divide-y divide-black/8 rounded-[20px] border border-black/8 bg-white/80">
+                <div className="mt-4 divide-y divide-slate-950/[0.08] rounded-[20px] border border-slate-950/[0.08] bg-white">
                   {rationaleEntries.map((entry) => (
                     <div key={entry.label} className="px-4 py-3">
                       <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">{entry.label}</div>
@@ -211,7 +211,7 @@ export function DesignSystemEditor({
                 <input
                   value={tokens.typography?.font_family || ""}
                   onChange={(event) => handleUpdateToken(["typography", "font_family"], event.target.value)}
-                  className="h-10 w-full rounded-xl border border-black/10 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-black/30"
+                  className="h-10 w-full rounded-xl border border-slate-950/[0.08] bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[#002fa7]/40"
                 />
                 <p className="text-xs leading-5 text-slate-500">Edit the saved CSS stack directly. Leave it blank only if you intend the downstream builder to rely on its internal runtime fallback.</p>
               </Field>
@@ -265,7 +265,7 @@ export function DesignSystemEditor({
                   />
                 ))}
               </SubGroup>
-              <div className="rounded-2xl border border-black/8 bg-[#f7f3eb] px-4 py-3">
+              <div className="rounded-[18px] border border-slate-950/[0.08] bg-[#f7f7f8] px-4 py-3">
                 <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                   <MousePointerClick className="h-3.5 w-3.5" />
                   Platform Constraints
@@ -282,7 +282,7 @@ export function DesignSystemEditor({
           <SectionHeader icon={Square} label="Shape & Elevation" sectionKey="shape" expanded={expandedSections.shape} onToggle={toggleSection} />
           {expandedSections.shape ? (
             <div className="space-y-4 px-5 pb-5 md:px-6">
-              <div className="rounded-[20px] border border-black/8 bg-[#f7f3eb] p-4 text-sm leading-6 text-slate-600">
+              <div className="rounded-[18px] border border-slate-950/[0.08] bg-[#f7f7f8] p-4 text-sm leading-6 text-slate-600">
                 One geometry and elevation language should carry the entire app. Use a single standard radius, one standard border width, and one standard surface shadow. Reserve pill geometry only for chips, segmented controls, or deliberate capsule actions.
               </div>
               <SubGroup label="Corner Geometry">
@@ -322,24 +322,24 @@ export function DesignSystemEditor({
                   type="text"
                   value={tokens.shadows?.none || "none"}
                   onChange={(event) => handleUpdateToken(["shadows", "none"], event.target.value)}
-                  className="h-10 w-full rounded-xl border border-black/10 bg-slate-50 px-3 font-mono text-xs text-slate-900 outline-none transition focus:border-black/30 focus:bg-white"
+                  className="h-10 w-full rounded-xl border border-slate-950/[0.08] bg-[#f7f7f8] px-3 font-mono text-xs text-slate-900 outline-none transition focus:border-[#002fa7]/40 focus:bg-white"
                 />
               </Field>
             </div>
           ) : null}
         </div>
 
-        <div className="sticky bottom-0 border-t border-black/5 bg-[#fcfaf6]/95 p-4 backdrop-blur md:p-5">
-          <Button className="h-11 w-full rounded-2xl text-sm font-medium" onClick={() => void onSubmit()} disabled={isSubmitting}>
+        <div className="sticky bottom-0 border-t border-slate-950/[0.08] bg-white/95 p-4 backdrop-blur md:p-5">
+          <Button className="h-11 w-full rounded-[16px] dg-button-primary text-sm font-medium" onClick={() => void onSubmit()} disabled={isSubmitting}>
             {submitLabel}
             <ArrowRight className="ml-1.5 h-4 w-4" />
           </Button>
         </div>
       </div>
 
-      <div className="hidden items-center justify-center border-t border-black/5 bg-[#efe8db] p-8 md:border-t-0 md:flex">
+      <div className="hidden items-center justify-center border-t border-slate-950/[0.08] bg-[#eaedf1] p-8 md:border-t-0 md:flex">
         <div
-          className="relative flex h-[620px] w-[310px] flex-col overflow-hidden rounded-[32px] border border-black/10 bg-white"
+          className="relative flex h-[620px] w-[310px] flex-col overflow-hidden rounded-[32px] border border-slate-950/[0.1] bg-white shadow-[0_28px_70px_-42px_rgba(15,23,42,0.75)]"
           style={{ backgroundColor: primaryBg, color: primaryText, fontFamily }}
         >
           <div className="flex items-center justify-between px-5 pt-5">
@@ -472,7 +472,7 @@ function SectionHeader({
     <button
       type="button"
       onClick={() => onToggle(sectionKey)}
-      className="flex w-full items-center justify-between px-5 py-3 text-left transition hover:bg-[#f7f3eb] md:px-6"
+      className="flex w-full items-center justify-between px-5 py-3 text-left transition hover:bg-[#f7f7f8] md:px-6"
     >
       <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
         <Icon className="h-3.5 w-3.5" />
@@ -522,9 +522,9 @@ function ColorField({ label, value, onChange }: { label: string; value: string; 
   return (
     <div className="relative flex w-full flex-col gap-1">
       <label className="text-[11px] font-medium text-slate-500">{label}</label>
-      <div className="relative flex items-center overflow-hidden rounded-xl border border-black/10 bg-white px-2 py-1.5 transition hover:border-black/20 focus-within:border-black/30">
+      <div className="relative flex items-center overflow-hidden rounded-xl border border-slate-950/[0.08] bg-white px-2 py-1.5 transition hover:border-slate-950/[0.16] focus-within:border-[#002fa7]/40">
         <input type="color" value={safeHex} onChange={(event) => onChange(event.target.value)} className="absolute -left-2 -top-2 h-[200%] w-[200%] cursor-pointer opacity-0" />
-        <div className="h-5 w-5 shrink-0 rounded-md border border-black/10" style={{ backgroundColor: value }} />
+        <div className="h-5 w-5 shrink-0 rounded-md border border-slate-950/[0.08]" style={{ backgroundColor: value }} />
         <input
           type="text"
           value={value}
@@ -544,7 +544,7 @@ function TextField({ label, value, onChange }: { label: string; value: string; o
         type="text"
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-10 w-full rounded-xl border border-black/10 bg-white px-3 font-mono text-xs text-slate-900 outline-none transition focus:border-black/30"
+        className="h-10 w-full rounded-xl border border-slate-950/[0.08] bg-white px-3 font-mono text-xs text-slate-900 outline-none transition focus:border-[#002fa7]/40"
       />
     </div>
   );
@@ -558,7 +558,7 @@ function ShadowField({ label, value, onChange }: { label: string; value: string;
         value={value}
         onChange={(event) => onChange(event.target.value)}
         rows={2}
-        className="w-full rounded-xl border border-black/10 bg-white px-3 py-2 font-mono text-xs text-slate-900 outline-none transition focus:border-black/30"
+        className="w-full rounded-xl border border-slate-950/[0.08] bg-white px-3 py-2 font-mono text-xs text-slate-900 outline-none transition focus:border-[#002fa7]/40"
       />
     </div>
   );
@@ -582,7 +582,7 @@ function TypographyFieldCard({
   onLineHeightChange: (value: string) => void;
 }) {
   return (
-    <div className="rounded-[20px] border border-black/8 bg-[#f7f3eb] p-3">
+    <div className="rounded-[18px] border border-slate-950/[0.08] bg-[#f7f7f8] p-3">
       <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</div>
       <div className="mt-3 grid gap-2 sm:grid-cols-3">
         <TextField label="Size" value={size} onChange={onSizeChange} />
@@ -595,7 +595,7 @@ function TypographyFieldCard({
 
 function ReadOnlyMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-black/8 bg-white/85 px-3 py-2">
+    <div className="rounded-[16px] border border-slate-950/[0.08] bg-white px-3 py-2">
       <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400">{label}</div>
       <div className="mt-1 font-mono text-xs text-slate-900">{value}</div>
     </div>

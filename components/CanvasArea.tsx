@@ -2,7 +2,7 @@
 
 import { TransformComponent, TransformWrapper, useControls } from "react-zoom-pan-pinch";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ZoomIn, ZoomOut, Maximize } from "lucide-react";
+import { ZoomIn, ZoomOut } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ScreenNode, SCREEN_FRAME_HEIGHT, SCREEN_FRAME_WIDTH } from "./ScreenNode";
@@ -187,12 +187,12 @@ const CanvasControls = ({
   };
 
   return (
-    <div className="absolute top-4 right-4 z-50 items-center justify-center bg-clip-border backdrop-blur-glass duration-75 ease-out focus-visible:outline-2 focus-visible:outline-current focus-visible:-outline-offset-2 border border-secondary enabled:hover:bg-state-hover enabled:active:bg-state-pressed text-subtitle-md surface-container backdrop-blur-glass flex gap-[6px] p-2 lg:px-4 lg:py-4 h-8 rounded-[20px]">
-      <Button variant="ghost" size="icon" onClick={handleZoomIn} className="h-8 w-8 rounded-lg hover:bg-gray-100">
-        <ZoomIn className="w-4 h-4 text-gray-700" />
+    <div className="absolute right-4 top-4 z-50 flex h-11 items-center gap-1 rounded-full dg-panel px-1.5 backdrop-blur-xl">
+      <Button variant="ghost" size="icon" onClick={handleZoomIn} className="h-8 w-8 rounded-full hover:bg-[#f7f7f8]">
+        <ZoomIn className="h-4 w-4 text-gray-700" />
       </Button>
-      <Button variant="ghost" size="icon" onClick={handleZoomOut} className="h-8 w-8 rounded-lg hover:bg-gray-100">
-        <ZoomOut className="w-4 h-4 text-gray-700" />
+      <Button variant="ghost" size="icon" onClick={handleZoomOut} className="h-8 w-8 rounded-full hover:bg-[#f7f7f8]">
+        <ZoomOut className="h-4 w-4 text-gray-700" />
       </Button>
     </div>
   );
@@ -299,7 +299,7 @@ export function CanvasArea({
   if (initialScale === null) return null;
 
   return (
-    <div ref={containerRef} className="w-full h-full bg-[#f8f8f8] dot-pattern relative">
+    <div ref={containerRef} className="relative h-full w-full dg-dashed-grid-bg">
       <TransformWrapper
         initialScale={initialScale}
         minScale={MIN_CANVAS_SCALE}

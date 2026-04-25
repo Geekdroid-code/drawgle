@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
 import { CanvasArea } from "@/components/CanvasArea";
-import { ChatPanel, CollapsedChatTrigger, type ScreenPlanState } from "@/components/ChatPanel";
+import { ChatPanel, type ScreenPlanState } from "@/components/ChatPanel";
 import { PromptBar } from "@/components/PromptBar";
 import type { SelectedElementInfo } from "@/components/ScreenNode";
 import { Button } from "@/components/ui/button";
@@ -154,35 +154,6 @@ export function ProjectShell({
     generationRun &&
     (generationRun.status === "queued" || generationRun.status === "planning" || generationRun.status === "building"),
   );
-  const hasChatAlert = Boolean(queueError || addScreenPlan?.status === "error");
-  const isChatBusy = isGenerationActive || isQueueingGeneration || addScreenPlan?.status === "planning";
-
-  let collapsedChatEyebrow = "Agent history";
-  let collapsedChatTitle = project?.name ?? initialProject.name;
-
-  if (queueError) {
-    collapsedChatEyebrow = "Agent alert";
-    collapsedChatTitle = "Review the latest issue";
-  } else if (addScreenPlan?.status === "error") {
-    collapsedChatEyebrow = "Planner alert";
-    collapsedChatTitle = "Screen plan needs attention";
-  } else if (addScreenPlan?.status === "ready") {
-    collapsedChatEyebrow = "Proposal ready";
-    collapsedChatTitle = addScreenPlan.screenPlan.name;
-  } else if (addScreenPlan?.status === "planning") {
-    collapsedChatEyebrow = "Planning";
-    collapsedChatTitle = "Shaping the next screen";
-  } else if (isGenerationActive) {
-    collapsedChatEyebrow = "Agent live";
-    collapsedChatTitle = "Building screens";
-  } else if (isQueueingGeneration || pendingQueuedRunId) {
-    collapsedChatEyebrow = "Queued";
-    collapsedChatTitle = "Waiting to start";
-  } else if (selectedScreen) {
-    collapsedChatEyebrow = "Editing";
-    collapsedChatTitle = selectedScreen.name;
-  }
-
   useEffect(() => {
     if (!project && !isProjectLoading) {
       router.replace("/project/new");
@@ -621,22 +592,22 @@ export function ProjectShell({
 
   if (isProjectLoading || !project) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[#f5f5f5]">
+      <div className="flex h-screen items-center justify-center bg-[#f7f7f8]">
         <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
       </div>
     );
   }
 
   return (
-    <div className="h-screen overflow-hidden bg-[#f4f1ea] text-gray-900">
+    <div className="h-screen overflow-hidden bg-[#f7f7f8] text-gray-900">
       <main className="relative z-0 flex h-full w-full overflow-hidden">
         <div className="absolute left-4 right-4 top-4 z-50 flex items-center justify-between gap-3">
-          <div className="flex items-center p-2 lg:px-4 lg:py-4 h-8 rounded-[20px] surface-container backdrop-blur-glass">
-            <Button variant="ghost" size="sm" onClick={() => router.push("/project/new")} className="h-8 rounded-full text-neutral-700 hover:bg-neutral-200 focus-visible:bg-neutral-200 data-[state=open]:bg-neutral-200">
+          <div className="flex h-10 items-center rounded-full dg-panel px-2 backdrop-blur-xl lg:px-3">
+            <Button variant="ghost" size="sm" onClick={() => router.push("/project/new")} className="h-8 rounded-full text-neutral-700 hover:bg-[#f7f7f8] focus-visible:bg-[#f7f7f8] data-[state=open]:bg-[#f7f7f8]">
               <ArrowLeft className="mr-2 h-4 w-4" />
               Workspace
             </Button>
-            <div className="hidden h-5 w-px bg-black/10 sm:block" />
+            <div className="hidden h-5 w-px bg-slate-950/[0.1] sm:block" />
             <div className="hidden max-w-[240px] truncate pl-2 text-[11px] font-semibold uppercase text-neutral-500 sm:block">
               {project.name}
             </div>
@@ -693,16 +664,6 @@ export function ProjectShell({
               }}
               selectedElementPreview={selectedElementInfo?.textPreview ?? null}
               onClearSelectedElement={() => setSelectedElementInfo(null)}
-              mobileTopAccessory={isChatCollapsed ? (
-                <CollapsedChatTrigger
-                  eyebrow={collapsedChatEyebrow}
-                  title={collapsedChatTitle}
-                  isBusy={isChatBusy}
-                  hasAlert={hasChatAlert}
-                  onExpand={() => setIsChatCollapsed(false)}
-                  variant="attached"
-                />
-              ) : null}
             />
           </div>
         </div>

@@ -203,10 +203,10 @@ function LoginPageContent() {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-8">
-      <div className="w-full max-w-md rounded-3xl border border-gray-200 bg-white p-8 shadow-xl">
+    <main className="flex min-h-screen items-center justify-center dg-dashed-grid-bg px-4 py-8">
+      <div className="w-full max-w-md rounded-[28px] dg-panel bg-white p-8">
         <div className="mb-8 space-y-4 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-black text-white">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-[18px] dg-button-primary text-white">
             <Code className="h-7 w-7" />
           </div>
           <div className="space-y-2">
@@ -238,7 +238,7 @@ function LoginPageContent() {
             setMode(value as AuthMode);
           }}
         >
-          <TabsList className="grid w-full grid-cols-2 rounded-full bg-gray-100 p-1" variant="default">
+          <TabsList className="grid w-full grid-cols-2 rounded-full dg-control-muted p-1" variant="default">
             <TabsTrigger className="rounded-full" value="sign-in">
               Sign in
             </TabsTrigger>
@@ -275,7 +275,7 @@ function LoginPageContent() {
                 value={password}
               />
 
-              <Button className="h-12 w-full rounded-full text-sm font-medium" disabled={isBusy} type="submit">
+              <Button className="h-12 w-full rounded-full dg-button-primary text-sm font-medium" disabled={isBusy} type="submit">
                 {pendingAction === "sign-in" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Continue with email
               </Button>
@@ -327,7 +327,7 @@ function LoginPageContent() {
                 If email confirmation is enabled in Supabase Auth, Drawgle will send a verification link before first sign-in.
               </p>
 
-              <Button className="h-12 w-full rounded-full text-sm font-medium" disabled={isBusy} type="submit">
+              <Button className="h-12 w-full rounded-full dg-button-primary text-sm font-medium" disabled={isBusy} type="submit">
                 {pendingAction === "sign-up" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Create account
               </Button>
@@ -343,7 +343,7 @@ function LoginPageContent() {
           </div>
 
           <Button
-            className="h-12 w-full rounded-full text-sm font-medium"
+            className="h-12 w-full rounded-full dg-control text-sm font-medium"
             disabled={isBusy}
             onClick={handleGoogleSignIn}
             type="button"
@@ -364,10 +364,10 @@ function LoginPageContent() {
 
 function LoginPageFallback() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-8">
-      <div className="w-full max-w-md rounded-3xl border border-gray-200 bg-white p-8 shadow-xl">
+    <main className="flex min-h-screen items-center justify-center dg-dashed-grid-bg px-4 py-8">
+      <div className="w-full max-w-md rounded-[28px] dg-panel bg-white p-8">
         <div className="mb-8 space-y-4 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-black text-white">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-[18px] dg-button-primary text-white">
             <Code className="h-7 w-7" />
           </div>
           <div className="space-y-2">
@@ -410,7 +410,7 @@ function AuthField({
       <span className="text-sm font-medium text-gray-700">{label}</span>
       <Input
         autoComplete={autoComplete}
-        className="h-12 rounded-2xl border-gray-200 px-4"
+        className="h-12 rounded-[16px] border-slate-950/[0.08] bg-[#f7f7f8] px-4 shadow-none focus-visible:ring-[#002fa7]/15"
         disabled={disabled}
         minLength={minLength}
         onChange={(event) => onChange(event.target.value)}
