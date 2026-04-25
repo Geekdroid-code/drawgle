@@ -223,7 +223,7 @@ export function ProjectLobby({
                   </h1>
                 
 
-                  <div className="mt-8 overflow-hidden rounded-[28px] dg-gradient-ring">
+                  <div className="mt-8 overflow-hidden rounded-xl dg-gradient-ring">
                     {image ? (
                       <div className="flex items-start gap-3 border-b border-slate-950/[0.08] bg-[#f7f7f8] px-2 py-2">
                         <div className="relative h-12 w-12 overflow-hidden rounded-lg border border-slate-950/[0.08] bg-white">
@@ -262,17 +262,16 @@ export function ProjectLobby({
                       className="min-h-[180px] resize-none border-0 bg-white px-5 py-5 text-lg leading-8 text-neutral-900 shadow-none placeholder:text-neutral-400 focus-visible:ring-0 sm:text-[22px]"
                     />
 
-                    <div className="flex flex-col gap-3 border-t border-slate-950/[0.08] bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex flex-col gap-3 border-t border-slate-950/[0.08] bg-white px-4 py-2 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex flex-wrap items-center gap-2">
                         <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageUpload} />
-                        <Button type="button" variant="outline" className="h-10 rounded-full dg-control px-4 text-neutral-700" onClick={() => fileInputRef.current?.click()}>
-                          <ImageIcon className="mr-2 h-4 w-4" />
-                          Upload reference
+                        <Button type="button" variant="outline" className="h-10 rounded-lg dg-control px-3text-neutral-700" onClick={() => fileInputRef.current?.click()}>
+                          <ImageIcon className="h-6 w-6" />
                         </Button>
                        
                       </div>
 
-                      <Button className="h-11 rounded-full dg-button-primary px-5 text-sm font-medium" onClick={() => void handleGenerateDesign()} disabled={!isBriefReady || isGeneratingDesign}>
+                      <Button className="h-11 rounded-lg dg-button-primary px-5 text-sm font-medium" onClick={() => void handleGenerateDesign()} disabled={!isBriefReady || isGeneratingDesign}>
                         {isGeneratingDesign ? <Loader2 className="h-4 w-4 animate-spin" /> : "Generate design system"}
                       </Button>
                     </div>

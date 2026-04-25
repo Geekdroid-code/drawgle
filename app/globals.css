@@ -74,7 +74,6 @@
       linear-gradient(#ffffff, #ffffff) padding-box,
       linear-gradient(110deg, #e4002b 0%, #ff4f00 28%, #002fa7 68%, #111827 100%) border-box;
     border: 1.5px solid transparent;
-    box-shadow: 0 24px 44px -28px rgba(0, 47, 167, 0.38);
   }
 
   .dg-prompt-composer {

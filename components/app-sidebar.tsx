@@ -123,7 +123,7 @@ export function AppSidebar({
         <Button
           type="button"
           onClick={() => router.push("/project/new")}
-          className={`h-10 w-full justify-start rounded-full px-4 text-sm font-medium ${
+          className={`h-10 w-full justify-start rounded-lg px-4 text-sm font-medium ${
             currentProjectId
               ? "dg-control text-neutral-700 hover:bg-white"
               : "dg-button-primary text-white"
@@ -139,7 +139,7 @@ export function AppSidebar({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search projects"
-            className="h-11 rounded-full border-slate-950/[0.08] bg-[#f7f7f8] pl-10 text-sm text-neutral-900 shadow-none focus-visible:ring-[#002fa7]/15"
+            className="h-11 rounded-lg border-slate-950/[0.08] bg-[#f7f7f8] pl-10 text-sm text-neutral-900 shadow-none focus-visible:ring-[#002fa7]/15"
           />
         </div>
       </SidebarHeader>
