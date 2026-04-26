@@ -6,7 +6,9 @@ import { ensureDrawgleIds } from "@/lib/drawgle-dom";
 import { indexScreenCode } from "@/lib/generation/block-index";
 import { assembleProjectContext } from "@/lib/generation/context";
 import { generateEmbedding, generateScreenSummary } from "@/lib/generation/embeddings";
-import { buildNavigationShellCode, buildScreenStream, extractCode, fallbackProjectCharter, planUiFlow } from "@/lib/generation/service";
+import { detectScreenHealth, validateGeneratedScreenCode } from "@/lib/generation/screen-quality";
+import { findRepairTarget, replaceSourceRegion } from "@/lib/generation/screen-repair";
+import { buildNavigationShellCode, buildScreenStream, buildSectionRepairCode, extractCode, fallbackProjectCharter, planUiFlow } from "@/lib/generation/service";
 import { createNavigationArchitecture, deriveRequiresBottomNav } from "@/lib/navigation";
 import {
   applyNavigationPlanToScreens,
@@ -240,6 +242,55 @@ async function postStatusMessage(
   }
 }
 
+async function collectScreenBuild(input: BuildScreenTaskPayload, screenPlan: ScreenPlan) {
+  let rawText = "";
+
+  const { stream: codeStream } = await streams.pipe(
+    "code",
+    buildScreenStream({
+      screenPlan,
+      designTokens: input.designTokens,
+      prompt: input.prompt,
+      image: input.image,
+      requiresBottomNav: input.requiresBottomNav,
+      navigationArchitecture: input.navigationArchitecture,
+      navigationPlan: input.navigationPlan,
+      projectContext: input.projectContext,
+    }),
+  );
+
+  for await (const chunk of codeStream) {
+    rawText += chunk;
+  }
+
+  return {
+    rawText,
+    extractedCode: extractCode(rawText),
+  };
+}
+
+async function collectNonStreamingScreenBuild(input: BuildScreenTaskPayload, screenPlan: ScreenPlan) {
+  let rawText = "";
+
+  for await (const chunk of buildScreenStream({
+    screenPlan,
+    designTokens: input.designTokens,
+    prompt: input.prompt,
+    image: input.image,
+    requiresBottomNav: input.requiresBottomNav,
+    navigationArchitecture: input.navigationArchitecture,
+    navigationPlan: input.navigationPlan,
+    projectContext: input.projectContext,
+  })) {
+    rawText += chunk;
+  }
+
+  return {
+    rawText,
+    extractedCode: extractCode(rawText),
+  };
+}
+
 export const buildScreenTask = task({
   id: "build-screen",
   retry: {
@@ -260,30 +311,80 @@ export const buildScreenTask = task({
   },
   maxDuration: 300,
   run: async (payload: BuildScreenTaskPayload) => {
-    // Pipe the Gemini async generator so the frontend can subscribe
+    // Pipe the first Gemini async generator so the frontend can subscribe
     // via useRealtimeRunWithStreams and render partial HTML in real time.
-    const { stream: codeStream } = await streams.pipe(
-      "code",
-      buildScreenStream({
-        screenPlan: payload.screenPlan,
-        designTokens: payload.designTokens,
-        prompt: payload.prompt,
-        image: payload.image,
-        requiresBottomNav: payload.requiresBottomNav,
-        navigationArchitecture: payload.navigationArchitecture,
-        navigationPlan: payload.navigationPlan,
-        projectContext: payload.projectContext,
-      }),
-    );
+    let { extractedCode } = await collectScreenBuild(payload, payload.screenPlan);
+    let quality = validateGeneratedScreenCode({ code: extractedCode, screenPlan: payload.screenPlan });
 
-    // Consume the tee'd stream locally to accumulate the full response.
-    let rawText = "";
-    for await (const chunk of codeStream) {
-      rawText += chunk;
+    if (!quality.valid) {
+      logger.warn("Screen build failed quality guard; retrying once with explicit repair instructions", {
+        screenId: payload.screenId,
+        screenName: payload.screenPlan.name,
+        issues: quality.issues,
+        missingAnchors: quality.missingAnchors,
+      });
+
+      const retryPlan: ScreenPlan = {
+        ...payload.screenPlan,
+        description: [
+          payload.screenPlan.description,
+          "QUALITY RETRY: The previous draft was not complete enough for production.",
+          quality.missingAnchors.length > 0 ? `You must visibly include these missing required anchors: ${quality.missingAnchors.join(", ")}.` : null,
+          "Rebuild the full screen from top to bottom. Include every required card, list item, chart label, metric, CTA, and visual region from the brief. Do not return a partial screen.",
+        ].filter(Boolean).join("\n\n"),
+      };
+
+      const retryBuild = await collectNonStreamingScreenBuild(payload, retryPlan);
+      extractedCode = retryBuild.extractedCode;
+      quality = validateGeneratedScreenCode({ code: extractedCode, screenPlan: retryPlan });
+
+      if (!quality.valid) {
+        logger.warn("Screen build still failed quality guard after retry; saving best available output", {
+          screenId: payload.screenId,
+          screenName: payload.screenPlan.name,
+          issues: quality.issues,
+          missingAnchors: quality.missingAnchors,
+        });
+
+        const repairTarget = findRepairTarget({
+          code: extractedCode,
+          blockIndex: indexScreenCode(extractedCode),
+          prompt: quality.missingAnchors.join(" ") || payload.screenPlan.description,
+        });
+
+        if (repairTarget) {
+          try {
+            const repairedSection = await buildSectionRepairCode({
+              screenName: payload.screenPlan.name,
+              screenPrompt: payload.screenPlan.description,
+              userPrompt: "Repair the incomplete generated section before saving the screen.",
+              currentCode: extractedCode,
+              repairTarget,
+              missingAnchors: quality.missingAnchors,
+              healthIssues: quality.issues,
+              designTokens: payload.designTokens,
+              navigationArchitecture: payload.navigationArchitecture,
+            });
+
+            const repairedCode = replaceSourceRegion(extractedCode, repairTarget, repairedSection);
+            const repairedQuality = validateGeneratedScreenCode({ code: repairedCode, screenPlan: payload.screenPlan });
+            if (repairedCode !== extractedCode && repairedQuality.issues.length <= quality.issues.length) {
+              extractedCode = repairedCode;
+              quality = repairedQuality;
+            }
+          } catch (repairError) {
+            logger.warn("Initial screen section repair failed; saving best available output", {
+              screenId: payload.screenId,
+              screenName: payload.screenPlan.name,
+              error: repairError,
+            });
+          }
+        }
+      }
     }
 
-    const extractedCode = extractCode(rawText);
     const code = ensureDrawgleIds(sanitizeScreenCodeForSharedNavigation(extractedCode, payload.screenPlan)).code;
+    const health = detectScreenHealth({ code, screenPrompt: payload.screenPlan.description });
     const blockIndex = indexScreenCode(code);
 
     // Persist the final code directly so the parent only polls for status.
@@ -296,7 +397,7 @@ export const buildScreenTask = task({
         chrome_policy: (payload.screenPlan.chromePolicy ?? null) as never,
         navigation_item_id: payload.screenPlan.navigationItemId ?? null,
         status: "ready",
-        error: null,
+        error: health.healthy ? null : `[screen_health:${health.status}] ${health.issues.join(" | ")}`,
         updated_at: new Date().toISOString(),
       })
       .eq("id", payload.screenId);

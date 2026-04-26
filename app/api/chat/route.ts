@@ -2,8 +2,11 @@ import { detectTargetBlocks, indexScreenCode } from "@/lib/generation/block-inde
 import { assembleChatContext } from "@/lib/generation/context";
 import { generateEmbedding } from "@/lib/generation/embeddings";
 import { editNavigationShellCode, editScreenStream } from "@/lib/generation/service";
+import { buildSectionRepairCode } from "@/lib/generation/service";
 import { applyEdits } from "@/lib/diff-engine";
 import { ensureDrawgleIds } from "@/lib/drawgle-dom";
+import { detectScreenHealth } from "@/lib/generation/screen-quality";
+import { findRepairTarget, replaceSourceRegion } from "@/lib/generation/screen-repair";
 import { sanitizeScreenCodeForSharedNavigation } from "@/lib/project-navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -25,6 +28,9 @@ const isNavigationEditPrompt = (prompt: string) =>
 
 const isNavigationElementHtml = (html?: string | null) =>
   /data-drawgle-primary-nav|data-nav-item-id/i.test(html ?? "");
+
+const isScreenRepairPrompt = (prompt: string) =>
+  /\b(repair|fix|complete|finish|continue|half[-\s]?built|broken|truncated|missing|incomplete|not complete|couldn'?t be completed)\b/i.test(prompt);
 
 async function upsertActivityMessage(
   admin: ReturnType<typeof createAdminClient>,
@@ -315,7 +321,7 @@ async function handleEditIntent({
 
   const { data: screen, error: screenError } = await admin
     .from("screens")
-    .select("id, name, code, block_index, chrome_policy, navigation_item_id")
+    .select("id, name, prompt, code, block_index, chrome_policy, navigation_item_id")
     .eq("id", screenId)
     .maybeSingle();
 
@@ -325,17 +331,25 @@ async function handleEditIntent({
 
   const screenCode = ensureDrawgleIds(typeof screen.code === "string" && screen.code.length > 0 ? screen.code : "").code;
   const blockIndex = ((screen.block_index as ScreenBlockIndex | null) ?? indexScreenCode(screenCode));
+  const selectedSourceRegion = selectedElementDrawgleId
+    ? findRepairTarget({
+        code: screenCode,
+        drawgleId: selectedElementDrawgleId,
+        blockIndex,
+      })
+    : null;
+  const selectedSourceElementHtml = selectedSourceRegion?.snippet || selectedElementHtml;
 
   // Detect target blocks for scoped editing (skipped when visual element selection is available)
-  const resolution = selectedElementHtml
+  const resolution = selectedSourceElementHtml
     ? { scope: "scoped" as const, targetBlockIds: [] }
     : detectTargetBlocks(prompt, blockIndex);
-  const targetBlockIds = resolution.scope === "scoped" && !selectedElementHtml ? resolution.targetBlockIds : [];
+  const targetBlockIds = resolution.scope === "scoped" && !selectedSourceElementHtml ? resolution.targetBlockIds : [];
 
   // Build chat context from project_messages
   const allMessages = await fetchProjectMessages(admin, projectId);
   
-  const chatHistory = selectedElementHtml 
+  const chatHistory = selectedSourceElementHtml
     ? [{ role: "user" as const, content: prompt }]
     : await assembleChatContext({
         admin,
@@ -345,11 +359,173 @@ async function handleEditIntent({
       });
 
   // Post system status message
-  const targetNames = selectedElementHtml
+  const targetNames = selectedSourceElementHtml
     ? "selected element"
     : targetBlockIds.length > 0
       ? targetBlockIds.map((id) => blockIndex.blocks.find((b) => b.id === id)?.name ?? id).join(", ")
       : "full screen";
+
+  const screenPrompt = typeof screen.prompt === "string" ? screen.prompt : "";
+  const health = detectScreenHealth({ code: screenCode, screenPrompt });
+  const shouldRepairScreen = isScreenRepairPrompt(prompt) || !health.healthy;
+
+  if (shouldRepairScreen) {
+    const repairTarget = findRepairTarget({
+      code: screenCode,
+      drawgleId: selectedElementDrawgleId,
+      blockIndex,
+      prompt: `${prompt}\n${health.missingAnchors.join(" ")}`,
+    }) ?? {
+      startOffset: 0,
+      endOffset: screenCode.length,
+      snippet: screenCode,
+      reason: "whole_screen_unrecoverable",
+      blockId: blockIndex.rootId,
+      drawgleId: null,
+    };
+
+    await upsertActivityMessage(admin, editActivityKey, {
+      projectId,
+      ownerId,
+      screenId,
+      role: "system",
+      content: `Repairing ${targetNames} in ${screen.name}...`,
+      messageType: "chat",
+      metadata: {
+        action: "screen_repair_start",
+        targetBlockIds,
+        repairTarget: {
+          reason: repairTarget.reason,
+          blockId: repairTarget.blockId ?? null,
+          drawgleId: repairTarget.drawgleId ?? selectedElementDrawgleId ?? null,
+        },
+        health,
+        screenName: screen.name,
+        userMessageId,
+      },
+    });
+
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          const replacement = await buildSectionRepairCode({
+            screenName: screen.name,
+            screenPrompt,
+            userPrompt: prompt,
+            currentCode: screenCode,
+            repairTarget,
+            missingAnchors: health.missingAnchors,
+            healthIssues: health.issues,
+            designTokens,
+            projectCharter,
+            navigationArchitecture,
+          });
+
+          if (!replacement.trim()) {
+            throw new Error("Repair model returned an empty replacement section.");
+          }
+
+          const repairedCode = replaceSourceRegion(screenCode, repairTarget, replacement);
+          const nextCode = ensureDrawgleIds(sanitizeScreenCodeForSharedNavigation(repairedCode, {
+            name: screen.name,
+            type: "root",
+            description: screenPrompt,
+            chromePolicy: (screen.chrome_policy as ScreenChromePolicy | null) ?? null,
+            navigationItemId: typeof screen.navigation_item_id === "string" ? screen.navigation_item_id : null,
+          })).code;
+          const nextHealth = detectScreenHealth({ code: nextCode, screenPrompt });
+
+          if (nextCode === screenCode) {
+            const failedContent = `Repair could not apply a material code change to ${screen.name}.`;
+            await upsertActivityMessage(admin, editActivityKey, {
+              projectId,
+              ownerId,
+              screenId,
+              role: "model",
+              content: failedContent,
+              messageType: "error",
+              metadata: {
+                action: "screen_repair_failed",
+                screenName: screen.name,
+                userMessageId,
+                health,
+                nextHealth,
+              },
+            });
+            controller.enqueue(new TextEncoder().encode(failedContent));
+            controller.close();
+            return;
+          }
+
+          const { error: updateError } = await admin
+            .from("screens")
+            .update({
+              code: nextCode,
+              block_index: indexScreenCode(nextCode) as never,
+              status: "ready",
+              error: nextHealth.healthy ? null : `[screen_health:${nextHealth.status}] ${nextHealth.issues.join(" | ")}`,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", screenId);
+
+          if (updateError) {
+            throw updateError;
+          }
+
+          const fullResponse = nextHealth.healthy
+            ? `Repaired ${targetNames} in ${screen.name}.`
+            : `Repaired ${targetNames} in ${screen.name}, but the screen still has health warnings.`;
+          controller.enqueue(new TextEncoder().encode(fullResponse));
+
+          const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
+            projectId,
+            ownerId,
+            screenId,
+            role: "model",
+            content: fullResponse,
+            messageType: nextHealth.healthy ? "edit_applied" : "chat",
+            metadata: {
+              action: nextHealth.healthy ? "screen_repair_applied" : "screen_repair_partial",
+              screenName: screen.name,
+              userMessageId,
+              repairTarget: {
+                reason: repairTarget.reason,
+                blockId: repairTarget.blockId ?? null,
+                drawgleId: repairTarget.drawgleId ?? selectedElementDrawgleId ?? null,
+              },
+              health,
+              nextHealth,
+            },
+          });
+
+          void embedMessagePair(admin, userMessageId, prompt, modelMessage.id, fullResponse);
+          controller.close();
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          await upsertActivityMessage(admin, editActivityKey, {
+            projectId,
+            ownerId,
+            screenId,
+            role: "model",
+            content: `Repair failed for ${screen.name}: ${message}`,
+            messageType: "error",
+            metadata: {
+              action: "screen_repair_failed",
+              screenName: screen.name,
+              userMessageId,
+              health,
+              error: message,
+            },
+          });
+          controller.error(err);
+        }
+      },
+    });
+
+    return new Response(stream, {
+      headers: { "Content-Type": "text/plain" },
+    });
+  }
 
   await upsertActivityMessage(admin, editActivityKey, {
     projectId,
@@ -374,22 +550,60 @@ async function handleEditIntent({
           targetBlockIds,
           designTokens,
           navigationArchitecture,
-          selectedElementHtml,
+          selectedElementHtml: selectedSourceElementHtml,
           selectedElementDrawgleId,
         })) {
           fullResponse += chunk;
           controller.enqueue(new TextEncoder().encode(chunk));
         }
 
-        if (fullResponse.includes("<edit>")) {
-          const editedCode = applyEdits(screenCode, fullResponse);
-          const nextCode = ensureDrawgleIds(sanitizeScreenCodeForSharedNavigation(editedCode, {
+        const normalizeEditedCode = (editsText: string) => {
+          const editedCode = editsText.includes("<edit>") ? applyEdits(screenCode, editsText) : screenCode;
+          return ensureDrawgleIds(sanitizeScreenCodeForSharedNavigation(editedCode, {
             name: screen.name,
             type: "root",
-            description: "",
+            description: screenPrompt,
             chromePolicy: (screen.chrome_policy as ScreenChromePolicy | null) ?? null,
             navigationItemId: typeof screen.navigation_item_id === "string" ? screen.navigation_item_id : null,
           })).code;
+        };
+
+        let responseToApply = fullResponse;
+        let nextCode = normalizeEditedCode(responseToApply);
+
+        if (nextCode === screenCode) {
+          let retryResponse = "";
+          const retryMessages = [{
+            role: "user" as const,
+            content: [
+              prompt,
+              "",
+              "The previous edit attempt did not apply any material source-code change.",
+              "Return ONLY <edit> blocks whose <search> content exactly matches the current source HTML below.",
+              "Make a visible change that satisfies the request. Do not explain.",
+            ].join("\n"),
+          }];
+
+          for await (const chunk of editScreenStream({
+            messages: retryMessages,
+            screenCode,
+            blockIndex,
+            targetBlockIds,
+            designTokens,
+            navigationArchitecture,
+            selectedElementHtml: selectedSourceElementHtml,
+            selectedElementDrawgleId,
+          })) {
+            retryResponse += chunk;
+          }
+
+          if (retryResponse.trim()) {
+            responseToApply = `${responseToApply}\n\n${retryResponse}`;
+            nextCode = normalizeEditedCode(retryResponse);
+          }
+        }
+
+        if (responseToApply.includes("<edit>")) {
 
           if (nextCode === screenCode) {
             await upsertActivityMessage(admin, editActivityKey, {
@@ -426,17 +640,17 @@ async function handleEditIntent({
             ownerId,
             screenId,
             role: "model",
-            content: fullResponse,
+            content: responseToApply,
             messageType: "edit_applied",
             metadata: { action: "edit_applied", screenName: screen.name, userMessageId },
           });
 
-          void embedMessagePair(admin, userMessageId, prompt, modelMessage.id, fullResponse);
+          void embedMessagePair(admin, userMessageId, prompt, modelMessage.id, responseToApply);
           controller.close();
           return;
         }
 
-        const noEditContent = fullResponse.trim() || `No material code changes were applied to ${screen.name}.`;
+        const noEditContent = responseToApply.trim() || `No material code changes were applied to ${screen.name}.`;
         const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
           projectId,
           ownerId,

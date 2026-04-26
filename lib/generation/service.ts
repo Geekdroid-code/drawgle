@@ -20,6 +20,8 @@ import {
   plannerInstruction,
   referenceAnalysisInstruction,
 } from "@/lib/generation/prompts";
+import { appendRequiredAnchors, extractRequiredAnchors } from "@/lib/generation/screen-quality";
+import { buildRepairSurroundingContext, type RepairTarget } from "@/lib/generation/screen-repair";
 import type {
   BuildScreenInput,
   CreativeDirection,
@@ -316,6 +318,157 @@ const inferLegacyRequiresBottomNav = ({
   }
 
   return /(marketplace|delivery|commerce|shopping|social|feed|discover|orders|wallet|library|travel|booking|ride|food)/i.test(normalizedPrompt);
+};
+
+type ExplicitScreenSection = {
+  index: number;
+  name: string;
+  description: string;
+  anchors: string[];
+};
+
+const NUMBER_WORDS: Record<string, number> = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+};
+
+const normalizeScreenName = (value: string) =>
+  value.toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\b(screen|page|view|the)\b/g, " ").replace(/\s+/g, " ").trim();
+
+const parseRequestedScreenCount = (prompt: string) => {
+  const numeric = prompt.match(/\b(?:generate|create|build|make|design)?\s*(\d{1,2})[-\s]*(?:screen|screens|page|pages)\b/i);
+  if (numeric) {
+    return Number(numeric[1]);
+  }
+
+  const word = prompt.match(/\b(one|two|three|four|five|six|seven|eight)[-\s]*(?:screen|screens|page|pages)\b/i);
+  if (word) {
+    return NUMBER_WORDS[word[1].toLowerCase()] ?? null;
+  }
+
+  return null;
+};
+
+const parseExplicitScreenSections = (prompt: string): ExplicitScreenSection[] => {
+  const matches = Array.from(prompt.matchAll(/(?:^|\n)\s*Screen\s+(\d{1,2})\s*:\s*([^\n.]+?)(?:\.|\n|$)/gi));
+  if (matches.length === 0) {
+    return [];
+  }
+
+  return matches.map((match, index) => {
+    const nextMatch = matches[index + 1];
+    const start = match.index ?? 0;
+    const end = nextMatch?.index ?? prompt.length;
+    const sectionText = prompt.slice(start, end).trim();
+    const rawName = (match[2] ?? `Screen ${match[1]}`).trim().replace(/^The\s+/i, "");
+
+    return {
+      index: Number(match[1]),
+      name: rawName.slice(0, 100),
+      description: sectionText.slice(0, 7000),
+      anchors: extractRequiredAnchors(sectionText),
+    };
+  });
+};
+
+const hasExplicitNavigationRequest = (prompt: string) =>
+  /\b(bottom\s+nav|bottom\s+navigation|tab\s+bar|tabs?|persistent\s+nav|primary\s+nav)\b/i.test(prompt);
+
+const looksLikeFiniteFlowWithoutPersistentNav = (prompt: string, sections: ExplicitScreenSection[]) => {
+  if (sections.length < 2 || hasExplicitNavigationRequest(prompt)) {
+    return false;
+  }
+
+  const combined = `${prompt} ${sections.map((section) => section.name).join(" ")}`;
+  return /\b(onboarding|splash|welcome|login|sign\s*up|checkout|tracking|map|detail|modal|flow)\b/i.test(combined);
+};
+
+const explicitSectionChromePolicy = (section: ExplicitScreenSection, index: number, forceNoPersistentNav: boolean): ScreenPlan["chromePolicy"] => {
+  const nameAndBrief = `${section.name} ${section.description}`;
+
+  if (/\b(onboarding|splash|welcome|hero)\b/i.test(nameAndBrief)) {
+    return { chrome: "immersive", showPrimaryNavigation: false, showsBackButton: false };
+  }
+
+  if (/\b(tracking|map|detail|checkout|summary|confirmation|modal)\b/i.test(nameAndBrief)) {
+    return { chrome: "top-bar-back", showPrimaryNavigation: false, showsBackButton: true };
+  }
+
+  if (forceNoPersistentNav) {
+    return { chrome: index === 0 ? "immersive" : "top-bar", showPrimaryNavigation: false, showsBackButton: false };
+  }
+
+  return undefined;
+};
+
+const screenMatchesSection = (screen: ScreenPlan, section: ExplicitScreenSection) => {
+  const screenName = normalizeScreenName(screen.name);
+  const sectionName = normalizeScreenName(section.name);
+  if (!screenName || !sectionName) {
+    return false;
+  }
+
+  return screenName.includes(sectionName) || sectionName.includes(screenName);
+};
+
+const screenPlanFromExplicitSection = (
+  section: ExplicitScreenSection,
+  index: number,
+  forceNoPersistentNav: boolean,
+  existing?: ScreenPlan,
+): ScreenPlan => {
+  const baseDescription = [
+    `Explicit user-requested screen ${section.index}: ${section.name}.`,
+    section.description,
+    existing?.description ? `Planner enhancement:\n${existing.description}` : null,
+  ].filter(Boolean).join("\n\n").slice(0, 7800);
+
+  return {
+    name: existing?.name?.trim() || section.name,
+    type: existing?.type ?? (index === 0 && !/\b(onboarding|splash|welcome)\b/i.test(section.name) ? "root" : "detail"),
+    description: appendRequiredAnchors(baseDescription, section.anchors),
+    chromePolicy: explicitSectionChromePolicy(section, index, forceNoPersistentNav) ?? existing?.chromePolicy ?? null,
+  };
+};
+
+const reconcileScreensWithPrompt = ({
+  prompt,
+  screens,
+  planningMode,
+}: {
+  prompt: string;
+  screens: ScreenPlan[];
+  planningMode: PlanningMode;
+}) => {
+  if (planningMode === "single-screen") {
+    return screens.slice(0, 1);
+  }
+
+  const sections = parseExplicitScreenSections(prompt);
+  const requestedCount = parseRequestedScreenCount(prompt);
+
+  if (sections.length === 0) {
+    return screens;
+  }
+
+  const forceNoPersistentNav = looksLikeFiniteFlowWithoutPersistentNav(prompt, sections);
+  const reconciled = sections.map((section, index) => {
+    const existing = screens.find((screen) => screenMatchesSection(screen, section));
+    return screenPlanFromExplicitSection(section, index, forceNoPersistentNav, existing);
+  });
+
+  if (requestedCount && reconciled.length >= requestedCount) {
+    return reconciled.slice(0, requestedCount);
+  }
+
+  const extras = screens.filter((screen) => !sections.some((section) => screenMatchesSection(screen, section)));
+  return [...reconciled, ...extras].slice(0, requestedCount ?? 12);
 };
 
 const coerceNavigationArchitecture = ({
@@ -714,6 +867,9 @@ export async function planUiFlow({
   const ai = createGeminiClient();
   const parts: Array<Record<string, unknown>> = [];
   const referenceAnalysis = await analyzeReferenceImage({ prompt, image });
+  const explicitScreenSections = parseExplicitScreenSections(prompt);
+  const requestedScreenCount = parseRequestedScreenCount(prompt);
+  const forceFiniteFlowWithoutPersistentNav = looksLikeFiniteFlowWithoutPersistentNav(prompt, explicitScreenSections);
   const fallbackRequiresBottomNav = inferLegacyRequiresBottomNav({
     prompt,
     planningMode,
@@ -738,6 +894,21 @@ export async function planUiFlow({
   parts.push({
     text: prompt.trim() ? `User Prompt: "${prompt}"` : "Convert this sketch or reference UI in the image into a high-fidelity mobile UI.",
   });
+
+  if (planningMode !== "single-screen" && (requestedScreenCount || explicitScreenSections.length > 0)) {
+    parts.push({
+      text: [
+        "Explicit screen-count contract:",
+        requestedScreenCount ? `- The user requested exactly ${requestedScreenCount} screen${requestedScreenCount === 1 ? "" : "s"}. Return that many screens unless the prompt itself contains fewer named screens.` : null,
+        explicitScreenSections.length > 0
+          ? `- The user explicitly named these screens. Preserve them in order: ${explicitScreenSections.map((section) => `Screen ${section.index}: ${section.name}`).join("; ")}.`
+          : null,
+        forceFiniteFlowWithoutPersistentNav
+          ? "- This reads as a finite flow with onboarding/detail-style screens, not a peer bottom-tab app. Do not force persistent navigation unless the prompt explicitly asks for tabs/navigation."
+          : null,
+      ].filter(Boolean).join("\n"),
+    });
+  }
 
   if (referenceAnalysis) {
     parts.push({
@@ -807,23 +978,30 @@ export async function planUiFlow({
     // -------------------------------------------------------------------
     const salvaged = salvageScreensFromRawPlan(rawPlan);
 
-    const navigationArchitecture = coerceNavigationArchitecture({
-      parsedNavigationArchitecture: salvaged.navigationArchitecture,
-      existingNavigationArchitecture: existingCharter?.navigationArchitecture,
-      requiresBottomNav: salvaged.requiresBottomNav ?? fallbackRequiresBottomNav,
-      lockToExistingArchitecture: Boolean(projectContext?.trim() && existingCharter?.navigationArchitecture),
-    });
+    const navigationArchitecture = forceFiniteFlowWithoutPersistentNav
+      ? createNavigationArchitecture({ requiresBottomNav: false })
+      : coerceNavigationArchitecture({
+          parsedNavigationArchitecture: salvaged.navigationArchitecture,
+          existingNavigationArchitecture: existingCharter?.navigationArchitecture,
+          requiresBottomNav: salvaged.requiresBottomNav ?? fallbackRequiresBottomNav,
+          lockToExistingArchitecture: Boolean(projectContext?.trim() && existingCharter?.navigationArchitecture),
+        });
 
     const salvageSource = salvaged.screens.length > 0 ? "salvaged" : "fallback";
-    const screens = salvaged.screens.length > 0
+    const rawScreens = salvaged.screens.length > 0
       ? salvaged.screens.map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture }))
       : fallbackScreensFromReference({
           prompt,
           planningMode,
           referenceAnalysis,
         }).map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture }));
+    const screens = reconcileScreensWithPrompt({
+      prompt,
+      screens: rawScreens,
+      planningMode,
+    }).map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture }));
     const navigationPlan = normalizeNavigationPlan({
-      navigationPlan: salvaged.navigationPlan ?? (planningMode === "single-screen" ? existingNavigationPlan : null),
+      navigationPlan: forceFiniteFlowWithoutPersistentNav ? null : salvaged.navigationPlan ?? (planningMode === "single-screen" ? existingNavigationPlan : null),
       screens,
       navigationArchitecture,
       requiresBottomNav: deriveRequiresBottomNav(navigationArchitecture),
@@ -851,12 +1029,14 @@ export async function planUiFlow({
     };
   }
 
-  const navigationArchitecture = coerceNavigationArchitecture({
-    parsedNavigationArchitecture: parsed.data.navigation_architecture ?? null,
-    existingNavigationArchitecture: existingCharter?.navigationArchitecture,
-    requiresBottomNav: parsed.data.requires_bottom_nav ?? fallbackRequiresBottomNav,
-    lockToExistingArchitecture: Boolean(projectContext?.trim() && existingCharter?.navigationArchitecture),
-  });
+  const navigationArchitecture = forceFiniteFlowWithoutPersistentNav
+    ? createNavigationArchitecture({ requiresBottomNav: false })
+    : coerceNavigationArchitecture({
+        parsedNavigationArchitecture: parsed.data.navigation_architecture ?? null,
+        existingNavigationArchitecture: existingCharter?.navigationArchitecture,
+        requiresBottomNav: parsed.data.requires_bottom_nav ?? fallbackRequiresBottomNav,
+        lockToExistingArchitecture: Boolean(projectContext?.trim() && existingCharter?.navigationArchitecture),
+      });
 
   const charter = {
     ...parsed.data.charter,
@@ -865,23 +1045,33 @@ export async function planUiFlow({
   };
 
   const parsedScreens = planningMode === "single-screen" ? parsed.data.screens.slice(0, 1) : parsed.data.screens;
-  const screens = parsedScreens.map((screenPlan) => resolvePlannedScreen({
+  const rawScreens = parsedScreens.map((screenPlan) => ({
+    name: screenPlan.name,
+    type: screenPlan.type,
+    description: screenPlan.description,
+    chromePolicy: screenPlan.chrome_policy
+      ? {
+          chrome: screenPlan.chrome_policy.chrome,
+          showPrimaryNavigation: screenPlan.chrome_policy.show_primary_navigation ?? false,
+          showsBackButton: screenPlan.chrome_policy.shows_back_button ?? false,
+        }
+      : null,
+  }));
+  const screens = reconcileScreensWithPrompt({
+    prompt,
+    screens: rawScreens,
+    planningMode,
+  }).map((screenPlan) => resolvePlannedScreen({
     screenPlan: {
       name: screenPlan.name,
       type: screenPlan.type,
       description: screenPlan.description,
-      chromePolicy: screenPlan.chrome_policy
-        ? {
-            chrome: screenPlan.chrome_policy.chrome,
-            showPrimaryNavigation: screenPlan.chrome_policy.show_primary_navigation ?? false,
-            showsBackButton: screenPlan.chrome_policy.shows_back_button ?? false,
-          }
-        : null,
+      chromePolicy: screenPlan.chromePolicy ?? null,
     },
     navigationArchitecture,
   }));
   const navigationPlan = normalizeNavigationPlan({
-    navigationPlan: toNavigationPlan(parsed.data.navigation_plan) ?? (planningMode === "single-screen" ? existingNavigationPlan : null),
+    navigationPlan: forceFiniteFlowWithoutPersistentNav ? null : toNavigationPlan(parsed.data.navigation_plan) ?? (planningMode === "single-screen" ? existingNavigationPlan : null),
     screens,
     navigationArchitecture,
     requiresBottomNav: deriveRequiresBottomNav(navigationArchitecture),
@@ -1141,6 +1331,85 @@ export async function editScreenCode({
     rawText,
     code: rawText.includes("<edit>") ? applyEdits(screenCode, rawText) : screenCode,
   };
+}
+
+export async function buildSectionRepairCode({
+  screenName,
+  screenPrompt,
+  userPrompt,
+  currentCode,
+  repairTarget,
+  missingAnchors = [],
+  healthIssues = [],
+  designTokens,
+  projectCharter,
+  navigationArchitecture,
+}: {
+  screenName: string;
+  screenPrompt: string;
+  userPrompt?: string | null;
+  currentCode: string;
+  repairTarget: RepairTarget;
+  missingAnchors?: string[];
+  healthIssues?: string[];
+  designTokens?: DesignTokens | null;
+  projectCharter?: ProjectCharter | null;
+  navigationArchitecture?: NavigationArchitecture | null;
+}) {
+  const ai = createGeminiClient();
+  const surrounding = buildRepairSurroundingContext(currentCode, repairTarget);
+  const response = await ai.models.generateContent({
+    model: "gemini-3.1-flash-lite-preview",
+    contents: {
+      parts: [{
+        text: [
+          `Screen name: ${screenName}`,
+          `User repair/edit request: ${userPrompt?.trim() || "Repair the broken or incomplete selected section."}`,
+          `Original screen brief:\n${screenPrompt || "No original screen prompt was saved."}`,
+          projectCharter?.creativeDirection ? `Creative direction:\n${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
+          `Navigation architecture:\n${JSON.stringify(navigationArchitecture ?? null, null, 2)}`,
+          `Design tokens:\n${JSON.stringify(designTokens?.tokens ?? {}, null, 2)}`,
+          missingAnchors.length > 0 ? `Missing required anchors that must be restored: ${missingAnchors.join(", ")}` : null,
+          healthIssues.length > 0 ? `Detected health issues: ${healthIssues.join("; ")}` : null,
+          `Repair target reason: ${repairTarget.reason}`,
+          [
+            "Code before target:",
+            "```html",
+            surrounding.before,
+            "```",
+          ].join("\n"),
+          [
+            "Broken/incomplete target section to replace:",
+            "```html",
+            repairTarget.snippet,
+            "```",
+          ].join("\n"),
+          [
+            "Code after target:",
+            "```html",
+            surrounding.after,
+            "```",
+          ].join("\n"),
+        ].filter(Boolean).join("\n\n"),
+      }],
+    },
+    config: {
+      temperature: 0.24,
+      systemInstruction: [
+        "You repair one damaged or incomplete section inside an existing mobile screen.",
+        "Return ONLY the replacement HTML for the selected section. Do not return markdown fences, <edit> blocks, html/head/body tags, scripts, or unrelated screen sections.",
+        "The replacement must fit exactly between the provided code-before and code-after context.",
+        "Preserve the screen's existing visual language, copy/data intent, design tokens, and spacing rhythm, while completing missing content from the original brief.",
+        "If the target section is too broken to understand, rebuild the same section role from the original screen brief and surrounding context.",
+        "Do not add or modify persistent bottom navigation. Drawgle owns shared navigation outside screen code.",
+        "Use Lucide icons with <i data-lucide=\"icon-name\"></i> or inline SVG when needed.",
+        "Use Tailwind arbitrary values from the provided design tokens. Avoid generic default Tailwind colors when tokens exist.",
+        "Keep the output as one coherent section/root fragment with balanced tags.",
+      ].join("\n"),
+    },
+  });
+
+  return extractCode(response.text || "").trim();
 }
 
 const navigationDesignQualityRules = [

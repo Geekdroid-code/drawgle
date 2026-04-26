@@ -95,17 +95,20 @@ Return strictly valid JSON in this format:
 }
 
 Rules:
-- The first screen should ALWAYS have type "root". Subsequent screens should be "detail".
+- If the user explicitly asks for N screens or writes "Screen 1 / Screen 2 / Screen 3", return exactly those screens in that order. Do not silently merge, omit, rename away, or replace explicitly requested screens.
+- Use type "root" only for primary app destinations that can stand alone as peer sections. Onboarding, splash, auth, tracking/detail, checkout, confirmation, modal, and one-off flow screens should usually be type "detail" with an appropriate chrome_policy, even when they appear first in the requested sequence.
+- A finite described flow is not automatically a bottom-tabs app. Use persistent bottom navigation only when the screens are peer root destinations or the user/reference clearly asks for primary navigation.
 - navigation_architecture must define one consistent app-wide navigation family.
 - navigation_plan must be present. Use enabled false and kind "none" when the product should not have persistent navigation.
 - navigation_plan.items must contain only project-specific primary destinations, usually 3-5 items for bottom-tabs apps.
-- Each navigation_plan item must link to a planned root screen by linked_screen_name unless it is an intentional future placeholder.
+- Each navigation_plan item must link to a planned peer root screen by linked_screen_name unless it is an intentional future placeholder. Do not create nav items for onboarding, splash, transient tracking/detail, checkout, or modal screens.
 - Use Lucide icon names for navigation_plan.items.icon.
 - navigation_plan.screen_chrome must list every planned screen and must match each screen's chrome_policy.
 - navigation_plan.visual_brief must explicitly describe the bottom navigation's visual anatomy. If a reference image is provided, inspect its bottom navigation and preserve its style family instead of describing a generic tab bar.
 - Prefer modern mobile navigation patterns when appropriate: floating docks, soft glass pills, compact icon rails, sculpted card-attached nav, or centered action docks. Do not default to plain full-width 2015-style tab bars unless the reference requires it.
 - charter.navigationModel should be a human-readable explanation that matches navigation_architecture, not a conflicting second system.
 - chrome_policy must match the screen's role in the architecture. Detail screens should not carry the primary bottom-tab shell.
+- Onboarding and splash screens should normally use immersive chrome and show_primary_navigation false.
 - originalPrompt must preserve the user's product intent, not just paraphrase the latest sentence fragment.
 - If an image is present, imageReferenceSummary must explain how it should influence the build; otherwise return null.
 - keyFeatures should be concise, durable product capabilities rather than screen names.
@@ -517,7 +520,7 @@ Any navigation surfaces in this app must read as one family: same spacing discip
 ${navigationPlan?.enabled ? `The shared navigation plan has already been created for this project. Active tab for this screen: ${screenPlan.navigationItemId ?? "none"}. Shared nav items: ${navigationPlan.items.map((item) => `${item.label} (${item.icon})`).join(", ")}. Visual brief: ${navigationPlan.visualBrief}` : ""}
 
 RULES:
-1. Outermost element MUST be: <div class="w-full min-h-screen bg-[${bgPrimary}] flex flex-col relative overflow-hidden" style="font-family: ${fontFamily}">
+1. Outermost element MUST be: <div class="w-full min-h-screen bg-[${bgPrimary}] flex flex-col relative overflow-x-hidden" style="font-family: ${fontFamily}">
 2. Respect mobile safe areas: Add pt-[${safeTop}] to the top container and pb-[${safeBottom}] to the bottom container (or bottom nav).
 3. Use min-h-[${minTouch}] for ALL clickable elements (buttons, links, icon buttons).
 4. Use the specific text colors provided in the tokens (e.g., text-[${textHigh}]).
@@ -527,5 +530,7 @@ RULES:
 8. Use Lucide icons via standard SVG or <i data-lucide="icon-name"></i> tags.
 9. If additional project memory context is supplied in the request, keep naming, information architecture, interaction patterns, and art direction aligned with it without cloning an existing screen verbatim.
 10. If project memory includes a creative direction or signature moments, reflect them in the composition instead of ignoring them.
-${navigationPlan?.enabled ? "11. Do NOT create a <nav>, bottom tab bar, footer navigation, or persistent primary navigation. Leave bottom space visually compatible with the injected shared shell, but do not draw the shell yourself." : ""}`;
+11. Build every required section and item named in the Screen Description. If the brief asks for three metric cards, a 2x2 metric grid, a segmented control, avatar stack, chart labels, or a specific CTA construction, include all of them in the HTML. Do not stop after the first visible card.
+12. Let long content extend vertically inside the generated screen content. Do not put overflow-hidden on the outermost screen wrapper in a way that clips required bottom content.
+${navigationPlan?.enabled ? "13. Do NOT create a <nav>, bottom tab bar, footer navigation, or persistent primary navigation. Leave bottom space visually compatible with the injected shared shell, but do not draw the shell yourself." : ""}`;
 };
