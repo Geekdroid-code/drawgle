@@ -1030,6 +1030,7 @@ export async function* editScreenStream({
   designTokens,
   navigationArchitecture,
   selectedElementHtml,
+  selectedElementDrawgleId,
 }: {
   messages: Array<Pick<Message, "role" | "content">>;
   screenCode: string;
@@ -1039,6 +1040,8 @@ export async function* editScreenStream({
   navigationArchitecture?: NavigationArchitecture | null;
   /** The outerHTML of a visually selected element (from the visual DOM selector). */
   selectedElementHtml?: string | null;
+  /** Stable data-drawgle-id of the selected element when available. */
+  selectedElementDrawgleId?: string | null;
 }) {
   const ai = createGeminiClient();
   const history = messages.map((message) => ({
@@ -1069,6 +1072,7 @@ export async function* editScreenStream({
       `User edit request: ${latestUserPrompt || "Apply the requested changes."}`,
       "",
       "The user **visually selected** the following element in the rendered screen.",
+      selectedElementDrawgleId ? `Stable source target: data-drawgle-id="${selectedElementDrawgleId}". Prefer matching this attribute in <search> blocks.` : null,
       "Apply the requested changes ONLY to this element and its children.",
       "Use <edit> blocks where the <search> content exactly matches the snippet below (or a portion of it).",
       "",
@@ -1076,7 +1080,7 @@ export async function* editScreenStream({
       "```html",
       selectedElementHtml,
       "```",
-    ].join("\n");
+    ].filter(Boolean).join("\n");
   } else {
     // Priority 2: Block-index scoped context (existing path)
     const scopedContext = blockIndex && targetBlockIds && targetBlockIds.length > 0

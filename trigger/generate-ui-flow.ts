@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 
 import { logger, runs, streams, task } from "@trigger.dev/sdk";
 
+import { ensureDrawgleIds } from "@/lib/drawgle-dom";
 import { indexScreenCode } from "@/lib/generation/block-index";
 import { assembleProjectContext } from "@/lib/generation/context";
 import { generateEmbedding, generateScreenSummary } from "@/lib/generation/embeddings";
@@ -282,7 +283,7 @@ export const buildScreenTask = task({
     }
 
     const extractedCode = extractCode(rawText);
-    const code = sanitizeScreenCodeForSharedNavigation(extractedCode, payload.screenPlan);
+    const code = ensureDrawgleIds(sanitizeScreenCodeForSharedNavigation(extractedCode, payload.screenPlan)).code;
     const blockIndex = indexScreenCode(code);
 
     // Persist the final code directly so the parent only polls for status.
@@ -534,13 +535,13 @@ export const generateUiFlowTask = task({
         });
     plan.screens = applyNavigationPlanToScreens(plan.screens, plan.navigationPlan);
 
-    const navigationShellCode = await buildNavigationShellCode({
+    const navigationShellCode = ensureDrawgleIds(await buildNavigationShellCode({
       navigationPlan: plan.navigationPlan,
       designTokens,
       prompt: payload.prompt,
       image: promptImage,
       projectCharter: plan.charter,
-    });
+    })).code;
 
     const { error: navigationUpsertError } = await admin
       .from("project_navigation")

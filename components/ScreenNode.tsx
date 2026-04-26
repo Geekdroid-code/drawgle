@@ -6,6 +6,7 @@ import { MoreHorizontal, Download, Trash2, Edit2, Smartphone, MousePointerClick,
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { createClient } from "@/lib/supabase/client";
+import { ensureDrawgleIds, type DrawgleBoundingRect, type DrawgleEditableMetadata } from "@/lib/drawgle-dom";
 import { deleteScreen, updateScreenPosition } from "@/lib/supabase/queries";
 import { hasSharedNavigation } from "@/lib/project-navigation";
 import { useRealtimeRunWithStreams } from "@trigger.dev/react-hooks";
@@ -14,8 +15,16 @@ import { useRealtimeRunWithStreams } from "@trigger.dev/react-hooks";
 export interface SelectedElementInfo {
   /** The outerHTML of the selected element — used as the LLM's edit target. */
   outerHTML: string;
+  /** Stable source id used for deterministic/manual edits. */
+  drawgleId: string | null;
   /** Whether the selected element belongs to screen content or the shared nav shell. */
   targetType: "screen" | "navigation";
+  /** Element bounds inside the rendered iframe viewport. */
+  boundingRect: DrawgleBoundingRect | null;
+  /** Phone/screen viewport bounds in the parent page. */
+  screenRect: DrawgleBoundingRect | null;
+  /** Text/style data used by manual edit controls. */
+  editableMetadata: DrawgleEditableMetadata | null;
   /** A short human-readable text preview of the element (max ~120 chars). */
   textPreview: string;
   /** CSS breadcrumb path from root to the selected element. */
@@ -250,6 +259,7 @@ export function ScreenNode({
   onClick,
   scale = 1,
   selectionMode = false,
+  selectedDrawgleId = null,
   onElementSelected,
 }: {
   screen: ScreenData;
@@ -259,6 +269,8 @@ export function ScreenNode({
   scale?: number;
   /** When true, the iframe enters element-selection mode (hover outlines, click-to-select). */
   selectionMode?: boolean;
+  /** Stable selected element id to keep highlighted even after selection mode exits. */
+  selectedDrawgleId?: string | null;
   /** Called when the user clicks an element inside the iframe during selection mode. */
   onElementSelected?: (info: SelectedElementInfo) => void;
 }) {
@@ -274,6 +286,7 @@ export function ScreenNode({
   // ── "Interact mode" lets the user scroll/tap the iframe content.
   // It is only active while the screen is selected.
   const [interactMode, setInteractMode] = useState(false);
+  const isInteractModeActive = Boolean(isSelected && interactMode);
 
   // ── Refs that survive re-renders without triggering them.
   //
@@ -303,6 +316,20 @@ export function ScreenNode({
   //                    without drag).  Used to detect double-click → interact.
   const lastTapTimeRef = useRef(0);
 
+  const syncIframeInteractionMode = useCallback((enabled: boolean) => {
+    const iframe = iframeRef.current;
+    if (!iframe?.contentWindow) return;
+
+    if (enabled) {
+      iframe.focus();
+    }
+
+    iframe.contentWindow.postMessage(
+      { type: enabled ? "enterInteractMode" : "exitInteractMode" },
+      "*",
+    );
+  }, []);
+
   // ── Streaming support while a screen is being generated
   const [initialCode] = useState(safeCode);
   const isBuilding =
@@ -324,10 +351,10 @@ export function ScreenNode({
   const rawDisplayCode = streamedCode ?? safeCode;
   const sharedNavigationActive = hasSharedNavigation({ screen, projectNavigation });
   const displayCode = useMemo(
-    () => (sharedNavigationActive ? stripSharedNavigationMarkup(rawDisplayCode) : rawDisplayCode),
+    () => ensureDrawgleIds(sharedNavigationActive ? stripSharedNavigationMarkup(rawDisplayCode) : rawDisplayCode).code,
     [rawDisplayCode, sharedNavigationActive],
   );
-  const navigationShellCode = sharedNavigationActive ? projectNavigation?.shellCode ?? "" : "";
+  const navigationShellCode = sharedNavigationActive ? ensureDrawgleIds(projectNavigation?.shellCode ?? "").code : "";
   const activeNavigationItemId = sharedNavigationActive ? screen.navigationItemId ?? "" : "";
 
   // ── Position sync from DB
@@ -368,6 +395,10 @@ export function ScreenNode({
     return () => window.removeEventListener("keydown", onKey);
   }, [isSelected, interactMode]);
 
+  useEffect(() => {
+    syncIframeInteractionMode(isInteractModeActive);
+  }, [isInteractModeActive, syncIframeInteractionMode]);
+
   // ── Selection mode: tell the iframe to enable/disable element picking
   useEffect(() => {
     const iframe = iframeRef.current;
@@ -378,6 +409,15 @@ export function ScreenNode({
     );
   }, [selectionMode]);
 
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe?.contentWindow) return;
+    iframe.contentWindow.postMessage(
+      { type: 'setSelectedDrawgleId', drawgleId: selectedDrawgleId ?? null },
+      '*',
+    );
+  }, [selectedDrawgleId]);
+
   // ── Listen for elementSelected messages from the iframe
   useEffect(() => {
     if (!selectionMode || !onElementSelected) return;
@@ -386,18 +426,37 @@ export function ScreenNode({
       if (event.source !== iframeRef.current?.contentWindow) return;
       if (event.data?.type !== 'elementSelected') return;
 
-      const { outerHTML, textPreview, breadcrumb } = event.data as {
+      const { outerHTML, drawgleId, textPreview, breadcrumb, boundingRect, editableMetadata } = event.data as {
         type: string;
         outerHTML: string;
+        drawgleId?: string | null;
         targetType?: "screen" | "navigation";
+        boundingRect?: DrawgleBoundingRect | null;
+        editableMetadata?: DrawgleEditableMetadata | null;
         textPreview: string;
         breadcrumb: string;
       };
 
       if (outerHTML) {
+        const screenRect = iframeRef.current?.getBoundingClientRect() ?? null;
         onElementSelected({
           outerHTML,
+          drawgleId: drawgleId ?? null,
           targetType: event.data.targetType === "navigation" ? "navigation" : "screen",
+          boundingRect: boundingRect ?? null,
+          screenRect: screenRect
+            ? {
+                x: screenRect.x,
+                y: screenRect.y,
+                width: screenRect.width,
+                height: screenRect.height,
+                top: screenRect.top,
+                right: screenRect.right,
+                bottom: screenRect.bottom,
+                left: screenRect.left,
+              }
+            : null,
+          editableMetadata: editableMetadata ?? null,
           textPreview,
           breadcrumb,
         });
@@ -515,7 +574,21 @@ export function ScreenNode({
       setIsDraggingState(false);
 
       if (!wasDragging) {
+        const now = Date.now();
+        const gap = now - lastTapTimeRef.current;
+
+        if (gap > 0 && gap < DOUBLE_CLICK_MS) {
+          if (!isSelected) {
+            handleSelect();
+          }
+          setInteractMode(true);
+          lastTapTimeRef.current = 0;
+          window.requestAnimationFrame(() => syncIframeInteractionMode(true));
+          return;
+        }
+
         if (!isSelected) {
+          lastTapTimeRef.current = now;
           // Unselected screen tapped → select it
           handleSelect();
         } else {
@@ -546,7 +619,7 @@ export function ScreenNode({
         (err) => console.error("Failed to save screen position", err),
       );
     },
-    [handleSelect, isSelected, screen.id],
+    [handleSelect, isSelected, screen.id, syncIframeInteractionMode],
   );
 
   const handleOverlayPointerCancel = useCallback(
@@ -573,7 +646,7 @@ export function ScreenNode({
   // =========================================================================
 
   const srcDoc = useMemo(() => {
-    const initialScreenCode = sharedNavigationActive ? stripSharedNavigationMarkup(initialCode) : initialCode;
+    const initialScreenCode = ensureDrawgleIds(sharedNavigationActive ? stripSharedNavigationMarkup(initialCode) : initialCode).code;
 
     return `
     <!DOCTYPE html>
@@ -584,12 +657,13 @@ export function ScreenNode({
         <script src="https://cdn.tailwindcss.com"><\/script>
         <script src="https://unpkg.com/lucide@latest"><\/script>
         <style>
-          html, body { width: 100%; height: 100%; margin: 0; padding: 0; }
+          html, body { width: 100%; height: 100%; margin: 0; padding: 0; overscroll-behavior: none; }
           body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow: hidden; }
           ::-webkit-scrollbar { display: none; width: 0; height: 0; }
           * { -ms-overflow-style: none; scrollbar-width: none; }
           #root { position: relative; width: 100%; height: 100vh; overflow: hidden; background: transparent; }
-          #drawgle-screen-content { width: 100%; height: 100%; overflow-y: auto; overflow-x: hidden; }
+          #drawgle-screen-content { width: 100%; height: 100%; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
+          #drawgle-screen-content:focus { outline: none; }
           #drawgle-navigation-host { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; pointer-events: none; width: 100%; }
           #drawgle-navigation-host:empty { display: none; }
           #drawgle-navigation-host [data-drawgle-primary-nav] { pointer-events: auto; }
@@ -650,6 +724,98 @@ export function ScreenNode({
             applyActiveNavigationState(activeItemId || '');
             refreshLucideIconsWithRetry();
           }
+
+          var interactionModeActive = false;
+          var touchScrollState = null;
+
+          function getScreenContentHost() {
+            return document.getElementById('drawgle-screen-content');
+          }
+
+          function focusScreenContentHost() {
+            var contentHost = getScreenContentHost();
+            if (!contentHost) return;
+            if (!contentHost.hasAttribute('tabindex')) {
+              contentHost.setAttribute('tabindex', '-1');
+            }
+            try {
+              contentHost.focus({ preventScroll: true });
+            } catch (error) {
+              contentHost.focus();
+            }
+          }
+
+          function canScrollVertically(el) {
+            if (!el) return false;
+            return el.scrollHeight > el.clientHeight + 1;
+          }
+
+          function findScrollableHost(startEl) {
+            var contentHost = getScreenContentHost();
+            var node = startEl && startEl.nodeType === 1 ? startEl : null;
+
+            while (node && node !== document.body && node !== document.documentElement) {
+              if (node !== contentHost && canScrollVertically(node)) {
+                return node;
+              }
+              if (node === contentHost) break;
+              node = node.parentElement;
+            }
+
+            return contentHost;
+          }
+
+          function scrollHostBy(host, deltaY) {
+            if (!host || !deltaY) return false;
+            var previous = host.scrollTop;
+            host.scrollTop += deltaY;
+            return host.scrollTop !== previous;
+          }
+
+          function handleInteractWheel(event) {
+            if (!interactionModeActive) return;
+            var host = findScrollableHost(event.target);
+            if (!host) return;
+            event.preventDefault();
+            event.stopPropagation();
+            if (!scrollHostBy(host, event.deltaY) && host !== getScreenContentHost()) {
+              scrollHostBy(getScreenContentHost(), event.deltaY);
+            }
+          }
+
+          function handleInteractTouchStart(event) {
+            if (!interactionModeActive || !event.touches || event.touches.length !== 1) return;
+            touchScrollState = {
+              y: event.touches[0].clientY,
+              host: findScrollableHost(event.target),
+            };
+          }
+
+          function handleInteractTouchMove(event) {
+            if (!interactionModeActive || !touchScrollState || !event.touches || event.touches.length !== 1) return;
+            var nextY = event.touches[0].clientY;
+            var deltaY = touchScrollState.y - nextY;
+            touchScrollState.y = nextY;
+            event.preventDefault();
+            event.stopPropagation();
+            if (!scrollHostBy(touchScrollState.host, deltaY) && touchScrollState.host !== getScreenContentHost()) {
+              scrollHostBy(getScreenContentHost(), deltaY);
+            }
+          }
+
+          function enterInteractMode() {
+            interactionModeActive = true;
+            focusScreenContentHost();
+          }
+
+          function exitInteractMode() {
+            interactionModeActive = false;
+            touchScrollState = null;
+          }
+
+          document.addEventListener('wheel', handleInteractWheel, { capture: true, passive: false });
+          document.addEventListener('touchstart', handleInteractTouchStart, { capture: true, passive: true });
+          document.addEventListener('touchmove', handleInteractTouchMove, { capture: true, passive: false });
 
           renderScreenContent(initialScreenCode);
           renderNavigation(initialNavigationCode, initialActiveNavigationItemId);
@@ -715,6 +881,69 @@ export function ScreenNode({
               return parts.join(' > ');
             }
 
+            function toRectPayload(rect) {
+              return {
+                x: rect.x,
+                y: rect.y,
+                width: rect.width,
+                height: rect.height,
+                top: rect.top,
+                right: rect.right,
+                bottom: rect.bottom,
+                left: rect.left,
+              };
+            }
+
+            function buildStylePayload(el) {
+              var style = window.getComputedStyle(el);
+              return {
+                backgroundColor: style.backgroundColor,
+                color: style.color,
+                fontSize: style.fontSize,
+                fontWeight: style.fontWeight,
+                lineHeight: style.lineHeight,
+                borderRadius: style.borderRadius,
+                paddingTop: style.paddingTop,
+                paddingRight: style.paddingRight,
+                paddingBottom: style.paddingBottom,
+                paddingLeft: style.paddingLeft,
+                gap: style.gap,
+                borderColor: style.borderColor,
+                borderWidth: style.borderWidth,
+                boxShadow: style.boxShadow,
+              };
+            }
+
+            function isEditableTextElement(el) {
+              if (!el || !el.getAttribute || !el.getAttribute('data-drawgle-id')) return false;
+              if (['SCRIPT','STYLE','SVG','PATH','IMG','INPUT','TEXTAREA','SELECT'].includes(el.tagName)) return false;
+              if (el.children && el.children.length > 0) return false;
+              var text = (el.textContent || '').replace(/\\s+/g, ' ').trim();
+              return text.length > 0;
+            }
+
+            function collectTextNodes(target) {
+              var candidates = [target].concat(Array.from(target.querySelectorAll('[data-drawgle-id]')));
+              return candidates
+                .filter(isEditableTextElement)
+                .slice(0, 24)
+                .map(function(el) {
+                  return {
+                    drawgleId: el.getAttribute('data-drawgle-id'),
+                    tagName: el.tagName.toLowerCase(),
+                    text: (el.textContent || '').replace(/\\s+/g, ' ').trim(),
+                  };
+                });
+            }
+
+            function buildEditableMetadata(target) {
+              return {
+                tagName: target.tagName.toLowerCase(),
+                textNodes: collectTextNodes(target),
+                style: buildStylePayload(target),
+              };
+            }
+
             function clearHover() {
               if (hoveredEl) {
                 hoveredEl.classList.remove('__drawgle-hover-outline');
@@ -767,7 +996,10 @@ export function ScreenNode({
               window.parent.postMessage({
                 type: 'elementSelected',
                 outerHTML: clone.outerHTML,
+                drawgleId: target.getAttribute && target.getAttribute('data-drawgle-id'),
                 targetType: target.closest && target.closest('[data-drawgle-primary-nav]') ? 'navigation' : 'screen',
+                boundingRect: toRectPayload(target.getBoundingClientRect()),
+                editableMetadata: buildEditableMetadata(target),
                 textPreview: stripHtml(target.innerHTML),
                 breadcrumb: buildBreadcrumb(target),
               }, '*');
@@ -786,10 +1018,18 @@ export function ScreenNode({
               selectionActive = false;
               document.body.style.cursor = '';
               clearHover();
-              clearSelected();
               document.removeEventListener('mouseover', onMouseOver, true);
               document.removeEventListener('mouseout', onMouseOut, true);
               document.removeEventListener('click', onClick, true);
+            }
+
+            function selectByDrawgleId(drawgleId) {
+              clearSelected();
+              if (!drawgleId) return;
+              var nextSelected = document.querySelector('[data-drawgle-id="' + String(drawgleId).replace(/"/g, '\\"') + '"]');
+              if (!nextSelected) return;
+              selectedEl = nextSelected;
+              selectedEl.classList.add('__drawgle-selected-outline');
             }
 
             window.addEventListener('message', function(event) {
@@ -800,11 +1040,18 @@ export function ScreenNode({
                 if (wasActive) disableSelection();
                 renderScreenContent(event.data.code || '');
                 renderNavigation(event.data.navigationCode || '', event.data.activeNavigationItemId || '');
+                if (interactionModeActive) focusScreenContentHost();
                 if (wasActive) enableSelection();
               } else if (event.data.type === 'enableSelectionMode') {
                 enableSelection();
               } else if (event.data.type === 'disableSelectionMode') {
                 disableSelection();
+              } else if (event.data.type === 'setSelectedDrawgleId') {
+                selectByDrawgleId(event.data.drawgleId || null);
+              } else if (event.data.type === 'enterInteractMode') {
+                enterInteractMode();
+              } else if (event.data.type === 'exitInteractMode') {
+                exitInteractMode();
               }
             });
           })();
@@ -818,7 +1065,6 @@ export function ScreenNode({
   // Render
   // =========================================================================
 
-  const isInteractModeActive = Boolean(isSelected && interactMode);
   const isSelectionModeActive = Boolean(isSelected && selectionMode);
   // Overlay is removed for interact mode AND selection mode (iframe needs pointer events)
   const overlayActive = !isInteractModeActive && !isSelectionModeActive;
@@ -971,6 +1217,9 @@ export function ScreenNode({
                   { type: 'enableSelectionMode' },
                   '*'
                 );
+              }
+              if (isInteractModeActive) {
+                syncIframeInteractionMode(true);
               }
             }}
           />

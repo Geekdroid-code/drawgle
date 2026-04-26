@@ -3,6 +3,7 @@ import { assembleChatContext } from "@/lib/generation/context";
 import { generateEmbedding } from "@/lib/generation/embeddings";
 import { editNavigationShellCode, editScreenStream } from "@/lib/generation/service";
 import { applyEdits } from "@/lib/diff-engine";
+import { ensureDrawgleIds } from "@/lib/drawgle-dom";
 import { sanitizeScreenCodeForSharedNavigation } from "@/lib/project-navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -93,6 +94,7 @@ export async function POST(req: Request) {
       selectedScreenId,
       selectedElementHtml,
       selectedElementTarget,
+      selectedElementDrawgleId,
     } = await req.json();
 
     if (!projectId || !prompt?.trim()) {
@@ -129,6 +131,9 @@ export async function POST(req: Request) {
     const cleanSelectedElementHtml = typeof selectedElementHtml === "string" && selectedElementHtml.length > 0
       ? selectedElementHtml
       : null;
+    const cleanSelectedElementDrawgleId = typeof selectedElementDrawgleId === "string" && selectedElementDrawgleId.length > 0
+      ? selectedElementDrawgleId
+      : null;
     const requestTargetsNavigation =
       selectedElementTarget === "navigation" ||
       isNavigationElementHtml(cleanSelectedElementHtml) ||
@@ -157,6 +162,7 @@ export async function POST(req: Request) {
         projectCharter: (project.project_charter as ProjectCharter | null) ?? null,
         navigationArchitecture: ((project.project_charter as ProjectCharter | null)?.navigationArchitecture ?? null) as NavigationArchitecture | null,
         selectedElementHtml: cleanSelectedElementHtml,
+        selectedElementDrawgleId: cleanSelectedElementDrawgleId,
         selectedElementTarget: selectedElementTarget === "navigation" ? "navigation" : "screen",
         requestTargetsNavigation,
       });
@@ -193,6 +199,7 @@ async function handleEditIntent({
   projectCharter,
   navigationArchitecture,
   selectedElementHtml,
+  selectedElementDrawgleId,
   selectedElementTarget,
   requestTargetsNavigation,
 }: {
@@ -207,6 +214,7 @@ async function handleEditIntent({
   navigationArchitecture?: NavigationArchitecture | null;
   /** The outerHTML of a visually selected element, or null for block-index fallback. */
   selectedElementHtml?: string | null;
+  selectedElementDrawgleId?: string | null;
   selectedElementTarget?: "screen" | "navigation";
   requestTargetsNavigation?: boolean;
 }) {
@@ -223,7 +231,7 @@ async function handleEditIntent({
       .maybeSingle();
 
     if (!navigationError && projectNavigation?.shell_code) {
-      const navigationCode = projectNavigation.shell_code;
+      const navigationCode = ensureDrawgleIds(projectNavigation.shell_code).code;
       const navigationPlan = projectNavigation.plan as unknown as NavigationPlan;
 
       await upsertActivityMessage(admin, editActivityKey, {
@@ -239,14 +247,14 @@ async function handleEditIntent({
       const stream = new ReadableStream({
         async start(controller) {
           try {
-            const nextCode = await editNavigationShellCode({
+            const nextCode = ensureDrawgleIds(await editNavigationShellCode({
               prompt,
               currentShellCode: navigationCode,
               navigationPlan,
               designTokens,
               projectCharter,
               selectedElementHtml: selectedNavigationElement ? selectedElementHtml : null,
-            });
+            })).code;
 
             if (nextCode !== navigationCode) {
               const { error: updateError } = await admin
@@ -315,7 +323,7 @@ async function handleEditIntent({
     return NextResponse.json({ error: "Screen not found." }, { status: 404 });
   }
 
-  const screenCode = typeof screen.code === "string" && screen.code.length > 0 ? screen.code : "";
+  const screenCode = ensureDrawgleIds(typeof screen.code === "string" && screen.code.length > 0 ? screen.code : "").code;
   const blockIndex = ((screen.block_index as ScreenBlockIndex | null) ?? indexScreenCode(screenCode));
 
   // Detect target blocks for scoped editing (skipped when visual element selection is available)
@@ -367,6 +375,7 @@ async function handleEditIntent({
           designTokens,
           navigationArchitecture,
           selectedElementHtml,
+          selectedElementDrawgleId,
         })) {
           fullResponse += chunk;
           controller.enqueue(new TextEncoder().encode(chunk));
@@ -374,13 +383,13 @@ async function handleEditIntent({
 
         if (fullResponse.includes("<edit>")) {
           const editedCode = applyEdits(screenCode, fullResponse);
-          const nextCode = sanitizeScreenCodeForSharedNavigation(editedCode, {
+          const nextCode = ensureDrawgleIds(sanitizeScreenCodeForSharedNavigation(editedCode, {
             name: screen.name,
             type: "root",
             description: "",
             chromePolicy: (screen.chrome_policy as ScreenChromePolicy | null) ?? null,
             navigationItemId: typeof screen.navigation_item_id === "string" ? screen.navigation_item_id : null,
-          });
+          })).code;
 
           if (nextCode === screenCode) {
             await upsertActivityMessage(admin, editActivityKey, {

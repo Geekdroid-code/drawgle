@@ -235,6 +235,9 @@ const CanvasContent = ({
   selectedScreen,
   onSelectScreen,
   selectionMode,
+  preserveSelectionOnCanvasClick,
+  selectedElementScreenId,
+  selectedElementDrawgleId,
   onElementSelected,
 }: {
   screens: ScreenData[];
@@ -242,6 +245,9 @@ const CanvasContent = ({
   selectedScreen?: ScreenData | null;
   onSelectScreen?: (screen: ScreenData | null) => void;
   selectionMode?: boolean;
+  preserveSelectionOnCanvasClick?: boolean;
+  selectedElementScreenId?: string | null;
+  selectedElementDrawgleId?: string | null;
   onElementSelected?: (info: SelectedElementInfo) => void;
 }) => {
   const { state } = useControls();
@@ -252,7 +258,7 @@ const CanvasContent = ({
       <div
         className="w-[10000px] h-[10000px] relative"
         onClick={(e) => {
-          if (e.target === e.currentTarget) {
+          if (e.target === e.currentTarget && !preserveSelectionOnCanvasClick) {
             onSelectScreen?.(null);
           }
         }}
@@ -266,6 +272,7 @@ const CanvasContent = ({
             onClick={() => onSelectScreen?.(screen)}
             scale={scale}
             selectionMode={selectedScreen?.id === screen.id ? selectionMode : false}
+            selectedDrawgleId={selectedElementScreenId === screen.id ? selectedElementDrawgleId ?? null : null}
             onElementSelected={selectedScreen?.id === screen.id ? onElementSelected : undefined}
           />
         ))}
@@ -282,6 +289,9 @@ export function CanvasArea({
   mobileBottomReserve = MOBILE_DEFAULT_BOTTOM_RESERVED_HEIGHT,
   onSelectScreen,
   selectionMode,
+  preserveSelectionOnCanvasClick,
+  selectedElementScreenId,
+  selectedElementDrawgleId,
   onElementSelected,
 }: {
   screens: ScreenData[];
@@ -291,6 +301,9 @@ export function CanvasArea({
   mobileBottomReserve?: number;
   onSelectScreen?: (screen: ScreenData | null) => void;
   selectionMode?: boolean;
+  preserveSelectionOnCanvasClick?: boolean;
+  selectedElementScreenId?: string | null;
+  selectedElementDrawgleId?: string | null;
   onElementSelected?: (info: SelectedElementInfo) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -358,6 +371,9 @@ export function CanvasArea({
             selectedScreen={selectedScreen}
             onSelectScreen={onSelectScreen}
             selectionMode={selectionMode}
+            preserveSelectionOnCanvasClick={preserveSelectionOnCanvasClick}
+            selectedElementScreenId={selectedElementScreenId}
+            selectedElementDrawgleId={selectedElementDrawgleId}
             onElementSelected={onElementSelected}
           />
         </>
