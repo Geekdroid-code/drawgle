@@ -618,7 +618,7 @@ async function analyzeReferenceImage({
     });
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3.1-flash-lite-preview",
       contents: { parts },
       config: {
         systemInstruction: referenceAnalysisInstruction,
@@ -667,7 +667,7 @@ async function generateCreativeDirection({
     }
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3.1-flash-lite-preview",
       contents: { parts },
       config: {
         systemInstruction: creativeDirectionInstruction,
@@ -770,7 +770,7 @@ export async function planUiFlow({
   }
 
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-3.1-flash-lite-preview",
     contents: { parts },
     config: {
       systemInstruction: plannerInstruction,
@@ -936,7 +936,7 @@ export async function generateDesignTokens({
     });
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3.1-flash-lite-preview",
       contents: { parts },
       config: {
         systemInstruction: designInstruction,
@@ -988,7 +988,7 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
   }
 
   const responseStream = await ai.models.generateContentStream({
-    model: "gemini-3-flash-preview",
+    model: "gemini-3.1-flash-lite-preview",
     contents: { parts },
     config: {
       systemInstruction: buildSystemInstruction({
@@ -1050,7 +1050,7 @@ export async function* editScreenStream({
   }));
 
   const chat = ai.chats.create({
-    model: "gemini-3-flash-preview",
+    model: "gemini-3.1-flash-lite-preview",
     history,
     config: {
       systemInstruction: buildEditSystemInstruction({ designTokens, navigationArchitecture }),
@@ -1169,7 +1169,7 @@ async function refineNavigationShellCode({
 }) {
   const ai = createGeminiClient();
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-3.1-flash-lite-preview",
     contents: {
       parts: [{
         text: [
@@ -1224,7 +1224,7 @@ export async function editNavigationShellCode({
 
   const ai = createGeminiClient();
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-3.1-flash-lite-preview",
     contents: {
       parts: [{
         text: [
@@ -1318,7 +1318,7 @@ export async function buildNavigationShellCode({
     });
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3.1-flash-lite-preview",
       contents: { parts },
       config: {
         temperature: 0.28,

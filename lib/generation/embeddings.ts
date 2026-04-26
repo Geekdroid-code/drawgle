@@ -4,7 +4,7 @@ import { createGeminiClient } from "@/lib/ai/gemini";
 
 export const SCREEN_EMBEDDING_DIMENSIONS = 768;
 
-const SUMMARY_MODEL = "gemini-3-flash-preview";
+const SUMMARY_MODEL = "gemini-3.1-flash-lite-preview";
 const EMBEDDING_MODEL = "gemini-embedding-001";
 const MAX_EMBEDDING_INPUT_CHARS = 12000;
 const MAX_SCREEN_CODE_CHARS = 18000;

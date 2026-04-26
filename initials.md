@@ -52,7 +52,7 @@ RULES:
     coderParts.push({ text: `Build the UI for this screen based on the description: ${screenPlan.description}` });
 
     const responseStream = await ai.models.generateContentStream({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3.1-flash-lite-preview",
       contents: { parts: coderParts },
       config: {
         systemInstruction: coderInstruction,
@@ -157,7 +157,7 @@ Output ONLY valid JSON.`;
     }
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3.1-flash-lite-preview",
       contents: { parts },
       config: {
         systemInstruction: designInstruction,
@@ -219,7 +219,7 @@ Rules:
     }));
 
     const chat = ai.chats.create({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3.1-flash-lite-preview",
       history,
       config: {
         systemInstruction,
@@ -304,7 +304,7 @@ Return strictly valid JSON in this format:
     }
 
     const plannerResponse = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3.1-flash-lite-preview",
       contents: { parts: plannerParts },
       config: {
         systemInstruction: plannerInstruction,
