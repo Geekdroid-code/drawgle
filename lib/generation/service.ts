@@ -9,8 +9,8 @@ import { buildScopedEditContext } from "@/lib/generation/block-index";
 import { createNavigationArchitecture, deriveRequiresBottomNav, resolveScreenChromePolicy } from "@/lib/navigation";
 import {
   applyNavigationPlanToScreens,
-  buildFallbackNavigationShell,
   normalizeNavigationPlan,
+  validateNavigationShell,
 } from "@/lib/project-navigation";
 import {
   buildSystemInstruction,
@@ -1086,7 +1086,16 @@ export async function* editScreenStream({
           scopedContext,
           "Return ONLY <edit> blocks that match the provided snippets.",
         ].join("\n\n")
-      : `Here is the current code:\n\n\`\`\`html\n${screenCode}\n\`\`\``;
+      : [
+          `User edit request: ${latestUserPrompt || "Apply the requested changes."}`,
+          "",
+          "Here is the current code:",
+          "```html",
+          screenCode,
+          "```",
+          "",
+          "Return ONLY <edit> blocks that modify the code to satisfy the user request.",
+        ].join("\n");
   }
 
   const responseStream = await chat.sendMessageStream({
@@ -1127,10 +1136,14 @@ export async function buildNavigationShellCode({
   navigationPlan,
   designTokens,
   prompt,
+  image,
+  projectCharter,
 }: {
   navigationPlan: NavigationPlan;
   designTokens?: DesignTokens | null;
   prompt: string;
+  image?: PromptImagePayload | null;
+  projectCharter?: ProjectCharter | null;
 }) {
   if (!navigationPlan.enabled || navigationPlan.kind === "none") {
     return "";
@@ -1138,38 +1151,57 @@ export async function buildNavigationShellCode({
 
   try {
     const ai = createGeminiClient();
+    const parts: Array<Record<string, unknown>> = [];
+    const inlineImage = toInlineImage(image);
+
+    if (inlineImage) {
+      parts.push(inlineImage);
+      parts.push({
+        text: "Reference image: inspect the bottom navigation treatment, shell placement, icon/label style, material, radius, elevation, active state, and how it relates to the screen content. Recreate the navigation style family, not just the tab labels.",
+      });
+    }
+
+    parts.push({
+      text: [
+        `Project prompt: ${prompt || "No prompt provided."}`,
+        projectCharter ? `Project charter: ${JSON.stringify(projectCharter, null, 2)}` : null,
+        projectCharter?.creativeDirection ? `Creative direction: ${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
+        `Navigation plan: ${JSON.stringify(navigationPlan, null, 2)}`,
+        `Design tokens: ${JSON.stringify(designTokens?.tokens ?? {}, null, 2)}`,
+      ].filter(Boolean).join("\n\n"),
+    });
+
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: {
-        parts: [{
-          text: [
-            `Project prompt: ${prompt || "No prompt provided."}`,
-            `Navigation plan: ${JSON.stringify(navigationPlan, null, 2)}`,
-            `Design tokens: ${JSON.stringify(designTokens?.tokens ?? {}, null, 2)}`,
-          ].join("\n\n"),
-        }],
-      },
+      contents: { parts },
       config: {
-        temperature: 0.15,
+        temperature: 0.28,
         systemInstruction: [
-          "You are building the single shared bottom navigation shell for a mobile app preview system.",
+          "You are an elite mobile product designer building the single shared bottom navigation shell for a mobile app preview system.",
           "Return ONLY valid HTML for the navigation shell. Do not include markdown fences, html, head, body, scripts, or the screen content.",
           "The nav must be project-specific and must follow the provided navigation plan and design tokens.",
-          "Use one <nav data-drawgle-primary-nav> root.",
+          "Use the reference image and creative direction as high-priority visual evidence. If the reference uses a compact tab rail, floating dock, glass pill, sculpted card, or minimal bottom text/icon row, match that style family.",
+          "Avoid generic 2015 bottom tabs: no plain full-width white rectangle with evenly spaced gray icons unless the reference clearly shows that.",
+          "Use one <nav data-drawgle-primary-nav> root. The nav root may be full-width, a floating dock, a compact action nav, or another bottom navigation form that fits the project.",
           "Each item must be a button or anchor with data-nav-item-id exactly matching the plan item id.",
           "Use Lucide icons with <i data-lucide=\"icon-name\"></i>.",
-          "The shell is injected into a relative mobile screen, so position it absolute/fixed at the bottom and keep it mobile-safe.",
+          "The renderer mounts the shell in a fixed bottom viewport host. The HTML you return owns the nav's visual geometry, width, radius, surface, spacing, and active state.",
+          "Make active/inactive states explicit through data-active=true selectors, utility classes, or inline CSS variables. The renderer will set data-active at runtime.",
           "Do not hard-code generic tab labels. Use only the planned items.",
         ].join("\n"),
       },
     });
 
     const code = extractCode(response.text || "").trim();
-    return code.includes("data-drawgle-primary-nav")
-      ? code
-      : buildFallbackNavigationShell(navigationPlan, designTokens);
+    if (!validateNavigationShell(code, navigationPlan)) {
+      throw new Error("Navigation shell generation did not produce valid project navigation markup.");
+    }
+
+    return code;
   } catch (error) {
     console.error("Failed to generate navigation shell", error);
-    return buildFallbackNavigationShell(navigationPlan, designTokens);
+    throw error instanceof Error
+      ? error
+      : new Error("Failed to generate navigation shell.");
   }
 }

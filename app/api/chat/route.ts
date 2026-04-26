@@ -213,11 +213,11 @@ async function handleEditIntent({
       await upsertActivityMessage(admin, editActivityKey, {
         projectId,
         ownerId,
-        screenId,
+        screenId: null,
         role: "system",
         content: "Editing shared project navigation...",
         messageType: "chat",
-        metadata: { action: "navigation_edit_start", userMessageId },
+        metadata: { action: "navigation_edit_start", target: "project_navigation", screenName: "Navigation", userMessageId },
       });
 
       const stream = new ReadableStream({
@@ -259,11 +259,11 @@ async function handleEditIntent({
               const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
                 projectId,
                 ownerId,
-                screenId,
+                screenId: null,
                 role: "model",
                 content: fullResponse,
                 messageType: "edit_applied",
-                metadata: { action: "edit_applied", target: "project_navigation", userMessageId },
+                metadata: { action: "edit_applied", target: "project_navigation", screenName: "Navigation", userMessageId },
               });
 
               void embedMessagePair(admin, userMessageId, prompt, modelMessage.id, fullResponse);
@@ -271,11 +271,11 @@ async function handleEditIntent({
               await upsertActivityMessage(admin, editActivityKey, {
                 projectId,
                 ownerId,
-                screenId,
+                screenId: null,
                 role: "system",
                 content: "No material navigation changes were applied.",
                 messageType: "chat",
-                metadata: { action: "edit_noop", target: "project_navigation", userMessageId },
+                metadata: { action: "edit_noop", target: "project_navigation", screenName: "Navigation", userMessageId },
               });
             }
 

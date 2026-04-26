@@ -1,7 +1,6 @@
 import { indexScreenCode } from "@/lib/generation/block-index";
 import { createNavigationArchitecture, deriveRequiresBottomNav, resolveScreenChromePolicy } from "@/lib/navigation";
 import type {
-  DesignTokens,
   NavigationArchitecture,
   NavigationPlan,
   NavigationPlanItem,
@@ -22,25 +21,20 @@ const slugify = (value: string, fallback: string) => {
   return slug || fallback;
 };
 
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-
-const token = (designTokens: DesignTokens | null | undefined, path: string, fallback: string) => {
-  let current: unknown = designTokens?.tokens;
-  for (const part of path.split(".")) {
-    if (!current || typeof current !== "object" || Array.isArray(current)) {
-      return fallback;
-    }
-    current = (current as Record<string, unknown>)[part];
-  }
-
-  return typeof current === "string" ? current : fallback;
-};
+export function hasSharedNavigation({
+  screen,
+  projectNavigation,
+}: {
+  screen: Pick<ScreenData, "chromePolicy" | "navigationItemId">;
+  projectNavigation?: ProjectNavigationData | null;
+}) {
+  return Boolean(
+    projectNavigation?.plan.enabled &&
+    projectNavigation.shellCode &&
+    screen.chromePolicy?.showPrimaryNavigation &&
+    screen.navigationItemId,
+  );
+}
 
 export function createFallbackNavigationPlan({
   screens,
@@ -73,7 +67,7 @@ export function createFallbackNavigationPlan({
     kind: enabled ? "bottom-tabs" : "none",
     items,
     visualBrief: enabled
-      ? "Create a project-specific bottom tab bar using the approved design tokens, product tone, and icon style. It should feel like a native app shell, not a generic template."
+      ? "Create a project-specific modern mobile navigation shell. Infer whether it should feel like a floating dock, glass pill, minimal tab rail, sculpted bottom card, or compact action dock from the reference image, creative direction, and product tone. Avoid generic 2015 equal-width tab bars."
       : "This project should not use persistent primary navigation.",
     screenChrome: screens.map((screen) => {
       const chromePolicy = resolveScreenChromePolicy({ screenPlan: screen, navigationArchitecture: architecture });
@@ -160,30 +154,16 @@ export function applyNavigationPlanToScreens(screens: ScreenPlan[], navigationPl
   });
 }
 
-export function buildFallbackNavigationShell(navigationPlan: NavigationPlan, designTokens?: DesignTokens | null) {
-  if (!navigationPlan.enabled || navigationPlan.kind === "none" || navigationPlan.items.length === 0) {
-    return "";
+export function validateNavigationShell(shellCode: string, navigationPlan: NavigationPlan) {
+  if (!navigationPlan.enabled || navigationPlan.kind === "none") {
+    return true;
   }
 
-  const surface = token(designTokens, "color.surface.bottom_sheet", token(designTokens, "color.surface.card", "#ffffff"));
-  const border = token(designTokens, "color.border.divider", "rgba(15,23,42,0.12)");
-  const text = token(designTokens, "color.text.medium_emphasis", "#64748b");
-  const active = token(designTokens, "color.action.primary", "#111827");
-  const radius = token(designTokens, "radii.app", "24px");
-  const shadow = token(designTokens, "shadows.overlay", "0 -10px 30px rgba(15,23,42,0.12)");
-  const height = token(designTokens, "sizing.bottom_nav_height", "78px");
+  if (!shellCode.includes("data-drawgle-primary-nav")) {
+    return false;
+  }
 
-  const items = navigationPlan.items
-    .map((item) => `
-      <button data-nav-item-id="${escapeHtml(item.id)}" class="min-h-[48px] flex flex-col items-center justify-center gap-1 rounded-[18px] px-2 text-[11px] font-[700] transition" style="color:${text}">
-        <i data-lucide="${escapeHtml(item.icon)}" class="h-[20px] w-[20px]"></i>
-        <span>${escapeHtml(item.label)}</span>
-      </button>`)
-    .join("");
-
-  return `<nav data-drawgle-primary-nav class="pointer-events-auto absolute inset-x-[14px] bottom-[10px] z-20 grid items-center gap-1 px-2" style="grid-template-columns: repeat(${navigationPlan.items.length}, minmax(0, 1fr)); min-height:${height}; border:1px solid ${border}; border-radius:${radius}; background:${surface}; box-shadow:${shadow}; --drawgle-nav-active:${active};">
-    ${items}
-  </nav>`;
+  return navigationPlan.items.every((item) => shellCode.includes(`data-nav-item-id="${item.id}"`) || shellCode.includes(`data-nav-item-id='${item.id}'`));
 }
 
 export function sanitizeScreenCodeForSharedNavigation(code: string, screenPlan: ScreenPlan) {
@@ -199,47 +179,6 @@ export function sanitizeScreenCodeForSharedNavigation(code: string, screenPlan: 
       /bottom|tab|navigation|nav/i.test(match) ? "" : match,
     )
     .trim();
-}
-
-export function composeScreenCode({
-  screen,
-  code,
-  projectNavigation,
-}: {
-  screen: Pick<ScreenData, "chromePolicy" | "navigationItemId">;
-  code: string;
-  projectNavigation?: ProjectNavigationData | null;
-}) {
-  const shouldWrap = Boolean(
-    projectNavigation?.plan.enabled &&
-    projectNavigation.shellCode &&
-    screen.chromePolicy?.showPrimaryNavigation &&
-    screen.navigationItemId,
-  );
-
-  if (!shouldWrap) {
-    return code;
-  }
-
-  return `<div data-drawgle-app-shell class="relative min-h-screen w-full overflow-hidden">
-    <div data-drawgle-screen-content class="relative z-0 min-h-screen pb-[112px]">
-      ${code}
-    </div>
-    ${projectNavigation!.shellCode}
-    <style>
-      [data-drawgle-primary-nav] [data-nav-item-id] { opacity: 0.56; }
-      [data-drawgle-primary-nav] [data-nav-item-id][data-active="true"] { opacity: 1; color: var(--drawgle-nav-active) !important; }
-      [data-drawgle-primary-nav] [data-nav-item-id][data-active="true"] svg { stroke: var(--drawgle-nav-active) !important; }
-    </style>
-    <script>
-      (function(){
-        var activeId = ${JSON.stringify(screen.navigationItemId)};
-        document.querySelectorAll('[data-drawgle-primary-nav] [data-nav-item-id]').forEach(function(item) {
-          item.setAttribute('data-active', item.getAttribute('data-nav-item-id') === activeId ? 'true' : 'false');
-        });
-      })();
-    <\/script>
-  </div>`;
 }
 
 export function indexNavigationShell(shellCode: string) {

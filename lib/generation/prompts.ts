@@ -49,7 +49,7 @@ Return strictly valid JSON in this format:
         "linked_screen_name": "Home"
       }
     ],
-    "visual_brief": "Describe the project-specific visual treatment for the shared nav shell.",
+    "visual_brief": "Describe the project-specific visual treatment for the shared nav shell: e.g. floating dock, glass pill, compact tab rail, sculpted bottom card, centered action dock, icon/label treatment, active state, surface, radius, elevation, and how it should relate to the screen content.",
     "screen_chrome": [
       {
         "screen_name": "Home",
@@ -101,6 +101,8 @@ Rules:
 - Each navigation_plan item must link to a planned root screen by linked_screen_name unless it is an intentional future placeholder.
 - Use Lucide icon names for navigation_plan.items.icon.
 - navigation_plan.screen_chrome must list every planned screen and must match each screen's chrome_policy.
+- navigation_plan.visual_brief must explicitly describe the bottom navigation's visual anatomy. If a reference image is provided, inspect its bottom navigation and preserve its style family instead of describing a generic tab bar.
+- Prefer modern mobile navigation patterns when appropriate: floating docks, soft glass pills, compact icon rails, sculpted card-attached nav, or centered action docks. Do not default to plain full-width 2015-style tab bars unless the reference requires it.
 - charter.navigationModel should be a human-readable explanation that matches navigation_architecture, not a conflicting second system.
 - chrome_policy must match the screen's role in the architecture. Detail screens should not carry the primary bottom-tab shell.
 - originalPrompt must preserve the user's product intent, not just paraphrase the latest sentence fragment.

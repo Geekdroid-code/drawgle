@@ -538,6 +538,8 @@ export const generateUiFlowTask = task({
       navigationPlan: plan.navigationPlan,
       designTokens,
       prompt: payload.prompt,
+      image: promptImage,
+      projectCharter: plan.charter,
     });
 
     const { error: navigationUpsertError } = await admin

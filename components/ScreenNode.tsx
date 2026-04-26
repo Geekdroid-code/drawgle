@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { createClient } from "@/lib/supabase/client";
 import { deleteScreen, updateScreenPosition } from "@/lib/supabase/queries";
-import { composeScreenCode } from "@/lib/project-navigation";
+import { hasSharedNavigation } from "@/lib/project-navigation";
 import { useRealtimeRunWithStreams } from "@trigger.dev/react-hooks";
 
 /** Data sent from the iframe when the user clicks an element in selection mode. */
@@ -40,6 +40,19 @@ const stripFences = (text: string): string => {
   if (match) return match[1].trim();
   return text.replace(/^```html\n/i, "").replace(/\n```$/, "").trim();
 };
+
+const serializeForInlineScript = (value: string | null | undefined) =>
+  JSON.stringify(value ?? "").replace(/</g, "\\u003c");
+
+const stripSharedNavigationMarkup = (code: string) =>
+  code
+    .replace(/<nav\b[\s\S]*?<\/nav>/gi, (match) =>
+      /bottom|tab|navigation|nav|data-drawgle-primary-nav/i.test(match) ? "" : match,
+    )
+    .replace(/<footer\b[\s\S]*?<\/footer>/gi, (match) =>
+      /bottom|tab|navigation|nav/i.test(match) ? "" : match,
+    )
+    .trim();
 
 // ---------------------------------------------------------------------------
 // External Label Bar
@@ -306,10 +319,13 @@ export function ScreenNode({
   }, [triggerStreams]);
 
   const rawDisplayCode = streamedCode ?? safeCode;
+  const sharedNavigationActive = hasSharedNavigation({ screen, projectNavigation });
   const displayCode = useMemo(
-    () => composeScreenCode({ screen, code: rawDisplayCode, projectNavigation }),
-    [projectNavigation, rawDisplayCode, screen],
+    () => (sharedNavigationActive ? stripSharedNavigationMarkup(rawDisplayCode) : rawDisplayCode),
+    [rawDisplayCode, sharedNavigationActive],
   );
+  const navigationShellCode = sharedNavigationActive ? projectNavigation?.shellCode ?? "" : "";
+  const activeNavigationItemId = sharedNavigationActive ? screen.navigationItemId ?? "" : "";
 
   // ── Position sync from DB
   //
@@ -329,10 +345,15 @@ export function ScreenNode({
   // ── Push code updates into the iframe without a full remount
   useEffect(() => {
     iframeRef.current?.contentWindow?.postMessage(
-      { type: "updateCode", code: displayCode },
+      {
+        type: "updateCode",
+        code: displayCode,
+        navigationCode: navigationShellCode,
+        activeNavigationItemId,
+      },
       "*",
     );
-  }, [displayCode]);
+  }, [activeNavigationItemId, displayCode, navigationShellCode]);
 
   // ── Escape key exits interact mode
   useEffect(() => {
@@ -542,8 +563,10 @@ export function ScreenNode({
   // iframe srcDoc
   // =========================================================================
 
-  const srcDoc = useMemo(
-    () => `
+  const srcDoc = useMemo(() => {
+    const initialScreenCode = sharedNavigationActive ? stripSharedNavigationMarkup(initialCode) : initialCode;
+
+    return `
     <!DOCTYPE html>
     <html>
       <head>
@@ -552,17 +575,78 @@ export function ScreenNode({
         <script src="https://cdn.tailwindcss.com"><\/script>
         <script src="https://unpkg.com/lucide@latest"><\/script>
         <style>
-          body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow-x: hidden; }
+          html, body { width: 100%; height: 100%; margin: 0; padding: 0; }
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow: hidden; }
           ::-webkit-scrollbar { display: none; width: 0; height: 0; }
           * { -ms-overflow-style: none; scrollbar-width: none; }
+          #root { position: relative; width: 100%; height: 100vh; overflow: hidden; background: transparent; }
+          #drawgle-screen-content { width: 100%; height: 100%; overflow-y: auto; overflow-x: hidden; }
+          #drawgle-navigation-host { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; pointer-events: none; width: 100%; }
+          #drawgle-navigation-host:empty { display: none; }
+          #drawgle-navigation-host [data-drawgle-primary-nav] { pointer-events: auto; }
+          [data-drawgle-primary-nav] [data-nav-item-id] { opacity: 0.56; }
+          [data-drawgle-primary-nav] [data-nav-item-id][data-active="true"] { opacity: 1; color: var(--drawgle-nav-active, currentColor) !important; }
+          [data-drawgle-primary-nav] [data-nav-item-id][data-active="true"] svg { stroke: currentColor !important; }
           .__drawgle-hover-outline { outline: 2px solid rgba(20,184,166,0.8) !important; outline-offset: -1px; cursor: crosshair !important; }
           .__drawgle-selected-outline { outline: 2.5px solid #0d9488 !important; outline-offset: -1px; background-color: rgba(20,184,166,0.06) !important; }
         </style>
       </head>
       <body>
-        <div id="root">${composeScreenCode({ screen, code: initialCode, projectNavigation })}</div>
+        <div id="root" data-has-navigation="${sharedNavigationActive ? "true" : "false"}">
+          <div id="drawgle-screen-content"></div>
+          <div id="drawgle-navigation-host"></div>
+        </div>
         <script>
-          lucide.createIcons();
+          var initialScreenCode = ${serializeForInlineScript(initialScreenCode)};
+          var initialNavigationCode = ${serializeForInlineScript(navigationShellCode)};
+          var initialActiveNavigationItemId = ${serializeForInlineScript(activeNavigationItemId)};
+
+          function refreshLucideIconsWithRetry() {
+            var attempts = 0;
+            function run() {
+              attempts += 1;
+              if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                window.lucide.createIcons();
+                return;
+              }
+              if (attempts < 20) {
+                window.setTimeout(run, 50);
+              }
+            }
+            run();
+          }
+
+          function applyActiveNavigationState(activeItemId) {
+            document.querySelectorAll('[data-drawgle-primary-nav] [data-nav-item-id]').forEach(function(item) {
+              var active = item.getAttribute('data-nav-item-id') === activeItemId;
+              item.setAttribute('data-active', active ? 'true' : 'false');
+              item.setAttribute('aria-current', active ? 'page' : 'false');
+            });
+          }
+
+          function renderScreenContent(code) {
+            var contentHost = document.getElementById('drawgle-screen-content');
+            if (!contentHost) return;
+            contentHost.innerHTML = code || '';
+            refreshLucideIconsWithRetry();
+          }
+
+          function renderNavigation(shellCode, activeItemId) {
+            var root = document.getElementById('root');
+            var host = document.getElementById('drawgle-navigation-host');
+            if (!root || !host) return;
+            var hasNavigation = Boolean(shellCode);
+            root.setAttribute('data-has-navigation', hasNavigation ? 'true' : 'false');
+            if (host.getAttribute('data-shell-code') !== shellCode) {
+              host.innerHTML = shellCode || '';
+              host.setAttribute('data-shell-code', shellCode || '');
+            }
+            applyActiveNavigationState(activeItemId || '');
+            refreshLucideIconsWithRetry();
+          }
+
+          renderScreenContent(initialScreenCode);
+          renderNavigation(initialNavigationCode, initialActiveNavigationItemId);
 
           /* ── Element selection engine ──────────────────────────── */
           (function() {
@@ -705,8 +789,8 @@ export function ScreenNode({
                 /* Preserve selection state across live code updates */
                 var wasActive = selectionActive;
                 if (wasActive) disableSelection();
-                document.getElementById('root').innerHTML = event.data.code;
-                lucide.createIcons();
+                renderScreenContent(event.data.code || '');
+                renderNavigation(event.data.navigationCode || '', event.data.activeNavigationItemId || '');
                 if (wasActive) enableSelection();
               } else if (event.data.type === 'enableSelectionMode') {
                 enableSelection();
@@ -718,9 +802,8 @@ export function ScreenNode({
         <\/script>
       </body>
     </html>
-  `,
-    [initialCode, projectNavigation, screen],
-  );
+  `;
+  }, [activeNavigationItemId, initialCode, navigationShellCode, sharedNavigationActive]);
 
   // =========================================================================
   // Render
