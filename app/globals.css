@@ -96,6 +96,36 @@
       0 16px 34px -30px rgba(0, 47, 167, 0.48);
   }
 
+  .dg-ai-prompt-shell {
+    background:
+      radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 1) 0, rgba(255, 255, 255, 0) 34%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.985) 0%, rgba(250, 251, 252, 0.985) 100%);
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 1),
+      inset 0 -1px 0 rgba(15, 23, 42, 0.055),
+      0 18px 48px -42px rgba(15, 23, 42, 0.72);
+    transition:
+      border-color 180ms ease,
+      box-shadow 180ms ease,
+      transform 180ms ease;
+  }
+
+  .dg-ai-prompt-shell:focus-within {
+    border-color: rgba(0, 47, 167, 0.22);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 1),
+      inset 0 -1px 0 rgba(15, 23, 42, 0.05),
+      0 0 0 1px rgba(0, 47, 167, 0.055),
+      0 20px 52px -42px rgba(0, 47, 167, 0.42);
+  }
+
+  .dg-ai-prompt-toolbar {
+    background:
+      linear-gradient(180deg, rgba(250, 251, 252, 0.72) 0%, rgba(255, 255, 255, 0.94) 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  }
+
   .dg-chat-shell {
     background:
       linear-gradient(180deg, rgba(255, 255, 255, 0.985) 0%, rgba(249, 250, 251, 0.985) 100%);

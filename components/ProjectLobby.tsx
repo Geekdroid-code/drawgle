@@ -90,6 +90,13 @@ export function ProjectLobby({
     reader.readAsDataURL(file);
   };
 
+  const handleRemoveImage = () => {
+    setImage(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   const handleGenerateDesign = async () => {
     if (!isBriefReady || isGeneratingDesign) {
       return;
@@ -214,41 +221,16 @@ export function ProjectLobby({
             ) : null}
 
             {stage === "brief" ? (
-              <section className="flex min-h-0 flex-1 items-center overflow-y-auto">
-                <div className="mx-auto w-full max-w-4xl py-6 lg:py-12">
+              <section className="flex min-h-0 flex-1 items-start overflow-y-auto sm:items-center">
+                <div className="mx-auto w-full max-w-4xl pb-10 pt-[min(14vh,5.5rem)] sm:py-12">
                  
 
-                  <h1 className="mt-6 max-w-4xl mx-auto text-center justify-center flex text-5xl font-semibold tracking-[-0.055em] text-neutral-950 sm:text-6xl">
+                  <h1 className="mx-auto mt-2 flex max-w-4xl justify-center text-center text-[clamp(2.45rem,10.5vw,3.75rem)] font-semibold leading-[0.94] tracking-[-0.055em] text-neutral-950 sm:mt-6 sm:text-6xl">
                     What native mobile app shall we design?
                   </h1>
                 
 
-                  <div className="mt-8 overflow-hidden rounded-xl dg-gradient-ring">
-                    {image ? (
-                      <div className="flex items-start gap-3 border-b border-slate-950/[0.08] bg-[#f7f7f8] px-2 py-2">
-                        <div className="relative h-12 w-12 overflow-hidden rounded-lg border border-slate-950/[0.08] bg-white">
-                          <Image
-                            src={`data:${image.mimeType};base64,${image.data}`}
-                            alt="Reference upload"
-                            fill
-                            unoptimized
-                            className="object-cover"
-                          />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-sm font-medium text-neutral-950">Reference attached</div>
-                          <div className="mt-1 text-xs leading-0.1 text-neutral-500">This will influence the design system and the first planning pass.</div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setImage(null)}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-full dg-control text-neutral-500 transition hover:text-neutral-950"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ) : null}
-
+                  <div className="mx-auto mt-7 overflow-hidden rounded-lg dg-gradient-ring shadow-[0_18px_42px_-34px_rgba(15,23,42,0.62)] sm:mt-8">
                     <Textarea
                       value={prompt}
                       onChange={(event) => setPrompt(event.target.value)}
@@ -259,19 +241,60 @@ export function ProjectLobby({
                         }
                       }}
                       placeholder="Describe the app, the flow, or the exact UI you want recreated..."
-                      className="min-h-[180px] resize-none border-0 bg-white px-5 py-5 text-lg leading-8 text-neutral-900 shadow-none placeholder:text-neutral-400 focus-visible:ring-0 sm:text-[22px]"
+                      className="min-h-[168px] resize-none rounded-none border-0 bg-white px-5 py-5 text-[18px] leading-8 text-neutral-900 shadow-none placeholder:text-neutral-400 focus-visible:ring-0 sm:min-h-[196px] sm:px-6 sm:py-6 sm:text-[21px]"
                     />
 
-                    <div className="flex flex-col gap-3 border-t border-slate-950/[0.08] bg-white px-4 py-2 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center justify-between gap-2 border-t border-slate-950/[0.08] bg-[#f5f6f8] px-3 py-2.5 sm:px-4">
+                      <div className="flex min-w-0 flex-1 items-center gap-2">
                         <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageUpload} />
-                        <Button type="button" variant="outline" className="h-10 rounded-lg dg-control px-3text-neutral-700" onClick={() => fileInputRef.current?.click()}>
-                          <ImageIcon className="h-6 w-6" />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-10 w-10 rounded-lg border-slate-950/[0.1] bg-white p-0 text-neutral-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] hover:bg-white hover:text-neutral-950"
+                          onClick={() => fileInputRef.current?.click()}
+                          title={image ? "Replace reference image" : "Attach reference image"}
+                        >
+                          <ImageIcon className="h-4.5 w-4.5" />
                         </Button>
-                       
+
+                        {image ? (
+                          <div className="flex min-w-0 max-w-[min(45vw,240px)] items-center gap-2 rounded-lg border border-slate-950/[0.08] bg-white py-1 pl-1 pr-2 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.95)]">
+                            <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-md border border-slate-950/[0.08] bg-white">
+                              <Image
+                                src={`data:${image.mimeType};base64,${image.data}`}
+                                alt="Reference upload"
+                                fill
+                                unoptimized
+                                className="object-cover"
+                              />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="truncate text-xs font-medium text-neutral-900">Reference attached</div>
+                              <div className="hidden text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-400 sm:block">
+                                Prompt aware
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleRemoveImage}
+                              aria-label="Remove reference image"
+                              className="ml-auto inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-950"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="hidden rounded-lg border border-slate-950/[0.07] bg-white/70 px-3 py-2 text-xs font-medium text-neutral-500 sm:block">
+                            Reference image optional
+                          </div>
+                        )}
                       </div>
 
-                      <Button className="h-11 rounded-lg dg-button-primary px-5 text-sm font-medium" onClick={() => void handleGenerateDesign()} disabled={!isBriefReady || isGeneratingDesign}>
+                      <Button
+                        className="h-10 shrink-0 rounded-lg dg-button-primary px-4 text-xs font-semibold shadow-[inset_0_1.5px_1px_rgba(255,255,255,0.35),inset_0_7px_12px_rgba(255,255,255,0.1),inset_0_-2px_5px_rgba(0,0,0,0.6),0_10px_20px_-16px_rgba(0,0,0,0.85)] disabled:opacity-60 sm:px-5 sm:text-sm"
+                        onClick={() => void handleGenerateDesign()}
+                        disabled={!isBriefReady || isGeneratingDesign}
+                      >
                         {isGeneratingDesign ? <Loader2 className="h-4 w-4 animate-spin" /> : "Generate design system"}
                       </Button>
                     </div>
