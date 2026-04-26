@@ -203,7 +203,7 @@ export function PromptBar({
             ? `How should we modify ${selectedScreen.name}?`
             : project
               ? "What would you like to edit or create in this app?"
-              : "What native mobile app shall we design?"
+              : "What mobile app shall we design?"
         }
         className="min-h-[54px] resize-none border-none bg-transparent px-3 py-2.5 text-base leading-6 text-slate-950 shadow-none placeholder:text-slate-400 focus-visible:ring-0"
         value={prompt}

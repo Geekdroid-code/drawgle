@@ -226,78 +226,88 @@ export function ProjectLobby({
                  
 
                   <h1 className="mx-auto mt-2 flex max-w-4xl justify-center text-center text-[clamp(2.45rem,10.5vw,3.75rem)] font-semibold leading-[0.94] tracking-[-0.055em] text-neutral-950 sm:mt-6 sm:text-6xl">
-                    What native mobile app shall we design?
+                    <span className="dg-brief-title-active">What Mobile App shall we design Today?</span>
                   </h1>
                 
 
-                  <div className="mx-auto mt-7 overflow-hidden rounded-lg dg-gradient-ring shadow-[0_18px_42px_-34px_rgba(15,23,42,0.62)] sm:mt-8">
-                    <Textarea
-                      value={prompt}
-                      onChange={(event) => setPrompt(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" && !event.shiftKey) {
-                          event.preventDefault();
-                          void handleGenerateDesign();
-                        }
-                      }}
-                      placeholder="Describe the app, the flow, or the exact UI you want recreated..."
-                      className="min-h-[168px] resize-none rounded-none border-0 bg-white px-5 py-5 text-[18px] leading-8 text-neutral-900 shadow-none placeholder:text-neutral-400 focus-visible:ring-0 sm:min-h-[196px] sm:px-6 sm:py-6 sm:text-[21px]"
-                    />
+                  <div className="relative mx-auto mt-7 w-full max-w-[860px] overflow-hidden rounded-[18px] dg-gradient-ring p-0.5 sm:mt-8">
+                    <div className="rounded-[16px] bg-[#fff] p-2">
+                    <div className="flex items-center justify-between px-3 pb-2 pt-1 text-[12px] font-medium text-black">
+                      <div className="flex items-center gap-1.5">
+                        <LayoutTemplate className="h-3.5 w-3.5 text-neutral-700" />
+                        <span>Project brief</span>
+                      </div>
+                      <span className="text-neutral-500">Design system + screen plan</span>
+                    </div>
 
-                    <div className="flex items-center justify-between gap-2 border-t border-slate-950/[0.08] bg-[#f5f6f8] px-3 py-2.5 sm:px-4">
-                      <div className="flex min-w-0 flex-1 items-center gap-2">
-                        <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageUpload} />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="h-10 w-10 rounded-lg border-slate-950/[0.1] bg-white p-0 text-neutral-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] hover:bg-white hover:text-neutral-950"
-                          onClick={() => fileInputRef.current?.click()}
-                          title={image ? "Replace reference image" : "Attach reference image"}
-                        >
-                          <ImageIcon className="h-4.5 w-4.5" />
-                        </Button>
+                    <div className="rounded-[12px] bg-[#f2f2f2] px-4 pb-3 pt-3">
+                      <Textarea
+                        value={prompt}
+                        onChange={(event) => setPrompt(event.target.value)}
+                        readOnly={isGeneratingDesign}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" && !event.shiftKey) {
+                            event.preventDefault();
+                            void handleGenerateDesign();
+                          }
+                        }}
+                        placeholder="Describe the app, the flow, or the exact UI you want to create..."
+                        className="min-h-[112px] resize-none rounded-none border-0 bg-transparent p-0 text-[16px] leading-6 text-neutral-950 shadow-none placeholder:text-neutral-700 focus-visible:ring-0 sm:min-h-[132px]"
+                      />
 
-                        {image ? (
-                          <div className="flex min-w-0 max-w-[min(45vw,240px)] items-center gap-2 rounded-lg border border-slate-950/[0.08] bg-white py-1 pl-1 pr-2 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.95)]">
-                            <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-md border border-slate-950/[0.08] bg-white">
-                              <Image
-                                src={`data:${image.mimeType};base64,${image.data}`}
-                                alt="Reference upload"
-                                fill
-                                unoptimized
-                                className="object-cover"
-                              />
-                            </div>
-                            <div className="min-w-0">
-                              <div className="truncate text-xs font-medium text-neutral-900">Reference attached</div>
-                              <div className="hidden text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-400 sm:block">
-                                Prompt aware
-                              </div>
-                            </div>
+                      <div className="mt-3 flex items-center justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <div className="flex min-w-0 items-center gap-1.5 rounded-md py-1 pr-1 text-sm font-medium text-neutral-900">
+                            <span className="h-3 w-3 shrink-0 rotate-45 rounded-[3px] bg-gradient-to-br from-[#e4002b] via-[#ff4f00] to-[#002fa7]" />
+                            <span className="truncate">Prompt aware</span>
+                          </div>
+                          <div className="h-6 w-px bg-black/10" />
+                          <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageUpload} />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="h-9 w-9 rounded-lg bg-[#fafafa] p-0 text-neutral-600 hover:bg-[#cacaca] hover:text-neutral-900"
+                            onClick={() => fileInputRef.current?.click()}
+                            aria-label={image ? "Replace reference image" : "Attach reference image"}
+                          >
+                            <ImageIcon className="h-4 w-4" />
+                          </Button>
+
+                          {image ? (
                             <button
                               type="button"
                               onClick={handleRemoveImage}
-                              aria-label="Remove reference image"
-                              className="ml-auto inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-950"
+                              className="flex max-w-[170px] items-center gap-2 rounded-lg bg-[#fafafa] py-1 pl-1 pr-2 text-xs font-medium text-neutral-700 transition hover:bg-[#cacaca]"
                             >
-                              <X className="h-3.5 w-3.5" />
+                              <span className="relative h-7 w-7 shrink-0 overflow-hidden rounded-md border border-black/10 bg-white">
+                                <Image
+                                  src={`data:${image.mimeType};base64,${image.data}`}
+                                  alt="Reference preview"
+                                  fill
+                                  unoptimized
+                                  className="object-cover"
+                                />
+                              </span>
+                              <span className="truncate">Reference</span>
+                              <X className="h-3.5 w-3.5 shrink-0" />
                             </button>
-                          </div>
-                        ) : (
-                          <div className="hidden rounded-lg border border-slate-950/[0.07] bg-white/70 px-3 py-2 text-xs font-medium text-neutral-500 sm:block">
-                            Reference image optional
-                          </div>
-                        )}
-                      </div>
+                          ) : null}
+                        </div>
 
-                      <Button
-                        className="h-10 shrink-0 rounded-lg dg-button-primary px-4 text-xs font-semibold shadow-[inset_0_1.5px_1px_rgba(255,255,255,0.35),inset_0_7px_12px_rgba(255,255,255,0.1),inset_0_-2px_5px_rgba(0,0,0,0.6),0_10px_20px_-16px_rgba(0,0,0,0.85)] disabled:opacity-60 sm:px-5 sm:text-sm"
-                        onClick={() => void handleGenerateDesign()}
-                        disabled={!isBriefReady || isGeneratingDesign}
-                      >
-                        {isGeneratingDesign ? <Loader2 className="h-4 w-4 animate-spin" /> : "Generate design system"}
-                      </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="h-10 w-11 shrink-0 rounded-lg dg-button-primary p-0 text-white disabled:opacity-45"
+                          onClick={() => void handleGenerateDesign()}
+                          disabled={!isBriefReady || isGeneratingDesign}
+                          aria-label="Generate design system"
+                        >
+                          <ArrowRight className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
+                    </div>
+                   
                   </div>
 
                   

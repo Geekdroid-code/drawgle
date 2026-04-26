@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type ComponentProps } from "react";
 import { useRouter } from "next/navigation";
-import { LayoutGrid, LogOut, Plus, Search } from "lucide-react";
+import { Layers3, LogOut, Plus, Search } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,15 @@ type AppSidebarProps = {
 const EMPTY_PROJECTS: ProjectData[] = [];
 const DAY_IN_MS = 86_400_000;
 const PROJECT_GROUP_ORDER = ["Today", "Yesterday", "Last 7 days", "Earlier"] as const;
+const PROJECT_STATUS_LABEL: Record<ProjectData["status"], string> = {
+  draft: "Draft",
+  active: "Active",
+  queued: "Queued",
+  generating: "Building",
+  failed: "Needs attention",
+  completed: "Ready",
+  archived: "Archived",
+};
 
 const startOfLocalDay = (value: string) => {
   const date = new Date(value);
@@ -55,6 +64,43 @@ const getGroupLabel = (updatedAt: string) => {
   }
 
   return "Earlier";
+};
+
+const getProjectContext = (project: ProjectData) => {
+  if (project.charter?.appType) {
+    return project.charter.appType;
+  }
+
+  if (project.charter?.creativeDirection?.conceptName) {
+    return project.charter.creativeDirection.conceptName;
+  }
+
+  return PROJECT_STATUS_LABEL[project.status] ?? "Design project";
+};
+
+const formatCompactTime = (updatedAt: string) => {
+  const timestamp = new Date(updatedAt).getTime();
+  const diff = Math.max(Date.now() - timestamp, 0);
+  const minute = 60_000;
+  const hour = 60 * minute;
+
+  if (diff < minute) {
+    return "now";
+  }
+
+  if (diff < hour) {
+    return `${Math.floor(diff / minute)}m`;
+  }
+
+  if (diff < DAY_IN_MS) {
+    return `${Math.floor(diff / hour)}h`;
+  }
+
+  if (diff < DAY_IN_MS * 7) {
+    return `${Math.floor(diff / DAY_IN_MS)}d`;
+  }
+
+  return new Date(updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 };
 
 export function AppSidebar({
@@ -159,10 +205,7 @@ export function AppSidebar({
                   {groupedProjects[label].map((project) => (
                     <ProjectMenuItem
                       key={project.id}
-                      id={project.id}
-                      title={project.name}
-                      prompt={project.prompt || "Start from the protected workspace prompt composer."}
-                      date={new Date(project.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                      project={project}
                       active={project.id === currentProjectId}
                     />
                   ))}
@@ -211,32 +254,44 @@ export function AppSidebar({
 }
 
 function ProjectMenuItem({
-  id,
-  title,
-  prompt,
-  date,
+  project,
   active = false,
 }: {
-  id: string;
-  title: string;
-  prompt: string;
-  date: string;
+  project: ProjectData;
   active?: boolean;
 }) {
   const router = useRouter();
+  const context = getProjectContext(project);
+  const status = PROJECT_STATUS_LABEL[project.status] ?? "Project";
+  const time = formatCompactTime(project.updatedAt);
 
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
-        render={<button type="button" onClick={() => router.push(`/project/${id}`)} />}
+        render={<button type="button" onClick={() => router.push(`/project/${project.id}`)} />}
         isActive={active}
-        className="h-auto items-start gap-3 rounded-[18px] border border-transparent px-3 py-3 text-neutral-950 hover:border-slate-950/[0.08] hover:bg-[#f7f7f8] data-[active=true]:border-slate-950/[0.12] data-[active=true]:bg-white data-[active=true]:shadow-[0_18px_40px_-34px_rgba(15,23,42,0.8)] [&>svg]:mt-0.5 [&>svg]:size-4 [&>svg]:text-neutral-400"
+        className="h-auto items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 text-neutral-950 hover:border-slate-950/[0.06] hover:bg-[#f5f5f6] data-[active=true]:border-slate-950/[0.1] data-[active=true]:bg-[#f1f1f2] data-[active=true]:shadow-none [&>svg]:size-3.5 [&>svg]:text-neutral-400"
       >
-        <LayoutGrid />
-        <div className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium text-neutral-950">{title}</span>
-          <span className="mt-1 block line-clamp-2 text-xs leading-5 text-neutral-500">{prompt}</span>
-          <span className="mt-3 block text-[11px] font-medium uppercase tracking-[0.16em] text-neutral-400">{date}</span>
+        <Layers3 />
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-900">{project.name}</span>
+            <span className="shrink-0 text-xs text-neutral-400">{time}</span>
+          </div>
+          <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] leading-4 text-neutral-500">
+            <span
+              className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                project.status === "failed"
+                  ? "bg-rose-500"
+                  : project.status === "generating" || project.status === "queued"
+                    ? "bg-[#002fa7]"
+                    : "bg-neutral-300"
+              }`}
+            />
+            <span className="truncate">{context}</span>
+            <span className="shrink-0 text-neutral-300">/</span>
+            <span className="shrink-0">{status}</span>
+          </div>
         </div>
       </SidebarMenuButton>
     </SidebarMenuItem>

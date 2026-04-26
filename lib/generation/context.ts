@@ -120,10 +120,13 @@ const formatDesignContract = (designTokens: DesignTokens | null) => {
 };
 
 const formatTypographyRoleContract = () => [
-  "title_large: hero moments and strongest landing headlines",
-  "title_main: screen titles and key section headers",
-  "body_primary: primary body copy and list item titles",
-  "body_secondary: supporting copy and secondary descriptions",
+  "nav_title: top bars, modal headers, compact detail headers",
+  "screen_title: default title for normal app feature screens",
+  "hero_title: onboarding, empty states, splash/editorial hero moments only",
+  "section_title: cards, grouped content, list sections, panel headers",
+  "metric_value: balances, prices, counters, scores, numeric hero data",
+  "body: primary body copy, list item titles, main descriptive text",
+  "supporting: supporting copy, subtitles, secondary descriptions",
   "caption: metadata, helper text, and micro-labels",
   "button_label: all buttons, segmented controls, and tappable nav labels",
 ].join("\n");

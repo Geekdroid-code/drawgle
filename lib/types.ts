@@ -83,12 +83,19 @@ export interface DesignTypographyScale {
 
 export interface DesignTypographyTokens {
   font_family?: string;
+  nav_title?: DesignTypographyScale;
+  screen_title?: DesignTypographyScale;
+  hero_title?: DesignTypographyScale;
+  section_title?: DesignTypographyScale;
+  metric_value?: DesignTypographyScale;
+  body?: DesignTypographyScale;
+  supporting?: DesignTypographyScale;
+  caption?: DesignTypographyScale;
+  button_label?: DesignTypographyScale;
   title_large?: DesignTypographyScale;
   title_main?: DesignTypographyScale;
   body_primary?: DesignTypographyScale;
   body_secondary?: DesignTypographyScale;
-  caption?: DesignTypographyScale;
-  button_label?: DesignTypographyScale;
   [key: string]: JsonValue | undefined;
 }
 

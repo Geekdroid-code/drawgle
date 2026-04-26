@@ -24,12 +24,15 @@ import {
 import type { DesignTokens } from "@/lib/types";
 
 const TYPOGRAPHY_STYLES = [
-  { key: "title_large", label: "Title Large" },
-  { key: "title_main", label: "Title Main" },
-  { key: "body_primary", label: "Body Primary" },
-  { key: "body_secondary", label: "Body Secondary" },
-  { key: "caption", label: "Caption" },
-  { key: "button_label", label: "Button Label" },
+  { key: "nav_title", label: "Nav Title", sample: "Transaction Detail", fallback: 17 },
+  { key: "screen_title", label: "Screen Title", sample: "Daily Planner", fallback: 24 },
+  { key: "hero_title", label: "Hero Title", sample: "Your Path to Freedom", fallback: 32 },
+  { key: "section_title", label: "Section Title", sample: "Weekly activity", fallback: 18 },
+  { key: "metric_value", label: "Metric Value", sample: "$500,000", fallback: 32 },
+  { key: "body", label: "Body", sample: "Premium mobile rhythm", fallback: 16 },
+  { key: "supporting", label: "Supporting", sample: "Token changes land here", fallback: 14 },
+  { key: "caption", label: "Caption", sample: "Updated just now", fallback: 12 },
+  { key: "button_label", label: "Button Label", sample: "Continue", fallback: 15 },
 ] as const;
 
 const SPACING_KEYS = ["xxs", "xs", "sm", "md", "lg", "xl", "xxl"] as const;
@@ -343,6 +346,8 @@ export function DesignSystemEditor({
                       onSizeChange={(nextValue) => handleUpdateToken(["typography", style.key, "size"], nextValue)}
                       onWeightChange={(nextValue) => handleUpdateToken(["typography", style.key, "weight"], nextValue)}
                       onLineHeightChange={(nextValue) => handleUpdateToken(["typography", style.key, "line_height"], nextValue)}
+                      sample={style.sample}
+                      fallbackSize={style.fallback}
                     />
                   ))}
                 </div>
@@ -688,6 +693,8 @@ function TypographyRow({
   onSizeChange,
   onWeightChange,
   onLineHeightChange,
+  sample,
+  fallbackSize,
 }: {
   label: string;
   size: string;
@@ -696,8 +703,10 @@ function TypographyRow({
   onSizeChange: (value: string) => void;
   onWeightChange: (value: string) => void;
   onLineHeightChange: (value: string) => void;
+  sample: string;
+  fallbackSize: number;
 }) {
-  const sizeNumber = parsePixelToken(size, 16);
+  const sizeNumber = parsePixelToken(size, fallbackSize);
   const lineNumber = parsePixelToken(lineHeight, Math.round(sizeNumber * 1.35));
   const resolvedWeight = weight || "400";
 
@@ -730,7 +739,7 @@ function TypographyRow({
           lineHeight: `${lineNumber}px`,
         }}
       >
-        {label === "Button Label" ? "Continue" : label === "Caption" ? "Updated just now" : "Premium mobile rhythm"}
+        {sample}
       </div>
     </div>
   );
@@ -1048,14 +1057,14 @@ function PhonePreview({
           className="tracking-tight"
           style={{
             color: primaryText,
-            fontSize: `clamp(18px, 5.4vw, ${tokens.typography?.title_main?.size || "28px"})`,
-            fontWeight: Number(tokens.typography?.title_main?.weight ?? 700),
+            fontSize: `clamp(18px, 5.4vw, ${tokens.typography?.screen_title?.size || "24px"})`,
+            fontWeight: Number(tokens.typography?.screen_title?.weight ?? 800),
             lineHeight: "1.12",
           }}
         >
           Preview
         </h3>
-        <p className="mt-1 line-clamp-2" style={{ color: mediumText, fontSize: `clamp(12px, 3.2vw, ${tokens.typography?.body_secondary?.size || "14px"})`, lineHeight: "1.45" }}>
+        <p className="mt-1 line-clamp-2" style={{ color: mediumText, fontSize: `clamp(12px, 3.2vw, ${tokens.typography?.supporting?.size || "14px"})`, lineHeight: "1.45" }}>
           Live token response across surfaces, type, spacing, and action states.
         </p>
 
@@ -1070,7 +1079,7 @@ function PhonePreview({
             border: `${borderStandard} solid ${borderDivider}`,
           }}
         >
-          <div style={{ fontSize: `clamp(13px, 3.8vw, ${tokens.typography?.body_primary?.size || "16px"})`, lineHeight: "1.35", color: primaryText }}>
+          <div style={{ fontSize: `clamp(13px, 3.8vw, ${tokens.typography?.body?.size || "16px"})`, lineHeight: "1.35", color: primaryText }}>
             Weekly activity
           </div>
           <div className="mt-1 line-clamp-1" style={{ fontSize: `clamp(10px, 3vw, ${tokens.typography?.caption?.size || "12px"})`, color: lowText }}>
@@ -1117,7 +1126,7 @@ function PhonePreview({
             height: `clamp(40px, 10vw, ${tokens.sizing?.standard_input_height || "48px"})`,
           }}
         >
-          <span className="truncate" style={{ fontSize: `clamp(12px, 3.2vw, ${tokens.typography?.body_secondary?.size || "14px"})`, color: lowText }}>Search interactions</span>
+          <span className="truncate" style={{ fontSize: `clamp(12px, 3.2vw, ${tokens.typography?.supporting?.size || "14px"})`, color: lowText }}>Search interactions</span>
         </div>
 
         <div className="flex-1" />

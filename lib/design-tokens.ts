@@ -11,6 +11,17 @@ const DEFAULT_PILL_RADIUS = "9999px";
 const DEFAULT_BORDER_WIDTH = "1px";
 const DEFAULT_SURFACE_SHADOW = "0 12px 32px rgba(15,23,42,0.14)";
 const DEFAULT_OVERLAY_SHADOW = "0 -4px 24px rgba(15,23,42,0.18)";
+const DEFAULT_TYPOGRAPHY = {
+  nav_title: { size: "17px", weight: 700, line_height: "22px" },
+  screen_title: { size: "24px", weight: 800, line_height: "30px" },
+  hero_title: { size: "32px", weight: 800, line_height: "40px" },
+  section_title: { size: "18px", weight: 700, line_height: "24px" },
+  metric_value: { size: "32px", weight: 800, line_height: "38px" },
+  body: { size: "16px", weight: 500, line_height: "24px" },
+  supporting: { size: "14px", weight: 400, line_height: "20px" },
+  caption: { size: "12px", weight: 600, line_height: "16px" },
+  button_label: { size: "15px", weight: 700, line_height: "20px" },
+} as const;
 
 const GENERIC_FONT_FAMILIES = new Set([
   "sans-serif",
@@ -122,6 +133,39 @@ const sanitizeMetadata = (value: unknown): DesignTokenMetadata | undefined => {
   return next;
 };
 
+const pickFirstRecord = (...values: unknown[]) => values.find(isRecord);
+
+const normalizeTypography = (value: unknown): DesignTokenValues["typography"] | undefined => {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const fontFamily = pickFirstString(value.font_family);
+  const next: NonNullable<DesignTokenValues["typography"]> = {};
+
+  if (fontFamily) {
+    next.font_family = fontFamily;
+  }
+
+  const roleSources = {
+    nav_title: pickFirstRecord(value.nav_title, value.title_main, DEFAULT_TYPOGRAPHY.nav_title),
+    screen_title: pickFirstRecord(value.screen_title, value.title_main, DEFAULT_TYPOGRAPHY.screen_title),
+    hero_title: pickFirstRecord(value.hero_title, value.title_large, DEFAULT_TYPOGRAPHY.hero_title),
+    section_title: pickFirstRecord(value.section_title, value.title_main, DEFAULT_TYPOGRAPHY.section_title),
+    metric_value: pickFirstRecord(value.metric_value, value.title_large, DEFAULT_TYPOGRAPHY.metric_value),
+    body: pickFirstRecord(value.body, value.body_primary, DEFAULT_TYPOGRAPHY.body),
+    supporting: pickFirstRecord(value.supporting, value.body_secondary, DEFAULT_TYPOGRAPHY.supporting),
+    caption: pickFirstRecord(value.caption, DEFAULT_TYPOGRAPHY.caption),
+    button_label: pickFirstRecord(value.button_label, DEFAULT_TYPOGRAPHY.button_label),
+  };
+
+  for (const [key, source] of Object.entries(roleSources)) {
+    (next as UnknownRecord)[key] = deepClone(source);
+  }
+
+  return next;
+};
+
 const enforcePlatformConstraints = (tokens: DesignTokenValues | undefined) => {
   if (!tokens) {
     return undefined;
@@ -131,6 +175,7 @@ const enforcePlatformConstraints = (tokens: DesignTokenValues | undefined) => {
   const legacyRadii = isRecord(next.radii) ? next.radii : {};
   const legacyBorderWidths = isRecord(next.border_widths) ? next.border_widths : {};
   const legacyShadows = isRecord(next.shadows) ? next.shadows : {};
+  const typography = normalizeTypography(next.typography);
 
   next.mobile_layout = {
     ...(next.mobile_layout ?? {}),
@@ -189,6 +234,9 @@ const enforcePlatformConstraints = (tokens: DesignTokenValues | undefined) => {
       DEFAULT_OVERLAY_SHADOW,
     ),
   };
+  if (typography) {
+    next.typography = typography;
+  }
 
   return next;
 };

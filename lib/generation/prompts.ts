@@ -1,4 +1,5 @@
 import { createNavigationArchitecture, resolveScreenChromePolicy } from "@/lib/navigation";
+import { normalizeDesignTokens } from "@/lib/design-tokens";
 import type { BuildScreenInput, DesignTokens, NavigationArchitecture, ScreenPlan } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -228,10 +229,13 @@ REQUIRED JSON SCHEMA:
     },
     "typography": {
       "font_family": "CSS font family string",
-      "title_large": { "size": "px", "weight": "number", "line_height": "px" },
-      "title_main": { "size": "px", "weight": "number", "line_height": "px" },
-      "body_primary": { "size": "px", "weight": "number", "line_height": "px" },
-      "body_secondary": { "size": "px", "weight": "number", "line_height": "px" },
+      "nav_title": { "size": "px", "weight": "number", "line_height": "px" },
+      "screen_title": { "size": "px", "weight": "number", "line_height": "px" },
+      "hero_title": { "size": "px", "weight": "number", "line_height": "px" },
+      "section_title": { "size": "px", "weight": "number", "line_height": "px" },
+      "metric_value": { "size": "px", "weight": "number", "line_height": "px" },
+      "body": { "size": "px", "weight": "number", "line_height": "px" },
+      "supporting": { "size": "px", "weight": "number", "line_height": "px" },
       "caption": { "size": "px", "weight": "number", "line_height": "px" },
       "button_label": { "size": "px", "weight": "number", "line_height": "px" }
     },
@@ -267,8 +271,9 @@ const resolveToken = (
   path: string,
   fallback: string,
 ) => {
-  if (!designTokens?.tokens) return fallback;
-  let current: any = designTokens.tokens;
+  const normalized = normalizeDesignTokens(designTokens);
+  if (!normalized?.tokens) return fallback;
+  let current: any = normalized.tokens;
   for (const key of path.split(".")) {
     current = current?.[key];
     if (current === undefined) return fallback;
@@ -277,11 +282,12 @@ const resolveToken = (
 };
 
 const serializeDesignTokens = (designTokens?: DesignTokens | null) => {
-  if (!designTokens?.tokens) {
+  const normalized = normalizeDesignTokens(designTokens);
+  if (!normalized?.tokens) {
     return "Use standard Tailwind CSS classes and refined neutral defaults.";
   }
 
-  return JSON.stringify(designTokens.tokens, null, 2);
+  return JSON.stringify(normalized.tokens, null, 2);
 };
 
 const buildStrictDesignContract = (designTokens?: DesignTokens | null) => {
@@ -315,13 +321,16 @@ const buildStrictDesignContract = (designTokens?: DesignTokens | null) => {
 };
 
 const buildTypographyRoleContract = () => [
-  "- Use typography.title_large for hero moments, major numeric emphasis, or the strongest landing headline.",
-  "- Use typography.title_main for screen titles and important section headers.",
-  "- Use typography.body_primary for primary body copy, list item titles, and main descriptive text.",
-  "- Use typography.body_secondary for supporting copy, subtitles, and secondary descriptions.",
+  "- Use typography.nav_title only for top bars, modal headers, and compact detail headers.",
+  "- Use typography.screen_title as the default title for normal app feature screens.",
+  "- Use typography.hero_title only for onboarding, empty states, splash/editorial hero moments, or explicitly large marketing-like screen headlines.",
+  "- Use typography.section_title for cards, grouped content, list sections, and panel headers.",
+  "- Use typography.metric_value only for balances, prices, counters, scores, and numeric hero data.",
+  "- Use typography.body for primary body copy, list item titles, and main descriptive text.",
+  "- Use typography.supporting for supporting copy, subtitles, and secondary descriptions.",
   "- Use typography.caption for metadata, helper text, timestamps, micro-labels, and small status text.",
   "- Use typography.button_label for all button labels, pill actions, segmented controls, and tappable navigation labels.",
-  "- Do not invent ad hoc text sizes or font weights outside these semantic roles unless the UI truly requires a one-off display numeral or chart annotation.",
+  "- Do not substitute hero_title for screen_title. Do not invent ad hoc text sizes or font weights outside these semantic roles unless the UI truly requires a one-off chart annotation.",
 ].join("\n");
 
 const buildNavigationArchitectureContract = ({
@@ -485,7 +494,7 @@ You MUST use the provided Design Tokens for ALL colors, typography, spacing, siz
 Map the token values directly to Tailwind's arbitrary value syntax.
 Example: If tokens.color.background.primary is "#111827", use "bg-[#111827]".
 Example: If tokens.spacing.md is "16px", use "p-[16px]" or "gap-[16px]".
-Example: If tokens.typography.title_large.size is "32px" and weight is "700", use "text-[32px] font-[700]".
+Example: If tokens.typography.screen_title.size is "24px" and weight is "800", use "text-[24px] font-[800]".
 Do NOT default to generic Tailwind palette values (e.g., bg-gray-900) if a design token exists for that purpose.
 Do NOT invent additional radius tiers, border widths, or shadow strengths. Use one geometry/elevation language across the entire screen.
 

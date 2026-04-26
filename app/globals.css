@@ -18,7 +18,8 @@
 
   .dg-dashed-grid-bg {
     background-color: var(--dg-bg);
-    background-image: url("data:image/svg+xml,%3csvg width='80' height='80' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M 80 0 L 0 0 0 80' fill='none' stroke='%23d9dde5' stroke-width='1.1' stroke-dasharray='4 4'/%3e%3c/svg%3e");
+    background-image: radial-gradient(rgba(15, 23, 42, 0.14) 1.2px, transparent 1.2px);
+    background-size: 24px 24px;
   }
 
   .dg-panel {
@@ -126,6 +127,44 @@
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
   }
 
+  .dg-brief-title-active {
+    display: inline-block;
+    background: linear-gradient(105deg, #09090b 0%, #09090b 38%, #24262b 48%, #475467 52%, #09090b 62%, #09090b 100%);
+    background-size: 320% 100%;
+    color: transparent;
+    -webkit-background-clip: text;
+    background-clip: text;
+    animation: dg-brief-title-scan 7.8s cubic-bezier(0.5, 0, 0.2, 1) infinite;
+  }
+
+  .dg-brief-prompt-shimmer {
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 18% 20%, rgba(255, 255, 255, 0.5), transparent 30%),
+      rgba(255, 255, 255, 0.2);
+    backdrop-filter: saturate(1.08);
+  }
+
+  .dg-brief-prompt-shimmer::before {
+    content: "";
+    position: absolute;
+    inset: -80% -45%;
+    background:
+      linear-gradient(108deg, transparent 30%, rgba(255, 255, 255, 0.74) 42%, rgba(0, 47, 167, 0.18) 50%, rgba(228, 0, 43, 0.12) 57%, transparent 70%);
+    transform: translateX(-48%) rotate(3deg);
+    animation: dg-brief-composer-shimmer 1.65s cubic-bezier(0.7, 0, 0.25, 1) infinite;
+  }
+
+  .dg-brief-prompt-shimmer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  }
+
   .dg-chat-shell {
     background:
       linear-gradient(180deg, rgba(255, 255, 255, 0.985) 0%, rgba(249, 250, 251, 0.985) 100%);
@@ -171,6 +210,40 @@
       inset 0 1px 0 rgba(255, 255, 255, 1),
       inset 0 -1px 0 rgba(15, 23, 42, 0.1),
       0 12px 24px -18px rgba(15, 23, 42, 0.72);
+  }
+}
+
+@keyframes dg-brief-composer-shimmer {
+  0% {
+    transform: translateX(-48%) rotate(3deg);
+  }
+
+  100% {
+    transform: translateX(48%) rotate(3deg);
+  }
+}
+
+@keyframes dg-brief-title-scan {
+  0% {
+    background-position: 120% 50%;
+    filter: none;
+  }
+
+  42%,
+  100% {
+    background-position: -40% 50%;
+    filter: none;
+  }
+
+  22% {
+    filter: drop-shadow(0 10px 26px rgba(15, 23, 42, 0.08));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dg-brief-title-active,
+  .dg-brief-prompt-shimmer::before {
+    animation: none;
   }
 }
 
