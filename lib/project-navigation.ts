@@ -172,6 +172,7 @@ export function sanitizeScreenCodeForSharedNavigation(code: string, screenPlan: 
   }
 
   return code
+    .replace(/<!--\s*(?:floating\s+dock|bottom\s+nav|navigation)[\s\S]*?placeholder[\s\S]*?-->\s*<div\b[^>]*(?:h-\[[^\]]*(?:8[0-9]|9[0-9]|1[0-9]{2})px\]|height\s*:\s*(?:8[0-9]|9[0-9]|1[0-9]{2})px)[^>]*>\s*<\/div>/gi, "")
     .replace(/<nav\b[\s\S]*?<\/nav>/gi, (match) =>
       /bottom|tab|navigation|nav|data-drawgle-primary-nav/i.test(match) ? "" : match,
     )

@@ -1132,6 +1132,74 @@ export async function editScreenCode({
   };
 }
 
+export async function editNavigationShellCode({
+  prompt,
+  currentShellCode,
+  navigationPlan,
+  designTokens,
+  projectCharter,
+  selectedElementHtml,
+}: {
+  prompt: string;
+  currentShellCode: string;
+  navigationPlan: NavigationPlan;
+  designTokens?: DesignTokens | null;
+  projectCharter?: ProjectCharter | null;
+  selectedElementHtml?: string | null;
+}) {
+  if (!navigationPlan.enabled || navigationPlan.kind === "none") {
+    throw new Error("This project does not have shared navigation enabled.");
+  }
+
+  const ai = createGeminiClient();
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: {
+      parts: [{
+        text: [
+          `User navigation edit request: ${prompt}`,
+          projectCharter ? `Project charter: ${JSON.stringify(projectCharter, null, 2)}` : null,
+          projectCharter?.creativeDirection ? `Creative direction: ${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
+          `Navigation plan: ${JSON.stringify(navigationPlan, null, 2)}`,
+          `Design tokens: ${JSON.stringify(designTokens?.tokens ?? {}, null, 2)}`,
+          selectedElementHtml ? [
+            "Selected navigation element:",
+            "```html",
+            selectedElementHtml,
+            "```",
+          ].join("\n") : null,
+          [
+            "Current shared navigation shell:",
+            "```html",
+            currentShellCode,
+            "```",
+          ].join("\n"),
+        ].filter(Boolean).join("\n\n"),
+      }],
+    },
+    config: {
+      temperature: 0.32,
+      systemInstruction: [
+        "You edit the single shared project navigation shell for Drawgle.",
+        "Return ONLY the full replacement HTML for the shared navigation shell. Do not return <edit> blocks, markdown fences, scripts, html, head, body, screen content, or placeholder spacers.",
+        "The returned HTML must contain exactly one <nav data-drawgle-primary-nav> root.",
+        "Preserve every planned data-nav-item-id exactly. Do not invent or remove navigation items unless the user's request explicitly changes the nav structure.",
+        "The renderer only pins a transparent host to the viewport bottom. Your HTML owns the visual design: full-width bar, dock, floating pill, action dock, radius, background, spacing, shadow, icons, labels, and active state.",
+        "If the user asks for a dock, make the nav itself look like a dock. If they ask for full width, make the nav full width. Do not add fake space to the screen.",
+        "Use Lucide icons with <i data-lucide=\"icon-name\"></i>.",
+        "Use data-active=true selectors, inline styles, or scoped <style> rules inside the nav so active tab state works after the renderer sets data-active.",
+      ].join("\n"),
+    },
+  });
+
+  const nextCode = extractCode(response.text || "").trim();
+  if (!validateNavigationShell(nextCode, navigationPlan)) {
+    throw new Error("Navigation edit did not return valid shared navigation markup.");
+  }
+
+  return nextCode;
+}
+
 export async function buildNavigationShellCode({
   navigationPlan,
   designTokens,

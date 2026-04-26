@@ -14,6 +14,8 @@ import { useRealtimeRunWithStreams } from "@trigger.dev/react-hooks";
 export interface SelectedElementInfo {
   /** The outerHTML of the selected element — used as the LLM's edit target. */
   outerHTML: string;
+  /** Whether the selected element belongs to screen content or the shared nav shell. */
+  targetType: "screen" | "navigation";
   /** A short human-readable text preview of the element (max ~120 chars). */
   textPreview: string;
   /** CSS breadcrumb path from root to the selected element. */
@@ -46,6 +48,7 @@ const serializeForInlineScript = (value: string | null | undefined) =>
 
 const stripSharedNavigationMarkup = (code: string) =>
   code
+    .replace(/<!--\s*(?:floating\s+dock|bottom\s+nav|navigation)[\s\S]*?placeholder[\s\S]*?-->\s*<div\b[^>]*(?:h-\[[^\]]*(?:8[0-9]|9[0-9]|1[0-9]{2})px\]|height\s*:\s*(?:8[0-9]|9[0-9]|1[0-9]{2})px)[^>]*>\s*<\/div>/gi, "")
     .replace(/<nav\b[\s\S]*?<\/nav>/gi, (match) =>
       /bottom|tab|navigation|nav|data-drawgle-primary-nav/i.test(match) ? "" : match,
     )
@@ -386,12 +389,18 @@ export function ScreenNode({
       const { outerHTML, textPreview, breadcrumb } = event.data as {
         type: string;
         outerHTML: string;
+        targetType?: "screen" | "navigation";
         textPreview: string;
         breadcrumb: string;
       };
 
       if (outerHTML) {
-        onElementSelected({ outerHTML, textPreview, breadcrumb });
+        onElementSelected({
+          outerHTML,
+          targetType: event.data.targetType === "navigation" ? "navigation" : "screen",
+          textPreview,
+          breadcrumb,
+        });
       }
     };
 
@@ -666,6 +675,8 @@ export function ScreenNode({
             function resolveTarget(el) {
               var root = document.getElementById('root');
               if (!root) return el;
+              var navRoot = el.closest && el.closest('[data-drawgle-primary-nav]');
+              if (navRoot) return navRoot;
               var node = el;
               var maxWalk = 12;
               while (node && node !== root && maxWalk-- > 0) {
@@ -759,6 +770,7 @@ export function ScreenNode({
               window.parent.postMessage({
                 type: 'elementSelected',
                 outerHTML: clone.outerHTML,
+                targetType: target.closest && target.closest('[data-drawgle-primary-nav]') ? 'navigation' : 'screen',
                 textPreview: stripHtml(target.innerHTML),
                 breadcrumb: buildBreadcrumb(target),
               }, '*');

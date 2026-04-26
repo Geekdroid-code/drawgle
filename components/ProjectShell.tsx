@@ -528,6 +528,7 @@ export function ProjectShell({
             prompt,
             selectedScreenId: selectedScreen.id,
             selectedElementHtml: selectedElementInfo?.outerHTML ?? null,
+            selectedElementTarget: selectedElementInfo?.targetType ?? null,
           }),
         });
 
