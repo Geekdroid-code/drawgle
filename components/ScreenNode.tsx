@@ -593,9 +593,6 @@ export function ScreenNode({
           #drawgle-navigation-host { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; pointer-events: none; width: 100%; }
           #drawgle-navigation-host:empty { display: none; }
           #drawgle-navigation-host [data-drawgle-primary-nav] { pointer-events: auto; }
-          [data-drawgle-primary-nav] [data-nav-item-id] { opacity: 0.56; }
-          [data-drawgle-primary-nav] [data-nav-item-id][data-active="true"] { opacity: 1; color: var(--drawgle-nav-active, currentColor) !important; }
-          [data-drawgle-primary-nav] [data-nav-item-id][data-active="true"] svg { stroke: currentColor !important; }
           .__drawgle-hover-outline { outline: 2px solid rgba(20,184,166,0.8) !important; outline-offset: -1px; cursor: crosshair !important; }
           .__drawgle-selected-outline { outline: 2.5px solid #0d9488 !important; outline-offset: -1px; background-color: rgba(20,184,166,0.06) !important; }
         </style>

@@ -1132,6 +1132,66 @@ export async function editScreenCode({
   };
 }
 
+const navigationDesignQualityRules = [
+  "Treat quality as a critique standard, not a fixed visual recipe. Do not reuse a default dock, pill, tab bar, or layout pattern unless it is the right answer for this specific project.",
+  "Infer the navigation anatomy from the user's request, project type, reference/style context, design tokens, and current screen language. The result may be full-width, floating, asymmetric, glassy, compact, expanded, action-led, text-led, icon-led, or another appropriate mobile nav form.",
+  "Use the project's design tokens and creative direction as material inputs for color, radius, elevation, typography, spacing, and icon treatment. Do not introduce random visual decisions that fight the screens.",
+  "Preserve every planned label and data-nav-item-id exactly unless the user explicitly asks to rename, hide, add, or remove navigation items.",
+  "Preserve the planned icon meanings unless the user explicitly asks for different icons.",
+  "Check the tap target comfort, label legibility, active-state clarity, and visual harmony with the screen behind it.",
+  "Do not add fake screen spacers or placeholder blocks. The renderer owns fixed placement; the nav shell owns only its own visual design.",
+  "The renderer only sets data-active at runtime. All active/inactive visuals must be encoded in the nav HTML/CSS itself.",
+];
+
+async function refineNavigationShellCode({
+  prompt,
+  candidateShellCode,
+  navigationPlan,
+  designTokens,
+  projectCharter,
+}: {
+  prompt: string;
+  candidateShellCode: string;
+  navigationPlan: NavigationPlan;
+  designTokens?: DesignTokens | null;
+  projectCharter?: ProjectCharter | null;
+}) {
+  const ai = createGeminiClient();
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: {
+      parts: [{
+        text: [
+          `User navigation request: ${prompt}`,
+          projectCharter ? `Project charter: ${JSON.stringify(projectCharter, null, 2)}` : null,
+          projectCharter?.creativeDirection ? `Creative direction: ${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
+          `Navigation plan: ${JSON.stringify(navigationPlan, null, 2)}`,
+          `Design tokens: ${JSON.stringify(designTokens?.tokens ?? {}, null, 2)}`,
+          [
+            "Candidate navigation shell to critique and improve:",
+            "```html",
+            candidateShellCode,
+            "```",
+          ].join("\n"),
+        ].filter(Boolean).join("\n\n"),
+      }],
+    },
+    config: {
+      temperature: 0.18,
+      systemInstruction: [
+        "You are the final design QA pass for a shared mobile navigation shell.",
+        "Return ONLY the full improved replacement HTML for the nav shell.",
+        "Keep the same one <nav data-drawgle-primary-nav> root and all planned data-nav-item-id values.",
+        ...navigationDesignQualityRules,
+        "If the candidate already meets the bar, return it with only small polish. If it looks amateur, rebuild it while honoring the user request and project tokens.",
+      ].join("\n"),
+    },
+  });
+
+  const refinedCode = extractCode(response.text || "").trim();
+  return validateNavigationShell(refinedCode, navigationPlan) ? refinedCode : candidateShellCode;
+}
+
 export async function editNavigationShellCode({
   prompt,
   currentShellCode,
@@ -1183,11 +1243,12 @@ export async function editNavigationShellCode({
         "You edit the single shared project navigation shell for Drawgle.",
         "Return ONLY the full replacement HTML for the shared navigation shell. Do not return <edit> blocks, markdown fences, scripts, html, head, body, screen content, or placeholder spacers.",
         "The returned HTML must contain exactly one <nav data-drawgle-primary-nav> root.",
-        "Preserve every planned data-nav-item-id exactly. Do not invent or remove navigation items unless the user's request explicitly changes the nav structure.",
+        "Preserve every planned data-nav-item-id exactly. Do not invent, remove, rename, or relabel navigation items unless the user's request explicitly changes the nav structure or labels.",
         "The renderer only pins a transparent host to the viewport bottom. Your HTML owns the visual design: full-width bar, dock, floating pill, action dock, radius, background, spacing, shadow, icons, labels, and active state.",
         "If the user asks for a dock, make the nav itself look like a dock. If they ask for full width, make the nav full width. Do not add fake space to the screen.",
         "Use Lucide icons with <i data-lucide=\"icon-name\"></i>.",
         "Use data-active=true selectors, inline styles, or scoped <style> rules inside the nav so active tab state works after the renderer sets data-active.",
+        ...navigationDesignQualityRules,
       ].join("\n"),
     },
   });
@@ -1197,7 +1258,13 @@ export async function editNavigationShellCode({
     throw new Error("Navigation edit did not return valid shared navigation markup.");
   }
 
-  return nextCode;
+  return refineNavigationShellCode({
+    prompt,
+    candidateShellCode: nextCode,
+    navigationPlan,
+    designTokens,
+    projectCharter,
+  });
 }
 
 export async function buildNavigationShellCode({
@@ -1255,7 +1322,8 @@ export async function buildNavigationShellCode({
           "Use Lucide icons with <i data-lucide=\"icon-name\"></i>.",
           "The renderer mounts the shell in a fixed bottom viewport host. The HTML you return owns the nav's visual geometry, width, radius, surface, spacing, and active state.",
           "Make active/inactive states explicit through data-active=true selectors, utility classes, or inline CSS variables. The renderer will set data-active at runtime.",
-          "Do not hard-code generic tab labels. Use only the planned items.",
+          "Do not hard-code generic tab labels. Use only the planned item labels and preserve them exactly.",
+          ...navigationDesignQualityRules,
         ].join("\n"),
       },
     });
@@ -1265,7 +1333,13 @@ export async function buildNavigationShellCode({
       throw new Error("Navigation shell generation did not produce valid project navigation markup.");
     }
 
-    return code;
+    return refineNavigationShellCode({
+      prompt,
+      candidateShellCode: code,
+      navigationPlan,
+      designTokens,
+      projectCharter,
+    });
   } catch (error) {
     console.error("Failed to generate navigation shell", error);
     throw error instanceof Error
