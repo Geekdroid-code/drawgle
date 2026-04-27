@@ -200,6 +200,7 @@ export function ProjectLobby({
           plannedScreens: plan.screens,
           requiresBottomNav: plan.requiresBottomNav,
           navigationArchitecture: plan.navigationArchitecture,
+          navigationPlan: plan.navigationPlan,
           projectCharter: plan.charter,
         }),
       });
@@ -436,7 +437,7 @@ export function ProjectLobby({
 
                   <div className="grid max-h-[calc(100dvh-15rem)] gap-3 overflow-y-auto p-4 md:grid-cols-2 xl:grid-cols-3">
                     {plan.screens.map((screen, index) => (
-                      <article key={`${screen.name}-${index}`} className="flex min-h-[260px] flex-col rounded-[16px] border border-slate-950/[0.08] bg-[#fbfbfc] px-4 py-4">
+                      <article key={`${screen.name}-${index}`} className="flex min-h-[300px] max-h-[560px] flex-col rounded-[16px] border border-slate-950/[0.08] bg-[#fbfbfc] px-4 py-4">
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">{screen.type}</div>
@@ -446,7 +447,7 @@ export function ProjectLobby({
                             {index + 1}
                           </div>
                         </div>
-                        <p className="mt-4 line-clamp-[10] whitespace-pre-line text-sm leading-6 text-neutral-600">{screen.description}</p>
+                        <p className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1 whitespace-pre-line text-sm leading-6 text-neutral-600">{screen.description}</p>
                       </article>
                     ))}
                   </div>

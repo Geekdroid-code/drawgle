@@ -130,7 +130,14 @@ Rules:
 - If CURRENT_PROJECT_CONTEXT contains an approved navigation architecture, preserve it instead of changing the product shell.
 - If CURRENT_PROJECT_CONTEXT contains an approved navigation plan, preserve it unless the user explicitly asks to add, remove, or redesign primary navigation.
 - If REFERENCE SCREEN ANALYSIS is present, use it to increase specificity and preserve the strongest visual cues rather than rewriting them as generic product language.
-- If CREATIVE DIRECTION is present, do not water it down into generic product language.`;
+- If CREATIVE DIRECTION is present, do not water it down into generic product language.
+
+Single-pass quality gate before you return JSON:
+- Audit each screen.description inside your own response before finalizing.
+- Every screen.description must contain all seven labels exactly as text: Reference DNA, Visual Goal, Layout Anatomy, Key Components, Visual Styling, Interaction Notes, Must Preserve.
+- Every screen.description must include at least 8 concrete visible implementation cues across layout, components, typography, color/material, spacing/radius/elevation, imagery/charts/maps, and interaction state.
+- If the uploaded image is present, at least 3 cues per screen must be explicitly traceable to the visible reference or reference analysis.
+- If a description reads like a summary card instead of a builder-ready spec, rewrite it before returning. Do not rely on a later pass to fix it.`;
 
 export const creativeDirectionInstruction = `You are an elite mobile product Art Director.
 Your job is to invent or infer a premium, opinionated creative direction that will keep the generated UI out of generic AI-app territory.

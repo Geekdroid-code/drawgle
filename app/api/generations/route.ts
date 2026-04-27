@@ -49,7 +49,7 @@ const requestSchema = z.object({
       }),
     )
     .min(1)
-    .max(8)
+    .max(12)
     .optional(),
   requiresBottomNav: z.boolean().optional(),
   navigationArchitecture: z.object({
