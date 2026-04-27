@@ -57,8 +57,8 @@ const requestSchema = z.object({
     primaryNavigation: z.enum(["bottom-tabs", "none"]),
     rootChrome: z.enum(["bottom-tabs", "top-bar", "top-bar-back", "modal-sheet", "immersive"]),
     detailChrome: z.enum(["bottom-tabs", "top-bar", "top-bar-back", "modal-sheet", "immersive"]),
-    consistencyRules: z.array(z.string().trim().min(1).max(300)).min(2).max(6),
-    rationale: z.string().trim().min(1).max(1200),
+    consistencyRules: z.array(z.string().trim().min(1).max(500)).min(1).max(10),
+    rationale: z.string().trim().min(1).max(2400),
   }).nullable().optional(),
   navigationPlan: z.object({
     enabled: z.boolean(),
@@ -80,31 +80,31 @@ const requestSchema = z.object({
   projectCharter: z
     .object({
       originalPrompt: z.string().trim().min(1).max(10000),
-      imageReferenceSummary: z.string().trim().max(4000).nullable().optional(),
-      appType: z.string().trim().min(1).max(120),
-      targetAudience: z.string().trim().min(1).max(240),
-      navigationModel: z.string().trim().min(1).max(240),
+      imageReferenceSummary: z.string().trim().max(6000).nullable().optional(),
+      appType: z.string().trim().min(1).max(240),
+      targetAudience: z.string().trim().min(1).max(800),
+      navigationModel: z.string().trim().min(1).max(800),
       navigationArchitecture: z.object({
         kind: z.enum(["bottom-tabs-app", "hierarchical", "single-screen"]),
         primaryNavigation: z.enum(["bottom-tabs", "none"]),
         rootChrome: z.enum(["bottom-tabs", "top-bar", "top-bar-back", "modal-sheet", "immersive"]),
         detailChrome: z.enum(["bottom-tabs", "top-bar", "top-bar-back", "modal-sheet", "immersive"]),
-        consistencyRules: z.array(z.string().trim().min(1).max(300)).min(2).max(6),
-        rationale: z.string().trim().min(1).max(1200),
+        consistencyRules: z.array(z.string().trim().min(1).max(500)).min(1).max(10),
+        rationale: z.string().trim().min(1).max(2400),
       }).nullable().optional(),
-      keyFeatures: z.array(z.string().trim().min(1).max(240)).min(1).max(16),
-      designRationale: z.string().trim().min(1).max(4000),
+      keyFeatures: z.array(z.string().trim().min(1).max(400)).min(1).max(20),
+      designRationale: z.string().trim().min(1).max(8000),
       creativeDirection: z.object({
-        conceptName: z.string().trim().min(1).max(120),
-        styleEssence: z.string().trim().min(1).max(1600),
-        colorStory: z.string().trim().min(1).max(1200),
-        typographyMood: z.string().trim().min(1).max(1200),
-        surfaceLanguage: z.string().trim().min(1).max(1200),
-        iconographyStyle: z.string().trim().min(1).max(1200),
-        compositionPrinciples: z.array(z.string().trim().min(1).max(400)).min(3).max(8),
-        signatureMoments: z.array(z.string().trim().min(1).max(400)).min(2).max(8),
-        motionTone: z.string().trim().min(1).max(1200),
-        avoid: z.array(z.string().trim().min(1).max(400)).min(2).max(10),
+        conceptName: z.string().trim().min(1).max(200),
+        styleEssence: z.string().trim().min(1).max(2400),
+        colorStory: z.string().trim().min(1).max(2400),
+        typographyMood: z.string().trim().min(1).max(2400),
+        surfaceLanguage: z.string().trim().min(1).max(2400),
+        iconographyStyle: z.string().trim().min(1).max(2400),
+        compositionPrinciples: z.array(z.string().trim().min(1).max(600)).min(1).max(10),
+        signatureMoments: z.array(z.string().trim().min(1).max(600)).min(1).max(10),
+        motionTone: z.string().trim().min(1).max(2400),
+        avoid: z.array(z.string().trim().min(1).max(600)).min(1).max(12),
       }).nullable().optional(),
     })
     .optional(),
@@ -419,7 +419,13 @@ export async function POST(request: Request) {
     }
 
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.flatten() }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: "Invalid generation request.",
+          details: error.flatten(),
+        },
+        { status: 400 },
+      );
     }
 
     return NextResponse.json(

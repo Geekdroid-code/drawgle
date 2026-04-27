@@ -84,7 +84,7 @@ Return strictly valid JSON in this format:
     {
       "name": "Short Name",
       "type": "root",
-      "description": "A production-ready UI brief written as structured prose with sections like Visual Goal, Layout, Key Components, Visual Styling, and Interaction Notes.",
+      "description": "A production-ready UI brief written as structured prose with these exact sections: Reference DNA, Visual Goal, Layout Anatomy, Key Components, Visual Styling, Interaction Notes, Must Preserve.",
       "chrome_policy": {
         "chrome": "bottom-tabs",
         "show_primary_navigation": true,
@@ -113,7 +113,10 @@ Rules:
 - If an image is present, imageReferenceSummary must explain how it should influence the build; otherwise return null.
 - keyFeatures should be concise, durable product capabilities rather than screen names.
 - creativeDirection is required. It should be opinionated, premium, reusable across the product, and specific enough to keep the system out of generic AI-dashboard territory.
+- Each screen description must be a deep implementation brief, not a product summary. Use these exact labeled sections inside the string: Reference DNA, Visual Goal, Layout Anatomy, Key Components, Visual Styling, Interaction Notes, Must Preserve.
+- Each screen description should usually be 900-1800 characters. If the reference image is complex, use more detail. Do not return one-paragraph screen summaries.
 - Each screen description must be detailed enough that an engineer can rebuild the composition without the original screenshot.
+- If a reference image is provided, every screen description must explicitly say which reference screen or visible reference cues it is preserving. Do not reduce image evidence to generic app language.
 - Write each screen description top-to-bottom. Describe the actual layout order, layering, overlap, floating elements, and anchor positions.
 - Name concrete component structures and states: headers, hero regions, cards, sheets, charts, progress rings, segmented controls, tabs, chips, icon buttons, badges, avatar stacks, maps, lists, and CTA placement when visible.
 - Call out important typography treatment, imagery treatment, chart geometry, background treatment, rounded shapes, elevation, and must-preserve composition cues from the reference.
@@ -193,6 +196,9 @@ Rules:
 - If the image contains multiple phone screens or panels, describe them left-to-right.
 - Focus on actual composition, not product strategy.
 - Be specific about overlap, layering, floating cards, bottom sheets, tabs, charts, gauges, avatar stacks, map regions, large typography, image cutouts, and CTA construction when visible.
+- Describe each visible screen as if the next model will not see the image. Include exact top/middle/bottom regions, approximate proportions, anchored/floating surfaces, active states, icon/label treatment, and repeated visual motifs.
+- For navigation, capture the real anatomy: full-width rail, floating dock, glass pill, attached card, center action, icon-only row, label rhythm, active-state shape, radius, shadow, and bottom safe-area relationship.
+- For charts/maps/media, name the constructed geometry rather than saying "chart" or "map": bar shapes, route curve, grid blocks, pins, sheets, overlays, legends, rings, gauges, image crop/cutout, etc.
 - Avoid generic phrases like "modern UI" unless you immediately explain what makes it modern.
 - Do not invent hidden screens, unseen features, or backend behavior.
 - Use generic placeholders only for volatile literal values; preserve visible layout anchors when they matter to the composition.

@@ -27,6 +27,7 @@ import type {
 } from "@/lib/types";
 
 type LobbyStage = "brief" | "design" | "plan";
+type ApiErrorPayload = { error?: unknown; details?: unknown };
 
 const workspaceSidebarStyles = {
   "--sidebar-width": "20rem",
@@ -39,6 +40,22 @@ const workspaceSidebarStyles = {
   "--sidebar-border": "rgba(15,23,42,0.09)",
   "--sidebar-ring": "rgba(0,47,167,0.24)",
 } as CSSProperties;
+
+const readApiError = (payload: ApiErrorPayload | null | undefined, fallback: string) => {
+  if (!payload?.error) {
+    return fallback;
+  }
+
+  if (typeof payload.error === "string") {
+    return payload.error;
+  }
+
+  if (payload.details && typeof payload.details === "object") {
+    return fallback;
+  }
+
+  return fallback;
+};
 
 export function ProjectLobby({
   initialPrompt = "",
@@ -115,10 +132,10 @@ export function ProjectLobby({
         }),
       });
 
-      const payload = (await response.json().catch(() => null)) as DesignTokens | { error?: string } | null;
+      const payload = (await response.json().catch(() => null)) as DesignTokens | ApiErrorPayload | null;
 
       if (!response.ok || !payload || "error" in payload) {
-        throw new Error((payload as { error?: string } | null)?.error ?? "Failed to generate design tokens.");
+        throw new Error(readApiError(payload as ApiErrorPayload | null, "Failed to generate design tokens."));
       }
 
       setDesignTokens(payload as DesignTokens);
@@ -149,10 +166,10 @@ export function ProjectLobby({
         }),
       });
 
-      const payload = (await response.json().catch(() => null)) as PlannedUiFlow | { error?: string } | null;
+      const payload = (await response.json().catch(() => null)) as PlannedUiFlow | ApiErrorPayload | null;
 
       if (!response.ok || !payload || "error" in payload) {
-        throw new Error((payload as { error?: string } | null)?.error ?? "Failed to plan the UI flow.");
+        throw new Error(readApiError(payload as ApiErrorPayload | null, "Failed to plan the UI flow."));
       }
 
       setPlan(payload as PlannedUiFlow);
@@ -187,10 +204,10 @@ export function ProjectLobby({
         }),
       });
 
-      const payload = (await response.json().catch(() => null)) as { projectId?: string; error?: string } | null;
+      const payload = (await response.json().catch(() => null)) as ({ projectId?: string } & ApiErrorPayload) | null;
 
       if (!response.ok || !payload?.projectId) {
-        throw new Error(payload?.error ?? "Failed to start the build.");
+        throw new Error(readApiError(payload, "Failed to start the build."));
       }
 
       router.push(`/project/${payload.projectId}`);
