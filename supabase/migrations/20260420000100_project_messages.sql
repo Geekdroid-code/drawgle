@@ -18,7 +18,6 @@ create table public.project_messages (
   content text not null check (char_length(content) <= 100000),
   message_type public.project_message_type not null default 'chat',
   metadata jsonb not null default '{}'::jsonb,
-  summary text,
   embedding extensions.vector(768),
   created_at timestamptz not null default timezone('utc', now())
 );

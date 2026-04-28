@@ -300,7 +300,6 @@ export interface Database {
           content: string;
           message_type: ProjectMessageType;
           metadata: Json;
-          summary: string | null;
           embedding: number[] | null;
           created_at: string;
         };
@@ -313,7 +312,6 @@ export interface Database {
           content: string;
           message_type?: ProjectMessageType;
           metadata?: Json;
-          summary?: string | null;
           embedding?: number[] | null;
           created_at?: string;
         };
@@ -326,7 +324,6 @@ export interface Database {
           content?: string;
           message_type?: ProjectMessageType;
           metadata?: Json;
-          summary?: string | null;
           embedding?: number[] | null;
           created_at?: string;
         };

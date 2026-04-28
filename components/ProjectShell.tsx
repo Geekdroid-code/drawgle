@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, Loader2, Palette, Sparkles, Type, X } from "lucide-react";
 
 import { CanvasArea } from "@/components/CanvasArea";
-import { ChatPanel, type ScreenPlanState } from "@/components/ChatPanel";
+import { ChatPanel } from "@/components/ChatPanel";
 import { PromptBar } from "@/components/PromptBar";
 import type { SelectedElementInfo } from "@/components/ScreenNode";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,6 @@ import type {
   GenerationRunData,
   NavigationArchitecture,
   NavigationPlan,
-  PlannedUiFlow,
   ProjectData,
   ProjectNavigationData,
   PromptImagePayload,
@@ -46,16 +45,6 @@ class QueueGenerationError extends Error {
     this.name = "QueueGenerationError";
     this.status = status;
     this.activeGenerationRunId = activeGenerationRunId ?? null;
-  }
-}
-
-class ScreenPlanningError extends Error {
-  status: number;
-
-  constructor(message: string, status: number) {
-    super(message);
-    this.name = "ScreenPlanningError";
-    this.status = status;
   }
 }
 
@@ -447,35 +436,6 @@ async function enqueueGeneration(input: {
   return payload as { projectId: string; generationRunId: string; triggerRunId: string };
 }
 
-async function planSingleScreen(input: {
-  projectId: string;
-  prompt: string;
-  image?: PromptImagePayload | null;
-  designTokens?: DesignTokens | null;
-}) {
-  const response = await fetch("/api/plan", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      projectId: input.projectId,
-      prompt: input.prompt,
-      image: input.image ?? null,
-      designTokens: input.designTokens ?? null,
-      planningMode: "single-screen",
-    }),
-  });
-
-  const payload = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    throw new ScreenPlanningError(payload.error ?? "Failed to plan screen.", response.status);
-  }
-
-  return payload as PlannedUiFlow;
-}
-
 export function ProjectShell({
   user,
   initialProject,
@@ -501,7 +461,6 @@ export function ProjectShell({
   const [pendingQueuedRunId, setPendingQueuedRunId] = useState<string | null>(null);
   const [pendingAddScreenRunId, setPendingAddScreenRunId] = useState<string | null>(null);
   const [queueError, setQueueError] = useState<string | null>(null);
-  const [addScreenPlan, setAddScreenPlan] = useState<ScreenPlanState | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [editSession, setEditSession] = useState<ElementEditSession | null>(null);
   const centeredRunIdRef = useRef<string | null>(null);
@@ -509,7 +468,6 @@ export function ProjectShell({
   const hasHydratedScreenIdsRef = useRef(false);
   const addScreenRefreshAttemptedRunIdRef = useRef<string | null>(null);
   const hasQueuedInitialFitRef = useRef(false);
-  const planRequestIdRef = useRef(0);
   const isGenerationBusy = Boolean(generationRun) || isQueueingGeneration || Boolean(pendingQueuedRunId);
   const isCanvasInteractionLocked = isGenerationBusy;
   const isGenerationActive = Boolean(
@@ -750,67 +708,6 @@ export function ProjectShell({
     }
   };
 
-  const handlePromptSubmit = async (options: {
-    prompt: string;
-    image?: PromptImagePayload | null;
-  }) => {
-    if (!project || isCanvasInteractionLocked) {
-      return false;
-    }
-
-    setQueueError(null);
-
-    const requestId = ++planRequestIdRef.current;
-    setAddScreenPlan({
-      status: "planning",
-      prompt: options.prompt,
-      image: options.image ?? null,
-    });
-
-    try {
-      const plan = await planSingleScreen({
-        projectId: project.id,
-        prompt: options.prompt,
-        image: options.image ?? null,
-        designTokens: project.designTokens ?? null,
-      });
-
-      if (requestId !== planRequestIdRef.current) {
-        return false;
-      }
-
-      const screenPlan = plan.screens[0];
-      if (!screenPlan) {
-        throw new Error("The planner did not return a screen brief.");
-      }
-
-      setAddScreenPlan({
-        status: "ready",
-        prompt: options.prompt,
-        image: options.image ?? null,
-        screenPlan,
-        requiresBottomNav: plan.requiresBottomNav,
-        navigationArchitecture: plan.navigationArchitecture,
-        navigationPlan: plan.navigationPlan,
-      });
-
-      return true;
-    } catch (error) {
-      if (requestId !== planRequestIdRef.current) {
-        return false;
-      }
-
-      setAddScreenPlan({
-        status: "error",
-        prompt: options.prompt,
-        image: options.image ?? null,
-        error: error instanceof Error ? error.message : "Failed to plan the next screen.",
-      });
-
-      return false;
-    }
-  };
-
   const handleRetryGeneration = async (run: GenerationRunData) => {
     if (!project || isCanvasInteractionLocked) {
       return;
@@ -823,31 +720,6 @@ export function ProjectShell({
       navigationArchitecture: project.charter?.navigationArchitecture ?? null,
       navigationPlan: projectNavigation?.plan ?? null,
     });
-  };
-
-  const dismissAddScreenPlan = () => {
-    planRequestIdRef.current += 1;
-    setAddScreenPlan(null);
-  };
-
-  const handleBuildPlannedScreen = async () => {
-    if (!project || !addScreenPlan || addScreenPlan.status !== "ready") {
-      return;
-    }
-
-    const queued = await queueGenerationRequest({
-      prompt: addScreenPlan.prompt,
-      image: addScreenPlan.image,
-      designTokens: project.designTokens ?? null,
-      plannedScreens: [addScreenPlan.screenPlan],
-      requiresBottomNav: addScreenPlan.requiresBottomNav,
-      navigationArchitecture: addScreenPlan.navigationArchitecture,
-      navigationPlan: addScreenPlan.navigationPlan,
-    });
-
-    if (queued) {
-      dismissAddScreenPlan();
-    }
   };
 
   const handleDeleteSelectedScreen = async () => {
@@ -880,87 +752,63 @@ export function ProjectShell({
 
     const activeEditScreenId = editSession?.screenId ?? selectedScreen?.id ?? null;
     const activeEditElement = editSession?.element ?? null;
-
-    if (activeEditScreenId || activeEditElement?.targetType === "navigation") {
-      try {
-        const editRes = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            projectId: project.id,
-            prompt,
-            selectedScreenId: activeEditScreenId,
-            selectedElementHtml: activeEditElement?.outerHTML ?? null,
-            selectedElementDrawgleId: activeEditElement?.drawgleId ?? null,
-            selectedElementTarget: activeEditElement?.targetType ?? null,
-          }),
-        });
-
-        // Clear element edit session after applying an AI edit.
-        setEditSession(null);
-        setSelectionMode(false);
-
-        if (!editRes.ok) {
-          throw new Error("Failed to edit screen");
-        }
-
-        if (!editRes.body) {
-          throw new Error("No response body");
-        }
-
-        const reader = editRes.body.getReader();
-
-        while (true) {
-          const { done } = await reader.read();
-          if (done) {
-            break;
-          }
-        }
-
-        return true;
-      } catch (error) {
-        console.error("Edit flow error:", error);
-
-        try {
-          const supabase = createClient();
-          await insertProjectMessage(supabase, {
-            projectId: project.id,
-            ownerId: user.id,
-            screenId: activeEditScreenId,
-            role: "model",
-            content: "Sorry, I encountered an error while processing your request.",
-            messageType: "error",
-          });
-        } catch (messageError) {
-          console.error("Failed to persist edit error message", messageError);
-          return false;
-        }
-
-        return true;
-      }
-    }
+    setQueueError(null);
 
     try {
-      const supabase = createClient();
-
-      await insertProjectMessage(supabase, {
-        projectId: project.id,
-        ownerId: user.id,
-        role: "user",
-        content: prompt,
-        messageType: "chat",
+      const agentRes = await fetch("/api/agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: project.id,
+          prompt,
+          image: options.image ?? null,
+          selectedScreenId: activeEditScreenId,
+          focusedScreenId: selectedScreen?.id ?? null,
+          selectedElementHtml: activeEditElement?.outerHTML ?? null,
+          selectedElementDrawgleId: activeEditElement?.drawgleId ?? null,
+          selectedElementTarget: activeEditElement?.targetType ?? null,
+          selectedElementPreview: activeEditElement?.textPreview ?? null,
+        }),
       });
+      const payload = await agentRes.json().catch(() => ({}));
+
+      if (!agentRes.ok && agentRes.status !== 409) {
+        throw new Error(payload.error ?? "Drawgle agent could not process the request.");
+      }
+
+      if (payload.intent === "create_new_screen" && payload.generationRunId) {
+        setPendingQueuedRunId(payload.generationRunId);
+        setPendingAddScreenRunId(payload.generationRunId);
+        addScreenRefreshAttemptedRunIdRef.current = null;
+        await refreshGenerationRuns();
+      } else if (payload.intent === "modify_screen") {
+        setEditSession(null);
+        setSelectionMode(false);
+      }
+
+      return true;
     } catch (error) {
-      console.error("Failed to persist create prompt", error);
-      return false;
+      console.error("Agent flow error:", error);
+
+      try {
+        const supabase = createClient();
+        await insertProjectMessage(supabase, {
+          projectId: project.id,
+          ownerId: user.id,
+          screenId: activeEditScreenId,
+          role: "model",
+          content: error instanceof Error ? error.message : "Sorry, I encountered an error while processing your request.",
+          messageType: "error",
+        });
+      } catch (messageError) {
+        console.error("Failed to persist agent error message", messageError);
+        return false;
+      }
+
+      return true;
+    } finally {
+      setIsQueueingGeneration(false);
     }
-
-    await handlePromptSubmit({
-      prompt,
-      image: options.image ?? null,
-    });
-
-    return true;
   };
 
   const handleDeterministicElementEdit = async (operations: DeterministicEditOperation[]) => {
@@ -1078,11 +926,8 @@ export function ProjectShell({
             isQueueing={isQueueingGeneration || Boolean(pendingQueuedRunId)}
             queueError={queueError}
             retryDisabled={isCanvasInteractionLocked}
-            screenPlan={addScreenPlan}
             isBuilding={isQueueingGeneration}
             onRetryGeneration={handleRetryGeneration}
-            onBuildPlannedScreen={() => void handleBuildPlannedScreen()}
-            onCancelPlan={dismissAddScreenPlan}
             isCollapsed={isChatCollapsed}
             onCollapseChange={setIsChatCollapsed}
           />
@@ -1122,7 +967,7 @@ export function ProjectShell({
               onDeleteSelectedScreen={handleDeleteSelectedScreen}
               onSubmit={handlePromptAction}
               disabled={isCanvasInteractionLocked}
-              submitStatusText={selectedScreen ? `Editing ${selectedScreen.name}...` : "Planning screen..."}
+              submitStatusText="Thinking..."
               selectionMode={selectionMode}
               onToggleSelectionMode={() => {
                 setSelectionMode((m) => !m);

@@ -267,14 +267,14 @@ export async function fetchProjectMessages(
     .from("project_messages")
     .select("*")
     .eq("project_id", projectId)
-    .order("created_at", { ascending: true })
+    .order("created_at", { ascending: false })
     .limit(limit);
 
   if (error) {
     throw error;
   }
 
-  return (data ?? []).map(mapProjectMessageRow);
+  return (data ?? []).map(mapProjectMessageRow).reverse();
 }
 
 export async function insertProjectMessage(
@@ -310,15 +310,14 @@ export async function insertProjectMessage(
   return mapProjectMessageRow(data);
 }
 
-export async function updateProjectMessageEmbedding(
+export async function updateProjectMessageMemoryEmbedding(
   client: Client,
   messageId: string,
-  summary: string,
   embedding: number[],
 ) {
   const { error } = await client
     .from("project_messages")
-    .update({ summary, embedding })
+    .update({ embedding })
     .eq("id", messageId);
 
   if (error) {

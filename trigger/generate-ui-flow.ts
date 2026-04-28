@@ -18,7 +18,7 @@ import {
 } from "@/lib/project-navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
-import type { DesignTokens, NavigationArchitecture, NavigationPlan, PromptImagePayload, ProjectCharter, ScreenPlan } from "@/lib/types";
+import type { DesignTokens, NavigationArchitecture, NavigationPlan, PlanningMode, PromptImagePayload, ProjectCharter, ScreenPlan } from "@/lib/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -34,6 +34,7 @@ type GenerateUiFlowPayload = {
   navigationArchitecture?: NavigationArchitecture | null;
   navigationPlan?: NavigationPlan | null;
   projectCharter?: ProjectCharter | null;
+  planningMode?: PlanningMode;
 };
 
 type BuildScreenTaskPayload = {
@@ -725,6 +726,8 @@ export const generateUiFlowTask = task({
           designTokens,
           projectContext: planningContext,
           existingCharter: requestedCharter,
+          existingNavigationPlan: payload.navigationPlan ?? null,
+          planningMode: payload.planningMode ?? "project",
         });
     plan.screens = applyNavigationPlanToScreens(plan.screens, plan.navigationPlan);
 
