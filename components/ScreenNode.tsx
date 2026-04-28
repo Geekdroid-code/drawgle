@@ -1,14 +1,15 @@
 "use client";
 
-import type { ProjectNavigationData, ScreenData } from "@/lib/types";
+import type { DesignTokens, ProjectNavigationData, ScreenData } from "@/lib/types";
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { MoreHorizontal, Download, Trash2, Edit2, Smartphone, MousePointerClick, Crosshair } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { createClient } from "@/lib/supabase/client";
-import { ensureDrawgleIds, type DrawgleBoundingRect, type DrawgleEditableMetadata } from "@/lib/drawgle-dom";
+import { ensureDrawgleIds, stripDrawgleIds, type DrawgleBoundingRect, type DrawgleEditableMetadata } from "@/lib/drawgle-dom";
 import { deleteScreen, updateScreenPosition } from "@/lib/supabase/queries";
 import { hasSharedNavigation } from "@/lib/project-navigation";
+import { buildDrawgleTokenCss } from "@/lib/token-runtime";
 import { useRealtimeRunWithStreams } from "@trigger.dev/react-hooks";
 
 /** Data sent from the iframe when the user clicks an element in selection mode. */
@@ -76,6 +77,7 @@ function ScreenLabelBar({
   interactMode,
   selectionMode,
   onInteractToggle,
+  onExport,
   onDelete,
 }: {
   screen: ScreenData;
@@ -83,6 +85,7 @@ function ScreenLabelBar({
   interactMode: boolean;
   selectionMode: boolean;
   onInteractToggle: () => void;
+  onExport: () => void;
   onDelete: () => void;
 }) {
   return (
@@ -187,6 +190,7 @@ function ScreenLabelBar({
           size="icon"
           className="h-7 w-7 rounded-lg hover:bg-indigo-50 hover:text-indigo-600 text-gray-500"
           title="Export code"
+          onClick={onExport}
         >
           <Download className="w-3.5 h-3.5" />
         </Button>
@@ -255,6 +259,7 @@ function DimensionBadge({ visible }: { visible: boolean }) {
 export function ScreenNode({
   screen,
   projectNavigation,
+  designTokens,
   isSelected,
   onClick,
   scale = 1,
@@ -264,6 +269,7 @@ export function ScreenNode({
 }: {
   screen: ScreenData;
   projectNavigation?: ProjectNavigationData | null;
+  designTokens?: DesignTokens | null;
   isSelected?: boolean;
   onClick?: () => void;
   scale?: number;
@@ -356,6 +362,52 @@ export function ScreenNode({
   );
   const navigationShellCode = sharedNavigationActive ? ensureDrawgleIds(projectNavigation?.shellCode ?? "").code : "";
   const activeNavigationItemId = sharedNavigationActive ? screen.navigationItemId ?? "" : "";
+  const tokenCss = useMemo(() => buildDrawgleTokenCss(designTokens), [designTokens]);
+
+  const handleExportCode = useCallback(() => {
+    const cleanScreenCode = stripDrawgleIds(displayCode);
+    const cleanNavigationCode = stripDrawgleIds(navigationShellCode);
+    const exportCode = `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.tailwindcss.com"><\/script>
+    <script src="https://unpkg.com/lucide@latest"><\/script>
+    <style>
+${tokenCss}
+      html, body { margin: 0; min-height: 100%; }
+      body { font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif); background: var(--dg-color-background-primary, #ffffff); }
+      #drawgle-export-root { position: relative; min-height: 100vh; overflow-x: hidden; }
+      #drawgle-export-navigation { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; pointer-events: none; }
+      #drawgle-export-navigation [data-drawgle-primary-nav] { pointer-events: auto; }
+    </style>
+  </head>
+  <body>
+    <div id="drawgle-export-root">
+${cleanScreenCode}
+      ${cleanNavigationCode ? `<div id="drawgle-export-navigation">${cleanNavigationCode}</div>` : ""}
+    </div>
+    <script>
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+      document.querySelectorAll('[data-nav-item-id]').forEach(function(item) {
+        var active = item.getAttribute('data-nav-item-id') === ${serializeForInlineScript(activeNavigationItemId)};
+        item.setAttribute('data-active', active ? 'true' : 'false');
+        item.setAttribute('aria-current', active ? 'page' : 'false');
+      });
+    <\/script>
+  </body>
+</html>`;
+    const blob = new Blob([exportCode], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${screen.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "drawgle-screen"}.html`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }, [activeNavigationItemId, displayCode, navigationShellCode, screen.name, tokenCss]);
 
   // ── Position sync from DB
   //
@@ -380,10 +432,11 @@ export function ScreenNode({
         code: displayCode,
         navigationCode: navigationShellCode,
         activeNavigationItemId,
+        tokenCss,
       },
       "*",
     );
-  }, [activeNavigationItemId, displayCode, navigationShellCode]);
+  }, [activeNavigationItemId, displayCode, navigationShellCode, tokenCss]);
 
   // ── Escape key exits interact mode
   useEffect(() => {
@@ -670,6 +723,7 @@ export function ScreenNode({
           .__drawgle-hover-outline { outline: 2px solid rgba(20,184,166,0.8) !important; outline-offset: -1px; cursor: crosshair !important; }
           .__drawgle-selected-outline { outline: 2.5px solid #0d9488 !important; outline-offset: -1px; background-color: rgba(20,184,166,0.06) !important; }
         </style>
+        <style id="drawgle-project-tokens">${tokenCss}</style>
       </head>
       <body>
         <div id="root" data-has-navigation="${sharedNavigationActive ? "true" : "false"}">
@@ -680,6 +734,7 @@ export function ScreenNode({
           var initialScreenCode = ${serializeForInlineScript(initialScreenCode)};
           var initialNavigationCode = ${serializeForInlineScript(navigationShellCode)};
           var initialActiveNavigationItemId = ${serializeForInlineScript(activeNavigationItemId)};
+          var initialTokenCss = ${serializeForInlineScript(tokenCss)};
 
           function refreshLucideIconsWithRetry() {
             var attempts = 0;
@@ -702,6 +757,18 @@ export function ScreenNode({
               item.setAttribute('data-active', active ? 'true' : 'false');
               item.setAttribute('aria-current', active ? 'page' : 'false');
             });
+          }
+
+          function applyDesignTokenCss(cssText) {
+            var styleEl = document.getElementById('drawgle-project-tokens');
+            if (!styleEl) {
+              styleEl = document.createElement('style');
+              styleEl.id = 'drawgle-project-tokens';
+              document.head.appendChild(styleEl);
+            }
+            if (styleEl.textContent !== (cssText || '')) {
+              styleEl.textContent = cssText || '';
+            }
           }
 
           function renderScreenContent(code) {
@@ -817,6 +884,7 @@ export function ScreenNode({
           document.addEventListener('touchstart', handleInteractTouchStart, { capture: true, passive: true });
           document.addEventListener('touchmove', handleInteractTouchMove, { capture: true, passive: false });
 
+          applyDesignTokenCss(initialTokenCss);
           renderScreenContent(initialScreenCode);
           renderNavigation(initialNavigationCode, initialActiveNavigationItemId);
 
@@ -1038,10 +1106,13 @@ export function ScreenNode({
                 /* Preserve selection state across live code updates */
                 var wasActive = selectionActive;
                 if (wasActive) disableSelection();
+                applyDesignTokenCss(event.data.tokenCss || '');
                 renderScreenContent(event.data.code || '');
                 renderNavigation(event.data.navigationCode || '', event.data.activeNavigationItemId || '');
                 if (interactionModeActive) focusScreenContentHost();
                 if (wasActive) enableSelection();
+              } else if (event.data.type === 'updateDesignTokenCss') {
+                applyDesignTokenCss(event.data.tokenCss || '');
               } else if (event.data.type === 'enableSelectionMode') {
                 enableSelection();
               } else if (event.data.type === 'disableSelectionMode') {
@@ -1059,7 +1130,7 @@ export function ScreenNode({
       </body>
     </html>
   `;
-  }, [activeNavigationItemId, initialCode, navigationShellCode, sharedNavigationActive]);
+  }, [activeNavigationItemId, initialCode, navigationShellCode, sharedNavigationActive, tokenCss]);
 
   // =========================================================================
   // Render
@@ -1110,6 +1181,7 @@ export function ScreenNode({
         interactMode={isInteractModeActive}
         selectionMode={isSelectionModeActive}
         onInteractToggle={() => setInteractMode((m) => !m)}
+        onExport={handleExportCode}
         onDelete={handleDelete}
       />
 

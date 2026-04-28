@@ -4,6 +4,8 @@ import { applyDeterministicEdits, ensureDrawgleIds, type DeterministicEditOperat
 import { indexScreenCode } from "@/lib/generation/block-index";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
+import type { DesignTokens } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -57,13 +59,14 @@ export async function POST(req: Request) {
     const admin = createAdminClient();
     const { data: project, error: projectError } = await admin
       .from("projects")
-      .select("id, owner_id")
+      .select("id, owner_id, design_tokens")
       .eq("id", projectId)
       .maybeSingle();
 
     if (projectError || !project || project.owner_id !== user.id) {
       return NextResponse.json({ error: "Project not found." }, { status: 404 });
     }
+    const designTokens = (project.design_tokens as DesignTokens | null) ?? null;
 
     if (targetType === "navigation") {
       const { data: navigation, error: navigationError } = await admin
@@ -77,11 +80,12 @@ export async function POST(req: Request) {
       }
 
       const currentCode = ensureDrawgleIds(navigation.shell_code ?? "").code;
-      const nextCode = applyDeterministicEdits({
+      const editedCode = applyDeterministicEdits({
         code: currentCode,
         drawgleId,
         operations,
       });
+      const nextCode = tokenizeStaticDrawgleHtml(editedCode, designTokens).code;
 
       const { error: updateError } = await admin
         .from("project_navigation")
@@ -117,11 +121,12 @@ export async function POST(req: Request) {
     }
 
     const currentCode = ensureDrawgleIds(screen.code ?? "").code;
-    const nextCode = applyDeterministicEdits({
+    const editedCode = applyDeterministicEdits({
       code: currentCode,
       drawgleId,
       operations,
     });
+    const nextCode = tokenizeStaticDrawgleHtml(editedCode, designTokens).code;
 
     const { error: updateError } = await admin
       .from("screens")

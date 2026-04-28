@@ -8,7 +8,7 @@ import { assembleProjectContext } from "@/lib/generation/context";
 import { generateEmbedding, generateScreenSummary } from "@/lib/generation/embeddings";
 import { detectScreenHealth, validateGeneratedScreenCode, validateStaticDrawgleHtml } from "@/lib/generation/screen-quality";
 import { findRepairTarget, replaceSourceRegion } from "@/lib/generation/screen-repair";
-import { buildFullScreenReconstructionCode, buildNavigationShellCode, buildScreenStream, buildSectionRepairCode, extractCode, fallbackProjectCharter, planUiFlow } from "@/lib/generation/service";
+import { buildFullScreenReconstructionCode, buildNavigationShellCode, buildScreenStream, buildSectionRepairCode, extractCode, fallbackProjectCharter, generateDesignTokens, planUiFlow } from "@/lib/generation/service";
 import { createNavigationArchitecture, deriveRequiresBottomNav } from "@/lib/navigation";
 import {
   applyNavigationPlanToScreens,
@@ -16,6 +16,7 @@ import {
   normalizeNavigationPlan,
   sanitizeScreenCodeForSharedNavigation,
 } from "@/lib/project-navigation";
+import { tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 import type { DesignTokens, NavigationArchitecture, NavigationPlan, PlanningMode, PromptImagePayload, ProjectCharter, ScreenPlan } from "@/lib/types";
@@ -464,7 +465,9 @@ export const buildScreenTask = task({
       }
     }
 
-    const code = ensureDrawgleIds(sanitizeScreenCodeForSharedNavigation(extractedCode, payload.screenPlan)).code;
+    const sanitizedCode = sanitizeScreenCodeForSharedNavigation(extractedCode, payload.screenPlan);
+    const tokenizedCode = tokenizeStaticDrawgleHtml(sanitizedCode, payload.designTokens).code;
+    const code = ensureDrawgleIds(tokenizedCode).code;
     const health = detectScreenHealth({ code, screenPrompt: payload.screenPlan.description });
     const blockIndex = indexScreenCode(code);
     const screenStatus = health.healthy ? "ready" : "failed";
@@ -641,13 +644,16 @@ export const generateUiFlowTask = task({
   run: async (payload: GenerateUiFlowPayload) => {
     const admin = createAdminClient();
 
-    const designTokens = payload.designTokens;
+    let designTokens = payload.designTokens ?? null;
     const { data: existingProject } = await admin
       .from("projects")
-      .select("project_charter")
+      .select("project_charter, design_tokens")
       .eq("id", payload.projectId)
       .maybeSingle();
     const existingCharter = (existingProject?.project_charter as ProjectCharter | null) ?? null;
+    if (!designTokens && existingProject?.design_tokens) {
+      designTokens = existingProject.design_tokens as DesignTokens;
+    }
     const requestedNavigationArchitecture = createNavigationArchitecture({
       navigationArchitecture: payload.navigationArchitecture ?? payload.projectCharter?.navigationArchitecture ?? existingCharter?.navigationArchitecture ?? null,
       requiresBottomNav: payload.requiresBottomNav ?? deriveRequiresBottomNav(existingCharter?.navigationArchitecture),
@@ -655,8 +661,11 @@ export const generateUiFlowTask = task({
 
     const projectUpdate: Database["public"]["Tables"]["projects"]["Update"] = {
       status: "generating",
-      design_tokens: designTokens as never,
     };
+
+    if (designTokens) {
+      projectUpdate.design_tokens = designTokens as never;
+    }
 
     if (payload.projectCharter !== undefined) {
       projectUpdate.project_charter = (payload.projectCharter ?? null) as never;
@@ -689,6 +698,46 @@ export const generateUiFlowTask = task({
         userPrompt: payload.prompt,
       }),
     ]);
+
+    if (!designTokens) {
+      await postStatusMessage(
+        admin,
+        payload.projectId,
+        payload.ownerId,
+        "Analyzing design system...",
+        "generation_started",
+        {
+          generationRunId: payload.generationRunId,
+          activityKey: `run:${payload.generationRunId}:design`,
+        },
+      );
+
+      designTokens = await generateDesignTokens({
+        prompt: payload.prompt,
+        image: promptImage,
+      });
+
+      await updateProject(admin, payload.projectId, {
+        design_tokens: designTokens as never,
+      });
+
+      await mergeGenerationRunMetadata(admin, payload.generationRunId, {
+        designTokenSnapshot: designTokens,
+      });
+
+      await postStatusMessage(
+        admin,
+        payload.projectId,
+        payload.ownerId,
+        "Design system ready",
+        "generation_completed",
+        {
+          generationRunId: payload.generationRunId,
+          activityKey: `run:${payload.generationRunId}:design`,
+          action: "design_system_ready",
+        },
+      );
+    }
     const requestedCharter = payload.projectCharter ?? existingCharter ?? (
       payload.plannedScreens && payload.plannedScreens.length > 0
         ? fallbackProjectCharter({
@@ -731,13 +780,14 @@ export const generateUiFlowTask = task({
         });
     plan.screens = applyNavigationPlanToScreens(plan.screens, plan.navigationPlan);
 
-    const navigationShellCode = ensureDrawgleIds(await buildNavigationShellCode({
+    const rawNavigationShellCode = await buildNavigationShellCode({
       navigationPlan: plan.navigationPlan,
       designTokens,
       prompt: payload.prompt,
       image: promptImage,
       projectCharter: plan.charter,
-    })).code;
+    });
+    const navigationShellCode = ensureDrawgleIds(tokenizeStaticDrawgleHtml(rawNavigationShellCode, designTokens).code).code;
 
     const { error: navigationUpsertError } = await admin
       .from("project_navigation")
@@ -765,9 +815,12 @@ export const generateUiFlowTask = task({
     await mergeGenerationRunMetadata(admin, payload.generationRunId, {
       navigationArchitecture: plan.navigationArchitecture,
       navigationPlan: plan.navigationPlan,
+      charter: plan.charter,
+      designTokenSnapshot: designTokens ?? null,
       plannedScreens: plan.screens.map((screenPlan) => ({
         name: screenPlan.name,
         type: screenPlan.type,
+        description: screenPlan.description,
         chromePolicy: screenPlan.chromePolicy ?? null,
         navigationItemId: screenPlan.navigationItemId ?? null,
       })),

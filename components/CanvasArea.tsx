@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ScreenNode, SCREEN_FRAME_HEIGHT, SCREEN_FRAME_WIDTH } from "./ScreenNode";
 import type { SelectedElementInfo } from "./ScreenNode";
 
-import type { ProjectNavigationData, ScreenData } from "@/lib/types";
+import type { DesignTokens, ProjectNavigationData, ScreenData } from "@/lib/types";
 
 const CANVAS_SIZE = 10000;
 const DEFAULT_EMPTY_SCALE_DESKTOP = 0.7;
@@ -232,6 +232,7 @@ const CanvasControls = ({
 const CanvasContent = ({
   screens,
   projectNavigation,
+  designTokens,
   selectedScreen,
   onSelectScreen,
   selectionMode,
@@ -242,6 +243,7 @@ const CanvasContent = ({
 }: {
   screens: ScreenData[];
   projectNavigation?: ProjectNavigationData | null;
+  designTokens?: DesignTokens | null;
   selectedScreen?: ScreenData | null;
   onSelectScreen?: (screen: ScreenData | null) => void;
   selectionMode?: boolean;
@@ -268,6 +270,7 @@ const CanvasContent = ({
             key={screen.id}
             screen={screen}
             projectNavigation={projectNavigation}
+            designTokens={designTokens}
             isSelected={selectedScreen?.id === screen.id}
             onClick={() => onSelectScreen?.(screen)}
             scale={scale}
@@ -284,6 +287,7 @@ const CanvasContent = ({
 export function CanvasArea({
   screens,
   projectNavigation,
+  designTokens,
   fitRequestVersion = INITIAL_FIT_REQUEST_VERSION,
   selectedScreen,
   mobileBottomReserve = MOBILE_DEFAULT_BOTTOM_RESERVED_HEIGHT,
@@ -296,6 +300,7 @@ export function CanvasArea({
 }: {
   screens: ScreenData[];
   projectNavigation?: ProjectNavigationData | null;
+  designTokens?: DesignTokens | null;
   fitRequestVersion?: number;
   selectedScreen?: ScreenData | null;
   mobileBottomReserve?: number;
@@ -368,6 +373,7 @@ export function CanvasArea({
           <CanvasContent
             screens={screens}
             projectNavigation={projectNavigation}
+            designTokens={designTokens}
             selectedScreen={selectedScreen}
             onSelectScreen={onSelectScreen}
             selectionMode={selectionMode}

@@ -1,5 +1,6 @@
 import { createNavigationArchitecture, resolveScreenChromePolicy } from "@/lib/navigation";
 import { normalizeDesignTokens } from "@/lib/design-tokens";
+import { buildTokenUsageGuide } from "@/lib/token-runtime";
 import type { BuildScreenInput, DesignTokens, NavigationArchitecture, ScreenPlan } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -422,6 +423,9 @@ export const buildEditSystemInstruction = ({
 STRICT DESIGN CONTRACT:
 ${buildStrictDesignContract(designTokens)}
 
+LIVE TOKEN RUNTIME CONTRACT:
+${buildTokenUsageGuide(designTokens)}
+
 NAVIGATION ARCHITECTURE CONTRACT:
 ${buildNavigationArchitectureContract({ navigationArchitecture })}
 
@@ -442,14 +446,15 @@ ${buildTypographyRoleContract()}
 */
 
 Additional rules:
-1. Do not invent new radii, border widths, or shadow recipes. Reuse the approved contract exactly.
-2. Use the standard app radius for default cards, buttons, fields, nav containers, and panels.
-3. Use the pill radius only when the current UI already contains capsule controls or the requested change explicitly requires them.
-4. Preserve the existing navigation family unless the user explicitly asks to redesign navigation.
-5. Preserve typography role consistency. Do not introduce arbitrary text sizes or weights when an existing semantic text role already fits.
-6. If the current code already violates the contract, move it toward the approved values while completing the requested edit instead of drifting further away.
-7. Do not add a primary bottom-tab shell to a detail screen, and do not remove it from a root shell, unless the user explicitly asks to change navigation architecture.
-8. Replacement code must stay static HTML. Do not introduce JSX, React, JavaScript expressions, arrays, .map(...), arrow functions, template literals, className, class={...}, style={{...}}, data attributes with {...}, or scripts. Manually expand repeated UI items.`;
+1. Prefer Drawgle token utility classes and CSS variables for canonical styling. Do not freeze token values as raw hex/pixels when a project token variable exists.
+2. Do not invent new radii, border widths, or shadow recipes. Reuse the approved contract exactly.
+3. Use the standard app radius for default cards, buttons, fields, nav containers, and panels.
+4. Use the pill radius only when the current UI already contains capsule controls or the requested change explicitly requires them.
+5. Preserve the existing navigation family unless the user explicitly asks to redesign navigation.
+6. Preserve typography role consistency. Do not introduce arbitrary text sizes or weights when an existing semantic text role already fits.
+7. If the current code already violates the contract, move it toward the approved values while completing the requested edit instead of drifting further away.
+8. Do not add a primary bottom-tab shell to a detail screen, and do not remove it from a root shell, unless the user explicitly asks to change navigation architecture.
+9. Replacement code must stay static HTML. Do not introduce JSX, React, JavaScript expressions, arrays, .map(...), arrow functions, template literals, className, class={...}, style={{...}}, data attributes with {...}, or scripts. Manually expand repeated UI items.`;
 
 // ---------------------------------------------------------------------------
 // BUILD — Screen Code Generator
@@ -462,7 +467,6 @@ export const buildSystemInstruction = ({
   navigationArchitecture,
   navigationPlan,
 }: Pick<BuildScreenInput, "designTokens" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan"> & { screenPlan: ScreenPlan }) => {
-  const bgPrimary = resolveToken(designTokens, "color.background.primary", "#ffffff");
   const fontFamily = resolveToken(designTokens, "typography.font_family", "sans-serif");
   const safeTop = resolveToken(designTokens, "mobile_layout.safe_area_top", "16px");
   const safeBottom = resolveToken(designTokens, "mobile_layout.safe_area_bottom", "16px");
@@ -506,12 +510,11 @@ CRITICAL INSTRUCTION 0.5: PREMIUM DIFFERENTIATION
 Avoid interchangeable AI-app defaults such as evenly stacked white cards, generic hero plus stat blocks, or filler dashboards unless the spec explicitly requires them.
 When the screen description or project memory suggests a strong visual concept, express it with clear focal hierarchy, material contrast, and at least one memorable composition move.
 
-CRITICAL INSTRUCTION 1: DESIGN TOKENS
-You MUST use the provided Design Tokens for ALL colors, typography, spacing, sizing, radii, and shadows.
-Map the token values directly to Tailwind's arbitrary value syntax.
-Example: If tokens.color.background.primary is "#111827", use "bg-[#111827]".
-Example: If tokens.spacing.md is "16px", use "p-[16px]" or "gap-[16px]".
-Example: If tokens.typography.screen_title.size is "24px" and weight is "800", use "text-[24px] font-[800]".
+CRITICAL INSTRUCTION 1: LIVE DESIGN TOKENS
+You MUST use Drawgle live token utility classes and CSS variables for canonical colors, typography, spacing, sizing, radii, borders, and shadows.
+Preferred examples: dg-bg-primary, dg-surface-card, dg-text-high, dg-text-medium, dg-action-primary, dg-border-divider, dg-radius-app, dg-radius-pill, dg-shadow-surface, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-body, dg-type-caption.
+For token values without a named utility, use Tailwind arbitrary values with CSS variables, e.g. bg-[var(--dg-color-action-primary)], p-[var(--dg-spacing-md)], rounded-[var(--dg-radii-app)].
+Do NOT freeze project token values as raw hex or raw pixels when a token variable exists. Raw values are allowed only for deliberate one-off art details such as charts, maps, gradients, or illustrations.
 Do NOT default to generic Tailwind palette values (e.g., bg-gray-900) if a design token exists for that purpose.
 Do NOT invent additional radius tiers, border widths, or shadow strengths. Use one geometry/elevation language across the entire screen.
 
@@ -528,16 +531,19 @@ ${buildNavigationArchitectureContract({
 DESIGN TOKENS:
 ${serializeDesignTokens(designTokens)}
 
+LIVE TOKEN USAGE GUIDE:
+${buildTokenUsageGuide(designTokens)}
+
 CRITICAL INSTRUCTION 2: NAVIGATION ARCHITECTURE
 ${navigationInstruction}
 Any navigation surfaces in this app must read as one family: same spacing discipline, icon sizing, label treatment, active-state logic, radius language, and border/elevation treatment.
 ${navigationPlan?.enabled ? `The shared navigation plan has already been created for this project. Active tab for this screen: ${screenPlan.navigationItemId ?? "none"}. Shared nav items: ${navigationPlan.items.map((item) => `${item.label} (${item.icon})`).join(", ")}. Visual brief: ${navigationPlan.visualBrief}` : ""}
 
 RULES:
-1. Outermost element MUST be: <div class="w-full min-h-screen bg-[${bgPrimary}] flex flex-col relative overflow-x-hidden" style="font-family: ${fontFamily}">
+1. Outermost element MUST be: <div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden" style="font-family: var(--dg-typography-font-family, ${fontFamily})">
 2. Respect mobile safe areas: Add pt-[${safeTop}] to the top container and pb-[${safeBottom}] to the bottom container (or bottom nav).
 3. Use min-h-[${minTouch}] for ALL clickable elements (buttons, links, icon buttons).
-4. Use the specific text colors provided in the tokens (e.g., text-[${textHigh}]).
+4. Use project token classes or variables for text colors (for example dg-text-high or text-[var(--dg-color-text-high-emphasis)]). The current high-emphasis text token resolves to ${textHigh}.
 5. Do NOT wrap the UI in a phone frame or add a status bar.
 6. Return ONLY valid HTML code with Tailwind classes. Do NOT wrap in markdown blocks like \`\`\`html.
 7. Do NOT include <html>, <head>, or <body> tags. Just the content.

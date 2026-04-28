@@ -17,6 +17,7 @@ import { findRepairTarget, replaceSourceRegion } from "@/lib/generation/screen-r
 import { sanitizeScreenCodeForSharedNavigation } from "@/lib/project-navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchProjectMessages, insertProjectMessage } from "@/lib/supabase/queries";
+import { tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
 import type {
   DesignTokens,
   NavigationArchitecture,
@@ -223,14 +224,15 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
       },
     });
 
-    const nextCode = ensureDrawgleIds(await editNavigationShellCode({
+    const editedNavigationCode = await editNavigationShellCode({
       prompt,
       currentShellCode: navigationCode,
       navigationPlan,
       designTokens,
       projectCharter,
       selectedElementHtml: selectedNavigationElement ? selectedElementHtml : null,
-    })).code;
+    });
+    const nextCode = ensureDrawgleIds(tokenizeStaticDrawgleHtml(editedNavigationCode, designTokens).code).code;
 
     if (nextCode !== navigationCode) {
       const { error: updateError } = await admin
@@ -331,6 +333,8 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
     chromePolicy: (screen.chrome_policy as ScreenChromePolicy | null) ?? null,
     navigationItemId: typeof screen.navigation_item_id === "string" ? screen.navigation_item_id : null,
   };
+  const normalizeScreenCodeForSave = (code: string) =>
+    ensureDrawgleIds(tokenizeStaticDrawgleHtml(sanitizeScreenCodeForSharedNavigation(code, screenPlanForSave), designTokens).code).code;
   const health = detectScreenHealth({ code: screenCode, screenPrompt });
   const selectedRegionStaticHealth = selectedSourceRegion
     ? validateStaticDrawgleHtml({ code: selectedSourceRegion.snippet })
@@ -376,7 +380,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
     }
 
     const replacedCode = replaceSourceRegion(screenCode, selectedSourceRegion, replacement);
-    const nextCode = ensureDrawgleIds(sanitizeScreenCodeForSharedNavigation(replacedCode, screenPlanForSave)).code;
+    const nextCode = normalizeScreenCodeForSave(replacedCode);
     const nextHealth = detectScreenHealth({ code: nextCode, screenPrompt });
 
     if (nextCode !== screenCode) {
@@ -456,7 +460,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
       throw new Error("Full-screen reconstruction returned empty code.");
     }
 
-    const nextCode = ensureDrawgleIds(sanitizeScreenCodeForSharedNavigation(reconstructed, screenPlanForSave)).code;
+    const nextCode = normalizeScreenCodeForSave(reconstructed);
     const nextHealth = detectScreenHealth({ code: nextCode, screenPrompt });
 
     const { error: updateError } = await admin
@@ -557,7 +561,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
     }
 
     const repairedCode = replaceSourceRegion(screenCode, repairTarget, replacement);
-    const nextCode = ensureDrawgleIds(sanitizeScreenCodeForSharedNavigation(repairedCode, screenPlanForSave)).code;
+    const nextCode = normalizeScreenCodeForSave(repairedCode);
     const nextHealth = detectScreenHealth({ code: nextCode, screenPrompt });
 
     if (nextCode !== screenCode) {
@@ -628,7 +632,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
 
   const normalizeEditedCode = (editsText: string) => {
     const editedCode = editsText.includes("<edit>") ? applyEdits(screenCode, editsText) : screenCode;
-    return ensureDrawgleIds(sanitizeScreenCodeForSharedNavigation(editedCode, screenPlanForSave)).code;
+    return normalizeScreenCodeForSave(editedCode);
   };
 
   let responseToApply = await runEditScreenStream({

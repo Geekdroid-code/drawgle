@@ -123,7 +123,7 @@ export function ProjectLobby({
     setIsGeneratingDesign(true);
 
     try {
-      const response = await fetch("/api/design", {
+      const response = await fetch("/api/generations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -132,17 +132,15 @@ export function ProjectLobby({
         }),
       });
 
-      const payload = (await response.json().catch(() => null)) as DesignTokens | ApiErrorPayload | null;
+      const payload = (await response.json().catch(() => null)) as ({ projectId?: string } & ApiErrorPayload) | null;
 
-      if (!response.ok || !payload || "error" in payload) {
-        throw new Error(readApiError(payload as ApiErrorPayload | null, "Failed to generate design tokens."));
+      if (!response.ok || !payload?.projectId) {
+        throw new Error(readApiError(payload, "Failed to start the build."));
       }
 
-      setDesignTokens(payload as DesignTokens);
-      setStage("design");
+      router.push(`/project/${payload.projectId}`);
     } catch (generationError) {
-      setError(generationError instanceof Error ? generationError.message : "Failed to generate design tokens.");
-    } finally {
+      setError(generationError instanceof Error ? generationError.message : "Failed to start the build.");
       setIsGeneratingDesign(false);
     }
   };

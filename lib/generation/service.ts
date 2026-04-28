@@ -22,6 +22,7 @@ import {
 } from "@/lib/generation/prompts";
 import { appendRequiredAnchors, extractRequiredAnchors } from "@/lib/generation/screen-quality";
 import { buildRepairSurroundingContext, type RepairTarget } from "@/lib/generation/screen-repair";
+import { buildTokenUsageGuide } from "@/lib/token-runtime";
 import type {
   BuildScreenInput,
   CreativeDirection,
@@ -1369,6 +1370,7 @@ export async function buildSectionRepairCode({
           projectCharter?.creativeDirection ? `Creative direction:\n${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
           `Navigation architecture:\n${JSON.stringify(navigationArchitecture ?? null, null, 2)}`,
           `Design tokens:\n${JSON.stringify(designTokens?.tokens ?? {}, null, 2)}`,
+          `Live token usage:\n${buildTokenUsageGuide(designTokens)}`,
           missingAnchors.length > 0 ? `Missing required anchors that must be restored: ${missingAnchors.join(", ")}` : null,
           healthIssues.length > 0 ? `Detected health issues: ${healthIssues.join("; ")}` : null,
           `Repair target reason: ${repairTarget.reason}`,
@@ -1403,7 +1405,7 @@ export async function buildSectionRepairCode({
         "If the target section is too broken to understand, rebuild the same section role from the original screen brief and surrounding context.",
         "Do not add or modify persistent bottom navigation. Drawgle owns shared navigation outside screen code.",
         "Use Lucide icons with <i data-lucide=\"icon-name\"></i> or inline SVG when needed.",
-        "Use Tailwind arbitrary values from the provided design tokens. Avoid generic default Tailwind colors when tokens exist.",
+        "Use Drawgle live token utility classes and CSS variables for canonical design-system styling. Avoid freezing token values as raw hex/pixels when a token variable exists.",
         "Keep the output as one coherent section/root fragment with balanced tags.",
         "Return static HTML only: no JSX, React, JavaScript expressions, arrays, .map(...), arrow functions, template literals, className, class={...}, style={{...}}, data attributes with {...}, or scripts. Manually expand repeated UI items.",
       ].join("\n"),
@@ -1416,7 +1418,7 @@ export async function buildSectionRepairCode({
 const staticHtmlOutputRules = [
   "Return ONLY static HTML. Do not include markdown fences, scripts, html/head/body tags, React, JSX, JavaScript expressions, arrays, .map(...), arrow functions, template literals, className, class={...}, style={{...}}, or data attributes with {...}.",
   "Manually expand repeated items into concrete HTML elements. If there are seven days, output seven day elements. If there are three cards, output three card elements.",
-  "Use Tailwind classes and normal quoted HTML attributes only. Inline style is allowed only as a normal string, e.g. style=\"height: 60%\".",
+  "Use Tailwind classes, Drawgle token utility classes, and normal quoted HTML attributes only. Inline style is allowed only as a normal string, e.g. style=\"height: 60%\".",
   "Use Lucide icons with <i data-lucide=\"icon-name\"></i> or inline SVG. Do not include a script to initialize icons.",
   "Do not add phone frames, status bars, html/head/body, or persistent shared bottom navigation.",
 ];
@@ -1453,6 +1455,7 @@ export async function buildSourceRegionReplacementCode({
           projectCharter?.creativeDirection ? `Creative direction:\n${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
           `Navigation architecture:\n${JSON.stringify(navigationArchitecture ?? null, null, 2)}`,
           `Design tokens:\n${JSON.stringify(designTokens?.tokens ?? {}, null, 2)}`,
+          `Live token usage:\n${buildTokenUsageGuide(designTokens)}`,
           `Source target reason: ${repairTarget.reason}`,
           [
             "Code before selected region:",
@@ -1550,7 +1553,7 @@ export async function buildFullScreenReconstructionCode({
 const navigationDesignQualityRules = [
   "Treat quality as a critique standard, not a fixed visual recipe. Do not reuse a default dock, pill, tab bar, or layout pattern unless it is the right answer for this specific project.",
   "Infer the navigation anatomy from the user's request, project type, reference/style context, design tokens, and current screen language. The result may be full-width, floating, asymmetric, glassy, compact, expanded, action-led, text-led, icon-led, or another appropriate mobile nav form.",
-  "Use the project's design tokens and creative direction as material inputs for color, radius, elevation, typography, spacing, and icon treatment. Do not introduce random visual decisions that fight the screens.",
+  "Use the project's live token utility classes and CSS variables for canonical color, radius, elevation, typography, spacing, and icon treatment. Do not freeze project token values as raw hex/pixels unless it is a deliberate one-off detail.",
   "Preserve every planned label and data-nav-item-id exactly unless the user explicitly asks to rename, hide, add, or remove navigation items.",
   "Preserve the planned icon meanings unless the user explicitly asks for different icons.",
   "Check the tap target comfort, label legibility, active-state clarity, and visual harmony with the screen behind it.",
@@ -1582,6 +1585,7 @@ async function refineNavigationShellCode({
           projectCharter?.creativeDirection ? `Creative direction: ${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
           `Navigation plan: ${JSON.stringify(navigationPlan, null, 2)}`,
           `Design tokens: ${JSON.stringify(designTokens?.tokens ?? {}, null, 2)}`,
+          `Live token usage: ${buildTokenUsageGuide(designTokens)}`,
           [
             "Candidate navigation shell to critique and improve:",
             "```html",
@@ -1637,6 +1641,7 @@ export async function editNavigationShellCode({
           projectCharter?.creativeDirection ? `Creative direction: ${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
           `Navigation plan: ${JSON.stringify(navigationPlan, null, 2)}`,
           `Design tokens: ${JSON.stringify(designTokens?.tokens ?? {}, null, 2)}`,
+          `Live token usage: ${buildTokenUsageGuide(designTokens)}`,
           selectedElementHtml ? [
             "Selected navigation element:",
             "```html",
@@ -1718,6 +1723,7 @@ export async function buildNavigationShellCode({
         projectCharter?.creativeDirection ? `Creative direction: ${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
         `Navigation plan: ${JSON.stringify(navigationPlan, null, 2)}`,
         `Design tokens: ${JSON.stringify(designTokens?.tokens ?? {}, null, 2)}`,
+        `Live token usage: ${buildTokenUsageGuide(designTokens)}`,
       ].filter(Boolean).join("\n\n"),
     });
 

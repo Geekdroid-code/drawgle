@@ -1,11 +1,12 @@
 "use client";
 
-import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import { type ComponentType, type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, Loader2, Palette, Sparkles, Type, X } from "lucide-react";
+import { ArrowLeft, BookOpen, Check, Layers, Loader2, Navigation, Palette, RotateCcw, Save, Sparkles, Type, X } from "lucide-react";
 
 import { CanvasArea } from "@/components/CanvasArea";
 import { ChatPanel } from "@/components/ChatPanel";
+import { DesignSystemEditor } from "@/components/DesignSystemEditor";
 import { PromptBar } from "@/components/PromptBar";
 import type { SelectedElementInfo } from "@/components/ScreenNode";
 import { Button } from "@/components/ui/button";
@@ -15,8 +16,10 @@ import { useGenerationRuns } from "@/hooks/use-generation-runs";
 import { useProject } from "@/hooks/use-project";
 import { useProjectNavigation } from "@/hooks/use-project-navigation";
 import { useScreens } from "@/hooks/use-screens";
+import { hasApprovedDesignTokens, normalizeDesignTokens } from "@/lib/design-tokens";
 import { createClient } from "@/lib/supabase/client";
-import { deleteScreen, insertProjectMessage } from "@/lib/supabase/queries";
+import { deleteScreen, insertProjectMessage, updateProjectFields } from "@/lib/supabase/queries";
+import { getDrawgleTokenReferences } from "@/lib/token-runtime";
 import type {
   AuthenticatedUser,
   DesignTokens,
@@ -49,6 +52,35 @@ class QueueGenerationError extends Error {
 }
 
 type ManualEditMode = "actions" | "text" | "design" | "ai";
+
+type ProjectPanelTab = "design" | "charter" | "screens" | "navigation";
+
+const PROJECT_PANEL_TABS: Array<{ id: ProjectPanelTab; label: string; icon: ComponentType<{ className?: string }> }> = [
+  { id: "design", label: "Design System", icon: Palette },
+  { id: "charter", label: "Charter", icon: BookOpen },
+  { id: "screens", label: "Screen Plan", icon: Layers },
+  { id: "navigation", label: "Navigation", icon: Navigation },
+];
+
+const isScreenPlanLike = (value: unknown): value is ScreenPlan => {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Partial<ScreenPlan>;
+  return typeof candidate.name === "string" && typeof candidate.description === "string";
+};
+
+const getLatestPlannedScreens = (generationRuns: GenerationRunData[]) => {
+  for (const run of generationRuns) {
+    const plannedScreens = run.metadata?.plannedScreens as unknown;
+    if (Array.isArray(plannedScreens) && plannedScreens.every(isScreenPlanLike)) {
+      return plannedScreens as ScreenPlan[];
+    }
+  }
+
+  return [] as ScreenPlan[];
+};
 
 type StyleControl = {
   property: DrawgleStyleProperty;
@@ -116,23 +148,6 @@ const cssColorToHex = (value: string | undefined | null) => {
   return `#${[match[1], match[2], match[3]]
     .map((part) => Math.max(0, Math.min(255, Number(part))).toString(16).padStart(2, "0"))
     .join("")}`;
-};
-
-const collectTokenColors = (tokens: DesignTokens | null | undefined) => {
-  const colors: string[] = [];
-  const visit = (value: unknown) => {
-    if (typeof value === "string" && (/^#[0-9a-f]{3,8}$/i.test(value) || /^rgba?\(/i.test(value))) {
-      colors.push(value);
-      return;
-    }
-
-    if (value && typeof value === "object") {
-      Object.values(value).forEach(visit);
-    }
-  };
-
-  visit(tokens?.tokens?.color);
-  return Array.from(new Set(colors)).slice(0, 14);
 };
 
 type ElementEditSession = {
@@ -221,7 +236,12 @@ function SelectedElementInspectorSidebar({
 }) {
   const [isSaving, setIsSaving] = useState(false);
   const textNodes = selectedElementInfo.editableMetadata?.textNodes ?? EMPTY_TEXT_NODES;
-  const tokenColors = useMemo(() => collectTokenColors(project.designTokens), [project.designTokens]);
+  const tokenColorRefs = useMemo(
+    () => getDrawgleTokenReferences(project.designTokens)
+      .filter((reference) => reference.path.startsWith("color.") && (/^#[0-9a-f]{3,8}$/i.test(reference.value) || /^rgba?\(/i.test(reference.value)))
+      .slice(0, 16),
+    [project.designTokens],
+  );
   const originalTextById = useMemo(
     () => Object.fromEntries(textNodes.map((node) => [node.drawgleId, node.text])),
     [textNodes],
@@ -340,18 +360,22 @@ function SelectedElementInspectorSidebar({
 
       {mode === "design" ? (
         <div className="mt-3 flex min-h-0 flex-1 flex-col space-y-3">
-          {tokenColors.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5">
-              {tokenColors.map((color) => (
+          {tokenColorRefs.length > 0 ? (
+            <div className="rounded-[12px] border border-slate-950/[0.08] bg-[#fbfbfc] p-2">
+              <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">Project token swatches</div>
+              <div className="flex flex-wrap gap-1.5">
+              {tokenColorRefs.map((token) => (
                 <button
-                  key={color}
+                  key={token.name}
                   type="button"
                   className="h-6 w-6 rounded-full border border-slate-950/[0.12] shadow-sm"
-                  style={{ backgroundColor: color }}
-                  title={color}
-                  onClick={() => setStyleDrafts((current) => ({ ...current, "background-color": color }))}
+                  style={{ backgroundColor: token.value }}
+                  title={`${token.label}: ${token.value}`}
+                  onClick={() => setStyleDrafts((current) => ({ ...current, "background-color": `var(${token.name})` }))}
                 />
               ))}
+              </div>
+              <div className="mt-1.5 text-[11px] leading-4 text-slate-500">Swatches write token variables, so saved edits follow future token changes.</div>
             </div>
           ) : null}
           <div className="grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-y-auto pr-1">
@@ -361,19 +385,37 @@ function SelectedElementInspectorSidebar({
                 <label key={control.property} className="grid gap-1.5">
                   <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">{control.label}</span>
                   {control.type === "color" ? (
-                    <div className="flex gap-1.5">
-                      <input
-                        type="color"
-                        value={cssColorToHex(value)}
-                        className="h-9 w-10 rounded-[10px] border border-slate-950/[0.1] bg-white p-1"
-                        onChange={(event) => setStyleDrafts((current) => ({ ...current, [control.property]: event.target.value }))}
-                      />
-                      <Input
-                        value={value}
-                        onChange={(event) => setStyleDrafts((current) => ({ ...current, [control.property]: event.target.value }))}
-                        className="h-9 min-w-0 rounded-[10px]"
-                      />
-                    </div>
+                    <>
+                      <div className="flex gap-1.5">
+                        <input
+                          type="color"
+                          value={cssColorToHex(value)}
+                          className="h-9 w-10 rounded-[10px] border border-slate-950/[0.1] bg-white p-1"
+                          onChange={(event) => setStyleDrafts((current) => ({ ...current, [control.property]: event.target.value }))}
+                        />
+                        <Input
+                          value={value}
+                          onChange={(event) => setStyleDrafts((current) => ({ ...current, [control.property]: event.target.value }))}
+                          className="h-9 min-w-0 rounded-[10px]"
+                        />
+                      </div>
+                      {tokenColorRefs.length > 0 ? (
+                        <select
+                          value=""
+                          className="h-8 rounded-[9px] border border-slate-950/[0.1] bg-white px-2 text-xs text-slate-600"
+                          onChange={(event) => {
+                            const tokenName = event.target.value;
+                            if (!tokenName) return;
+                            setStyleDrafts((current) => ({ ...current, [control.property]: `var(${tokenName})` }));
+                          }}
+                        >
+                          <option value="">Use project token...</option>
+                          {tokenColorRefs.map((token) => (
+                            <option key={token.name} value={token.name}>{token.label}</option>
+                          ))}
+                        </select>
+                      ) : null}
+                    </>
                   ) : (
                     <Input
                       value={value}
@@ -404,6 +446,199 @@ function SelectedElementInspectorSidebar({
           <Button variant="outline" className="h-9 rounded-[10px]" onClick={() => onModeChange("actions")}>Back</Button>
         </div>
       ) : null}
+    </aside>
+  );
+}
+
+function MetadataField({ label, value }: { label: string; value?: string | null }) {
+  if (!value) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-[12px] border border-slate-950/[0.08] bg-white px-3 py-3">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">{label}</div>
+      <div className="mt-1 whitespace-pre-line text-sm leading-6 text-slate-700">{value}</div>
+    </div>
+  );
+}
+
+function ProjectIntelligencePanel({
+  project,
+  screens,
+  generationRuns,
+  projectNavigation,
+  tokenDraft,
+  tokenDirty,
+  tokenSaving,
+  generationActive,
+  onTokenDraftChange,
+  onSaveTokens,
+  onDiscardTokens,
+  onClose,
+}: {
+  project: ProjectData;
+  screens: ScreenData[];
+  generationRuns: GenerationRunData[];
+  projectNavigation: ProjectNavigationData | null;
+  tokenDraft: DesignTokens | null;
+  tokenDirty: boolean;
+  tokenSaving: boolean;
+  generationActive: boolean;
+  onTokenDraftChange: (tokens: DesignTokens) => void;
+  onSaveTokens: () => Promise<void>;
+  onDiscardTokens: () => void;
+  onClose: () => void;
+}) {
+  const [activeTab, setActiveTab] = useState<ProjectPanelTab>("design");
+  const latestPlannedScreens = useMemo(() => getLatestPlannedScreens(generationRuns), [generationRuns]);
+  const screenPlanRows: Array<ScreenData | ScreenPlan> = screens.length > 0 ? screens : latestPlannedScreens;
+  const charter = project.charter;
+  const hasTokens = Boolean(tokenDraft && hasApprovedDesignTokens(tokenDraft));
+
+  return (
+    <aside className="fixed right-4 top-16 z-[72] flex max-h-[calc(100dvh-5rem)] w-[min(620px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[18px] border border-slate-950/[0.1] bg-white/96 shadow-[0_24px_80px_rgba(15,23,42,0.18)] backdrop-blur-xl">
+      <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-950/[0.08] px-4 py-3">
+        <div className="min-w-0">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#667894]">Project Intelligence</div>
+          <div className="truncate text-base font-semibold text-slate-950">{project.name}</div>
+        </div>
+        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 rounded-full text-slate-500" onClick={onClose}>
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+
+      <div className="grid shrink-0 grid-cols-4 gap-1 border-b border-slate-950/[0.08] bg-[#f7f7f8] p-2">
+        {PROJECT_PANEL_TABS.map((tab) => {
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex h-10 items-center justify-center gap-1.5 rounded-[10px] text-[11px] font-semibold transition ${activeTab === tab.id ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:bg-white/70"}`}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto p-3">
+        {activeTab === "design" ? (
+          hasTokens && tokenDraft ? (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-[14px] border border-slate-950/[0.08] bg-[#fbfbfc] px-3 py-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-slate-950">Live token preview</div>
+                  <div className="text-xs leading-5 text-slate-500">
+                    Token edits update the canvas preview immediately. Save persists the system.
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" className="h-9 rounded-[10px] gap-2" disabled={!tokenDirty || tokenSaving} onClick={onDiscardTokens}>
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    Discard
+                  </Button>
+                  <Button className="h-9 rounded-[10px] gap-2" disabled={!tokenDirty || tokenSaving || generationActive} onClick={() => void onSaveTokens()}>
+                    {tokenSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                    Save
+                  </Button>
+                </div>
+                {generationActive ? (
+                  <div className="w-full rounded-[10px] bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                    A generation is running. Preview is live, but save is locked so in-flight screens keep a stable token snapshot.
+                  </div>
+                ) : null}
+              </div>
+              <DesignSystemEditor
+                value={tokenDraft}
+                onChange={onTokenDraftChange}
+                onSubmit={onSaveTokens}
+                title="Design System"
+                description="Exact project tokens. Linked screens and navigation read these values through Drawgle CSS variables."
+                submitLabel={tokenDirty ? "Save Tokens" : "Tokens Saved"}
+                isSubmitting={tokenSaving}
+                submitStatus="Saving live token system..."
+              />
+            </div>
+          ) : (
+            <div className="rounded-[14px] border border-dashed border-slate-300 bg-[#fbfbfc] px-4 py-8 text-center text-sm text-slate-500">
+              Design tokens will appear here as soon as the generation job finishes design analysis.
+            </div>
+          )
+        ) : null}
+
+        {activeTab === "charter" ? (
+          <div className="space-y-3">
+            <MetadataField label="Original intent" value={charter?.originalPrompt ?? project.prompt} />
+            <MetadataField label="Reference image analysis" value={charter?.imageReferenceSummary} />
+            <MetadataField label="App type" value={charter?.appType} />
+            <MetadataField label="Audience" value={charter?.targetAudience} />
+            <MetadataField label="Navigation model" value={charter?.navigationModel} />
+            <MetadataField label="Design rationale" value={charter?.designRationale} />
+            <MetadataField label="Creative direction" value={charter?.creativeDirection ? `${charter.creativeDirection.conceptName}\n${charter.creativeDirection.styleEssence}` : null} />
+            <MetadataField label="Surface language" value={charter?.creativeDirection?.surfaceLanguage} />
+            <MetadataField label="Signature moments" value={charter?.creativeDirection?.signatureMoments?.join("\n")} />
+            <MetadataField label="Avoid" value={charter?.creativeDirection?.avoid?.join("\n")} />
+          </div>
+        ) : null}
+
+        {activeTab === "screens" ? (
+          <div className="space-y-3">
+            {screenPlanRows.map((screen, index) => {
+              const screenData = "id" in screen ? screen as ScreenData : null;
+              const plan = screen as unknown as ScreenPlan;
+              return (
+                <article key={`${screen.name}-${index}`} className="rounded-[14px] border border-slate-950/[0.08] bg-white px-4 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        {screenData?.status ?? plan.type ?? "planned"}
+                      </div>
+                      <h3 className="mt-1 truncate text-lg font-semibold text-slate-950">{screen.name}</h3>
+                    </div>
+                    <span className="rounded-full bg-[#f7f7f8] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      {screenData?.chromePolicy?.chrome ?? plan.chromePolicy?.chrome ?? plan.type}
+                    </span>
+                  </div>
+                  <p className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-600">{screenData?.prompt ?? plan.description}</p>
+                </article>
+              );
+            })}
+            {!screens.length && !latestPlannedScreens.length ? (
+              <div className="rounded-[14px] border border-dashed border-slate-300 bg-[#fbfbfc] px-4 py-8 text-center text-sm text-slate-500">
+                Screen planning will appear here when the builder finishes the planning step.
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {activeTab === "navigation" ? (
+          <div className="space-y-3">
+            <MetadataField label="Visual brief" value={projectNavigation?.plan?.visualBrief} />
+            <MetadataField label="State" value={projectNavigation?.plan?.enabled ? `${projectNavigation.plan.kind} shared navigation` : "No persistent project navigation"} />
+            {projectNavigation?.plan?.items?.map((item) => (
+              <div key={item.id} className="rounded-[14px] border border-slate-950/[0.08] bg-white px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-950">{item.label}</div>
+                    <div className="text-xs text-slate-500">{item.role}</div>
+                  </div>
+                  <span className="rounded-full bg-[#f7f7f8] px-2.5 py-1 text-[10px] font-semibold text-slate-500">{item.icon}</span>
+                </div>
+                <div className="mt-2 text-xs text-slate-500">Linked screen: {item.linkedScreenName}</div>
+              </div>
+            ))}
+            {!projectNavigation ? (
+              <div className="rounded-[14px] border border-dashed border-slate-300 bg-[#fbfbfc] px-4 py-8 text-center text-sm text-slate-500">
+                Navigation planning will appear here once the project planner runs.
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
     </aside>
   );
 }
@@ -463,6 +698,14 @@ export function ProjectShell({
   const [queueError, setQueueError] = useState<string | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [editSession, setEditSession] = useState<ElementEditSession | null>(null);
+  const [isProjectPanelOpen, setIsProjectPanelOpen] = useState(false);
+  const [tokenDraft, setTokenDraft] = useState<DesignTokens | null>(() =>
+    hasApprovedDesignTokens(initialProject.designTokens)
+      ? normalizeDesignTokens(initialProject.designTokens)
+      : null,
+  );
+  const [tokenDirty, setTokenDirty] = useState(false);
+  const [tokenSaving, setTokenSaving] = useState(false);
   const centeredRunIdRef = useRef<string | null>(null);
   const knownScreenIdsRef = useRef<Set<string>>(new Set());
   const hasHydratedScreenIdsRef = useRef(false);
@@ -474,6 +717,9 @@ export function ProjectShell({
     generationRun &&
     (generationRun.status === "queued" || generationRun.status === "planning" || generationRun.status === "building"),
   );
+  const effectiveDesignTokens = tokenDraft && hasApprovedDesignTokens(tokenDraft)
+    ? tokenDraft
+    : project?.designTokens ?? null;
   const selectedElementInfo = editSession?.element ?? null;
   const mobilePromptReserve = selectedScreen
     ? 166
@@ -488,6 +734,17 @@ export function ProjectShell({
       router.replace("/project/new");
     }
   }, [project, isProjectLoading, router]);
+
+  useEffect(() => {
+    if (tokenDirty) {
+      return;
+    }
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTokenDraft(hasApprovedDesignTokens(project?.designTokens)
+      ? normalizeDesignTokens(project?.designTokens)
+      : null);
+  }, [project?.designTokens, tokenDirty]);
 
   useEffect(() => {
     if (!selectedScreen) {
@@ -842,6 +1099,36 @@ export function ProjectShell({
     }
   };
 
+  const handleTokenDraftChange = (nextTokens: DesignTokens) => {
+    setTokenDraft(normalizeDesignTokens(nextTokens));
+    setTokenDirty(true);
+  };
+
+  const handleDiscardTokenDraft = () => {
+    setTokenDraft(hasApprovedDesignTokens(project?.designTokens)
+      ? normalizeDesignTokens(project?.designTokens)
+      : null);
+    setTokenDirty(false);
+  };
+
+  const handleSaveTokenDraft = async () => {
+    if (!project || !tokenDraft || !hasApprovedDesignTokens(tokenDraft) || isGenerationActive) {
+      return;
+    }
+
+    setTokenSaving(true);
+    try {
+      const normalized = normalizeDesignTokens(tokenDraft);
+      await updateProjectFields(createClient(), project.id, { designTokens: normalized });
+      setTokenDraft(normalized);
+      setTokenDirty(false);
+    } catch (error) {
+      console.error("Failed to save design tokens", error);
+    } finally {
+      setTokenSaving(false);
+    }
+  };
+
   const clearEditSession = () => {
     setEditSession(null);
     setSelectionMode(false);
@@ -893,12 +1180,22 @@ export function ProjectShell({
               {project.name}
             </div>
           </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsProjectPanelOpen(true)}
+            className="h-8 rounded-full dg-panel px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-600 backdrop-blur-xl hover:bg-white"
+          >
+            <Palette className="mr-2 h-3.5 w-3.5" />
+            Project System
+          </Button>
         </div>
 
         <div className="relative h-full min-w-0 flex-1">
           <CanvasArea
             screens={screens}
             projectNavigation={projectNavigation}
+            designTokens={effectiveDesignTokens}
             fitRequestVersion={fitRequestVersion}
             selectedScreen={selectedScreen}
             mobileBottomReserve={mobilePromptReserve}
@@ -916,6 +1213,23 @@ export function ProjectShell({
               setSelectionMode(false);
             }}
           />
+
+          {isProjectPanelOpen ? (
+            <ProjectIntelligencePanel
+              project={project}
+              screens={screens}
+              generationRuns={generationRuns}
+              projectNavigation={projectNavigation}
+              tokenDraft={tokenDraft}
+              tokenDirty={tokenDirty}
+              tokenSaving={tokenSaving}
+              generationActive={isGenerationActive}
+              onTokenDraftChange={handleTokenDraftChange}
+              onSaveTokens={handleSaveTokenDraft}
+              onDiscardTokens={handleDiscardTokenDraft}
+              onClose={() => setIsProjectPanelOpen(false)}
+            />
+          ) : null}
 
           <ChatPanel
             project={project}
