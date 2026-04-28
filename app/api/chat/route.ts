@@ -1,11 +1,16 @@
 import { detectTargetBlocks, indexScreenCode } from "@/lib/generation/block-index";
 import { assembleChatContext } from "@/lib/generation/context";
 import { generateEmbedding } from "@/lib/generation/embeddings";
-import { editNavigationShellCode, editScreenStream } from "@/lib/generation/service";
-import { buildSectionRepairCode } from "@/lib/generation/service";
+import {
+  buildFullScreenReconstructionCode,
+  buildSectionRepairCode,
+  buildSourceRegionReplacementCode,
+  editNavigationShellCode,
+  editScreenStream,
+} from "@/lib/generation/service";
 import { applyEdits } from "@/lib/diff-engine";
 import { ensureDrawgleIds } from "@/lib/drawgle-dom";
-import { detectScreenHealth } from "@/lib/generation/screen-quality";
+import { detectScreenHealth, validateStaticDrawgleHtml } from "@/lib/generation/screen-quality";
 import { findRepairTarget, replaceSourceRegion } from "@/lib/generation/screen-repair";
 import { sanitizeScreenCodeForSharedNavigation } from "@/lib/project-navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -15,7 +20,7 @@ import {
   insertProjectMessage,
   updateProjectMessageEmbedding,
 } from "@/lib/supabase/queries";
-import type { DesignTokens, NavigationArchitecture, NavigationPlan, ProjectCharter, ScreenBlockIndex, ScreenChromePolicy } from "@/lib/types";
+import type { DesignTokens, NavigationArchitecture, NavigationPlan, ProjectCharter, ScreenBlockIndex, ScreenChromePolicy, ScreenPlan } from "@/lib/types";
 
 import { NextResponse } from "next/server";
 
@@ -31,6 +36,21 @@ const isNavigationElementHtml = (html?: string | null) =>
 
 const isScreenRepairPrompt = (prompt: string) =>
   /\b(repair|fix|complete|finish|continue|half[-\s]?built|broken|truncated|missing|incomplete|not complete|couldn'?t be completed)\b/i.test(prompt);
+
+type ScreenHealthResult = ReturnType<typeof detectScreenHealth>;
+
+const buildScreenHealthError = (health: ScreenHealthResult) => {
+  if (health.healthy) {
+    return null;
+  }
+
+  const staticCodes = health.staticValidation.codes.length > 0
+    ? ` [static_html:${health.staticValidation.codes.join(",")}]`
+    : "";
+  return `[screen_health:${health.status}]${staticCodes} ${health.issues.join(" | ")}`;
+};
+
+const screenStatusForHealth = (health: ScreenHealthResult) => health.healthy ? "ready" : "failed";
 
 async function upsertActivityMessage(
   admin: ReturnType<typeof createAdminClient>,
@@ -329,6 +349,12 @@ async function handleEditIntent({
     return NextResponse.json({ error: "Screen not found." }, { status: 404 });
   }
 
+  const { data: projectNavigation } = await admin
+    .from("project_navigation")
+    .select("plan")
+    .eq("project_id", projectId)
+    .maybeSingle();
+  const projectNavigationPlan = (projectNavigation?.plan as unknown as NavigationPlan | null) ?? null;
   const screenCode = ensureDrawgleIds(typeof screen.code === "string" && screen.code.length > 0 ? screen.code : "").code;
   const blockIndex = ((screen.block_index as ScreenBlockIndex | null) ?? indexScreenCode(screenCode));
   const selectedSourceRegion = selectedElementDrawgleId
@@ -366,7 +392,252 @@ async function handleEditIntent({
       : "full screen";
 
   const screenPrompt = typeof screen.prompt === "string" ? screen.prompt : "";
+  const screenPlanForSave: ScreenPlan = {
+    name: screen.name,
+    type: "root",
+    description: screenPrompt,
+    chromePolicy: (screen.chrome_policy as ScreenChromePolicy | null) ?? null,
+    navigationItemId: typeof screen.navigation_item_id === "string" ? screen.navigation_item_id : null,
+  };
   const health = detectScreenHealth({ code: screenCode, screenPrompt });
+  const selectedRegionStaticHealth = selectedSourceRegion
+    ? validateStaticDrawgleHtml({ code: selectedSourceRegion.snippet })
+    : null;
+
+  if (selectedSourceRegion) {
+    await upsertActivityMessage(admin, editActivityKey, {
+      projectId,
+      ownerId,
+      screenId,
+      role: "system",
+      content: `Editing ${targetNames} in ${screen.name}...`,
+      messageType: "chat",
+      metadata: {
+        action: "source_region_replace_start",
+        screenName: screen.name,
+        userMessageId,
+        repairTarget: {
+          reason: selectedSourceRegion.reason,
+          blockId: selectedSourceRegion.blockId ?? null,
+          drawgleId: selectedSourceRegion.drawgleId ?? selectedElementDrawgleId ?? null,
+        },
+        health,
+        selectedRegionStaticHealth,
+      },
+    });
+
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          const replacement = await buildSourceRegionReplacementCode({
+            screenName: screen.name,
+            screenPrompt,
+            userPrompt: prompt,
+            currentCode: screenCode,
+            repairTarget: selectedSourceRegion,
+            designTokens,
+            projectCharter,
+            navigationArchitecture,
+          });
+
+          if (!replacement.trim()) {
+            throw new Error("Selected-region edit returned an empty replacement.");
+          }
+
+          const replacedCode = replaceSourceRegion(screenCode, selectedSourceRegion, replacement);
+          const nextCode = ensureDrawgleIds(sanitizeScreenCodeForSharedNavigation(replacedCode, screenPlanForSave)).code;
+          const nextHealth = detectScreenHealth({ code: nextCode, screenPrompt });
+
+          if (nextCode === screenCode) {
+            const failedContent = `No material code changes were applied to ${screen.name}.`;
+            await upsertActivityMessage(admin, editActivityKey, {
+              projectId,
+              ownerId,
+              screenId,
+              role: "model",
+              content: failedContent,
+              messageType: "error",
+              metadata: {
+                action: "source_region_replace_noop",
+                screenName: screen.name,
+                userMessageId,
+                health,
+                nextHealth,
+              },
+            });
+            controller.enqueue(new TextEncoder().encode(failedContent));
+            controller.close();
+            return;
+          }
+
+          const { error: updateError } = await admin
+            .from("screens")
+            .update({
+              code: nextCode,
+              block_index: indexScreenCode(nextCode) as never,
+              status: screenStatusForHealth(nextHealth),
+              error: buildScreenHealthError(nextHealth),
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", screenId);
+
+          if (updateError) {
+            throw updateError;
+          }
+
+          const fullResponse = nextHealth.healthy
+            ? `Updated ${targetNames} in ${screen.name}.`
+            : `Updated ${targetNames} in ${screen.name}, but the screen still has source health warnings.`;
+          controller.enqueue(new TextEncoder().encode(fullResponse));
+
+          const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
+            projectId,
+            ownerId,
+            screenId,
+            role: "model",
+            content: fullResponse,
+            messageType: nextHealth.healthy ? "edit_applied" : "chat",
+            metadata: {
+              action: nextHealth.healthy ? "source_region_replace_applied" : "source_region_replace_partial",
+              screenName: screen.name,
+              userMessageId,
+              health,
+              nextHealth,
+              selectedRegionStaticHealth,
+            },
+          });
+
+          void embedMessagePair(admin, userMessageId, prompt, modelMessage.id, fullResponse);
+          controller.close();
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          await upsertActivityMessage(admin, editActivityKey, {
+            projectId,
+            ownerId,
+            screenId,
+            role: "model",
+            content: `Selected-region edit failed for ${screen.name}: ${message}`,
+            messageType: "error",
+            metadata: {
+              action: "source_region_replace_failed",
+              screenName: screen.name,
+              userMessageId,
+              health,
+              selectedRegionStaticHealth,
+              error: message,
+            },
+          });
+          controller.error(err);
+        }
+      },
+    });
+
+    return new Response(stream, {
+      headers: { "Content-Type": "text/plain" },
+    });
+  }
+
+  if (health.staticValidation.unrecoverable) {
+    await upsertActivityMessage(admin, editActivityKey, {
+      projectId,
+      ownerId,
+      screenId,
+      role: "system",
+      content: `Reconstructing ${screen.name} from invalid source...`,
+      messageType: "chat",
+      metadata: {
+        action: "full_screen_reconstruction_start",
+        screenName: screen.name,
+        userMessageId,
+        health,
+      },
+    });
+
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          const reconstructed = await buildFullScreenReconstructionCode({
+            screenPlan: screenPlanForSave,
+            userPrompt: prompt,
+            currentCode: screenCode,
+            designTokens,
+            projectCharter,
+            navigationArchitecture,
+            navigationPlan: projectNavigationPlan,
+          });
+
+          if (!reconstructed.trim()) {
+            throw new Error("Full-screen reconstruction returned empty code.");
+          }
+
+          const nextCode = ensureDrawgleIds(sanitizeScreenCodeForSharedNavigation(reconstructed, screenPlanForSave)).code;
+          const nextHealth = detectScreenHealth({ code: nextCode, screenPrompt });
+
+          const { error: updateError } = await admin
+            .from("screens")
+            .update({
+              code: nextCode,
+              block_index: indexScreenCode(nextCode) as never,
+              status: screenStatusForHealth(nextHealth),
+              error: buildScreenHealthError(nextHealth),
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", screenId);
+
+          if (updateError) {
+            throw updateError;
+          }
+
+          const fullResponse = nextHealth.healthy
+            ? `Reconstructed ${screen.name} from invalid source.`
+            : `Reconstructed ${screen.name}, but the screen still has source health warnings.`;
+          controller.enqueue(new TextEncoder().encode(fullResponse));
+
+          const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
+            projectId,
+            ownerId,
+            screenId,
+            role: "model",
+            content: fullResponse,
+            messageType: nextHealth.healthy ? "edit_applied" : "error",
+            metadata: {
+              action: nextHealth.healthy ? "full_screen_reconstruction_applied" : "full_screen_reconstruction_partial",
+              screenName: screen.name,
+              userMessageId,
+              health,
+              nextHealth,
+            },
+          });
+
+          void embedMessagePair(admin, userMessageId, prompt, modelMessage.id, fullResponse);
+          controller.close();
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          await upsertActivityMessage(admin, editActivityKey, {
+            projectId,
+            ownerId,
+            screenId,
+            role: "model",
+            content: `Reconstruction failed for ${screen.name}: ${message}`,
+            messageType: "error",
+            metadata: {
+              action: "full_screen_reconstruction_failed",
+              screenName: screen.name,
+              userMessageId,
+              health,
+              error: message,
+            },
+          });
+          controller.error(err);
+        }
+      },
+    });
+
+    return new Response(stream, {
+      headers: { "Content-Type": "text/plain" },
+    });
+  }
+
   const shouldRepairScreen = isScreenRepairPrompt(prompt) || !health.healthy;
 
   if (shouldRepairScreen) {
@@ -426,13 +697,7 @@ async function handleEditIntent({
           }
 
           const repairedCode = replaceSourceRegion(screenCode, repairTarget, replacement);
-          const nextCode = ensureDrawgleIds(sanitizeScreenCodeForSharedNavigation(repairedCode, {
-            name: screen.name,
-            type: "root",
-            description: screenPrompt,
-            chromePolicy: (screen.chrome_policy as ScreenChromePolicy | null) ?? null,
-            navigationItemId: typeof screen.navigation_item_id === "string" ? screen.navigation_item_id : null,
-          })).code;
+          const nextCode = ensureDrawgleIds(sanitizeScreenCodeForSharedNavigation(repairedCode, screenPlanForSave)).code;
           const nextHealth = detectScreenHealth({ code: nextCode, screenPrompt });
 
           if (nextCode === screenCode) {
@@ -462,8 +727,8 @@ async function handleEditIntent({
             .update({
               code: nextCode,
               block_index: indexScreenCode(nextCode) as never,
-              status: "ready",
-              error: nextHealth.healthy ? null : `[screen_health:${nextHealth.status}] ${nextHealth.issues.join(" | ")}`,
+              status: screenStatusForHealth(nextHealth),
+              error: buildScreenHealthError(nextHealth),
               updated_at: new Date().toISOString(),
             })
             .eq("id", screenId);
@@ -559,13 +824,7 @@ async function handleEditIntent({
 
         const normalizeEditedCode = (editsText: string) => {
           const editedCode = editsText.includes("<edit>") ? applyEdits(screenCode, editsText) : screenCode;
-          return ensureDrawgleIds(sanitizeScreenCodeForSharedNavigation(editedCode, {
-            name: screen.name,
-            type: "root",
-            description: screenPrompt,
-            chromePolicy: (screen.chrome_policy as ScreenChromePolicy | null) ?? null,
-            navigationItemId: typeof screen.navigation_item_id === "string" ? screen.navigation_item_id : null,
-          })).code;
+          return ensureDrawgleIds(sanitizeScreenCodeForSharedNavigation(editedCode, screenPlanForSave)).code;
         };
 
         let responseToApply = fullResponse;
@@ -620,13 +879,14 @@ async function handleEditIntent({
             return;
           }
 
+          const nextHealth = detectScreenHealth({ code: nextCode, screenPrompt });
           const { error: updateError } = await admin
             .from("screens")
             .update({
               code: nextCode,
               block_index: indexScreenCode(nextCode) as never,
-              status: "ready",
-              error: null,
+              status: screenStatusForHealth(nextHealth),
+              error: buildScreenHealthError(nextHealth),
               updated_at: new Date().toISOString(),
             })
             .eq("id", screenId);
@@ -641,8 +901,13 @@ async function handleEditIntent({
             screenId,
             role: "model",
             content: responseToApply,
-            messageType: "edit_applied",
-            metadata: { action: "edit_applied", screenName: screen.name, userMessageId },
+            messageType: nextHealth.healthy ? "edit_applied" : "error",
+            metadata: {
+              action: nextHealth.healthy ? "edit_applied" : "edit_applied_with_source_health_failure",
+              screenName: screen.name,
+              userMessageId,
+              nextHealth,
+            },
           });
 
           void embedMessagePair(admin, userMessageId, prompt, modelMessage.id, responseToApply);

@@ -448,7 +448,8 @@ Additional rules:
 4. Preserve the existing navigation family unless the user explicitly asks to redesign navigation.
 5. Preserve typography role consistency. Do not introduce arbitrary text sizes or weights when an existing semantic text role already fits.
 6. If the current code already violates the contract, move it toward the approved values while completing the requested edit instead of drifting further away.
-7. Do not add a primary bottom-tab shell to a detail screen, and do not remove it from a root shell, unless the user explicitly asks to change navigation architecture.`;
+7. Do not add a primary bottom-tab shell to a detail screen, and do not remove it from a root shell, unless the user explicitly asks to change navigation architecture.
+8. Replacement code must stay static HTML. Do not introduce JSX, React, JavaScript expressions, arrays, .map(...), arrow functions, template literals, className, class={...}, style={{...}}, data attributes with {...}, or scripts. Manually expand repeated UI items.`;
 
 // ---------------------------------------------------------------------------
 // BUILD — Screen Code Generator
@@ -545,5 +546,6 @@ RULES:
 10. If project memory includes a creative direction or signature moments, reflect them in the composition instead of ignoring them.
 11. Build every required section and item named in the Screen Description. If the brief asks for three metric cards, a 2x2 metric grid, a segmented control, avatar stack, chart labels, or a specific CTA construction, include all of them in the HTML. Do not stop after the first visible card.
 12. Let long content extend vertically inside the generated screen content. Do not put overflow-hidden on the outermost screen wrapper in a way that clips required bottom content.
-${navigationPlan?.enabled ? "13. Do NOT create a <nav>, bottom tab bar, footer navigation, or persistent primary navigation. Leave bottom space visually compatible with the injected shared shell, but do not draw the shell yourself." : ""}`;
+13. STATIC HTML ONLY: Do NOT output JSX, React, JavaScript expressions, arrays, .map(...), arrow functions, template literals, className, class={...}, style={{...}}, data attributes with {...}, <script>, or code that requires runtime execution. Manually expand repeated items into concrete HTML elements.
+${navigationPlan?.enabled ? "14. Do NOT create a <nav>, bottom tab bar, footer navigation, or persistent primary navigation. Leave bottom space visually compatible with the injected shared shell, but do not draw the shell yourself." : ""}`;
 };

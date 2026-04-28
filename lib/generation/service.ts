@@ -1405,6 +1405,141 @@ export async function buildSectionRepairCode({
         "Use Lucide icons with <i data-lucide=\"icon-name\"></i> or inline SVG when needed.",
         "Use Tailwind arbitrary values from the provided design tokens. Avoid generic default Tailwind colors when tokens exist.",
         "Keep the output as one coherent section/root fragment with balanced tags.",
+        "Return static HTML only: no JSX, React, JavaScript expressions, arrays, .map(...), arrow functions, template literals, className, class={...}, style={{...}}, data attributes with {...}, or scripts. Manually expand repeated UI items.",
+      ].join("\n"),
+    },
+  });
+
+  return extractCode(response.text || "").trim();
+}
+
+const staticHtmlOutputRules = [
+  "Return ONLY static HTML. Do not include markdown fences, scripts, html/head/body tags, React, JSX, JavaScript expressions, arrays, .map(...), arrow functions, template literals, className, class={...}, style={{...}}, or data attributes with {...}.",
+  "Manually expand repeated items into concrete HTML elements. If there are seven days, output seven day elements. If there are three cards, output three card elements.",
+  "Use Tailwind classes and normal quoted HTML attributes only. Inline style is allowed only as a normal string, e.g. style=\"height: 60%\".",
+  "Use Lucide icons with <i data-lucide=\"icon-name\"></i> or inline SVG. Do not include a script to initialize icons.",
+  "Do not add phone frames, status bars, html/head/body, or persistent shared bottom navigation.",
+];
+
+export async function buildSourceRegionReplacementCode({
+  screenName,
+  screenPrompt,
+  userPrompt,
+  currentCode,
+  repairTarget,
+  designTokens,
+  projectCharter,
+  navigationArchitecture,
+}: {
+  screenName: string;
+  screenPrompt: string;
+  userPrompt: string;
+  currentCode: string;
+  repairTarget: RepairTarget;
+  designTokens?: DesignTokens | null;
+  projectCharter?: ProjectCharter | null;
+  navigationArchitecture?: NavigationArchitecture | null;
+}) {
+  const ai = createGeminiClient();
+  const surrounding = buildRepairSurroundingContext(currentCode, repairTarget);
+  const response = await ai.models.generateContent({
+    model: "gemini-3.1-flash-lite-preview",
+    contents: {
+      parts: [{
+        text: [
+          `Screen name: ${screenName}`,
+          `User edit request: ${userPrompt.trim() || "Improve the selected region."}`,
+          `Original screen brief:\n${screenPrompt || "No original screen prompt was saved."}`,
+          projectCharter?.creativeDirection ? `Creative direction:\n${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
+          `Navigation architecture:\n${JSON.stringify(navigationArchitecture ?? null, null, 2)}`,
+          `Design tokens:\n${JSON.stringify(designTokens?.tokens ?? {}, null, 2)}`,
+          `Source target reason: ${repairTarget.reason}`,
+          [
+            "Code before selected region:",
+            "```html",
+            surrounding.before,
+            "```",
+          ].join("\n"),
+          [
+            "Selected source region to replace:",
+            "```html",
+            repairTarget.snippet,
+            "```",
+          ].join("\n"),
+          [
+            "Code after selected region:",
+            "```html",
+            surrounding.after,
+            "```",
+          ].join("\n"),
+        ].filter(Boolean).join("\n\n"),
+      }],
+    },
+    config: {
+      temperature: 0.26,
+      systemInstruction: [
+        "You replace exactly one selected region inside an existing mobile screen.",
+        "Return ONLY the replacement HTML for that selected region. The caller will splice it into the original source by offsets.",
+        "Satisfy the user's edit request while preserving the surrounding screen's visual language, spacing rhythm, tokens, and content intent.",
+        "The replacement must fit between the provided before/after context and should keep the same semantic role unless the user asks to change that region's role.",
+        ...staticHtmlOutputRules,
+      ].join("\n"),
+    },
+  });
+
+  return extractCode(response.text || "").trim();
+}
+
+export async function buildFullScreenReconstructionCode({
+  screenPlan,
+  userPrompt,
+  currentCode,
+  designTokens,
+  projectCharter,
+  navigationArchitecture,
+  navigationPlan,
+}: {
+  screenPlan: ScreenPlan;
+  userPrompt?: string | null;
+  currentCode: string;
+  designTokens?: DesignTokens | null;
+  projectCharter?: ProjectCharter | null;
+  navigationArchitecture?: NavigationArchitecture | null;
+  navigationPlan?: NavigationPlan | null;
+}) {
+  const ai = createGeminiClient();
+  const response = await ai.models.generateContent({
+    model: "gemini-3.1-flash-lite-preview",
+    contents: {
+      parts: [{
+        text: [
+          `User request: ${userPrompt?.trim() || "Reconstruct the broken screen as production-ready static HTML."}`,
+          projectCharter?.originalPrompt ? `Original project prompt:\n${projectCharter.originalPrompt}` : null,
+          projectCharter?.creativeDirection ? `Creative direction:\n${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
+          [
+            "Current broken source, for visual/content intent only. Do not preserve invalid JSX, duplicated fragments, scripts, or broken structure:",
+            "```html",
+            currentCode.slice(0, 14000),
+            "```",
+          ].join("\n"),
+        ].filter(Boolean).join("\n\n"),
+      }],
+    },
+    config: {
+      temperature: 0.24,
+      systemInstruction: [
+        buildSystemInstruction({
+          designTokens,
+          screenPlan,
+          requiresBottomNav: Boolean(navigationPlan?.enabled),
+          navigationArchitecture,
+          navigationPlan,
+        }),
+        "",
+        "FULL-SCREEN RECONSTRUCTION MODE:",
+        "The existing source is invalid or unrecoverable. Rebuild the complete screen from the screen brief, project direction, tokens, and useful visible intent in the broken source.",
+        "Return one complete static screen root. Do not append to or duplicate the old source.",
+        ...staticHtmlOutputRules,
       ].join("\n"),
     },
   });

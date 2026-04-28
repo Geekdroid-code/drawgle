@@ -8,6 +8,40 @@ export type ScreenHealthStatus =
   | "structurally_broken"
   | "missing_required_content";
 
+export type StaticDrawgleHtmlDiagnosticCode =
+  | "empty_code"
+  | "jsx_leak"
+  | "script_tag"
+  | "duplicated_screen_fragment"
+  | "duplicate_drawgle_ids"
+  | "tag_imbalance"
+  | "rendered_code_text";
+
+const NON_CLOSING_TAGS = new Set([
+  "area",
+  "base",
+  "br",
+  "circle",
+  "col",
+  "embed",
+  "hr",
+  "img",
+  "input",
+  "line",
+  "link",
+  "meta",
+  "param",
+  "path",
+  "polygon",
+  "polyline",
+  "rect",
+  "source",
+  "stop",
+  "track",
+  "use",
+  "wbr",
+]);
+
 const COMMON_ANCHOR_NOISE = new Set([
   "screen",
   "screens",
@@ -132,6 +166,125 @@ const anchorSatisfied = (normalizedCode: string, anchor: string) => {
   return words.every((word) => normalizedCode.includes(word));
 };
 
+const pushDiagnostic = (
+  issues: string[],
+  codes: StaticDrawgleHtmlDiagnosticCode[],
+  code: StaticDrawgleHtmlDiagnosticCode,
+  issue: string,
+) => {
+  if (!codes.includes(code)) {
+    codes.push(code);
+  }
+  issues.push(issue);
+};
+
+export function validateStaticDrawgleHtml({
+  code,
+  requireSingleScreenRoot = false,
+}: {
+  code: string;
+  requireSingleScreenRoot?: boolean;
+}) {
+  const trimmedCode = code.trim();
+  const issues: string[] = [];
+  const codes: StaticDrawgleHtmlDiagnosticCode[] = [];
+
+  if (!trimmedCode) {
+    pushDiagnostic(issues, codes, "empty_code", "Screen code is empty.");
+  }
+
+  const jsxPatterns: Array<[RegExp, string]> = [
+    [/\{\s*\[/, "Contains JSX array expression syntax."],
+    [/\]\s*\.map\s*\(/, "Contains JSX .map(...) rendering syntax."],
+    [/\)\s*=>\s*\(?\s*</, "Contains JSX arrow-rendering syntax."],
+    [/\bclassName\s*=/, "Contains React className attribute."],
+    [/\bclass\s*=\s*\{[^}]+\}/, "Contains JSX class expression."],
+    [/\bstyle\s*=\s*\{\{[\s\S]*?\}\}/, "Contains JSX style object syntax."],
+    [/\bdata-[\w-]+\s*=\s*\{[^}]+\}/, "Contains JSX attribute expression."],
+    [/\{[a-zA-Z_$][\w$]*(?:\.[a-zA-Z_$][\w$]*)+\}/, "Contains JSX data interpolation syntax."],
+    [/`[^`]*\$\{[^}]+\}[^`]*`/, "Contains JavaScript template literal syntax."],
+  ];
+
+  for (const [pattern, message] of jsxPatterns) {
+    if (pattern.test(trimmedCode)) {
+      pushDiagnostic(issues, codes, "jsx_leak", message);
+      break;
+    }
+  }
+
+  if (/<script\b/i.test(trimmedCode)) {
+    pushDiagnostic(issues, codes, "script_tag", "Screen code contains a <script> tag.");
+  }
+
+  if (/\{\s*\[[\s\S]*?\]\s*\.map\s*\(|\{[a-zA-Z_$][\w$]*\.[a-zA-Z_$][\w$]*\}/.test(trimmedCode)) {
+    pushDiagnostic(issues, codes, "rendered_code_text", "Screen code contains rendered JavaScript/JSX text.");
+  }
+
+  const screenRootMatches = trimmedCode.match(/<div\b[^>]*\bmin-h-screen\b/gi) ?? [];
+  if (screenRootMatches.length > 1) {
+    pushDiagnostic(
+      issues,
+      codes,
+      "duplicated_screen_fragment",
+      `Screen code contains ${screenRootMatches.length} min-h-screen root fragments.`,
+    );
+  }
+
+  if (requireSingleScreenRoot && screenRootMatches.length === 0) {
+    pushDiagnostic(issues, codes, "duplicated_screen_fragment", "Screen code is missing the expected min-h-screen root.");
+  }
+
+  const drawgleIds = Array.from(trimmedCode.matchAll(/\sdata-drawgle-id\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s"'=<>`]+))/g))
+    .map((match) => match[1] ?? match[2] ?? match[3])
+    .filter(Boolean);
+  const seenIds = new Set<string>();
+  const duplicateIds = new Set<string>();
+  for (const id of drawgleIds) {
+    if (seenIds.has(id)) {
+      duplicateIds.add(id);
+    }
+    seenIds.add(id);
+  }
+  if (duplicateIds.size > 0) {
+    pushDiagnostic(
+      issues,
+      codes,
+      "duplicate_drawgle_ids",
+      `Screen code contains duplicate data-drawgle-id values: ${Array.from(duplicateIds).slice(0, 8).join(", ")}.`,
+    );
+  }
+
+  const openTags = (trimmedCode.match(/<([a-z][\w:-]*)(?:\s|>|\/)/gi) ?? [])
+    .filter((tag) => {
+      const tagName = /^<([a-z][\w:-]*)/i.exec(tag)?.[1]?.toLowerCase();
+      return tagName && !NON_CLOSING_TAGS.has(tagName) && !/\/>$/.test(tag);
+    })
+    .length;
+  const closeTags = (trimmedCode.match(/<\/[a-z][\w:-]*>/gi) ?? []).length;
+  if (Math.abs(openTags - closeTags) > 3) {
+    pushDiagnostic(
+      issues,
+      codes,
+      "tag_imbalance",
+      `Screen code has suspicious tag imbalance (${openTags} opening tags, ${closeTags} closing tags).`,
+    );
+  }
+
+  const unrecoverable = codes.some((code) =>
+    code === "jsx_leak" ||
+    code === "script_tag" ||
+    code === "duplicated_screen_fragment" ||
+    code === "tag_imbalance",
+  );
+
+  return {
+    valid: issues.length === 0,
+    issues,
+    codes,
+    unrecoverable,
+  };
+}
+
 export function validateGeneratedScreenCode({
   code,
   screenPlan,
@@ -142,6 +295,9 @@ export function validateGeneratedScreenCode({
   const issues: string[] = [];
   const missingAnchors: string[] = [];
   const trimmedCode = code.trim();
+  const staticValidation = validateStaticDrawgleHtml({ code, requireSingleScreenRoot: true });
+
+  issues.push(...staticValidation.issues);
 
   if (screenPlan.description.length > 800 && trimmedCode.length < 1400) {
     issues.push("Generated HTML is too short for the detailed screen brief.");
@@ -175,6 +331,7 @@ export function validateGeneratedScreenCode({
     valid: issues.length === 0,
     issues,
     missingAnchors,
+    staticValidation,
   };
 }
 
@@ -195,6 +352,7 @@ export function detectScreenHealth({
   const trimmedCode = code.trim();
   const issues = [...validation.issues];
   const warnings: string[] = [];
+  const staticValidation = validateStaticDrawgleHtml({ code, requireSingleScreenRoot: true });
 
   const openTags = (trimmedCode.match(/<([a-z][\w:-]*)(?:\s|>|\/)/gi) ?? [])
     .filter((tag) => !/\/>$/.test(tag) && !/^<(img|input|br|hr|path|circle|rect|line|polyline|polygon|use|stop|meta|link|source|area|base|col|embed|param|track|wbr)\b/i.test(tag))
@@ -210,7 +368,7 @@ export function detectScreenHealth({
   }
 
   let status: ScreenHealthStatus = "healthy";
-  if (issues.some((issue) => /unbalanced|imbalance|structurally/i.test(issue))) {
+  if (staticValidation.unrecoverable || issues.some((issue) => /unbalanced|imbalance|structurally/i.test(issue))) {
     status = "structurally_broken";
   } else if (validation.missingAnchors.length > 0) {
     status = "missing_required_content";
@@ -224,5 +382,6 @@ export function detectScreenHealth({
     issues,
     warnings,
     missingAnchors: validation.missingAnchors,
+    staticValidation,
   };
 }
