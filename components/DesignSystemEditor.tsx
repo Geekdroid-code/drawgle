@@ -41,6 +41,7 @@ const SIZE_KEYS = ["standard_button_height", "standard_input_height", "icon_smal
 
 type EditorTab = "colors" | "type" | "spacing" | "shape";
 type MobileView = "tokens" | "preview";
+type EditorLayout = "full" | "panel";
 
 type DesignSystemEditorProps = {
   value: DesignTokens;
@@ -51,6 +52,8 @@ type DesignSystemEditorProps = {
   submitLabel?: string;
   isSubmitting?: boolean;
   submitStatus?: string;
+  layout?: EditorLayout;
+  showPreview?: boolean;
 };
 
 const EDITOR_TABS: Array<{ id: EditorTab; label: string; icon: ComponentType<{ className?: string }> }> = [
@@ -163,6 +166,9 @@ const hsvToRgb = ({ h, s, v }: HsvColor): RgbColor => {
 
 const getRgbFallback = (value: string) => hexToRgb(value) ?? { r: 0, g: 0, b: 0 };
 
+const tokenPathToCssVar = (path: string[]) =>
+  `--dg-${path.map((part) => part.replace(/_/g, "-")).join("-")}`;
+
 export function DesignSystemEditor({
   value,
   onChange,
@@ -172,9 +178,13 @@ export function DesignSystemEditor({
   submitLabel = "Continue",
   isSubmitting = false,
   submitStatus,
+  layout = "full",
+  showPreview = true,
 }: DesignSystemEditorProps) {
   const [activeTab, setActiveTab] = useState<EditorTab>("colors");
   const [mobileView, setMobileView] = useState<MobileView>("tokens");
+  const isPanel = layout === "panel";
+  const shouldShowPreview = showPreview;
   const normalizedValue = normalizeDesignTokens(value);
 
   if (!normalizedValue.tokens) {
@@ -222,7 +232,7 @@ export function DesignSystemEditor({
   };
 
   return (
-    <div className="relative flex min-h-[680px] flex-1 flex-col overflow-hidden lg:h-[calc(100dvh-6.25rem)] lg:min-h-[620px]">
+    <div className={isPanel ? "relative flex min-h-0 flex-col overflow-visible" : "relative flex min-h-[680px] flex-1 flex-col overflow-hidden lg:h-[calc(100dvh-6.25rem)] lg:min-h-[620px]"}>
       {isSubmitting && submitStatus ? (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-white/72 backdrop-blur-sm">
           <div className="rounded-[14px] border border-slate-950/[0.08] bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-[0_18px_50px_-36px_rgba(15,23,42,0.6)]">
@@ -241,6 +251,7 @@ export function DesignSystemEditor({
           <p className="mt-0.5 line-clamp-1 text-sm text-slate-500">{description}</p>
         </div>
 
+        {shouldShowPreview ? (
         <div className="grid grid-cols-2 rounded-[12px] border border-slate-950/[0.08] bg-[#f7f7f8] p-1 text-xs font-medium lg:hidden">
           {[
             { id: "tokens", label: "Tokens" },
@@ -256,11 +267,12 @@ export function DesignSystemEditor({
             </button>
           ))}
         </div>
+        ) : null}
 
         <div className="hidden items-center gap-2 lg:flex">
           <span className="inline-flex h-9 items-center gap-2 rounded-[10px] border border-slate-950/[0.08] bg-[#f7f7f8] px-3 text-xs font-medium text-slate-600">
             <Eye className="h-3.5 w-3.5" />
-            Live preview
+            {isPanel ? "Live on canvas" : "Live preview"}
           </span>
           <span className="inline-flex h-9 items-center rounded-[10px] border border-slate-950/[0.08] bg-white px-3 text-xs font-medium text-slate-600">
             {recommendedFonts.length || 0} font candidates
@@ -268,8 +280,8 @@ export function DesignSystemEditor({
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-4 pt-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <section className={`${mobileView === "tokens" ? "flex" : "hidden"} min-h-0 flex-col overflow-hidden rounded-[16px] border border-slate-950/[0.1] bg-white lg:flex`}>
+      <div className={shouldShowPreview ? "grid min-h-0 flex-1 gap-4 pt-4 lg:grid-cols-[minmax(0,1fr)_340px]" : "min-h-0 flex-1 pt-4"}>
+        <section className={`${!shouldShowPreview || mobileView === "tokens" ? "flex" : "hidden"} min-h-0 flex-col rounded-[16px] border border-slate-950/[0.1] bg-white ${isPanel ? "overflow-visible" : "overflow-hidden"} ${shouldShowPreview ? "lg:flex" : ""}`}>
           <div className="shrink-0 border-b border-slate-950/[0.08] bg-white px-3 py-2">
             <div className="grid grid-cols-4 gap-1 rounded-[12px] bg-[#f7f7f8] p-1">
               {EDITOR_TABS.map((tab) => (
@@ -288,39 +300,39 @@ export function DesignSystemEditor({
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto bg-white px-4 py-4">
+          <div className={`${isPanel ? "overflow-visible" : "overflow-y-auto"} min-h-0 flex-1 bg-white px-4 py-4`}>
             {activeTab === "colors" ? (
-              <div className="grid gap-4 xl:grid-cols-2">
-                <TokenGroup label="Background">
-                  <ColorField label="Primary" value={primaryBg} onChange={(nextValue) => handleUpdateToken(["color", "background", "primary"], nextValue)} />
-                  <ColorField label="Secondary" value={secondaryBg} onChange={(nextValue) => handleUpdateToken(["color", "background", "secondary"], nextValue)} />
+              <div className={`grid gap-4 ${isPanel ? "" : "xl:grid-cols-2"}`}>
+                <TokenGroup label="Background" panel={isPanel}>
+                  <ColorField label="Primary" value={primaryBg} tokenPath={["color", "background", "primary"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "background", "primary"], nextValue)} />
+                  <ColorField label="Secondary" value={secondaryBg} tokenPath={["color", "background", "secondary"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "background", "secondary"], nextValue)} />
                 </TokenGroup>
-                <TokenGroup label="Surfaces">
-                  <ColorField label="Card" value={cardBg} onChange={(nextValue) => handleUpdateToken(["color", "surface", "card"], nextValue)} />
-                  <ColorField label="Sheet" value={tokens.color?.surface?.bottom_sheet || "#ffffff"} onChange={(nextValue) => handleUpdateToken(["color", "surface", "bottom_sheet"], nextValue)} />
-                  <ColorField label="Modal" value={tokens.color?.surface?.modal || "#ffffff"} onChange={(nextValue) => handleUpdateToken(["color", "surface", "modal"], nextValue)} />
+                <TokenGroup label="Surfaces" panel={isPanel}>
+                  <ColorField label="Card" value={cardBg} tokenPath={["color", "surface", "card"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "surface", "card"], nextValue)} />
+                  <ColorField label="Sheet" value={tokens.color?.surface?.bottom_sheet || "#ffffff"} tokenPath={["color", "surface", "bottom_sheet"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "surface", "bottom_sheet"], nextValue)} />
+                  <ColorField label="Modal" value={tokens.color?.surface?.modal || "#ffffff"} tokenPath={["color", "surface", "modal"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "surface", "modal"], nextValue)} />
                 </TokenGroup>
-                <TokenGroup label="Text">
-                  <ColorField label="High" value={primaryText} onChange={(nextValue) => handleUpdateToken(["color", "text", "high_emphasis"], nextValue)} />
-                  <ColorField label="Medium" value={mediumText} onChange={(nextValue) => handleUpdateToken(["color", "text", "medium_emphasis"], nextValue)} />
-                  <ColorField label="Low" value={lowText} onChange={(nextValue) => handleUpdateToken(["color", "text", "low_emphasis"], nextValue)} />
+                <TokenGroup label="Text" panel={isPanel}>
+                  <ColorField label="High" value={primaryText} tokenPath={["color", "text", "high_emphasis"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "text", "high_emphasis"], nextValue)} />
+                  <ColorField label="Medium" value={mediumText} tokenPath={["color", "text", "medium_emphasis"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "text", "medium_emphasis"], nextValue)} />
+                  <ColorField label="Low" value={lowText} tokenPath={["color", "text", "low_emphasis"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "text", "low_emphasis"], nextValue)} />
                 </TokenGroup>
-                <TokenGroup label="Actions">
-                  <ColorField label="Primary" value={actionPrimary} onChange={(nextValue) => handleUpdateToken(["color", "action", "primary"], nextValue)} />
-                  <ColorField label="Secondary" value={actionSecondary} onChange={(nextValue) => handleUpdateToken(["color", "action", "secondary"], nextValue)} />
-                  <ColorField label="On Primary" value={actionText} onChange={(nextValue) => handleUpdateToken(["color", "action", "on_primary_text"], nextValue)} />
-                  <ColorField label="Disabled" value={tokens.color?.action?.disabled || "#e5e7eb"} onChange={(nextValue) => handleUpdateToken(["color", "action", "disabled"], nextValue)} />
+                <TokenGroup label="Actions" panel={isPanel}>
+                  <ColorField label="Primary" value={actionPrimary} tokenPath={["color", "action", "primary"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "action", "primary"], nextValue)} />
+                  <ColorField label="Secondary" value={actionSecondary} tokenPath={["color", "action", "secondary"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "action", "secondary"], nextValue)} />
+                  <ColorField label="On Primary" value={actionText} tokenPath={["color", "action", "on_primary_text"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "action", "on_primary_text"], nextValue)} />
+                  <ColorField label="Disabled" value={tokens.color?.action?.disabled || "#e5e7eb"} tokenPath={["color", "action", "disabled"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "action", "disabled"], nextValue)} />
                 </TokenGroup>
-                <TokenGroup label="Borders">
-                  <ColorField label="Divider" value={borderDivider} onChange={(nextValue) => handleUpdateToken(["color", "border", "divider"], nextValue)} />
-                  <ColorField label="Focused" value={tokens.color?.border?.focused || "#111827"} onChange={(nextValue) => handleUpdateToken(["color", "border", "focused"], nextValue)} />
+                <TokenGroup label="Borders" panel={isPanel}>
+                  <ColorField label="Divider" value={borderDivider} tokenPath={["color", "border", "divider"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "border", "divider"], nextValue)} />
+                  <ColorField label="Focused" value={tokens.color?.border?.focused || "#111827"} tokenPath={["color", "border", "focused"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "border", "focused"], nextValue)} />
                 </TokenGroup>
               </div>
             ) : null}
 
             {activeTab === "type" ? (
               <div className="grid gap-4">
-                <TokenGroup label="Font Stack">
+                <TokenGroup label="Font Stack" panel={isPanel}>
                   <TextField
                     label="Font family"
                     value={tokens.typography?.font_family || ""}
@@ -328,8 +340,8 @@ export function DesignSystemEditor({
                     wide
                   />
                 </TokenGroup>
-                <div className="overflow-x-auto overflow-y-hidden rounded-[14px] border border-slate-950/[0.08]">
-                  <div className="grid min-w-[920px] grid-cols-[1.05fr_154px_178px_154px_1fr] gap-3 border-b border-slate-950/[0.08] bg-[#f7f7f8] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                <div className={`${isPanel ? "overflow-visible" : "overflow-x-auto overflow-y-hidden"} rounded-[14px] border border-slate-950/[0.08]`}>
+                  <div className={`${isPanel ? "hidden" : "grid min-w-[920px]"} grid-cols-[1.05fr_154px_178px_154px_1fr] gap-3 border-b border-slate-950/[0.08] bg-[#f7f7f8] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500`}>
                     <span>Style</span>
                     <span>Size</span>
                     <span>Weight</span>
@@ -348,6 +360,7 @@ export function DesignSystemEditor({
                       onLineHeightChange={(nextValue) => handleUpdateToken(["typography", style.key, "line_height"], nextValue)}
                       sample={style.sample}
                       fallbackSize={style.fallback}
+                      panel={isPanel}
                     />
                   ))}
                 </div>
@@ -355,8 +368,8 @@ export function DesignSystemEditor({
             ) : null}
 
             {activeTab === "spacing" ? (
-              <div className="grid gap-4 xl:grid-cols-2">
-                <TokenGroup label="Spacing Scale">
+              <div className={`grid gap-4 ${isPanel ? "" : "xl:grid-cols-2"}`}>
+                <TokenGroup label="Spacing Scale" panel={isPanel}>
                   {SPACING_KEYS.map((key) => (
                     <SpacingMetricRow
                       key={key}
@@ -368,7 +381,7 @@ export function DesignSystemEditor({
                     />
                   ))}
                 </TokenGroup>
-                <TokenGroup label="Layout Rhythm">
+                <TokenGroup label="Layout Rhythm" panel={isPanel}>
                   {LAYOUT_KEYS.map((key) => (
                     <SpacingMetricRow
                       key={key}
@@ -381,7 +394,7 @@ export function DesignSystemEditor({
                     />
                   ))}
                 </TokenGroup>
-                <TokenGroup label="Component Sizing">
+                <TokenGroup label="Component Sizing" panel={isPanel}>
                   {SIZE_KEYS.map((key) => (
                     <SpacingMetricRow
                       key={key}
@@ -394,7 +407,7 @@ export function DesignSystemEditor({
                     />
                   ))}
                 </TokenGroup>
-                <TokenGroup label="Platform Constraints">
+                <TokenGroup label="Platform Constraints" panel={isPanel}>
                   <ReadOnlyMetric label="Safe area top" value={tokens.mobile_layout?.safe_area_top || "16px"} />
                   <ReadOnlyMetric label="Safe area bottom" value={tokens.mobile_layout?.safe_area_bottom || "34px"} />
                   <ReadOnlyMetric label="Min touch" value={tokens.sizing?.min_touch_target || "48px"} />
@@ -403,8 +416,8 @@ export function DesignSystemEditor({
             ) : null}
 
             {activeTab === "shape" ? (
-              <div className="grid gap-4 xl:grid-cols-2">
-                <TokenGroup label="Corner Geometry">
+              <div className={`grid gap-4 ${isPanel ? "" : "xl:grid-cols-2"}`}>
+                <TokenGroup label="Corner Geometry" panel={isPanel}>
                   <ShapeMetricRow
                     label="App radius"
                     value={tokens.radii?.app || ""}
@@ -422,7 +435,7 @@ export function DesignSystemEditor({
                     onChange={(nextValue) => handleUpdateToken(["radii", "pill"], nextValue)}
                   />
                 </TokenGroup>
-                <TokenGroup label="Surface Outline">
+                <TokenGroup label="Surface Outline" panel={isPanel}>
                   <ShapeMetricRow
                     label="Standard border"
                     value={tokens.border_widths?.standard || ""}
@@ -432,7 +445,7 @@ export function DesignSystemEditor({
                     onChange={(nextValue) => handleUpdateToken(["border_widths", "standard"], nextValue)}
                   />
                 </TokenGroup>
-                <TokenGroup label="Elevation">
+                <TokenGroup label="Elevation" panel={isPanel}>
                   <ShadowField
                     label="Surface shadow"
                     value={tokens.shadows?.surface || ""}
@@ -452,6 +465,7 @@ export function DesignSystemEditor({
           </div>
         </section>
 
+        {shouldShowPreview ? (
         <section className={`${mobileView === "preview" ? "flex" : "hidden"} min-h-0 items-center justify-center overflow-hidden rounded-[16px] border border-slate-950/[0.1] bg-[#eaedf1] p-3 sm:p-4 lg:flex`}>
           <PhonePreview
             primaryBg={primaryBg}
@@ -472,9 +486,10 @@ export function DesignSystemEditor({
             tokens={tokens}
           />
         </section>
+        ) : null}
       </div>
 
-      <div className="mt-4 flex shrink-0 flex-col gap-2 rounded-[16px] border border-slate-950/[0.1] bg-white/94 p-3 backdrop-blur lg:flex-row lg:items-center lg:justify-between">
+      <div className={`${isPanel ? "hidden" : "mt-4 flex"} shrink-0 flex-col gap-2 rounded-[16px] border border-slate-950/[0.1] bg-white/94 p-3 backdrop-blur lg:flex-row lg:items-center lg:justify-between`}>
         <div className="hidden items-center gap-2 text-xs text-slate-500 lg:flex">
           <Eye className="h-3.5 w-3.5" />
           Preview stays live while tokens change.
@@ -488,19 +503,31 @@ export function DesignSystemEditor({
   );
 }
 
-function TokenGroup({ label, children }: { label: string; children: ReactNode }) {
+function TokenGroup({ label, children, panel = false }: { label: string; children: ReactNode; panel?: boolean }) {
   return (
-    <div className="rounded-[14px] border border-slate-950/[0.08] bg-[#fbfbfc] p-3">
+    <div className={`${panel ? "rounded-[16px] p-4" : "rounded-[14px] p-3"} border border-slate-950/[0.08] bg-[#fbfbfc]`}>
       <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
         <Layers className="h-3.5 w-3.5" />
         {label}
       </div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{children}</div>
+      <div className={`grid gap-2 ${panel ? "grid-cols-1" : "grid-cols-2 sm:grid-cols-3"}`}>{children}</div>
     </div>
   );
 }
 
-function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+function ColorField({
+  label,
+  value,
+  onChange,
+  tokenPath,
+  panel = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  tokenPath?: string[];
+  panel?: boolean;
+}) {
   const normalizedValue = normalizeHex(value) ?? "#000000";
   const [isOpen, setIsOpen] = useState(false);
   const [hexDraftState, setHexDraftState] = useState({ source: normalizedValue, value: normalizedValue });
@@ -509,6 +536,8 @@ function ColorField({ label, value, onChange }: { label: string; value: string; 
   const rgb = getRgbFallback(normalizedValue);
   const hsv = rgbToHsv(rgb);
   const isHexValid = Boolean(normalizeHex(hexDraft));
+  const tokenPathLabel = tokenPath?.join(".");
+  const cssVariableName = tokenPath ? tokenPathToCssVar(tokenPath) : null;
 
   const commitHex = (nextValue: string) => {
     const normalized = normalizeHex(nextValue);
@@ -541,19 +570,27 @@ function ColorField({ label, value, onChange }: { label: string; value: string; 
 
   return (
     <div className="relative">
-      <div className={`group flex items-center gap-2 rounded-[12px] border bg-white px-2 py-2 transition hover:border-slate-950/[0.18] ${isHexValid ? "border-slate-950/[0.08]" : "border-rose-300"}`}>
+      <div className={`group flex gap-3 rounded-[12px] border bg-white transition hover:border-slate-950/[0.18] ${panel ? "items-center px-3 py-3" : "items-center px-2 py-2"} ${isHexValid ? "border-slate-950/[0.08]" : "border-rose-300"}`}>
         <button
           type="button"
           aria-label={`Open ${label} color picker`}
-          className="h-7 w-7 shrink-0 rounded-[8px] border border-slate-950/[0.1] shadow-inner"
+          className={`${panel ? "h-10 w-10 rounded-[12px]" : "h-7 w-7 rounded-[8px]"} shrink-0 border border-slate-950/[0.1] shadow-inner`}
           style={{ backgroundColor: normalizedValue }}
           onClick={() => {
             setPreviousColor(normalizedValue);
             setIsOpen((current) => !current);
           }}
         />
-        <label className="min-w-0 flex-1">
-          <span className="block truncate text-xs font-medium text-slate-700">{label}</span>
+        <label className={`min-w-0 flex-1 ${panel ? "grid gap-1 sm:grid-cols-[minmax(0,1fr)_130px] sm:items-center" : ""}`}>
+          <span className="min-w-0">
+            <span className="block truncate text-xs font-semibold text-slate-800">{label}</span>
+            {panel && tokenPathLabel ? (
+              <span className="mt-0.5 block truncate font-mono text-[11px] text-slate-400">
+                {tokenPathLabel}
+                {cssVariableName ? ` · ${cssVariableName}` : ""}
+              </span>
+            ) : null}
+          </span>
           <input
             type="text"
             value={hexDraft}
@@ -562,7 +599,7 @@ function ColorField({ label, value, onChange }: { label: string; value: string; 
               setIsOpen(true);
             }}
             onChange={(event) => commitHex(event.target.value)}
-            className="block w-full bg-transparent font-mono text-[11px] uppercase text-slate-500 outline-none"
+            className={`${panel ? "h-9 rounded-[10px] border border-slate-950/[0.08] bg-[#fbfbfc] px-2 text-right text-xs focus:bg-white" : "bg-transparent text-[11px]"} block w-full font-mono uppercase text-slate-500 outline-none`}
           />
         </label>
       </div>
@@ -695,6 +732,7 @@ function TypographyRow({
   onLineHeightChange,
   sample,
   fallbackSize,
+  panel = false,
 }: {
   label: string;
   size: string;
@@ -705,10 +743,55 @@ function TypographyRow({
   onLineHeightChange: (value: string) => void;
   sample: string;
   fallbackSize: number;
+  panel?: boolean;
 }) {
   const sizeNumber = parsePixelToken(size, fallbackSize);
   const lineNumber = parsePixelToken(lineHeight, Math.round(sizeNumber * 1.35));
   const resolvedWeight = weight || "400";
+
+  if (panel) {
+    return (
+      <div className="grid gap-3 border-b border-slate-950/[0.06] px-4 py-4 last:border-b-0">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-slate-900">{label}</div>
+            <div className="mt-0.5 font-mono text-[11px] text-slate-400">
+              typography.{TYPOGRAPHY_STYLES.find((style) => style.label === label)?.key ?? label.toLowerCase().replace(/\s+/g, "_")}
+            </div>
+          </div>
+          <div className="rounded-[10px] border border-slate-950/[0.06] bg-[#fbfbfc] px-3 py-2 text-right text-slate-950">
+            <div
+              className="max-w-[220px] truncate"
+              style={{
+                fontSize: `${Math.min(sizeNumber, 30)}px`,
+                fontWeight: Number(resolvedWeight),
+                lineHeight: `${Math.min(lineNumber, 36)}px`,
+              }}
+            >
+              {sample}
+            </div>
+          </div>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_178px_minmax(0,1fr)]">
+          <TokenMetricField
+            label={`${label} size`}
+            value={size}
+            min={8}
+            max={72}
+            onChange={onSizeChange}
+          />
+          <FontWeightControl value={resolvedWeight} onChange={onWeightChange} />
+          <TokenMetricField
+            label={`${label} line height`}
+            value={lineHeight}
+            min={10}
+            max={96}
+            onChange={onLineHeightChange}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="grid min-w-[920px] grid-cols-[1.05fr_154px_178px_154px_1fr] items-center gap-3 border-b border-slate-950/[0.06] px-3 py-2.5 last:border-b-0">

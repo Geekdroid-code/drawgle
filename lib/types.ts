@@ -188,6 +188,38 @@ export interface CreativeDirection {
   avoid: string[];
 }
 
+export interface ProjectCharterReferenceScreen {
+  index: number;
+  suggestedRole: string;
+  layoutSummary: string;
+  visualHierarchy: string;
+  components: string[];
+  stylingCues: string[];
+  interactionCues?: string[];
+  copyPatterns?: string[];
+  implementationNotes?: string[];
+}
+
+export interface ProjectCharterDesignSystemSignals {
+  palette?: string;
+  typography?: string;
+  surfaces?: string;
+  iconography?: string;
+  density?: string;
+  motionTone?: string;
+  [key: string]: JsonValue | undefined;
+}
+
+export interface ProjectCharterPlanningDiagnostics {
+  source: "planner" | "partial_planner" | "reference_fallback";
+  validationIssues?: string[];
+  rawPlanKeys?: string[];
+  rawScreenCount?: number;
+  recoveredScreens?: number;
+  notes?: string[];
+  [key: string]: JsonValue | undefined;
+}
+
 export type PrimaryNavigationKind = "bottom-tabs" | "none";
 
 export type ScreenChromeKind = "bottom-tabs" | "top-bar" | "top-bar-back" | "modal-sheet" | "immersive";
@@ -241,6 +273,10 @@ export interface ProjectCharter {
   keyFeatures: string[];
   designRationale: string;
   creativeDirection?: CreativeDirection | null;
+  referenceScreens?: ProjectCharterReferenceScreen[];
+  designSystemSignals?: ProjectCharterDesignSystemSignals | null;
+  planningDiagnostics?: ProjectCharterPlanningDiagnostics | null;
+  charterSource?: "planner" | "partial_planner" | "reference_fallback";
 }
 
 export interface ScreenPlan {

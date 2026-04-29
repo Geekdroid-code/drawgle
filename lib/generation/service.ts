@@ -601,6 +601,217 @@ export const fallbackProjectCharter = ({
     : creativeDirection,
 });
 
+const truncateText = (value: string, maxLength: number) =>
+  value.trim().replace(/\s+\n/g, "\n").replace(/[ \t]{2,}/g, " ").slice(0, maxLength).trim();
+
+const readTextField = ({
+  record,
+  keys,
+  fallback,
+  maxLength,
+}: {
+  record: Record<string, unknown>;
+  keys: string[];
+  fallback: string;
+  maxLength: number;
+}) => {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) {
+      return truncateText(value, maxLength);
+    }
+  }
+
+  return fallback;
+};
+
+const readTextArray = ({
+  value,
+  fallback,
+  maxItems,
+  maxLength,
+}: {
+  value: unknown;
+  fallback: string[];
+  maxItems: number;
+  maxLength: number;
+}) => {
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  const next = value
+    .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    .map((item) => truncateText(item, maxLength))
+    .slice(0, maxItems);
+
+  return next.length > 0 ? next : fallback;
+};
+
+const normalizeCreativeDirection = (value: unknown, fallback: CreativeDirection | null | undefined) => {
+  if (!isRecord(value)) {
+    return fallback ?? null;
+  }
+
+  const parsed = CreativeDirectionSchema.safeParse(value);
+  if (parsed.success) {
+    return parsed.data;
+  }
+
+  const fallbackDirection = fallback ?? fallbackCreativeDirection({ prompt: "", referenceAnalysis: null });
+
+  return {
+    conceptName: readTextField({ record: value, keys: ["conceptName", "concept_name"], fallback: fallbackDirection.conceptName, maxLength: 200 }),
+    styleEssence: readTextField({ record: value, keys: ["styleEssence", "style_essence"], fallback: fallbackDirection.styleEssence, maxLength: 2400 }),
+    colorStory: readTextField({ record: value, keys: ["colorStory", "color_story"], fallback: fallbackDirection.colorStory, maxLength: 2400 }),
+    typographyMood: readTextField({ record: value, keys: ["typographyMood", "typography_mood"], fallback: fallbackDirection.typographyMood, maxLength: 2400 }),
+    surfaceLanguage: readTextField({ record: value, keys: ["surfaceLanguage", "surface_language"], fallback: fallbackDirection.surfaceLanguage, maxLength: 2400 }),
+    iconographyStyle: readTextField({ record: value, keys: ["iconographyStyle", "iconography_style"], fallback: fallbackDirection.iconographyStyle, maxLength: 2400 }),
+    compositionPrinciples: readTextArray({ value: value.compositionPrinciples ?? value.composition_principles, fallback: fallbackDirection.compositionPrinciples, maxItems: 10, maxLength: 600 }),
+    signatureMoments: readTextArray({ value: value.signatureMoments ?? value.signature_moments, fallback: fallbackDirection.signatureMoments, maxItems: 10, maxLength: 600 }),
+    motionTone: readTextField({ record: value, keys: ["motionTone", "motion_tone"], fallback: fallbackDirection.motionTone, maxLength: 2400 }),
+    avoid: readTextArray({ value: value.avoid, fallback: fallbackDirection.avoid, maxItems: 12, maxLength: 600 }),
+  } satisfies CreativeDirection;
+};
+
+const referenceScreensForCharter = (referenceAnalysis?: ReferenceAnalysis | null) =>
+  referenceAnalysis?.screenReferences.map((screen) => ({
+    index: screen.index,
+    suggestedRole: screen.suggestedRole,
+    layoutSummary: screen.layoutSummary,
+    visualHierarchy: screen.visualHierarchy,
+    components: screen.components,
+    stylingCues: screen.stylingCues,
+    interactionCues: screen.interactionCues,
+    copyPatterns: screen.copyPatterns,
+    implementationNotes: screen.implementationNotes,
+  })) ?? [];
+
+const enrichProjectCharter = ({
+  base,
+  source,
+  referenceAnalysis,
+  navigationArchitecture,
+  diagnostics,
+}: {
+  base: ProjectCharter;
+  source: NonNullable<ProjectCharter["charterSource"]>;
+  referenceAnalysis?: ReferenceAnalysis | null;
+  navigationArchitecture: NavigationArchitecture;
+  diagnostics?: ProjectCharter["planningDiagnostics"] | null;
+}): ProjectCharter => ({
+  ...base,
+  imageReferenceSummary: base.imageReferenceSummary
+    ?? (referenceAnalysis ? `Use the uploaded reference as a structural and stylistic blueprint. ${referenceAnalysis.overallVisualStyle}` : null),
+  navigationArchitecture,
+  referenceScreens: base.referenceScreens?.length ? base.referenceScreens : referenceScreensForCharter(referenceAnalysis),
+  designSystemSignals: base.designSystemSignals ?? referenceAnalysis?.designSystemSignals ?? null,
+  planningDiagnostics: diagnostics ?? base.planningDiagnostics ?? { source },
+  charterSource: source,
+});
+
+const salvageProjectCharterFromRawPlan = ({
+  rawPlan,
+  prompt,
+  image,
+  referenceAnalysis,
+  creativeDirection,
+  navigationArchitecture,
+  existingCharter,
+  diagnostics,
+}: {
+  rawPlan: unknown;
+  prompt: string;
+  image?: PromptImagePayload | null;
+  referenceAnalysis?: ReferenceAnalysis | null;
+  creativeDirection?: CreativeDirection | null;
+  navigationArchitecture: NavigationArchitecture;
+  existingCharter?: ProjectCharter | null;
+  diagnostics: NonNullable<ProjectCharter["planningDiagnostics"]>;
+}): ProjectCharter => {
+  const fallback = fallbackProjectCharter({
+    prompt,
+    image,
+    referenceAnalysis,
+    creativeDirection,
+    navigationArchitecture,
+    existingCharter,
+  });
+
+  if (!isRecord(rawPlan) || !isRecord(rawPlan.charter)) {
+    return enrichProjectCharter({
+      base: fallback,
+      source: "reference_fallback",
+      referenceAnalysis,
+      navigationArchitecture,
+      diagnostics: { ...diagnostics, source: "reference_fallback" },
+    });
+  }
+
+  const rawCharter = rawPlan.charter;
+  const rawCreativeDirection = normalizeCreativeDirection(
+    rawCharter.creativeDirection ?? rawCharter.creative_direction,
+    creativeDirection ?? existingCharter?.creativeDirection ?? fallback.creativeDirection,
+  );
+
+  return enrichProjectCharter({
+    base: {
+      originalPrompt: readTextField({ record: rawCharter, keys: ["originalPrompt", "original_prompt"], fallback: fallback.originalPrompt, maxLength: 10000 }),
+      imageReferenceSummary: readTextField({
+        record: rawCharter,
+        keys: ["imageReferenceSummary", "image_reference_summary", "referenceImageAnalysis", "reference_image_analysis"],
+        fallback: fallback.imageReferenceSummary ?? "",
+        maxLength: 6000,
+      }) || fallback.imageReferenceSummary,
+      appType: readTextField({ record: rawCharter, keys: ["appType", "app_type"], fallback: fallback.appType, maxLength: 240 }),
+      targetAudience: readTextField({ record: rawCharter, keys: ["targetAudience", "target_audience"], fallback: fallback.targetAudience, maxLength: 800 }),
+      navigationModel: readTextField({ record: rawCharter, keys: ["navigationModel", "navigation_model"], fallback: fallback.navigationModel, maxLength: 800 }),
+      navigationArchitecture,
+      keyFeatures: readTextArray({ value: rawCharter.keyFeatures ?? rawCharter.key_features, fallback: fallback.keyFeatures, maxItems: 20, maxLength: 400 }),
+      designRationale: readTextField({ record: rawCharter, keys: ["designRationale", "design_rationale"], fallback: fallback.designRationale, maxLength: 8000 }),
+      creativeDirection: rawCreativeDirection,
+    },
+    source: "partial_planner",
+    referenceAnalysis,
+    navigationArchitecture,
+    diagnostics: { ...diagnostics, source: "partial_planner" },
+  });
+};
+
+const hasBuilderGradeBrief = (description: string) => {
+  const markers = ["Visual Goal:", "Layout:", "Hierarchy:", "Key Components:", "Visual Styling:"];
+  return markers.filter((marker) => description.includes(marker)).length >= 3;
+};
+
+const ensureBuilderGradeScreenBriefs = ({
+  screens,
+  referenceAnalysis,
+}: {
+  screens: ScreenPlan[];
+  referenceAnalysis?: ReferenceAnalysis | null;
+}) =>
+  screens.map((screen, index) => {
+    if (hasBuilderGradeBrief(screen.description)) {
+      return screen;
+    }
+
+    const referenceScreen = referenceAnalysis?.screenReferences[index];
+    if (!referenceScreen) {
+      return screen;
+    }
+
+    const enrichedDescription = [
+      `Reference DNA: Rebuild this as a premium Drawgle screen using reference screen ${referenceScreen.index} (${referenceScreen.suggestedRole}) as the strongest visual and structural cue.`,
+      buildStructuredScreenDescription(referenceScreen),
+      `Planner Brief:\n${screen.description}`,
+    ].join("\n\n").slice(0, 8000);
+
+    return {
+      ...screen,
+      description: enrichedDescription,
+    };
+  });
+
 const parseJsonResponse = <T>(text: string): T => {
   const trimmed = text.trim();
   const cleaned = trimmed.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
@@ -955,21 +1166,20 @@ export async function planUiFlow({
   const parsed = PlanSchema.safeParse(rawPlan);
 
   if (!parsed.success) {
+    const validationIssues = parsed.error.issues.map((issue) => `${issue.path.join(".") || "root"}: ${issue.message}`);
+    const rawPlanKeys = isRecord(rawPlan) ? Object.keys(rawPlan) : [];
+    const rawScreenCount = isRecord(rawPlan) && Array.isArray((rawPlan as Record<string, unknown>).screens)
+      ? ((rawPlan as Record<string, unknown>).screens as unknown[]).length
+      : 0;
     // -----------------------------------------------------------------------
     // DIAGNOSTIC: Log the exact Zod issues so silent fallbacks become visible.
     // -----------------------------------------------------------------------
     console.error(
       "[planUiFlow] PlanSchema validation failed — attempting screen salvage",
       {
-        zodIssues: parsed.error.issues.map((issue) => ({
-          path: issue.path.join("."),
-          code: issue.code,
-          message: issue.message,
-        })),
-        rawPlanKeys: isRecord(rawPlan) ? Object.keys(rawPlan) : typeof rawPlan,
-        rawScreenCount: isRecord(rawPlan) && Array.isArray((rawPlan as Record<string, unknown>).screens)
-          ? ((rawPlan as Record<string, unknown>).screens as unknown[]).length
-          : 0,
+        zodIssues: validationIssues,
+        rawPlanKeys: rawPlanKeys.length > 0 ? rawPlanKeys : typeof rawPlan,
+        rawScreenCount,
       },
     );
 
@@ -996,11 +1206,14 @@ export async function planUiFlow({
           planningMode,
           referenceAnalysis,
         }).map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture }));
-    const screens = reconcileScreensWithPrompt({
-      prompt,
-      screens: rawScreens,
-      planningMode,
-    }).map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture }));
+    const screens = ensureBuilderGradeScreenBriefs({
+      referenceAnalysis,
+      screens: reconcileScreensWithPrompt({
+        prompt,
+        screens: rawScreens,
+        planningMode,
+      }).map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture })),
+    });
     const navigationPlan = normalizeNavigationPlan({
       navigationPlan: forceFiniteFlowWithoutPersistentNav ? null : salvaged.navigationPlan ?? (planningMode === "single-screen" ? existingNavigationPlan : null),
       screens,
@@ -1014,17 +1227,31 @@ export async function planUiFlow({
       { salvageSource, screenCount: screens.length, screenNames: screens.map((s) => s.name) },
     );
 
+    const planningDiagnostics: NonNullable<ProjectCharter["planningDiagnostics"]> = {
+      source: salvaged.screens.length > 0 ? "partial_planner" : "reference_fallback",
+      validationIssues,
+      rawPlanKeys,
+      rawScreenCount,
+      recoveredScreens: plannedScreens.length,
+      notes: [
+        "Recovered planner output independently instead of replacing the whole charter with generic fallback.",
+        salvaged.screens.length > 0 ? "Screen plans came from valid planner screen objects." : "Screen plans came from reference analysis fallback because no usable planner screens were recovered.",
+      ],
+    };
+
     return {
       requiresBottomNav: deriveRequiresBottomNav(navigationArchitecture),
       navigationArchitecture,
       navigationPlan,
-      charter: fallbackProjectCharter({
+      charter: salvageProjectCharterFromRawPlan({
+        rawPlan,
         prompt,
         image,
         referenceAnalysis,
         creativeDirection: resolvedCreativeDirection,
         navigationArchitecture,
         existingCharter,
+        diagnostics: planningDiagnostics,
       }),
       screens: plannedScreens,
     };
@@ -1039,11 +1266,22 @@ export async function planUiFlow({
         lockToExistingArchitecture: Boolean(projectContext?.trim() && existingCharter?.navigationArchitecture),
       });
 
-  const charter = {
-    ...parsed.data.charter,
-    creativeDirection: parsed.data.charter.creativeDirection ?? resolvedCreativeDirection,
+  const charter = enrichProjectCharter({
+    base: {
+      ...parsed.data.charter,
+      creativeDirection: parsed.data.charter.creativeDirection ?? resolvedCreativeDirection,
+      navigationArchitecture,
+    },
+    source: "planner",
+    referenceAnalysis,
     navigationArchitecture,
-  };
+    diagnostics: {
+      source: "planner",
+      rawPlanKeys: isRecord(rawPlan) ? Object.keys(rawPlan) : [],
+      rawScreenCount: parsed.data.screens.length,
+      recoveredScreens: parsed.data.screens.length,
+    },
+  });
 
   const parsedScreens = planningMode === "single-screen" ? parsed.data.screens.slice(0, 1) : parsed.data.screens;
   const rawScreens = parsedScreens.map((screenPlan) => ({
@@ -1058,19 +1296,22 @@ export async function planUiFlow({
         }
       : null,
   }));
-  const screens = reconcileScreensWithPrompt({
-    prompt,
-    screens: rawScreens,
-    planningMode,
-  }).map((screenPlan) => resolvePlannedScreen({
-    screenPlan: {
-      name: screenPlan.name,
-      type: screenPlan.type,
-      description: screenPlan.description,
-      chromePolicy: screenPlan.chromePolicy ?? null,
-    },
-    navigationArchitecture,
-  }));
+  const screens = ensureBuilderGradeScreenBriefs({
+    referenceAnalysis,
+    screens: reconcileScreensWithPrompt({
+      prompt,
+      screens: rawScreens,
+      planningMode,
+    }).map((screenPlan) => resolvePlannedScreen({
+      screenPlan: {
+        name: screenPlan.name,
+        type: screenPlan.type,
+        description: screenPlan.description,
+        chromePolicy: screenPlan.chromePolicy ?? null,
+      },
+      navigationArchitecture,
+    })),
+  });
   const navigationPlan = normalizeNavigationPlan({
     navigationPlan: forceFiniteFlowWithoutPersistentNav ? null : toNavigationPlan(parsed.data.navigation_plan) ?? (planningMode === "single-screen" ? existingNavigationPlan : null),
     screens,

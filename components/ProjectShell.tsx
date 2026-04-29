@@ -2,7 +2,7 @@
 
 import { type ComponentType, type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, BookOpen, Check, Layers, Loader2, Navigation, Palette, RotateCcw, Save, Sparkles, Type, X } from "lucide-react";
+import { ArrowLeft, BookOpen, Check, Eye, Layers, Loader2, Navigation, Palette, RotateCcw, Save, Sparkles, Type, X } from "lucide-react";
 
 import { CanvasArea } from "@/components/CanvasArea";
 import { ChatPanel } from "@/components/ChatPanel";
@@ -26,6 +26,7 @@ import type {
   GenerationRunData,
   NavigationArchitecture,
   NavigationPlan,
+  ProjectCharter,
   ProjectData,
   ProjectNavigationData,
   PromptImagePayload,
@@ -463,6 +464,69 @@ function MetadataField({ label, value }: { label: string; value?: string | null 
   );
 }
 
+const formatNavigationArchitecture = (architecture?: NavigationArchitecture | null) => {
+  if (!architecture) {
+    return null;
+  }
+
+  return [
+    `Kind: ${architecture.kind}`,
+    `Primary navigation: ${architecture.primaryNavigation}`,
+    `Root chrome: ${architecture.rootChrome}`,
+    `Detail chrome: ${architecture.detailChrome}`,
+    `Rationale: ${architecture.rationale}`,
+    architecture.consistencyRules?.length
+      ? `Consistency rules:\n${architecture.consistencyRules.map((rule) => `- ${rule}`).join("\n")}`
+      : null,
+  ].filter(Boolean).join("\n\n");
+};
+
+const formatDesignSystemSignals = (signals?: ProjectCharter["designSystemSignals"] | null) => {
+  if (!signals) {
+    return null;
+  }
+
+  return [
+    signals.palette ? `Palette: ${signals.palette}` : null,
+    signals.typography ? `Typography: ${signals.typography}` : null,
+    signals.surfaces ? `Surfaces: ${signals.surfaces}` : null,
+    signals.iconography ? `Iconography: ${signals.iconography}` : null,
+    signals.density ? `Density: ${signals.density}` : null,
+    signals.motionTone ? `Motion tone: ${signals.motionTone}` : null,
+  ].filter(Boolean).join("\n\n") || null;
+};
+
+const formatReferenceScreens = (screens?: ProjectCharter["referenceScreens"] | null) => {
+  if (!screens?.length) {
+    return null;
+  }
+
+  return screens
+    .map((screen) => [
+      `Reference ${screen.index}: ${screen.suggestedRole}`,
+      `Layout: ${screen.layoutSummary}`,
+      `Hierarchy: ${screen.visualHierarchy}`,
+      screen.components?.length ? `Components: ${screen.components.join("; ")}` : null,
+      screen.stylingCues?.length ? `Styling: ${screen.stylingCues.join("; ")}` : null,
+      screen.implementationNotes?.length ? `Must preserve: ${screen.implementationNotes.join("; ")}` : null,
+    ].filter(Boolean).join("\n"))
+    .join("\n\n");
+};
+
+const formatPlanningDiagnostics = (diagnostics?: ProjectCharter["planningDiagnostics"] | null) => {
+  if (!diagnostics) {
+    return null;
+  }
+
+  return [
+    `Source: ${diagnostics.source}`,
+    typeof diagnostics.rawScreenCount === "number" ? `Raw screens: ${diagnostics.rawScreenCount}` : null,
+    typeof diagnostics.recoveredScreens === "number" ? `Recovered screens: ${diagnostics.recoveredScreens}` : null,
+    diagnostics.validationIssues?.length ? `Validation notes:\n${diagnostics.validationIssues.join("\n")}` : null,
+    diagnostics.notes?.length ? `Planner notes:\n${diagnostics.notes.join("\n")}` : null,
+  ].filter(Boolean).join("\n\n");
+};
+
 function ProjectIntelligencePanel({
   project,
   screens,
@@ -497,18 +561,18 @@ function ProjectIntelligencePanel({
   const hasTokens = Boolean(tokenDraft && hasApprovedDesignTokens(tokenDraft));
 
   return (
-    <aside className="fixed right-4 top-16 z-[72] flex max-h-[calc(100dvh-5rem)] w-[min(620px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[18px] border border-slate-950/[0.1] bg-white/96 shadow-[0_24px_80px_rgba(15,23,42,0.18)] backdrop-blur-xl">
-      <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-950/[0.08] px-4 py-3">
+    <aside className="fixed inset-0 z-[72] flex flex-col overflow-hidden border border-slate-950/[0.1] bg-white/98 shadow-[0_24px_90px_rgba(15,23,42,0.2)] backdrop-blur-xl sm:inset-y-3 sm:left-auto sm:right-3 sm:w-[min(760px,calc(100vw-1.5rem))] sm:rounded-[22px]">
+      <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-950/[0.08] px-5 py-4">
         <div className="min-w-0">
           <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#667894]">Project Intelligence</div>
-          <div className="truncate text-base font-semibold text-slate-950">{project.name}</div>
+          <div className="truncate text-lg font-semibold text-slate-950">{project.name}</div>
         </div>
         <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 rounded-full text-slate-500" onClick={onClose}>
           <X className="h-4 w-4" />
         </Button>
       </div>
 
-      <div className="grid shrink-0 grid-cols-4 gap-1 border-b border-slate-950/[0.08] bg-[#f7f7f8] p-2">
+      <div className="grid shrink-0 grid-cols-4 gap-1 border-b border-slate-950/[0.08] bg-[#f7f7f8] p-2.5">
         {PROJECT_PANEL_TABS.map((tab) => {
           const Icon = tab.icon;
           return (
@@ -516,7 +580,7 @@ function ProjectIntelligencePanel({
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
-              className={`flex h-10 items-center justify-center gap-1.5 rounded-[10px] text-[11px] font-semibold transition ${activeTab === tab.id ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:bg-white/70"}`}
+              className={`flex h-11 items-center justify-center gap-1.5 rounded-[12px] text-[11px] font-semibold transition ${activeTab === tab.id ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:bg-white/70"}`}
             >
               <Icon className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">{tab.label}</span>
@@ -525,15 +589,18 @@ function ProjectIntelligencePanel({
         })}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
         {activeTab === "design" ? (
           hasTokens && tokenDraft ? (
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-[14px] border border-slate-950/[0.08] bg-[#fbfbfc] px-3 py-3">
+            <div className="space-y-4">
+              <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-slate-950/[0.08] bg-white/95 px-4 py-3 shadow-[0_12px_36px_rgba(15,23,42,0.08)] backdrop-blur-xl">
                 <div className="min-w-0">
-                  <div className="text-sm font-semibold text-slate-950">Live token preview</div>
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
+                    <Eye className="h-4 w-4 text-[#667894]" />
+                    Live on canvas
+                  </div>
                   <div className="text-xs leading-5 text-slate-500">
-                    Token edits update the canvas preview immediately. Save persists the system.
+                    Token drafts update real screen iframes immediately. Save persists the system.
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -561,6 +628,8 @@ function ProjectIntelligencePanel({
                 submitLabel={tokenDirty ? "Save Tokens" : "Tokens Saved"}
                 isSubmitting={tokenSaving}
                 submitStatus="Saving live token system..."
+                layout="panel"
+                showPreview={false}
               />
             </div>
           ) : (
@@ -574,14 +643,21 @@ function ProjectIntelligencePanel({
           <div className="space-y-3">
             <MetadataField label="Original intent" value={charter?.originalPrompt ?? project.prompt} />
             <MetadataField label="Reference image analysis" value={charter?.imageReferenceSummary} />
+            <MetadataField label="Reference screens" value={formatReferenceScreens(charter?.referenceScreens)} />
+            <MetadataField label="Visual DNA" value={formatDesignSystemSignals(charter?.designSystemSignals)} />
             <MetadataField label="App type" value={charter?.appType} />
             <MetadataField label="Audience" value={charter?.targetAudience} />
             <MetadataField label="Navigation model" value={charter?.navigationModel} />
+            <MetadataField label="Navigation architecture" value={formatNavigationArchitecture(charter?.navigationArchitecture)} />
             <MetadataField label="Design rationale" value={charter?.designRationale} />
             <MetadataField label="Creative direction" value={charter?.creativeDirection ? `${charter.creativeDirection.conceptName}\n${charter.creativeDirection.styleEssence}` : null} />
+            <MetadataField label="Color story" value={charter?.creativeDirection?.colorStory} />
+            <MetadataField label="Typography mood" value={charter?.creativeDirection?.typographyMood} />
             <MetadataField label="Surface language" value={charter?.creativeDirection?.surfaceLanguage} />
+            <MetadataField label="Composition principles" value={charter?.creativeDirection?.compositionPrinciples?.join("\n")} />
             <MetadataField label="Signature moments" value={charter?.creativeDirection?.signatureMoments?.join("\n")} />
             <MetadataField label="Avoid" value={charter?.creativeDirection?.avoid?.join("\n")} />
+            <MetadataField label="Planning diagnostics" value={formatPlanningDiagnostics(charter?.planningDiagnostics)} />
           </div>
         ) : null}
 
