@@ -561,7 +561,7 @@ function ProjectIntelligencePanel({
   const hasTokens = Boolean(tokenDraft && hasApprovedDesignTokens(tokenDraft));
 
   return (
-    <aside className="fixed inset-0 z-[72] flex flex-col overflow-hidden border border-slate-950/[0.1] bg-white/98 shadow-[0_24px_90px_rgba(15,23,42,0.2)] backdrop-blur-xl sm:inset-y-3 sm:left-auto sm:right-3 sm:w-[min(760px,calc(100vw-1.5rem))] sm:rounded-[22px]">
+    <aside className="fixed inset-0 z-[72] flex flex-col overflow-hidden border border-slate-950/[0.1] bg-white/98 shadow-[0_24px_90px_rgba(15,23,42,0.2)] backdrop-blur-xl sm:inset-y-4 sm:left-auto sm:right-4 sm:w-[min(760px,calc(100vw-2rem))] sm:rounded-[22px]">
       <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-950/[0.08] px-5 py-4">
         <div className="min-w-0">
           <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#667894]">Project Intelligence</div>

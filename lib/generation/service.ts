@@ -812,6 +812,73 @@ const ensureBuilderGradeScreenBriefs = ({
     };
   });
 
+const coerceScreenPlanFromRawItem = (item: unknown): ScreenPlan | null => {
+  const parsed = ScreenPlanSchema.safeParse(item);
+  if (parsed.success) {
+    return {
+      name: parsed.data.name,
+      type: parsed.data.type,
+      description: parsed.data.description,
+      chromePolicy: parsed.data.chrome_policy
+        ? {
+            chrome: parsed.data.chrome_policy.chrome,
+            showPrimaryNavigation: parsed.data.chrome_policy.show_primary_navigation ?? false,
+            showsBackButton: parsed.data.chrome_policy.shows_back_button ?? false,
+          }
+        : null,
+    };
+  }
+
+  if (!isRecord(item)) {
+    return null;
+  }
+
+  const name = readTextField({
+    record: item,
+    keys: ["name", "title", "screenName", "screen_name"],
+    fallback: "",
+    maxLength: 100,
+  });
+  const description = readTextField({
+    record: item,
+    keys: ["description", "brief", "screenBrief", "screen_brief"],
+    fallback: "",
+    maxLength: 8000,
+  });
+
+  if (!name || !description) {
+    return null;
+  }
+
+  const rawType = typeof item.type === "string" ? item.type.toLowerCase() : "";
+  const rawChromePolicy = isRecord(item.chrome_policy)
+    ? item.chrome_policy
+    : isRecord(item.chromePolicy)
+      ? item.chromePolicy
+      : null;
+  const chromePolicy = rawChromePolicy
+    ? ScreenPlanSchema.shape.chrome_policy.safeParse({
+        chrome: rawChromePolicy.chrome,
+        show_primary_navigation: rawChromePolicy.show_primary_navigation ?? rawChromePolicy.showPrimaryNavigation,
+        shows_back_button: rawChromePolicy.shows_back_button ?? rawChromePolicy.showsBackButton,
+      })
+    : null;
+  const parsedChromePolicy = chromePolicy?.success ? chromePolicy.data : null;
+
+  return {
+    name,
+    type: rawType === "root" ? "root" : "detail",
+    description,
+    chromePolicy: parsedChromePolicy
+      ? {
+          chrome: parsedChromePolicy.chrome,
+          showPrimaryNavigation: parsedChromePolicy.show_primary_navigation ?? false,
+          showsBackButton: parsedChromePolicy.shows_back_button ?? false,
+        }
+      : null,
+  };
+};
+
 const parseJsonResponse = <T>(text: string): T => {
   const trimmed = text.trim();
   const cleaned = trimmed.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
@@ -853,26 +920,15 @@ const salvageScreensFromRawPlan = (rawPlan: unknown): {
   if (Array.isArray(raw.screens)) {
     const validScreens: ScreenPlan[] = [];
     for (const item of raw.screens) {
-      const parsed = ScreenPlanSchema.safeParse(item);
-      if (parsed.success) {
-        validScreens.push({
-          name: parsed.data.name,
-          type: parsed.data.type,
-          description: parsed.data.description,
-          chromePolicy: parsed.data.chrome_policy
-            ? {
-                chrome: parsed.data.chrome_policy.chrome,
-                showPrimaryNavigation: parsed.data.chrome_policy.show_primary_navigation ?? false,
-                showsBackButton: parsed.data.chrome_policy.shows_back_button ?? false,
-              }
-            : null,
-        });
+      const screenPlan = coerceScreenPlanFromRawItem(item);
+      if (screenPlan) {
+        validScreens.push(screenPlan);
       } else {
         console.warn(
           "[salvageScreensFromRawPlan] Skipping invalid screen",
           {
             screenName: isRecord(item) ? (item as Record<string, unknown>).name : "unknown",
-            issues: parsed.error.issues.map((i) => i.path.join(".") + ": " + i.message),
+            issues: ["Unable to recover a valid screen name and description from the planner item."],
           },
         );
       }
