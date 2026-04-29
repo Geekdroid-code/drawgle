@@ -13,7 +13,7 @@ import {
 import { applyEdits } from "@/lib/diff-engine";
 import { ensureDrawgleIds } from "@/lib/drawgle-dom";
 import { detectScreenHealth, validateStaticDrawgleHtml } from "@/lib/generation/screen-quality";
-import { findRepairTarget, replaceSourceRegion } from "@/lib/generation/screen-repair";
+import { findRepairTarget, replaceSourceRegion, type RepairTarget } from "@/lib/generation/screen-repair";
 import { sanitizeScreenCodeForSharedNavigation } from "@/lib/project-navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchProjectMessages, insertProjectMessage } from "@/lib/supabase/queries";
@@ -31,21 +31,65 @@ import type {
 type AdminClient = ReturnType<typeof createAdminClient>;
 type ProjectMessageInput = Parameters<typeof insertProjectMessage>[1];
 type ScreenHealthResult = ReturnType<typeof detectScreenHealth>;
+type EditTargetScope = "selected_element" | "screen_region" | "whole_screen" | "screen" | "navigation";
+type EditStrategy =
+  | "selected_element_region_replace"
+  | "screen_root_region_replace"
+  | "block_region_replace"
+  | "legacy_patch_then_region_replace"
+  | "navigation_replace";
 
 export type ModifyScreenPayload = {
   projectId: string;
   ownerId: string;
   prompt: string;
+  resolvedInstruction?: string | null;
   userMessageId: string;
   screenId?: string | null;
   selectedElementHtml?: string | null;
   selectedElementDrawgleId?: string | null;
   selectedElementTarget?: "screen" | "navigation" | null;
   requestTargetsNavigation?: boolean;
+  targetScope?: EditTargetScope | string | null;
+  editStrategy?: EditStrategy | string | null;
+  conversationContext?: Array<{ role: "user" | "model" | "system"; content: string; screenId?: string | null; metadata?: Record<string, unknown> | null }> | null;
+  recoveryContext?: Record<string, unknown> | null;
   routerDecision?: Record<string, unknown> | null;
 };
 
 const now = () => new Date().toISOString();
+
+const buildEditAgentState = ({
+  kind,
+  instruction,
+  scope,
+  screenId,
+  screenName,
+  selectedElementDrawgleId,
+  message,
+}: {
+  kind: "failed_edit_recovery" | "last_actionable_request";
+  instruction: string;
+  scope: "selected_element" | "screen_region" | "whole_screen" | "screen" | "navigation";
+  screenId?: string | null;
+  screenName?: string | null;
+  selectedElementDrawgleId?: string | null;
+  message?: string | null;
+}) => ({
+  kind,
+  instruction,
+  missingFields: kind === "failed_edit_recovery" ? ["edit_recovery"] : null,
+  targetCandidates: null,
+  lastKnownTarget: {
+    targetType: scope === "navigation" ? "navigation" : selectedElementDrawgleId ? "selected_element" : "screen",
+    scope: scope === "screen" ? "whole_screen" : scope,
+    screenId: screenId ?? null,
+    screenName: screenName ?? null,
+    selectedElementDrawgleId: selectedElementDrawgleId ?? null,
+  },
+  message: message ?? null,
+  expiresAt: new Date(Date.now() + 1000 * 60 * 20).toISOString(),
+});
 
 const isNavigationEditPrompt = (prompt: string) =>
   /\b(nav|navigation|tab bar|tabs|bottom bar|bottom nav|bottom navigation|floating dock|dock)\b/i.test(prompt);
@@ -57,7 +101,30 @@ const isScreenRepairPrompt = (prompt: string) =>
   /\b(repair|fix|complete|finish|continue|half[-\s]?built|broken|truncated|missing|incomplete|not complete|couldn'?t be completed)\b/i.test(prompt);
 
 const isScreenLevelEditPrompt = (prompt: string) =>
-  /\b(whole|entire|full)\s+(screen|page)|\b(redesign|rewrite|rebuild|replace)\s+(the\s+)?(screen|page)\b|\boverall\s+(layout|design)\b|\bapp background\b|\bscreen background\b|\boutside\s+(the\s+)?selected\b/i.test(prompt);
+  /\b(whole|entire|full)\s+(screen|page)|\b(redesign|rewrite|rebuild|replace)\s+(the\s+)?(screen|page)\b|\boverall\s+(layout|design)\b|\boutside\s+(the\s+)?selected\b/i.test(prompt);
+
+const isBackgroundRegionEditPrompt = (prompt: string) =>
+  /\b(bg|background|gradient|blob|glow|light effect|lighting|aura|ambient)\b/i.test(prompt);
+
+const isKnownEditStrategy = (value: unknown): value is EditStrategy =>
+  value === "selected_element_region_replace" ||
+  value === "screen_root_region_replace" ||
+  value === "block_region_replace" ||
+  value === "legacy_patch_then_region_replace" ||
+  value === "navigation_replace";
+
+const buildRootRepairTarget = (code: string, blockIndex: ScreenBlockIndex): RepairTarget => {
+  const rootBlock = blockIndex.blocks.find((block) => block.id === blockIndex.rootId);
+
+  return {
+    startOffset: rootBlock?.startOffset ?? 0,
+    endOffset: rootBlock?.endOffset ?? code.length,
+    snippet: code.slice(rootBlock?.startOffset ?? 0, rootBlock?.endOffset ?? code.length).trim(),
+    reason: "screen_root_region",
+    blockId: blockIndex.rootId,
+    drawgleId: null,
+  };
+};
 
 const buildScreenHealthError = (health: ScreenHealthResult) => {
   if (health.healthy) {
@@ -162,16 +229,19 @@ async function runEditScreenStream(input: Parameters<typeof editScreenStream>[0]
 
 export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
   const admin = createAdminClient();
-  const prompt = payload.prompt.trim();
+  const originalPrompt = payload.prompt.trim();
+  const prompt = payload.resolvedInstruction?.trim() || originalPrompt;
   const editActivityKey = `edit:${payload.userMessageId}`;
   const routerScope = typeof payload.routerDecision?.targetScope === "string"
     ? payload.routerDecision.targetScope
     : null;
+  const payloadTargetScope = typeof payload.targetScope === "string" ? payload.targetScope : null;
   const shouldUseSelectedElement = Boolean(payload.selectedElementDrawgleId || payload.selectedElementHtml) &&
-    (routerScope === "selected_element" || !isScreenLevelEditPrompt(prompt));
+    (payloadTargetScope === "selected_element" || routerScope === "selected_element" || !isScreenLevelEditPrompt(originalPrompt));
   const selectedElementHtml = shouldUseSelectedElement ? payload.selectedElementHtml?.trim() || null : null;
   const selectedElementDrawgleId = shouldUseSelectedElement ? payload.selectedElementDrawgleId?.trim() || null : null;
   const selectedElementTarget = payload.selectedElementTarget === "navigation" ? "navigation" : "screen";
+  const requestedEditStrategy = isKnownEditStrategy(payload.editStrategy) ? payload.editStrategy : null;
 
   const { data: project, error: projectError } = await admin
     .from("projects")
@@ -306,7 +376,20 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
         blockIndex,
       })
     : null;
-  const selectedSourceElementHtml = selectedSourceRegion?.snippet || selectedElementHtml;
+  const resolvedEditStrategy: EditStrategy = requestedEditStrategy ??
+    (selectedSourceRegion
+      ? "selected_element_region_replace"
+      : isBackgroundRegionEditPrompt(prompt) || payloadTargetScope === "screen_region" || payloadTargetScope === "whole_screen"
+        ? "screen_root_region_replace"
+        : "legacy_patch_then_region_replace");
+  const rootSourceRegion = resolvedEditStrategy === "screen_root_region_replace"
+    ? buildRootRepairTarget(screenCode, blockIndex)
+    : null;
+  const blockSourceRegion = resolvedEditStrategy === "block_region_replace"
+    ? findRepairTarget({ code: screenCode, blockIndex, prompt })
+    : null;
+  const regionReplacementTarget = selectedSourceRegion ?? rootSourceRegion ?? blockSourceRegion;
+  const selectedSourceElementHtml = regionReplacementTarget?.snippet || selectedElementHtml;
   const resolution = selectedSourceElementHtml
     ? { scope: "scoped" as const, targetBlockIds: [] }
     : detectTargetBlocks(prompt, blockIndex);
@@ -321,7 +404,9 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
         recentMessages: allMessages,
       });
   const targetNames = selectedSourceElementHtml
-    ? "selected element"
+    ? regionReplacementTarget?.reason === "screen_root_region"
+      ? "screen background"
+      : "selected element"
     : targetBlockIds.length > 0
       ? targetBlockIds.map((id) => blockIndex.blocks.find((block) => block.id === id)?.name ?? id).join(", ")
       : "full screen";
@@ -336,11 +421,11 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
   const normalizeScreenCodeForSave = (code: string) =>
     ensureDrawgleIds(tokenizeStaticDrawgleHtml(sanitizeScreenCodeForSharedNavigation(code, screenPlanForSave), designTokens).code).code;
   const health = detectScreenHealth({ code: screenCode, screenPrompt });
-  const selectedRegionStaticHealth = selectedSourceRegion
-    ? validateStaticDrawgleHtml({ code: selectedSourceRegion.snippet })
+  const selectedRegionStaticHealth = regionReplacementTarget
+    ? validateStaticDrawgleHtml({ code: regionReplacementTarget.snippet })
     : null;
 
-  if (selectedSourceRegion) {
+  if (regionReplacementTarget) {
     await upsertActivityMessage(admin, editActivityKey, {
       projectId: payload.projectId,
       ownerId: payload.ownerId,
@@ -350,15 +435,19 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
       messageType: "chat",
       metadata: {
         action: "source_region_replace_start",
+        editStrategy: resolvedEditStrategy,
         screenName: screen.name,
         userMessageId: payload.userMessageId,
         repairTarget: {
-          reason: selectedSourceRegion.reason,
-          blockId: selectedSourceRegion.blockId ?? null,
-          drawgleId: selectedSourceRegion.drawgleId ?? selectedElementDrawgleId ?? null,
+          reason: regionReplacementTarget.reason,
+          blockId: regionReplacementTarget.blockId ?? null,
+          drawgleId: regionReplacementTarget.drawgleId ?? selectedElementDrawgleId ?? null,
+          startOffset: regionReplacementTarget.startOffset,
+          endOffset: regionReplacementTarget.endOffset,
         },
         health,
         selectedRegionStaticHealth,
+        recoveryContext: payload.recoveryContext ?? null,
         editJob: { status: "editing", targetType: "screen", screenId: screen.id, drawgleId: selectedElementDrawgleId },
         routerDecision: payload.routerDecision ?? null,
       },
@@ -369,7 +458,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
       screenPrompt,
       userPrompt: prompt,
       currentCode: screenCode,
-      repairTarget: selectedSourceRegion,
+      repairTarget: regionReplacementTarget,
       designTokens,
       projectCharter,
       navigationArchitecture,
@@ -379,7 +468,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
       throw new Error("Selected-region edit returned an empty replacement.");
     }
 
-    const replacedCode = replaceSourceRegion(screenCode, selectedSourceRegion, replacement);
+    const replacedCode = replaceSourceRegion(screenCode, regionReplacementTarget, replacement);
     const nextCode = normalizeScreenCodeForSave(replacedCode);
     const nextHealth = detectScreenHealth({ code: nextCode, screenPrompt });
 
@@ -414,11 +503,30 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
       messageType: nextCode === screenCode ? "error" : nextHealth.healthy ? "edit_applied" : "chat",
       metadata: {
         action: nextCode === screenCode ? "source_region_replace_noop" : nextHealth.healthy ? "source_region_replace_applied" : "source_region_replace_partial",
+        editStrategy: resolvedEditStrategy,
         screenName: screen.name,
         userMessageId: payload.userMessageId,
         health,
         nextHealth,
         selectedRegionStaticHealth,
+        recoveryContext: nextCode === screenCode ? {
+          kind: "failed_edit_recovery",
+          instruction: prompt,
+          targetType: "screen",
+          targetScope: resolvedEditStrategy === "selected_element_region_replace" ? "selected_element" : "screen_region",
+          targetScreenId: screen.id,
+          selectedElementDrawgleId,
+          strategy: resolvedEditStrategy,
+        } : null,
+        agentState: buildEditAgentState({
+          kind: nextCode === screenCode ? "failed_edit_recovery" : "last_actionable_request",
+          instruction: prompt,
+          scope: resolvedEditStrategy === "selected_element_region_replace" ? "selected_element" : "screen_region",
+          screenId: screen.id,
+          screenName: screen.name,
+          selectedElementDrawgleId,
+          message: fullResponse,
+        }),
         editJob: { status: "completed", targetType: "screen", screenId: screen.id, drawgleId: selectedElementDrawgleId },
         routerDecision: payload.routerDecision ?? null,
       },
@@ -622,6 +730,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
     messageType: "chat",
     metadata: {
       action: "edit_start",
+      editStrategy: "legacy_patch_then_region_replace",
       targetBlockIds,
       screenName: screen.name,
       userMessageId: payload.userMessageId,
@@ -674,9 +783,42 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
     }
   }
 
-  if (!responseToApply.includes("<edit>") || nextCode === screenCode) {
+  let fallbackRegionTarget: RepairTarget | null = null;
+  let fallbackRegionAttempted = false;
+
+  if (nextCode === screenCode) {
+    fallbackRegionTarget = isBackgroundRegionEditPrompt(prompt)
+      ? buildRootRepairTarget(screenCode, blockIndex)
+      : findRepairTarget({
+          code: screenCode,
+          blockIndex,
+          prompt,
+        });
+
+    if (fallbackRegionTarget) {
+      fallbackRegionAttempted = true;
+      const replacement = await buildSourceRegionReplacementCode({
+        screenName: screen.name,
+        screenPrompt,
+        userPrompt: prompt,
+        currentCode: screenCode,
+        repairTarget: fallbackRegionTarget,
+        designTokens,
+        projectCharter,
+        navigationArchitecture,
+      });
+
+      if (replacement.trim()) {
+        const replacedCode = replaceSourceRegion(screenCode, fallbackRegionTarget, replacement);
+        nextCode = normalizeScreenCodeForSave(replacedCode);
+        responseToApply = `${responseToApply}\n\n<!-- fallback_region_replace:${fallbackRegionTarget.reason} -->`;
+      }
+    }
+  }
+
+  if (nextCode === screenCode || (!responseToApply.includes("<edit>") && !fallbackRegionAttempted)) {
     const noEditContent = responseToApply.includes("<edit>")
-      ? `I could not apply that edit to ${screen.name} because the returned patch did not match the saved screen source. Please reselect the exact area or try a smaller target.`
+      ? `I could not apply that edit to ${screen.name}. The patch did not match the saved source, and ${fallbackRegionAttempted ? "the region replacement fallback also produced no material change" : "no safe region replacement target was found"}.`
       : responseToApply.trim() || `No material code changes were applied to ${screen.name}.`;
     const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
       projectId: payload.projectId,
@@ -687,9 +829,35 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
       messageType: "chat",
       metadata: {
         action: "edit_noop",
+        editStrategy: "legacy_patch_then_region_replace",
+        fallbackRegionAttempted,
+        fallbackRegionTarget: fallbackRegionTarget ? {
+          reason: fallbackRegionTarget.reason,
+          blockId: fallbackRegionTarget.blockId ?? null,
+          drawgleId: fallbackRegionTarget.drawgleId ?? null,
+          startOffset: fallbackRegionTarget.startOffset,
+          endOffset: fallbackRegionTarget.endOffset,
+        } : null,
         screenName: screen.name,
         userMessageId: payload.userMessageId,
         modelOutputHidden: responseToApply.includes("<edit>"),
+        recoveryContext: {
+          kind: "failed_edit_recovery",
+          instruction: prompt,
+          targetType: "screen",
+          targetScope: fallbackRegionTarget?.reason === "screen_root_region" ? "screen_region" : "screen",
+          targetScreenId: screen.id,
+          strategy: "legacy_patch_then_region_replace",
+        },
+        agentState: buildEditAgentState({
+          kind: "failed_edit_recovery",
+          instruction: prompt,
+          scope: fallbackRegionTarget?.reason === "screen_root_region" ? "screen_region" : "screen",
+          screenId: screen.id,
+          screenName: screen.name,
+          selectedElementDrawgleId: null,
+          message: noEditContent,
+        }),
         editJob: { status: "completed", targetType: "screen", screenId: screen.id },
         routerDecision: payload.routerDecision ?? null,
       },
@@ -727,10 +895,28 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
     messageType: nextHealth.healthy ? "edit_applied" : "error",
     metadata: {
       action: nextHealth.healthy ? "edit_applied" : "edit_applied_with_source_health_failure",
+      editStrategy: fallbackRegionAttempted ? "legacy_patch_then_region_replace" : "legacy_patch",
+      fallbackRegionAttempted,
+      fallbackRegionTarget: fallbackRegionTarget ? {
+        reason: fallbackRegionTarget.reason,
+        blockId: fallbackRegionTarget.blockId ?? null,
+        drawgleId: fallbackRegionTarget.drawgleId ?? null,
+        startOffset: fallbackRegionTarget.startOffset,
+        endOffset: fallbackRegionTarget.endOffset,
+      } : null,
       screenName: screen.name,
       userMessageId: payload.userMessageId,
       nextHealth,
       modelOutputHidden: responseToApply.includes("<edit>"),
+      agentState: buildEditAgentState({
+        kind: "last_actionable_request",
+        instruction: prompt,
+        scope: fallbackRegionTarget?.reason === "screen_root_region" ? "screen_region" : "screen",
+        screenId: screen.id,
+        screenName: screen.name,
+        selectedElementDrawgleId: null,
+        message: visibleEditContent,
+      }),
       editJob: { status: "completed", targetType: "screen", screenId: screen.id },
       routerDecision: payload.routerDecision ?? null,
     },

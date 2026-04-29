@@ -5,6 +5,33 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 const now = () => new Date().toISOString();
 
+const buildFailedEditAgentState = (payload: ModifyScreenPayload, message: string) => {
+  const targetType = payload.selectedElementTarget === "navigation" || payload.requestTargetsNavigation
+    ? "navigation"
+    : payload.selectedElementDrawgleId
+      ? "selected_element"
+      : "screen";
+  const scope = payload.selectedElementTarget === "navigation" || payload.requestTargetsNavigation
+    ? "navigation"
+    : payload.targetScope ?? null;
+
+  return {
+    kind: "failed_edit_recovery",
+    instruction: payload.resolvedInstruction ?? payload.prompt,
+    missingFields: ["edit_recovery"],
+    targetCandidates: null,
+    lastKnownTarget: {
+      targetType,
+      scope,
+      screenId: payload.screenId ?? null,
+      screenName: null,
+      selectedElementDrawgleId: payload.selectedElementDrawgleId ?? null,
+    },
+    message,
+    expiresAt: new Date(Date.now() + 1000 * 60 * 20).toISOString(),
+  };
+};
+
 async function markEditFailed(payload: ModifyScreenPayload, message: string) {
   const admin = createAdminClient();
   const activityKey = `edit:${payload.userMessageId}`;
@@ -42,6 +69,9 @@ async function markEditFailed(payload: ModifyScreenPayload, message: string) {
             screenId: payload.screenId ?? null,
             drawgleId: payload.selectedElementDrawgleId ?? null,
           },
+          editStrategy: payload.editStrategy ?? null,
+          recoveryContext: payload.recoveryContext ?? null,
+          agentState: buildFailedEditAgentState(payload, message),
           error: message,
         } as never,
       })
@@ -65,6 +95,9 @@ async function markEditFailed(payload: ModifyScreenPayload, message: string) {
         screenId: payload.screenId ?? null,
         drawgleId: payload.selectedElementDrawgleId ?? null,
       },
+      editStrategy: payload.editStrategy ?? null,
+      recoveryContext: payload.recoveryContext ?? null,
+      agentState: buildFailedEditAgentState(payload, message),
       createdAt: now(),
       error: message,
     } as never,
@@ -103,4 +136,3 @@ export const modifyScreenTask = task({
     return executeModifyScreenTask(payload);
   },
 });
-

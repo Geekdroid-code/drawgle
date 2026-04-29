@@ -4,13 +4,27 @@ import { tasks } from "@trigger.dev/sdk";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { routeAgentPrompt } from "@/lib/agent/router";
+import {
+  routeAgentPrompt,
+  type AgentRouterDecision,
+  type AgentScope,
+  type AgentTargetType,
+  type AgentTurnState,
+} from "@/lib/agent/router";
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { persistProjectMessageMemory, persistProjectMessageMemoryPair } from "@/lib/generation/message-memory";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { insertProjectMessage } from "@/lib/supabase/queries";
-import { ACTIVE_GENERATION_STATUSES, type DesignTokens, type GenerationStatus, type NavigationPlan, type ProjectCharter, type PromptImagePayload } from "@/lib/types";
+import { fetchProjectMessages, insertProjectMessage } from "@/lib/supabase/queries";
+import {
+  ACTIVE_GENERATION_STATUSES,
+  type DesignTokens,
+  type GenerationStatus,
+  type NavigationPlan,
+  type ProjectCharter,
+  type ProjectMessage,
+  type PromptImagePayload,
+} from "@/lib/types";
 import type { generateUiFlowTask } from "@/trigger/generate-ui-flow";
 import type { modifyScreenTask } from "@/trigger/modify-screen";
 
@@ -46,6 +60,11 @@ const requestSchema = z.object({
 const now = () => new Date().toISOString();
 const providerLeakPattern = /\b(gemini|google|openai|gpt|anthropic|claude|model provider|large language model|llm|system prompt|tool call|router)\b/i;
 const identityQuestionPattern = /\b(who are you|what are you|which model|what model|are you gemini|are you gpt|powered by|who built you)\b/i;
+const LOW_CONFIDENCE_CONFLICT_THRESHOLD = 0.74;
+
+type AgentState = AgentTurnState;
+type AgentStateTarget = NonNullable<AgentTurnState["lastKnownTarget"]>;
+type AgentStateCandidate = NonNullable<AgentTurnState["targetCandidates"]>[number];
 
 const whiteLabelAgentMessage = (prompt: string, message?: string | null) => {
   const fallback = "I am Drawgle AI, your mobile app design assistant. I can help you create new screens, edit existing designs, and refine UI details on this canvas.";
@@ -56,6 +75,221 @@ const whiteLabelAgentMessage = (prompt: string, message?: string | null) => {
   }
 
   return cleanMessage;
+};
+
+const metadataRecord = (value: unknown) =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+
+const stringOrNull = (value: unknown) => typeof value === "string" && value.trim() ? value.trim() : null;
+
+const stringArrayOrNull = (value: unknown) =>
+  Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : null;
+
+const parseTargetType = (value: unknown): AgentTargetType | null => {
+  if (value === "none" || value === "screen" || value === "selected_element" || value === "navigation" || value === "project") {
+    return value;
+  }
+
+  return null;
+};
+
+const parseScope = (value: unknown): AgentScope | null => {
+  if (value === "none" || value === "selected_element" || value === "screen_region" || value === "whole_screen" || value === "navigation" || value === "new_screen") {
+    return value;
+  }
+
+  if (value === "screen") {
+    return "whole_screen";
+  }
+
+  return null;
+};
+
+const readLastKnownTarget = (value: unknown): AgentStateTarget | null => {
+  const record = metadataRecord(value);
+  const targetType = parseTargetType(record.targetType);
+  const scope = parseScope(record.scope ?? record.targetScope);
+
+  if (!targetType && !scope && !record.screenId && !record.selectedElementDrawgleId) {
+    return null;
+  }
+
+  return {
+    targetType,
+    scope,
+    screenId: stringOrNull(record.screenId ?? record.targetScreenId),
+    screenName: stringOrNull(record.screenName),
+    selectedElementDrawgleId: stringOrNull(record.selectedElementDrawgleId),
+  };
+};
+
+const readTargetCandidates = (value: unknown): AgentStateCandidate[] | null => {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  return value
+    .map((item) => {
+      const record = metadataRecord(item);
+      const targetType = parseTargetType(record.targetType);
+      const candidate: AgentStateCandidate = {
+        targetType,
+        screenId: stringOrNull(record.screenId ?? record.targetScreenId),
+        screenName: stringOrNull(record.screenName),
+        selectedElementDrawgleId: stringOrNull(record.selectedElementDrawgleId),
+        label: stringOrNull(record.label),
+      };
+      return candidate.targetType || candidate.screenId || candidate.selectedElementDrawgleId || candidate.label ? candidate : null;
+    })
+    .filter((item): item is AgentStateCandidate => Boolean(item));
+};
+
+const readAgentState = (metadata: unknown): AgentState | null => {
+  const state = metadataRecord(metadata).agentState;
+  if (!state || typeof state !== "object" || Array.isArray(state)) {
+    return null;
+  }
+
+  const record = state as Record<string, unknown>;
+  const kind = typeof record.kind === "string" ? record.kind : null;
+  if (kind !== "pending_clarification" && kind !== "failed_edit_recovery" && kind !== "last_actionable_request") {
+    return null;
+  }
+
+  const expiresAt = stringOrNull(record.expiresAt);
+  if (expiresAt && new Date(expiresAt).getTime() < Date.now()) {
+    return null;
+  }
+
+  const explicitTarget = readLastKnownTarget(record.lastKnownTarget);
+  const legacyTargetType: AgentTargetType | null = record.targetType === "navigation"
+    ? "navigation"
+    : record.selectedElementDrawgleId
+      ? "selected_element"
+      : record.targetType === "screen"
+        ? "screen"
+        : null;
+  const legacyScope = parseScope(record.scope ?? record.targetScope);
+  const legacyTarget: AgentStateTarget | null = legacyTargetType || legacyScope || record.targetScreenId || record.selectedElementDrawgleId
+    ? {
+        targetType: legacyTargetType,
+        scope: legacyScope,
+        screenId: stringOrNull(record.targetScreenId),
+        screenName: stringOrNull(record.screenName),
+        selectedElementDrawgleId: stringOrNull(record.selectedElementDrawgleId),
+      }
+    : null;
+
+  return {
+    kind,
+    instruction: stringOrNull(record.instruction),
+    missingFields: stringArrayOrNull(record.missingFields),
+    targetCandidates: readTargetCandidates(record.targetCandidates),
+    lastKnownTarget: explicitTarget ?? legacyTarget,
+    message: stringOrNull(record.message),
+    expiresAt,
+  };
+};
+
+const latestUsableAgentState = (messages: ProjectMessage[]) => {
+  for (const message of [...messages].reverse()) {
+    const state = readAgentState(message.metadata);
+    if (state) {
+      return state;
+    }
+  }
+
+  return null;
+};
+
+const makeAgentState = ({
+  kind,
+  instruction,
+  missingFields,
+  targetCandidates,
+  lastKnownTarget,
+  message,
+}: {
+  kind: AgentState["kind"];
+  instruction?: string | null;
+  missingFields?: string[] | null;
+  targetCandidates?: AgentStateCandidate[] | null;
+  lastKnownTarget?: AgentStateTarget | null;
+  message?: string | null;
+}) => ({
+  kind,
+  instruction: instruction ?? null,
+  missingFields: missingFields ?? null,
+  targetCandidates: targetCandidates ?? null,
+  lastKnownTarget: lastKnownTarget ?? null,
+  message: message ?? null,
+  expiresAt: new Date(Date.now() + 1000 * 60 * 20).toISOString(),
+});
+
+const compatibilityToolName = (action: AgentRouterDecision["action"]) =>
+  action === "modify_ui" ? "modify_screen" : action;
+
+const makeRouterMetadata = (decision: AgentRouterDecision) => ({
+  agentRouter: {
+    action: decision.action,
+    tool: compatibilityToolName(decision.action),
+    confidence: decision.confidence,
+    reason: decision.reason,
+    targetScreenId: decision.targetScreenId ?? null,
+    targetType: decision.targetType,
+    targetScope: decision.scope,
+    scope: decision.scope,
+    selectedElementDrawgleId: decision.selectedElementDrawgleId ?? null,
+  },
+});
+
+const buildScreenTargetCandidates = (
+  screens: Array<{ id: string; name: string }>,
+  selectedScreenId: string | null,
+  selectedElementDrawgleId?: string | null,
+): AgentStateCandidate[] => {
+  const candidates: AgentStateCandidate[] = [];
+
+  if (selectedElementDrawgleId) {
+    candidates.push({
+      targetType: "selected_element",
+      screenId: selectedScreenId,
+      selectedElementDrawgleId,
+      label: "Selected element",
+    });
+  }
+
+  for (const screen of screens) {
+    candidates.push({
+      targetType: "screen",
+      screenId: screen.id,
+      screenName: screen.name,
+      label: screen.name,
+    });
+  }
+
+  return candidates;
+};
+
+const buildDecisionTarget = (
+  decision: AgentRouterDecision,
+  screenName?: string | null,
+): AgentStateTarget | null => {
+  if (decision.targetType === "none" && decision.scope === "none" && !decision.targetScreenId && !decision.selectedElementDrawgleId) {
+    return null;
+  }
+
+  return {
+    targetType: decision.targetType,
+    scope: decision.scope,
+    screenId: decision.targetScreenId ?? null,
+    screenName: screenName ?? null,
+    selectedElementDrawgleId: decision.selectedElementDrawgleId ?? null,
+  };
 };
 
 async function findActiveGenerationRun(admin: ReturnType<typeof createAdminClient>, projectId: string) {
@@ -131,7 +365,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Project not found." }, { status: 404 });
     }
 
-    const [{ data: screens, error: screensError }, { data: projectNavigation }, activeGeneration] = await Promise.all([
+    const [{ data: screens, error: screensError }, { data: projectNavigation }, activeGeneration, projectMessages] = await Promise.all([
       admin
         .from("screens")
         .select("id, name, status, summary, chrome_policy, navigation_item_id")
@@ -143,6 +377,7 @@ export async function POST(request: Request) {
         .eq("project_id", payload.projectId)
         .maybeSingle(),
       findActiveGenerationRun(admin, payload.projectId),
+      fetchProjectMessages(admin, payload.projectId, 24),
     ]);
 
     if (screensError) {
@@ -167,6 +402,13 @@ export async function POST(request: Request) {
     });
     const selectedScreenId = payload.selectedScreenId ?? payload.focusedScreenId ?? null;
     const navigationPlan = (projectNavigation?.plan as NavigationPlan | null) ?? null;
+    const recentMessages = projectMessages.slice(-12).map((message) => ({
+      role: message.role,
+      content: message.content,
+      screenId: message.screenId,
+      metadata: message.metadata,
+    }));
+    const agentState = latestUsableAgentState(projectMessages);
     const routerDecision = await routeAgentPrompt({
       prompt,
       hasImage: Boolean(payload.image),
@@ -185,21 +427,102 @@ export async function POST(request: Request) {
           }
         : null,
       activeGeneration: activeGeneration ? { id: activeGeneration.id, status: activeGeneration.status } : null,
+      recentMessages,
+      agentState,
     });
+    const routerMetadata = makeRouterMetadata(routerDecision);
 
-    const routerMetadata = {
-      agentRouter: {
-        tool: routerDecision.tool,
-        confidence: routerDecision.confidence,
-        reason: routerDecision.reason,
-        targetScreenId: routerDecision.targetScreenId ?? null,
-        targetType: routerDecision.targetType ?? null,
-        targetScope: routerDecision.targetScope ?? null,
-      },
+    const saveClarification = async ({
+      message,
+      instruction,
+      missingFields,
+      lastKnownTarget,
+      status = 200,
+      metadata,
+    }: {
+      message: string;
+      instruction: string;
+      missingFields: string[];
+      lastKnownTarget?: AgentStateTarget | null;
+      status?: number;
+      metadata?: Record<string, unknown>;
+    }) => {
+      const agentStateMetadata = makeAgentState({
+        kind: "pending_clarification",
+        instruction,
+        missingFields,
+        targetCandidates: buildScreenTargetCandidates(screenContext, selectedScreenId, payload.selectedElementDrawgleId),
+        lastKnownTarget: lastKnownTarget ?? buildDecisionTarget(routerDecision),
+        message,
+      });
+      const messageMetadata = {
+        ...routerMetadata,
+        ...metadata,
+        agentState: agentStateMetadata,
+      };
+
+      const userMessage = await insertProjectMessage(admin, {
+        projectId: payload.projectId,
+        ownerId: user.id,
+        screenId: null,
+        role: "user",
+        content: prompt || "[image]",
+        messageType: "chat",
+        metadata: messageMetadata,
+      });
+
+      const modelMessage = await insertProjectMessage(admin, {
+        projectId: payload.projectId,
+        ownerId: user.id,
+        screenId: null,
+        role: "model",
+        content: message,
+        messageType: "chat",
+        metadata: messageMetadata,
+      });
+
+      await persistProjectMessageMemoryPair({
+        admin,
+        userMessageId: userMessage.id,
+        userContent: prompt || "[image]",
+        modelMessageId: modelMessage.id,
+        modelContent: message,
+      }).catch((error) => {
+        console.error("Failed to persist clarification memory", error);
+      });
+
+      return NextResponse.json({
+        intent: "chat_response",
+        message,
+        routerDecision,
+      }, { status });
     };
 
-    if (routerDecision.tool === "chat_response") {
-      const message = whiteLabelAgentMessage(prompt, routerDecision.message);
+    if (routerDecision.action === "ask_clarification") {
+      const retainedInstruction = routerDecision.instruction?.trim() || agentState?.instruction || prompt;
+      const message = whiteLabelAgentMessage(
+        prompt,
+        routerDecision.clarificationQuestion?.trim() ||
+          routerDecision.responseMessage?.trim() ||
+          "I can make that change. Which screen or element should I update?",
+      );
+
+      return saveClarification({
+        message,
+        instruction: retainedInstruction,
+        missingFields: ["target"],
+        lastKnownTarget: buildDecisionTarget(routerDecision),
+        metadata: {
+          serverReconciliation: {
+            finalAction: "ask_clarification",
+            reason: "router_requested_clarification",
+          },
+        },
+      });
+    }
+
+    if (routerDecision.action === "chat_response") {
+      const message = whiteLabelAgentMessage(prompt, routerDecision.responseMessage || routerDecision.clarificationQuestion);
 
       const userMessage = await insertProjectMessage(admin, {
         projectId: payload.projectId,
@@ -238,7 +561,7 @@ export async function POST(request: Request) {
       });
     }
 
-    if (routerDecision.tool === "create_new_screen") {
+    if (routerDecision.action === "create_new_screen") {
       if (activeGeneration) {
         const message = "A screen generation is already running. Let that finish, then ask me for the next screen.";
 
@@ -286,6 +609,7 @@ export async function POST(request: Request) {
         ownerId: user.id,
         image: payload.image ?? null,
       });
+      const generationPrompt = routerDecision.instruction?.trim() || prompt;
 
       await admin
         .from("projects")
@@ -300,7 +624,7 @@ export async function POST(request: Request) {
         .insert({
           project_id: payload.projectId,
           owner_id: user.id,
-          prompt: routerDecision.instruction?.trim() || prompt,
+          prompt: generationPrompt,
           image_path: imagePath,
           status: "queued",
           metadata: {
@@ -324,7 +648,7 @@ export async function POST(request: Request) {
           generationRunId: generationRun.id,
           projectId: payload.projectId,
           ownerId: user.id,
-          prompt: routerDecision.instruction?.trim() || prompt,
+          prompt: generationPrompt,
           imagePath,
           designTokens,
           plannedScreens: null,
@@ -358,6 +682,10 @@ export async function POST(request: Request) {
         metadata: {
           ...routerMetadata,
           generationRunId: generationRun.id,
+          serverReconciliation: {
+            finalAction: "create_new_screen",
+            finalScope: "new_screen",
+          },
         },
       });
 
@@ -381,71 +709,244 @@ export async function POST(request: Request) {
       );
     }
 
-    const targetType = payload.selectedElementTarget === "navigation"
-      ? "navigation"
-      : routerDecision.targetType ?? payload.selectedElementTarget ?? "screen";
-    const targetScope = routerDecision.targetScope ?? (targetType === "navigation" ? "navigation" : "screen");
-    const requestTargetsNavigation = targetType === "navigation" || targetScope === "navigation";
+    const resolvedInstruction = routerDecision.instruction?.trim() || agentState?.instruction || prompt;
+    const selectedElementRequested = routerDecision.targetType === "selected_element" || routerDecision.scope === "selected_element";
+    const requestTargetsNavigation =
+      routerDecision.targetType === "navigation" ||
+      routerDecision.scope === "navigation" ||
+      (payload.selectedElementTarget === "navigation" && selectedElementRequested);
+
+    if (routerDecision.targetType === "project") {
+      const message = whiteLabelAgentMessage(
+        prompt,
+        "That sounds like a project-wide change. In this version, choose a specific screen or use the Design System tokens for global visual changes.",
+      );
+
+      return saveClarification({
+        message,
+        instruction: resolvedInstruction,
+        missingFields: ["supported_scope"],
+        lastKnownTarget: buildDecisionTarget(routerDecision),
+        metadata: {
+          serverReconciliation: {
+            finalAction: "ask_clarification",
+            reason: "project_scope_not_supported",
+          },
+        },
+      });
+    }
+
+    if (routerDecision.scope === "new_screen") {
+      const message = whiteLabelAgentMessage(
+        prompt,
+        "Do you want me to create this as a new screen, or modify one of the existing screens?",
+      );
+
+      return saveClarification({
+        message,
+        instruction: resolvedInstruction,
+        missingFields: ["action"],
+        lastKnownTarget: buildDecisionTarget(routerDecision),
+        metadata: {
+          serverReconciliation: {
+            finalAction: "ask_clarification",
+            reason: "modify_action_with_new_screen_scope",
+          },
+        },
+      });
+    }
+
+    if (routerDecision.targetType === "none" && routerDecision.scope === "none") {
+      const message = whiteLabelAgentMessage(
+        prompt,
+        routerDecision.clarificationQuestion ||
+          "I can help, but I need to know whether you want to edit a selected element, a screen, or the navigation.",
+      );
+
+      return saveClarification({
+        message,
+        instruction: resolvedInstruction,
+        missingFields: ["target", "scope"],
+        lastKnownTarget: buildDecisionTarget(routerDecision),
+        metadata: {
+          serverReconciliation: {
+            finalAction: "ask_clarification",
+            reason: "modify_action_missing_target_and_scope",
+          },
+        },
+      });
+    }
+
+    if (selectedElementRequested && !payload.selectedElementDrawgleId) {
+      const message = whiteLabelAgentMessage(
+        prompt,
+        routerDecision.clarificationQuestion || "I can make that selected-element change, but no element is currently selected. Which element should I update?",
+      );
+
+      return saveClarification({
+        message,
+        instruction: resolvedInstruction,
+        missingFields: ["selected_element"],
+        lastKnownTarget: buildDecisionTarget(routerDecision),
+        metadata: {
+          serverReconciliation: {
+            finalAction: "ask_clarification",
+            reason: "selected_element_missing",
+          },
+        },
+      });
+    }
+
+    if (
+      selectedElementRequested &&
+      routerDecision.selectedElementDrawgleId &&
+      payload.selectedElementDrawgleId &&
+      routerDecision.selectedElementDrawgleId !== payload.selectedElementDrawgleId
+    ) {
+      const message = whiteLabelAgentMessage(
+        prompt,
+        "I see a selected element, but the target is not clear. Please reselect the exact element you want me to change.",
+      );
+
+      return saveClarification({
+        message,
+        instruction: resolvedInstruction,
+        missingFields: ["selected_element"],
+        lastKnownTarget: buildDecisionTarget(routerDecision),
+        metadata: {
+          serverReconciliation: {
+            finalAction: "ask_clarification",
+            reason: "selected_element_id_conflict",
+            selectedElementDrawgleId: payload.selectedElementDrawgleId,
+            routerSelectedElementDrawgleId: routerDecision.selectedElementDrawgleId,
+          },
+        },
+      });
+    }
+
+    if (
+      payload.selectedElementDrawgleId &&
+      routerDecision.scope === "whole_screen" &&
+      routerDecision.confidence < LOW_CONFIDENCE_CONFLICT_THRESHOLD
+    ) {
+      const message = whiteLabelAgentMessage(
+        prompt,
+        "Do you mean the selected element, or the whole screen?",
+      );
+
+      return saveClarification({
+        message,
+        instruction: resolvedInstruction,
+        missingFields: ["target_scope"],
+        lastKnownTarget: buildDecisionTarget(routerDecision),
+        metadata: {
+          serverReconciliation: {
+            finalAction: "ask_clarification",
+            reason: "low_confidence_selected_element_vs_whole_screen",
+          },
+        },
+      });
+    }
+
+    const routerScreenId = routerDecision.targetScreenId ?? null;
+    const routerScreenExists = routerScreenId
+      ? screenContext.some((screen) => screen.id === routerScreenId)
+      : false;
+
+    if (routerScreenId && !routerScreenExists) {
+      const message = whiteLabelAgentMessage(
+        prompt,
+        "I could not find that screen in this project. Which screen should I update?",
+      );
+
+      return saveClarification({
+        message,
+        instruction: resolvedInstruction,
+        missingFields: ["screen"],
+        lastKnownTarget: buildDecisionTarget(routerDecision),
+        metadata: {
+          serverReconciliation: {
+            finalAction: "ask_clarification",
+            reason: "target_screen_id_not_found",
+            targetScreenId: routerScreenId,
+          },
+        },
+      });
+    }
+
+    const stateScreenId = agentState?.lastKnownTarget?.screenId && screenContext.some((screen) => screen.id === agentState.lastKnownTarget?.screenId)
+      ? agentState.lastKnownTarget.screenId
+      : null;
     const targetScreenId = requestTargetsNavigation
       ? null
-      : routerDecision.targetScreenId && screenContext.some((screen) => screen.id === routerDecision.targetScreenId)
-        ? routerDecision.targetScreenId
-        : selectedScreenId;
-    const originalPromptExplicitlyTargetsWholeScreen =
-      /\b(whole|entire|full)\s+(screen|page)|\b(redesign|rewrite|rebuild|replace)\s+(the\s+)?(screen|page)\b|\boverall\s+(layout|design)\b|\bapp background\b|\bscreen background\b|\boutside\s+(the\s+)?selected\b/i.test(prompt);
-    const shouldUseSelectedElement =
-      !requestTargetsNavigation &&
-      Boolean(payload.selectedElementDrawgleId) &&
-      (targetScope === "selected_element" || !originalPromptExplicitlyTargetsWholeScreen);
+      : routerScreenId || selectedScreenId || stateScreenId;
+    const targetScreen = targetScreenId ? screenContext.find((screen) => screen.id === targetScreenId) : null;
+
+    if (!requestTargetsNavigation && !targetScreenId) {
+      const message = whiteLabelAgentMessage(
+        prompt,
+        routerDecision.clarificationQuestion ||
+          `I can make that change: "${resolvedInstruction.slice(0, 160)}". Which screen should I update?`,
+      );
+
+      return saveClarification({
+        message,
+        instruction: resolvedInstruction,
+        missingFields: ["screen"],
+        lastKnownTarget: buildDecisionTarget(routerDecision),
+        metadata: {
+          serverReconciliation: {
+            finalAction: "ask_clarification",
+            reason: "screen_target_missing",
+          },
+        },
+      });
+    }
+
+    const resolvedScope: AgentScope = requestTargetsNavigation
+      ? "navigation"
+      : selectedElementRequested
+        ? "selected_element"
+        : routerDecision.scope === "screen_region" || routerDecision.scope === "whole_screen"
+          ? routerDecision.scope
+          : "screen_region";
+    const shouldUseSelectedElement = resolvedScope === "selected_element";
+    const editStrategy = requestTargetsNavigation
+      ? "navigation_replace"
+      : shouldUseSelectedElement
+        ? "selected_element_region_replace"
+        : resolvedScope === "screen_region" || resolvedScope === "whole_screen"
+          ? "screen_root_region_replace"
+          : "legacy_patch_then_region_replace";
     const executionRouterMetadata = {
       agentRouter: {
         ...routerMetadata.agentRouter,
         targetScreenId,
-        targetType: requestTargetsNavigation ? "navigation" : "screen",
-        targetScope: requestTargetsNavigation ? "navigation" : shouldUseSelectedElement ? "selected_element" : "screen",
+        targetType: requestTargetsNavigation ? "navigation" : shouldUseSelectedElement ? "selected_element" : "screen",
+        targetScope: resolvedScope,
+        scope: resolvedScope,
+        selectedElementDrawgleId: shouldUseSelectedElement ? payload.selectedElementDrawgleId ?? null : null,
       },
+      serverReconciliation: {
+        finalAction: "modify_ui",
+        finalTargetType: requestTargetsNavigation ? "navigation" : shouldUseSelectedElement ? "selected_element" : "screen",
+        finalScope: resolvedScope,
+        selectedScreenId,
+        focusedScreenId: payload.focusedScreenId ?? null,
+        targetScreenId,
+        selectedElementDrawgleId: shouldUseSelectedElement ? payload.selectedElementDrawgleId ?? null : null,
+        filledTargetScreenFromSelection: !routerScreenId && Boolean(selectedScreenId && targetScreenId === selectedScreenId),
+        filledTargetScreenFromAgentState: !routerScreenId && !selectedScreenId && Boolean(stateScreenId && targetScreenId === stateScreenId),
+      },
+      editStrategy,
     };
     const executionRouterDecision = {
       ...routerDecision,
       targetScreenId,
       targetType: executionRouterMetadata.agentRouter.targetType,
-      targetScope: executionRouterMetadata.agentRouter.targetScope,
+      scope: resolvedScope,
+      selectedElementDrawgleId: executionRouterMetadata.agentRouter.selectedElementDrawgleId,
     };
-
-    if (!requestTargetsNavigation && !targetScreenId) {
-      const message = routerDecision.message?.trim() || "Which screen should I modify? Select a screen or mention its name, then tell me the change.";
-
-      const userMessage = await insertProjectMessage(admin, {
-        projectId: payload.projectId,
-        ownerId: user.id,
-        screenId: null,
-        role: "user",
-        content: prompt || "[image]",
-        messageType: "chat",
-        metadata: routerMetadata,
-      });
-      const modelMessage = await insertProjectMessage(admin, {
-        projectId: payload.projectId,
-        ownerId: user.id,
-        screenId: null,
-        role: "model",
-        content: message,
-        messageType: "chat",
-        metadata: routerMetadata,
-      });
-
-      await persistProjectMessageMemoryPair({
-        admin,
-        userMessageId: userMessage.id,
-        userContent: prompt || "[image]",
-        modelMessageId: modelMessage.id,
-        modelContent: message,
-      }).catch((error) => {
-        console.error("Failed to persist clarification memory", error);
-      });
-
-      return NextResponse.json({ intent: "chat_response", message, routerDecision });
-    }
 
     const userMessage = await insertProjectMessage(admin, {
       projectId: payload.projectId,
@@ -457,7 +958,13 @@ export async function POST(request: Request) {
       metadata: executionRouterMetadata,
     });
     const activityKey = `edit:${userMessage.id}`;
-    const targetScreen = targetScreenId ? screenContext.find((screen) => screen.id === targetScreenId) : null;
+    const lastKnownTarget: AgentStateTarget = {
+      targetType: executionRouterMetadata.agentRouter.targetType as AgentTargetType,
+      scope: resolvedScope,
+      screenId: targetScreenId,
+      screenName: targetScreen?.name ?? null,
+      selectedElementDrawgleId: shouldUseSelectedElement ? payload.selectedElementDrawgleId ?? null : null,
+    };
     const queuedMessage = await insertProjectMessage(admin, {
       projectId: payload.projectId,
       ownerId: user.id,
@@ -479,6 +986,14 @@ export async function POST(request: Request) {
           screenId: targetScreenId,
           drawgleId: shouldUseSelectedElement ? payload.selectedElementDrawgleId ?? null : null,
         },
+        agentState: makeAgentState({
+          kind: "last_actionable_request",
+          instruction: resolvedInstruction,
+          missingFields: null,
+          targetCandidates: null,
+          lastKnownTarget,
+          message: null,
+        }),
       },
     });
 
@@ -488,12 +1003,17 @@ export async function POST(request: Request) {
         projectId: payload.projectId,
         ownerId: user.id,
         prompt,
+        resolvedInstruction,
         userMessageId: userMessage.id,
         screenId: targetScreenId,
         selectedElementHtml: shouldUseSelectedElement ? payload.selectedElementHtml ?? null : null,
         selectedElementDrawgleId: shouldUseSelectedElement ? payload.selectedElementDrawgleId ?? null : null,
         selectedElementTarget: requestTargetsNavigation ? "navigation" : "screen",
         requestTargetsNavigation,
+        targetScope: resolvedScope,
+        editStrategy,
+        conversationContext: recentMessages,
+        recoveryContext: agentState as Record<string, unknown> | null,
         routerDecision: executionRouterMetadata.agentRouter,
       },
       {
@@ -518,6 +1038,14 @@ export async function POST(request: Request) {
             screenId: targetScreenId,
             drawgleId: shouldUseSelectedElement ? payload.selectedElementDrawgleId ?? null : null,
           },
+          agentState: makeAgentState({
+            kind: "last_actionable_request",
+            instruction: resolvedInstruction,
+            missingFields: null,
+            targetCandidates: null,
+            lastKnownTarget,
+            message: null,
+          }),
         } as never,
       })
       .eq("id", queuedMessage.id);

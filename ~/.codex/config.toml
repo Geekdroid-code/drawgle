@@ -1,0 +1,4 @@
+[mcp_servers.trigger]
+command = "npx"
+args = ["trigger.dev@latest", "mcp"]
+startup_timeout_sec = 30

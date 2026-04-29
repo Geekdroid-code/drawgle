@@ -137,13 +137,13 @@ const titleFromMessage = (message: ProjectMessage, screens: ScreenData[]) => {
   const screenName = getScreenName(message, screens);
 
   if (message.messageType === "edit_applied") {
-    return screenName ? `Applied changes to ${screenName}` : "Applied changes";
+    return screenName ? `Applied changes to ${screenName} screen` : "Applied changes";
   }
 
   if (message.messageType === "generation_completed") {
     const successfulScreens = getMetadataNumber(message.metadata, "successfulScreens");
     if (screenName) {
-      return `${screenName} ready`;
+      return `${screenName} screen ready`;
     }
     if (successfulScreens !== null) {
       return `Created ${screenCountLabel(successfulScreens)}`;
