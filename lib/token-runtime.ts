@@ -12,6 +12,13 @@ export type DrawgleTokenReference = CssVariable & {
   group: string;
 };
 
+export type TokenPromptMode =
+  | "none"
+  | "router_summary"
+  | "compact_visual"
+  | "full_generation"
+  | "runtime_css";
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
@@ -150,6 +157,99 @@ export function buildTokenUsageGuide(designTokens?: DesignTokens | null) {
     "Use raw hex, raw pixels, and custom gradients only for deliberate one-off visual details such as charts, maps, illustrations, or non-system accent marks.",
     variableList ? `Available token variables:\n${variableList}` : null,
   ].filter(Boolean).join("\n");
+}
+
+const formatTokenReferences = (references: DrawgleTokenReference[], limit: number) =>
+  references
+    .slice(0, limit)
+    .map((reference) => `${reference.path}: var(${reference.name}) = ${reference.value}`)
+    .join("\n");
+
+const pickTokenReferences = (
+  references: DrawgleTokenReference[],
+  prefixes: string[],
+) => references.filter((reference) => prefixes.some((prefix) => reference.path === prefix || reference.path.startsWith(`${prefix}.`)));
+
+const compactVisualTokenPrefixes = [
+  "color.background",
+  "color.surface",
+  "color.text",
+  "color.action",
+  "color.border",
+  "typography.font_family",
+  "typography.nav_title",
+  "typography.screen_title",
+  "typography.section_title",
+  "typography.metric_value",
+  "typography.body",
+  "typography.caption",
+  "typography.button_label",
+  "spacing",
+  "mobile_layout",
+  "sizing.min_touch_target",
+  "sizing.standard_button_height",
+  "sizing.standard_input_height",
+  "radii",
+  "border_widths",
+  "shadows",
+];
+
+export function buildTokenPromptContext(
+  designTokens?: DesignTokens | null,
+  mode: TokenPromptMode = "compact_visual",
+) {
+  if (mode === "none") {
+    return "";
+  }
+
+  if (mode === "runtime_css") {
+    return buildDrawgleTokenCss(designTokens);
+  }
+
+  const normalized = normalizeDesignTokens(designTokens ?? {});
+  const references = getDrawgleTokenReferences(normalized);
+
+  if (!normalized.tokens || references.length === 0) {
+    return "No approved project design tokens are available. Use refined neutral defaults and standard Tailwind CSS.";
+  }
+
+  if (mode === "router_summary") {
+    const keyReferences = pickTokenReferences(references, [
+      "color.background.primary",
+      "color.surface.card",
+      "color.action.primary",
+      "color.action.secondary",
+      "color.text.high_emphasis",
+      "radii.app",
+      "shadows.surface",
+    ]);
+
+    return [
+      "Project design tokens are approved and should be used for visual UI changes.",
+      keyReferences.length > 0 ? `Key token handles:\n${formatTokenReferences(keyReferences, 12)}` : null,
+    ].filter(Boolean).join("\n");
+  }
+
+  if (mode === "compact_visual") {
+    const compactReferences = pickTokenReferences(references, compactVisualTokenPrefixes);
+
+    return [
+      "TOKEN CONTEXT MODE: compact_visual",
+      "Use Drawgle live tokens for canonical colors, typography, spacing, sizing, radii, borders, and shadows.",
+      "Prefer utility classes when the semantic role matches: dg-bg-primary, dg-surface-card, dg-text-high, dg-text-medium, dg-text-low, dg-action-primary, dg-border-divider, dg-radius-app, dg-radius-pill, dg-shadow-surface, dg-type-screen-title, dg-type-section-title, dg-type-metric-value, dg-type-body, dg-type-caption, dg-type-button-label.",
+      "For token values without a named utility, use CSS variables in Tailwind arbitrary classes, e.g. bg-[var(--dg-color-action-primary)], p-[var(--dg-spacing-md)], rounded-[var(--dg-radii-app)], shadow-[var(--dg-shadows-surface)].",
+      "Use raw hex, raw pixels, and custom gradients only for deliberate one-off visual details such as charts, maps, illustrations, and special effects.",
+      compactReferences.length > 0 ? `Relevant token variables:\n${formatTokenReferences(compactReferences, 60)}` : null,
+    ].filter(Boolean).join("\n");
+  }
+
+  return [
+    "TOKEN CONTEXT MODE: full_generation",
+    "Approved design tokens are the source of truth for the generated UI. Use Drawgle token utility classes and CSS variables for canonical styling.",
+    `APPROVED DESIGN TOKENS:\n${JSON.stringify(normalized.tokens, null, 2)}`,
+    "LIVE TOKEN USAGE GUIDE:",
+    buildTokenUsageGuide(normalized),
+  ].join("\n\n");
 }
 
 const normalizeComparableValue = (value: string) => value.trim().toLowerCase();

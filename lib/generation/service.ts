@@ -22,7 +22,7 @@ import {
 } from "@/lib/generation/prompts";
 import { appendRequiredAnchors, extractRequiredAnchors } from "@/lib/generation/screen-quality";
 import { buildRepairSurroundingContext, type RepairTarget } from "@/lib/generation/screen-repair";
-import { buildTokenUsageGuide } from "@/lib/token-runtime";
+import { buildTokenPromptContext } from "@/lib/token-runtime";
 import type {
   BuildScreenInput,
   CreativeDirection,
@@ -1192,7 +1192,7 @@ export async function planUiFlow({
 
   if (designTokens?.tokens) {
     parts.push({
-      text: `Approved Design Tokens:\n${JSON.stringify(designTokens.tokens, null, 2)}`,
+      text: `Approved Token Context:\n${buildTokenPromptContext(designTokens, "compact_visual")}`,
     });
   }
 
@@ -1666,8 +1666,7 @@ export async function buildSectionRepairCode({
           `Original screen brief:\n${screenPrompt || "No original screen prompt was saved."}`,
           projectCharter?.creativeDirection ? `Creative direction:\n${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
           `Navigation architecture:\n${JSON.stringify(navigationArchitecture ?? null, null, 2)}`,
-          `Design tokens:\n${JSON.stringify(designTokens?.tokens ?? {}, null, 2)}`,
-          `Live token usage:\n${buildTokenUsageGuide(designTokens)}`,
+          `Token context:\n${buildTokenPromptContext(designTokens, "compact_visual")}`,
           missingAnchors.length > 0 ? `Missing required anchors that must be restored: ${missingAnchors.join(", ")}` : null,
           healthIssues.length > 0 ? `Detected health issues: ${healthIssues.join("; ")}` : null,
           `Repair target reason: ${repairTarget.reason}`,
@@ -1751,8 +1750,7 @@ export async function buildSourceRegionReplacementCode({
           `Original screen brief:\n${screenPrompt || "No original screen prompt was saved."}`,
           projectCharter?.creativeDirection ? `Creative direction:\n${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
           `Navigation architecture:\n${JSON.stringify(navigationArchitecture ?? null, null, 2)}`,
-          `Design tokens:\n${JSON.stringify(designTokens?.tokens ?? {}, null, 2)}`,
-          `Live token usage:\n${buildTokenUsageGuide(designTokens)}`,
+          `Token context:\n${buildTokenPromptContext(designTokens, repairTarget.snippet.length > 6000 ? "full_generation" : "compact_visual")}`,
           `Source target reason: ${repairTarget.reason}`,
           [
             "Code before selected region:",
@@ -1881,8 +1879,7 @@ async function refineNavigationShellCode({
           projectCharter ? `Project charter: ${JSON.stringify(projectCharter, null, 2)}` : null,
           projectCharter?.creativeDirection ? `Creative direction: ${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
           `Navigation plan: ${JSON.stringify(navigationPlan, null, 2)}`,
-          `Design tokens: ${JSON.stringify(designTokens?.tokens ?? {}, null, 2)}`,
-          `Live token usage: ${buildTokenUsageGuide(designTokens)}`,
+          `Token context: ${buildTokenPromptContext(designTokens, "compact_visual")}`,
           [
             "Candidate navigation shell to critique and improve:",
             "```html",
@@ -1937,8 +1934,7 @@ export async function editNavigationShellCode({
           projectCharter ? `Project charter: ${JSON.stringify(projectCharter, null, 2)}` : null,
           projectCharter?.creativeDirection ? `Creative direction: ${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
           `Navigation plan: ${JSON.stringify(navigationPlan, null, 2)}`,
-          `Design tokens: ${JSON.stringify(designTokens?.tokens ?? {}, null, 2)}`,
-          `Live token usage: ${buildTokenUsageGuide(designTokens)}`,
+          `Token context: ${buildTokenPromptContext(designTokens, "compact_visual")}`,
           selectedElementHtml ? [
             "Selected navigation element:",
             "```html",
@@ -2019,8 +2015,7 @@ export async function buildNavigationShellCode({
         projectCharter ? `Project charter: ${JSON.stringify(projectCharter, null, 2)}` : null,
         projectCharter?.creativeDirection ? `Creative direction: ${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
         `Navigation plan: ${JSON.stringify(navigationPlan, null, 2)}`,
-        `Design tokens: ${JSON.stringify(designTokens?.tokens ?? {}, null, 2)}`,
-        `Live token usage: ${buildTokenUsageGuide(designTokens)}`,
+        `Token context: ${buildTokenPromptContext(designTokens, "full_generation")}`,
       ].filter(Boolean).join("\n\n"),
     });
 

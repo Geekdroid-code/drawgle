@@ -52,7 +52,7 @@ export type ModifyScreenPayload = {
   requestTargetsNavigation?: boolean;
   targetScope?: EditTargetScope | string | null;
   editStrategy?: EditStrategy | string | null;
-  conversationContext?: Array<{ role: "user" | "model" | "system"; content: string; screenId?: string | null; metadata?: Record<string, unknown> | null }> | null;
+  conversationContext?: Array<{ role: "user" | "model" | "system"; content: string; screenId?: string | null; screenName?: string | null; event?: string | null }> | null;
   recoveryContext?: Record<string, unknown> | null;
   routerDecision?: Record<string, unknown> | null;
 };

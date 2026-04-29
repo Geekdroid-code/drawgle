@@ -63,7 +63,8 @@ export type AgentRouterInput = {
     role: "user" | "model" | "system";
     content: string;
     screenId?: string | null;
-    metadata?: Record<string, unknown> | null;
+    screenName?: string | null;
+    event?: string | null;
   }>;
   agentState?: AgentTurnState | null;
 };

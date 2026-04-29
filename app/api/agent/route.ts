@@ -12,10 +12,13 @@ import {
   type AgentTurnState,
 } from "@/lib/agent/router";
 import { normalizeDesignTokens } from "@/lib/design-tokens";
+import { applyDeterministicEdits, ensureDrawgleIds, type DeterministicEditOperation } from "@/lib/drawgle-dom";
+import { indexScreenCode } from "@/lib/generation/block-index";
 import { persistProjectMessageMemory, persistProjectMessageMemoryPair } from "@/lib/generation/message-memory";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { fetchProjectMessages, insertProjectMessage } from "@/lib/supabase/queries";
+import { getDrawgleTokenReferences, tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
 import {
   ACTIVE_GENERATION_STATUSES,
   type DesignTokens,
@@ -292,6 +295,143 @@ const buildDecisionTarget = (
   };
 };
 
+const compactMessageContent = (content: string) => {
+  const trimmed = content.trim();
+  return trimmed.length > 1800 ? `${trimmed.slice(0, 1800)}...` : trimmed;
+};
+
+const compactEventLabel = (metadata: Record<string, unknown>) => {
+  const action = stringOrNull(metadata.action);
+  if (action) {
+    return action;
+  }
+
+  const router = metadataRecord(metadata.agentRouter);
+  const routerTool = stringOrNull(router.tool ?? router.action);
+  if (routerTool) {
+    return routerTool;
+  }
+
+  const generationRunId = stringOrNull(metadata.generationRunId);
+  return generationRunId ? "generation_event" : null;
+};
+
+const buildCompactRecentMessages = (
+  messages: ProjectMessage[],
+  screens: Array<{ id: string; name: string }>,
+) => {
+  const screenNames = new Map(screens.map((screen) => [screen.id, screen.name]));
+
+  return messages.slice(-12).map((message) => {
+    const metadata = metadataRecord(message.metadata);
+    return {
+      role: message.role,
+      content: compactMessageContent(message.content),
+      screenId: message.screenId,
+      screenName: message.screenId ? screenNames.get(message.screenId) ?? null : null,
+      event: compactEventLabel(metadata),
+    };
+  });
+};
+
+type DeterministicTokenStyleIntent = {
+  kind: "deterministic_token_style";
+  operations: DeterministicEditOperation[];
+  tokenPaths: string[];
+  reason: string;
+};
+
+const complexStyleRequestPattern = /\b(add|create|remove|delete|rewrite|redesign|rebuild|layout|premium|modern|beautiful|awesome|gradient|glass|map|chart|content)\b/i;
+
+const classifyDeterministicTokenStyleIntent = ({
+  prompt,
+  designTokens,
+}: {
+  prompt: string;
+  designTokens?: DesignTokens | null;
+}): DeterministicTokenStyleIntent | null => {
+  if (!designTokens?.tokens || complexStyleRequestPattern.test(prompt)) {
+    return null;
+  }
+
+  const tokenReferences = getDrawgleTokenReferences(designTokens);
+  const tokenByPath = new Map(tokenReferences.map((reference) => [reference.path, reference]));
+  const operations: DeterministicEditOperation[] = [];
+  const tokenPaths: string[] = [];
+
+  const addTokenStyle = (
+    property: Extract<DeterministicEditOperation, { type: "setStyle" }>["property"],
+    path: string,
+  ) => {
+    const reference = tokenByPath.get(path);
+    if (!reference) {
+      return;
+    }
+
+    operations.push({
+      type: "setStyle",
+      property,
+      value: `var(${reference.name})`,
+    });
+    tokenPaths.push(path);
+  };
+
+  const mentionsColor = /\b(colou?r|bg|background|surface|brand|primary|secondary)\b/i.test(prompt);
+  const mentionsText = /\b(text|label|font)\b/i.test(prompt);
+  const mentionsBackground = /\b(bg|background|surface|fill)\b/i.test(prompt);
+
+  if (/\b(primary|brand|action)\b/i.test(prompt) && mentionsColor) {
+    if (mentionsText && !mentionsBackground) {
+      addTokenStyle("color", "color.action.primary");
+    } else {
+      addTokenStyle("background-color", "color.action.primary");
+      addTokenStyle("color", "color.action.on_primary_text");
+    }
+  } else if (/\bsecondary\b/i.test(prompt) && mentionsColor) {
+    addTokenStyle(mentionsText && !mentionsBackground ? "color" : "background-color", "color.action.secondary");
+  } else if (/\b(card|surface)\b/i.test(prompt) && mentionsColor) {
+    addTokenStyle("background-color", "color.surface.card");
+  } else if (/\b(app background|primary background|project background|background token)\b/i.test(prompt) && mentionsBackground) {
+    addTokenStyle("background-color", "color.background.primary");
+  }
+
+  if (/\bhigh[-\s]?emphasis|strong text|primary text\b/i.test(prompt)) {
+    addTokenStyle("color", "color.text.high_emphasis");
+  } else if (/\bmedium[-\s]?emphasis|secondary text\b/i.test(prompt)) {
+    addTokenStyle("color", "color.text.medium_emphasis");
+  } else if (/\blow[-\s]?emphasis|muted text|caption color\b/i.test(prompt)) {
+    addTokenStyle("color", "color.text.low_emphasis");
+  }
+
+  if (/\b(radius|rounded|corner|corners)\b/i.test(prompt)) {
+    addTokenStyle("border-radius", /\b(pill|capsule|fully rounded)\b/i.test(prompt) ? "radii.pill" : "radii.app");
+  }
+
+  if (/\b(shadow|elevation)\b/i.test(prompt)) {
+    addTokenStyle("box-shadow", "shadows.surface");
+  }
+
+  if (/\bborder\b/i.test(prompt)) {
+    addTokenStyle("border-color", /\bfocus|focused\b/i.test(prompt) ? "color.border.focused" : "color.border.divider");
+    addTokenStyle("border-width", "border_widths.standard");
+  }
+
+  if (/\b(gap|spacing)\b/i.test(prompt)) {
+    addTokenStyle("gap", /\b(section|large|bigger|more)\b/i.test(prompt) ? "mobile_layout.section_gap" : "mobile_layout.element_gap");
+  }
+
+  if (operations.length === 0) {
+    return null;
+  }
+
+  return {
+    kind: "deterministic_token_style",
+    operations,
+    tokenPaths: Array.from(new Set(tokenPaths)),
+    reason: "Simple selected-element token style request.",
+  };
+};
+
 async function findActiveGenerationRun(admin: ReturnType<typeof createAdminClient>, projectId: string) {
   const { data, error } = await admin
     .from("generation_runs")
@@ -402,12 +542,7 @@ export async function POST(request: Request) {
     });
     const selectedScreenId = payload.selectedScreenId ?? payload.focusedScreenId ?? null;
     const navigationPlan = (projectNavigation?.plan as NavigationPlan | null) ?? null;
-    const recentMessages = projectMessages.slice(-12).map((message) => ({
-      role: message.role,
-      content: message.content,
-      screenId: message.screenId,
-      metadata: message.metadata,
-    }));
+    const recentMessages = buildCompactRecentMessages(projectMessages, screenContext);
     const agentState = latestUsableAgentState(projectMessages);
     const routerDecision = await routeAgentPrompt({
       prompt,
@@ -709,6 +844,9 @@ export async function POST(request: Request) {
       );
     }
 
+    const designTokens = project.design_tokens
+      ? normalizeDesignTokens(project.design_tokens as DesignTokens)
+      : null;
     const resolvedInstruction = routerDecision.instruction?.trim() || agentState?.instruction || prompt;
     const selectedElementRequested = routerDecision.targetType === "selected_element" || routerDecision.scope === "selected_element";
     const requestTargetsNavigation =
@@ -947,6 +1085,170 @@ export async function POST(request: Request) {
       scope: resolvedScope,
       selectedElementDrawgleId: executionRouterMetadata.agentRouter.selectedElementDrawgleId,
     };
+
+    const deterministicStyleIntent = shouldUseSelectedElement
+      ? classifyDeterministicTokenStyleIntent({
+          prompt: resolvedInstruction,
+          designTokens,
+        })
+      : null;
+
+    if (deterministicStyleIntent && payload.selectedElementDrawgleId) {
+      const userMessage = await insertProjectMessage(admin, {
+        projectId: payload.projectId,
+        ownerId: user.id,
+        screenId: targetScreenId,
+        role: "user",
+        content: prompt || "[image]",
+        messageType: "chat",
+        metadata: {
+          ...executionRouterMetadata,
+          deterministicStyleEdit: {
+            kind: deterministicStyleIntent.kind,
+            tokenPaths: deterministicStyleIntent.tokenPaths,
+            operationCount: deterministicStyleIntent.operations.length,
+          },
+        },
+      });
+
+      let changed = false;
+      let modelContent = "";
+      let screenName = targetScreen?.name ?? null;
+
+      if (requestTargetsNavigation) {
+        const { data: navigation, error: navigationError } = await admin
+          .from("project_navigation")
+          .select("id, shell_code")
+          .eq("project_id", payload.projectId)
+          .maybeSingle();
+
+        if (navigationError || !navigation) {
+          throw navigationError ?? new Error("Shared navigation not found.");
+        }
+
+        const currentCode = ensureDrawgleIds(navigation.shell_code ?? "").code;
+        const editedCode = applyDeterministicEdits({
+          code: currentCode,
+          drawgleId: payload.selectedElementDrawgleId,
+          operations: deterministicStyleIntent.operations,
+        });
+        const nextCode = tokenizeStaticDrawgleHtml(editedCode, designTokens).code;
+        changed = nextCode !== currentCode;
+        modelContent = changed
+          ? "Updated selected navigation element with project tokens."
+          : "No material token style changes were applied to Navigation.";
+
+        await admin
+          .from("project_navigation")
+          .update({
+            shell_code: nextCode,
+            block_index: indexScreenCode(nextCode) as never,
+            status: "ready",
+            error: null,
+            updated_at: now(),
+          })
+          .eq("id", navigation.id);
+      } else {
+        if (!targetScreenId) {
+          throw new Error("No screen target was provided for the token style edit.");
+        }
+
+        const { data: screen, error: screenError } = await admin
+          .from("screens")
+          .select("id, name, code")
+          .eq("id", targetScreenId)
+          .eq("project_id", payload.projectId)
+          .maybeSingle();
+
+        if (screenError || !screen) {
+          throw screenError ?? new Error("Screen not found for token style edit.");
+        }
+
+        screenName = screen.name;
+        const currentCode = ensureDrawgleIds(screen.code ?? "").code;
+        const editedCode = applyDeterministicEdits({
+          code: currentCode,
+          drawgleId: payload.selectedElementDrawgleId,
+          operations: deterministicStyleIntent.operations,
+        });
+        const nextCode = tokenizeStaticDrawgleHtml(editedCode, designTokens).code;
+        changed = nextCode !== currentCode;
+        modelContent = changed
+          ? `Updated selected element in ${screen.name} with project tokens.`
+          : `No material token style changes were applied to ${screen.name}.`;
+
+        await admin
+          .from("screens")
+          .update({
+            code: nextCode,
+            block_index: indexScreenCode(nextCode) as never,
+            status: "ready",
+            error: null,
+            updated_at: now(),
+          })
+          .eq("id", screen.id);
+      }
+
+      const lastKnownTarget: AgentStateTarget = {
+        targetType: requestTargetsNavigation ? "navigation" : "selected_element",
+        scope: requestTargetsNavigation ? "navigation" : "selected_element",
+        screenId: targetScreenId,
+        screenName,
+        selectedElementDrawgleId: payload.selectedElementDrawgleId,
+      };
+      const modelMessage = await insertProjectMessage(admin, {
+        projectId: payload.projectId,
+        ownerId: user.id,
+        screenId: targetScreenId,
+        role: "model",
+        content: modelContent,
+        messageType: changed ? "edit_applied" : "chat",
+        metadata: {
+          ...executionRouterMetadata,
+          action: changed ? "deterministic_token_style_applied" : "deterministic_token_style_noop",
+          screenName: requestTargetsNavigation ? "Navigation" : screenName,
+          userMessageId: userMessage.id,
+          deterministicStyleEdit: {
+            kind: deterministicStyleIntent.kind,
+            tokenPaths: deterministicStyleIntent.tokenPaths,
+            operationCount: deterministicStyleIntent.operations.length,
+            reason: deterministicStyleIntent.reason,
+          },
+          editJob: {
+            status: "completed",
+            targetType: requestTargetsNavigation ? "navigation" : "screen",
+            screenId: targetScreenId,
+            drawgleId: payload.selectedElementDrawgleId,
+          },
+          agentState: makeAgentState({
+            kind: "last_actionable_request",
+            instruction: resolvedInstruction,
+            missingFields: null,
+            targetCandidates: null,
+            lastKnownTarget,
+            message: null,
+          }),
+        },
+      });
+
+      await persistProjectMessageMemoryPair({
+        admin,
+        userMessageId: userMessage.id,
+        userContent: prompt || "[image]",
+        modelMessageId: modelMessage.id,
+        modelContent,
+      }).catch((error) => {
+        console.error("Failed to persist deterministic token edit memory", error);
+      });
+
+      return NextResponse.json({
+        intent: "modify_screen",
+        deterministic: true,
+        targetType: requestTargetsNavigation ? "navigation" : "screen",
+        screenId: targetScreenId,
+        routerDecision: executionRouterDecision,
+      });
+    }
 
     const userMessage = await insertProjectMessage(admin, {
       projectId: payload.projectId,

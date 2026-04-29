@@ -1,6 +1,6 @@
 import { createNavigationArchitecture, resolveScreenChromePolicy } from "@/lib/navigation";
 import { normalizeDesignTokens } from "@/lib/design-tokens";
-import { buildTokenUsageGuide } from "@/lib/token-runtime";
+import { buildTokenPromptContext } from "@/lib/token-runtime";
 import type { BuildScreenInput, DesignTokens, NavigationArchitecture, ScreenPlan } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -298,15 +298,6 @@ const resolveToken = (
   return typeof current === "string" ? current : fallback;
 };
 
-const serializeDesignTokens = (designTokens?: DesignTokens | null) => {
-  const normalized = normalizeDesignTokens(designTokens);
-  if (!normalized?.tokens) {
-    return "Use standard Tailwind CSS classes and refined neutral defaults.";
-  }
-
-  return JSON.stringify(normalized.tokens, null, 2);
-};
-
 const buildStrictDesignContract = (designTokens?: DesignTokens | null) => {
   const appRadius = resolveToken(designTokens, "radii.app", "18px");
   const pillRadius = resolveToken(designTokens, "radii.pill", "9999px");
@@ -423,27 +414,14 @@ export const buildEditSystemInstruction = ({
 STRICT DESIGN CONTRACT:
 ${buildStrictDesignContract(designTokens)}
 
-LIVE TOKEN RUNTIME CONTRACT:
-${buildTokenUsageGuide(designTokens)}
+TOKEN CONTEXT:
+${buildTokenPromptContext(designTokens, "compact_visual")}
 
 NAVIGATION ARCHITECTURE CONTRACT:
 ${buildNavigationArchitectureContract({ navigationArchitecture })}
 
 TYPOGRAPHY ROLE CONTRACT:
 ${buildTypographyRoleContract()}
-
-/*
-  NOTE for V1:
-  We intentionally DO NOT include the full raw JSON \`serializeDesignTokens(designTokens)\` here anymore.
-  It added ~1500 tokens of noise that duplicated the Strict Design Contract and degraded LLM precision,
-  especially for targeted visual edits.
-  
-  If users report issues where the LLM "forgets" specific colors or spacings during large area edits,
-  you can restore the full approved design tokens by uncommenting the following lines:
-  
-  APPROVED DESIGN TOKENS:
-  \${serializeDesignTokens(designTokens)}
-*/
 
 Additional rules:
 1. Prefer Drawgle token utility classes and CSS variables for canonical styling. Do not freeze token values as raw hex/pixels when a project token variable exists.
@@ -528,11 +506,8 @@ ${buildNavigationArchitectureContract({
   requiresBottomNav,
 })}
 
-DESIGN TOKENS:
-${serializeDesignTokens(designTokens)}
-
-LIVE TOKEN USAGE GUIDE:
-${buildTokenUsageGuide(designTokens)}
+TOKEN CONTEXT:
+${buildTokenPromptContext(designTokens, "full_generation")}
 
 CRITICAL INSTRUCTION 2: NAVIGATION ARCHITECTURE
 ${navigationInstruction}

@@ -7,6 +7,7 @@ import type { DesignTokens, NavigationPlan, ProjectCharter, ProjectMessage } fro
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { generateEmbedding } from "@/lib/generation/embeddings";
 import { createNavigationArchitecture, deriveRequiresBottomNav } from "@/lib/navigation";
+import { buildTokenPromptContext } from "@/lib/token-runtime";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 type MatchedScreen = Database["public"]["Functions"]["match_screens"]["Returns"][number];
@@ -14,16 +15,6 @@ type MatchedMessage = Database["public"]["Functions"]["match_project_messages"][
 
 const DEFAULT_MATCH_COUNT = 5;
 const DEFAULT_MATCH_THRESHOLD = 0.55;
-const MAX_DESIGN_TOKEN_CHARS = 3000;
-
-const truncate = (value: string, maxLength: number) => {
-  if (value.length <= maxLength) {
-    return value;
-  }
-
-  return `${value.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
-};
-
 const formatCharter = (charter: ProjectCharter) => [
   `Original intent: ${charter.originalPrompt}`,
   charter.imageReferenceSummary ? `Image reference: ${charter.imageReferenceSummary}` : null,
@@ -84,16 +75,6 @@ const formatNavigationPlan = (navigationPlan: NavigationPlan | null) => {
     `Visual brief: ${navigationPlan.visualBrief}`,
     `Screen chrome: ${navigationPlan.screenChrome.map((entry) => `${entry.screenName}: ${entry.chrome}${entry.navigationItemId ? `/${entry.navigationItemId}` : ""}`).join(", ")}`,
   ].join("\n");
-};
-
-const formatDesignTokens = (designTokens: DesignTokens | null) => {
-  const normalized = normalizeDesignTokens(designTokens);
-
-  if (!normalized?.tokens) {
-    return null;
-  }
-
-  return truncate(JSON.stringify(normalized.tokens), MAX_DESIGN_TOKEN_CHARS);
 };
 
 const formatDesignContract = (designTokens: DesignTokens | null) => {
@@ -216,8 +197,8 @@ export async function assembleProjectContext({
       ? `APPROVED DESIGN CONTRACT\n${formatDesignContract(designTokens)}`
       : null,
     `TYPOGRAPHY ROLE CONTRACT\n${formatTypographyRoleContract()}`,
-    formatDesignTokens(designTokens)
-      ? `APPROVED DESIGN TOKENS\n${formatDesignTokens(designTokens)}`
+    designTokens?.tokens
+      ? `APPROVED TOKEN CONTEXT\n${buildTokenPromptContext(designTokens, "compact_visual")}`
       : null,
     matches.length > 0
       ? `RELEVANT EXISTING SCREENS\n${formatMatches(matches)}`
