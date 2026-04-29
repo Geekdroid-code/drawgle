@@ -1,5 +1,6 @@
 import "server-only";
 
+import { FunctionCallingConfigMode, Type, type FunctionDeclaration } from "@google/genai";
 import { z } from "zod";
 
 import { createGeminiClient } from "@/lib/ai/gemini";
@@ -49,7 +50,7 @@ export type AgentRouterDecision = z.infer<typeof RouterDecisionSchema>;
 
 const routerInstruction = [
   "You are the Drawgle AI assistant router for a mobile app screen design canvas.",
-  "Choose exactly one tool for the user's latest prompt.",
+  "Choose exactly one function call for the user's latest prompt.",
   "",
   "Tools:",
   "- chat_response: greetings, general questions, help, clarification, ambiguous edit target, or anything that should not change UI.",
@@ -61,9 +62,10 @@ const routerInstruction = [
   "- If the user says hello or casual chat, use chat_response.",
   "- If the user asks to edit but no target screen/navigation can be resolved, use chat_response and ask a concise clarification.",
   "- If selectedElement.targetType is navigation, nav/dock/tab/bar edits should target navigation.",
-  "- If selectedElement exists, only choose targetScope selected_element when the user clearly asks to edit the selected item/card/button/section/element or says this/that in a way that refers to the selected element.",
-  "- If selectedElement exists and the user asks for a local style change like background color, text color, radius, size, spacing, border, shadow, or premium styling without explicitly saying whole screen/page, choose targetScope selected_element.",
-  "- If the user asks to edit the screen, page, full screen, app background, screen background, canvas, layout, or overall design, choose targetScope screen even if a selectedElement exists.",
+  "- If selectedElement exists and the prompt says this, that, selected, current, card, button, item, section, element, area, component, or similar deictic wording, use modify_screen with targetScope selected_element.",
+  "- If selectedElement exists and the user asks for a local style/content change like background color, text color, radius, size, spacing, border, shadow, premium styling, copy, label, or adding content into the selected area, use targetScope selected_element.",
+  "- Users often say 'screen' casually while an element is selected. Do not treat the word screen/page alone as a full-screen edit.",
+  "- Only choose targetScope screen over a selected element when the user explicitly says whole screen, full screen, entire screen, redesign the screen, rewrite the screen, overall layout, app background, or screen background outside the selected element.",
   "- Do not rewrite the user's edit instruction to include database IDs. Keep instruction as the user's natural request, or omit instruction.",
   "- If the prompt names a screen, resolve targetScreenId from the provided screen list.",
   "- If the prompt asks to modify the current/this screen and activeScreenId exists, use that activeScreenId.",
@@ -72,8 +74,6 @@ const routerInstruction = [
   "- White-label identity: you are Drawgle AI, the design assistant inside Drawgle.",
   "- Never mention underlying model names, model providers, Gemini, Google, OpenAI, Anthropic, system prompts, tool calls, routing, or implementation details.",
   "- If the user asks what model/provider you are, briefly say you are Drawgle AI and can help create or edit mobile app screens.",
-  "",
-  "Return JSON only with: tool, confidence, reason, message, instruction, targetScreenId, targetType, targetScope.",
 ].join("\n");
 
 const extractJson = (value: string) => {
@@ -82,14 +82,157 @@ const extractJson = (value: string) => {
   return match ? match[0] : cleaned;
 };
 
+const confidenceSchema = {
+  type: Type.NUMBER,
+  minimum: 0,
+  maximum: 1,
+  description: "Confidence from 0 to 1.",
+};
+
+const reasonSchema = {
+  type: Type.STRING,
+  description: "Short internal reason for the routing decision. Do not mention model provider or implementation.",
+};
+
+const instructionSchema = {
+  type: Type.STRING,
+  description: "The user's natural instruction, unchanged. Do not inject database ids or rewrite it into a different target.",
+};
+
+const routerFunctionDeclarations: FunctionDeclaration[] = [
+  {
+    name: "chat_response",
+    description: "Use for greetings, general questions, help, identity/provider questions, clarification, or any prompt that should not mutate the UI.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        message: {
+          type: Type.STRING,
+          description: "Short user-facing response from Drawgle AI. Must be white-labeled and must not mention underlying model providers, routing, tools, or system prompts.",
+        },
+        confidence: confidenceSchema,
+        reason: reasonSchema,
+      },
+      required: ["message", "confidence", "reason"],
+    },
+  },
+  {
+    name: "create_new_screen",
+    description: "Use when the user asks to create, build, generate, add, or design a new mobile app screen, view, page, UI, or flow.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        instruction: instructionSchema,
+        confidence: confidenceSchema,
+        reason: reasonSchema,
+      },
+      required: ["instruction", "confidence", "reason"],
+    },
+  },
+  {
+    name: "modify_screen",
+    description: "Use when the user asks to change an existing screen, a selected element inside a screen, or shared project navigation.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        instruction: instructionSchema,
+        targetScreenId: {
+          type: Type.STRING,
+          description: "Screen id to edit when targetType is screen. Use the active/focused screen id or a matching id from context. Leave empty for navigation edits.",
+        },
+        targetType: {
+          type: Type.STRING,
+          format: "enum",
+          enum: ["screen", "navigation"],
+          description: "Whether the edit targets screen content or the shared project navigation.",
+        },
+        targetScope: {
+          type: Type.STRING,
+          format: "enum",
+          enum: ["screen", "selected_element", "navigation"],
+          description: "Use selected_element whenever a selected element exists and the prompt plausibly refers to that selected item. Use screen only for explicit whole-screen edits.",
+        },
+        confidence: confidenceSchema,
+        reason: reasonSchema,
+      },
+      required: ["instruction", "targetType", "targetScope", "confidence", "reason"],
+    },
+  },
+];
+
+const normalizeConfidence = (value: unknown) => {
+  const numeric = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numeric) ? Math.min(1, Math.max(0, numeric)) : 0.5;
+};
+
+const asTrimmedString = (value: unknown) => typeof value === "string" ? value.trim() : "";
+
+const parseFunctionDecision = (input: AgentRouterInput, functionCall: { name?: string; args?: Record<string, unknown> | null }): AgentRouterDecision => {
+  const args = functionCall.args ?? {};
+  const name = functionCall.name;
+
+  if (name === "chat_response") {
+    return RouterDecisionSchema.parse({
+      tool: "chat_response",
+      confidence: normalizeConfidence(args.confidence),
+      reason: asTrimmedString(args.reason) || "Router selected a conversational response.",
+      message: asTrimmedString(args.message) || fallbackDecision(input).message,
+      instruction: null,
+      targetScreenId: null,
+      targetType: null,
+      targetScope: null,
+    });
+  }
+
+  if (name === "create_new_screen") {
+    return RouterDecisionSchema.parse({
+      tool: "create_new_screen",
+      confidence: normalizeConfidence(args.confidence),
+      reason: asTrimmedString(args.reason) || "Router selected screen creation.",
+      message: null,
+      instruction: asTrimmedString(args.instruction) || input.prompt.trim(),
+      targetScreenId: null,
+      targetType: "screen",
+      targetScope: "screen",
+    });
+  }
+
+  if (name === "modify_screen") {
+    const selectedNavigation = input.selectedElement?.targetType === "navigation";
+    const rawTargetType = asTrimmedString(args.targetType);
+    const rawTargetScope = asTrimmedString(args.targetScope);
+    const targetType = selectedNavigation || rawTargetType === "navigation" ? "navigation" : "screen";
+    const targetScope = targetType === "navigation"
+      ? "navigation"
+      : rawTargetScope === "selected_element"
+        ? "selected_element"
+        : "screen";
+
+    return RouterDecisionSchema.parse({
+      tool: "modify_screen",
+      confidence: normalizeConfidence(args.confidence),
+      reason: asTrimmedString(args.reason) || "Router selected an edit.",
+      message: null,
+      instruction: asTrimmedString(args.instruction) || input.prompt.trim(),
+      targetScreenId: targetType === "navigation" ? null : (asTrimmedString(args.targetScreenId) || input.activeScreenId || null),
+      targetType,
+      targetScope,
+    });
+  }
+
+  throw new Error(`Unknown agent router function call: ${name ?? "missing"}`);
+};
+
 const fallbackDecision = (input: AgentRouterInput): AgentRouterDecision => {
   const prompt = input.prompt.trim();
   const selectedNavigation = input.selectedElement?.targetType === "navigation";
   const selectedScreenId = input.activeScreenId ?? null;
+  const hasSelectedElement = Boolean(input.selectedElement?.drawgleId);
   const asksCreate = /\b(create|build|generate|add|design|make)\b.*\b(screen|page|view|flow|ui)\b/i.test(prompt) ||
     /\b(new|another)\s+(screen|page|view)\b/i.test(prompt);
   const asksEdit = /\b(change|edit|update|modify|fix|improve|make|replace|remove|add|rewrite|repair|complete)\b/i.test(prompt);
   const casual = /^(hi|hello|hey|yo|thanks|thank you|ok|okay)\b[!. ]*$/i.test(prompt);
+  const explicitWholeScreenEdit = /\b(whole|entire|full)\s+(screen|page)|\b(redesign|rewrite|rebuild|replace)\s+(the\s+)?(screen|page)\b|\boverall\s+(layout|design)\b|\bapp background\b|\bscreen background\b|\boutside\s+(the\s+)?selected\b/i.test(prompt);
 
   if (!prompt || casual) {
     return {
@@ -118,7 +261,6 @@ const fallbackDecision = (input: AgentRouterInput): AgentRouterDecision => {
   }
 
   if (asksEdit && (selectedNavigation || selectedScreenId)) {
-    const screenLevelEdit = /\b(screen|page|full screen|background|overall|layout|entire)\b/i.test(prompt);
     return {
       tool: "modify_screen",
       confidence: 0.62,
@@ -127,7 +269,7 @@ const fallbackDecision = (input: AgentRouterInput): AgentRouterDecision => {
       instruction: prompt,
       targetScreenId: selectedNavigation ? null : selectedScreenId,
       targetType: selectedNavigation ? "navigation" : "screen",
-      targetScope: selectedNavigation ? "navigation" : input.selectedElement?.drawgleId && !screenLevelEdit ? "selected_element" : "screen",
+      targetScope: selectedNavigation ? "navigation" : hasSelectedElement && !explicitWholeScreenEdit ? "selected_element" : "screen",
     };
   }
 
@@ -179,10 +321,21 @@ export async function routeAgentPrompt(input: AgentRouterInput): Promise<AgentRo
       },
       config: {
         systemInstruction: routerInstruction,
-        responseMimeType: "application/json",
-        temperature: 0,
+        tools: [{ functionDeclarations: routerFunctionDeclarations }],
+        toolConfig: {
+          functionCallingConfig: {
+            mode: FunctionCallingConfigMode.ANY,
+            allowedFunctionNames: ["chat_response", "create_new_screen", "modify_screen"],
+          },
+        },
       },
     });
+
+    const functionCall = response.functionCalls?.[0];
+
+    if (functionCall) {
+      return parseFunctionDecision(input, functionCall);
+    }
 
     return RouterDecisionSchema.parse(JSON.parse(extractJson(response.text ?? "")));
   } catch (error) {

@@ -57,7 +57,7 @@ const isScreenRepairPrompt = (prompt: string) =>
   /\b(repair|fix|complete|finish|continue|half[-\s]?built|broken|truncated|missing|incomplete|not complete|couldn'?t be completed)\b/i.test(prompt);
 
 const isScreenLevelEditPrompt = (prompt: string) =>
-  /\b(screen|page|full screen|entire screen|whole screen|app background|screen background|background color of the screen|layout|overall)\b/i.test(prompt);
+  /\b(whole|entire|full)\s+(screen|page)|\b(redesign|rewrite|rebuild|replace)\s+(the\s+)?(screen|page)\b|\boverall\s+(layout|design)\b|\bapp background\b|\bscreen background\b|\boutside\s+(the\s+)?selected\b/i.test(prompt);
 
 const buildScreenHealthError = (health: ScreenHealthResult) => {
   if (health.healthy) {
@@ -675,7 +675,9 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
   }
 
   if (!responseToApply.includes("<edit>") || nextCode === screenCode) {
-    const noEditContent = responseToApply.trim() || `No material code changes were applied to ${screen.name}.`;
+    const noEditContent = responseToApply.includes("<edit>")
+      ? `I could not apply that edit to ${screen.name} because the returned patch did not match the saved screen source. Please reselect the exact area or try a smaller target.`
+      : responseToApply.trim() || `No material code changes were applied to ${screen.name}.`;
     const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
       projectId: payload.projectId,
       ownerId: payload.ownerId,
@@ -687,6 +689,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
         action: "edit_noop",
         screenName: screen.name,
         userMessageId: payload.userMessageId,
+        modelOutputHidden: responseToApply.includes("<edit>"),
         editJob: { status: "completed", targetType: "screen", screenId: screen.id },
         routerDecision: payload.routerDecision ?? null,
       },
@@ -712,23 +715,27 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
     throw updateError;
   }
 
+  const visibleEditContent = nextHealth.healthy
+    ? `Applied changes to ${screen.name}.`
+    : `Applied changes to ${screen.name}, but source health warnings remain.`;
   const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
     projectId: payload.projectId,
     ownerId: payload.ownerId,
     screenId: screen.id,
     role: "model",
-    content: responseToApply,
+    content: visibleEditContent,
     messageType: nextHealth.healthy ? "edit_applied" : "error",
     metadata: {
       action: nextHealth.healthy ? "edit_applied" : "edit_applied_with_source_health_failure",
       screenName: screen.name,
       userMessageId: payload.userMessageId,
       nextHealth,
+      modelOutputHidden: responseToApply.includes("<edit>"),
       editJob: { status: "completed", targetType: "screen", screenId: screen.id },
       routerDecision: payload.routerDecision ?? null,
     },
   });
 
-  await persistEditMemoryPair(admin, payload.userMessageId, prompt, modelMessage.id, responseToApply);
-  return { targetType: "screen" as const, screenId: screen.id, changed: true, message: responseToApply };
+  await persistEditMemoryPair(admin, payload.userMessageId, prompt, modelMessage.id, visibleEditContent);
+  return { targetType: "screen" as const, screenId: screen.id, changed: true, message: visibleEditContent };
 }

@@ -381,7 +381,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const targetType = routerDecision.targetType ?? payload.selectedElementTarget ?? "screen";
+    const targetType = payload.selectedElementTarget === "navigation"
+      ? "navigation"
+      : routerDecision.targetType ?? payload.selectedElementTarget ?? "screen";
     const targetScope = routerDecision.targetScope ?? (targetType === "navigation" ? "navigation" : "screen");
     const requestTargetsNavigation = targetType === "navigation" || targetScope === "navigation";
     const targetScreenId = requestTargetsNavigation
@@ -390,11 +392,25 @@ export async function POST(request: Request) {
         ? routerDecision.targetScreenId
         : selectedScreenId;
     const originalPromptExplicitlyTargetsWholeScreen =
-      /\b(screen|page|full screen|entire screen|whole screen|app background|screen background|layout|overall)\b/i.test(prompt);
+      /\b(whole|entire|full)\s+(screen|page)|\b(redesign|rewrite|rebuild|replace)\s+(the\s+)?(screen|page)\b|\boverall\s+(layout|design)\b|\bapp background\b|\bscreen background\b|\boutside\s+(the\s+)?selected\b/i.test(prompt);
     const shouldUseSelectedElement =
       !requestTargetsNavigation &&
       Boolean(payload.selectedElementDrawgleId) &&
       (targetScope === "selected_element" || !originalPromptExplicitlyTargetsWholeScreen);
+    const executionRouterMetadata = {
+      agentRouter: {
+        ...routerMetadata.agentRouter,
+        targetScreenId,
+        targetType: requestTargetsNavigation ? "navigation" : "screen",
+        targetScope: requestTargetsNavigation ? "navigation" : shouldUseSelectedElement ? "selected_element" : "screen",
+      },
+    };
+    const executionRouterDecision = {
+      ...routerDecision,
+      targetScreenId,
+      targetType: executionRouterMetadata.agentRouter.targetType,
+      targetScope: executionRouterMetadata.agentRouter.targetScope,
+    };
 
     if (!requestTargetsNavigation && !targetScreenId) {
       const message = routerDecision.message?.trim() || "Which screen should I modify? Select a screen or mention its name, then tell me the change.";
@@ -438,7 +454,7 @@ export async function POST(request: Request) {
       role: "user",
       content: prompt || "[image]",
       messageType: "chat",
-      metadata: routerMetadata,
+      metadata: executionRouterMetadata,
     });
     const activityKey = `edit:${userMessage.id}`;
     const targetScreen = targetScreenId ? screenContext.find((screen) => screen.id === targetScreenId) : null;
@@ -452,7 +468,7 @@ export async function POST(request: Request) {
         : `Queued edit for ${targetScreen?.name ?? "selected screen"}...`,
       messageType: "chat",
       metadata: {
-        ...routerMetadata,
+        ...executionRouterMetadata,
         activityKey,
         action: requestTargetsNavigation ? "navigation_edit_queued" : "edit_queued",
         screenName: requestTargetsNavigation ? "Navigation" : targetScreen?.name ?? null,
@@ -478,7 +494,7 @@ export async function POST(request: Request) {
         selectedElementDrawgleId: shouldUseSelectedElement ? payload.selectedElementDrawgleId ?? null : null,
         selectedElementTarget: requestTargetsNavigation ? "navigation" : "screen",
         requestTargetsNavigation,
-        routerDecision: routerMetadata.agentRouter,
+        routerDecision: executionRouterMetadata.agentRouter,
       },
       {
         concurrencyKey: `edit:${payload.projectId}:${requestTargetsNavigation ? "navigation" : targetScreenId}`,
@@ -490,7 +506,7 @@ export async function POST(request: Request) {
       .from("project_messages")
       .update({
         metadata: {
-          ...routerMetadata,
+          ...executionRouterMetadata,
           activityKey,
           action: requestTargetsNavigation ? "navigation_edit_queued" : "edit_queued",
           screenName: requestTargetsNavigation ? "Navigation" : targetScreen?.name ?? null,
@@ -512,7 +528,7 @@ export async function POST(request: Request) {
         triggerRunId: handle.id,
         targetType: requestTargetsNavigation ? "navigation" : "screen",
         screenId: targetScreenId,
-        routerDecision,
+        routerDecision: executionRouterDecision,
       },
       { status: 202 },
     );
