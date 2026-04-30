@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type CSSProperties, type ChangeEvent } from "react";
+import { motion, type Transition } from "motion/react";
 import {
   ArrowRight,
   CheckCircle2,
@@ -28,6 +29,21 @@ import type {
 
 type LobbyStage = "brief" | "design" | "plan";
 type ApiErrorPayload = { error?: unknown; details?: unknown };
+type TextShimmerWaveProps = {
+  children: string;
+  className?: string;
+  duration?: number;
+  baseColor?: string;
+  shimmerColor?: string;
+  zDistance?: number;
+  xDistance?: number;
+  yDistance?: number;
+  spread?: number;
+  scaleDistance?: number;
+  rotateYDistance?: number;
+  transition?: Transition;
+  style?: CSSProperties;
+};
 
 const workspaceSidebarStyles = {
   "--sidebar-width": "20rem",
@@ -56,6 +72,72 @@ const readApiError = (payload: ApiErrorPayload | null | undefined, fallback: str
 
   return fallback;
 };
+
+function TextShimmerWave({
+  children,
+  className = "",
+  duration = 1.4,
+  baseColor,
+  shimmerColor,
+  zDistance = 8,
+  xDistance = 1.5,
+  yDistance = -1.5,
+  spread = 1,
+  scaleDistance = 1.08,
+  rotateYDistance = 8,
+  transition,
+  style,
+}: TextShimmerWaveProps) {
+  return (
+    <motion.span
+      className={`relative inline-block [perspective:500px] ${className}`}
+      style={{
+        ...style,
+        "--base-color": baseColor ?? "color-mix(in oklab, currentColor 55%, transparent)",
+        "--base-gradient-color": shimmerColor ?? "currentColor",
+      } as CSSProperties}
+    >
+      {children.split("").map((char, index) => {
+        const delay = (index * duration * (1 / spread)) / children.length;
+
+        return (
+          <motion.span
+            key={`${char}-${index}`}
+            className="inline-block whitespace-pre [transform-style:preserve-3d]"
+            initial={{
+              translateZ: 0,
+              scale: 1,
+              rotateY: 0,
+              color: "var(--base-color)",
+            }}
+            animate={{
+              translateZ: [0, zDistance, 0],
+              translateX: [0, xDistance, 0],
+              translateY: [0, yDistance, 0],
+              scale: [1, scaleDistance, 1],
+              rotateY: [0, rotateYDistance, 0],
+              color: [
+                "var(--base-color)",
+                "var(--base-gradient-color)",
+                "var(--base-color)",
+              ],
+            }}
+            transition={{
+              duration,
+              repeat: Infinity,
+              repeatDelay: (children.length * 0.05) / spread,
+              delay,
+              ease: "easeInOut",
+              ...transition,
+            }}
+          >
+            {char}
+          </motion.span>
+        );
+      })}
+    </motion.span>
+  );
+}
 
 export function ProjectLobby({
   initialPrompt = "",
@@ -242,11 +324,25 @@ export function ProjectLobby({
                  
 
                   <h1 className="mx-auto mt-2 flex max-w-4xl justify-center text-center text-[clamp(2.45rem,10.5vw,3.75rem)] font-semibold leading-[0.94] tracking-[-0.055em] text-neutral-950 sm:mt-6 sm:text-6xl">
-                    <span className="dg-brief-title-active">What Mobile App shall we design Today?</span>
+                    {isGeneratingDesign ? (
+                      <TextShimmerWave
+                        className="dg-brief-title-wave"
+                        baseColor="rgba(9, 9, 11, 0.42)"
+                        shimmerColor="#09090b"
+                        duration={1.7}
+                        spread={1.35}
+                        zDistance={12}
+                        scaleDistance={1.06}
+                      >
+                        What Mobile App shall we design Today?
+                      </TextShimmerWave>
+                    ) : (
+                      <span className="dg-brief-title-active">What Mobile App shall we design Today?</span>
+                    )}
                   </h1>
                 
 
-                  <div className="relative mx-auto mt-7 w-full max-w-[860px] overflow-hidden rounded-[18px] dg-gradient-ring p-0.5 sm:mt-8">
+                  <div className={`relative mx-auto mt-7 w-full max-w-[860px] overflow-hidden rounded-[18px] dg-gradient-ring p-0.5 sm:mt-8 ${isGeneratingDesign ? "dg-brief-generating-shell" : ""}`}>
                     <div className="rounded-[16px] bg-[#fff] p-2">
                     <div className="flex items-center justify-between px-3 pb-2 pt-1 text-[12px] font-medium text-black">
                       <div className="flex items-center gap-1.5">
@@ -313,17 +409,52 @@ export function ProjectLobby({
                         <Button
                           type="button"
                           variant="ghost"
-                          className="h-10 w-11 shrink-0 rounded-lg dg-button-primary p-0 text-white disabled:opacity-45"
+                          className={`h-10 shrink-0 rounded-lg dg-button-primary p-0 text-white disabled:opacity-75 ${isGeneratingDesign ? "w-[132px] px-3" : "w-11"}`}
                           onClick={() => void handleGenerateDesign()}
                           disabled={!isBriefReady || isGeneratingDesign}
                           aria-label="Generate design system"
                         >
-                          <ArrowRight className="h-4 w-4" />
+                          {isGeneratingDesign ? (
+                            <TextShimmerWave
+                              className="text-xs font-semibold"
+                              baseColor="rgba(255,255,255,0.58)"
+                              shimmerColor="#ffffff"
+                              duration={1.1}
+                              spread={1.2}
+                              zDistance={5}
+                              scaleDistance={1.04}
+                              rotateYDistance={5}
+                            >
+                              Creating
+                            </TextShimmerWave>
+                          ) : (
+                            <ArrowRight className="h-4 w-4" />
+                          )}
                         </Button>
                       </div>
                     </div>
                     </div>
-                   
+                    {isGeneratingDesign ? (
+                      <div className="pointer-events-auto absolute inset-0 z-10 flex items-center justify-center rounded-[18px] dg-brief-prompt-shimmer">
+                        <div className="relative z-10 flex max-w-[min(92%,420px)] flex-col items-center rounded-[16px] border border-white/70 bg-white/76 px-5 py-4 text-center shadow-[0_18px_42px_-30px_rgba(15,23,42,0.82)] backdrop-blur-md">
+                          <TextShimmerWave
+                            className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-950"
+                            baseColor="rgba(15,23,42,0.45)"
+                            shimmerColor="#09090b"
+                            duration={1.15}
+                            spread={1.25}
+                            zDistance={7}
+                            scaleDistance={1.05}
+                            rotateYDistance={7}
+                          >
+                            Designing your system
+                          </TextShimmerWave>
+                          <p className="mt-2 text-sm leading-6 text-neutral-600">
+                            Turning your brief into a project, design system, and first build pass.
+                          </p>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
 
                   

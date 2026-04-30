@@ -361,12 +361,50 @@ export function ScreenNode({
     [rawDisplayCode, sharedNavigationActive],
   );
   const navigationShellCode = sharedNavigationActive ? ensureDrawgleIds(projectNavigation?.shellCode ?? "").code : "";
+  const lastNonEmptyDisplayCodeRef = useRef(displayCode.trim() ? displayCode : "");
+  const lastNonEmptyNavigationCodeRef = useRef(navigationShellCode.trim() ? navigationShellCode : "");
   const activeNavigationItemId = sharedNavigationActive ? screen.navigationItemId ?? "" : "";
   const tokenCss = useMemo(() => buildDrawgleTokenCss(designTokens), [designTokens]);
+  const [bootstrapContent] = useState(() => ({
+    screenCode: displayCode,
+    navigationShellCode,
+    activeNavigationItemId,
+    tokenCss,
+  }));
+  const iframeReadyRef = useRef(false);
+
+  const postCurrentRenderState = useCallback((force = false) => {
+    const iframe = iframeRef.current;
+    if (!iframe?.contentWindow) return;
+    if (!force && !iframeReadyRef.current) return;
+    const codeForRender = displayCode.trim() ? displayCode : lastNonEmptyDisplayCodeRef.current;
+    const navigationCodeForRender = sharedNavigationActive
+      ? navigationShellCode.trim()
+        ? navigationShellCode
+        : lastNonEmptyNavigationCodeRef.current
+      : "";
+
+    iframe.contentWindow.postMessage(
+      {
+        type: "updateCode",
+        code: codeForRender,
+        navigationCode: navigationCodeForRender,
+        activeNavigationItemId,
+        tokenCss,
+      },
+      "*",
+    );
+  }, [activeNavigationItemId, displayCode, navigationShellCode, sharedNavigationActive, tokenCss]);
 
   const handleExportCode = useCallback(() => {
-    const cleanScreenCode = stripDrawgleIds(displayCode);
-    const cleanNavigationCode = stripDrawgleIds(navigationShellCode);
+    const cleanScreenCode = stripDrawgleIds(displayCode.trim() ? displayCode : lastNonEmptyDisplayCodeRef.current);
+    const cleanNavigationCode = stripDrawgleIds(
+      sharedNavigationActive
+        ? navigationShellCode.trim()
+          ? navigationShellCode
+          : lastNonEmptyNavigationCodeRef.current
+        : "",
+    );
     const exportCode = `<!DOCTYPE html>
 <html>
   <head>
@@ -407,7 +445,7 @@ ${cleanScreenCode}
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
-  }, [activeNavigationItemId, displayCode, navigationShellCode, screen.name, tokenCss]);
+  }, [activeNavigationItemId, displayCode, navigationShellCode, screen.name, sharedNavigationActive, tokenCss]);
 
   // ── Position sync from DB
   //
@@ -426,17 +464,41 @@ ${cleanScreenCode}
 
   // ── Push code updates into the iframe without a full remount
   useEffect(() => {
-    iframeRef.current?.contentWindow?.postMessage(
-      {
-        type: "updateCode",
-        code: displayCode,
-        navigationCode: navigationShellCode,
-        activeNavigationItemId,
-        tokenCss,
-      },
-      "*",
-    );
-  }, [activeNavigationItemId, displayCode, navigationShellCode, tokenCss]);
+    if (displayCode.trim()) {
+      lastNonEmptyDisplayCodeRef.current = displayCode;
+    }
+  }, [displayCode]);
+
+  useEffect(() => {
+    if (navigationShellCode.trim()) {
+      lastNonEmptyNavigationCodeRef.current = navigationShellCode;
+    }
+  }, [navigationShellCode]);
+
+  useEffect(() => {
+    postCurrentRenderState();
+  }, [postCurrentRenderState]);
+
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.source !== iframeRef.current?.contentWindow) return;
+      if (event.data?.type !== "drawgleIframeReady") return;
+      iframeReadyRef.current = true;
+      postCurrentRenderState(true);
+      syncIframeInteractionMode(isInteractModeActive);
+      iframeRef.current?.contentWindow?.postMessage(
+        { type: selectionMode ? "enableSelectionMode" : "disableSelectionMode" },
+        "*",
+      );
+      iframeRef.current?.contentWindow?.postMessage(
+        { type: "setSelectedDrawgleId", drawgleId: selectedDrawgleId ?? null },
+        "*",
+      );
+    };
+
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [isInteractModeActive, postCurrentRenderState, selectedDrawgleId, selectionMode, syncIframeInteractionMode]);
 
   // ── Escape key exits interact mode
   useEffect(() => {
@@ -699,7 +761,10 @@ ${cleanScreenCode}
   // =========================================================================
 
   const srcDoc = useMemo(() => {
-    const initialScreenCode = ensureDrawgleIds(sharedNavigationActive ? stripSharedNavigationMarkup(initialCode) : initialCode).code;
+    const initialScreenCode = bootstrapContent.screenCode;
+    const initialNavigationCode = bootstrapContent.navigationShellCode;
+    const initialActiveNavigationItemId = bootstrapContent.activeNavigationItemId;
+    const initialTokenCss = bootstrapContent.tokenCss;
 
     return `
     <!DOCTYPE html>
@@ -707,7 +772,7 @@ ${cleanScreenCode}
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <script src="https://cdn.tailwindcss.com"><\/script>
+        <script id="drawgle-tailwind-cdn" src="https://cdn.tailwindcss.com" onerror="window.__drawgleTailwindLoadFailed = true"><\/script>
         <script src="https://unpkg.com/lucide@latest"><\/script>
         <style>
           html, body { width: 100%; height: 100%; margin: 0; padding: 0; overscroll-behavior: none; }
@@ -715,6 +780,7 @@ ${cleanScreenCode}
           ::-webkit-scrollbar { display: none; width: 0; height: 0; }
           * { -ms-overflow-style: none; scrollbar-width: none; }
           #root { position: relative; width: 100%; height: 100vh; overflow: hidden; background: transparent; }
+          html:not([data-drawgle-style-ready]) #root { visibility: hidden; }
           #drawgle-screen-content { width: 100%; height: 100%; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
           #drawgle-screen-content:focus { outline: none; }
           #drawgle-navigation-host { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; pointer-events: none; width: 100%; }
@@ -723,18 +789,95 @@ ${cleanScreenCode}
           .__drawgle-hover-outline { outline: 2px solid rgba(20,184,166,0.8) !important; outline-offset: -1px; cursor: crosshair !important; }
           .__drawgle-selected-outline { outline: 2.5px solid #0d9488 !important; outline-offset: -1px; background-color: rgba(20,184,166,0.06) !important; }
         </style>
-        <style id="drawgle-project-tokens">${tokenCss}</style>
+        <style id="drawgle-project-tokens">${initialTokenCss}</style>
       </head>
       <body>
-        <div id="root" data-has-navigation="${sharedNavigationActive ? "true" : "false"}">
+        <div id="root" data-has-navigation="${initialNavigationCode ? "true" : "false"}">
           <div id="drawgle-screen-content"></div>
           <div id="drawgle-navigation-host"></div>
         </div>
         <script>
           var initialScreenCode = ${serializeForInlineScript(initialScreenCode)};
-          var initialNavigationCode = ${serializeForInlineScript(navigationShellCode)};
-          var initialActiveNavigationItemId = ${serializeForInlineScript(activeNavigationItemId)};
-          var initialTokenCss = ${serializeForInlineScript(tokenCss)};
+          var initialNavigationCode = ${serializeForInlineScript(initialNavigationCode)};
+          var initialActiveNavigationItemId = ${serializeForInlineScript(initialActiveNavigationItemId)};
+          var initialTokenCss = ${serializeForInlineScript(initialTokenCss)};
+          var styleRuntimeReady = false;
+          var queuedRenderPayload = null;
+
+          function markStyleRuntimeReady(mode) {
+            styleRuntimeReady = true;
+            window.requestAnimationFrame(function() {
+              document.documentElement.setAttribute('data-drawgle-style-ready', mode || 'ready');
+            });
+          }
+
+          function loadScriptOnce(id, src, onLoad, onError) {
+            var existing = document.getElementById(id);
+            if (existing && existing.getAttribute('data-drawgle-retry') === 'true') {
+              existing.addEventListener('load', onLoad, { once: true });
+              existing.addEventListener('error', onError, { once: true });
+              return;
+            }
+
+            var script = document.createElement('script');
+            script.id = id;
+            script.src = src;
+            script.setAttribute('data-drawgle-retry', 'true');
+            script.onload = onLoad;
+            script.onerror = onError;
+            document.head.appendChild(script);
+          }
+
+          function ensureTailwindReady(callback) {
+            if (styleRuntimeReady) {
+              callback();
+              return;
+            }
+
+            var attempts = 0;
+            var startedAt = Date.now();
+            function check() {
+              if (window.tailwind && !window.__drawgleTailwindLoadFailed) {
+                window.setTimeout(function() {
+                  markStyleRuntimeReady('ready');
+                  callback();
+                }, 0);
+                return;
+              }
+
+              if (attempts < 2) {
+                attempts += 1;
+                window.__drawgleTailwindLoadFailed = false;
+                loadScriptOnce(
+                  'drawgle-tailwind-cdn-retry-' + attempts,
+                  'https://cdn.tailwindcss.com',
+                  function() {
+                    window.setTimeout(function() {
+                      markStyleRuntimeReady('ready');
+                      callback();
+                    }, 0);
+                  },
+                  function() {
+                    window.setTimeout(check, 160);
+                  }
+                );
+                return;
+              }
+
+              if (Date.now() - startedAt < 2500) {
+                window.setTimeout(check, 120);
+                return;
+              }
+
+              markStyleRuntimeReady('degraded');
+              callback();
+            }
+            check();
+          }
+
+          function notifyParentReady() {
+            window.parent.postMessage({ type: 'drawgleIframeReady' }, '*');
+          }
 
           function refreshLucideIconsWithRetry() {
             var attempts = 0;
@@ -884,9 +1027,20 @@ ${cleanScreenCode}
           document.addEventListener('touchstart', handleInteractTouchStart, { capture: true, passive: true });
           document.addEventListener('touchmove', handleInteractTouchMove, { capture: true, passive: false });
 
+          function applyRenderPayload(payload) {
+            applyDesignTokenCss(payload.tokenCss || '');
+            renderScreenContent(payload.code || '');
+            renderNavigation(payload.navigationCode || '', payload.activeNavigationItemId || '');
+            if (interactionModeActive) focusScreenContentHost();
+          }
+
           applyDesignTokenCss(initialTokenCss);
-          renderScreenContent(initialScreenCode);
-          renderNavigation(initialNavigationCode, initialActiveNavigationItemId);
+          queuedRenderPayload = {
+            code: initialScreenCode,
+            navigationCode: initialNavigationCode,
+            activeNavigationItemId: initialActiveNavigationItemId,
+            tokenCss: initialTokenCss,
+          };
 
           /* ── Element selection engine ──────────────────────────── */
           (function() {
@@ -1106,10 +1260,15 @@ ${cleanScreenCode}
                 /* Preserve selection state across live code updates */
                 var wasActive = selectionActive;
                 if (wasActive) disableSelection();
-                applyDesignTokenCss(event.data.tokenCss || '');
-                renderScreenContent(event.data.code || '');
-                renderNavigation(event.data.navigationCode || '', event.data.activeNavigationItemId || '');
-                if (interactionModeActive) focusScreenContentHost();
+                queuedRenderPayload = {
+                  code: event.data.code || '',
+                  navigationCode: event.data.navigationCode || '',
+                  activeNavigationItemId: event.data.activeNavigationItemId || '',
+                  tokenCss: event.data.tokenCss || '',
+                };
+                if (styleRuntimeReady) {
+                  applyRenderPayload(queuedRenderPayload);
+                }
                 if (wasActive) enableSelection();
               } else if (event.data.type === 'updateDesignTokenCss') {
                 applyDesignTokenCss(event.data.tokenCss || '');
@@ -1125,12 +1284,24 @@ ${cleanScreenCode}
                 exitInteractMode();
               }
             });
+
+            ensureTailwindReady(function() {
+              if (queuedRenderPayload) {
+                applyRenderPayload(queuedRenderPayload);
+              }
+              notifyParentReady();
+            });
           })();
         <\/script>
       </body>
     </html>
   `;
-  }, [activeNavigationItemId, initialCode, navigationShellCode, sharedNavigationActive, tokenCss]);
+  }, [
+    bootstrapContent.activeNavigationItemId,
+    bootstrapContent.navigationShellCode,
+    bootstrapContent.screenCode,
+    bootstrapContent.tokenCss,
+  ]);
 
   // =========================================================================
   // Render
@@ -1282,6 +1453,11 @@ ${cleanScreenCode}
               cursor: isSelectionModeActive ? 'crosshair' : undefined,
             }}
             onLoad={() => {
+              iframeReadyRef.current = false;
+              window.setTimeout(() => {
+                iframeReadyRef.current = true;
+                postCurrentRenderState(true);
+              }, 120);
               // Ensure selection mode is enabled if the iframe finishes loading
               // after the selectionMode state has already been set.
               if (selectionMode && iframeRef.current?.contentWindow) {

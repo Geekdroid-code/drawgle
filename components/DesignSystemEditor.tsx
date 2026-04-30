@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ComponentType, type PointerEvent, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ComponentType, type PointerEvent, type ReactNode } from "react";
 import {
   ArrowRight,
   Check,
@@ -168,6 +168,84 @@ const getRgbFallback = (value: string) => hexToRgb(value) ?? { r: 0, g: 0, b: 0 
 
 const tokenPathToCssVar = (path: string[]) =>
   `--dg-${path.map((part) => part.replace(/_/g, "-")).join("-")}`;
+
+type ShadowParts = {
+  x: number;
+  y: number;
+  blur: number;
+  spread: number;
+  color: string;
+  opacity: number;
+  enabled: boolean;
+};
+
+const DEFAULT_SHADOW_PARTS: ShadowParts = {
+  x: 0,
+  y: 12,
+  blur: 32,
+  spread: 0,
+  color: "#0F172A",
+  opacity: 0.14,
+  enabled: true,
+};
+
+const SHADOW_PRESETS: Array<{ label: string; value: ShadowParts }> = [
+  { label: "Soft", value: { x: 0, y: 8, blur: 24, spread: -10, color: "#0F172A", opacity: 0.12, enabled: true } },
+  { label: "Float", value: { x: 0, y: 18, blur: 48, spread: -18, color: "#0F172A", opacity: 0.18, enabled: true } },
+  { label: "Overlay", value: { x: 0, y: -6, blur: 28, spread: 0, color: "#0F172A", opacity: 0.16, enabled: true } },
+];
+
+const parseCssShadow = (value: string): ShadowParts => {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.toLowerCase() === "none") {
+    return { ...DEFAULT_SHADOW_PARTS, enabled: false, opacity: 0 };
+  }
+
+  const colorMatch = trimmed.match(/rgba?\([^)]+\)|#[0-9a-fA-F]{3,8}/);
+  const colorValue = colorMatch?.[0] ?? `rgba(15, 23, 42, ${DEFAULT_SHADOW_PARTS.opacity})`;
+  const prefix = colorMatch ? trimmed.slice(0, colorMatch.index) : trimmed;
+  const numericValues = Array.from(prefix.matchAll(/-?\d*\.?\d+(?=px|\s|$)/g))
+    .map((match) => Number.parseFloat(match[0]))
+    .filter(Number.isFinite);
+
+  let color = DEFAULT_SHADOW_PARTS.color;
+  let opacity = DEFAULT_SHADOW_PARTS.opacity;
+  if (colorValue.startsWith("#")) {
+    const rgb = hexToRgb(colorValue);
+    if (rgb) {
+      color = rgbToHex(rgb);
+      opacity = 1;
+    }
+  } else {
+    const channels = colorValue.match(/rgba?\(([^)]+)\)/)?.[1]
+      ?.split(",")
+      .map((part) => Number.parseFloat(part.trim()));
+    if (channels && channels.length >= 3 && channels.slice(0, 3).every(Number.isFinite)) {
+      color = rgbToHex({ r: channels[0], g: channels[1], b: channels[2] });
+      opacity = Number.isFinite(channels[3]) ? clampNumber(channels[3], 0, 1) : 1;
+    }
+  }
+
+  return {
+    x: numericValues[0] ?? DEFAULT_SHADOW_PARTS.x,
+    y: numericValues[1] ?? DEFAULT_SHADOW_PARTS.y,
+    blur: Math.max(0, numericValues[2] ?? DEFAULT_SHADOW_PARTS.blur),
+    spread: numericValues[3] ?? DEFAULT_SHADOW_PARTS.spread,
+    color,
+    opacity,
+    enabled: true,
+  };
+};
+
+const serializeCssShadow = (parts: ShadowParts) => {
+  if (!parts.enabled || parts.opacity <= 0) {
+    return "none";
+  }
+
+  const rgb = hexToRgb(parts.color) ?? hexToRgb(DEFAULT_SHADOW_PARTS.color)!;
+  const opacity = clampNumber(Number(parts.opacity.toFixed(2)), 0, 1);
+  return `${Math.round(parts.x)}px ${Math.round(parts.y)}px ${Math.round(parts.blur)}px ${Math.round(parts.spread)}px rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${opacity})`;
+};
 
 export function DesignSystemEditor({
   value,
@@ -532,12 +610,52 @@ function ColorField({
   const [isOpen, setIsOpen] = useState(false);
   const [hexDraftState, setHexDraftState] = useState({ source: normalizedValue, value: normalizedValue });
   const [previousColor, setPreviousColor] = useState(normalizedValue);
+  const fieldRef = useRef<HTMLDivElement>(null);
+  const [pickerStyle, setPickerStyle] = useState({ left: 12, top: 12, width: 320, maxHeight: 520 });
   const hexDraft = hexDraftState.source === normalizedValue ? hexDraftState.value : normalizedValue;
   const rgb = getRgbFallback(normalizedValue);
   const hsv = rgbToHsv(rgb);
   const isHexValid = Boolean(normalizeHex(hexDraft));
   const tokenPathLabel = tokenPath?.join(".");
   const cssVariableName = tokenPath ? tokenPathToCssVar(tokenPath) : null;
+
+  useLayoutEffect(() => {
+    if (!isOpen || !fieldRef.current) {
+      return;
+    }
+
+    const updatePickerPosition = () => {
+      const rect = fieldRef.current?.getBoundingClientRect();
+      if (!rect) {
+        return;
+      }
+
+      const gutter = 12;
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const width = Math.min(360, Math.max(280, viewportWidth - gutter * 2));
+      const preferredLeft = rect.right > viewportWidth - width / 2
+        ? rect.right - width
+        : rect.left;
+      const left = clampNumber(preferredLeft, gutter, viewportWidth - width - gutter);
+      const estimatedHeight = 430;
+      const preferredTop = rect.bottom + 8;
+      const top = preferredTop + estimatedHeight > viewportHeight - gutter
+        ? Math.max(gutter, rect.top - estimatedHeight - 8)
+        : preferredTop;
+      const maxHeight = Math.max(280, viewportHeight - top - gutter);
+
+      setPickerStyle({ left, top, width, maxHeight });
+    };
+
+    updatePickerPosition();
+    window.addEventListener("resize", updatePickerPosition);
+    window.addEventListener("scroll", updatePickerPosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePickerPosition);
+      window.removeEventListener("scroll", updatePickerPosition, true);
+    };
+  }, [isOpen]);
 
   const commitHex = (nextValue: string) => {
     const normalized = normalizeHex(nextValue);
@@ -569,7 +687,7 @@ function ColorField({
   };
 
   return (
-    <div className="relative">
+    <div ref={fieldRef} className="relative">
       <div className={`group flex gap-3 rounded-[12px] border bg-white transition hover:border-slate-950/[0.18] ${panel ? "items-center px-3 py-3" : "items-center px-2 py-2"} ${isHexValid ? "border-slate-950/[0.08]" : "border-rose-300"}`}>
         <button
           type="button"
@@ -605,7 +723,15 @@ function ColorField({
       </div>
 
       {isOpen ? (
-        <div className="absolute left-0 top-[calc(100%+8px)] z-40 w-[min(320px,calc(100vw-2rem))] rounded-[16px] border border-slate-950/[0.1] bg-white p-3 shadow-[0_24px_70px_-42px_rgba(15,23,42,0.85)]">
+        <div
+          className="fixed z-[110] overflow-y-auto rounded-[18px] border border-slate-950/[0.1] bg-white p-3 shadow-[0_28px_80px_-42px_rgba(15,23,42,0.9)]"
+          style={{
+            left: pickerStyle.left,
+            top: pickerStyle.top,
+            width: pickerStyle.width,
+            maxHeight: pickerStyle.maxHeight,
+          }}
+        >
           <div
             role="slider"
             aria-label={`${label} saturation and brightness`}
@@ -613,7 +739,7 @@ function ColorField({
             aria-valuemax={100}
             aria-valuenow={Math.round(hsv.s * 100)}
             tabIndex={0}
-            className="relative h-36 cursor-crosshair overflow-hidden rounded-[12px] border border-slate-950/[0.08]"
+            className="relative h-40 cursor-crosshair overflow-hidden rounded-[14px] border border-slate-950/[0.08]"
             style={{
               backgroundColor: rgbToHex(hsvToRgb({ h: hsv.h, s: 1, v: 1 })),
               backgroundImage: "linear-gradient(90deg, #FFFFFF, rgba(255,255,255,0)), linear-gradient(0deg, #000000, rgba(0,0,0,0))",
@@ -634,15 +760,15 @@ function ColorField({
             />
           </div>
 
-          <div className="mt-3 grid grid-cols-[34px_minmax(0,1fr)] items-center gap-3">
-            <div className="h-8 w-8 rounded-full border border-slate-950/[0.1]" style={{ backgroundColor: normalizedValue }} />
+          <div className="mt-3 grid grid-cols-[42px_minmax(0,1fr)] items-center gap-3">
+            <div className="h-10 w-10 rounded-[14px] border border-slate-950/[0.1]" style={{ backgroundColor: normalizedValue }} />
             <input
               type="range"
               min={0}
               max={360}
               value={Math.round(hsv.h)}
               onChange={(event) => commitHsv({ ...hsv, h: Number(event.target.value) })}
-              className="h-2 w-full appearance-none rounded-full bg-[linear-gradient(90deg,#ff0000,#ffff00,#00ff00,#00ffff,#0000ff,#ff00ff,#ff0000)] outline-none"
+              className="h-3 w-full appearance-none rounded-full bg-[linear-gradient(90deg,#ff0000,#ffff00,#00ff00,#00ffff,#0000ff,#ff00ff,#ff0000)] outline-none"
             />
           </div>
 
@@ -670,7 +796,7 @@ function ColorField({
             </div>
             <button
               type="button"
-              className="rounded-[9px] border border-slate-950/[0.08] bg-[#f7f7f8] px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-white"
+              className="rounded-[11px] border border-slate-950/[0.08] bg-slate-950 px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
               onClick={() => setIsOpen(false)}
             >
               Done
@@ -949,27 +1075,107 @@ function ShadowField({
   previewRadius: string;
   onChange: (value: string) => void;
 }) {
+  const shadowParts = parseCssShadow(value);
+  const updateShadow = (partial: Partial<ShadowParts>) => {
+    onChange(serializeCssShadow({ ...shadowParts, ...partial }));
+  };
+
   return (
-    <div className="col-span-full grid gap-2 rounded-[12px] border border-slate-950/[0.06] bg-white p-2 sm:grid-cols-[minmax(0,1fr)_120px]">
-      <label className="space-y-1">
-        <span className="block text-[11px] font-medium capitalize text-slate-500">{label}</span>
-        <textarea
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          rows={2}
-          className="w-full resize-none rounded-[10px] border border-slate-950/[0.08] bg-[#fbfbfc] px-2.5 py-2 font-mono text-xs text-slate-900 outline-none transition focus:border-[#002fa7]/40 focus:bg-white"
-        />
-      </label>
-      <div className="flex min-h-20 items-center justify-center rounded-[10px] bg-[#f7f7f8]">
+    <div className="col-span-full grid gap-3 rounded-[16px] border border-slate-950/[0.06] bg-white p-3">
+      <div className="min-w-0 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="text-xs font-semibold capitalize text-slate-800">{label}</div>
+            <div className="mt-0.5 font-mono text-[11px] text-slate-400">{serializeCssShadow(shadowParts)}</div>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {SHADOW_PRESETS.map((preset) => (
+              <button
+                key={preset.label}
+                type="button"
+                className="rounded-full border border-slate-950/[0.08] bg-[#fbfbfc] px-2.5 py-1 text-[11px] font-medium text-slate-600 transition hover:border-slate-950/[0.16] hover:bg-white hover:text-slate-950"
+                onClick={() => onChange(serializeCssShadow(preset.value))}
+              >
+                {preset.label}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="rounded-full border border-slate-950/[0.08] bg-[#fbfbfc] px-2.5 py-1 text-[11px] font-medium text-slate-600 transition hover:border-slate-950/[0.16] hover:bg-white hover:text-slate-950"
+              onClick={() => onChange("none")}
+            >
+              None
+            </button>
+          </div>
+        </div>
+
+        <div className="grid gap-2.5 sm:grid-cols-2">
+          <ShadowSlider label="X" min={-40} max={40} value={shadowParts.x} onChange={(nextValue) => updateShadow({ x: nextValue, enabled: true })} />
+          <ShadowSlider label="Y" min={-40} max={40} value={shadowParts.y} onChange={(nextValue) => updateShadow({ y: nextValue, enabled: true })} />
+          <ShadowSlider label="Blur" min={0} max={96} value={shadowParts.blur} onChange={(nextValue) => updateShadow({ blur: nextValue, enabled: true })} />
+          <ShadowSlider label="Spread" min={-40} max={40} value={shadowParts.spread} onChange={(nextValue) => updateShadow({ spread: nextValue, enabled: true })} />
+          <ShadowSlider
+            label="Opacity"
+            min={0}
+            max={60}
+            value={Math.round(shadowParts.opacity * 100)}
+            suffix="%"
+            onChange={(nextValue) => updateShadow({ opacity: nextValue / 100, enabled: nextValue > 0 })}
+          />
+          <ColorField
+            label="Color"
+            value={shadowParts.color}
+            panel
+            onChange={(nextColor) => updateShadow({ color: nextColor, enabled: true })}
+          />
+        </div>
+      </div>
+
+      <div className="flex min-h-24 items-center justify-center rounded-[14px] bg-[radial-gradient(circle_at_center,#ffffff_0,#f4f5f7_62%,#edf0f4_100%)] p-4">
         <div
-          className="h-12 w-16 border border-slate-950/[0.08] bg-white"
+          className="h-16 w-24 border border-slate-950/[0.08] bg-white transition-[box-shadow,transform] duration-150"
           style={{
             borderRadius: previewRadius,
-            boxShadow: value === "none" ? "none" : value,
+            boxShadow: serializeCssShadow(shadowParts),
           }}
         />
       </div>
     </div>
+  );
+}
+
+function ShadowSlider({
+  label,
+  value,
+  min,
+  max,
+  suffix = "px",
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  suffix?: string;
+  onChange: (value: number) => void;
+}) {
+  const roundedValue = Math.round(value);
+
+  return (
+    <label className="grid grid-cols-[74px_minmax(0,1fr)_62px] items-center gap-3 rounded-[14px] border border-slate-950/[0.07] bg-[#fbfbfc] px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+      <span className="text-xs font-semibold text-slate-600">{label}</span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        value={roundedValue}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="h-3 min-w-0 cursor-pointer appearance-none rounded-full bg-slate-200 outline-none [--track-fill:#020617] [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-slate-950 [&::-moz-range-thumb]:shadow-[0_4px_14px_rgba(15,23,42,0.28)] [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-slate-950 [&::-webkit-slider-thumb]:shadow-[0_4px_14px_rgba(15,23,42,0.28)]"
+      />
+      <span className="rounded-[9px] border border-slate-950/[0.06] bg-white px-2 py-1 text-right font-mono text-[11px] text-slate-600">
+        {roundedValue}{suffix}
+      </span>
+    </label>
   );
 }
 
