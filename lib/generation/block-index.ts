@@ -26,24 +26,16 @@ const VOID_TAGS = new Set([
   "area",
   "base",
   "br",
-  "circle",
   "col",
   "embed",
   "hr",
   "img",
   "input",
-  "line",
   "link",
   "meta",
   "param",
-  "path",
-  "polygon",
-  "polyline",
-  "rect",
   "source",
-  "stop",
   "track",
-  "use",
   "wbr",
 ]);
 
@@ -71,9 +63,9 @@ const STRUCTURAL_TAGS = new Set([
 ]);
 
 const IGNORE_TAGS = new Set([
-  "clipPath",
+  "clippath",
   "defs",
-  "linearGradient",
+  "lineargradient",
   "mask",
   "script",
   "style",
@@ -235,7 +227,12 @@ const parseElements = (screenCode: string) => {
     const isClosingTag = token.startsWith("</");
 
     if (isClosingTag) {
-      while (stack.length > 0) {
+      const matchingIndex = stack.findLastIndex((entry) => entry.tagName === tagName);
+      if (matchingIndex < 0) {
+        continue;
+      }
+
+      while (stack.length > matchingIndex) {
         const openElement = stack.pop()!;
         elements.push({
           ...openElement,
@@ -545,6 +542,57 @@ export function indexScreenCode(screenCode: string): ScreenBlockIndex {
     rootId: rootBlockId,
     blocks,
   };
+}
+
+const trimmedSourceBounds = (code: string) => {
+  const start = code.search(/\S/);
+  if (start < 0) {
+    return { start: 0, end: 0 };
+  }
+
+  let end = code.length;
+  while (end > start && /\s/.test(code[end - 1] ?? "")) {
+    end -= 1;
+  }
+
+  return { start, end };
+};
+
+export function isScreenBlockIndexUsable(code: string, blockIndex: ScreenBlockIndex | null | undefined) {
+  if (!blockIndex?.rootId || blockIndex.blocks.length === 0) {
+    return false;
+  }
+
+  const rootBlock = blockIndex.blocks.find((block) => block.id === blockIndex.rootId);
+  if (!rootBlock) {
+    return false;
+  }
+
+  const { start, end } = trimmedSourceBounds(code);
+  if (rootBlock.startOffset > start || rootBlock.endOffset < end) {
+    return false;
+  }
+
+  return blockIndex.blocks.every((block) => {
+    const offsetsAreValid =
+      block.startOffset >= 0 &&
+      block.endOffset <= code.length &&
+      block.startOffset < block.endOffset;
+
+    if (!offsetsAreValid) {
+      return false;
+    }
+
+    if (block.id !== blockIndex.rootId && block.depth === 0) {
+      return false;
+    }
+
+    if (block.id !== blockIndex.rootId && (block.startOffset < rootBlock.startOffset || block.endOffset > rootBlock.endOffset)) {
+      return false;
+    }
+
+    return true;
+  });
 }
 
 export function isBroadScreenChange(prompt: string) {

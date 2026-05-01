@@ -1,6 +1,6 @@
 import "server-only";
 
-import { detectTargetBlocks, indexScreenCode } from "@/lib/generation/block-index";
+import { detectTargetBlocks, indexScreenCode, isScreenBlockIndexUsable } from "@/lib/generation/block-index";
 import { assembleChatContext } from "@/lib/generation/context";
 import { persistProjectMessageMemoryPair } from "@/lib/generation/message-memory";
 import {
@@ -12,7 +12,13 @@ import {
 } from "@/lib/generation/service";
 import { applyEdits } from "@/lib/diff-engine";
 import { ensureDrawgleIds } from "@/lib/drawgle-dom";
-import { detectScreenHealth, validateStaticDrawgleHtml } from "@/lib/generation/screen-quality";
+import {
+  buildScreenHealthError,
+  detectScreenHealth,
+  isBlockingScreenHealthFailure,
+  screenStatusForHealth,
+  validateStaticDrawgleHtml,
+} from "@/lib/generation/screen-quality";
 import { findRepairTarget, replaceSourceRegion, type RepairTarget } from "@/lib/generation/screen-repair";
 import { sanitizeScreenCodeForSharedNavigation } from "@/lib/project-navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -30,8 +36,8 @@ import type {
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 type ProjectMessageInput = Parameters<typeof insertProjectMessage>[1];
-type ScreenHealthResult = ReturnType<typeof detectScreenHealth>;
 type EditTargetScope = "selected_element" | "screen_region" | "whole_screen" | "screen" | "navigation";
+type EditOperation = "none" | "append_content" | "replace_region" | "restyle_region" | "rewrite_screen" | "repair_screen";
 type EditStrategy =
   | "selected_element_region_replace"
   | "screen_root_region_replace"
@@ -51,6 +57,7 @@ export type ModifyScreenPayload = {
   selectedElementTarget?: "screen" | "navigation" | null;
   requestTargetsNavigation?: boolean;
   targetScope?: EditTargetScope | string | null;
+  editOperation?: EditOperation | string | null;
   editStrategy?: EditStrategy | string | null;
   conversationContext?: Array<{ role: "user" | "model" | "system"; content: string; screenId?: string | null; screenName?: string | null; event?: string | null }> | null;
   recoveryContext?: Record<string, unknown> | null;
@@ -113,6 +120,36 @@ const isKnownEditStrategy = (value: unknown): value is EditStrategy =>
   value === "legacy_patch_then_region_replace" ||
   value === "navigation_replace";
 
+const isKnownEditOperation = (value: unknown): value is EditOperation =>
+  value === "none" ||
+  value === "append_content" ||
+  value === "replace_region" ||
+  value === "restyle_region" ||
+  value === "rewrite_screen" ||
+  value === "repair_screen";
+
+const isRootReplacementAllowed = ({
+  requestedEditStrategy,
+  payloadTargetScope,
+  editOperation,
+  prompt,
+}: {
+  requestedEditStrategy: EditStrategy | null;
+  payloadTargetScope: string | null;
+  editOperation: EditOperation;
+  prompt: string;
+}) => {
+  if (requestedEditStrategy !== "screen_root_region_replace") {
+    return false;
+  }
+
+  return (
+    payloadTargetScope === "whole_screen" ||
+    editOperation === "rewrite_screen" ||
+    isBackgroundRegionEditPrompt(prompt)
+  );
+};
+
 const buildRootRepairTarget = (code: string, blockIndex: ScreenBlockIndex): RepairTarget => {
   const rootBlock = blockIndex.blocks.find((block) => block.id === blockIndex.rootId);
 
@@ -125,19 +162,6 @@ const buildRootRepairTarget = (code: string, blockIndex: ScreenBlockIndex): Repa
     drawgleId: null,
   };
 };
-
-const buildScreenHealthError = (health: ScreenHealthResult) => {
-  if (health.healthy) {
-    return null;
-  }
-
-  const staticCodes = health.staticValidation.codes.length > 0
-    ? ` [static_html:${health.staticValidation.codes.join(",")}]`
-    : "";
-  return `[screen_health:${health.status}]${staticCodes} ${health.issues.join(" | ")}`;
-};
-
-const screenStatusForHealth = (health: ScreenHealthResult) => health.healthy ? "ready" : "failed";
 
 const buildAppliedEditMessage = (screenName: string, targetName: string) =>
   targetName === "screen" || targetName === "full screen"
@@ -256,6 +280,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
   const selectedElementHtml = shouldUseSelectedElement ? payload.selectedElementHtml?.trim() || null : null;
   const selectedElementDrawgleId = shouldUseSelectedElement ? payload.selectedElementDrawgleId?.trim() || null : null;
   const selectedElementTarget = payload.selectedElementTarget === "navigation" ? "navigation" : "screen";
+  const editOperation = isKnownEditOperation(payload.editOperation) ? payload.editOperation : "none";
   const requestedEditStrategy = isKnownEditStrategy(payload.editStrategy) ? payload.editStrategy : null;
 
   const { data: project, error: projectError } = await admin
@@ -383,7 +408,11 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
 
   const projectNavigationPlan = (projectNavigation?.plan as unknown as NavigationPlan | null) ?? null;
   const screenCode = ensureDrawgleIds(typeof screen.code === "string" && screen.code.length > 0 ? screen.code : "").code;
-  const blockIndex = ((screen.block_index as ScreenBlockIndex | null) ?? indexScreenCode(screenCode));
+  const candidateBlockIndex = screen.block_index as ScreenBlockIndex | null;
+  const blockIndex = isScreenBlockIndexUsable(screenCode, candidateBlockIndex)
+    ? candidateBlockIndex!
+    : indexScreenCode(screenCode);
+  const blockIndexUsable = isScreenBlockIndexUsable(screenCode, blockIndex);
   const selectedSourceRegion = selectedElementDrawgleId
     ? findRepairTarget({
         code: screenCode,
@@ -391,17 +420,31 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
         blockIndex,
       })
     : null;
-  const resolvedEditStrategy: EditStrategy = requestedEditStrategy ??
+  const safeRequestedEditStrategy =
+    isRootReplacementAllowed({ requestedEditStrategy, payloadTargetScope, editOperation, prompt })
+      ? requestedEditStrategy
+      : requestedEditStrategy === "screen_root_region_replace"
+        ? null
+        : requestedEditStrategy;
+  const resolvedEditStrategy: EditStrategy = safeRequestedEditStrategy ??
     (selectedSourceRegion
       ? "selected_element_region_replace"
-      : isBackgroundRegionEditPrompt(prompt) || payloadTargetScope === "screen_region" || payloadTargetScope === "whole_screen"
+      : payloadTargetScope === "whole_screen" || editOperation === "rewrite_screen" || isBackgroundRegionEditPrompt(prompt)
         ? "screen_root_region_replace"
-        : "legacy_patch_then_region_replace");
-  const rootSourceRegion = resolvedEditStrategy === "screen_root_region_replace"
+        : payloadTargetScope === "screen_region" || editOperation === "append_content" || editOperation === "replace_region" || editOperation === "restyle_region"
+          ? "block_region_replace"
+          : "legacy_patch_then_region_replace");
+  const rootSourceRegion = resolvedEditStrategy === "screen_root_region_replace" && blockIndexUsable
     ? buildRootRepairTarget(screenCode, blockIndex)
     : null;
   const blockSourceRegion = resolvedEditStrategy === "block_region_replace"
-    ? findRepairTarget({ code: screenCode, blockIndex, prompt })
+    ? findRepairTarget({
+        code: screenCode,
+        blockIndex,
+        prompt,
+        preferContainer: editOperation === "append_content",
+        allowFallback: false,
+      })
     : null;
   const regionReplacementTarget = selectedSourceRegion ?? rootSourceRegion ?? blockSourceRegion;
   const selectedSourceElementHtml = regionReplacementTarget?.snippet || selectedElementHtml;
@@ -439,8 +482,52 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
   const selectedRegionStaticHealth = regionReplacementTarget
     ? validateStaticDrawgleHtml({ code: regionReplacementTarget.snippet })
     : null;
+  const directRegionReplacementAllowed = Boolean(regionReplacementTarget) &&
+    (selectedSourceRegion !== null || !isBlockingScreenHealthFailure(health));
 
-  if (regionReplacementTarget) {
+  if (resolvedEditStrategy === "block_region_replace" && !blockSourceRegion && !isBlockingScreenHealthFailure(health)) {
+    const noTargetContent = `I could not find a safe section in ${screen.name} for that edit. Please select the exact list, card group, or section and try again.`;
+    const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
+      projectId: payload.projectId,
+      ownerId: payload.ownerId,
+      screenId: screen.id,
+      role: "model",
+      content: noTargetContent,
+      messageType: "chat",
+      metadata: {
+        action: "edit_target_not_found",
+        editStrategy: resolvedEditStrategy,
+        editOperation,
+        screenName: screen.name,
+        userMessageId: payload.userMessageId,
+        health,
+        recoveryContext: {
+          kind: "failed_edit_recovery",
+          instruction: prompt,
+          targetType: "screen",
+          targetScope: "screen_region",
+          targetScreenId: screen.id,
+          strategy: resolvedEditStrategy,
+        },
+        agentState: buildEditAgentState({
+          kind: "failed_edit_recovery",
+          instruction: prompt,
+          scope: "screen_region",
+          screenId: screen.id,
+          screenName: screen.name,
+          selectedElementDrawgleId,
+          message: noTargetContent,
+        }),
+        editJob: { status: "completed", targetType: "screen", screenId: screen.id, drawgleId: selectedElementDrawgleId },
+        routerDecision: payload.routerDecision ?? null,
+      },
+    });
+
+    await persistEditMemoryPair(admin, payload.userMessageId, prompt, modelMessage.id, noTargetContent);
+    return { targetType: "screen" as const, screenId: screen.id, changed: false, message: noTargetContent };
+  }
+
+  if (directRegionReplacementAllowed && regionReplacementTarget) {
     await upsertActivityMessage(admin, editActivityKey, {
       projectId: payload.projectId,
       ownerId: payload.ownerId,
@@ -474,6 +561,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
       userPrompt: prompt,
       currentCode: screenCode,
       repairTarget: regionReplacementTarget,
+      editOperation,
       designTokens,
       projectCharter,
       navigationArchitecture,
@@ -486,6 +574,58 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
     const replacedCode = replaceSourceRegion(screenCode, regionReplacementTarget, replacement);
     const nextCode = normalizeScreenCodeForSave(replacedCode);
     const nextHealth = detectScreenHealth({ code: nextCode, screenPrompt });
+
+    if (nextCode !== screenCode && isBlockingScreenHealthFailure(nextHealth)) {
+      const failureContent = `I could not safely apply that edit to ${screen.name}; the generated replacement would break the saved screen source. Please select a smaller exact section or ask me to repair the screen first.`;
+      const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
+        projectId: payload.projectId,
+        ownerId: payload.ownerId,
+        screenId: screen.id,
+        role: "model",
+        content: failureContent,
+        messageType: "error",
+        metadata: {
+          action: "source_region_replace_blocked_by_health",
+          editStrategy: resolvedEditStrategy,
+          editOperation,
+          screenName: screen.name,
+          userMessageId: payload.userMessageId,
+          health,
+          nextHealth,
+          selectedRegionStaticHealth,
+          repairTarget: {
+            reason: regionReplacementTarget.reason,
+            blockId: regionReplacementTarget.blockId ?? null,
+            drawgleId: regionReplacementTarget.drawgleId ?? selectedElementDrawgleId ?? null,
+            startOffset: regionReplacementTarget.startOffset,
+            endOffset: regionReplacementTarget.endOffset,
+          },
+          recoveryContext: {
+            kind: "failed_edit_recovery",
+            instruction: prompt,
+            targetType: "screen",
+            targetScope: resolvedEditStrategy === "selected_element_region_replace" ? "selected_element" : "screen_region",
+            targetScreenId: screen.id,
+            selectedElementDrawgleId,
+            strategy: resolvedEditStrategy,
+          },
+          agentState: buildEditAgentState({
+            kind: "failed_edit_recovery",
+            instruction: prompt,
+            scope: resolvedEditStrategy === "selected_element_region_replace" ? "selected_element" : "screen_region",
+            screenId: screen.id,
+            screenName: screen.name,
+            selectedElementDrawgleId,
+            message: failureContent,
+          }),
+          editJob: { status: "completed", targetType: "screen", screenId: screen.id, drawgleId: selectedElementDrawgleId },
+          routerDecision: payload.routerDecision ?? null,
+        },
+      });
+
+      await persistEditMemoryPair(admin, payload.userMessageId, prompt, modelMessage.id, failureContent);
+      return { targetType: "screen" as const, screenId: screen.id, changed: false, message: failureContent };
+    }
 
     if (nextCode !== screenCode) {
       const { error: updateError } = await admin
@@ -515,7 +655,11 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
       content: fullResponse,
       messageType: nextCode === screenCode ? "error" : "edit_applied",
       metadata: {
-        action: nextCode === screenCode ? "source_region_replace_noop" : nextHealth.healthy ? "source_region_replace_applied" : "source_region_replace_partial",
+        action: nextCode === screenCode
+          ? "source_region_replace_noop"
+          : isBlockingScreenHealthFailure(nextHealth)
+            ? "source_region_replace_partial"
+            : "source_region_replace_applied",
         editStrategy: resolvedEditStrategy,
         screenName: screen.name,
         userMessageId: payload.userMessageId,
@@ -584,33 +728,35 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
     const nextCode = normalizeScreenCodeForSave(reconstructed);
     const nextHealth = detectScreenHealth({ code: nextCode, screenPrompt });
 
-    const { error: updateError } = await admin
-      .from("screens")
-      .update({
-        code: nextCode,
-        block_index: indexScreenCode(nextCode) as never,
-        status: screenStatusForHealth(nextHealth),
-        error: buildScreenHealthError(nextHealth),
-        updated_at: now(),
-      })
-      .eq("id", screen.id);
+    if (!isBlockingScreenHealthFailure(nextHealth)) {
+      const { error: updateError } = await admin
+        .from("screens")
+        .update({
+          code: nextCode,
+          block_index: indexScreenCode(nextCode) as never,
+          status: screenStatusForHealth(nextHealth),
+          error: buildScreenHealthError(nextHealth),
+          updated_at: now(),
+        })
+        .eq("id", screen.id);
 
-    if (updateError) {
-      throw updateError;
+      if (updateError) {
+        throw updateError;
+      }
     }
 
-    const fullResponse = nextHealth.healthy
+    const fullResponse = !isBlockingScreenHealthFailure(nextHealth)
       ? `Reconstructed ${screen.name} from invalid source.`
-      : `Reconstruction updated ${screen.name}, but it still needs repair.`;
+      : `I could not safely reconstruct ${screen.name}; the replacement still failed source checks, so the saved screen was left unchanged.`;
     const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
       projectId: payload.projectId,
       ownerId: payload.ownerId,
       screenId: screen.id,
       role: "model",
       content: fullResponse,
-      messageType: nextHealth.healthy ? "edit_applied" : "error",
+      messageType: !isBlockingScreenHealthFailure(nextHealth) ? "edit_applied" : "error",
       metadata: {
-        action: nextHealth.healthy ? "full_screen_reconstruction_applied" : "full_screen_reconstruction_partial",
+        action: !isBlockingScreenHealthFailure(nextHealth) ? "full_screen_reconstruction_applied" : "full_screen_reconstruction_blocked_by_health",
         screenName: screen.name,
         userMessageId: payload.userMessageId,
         health,
@@ -621,10 +767,10 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
     });
 
     await persistEditMemoryPair(admin, payload.userMessageId, prompt, modelMessage.id, fullResponse);
-    return { targetType: "screen" as const, screenId: screen.id, changed: true, message: fullResponse };
+    return { targetType: "screen" as const, screenId: screen.id, changed: !isBlockingScreenHealthFailure(nextHealth), message: fullResponse };
   }
 
-  const shouldRepairScreen = isScreenRepairPrompt(prompt) || !health.healthy;
+  const shouldRepairScreen = editOperation === "repair_screen" || isScreenRepairPrompt(prompt) || isBlockingScreenHealthFailure(health);
 
   if (shouldRepairScreen) {
     const repairTarget = findRepairTarget({
@@ -632,6 +778,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
       drawgleId: selectedElementDrawgleId,
       blockIndex,
       prompt: `${prompt}\n${health.missingAnchors.join(" ")}`,
+      preferContainer: editOperation === "append_content",
     }) ?? {
       startOffset: 0,
       endOffset: screenCode.length,
@@ -685,7 +832,9 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
     const nextCode = normalizeScreenCodeForSave(repairedCode);
     const nextHealth = detectScreenHealth({ code: nextCode, screenPrompt });
 
-    if (nextCode !== screenCode) {
+    const repairCanBeSaved = nextCode !== screenCode && !isBlockingScreenHealthFailure(nextHealth);
+
+    if (repairCanBeSaved) {
       const { error: updateError } = await admin
         .from("screens")
         .update({
@@ -704,6 +853,8 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
 
     const fullResponse = nextCode === screenCode
       ? `Repair could not apply a material code change to ${screen.name}.`
+      : isBlockingScreenHealthFailure(nextHealth)
+        ? `I could not safely repair ${screen.name}; the repair output still failed source checks, so the saved screen was left unchanged.`
       : targetNames === "screen" || targetNames === "full screen"
         ? `Repaired ${screen.name}.`
         : `Repaired ${targetNames} in ${screen.name}.`;
@@ -713,9 +864,13 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
       screenId: screen.id,
       role: "model",
       content: fullResponse,
-      messageType: nextCode === screenCode ? "error" : "edit_applied",
+      messageType: repairCanBeSaved ? "edit_applied" : "error",
       metadata: {
-        action: nextCode === screenCode ? "screen_repair_failed" : nextHealth.healthy ? "screen_repair_applied" : "screen_repair_partial",
+        action: nextCode === screenCode
+          ? "screen_repair_failed"
+          : isBlockingScreenHealthFailure(nextHealth)
+            ? "screen_repair_blocked_by_health"
+            : "screen_repair_applied",
         screenName: screen.name,
         userMessageId: payload.userMessageId,
         repairTarget: {
@@ -731,7 +886,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
     });
 
     await persistEditMemoryPair(admin, payload.userMessageId, prompt, modelMessage.id, fullResponse);
-    return { targetType: "screen" as const, screenId: screen.id, changed: nextCode !== screenCode, message: fullResponse };
+    return { targetType: "screen" as const, screenId: screen.id, changed: repairCanBeSaved, message: fullResponse };
   }
 
   await upsertActivityMessage(admin, editActivityKey, {
@@ -816,6 +971,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
         userPrompt: prompt,
         currentCode: screenCode,
         repairTarget: fallbackRegionTarget,
+        editOperation,
         designTokens,
         projectCharter,
         navigationArchitecture,
@@ -881,6 +1037,56 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
   }
 
   const nextHealth = detectScreenHealth({ code: nextCode, screenPrompt });
+  if (isBlockingScreenHealthFailure(nextHealth)) {
+    const blockedContent = `I could not safely apply that edit to ${screen.name}; the edited HTML failed source checks, so the saved screen was left unchanged.`;
+    const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
+      projectId: payload.projectId,
+      ownerId: payload.ownerId,
+      screenId: screen.id,
+      role: "model",
+      content: blockedContent,
+      messageType: "error",
+      metadata: {
+        action: "edit_blocked_by_health",
+        editStrategy: fallbackRegionAttempted ? "legacy_patch_then_region_replace" : "legacy_patch",
+        fallbackRegionAttempted,
+        fallbackRegionTarget: fallbackRegionTarget ? {
+          reason: fallbackRegionTarget.reason,
+          blockId: fallbackRegionTarget.blockId ?? null,
+          drawgleId: fallbackRegionTarget.drawgleId ?? null,
+          startOffset: fallbackRegionTarget.startOffset,
+          endOffset: fallbackRegionTarget.endOffset,
+        } : null,
+        screenName: screen.name,
+        userMessageId: payload.userMessageId,
+        nextHealth,
+        modelOutputHidden: responseToApply.includes("<edit>"),
+        recoveryContext: {
+          kind: "failed_edit_recovery",
+          instruction: prompt,
+          targetType: "screen",
+          targetScope: fallbackRegionTarget?.reason === "screen_root_region" ? "screen_region" : "screen",
+          targetScreenId: screen.id,
+          strategy: "legacy_patch_then_region_replace",
+        },
+        agentState: buildEditAgentState({
+          kind: "failed_edit_recovery",
+          instruction: prompt,
+          scope: fallbackRegionTarget?.reason === "screen_root_region" ? "screen_region" : "screen",
+          screenId: screen.id,
+          screenName: screen.name,
+          selectedElementDrawgleId: null,
+          message: blockedContent,
+        }),
+        editJob: { status: "completed", targetType: "screen", screenId: screen.id },
+        routerDecision: payload.routerDecision ?? null,
+      },
+    });
+
+    await persistEditMemoryPair(admin, payload.userMessageId, prompt, modelMessage.id, blockedContent);
+    return { targetType: "screen" as const, screenId: screen.id, changed: false, message: blockedContent };
+  }
+
   const { error: updateError } = await admin
     .from("screens")
     .update({
@@ -905,7 +1111,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
     content: visibleEditContent,
     messageType: "edit_applied",
     metadata: {
-      action: nextHealth.healthy ? "edit_applied" : "edit_applied_with_source_health_failure",
+      action: "edit_applied",
       editStrategy: fallbackRegionAttempted ? "legacy_patch_then_region_replace" : "legacy_patch",
       fallbackRegionAttempted,
       fallbackRegionTarget: fallbackRegionTarget ? {

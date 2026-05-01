@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import {
   routeAgentPrompt,
+  type AgentEditOperation,
   type AgentRouterDecision,
   type AgentScope,
   type AgentTargetType,
@@ -247,6 +248,7 @@ const makeRouterMetadata = (decision: AgentRouterDecision) => ({
     targetScope: decision.scope,
     scope: decision.scope,
     selectedElementDrawgleId: decision.selectedElementDrawgleId ?? null,
+    editOperation: decision.editOperation,
   },
 });
 
@@ -1049,12 +1051,15 @@ export async function POST(request: Request) {
           ? routerDecision.scope
           : "screen_region";
     const shouldUseSelectedElement = resolvedScope === "selected_element";
+    const editOperation: AgentEditOperation = routerDecision.editOperation ?? "none";
     const editStrategy = requestTargetsNavigation
       ? "navigation_replace"
       : shouldUseSelectedElement
         ? "selected_element_region_replace"
-        : resolvedScope === "screen_region" || resolvedScope === "whole_screen"
+        : resolvedScope === "whole_screen" || editOperation === "rewrite_screen"
           ? "screen_root_region_replace"
+          : resolvedScope === "screen_region" || editOperation === "append_content" || editOperation === "replace_region" || editOperation === "restyle_region"
+            ? "block_region_replace"
           : "legacy_patch_then_region_replace";
     const executionRouterMetadata = {
       agentRouter: {
@@ -1064,6 +1069,7 @@ export async function POST(request: Request) {
         targetScope: resolvedScope,
         scope: resolvedScope,
         selectedElementDrawgleId: shouldUseSelectedElement ? payload.selectedElementDrawgleId ?? null : null,
+        editOperation,
       },
       serverReconciliation: {
         finalAction: "modify_ui",
@@ -1077,6 +1083,7 @@ export async function POST(request: Request) {
         filledTargetScreenFromAgentState: !routerScreenId && !selectedScreenId && Boolean(stateScreenId && targetScreenId === stateScreenId),
       },
       editStrategy,
+      editOperation,
     };
     const executionRouterDecision = {
       ...routerDecision,
@@ -1084,6 +1091,7 @@ export async function POST(request: Request) {
       targetType: executionRouterMetadata.agentRouter.targetType,
       scope: resolvedScope,
       selectedElementDrawgleId: executionRouterMetadata.agentRouter.selectedElementDrawgleId,
+      editOperation,
     };
 
     const deterministicStyleIntent = shouldUseSelectedElement
@@ -1314,6 +1322,7 @@ export async function POST(request: Request) {
         requestTargetsNavigation,
         targetScope: resolvedScope,
         editStrategy,
+        editOperation,
         conversationContext: recentMessages,
         recoveryContext: agentState as Record<string, unknown> | null,
         routerDecision: executionRouterMetadata.agentRouter,

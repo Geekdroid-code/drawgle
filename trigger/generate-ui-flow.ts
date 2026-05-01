@@ -6,7 +6,14 @@ import { ensureDrawgleIds } from "@/lib/drawgle-dom";
 import { indexScreenCode } from "@/lib/generation/block-index";
 import { assembleProjectContext } from "@/lib/generation/context";
 import { generateEmbedding, generateScreenSummary } from "@/lib/generation/embeddings";
-import { detectScreenHealth, validateGeneratedScreenCode, validateStaticDrawgleHtml } from "@/lib/generation/screen-quality";
+import {
+  buildScreenHealthError,
+  detectScreenHealth,
+  isBlockingScreenHealthFailure,
+  screenStatusForHealth,
+  validateGeneratedScreenCode,
+  validateStaticDrawgleHtml,
+} from "@/lib/generation/screen-quality";
 import { findRepairTarget, replaceSourceRegion } from "@/lib/generation/screen-repair";
 import { buildFullScreenReconstructionCode, buildNavigationShellCode, buildScreenStream, buildSectionRepairCode, extractCode, fallbackProjectCharter, generateDesignTokens, planUiFlow } from "@/lib/generation/service";
 import { createNavigationArchitecture, deriveRequiresBottomNav } from "@/lib/navigation";
@@ -84,17 +91,6 @@ const buildErrorCode = (message: string) => `<div class="min-h-screen w-full fle
   <div class="text-lg font-semibold">Generation failed</div>
   <div class="text-sm leading-6">${escapeHtml(message)}</div>
 </div>`;
-
-const buildScreenHealthError = (health: ReturnType<typeof detectScreenHealth>) => {
-  if (health.healthy) {
-    return null;
-  }
-
-  const staticCodes = health.staticValidation.codes.length > 0
-    ? ` [static_html:${health.staticValidation.codes.join(",")}]`
-    : "";
-  return `[screen_health:${health.status}]${staticCodes} ${health.issues.join(" | ")}`;
-};
 
 async function updateProject(admin: AdminClient, projectId: string, patch: Database["public"]["Tables"]["projects"]["Update"]) {
   const { error } = await admin.from("projects").update({ ...patch, updated_at: now() }).eq("id", projectId);
@@ -470,7 +466,7 @@ export const buildScreenTask = task({
     const code = ensureDrawgleIds(tokenizedCode).code;
     const health = detectScreenHealth({ code, screenPrompt: payload.screenPlan.description });
     const blockIndex = indexScreenCode(code);
-    const screenStatus = health.healthy ? "ready" : "failed";
+    const screenStatus = screenStatusForHealth(health);
 
     // Persist the final code directly so the parent only polls for status.
     const admin = createAdminClient();
@@ -495,7 +491,7 @@ export const buildScreenTask = task({
       throw updateError;
     }
 
-    if (!health.healthy) {
+    if (isBlockingScreenHealthFailure(health)) {
       logger.warn("Built screen failed source health guard and was not marked ready", {
         screenId: payload.screenId,
         screenName: payload.screenPlan.name,

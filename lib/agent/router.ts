@@ -17,6 +17,7 @@ export type AgentScreenContext = {
 export type AgentTargetType = "none" | "screen" | "selected_element" | "navigation" | "project";
 export type AgentScope = "none" | "selected_element" | "screen_region" | "whole_screen" | "navigation" | "new_screen";
 export type AgentAction = "chat_response" | "ask_clarification" | "create_new_screen" | "modify_ui";
+export type AgentEditOperation = "none" | "append_content" | "replace_region" | "restyle_region" | "rewrite_screen" | "repair_screen";
 
 export type AgentTurnState = {
   kind: "pending_clarification" | "failed_edit_recovery" | "last_actionable_request";
@@ -80,6 +81,7 @@ const RouterDecisionSchema = z.object({
   targetScreenId: z.string().trim().max(120).optional().nullable(),
   selectedElementDrawgleId: z.string().trim().max(160).optional().nullable(),
   scope: z.enum(["none", "selected_element", "screen_region", "whole_screen", "navigation", "new_screen"]).default("none"),
+  editOperation: z.enum(["none", "append_content", "replace_region", "restyle_region", "rewrite_screen", "repair_screen"]).default("none"),
 });
 
 export type AgentRouterDecision = z.infer<typeof RouterDecisionSchema>;
@@ -148,6 +150,13 @@ const decisionFunctionDeclaration: FunctionDeclaration = {
         description:
           "Execution scope. Use selected_element for local card/button/text/area edits, screen_region for one section or screen background layer, whole_screen for full-screen rewrites/redesigns, navigation for shared nav, and new_screen for creation.",
       },
+      editOperation: {
+        type: Type.STRING,
+        format: "enum",
+        enum: ["none", "append_content", "replace_region", "restyle_region", "rewrite_screen", "repair_screen"],
+        description:
+          "The edit shape when action is modify_ui. append_content adds siblings such as more cards/items/messages without rewriting existing sections. restyle_region changes visual styling. replace_region changes one section. rewrite_screen is an explicit full-screen rebuild. repair_screen fixes broken/incomplete source.",
+      },
       responseMessage: {
         type: Type.STRING,
         description:
@@ -161,7 +170,7 @@ const decisionFunctionDeclaration: FunctionDeclaration = {
       confidence: confidenceSchema,
       reason: reasonSchema,
     },
-    required: ["action", "instruction", "targetType", "scope", "confidence", "reason"],
+    required: ["action", "instruction", "targetType", "scope", "editOperation", "confidence", "reason"],
   },
 };
 
@@ -186,6 +195,7 @@ const parseFunctionDecision = (input: AgentRouterInput, functionCall: { name?: s
   const action = parseEnum(args.action, ["chat_response", "ask_clarification", "create_new_screen", "modify_ui"] as const, "ask_clarification");
   const targetType = parseEnum(args.targetType, ["none", "screen", "selected_element", "navigation", "project"] as const, "none");
   const scope = parseEnum(args.scope, ["none", "selected_element", "screen_region", "whole_screen", "navigation", "new_screen"] as const, "none");
+  const editOperation = parseEnum(args.editOperation, ["none", "append_content", "replace_region", "restyle_region", "rewrite_screen", "repair_screen"] as const, "none");
 
   return RouterDecisionSchema.parse({
     action,
@@ -198,6 +208,7 @@ const parseFunctionDecision = (input: AgentRouterInput, functionCall: { name?: s
     targetScreenId: asTrimmedString(args.targetScreenId) || null,
     selectedElementDrawgleId: asTrimmedString(args.selectedElementDrawgleId) || null,
     scope,
+    editOperation,
   });
 };
 
@@ -212,6 +223,7 @@ const safeFallbackDecision = (input: AgentRouterInput): AgentRouterDecision => R
   targetScreenId: null,
   selectedElementDrawgleId: null,
   scope: "none",
+  editOperation: "none",
 });
 
 export async function routeAgentPrompt(input: AgentRouterInput): Promise<AgentRouterDecision> {

@@ -1738,6 +1738,7 @@ export async function buildSourceRegionReplacementCode({
   userPrompt,
   currentCode,
   repairTarget,
+  editOperation = "none",
   designTokens,
   projectCharter,
   navigationArchitecture,
@@ -1747,6 +1748,7 @@ export async function buildSourceRegionReplacementCode({
   userPrompt: string;
   currentCode: string;
   repairTarget: RepairTarget;
+  editOperation?: "none" | "append_content" | "replace_region" | "restyle_region" | "rewrite_screen" | "repair_screen";
   designTokens?: DesignTokens | null;
   projectCharter?: ProjectCharter | null;
   navigationArchitecture?: NavigationArchitecture | null;
@@ -1792,6 +1794,9 @@ export async function buildSourceRegionReplacementCode({
         "You replace exactly one selected region inside an existing mobile screen.",
         "Return ONLY the replacement HTML for that selected region. The caller will splice it into the original source by offsets.",
         "Satisfy the user's edit request while preserving the surrounding screen's visual language, spacing rhythm, tokens, and content intent.",
+        editOperation === "append_content"
+          ? "Append-content operation: preserve all existing meaningful children in the selected container and add new sibling items that match the existing pattern. Do not remove, rename, or restyle unrelated existing items."
+          : null,
         "The replacement must fit between the provided before/after context and should keep the same semantic role unless the user asks to change that region's role.",
         repairTarget.reason === "screen_root_region"
           ? "Because the selected region is the screen root, return one complete screen root. The outermost element must be a <div> with w-full, min-h-screen, dg-bg-primary, dg-text-high, flex, flex-col, relative, and overflow-x-hidden classes. Do not return only an inner section."

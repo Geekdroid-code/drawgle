@@ -4,13 +4,13 @@ import { createClient } from "@/lib/supabase/server";
 
 import { NextResponse } from "next/server";
 
-import type { DesignTokens, NavigationArchitecture, ProjectCharter, ScreenBlockIndex } from "@/lib/types";
+import type { DesignTokens, NavigationArchitecture, ProjectCharter } from "@/lib/types";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   try {
-    const { screenId, messages, screenCode = "", blockIndex = null } = await req.json();
+    const { screenId, messages, screenCode = "" } = await req.json();
 
     if (!screenId) {
       return NextResponse.json({ error: "screenId is required." }, { status: 400 });
@@ -38,8 +38,7 @@ export async function POST(req: Request) {
     }
 
     const latestCode = typeof screen.code === "string" && screen.code.length > 0 ? screen.code : screenCode;
-    const latestBlockIndex = ((screen.block_index as ScreenBlockIndex | null) ?? (blockIndex as ScreenBlockIndex | null))
-      ?? indexScreenCode(latestCode);
+    const latestBlockIndex = indexScreenCode(latestCode);
     const latestUserPrompt = [...messages].reverse().find((message: { role?: string }) => message.role === "user")?.content ?? "";
     const resolution = detectTargetBlocks(latestUserPrompt, latestBlockIndex);
     const targetBlockIds = resolution.scope === "scoped" ? resolution.targetBlockIds : [];

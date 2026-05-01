@@ -14,24 +14,16 @@ const VOID_TAGS = new Set([
   "area",
   "base",
   "br",
-  "circle",
   "col",
   "embed",
   "hr",
   "img",
   "input",
-  "line",
   "link",
   "meta",
   "param",
-  "path",
-  "polygon",
-  "polyline",
-  "rect",
   "source",
-  "stop",
   "track",
-  "use",
   "wbr",
 ]);
 
@@ -130,11 +122,15 @@ export function findRepairTarget({
   drawgleId,
   blockIndex,
   prompt,
+  preferContainer = false,
+  allowFallback = true,
 }: {
   code: string;
   drawgleId?: string | null;
   blockIndex?: ScreenBlockIndex | null;
   prompt?: string | null;
+  preferContainer?: boolean;
+  allowFallback?: boolean;
 }): RepairTarget | null {
   if (drawgleId) {
     const selectedRegion = findElementRegionByDrawgleId(code, drawgleId);
@@ -146,13 +142,27 @@ export function findRepairTarget({
   const resolvedBlockIndex = blockIndex ?? indexScreenCode(code);
   if (prompt?.trim()) {
     const resolution = detectTargetBlocks(prompt, resolvedBlockIndex);
-    const blockId = resolution.scope === "scoped" ? resolution.targetBlockIds[0] : null;
+    const initialBlockId = resolution.scope === "scoped" ? resolution.targetBlockIds[0] : null;
+    const initialBlock = initialBlockId
+      ? resolvedBlockIndex.blocks.find((entry) => entry.id === initialBlockId)
+      : null;
+    const parentBlock = initialBlock?.parentId
+      ? resolvedBlockIndex.blocks.find((entry) => entry.id === initialBlock.parentId)
+      : null;
+    const blockId = preferContainer && parentBlock && parentBlock.id !== resolvedBlockIndex.rootId
+      ? parentBlock.id
+      : initialBlockId;
+
     if (blockId) {
       const blockRegion = findBlockRegion(code, resolvedBlockIndex, blockId, "prompt_block_match");
       if (blockRegion) {
         return blockRegion;
       }
     }
+  }
+
+  if (allowFallback === false) {
+    return null;
   }
 
   const fallbackBlock = chooseFallbackBlock(resolvedBlockIndex);

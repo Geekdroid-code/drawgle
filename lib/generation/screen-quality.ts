@@ -1,4 +1,4 @@
-import type { ScreenPlan } from "@/lib/types";
+import type { ScreenPlan, ScreenStatus } from "@/lib/types";
 
 export const REQUIRED_ANCHORS_LABEL = "Required screen anchors:";
 
@@ -333,9 +333,11 @@ export function validateStaticDrawgleHtml({
   }
 
   const unrecoverable = codes.some((code) =>
+    code === "empty_code" ||
     code === "jsx_leak" ||
     code === "script_tag" ||
     code === "duplicated_screen_fragment" ||
+    code === "duplicate_drawgle_ids" ||
     code === "tag_imbalance",
   );
 
@@ -432,6 +434,8 @@ export function detectScreenHealth({
     status = "structurally_broken";
   } else if (issues.length > 0) {
     status = "incomplete";
+  } else if (validation.missingAnchors.length > 0) {
+    status = "missing_required_content";
   }
 
   return {
@@ -442,4 +446,30 @@ export function detectScreenHealth({
     missingAnchors: validation.missingAnchors,
     staticValidation,
   };
+}
+
+export type ScreenHealthResult = ReturnType<typeof detectScreenHealth>;
+
+export function isBlockingScreenHealthFailure(health: ScreenHealthResult) {
+  return (
+    health.status === "structurally_broken" ||
+    health.status === "incomplete" ||
+    health.staticValidation.unrecoverable ||
+    health.staticValidation.codes.length > 0
+  );
+}
+
+export function screenStatusForHealth(health: ScreenHealthResult): ScreenStatus {
+  return isBlockingScreenHealthFailure(health) ? "failed" : "ready";
+}
+
+export function buildScreenHealthError(health: ScreenHealthResult) {
+  if (!isBlockingScreenHealthFailure(health)) {
+    return null;
+  }
+
+  const staticCodes = health.staticValidation.codes.length > 0
+    ? ` [static_html:${health.staticValidation.codes.join(",")}]`
+    : "";
+  return `[screen_health:${health.status}]${staticCodes} ${health.issues.join(" | ")}`;
 }
