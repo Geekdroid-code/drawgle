@@ -155,6 +155,8 @@ type ElementEditSession = {
   screenId: string | null;
   element: SelectedElementInfo;
   mode: ManualEditMode;
+  selectedAt: string;
+  selectionVersion: number;
 };
 
 function SelectedElementActionMenu({
@@ -773,6 +775,7 @@ export function ProjectShell({
   const [pendingAddScreenRunId, setPendingAddScreenRunId] = useState<string | null>(null);
   const [queueError, setQueueError] = useState<string | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
+  const [selectionVersion, setSelectionVersion] = useState(0);
   const [editSession, setEditSession] = useState<ElementEditSession | null>(null);
   const [isProjectPanelOpen, setIsProjectPanelOpen] = useState(false);
   const [tokenDraft, setTokenDraft] = useState<DesignTokens | null>(() =>
@@ -846,6 +849,21 @@ export function ProjectShell({
       setSelectedScreen(updatedScreen);
     }
   }, [editSession?.screenId, screens, selectedScreen]);
+
+  useEffect(() => {
+    if (!selectionMode) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setSelectionMode(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectionMode]);
 
   useEffect(() => {
     if (screens.length === 0 || hasQueuedInitialFitRef.current) {
@@ -1083,9 +1101,33 @@ export function ProjectShell({
       return false;
     }
 
-    const activeEditScreenId = editSession?.screenId ?? selectedScreen?.id ?? null;
+    const activeEditScreenId = editSession?.element.targetType === "navigation"
+      ? null
+      : editSession?.screenId ?? selectedScreen?.id ?? null;
     const activeEditElement = editSession?.element ?? null;
     setQueueError(null);
+
+    if (activeEditElement && !activeEditElement.drawgleId) {
+      try {
+        const supabase = createClient();
+        await insertProjectMessage(supabase, {
+          projectId: project.id,
+          ownerId: user.id,
+          screenId: activeEditElement.targetType === "navigation" ? null : activeEditScreenId,
+          role: "model",
+          content: "I lost the selected section identity. Please reselect the exact element and try again.",
+          messageType: "error",
+          metadata: {
+            action: "selected_element_missing_drawgle_id",
+            selectedElementPreview: activeEditElement.textPreview,
+          },
+        });
+      } catch (messageError) {
+        console.error("Failed to persist stale selection message", messageError);
+      }
+
+      return true;
+    }
 
     try {
       const agentRes = await fetch("/api/agent", {
@@ -1115,8 +1157,12 @@ export function ProjectShell({
         addScreenRefreshAttemptedRunIdRef.current = null;
         await refreshGenerationRuns();
       } else if (payload.intent === "modify_screen") {
-        setEditSession(null);
-        setSelectionMode(false);
+        if (payload.deterministic) {
+          await refreshScreens();
+        }
+        setEditSession((currentSession) =>
+          currentSession ? { ...currentSession, mode: "actions" } : currentSession,
+        );
       }
 
       return true;
@@ -1207,7 +1253,6 @@ export function ProjectShell({
 
   const clearEditSession = () => {
     setEditSession(null);
-    setSelectionMode(false);
   };
 
   const handleCanvasSelectScreen = (screen: ScreenData | null) => {
@@ -1218,7 +1263,6 @@ export function ProjectShell({
     setSelectedScreen(screen);
 
     if (!screen) {
-      setSelectionMode(false);
       return;
     }
 
@@ -1229,9 +1273,6 @@ export function ProjectShell({
 
   const setEditSessionMode = (mode: ManualEditMode) => {
     setEditSession((currentSession) => currentSession ? { ...currentSession, mode } : currentSession);
-    if (mode === "ai") {
-      setSelectionMode(false);
-    }
   };
 
   if (isProjectLoading || !project) {
@@ -1281,12 +1322,26 @@ export function ProjectShell({
             selectedElementScreenId={editSession?.screenId ?? null}
             selectedElementDrawgleId={editSession?.element.drawgleId ?? null}
             onElementSelected={(info) => {
+              if (
+                editSession &&
+                editSession.mode !== "actions" &&
+                (editSession.screenId !== info.screenId || editSession.element.drawgleId !== info.drawgleId) &&
+                !window.confirm("Discard the current unsaved element edits and select this new target?")
+              ) {
+                return;
+              }
+
+              const ownerScreen = screens.find((screen) => screen.id === info.screenId) ?? null;
+              const nextSelectionVersion = selectionVersion + 1;
+              setSelectionVersion(nextSelectionVersion);
+              setSelectedScreen(ownerScreen);
               setEditSession({
-                screenId: selectedScreen?.id ?? null,
+                screenId: info.screenId,
                 element: info,
                 mode: "actions",
+                selectedAt: new Date().toISOString(),
+                selectionVersion: nextSelectionVersion,
               });
-              setSelectionMode(false);
             }}
           />
 

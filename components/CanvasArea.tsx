@@ -274,9 +274,9 @@ const CanvasContent = ({
             isSelected={selectedScreen?.id === screen.id}
             onClick={() => onSelectScreen?.(screen)}
             scale={scale}
-            selectionMode={selectedScreen?.id === screen.id ? selectionMode : false}
+            selectionMode={selectionMode}
             selectedDrawgleId={selectedElementScreenId === screen.id ? selectedElementDrawgleId ?? null : null}
-            onElementSelected={selectedScreen?.id === screen.id ? onElementSelected : undefined}
+            onElementSelected={selectionMode ? onElementSelected : undefined}
           />
         ))}
       </div>

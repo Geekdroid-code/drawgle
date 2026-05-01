@@ -42,7 +42,7 @@ export function PromptBar({
   const [image, setImage] = useState<PromptImagePayload | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const activeImage = selectedScreen ? null : image;
-  const isActiveComposer = Boolean(prompt.trim() || activeImage || selectedScreen);
+  const isActiveComposer = Boolean(prompt.trim() || activeImage || selectedScreen || selectedElementPreview || selectionMode);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -111,27 +111,6 @@ export function PromptBar({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            {onToggleSelectionMode ? (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 rounded-full transition-colors duration-150"
-                style={selectionMode ? {
-                  background: "#ffffff",
-                  border: "1px solid rgba(0,47,167,0.24)",
-                  color: "#002fa7",
-                } : {
-                  background: "#ffffff",
-                  border: "1px solid rgba(15,23,42,0.09)",
-                  color: "#606773",
-                }}
-                onClick={onToggleSelectionMode}
-                disabled={disabled || isGenerating}
-                title={selectionMode ? "Exit select mode" : "Select an element to edit"}
-              >
-                <Crosshair className="h-3.5 w-3.5" />
-              </Button>
-            ) : null}
             {selectedElementPreview && onClearSelectedElement ? (
               <Button
                 variant="ghost"
@@ -197,6 +176,24 @@ export function PromptBar({
           </div>
         </div>
       )}
+      {selectionMode ? (
+        <div className="mx-2 mt-1 flex items-center justify-between gap-2 rounded-[14px] border border-teal-500/25 bg-teal-50/90 px-3 py-2 text-xs font-medium text-teal-800">
+          <span className="flex min-w-0 items-center gap-2">
+            <Crosshair className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">Select mode on. Click any element on any phone to retarget.</span>
+          </span>
+          {onToggleSelectionMode ? (
+            <button
+              type="button"
+              className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-teal-700 hover:text-teal-950"
+              onClick={onToggleSelectionMode}
+              disabled={disabled || isGenerating}
+            >
+              Off
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       <Textarea
         placeholder={
           selectedScreen
@@ -225,6 +222,23 @@ export function PromptBar({
             ref={fileInputRef}
             onChange={handleImageUpload}
           />
+          {onToggleSelectionMode ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 rounded-full dg-control transition-colors duration-150"
+              style={selectionMode ? {
+                background: "#ecfeff",
+                border: "1px solid rgba(13,148,136,0.28)",
+                color: "#0f766e",
+              } : undefined}
+              onClick={onToggleSelectionMode}
+              disabled={disabled || isGenerating}
+              title={selectionMode ? "Exit select mode" : "Select an element to edit"}
+            >
+              <Crosshair className="w-5 h-5" />
+            </Button>
+          ) : null}
           {!selectedScreen ? (
             <Button
               variant="ghost"

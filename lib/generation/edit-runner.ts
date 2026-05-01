@@ -452,14 +452,13 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
     ? { scope: "scoped" as const, targetBlockIds: [] }
     : detectTargetBlocks(prompt, blockIndex);
   const targetBlockIds = resolution.scope === "scoped" && !selectedSourceElementHtml ? resolution.targetBlockIds : [];
-  const allMessages = await fetchProjectMessages(admin, payload.projectId);
   const chatHistory = selectedSourceElementHtml
     ? [{ role: "user" as const, content: prompt }]
     : await assembleChatContext({
         admin,
         projectId: payload.projectId,
         userPrompt: prompt,
-        recentMessages: allMessages,
+        recentMessages: await fetchProjectMessages(admin, payload.projectId),
       });
   const targetNames = selectedSourceElementHtml
     ? regionReplacementTarget?.reason === "screen_root_region"
@@ -482,6 +481,65 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
   const selectedRegionStaticHealth = regionReplacementTarget
     ? validateStaticDrawgleHtml({ code: regionReplacementTarget.snippet })
     : null;
+  const explicitRepairRequested = editOperation === "repair_screen" || isScreenRepairPrompt(prompt);
+  const explicitRewriteRequested =
+    editOperation === "rewrite_screen" ||
+    (payloadTargetScope === "whole_screen" && isScreenLevelEditPrompt(originalPrompt));
+
+  if (isBlockingScreenHealthFailure(health) && !explicitRepairRequested && !explicitRewriteRequested) {
+    const failureContent = `I cannot safely edit ${screen.name} because its saved source is broken. Please repair the screen first, then reselect the exact section.`;
+    const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
+      projectId: payload.projectId,
+      ownerId: payload.ownerId,
+      screenId: screen.id,
+      role: "model",
+      content: failureContent,
+      messageType: "error",
+      metadata: {
+        action: "edit_blocked_by_existing_source_health",
+        editStrategy: resolvedEditStrategy,
+        editOperation,
+        screenName: screen.name,
+        userMessageId: payload.userMessageId,
+        health,
+        selectedRegionStaticHealth,
+        repairTarget: regionReplacementTarget
+          ? {
+              reason: regionReplacementTarget.reason,
+              blockId: regionReplacementTarget.blockId ?? null,
+              drawgleId: regionReplacementTarget.drawgleId ?? selectedElementDrawgleId ?? null,
+              startOffset: regionReplacementTarget.startOffset,
+              endOffset: regionReplacementTarget.endOffset,
+            }
+          : null,
+        recoveryContext: {
+          kind: "failed_edit_recovery",
+          instruction: prompt,
+          targetType: "screen",
+          targetScope: selectedSourceRegion ? "selected_element" : payloadTargetScope ?? "screen_region",
+          targetScreenId: screen.id,
+          selectedElementDrawgleId,
+          strategy: resolvedEditStrategy,
+          requiredAction: "repair_source",
+        },
+        agentState: buildEditAgentState({
+          kind: "failed_edit_recovery",
+          instruction: prompt,
+          scope: selectedSourceRegion ? "selected_element" : "screen_region",
+          screenId: screen.id,
+          screenName: screen.name,
+          selectedElementDrawgleId,
+          message: failureContent,
+        }),
+        editJob: { status: "failed", targetType: "screen", screenId: screen.id, drawgleId: selectedElementDrawgleId },
+        routerDecision: payload.routerDecision ?? null,
+      },
+    });
+
+    await persistEditMemoryPair(admin, payload.userMessageId, prompt, modelMessage.id, failureContent);
+    return { targetType: "screen" as const, screenId: screen.id, changed: false, message: failureContent };
+  }
+
   const directRegionReplacementAllowed = Boolean(regionReplacementTarget) &&
     (selectedSourceRegion !== null || !isBlockingScreenHealthFailure(health));
 
@@ -693,7 +751,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
     return { targetType: "screen" as const, screenId: screen.id, changed: nextCode !== screenCode, message: fullResponse };
   }
 
-  if (health.staticValidation.unrecoverable) {
+  if (isBlockingScreenHealthFailure(health) && explicitRewriteRequested) {
     await upsertActivityMessage(admin, editActivityKey, {
       projectId: payload.projectId,
       ownerId: payload.ownerId,
@@ -770,7 +828,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
     return { targetType: "screen" as const, screenId: screen.id, changed: !isBlockingScreenHealthFailure(nextHealth), message: fullResponse };
   }
 
-  const shouldRepairScreen = editOperation === "repair_screen" || isScreenRepairPrompt(prompt) || isBlockingScreenHealthFailure(health);
+  const shouldRepairScreen = explicitRepairRequested;
 
   if (shouldRepairScreen) {
     const repairTarget = findRepairTarget({

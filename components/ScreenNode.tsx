@@ -14,6 +14,7 @@ import { useRealtimeRunWithStreams } from "@trigger.dev/react-hooks";
 
 /** Data sent from the iframe when the user clicks an element in selection mode. */
 export interface SelectedElementInfo {
+  screenId: string;
   /** The outerHTML of the selected element — used as the LLM's edit target. */
   outerHTML: string;
   /** Stable source id used for deterministic/manual edits. */
@@ -555,6 +556,7 @@ ${cleanScreenCode}
       if (outerHTML) {
         const screenRect = iframeRef.current?.getBoundingClientRect() ?? null;
         onElementSelected({
+          screenId: screen.id,
           outerHTML,
           drawgleId: drawgleId ?? null,
           targetType: event.data.targetType === "navigation" ? "navigation" : "screen",
@@ -580,7 +582,7 @@ ${cleanScreenCode}
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [selectionMode, onElementSelected]);
+  }, [selectionMode, onElementSelected, screen.id]);
 
   // ── Delete
   const handleDelete = useCallback(async () => {
@@ -1307,7 +1309,7 @@ ${cleanScreenCode}
   // Render
   // =========================================================================
 
-  const isSelectionModeActive = Boolean(isSelected && selectionMode);
+  const isSelectionModeActive = Boolean(selectionMode);
   // Overlay is removed for interact mode AND selection mode (iframe needs pointer events)
   const overlayActive = !isInteractModeActive && !isSelectionModeActive;
   const overlayPointerStyle: React.CSSProperties = {

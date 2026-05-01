@@ -16,6 +16,7 @@ import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { applyDeterministicEdits, ensureDrawgleIds, type DeterministicEditOperation } from "@/lib/drawgle-dom";
 import { indexScreenCode } from "@/lib/generation/block-index";
 import { persistProjectMessageMemory, persistProjectMessageMemoryPair } from "@/lib/generation/message-memory";
+import { findRepairTarget } from "@/lib/generation/screen-repair";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { fetchProjectMessages, insertProjectMessage } from "@/lib/supabase/queries";
@@ -434,6 +435,129 @@ const classifyDeterministicTokenStyleIntent = ({
   };
 };
 
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const countDrawgleIdOccurrences = (code: string, drawgleId: string) => {
+  const escapedId = escapeRegExp(drawgleId);
+  const regex = new RegExp(`\\sdata-drawgle-id\\s*=\\s*(?:"${escapedId}"|'${escapedId}'|${escapedId})(?=\\s|>|/)`, "gi");
+  return Array.from(code.matchAll(regex)).length;
+};
+
+type SelectedElementVerification =
+  | {
+      ok: true;
+      html: string;
+      sourceName: string;
+    }
+  | {
+      ok: false;
+      reason: string;
+      message: string;
+    };
+
+async function verifySelectedElementSource({
+  admin,
+  projectId,
+  screenId,
+  targetType,
+  drawgleId,
+}: {
+  admin: ReturnType<typeof createAdminClient>;
+  projectId: string;
+  screenId?: string | null;
+  targetType: "screen" | "navigation";
+  drawgleId?: string | null;
+}): Promise<SelectedElementVerification> {
+  if (!drawgleId?.trim()) {
+    return {
+      ok: false,
+      reason: "missing_drawgle_id",
+      message: "I lost the selected section identity. Please reselect the exact element and try again.",
+    };
+  }
+
+  if (targetType === "navigation") {
+    const { data: navigation, error } = await admin
+      .from("project_navigation")
+      .select("shell_code")
+      .eq("project_id", projectId)
+      .maybeSingle();
+
+    if (error || !navigation?.shell_code) {
+      return {
+        ok: false,
+        reason: "navigation_source_missing",
+        message: "I could not verify that selected navigation item. Please reselect it and try again.",
+      };
+    }
+
+    const sourceCode = ensureDrawgleIds(navigation.shell_code ?? "").code;
+    const occurrenceCount = countDrawgleIdOccurrences(sourceCode, drawgleId);
+    if (occurrenceCount !== 1) {
+      return {
+        ok: false,
+        reason: occurrenceCount === 0 ? "stale_drawgle_id" : "duplicate_drawgle_id",
+        message: "That selected navigation item is stale or ambiguous. Please reselect the exact item and try again.",
+      };
+    }
+
+    const sourceRegion = findRepairTarget({ code: sourceCode, drawgleId, allowFallback: false });
+    if (!sourceRegion) {
+      return {
+        ok: false,
+        reason: "source_region_not_found",
+        message: "I could not locate that selected navigation item in the saved source. Please reselect it and try again.",
+      };
+    }
+
+    return { ok: true, html: sourceRegion.snippet, sourceName: "Navigation" };
+  }
+
+  if (!screenId) {
+    return {
+      ok: false,
+      reason: "screen_missing_for_selection",
+      message: "I can edit the selected element, but I lost which screen it belongs to. Please reselect it.",
+    };
+  }
+
+  const { data: screen, error } = await admin
+    .from("screens")
+    .select("id, name, code")
+    .eq("id", screenId)
+    .eq("project_id", projectId)
+    .maybeSingle();
+
+  if (error || !screen) {
+    return {
+      ok: false,
+      reason: "screen_source_missing",
+      message: "I could not verify the selected section because its screen was not found. Please reselect it.",
+    };
+  }
+
+  const sourceCode = ensureDrawgleIds(screen.code ?? "").code;
+  const occurrenceCount = countDrawgleIdOccurrences(sourceCode, drawgleId);
+  if (occurrenceCount !== 1) {
+    return {
+      ok: false,
+      reason: occurrenceCount === 0 ? "stale_drawgle_id" : "duplicate_drawgle_id",
+      message: "That selected section is stale or ambiguous. Please reselect the exact element and try again.",
+    };
+  }
+
+  const sourceRegion = findRepairTarget({ code: sourceCode, drawgleId, allowFallback: false });
+  if (!sourceRegion) {
+    return {
+      ok: false,
+      reason: "source_region_not_found",
+      message: "I could not locate that selected section in the saved source. Please reselect it and try again.",
+    };
+  }
+
+  return { ok: true, html: sourceRegion.snippet, sourceName: screen.name };
+}
+
 async function findActiveGenerationRun(admin: ReturnType<typeof createAdminClient>, projectId: string) {
   const { data, error } = await admin
     .from("generation_runs")
@@ -850,10 +974,21 @@ export async function POST(request: Request) {
       ? normalizeDesignTokens(project.design_tokens as DesignTokens)
       : null;
     const resolvedInstruction = routerDecision.instruction?.trim() || agentState?.instruction || prompt;
-    const selectedElementRequested = routerDecision.targetType === "selected_element" || routerDecision.scope === "selected_element";
+    const hasSelectedElementPayload = Boolean(payload.selectedElementDrawgleId && payload.selectedElementTarget);
+    const routerTargetsNavigation = routerDecision.targetType === "navigation" || routerDecision.scope === "navigation";
+    const routerExplicitWholeScreen = routerDecision.scope === "whole_screen" || routerDecision.editOperation === "rewrite_screen";
+    const selectedElementRequested =
+      routerDecision.targetType === "selected_element" ||
+      routerDecision.scope === "selected_element" ||
+      (
+        hasSelectedElementPayload &&
+        !routerTargetsNavigation &&
+        !routerExplicitWholeScreen &&
+        routerDecision.targetType !== "project" &&
+        routerDecision.scope !== "new_screen"
+      );
     const requestTargetsNavigation =
-      routerDecision.targetType === "navigation" ||
-      routerDecision.scope === "navigation" ||
+      routerTargetsNavigation ||
       (payload.selectedElementTarget === "navigation" && selectedElementRequested);
 
     if (routerDecision.targetType === "project") {
@@ -1093,6 +1228,46 @@ export async function POST(request: Request) {
       selectedElementDrawgleId: executionRouterMetadata.agentRouter.selectedElementDrawgleId,
       editOperation,
     };
+    let verifiedSelectedElementHtml = shouldUseSelectedElement
+      ? payload.selectedElementHtml ?? null
+      : null;
+
+    if (shouldUseSelectedElement) {
+      const verification = await verifySelectedElementSource({
+        admin,
+        projectId: payload.projectId,
+        screenId: targetScreenId,
+        targetType: requestTargetsNavigation ? "navigation" : "screen",
+        drawgleId: payload.selectedElementDrawgleId,
+      });
+
+      if (!verification.ok) {
+        return saveClarification({
+          message: whiteLabelAgentMessage(prompt, verification.message),
+          instruction: resolvedInstruction,
+          missingFields: ["selected_element"],
+          lastKnownTarget: {
+            targetType: requestTargetsNavigation ? "navigation" : "selected_element",
+            scope: requestTargetsNavigation ? "navigation" : "selected_element",
+            screenId: targetScreenId,
+            screenName: requestTargetsNavigation ? "Navigation" : targetScreen?.name ?? null,
+            selectedElementDrawgleId: payload.selectedElementDrawgleId ?? null,
+          },
+          status: 409,
+          metadata: {
+            serverReconciliation: {
+              ...executionRouterMetadata.serverReconciliation,
+              finalAction: "ask_clarification",
+              reason: verification.reason,
+            },
+            editStrategy,
+            editOperation,
+          },
+        });
+      }
+
+      verifiedSelectedElementHtml = verification.html;
+    }
 
     const deterministicStyleIntent = shouldUseSelectedElement
       ? classifyDeterministicTokenStyleIntent({
@@ -1316,15 +1491,15 @@ export async function POST(request: Request) {
         resolvedInstruction,
         userMessageId: userMessage.id,
         screenId: targetScreenId,
-        selectedElementHtml: shouldUseSelectedElement ? payload.selectedElementHtml ?? null : null,
+        selectedElementHtml: shouldUseSelectedElement ? verifiedSelectedElementHtml : null,
         selectedElementDrawgleId: shouldUseSelectedElement ? payload.selectedElementDrawgleId ?? null : null,
         selectedElementTarget: requestTargetsNavigation ? "navigation" : "screen",
         requestTargetsNavigation,
         targetScope: resolvedScope,
         editStrategy,
         editOperation,
-        conversationContext: recentMessages,
-        recoveryContext: agentState as Record<string, unknown> | null,
+        conversationContext: shouldUseSelectedElement ? null : recentMessages,
+        recoveryContext: shouldUseSelectedElement ? null : agentState as Record<string, unknown> | null,
         routerDecision: executionRouterMetadata.agentRouter,
       },
       {
