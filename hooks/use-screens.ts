@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
-import type { ScreenRow } from "@/lib/supabase/database.types";
+import type { ProjectMessageRow, ScreenRow } from "@/lib/supabase/database.types";
 import { mapScreenRow } from "@/lib/supabase/mappers";
 import { fetchScreens } from "@/lib/supabase/queries";
 import type { ScreenData } from "@/lib/types";
@@ -61,6 +61,7 @@ export function useScreens(projectId: string, initialScreens: ScreenData[] = [])
 
     const supabase = createClient();
     let cancelled = false;
+    let refreshTimer: number | null = null;
 
     const loadScreens = async () => {
       try {
@@ -76,6 +77,17 @@ export function useScreens(projectId: string, initialScreens: ScreenData[] = [])
           setIsLoading(false);
         }
       }
+    };
+
+    const queueRefreshScreens = () => {
+      if (cancelled || refreshTimer) {
+        return;
+      }
+
+      refreshTimer = window.setTimeout(() => {
+        refreshTimer = null;
+        void loadScreens();
+      }, 120);
     };
 
     void loadScreens();
@@ -114,13 +126,52 @@ export function useScreens(projectId: string, initialScreens: ScreenData[] = [])
         }
       });
 
+    const invalidationChannel = supabase
+      .channel(`screens-invalidation:${projectId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "project_messages",
+          filter: `project_id=eq.${projectId}`,
+        },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            return;
+          }
+
+          const message = payload.new as ProjectMessageRow;
+          const metadata = message.metadata && typeof message.metadata === "object" && !Array.isArray(message.metadata)
+            ? message.metadata as Record<string, unknown>
+            : {};
+          const action = typeof metadata.action === "string" ? metadata.action : "";
+          const isScreenMutation =
+            message.message_type === "edit_applied" ||
+            action.includes("source_region_replace") ||
+            action.includes("screen_repair") ||
+            action.includes("full_screen_reconstruction") ||
+            action === "edit_applied" ||
+            action === "edit_applied_with_source_health_failure";
+
+          if (isScreenMutation) {
+            queueRefreshScreens();
+          }
+        },
+      )
+      .subscribe();
+
     return () => {
       cancelled = true;
+      if (refreshTimer) {
+        window.clearTimeout(refreshTimer);
+      }
       void supabase.removeChannel(channel);
+      void supabase.removeChannel(invalidationChannel);
     };
   }, [projectId]);
 
-  const refreshScreens = async () => {
+  const refreshScreens = useCallback(async () => {
     if (!projectId) return;
     try {
       const supabase = createClient();
@@ -129,7 +180,7 @@ export function useScreens(projectId: string, initialScreens: ScreenData[] = [])
     } catch (error) {
       console.error("Failed to refresh screens", error);
     }
-  };
+  }, [projectId]);
 
   return {
     screens,
