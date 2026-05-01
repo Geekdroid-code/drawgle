@@ -21,24 +21,16 @@ const NON_CLOSING_TAGS = new Set([
   "area",
   "base",
   "br",
-  "circle",
   "col",
   "embed",
   "hr",
   "img",
   "input",
-  "line",
   "link",
   "meta",
   "param",
-  "path",
-  "polygon",
-  "polyline",
-  "rect",
   "source",
-  "stop",
   "track",
-  "use",
   "wbr",
 ]);
 
@@ -64,7 +56,38 @@ const COMMON_ANCHOR_NOISE = new Set([
   "place",
   "insert",
   "include",
+  "header",
+  "back",
+  "the",
+  "each",
+  "attached",
+  "floating",
+  "generic",
+  "context",
+  "text",
+  "texts",
+  "label",
+  "labels",
+  "icon",
+  "icons",
+  "e.g",
+  "eg",
 ]);
+
+const IMPLEMENTATION_ANCHOR_PATTERNS = [
+  /\b(?:bg|text|border|shadow|rounded|p|m|px|py|pt|pb|gap|grid|flex|w|h|min|max|inset)-\[/i,
+  /\b(?:rounded|shadow|bg|text|border|inset-shadow|drop-shadow|backdrop-blur|z)-/i,
+  /\b(?:class|style|tailwind|css|html|div|section|header|footer|main|svg|path|lucide)\b/i,
+];
+
+const trimFillerLanguage = (value: string) =>
+  value
+    .replace(/[\u201c\u201d\u2018\u2019]/g, "'")
+    .replace(/\b(?:generic|context|contexts|text|texts|label|labels)\b/gi, " ")
+    .replace(/\b(?:icon|icons|button|buttons|card|cards|section|container|containers)\b/gi, " ")
+    .replace(/\be\.?g\.?\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
 const normalize = (value: string) =>
   value
@@ -76,7 +99,7 @@ const normalize = (value: string) =>
     .trim();
 
 const cleanAnchor = (value: string) => {
-  const cleaned = value
+  const cleaned = trimFillerLanguage(value)
     .replace(/\s+/g, " ")
     .replace(/^[\s"'`.,:;()[\]{}<>-]+|[\s"'`.,:;()[\]{}<>-]+$/g, "")
     .trim();
@@ -87,6 +110,15 @@ const cleanAnchor = (value: string) => {
 
   const normalized = normalize(cleaned);
   if (!normalized || COMMON_ANCHOR_NOISE.has(normalized)) {
+    return null;
+  }
+
+  if (IMPLEMENTATION_ANCHOR_PATTERNS.some((pattern) => pattern.test(cleaned))) {
+    return null;
+  }
+
+  const meaningfulWords = normalized.split(" ").filter((word) => word.length > 1 && !COMMON_ANCHOR_NOISE.has(word));
+  if (meaningfulWords.length === 0 && !/\d/.test(cleaned)) {
     return null;
   }
 
@@ -103,18 +135,11 @@ const pushUnique = (anchors: string[], value: string | null) => {
 export function extractRequiredAnchors(text: string, limit = 18) {
   const anchors: string[] = [];
 
-  for (const match of text.matchAll(/["'“”‘’]([^"'“”‘’]{2,48})["'“”‘’]/g)) {
+  for (const match of text.matchAll(/["'\u201c\u201d\u2018\u2019]([^"'\u201c\u201d\u2018\u2019]{2,48})["'\u201c\u201d\u2018\u2019]/g)) {
     pushUnique(anchors, cleanAnchor(match[1]));
   }
 
-  for (const match of text.matchAll(/\(([^)]{3,180})\)/g)) {
-    const parts = match[1].split(/,|;|\band\b/gi);
-    for (const part of parts) {
-      pushUnique(anchors, cleanAnchor(part.replace(/\b(orange|blue|white|gray|grey|charcoal|burnt|light|dark)\b/gi, "")));
-    }
-  }
-
-  for (const match of text.matchAll(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z0-9+:%]+){0,2}\b/g)) {
+  for (const match of text.matchAll(/\b\d{1,3}(?:,\d{3})*(?:\.\d+)?\s*(?:kcal|cal|kg|km|bpm|am|pm|%|l|m|mins?|minutes?|hours?|hrs?)\b/gi)) {
     pushUnique(anchors, cleanAnchor(match[0]));
   }
 
@@ -176,6 +201,49 @@ const pushDiagnostic = (
     codes.push(code);
   }
   issues.push(issue);
+};
+
+const getTagBalance = (code: string) => {
+  const stack: string[] = [];
+  let openTags = 0;
+  let closeTags = 0;
+  let mismatches = 0;
+
+  for (const match of code.matchAll(/<\/?([a-z][\w:-]*)(?:\s[^<>]*)?>/gi)) {
+    const fullTag = match[0];
+    const tagName = match[1].toLowerCase();
+    if (/^<!|^<\?/.test(fullTag)) {
+      continue;
+    }
+
+    const isClosing = fullTag.startsWith("</");
+    const isSelfClosing = /\/>$/.test(fullTag) || NON_CLOSING_TAGS.has(tagName);
+    if (!isClosing && !isSelfClosing) {
+      openTags += 1;
+      stack.push(tagName);
+      continue;
+    }
+
+    if (isClosing) {
+      closeTags += 1;
+      const previous = stack.pop();
+      if (previous && previous !== tagName) {
+        mismatches += 1;
+        const rewindIndex = stack.lastIndexOf(tagName);
+        if (rewindIndex >= 0) {
+          stack.splice(rewindIndex);
+        }
+      } else if (!previous) {
+        mismatches += 1;
+      }
+    }
+  }
+
+  return {
+    openTags,
+    closeTags,
+    mismatches,
+  };
 };
 
 export function validateStaticDrawgleHtml({
@@ -254,19 +322,13 @@ export function validateStaticDrawgleHtml({
     );
   }
 
-  const openTags = (trimmedCode.match(/<([a-z][\w:-]*)(?:\s|>|\/)/gi) ?? [])
-    .filter((tag) => {
-      const tagName = /^<([a-z][\w:-]*)/i.exec(tag)?.[1]?.toLowerCase();
-      return tagName && !NON_CLOSING_TAGS.has(tagName) && !/\/>$/.test(tag);
-    })
-    .length;
-  const closeTags = (trimmedCode.match(/<\/[a-z][\w:-]*>/gi) ?? []).length;
-  if (Math.abs(openTags - closeTags) > 3) {
+  const tagBalance = getTagBalance(trimmedCode);
+  if (Math.abs(tagBalance.openTags - tagBalance.closeTags) > 3 || tagBalance.mismatches > 3) {
     pushDiagnostic(
       issues,
       codes,
       "tag_imbalance",
-      `Screen code has suspicious tag imbalance (${openTags} opening tags, ${closeTags} closing tags).`,
+      `Screen code has suspicious tag imbalance (${tagBalance.openTags} opening tags, ${tagBalance.closeTags} closing tags).`,
     );
   }
 
@@ -303,7 +365,7 @@ export function validateGeneratedScreenCode({
     issues.push("Generated HTML is too short for the detailed screen brief.");
   }
 
-  if (/[…]|TODO|placeholder content|lorem ipsum/i.test(trimmedCode)) {
+  if (/[…]|TODO|placeholder(?:\s+(?:content|copy|text))?|lorem ipsum|generic\s+(?:date|label|text|copy|content)|context\s+text|sample\s+text|dummy\s+copy/i.test(trimmedCode)) {
     issues.push("Generated HTML contains placeholder or truncated-looking content.");
   }
 
@@ -354,13 +416,9 @@ export function detectScreenHealth({
   const warnings: string[] = [];
   const staticValidation = validateStaticDrawgleHtml({ code, requireSingleScreenRoot: true });
 
-  const openTags = (trimmedCode.match(/<([a-z][\w:-]*)(?:\s|>|\/)/gi) ?? [])
-    .filter((tag) => !/\/>$/.test(tag) && !/^<(img|input|br|hr|path|circle|rect|line|polyline|polygon|use|stop|meta|link|source|area|base|col|embed|param|track|wbr)\b/i.test(tag))
-    .length;
-  const closeTags = (trimmedCode.match(/<\/[a-z][\w:-]*>/gi) ?? []).length;
-
-  if (Math.abs(openTags - closeTags) > 3) {
-    issues.push(`Generated HTML has suspicious tag imbalance (${openTags} opening tags, ${closeTags} closing tags).`);
+  const tagBalance = getTagBalance(trimmedCode);
+  if (Math.abs(tagBalance.openTags - tagBalance.closeTags) > 3 || tagBalance.mismatches > 3) {
+    issues.push(`Generated HTML has suspicious tag imbalance (${tagBalance.openTags} opening tags, ${tagBalance.closeTags} closing tags).`);
   }
 
   if (/class=["'][^"']*\bmin-h-screen\b[^"']*\boverflow-hidden\b/i.test(trimmedCode) && trimmedCode.length > 5000) {

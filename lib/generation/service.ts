@@ -356,6 +356,18 @@ const parseRequestedScreenCount = (prompt: string) => {
   return null;
 };
 
+const stripGlobalNavigationBrief = (sectionText: string) => {
+  const globalNavMatch = sectionText.match(
+    /(?:^|\n)\s*(?:Bottom\s+Navigation|Shared\s+Navigation|Persistent\s+Navigation|Navigation\s+Shell|Primary\s+Navigation)\b/i,
+  );
+
+  if (!globalNavMatch || typeof globalNavMatch.index !== "number") {
+    return sectionText;
+  }
+
+  return sectionText.slice(0, globalNavMatch.index).trim();
+};
+
 const parseExplicitScreenSections = (prompt: string): ExplicitScreenSection[] => {
   const matches = Array.from(prompt.matchAll(/(?:^|\n)\s*Screen\s+(\d{1,2})\s*:\s*([^\n.]+?)(?:\.|\n|$)/gi));
   if (matches.length === 0) {
@@ -366,7 +378,7 @@ const parseExplicitScreenSections = (prompt: string): ExplicitScreenSection[] =>
     const nextMatch = matches[index + 1];
     const start = match.index ?? 0;
     const end = nextMatch?.index ?? prompt.length;
-    const sectionText = prompt.slice(start, end).trim();
+    const sectionText = stripGlobalNavigationBrief(prompt.slice(start, end).trim());
     const rawName = (match[2] ?? `Screen ${match[1]}`).trim().replace(/^The\s+/i, "");
 
     return {
@@ -1716,6 +1728,7 @@ const staticHtmlOutputRules = [
   "Manually expand repeated items into concrete HTML elements. If there are seven days, output seven day elements. If there are three cards, output three card elements.",
   "Use Tailwind classes, Drawgle token utility classes, and normal quoted HTML attributes only. Inline style is allowed only as a normal string, e.g. style=\"height: 60%\".",
   "Use Lucide icons with <i data-lucide=\"icon-name\"></i> or inline SVG. Do not include a script to initialize icons.",
+  "Never render planning/meta words as visible copy. Do not output placeholder phrases such as generic text, context text, generic date, placeholder content, sample text, or dummy copy.",
   "Do not add phone frames, status bars, html/head/body, or persistent shared bottom navigation.",
 ];
 
@@ -1780,8 +1793,11 @@ export async function buildSourceRegionReplacementCode({
         "Return ONLY the replacement HTML for that selected region. The caller will splice it into the original source by offsets.",
         "Satisfy the user's edit request while preserving the surrounding screen's visual language, spacing rhythm, tokens, and content intent.",
         "The replacement must fit between the provided before/after context and should keep the same semantic role unless the user asks to change that region's role.",
+        repairTarget.reason === "screen_root_region"
+          ? "Because the selected region is the screen root, return one complete screen root. The outermost element must be a <div> with w-full, min-h-screen, dg-bg-primary, dg-text-high, flex, flex-col, relative, and overflow-x-hidden classes. Do not return only an inner section."
+          : null,
         ...staticHtmlOutputRules,
-      ].join("\n"),
+      ].filter(Boolean).join("\n"),
     },
   });
 
