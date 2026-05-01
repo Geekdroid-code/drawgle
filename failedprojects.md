@@ -1,140 +1,300 @@
-[{"idx":0,"id":"d672523e-859a-4fed-a9f6-a3cfc2eb92e6","project_id":"11fa01a1-de8e-419f-b7f9-33300413c53b","owner_id":"3a503767-6092-4e8e-973e-7f39ebf7e270","screen_id":"102b6d6f-97a2-44bd-968b-a4aface8c216","role":"model","content":"Reconstructed Categories from invalid source.","message_type":"edit_applied","metadata":"{\"action\": \"full_screen_reconstruction_applied\", \"health\": {\"issues\": [\"Screen code has suspicious tag imbalance (275 opening tags, 310 closing tags).\", \"Generated HTML looks structurally unbalanced (170 opening divs, 195 closing divs).\", \"Generated HTML has suspicious tag imbalance (275 opening tags, 310 closing tags).\"], \"status\": \"structurally_broken\", \"healthy\": false, \"warnings\": [], \"missingAnchors\": [], \"staticValidation\": {\"codes\": [\"tag_imbalance\"], \"valid\": false, \"issues\": [\"Screen code has suspicious tag imbalance (275 opening tags, 310 closing tags).\"], \"unrecoverable\": true}}, \"editJob\": {\"status\": \"completed\", \"screenId\": \"102b6d6f-97a2-44bd-968b-a4aface8c216\", \"targetType\": \"screen\"}, \"agentState\": {\"kind\": \"last_actionable_request\", \"message\": null, \"expiresAt\": \"2026-05-01T16:16:29.772Z\", \"instruction\": \"Reduce the text size in each card and vertically center the text within each card to improve layout and prevent overflow.\", \"missingFields\": null, \"lastKnownTarget\": {\"scope\": \"screen_region\", \"screenId\": \"102b6d6f-97a2-44bd-968b-a4aface8c216\", \"screenName\": \"Categories\", \"targetType\": \"screen\", \"selectedElementDrawgleId\": null}, \"targetCandidates\": null}, \"nextHealth\": {\"issues\": [], \"status\": \"healthy\", \"healthy\": true, \"warnings\": [], \"missingAnchors\": [], \"staticValidation\": {\"codes\": [], \"valid\": true, \"issues\": [], \"unrecoverable\": false}}, \"screenName\": \"Categories\", \"activityKey\": \"edit:d45426fe-1752-4684-9daf-061919bf82d0\", \"agentRouter\": {\"tool\": \"modify_screen\", \"scope\": \"screen_region\", \"action\": \"modify_ui\", \"reason\": \"The user requested a design fix for text overflow and alignment issues within the category cards on the current screen.\", \"confidence\": 1, \"targetType\": \"screen\", \"targetScope\": \"screen_region\", \"editOperation\": \"restyle_region\", \"targetScreenId\": \"102b6d6f-97a2-44bd-968b-a4aface8c216\", \"selectedElementDrawgleId\": null}, \"editStrategy\": \"block_region_replace\", \"triggerRunId\": \"run_cmon3i2386o2u0omyz8hv6rxp\", \"editOperation\": \"restyle_region\", \"userMessageId\": \"d45426fe-1752-4684-9daf-061919bf82d0\", \"routerDecision\": {\"tool\": \"modify_screen\", \"scope\": \"screen_region\", \"action\": \"modify_ui\", \"reason\": \"The user requested a design fix for text overflow and alignment issues within the category cards on the current screen.\", \"confidence\": 1, \"targetType\": \"screen\", \"targetScope\": \"screen_region\", \"editOperation\": \"restyle_region\", \"targetScreenId\": \"102b6d6f-97a2-44bd-968b-a4aface8c216\", \"selectedElementDrawgleId\": null}, \"serverReconciliation\": {\"finalScope\": \"screen_region\", \"finalAction\": \"modify_ui\", \"targetScreenId\": \"102b6d6f-97a2-44bd-968b-a4aface8c216\", \"finalTargetType\": \"screen\", \"focusedScreenId\": \"102b6d6f-97a2-44bd-968b-a4aface8c216\", \"selectedScreenId\": \"102b6d6f-97a2-44bd-968b-a4aface8c216\", \"selectedElementDrawgleId\": null, \"filledTargetScreenFromSelection\": false, \"filledTargetScreenFromAgentState\": false}}","embedding":"[-0.012607443,0.0015156753,0.008572059,-0.06339474,-0.0025021385,0.029123629,0.0045971875,-0.012017509,0.010525997,0.0074226735,-0.001124148,-0.0077806213,-0.0013832483,0.018193707,0.16099215,-0.0019542885,0.009569006,0.030651508,-0.006868682,-0.0083722,0.021439606,-0.00028823825,0.028961837,0.0073454757,-0.009574801,-0.011739502,-0.007829134,0.022798572,0.035623003,-0.015758455,0.0017029672,0.03242093,0.024246303,0.0025123882,0.022894587,0.011462652,0.010091324,-0.033659846,0.007882422,-0.0050753495,0.009164224,0.012310471,-0.01684674,-0.010231733,-0.006031597,0.017785676,0.015401565,-0.020635694,-0.01006575,0.0063340925,-0.0075636585,-0.006086697,-0.015112915,-0.22949351,-0.01295299,0.008013586,-0.0016495832,-0.02481491,0.010574254,0.00717956,-0.004285584,0.0023649002,0.01157075,-0.031601723,-0.0074843313,-0.016446086,0.016961878,0.023252731,-0.037017133,-0.0024957438,0.011994012,0.0032065785,-0.0062766513,-0.03762456,0.01876677,-0.016554218,-0.008511779,0.007381092,0.022136273,0.026339084,-0.018876173,-0.022691999,-0.01988613,-0.023404805,0.0016543089,0.0076753814,-0.026814753,-0.018030463,-0.0012289808,0.014114079,-0.0064355726,-0.0035050267,0.010277124,0.003807453,-0.0061459723,0.018446157,0.007223677,0.018837467,-0.014218784,0.010938498,-0.007235623,-0.00039626675,-0.0057373303,-0.026930766,0.009163393,-0.033649616,0.004237896,0.010500281,-0.012291286,0.0075552627,0.01801415,0.0029805077,-0.004005464,0.006253056,0.014941945,-0.18483491,-0.00090657425,-0.013651501,0.0041045565,0.008725247,-0.0021337117,0.007206677,0.0018297782,0.0049374243,-0.0035805258,-0.010637305,-0.012680885,-0.0039782343,-0.018902056,0.0036744368,0.018207079,0.0031996763,0.010986944,-0.00015418686,0.0051832176,0.013966896,-0.002867742,0.008539134,0.03638129,-0.0043353047,-0.0074208262,0.01300939,-0.0026147782,-0.012011206,-0.015042704,-0.006883169,-0.0076075606,-0.0037882733,-0.00393959,0.00030286732,0.0064848564,-0.010263729,-0.004646253,-0.012796206,-0.01472658,-0.054252632,-0.005032206,-0.0028066775,-0.006213222,0.00608135,-0.0038486924,-0.0057006082,-0.00087246,0.0017698928,0.028657967,0.015621834,-0.0076061455,0.012779639,0.01640801,0.0011090515,-0.014385335,-0.011123944,-0.0120471455,0.0031317389,0.011591389,-0.0033035683,0.0023046823,0.0021868001,0.026637373,-0.010475908,-0.0091982065,-0.0074083176,-0.010123335,-0.006130033,0.019922825,-0.004969237,-0.003148401,-0.014974842,-0.001411,-0.012621399,0.003491258,-0.024667844,0.027927246,-0.02776887,-0.0048838877,-0.013677305,0.0011825897,-0.006549355,-0.0067229136,0.0051019276,-0.00014491937,0.003988667,-0.0004492031,0.0003142477,-0.0058339057,0.010438893,-0.024745645,-0.0054082894,-0.014621846,0.017974356,-0.0072047887,-0.0063303555,-0.0043217614,0.0038252736,0.015864622,-0.024581378,-0.010142314,-0.015086241,-0.002423997,-0.018144166,-0.0014395255,-0.0015249607,0.01243666,0.005074756,-0.019779762,0.0056395535,-0.010140783,0.011082071,0.017330313,0.0039116144,-0.0026227392,0.029076468,-0.002805996,-0.0060308725,0.012451362,0.0054777483,0.00032140073,-0.0030635195,0.016758557,0.01089428,-0.0009834329,-0.0060761846,0.0114953015,0.016717404,0.0015190812,-0.02757236,0.01913686,-0.01334873,-0.022381233,-0.0049869795,0.008009001,0.010485573,-0.007902006,-0.0049146917,0.008897694,-0.0034544764,0.0032607391,0.024815427,9.579352e-05,-0.0050112777,0.0081358645,-0.015632724,0.0151036475,-0.013153135,0.017026644,0.005417715,0.007816322,0.008218215,0.0029154296,0.004438833,-0.0015290474,-0.018070592,-0.0020136074,0.0019527038,0.016078226,0.02190072,-0.07952113,0.009627621,-0.002652201,-0.00016897095,0.0015417545,0.0028864427,-0.0012997326,-0.02157717,-0.0043161353,0.028361462,-0.031824607,-0.02077078,-0.0051699076,-0.010137702,0.007234054,0.004196227,0.003457443,-0.006165902,-0.0140050445,-0.03440944,-0.007897475,-0.021027252,-0.028954562,0.0034570047,-0.01421641,-0.00757601,0.014040423,0.037182845,0.009178571,0.014553437,0.009990833,0.014871889,0.018562807,0.010701948,-0.009713369,-0.009475964,-0.013238823,-0.011397578,-0.011627379,-0.017036717,0.0065491525,-0.005365127,-0.007949799,0.0052181697,-0.025869321,-0.008359464,-0.026469631,-0.005749399,-0.00936584,-0.0024354844,-0.006106524,-0.031104034,0.0045278077,0.011074341,0.009661303,0.012469588,0.012391651,-0.010944263,-0.0035238678,-0.00051523285,0.014886114,-0.0122679835,-0.02664972,-0.014007366,-0.018023368,0.007342157,0.0019323045,0.003669153,-0.009731347,0.008178746,-0.009616109,-0.0018630989,-0.018190155,-0.013091223,-0.01491598,-0.010444827,-0.016114032,-0.008436473,-0.0122827785,0.03710397,-0.01571894,-0.005020679,0.0013230643,0.018518487,-0.0037968387,0.007901739,-0.0017401824,0.008703385,-0.0075113582,-0.01006743,0.007993626,0.016457668,-0.023753375,-0.009445537,-0.010329957,-0.013258621,0.020401085,0.008107402,0.0019263314,0.0040777866,-0.009558738,-0.013822835,-0.0212127,-4.4039818e-05,0.0013996742,0.009378278,-0.0014225988,-0.0113116475,-0.021324195,0.018327322,0.0010455118,-0.0063652084,-0.0049757506,-0.0032076593,-0.0033879704,0.0015297915,-0.02078501,0.00032574043,0.018241785,-0.0022026706,0.0057531074,-0.0057893638,0.010879375,0.011931136,0.01247448,0.0048353467,0.0024900618,-0.010081482,-0.0027004757,0.00056570146,0.0020512163,-0.02644401,-0.0006819015,-0.002926246,-0.006888737,-0.021557407,0.009712056,0.010660983,0.010250335,0.015109918,-0.036989465,0.0013483454,0.027216228,-0.005488306,0.02032806,-0.013852572,0.0044102464,0.0030616883,0.00042229114,-0.02120541,-0.023133913,-0.024976702,0.0036172888,-0.011858075,-0.0073110666,-0.007377846,-0.007056856,-0.03453261,-0.0075025773,-0.023090871,-0.012357481,0.0037524812,-0.03360229,0.011421016,0.019322315,0.013823813,0.008166425,-0.0003510365,0.0089149205,-0.017856933,0.004260252,-0.021325408,-0.006694426,0.0042453385,0.014612511,0.0028400815,0.021437094,-0.0064592725,-0.015169094,0.010873461,0.031673364,0.012192658,0.0014217185,0.0017101587,0.006923327,-0.0105762975,0.008898695,0.016549611,-0.01818762,-0.0045788633,-0.014115284,-0.0014305325,-0.012160606,0.024652485,-0.011096955,0.017479204,-0.015060443,0.0051539675,-0.019667497,0.025044724,-0.009047484,0.0074543045,0.01187374,-0.0057939882,-0.0029932407,-0.009121331,-0.018354112,0.010070577,0.012693659,0.024867924,0.0026086569,-0.018664762,-0.0018043768,0.0019328379,0.018496083,0.028468149,0.01216717,0.0037024193,-0.020272652,-0.002964796,0.003468571,-0.008638612,0.018817458,0.0039954167,0.04113413,-0.015709082,-0.0051514963,0.0033758294,0.006067983,0.0015293426,-0.006399836,-0.0019634443,0.007193283,-0.0076821474,-0.035651583,-0.015210355,0.005372227,0.0056463396,-0.010981859,0.015486083,-0.021537324,0.010001097,-0.016883396,0.010961669,0.0120065715,-0.007611152,0.006551184,0.021059873,0.0045200805,-0.0074143894,0.018705674,0.006380524,0.0074676187,0.006407307,-0.0020886266,0.03755339,0.011484012,-0.0067398683,0.013768129,0.0010679931,0.007054838,0.001945633,0.0025205358,0.00649832,-0.0111163,0.0007238735,-0.017341351,0.006600761,0.00870883,-0.07995339,-0.0065914276,-0.0046957345,-0.0049917987,0.0033091493,0.022428222,0.0016371123,-0.012539037,0.015456964,-0.0041512633,-0.018077051,0.012666451,0.0107176425,0.015168433,0.019039731,-0.011642222,-0.040774427,-0.007006984,0.008908642,0.004541722,0.032439664,-0.0031989578,0.0069715846,0.0005958951,-0.015048115,-0.0031407294,-0.008644107,0.009186168,-0.0035227127,0.018750455,0.007409105,0.014031375,-0.006092298,-0.0018759639,-0.027039453,-0.0064467764,0.0030341635,-0.015763484,0.018915778,-0.0018525486,-0.010542413,-0.0044350172,-0.017961323,0.007327883,-0.019764144,-0.001598704,0.008682306,-0.020784277,0.015878953,0.0002967716,-0.020273192,-0.00041804265,0.0127946185,-0.005752477,5.0289385e-05,-0.009924114,-0.007913349,0.016190385,-0.014855016,0.015094668,-0.024580942,0.00582836,0.008387474,0.0024582306,-0.0032749183,-0.012751234,-0.0061412742,0.004267424,-0.0003397962,-0.010481324,-0.0047368854,-0.0057904306,-0.0060129357,9.70163e-06,-0.0046212603,0.007330625,-0.0049114875,-0.00025076707,-0.0025411453,0.0016416276,-0.0012208766,0.0025810462,-0.1291346,-0.0026093116,-0.018733086,0.00448043,0.0017837513,0.006112478,0.006222986,0.0004573713,-0.0094628,0.0014432546,-0.019857371,0.0016137426,-0.0077623148,0.018561991,4.9565697e-05,0.010899547,-0.005136986,-0.0074370494,0.009714313,0.004417088,-0.018802343,-0.0049880384,0.015436235,-0.005662059,-0.02193601,0.02752958,-0.005017126,-0.008065022,0.0028303948,-0.008836387,0.005548713,-0.16002063,-0.0085015185,0.019650923,0.0047957003,0.00039694807,0.011660028,0.009741862,0.00066888606,0.0002599633,-0.008837775,0.0005744406,-0.016789883,0.0038066804,0.008964639,0.011530119,0.14475416,0.007426797,-0.011773774,-0.0018582374,-0.014081341,0.006761803,-0.015988283,0.006070794,0.0076107155,0.004597613,-0.004948905,0.0068754866,0.008148814,-0.012080474,-0.020055141,0.01638766,-0.0029909501,0.016744172,-0.013518641,0.005306705,-0.0011969266,-0.006363848,-0.005422422,0.014402385,-0.006774843,0.014005026,0.022685835,-0.0016817075,0.010922764,-0.004075449,0.013408952,0.032570433,-0.01004771,-0.00018155458,0.011711288,-0.0075949496,-0.08585364,0.007695464,0.028965505,-0.0043546637,0.0018868303,0.017088737,-0.010084489,0.008969933,0.032235473,0.020779744,-0.0139762815,-0.020587532,0.03154673,-0.019410439,-0.0034512423,0.028918758,-0.0012339996,0.013963713,0.014651957,-0.0022229305,0.008730942,-0.029595217,-0.0064096227,-0.017433261,-0.027037432,-0.03357159,0.0029897992,-0.015889902,0.0049075643,-0.0009283893,-0.0016039133,0.003760104,-0.009491647,0.004629141,-0.018766189,0.010482563,-0.009706643,0.013195191,-0.017675288,0.007970448,0.0063826507,0.020473173,0.006520929,0.004277293,0.010937341,-0.008528359,0.009102141,-0.0034632636,0.0017238781,0.00046067103,0.014374606,0.00793698,-0.00878074,0.0019070506,-0.00329989,0.0038341237,0.009896082,0.0387027,-0.0020601433]","created_at":"2026-05-01 15:56:29.38113+00"},{"idx":1,"id":"d45426fe-1752-4684-9daf-061919bf82d0","project_id":"11fa01a1-de8e-419f-b7f9-33300413c53b","owner_id":"3a503767-6092-4e8e-973e-7f39ebf7e270","screen_id":"102b6d6f-97a2-44bd-968b-a4aface8c216","role":"user","content":"hey look at the text part of each card.. we need to reduce the text size... its unresponsive and going out of cards.. MAY BE WE CAN MOVE THE TEXT IN CENTER OF CARD VERTICALLLY. THIS WAY IT WILL NOT BE IN SAME LINE OF SVG ICONS...NAD WELL FIT IN TEH LAYOUT.","message_type":"chat","metadata":"{\"agentRouter\": {\"tool\": \"modify_screen\", \"scope\": \"screen_region\", \"action\": \"modify_ui\", \"reason\": \"The user requested a design fix for text overflow and alignment issues within the category cards on the current screen.\", \"confidence\": 1, \"targetType\": \"screen\", \"targetScope\": \"screen_region\", \"editOperation\": \"restyle_region\", \"targetScreenId\": \"102b6d6f-97a2-44bd-968b-a4aface8c216\", \"selectedElementDrawgleId\": null}, \"editStrategy\": \"block_region_replace\", \"editOperation\": \"restyle_region\", \"serverReconciliation\": {\"finalScope\": \"screen_region\", \"finalAction\": \"modify_ui\", \"targetScreenId\": \"102b6d6f-97a2-44bd-968b-a4aface8c216\", \"finalTargetType\": \"screen\", \"focusedScreenId\": \"102b6d6f-97a2-44bd-968b-a4aface8c216\", \"selectedScreenId\": \"102b6d6f-97a2-44bd-968b-a4aface8c216\", \"selectedElementDrawgleId\": null, \"filledTargetScreenFromSelection\": false, \"filledTargetScreenFromAgentState\": false}}","embedding":"[0.011214783,0.004120288,0.023748046,-0.07671905,-0.0056943116,0.0040422212,-0.006433472,0.007972023,-0.0002503845,-0.006637007,-0.0058284146,-0.0058866977,0.009363366,0.0055299234,0.12974429,-0.0003499732,0.00039553698,0.008061031,0.037731066,-0.0026502796,-0.016564311,0.006822731,-0.010270294,-0.016028704,0.02175962,-0.016880786,0.014109892,0.007541377,0.016440408,0.037701838,-0.007061189,0.034646053,0.010205055,0.0058033015,-0.010569067,0.0032251733,0.030571602,-0.0029119712,0.0055933087,0.011833015,-0.0066453153,0.01235501,0.006501204,0.022147315,-0.010434718,0.005986001,0.002302503,-0.033726044,0.023839548,0.021204906,0.004620686,0.005880648,-0.020531597,-0.20936798,-0.004740418,-0.0048288777,-0.00059567863,-0.015308041,0.009234765,0.0015887799,-0.001950023,0.008014958,-0.007218133,-0.021984065,-0.0038728572,-0.0062920717,0.014651345,0.027487233,-0.028576642,0.0030049053,-0.006955455,-0.0201026,-0.020688396,-0.024659792,0.014892998,-0.02344271,0.008901548,0.0032080964,0.018140988,0.033061102,-0.0033348748,0.018099995,-0.008463174,-0.0093638,-0.014776374,-0.011258014,-0.025441356,0.012827996,0.009881915,0.0026957733,-0.018471409,0.0056093265,-0.01480375,0.007917686,0.006931869,-0.011474435,8.3065235e-05,0.024328992,-0.0077359835,-0.011322752,-0.020492226,-0.038302194,-0.006042015,-0.0036179067,-0.0019829483,0.000204864,-0.012375349,-0.010265022,-0.005400207,0.0014788737,0.0006916827,0.008332189,-0.008292335,-0.0124288015,0.0031960688,-0.19974004,0.029986966,-0.006426656,-0.002897796,-0.011024297,-0.03053124,0.0023954986,0.009183782,0.014837037,-0.015455025,-0.009239331,0.0066338475,-0.01453855,0.02184402,0.012501358,-0.012469663,-0.016337052,0.0015907687,-0.0044438057,-0.0110968845,-0.012059815,-0.017132582,-0.02684103,0.0070616174,0.0012495848,0.010176028,0.027962549,0.030232724,0.0008244363,-0.023888776,-0.011274806,-0.0038526342,0.014331304,-8.070962e-05,0.0051451824,-0.012731476,-0.012096155,-0.00031238497,-0.005128432,0.032656465,-0.04275158,-0.0053439154,-0.0036552448,-0.01130444,0.010540974,-0.0041623153,0.0127152605,-0.019074159,0.021922464,0.017938616,-0.01591824,-0.0071076467,0.0065528075,-0.0011761063,-0.0047107036,-0.0014051758,-0.008706181,0.01934687,0.02920427,0.019143952,-0.016851446,0.0052888314,0.017288849,0.015509084,-0.014453007,-0.01308626,-0.0034121806,-0.005982225,0.0022967544,0.015763864,-0.012413409,0.008086574,-0.014727719,0.016521962,-0.03379006,0.011077131,0.009613819,0.012252505,-0.028206198,0.0008436754,-0.016758567,0.011906907,0.00039305637,0.013564267,0.0056976797,0.0036820318,0.016141001,0.02276472,0.011297213,-0.006701116,0.0039671054,-0.00394005,0.007984419,0.015428508,0.01678008,-0.0037016403,0.007801212,-0.013562688,0.0054260427,-0.0014291983,0.0028411367,0.011156907,0.017547313,-0.00014475537,-0.011081531,0.0022074936,0.026533736,0.02867686,0.022788351,0.008844207,0.029931633,0.023465471,-0.009886578,0.0022693565,0.028685197,0.00627532,0.02108462,-0.012103382,0.004755739,0.0015243456,0.011306431,0.0010368923,0.027901072,0.0053550056,0.020038374,-0.01132032,-0.026064534,-0.0026524889,-0.0030094392,-0.0003066837,-0.003997417,4.246763e-05,-0.0016265959,-0.007030146,0.006385606,-0.0007413169,-0.02029335,-0.0071291802,-0.0061891302,-0.001088272,-0.013560853,-0.017104512,0.007910448,-0.034328777,0.0001449837,0.0023047447,-0.0016891737,0.0021990545,0.0072273277,0.020308707,-0.0053886687,0.01297638,-0.00097031874,-0.015399332,-0.018348863,-0.018077156,0.010082502,-0.00943717,0.005278252,-0.013464671,0.008068432,-0.07423264,-0.0029004447,-0.0022490507,-0.028966777,-0.0054980805,-0.0058305785,0.015607354,-0.015914006,-0.013986915,0.021492954,0.0034943505,-0.010838972,0.007843899,-0.006844218,0.020381194,0.033945512,0.0006651914,0.0022385083,0.017271802,-0.029960155,0.0074567986,-0.007373708,-0.008439465,-0.0067154476,-0.012232829,-0.03058336,0.019725002,0.025160354,0.012720241,0.030694982,0.008883689,-0.00216586,0.009648277,-0.011757396,-0.00781523,0.006592767,-0.002239933,-0.002621334,0.008032239,-0.0056939647,0.024090545,-0.015591821,-0.008105653,0.0019177967,-0.007648343,0.016946953,-0.01545864,0.0035804298,-0.01623907,-0.008743363,-0.013390313,-0.0032256402,0.0057212156,0.009197617,-0.00029938805,0.0012726786,-0.00054060126,-0.016784143,-0.001713117,0.03770982,0.020829735,-0.005691893,-0.003920028,-0.017252352,-0.00499366,-0.0014786648,-0.019141423,-0.001513849,-0.020163829,0.00482106,0.007012818,-0.007820071,0.007860293,-0.026145881,0.011783676,0.012768339,-0.0226746,0.0024026316,0.011307828,0.022962544,0.0007508302,-0.010771915,0.014866244,0.018666308,0.011595149,0.0029904307,0.0048018377,0.010654836,0.0023540037,-0.029480867,-0.003147225,0.00075451756,-0.02844124,-0.002345758,-0.021453075,0.009661647,-0.0067891097,0.022994857,-0.001437906,-0.013032507,-0.0069634537,0.00157006,0.005976678,-0.018604383,-0.008261986,-0.00045104028,-0.010166427,-0.020510154,-0.022601038,-0.008691437,-0.004701843,-0.0076995385,0.0018273727,-0.033020493,-0.010991901,0.052445382,-0.027423862,0.010473253,-0.015980689,0.0056880047,-0.0075788065,0.00436442,-0.005337546,-0.0088506,-0.007852517,0.0015978094,-0.025049765,-0.014684359,0.0019401708,-0.011753861,-0.02172966,0.02948758,-0.0020736295,-0.02317355,0.0031404733,0.006782602,-0.006573985,0.00833053,0.009635818,0.018622134,-0.010049916,0.002701956,-0.0010634153,-0.001611904,0.008476019,0.0076613068,-0.005785469,-0.0059956955,-0.002130732,-0.01159366,-0.024411602,-0.01716196,0.023931744,-0.0107391635,0.00083481707,-0.014904585,-0.021965593,-0.007851606,0.00077696383,-0.008342253,-0.02402786,0.016593372,-0.026192874,-0.012227757,0.0022623977,-0.014048022,-0.015474678,0.0061454657,-0.018767985,0.022922484,-0.007950828,-0.009479823,0.014909798,-0.009788656,0.015121078,0.0016027053,0.028604427,-0.006184685,0.025556343,-0.006118255,0.017245367,0.026216106,-0.011044638,-0.011527665,-0.00168337,-0.003558815,-0.005492099,0.018724924,-0.02124412,0.005795132,0.0011476933,-0.0015820304,0.004328323,0.022716608,0.004574944,-0.0013610021,0.00025604447,0.011968896,-0.006959983,-0.009411601,0.016785327,0.0016909238,0.038293477,0.009517628,-0.000862108,0.0066849263,-0.010927551,-0.01655577,0.0005105724,0.0034197324,0.013860652,-0.01084088,-0.012895962,-0.00894719,0.013612898,0.03561706,-0.007934926,0.000130304,-0.0015787262,-0.0025739484,-0.0059107137,0.010478079,0.0073481207,0.0023562133,0.008880663,0.008539776,0.015814988,0.00029019004,-0.029675024,-0.013177571,0.0075497474,-0.0030643442,-0.0027403815,-0.00014820303,0.014201993,-0.0070636314,-0.0038520112,0.017566076,-0.0131880725,-0.01903625,-0.029784046,0.013939162,-0.0058219335,-0.021628106,-0.0039384733,-0.006821651,0.025907956,0.008708337,-0.008183359,-0.006572688,0.012494329,-0.01175275,-0.0018861427,0.002753693,-0.017068332,0.024964971,-0.0042866436,0.008672962,0.00861688,-0.008321384,0.00223035,0.026587512,-0.0044940314,-0.005239783,-0.0035774072,0.015180133,0.0028620411,-0.020311784,-0.0046461173,-0.11917879,0.00925063,0.0070010223,-0.009085249,0.014456189,0.0053751813,-0.001893696,-0.02342063,-0.00913778,0.0029482422,0.009119551,-0.0011549732,-0.0044295588,0.016568957,0.019268423,0.0016786993,0.0063196514,0.03203511,0.018434413,0.0025967031,-0.016173998,-0.0131122265,-0.004871847,-7.970901e-05,-0.016494915,-0.023867257,0.00010241947,0.011343558,0.009316854,0.007017134,-0.016346162,-9.313289e-05,-0.010185666,0.007467429,0.0011998165,0.0036353932,0.013966818,-0.007918814,0.007991948,0.011771154,-0.011479752,-0.021139104,-0.030053835,-0.013063413,-0.02256158,-0.017726785,0.004396763,-0.02916553,-0.00018533309,0.03183095,-0.0026593478,-0.004449494,-0.013427217,0.027378095,-0.008590244,-0.026050603,-0.010784024,0.008741271,-0.042708766,-0.009736148,-0.027512135,-0.0038461573,0.011038591,0.020456247,0.0045871353,-0.0038841234,-1.9276877e-05,0.02700865,0.017982144,0.015227244,-0.0058950824,-0.016156208,-0.019963488,-0.003568413,-0.037555244,0.010900648,-0.007372308,0.009868541,-0.015463571,0.014950621,-0.016632311,0.0119795855,-0.08776289,-0.028941095,-0.0028058072,-0.0068790773,0.014119725,0.0138277095,0.002206828,0.0016965625,-0.0057519525,-0.005615365,0.0037019749,0.013535161,0.023157872,0.0113468785,0.00011264933,0.0055313567,-0.011481907,0.0018092366,-0.019962953,0.0060296846,-0.01898835,0.010506369,0.004902185,0.020668998,-0.008480315,-0.027973095,-0.0013693599,-0.004968705,0.011268109,-0.027247895,-0.038084373,-0.1518392,-0.019702718,-0.008436767,-0.024113948,0.023173999,0.0025531054,-0.011617618,0.0060380665,-0.008008664,-0.017647095,-0.010445984,-0.011539846,-0.024176711,0.0200562,0.012906605,0.14070791,0.0044763326,0.01869083,-0.01358395,7.744535e-05,-0.012068886,-0.006904213,0.010427608,0.016180221,-0.021563603,0.0039406405,0.012593735,0.012955646,0.005227339,-0.0110050505,-0.0031631351,0.017756905,0.0059811687,-0.014398281,0.011817377,0.0059094634,0.013117861,-0.0009473483,-0.0038954832,0.014621276,0.016019024,0.0032405816,-0.027914587,-0.011403607,-0.0035811076,-0.0021230334,0.016405454,-0.003216654,-0.008046267,-0.014343528,-0.0051331967,-0.08621633,0.009871944,0.006628178,0.007416605,0.016396908,0.004231923,-0.007081442,-0.0036550858,0.00933996,0.009450488,-0.006312506,0.0063510425,0.01543071,-0.002808522,-0.004235257,-0.008502849,-0.01469925,0.012324439,0.019057332,0.00192399,8.0214486e-05,0.012034529,0.0051663416,-0.016199749,0.0029637287,-0.01195385,-0.0020787308,0.013260357,-0.0020187602,0.012247498,-0.006472866,0.009207977,-0.0071474104,-0.0036373413,-0.018077644,-0.0083713755,0.028306922,-0.0026937607,0.0048123766,0.026718834,0.018982958,0.03244614,0.002647629,0.024469865,0.041750826,-0.008439689,0.024432108,0.013199212,0.019518947,-0.010669198,-0.036319986,-0.017008236,-0.010006115,0.0029197386,0.007098147,-0.0025822157,0.022754526,0.018660916,-0.011251738]","created_at":"2026-05-01 15:56:29.087141+00"}]
-
-
-
 {
+  "generationRunId": "97181f9e-5465-4cab-82d9-631876a53ec5",
+  "screenId": "e33e8665-544f-4480-8369-6e7c0de009e4",
   "projectId": "11fa01a1-de8e-419f-b7f9-33300413c53b",
-  "ownerId": "3a503767-6092-4e8e-973e-7f39ebf7e270",
-  "prompt": "hey look at the text part of each card.. we need to reduce the text size... its unresponsive and going out of cards.. MAY BE WE CAN MOVE THE TEXT IN CENTER OF CARD VERTICALLLY. THIS WAY IT WILL NOT BE IN SAME LINE OF SVG ICONS...NAD WELL FIT IN TEH LAYOUT.",
-  "resolvedInstruction": "Reduce the text size in each card and vertically center the text within each card to improve layout and prevent overflow.",
-  "userMessageId": "d45426fe-1752-4684-9daf-061919bf82d0",
-  "screenId": "102b6d6f-97a2-44bd-968b-a4aface8c216",
-  "selectedElementHtml": null,
-  "selectedElementDrawgleId": null,
-  "selectedElementTarget": "screen",
-  "requestTargetsNavigation": false,
-  "targetScope": "screen_region",
-  "editStrategy": "block_region_replace",
-  "editOperation": "restyle_region",
-  "conversationContext": [
-    {
-      "role": "user",
-      "content": "yes please lets add",
-      "screenId": "102b6d6f-97a2-44bd-968b-a4aface8c216",
-      "screenName": "Categories",
-      "event": "modify_screen"
+  "screenPlan": {
+    "name": "Welcome",
+    "type": "detail",
+    "description": "Reference DNA: This screen adopts the 'Midnight Productivity' aesthetic, utilizing the #121212 background and high-contrast typography. It mirrors the clean, distraction-free layout seen in the Home and Schedule screens. Visual Goal: Create an inviting, high-impact entry point that establishes the app's premium, minimalist tone. Layout Anatomy: The screen is vertically centered. A large, bold hero title sits at the top of the content block, followed by a body-text value proposition. A full-width 'Get Started' button is anchored near the bottom of the screen, respecting the 20px screen margins. Key Components: A hero-sized text block (dg-type-screen-title), a descriptive paragraph (dg-type-body), and a primary action button (dg-action-primary). Visual Styling: The background is dg-bg-primary (#121212). The hero title uses dg-text-high, while the body text uses dg-text-medium. The button uses dg-action-primary with dg-text-on-primary-text, featuring a dg-radius-app (16px) corner radius. Interaction Notes: The 'Get Started' button should have a subtle scale-down effect on press. Must Preserve: The 20px screen margins, the 16px corner radius for the button, and the strict adherence to the dark-mode color palette.",
+    "chromePolicy": {
+      "chrome": "top-bar-back",
+      "showPrimaryNavigation": false,
+      "showsBackButton": true
     },
-    {
-      "role": "model",
-      "content": "Applied changes to Categories.",
-      "screenId": "102b6d6f-97a2-44bd-968b-a4aface8c216",
-      "screenName": "Categories",
-      "event": "source_region_replace_partial"
+    "navigationItemId": null
+  },
+  "prompt": "Create a new, engaging welcome screen for the app that serves as an introduction to the user. It should include a friendly headline, a brief value proposition, and a prominent 'Get Started' call-to-action button to guide the user into the app. Keep the design clean, welcoming, and consistent with the app's overall style.",
+  "designTokens": {
+    "system_schema": "mobile_universal_core",
+    "tokens": {
+      "color": {
+        "text": {
+          "low_emphasis": "#666666",
+          "high_emphasis": "#FFFFFF",
+          "medium_emphasis": "#A0A0A0"
+        },
+        "action": {
+          "primary": "#FFFFFF",
+          "disabled": "#333333",
+          "secondary": "#3D3D3D",
+          "on_primary_text": "#121212"
+        },
+        "border": {
+          "divider": "#2D2D2D",
+          "focused": "#FFFFFF"
+        },
+        "surface": {
+          "card": "#1E1E1E",
+          "modal": "#252525",
+          "bottom_sheet": "#252525"
+        },
+        "background": {
+          "primary": "#121212",
+          "secondary": "#1E1E1E"
+        }
+      },
+      "radii": {
+        "app": "16px",
+        "pill": "9999px"
+      },
+      "sizing": {
+        "icon_small": "20px",
+        "icon_standard": "24px",
+        "min_touch_target": "48px",
+        "bottom_nav_height": "80px",
+        "standard_input_height": "48px",
+        "standard_button_height": "52px"
+      },
+      "shadows": {
+        "none": "none",
+        "overlay": "0px 8px 24px rgba(0, 0, 0, 0.4)",
+        "surface": "0px 8px 14px 0px rgba(0, 0, 0, 0.2)"
+      },
+      "spacing": {
+        "none": "0px",
+        "lg": "20px",
+        "md": "16px",
+        "sm": "12px",
+        "xl": "24px",
+        "xs": "8px",
+        "xxl": "32px",
+        "xxs": "4px"
+      },
+      "z_index": {
+        "base": "0",
+        "bottom_nav": "20",
+        "bottom_sheet": "30",
+        "modal_dialog": "40",
+        "sticky_header": "10",
+        "toast_snackbar": "50"
+      },
+      "opacities": {
+        "opaque": "1",
+        "pressed": "0.12",
+        "disabled": "0.38",
+        "transparent": "0",
+        "scrim_overlay": "0.50"
+      },
+      "typography": {
+        "font_family": "'Inter', -apple-system, sans-serif",
+        "nav_title": {
+          "size": "18px",
+          "weight": 600,
+          "line_height": "24px"
+        },
+        "screen_title": {
+          "size": "28px",
+          "weight": 700,
+          "line_height": "34px"
+        },
+        "hero_title": {
+          "size": "34px",
+          "weight": 800,
+          "line_height": "40px"
+        },
+        "section_title": {
+          "size": "20px",
+          "weight": 600,
+          "line_height": "26px"
+        },
+        "metric_value": {
+          "size": "24px",
+          "weight": 700,
+          "line_height": "30px"
+        },
+        "body": {
+          "size": "16px",
+          "weight": 400,
+          "line_height": "22px"
+        },
+        "supporting": {
+          "size": "14px",
+          "weight": 400,
+          "line_height": "18px"
+        },
+        "caption": {
+          "size": "12px",
+          "weight": 500,
+          "line_height": "16px"
+        },
+        "button_label": {
+          "size": "16px",
+          "weight": 600,
+          "line_height": "20px"
+        }
+      },
+      "border_widths": {
+        "standard": "1px"
+      },
+      "mobile_layout": {
+        "element_gap": "12px",
+        "section_gap": "24px",
+        "safe_area_top": "16px",
+        "screen_margin": "20px",
+        "safe_area_bottom": "16px"
+      }
     },
-    {
-      "role": "user",
-      "content": "bro i additionally asked you to add more cards like the existing ones... but you are just replacing the existing ones every time, not adding more to fill the screen...",
-      "screenId": "102b6d6f-97a2-44bd-968b-a4aface8c216",
-      "screenName": "Categories",
-      "event": "modify_screen"
-    },
-    {
-      "role": "model",
-      "content": "Applied changes to Categories.",
-      "screenId": "102b6d6f-97a2-44bd-968b-a4aface8c216",
-      "screenName": "Categories",
-      "event": "source_region_replace_partial"
-    },
-    {
-      "role": "user",
-      "content": "add two more please",
-      "screenId": "102b6d6f-97a2-44bd-968b-a4aface8c216",
-      "screenName": "Categories",
-      "event": "modify_screen"
-    },
-    {
-      "role": "model",
-      "content": "Applied changes to Categories.",
-      "screenId": "102b6d6f-97a2-44bd-968b-a4aface8c216",
-      "screenName": "Categories",
-      "event": "source_region_replace_partial"
-    },
-    {
-      "role": "user",
-      "content": "i said add two more new cards.. not replace the exisitng ones",
-      "screenId": "102b6d6f-97a2-44bd-968b-a4aface8c216",
-      "screenName": "Categories",
-      "event": "modify_screen"
-    },
-    {
-      "role": "model",
-      "content": "Applied changes to Categories.",
-      "screenId": "102b6d6f-97a2-44bd-968b-a4aface8c216",
-      "screenName": "Categories",
-      "event": "source_region_replace_partial"
-    },
-    {
-      "role": "user",
-      "content": "okay do you see those colorful progress indicators in each card.. we need to make them premium, unique visuals.. each one of them need to have differnet ones.. and visually rich ones. think creatively and like a premium designer what we need to have there",
-      "screenId": "102b6d6f-97a2-44bd-968b-a4aface8c216",
-      "screenName": "Categories",
-      "event": "modify_screen"
-    },
-    {
-      "role": "model",
-      "content": "Applied changes to Categories.",
-      "screenId": "102b6d6f-97a2-44bd-968b-a4aface8c216",
-      "screenName": "Categories",
-      "event": "source_region_replace_partial"
-    },
-    {
-      "role": "user",
-      "content": "we need to add more cards in this section to fill the space. please plan adn add",
-      "screenId": "102b6d6f-97a2-44bd-968b-a4aface8c216",
-      "screenName": "Categories",
-      "event": "modify_screen"
-    },
-    {
-      "role": "model",
-      "content": "Applied changes to Categories.",
-      "screenId": "102b6d6f-97a2-44bd-968b-a4aface8c216",
-      "screenName": "Categories",
-      "event": "source_region_replace_partial"
+    "meta": {
+      "recommendedFonts": [
+        "Inter",
+        "SF Pro Display"
+      ]
     }
-  ],
-  "recoveryContext": null,
-  "routerDecision": {
-    "action": "modify_ui",
-    "tool": "modify_screen",
-    "confidence": 1,
-    "reason": "The user requested a design fix for text overflow and alignment issues within the category cards on the current screen.",
-    "targetScreenId": "102b6d6f-97a2-44bd-968b-a4aface8c216",
-    "targetType": "screen",
-    "targetScope": "screen_region",
-    "scope": "screen_region",
-    "selectedElementDrawgleId": null,
-    "editOperation": "restyle_region"
-  }
+  },
+  "image": null,
+  "requiresBottomNav": true,
+  "navigationArchitecture": {
+    "kind": "bottom-tabs-app",
+    "primaryNavigation": "bottom-tabs",
+    "rootChrome": "bottom-tabs",
+    "detailChrome": "top-bar-back",
+    "consistencyRules": [
+      "All root screens must utilize the persistent bottom navigation bar.",
+      "All detail screens must use a top-bar-back chrome to return to the parent root.",
+      "Surface colors must remain consistent at #1E1E1E for cards and #121212 for backgrounds.",
+      "Active states in navigation must use high-emphasis white icons."
+    ],
+    "rationale": "The app is a multi-functional productivity tool where users frequently switch between task management, category organization, and scheduling. A bottom-tabs architecture provides the necessary peer-level access to these core modules."
+  },
+  "navigationPlan": {
+    "enabled": true,
+    "kind": "bottom-tabs",
+    "items": [
+      {
+        "id": "home",
+        "label": "Home",
+        "icon": "home",
+        "role": "Primary dashboard and task overview",
+        "linkedScreenName": "Home"
+      },
+      {
+        "id": "categories",
+        "label": "Categories",
+        "icon": "layout-grid",
+        "role": "Organize tasks by category",
+        "linkedScreenName": "Categories"
+      },
+      {
+        "id": "stats",
+        "label": "Stats",
+        "icon": "bar-chart-2",
+        "role": "View productivity metrics",
+        "linkedScreenName": "Stats"
+      },
+      {
+        "id": "schedule",
+        "label": "Schedule",
+        "icon": "calendar",
+        "role": "Calendar and timeline view",
+        "linkedScreenName": "Schedule"
+      }
+    ],
+    "visualBrief": "A dark-themed, minimalist bottom navigation bar integrated into the #121212 background. Icons are thin-stroke, high-emphasis white when active and low-emphasis grey when inactive. The bar is flush with the bottom safe area, maintaining a clean, non-elevated look.",
+    "screenChrome": [
+      {
+        "screenName": "Welcome",
+        "chrome": "top-bar-back",
+        "navigationItemId": null
+      }
+    ]
+  },
+  "projectCharter": {
+    "originalPrompt": "Create a new, engaging welcome screen for the app that serves as an introduction to the user. It should include a friendly headline, a brief value proposition, and a prominent 'Get Started' call-to-action button to guide the user into the app. Keep the design clean, welcoming, and consistent with the app's overall style.",
+    "imageReferenceSummary": "The reference shows a dark-mode productivity app with a high-contrast, minimalist aesthetic. Key elements include rounded-corner cards (16px), a consistent dark charcoal palette (#121212 background, #1E1E1E cards), and thin-stroke iconography.",
+    "appType": "Productivity / Task Management",
+    "targetAudience": "Professionals and students seeking a clean, distraction-free task management experience.",
+    "navigationModel": "Bottom-tab navigation for primary modules with push-navigation for detail views.",
+    "navigationArchitecture": {
+      "kind": "bottom-tabs-app",
+      "primaryNavigation": "bottom-tabs",
+      "rootChrome": "bottom-tabs",
+      "detailChrome": "top-bar-back",
+      "consistencyRules": [
+        "All root screens must utilize the persistent bottom navigation bar.",
+        "All detail screens must use a top-bar-back chrome to return to the parent root.",
+        "Surface colors must remain consistent at #1E1E1E for cards and #121212 for backgrounds.",
+        "Active states in navigation must use high-emphasis white icons."
+      ],
+      "rationale": "The app is a multi-functional productivity tool where users frequently switch between task management, category organization, and scheduling. A bottom-tabs architecture provides the necessary peer-level access to these core modules."
+    },
+    "keyFeatures": [
+      "Task tracking and filtering",
+      "Category-based organization",
+      "Visual timeline scheduling",
+      "Productivity metrics"
+    ],
+    "designRationale": "The design prioritizes clarity and focus through a dark-mode-first approach. By using subtle surface elevation (card vs. background) and high-contrast typography, the interface reduces cognitive load.",
+    "creativeDirection": {
+      "conceptName": "Midnight Productivity",
+      "styleEssence": "Minimalist, high-contrast, and precise.",
+      "colorStory": "Deep charcoal background (#121212) with #1E1E1E cards. Accents are used sparingly for status indicators (blue, red, orange, purple, green).",
+      "typographyMood": "Clean, sans-serif (Inter/SF Pro). High-emphasis white for primary text, medium-emphasis grey for secondary.",
+      "surfaceLanguage": "Rounded rectangles (16px radius) with no drop shadows, relying on color contrast for depth.",
+      "iconographyStyle": "Thin-stroke, minimalist line icons.",
+      "compositionPrinciples": [
+        "Maintain 20px screen margins.",
+        "Use consistent 12px element spacing.",
+        "Align all text to a strict vertical rhythm."
+      ],
+      "signatureMoments": [
+        "The 3-column stats row on the Home screen.",
+        "The vertical timeline line connecting task dots on the Schedule screen."
+      ],
+      "motionTone": "Fluid, standard iOS slide transitions.",
+      "avoid": [
+        "Drop shadows.",
+        "Overly decorative elements.",
+        "High-density clutter."
+      ]
+    },
+    "referenceScreens": [],
+    "designSystemSignals": null,
+    "planningDiagnostics": {
+      "source": "partial_planner",
+      "validationIssues": [
+        "navigation_plan.screen_chrome.0.chrome: Invalid option: expected one of \"bottom-tabs\"|\"top-bar\"|\"top-bar-back\"|\"modal-sheet\"|\"immersive\"",
+        "screens.0.chrome_policy.chrome: Invalid option: expected one of \"bottom-tabs\"|\"top-bar\"|\"top-bar-back\"|\"modal-sheet\"|\"immersive\""
+      ],
+      "rawPlanKeys": [
+        "navigation_architecture",
+        "navigation_plan",
+        "charter",
+        "screens"
+      ],
+      "rawScreenCount": 1,
+      "recoveredScreens": 1,
+      "notes": [
+        "Recovered planner output independently instead of replacing the whole charter with generic fallback.",
+        "Screen plans came from valid planner screen objects."
+      ]
+    },
+    "charterSource": "partial_planner"
+  },
+  "projectContext": "Use this project memory to stay consistent with the existing product.\n\nDo not duplicate a retrieved screen unless the user explicitly asked to replace or rework it.\n\nPROJECT CHARTER\nOriginal intent: Create a new, engaging welcome screen for the app that serves as an introduction to the user. It should include a friendly headline, a brief value proposition, and a prominent 'Get Started' call-to-action button to guide the user into the app. Keep the design clean, welcoming, and consistent with the app's overall style.\nImage reference: The reference shows a dark-mode productivity app with a high-contrast, minimalist aesthetic. Key elements include rounded-corner cards (16px), a consistent dark charcoal palette (#121212 background, #1E1E1E cards), and thin-stroke iconography.\nApp type: Productivity / Task Management\nAudience: Professionals and students seeking a clean, distraction-free task management experience.\nNavigation model: Bottom-tab navigation for primary modules with push-navigation for detail views.\nKey features: Task tracking and filtering, Category-based organization, Visual timeline scheduling, Productivity metrics\nDesign rationale: The design prioritizes clarity and focus through a dark-mode-first approach. By using subtle surface elevation (card vs. background) and high-contrast typography, the interface reduces cognitive load.\n\nNAVIGATION ARCHITECTURE\nKind: bottom-tabs-app\nPrimary navigation: bottom-tabs\nRoot chrome: bottom-tabs\nDetail chrome: top-bar-back\nRationale: The app is a multi-functional productivity tool where users frequently switch between task management, category organization, and scheduling. A bottom-tabs architecture provides the necessary peer-level access to these core modules.\nConsistency rules: All root screens must utilize the persistent bottom navigation bar., All detail screens must use a top-bar-back chrome to return to the parent root., Surface colors must remain consistent at #1E1E1E for cards and #121212 for backgrounds., Active states in navigation must use high-emphasis white icons.\n\nAPPROVED NAVIGATION PLAN\nPersistent navigation: bottom-tabs\nItems: Home (home, home) -> Home, Categories (categories, layout-grid) -> Categories, Stats (stats, bar-chart-2) -> Stats, Schedule (schedule, calendar) -> Schedule\nVisual brief: A dark-themed, minimalist bottom navigation bar integrated into the #121212 background. Icons are thin-stroke, high-emphasis white when active and low-emphasis grey when inactive. The bar is flush with the bottom safe area, maintaining a clean, non-elevated look.\nScreen chrome: Welcome: top-bar-back\n\nCREATIVE DIRECTION\nConcept: Midnight Productivity\nStyle essence: Minimalist, high-contrast, and precise.\nColor story: Deep charcoal background (#121212) with #1E1E1E cards. Accents are used sparingly for status indicators (blue, red, orange, purple, green).\nTypography mood: Clean, sans-serif (Inter/SF Pro). High-emphasis white for primary text, medium-emphasis grey for secondary.\nSurface language: Rounded rectangles (16px radius) with no drop shadows, relying on color contrast for depth.\nIconography: Thin-stroke, minimalist line icons.\nComposition principles: Maintain 20px screen margins., Use consistent 12px element spacing., Align all text to a strict vertical rhythm.\nSignature moments: The 3-column stats row on the Home screen., The vertical timeline line connecting task dots on the Schedule screen.\nMotion tone: Fluid, standard iOS slide transitions.\nAvoid: Drop shadows., Overly decorative elements., High-density clutter.\n\nAPPROVED DESIGN CONTRACT\nStandard app radius: 16px\nPill radius: 9999px (use only for capsule controls)\nStandard border width: 1px\nStandard surface shadow: 0px 8px 14px 0px rgba(0, 0, 0, 0.2)\nOverlay shadow: 0px 8px 24px rgba(0, 0, 0, 0.4)\nScreen margin: 20px\nSection gap: 24px\nElement gap: 12px\nStandard button height: 52px\nStandard input height: 48px\n\nTYPOGRAPHY ROLE CONTRACT\nnav_title: top bars, modal headers, compact detail headers\nscreen_title: default title for normal app feature screens\nhero_title: onboarding, empty states, splash/editorial hero moments only\nsection_title: cards, grouped content, list sections, panel headers\nmetric_value: balances, prices, counters, scores, numeric hero data\nbody: primary body copy, list item titles, main descriptive text\nsupporting: supporting copy, subtitles, secondary descriptions\ncaption: metadata, helper text, and micro-labels\nbutton_label: all buttons, segmented controls, and tappable nav labels\n\nAPPROVED TOKEN CONTEXT\nTOKEN CONTEXT MODE: compact_visual\nUse Drawgle live tokens for canonical colors, typography, spacing, sizing, radii, borders, and shadows.\nPrefer utility classes when the semantic role matches: dg-bg-primary, dg-surface-card, dg-text-high, dg-text-medium, dg-text-low, dg-action-primary, dg-border-divider, dg-radius-app, dg-radius-pill, dg-shadow-surface, dg-type-screen-title, dg-type-section-title, dg-type-metric-value, dg-type-body, dg-type-caption, dg-type-button-label.\nFor token values without a named utility, use CSS variables in Tailwind arbitrary classes, e.g. bg-[var(--dg-color-action-primary)], p-[var(--dg-spacing-md)], rounded-[var(--dg-radii-app)], shadow-[var(--dg-shadows-surface)].\nUse raw hex, raw pixels, and custom gradients only for deliberate one-off visual details such as charts, maps, illustrations, and special effects.\nRelevant token variables:\ncolor.text.low_emphasis: var(--dg-color-text-low-emphasis) = #666666\ncolor.text.high_emphasis: var(--dg-color-text-high-emphasis) = #FFFFFF\ncolor.text.medium_emphasis: var(--dg-color-text-medium-emphasis) = #A0A0A0\ncolor.action.primary: var(--dg-color-action-primary) = #FFFFFF\ncolor.action.disabled: var(--dg-color-action-disabled) = #333333\ncolor.action.secondary: var(--dg-color-action-secondary) = #3D3D3D\ncolor.action.on_primary_text: var(--dg-color-action-on-primary-text) = #121212\ncolor.border.divider: var(--dg-color-border-divider) = #2D2D2D\ncolor.border.focused: var(--dg-color-border-focused) = #FFFFFF\ncolor.surface.card: var(--dg-color-surface-card) = #1E1E1E\ncolor.surface.modal: var(--dg-color-surface-modal) = #252525\ncolor.surface.bottom_sheet: var(--dg-color-surface-bottom-sheet) = #252525\ncolor.background.primary: var(--dg-color-background-primary) = #121212\ncolor.background.secondary: var(--dg-color-background-secondary) = #1E1E1E\nradii.app: var(--dg-radii-app) = 16px\nradii.pill: var(--dg-radii-pill) = 9999px\nsizing.min_touch_target: var(--dg-sizing-min-touch-target) = 48px\nsizing.standard_input_height: var(--dg-sizing-standard-input-height) = 48px\nsizing.standard_button_height: var(--dg-sizing-standard-button-height) = 52px\nshadows.none: var(--dg-shadows-none) = none\nshadows.overlay: var(--dg-shadows-overlay) = 0px 8px 24px rgba(0, 0, 0, 0.4)\nshadows.surface: var(--dg-shadows-surface) = 0px 8px 14px 0px rgba(0, 0, 0, 0.2)\nspacing.none: var(--dg-spacing-none) = 0px\nspacing.lg: var(--dg-spacing-lg) = 20px\nspacing.md: var(--dg-spacing-md) = 16px\nspacing.sm: var(--dg-spacing-sm) = 12px\nspacing.xl: var(--dg-spacing-xl) = 24px\nspacing.xs: var(--dg-spacing-xs) = 8px\nspacing.xxl: var(--dg-spacing-xxl) = 32px\nspacing.xxs: var(--dg-spacing-xxs) = 4px\ntypography.font_family: var(--dg-typography-font-family) = 'Inter', -apple-system, sans-serif\ntypography.nav_title.size: var(--dg-type-nav-title-size) = 18px\ntypography.nav_title.weight: var(--dg-type-nav-title-weight) = 600\ntypography.nav_title.line_height: var(--dg-type-nav-title-line-height) = 24px\ntypography.screen_title.size: var(--dg-type-screen-title-size) = 28px\ntypography.screen_title.weight: var(--dg-type-screen-title-weight) = 700\ntypography.screen_title.line_height: var(--dg-type-screen-title-line-height) = 34px\ntypography.section_title.size: var(--dg-type-section-title-size) = 20px\ntypography.section_title.weight: var(--dg-type-section-title-weight) = 600\ntypography.section_title.line_height: var(--dg-type-section-title-line-height) = 26px\ntypography.metric_value.size: var(--dg-type-metric-value-size) = 24px\ntypography.metric_value.weight: var(--dg-type-metric-value-weight) = 700\ntypography.metric_value.line_height: var(--dg-type-metric-value-line-height) = 30px\ntypography.body.size: var(--dg-type-body-size) = 16px\ntypography.body.weight: var(--dg-type-body-weight) = 400\ntypography.body.line_height: var(--dg-type-body-line-height) = 22px\ntypography.caption.size: var(--dg-type-caption-size) = 12px\ntypography.caption.weight: var(--dg-type-caption-weight) = 500\ntypography.caption.line_height: var(--dg-type-caption-line-height) = 16px\ntypography.button_label.size: var(--dg-type-button-label-size) = 16px\ntypography.button_label.weight: var(--dg-type-button-label-weight) = 600\ntypography.button_label.line_height: var(--dg-type-button-label-line-height) = 20px\nborder_widths.standard: var(--dg-border-widths-standard) = 1px\nmobile_layout.element_gap: var(--dg-mobile-layout-element-gap) = 12px\nmobile_layout.section_gap: var(--dg-mobile-layout-section-gap) = 24px\nmobile_layout.safe_area_top: var(--dg-mobile-layout-safe-area-top) = 16px\nmobile_layout.screen_margin: var(--dg-mobile-layout-screen-margin) = 20px\nmobile_layout.safe_area_bottom: var(--dg-mobile-layout-safe-area-bottom) = 16px\n\nRELEVANT EXISTING SCREENS\n1. Categories (63% match)\nThis screen displays a grid of category cards that track progress for various life domains. Each card features a descriptive icon, a title, and a progress bar to visualize completion status.\n\n2. Schedule (63% match)\nThis schedule screen allows users to manage daily tasks through a horizontal date selector and a prominent \"New Task\" action button. The interface utilizes a vertical timeline pattern with color-coded cards to display time-bound events clearly."
 }
 
-Output:
 
 
+
+
+
+
+
+
+
+aong with this build screen run there was another run craeetd whihc was enrich-screen.. wha for this was ???????
 {
-  "targetType": "screen",
-  "screenId": "102b6d6f-97a2-44bd-968b-a4aface8c216",
-  "changed": true,
-  "message": "Reconstructed Categories from invalid source."
+  "screenId": "e33e8665-544f-4480-8369-6e7c0de009e4",
+  "screenName": "Welcome",
+  "code": "<div class=\"w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden\" style=\"font-family: var(--dg-typography-font-family, 'Inter', -apple-system, sans-serif)\" data-drawgle-id=\"dg-1\">\n  \n  <!-- Top Bar Back -->\n  <header class=\"w-full flex items-center px-[var(--dg-mobile-layout-screen-margin)] pt-[var(--dg-mobile-layout-safe-area-top)] h-[64px]\" data-drawgle-id=\"dg-2\">\n    <button class=\"flex items-center justify-center min-w-[48px] min-h-[48px] -ml-[var(--dg-spacing-sm)]\" data-drawgle-id=\"dg-3\">\n      <svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m15 18-6-6 6-6\"/></svg>\n    </button>\n  </header>\n\n  <!-- Main Content Area -->\n  <main class=\"flex-1 flex flex-col justify-center px-[var(--dg-mobile-layout-screen-margin)] pb-[var(--dg-mobile-layout-safe-area-bottom)]\" data-drawgle-id=\"dg-4\">\n    <div class=\"flex flex-col gap-[var(--dg-mobile-layout-section-gap)]\" data-drawgle-id=\"dg-5\">\n      \n      <!-- Hero Text Block -->\n      <div class=\"flex flex-col gap-[var(--dg-mobile-layout-element-gap)]\" data-drawgle-id=\"dg-6\">\n        <h1 class=\"dg-type-hero-title text-[var(--dg-color-text-high-emphasis)] leading-[40px]\" data-drawgle-id=\"dg-7\">\n          Master your<br/>daily flow.\n        </h1>\n        <p class=\"dg-type-body text-[var(--dg-color-text-medium-emphasis)] max-w-[300px]\" data-drawgle-id=\"dg-8\">\n          A distraction-free space designed to help you organize, schedule, and achieve your most important goals.\n        </p>\n      </div>\n\n    </div>\n  </main>\n\n  <!-- Footer CTA -->\n  <footer class=\"w-full px-[var(--dg-mobile-layout-screen-margin)] pb-[var(--dg-mobile-layout-safe-area-bottom)] pt-[var(--dg-mobile-layout-element-gap)]\" data-drawgle-id=\"dg-9\">\n    <button class=\"w-full dg-action-primary h-[var(--dg-sizing-standard-button-height)] rounded-[var(--dg-radii-app)] flex items-center justify-center active:scale-[0.98] transition-transform duration-200\" data-drawgle-id=\"dg-a\">\n      <span class=\"dg-type-button-label text-[var(--dg-color-action-on-primary-text)]\" data-drawgle-id=\"dg-b\">Get Started</span>\n    </button>\n  </footer>\n\n</div>"
 }
-
-
-
-
-
-
-
-
-
-
-
-[{"idx":0,"id":"102b6d6f-97a2-44bd-968b-a4aface8c216","project_id":"11fa01a1-de8e-419f-b7f9-33300413c53b","owner_id":"3a503767-6092-4e8e-973e-7f39ebf7e270","generation_run_id":"80eb02b0-585f-4481-88e4-b91a14fe075e","name":"Categories","prompt":"Reference DNA: Preserves the 2x3 grid layout of category cards with progress bars. Visual Goal: Provide a clear, visual overview of task categories. Layout Anatomy: Top header with back button and title. A 2-column grid of cards. Each card contains an icon, title, and a progress bar at the bottom. Key Components: Category cards, progress bars, diagonal arrow icon for navigation. Visual Styling: #1E1E1E cards, colored progress bars (blue, purple, green, red, orange). Interaction Notes: Tapping a card navigates to the category-specific task list. Must Preserve: The diagonal arrow icon in the top-right of each card and the progress bar placement.","code":"<div class=\"w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden\" style=\"font-family: var(--dg-typography-font-family, 'Inter', -apple-system, sans-serif)\" data-drawgle-id=\"dg-1\">\n  <header class=\"px-[var(--dg-mobile-layout-screen-margin)] pt-[var(--dg-mobile-layout-safe-area-top)] pb-[var(--dg-spacing-xl)]\" data-drawgle-id=\"dg-2\">\n    <h1 class=\"dg-type-screen-title\" data-drawgle-id=\"dg-3\">Categories</h1>\n  </header>\n\n  <main class=\"px-[var(--dg-mobile-layout-screen-margin)] pb-[var(--dg-spacing-xxl)]\" data-drawgle-id=\"dg-4\">\n    <div class=\"grid grid-cols-2 gap-[var(--dg-mobile-layout-element-gap)]\" data-drawgle-id=\"dg-5\">\n      \n      <!-- Card 1: Finance -->\n      <div class=\"dg-surface-card dg-radius-app p-[var(--dg-spacing-md)] flex flex-col justify-between aspect-square border border-[var(--dg-color-border-divider)]\" data-drawgle-id=\"dg-6\">\n        <div class=\"flex justify-between items-start\" data-drawgle-id=\"dg-7\">\n          <div class=\"w-10 h-10 rounded-full bg-[#2D2415] flex items-center justify-center\" data-drawgle-id=\"dg-8\">\n            <i data-lucide=\"dollar-sign\" class=\"w-5 h-5 text-[#F59E0B]\"></i>\n          </div>\n          <i data-lucide=\"arrow-up-right\" class=\"w-5 h-5 text-[var(--dg-color-text-low-emphasis)]\"></i>\n        </div>\n        <div class=\"flex flex-col gap-[var(--dg-spacing-xs)]\" data-drawgle-id=\"dg-9\">\n          <h3 class=\"text-[14px] font-semibold leading-[18px]\" data-drawgle-id=\"dg-a\">Finance</h3>\n          <div class=\"w-full h-1.5 bg-[var(--dg-color-border-divider)] rounded-full overflow-hidden\" data-drawgle-id=\"dg-b\">\n            <div class=\"w-[40%] h-full bg-[#F59E0B]\" data-drawgle-id=\"dg-c\"></div>\n          </div>\n        </div>\n      </div>\n\n      <!-- Card 2: Learning -->\n      <div class=\"dg-surface-card dg-radius-app p-[var(--dg-spacing-md)] flex flex-col justify-between aspect-square border border-[var(--dg-color-border-divider)]\" data-drawgle-id=\"dg-d\">\n        <div class=\"flex justify-between items-start\" data-drawgle-id=\"dg-e\">\n          <div class=\"w-10 h-10 rounded-full bg-[#1A2E33] flex items-center justify-center\" data-drawgle-id=\"dg-f\">\n            <i data-lucide=\"book-open\" class=\"w-5 h-5 text-[#06B6D4]\"></i>\n          </div>\n          <i data-lucide=\"arrow-up-right\" class=\"w-5 h-5 text-[var(--dg-color-text-low-emphasis)]\"></i>\n        </div>\n        <div class=\"flex flex-col gap-[var(--dg-spacing-xs)]\" data-drawgle-id=\"dg-g\">\n          <h3 class=\"text-[14px] font-semibold leading-[18px]\" data-drawgle-id=\"dg-h\">Learning</h3>\n          <div class=\"w-full h-1.5 bg-[var(--dg-color-border-divider)] rounded-full overflow-hidden\" data-drawgle-id=\"dg-i\">\n            <div class=\"w-[75%] h-full bg-[#06B6D4]\" data-drawgle-id=\"dg-j\"></div>\n          </div>\n        </div>\n      </div>\n\n      <!-- Card 3: Relationships -->\n      <div class=\"dg-surface-card dg-radius-app p-[var(--dg-spacing-md)] flex flex-col justify-between aspect-square border border-[var(--dg-color-border-divider)]\" data-drawgle-id=\"dg-k\">\n        <div class=\"flex justify-between items-start\" data-drawgle-id=\"dg-l\">\n          <div class=\"w-10 h-10 rounded-full bg-[#331A25] flex items-center justify-center\" data-drawgle-id=\"dg-m\">\n            <i data-lucide=\"users\" class=\"w-5 h-5 text-[#EC4899]\"></i>\n          </div>\n          <i data-lucide=\"arrow-up-right\" class=\"w-5 h-5 text-[var(--dg-color-text-low-emphasis)]\"></i>\n        </div>\n        <div class=\"flex flex-col gap-[var(--dg-spacing-xs)]\" data-drawgle-id=\"dg-n\">\n          <h3 class=\"text-[14px] font-semibold leading-[18px]\" data-drawgle-id=\"dg-o\">Relationships</h3>\n          <div class=\"w-full h-1.5 bg-[var(--dg-color-border-divider)] rounded-full overflow-hidden\" data-drawgle-id=\"dg-p\">\n            <div class=\"w-[60%] h-full bg-[#EC4899]\" data-drawgle-id=\"dg-q\"></div>\n          </div>\n        </div>\n      </div>\n\n      <!-- Card 4: Work -->\n      <div class=\"dg-surface-card dg-radius-app p-[var(--dg-spacing-md)] flex flex-col justify-between aspect-square border border-[var(--dg-color-border-divider)]\" data-drawgle-id=\"dg-r\">\n        <div class=\"flex justify-between items-start\" data-drawgle-id=\"dg-s\">\n          <div class=\"w-10 h-10 rounded-full bg-[#1A3320] flex items-center justify-center\" data-drawgle-id=\"dg-t\">\n            <i data-lucide=\"briefcase\" class=\"w-5 h-5 text-[#22C55E]\"></i>\n          </div>\n          <i data-lucide=\"arrow-up-right\" class=\"w-5 h-5 text-[var(--dg-color-text-low-emphasis)]\"></i>\n        </div>\n        <div class=\"flex flex-col gap-[var(--dg-spacing-xs)]\" data-drawgle-id=\"dg-u\">\n          <h3 class=\"text-[14px] font-semibold leading-[18px]\" data-drawgle-id=\"dg-v\">Work</h3>\n          <div class=\"w-full h-1.5 bg-[var(--dg-color-border-divider)] rounded-full overflow-hidden\" data-drawgle-id=\"dg-w\">\n            <div class=\"w-[90%] h-full bg-[#22C55E]\" data-drawgle-id=\"dg-x\"></div>\n          </div>\n        </div>\n      </div>\n\n      <!-- Card 5: Health -->\n      <div class=\"dg-surface-card dg-radius-app p-[var(--dg-spacing-md)] flex flex-col justify-between aspect-square border border-[var(--dg-color-border-divider)]\" data-drawgle-id=\"dg-y\">\n        <div class=\"flex justify-between items-start\" data-drawgle-id=\"dg-z\">\n          <div class=\"w-10 h-10 rounded-full bg-[#33201A] flex items-center justify-center\" data-drawgle-id=\"dg-10\">\n            <i data-lucide=\"heart\" class=\"w-5 h-5 text-[#EF4444]\"></i>\n          </div>\n          <i data-lucide=\"arrow-up-right\" class=\"w-5 h-5 text-[var(--dg-color-text-low-emphasis)]\"></i>\n        </div>\n        <div class=\"flex flex-col gap-[var(--dg-spacing-xs)]\" data-drawgle-id=\"dg-11\">\n          <h3 class=\"text-[14px] font-semibold leading-[18px]\" data-drawgle-id=\"dg-12\">Health</h3>\n          <div class=\"w-full h-1.5 bg-[var(--dg-color-border-divider)] rounded-full overflow-hidden\" data-drawgle-id=\"dg-13\">\n            <div class=\"w-[30%] h-full bg-[#EF4444]\" data-drawgle-id=\"dg-14\"></div>\n          </div>\n        </div>\n      </div>\n\n      <!-- Card 6: Career -->\n      <div class=\"dg-surface-card dg-radius-app p-[var(--dg-spacing-md)] flex flex-col justify-between aspect-square border border-[var(--dg-color-border-divider)]\" data-drawgle-id=\"dg-15\">\n        <div class=\"flex justify-between items-start\" data-drawgle-id=\"dg-16\">\n          <div class=\"w-10 h-10 rounded-full bg-[#2D1A33] flex items-center justify-center\" data-drawgle-id=\"dg-17\">\n            <i data-lucide=\"trending-up\" class=\"w-5 h-5 text-[#A855F7]\"></i>\n          </div>\n          <i data-lucide=\"arrow-up-right\" class=\"w-5 h-5 text-[var(--dg-color-text-low-emphasis)]\"></i>\n        </div>\n        <div class=\"flex flex-col gap-[var(--dg-spacing-xs)]\" data-drawgle-id=\"dg-18\">\n          <h3 class=\"text-[14px] font-semibold leading-[18px]\" data-drawgle-id=\"dg-19\">Career</h3>\n          <div class=\"w-full h-1.5 bg-[var(--dg-color-border-divider)] rounded-full overflow-hidden\" data-drawgle-id=\"dg-1a\">\n            <div class=\"w-[55%] h-full bg-[#A855F7]\" data-drawgle-id=\"dg-1b\"></div>\n          </div>\n        </div>\n      </div>\n\n    </div>\n  </main>\n</div>","status":"ready","position_x":5250,"position_y":4600,"sort_index":1,"error":null,"created_at":"2026-05-01 13:41:15.082+00","updated_at":"2026-05-01 15:56:41.615289+00","trigger_run_id":"run_cmomyo4t243id0on3hrv2p2dr","stream_public_token":"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJjbW8zN3ZzdGkwMzdtbjAwaG93aWlwdGl6IiwicHViIjp0cnVlLCJzY29wZXMiOlsicmVhZDpydW5zOnJ1bl9jbW9teW80dDI0M2lkMG9uM2hydjJwMmRyIiwid3JpdGU6aW5wdXRTdHJlYW1zOnJ1bl9jbW9teW80dDI0M2lkMG9uM2hydjJwMmRyIl0sImlzcyI6Imh0dHBzOi8vaWQudHJpZ2dlci5kZXYiLCJhdWQiOiJodHRwczovL2FwaS50cmlnZ2VyLmRldiIsImlhdCI6MTc3NzY0Mjg3NSwiZXhwIjoxNzc3NjQ2NDc1fQ.LAR0c4EiE5Tyi5s57DoUzuY2SO2m1lcG-vFS80zB_DQ","summary":"This screen displays a grid of category cards that track progress for various life domains. Each card features a descriptive icon, a title, and a progress bar to visualize completion status.","embedding":"[0.0012971251,0.02592423,0.025702642,-0.063934535,-0.011790787,-0.008698165,-0.021899346,0.002920799,0.01397805,0.0026099698,-0.0033778702,0.0018352746,0.002831873,0.030406559,0.11658495,-0.008670814,0.014319453,0.004078498,0.010638076,-0.015032721,0.0138647035,0.004068072,0.008505608,-0.025756102,-0.0007628439,0.0019539748,-0.0048737023,0.02205385,0.020919561,0.015894797,-0.0012788202,0.031191396,0.0094310315,0.002574614,-0.0052521443,-0.019061048,0.007931705,-0.008901053,0.002198962,0.009044492,-0.024972765,0.005178864,-0.016365679,-0.0076249163,-0.011586751,0.01882703,-0.005817831,-0.0034521446,0.013424583,0.01761959,-0.00020374359,0.012821474,-0.031834852,-0.1939684,0.016644662,-0.008580709,-0.008998723,-0.013679417,0.017727973,-0.00454466,-0.012868391,-0.0075822044,-0.005909073,-0.006855983,-0.013647174,-0.00942927,0.021293068,0.0032323005,-0.020472718,-0.009188048,-0.0025222502,-0.018316742,-0.0067988774,-0.014264368,-0.006678247,-0.024270099,0.0022672883,-0.008549653,0.0075531285,0.0548566,-0.010866696,1.1786114e-05,-0.012918262,-0.010080865,0.0188672,-0.017898314,-0.02089556,-0.0023562184,0.0033415179,0.016512135,-0.029541254,0.0047899922,-0.0040152716,-0.015687352,-0.0058525424,-0.01910009,-0.0045635314,0.0061732675,-0.0034054625,-0.008555678,-0.010477433,0.0029317772,-0.011258069,0.0045916783,-0.014676832,-0.017192945,-0.0048450916,-0.02107853,-0.016203506,-0.0077593564,0.02478729,-0.003991032,-0.0032091,-0.014761213,-0.0099994,-0.20491274,0.013906922,-0.007924222,0.028209751,-0.006137129,0.001398713,0.0027069035,0.018196424,0.025876405,0.001860125,-0.010053376,2.3668741e-05,-0.015706237,0.0006631642,-0.0074849627,-0.017567087,0.006822081,-0.0011273331,0.01819553,0.0034022757,0.0039419266,-0.018375704,-0.010707474,0.0018784099,-0.013497614,0.010757228,-0.004201381,0.0050699385,-0.01241047,-0.020709857,-0.014556608,-0.025721744,0.00084477296,-0.0072158594,0.020646544,-0.0034081605,-0.0023688448,-0.009326178,0.0020528603,0.027525261,-0.018348746,0.013460553,-0.0012929454,-0.008059553,0.019878028,0.005047818,0.007195918,0.021212654,0.012452128,0.010524489,-0.0066304575,0.021667106,0.012470418,0.022416353,0.0047541624,0.00030046588,0.0059491294,-0.0023256317,0.0026111538,0.013570964,-0.028244356,0.014704673,0.010251397,0.011310082,-0.0048959353,-0.017711056,-0.025054663,-0.010659884,0.0003253446,0.011940277,-0.012301852,0.014511781,-0.01911239,0.010346874,0.014961323,0.015884053,-0.014703831,0.006453683,-0.0029627297,-0.013391452,0.019777745,-0.0050862012,-0.024138954,0.0013382408,-0.00079746795,0.01802644,-0.013505189,-0.0042180754,-0.024687551,0.0030592,0.0058497717,-0.026034346,0.001429532,0.010056185,0.03237194,-0.022355229,-0.0055558784,0.022299727,0.009130386,0.0004307477,-0.009752332,-0.0028331336,0.021842107,-0.025852513,-0.010963265,-0.009781431,0.02761394,0.029665584,-0.0014653951,-0.014832786,0.034089766,-0.009598544,-0.004993441,0.0075155823,0.0022804025,-0.00749405,0.016333366,-0.018078137,-0.008406546,0.016953137,0.023792828,0.0059793065,0.006255071,0.01648762,0.020543858,-0.00025250638,-0.039529677,-0.015783362,0.0044828067,0.0076698796,0.004721712,-0.0047170236,-0.0007104122,-0.0013834337,0.005920635,0.007371618,0.009176039,0.007588716,-0.0023625353,0.00016482314,-0.011616564,0.012748141,0.0007054922,0.0055178837,-0.03509057,0.003968608,0.0030315395,0.002601872,-0.012881004,-0.0067798435,-0.00038803255,0.011076383,-0.0046008527,-0.023533508,-0.009514498,-0.015036317,0.018262409,-0.004864899,0.006776806,0.01881116,0.012803885,-0.105824806,0.0026667106,0.007162953,-0.018970264,0.0040097246,-0.007876167,0.015767802,-0.0057721003,0.018650511,0.022518147,0.0052321064,-0.028708592,0.022627903,0.0052975095,0.016858306,0.0042492677,-0.01470042,-0.007667682,-0.0047002337,-0.062413353,0.01101394,-0.008927283,-0.005393968,0.0022293592,-0.0047671925,0.010754932,0.023213647,0.03937304,0.003256637,0.011339749,0.00869728,0.0030148001,0.01282917,-0.0037203568,-0.007400286,-0.0039464342,0.00010067479,-0.021338707,0.009059964,-0.009731631,0.015439999,-0.01848929,0.010509281,-0.010256237,0.017724989,0.02001567,-0.010024365,0.009391153,0.0039040209,0.01124453,-0.00834752,0.0065893554,0.00238718,-0.0033238034,0.026236556,0.008862837,-0.0027044814,-0.017454548,-0.009812457,0.016588604,0.0018539019,-0.0011616085,0.019997716,-0.0040233727,-0.012951403,0.011190022,-0.018581295,0.0011068641,0.011758482,-0.012253251,-0.0029587594,0.000452104,-0.0054720426,-0.00041619336,-0.0046351827,0.010326464,0.013067684,0.005141768,-0.013773924,-0.0028488394,-0.0010325145,0.02106006,0.011688662,0.032114983,0.018627536,0.01433819,0.0036620563,0.011972267,4.379297e-05,-0.019908201,0.031621836,0.028532196,-0.008103499,0.021264799,-0.0068449853,0.0050091306,-0.007143279,0.0035004485,-0.013869286,-0.0066545676,-0.008041737,-0.015744496,-0.00019710629,0.0036434326,-0.014793681,0.0056795287,-0.002298971,-0.012869644,0.0030633723,0.009026282,-0.009862342,0.0017215807,-0.0014662312,-0.025431864,-0.027220873,0.036354363,0.00646077,-0.002419301,-0.0064723315,0.0055323234,-0.009745979,-0.0067674466,0.016097179,0.012234056,0.000401425,-0.0062152874,-0.02665758,-0.0024541172,-0.017811682,-0.021331636,-0.019722637,0.0057436796,0.0078111775,-0.0051633967,-0.0077271243,-0.02061424,0.025408573,0.006026561,-0.014004356,0.0115329875,-0.0064165285,-0.0045967987,0.005470711,0.022550093,0.010826815,-0.020693026,-0.006784668,0.036537603,0.013435125,-0.015279913,-0.01724061,-0.021134695,0.028652282,-0.008431218,-0.00688923,-0.030107154,0.008796622,0.008148346,-0.033562172,-0.026622823,-0.011676228,0.0077101137,0.005494363,-0.0075038807,-0.0077768,-0.014775106,-0.0018338895,0.0036735774,-0.010808352,-0.006748675,-0.008414499,0.012801166,-0.014694985,-0.0089517655,0.011215384,-0.005503415,0.019818835,-0.0039968514,0.00208035,-0.001646821,0.014196438,-0.0031955293,-0.016810264,-0.000543218,0.013163338,0.01738009,0.0010227798,0.0100352345,-0.021637345,-0.012350746,0.009643245,0.008303609,-0.013185907,0.006898487,-0.0103630135,0.021872066,0.012614153,0.009362876,-0.0025438177,-0.016595664,0.0071570836,-0.0132698305,0.031961776,0.01637995,-0.0007751347,0.025686316,0.0027607335,0.011733181,0.020471282,0.0031174847,0.006223893,0.013594077,-0.002350384,-0.0028114575,0.0003702553,0.011388025,0.0026734883,0.004544116,-0.017933529,0.01935752,-0.008528804,0.010307038,-0.0060165892,0.006534783,-0.0010547951,-0.010337139,0.01596092,0.0018519809,-0.025599334,0.006446407,0.0010325076,-0.024705688,0.006424005,-0.008958512,-0.0118596,-0.007327145,0.0022505,0.02915232,-0.014366555,-0.0040913858,-0.016439771,0.007605734,-0.00819319,-0.0077423505,0.003532159,0.0076457635,0.012341422,0.003497038,0.005931564,-0.018883185,0.014511914,0.013213858,0.010906435,0.012413287,-0.0034540836,0.023331145,-0.008322316,-0.018394046,0.015205472,0.0036933944,0.012476043,0.015222645,0.01758032,0.017039206,-0.01609554,0.003090547,-0.0074904696,-0.021249361,0.00092610304,-0.10565268,-0.009607565,-0.000980446,-0.001145086,0.008916133,0.0110018775,-0.008138607,-0.0071629863,-0.003434655,-0.004508205,-0.00025406803,-0.0012677329,0.0027619854,-0.015131821,0.020946212,0.013104741,-0.02410679,0.018043166,-0.028548053,-0.028053606,-0.004487424,-0.018555544,-0.008310585,-0.012609601,-0.00015639105,-0.011145401,0.003384738,-0.005657118,0.00059238455,-0.00452405,0.00477012,0.0036653494,-0.028826479,0.004630212,0.02646415,0.023863785,0.01453852,-0.033793055,0.020076504,0.008074378,0.002884452,-0.0016173363,-0.004886208,-0.01803609,-0.019266184,-0.005781295,0.0045042518,-0.014006824,0.0027592797,0.025861615,-0.022126704,-0.009028179,-0.019009234,0.003093345,0.0050782347,-0.00024084523,-0.016316894,-0.0047309664,-0.03578002,-0.018610844,-0.018100457,0.00553533,0.014410829,0.026950998,-0.03397257,-0.012577748,-0.008936054,0.007540263,0.011920433,-0.00839258,-0.0072795446,-0.0070657176,-0.011934613,-0.011246296,-0.021484746,0.017107463,-0.02297609,-0.0030414844,-0.00442262,-0.0018614338,-0.0011874173,0.0006768111,-0.08460233,-0.006038894,-0.005902512,0.021014435,0.00036926704,-0.016102718,-0.001191081,0.0049306564,-0.015473377,0.01658048,-0.03280932,-0.004183013,0.01497414,-0.01847233,-0.007296749,0.009682797,0.020048073,-0.0067949505,0.0035505004,-0.0025319806,-0.034762893,-0.0145062655,0.002331888,0.003906324,0.0034401433,-0.009443904,-0.010573619,0.007844541,0.0013816402,-0.009657466,0.0024705247,-0.16193478,-0.009125878,-0.00022240315,0.01799392,-0.0034977137,-0.0030204405,0.008950398,0.016332261,0.0015864684,-0.0368817,0.03732387,-0.019503081,-0.033854004,0.010920474,0.0065035177,0.15054011,0.02342534,-0.0046912245,-0.010616458,-0.02297694,-0.015753195,0.004541942,-0.001585369,0.018278133,-0.007145849,-0.01521149,0.017815996,0.0050202403,0.010714503,0.014770357,0.029618245,-0.005948844,-0.01028943,0.0056272647,-0.004863643,0.022107523,-0.0058819763,-0.0064444165,0.027773421,-0.008744351,0.032793604,-0.010257436,0.0025621224,-0.004411561,-0.012447096,0.0010819657,-0.015409513,0.0034483264,0.012072024,-0.014449783,0.008396981,-0.084227204,-0.015535171,0.009635278,0.017769346,0.029450655,-0.019863566,-0.00785109,0.012541648,0.028170178,-0.011706766,-0.027214352,-0.001989976,0.02400374,-0.0133664105,-0.018049438,0.011126983,0.011697523,-0.006857222,0.01833785,0.016123623,0.01673606,0.009431575,0.018175595,-0.021648536,-0.0032139327,-0.021991633,0.003261701,-0.0017155366,-0.0016071987,0.007538386,0.0032458182,0.00087601034,-0.011910662,0.014393452,-0.021673104,0.0085887285,0.022014456,0.012804241,-0.016582998,0.04005115,0.004835397,0.016755624,0.016595745,0.010728149,0.02864002,-0.010814191,0.019377813,0.0061001075,0.006702434,0.0013638766,-0.024370348,-0.0089868,-0.025151191,0.0017422348,0.038044166,-0.005379691,0.00795384,0.020940661,-0.0040130983]","block_index":"{\"blocks\": [{\"id\": \"screen-shell\", \"kind\": \"shell\", \"name\": \"Screen Shell\", \"depth\": 0, \"endLine\": 107, \"preview\": \"Categories Finance Learning Relationships Work Health Career\", \"tagName\": \"div\", \"keywords\": [\"shell\", \"div\", \"min\", \"full\", \"screen\", \"primary\", \"text\", \"high\", \"flex\", \"col\", \"relative\", \"overflow\", \"hidden\", \"categories\", \"finance\", \"learning\", \"relationships\", \"work\", \"health\", \"career\"], \"parentId\": null, \"endOffset\": 7098, \"startLine\": 1, \"startOffset\": 0}, {\"id\": \"header-1\", \"kind\": \"header\", \"name\": \"Var\", \"depth\": 1, \"endLine\": 4, \"preview\": \"Categories\", \"tagName\": \"header\", \"keywords\": [\"header\", \"var\", \"mobile\", \"layout\", \"screen\", \"margin\", \"safe\", \"area\", \"top\", \"spacing\", \"categories\"], \"parentId\": \"screen-shell\", \"endOffset\": 456, \"startLine\": 2, \"startOffset\": 217}, {\"id\": \"section-1\", \"kind\": \"section\", \"name\": \"Var\", \"depth\": 1, \"endLine\": 106, \"preview\": \"Finance Learning Relationships Work Health Career\", \"tagName\": \"main\", \"keywords\": [\"section\", \"main\", \"var\", \"mobile\", \"layout\", \"screen\", \"margin\", \"spacing\", \"xxl\", \"finance\", \"learning\", \"relationships\", \"work\", \"health\", \"career\"], \"parentId\": \"screen-shell\", \"endOffset\": 7091, \"startLine\": 6, \"startOffset\": 460}, {\"id\": \"grid-1\", \"kind\": \"grid\", \"name\": \"Cols\", \"depth\": 2, \"endLine\": 105, \"preview\": \"Finance Learning Relationships Work Health Career\", \"tagName\": \"div\", \"keywords\": [\"grid\", \"div\", \"cols\", \"gap\", \"var\", \"mobile\", \"layout\", \"element\", \"finance\", \"learning\", \"relationships\", \"work\", \"health\", \"career\"], \"parentId\": \"section-1\", \"endOffset\": 7081, \"startLine\": 7, \"startOffset\": 572}, {\"id\": \"list-1\", \"kind\": \"list\", \"name\": \"Surface\", \"depth\": 3, \"endLine\": 23, \"preview\": \"Finance\", \"tagName\": \"div\", \"keywords\": [\"list\", \"div\", \"surface\", \"card\", \"radius\", \"app\", \"var\", \"spacing\", \"flex\", \"col\", \"justify\", \"between\", \"aspect\", \"square\", \"border\", \"color\", \"divider\", \"finance\"], \"parentId\": \"grid-1\", \"endOffset\": 1739, \"startLine\": 10, \"startOffset\": 712}, {\"id\": \"list-2\", \"kind\": \"list\", \"name\": \"Surface\", \"depth\": 3, \"endLine\": 39, \"preview\": \"Learning\", \"tagName\": \"div\", \"keywords\": [\"list\", \"div\", \"surface\", \"card\", \"radius\", \"app\", \"var\", \"spacing\", \"flex\", \"col\", \"justify\", \"between\", \"aspect\", \"square\", \"border\", \"color\", \"divider\", \"learning\"], \"parentId\": \"grid-1\", \"endOffset\": 2805, \"startLine\": 26, \"startOffset\": 1779}, {\"id\": \"list-3\", \"kind\": \"list\", \"name\": \"Surface\", \"depth\": 3, \"endLine\": 55, \"preview\": \"Relationships\", \"tagName\": \"div\", \"keywords\": [\"list\", \"div\", \"surface\", \"card\", \"radius\", \"app\", \"var\", \"spacing\", \"flex\", \"col\", \"justify\", \"between\", \"aspect\", \"square\", \"border\", \"color\", \"divider\", \"relationships\"], \"parentId\": \"grid-1\", \"endOffset\": 3877, \"startLine\": 42, \"startOffset\": 2850}, {\"id\": \"list-4\", \"kind\": \"list\", \"name\": \"Surface\", \"depth\": 3, \"endLine\": 71, \"preview\": \"Work\", \"tagName\": \"div\", \"keywords\": [\"list\", \"div\", \"surface\", \"card\", \"radius\", \"app\", \"var\", \"spacing\", \"flex\", \"col\", \"justify\", \"between\", \"aspect\", \"square\", \"border\", \"color\", \"divider\", \"work\"], \"parentId\": \"grid-1\", \"endOffset\": 4935, \"startLine\": 58, \"startOffset\": 3913}, {\"id\": \"list-5\", \"kind\": \"list\", \"name\": \"Surface\", \"depth\": 3, \"endLine\": 87, \"preview\": \"Health\", \"tagName\": \"div\", \"keywords\": [\"list\", \"div\", \"surface\", \"card\", \"radius\", \"app\", \"var\", \"spacing\", \"flex\", \"col\", \"justify\", \"between\", \"aspect\", \"square\", \"border\", \"color\", \"divider\", \"health\"], \"parentId\": \"grid-1\", \"endOffset\": 5998, \"startLine\": 74, \"startOffset\": 4973}, {\"id\": \"list-6\", \"kind\": \"list\", \"name\": \"Surface\", \"depth\": 3, \"endLine\": 103, \"preview\": \"Career\", \"tagName\": \"div\", \"keywords\": [\"list\", \"div\", \"surface\", \"card\", \"radius\", \"app\", \"var\", \"spacing\", \"flex\", \"col\", \"justify\", \"between\", \"aspect\", \"square\", \"border\", \"color\", \"divider\", \"career\"], \"parentId\": \"grid-1\", \"endOffset\": 7069, \"startLine\": 90, \"startOffset\": 6036}], \"rootId\": \"screen-shell\", \"version\": 1}","chrome_policy":"{\"chrome\": \"bottom-tabs\", \"showsBackButton\": false, \"showPrimaryNavigation\": true}","navigation_item_id":"categories"}]

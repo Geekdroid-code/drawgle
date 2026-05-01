@@ -2,7 +2,7 @@ import Image from "next/image";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Crosshair, Image as ImageIcon, Loader2, Pencil, Send, Trash2, X } from "lucide-react";
+import { Crosshair, Image as ImageIcon, Loader2, Palette, Pencil, Send, Trash2, Type, X } from "lucide-react";
 import type { ProjectData, PromptImagePayload, ScreenData } from "@/lib/types";
 
 export function PromptBar({
@@ -17,6 +17,11 @@ export function PromptBar({
   selectionMode = false,
   onToggleSelectionMode,
   selectedElementPreview,
+  selectedElementTargetLabel,
+  selectedElementCanEditText = false,
+  selectedElementCanEditDesign = false,
+  onEditSelectedText,
+  onEditSelectedDesign,
   onClearSelectedElement,
 }: {
   onSubmit?: (options: { prompt: string; image?: PromptImagePayload | null }) => Promise<boolean>;
@@ -33,6 +38,14 @@ export function PromptBar({
   onToggleSelectionMode?: () => void;
   /** Text preview of the currently selected element (null = no element selected) */
   selectedElementPreview?: string | null;
+  /** Human readable selected target label, usually the screen name or Navigation. */
+  selectedElementTargetLabel?: string | null;
+  /** Whether selected target has text rows available for deterministic editing. */
+  selectedElementCanEditText?: boolean;
+  /** Whether selected target can receive deterministic design edits. */
+  selectedElementCanEditDesign?: boolean;
+  onEditSelectedText?: () => void;
+  onEditSelectedDesign?: () => void;
   /** Clear the currently selected element */
   onClearSelectedElement?: () => void;
 }) {
@@ -42,7 +55,9 @@ export function PromptBar({
   const [image, setImage] = useState<PromptImagePayload | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const activeImage = selectedScreen ? null : image;
-  const isActiveComposer = Boolean(prompt.trim() || activeImage || selectedScreen || selectedElementPreview || selectionMode);
+  const hasSelectedElement = Boolean(selectedElementPreview);
+  const activeTargetLabel = selectedElementTargetLabel || selectedScreen?.name || null;
+  const isActiveComposer = Boolean(prompt.trim() || activeImage || selectedScreen || hasSelectedElement || selectionMode);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -93,25 +108,49 @@ export function PromptBar({
         </div>
       ) : null}
 
-      {selectedScreen ? (
+      {selectedScreen || hasSelectedElement ? (
         <div className="mb-1 flex min-h-9 items-center justify-between gap-2 rounded-[16px] border border-slate-950/[0.08] bg-[#f7f7f8] px-2.5 py-1.5">
           <div className="flex min-w-0 items-center gap-2">
             <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-950/[0.08] bg-white text-slate-600">
-              {selectedElementPreview ? <Crosshair className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+              {hasSelectedElement ? <Crosshair className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
             </span>
             <div className="min-w-0">
               <div className="truncate text-[11px] font-semibold uppercase tracking-[0.12em] text-[#667894]">
-                Editing {selectedScreen.name}
+                {hasSelectedElement ? `Selected in ${activeTargetLabel ?? "screen"}` : `Editing ${selectedScreen?.name ?? "screen"}`}
               </div>
-              {selectedElementPreview ? (
-                <div className="truncate text-xs leading-4 text-slate-700" title={selectedElementPreview}>
+              {hasSelectedElement ? (
+                <div className="truncate text-xs leading-4 text-slate-700" title={selectedElementPreview ?? undefined}>
                   {selectedElementPreview}
                 </div>
               ) : null}
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            {selectedElementPreview && onClearSelectedElement ? (
+            {hasSelectedElement && selectedElementCanEditText && onEditSelectedText ? (
+              <Button
+                variant="ghost"
+                className="h-7 rounded-full px-2 text-[11px] font-semibold text-slate-600 hover:bg-white hover:text-slate-950"
+                onClick={onEditSelectedText}
+                disabled={disabled || isGenerating}
+                title="Edit selected text"
+              >
+                <Type className="mr-1 h-3.5 w-3.5" />
+                Text
+              </Button>
+            ) : null}
+            {hasSelectedElement && selectedElementCanEditDesign && onEditSelectedDesign ? (
+              <Button
+                variant="ghost"
+                className="h-7 rounded-full px-2 text-[11px] font-semibold text-slate-600 hover:bg-white hover:text-slate-950"
+                onClick={onEditSelectedDesign}
+                disabled={disabled || isGenerating}
+                title="Change selected design"
+              >
+                <Palette className="mr-1 h-3.5 w-3.5" />
+                Design
+              </Button>
+            ) : null}
+            {hasSelectedElement && onClearSelectedElement ? (
               <Button
                 variant="ghost"
                 size="icon"
@@ -123,7 +162,7 @@ export function PromptBar({
                 <X className="h-3.5 w-3.5" />
               </Button>
             ) : null}
-            {onDeleteSelectedScreen ? (
+            {!hasSelectedElement && onDeleteSelectedScreen ? (
               <Button
                 variant="ghost"
                 size="icon"
@@ -134,7 +173,7 @@ export function PromptBar({
                 <Trash2 className="w-3.5 h-3.5" />
               </Button>
             ) : null}
-            {onClearSelectedScreen ? (
+            {!hasSelectedElement && onClearSelectedScreen ? (
               <Button
                 variant="ghost"
                 size="icon"
@@ -196,11 +235,13 @@ export function PromptBar({
       ) : null}
       <Textarea
         placeholder={
-          selectedScreen
-            ? `How should we modify ${selectedScreen.name}?`
-            : project
-              ? "What would you like to edit or create in this app?"
-              : "What mobile app shall we design?"
+          hasSelectedElement
+            ? "Ask AI to edit selected element..."
+            : selectedScreen
+              ? `Ask AI to modify ${selectedScreen.name}...`
+              : project
+                ? "What would you like to edit or create?"
+                : "What mobile app shall we design?"
         }
         className="min-h-[54px] resize-none border-none bg-transparent px-3 py-2.5 text-base leading-6 text-slate-950 shadow-none placeholder:text-slate-400 focus-visible:ring-0"
         value={prompt}

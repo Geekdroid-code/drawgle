@@ -2,7 +2,7 @@
 
 import { type ComponentType, type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, BookOpen, Check, Eye, Layers, Loader2, Navigation, Palette, RotateCcw, Save, Sparkles, Type, X } from "lucide-react";
+import { ArrowLeft, BookOpen, Check, Eye, Layers, Loader2, Navigation, Palette, RotateCcw, Save, X } from "lucide-react";
 
 import { CanvasArea } from "@/components/CanvasArea";
 import { ChatPanel } from "@/components/ChatPanel";
@@ -52,7 +52,7 @@ class QueueGenerationError extends Error {
   }
 }
 
-type ManualEditMode = "actions" | "text" | "design" | "ai";
+type ManualEditMode = "selected" | "text" | "design";
 
 type ProjectPanelTab = "design" | "charter" | "screens" | "navigation";
 
@@ -159,65 +159,6 @@ type ElementEditSession = {
   selectionVersion: number;
 };
 
-function SelectedElementActionMenu({
-  session,
-  selectedScreen,
-  disabled,
-  onChooseMode,
-  onClear,
-}: {
-  session: ElementEditSession;
-  selectedScreen: ScreenData | null;
-  disabled: boolean;
-  onChooseMode: (mode: ManualEditMode) => void;
-  onClear: () => void;
-}) {
-  const element = session.element;
-  const rect = element.screenRect;
-  const textNodes = element.editableMetadata?.textNodes ?? EMPTY_TEXT_NODES;
-  const canManualEdit = Boolean(element.drawgleId);
-  const canEditText = canManualEdit && textNodes.length > 0;
-  const targetLabel = element.targetType === "navigation" ? "Navigation" : selectedScreen?.name ?? "Screen";
-  const menuStyle: CSSProperties = rect
-    ? { left: rect.right + 12, top: Math.max(88, rect.top + 72) }
-    : { right: 24, top: 120 };
-
-  return (
-    <div
-      className="fixed z-[75] w-56 rounded-[16px] border border-slate-950/[0.08] bg-white/96 p-2 shadow-[0_18px_60px_rgba(15,23,42,0.18)] backdrop-blur-xl"
-      style={menuStyle}
-    >
-      <div className="mb-2 flex items-start justify-between gap-2 px-1">
-        <div className="min-w-0">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#667894]">
-            {targetLabel}
-          </div>
-          <div className="truncate text-xs font-medium text-slate-800">
-            {element.textPreview || element.editableMetadata?.tagName || "Selected element"}
-          </div>
-        </div>
-        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 rounded-full text-slate-500" onClick={onClear}>
-          <X className="h-3.5 w-3.5" />
-        </Button>
-      </div>
-      <div className="grid gap-1.5">
-        <Button variant="ghost" className="h-9 justify-start rounded-[10px] gap-2" disabled={!canEditText || disabled} onClick={() => onChooseMode("text")}>
-          <Type className="h-4 w-4" />
-          Edit Text
-        </Button>
-        <Button variant="ghost" className="h-9 justify-start rounded-[10px] gap-2" disabled={!canManualEdit || disabled} onClick={() => onChooseMode("design")}>
-          <Palette className="h-4 w-4" />
-          Change Design
-        </Button>
-        <Button className="h-9 justify-start rounded-[10px] gap-2" disabled={disabled} onClick={() => onChooseMode("ai")}>
-          <Sparkles className="h-4 w-4" />
-          Edit With AI
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 function SelectedElementInspectorSidebar({
   project,
   selectedScreen,
@@ -317,12 +258,12 @@ function SelectedElementInspectorSidebar({
 
   const targetLabel = selectedElementInfo.targetType === "navigation" ? "Navigation" : selectedScreen?.name ?? "Screen";
 
-  if (mode === "actions") {
+  if (mode === "selected") {
     return null;
   }
 
   return (
-    <aside className="fixed bottom-[calc(var(--dg-mobile-prompt-bottom)+5.2rem)] right-4 top-[calc(env(safe-area-inset-top,0px)+4.25rem)] z-[80] flex w-[min(390px,calc(100%-1rem))] flex-col rounded-[20px] border border-slate-950/[0.08] bg-white/96 p-3 shadow-[0_24px_80px_rgba(15,23,42,0.22)] backdrop-blur-xl">
+    <aside className="fixed bottom-[calc(var(--dg-mobile-prompt-bottom)+9.25rem)] left-3 right-3 top-auto z-[80] flex max-h-[min(68vh,620px)] flex-col rounded-[20px] border border-slate-950/[0.08] bg-white/96 p-3 shadow-[0_24px_80px_rgba(15,23,42,0.22)] backdrop-blur-xl md:bottom-[calc(var(--dg-mobile-prompt-bottom)+5.2rem)] md:left-auto md:right-4 md:top-[calc(env(safe-area-inset-top,0px)+4.25rem)] md:max-h-none md:w-[min(390px,calc(100%-1rem))]">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#667894]">
@@ -352,7 +293,7 @@ function SelectedElementInspectorSidebar({
             ))}
           </div>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" className="h-9 rounded-[10px]" onClick={() => onModeChange("actions")}>Back</Button>
+            <Button variant="outline" className="h-9 rounded-[10px]" onClick={() => onModeChange("selected")}>Back</Button>
             <Button className="h-9 rounded-[10px] gap-2" disabled={disabled || isSaving} onClick={() => void saveText()}>
               {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
               Save Text
@@ -432,21 +373,12 @@ function SelectedElementInspectorSidebar({
             })}
           </div>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" className="h-9 rounded-[10px]" onClick={() => onModeChange("actions")}>Back</Button>
+            <Button variant="outline" className="h-9 rounded-[10px]" onClick={() => onModeChange("selected")}>Back</Button>
             <Button className="h-9 rounded-[10px] gap-2" disabled={disabled || isSaving} onClick={() => void saveDesign()}>
               {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
               Apply Design
             </Button>
           </div>
-        </div>
-      ) : null}
-
-      {mode === "ai" ? (
-        <div className="mt-3 flex min-h-0 flex-1 flex-col justify-between gap-3">
-          <div className="rounded-[12px] bg-[#f7f7f8] px-3 py-3 text-sm leading-6 text-slate-600">
-            Describe the change in the prompt box below. The selected element will be sent as the AI target.
-          </div>
-          <Button variant="outline" className="h-9 rounded-[10px]" onClick={() => onModeChange("actions")}>Back</Button>
         </div>
       ) : null}
     </aside>
@@ -800,6 +732,19 @@ export function ProjectShell({
     ? tokenDraft
     : project?.designTokens ?? null;
   const selectedElementInfo = editSession?.element ?? null;
+  const selectedElementScreen = editSession?.screenId
+    ? screens.find((screen) => screen.id === editSession.screenId) ?? null
+    : null;
+  const selectedElementTargetLabel = selectedElementInfo
+    ? selectedElementInfo.targetType === "navigation"
+      ? "Navigation"
+      : selectedElementScreen?.name ?? selectedScreen?.name ?? "Screen"
+    : null;
+  const selectedElementCanEditText = Boolean(
+    selectedElementInfo?.drawgleId &&
+    (selectedElementInfo.editableMetadata?.textNodes?.length ?? 0) > 0,
+  );
+  const selectedElementCanEditDesign = Boolean(selectedElementInfo?.drawgleId);
   const mobilePromptReserve = selectedScreen
     ? 166
     : 136;
@@ -1161,7 +1106,7 @@ export function ProjectShell({
           await refreshScreens();
         }
         setEditSession((currentSession) =>
-          currentSession ? { ...currentSession, mode: "actions" } : currentSession,
+          currentSession ? { ...currentSession, mode: "selected" } : currentSession,
         );
       }
 
@@ -1324,7 +1269,7 @@ export function ProjectShell({
             onElementSelected={(info) => {
               if (
                 editSession &&
-                editSession.mode !== "actions" &&
+                editSession.mode !== "selected" &&
                 (editSession.screenId !== info.screenId || editSession.element.drawgleId !== info.drawgleId) &&
                 !window.confirm("Discard the current unsaved element edits and select this new target?")
               ) {
@@ -1338,7 +1283,7 @@ export function ProjectShell({
               setEditSession({
                 screenId: info.screenId,
                 element: info,
-                mode: "actions",
+                mode: "selected",
                 selectedAt: new Date().toISOString(),
                 selectionVersion: nextSelectionVersion,
               });
@@ -1377,21 +1322,11 @@ export function ProjectShell({
             onCollapseChange={setIsChatCollapsed}
           />
 
-          {editSession?.mode === "actions" ? (
-            <SelectedElementActionMenu
-              session={editSession}
-              selectedScreen={selectedScreen}
-              disabled={isCanvasInteractionLocked}
-              onChooseMode={setEditSessionMode}
-              onClear={clearEditSession}
-            />
-          ) : null}
-
-          {editSession && editSession.mode !== "actions" ? (
+          {editSession && editSession.mode !== "selected" ? (
             <SelectedElementInspectorSidebar
               key={`${editSession.element.targetType}:${editSession.element.drawgleId ?? editSession.element.breadcrumb}:${editSession.mode}`}
               project={project}
-              selectedScreen={selectedScreen}
+              selectedScreen={selectedElementScreen ?? selectedScreen}
               selectedElementInfo={editSession.element}
               mode={editSession.mode}
               disabled={isCanvasInteractionLocked}
@@ -1418,6 +1353,11 @@ export function ProjectShell({
                 setSelectionMode((m) => !m);
               }}
               selectedElementPreview={selectedElementInfo?.textPreview ?? null}
+              selectedElementTargetLabel={selectedElementTargetLabel}
+              selectedElementCanEditText={selectedElementCanEditText}
+              selectedElementCanEditDesign={selectedElementCanEditDesign}
+              onEditSelectedText={() => setEditSessionMode("text")}
+              onEditSelectedDesign={() => setEditSessionMode("design")}
               onClearSelectedElement={clearEditSession}
             />
           </div>
