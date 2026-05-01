@@ -12,6 +12,7 @@ export async function POST(req: Request) {
       throw new Error("MY_GEMINI_API_KEY is missing. Please ensure it is set in your AI Studio secrets and restart the dev server.");
     }
 
+
     const ai = new GoogleGenAI({ apiKey });
 
     const coderInstruction = `You are an expert mobile UI designer and frontend developer.
