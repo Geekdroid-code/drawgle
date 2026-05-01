@@ -139,6 +139,21 @@ const buildScreenHealthError = (health: ScreenHealthResult) => {
 
 const screenStatusForHealth = (health: ScreenHealthResult) => health.healthy ? "ready" : "failed";
 
+const buildAppliedEditMessage = (screenName: string, targetName: string) =>
+  targetName === "screen" || targetName === "full screen"
+    ? `Applied changes to ${screenName}.`
+    : `Updated ${targetName} in ${screenName}.`;
+
+const buildEditingMessage = (screenName: string, targetName: string) =>
+  targetName === "screen" || targetName === "full screen"
+    ? `Editing ${screenName}...`
+    : `Editing ${targetName} in ${screenName}...`;
+
+const buildRepairingMessage = (screenName: string, targetName: string) =>
+  targetName === "screen" || targetName === "full screen"
+    ? `Repairing ${screenName}...`
+    : `Repairing ${targetName} in ${screenName}...`;
+
 async function upsertActivityMessage(
   admin: AdminClient,
   activityKey: string,
@@ -405,7 +420,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
       });
   const targetNames = selectedSourceElementHtml
     ? regionReplacementTarget?.reason === "screen_root_region"
-      ? "screen background"
+      ? "screen"
       : "selected element"
     : targetBlockIds.length > 0
       ? targetBlockIds.map((id) => blockIndex.blocks.find((block) => block.id === id)?.name ?? id).join(", ")
@@ -431,7 +446,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
       ownerId: payload.ownerId,
       screenId: screen.id,
       role: "system",
-      content: `Editing ${targetNames} in ${screen.name}...`,
+      content: buildEditingMessage(screen.name, targetNames),
       messageType: "chat",
       metadata: {
         action: "source_region_replace_start",
@@ -491,16 +506,14 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
 
     const fullResponse = nextCode === screenCode
       ? `No material code changes were applied to ${screen.name}.`
-      : nextHealth.healthy
-        ? `Updated ${targetNames} in ${screen.name}.`
-        : `Updated ${targetNames} in ${screen.name}, but the screen still has source health warnings.`;
+      : buildAppliedEditMessage(screen.name, targetNames);
     const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
       projectId: payload.projectId,
       ownerId: payload.ownerId,
       screenId: screen.id,
       role: "model",
       content: fullResponse,
-      messageType: nextCode === screenCode ? "error" : nextHealth.healthy ? "edit_applied" : "chat",
+      messageType: nextCode === screenCode ? "error" : "edit_applied",
       metadata: {
         action: nextCode === screenCode ? "source_region_replace_noop" : nextHealth.healthy ? "source_region_replace_applied" : "source_region_replace_partial",
         editStrategy: resolvedEditStrategy,
@@ -588,7 +601,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
 
     const fullResponse = nextHealth.healthy
       ? `Reconstructed ${screen.name} from invalid source.`
-      : `Reconstructed ${screen.name}, but the screen still has source health warnings.`;
+      : `Reconstruction updated ${screen.name}, but it still needs repair.`;
     const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
       projectId: payload.projectId,
       ownerId: payload.ownerId,
@@ -633,7 +646,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
       ownerId: payload.ownerId,
       screenId: screen.id,
       role: "system",
-      content: `Repairing ${targetNames} in ${screen.name}...`,
+      content: buildRepairingMessage(screen.name, targetNames),
       messageType: "chat",
       metadata: {
         action: "screen_repair_start",
@@ -691,16 +704,16 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
 
     const fullResponse = nextCode === screenCode
       ? `Repair could not apply a material code change to ${screen.name}.`
-      : nextHealth.healthy
-        ? `Repaired ${targetNames} in ${screen.name}.`
-        : `Repaired ${targetNames} in ${screen.name}, but the screen still has health warnings.`;
+      : targetNames === "screen" || targetNames === "full screen"
+        ? `Repaired ${screen.name}.`
+        : `Repaired ${targetNames} in ${screen.name}.`;
     const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
       projectId: payload.projectId,
       ownerId: payload.ownerId,
       screenId: screen.id,
       role: "model",
       content: fullResponse,
-      messageType: nextCode === screenCode ? "error" : nextHealth.healthy ? "edit_applied" : "chat",
+      messageType: nextCode === screenCode ? "error" : "edit_applied",
       metadata: {
         action: nextCode === screenCode ? "screen_repair_failed" : nextHealth.healthy ? "screen_repair_applied" : "screen_repair_partial",
         screenName: screen.name,
@@ -726,7 +739,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
     ownerId: payload.ownerId,
     screenId: screen.id,
     role: "system",
-    content: `Editing ${targetNames} in ${screen.name}...`,
+    content: buildEditingMessage(screen.name, targetNames),
     messageType: "chat",
     metadata: {
       action: "edit_start",
@@ -883,16 +896,14 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
     throw updateError;
   }
 
-  const visibleEditContent = nextHealth.healthy
-    ? `Applied changes to ${screen.name}.`
-    : `Applied changes to ${screen.name}, but source health warnings remain.`;
+  const visibleEditContent = `Applied changes to ${screen.name}.`;
   const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
     projectId: payload.projectId,
     ownerId: payload.ownerId,
     screenId: screen.id,
     role: "model",
     content: visibleEditContent,
-    messageType: nextHealth.healthy ? "edit_applied" : "error",
+    messageType: "edit_applied",
     metadata: {
       action: nextHealth.healthy ? "edit_applied" : "edit_applied_with_source_health_failure",
       editStrategy: fallbackRegionAttempted ? "legacy_patch_then_region_replace" : "legacy_patch",

@@ -355,6 +355,7 @@ export function validateGeneratedScreenCode({
   screenPlan: Pick<ScreenPlan, "name" | "description">;
 }) {
   const issues: string[] = [];
+  const warnings: string[] = [];
   const missingAnchors: string[] = [];
   const trimmedCode = code.trim();
   const staticValidation = validateStaticDrawgleHtml({ code, requireSingleScreenRoot: true });
@@ -386,12 +387,13 @@ export function validateGeneratedScreenCode({
   }
 
   if (missingAnchors.length > 0) {
-    issues.push(`Missing required brief anchors: ${missingAnchors.join(", ")}`);
+    warnings.push(`Missing brief anchors: ${missingAnchors.join(", ")}`);
   }
 
   return {
     valid: issues.length === 0,
     issues,
+    warnings,
     missingAnchors,
     staticValidation,
   };
@@ -413,7 +415,7 @@ export function detectScreenHealth({
   });
   const trimmedCode = code.trim();
   const issues = [...validation.issues];
-  const warnings: string[] = [];
+  const warnings = [...validation.warnings];
   const staticValidation = validateStaticDrawgleHtml({ code, requireSingleScreenRoot: true });
 
   const tagBalance = getTagBalance(trimmedCode);
@@ -428,8 +430,6 @@ export function detectScreenHealth({
   let status: ScreenHealthStatus = "healthy";
   if (staticValidation.unrecoverable || issues.some((issue) => /unbalanced|imbalance|structurally/i.test(issue))) {
     status = "structurally_broken";
-  } else if (validation.missingAnchors.length > 0) {
-    status = "missing_required_content";
   } else if (issues.length > 0) {
     status = "incomplete";
   }
