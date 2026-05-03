@@ -438,4 +438,5 @@ export interface BuildScreenInput {
   navigationArchitecture?: NavigationArchitecture | null;
   navigationPlan?: NavigationPlan | null;
   projectContext?: string | null;
+  onResponseChunk?: (chunk: unknown) => void;
 }

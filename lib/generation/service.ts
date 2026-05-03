@@ -3,6 +3,7 @@ import "server-only";
 import { z } from "zod";
 
 import { createGeminiClient } from "@/lib/ai/gemini";
+import { geminiPolicyForTask } from "@/lib/ai/model-policy";
 import { hasApprovedDesignTokens, normalizeDesignTokens } from "@/lib/design-tokens";
 import { applyEdits } from "@/lib/diff-engine";
 import { buildScopedEditContext } from "@/lib/generation/block-index";
@@ -20,7 +21,7 @@ import {
   plannerInstruction,
   referenceAnalysisInstruction,
 } from "@/lib/generation/prompts";
-import { appendRequiredAnchors, extractRequiredAnchors } from "@/lib/generation/screen-quality";
+import { appendRequiredAnchors, DRAWGLE_GENERATION_COMPLETE_SENTINEL, extractRequiredAnchors, stripGenerationCompleteSentinel, validateSourceCompletion } from "@/lib/generation/screen-quality";
 import { buildRepairSurroundingContext, type RepairTarget } from "@/lib/generation/screen-repair";
 import { buildTokenPromptContext } from "@/lib/token-runtime";
 import type {
@@ -1042,6 +1043,11 @@ async function analyzeReferenceImage({
 
   try {
     const ai = createGeminiClient();
+    const policy = geminiPolicyForTask("project_planning", {
+      systemInstruction: referenceAnalysisInstruction,
+      responseMimeType: "application/json",
+      temperature: 0.1,
+    });
     const parts: Array<Record<string, unknown>> = [inlineImage];
 
     parts.push({
@@ -1051,13 +1057,9 @@ async function analyzeReferenceImage({
     });
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.1-flash-lite-preview",
+      model: policy.model,
       contents: { parts },
-      config: {
-        systemInstruction: referenceAnalysisInstruction,
-        responseMimeType: "application/json",
-        temperature: 0.1,
-      },
+      config: policy.config,
     });
 
     const rawAnalysis = parseJsonResponse<unknown>(response.text || "{}");
@@ -1080,6 +1082,11 @@ async function generateCreativeDirection({
 }): Promise<ParsedCreativeDirection | null> {
   try {
     const ai = createGeminiClient();
+    const policy = geminiPolicyForTask("project_planning", {
+      systemInstruction: creativeDirectionInstruction,
+      responseMimeType: "application/json",
+      temperature: 0.35,
+    });
     const parts: Array<Record<string, unknown>> = [];
     const inlineImage = toInlineImage(image);
 
@@ -1100,13 +1107,9 @@ async function generateCreativeDirection({
     }
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.1-flash-lite-preview",
+      model: policy.model,
       contents: { parts },
-      config: {
-        systemInstruction: creativeDirectionInstruction,
-        responseMimeType: "application/json",
-        temperature: 0.35,
-      },
+      config: policy.config,
     });
 
     const rawDirection = parseJsonResponse<unknown>(response.text || "{}");
@@ -1220,14 +1223,15 @@ export async function planUiFlow({
     });
   }
 
+  const policy = geminiPolicyForTask("project_planning", {
+    systemInstruction: plannerInstruction,
+    responseMimeType: "application/json",
+    temperature: 0.1,
+  });
   const response = await ai.models.generateContent({
-    model: "gemini-3.1-flash-lite-preview",
+    model: policy.model,
     contents: { parts },
-    config: {
-      systemInstruction: plannerInstruction,
-      responseMimeType: "application/json",
-      temperature: 0.1,
-    },
+    config: policy.config,
   });
 
   const rawPlan = parseJsonResponse<unknown>(response.text || "{}");
@@ -1406,6 +1410,11 @@ export async function generateDesignTokens({
 }) {
   try {
     const ai = createGeminiClient();
+    const policy = geminiPolicyForTask("design_tokens", {
+      systemInstruction: designInstruction,
+      responseMimeType: "application/json",
+      temperature: 0.35,
+    });
     const parts: Array<Record<string, unknown>> = [];
     const referenceAnalysis = await analyzeReferenceImage({ prompt, image });
     const creativeDirection = (await generateCreativeDirection({
@@ -1436,13 +1445,9 @@ export async function generateDesignTokens({
     });
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.1-flash-lite-preview",
+      model: policy.model,
       contents: { parts },
-      config: {
-        systemInstruction: designInstruction,
-        responseMimeType: "application/json",
-        temperature: 0.35,
-      },
+      config: policy.config,
     });
 
     const rawTokens = parseJsonResponse<unknown>(response.text || "{}");
@@ -1487,22 +1492,25 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
     });
   }
 
+  const policy = geminiPolicyForTask("screen_build", {
+    systemInstruction: buildSystemInstruction({
+      designTokens: input.designTokens,
+      screenPlan: input.screenPlan,
+      requiresBottomNav: input.requiresBottomNav,
+      navigationArchitecture: input.navigationArchitecture,
+      navigationPlan: input.navigationPlan,
+    }),
+    temperature: 0.2,
+  });
+
   const responseStream = await ai.models.generateContentStream({
-    model: "gemini-3.1-flash-lite-preview",
+    model: policy.model,
     contents: { parts },
-    config: {
-      systemInstruction: buildSystemInstruction({
-        designTokens: input.designTokens,
-        screenPlan: input.screenPlan,
-        requiresBottomNav: input.requiresBottomNav,
-        navigationArchitecture: input.navigationArchitecture,
-        navigationPlan: input.navigationPlan,
-      }),
-      temperature: 0.2,
-    },
+    config: policy.config,
   });
 
   for await (const chunk of responseStream) {
+    input.onResponseChunk?.(chunk);
     if (chunk.text) {
       yield chunk.text;
     }
@@ -1549,13 +1557,15 @@ export async function* editScreenStream({
     parts: [{ text: message.content }],
   }));
 
+  const policy = geminiPolicyForTask("selected_region_edit", {
+    systemInstruction: buildEditSystemInstruction({ designTokens, navigationArchitecture }),
+    temperature: 0.7,
+  });
+
   const chat = ai.chats.create({
-    model: "gemini-3.1-flash-lite-preview",
+    model: policy.model,
     history,
-    config: {
-      systemInstruction: buildEditSystemInstruction({ designTokens, navigationArchitecture }),
-      temperature: 0.7,
-    },
+    config: policy.config,
   });
 
   const latestUserPrompt = [...messages].reverse().find((message) => message.role === "user")?.content ?? "";
@@ -1668,8 +1678,23 @@ export async function buildSectionRepairCode({
 }) {
   const ai = createGeminiClient();
   const surrounding = buildRepairSurroundingContext(currentCode, repairTarget);
+  const policy = geminiPolicyForTask("repair", {
+    temperature: 0.24,
+    systemInstruction: [
+      "You repair one damaged or incomplete section inside an existing mobile screen.",
+      "Return ONLY the replacement HTML for the selected section. Do not return markdown fences, <edit> blocks, html/head/body tags, scripts, or unrelated screen sections.",
+      "The replacement must fit exactly between the provided code-before and code-after context.",
+      "Preserve the screen's existing visual language, copy/data intent, design tokens, and spacing rhythm, while completing missing content from the original brief.",
+      "If the target section is too broken to understand, rebuild the same section role from the original screen brief and surrounding context.",
+      "Do not add or modify persistent bottom navigation. Drawgle owns shared navigation outside screen code.",
+      "Use Lucide icons with <i data-lucide=\"icon-name\"></i> or inline SVG when needed.",
+      "Use Drawgle live token utility classes and CSS variables for canonical design-system styling. Avoid freezing token values as raw hex/pixels when a token variable exists.",
+      "Keep the output as one coherent section/root fragment with balanced tags.",
+      "Return static HTML only: no JSX, React, JavaScript expressions, arrays, .map(...), arrow functions, template literals, className, class={...}, style={{...}}, data attributes with {...}, or scripts. Manually expand repeated UI items.",
+    ].join("\n"),
+  });
   const response = await ai.models.generateContent({
-    model: "gemini-3.1-flash-lite-preview",
+    model: policy.model,
     contents: {
       parts: [{
         text: [
@@ -1678,7 +1703,7 @@ export async function buildSectionRepairCode({
           `Original screen brief:\n${screenPrompt || "No original screen prompt was saved."}`,
           projectCharter?.creativeDirection ? `Creative direction:\n${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
           `Navigation architecture:\n${JSON.stringify(navigationArchitecture ?? null, null, 2)}`,
-          `Token context:\n${buildTokenPromptContext(designTokens, "compact_visual")}`,
+          `Token context:\n${buildTokenPromptContext(designTokens, "full_generation")}`,
           missingAnchors.length > 0 ? `Missing required anchors that must be restored: ${missingAnchors.join(", ")}` : null,
           healthIssues.length > 0 ? `Detected health issues: ${healthIssues.join("; ")}` : null,
           `Repair target reason: ${repairTarget.reason}`,
@@ -1703,21 +1728,7 @@ export async function buildSectionRepairCode({
         ].filter(Boolean).join("\n\n"),
       }],
     },
-    config: {
-      temperature: 0.24,
-      systemInstruction: [
-        "You repair one damaged or incomplete section inside an existing mobile screen.",
-        "Return ONLY the replacement HTML for the selected section. Do not return markdown fences, <edit> blocks, html/head/body tags, scripts, or unrelated screen sections.",
-        "The replacement must fit exactly between the provided code-before and code-after context.",
-        "Preserve the screen's existing visual language, copy/data intent, design tokens, and spacing rhythm, while completing missing content from the original brief.",
-        "If the target section is too broken to understand, rebuild the same section role from the original screen brief and surrounding context.",
-        "Do not add or modify persistent bottom navigation. Drawgle owns shared navigation outside screen code.",
-        "Use Lucide icons with <i data-lucide=\"icon-name\"></i> or inline SVG when needed.",
-        "Use Drawgle live token utility classes and CSS variables for canonical design-system styling. Avoid freezing token values as raw hex/pixels when a token variable exists.",
-        "Keep the output as one coherent section/root fragment with balanced tags.",
-        "Return static HTML only: no JSX, React, JavaScript expressions, arrays, .map(...), arrow functions, template literals, className, class={...}, style={{...}}, data attributes with {...}, or scripts. Manually expand repeated UI items.",
-      ].join("\n"),
-    },
+    config: policy.config,
   });
 
   return extractCode(response.text || "").trim();
@@ -1755,8 +1766,24 @@ export async function buildSourceRegionReplacementCode({
 }) {
   const ai = createGeminiClient();
   const surrounding = buildRepairSurroundingContext(currentCode, repairTarget);
+  const policy = geminiPolicyForTask("selected_region_edit", {
+    temperature: 0.26,
+    systemInstruction: [
+      "You replace exactly one selected region inside an existing mobile screen.",
+      "Return ONLY the replacement HTML for that selected region. The caller will splice it into the original source by offsets.",
+      "Satisfy the user's edit request while preserving the surrounding screen's visual language, spacing rhythm, tokens, and content intent.",
+      editOperation === "append_content"
+        ? "Append-content operation: preserve all existing meaningful children in the selected container and add new sibling items that match the existing pattern. Do not remove, rename, or restyle unrelated existing items."
+        : null,
+      "The replacement must fit between the provided before/after context and should keep the same semantic role unless the user asks to change that region's role.",
+      repairTarget.reason === "screen_root_region"
+        ? `Because the selected region is the screen root, return one complete screen root. The outermost element must be a <div> with w-full, min-h-screen, dg-bg-primary, dg-text-high, flex, flex-col, relative, and overflow-x-hidden classes. End the full screen with ${DRAWGLE_GENERATION_COMPLETE_SENTINEL}. Do not return only an inner section.`
+        : null,
+      ...staticHtmlOutputRules,
+    ].filter(Boolean).join("\n"),
+  });
   const response = await ai.models.generateContent({
-    model: "gemini-3.1-flash-lite-preview",
+    model: policy.model,
     contents: {
       parts: [{
         text: [
@@ -1765,7 +1792,7 @@ export async function buildSourceRegionReplacementCode({
           `Original screen brief:\n${screenPrompt || "No original screen prompt was saved."}`,
           projectCharter?.creativeDirection ? `Creative direction:\n${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
           `Navigation architecture:\n${JSON.stringify(navigationArchitecture ?? null, null, 2)}`,
-          `Token context:\n${buildTokenPromptContext(designTokens, repairTarget.snippet.length > 6000 ? "full_generation" : "compact_visual")}`,
+          `Token context:\n${buildTokenPromptContext(designTokens, "full_generation")}`,
           `Source target reason: ${repairTarget.reason}`,
           [
             "Code before selected region:",
@@ -1788,22 +1815,7 @@ export async function buildSourceRegionReplacementCode({
         ].filter(Boolean).join("\n\n"),
       }],
     },
-    config: {
-      temperature: 0.26,
-      systemInstruction: [
-        "You replace exactly one selected region inside an existing mobile screen.",
-        "Return ONLY the replacement HTML for that selected region. The caller will splice it into the original source by offsets.",
-        "Satisfy the user's edit request while preserving the surrounding screen's visual language, spacing rhythm, tokens, and content intent.",
-        editOperation === "append_content"
-          ? "Append-content operation: preserve all existing meaningful children in the selected container and add new sibling items that match the existing pattern. Do not remove, rename, or restyle unrelated existing items."
-          : null,
-        "The replacement must fit between the provided before/after context and should keep the same semantic role unless the user asks to change that region's role.",
-        repairTarget.reason === "screen_root_region"
-          ? "Because the selected region is the screen root, return one complete screen root. The outermost element must be a <div> with w-full, min-h-screen, dg-bg-primary, dg-text-high, flex, flex-col, relative, and overflow-x-hidden classes. Do not return only an inner section."
-          : null,
-        ...staticHtmlOutputRules,
-      ].filter(Boolean).join("\n"),
-    },
+    config: policy.config,
   });
 
   return extractCode(response.text || "").trim();
@@ -1827,8 +1839,26 @@ export async function buildFullScreenReconstructionCode({
   navigationPlan?: NavigationPlan | null;
 }) {
   const ai = createGeminiClient();
+  const policy = geminiPolicyForTask("full_rebuild", {
+    temperature: 0.24,
+    systemInstruction: [
+      buildSystemInstruction({
+        designTokens,
+        screenPlan,
+        requiresBottomNav: Boolean(navigationPlan?.enabled),
+        navigationArchitecture,
+        navigationPlan,
+      }),
+      "",
+      "FULL-SCREEN RECONSTRUCTION MODE:",
+      "The existing source is invalid or unrecoverable. Rebuild the complete screen from the screen brief, project direction, tokens, and useful visible intent in the broken source.",
+      "Return one complete static screen root. Do not append to or duplicate the old source.",
+      `End the response with this exact sentinel on its own final line: ${DRAWGLE_GENERATION_COMPLETE_SENTINEL}`,
+      ...staticHtmlOutputRules,
+    ].join("\n"),
+  });
   const response = await ai.models.generateContent({
-    model: "gemini-3.1-flash-lite-preview",
+    model: policy.model,
     contents: {
       parts: [{
         text: [
@@ -1844,23 +1874,7 @@ export async function buildFullScreenReconstructionCode({
         ].filter(Boolean).join("\n\n"),
       }],
     },
-    config: {
-      temperature: 0.24,
-      systemInstruction: [
-        buildSystemInstruction({
-          designTokens,
-          screenPlan,
-          requiresBottomNav: Boolean(navigationPlan?.enabled),
-          navigationArchitecture,
-          navigationPlan,
-        }),
-        "",
-        "FULL-SCREEN RECONSTRUCTION MODE:",
-        "The existing source is invalid or unrecoverable. Rebuild the complete screen from the screen brief, project direction, tokens, and useful visible intent in the broken source.",
-        "Return one complete static screen root. Do not append to or duplicate the old source.",
-        ...staticHtmlOutputRules,
-      ].join("\n"),
-    },
+    config: policy.config,
   });
 
   return extractCode(response.text || "").trim();
@@ -1891,8 +1905,19 @@ async function refineNavigationShellCode({
   projectCharter?: ProjectCharter | null;
 }) {
   const ai = createGeminiClient();
+  const policy = geminiPolicyForTask("navigation_build", {
+    temperature: 0.18,
+    systemInstruction: [
+      "You are the final design QA pass for a shared mobile navigation shell.",
+      "Return ONLY the full improved replacement HTML for the nav shell.",
+      "Keep the same one <nav data-drawgle-primary-nav> root and all planned data-nav-item-id values.",
+      `End the response with this exact sentinel on its own final line: ${DRAWGLE_GENERATION_COMPLETE_SENTINEL}`,
+      ...navigationDesignQualityRules,
+      "If the candidate already meets the bar, return it with only small polish. If it looks amateur, rebuild it while honoring the user request and project tokens.",
+    ].join("\n"),
+  });
   const response = await ai.models.generateContent({
-    model: "gemini-3.1-flash-lite-preview",
+    model: policy.model,
     contents: {
       parts: [{
         text: [
@@ -1900,7 +1925,7 @@ async function refineNavigationShellCode({
           projectCharter ? `Project charter: ${JSON.stringify(projectCharter, null, 2)}` : null,
           projectCharter?.creativeDirection ? `Creative direction: ${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
           `Navigation plan: ${JSON.stringify(navigationPlan, null, 2)}`,
-          `Token context: ${buildTokenPromptContext(designTokens, "compact_visual")}`,
+          `Token context: ${buildTokenPromptContext(designTokens, "full_generation")}`,
           [
             "Candidate navigation shell to critique and improve:",
             "```html",
@@ -1910,19 +1935,14 @@ async function refineNavigationShellCode({
         ].filter(Boolean).join("\n\n"),
       }],
     },
-    config: {
-      temperature: 0.18,
-      systemInstruction: [
-        "You are the final design QA pass for a shared mobile navigation shell.",
-        "Return ONLY the full improved replacement HTML for the nav shell.",
-        "Keep the same one <nav data-drawgle-primary-nav> root and all planned data-nav-item-id values.",
-        ...navigationDesignQualityRules,
-        "If the candidate already meets the bar, return it with only small polish. If it looks amateur, rebuild it while honoring the user request and project tokens.",
-      ].join("\n"),
-    },
+    config: policy.config,
   });
 
-  const refinedCode = extractCode(response.text || "").trim();
+  const rawRefinedCode = extractCode(response.text || "").trim();
+  const refinedCompletion = validateSourceCompletion({ code: rawRefinedCode, requireSentinel: true });
+  const refinedCode = refinedCompletion.valid
+    ? stripGenerationCompleteSentinel(rawRefinedCode)
+    : candidateShellCode;
   return validateNavigationShell(refinedCode, navigationPlan) ? refinedCode : candidateShellCode;
 }
 
@@ -1946,8 +1966,23 @@ export async function editNavigationShellCode({
   }
 
   const ai = createGeminiClient();
+  const policy = geminiPolicyForTask("navigation_build", {
+    temperature: 0.32,
+    systemInstruction: [
+      "You edit the single shared project navigation shell for Drawgle.",
+      "Return ONLY the full replacement HTML for the shared navigation shell. Do not return <edit> blocks, markdown fences, scripts, html, head, body, screen content, or placeholder spacers.",
+      "The returned HTML must contain exactly one <nav data-drawgle-primary-nav> root.",
+      "Preserve every planned data-nav-item-id exactly. Do not invent, remove, rename, or relabel navigation items unless the user's request explicitly changes the nav structure or labels.",
+      "The renderer only pins a transparent host to the viewport bottom. Your HTML owns the visual design: full-width bar, dock, floating pill, action dock, radius, background, spacing, shadow, icons, labels, and active state.",
+      "If the user asks for a dock, make the nav itself look like a dock. If they ask for full width, make the nav full width. Do not add fake space to the screen.",
+      "Use Lucide icons with <i data-lucide=\"icon-name\"></i>.",
+      "Use data-active=true selectors, inline styles, or scoped <style> rules inside the nav so active tab state works after the renderer sets data-active.",
+      `End the response with this exact sentinel on its own final line: ${DRAWGLE_GENERATION_COMPLETE_SENTINEL}`,
+      ...navigationDesignQualityRules,
+    ].join("\n"),
+  });
   const response = await ai.models.generateContent({
-    model: "gemini-3.1-flash-lite-preview",
+    model: policy.model,
     contents: {
       parts: [{
         text: [
@@ -1955,7 +1990,7 @@ export async function editNavigationShellCode({
           projectCharter ? `Project charter: ${JSON.stringify(projectCharter, null, 2)}` : null,
           projectCharter?.creativeDirection ? `Creative direction: ${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
           `Navigation plan: ${JSON.stringify(navigationPlan, null, 2)}`,
-          `Token context: ${buildTokenPromptContext(designTokens, "compact_visual")}`,
+          `Token context: ${buildTokenPromptContext(designTokens, "full_generation")}`,
           selectedElementHtml ? [
             "Selected navigation element:",
             "```html",
@@ -1971,23 +2006,15 @@ export async function editNavigationShellCode({
         ].filter(Boolean).join("\n\n"),
       }],
     },
-    config: {
-      temperature: 0.32,
-      systemInstruction: [
-        "You edit the single shared project navigation shell for Drawgle.",
-        "Return ONLY the full replacement HTML for the shared navigation shell. Do not return <edit> blocks, markdown fences, scripts, html, head, body, screen content, or placeholder spacers.",
-        "The returned HTML must contain exactly one <nav data-drawgle-primary-nav> root.",
-        "Preserve every planned data-nav-item-id exactly. Do not invent, remove, rename, or relabel navigation items unless the user's request explicitly changes the nav structure or labels.",
-        "The renderer only pins a transparent host to the viewport bottom. Your HTML owns the visual design: full-width bar, dock, floating pill, action dock, radius, background, spacing, shadow, icons, labels, and active state.",
-        "If the user asks for a dock, make the nav itself look like a dock. If they ask for full width, make the nav full width. Do not add fake space to the screen.",
-        "Use Lucide icons with <i data-lucide=\"icon-name\"></i>.",
-        "Use data-active=true selectors, inline styles, or scoped <style> rules inside the nav so active tab state works after the renderer sets data-active.",
-        ...navigationDesignQualityRules,
-      ].join("\n"),
-    },
+    config: policy.config,
   });
 
-  const nextCode = extractCode(response.text || "").trim();
+  const rawNextCode = extractCode(response.text || "").trim();
+  const nextCompletion = validateSourceCompletion({ code: rawNextCode, requireSentinel: true });
+  if (!nextCompletion.valid) {
+    throw new Error(`Navigation edit returned incomplete markup: ${nextCompletion.issues.join(" | ")}`);
+  }
+  const nextCode = stripGenerationCompleteSentinel(rawNextCode);
   if (!validateNavigationShell(nextCode, navigationPlan)) {
     throw new Error("Navigation edit did not return valid shared navigation markup.");
   }
@@ -2040,29 +2067,37 @@ export async function buildNavigationShellCode({
       ].filter(Boolean).join("\n\n"),
     });
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.1-flash-lite-preview",
-      contents: { parts },
-      config: {
-        temperature: 0.28,
-        systemInstruction: [
-          "You are an elite mobile product designer building the single shared bottom navigation shell for a mobile app preview system.",
-          "Return ONLY valid HTML for the navigation shell. Do not include markdown fences, html, head, body, scripts, or the screen content.",
-          "The nav must be project-specific and must follow the provided navigation plan and design tokens.",
-          "Use the reference image and creative direction as high-priority visual evidence. If the reference uses a compact tab rail, floating dock, glass pill, sculpted card, or minimal bottom text/icon row, match that style family.",
-          "Avoid generic 2015 bottom tabs: no plain full-width white rectangle with evenly spaced gray icons unless the reference clearly shows that.",
-          "Use one <nav data-drawgle-primary-nav> root. The nav root may be full-width, a floating dock, a compact action nav, or another bottom navigation form that fits the project.",
-          "Each item must be a button or anchor with data-nav-item-id exactly matching the plan item id.",
-          "Use Lucide icons with <i data-lucide=\"icon-name\"></i>.",
-          "The renderer mounts the shell in a fixed bottom viewport host. The HTML you return owns the nav's visual geometry, width, radius, surface, spacing, and active state.",
-          "Make active/inactive states explicit through data-active=true selectors, utility classes, or inline CSS variables. The renderer will set data-active at runtime.",
-          "Do not hard-code generic tab labels. Use only the planned item labels and preserve them exactly.",
-          ...navigationDesignQualityRules,
-        ].join("\n"),
-      },
+    const policy = geminiPolicyForTask("navigation_build", {
+      temperature: 0.28,
+      systemInstruction: [
+        "You are an elite mobile product designer building the single shared bottom navigation shell for a mobile app preview system.",
+        "Return ONLY valid HTML for the navigation shell. Do not include markdown fences, html, head, body, scripts, or the screen content.",
+        "The nav must be project-specific and must follow the provided navigation plan and design tokens.",
+        "Use the reference image and creative direction as high-priority visual evidence. If the reference uses a compact tab rail, floating dock, glass pill, sculpted card, or minimal bottom text/icon row, match that style family.",
+        "Avoid generic 2015 bottom tabs: no plain full-width white rectangle with evenly spaced gray icons unless the reference clearly shows that.",
+        "Use one <nav data-drawgle-primary-nav> root. The nav root may be full-width, a floating dock, a compact action nav, or another bottom navigation form that fits the project.",
+        "Each item must be a button or anchor with data-nav-item-id exactly matching the plan item id.",
+        "Use Lucide icons with <i data-lucide=\"icon-name\"></i>.",
+        "The renderer mounts the shell in a fixed bottom viewport host. The HTML you return owns the nav's visual geometry, width, radius, surface, spacing, and active state.",
+        "Make active/inactive states explicit through data-active=true selectors, utility classes, or inline CSS variables. The renderer will set data-active at runtime.",
+        "Do not hard-code generic tab labels. Use only the planned item labels and preserve them exactly.",
+        `End the response with this exact sentinel on its own final line: ${DRAWGLE_GENERATION_COMPLETE_SENTINEL}`,
+        ...navigationDesignQualityRules,
+      ].join("\n"),
     });
 
-    const code = extractCode(response.text || "").trim();
+    const response = await ai.models.generateContent({
+      model: policy.model,
+      contents: { parts },
+      config: policy.config,
+    });
+
+    const rawCode = extractCode(response.text || "").trim();
+    const completion = validateSourceCompletion({ code: rawCode, requireSentinel: true });
+    if (!completion.valid) {
+      throw new Error(`Navigation shell generation returned incomplete markup: ${completion.issues.join(" | ")}`);
+    }
+    const code = stripGenerationCompleteSentinel(rawCode);
     if (!validateNavigationShell(code, navigationPlan)) {
       throw new Error("Navigation shell generation did not produce valid project navigation markup.");
     }

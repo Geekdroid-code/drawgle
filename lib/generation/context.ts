@@ -2,12 +2,10 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
-import type { DesignTokens, NavigationPlan, ProjectCharter, ProjectMessage } from "@/lib/types";
+import type { NavigationPlan, ProjectCharter, ProjectMessage } from "@/lib/types";
 
-import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { generateEmbedding } from "@/lib/generation/embeddings";
 import { createNavigationArchitecture, deriveRequiresBottomNav } from "@/lib/navigation";
-import { buildTokenPromptContext } from "@/lib/token-runtime";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 type MatchedScreen = Database["public"]["Functions"]["match_screens"]["Returns"][number];
@@ -77,29 +75,6 @@ const formatNavigationPlan = (navigationPlan: NavigationPlan | null) => {
   ].join("\n");
 };
 
-const formatDesignContract = (designTokens: DesignTokens | null) => {
-  const normalized = normalizeDesignTokens(designTokens);
-
-  if (!normalized?.tokens) {
-    return null;
-  }
-
-  const tokens = normalized.tokens;
-
-  return [
-    `Standard app radius: ${tokens.radii?.app ?? "18px"}`,
-    `Pill radius: ${tokens.radii?.pill ?? "9999px"} (use only for capsule controls)`,
-    `Standard border width: ${tokens.border_widths?.standard ?? "1px"}`,
-    `Standard surface shadow: ${tokens.shadows?.surface ?? "0 12px 32px rgba(15,23,42,0.14)"}`,
-    `Overlay shadow: ${tokens.shadows?.overlay ?? "0 -4px 24px rgba(15,23,42,0.18)"}`,
-    `Screen margin: ${tokens.mobile_layout?.screen_margin ?? "20px"}`,
-    `Section gap: ${tokens.mobile_layout?.section_gap ?? "24px"}`,
-    `Element gap: ${tokens.mobile_layout?.element_gap ?? "16px"}`,
-    `Standard button height: ${tokens.sizing?.standard_button_height ?? "52px"}`,
-    `Standard input height: ${tokens.sizing?.standard_input_height ?? "48px"}`,
-  ].join("\n");
-};
-
 const formatTypographyRoleContract = () => [
   "nav_title: top bars, modal headers, compact detail headers",
   "screen_title: default title for normal app feature screens",
@@ -153,7 +128,6 @@ export async function assembleProjectContext({
   }
 
   const charter = (project.project_charter as ProjectCharter | null) ?? null;
-  const designTokens = (project.design_tokens as DesignTokens | null) ?? null;
   const { data: projectNavigation } = await client
     .from("project_navigation")
     .select("plan")
@@ -193,13 +167,7 @@ export async function assembleProjectContext({
     charter?.creativeDirection
       ? `CREATIVE DIRECTION\n${formatCreativeDirection(charter.creativeDirection)}`
       : null,
-    formatDesignContract(designTokens)
-      ? `APPROVED DESIGN CONTRACT\n${formatDesignContract(designTokens)}`
-      : null,
     `TYPOGRAPHY ROLE CONTRACT\n${formatTypographyRoleContract()}`,
-    designTokens?.tokens
-      ? `APPROVED TOKEN CONTEXT\n${buildTokenPromptContext(designTokens, "compact_visual")}`
-      : null,
     matches.length > 0
       ? `RELEVANT EXISTING SCREENS\n${formatMatches(matches)}`
       : null,

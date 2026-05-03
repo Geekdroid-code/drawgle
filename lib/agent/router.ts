@@ -4,6 +4,7 @@ import { FunctionCallingConfigMode, Type, type FunctionDeclaration } from "@goog
 import { z } from "zod";
 
 import { createGeminiClient } from "@/lib/ai/gemini";
+import { geminiPolicyForTask } from "@/lib/ai/model-policy";
 
 export type AgentScreenContext = {
   id: string;
@@ -18,6 +19,7 @@ export type AgentTargetType = "none" | "screen" | "selected_element" | "navigati
 export type AgentScope = "none" | "selected_element" | "screen_region" | "whole_screen" | "navigation" | "new_screen";
 export type AgentAction = "chat_response" | "ask_clarification" | "create_new_screen" | "modify_ui";
 export type AgentEditOperation = "none" | "append_content" | "replace_region" | "restyle_region" | "rewrite_screen" | "repair_screen";
+export type AgentExecutionIntent = "chat" | "discuss" | "draft_plan" | "create" | "modify" | "repair";
 
 export type AgentTurnState = {
   kind: "pending_clarification" | "failed_edit_recovery" | "last_actionable_request";
@@ -72,6 +74,7 @@ export type AgentRouterInput = {
 
 const RouterDecisionSchema = z.object({
   action: z.enum(["chat_response", "ask_clarification", "create_new_screen", "modify_ui"]),
+  executionIntent: z.enum(["chat", "discuss", "draft_plan", "create", "modify", "repair"]).default("chat"),
   confidence: z.number().min(0).max(1).default(0.5),
   reason: z.string().trim().min(1).max(800),
   responseMessage: z.string().trim().max(1600).optional().nullable(),
@@ -90,6 +93,9 @@ const routerInstruction = [
   "You are Drawgle AI's action router for a mobile app design canvas.",
   "Always call decide_drawgle_action exactly once.",
   "Use the latest prompt, exact recent messages, pending agentState, selected canvas target, screen list, navigation state, and active jobs to choose the action.",
+  "Classify executionIntent separately from action: users may ask to discuss, plan, brainstorm, or evaluate UI without asking Drawgle to build anything.",
+  "Use chat_response with executionIntent discuss or draft_plan for planning/brainstorming/design advice. Do not trigger creation for discussion-only requests.",
+  "Use create_new_screen only when the user clearly wants Drawgle to create/build/generate/add/apply a screen now, or confirms a prior draft plan.",
   "Selection is context, not a command: only edit when the user is asking to change existing UI.",
   "For follow-up replies, resolve intent from agentState and recent messages instead of treating the prompt as a brand-new request.",
   "Do not invent screen ids or element ids; use ids from the provided context only.",
@@ -120,6 +126,13 @@ const decisionFunctionDeclaration: FunctionDeclaration = {
         format: "enum",
         enum: ["chat_response", "ask_clarification", "create_new_screen", "modify_ui"],
         description: "The next high-level action Drawgle should take.",
+      },
+      executionIntent: {
+        type: Type.STRING,
+        format: "enum",
+        enum: ["chat", "discuss", "draft_plan", "create", "modify", "repair"],
+        description:
+          "The user's real execution intent. discuss/draft_plan means explain or propose without mutating the project. create means actually build a new screen now. modify means edit existing UI. repair means fix incomplete/broken source.",
       },
       instruction: {
         type: Type.STRING,
@@ -170,7 +183,7 @@ const decisionFunctionDeclaration: FunctionDeclaration = {
       confidence: confidenceSchema,
       reason: reasonSchema,
     },
-    required: ["action", "instruction", "targetType", "scope", "editOperation", "confidence", "reason"],
+    required: ["action", "executionIntent", "instruction", "targetType", "scope", "editOperation", "confidence", "reason"],
   },
 };
 
@@ -193,12 +206,14 @@ const parseFunctionDecision = (input: AgentRouterInput, functionCall: { name?: s
 
   const args = functionCall.args ?? {};
   const action = parseEnum(args.action, ["chat_response", "ask_clarification", "create_new_screen", "modify_ui"] as const, "ask_clarification");
+  const executionIntent = parseEnum(args.executionIntent, ["chat", "discuss", "draft_plan", "create", "modify", "repair"] as const, "chat");
   const targetType = parseEnum(args.targetType, ["none", "screen", "selected_element", "navigation", "project"] as const, "none");
   const scope = parseEnum(args.scope, ["none", "selected_element", "screen_region", "whole_screen", "navigation", "new_screen"] as const, "none");
   const editOperation = parseEnum(args.editOperation, ["none", "append_content", "replace_region", "restyle_region", "rewrite_screen", "repair_screen"] as const, "none");
 
   return RouterDecisionSchema.parse({
     action,
+    executionIntent,
     confidence: normalizeConfidence(args.confidence),
     reason: asTrimmedString(args.reason) || "Router returned a structured decision.",
     responseMessage: asTrimmedString(args.responseMessage) || null,
@@ -214,6 +229,7 @@ const parseFunctionDecision = (input: AgentRouterInput, functionCall: { name?: s
 
 const safeFallbackDecision = (input: AgentRouterInput): AgentRouterDecision => RouterDecisionSchema.parse({
   action: "ask_clarification",
+  executionIntent: "chat",
   confidence: 0.25,
   reason: "Router failed, so the app chose a non-mutating clarification fallback.",
   responseMessage: null,
@@ -229,8 +245,18 @@ const safeFallbackDecision = (input: AgentRouterInput): AgentRouterDecision => R
 export async function routeAgentPrompt(input: AgentRouterInput): Promise<AgentRouterDecision> {
   try {
     const ai = createGeminiClient();
+    const policy = geminiPolicyForTask("router", {
+      systemInstruction: routerInstruction,
+      tools: [{ functionDeclarations: [decisionFunctionDeclaration] }],
+      toolConfig: {
+        functionCallingConfig: {
+          mode: FunctionCallingConfigMode.ANY,
+          allowedFunctionNames: ["decide_drawgle_action"],
+        },
+      },
+    });
     const response = await ai.models.generateContent({
-      model: "gemini-3.1-flash-lite-preview",
+      model: policy.model,
       contents: {
         parts: [{
           text: [
@@ -249,16 +275,7 @@ export async function routeAgentPrompt(input: AgentRouterInput): Promise<AgentRo
           ].join("\n"),
         }],
       },
-      config: {
-        systemInstruction: routerInstruction,
-        tools: [{ functionDeclarations: [decisionFunctionDeclaration] }],
-        toolConfig: {
-          functionCallingConfig: {
-            mode: FunctionCallingConfigMode.ANY,
-            allowedFunctionNames: ["decide_drawgle_action"],
-          },
-        },
-      },
+      config: policy.config,
     });
 
     const functionCall = response.functionCalls?.[0];

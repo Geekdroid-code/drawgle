@@ -1,5 +1,6 @@
 import { createNavigationArchitecture, resolveScreenChromePolicy } from "@/lib/navigation";
 import { normalizeDesignTokens } from "@/lib/design-tokens";
+import { DRAWGLE_GENERATION_COMPLETE_SENTINEL } from "@/lib/generation/screen-quality";
 import { buildTokenPromptContext } from "@/lib/token-runtime";
 import type { BuildScreenInput, DesignTokens, NavigationArchitecture, ScreenPlan } from "@/lib/types";
 
@@ -415,7 +416,7 @@ STRICT DESIGN CONTRACT:
 ${buildStrictDesignContract(designTokens)}
 
 TOKEN CONTEXT:
-${buildTokenPromptContext(designTokens, "compact_visual")}
+${buildTokenPromptContext(designTokens, "full_generation")}
 
 NAVIGATION ARCHITECTURE CONTRACT:
 ${buildNavigationArchitectureContract({ navigationArchitecture })}
@@ -528,5 +529,6 @@ RULES:
 11. Build every required section and item named in the Screen Description. If the brief asks for three metric cards, a 2x2 metric grid, a segmented control, avatar stack, chart labels, or a specific CTA construction, include all of them in the HTML. Do not stop after the first visible card.
 12. Let long content extend vertically inside the generated screen content. Do not put overflow-hidden on the outermost screen wrapper in a way that clips required bottom content.
 13. STATIC HTML ONLY: Do NOT output JSX, React, JavaScript expressions, arrays, .map(...), arrow functions, template literals, className, class={...}, style={{...}}, data attributes with {...}, <script>, or code that requires runtime execution. Manually expand repeated items into concrete HTML elements.
-${navigationPlan?.enabled ? "14. Do NOT create a <nav>, bottom tab bar, footer navigation, or persistent primary navigation. Leave bottom space visually compatible with the injected shared shell, but do not draw the shell yourself." : ""}`;
+${navigationPlan?.enabled ? "14. Do NOT create a <nav>, bottom tab bar, footer navigation, or persistent primary navigation. Leave bottom space visually compatible with the injected shared shell, but do not draw the shell yourself." : ""}
+15. End the response with this exact sentinel on its own final line: ${DRAWGLE_GENERATION_COMPLETE_SENTINEL}`;
 };

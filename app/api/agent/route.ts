@@ -242,6 +242,7 @@ const makeRouterMetadata = (decision: AgentRouterDecision) => ({
   agentRouter: {
     action: decision.action,
     tool: compatibilityToolName(decision.action),
+    executionIntent: decision.executionIntent,
     confidence: decision.confidence,
     reason: decision.reason,
     targetScreenId: decision.targetScreenId ?? null,
@@ -784,6 +785,21 @@ export async function POST(request: Request) {
 
     if (routerDecision.action === "chat_response") {
       const message = whiteLabelAgentMessage(prompt, routerDecision.responseMessage || routerDecision.clarificationQuestion);
+      const chatMetadata = {
+        ...routerMetadata,
+        ...(routerDecision.executionIntent === "draft_plan" || routerDecision.executionIntent === "discuss"
+          ? {
+              agentState: makeAgentState({
+                kind: "pending_clarification",
+                instruction: routerDecision.instruction?.trim() || prompt,
+                missingFields: ["confirmation"],
+                targetCandidates: buildScreenTargetCandidates(screenContext, selectedScreenId, payload.selectedElementDrawgleId),
+                lastKnownTarget: buildDecisionTarget(routerDecision),
+                message,
+              }),
+            }
+          : {}),
+      };
 
       const userMessage = await insertProjectMessage(admin, {
         projectId: payload.projectId,
@@ -792,7 +808,7 @@ export async function POST(request: Request) {
         role: "user",
         content: prompt || "[image]",
         messageType: "chat",
-        metadata: routerMetadata,
+        metadata: chatMetadata,
       });
 
       const modelMessage = await insertProjectMessage(admin, {
@@ -802,7 +818,7 @@ export async function POST(request: Request) {
         role: "model",
         content: message,
         messageType: "chat",
-        metadata: routerMetadata,
+        metadata: chatMetadata,
       });
 
       await persistProjectMessageMemoryPair({
@@ -823,6 +839,27 @@ export async function POST(request: Request) {
     }
 
     if (routerDecision.action === "create_new_screen") {
+      if (routerDecision.executionIntent !== "create") {
+        const message = whiteLabelAgentMessage(
+          prompt,
+          routerDecision.responseMessage ||
+            "I can help plan that first. Tell me when you want me to build it on the canvas.",
+        );
+
+        return saveClarification({
+          message,
+          instruction: routerDecision.instruction?.trim() || prompt,
+          missingFields: ["confirmation"],
+          lastKnownTarget: buildDecisionTarget(routerDecision),
+          metadata: {
+            serverReconciliation: {
+              finalAction: "chat_response",
+              reason: "create_blocked_without_create_execution_intent",
+            },
+          },
+        });
+      }
+
       if (activeGeneration) {
         const message = "A screen generation is already running. Let that finish, then ask me for the next screen.";
 

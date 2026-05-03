@@ -1,6 +1,7 @@
 import type { ScreenPlan, ScreenStatus } from "@/lib/types";
 
 export const REQUIRED_ANCHORS_LABEL = "Required screen anchors:";
+export const DRAWGLE_GENERATION_COMPLETE_SENTINEL = "<!-- DRAWGLE_GENERATION_COMPLETE -->";
 
 export type ScreenHealthStatus =
   | "healthy"
@@ -16,6 +17,13 @@ export type StaticDrawgleHtmlDiagnosticCode =
   | "duplicate_drawgle_ids"
   | "tag_imbalance"
   | "rendered_code_text";
+
+export type SourceCompletionDiagnosticCode =
+  | "missing_completion_sentinel"
+  | "max_tokens_finish"
+  | "trailing_open_tag"
+  | "unclosed_comment"
+  | "unclosed_root";
 
 const NON_CLOSING_TAGS = new Set([
   "area",
@@ -33,6 +41,71 @@ const NON_CLOSING_TAGS = new Set([
   "track",
   "wbr",
 ]);
+
+const completionSentinelPattern = /<!--\s*DRAWGLE_GENERATION_COMPLETE\s*-->\s*$/i;
+
+export function stripGenerationCompleteSentinel(code: string) {
+  return code.replace(completionSentinelPattern, "").trim();
+}
+
+export function hasGenerationCompleteSentinel(code: string) {
+  return completionSentinelPattern.test(code.trim());
+}
+
+export function validateSourceCompletion({
+  code,
+  requireSentinel = false,
+  finishReasons = [],
+}: {
+  code: string;
+  requireSentinel?: boolean;
+  finishReasons?: string[];
+}) {
+  const trimmedCode = code.trim();
+  const issues: string[] = [];
+  const codes: SourceCompletionDiagnosticCode[] = [];
+  const push = (code: SourceCompletionDiagnosticCode, issue: string) => {
+    if (!codes.includes(code)) {
+      codes.push(code);
+      issues.push(issue);
+    }
+  };
+
+  if (requireSentinel && !hasGenerationCompleteSentinel(trimmedCode)) {
+    push(
+      "missing_completion_sentinel",
+      "Generated HTML did not include the Drawgle completion sentinel.",
+    );
+  }
+
+  if (finishReasons.some((reason) => reason === "MAX_TOKENS" || /max[_\s-]?tokens|length/i.test(reason))) {
+    push("max_tokens_finish", `Model generation stopped because of output length: ${finishReasons.join(", ")}.`);
+  }
+
+  const codeWithoutSentinel = stripGenerationCompleteSentinel(trimmedCode);
+
+  if (/<[^>]*$/.test(codeWithoutSentinel)) {
+    push("trailing_open_tag", "Generated HTML ends inside an unfinished tag.");
+  }
+
+  if (/<!--(?:(?!-->)[\s\S])*$/.test(codeWithoutSentinel)) {
+    push("unclosed_comment", "Generated HTML ends inside an unfinished comment.");
+  }
+
+  const tagBalance = getTagBalance(codeWithoutSentinel);
+  if (tagBalance.openTags !== tagBalance.closeTags || tagBalance.mismatches > 0) {
+    push(
+      "unclosed_root",
+      `Generated HTML root is not fully closed (${tagBalance.openTags} opening tags, ${tagBalance.closeTags} closing tags).`,
+    );
+  }
+
+  return {
+    valid: issues.length === 0,
+    issues,
+    codes,
+  };
+}
 
 const COMMON_ANCHOR_NOISE = new Set([
   "screen",

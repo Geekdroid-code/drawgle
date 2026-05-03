@@ -17,6 +17,8 @@ import {
   detectScreenHealth,
   isBlockingScreenHealthFailure,
   screenStatusForHealth,
+  stripGenerationCompleteSentinel,
+  validateSourceCompletion,
   validateStaticDrawgleHtml,
 } from "@/lib/generation/screen-quality";
 import { findRepairTarget, replaceSourceRegion, type RepairTarget } from "@/lib/generation/screen-repair";
@@ -476,7 +478,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
     navigationItemId: typeof screen.navigation_item_id === "string" ? screen.navigation_item_id : null,
   };
   const normalizeScreenCodeForSave = (code: string) =>
-    ensureDrawgleIds(tokenizeStaticDrawgleHtml(sanitizeScreenCodeForSharedNavigation(code, screenPlanForSave), designTokens).code).code;
+    ensureDrawgleIds(tokenizeStaticDrawgleHtml(sanitizeScreenCodeForSharedNavigation(stripGenerationCompleteSentinel(code), screenPlanForSave), designTokens).code).code;
   const health = detectScreenHealth({ code: screenCode, screenPrompt });
   const selectedRegionStaticHealth = regionReplacementTarget
     ? validateStaticDrawgleHtml({ code: regionReplacementTarget.snippet })
@@ -627,6 +629,39 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
 
     if (!replacement.trim()) {
       throw new Error("Selected-region edit returned an empty replacement.");
+    }
+
+    if (regionReplacementTarget.reason === "screen_root_region") {
+      const replacementCompletion = validateSourceCompletion({
+        code: replacement,
+        requireSentinel: true,
+      });
+      if (!replacementCompletion.valid) {
+        const failureContent = `I could not safely apply that full-screen edit to ${screen.name}; the generated screen source was incomplete, so the saved screen was left unchanged.`;
+        const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
+          projectId: payload.projectId,
+          ownerId: payload.ownerId,
+          screenId: screen.id,
+          role: "model",
+          content: failureContent,
+          messageType: "error",
+          metadata: {
+            action: "source_region_replace_blocked_by_completion",
+            editStrategy: resolvedEditStrategy,
+            editOperation,
+            screenName: screen.name,
+            userMessageId: payload.userMessageId,
+            sourceCompletion: replacementCompletion,
+            health,
+            selectedRegionStaticHealth,
+            editJob: { status: "failed", targetType: "screen", screenId: screen.id, drawgleId: selectedElementDrawgleId },
+            routerDecision: payload.routerDecision ?? null,
+          },
+        });
+
+        await persistEditMemoryPair(admin, payload.userMessageId, prompt, modelMessage.id, failureContent);
+        return { targetType: "screen" as const, screenId: screen.id, changed: false, message: failureContent };
+      }
     }
 
     const replacedCode = replaceSourceRegion(screenCode, regionReplacementTarget, replacement);
@@ -781,6 +816,34 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
 
     if (!reconstructed.trim()) {
       throw new Error("Full-screen reconstruction returned empty code.");
+    }
+
+    const reconstructionCompletion = validateSourceCompletion({
+      code: reconstructed,
+      requireSentinel: true,
+    });
+    if (!reconstructionCompletion.valid) {
+      const fullResponse = `I could not safely reconstruct ${screen.name}; the model returned incomplete screen source, so the saved screen was left unchanged.`;
+      const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
+        projectId: payload.projectId,
+        ownerId: payload.ownerId,
+        screenId: screen.id,
+        role: "model",
+        content: fullResponse,
+        messageType: "error",
+        metadata: {
+          action: "full_screen_reconstruction_blocked_by_completion",
+          screenName: screen.name,
+          userMessageId: payload.userMessageId,
+          health,
+          sourceCompletion: reconstructionCompletion,
+          editJob: { status: "failed", targetType: "screen", screenId: screen.id },
+          routerDecision: payload.routerDecision ?? null,
+        },
+      });
+
+      await persistEditMemoryPair(admin, payload.userMessageId, prompt, modelMessage.id, fullResponse);
+      return { targetType: "screen" as const, screenId: screen.id, changed: false, message: fullResponse };
     }
 
     const nextCode = normalizeScreenCodeForSave(reconstructed);

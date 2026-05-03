@@ -11,6 +11,8 @@ import {
   detectScreenHealth,
   isBlockingScreenHealthFailure,
   screenStatusForHealth,
+  stripGenerationCompleteSentinel,
+  validateSourceCompletion,
   validateGeneratedScreenCode,
   validateStaticDrawgleHtml,
 } from "@/lib/generation/screen-quality";
@@ -91,6 +93,23 @@ const buildErrorCode = (message: string) => `<div class="min-h-screen w-full fle
   <div class="text-lg font-semibold">Generation failed</div>
   <div class="text-sm leading-6">${escapeHtml(message)}</div>
 </div>`;
+
+const collectFinishReasons = (chunk: unknown, finishReasons: Set<string>) => {
+  if (!chunk || typeof chunk !== "object") {
+    return;
+  }
+
+  const candidates = (chunk as { candidates?: Array<{ finishReason?: unknown }> }).candidates;
+  if (!Array.isArray(candidates)) {
+    return;
+  }
+
+  for (const candidate of candidates) {
+    if (typeof candidate.finishReason === "string" && candidate.finishReason.trim()) {
+      finishReasons.add(candidate.finishReason.trim());
+    }
+  }
+};
 
 async function updateProject(admin: AdminClient, projectId: string, patch: Database["public"]["Tables"]["projects"]["Update"]) {
   const { error } = await admin.from("projects").update({ ...patch, updated_at: now() }).eq("id", projectId);
@@ -254,6 +273,7 @@ async function postStatusMessage(
 
 async function collectScreenBuild(input: BuildScreenTaskPayload, screenPlan: ScreenPlan) {
   let rawText = "";
+  const finishReasons = new Set<string>();
 
   const { stream: codeStream } = await streams.pipe(
     "code",
@@ -266,6 +286,7 @@ async function collectScreenBuild(input: BuildScreenTaskPayload, screenPlan: Scr
       navigationArchitecture: input.navigationArchitecture,
       navigationPlan: input.navigationPlan,
       projectContext: input.projectContext,
+      onResponseChunk: (chunk) => collectFinishReasons(chunk, finishReasons),
     }),
   );
 
@@ -276,11 +297,13 @@ async function collectScreenBuild(input: BuildScreenTaskPayload, screenPlan: Scr
   return {
     rawText,
     extractedCode: extractCode(rawText),
+    finishReasons: Array.from(finishReasons),
   };
 }
 
 async function collectNonStreamingScreenBuild(input: BuildScreenTaskPayload, screenPlan: ScreenPlan) {
   let rawText = "";
+  const finishReasons = new Set<string>();
 
   for await (const chunk of buildScreenStream({
     screenPlan,
@@ -291,6 +314,7 @@ async function collectNonStreamingScreenBuild(input: BuildScreenTaskPayload, scr
     navigationArchitecture: input.navigationArchitecture,
     navigationPlan: input.navigationPlan,
     projectContext: input.projectContext,
+    onResponseChunk: (responseChunk) => collectFinishReasons(responseChunk, finishReasons),
   })) {
     rawText += chunk;
   }
@@ -298,6 +322,7 @@ async function collectNonStreamingScreenBuild(input: BuildScreenTaskPayload, scr
   return {
     rawText,
     extractedCode: extractCode(rawText),
+    finishReasons: Array.from(finishReasons),
   };
 }
 
@@ -321,9 +346,81 @@ export const buildScreenTask = task({
   },
   maxDuration: 300,
   run: async (payload: BuildScreenTaskPayload) => {
+    const admin = createAdminClient();
+    const failWithoutSavingGeneratedCode = async ({
+      error,
+      metadata,
+    }: {
+      error: string;
+      metadata?: Record<string, unknown>;
+    }) => {
+      await admin
+        .from("screens")
+        .update({
+          status: "failed",
+          error,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", payload.screenId);
+
+      logger.warn("Screen generation output was rejected before save", {
+        screenId: payload.screenId,
+        screenName: payload.screenPlan.name,
+        error,
+        ...metadata,
+      });
+
+      return { screenId: payload.screenId, status: "failed" as const, error };
+    };
+
     // Pipe the first Gemini async generator so the frontend can subscribe
     // via useRealtimeRunWithStreams and render partial HTML in real time.
-    let { extractedCode } = await collectScreenBuild(payload, payload.screenPlan);
+    let build = await collectScreenBuild(payload, payload.screenPlan);
+    let extractedCode = build.extractedCode;
+    let completion = validateSourceCompletion({
+      code: extractedCode,
+      requireSentinel: true,
+      finishReasons: build.finishReasons,
+    });
+
+    if (!completion.valid) {
+      logger.warn("Screen build failed completion guard; retrying once", {
+        screenId: payload.screenId,
+        screenName: payload.screenPlan.name,
+        issues: completion.issues,
+        finishReasons: build.finishReasons,
+      });
+
+      const retryPlan: ScreenPlan = {
+        ...payload.screenPlan,
+        description: [
+          payload.screenPlan.description,
+          "SOURCE COMPLETION RETRY: The previous generation was incomplete or interrupted.",
+          "Return the complete static HTML screen from the opening root div through every required closing tag.",
+          "Do not stop early. Do not abbreviate. Do not write placeholders. End with <!-- DRAWGLE_GENERATION_COMPLETE --> on its own final line.",
+        ].join("\n\n"),
+      };
+
+      build = await collectNonStreamingScreenBuild(payload, retryPlan);
+      extractedCode = build.extractedCode;
+      completion = validateSourceCompletion({
+        code: extractedCode,
+        requireSentinel: true,
+        finishReasons: build.finishReasons,
+      });
+
+      if (!completion.valid) {
+        return failWithoutSavingGeneratedCode({
+          error: `[screen_generation:needs_regeneration] ${completion.issues.join(" | ")}`,
+          metadata: {
+            completionCodes: completion.codes,
+            finishReasons: build.finishReasons,
+          },
+        });
+      }
+    }
+
+    extractedCode = stripGenerationCompleteSentinel(extractedCode);
     let staticQuality = validateStaticDrawgleHtml({ code: extractedCode, requireSingleScreenRoot: true });
 
     if (!staticQuality.valid) {
@@ -346,7 +443,19 @@ export const buildScreenTask = task({
         });
 
         if (reconstructedCode.trim()) {
-          extractedCode = reconstructedCode;
+          const reconstructionCompletion = validateSourceCompletion({
+            code: reconstructedCode,
+            requireSentinel: true,
+          });
+          if (!reconstructionCompletion.valid) {
+            return failWithoutSavingGeneratedCode({
+              error: `[screen_generation:needs_regeneration] ${reconstructionCompletion.issues.join(" | ")}`,
+              metadata: {
+                completionCodes: reconstructionCompletion.codes,
+              },
+            });
+          }
+          extractedCode = stripGenerationCompleteSentinel(reconstructedCode);
           staticQuality = validateStaticDrawgleHtml({ code: extractedCode, requireSingleScreenRoot: true });
         }
       } catch (reconstructionError) {
@@ -380,6 +489,21 @@ export const buildScreenTask = task({
 
       const retryBuild = await collectNonStreamingScreenBuild(payload, retryPlan);
       extractedCode = retryBuild.extractedCode;
+      const retryCompletion = validateSourceCompletion({
+        code: extractedCode,
+        requireSentinel: true,
+        finishReasons: retryBuild.finishReasons,
+      });
+      if (!retryCompletion.valid) {
+        return failWithoutSavingGeneratedCode({
+          error: `[screen_generation:needs_regeneration] ${retryCompletion.issues.join(" | ")}`,
+          metadata: {
+            completionCodes: retryCompletion.codes,
+            finishReasons: retryBuild.finishReasons,
+          },
+        });
+      }
+      extractedCode = stripGenerationCompleteSentinel(extractedCode);
       staticQuality = validateStaticDrawgleHtml({ code: extractedCode, requireSingleScreenRoot: true });
 
       if (!staticQuality.valid) {
@@ -402,7 +526,19 @@ export const buildScreenTask = task({
           });
 
           if (reconstructedCode.trim()) {
-            extractedCode = reconstructedCode;
+            const reconstructionCompletion = validateSourceCompletion({
+              code: reconstructedCode,
+              requireSentinel: true,
+            });
+            if (!reconstructionCompletion.valid) {
+              return failWithoutSavingGeneratedCode({
+                error: `[screen_generation:needs_regeneration] ${reconstructionCompletion.issues.join(" | ")}`,
+                metadata: {
+                  completionCodes: reconstructionCompletion.codes,
+                },
+              });
+            }
+            extractedCode = stripGenerationCompleteSentinel(reconstructedCode);
             staticQuality = validateStaticDrawgleHtml({ code: extractedCode, requireSingleScreenRoot: true });
           }
         } catch (reconstructionError) {
@@ -417,7 +553,7 @@ export const buildScreenTask = task({
       quality = validateGeneratedScreenCode({ code: extractedCode, screenPlan: retryPlan });
 
       if (staticQuality.valid && !quality.valid) {
-        logger.warn("Screen build still failed quality guard after retry; saving best available output", {
+        logger.warn("Screen build still failed quality guard after retry; attempting targeted section repair", {
           screenId: payload.screenId,
           screenName: payload.screenPlan.name,
           issues: quality.issues,
@@ -451,7 +587,7 @@ export const buildScreenTask = task({
               quality = repairedQuality;
             }
           } catch (repairError) {
-            logger.warn("Initial screen section repair failed; saving best available output", {
+            logger.warn("Initial screen section repair failed", {
               screenId: payload.screenId,
               screenName: payload.screenPlan.name,
               error: repairError,
@@ -468,8 +604,16 @@ export const buildScreenTask = task({
     const blockIndex = indexScreenCode(code);
     const screenStatus = screenStatusForHealth(health);
 
+    if (isBlockingScreenHealthFailure(health)) {
+      return failWithoutSavingGeneratedCode({
+        error: buildScreenHealthError(health) ?? "[screen_generation:failed_static_html] Generated source failed health checks.",
+        metadata: {
+          health,
+        },
+      });
+    }
+
     // Persist the final code directly so the parent only polls for status.
-    const admin = createAdminClient();
     const { error: updateError } = await admin
       .from("screens")
       .update({
@@ -489,17 +633,6 @@ export const buildScreenTask = task({
         error: updateError,
       });
       throw updateError;
-    }
-
-    if (isBlockingScreenHealthFailure(health)) {
-      logger.warn("Built screen failed source health guard and was not marked ready", {
-        screenId: payload.screenId,
-        screenName: payload.screenPlan.name,
-        issues: health.issues,
-        staticCodes: health.staticValidation.codes,
-      });
-
-      return { screenId: payload.screenId, status: screenStatus, health };
     }
 
     // Fire-and-forget: enrich the screen with a semantic embedding so it
