@@ -10,6 +10,14 @@ import { DesignSystemEditor } from "@/components/DesignSystemEditor";
 import { PromptBar } from "@/components/PromptBar";
 import type { SelectedElementInfo } from "@/components/ScreenNode";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import type { DeterministicEditOperation, DrawgleStyleProperty } from "@/lib/drawgle-dom";
 import { useGenerationRuns } from "@/hooks/use-generation-runs";
@@ -159,6 +167,10 @@ type ElementEditSession = {
   selectionVersion: number;
 };
 
+type PendingElementSelection = {
+  info: SelectedElementInfo;
+};
+
 function SelectedElementInspectorSidebar({
   project,
   selectedScreen,
@@ -267,10 +279,13 @@ function SelectedElementInspectorSidebar({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#667894]">
-            Selected in {targetLabel}
+            Element Overrides
           </div>
           <div className="mt-0.5 truncate text-sm font-medium text-slate-900">
             {selectedElementInfo.textPreview || selectedElementInfo.editableMetadata?.tagName || "Element"}
+          </div>
+          <div className="mt-0.5 truncate text-[11px] font-medium text-slate-500">
+            Selected in {targetLabel}
           </div>
         </div>
         <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 rounded-full text-slate-500" onClick={onClose}>
@@ -376,7 +391,7 @@ function SelectedElementInspectorSidebar({
             <Button variant="outline" className="h-9 rounded-[10px]" onClick={() => onModeChange("selected")}>Back</Button>
             <Button className="h-9 rounded-[10px] gap-2" disabled={disabled || isSaving} onClick={() => void saveDesign()}>
               {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-              Apply Design
+              Apply Overrides
             </Button>
           </div>
         </div>
@@ -709,6 +724,7 @@ export function ProjectShell({
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectionVersion, setSelectionVersion] = useState(0);
   const [editSession, setEditSession] = useState<ElementEditSession | null>(null);
+  const [pendingElementSelection, setPendingElementSelection] = useState<PendingElementSelection | null>(null);
   const [isProjectPanelOpen, setIsProjectPanelOpen] = useState(false);
   const [tokenDraft, setTokenDraft] = useState<DesignTokens | null>(() =>
     hasApprovedDesignTokens(initialProject.designTokens)
@@ -1198,6 +1214,35 @@ export function ProjectShell({
 
   const clearEditSession = () => {
     setEditSession(null);
+    setPendingElementSelection(null);
+  };
+
+  const commitElementSelection = (info: SelectedElementInfo) => {
+    const ownerScreen = screens.find((screen) => screen.id === info.screenId) ?? null;
+    const nextSelectionVersion = selectionVersion + 1;
+
+    setSelectionVersion(nextSelectionVersion);
+    setSelectedScreen(ownerScreen);
+    setEditSession({
+      screenId: info.screenId,
+      element: info,
+      mode: "selected",
+      selectedAt: new Date().toISOString(),
+      selectionVersion: nextSelectionVersion,
+    });
+  };
+
+  const handleElementSelected = (info: SelectedElementInfo) => {
+    if (
+      editSession &&
+      editSession.mode !== "selected" &&
+      (editSession.screenId !== info.screenId || editSession.element.drawgleId !== info.drawgleId)
+    ) {
+      setPendingElementSelection({ info });
+      return;
+    }
+
+    commitElementSelection(info);
   };
 
   const handleCanvasSelectScreen = (screen: ScreenData | null) => {
@@ -1231,7 +1276,7 @@ export function ProjectShell({
   return (
     <div className="h-[100dvh] overflow-hidden bg-[#f7f7f8] text-gray-900" style={shellLayoutVars}>
       <main className="relative z-0 flex h-full w-full overflow-hidden">
-        <div className="absolute left-4 right-4 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-50 flex items-center justify-between gap-3">
+        <div className="absolute left-4 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-50 flex items-center gap-2">
           <div className="flex h-8 items-center rounded-full dg-panel px-2 backdrop-blur-xl lg:px-3">
             <Button variant="ghost" size="sm" onClick={() => router.push("/project/new")} className="h-8 rounded-full text-neutral-700 hover:bg-[#f7f7f8] focus-visible:bg-[#f7f7f8] data-[state=open]:bg-[#f7f7f8]">
               <ArrowLeft className="mr-2 h-4 w-4" />
@@ -1246,10 +1291,11 @@ export function ProjectShell({
             variant="ghost"
             size="sm"
             onClick={() => setIsProjectPanelOpen(true)}
-            className="h-8 rounded-full dg-panel px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-600 backdrop-blur-xl hover:bg-white"
+            className="h-8 rounded-full dg-panel px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-600 backdrop-blur-xl hover:bg-white"
           >
             <Palette className="mr-2 h-3.5 w-3.5" />
-            Project System
+            <span className="hidden sm:inline">Project System</span>
+            <span className="sm:hidden">System</span>
           </Button>
         </div>
 
@@ -1266,28 +1312,7 @@ export function ProjectShell({
             preserveSelectionOnCanvasClick={Boolean(editSession) || selectionMode}
             selectedElementScreenId={editSession?.screenId ?? null}
             selectedElementDrawgleId={editSession?.element.drawgleId ?? null}
-            onElementSelected={(info) => {
-              if (
-                editSession &&
-                editSession.mode !== "selected" &&
-                (editSession.screenId !== info.screenId || editSession.element.drawgleId !== info.drawgleId) &&
-                !window.confirm("Discard the current unsaved element edits and select this new target?")
-              ) {
-                return;
-              }
-
-              const ownerScreen = screens.find((screen) => screen.id === info.screenId) ?? null;
-              const nextSelectionVersion = selectionVersion + 1;
-              setSelectionVersion(nextSelectionVersion);
-              setSelectedScreen(ownerScreen);
-              setEditSession({
-                screenId: info.screenId,
-                element: info,
-                mode: "selected",
-                selectedAt: new Date().toISOString(),
-                selectionVersion: nextSelectionVersion,
-              });
-            }}
+            onElementSelected={handleElementSelected}
           />
 
           {isProjectPanelOpen ? (
@@ -1306,6 +1331,53 @@ export function ProjectShell({
               onClose={() => setIsProjectPanelOpen(false)}
             />
           ) : null}
+
+          <Dialog
+            open={Boolean(pendingElementSelection)}
+            onOpenChange={(open) => {
+              if (!open) {
+                setPendingElementSelection(null);
+              }
+            }}
+          >
+            <DialogContent
+              showCloseButton={false}
+              className="w-[min(420px,calc(100vw-2rem))] gap-0 overflow-hidden rounded-[24px] border border-slate-950/[0.08] bg-white p-0 shadow-[0_24px_90px_rgba(15,23,42,0.22)]"
+            >
+              <DialogHeader className="gap-2 px-5 pb-3 pt-5">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-50 text-amber-700">
+                  <Palette className="h-4 w-4" />
+                </div>
+                <DialogTitle className="text-lg font-semibold tracking-[-0.01em] text-slate-950">
+                  Discard Element Overrides?
+                </DialogTitle>
+                <DialogDescription className="text-sm leading-6 text-slate-600">
+                  You have an open manual editing panel. Discard those unsaved changes and retarget the new selected element?
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="mx-0 mb-0 flex-row justify-end gap-2 rounded-none border-t border-slate-950/[0.08] bg-slate-50/80 px-5 py-4">
+                <Button
+                  variant="outline"
+                  className="h-10 rounded-full px-4"
+                  onClick={() => setPendingElementSelection(null)}
+                >
+                  Keep Editing
+                </Button>
+                <Button
+                  className="h-10 rounded-full bg-slate-950 px-4 text-white hover:bg-slate-800"
+                  onClick={() => {
+                    const nextSelection = pendingElementSelection?.info;
+                    setPendingElementSelection(null);
+                    if (nextSelection) {
+                      commitElementSelection(nextSelection);
+                    }
+                  }}
+                >
+                  Discard & Select
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           <ChatPanel
             project={project}

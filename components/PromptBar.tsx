@@ -144,10 +144,10 @@ export function PromptBar({
                 className="h-7 rounded-full px-2 text-[11px] font-semibold text-slate-600 hover:bg-white hover:text-slate-950"
                 onClick={onEditSelectedDesign}
                 disabled={disabled || isGenerating}
-                title="Change selected design"
+                title="Edit element overrides"
               >
                 <Palette className="mr-1 h-3.5 w-3.5" />
-                Design
+                Overrides
               </Button>
             ) : null}
             {hasSelectedElement && onClearSelectedElement ? (
