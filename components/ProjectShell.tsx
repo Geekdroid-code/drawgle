@@ -2,11 +2,11 @@
 
 import { type ComponentType, type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, BookOpen, Check, Eye, Layers, Loader2, Navigation, Palette, RotateCcw, Save, X } from "lucide-react";
+import { ArrowLeft, BookOpen, Check, ChevronDown, Eye, Layers, Loader2, Navigation, Palette, RotateCcw, Save, X } from "lucide-react";
 
 import { CanvasArea } from "@/components/CanvasArea";
 import { ChatPanel } from "@/components/ChatPanel";
-import { DesignSystemEditor } from "@/components/DesignSystemEditor";
+import { ColorPickerButton, DesignSystemEditor } from "@/components/DesignSystemEditor";
 import { PromptBar } from "@/components/PromptBar";
 import type { SelectedElementInfo } from "@/components/ScreenNode";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import type { DeterministicEditOperation, DrawgleStyleProperty } from "@/lib/drawgle-dom";
 import { useGenerationRuns } from "@/hooks/use-generation-runs";
 import { useProject } from "@/hooks/use-project";
@@ -159,6 +164,172 @@ const cssColorToHex = (value: string | undefined | null) => {
     .join("")}`;
 };
 
+const tokenVariableNameFromValue = (value: string | undefined | null) => {
+  const match = normalizeCssValue(value).match(/^var\((--dg-[^)]+)\)$/);
+  return match?.[1] ?? null;
+};
+
+type DrawgleTokenRef = ReturnType<typeof getDrawgleTokenReferences>[number];
+
+const getTokenReferencesForStyleProperty = (
+  property: DrawgleStyleProperty,
+  tokenRefs: DrawgleTokenRef[],
+) => {
+  if (property === "color") {
+    return tokenRefs.filter((token) => (
+      token.path.startsWith("color.text.")
+      || token.path === "color.action.on_primary_text"
+    ));
+  }
+
+  if (property === "background-color") {
+    return tokenRefs.filter((token) => (
+      token.path.startsWith("color.background.")
+      || token.path.startsWith("color.surface.")
+      || token.path === "color.action.primary"
+      || token.path === "color.action.secondary"
+      || token.path === "color.action.disabled"
+    ));
+  }
+
+  if (property === "border-color") {
+    return tokenRefs.filter((token) => (
+      token.path.startsWith("color.border.")
+      || token.path === "color.action.primary"
+      || token.path === "color.action.secondary"
+      || token.path === "color.action.disabled"
+    ));
+  }
+
+  return [];
+};
+
+const getTokenPickerLabel = (property: DrawgleStyleProperty) => {
+  if (property === "color") {
+    return "Link text token";
+  }
+
+  if (property === "background-color") {
+    return "Link fill token";
+  }
+
+  if (property === "border-color") {
+    return "Link border token";
+  }
+
+  return "Link token";
+};
+
+const getTokenPickerDescription = (property: DrawgleStyleProperty) => {
+  if (property === "color") {
+    return "Choose a text color token for this element.";
+  }
+
+  if (property === "background-color") {
+    return "Choose a surface, background, or action fill token.";
+  }
+
+  if (property === "border-color") {
+    return "Choose a border or accent token.";
+  }
+
+  return "Choose a live token for this property.";
+};
+
+const styleGroupMeta: Record<StyleControl["group"], { title: string; description: string }> = {
+  Type: {
+    title: "Type",
+    description: "Text color, size, weight, and rhythm for this selected element.",
+  },
+  Surface: {
+    title: "Surface",
+    description: "Fill, border, radius, and elevation. Token-linked values stay live.",
+  },
+  Layout: {
+    title: "Layout",
+    description: "Local spacing overrides for padding and gaps.",
+  },
+};
+
+function TokenValuePicker({
+  tokens,
+  property,
+  value,
+  onSelect,
+}: {
+  tokens: DrawgleTokenRef[];
+  property: DrawgleStyleProperty;
+  value: string;
+  onSelect: (tokenName: string) => void;
+}) {
+  const pickerTokens = getTokenReferencesForStyleProperty(property, tokens);
+  const activeTokenName = tokenVariableNameFromValue(value);
+  const activeToken = pickerTokens.find((token) => token.name === activeTokenName) ?? null;
+
+  if (pickerTokens.length === 0) {
+    return null;
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger
+        render={(
+          <button
+            type="button"
+            className="flex h-10 w-full items-center justify-between gap-2 rounded-[14px] border border-slate-950/[0.08] bg-white/80 px-3 text-left text-xs font-medium text-slate-700 transition hover:border-slate-950/[0.16] hover:bg-white"
+          />
+        )}
+      >
+        <span className="flex min-w-0 items-center gap-2">
+          <span
+            className="h-4 w-4 shrink-0 rounded-full border border-slate-950/[0.12]"
+            style={{ backgroundColor: activeToken?.value ?? "#ffffff" }}
+          />
+          <span className="truncate">
+            {activeToken ? activeToken.label : getTokenPickerLabel(property)}
+          </span>
+        </span>
+        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        side="bottom"
+        sideOffset={8}
+        className="w-[min(320px,calc(100vw-2rem))] rounded-[18px] border border-slate-950/[0.08] bg-white p-2 shadow-[0_20px_70px_rgba(15,23,42,0.2)]"
+      >
+        <div className="px-2 pb-1 pt-1">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#667894]">Project Tokens</div>
+          <div className="mt-0.5 text-xs leading-5 text-slate-500">{getTokenPickerDescription(property)}</div>
+        </div>
+        <div className="max-h-72 space-y-1 overflow-y-auto pr-1">
+          {pickerTokens.map((token) => (
+            <button
+              key={token.name}
+              type="button"
+              className="flex w-full items-center gap-3 rounded-[14px] px-2 py-2 text-left transition hover:bg-slate-50"
+              onClick={() => onSelect(token.name)}
+            >
+              <span
+                className="h-8 w-8 shrink-0 rounded-full border border-slate-950/[0.1]"
+                style={{ backgroundColor: token.value }}
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium text-slate-900">{token.label}</span>
+                <span className="block truncate text-[11px] text-slate-500">{token.path}</span>
+              </span>
+              {activeTokenName === token.name ? (
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-950 text-white">
+                  <Check className="h-3.5 w-3.5" />
+                </span>
+              ) : null}
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 type ElementEditSession = {
   screenId: string | null;
   element: SelectedElementInfo;
@@ -194,8 +365,7 @@ function SelectedElementInspectorSidebar({
   const textNodes = selectedElementInfo.editableMetadata?.textNodes ?? EMPTY_TEXT_NODES;
   const tokenColorRefs = useMemo(
     () => getDrawgleTokenReferences(project.designTokens)
-      .filter((reference) => reference.path.startsWith("color.") && (/^#[0-9a-f]{3,8}$/i.test(reference.value) || /^rgba?\(/i.test(reference.value)))
-      .slice(0, 16),
+      .filter((reference) => reference.path.startsWith("color.") && (/^#[0-9a-f]{3,8}$/i.test(reference.value) || /^rgba?\(/i.test(reference.value))),
     [project.designTokens],
   );
   const originalTextById = useMemo(
@@ -275,8 +445,8 @@ function SelectedElementInspectorSidebar({
   }
 
   return (
-    <aside className="fixed bottom-[calc(var(--dg-mobile-prompt-bottom)+9.25rem)] left-3 right-3 top-auto z-[80] flex max-h-[min(68vh,620px)] flex-col rounded-[20px] border border-slate-950/[0.08] bg-white/96 p-3 shadow-[0_24px_80px_rgba(15,23,42,0.22)] backdrop-blur-xl md:bottom-[calc(var(--dg-mobile-prompt-bottom)+5.2rem)] md:left-auto md:right-4 md:top-[calc(env(safe-area-inset-top,0px)+4.25rem)] md:max-h-none md:w-[min(390px,calc(100%-1rem))]">
-      <div className="flex items-start justify-between gap-3">
+    <aside className="fixed bottom-[calc(var(--dg-mobile-prompt-bottom)+8.75rem)] left-3 right-3 top-auto z-[80] flex max-h-[min(72vh,660px)] flex-col overflow-hidden rounded-[26px] border border-slate-950/[0.08] bg-white/96 shadow-[0_28px_90px_rgba(15,23,42,0.22)] backdrop-blur-xl md:bottom-4 md:left-auto md:right-4 md:top-[calc(env(safe-area-inset-top,0px)+4.25rem)] md:max-h-none md:w-[min(460px,calc(100%-1rem))]">
+      <div className="flex items-start justify-between gap-3 border-b border-slate-950/[0.06] px-4 pb-3 pt-4">
         <div className="min-w-0">
           <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#667894]">
             Element Overrides
@@ -288,28 +458,28 @@ function SelectedElementInspectorSidebar({
             Selected in {targetLabel}
           </div>
         </div>
-        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 rounded-full text-slate-500" onClick={onClose}>
+        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-950" onClick={onClose}>
           <X className="h-3.5 w-3.5" />
         </Button>
       </div>
 
       {mode === "text" ? (
-        <div className="mt-3 flex min-h-0 flex-1 flex-col space-y-3">
-          <div className="grid min-h-0 flex-1 gap-2 overflow-y-auto pr-1">
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto px-4 py-4">
             {textNodes.map((node) => (
               <label key={node.drawgleId} className="grid gap-1.5">
                 <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">{node.tagName}</span>
                 <Input
                   value={textDrafts[node.drawgleId] ?? ""}
                   onChange={(event) => setTextDrafts((current) => ({ ...current, [node.drawgleId]: event.target.value }))}
-                  className="h-9 rounded-[10px]"
+                  className="h-11 rounded-[14px] border-slate-950/[0.08] bg-slate-50/80 px-3 text-sm focus-visible:bg-white"
                 />
               </label>
             ))}
           </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" className="h-9 rounded-[10px]" onClick={() => onModeChange("selected")}>Back</Button>
-            <Button className="h-9 rounded-[10px] gap-2" disabled={disabled || isSaving} onClick={() => void saveText()}>
+          <div className="flex justify-end gap-2 border-t border-slate-950/[0.06] bg-white/95 px-4 py-3">
+            <Button variant="outline" className="h-10 rounded-full px-4" onClick={() => onModeChange("selected")}>Back</Button>
+            <Button className="h-10 rounded-full bg-slate-950 px-4 text-white hover:bg-slate-800 gap-2" disabled={disabled || isSaving} onClick={() => void saveText()}>
               {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
               Save Text
             </Button>
@@ -318,78 +488,101 @@ function SelectedElementInspectorSidebar({
       ) : null}
 
       {mode === "design" ? (
-        <div className="mt-3 flex min-h-0 flex-1 flex-col space-y-3">
-          {tokenColorRefs.length > 0 ? (
-            <div className="rounded-[12px] border border-slate-950/[0.08] bg-[#fbfbfc] p-2">
-              <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">Project token swatches</div>
-              <div className="flex flex-wrap gap-1.5">
-              {tokenColorRefs.map((token) => (
-                <button
-                  key={token.name}
-                  type="button"
-                  className="h-6 w-6 rounded-full border border-slate-950/[0.12] shadow-sm"
-                  style={{ backgroundColor: token.value }}
-                  title={`${token.label}: ${token.value}`}
-                  onClick={() => setStyleDrafts((current) => ({ ...current, "background-color": `var(${token.name})` }))}
-                />
-              ))}
-              </div>
-              <div className="mt-1.5 text-[11px] leading-4 text-slate-500">Swatches write token variables, so saved edits follow future token changes.</div>
-            </div>
-          ) : null}
-          <div className="grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-y-auto pr-1">
-            {styleControls.map((control) => {
-              const value = styleDrafts[control.property] ?? "";
-              return (
-                <label key={control.property} className="grid gap-1.5">
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">{control.label}</span>
-                  {control.type === "color" ? (
-                    <>
-                      <div className="flex gap-1.5">
-                        <input
-                          type="color"
-                          value={cssColorToHex(value)}
-                          className="h-9 w-10 rounded-[10px] border border-slate-950/[0.1] bg-white p-1"
-                          onChange={(event) => setStyleDrafts((current) => ({ ...current, [control.property]: event.target.value }))}
-                        />
-                        <Input
-                          value={value}
-                          onChange={(event) => setStyleDrafts((current) => ({ ...current, [control.property]: event.target.value }))}
-                          className="h-9 min-w-0 rounded-[10px]"
-                        />
-                      </div>
-                      {tokenColorRefs.length > 0 ? (
-                        <select
-                          value=""
-                          className="h-8 rounded-[9px] border border-slate-950/[0.1] bg-white px-2 text-xs text-slate-600"
-                          onChange={(event) => {
-                            const tokenName = event.target.value;
-                            if (!tokenName) return;
-                            setStyleDrafts((current) => ({ ...current, [control.property]: `var(${tokenName})` }));
-                          }}
-                        >
-                          <option value="">Use project token...</option>
-                          {tokenColorRefs.map((token) => (
-                            <option key={token.name} value={token.name}>{token.label}</option>
-                          ))}
-                        </select>
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+            <div className="space-y-4">
+              {(["Type", "Surface", "Layout"] as const).map((group) => {
+                const controls = styleControls.filter((control) => control.group === group);
+                if (controls.length === 0) {
+                  return null;
+                }
+
+                return (
+                  <section key={group} className="rounded-[20px] border border-slate-950/[0.08] bg-white p-3 shadow-[0_1px_0_rgba(15,23,42,0.03)]">
+                    <div className="mb-3">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#667894]">{styleGroupMeta[group].title}</div>
+                      <div className="mt-0.5 text-xs leading-5 text-slate-500">{styleGroupMeta[group].description}</div>
+                      {group !== "Layout" ? (
+                        <div className="mt-1 text-[11px] leading-4 text-slate-400">
+                          Linked values follow project tokens. Custom values stay local to this element.
+                        </div>
                       ) : null}
-                    </>
-                  ) : (
-                    <Input
-                      value={value}
-                      placeholder={control.property === "box-shadow" ? "none" : "e.g. 16px"}
-                      onChange={(event) => setStyleDrafts((current) => ({ ...current, [control.property]: event.target.value }))}
-                      className="h-9 rounded-[10px]"
-                    />
-                  )}
-                </label>
-              );
-            })}
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      {controls.map((control) => {
+                        const value = styleDrafts[control.property] ?? "";
+                        const activeTokenName = tokenVariableNameFromValue(value);
+                        const allowedTokens = getTokenReferencesForStyleProperty(control.property, tokenColorRefs);
+                        const activeToken = allowedTokens.find((token) => token.name === activeTokenName) ?? null;
+                        const currentToken = tokenColorRefs.find((token) => token.name === activeTokenName) ?? null;
+                        const pickerColorValue = activeToken?.value ?? currentToken?.value ?? cssColorToHex(value);
+                        const isTokenLinked = Boolean(activeToken);
+                        const isUnsupportedToken = Boolean(activeTokenName && !activeToken && control.type === "color");
+                        return (
+                          <label key={control.property} className={control.type === "color" ? "grid gap-2 sm:col-span-2" : "grid gap-1.5"}>
+                            <span className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                              {control.label}
+                              {isTokenLinked ? (
+                                <span className="rounded-full bg-teal-50 px-2 py-0.5 text-[9px] tracking-[0.12em] text-teal-700">Linked</span>
+                              ) : isUnsupportedToken ? (
+                                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[9px] tracking-[0.12em] text-amber-700">Review</span>
+                              ) : null}
+                            </span>
+                            {control.type === "color" ? (
+                              <div className="grid gap-2 rounded-[16px] border border-slate-950/[0.06] bg-slate-50/70 p-2">
+                                <div className="flex gap-2">
+                                  <ColorPickerButton
+                                    label={control.label}
+                                    value={pickerColorValue}
+                                    className="h-11 w-12 shrink-0 cursor-pointer rounded-[14px] border border-slate-950/[0.08] bg-white p-1"
+                                    onChange={(nextColor) => setStyleDrafts((current) => ({ ...current, [control.property]: nextColor }))}
+                                  />
+                                  <Input
+                                    value={value}
+                                    onChange={(event) => setStyleDrafts((current) => ({ ...current, [control.property]: event.target.value }))}
+                                    className="h-11 min-w-0 rounded-[14px] border-slate-950/[0.08] bg-white/90 px-3 text-sm shadow-none focus-visible:bg-white"
+                                  />
+                                </div>
+                                {activeToken ? (
+                                  <div className="rounded-[12px] bg-teal-50/70 px-3 py-2 text-xs leading-5 text-teal-800">
+                                    Linked to {activeToken.label}
+                                  </div>
+                                ) : isUnsupportedToken ? (
+                                  <div className="rounded-[12px] bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                                    This token does not match the {control.label.toLowerCase()} role. Pick a valid token below or enter a custom value.
+                                  </div>
+                                ) : (
+                                  <div className="rounded-[12px] bg-white/70 px-3 py-2 text-xs leading-5 text-slate-500">
+                                    Custom local override
+                                  </div>
+                                )}
+                                <TokenValuePicker
+                                  tokens={tokenColorRefs}
+                                  property={control.property}
+                                  value={value}
+                                  onSelect={(tokenName) => setStyleDrafts((current) => ({ ...current, [control.property]: `var(${tokenName})` }))}
+                                />
+                              </div>
+                            ) : (
+                              <Input
+                                value={value}
+                                placeholder={control.property === "box-shadow" ? "none" : "e.g. 16px"}
+                                onChange={(event) => setStyleDrafts((current) => ({ ...current, [control.property]: event.target.value }))}
+                                className="h-11 rounded-[14px] border-slate-950/[0.08] bg-slate-50/80 px-3 text-sm shadow-none focus-visible:bg-white"
+                              />
+                            )}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
           </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" className="h-9 rounded-[10px]" onClick={() => onModeChange("selected")}>Back</Button>
-            <Button className="h-9 rounded-[10px] gap-2" disabled={disabled || isSaving} onClick={() => void saveDesign()}>
+          <div className="flex justify-end gap-2 border-t border-slate-950/[0.06] bg-white/95 px-4 py-3">
+            <Button variant="outline" className="h-10 rounded-full px-4" onClick={() => onModeChange("selected")}>Back</Button>
+            <Button className="h-10 rounded-full bg-slate-950 px-4 text-white hover:bg-slate-800 gap-2" disabled={disabled || isSaving} onClick={() => void saveDesign()}>
               {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
               Apply Overrides
             </Button>

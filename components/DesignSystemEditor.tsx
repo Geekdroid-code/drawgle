@@ -1,6 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState, type ComponentType, type PointerEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowRight,
   Check,
@@ -593,18 +594,16 @@ function TokenGroup({ label, children, panel = false }: { label: string; childre
   );
 }
 
-function ColorField({
+export function ColorPickerButton({
   label,
   value,
   onChange,
-  tokenPath,
-  panel = false,
+  className = "",
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
-  tokenPath?: string[];
-  panel?: boolean;
+  className?: string;
 }) {
   const normalizedValue = normalizeHex(value) ?? "#000000";
   const [isOpen, setIsOpen] = useState(false);
@@ -616,8 +615,6 @@ function ColorField({
   const rgb = getRgbFallback(normalizedValue);
   const hsv = rgbToHsv(rgb);
   const isHexValid = Boolean(normalizeHex(hexDraft));
-  const tokenPathLabel = tokenPath?.join(".");
-  const cssVariableName = tokenPath ? tokenPathToCssVar(tokenPath) : null;
 
   useLayoutEffect(() => {
     if (!isOpen || !fieldRef.current) {
@@ -687,42 +684,21 @@ function ColorField({
   };
 
   return (
-    <div ref={fieldRef} className="relative">
-      <div className={`group flex gap-3 rounded-[12px] border bg-white transition hover:border-slate-950/[0.18] ${panel ? "items-center px-3 py-3" : "items-center px-2 py-2"} ${isHexValid ? "border-slate-950/[0.08]" : "border-rose-300"}`}>
-        <button
-          type="button"
-          aria-label={`Open ${label} color picker`}
-          className={`${panel ? "h-10 w-10 rounded-[12px]" : "h-7 w-7 rounded-[8px]"} shrink-0 border border-slate-950/[0.1] shadow-inner`}
-          style={{ backgroundColor: normalizedValue }}
-          onClick={() => {
-            setPreviousColor(normalizedValue);
-            setIsOpen((current) => !current);
-          }}
-        />
-        <label className={`min-w-0 flex-1 ${panel ? "grid gap-1 sm:grid-cols-[minmax(0,1fr)_130px] sm:items-center" : ""}`}>
-          <span className="min-w-0">
-            <span className="block truncate text-xs font-semibold text-slate-800">{label}</span>
-            {panel && tokenPathLabel ? (
-              <span className="mt-0.5 block truncate font-mono text-[11px] text-slate-400">
-                {tokenPathLabel}
-                {cssVariableName ? ` · ${cssVariableName}` : ""}
-              </span>
-            ) : null}
-          </span>
-          <input
-            type="text"
-            value={hexDraft}
-            onFocus={() => {
-              setPreviousColor(normalizedValue);
-              setIsOpen(true);
-            }}
-            onChange={(event) => commitHex(event.target.value)}
-            className={`${panel ? "h-9 rounded-[10px] border border-slate-950/[0.08] bg-[#fbfbfc] px-2 text-right text-xs focus:bg-white" : "bg-transparent text-[11px]"} block w-full font-mono uppercase text-slate-500 outline-none`}
-          />
-        </label>
-      </div>
+    <div ref={fieldRef} className="relative shrink-0">
+      <button
+        type="button"
+        aria-label={`Open ${label} color picker`}
+        className={className || "h-7 w-7 rounded-[8px] border border-slate-950/[0.1] shadow-inner"}
+        style={{ backgroundColor: normalizedValue }}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setPreviousColor(normalizedValue);
+          setIsOpen((current) => !current);
+        }}
+      />
 
-      {isOpen ? (
+      {isOpen && typeof document !== "undefined" ? createPortal(
         <div
           className="fixed z-[110] overflow-y-auto rounded-[18px] border border-slate-950/[0.1] bg-white p-3 shadow-[0_28px_80px_-42px_rgba(15,23,42,0.9)]"
           style={{
@@ -802,8 +778,73 @@ function ColorField({
               Done
             </button>
           </div>
-        </div>
+        </div>,
+        document.body,
       ) : null}
+    </div>
+  );
+}
+
+function ColorField({
+  label,
+  value,
+  onChange,
+  tokenPath,
+  panel = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  tokenPath?: string[];
+  panel?: boolean;
+}) {
+  const normalizedValue = normalizeHex(value) ?? "#000000";
+  const [hexDraftState, setHexDraftState] = useState({ source: normalizedValue, value: normalizedValue });
+  const hexDraft = hexDraftState.source === normalizedValue ? hexDraftState.value : normalizedValue;
+  const isHexValid = Boolean(normalizeHex(hexDraft));
+  const tokenPathLabel = tokenPath?.join(".");
+  const cssVariableName = tokenPath ? tokenPathToCssVar(tokenPath) : null;
+
+  const commitHex = (nextValue: string) => {
+    const normalized = normalizeHex(nextValue);
+    setHexDraftState({ source: normalized ?? normalizedValue, value: nextValue.toUpperCase() });
+    if (normalized) {
+      onChange(normalized);
+    }
+  };
+
+  const commitPickerColor = (nextHex: string) => {
+    setHexDraftState({ source: nextHex, value: nextHex });
+    onChange(nextHex);
+  };
+
+  return (
+    <div className="relative">
+      <div className={`group flex gap-3 rounded-[12px] border bg-white transition hover:border-slate-950/[0.18] ${panel ? "items-center px-3 py-3" : "items-center px-2 py-2"} ${isHexValid ? "border-slate-950/[0.08]" : "border-rose-300"}`}>
+        <ColorPickerButton
+          label={label}
+          value={normalizedValue}
+          onChange={commitPickerColor}
+          className={`${panel ? "h-10 w-10 rounded-[12px]" : "h-7 w-7 rounded-[8px]"} shrink-0 border border-slate-950/[0.1] shadow-inner`}
+        />
+        <label className={`min-w-0 flex-1 ${panel ? "grid gap-1 sm:grid-cols-[minmax(0,1fr)_130px] sm:items-center" : ""}`}>
+          <span className="min-w-0">
+            <span className="block truncate text-xs font-semibold text-slate-800">{label}</span>
+            {panel && tokenPathLabel ? (
+              <span className="mt-0.5 block truncate font-mono text-[11px] text-slate-400">
+                {tokenPathLabel}
+                {cssVariableName ? ` · ${cssVariableName}` : ""}
+              </span>
+            ) : null}
+          </span>
+          <input
+            type="text"
+            value={hexDraft}
+            onChange={(event) => commitHex(event.target.value)}
+            className={`${panel ? "h-9 rounded-[10px] border border-slate-950/[0.08] bg-[#fbfbfc] px-2 text-right text-xs focus:bg-white" : "bg-transparent text-[11px]"} block w-full font-mono uppercase text-slate-500 outline-none`}
+          />
+        </label>
+      </div>
     </div>
   );
 }
