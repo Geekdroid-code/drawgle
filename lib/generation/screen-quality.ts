@@ -438,11 +438,11 @@ export function validateGeneratedScreenCode({
   issues.push(...staticValidation.issues);
 
   if (screenPlan.description.length > 800 && trimmedCode.length < 1400) {
-    issues.push("Generated HTML is too short for the detailed screen brief.");
+    warnings.push("Generated HTML is short for the detailed screen brief.");
   }
 
   if (/[…]|TODO|placeholder(?:\s+(?:content|copy|text))?|lorem ipsum|generic\s+(?:date|label|text|copy|content)|context\s+text|sample\s+text|dummy\s+copy/i.test(trimmedCode)) {
-    issues.push("Generated HTML contains placeholder or truncated-looking content.");
+    warnings.push("Generated HTML contains placeholder-like or weak draft copy.");
   }
 
   const openDivs = (trimmedCode.match(/<div\b/gi) ?? []).length;

@@ -20,16 +20,23 @@ type GeminiModelPolicy = {
 };
 
 const env = (key: string, fallback: string) => process.env[key]?.trim() || fallback;
+const envInt = (key: string, fallback: number) => {
+  const value = Number.parseInt(process.env[key]?.trim() ?? "", 10);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+};
 
 const ROUTER_MODEL = env("DRAWGLE_GEMINI_ROUTER_MODEL", "gemini-2.5-flash");
 const SELECTED_EDIT_MODEL = env("DRAWGLE_GEMINI_SELECTED_EDIT_MODEL", "gemini-3.1-flash-lite-preview");
 const FULL_BUILD_MODEL = env("DRAWGLE_GEMINI_FULL_BUILD_MODEL", "gemini-3-flash-preview");
+const SCREEN_BUILD_MAX_OUTPUT_TOKENS = envInt("DRAWGLE_GEMINI_SCREEN_BUILD_MAX_OUTPUT_TOKENS", 32768);
+const FULL_REBUILD_MAX_OUTPUT_TOKENS = envInt("DRAWGLE_GEMINI_FULL_REBUILD_MAX_OUTPUT_TOKENS", 32768);
 
 const gemini25FlashConfig = (maxOutputTokens = 2048): GenerateContentConfig => ({
   thinkingConfig: {
     thinkingBudget: 1000,
   },
   maxOutputTokens,
+  candidateCount: 1,
 });
 
 const gemini3Config = (
@@ -43,6 +50,7 @@ const gemini3Config = (
     thinkingLevel: thinkingLevel as NonNullable<GenerateContentConfig["thinkingConfig"]>["thinkingLevel"],
   },
   maxOutputTokens,
+  candidateCount: 1,
 });
 
 const policyByTask: Record<GeminiTaskType, GeminiModelPolicy> = {
@@ -72,7 +80,7 @@ const policyByTask: Record<GeminiTaskType, GeminiModelPolicy> = {
   },
   screen_build: {
     model: FULL_BUILD_MODEL,
-    config: gemini3Config("medium", 30000),
+    config: gemini3Config("medium", SCREEN_BUILD_MAX_OUTPUT_TOKENS),
   },
   selected_region_edit: {
     model: SELECTED_EDIT_MODEL,
@@ -80,7 +88,7 @@ const policyByTask: Record<GeminiTaskType, GeminiModelPolicy> = {
   },
   full_rebuild: {
     model: FULL_BUILD_MODEL,
-    config: gemini3Config("medium", 30000),
+    config: gemini3Config("medium", FULL_REBUILD_MAX_OUTPUT_TOKENS),
   },
   repair: {
     model: FULL_BUILD_MODEL,

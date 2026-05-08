@@ -1483,12 +1483,17 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
   }
 
   parts.push({
-    text: `Build the UI for ${input.screenPlan.name}. Original context prompt: "${input.prompt || "No overarching prompt provided."}"`,
+    text: [
+      `Build the complete static HTML UI for ${input.screenPlan.name}.`,
+      `Original context prompt: "${input.prompt || "No overarching prompt provided."}"`,
+      "Return the full screen once, with no commentary, no markdown, and no abbreviated sections.",
+    ].join("\n"),
   });
 
-  if (input.projectContext?.trim()) {
+  const compactProjectContext = input.projectContext?.trim().slice(0, 6000);
+  if (compactProjectContext) {
     parts.push({
-      text: `Existing Project Memory:\n${input.projectContext}`,
+      text: `Compact Existing Project Memory:\n${compactProjectContext}`,
     });
   }
 
