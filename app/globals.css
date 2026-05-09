@@ -73,7 +73,7 @@
     position: relative;
     background:
       linear-gradient(#ffffff, #ffffff) padding-box,
-      linear-gradient(110deg, #e4002b 0%, #ff4f00 28%, #002fa7 68%, #111827 100%) border-box;
+      linear-gradient(110deg, rgba(228, 0, 43, 0.55) 0%, rgba(255, 79, 0, 0.38) 22%, rgba(180, 60, 80, 0.12) 38%, rgba(80, 80, 160, 0.12) 62%, rgba(0, 47, 167, 0.42) 78%, rgba(17, 24, 39, 0.65) 100%) border-box;
     border: 1.5px solid transparent;
   }
 

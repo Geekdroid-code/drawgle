@@ -324,21 +324,7 @@ export function ProjectLobby({
                  
 
                   <h1 className="mx-auto mt-2 flex max-w-4xl justify-center text-center text-[clamp(2.45rem,10.5vw,3.75rem)] font-semibold leading-[0.94] tracking-[-0.055em] text-neutral-950 sm:mt-6 sm:text-6xl">
-                    {isGeneratingDesign ? (
-                      <TextShimmerWave
-                        className="dg-brief-title-wave"
-                        baseColor="rgba(9, 9, 11, 0.42)"
-                        shimmerColor="#09090b"
-                        duration={1.7}
-                        spread={1.35}
-                        zDistance={12}
-                        scaleDistance={1.06}
-                      >
-                        What Mobile App shall we design Today?
-                      </TextShimmerWave>
-                    ) : (
-                      <span className="dg-brief-title-active">What Mobile App shall we design Today?</span>
-                    )}
+                    <span className="dg-brief-title-active">What Mobile App shall we design Today?</span>
                   </h1>
                 
 
@@ -435,25 +421,7 @@ export function ProjectLobby({
                     </div>
                     </div>
                     {isGeneratingDesign ? (
-                      <div className="pointer-events-auto absolute inset-0 z-10 flex items-center justify-center rounded-[18px] dg-brief-prompt-shimmer">
-                        <div className="relative z-10 flex max-w-[min(92%,420px)] flex-col items-center rounded-[16px] border border-white/70 bg-white/76 px-5 py-4 text-center shadow-[0_18px_42px_-30px_rgba(15,23,42,0.82)] backdrop-blur-md">
-                          <TextShimmerWave
-                            className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-950"
-                            baseColor="rgba(15,23,42,0.45)"
-                            shimmerColor="#09090b"
-                            duration={1.15}
-                            spread={1.25}
-                            zDistance={7}
-                            scaleDistance={1.05}
-                            rotateYDistance={7}
-                          >
-                            Designing your system
-                          </TextShimmerWave>
-                          <p className="mt-2 text-sm leading-6 text-neutral-600">
-                            Turning your brief into a project, design system, and first build pass.
-                          </p>
-                        </div>
-                      </div>
+                      <div className="pointer-events-none absolute inset-0 z-10 rounded-[18px] dg-brief-prompt-shimmer" />
                     ) : null}
                   </div>
 
