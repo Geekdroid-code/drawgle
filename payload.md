@@ -348,6 +348,8 @@
         ]
       }
     ],
+
+    
     "designSystemSignals": {
       "palette": "Monochromatic (Black/White/Grey) with a specific accent color (Red/Orange) for streaks and date highlights.",
       "typography": "System sans-serif (likely SF Pro), clean, varying weights for hierarchy (Bold for titles, Regular for body).",
