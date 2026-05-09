@@ -26,27 +26,27 @@ const envInt = (key: string, fallback: number) => {
 };
 
 const ROUTER_MODEL = env("DRAWGLE_GEMINI_ROUTER_MODEL", "gemini-2.5-flash");
-const SELECTED_EDIT_MODEL = env("DRAWGLE_GEMINI_SELECTED_EDIT_MODEL", "gemini-3.1-flash-lite-preview");
-const FULL_BUILD_MODEL = env("DRAWGLE_GEMINI_FULL_BUILD_MODEL", "gemini-3-flash-preview");
+const SELECTED_EDIT_MODEL = env("DRAWGLE_GEMINI_SELECTED_EDIT_MODEL", "gemini-3.1-flash-lite");
+const FULL_BUILD_MODEL = env("DRAWGLE_GEMINI_FULL_BUILD_MODEL", "gemini-3.1-flash-lite");
 const SCREEN_BUILD_MAX_OUTPUT_TOKENS = envInt("DRAWGLE_GEMINI_SCREEN_BUILD_MAX_OUTPUT_TOKENS", 32768);
 const FULL_REBUILD_MAX_OUTPUT_TOKENS = envInt("DRAWGLE_GEMINI_FULL_REBUILD_MAX_OUTPUT_TOKENS", 32768);
 
 const gemini25FlashConfig = (maxOutputTokens = 2048): GenerateContentConfig => ({
   thinkingConfig: {
-    thinkingBudget: 1000,
+    thinkingBudget: 500,
   },
   maxOutputTokens,
   candidateCount: 1,
 });
 
+// Gemini 3 series uses thinkingLevel, not thinkingBudget.
+// minimal — code generation (screen build, repair, edits, nav build): minimal overhead, maximum output budget
+// low     — planning/reasoning (project planning, design tokens): light reasoning without blowing the output cap
 const gemini3Config = (
-  thinkingLevel: "medium" | "high",
+  thinkingLevel: "minimal" | "low" ,
   maxOutputTokens: number,
 ): GenerateContentConfig => ({
   thinkingConfig: {
-    // The Gemini API expects lowercase thinking levels for Gemini 3 models.
-    // The current @google/genai types still expose an enum, so keep the
-    // runtime value explicit and cast at the edge.
     thinkingLevel: thinkingLevel as NonNullable<GenerateContentConfig["thinkingConfig"]>["thinkingLevel"],
   },
   maxOutputTokens,
@@ -68,31 +68,31 @@ const policyByTask: Record<GeminiTaskType, GeminiModelPolicy> = {
   },
   project_planning: {
     model: FULL_BUILD_MODEL,
-    config: gemini3Config("high", 12000),
+    config: gemini3Config("low", 12000),
   },
   design_tokens: {
     model: FULL_BUILD_MODEL,
-    config: gemini3Config("high", 8192),
+    config: gemini3Config("low", 8192),
   },
   navigation_build: {
     model: FULL_BUILD_MODEL,
-    config: gemini3Config("medium", 12000),
+    config: gemini3Config("minimal", 12000),
   },
   screen_build: {
     model: FULL_BUILD_MODEL,
-    config: gemini3Config("medium", SCREEN_BUILD_MAX_OUTPUT_TOKENS),
+    config: gemini3Config("minimal", SCREEN_BUILD_MAX_OUTPUT_TOKENS),
   },
   selected_region_edit: {
     model: SELECTED_EDIT_MODEL,
-    config: gemini3Config("medium", 12000),
+    config: gemini3Config("minimal", 12000),
   },
   full_rebuild: {
     model: FULL_BUILD_MODEL,
-    config: gemini3Config("medium", FULL_REBUILD_MAX_OUTPUT_TOKENS),
+    config: gemini3Config("minimal", FULL_REBUILD_MAX_OUTPUT_TOKENS),
   },
   repair: {
     model: FULL_BUILD_MODEL,
-    config: gemini3Config("medium", 18000),
+    config: gemini3Config("minimal", 18000),
   },
 };
 

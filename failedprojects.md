@@ -1,11 +1,31 @@
 {
-  "generationRunId": "97181f9e-5465-4cab-82d9-631876a53ec5",
-  "screenId": "e33e8665-544f-4480-8369-6e7c0de009e4",
-  "projectId": "11fa01a1-de8e-419f-b7f9-33300413c53b",
+  "generationRunId": "8e0a5515-f70b-409b-b944-158f12a6ae47",
+  "projectId": "28088ad1-ed86-48af-b4a7-94aa278ffab6",
+  "ownerId": "3a503767-6092-4e8e-973e-7f39ebf7e270",
+  "prompt": "Please build these premium notion style ios asthetics mobile screens",
+  "imagePath": "3a503767-6092-4e8e-973e-7f39ebf7e270/prompt-images/7db1f41b-6f53-4a8a-84d8-dbab0770a7a6.jpeg",
+  "designTokens": null,
+  "plannedScreens": null,
+  "navigationArchitecture": null,
+  "navigationPlan": null,
+  "projectCharter": null
+}
+{
+  "generationRunId": "8e0a5515-f70b-409b-b944-158f12a6ae47",
+  "successfulScreens": 2,
+  "failedScreens": 1
+}
+
+# build run for secodn screen oout fo 3
+
+{
+  "generationRunId": "8e0a5515-f70b-409b-b944-158f12a6ae47",
+  "screenId": "b97068ef-6370-4962-b202-7a98424c0e7a",
+  "projectId": "28088ad1-ed86-48af-b4a7-94aa278ffab6",
   "screenPlan": {
-    "name": "Welcome",
+    "name": "Create Habit",
     "type": "detail",
-    "description": "Reference DNA: This screen adopts the 'Midnight Productivity' aesthetic, utilizing the #121212 background and high-contrast typography. It mirrors the clean, distraction-free layout seen in the Home and Schedule screens. Visual Goal: Create an inviting, high-impact entry point that establishes the app's premium, minimalist tone. Layout Anatomy: The screen is vertically centered. A large, bold hero title sits at the top of the content block, followed by a body-text value proposition. A full-width 'Get Started' button is anchored near the bottom of the screen, respecting the 20px screen margins. Key Components: A hero-sized text block (dg-type-screen-title), a descriptive paragraph (dg-type-body), and a primary action button (dg-action-primary). Visual Styling: The background is dg-bg-primary (#121212). The hero title uses dg-text-high, while the body text uses dg-text-medium. The button uses dg-action-primary with dg-text-on-primary-text, featuring a dg-radius-app (16px) corner radius. Interaction Notes: The 'Get Started' button should have a subtle scale-down effect on press. Must Preserve: The 20px screen margins, the 16px corner radius for the button, and the strict adherence to the dark-mode color palette.",
+    "description": "Reference DNA: Based on the second panel of the reference image. Visual Goal: A focused, distraction-free form for habit entry. Layout Anatomy: A standard iOS-style top bar with a back arrow and centered title. Below, a large question prompt leads into a minimalist text input, followed by a row of suggestion chips and a fixed-bottom primary action button. Key Components: 'Create new habit' nav title, 'What habit do you want to build?' section title, an underlined text input field with placeholder 'Enter Habit Name', a horizontal wrap of grey pill chips (Drink Water, Exercise, Read 10 mins), and a full-width black 'Continue' button. Visual Styling: The input field uses a simple bottom border (dg-border-divider) instead of a box. Chips use dg-action-secondary background with dg-type-caption text. The 'Continue' button is solid black (dg-action-primary) with white text. Interaction Notes: Tapping a chip populates the text input. The keyboard should auto-focus the input on entry. Must Preserve: The minimalist underlined input style and the specific grey-on-grey chip aesthetic.",
     "chromePolicy": {
       "chrome": "top-bar-back",
       "showPrimaryNavigation": false,
@@ -13,140 +33,141 @@
     },
     "navigationItemId": null
   },
-  "prompt": "Create a new, engaging welcome screen for the app that serves as an introduction to the user. It should include a friendly headline, a brief value proposition, and a prominent 'Get Started' call-to-action button to guide the user into the app. Keep the design clean, welcoming, and consistent with the app's overall style.",
+  "prompt": "Please build these premium notion style ios asthetics mobile screens",
   "designTokens": {
     "system_schema": "mobile_universal_core",
     "tokens": {
       "color": {
-        "text": {
-          "low_emphasis": "#666666",
-          "high_emphasis": "#FFFFFF",
-          "medium_emphasis": "#A0A0A0"
-        },
-        "action": {
+        "background": {
           "primary": "#FFFFFF",
-          "disabled": "#333333",
-          "secondary": "#3D3D3D",
-          "on_primary_text": "#121212"
-        },
-        "border": {
-          "divider": "#2D2D2D",
-          "focused": "#FFFFFF"
+          "secondary": "#F9F9F9"
         },
         "surface": {
-          "card": "#1E1E1E",
-          "modal": "#252525",
-          "bottom_sheet": "#252525"
+          "card": "#FFFFFF",
+          "bottom_sheet": "#FFFFFF",
+          "modal": "#FFFFFF"
         },
-        "background": {
-          "primary": "#121212",
-          "secondary": "#1E1E1E"
+        "text": {
+          "high_emphasis": "#000000",
+          "medium_emphasis": "#666666",
+          "low_emphasis": "#A1A1A1"
+        },
+        "action": {
+          "primary": "#000000",
+          "secondary": "#E5E5EA",
+          "disabled": "#D1D1D6",
+          "on_primary_text": "#FFFFFF"
+        },
+        "border": {
+          "divider": "#F2F2F7",
+          "focused": "#000000"
         }
+      },
+      "typography": {
+        "font_family": "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+        "nav_title": {
+          "size": "17px",
+          "weight": "600",
+          "line_height": "22px"
+        },
+        "screen_title": {
+          "size": "28px",
+          "weight": "700",
+          "line_height": "34px"
+        },
+        "hero_title": {
+          "size": "34px",
+          "weight": "800",
+          "line_height": "41px"
+        },
+        "section_title": {
+          "size": "18px",
+          "weight": "600",
+          "line_height": "24px"
+        },
+        "metric_value": {
+          "size": "24px",
+          "weight": "700",
+          "line_height": "30px"
+        },
+        "body": {
+          "size": "16px",
+          "weight": "400",
+          "line_height": "24px"
+        },
+        "supporting": {
+          "size": "14px",
+          "weight": "400",
+          "line_height": "20px"
+        },
+        "caption": {
+          "size": "12px",
+          "weight": "500",
+          "line_height": "16px"
+        },
+        "button_label": {
+          "size": "16px",
+          "weight": "600",
+          "line_height": "20px"
+        }
+      },
+      "spacing": {
+        "none": "0px",
+        "xxs": "4px",
+        "xs": "8px",
+        "sm": "12px",
+        "md": "16px",
+        "lg": "24px",
+        "xl": "32px",
+        "xxl": "48px"
+      },
+      "mobile_layout": {
+        "screen_margin": "24px",
+        "safe_area_top": "16px",
+        "safe_area_bottom": "16px",
+        "section_gap": "40px",
+        "element_gap": "16px"
+      },
+      "sizing": {
+        "min_touch_target": "48px",
+        "standard_button_height": "56px",
+        "standard_input_height": "52px",
+        "icon_small": "20px",
+        "icon_standard": "24px",
+        "bottom_nav_height": "72px"
       },
       "radii": {
         "app": "16px",
         "pill": "9999px"
       },
-      "sizing": {
-        "icon_small": "20px",
-        "icon_standard": "24px",
-        "min_touch_target": "48px",
-        "bottom_nav_height": "80px",
-        "standard_input_height": "48px",
-        "standard_button_height": "52px"
-      },
-      "shadows": {
-        "none": "none",
-        "overlay": "0px 8px 24px rgba(0, 0, 0, 0.4)",
-        "surface": "0px 8px 14px 0px rgba(0, 0, 0, 0.2)"
-      },
-      "spacing": {
-        "none": "0px",
-        "lg": "20px",
-        "md": "16px",
-        "sm": "12px",
-        "xl": "24px",
-        "xs": "8px",
-        "xxl": "32px",
-        "xxs": "4px"
-      },
-      "z_index": {
-        "base": "0",
-        "bottom_nav": "20",
-        "bottom_sheet": "30",
-        "modal_dialog": "40",
-        "sticky_header": "10",
-        "toast_snackbar": "50"
-      },
-      "opacities": {
-        "opaque": "1",
-        "pressed": "0.12",
-        "disabled": "0.38",
-        "transparent": "0",
-        "scrim_overlay": "0.50"
-      },
-      "typography": {
-        "font_family": "'Inter', -apple-system, sans-serif",
-        "nav_title": {
-          "size": "18px",
-          "weight": 600,
-          "line_height": "24px"
-        },
-        "screen_title": {
-          "size": "28px",
-          "weight": 700,
-          "line_height": "34px"
-        },
-        "hero_title": {
-          "size": "34px",
-          "weight": 800,
-          "line_height": "40px"
-        },
-        "section_title": {
-          "size": "20px",
-          "weight": 600,
-          "line_height": "26px"
-        },
-        "metric_value": {
-          "size": "24px",
-          "weight": 700,
-          "line_height": "30px"
-        },
-        "body": {
-          "size": "16px",
-          "weight": 400,
-          "line_height": "22px"
-        },
-        "supporting": {
-          "size": "14px",
-          "weight": 400,
-          "line_height": "18px"
-        },
-        "caption": {
-          "size": "12px",
-          "weight": 500,
-          "line_height": "16px"
-        },
-        "button_label": {
-          "size": "16px",
-          "weight": 600,
-          "line_height": "20px"
-        }
-      },
       "border_widths": {
         "standard": "1px"
       },
-      "mobile_layout": {
-        "element_gap": "12px",
-        "section_gap": "24px",
-        "safe_area_top": "16px",
-        "screen_margin": "20px",
-        "safe_area_bottom": "16px"
+      "shadows": {
+        "none": "none",
+        "surface": "0px 4px 20px rgba(0, 0, 0, 0.04)",
+        "overlay": "0px 10px 30px rgba(0, 0, 0, 0.08)"
+      },
+      "opacities": {
+        "transparent": "0",
+        "disabled": "0.38",
+        "scrim_overlay": "0.50",
+        "pressed": "0.12",
+        "opaque": "1"
+      },
+      "z_index": {
+        "base": "0",
+        "sticky_header": "10",
+        "bottom_nav": "20",
+        "bottom_sheet": "30",
+        "modal_dialog": "40",
+        "toast_snackbar": "50"
       }
     },
     "meta": {
       "recommendedFonts": [
         "Inter",
+        "-apple-system",
         "SF Pro Display"
       ]
     }
@@ -159,12 +180,12 @@
     "rootChrome": "bottom-tabs",
     "detailChrome": "top-bar-back",
     "consistencyRules": [
-      "All root screens must utilize the persistent bottom navigation bar.",
-      "All detail screens must use a top-bar-back chrome to return to the parent root.",
-      "Surface colors must remain consistent at #1E1E1E for cards and #121212 for backgrounds.",
-      "Active states in navigation must use high-emphasis white icons."
+      "All primary screens use the floating split-dock navigation",
+      "Typography follows a strict left-aligned hierarchy for headers",
+      "Interactive elements use pill-shaped geometry (radii.pill)",
+      "Monochrome base palette with high-contrast black actions"
     ],
-    "rationale": "The app is a multi-functional productivity tool where users frequently switch between task management, category organization, and scheduling. A bottom-tabs architecture provides the necessary peer-level access to these core modules."
+    "rationale": "The product uses a minimalist, Notion-inspired aesthetic that prioritizes whitespace and typography. A floating bottom dock provides a modern, lightweight feel that doesn't box in the content."
   },
   "navigationPlan": {
     "enabled": true,
@@ -174,127 +195,415 @@
         "id": "home",
         "label": "Home",
         "icon": "home",
-        "role": "Primary dashboard and task overview",
-        "linkedScreenName": "Home"
+        "role": "Primary habit dashboard",
+        "linkedScreenName": "Dashboard"
       },
       {
-        "id": "categories",
-        "label": "Categories",
-        "icon": "layout-grid",
-        "role": "Organize tasks by category",
-        "linkedScreenName": "Categories"
+        "id": "history",
+        "label": "History",
+        "icon": "clock",
+        "role": "Past performance and logs",
+        "linkedScreenName": "History Placeholder"
       },
       {
-        "id": "stats",
-        "label": "Stats",
-        "icon": "bar-chart-2",
-        "role": "View productivity metrics",
-        "linkedScreenName": "Stats"
-      },
-      {
-        "id": "schedule",
-        "label": "Schedule",
-        "icon": "calendar",
-        "role": "Calendar and timeline view",
-        "linkedScreenName": "Schedule"
+        "id": "settings",
+        "label": "Settings",
+        "icon": "settings",
+        "role": "App and profile configuration",
+        "linkedScreenName": "Settings Placeholder"
       }
     ],
-    "visualBrief": "A dark-themed, minimalist bottom navigation bar integrated into the #121212 background. Icons are thin-stroke, high-emphasis white when active and low-emphasis grey when inactive. The bar is flush with the bottom safe area, maintaining a clean, non-elevated look.",
+    "visualBrief": "The navigation is a split floating dock. On the left, a wide pill-shaped container (dg-action-secondary) holds the three primary tab icons (Home, Clock, Settings) with the active icon highlighted. To the right, separated by a small gap, is a perfectly circular black FAB (dg-action-primary) containing a white plus icon. The entire assembly floats above the content with a subtle shadow (dg-shadows-surface).",
     "screenChrome": [
       {
         "screenName": "Welcome",
+        "chrome": "bottom-tabs",
+        "navigationItemId": "home"
+      },
+      {
+        "screenName": "Create Habit",
         "chrome": "top-bar-back",
         "navigationItemId": null
+      },
+      {
+        "screenName": "Dashboard",
+        "chrome": "bottom-tabs",
+        "navigationItemId": "home"
       }
     ]
   },
   "projectCharter": {
-    "originalPrompt": "Create a new, engaging welcome screen for the app that serves as an introduction to the user. It should include a friendly headline, a brief value proposition, and a prominent 'Get Started' call-to-action button to guide the user into the app. Keep the design clean, welcoming, and consistent with the app's overall style.",
-    "imageReferenceSummary": "The reference shows a dark-mode productivity app with a high-contrast, minimalist aesthetic. Key elements include rounded-corner cards (16px), a consistent dark charcoal palette (#121212 background, #1E1E1E cards), and thin-stroke iconography.",
-    "appType": "Productivity / Task Management",
-    "targetAudience": "Professionals and students seeking a clean, distraction-free task management experience.",
-    "navigationModel": "Bottom-tab navigation for primary modules with push-navigation for detail views.",
+    "originalPrompt": "Please build these premium notion style ios asthetics mobile screens",
+    "imageReferenceSummary": "A three-screen flow showing a minimalist habit tracker with a welcome state, a creation flow, and a dashboard. Features a unique floating split-dock navigation, high-contrast monochrome UI, and pill-shaped components.",
+    "appType": "Minimalist Habit Tracker",
+    "targetAudience": "Productivity enthusiasts who value clean, Notion-like aesthetics and low-friction tracking.",
+    "navigationModel": "Bottom-tabbed root destinations with a persistent floating action dock for quick habit entry.",
+    "keyFeatures": [
+      "Daily habit tracking with streak visualization",
+      "Minimalist habit creation flow",
+      "Weekly progress overview",
+      "Floating split-dock navigation"
+    ],
+    "designRationale": "The design leverages 'Notion-style' minimalism: heavy use of Inter typography, generous whitespace, and a monochrome palette. Visual interest is created through high-quality flat illustrations and subtle accent colors (orange/red) for status indicators like streaks and current dates.",
+    "creativeDirection": {
+      "conceptName": "Monolith Minimal",
+      "styleEssence": "Premium utility through extreme reduction. Every element is either functional or structural, using black and white as the primary drivers of hierarchy.",
+      "colorStory": "Pure white backgrounds (#FFFFFF) with deep black actions (#000000). Accents are reserved for 'life' elements: a warm orange for streaks and a soft red for the current date indicator.",
+      "typographyMood": "Inter-driven. Bold, left-aligned headers create a sense of structure and reliability.",
+      "surfaceLanguage": "Flat surfaces with no borders. Depth is communicated through floating elements and very soft, large-radius shadows.",
+      "iconographyStyle": "Thin-stroke Lucide-style icons, used sparingly to maintain the text-first aesthetic.",
+      "compositionPrinciples": [
+        "Left-aligned text blocks",
+        "Generous vertical spacing between sections",
+        "Pill-shaped interactive elements"
+      ],
+      "signatureMoments": [
+        "The split-dock floating navigation bar",
+        "The minimalist plant illustration for empty states",
+        "The high-contrast black streak badges"
+      ],
+      "motionTone": "Snappy, vertical transitions and soft fades.",
+      "avoid": [
+        "Heavy drop shadows",
+        "Complex gradients",
+        "Centered headers on root screens"
+      ]
+    },
     "navigationArchitecture": {
       "kind": "bottom-tabs-app",
       "primaryNavigation": "bottom-tabs",
       "rootChrome": "bottom-tabs",
       "detailChrome": "top-bar-back",
       "consistencyRules": [
-        "All root screens must utilize the persistent bottom navigation bar.",
-        "All detail screens must use a top-bar-back chrome to return to the parent root.",
-        "Surface colors must remain consistent at #1E1E1E for cards and #121212 for backgrounds.",
-        "Active states in navigation must use high-emphasis white icons."
+        "All primary screens use the floating split-dock navigation",
+        "Typography follows a strict left-aligned hierarchy for headers",
+        "Interactive elements use pill-shaped geometry (radii.pill)",
+        "Monochrome base palette with high-contrast black actions"
       ],
-      "rationale": "The app is a multi-functional productivity tool where users frequently switch between task management, category organization, and scheduling. A bottom-tabs architecture provides the necessary peer-level access to these core modules."
-    },
-    "keyFeatures": [
-      "Task tracking and filtering",
-      "Category-based organization",
-      "Visual timeline scheduling",
-      "Productivity metrics"
-    ],
-    "designRationale": "The design prioritizes clarity and focus through a dark-mode-first approach. By using subtle surface elevation (card vs. background) and high-contrast typography, the interface reduces cognitive load.",
-    "creativeDirection": {
-      "conceptName": "Midnight Productivity",
-      "styleEssence": "Minimalist, high-contrast, and precise.",
-      "colorStory": "Deep charcoal background (#121212) with #1E1E1E cards. Accents are used sparingly for status indicators (blue, red, orange, purple, green).",
-      "typographyMood": "Clean, sans-serif (Inter/SF Pro). High-emphasis white for primary text, medium-emphasis grey for secondary.",
-      "surfaceLanguage": "Rounded rectangles (16px radius) with no drop shadows, relying on color contrast for depth.",
-      "iconographyStyle": "Thin-stroke, minimalist line icons.",
-      "compositionPrinciples": [
-        "Maintain 20px screen margins.",
-        "Use consistent 12px element spacing.",
-        "Align all text to a strict vertical rhythm."
-      ],
-      "signatureMoments": [
-        "The 3-column stats row on the Home screen.",
-        "The vertical timeline line connecting task dots on the Schedule screen."
-      ],
-      "motionTone": "Fluid, standard iOS slide transitions.",
-      "avoid": [
-        "Drop shadows.",
-        "Overly decorative elements.",
-        "High-density clutter."
-      ]
+      "rationale": "The product uses a minimalist, Notion-inspired aesthetic that prioritizes whitespace and typography. A floating bottom dock provides a modern, lightweight feel that doesn't box in the content."
     },
     "referenceScreens": [],
     "designSystemSignals": null,
     "planningDiagnostics": {
-      "source": "partial_planner",
-      "validationIssues": [
-        "navigation_plan.screen_chrome.0.chrome: Invalid option: expected one of \"bottom-tabs\"|\"top-bar\"|\"top-bar-back\"|\"modal-sheet\"|\"immersive\"",
-        "screens.0.chrome_policy.chrome: Invalid option: expected one of \"bottom-tabs\"|\"top-bar\"|\"top-bar-back\"|\"modal-sheet\"|\"immersive\""
-      ],
+      "source": "planner",
       "rawPlanKeys": [
         "navigation_architecture",
         "navigation_plan",
         "charter",
         "screens"
       ],
-      "rawScreenCount": 1,
-      "recoveredScreens": 1,
-      "notes": [
-        "Recovered planner output independently instead of replacing the whole charter with generic fallback.",
-        "Screen plans came from valid planner screen objects."
+      "rawScreenCount": 3,
+      "recoveredScreens": 3
+    },
+    "charterSource": "planner"
+  },
+  "projectContext": "Use this project memory to stay consistent with the existing product.\n\nDo not duplicate a retrieved screen unless the user explicitly asked to replace or rework it.\n\nPROJECT CHARTER\nOriginal intent: Please build these premium notion style ios asthetics mobile screens\nImage reference: A three-screen flow showing a minimalist habit tracker with a welcome state, a creation flow, and a dashboard. Features a unique floating split-dock navigation, high-contrast monochrome UI, and pill-shaped components.\nApp type: Minimalist Habit Tracker\nAudience: Productivity enthusiasts who value clean, Notion-like aesthetics and low-friction tracking.\nNavigation model: Bottom-tabbed root destinations with a persistent floating action dock for quick habit entry.\nKey features: Daily habit tracking with streak visualization, Minimalist habit creation flow, Weekly progress overview, Floating split-dock navigation\nDesign rationale: The design leverages 'Notion-style' minimalism: heavy use of Inter typography, generous whitespace, and a monochrome palette. Visual interest is created through high-quality flat illustrations and subtle accent colors (orange/red) for status indicators like streaks and current dates.\n\nNAVIGATION ARCHITECTURE\nKind: bottom-tabs-app\nPrimary navigation: bottom-tabs\nRoot chrome: bottom-tabs\nDetail chrome: top-bar-back\nRationale: The product uses a minimalist, Notion-inspired aesthetic that prioritizes whitespace and typography. A floating bottom dock provides a modern, lightweight feel that doesn't box in the content.\nConsistency rules: All primary screens use the floating split-dock navigation, Typography follows a strict left-aligned hierarchy for headers, Interactive elements use pill-shaped geometry (radii.pill), Monochrome base palette with high-contrast black actions\n\nAPPROVED NAVIGATION PLAN\nPersistent navigation: bottom-tabs\nItems: Home (home, home) -> Dashboard, History (history, clock) -> History Placeholder, Settings (settings, settings) -> Settings Placeholder\nVisual brief: The navigation is a split floating dock. On the left, a wide pill-shaped container (dg-action-secondary) holds the three primary tab icons (Home, Clock, Settings) with the active icon highlighted. To the right, separated by a small gap, is a perfectly circular black FAB (dg-action-primary) containing a white plus icon. The entire assembly floats above the content with a subtle shadow (dg-shadows-surface).\nScreen chrome: Welcome: bottom-tabs/home, Create Habit: top-bar-back, Dashboard: bottom-tabs/home\n\nCREATIVE DIRECTION\nConcept: Monolith Minimal\nStyle essence: Premium utility through extreme reduction. Every element is either functional or structural, using black and white as the primary drivers of hierarchy.\nColor story: Pure white backgrounds (#FFFFFF) with deep black actions (#000000). Accents are reserved for 'life' elements: a warm orange for streaks and a soft red for the current date indicator.\nTypography mood: Inter-driven. Bold, left-aligned headers create a sense of structure and reliability.\nSurface language: Flat surfaces with no borders. Depth is communicated through floating elements and very soft, large-radius shadows.\nIconography: Thin-stroke Lucide-style icons, used sparingly to maintain the text-first aesthetic.\nComposition principles: Left-aligned text blocks, Generous vertical spacing between sections, Pill-shaped interactive elements\nSignature moments: The split-dock floating navigation bar, The minimalist plant illustration for empty states, The high-contrast black streak badges\nMotion tone: Snappy, vertical transitions and soft fades.\nAvoid: Heavy drop shadows, Complex gradients, Centered headers on root screens\n\nTYPOGRAPHY ROLE CONTRACT\nnav_title: top bars, modal headers, compact detail headers\nscreen_title: default title for normal app feature screens\nhero_title: onboarding, empty states, splash/editorial hero moments only\nsection_title: cards, grouped content, list sections, panel headers\nmetric_value: balances, prices, counters, scores, numeric hero data\nbody: primary body copy, list item titles, main descriptive text\nsupporting: supporting copy, subtitles, secondary descriptions\ncaption: metadata, helper text, and micro-labels\nbutton_label: all buttons, segmented controls, and tappable nav labels"
+}
+
+## output:
+
+{
+  "screenId": "b97068ef-6370-4962-b202-7a98424c0e7a",
+  "status": "failed",
+  "error": "[screen_health:incomplete] Generated HTML contains placeholder or truncated-looking content."
+}
+
+# build-screen 2 from another screen out fo those 3- i once failed but iin another retry the screen was created,,, i am bothered why it faile din first palce.
+
+
+
+{
+  "generationRunId": "8e0a5515-f70b-409b-b944-158f12a6ae47",
+  "screenId": "f03f2d45-99ba-4a0d-9a8b-d21b68ce8b9d",
+  "projectId": "28088ad1-ed86-48af-b4a7-94aa278ffab6",
+  "screenPlan": {
+    "name": "Dashboard",
+    "type": "root",
+    "description": "Reference DNA: Based on the third panel of the reference image. Visual Goal: Provide a clear, glanceable overview of daily tasks and progress. Layout Anatomy: A top calendar strip showing the current week, followed by a vertical list of habit cards. Each card contains the habit name, a streak badge, and a row of progress indicators. Key Components: Calendar strip with day labels (Sun-Sat) and dates; the current date (Wed 24) is highlighted in red. Habit cards like 'Drink Water (Daily)' feature a black pill badge with a flame icon ('25 days streak'). Below the title is a row of 7 circles: completed days show a checkmark in a light grey circle, the current day is an empty thick-bordered circle, and future days are light grey letters (F, S, S). Visual Styling: Cards are not boxed; they are separated by whitespace and 'Tap to mark today' helper text in dg-type-caption. The streak badge is high-contrast black. Interaction Notes: Tapping the empty circle for the current day toggles it to a checkmark state and increments the streak. Must Preserve: The horizontal row of progress circles and the specific placement of the streak badge to the right of the habit title.",
+    "chromePolicy": {
+      "chrome": "bottom-tabs",
+      "showPrimaryNavigation": true,
+      "showsBackButton": false
+    },
+    "navigationItemId": "home"
+  },
+  "prompt": "Please build these premium notion style ios asthetics mobile screens",
+  "designTokens": {
+    "system_schema": "mobile_universal_core",
+    "tokens": {
+      "color": {
+        "background": {
+          "primary": "#FFFFFF",
+          "secondary": "#F9F9F9"
+        },
+        "surface": {
+          "card": "#FFFFFF",
+          "bottom_sheet": "#FFFFFF",
+          "modal": "#FFFFFF"
+        },
+        "text": {
+          "high_emphasis": "#000000",
+          "medium_emphasis": "#666666",
+          "low_emphasis": "#A1A1A1"
+        },
+        "action": {
+          "primary": "#000000",
+          "secondary": "#E5E5EA",
+          "disabled": "#D1D1D6",
+          "on_primary_text": "#FFFFFF"
+        },
+        "border": {
+          "divider": "#F2F2F7",
+          "focused": "#000000"
+        }
+      },
+      "typography": {
+        "font_family": "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+        "nav_title": {
+          "size": "17px",
+          "weight": "600",
+          "line_height": "22px"
+        },
+        "screen_title": {
+          "size": "28px",
+          "weight": "700",
+          "line_height": "34px"
+        },
+        "hero_title": {
+          "size": "34px",
+          "weight": "800",
+          "line_height": "41px"
+        },
+        "section_title": {
+          "size": "18px",
+          "weight": "600",
+          "line_height": "24px"
+        },
+        "metric_value": {
+          "size": "24px",
+          "weight": "700",
+          "line_height": "30px"
+        },
+        "body": {
+          "size": "16px",
+          "weight": "400",
+          "line_height": "24px"
+        },
+        "supporting": {
+          "size": "14px",
+          "weight": "400",
+          "line_height": "20px"
+        },
+        "caption": {
+          "size": "12px",
+          "weight": "500",
+          "line_height": "16px"
+        },
+        "button_label": {
+          "size": "16px",
+          "weight": "600",
+          "line_height": "20px"
+        }
+      },
+      "spacing": {
+        "none": "0px",
+        "xxs": "4px",
+        "xs": "8px",
+        "sm": "12px",
+        "md": "16px",
+        "lg": "24px",
+        "xl": "32px",
+        "xxl": "48px"
+      },
+      "mobile_layout": {
+        "screen_margin": "24px",
+        "safe_area_top": "16px",
+        "safe_area_bottom": "16px",
+        "section_gap": "40px",
+        "element_gap": "16px"
+      },
+      "sizing": {
+        "min_touch_target": "48px",
+        "standard_button_height": "56px",
+        "standard_input_height": "52px",
+        "icon_small": "20px",
+        "icon_standard": "24px",
+        "bottom_nav_height": "72px"
+      },
+      "radii": {
+        "app": "16px",
+        "pill": "9999px"
+      },
+      "border_widths": {
+        "standard": "1px"
+      },
+      "shadows": {
+        "none": "none",
+        "surface": "0px 4px 20px rgba(0, 0, 0, 0.04)",
+        "overlay": "0px 10px 30px rgba(0, 0, 0, 0.08)"
+      },
+      "opacities": {
+        "transparent": "0",
+        "disabled": "0.38",
+        "scrim_overlay": "0.50",
+        "pressed": "0.12",
+        "opaque": "1"
+      },
+      "z_index": {
+        "base": "0",
+        "sticky_header": "10",
+        "bottom_nav": "20",
+        "bottom_sheet": "30",
+        "modal_dialog": "40",
+        "toast_snackbar": "50"
+      }
+    },
+    "meta": {
+      "recommendedFonts": [
+        "Inter",
+        "-apple-system",
+        "SF Pro Display"
+      ]
+    }
+  },
+  "image": null,
+  "requiresBottomNav": true,
+  "navigationArchitecture": {
+    "kind": "bottom-tabs-app",
+    "primaryNavigation": "bottom-tabs",
+    "rootChrome": "bottom-tabs",
+    "detailChrome": "top-bar-back",
+    "consistencyRules": [
+      "All primary screens use the floating split-dock navigation",
+      "Typography follows a strict left-aligned hierarchy for headers",
+      "Interactive elements use pill-shaped geometry (radii.pill)",
+      "Monochrome base palette with high-contrast black actions"
+    ],
+    "rationale": "The product uses a minimalist, Notion-inspired aesthetic that prioritizes whitespace and typography. A floating bottom dock provides a modern, lightweight feel that doesn't box in the content."
+  },
+  "navigationPlan": {
+    "enabled": true,
+    "kind": "bottom-tabs",
+    "items": [
+      {
+        "id": "home",
+        "label": "Home",
+        "icon": "home",
+        "role": "Primary habit dashboard",
+        "linkedScreenName": "Dashboard"
+      },
+      {
+        "id": "history",
+        "label": "History",
+        "icon": "clock",
+        "role": "Past performance and logs",
+        "linkedScreenName": "History Placeholder"
+      },
+      {
+        "id": "settings",
+        "label": "Settings",
+        "icon": "settings",
+        "role": "App and profile configuration",
+        "linkedScreenName": "Settings Placeholder"
+      }
+    ],
+    "visualBrief": "The navigation is a split floating dock. On the left, a wide pill-shaped container (dg-action-secondary) holds the three primary tab icons (Home, Clock, Settings) with the active icon highlighted. To the right, separated by a small gap, is a perfectly circular black FAB (dg-action-primary) containing a white plus icon. The entire assembly floats above the content with a subtle shadow (dg-shadows-surface).",
+    "screenChrome": [
+      {
+        "screenName": "Welcome",
+        "chrome": "bottom-tabs",
+        "navigationItemId": "home"
+      },
+      {
+        "screenName": "Create Habit",
+        "chrome": "top-bar-back",
+        "navigationItemId": null
+      },
+      {
+        "screenName": "Dashboard",
+        "chrome": "bottom-tabs",
+        "navigationItemId": "home"
+      }
+    ]
+  },
+  "projectCharter": {
+    "originalPrompt": "Please build these premium notion style ios asthetics mobile screens",
+    "imageReferenceSummary": "A three-screen flow showing a minimalist habit tracker with a welcome state, a creation flow, and a dashboard. Features a unique floating split-dock navigation, high-contrast monochrome UI, and pill-shaped components.",
+    "appType": "Minimalist Habit Tracker",
+    "targetAudience": "Productivity enthusiasts who value clean, Notion-like aesthetics and low-friction tracking.",
+    "navigationModel": "Bottom-tabbed root destinations with a persistent floating action dock for quick habit entry.",
+    "keyFeatures": [
+      "Daily habit tracking with streak visualization",
+      "Minimalist habit creation flow",
+      "Weekly progress overview",
+      "Floating split-dock navigation"
+    ],
+    "designRationale": "The design leverages 'Notion-style' minimalism: heavy use of Inter typography, generous whitespace, and a monochrome palette. Visual interest is created through high-quality flat illustrations and subtle accent colors (orange/red) for status indicators like streaks and current dates.",
+    "creativeDirection": {
+      "conceptName": "Monolith Minimal",
+      "styleEssence": "Premium utility through extreme reduction. Every element is either functional or structural, using black and white as the primary drivers of hierarchy.",
+      "colorStory": "Pure white backgrounds (#FFFFFF) with deep black actions (#000000). Accents are reserved for 'life' elements: a warm orange for streaks and a soft red for the current date indicator.",
+      "typographyMood": "Inter-driven. Bold, left-aligned headers create a sense of structure and reliability.",
+      "surfaceLanguage": "Flat surfaces with no borders. Depth is communicated through floating elements and very soft, large-radius shadows.",
+      "iconographyStyle": "Thin-stroke Lucide-style icons, used sparingly to maintain the text-first aesthetic.",
+      "compositionPrinciples": [
+        "Left-aligned text blocks",
+        "Generous vertical spacing between sections",
+        "Pill-shaped interactive elements"
+      ],
+      "signatureMoments": [
+        "The split-dock floating navigation bar",
+        "The minimalist plant illustration for empty states",
+        "The high-contrast black streak badges"
+      ],
+      "motionTone": "Snappy, vertical transitions and soft fades.",
+      "avoid": [
+        "Heavy drop shadows",
+        "Complex gradients",
+        "Centered headers on root screens"
       ]
     },
-    "charterSource": "partial_planner"
+    "navigationArchitecture": {
+      "kind": "bottom-tabs-app",
+      "primaryNavigation": "bottom-tabs",
+      "rootChrome": "bottom-tabs",
+      "detailChrome": "top-bar-back",
+      "consistencyRules": [
+        "All primary screens use the floating split-dock navigation",
+        "Typography follows a strict left-aligned hierarchy for headers",
+        "Interactive elements use pill-shaped geometry (radii.pill)",
+        "Monochrome base palette with high-contrast black actions"
+      ],
+      "rationale": "The product uses a minimalist, Notion-inspired aesthetic that prioritizes whitespace and typography. A floating bottom dock provides a modern, lightweight feel that doesn't box in the content."
+    },
+    "referenceScreens": [],
+    "designSystemSignals": null,
+    "planningDiagnostics": {
+      "source": "planner",
+      "rawPlanKeys": [
+        "navigation_architecture",
+        "navigation_plan",
+        "charter",
+        "screens"
+      ],
+      "rawScreenCount": 3,
+      "recoveredScreens": 3
+    },
+    "charterSource": "planner"
   },
-  "projectContext": "Use this project memory to stay consistent with the existing product.\n\nDo not duplicate a retrieved screen unless the user explicitly asked to replace or rework it.\n\nPROJECT CHARTER\nOriginal intent: Create a new, engaging welcome screen for the app that serves as an introduction to the user. It should include a friendly headline, a brief value proposition, and a prominent 'Get Started' call-to-action button to guide the user into the app. Keep the design clean, welcoming, and consistent with the app's overall style.\nImage reference: The reference shows a dark-mode productivity app with a high-contrast, minimalist aesthetic. Key elements include rounded-corner cards (16px), a consistent dark charcoal palette (#121212 background, #1E1E1E cards), and thin-stroke iconography.\nApp type: Productivity / Task Management\nAudience: Professionals and students seeking a clean, distraction-free task management experience.\nNavigation model: Bottom-tab navigation for primary modules with push-navigation for detail views.\nKey features: Task tracking and filtering, Category-based organization, Visual timeline scheduling, Productivity metrics\nDesign rationale: The design prioritizes clarity and focus through a dark-mode-first approach. By using subtle surface elevation (card vs. background) and high-contrast typography, the interface reduces cognitive load.\n\nNAVIGATION ARCHITECTURE\nKind: bottom-tabs-app\nPrimary navigation: bottom-tabs\nRoot chrome: bottom-tabs\nDetail chrome: top-bar-back\nRationale: The app is a multi-functional productivity tool where users frequently switch between task management, category organization, and scheduling. A bottom-tabs architecture provides the necessary peer-level access to these core modules.\nConsistency rules: All root screens must utilize the persistent bottom navigation bar., All detail screens must use a top-bar-back chrome to return to the parent root., Surface colors must remain consistent at #1E1E1E for cards and #121212 for backgrounds., Active states in navigation must use high-emphasis white icons.\n\nAPPROVED NAVIGATION PLAN\nPersistent navigation: bottom-tabs\nItems: Home (home, home) -> Home, Categories (categories, layout-grid) -> Categories, Stats (stats, bar-chart-2) -> Stats, Schedule (schedule, calendar) -> Schedule\nVisual brief: A dark-themed, minimalist bottom navigation bar integrated into the #121212 background. Icons are thin-stroke, high-emphasis white when active and low-emphasis grey when inactive. The bar is flush with the bottom safe area, maintaining a clean, non-elevated look.\nScreen chrome: Welcome: top-bar-back\n\nCREATIVE DIRECTION\nConcept: Midnight Productivity\nStyle essence: Minimalist, high-contrast, and precise.\nColor story: Deep charcoal background (#121212) with #1E1E1E cards. Accents are used sparingly for status indicators (blue, red, orange, purple, green).\nTypography mood: Clean, sans-serif (Inter/SF Pro). High-emphasis white for primary text, medium-emphasis grey for secondary.\nSurface language: Rounded rectangles (16px radius) with no drop shadows, relying on color contrast for depth.\nIconography: Thin-stroke, minimalist line icons.\nComposition principles: Maintain 20px screen margins., Use consistent 12px element spacing., Align all text to a strict vertical rhythm.\nSignature moments: The 3-column stats row on the Home screen., The vertical timeline line connecting task dots on the Schedule screen.\nMotion tone: Fluid, standard iOS slide transitions.\nAvoid: Drop shadows., Overly decorative elements., High-density clutter.\n\nAPPROVED DESIGN CONTRACT\nStandard app radius: 16px\nPill radius: 9999px (use only for capsule controls)\nStandard border width: 1px\nStandard surface shadow: 0px 8px 14px 0px rgba(0, 0, 0, 0.2)\nOverlay shadow: 0px 8px 24px rgba(0, 0, 0, 0.4)\nScreen margin: 20px\nSection gap: 24px\nElement gap: 12px\nStandard button height: 52px\nStandard input height: 48px\n\nTYPOGRAPHY ROLE CONTRACT\nnav_title: top bars, modal headers, compact detail headers\nscreen_title: default title for normal app feature screens\nhero_title: onboarding, empty states, splash/editorial hero moments only\nsection_title: cards, grouped content, list sections, panel headers\nmetric_value: balances, prices, counters, scores, numeric hero data\nbody: primary body copy, list item titles, main descriptive text\nsupporting: supporting copy, subtitles, secondary descriptions\ncaption: metadata, helper text, and micro-labels\nbutton_label: all buttons, segmented controls, and tappable nav labels\n\nAPPROVED TOKEN CONTEXT\nTOKEN CONTEXT MODE: compact_visual\nUse Drawgle live tokens for canonical colors, typography, spacing, sizing, radii, borders, and shadows.\nPrefer utility classes when the semantic role matches: dg-bg-primary, dg-surface-card, dg-text-high, dg-text-medium, dg-text-low, dg-action-primary, dg-border-divider, dg-radius-app, dg-radius-pill, dg-shadow-surface, dg-type-screen-title, dg-type-section-title, dg-type-metric-value, dg-type-body, dg-type-caption, dg-type-button-label.\nFor token values without a named utility, use CSS variables in Tailwind arbitrary classes, e.g. bg-[var(--dg-color-action-primary)], p-[var(--dg-spacing-md)], rounded-[var(--dg-radii-app)], shadow-[var(--dg-shadows-surface)].\nUse raw hex, raw pixels, and custom gradients only for deliberate one-off visual details such as charts, maps, illustrations, and special effects.\nRelevant token variables:\ncolor.text.low_emphasis: var(--dg-color-text-low-emphasis) = #666666\ncolor.text.high_emphasis: var(--dg-color-text-high-emphasis) = #FFFFFF\ncolor.text.medium_emphasis: var(--dg-color-text-medium-emphasis) = #A0A0A0\ncolor.action.primary: var(--dg-color-action-primary) = #FFFFFF\ncolor.action.disabled: var(--dg-color-action-disabled) = #333333\ncolor.action.secondary: var(--dg-color-action-secondary) = #3D3D3D\ncolor.action.on_primary_text: var(--dg-color-action-on-primary-text) = #121212\ncolor.border.divider: var(--dg-color-border-divider) = #2D2D2D\ncolor.border.focused: var(--dg-color-border-focused) = #FFFFFF\ncolor.surface.card: var(--dg-color-surface-card) = #1E1E1E\ncolor.surface.modal: var(--dg-color-surface-modal) = #252525\ncolor.surface.bottom_sheet: var(--dg-color-surface-bottom-sheet) = #252525\ncolor.background.primary: var(--dg-color-background-primary) = #121212\ncolor.background.secondary: var(--dg-color-background-secondary) = #1E1E1E\nradii.app: var(--dg-radii-app) = 16px\nradii.pill: var(--dg-radii-pill) = 9999px\nsizing.min_touch_target: var(--dg-sizing-min-touch-target) = 48px\nsizing.standard_input_height: var(--dg-sizing-standard-input-height) = 48px\nsizing.standard_button_height: var(--dg-sizing-standard-button-height) = 52px\nshadows.none: var(--dg-shadows-none) = none\nshadows.overlay: var(--dg-shadows-overlay) = 0px 8px 24px rgba(0, 0, 0, 0.4)\nshadows.surface: var(--dg-shadows-surface) = 0px 8px 14px 0px rgba(0, 0, 0, 0.2)\nspacing.none: var(--dg-spacing-none) = 0px\nspacing.lg: var(--dg-spacing-lg) = 20px\nspacing.md: var(--dg-spacing-md) = 16px\nspacing.sm: var(--dg-spacing-sm) = 12px\nspacing.xl: var(--dg-spacing-xl) = 24px\nspacing.xs: var(--dg-spacing-xs) = 8px\nspacing.xxl: var(--dg-spacing-xxl) = 32px\nspacing.xxs: var(--dg-spacing-xxs) = 4px\ntypography.font_family: var(--dg-typography-font-family) = 'Inter', -apple-system, sans-serif\ntypography.nav_title.size: var(--dg-type-nav-title-size) = 18px\ntypography.nav_title.weight: var(--dg-type-nav-title-weight) = 600\ntypography.nav_title.line_height: var(--dg-type-nav-title-line-height) = 24px\ntypography.screen_title.size: var(--dg-type-screen-title-size) = 28px\ntypography.screen_title.weight: var(--dg-type-screen-title-weight) = 700\ntypography.screen_title.line_height: var(--dg-type-screen-title-line-height) = 34px\ntypography.section_title.size: var(--dg-type-section-title-size) = 20px\ntypography.section_title.weight: var(--dg-type-section-title-weight) = 600\ntypography.section_title.line_height: var(--dg-type-section-title-line-height) = 26px\ntypography.metric_value.size: var(--dg-type-metric-value-size) = 24px\ntypography.metric_value.weight: var(--dg-type-metric-value-weight) = 700\ntypography.metric_value.line_height: var(--dg-type-metric-value-line-height) = 30px\ntypography.body.size: var(--dg-type-body-size) = 16px\ntypography.body.weight: var(--dg-type-body-weight) = 400\ntypography.body.line_height: var(--dg-type-body-line-height) = 22px\ntypography.caption.size: var(--dg-type-caption-size) = 12px\ntypography.caption.weight: var(--dg-type-caption-weight) = 500\ntypography.caption.line_height: var(--dg-type-caption-line-height) = 16px\ntypography.button_label.size: var(--dg-type-button-label-size) = 16px\ntypography.button_label.weight: var(--dg-type-button-label-weight) = 600\ntypography.button_label.line_height: var(--dg-type-button-label-line-height) = 20px\nborder_widths.standard: var(--dg-border-widths-standard) = 1px\nmobile_layout.element_gap: var(--dg-mobile-layout-element-gap) = 12px\nmobile_layout.section_gap: var(--dg-mobile-layout-section-gap) = 24px\nmobile_layout.safe_area_top: var(--dg-mobile-layout-safe-area-top) = 16px\nmobile_layout.screen_margin: var(--dg-mobile-layout-screen-margin) = 20px\nmobile_layout.safe_area_bottom: var(--dg-mobile-layout-safe-area-bottom) = 16px\n\nRELEVANT EXISTING SCREENS\n1. Categories (63% match)\nThis screen displays a grid of category cards that track progress for various life domains. Each card features a descriptive icon, a title, and a progress bar to visualize completion status.\n\n2. Schedule (63% match)\nThis schedule screen allows users to manage daily tasks through a horizontal date selector and a prominent \"New Task\" action button. The interface utilizes a vertical timeline pattern with color-coded cards to display time-bound events clearly."
+  "projectContext": "Use this project memory to stay consistent with the existing product.\n\nDo not duplicate a retrieved screen unless the user explicitly asked to replace or rework it.\n\nPROJECT CHARTER\nOriginal intent: Please build these premium notion style ios asthetics mobile screens\nImage reference: A three-screen flow showing a minimalist habit tracker with a welcome state, a creation flow, and a dashboard. Features a unique floating split-dock navigation, high-contrast monochrome UI, and pill-shaped components.\nApp type: Minimalist Habit Tracker\nAudience: Productivity enthusiasts who value clean, Notion-like aesthetics and low-friction tracking.\nNavigation model: Bottom-tabbed root destinations with a persistent floating action dock for quick habit entry.\nKey features: Daily habit tracking with streak visualization, Minimalist habit creation flow, Weekly progress overview, Floating split-dock navigation\nDesign rationale: The design leverages 'Notion-style' minimalism: heavy use of Inter typography, generous whitespace, and a monochrome palette. Visual interest is created through high-quality flat illustrations and subtle accent colors (orange/red) for status indicators like streaks and current dates.\n\nNAVIGATION ARCHITECTURE\nKind: bottom-tabs-app\nPrimary navigation: bottom-tabs\nRoot chrome: bottom-tabs\nDetail chrome: top-bar-back\nRationale: The product uses a minimalist, Notion-inspired aesthetic that prioritizes whitespace and typography. A floating bottom dock provides a modern, lightweight feel that doesn't box in the content.\nConsistency rules: All primary screens use the floating split-dock navigation, Typography follows a strict left-aligned hierarchy for headers, Interactive elements use pill-shaped geometry (radii.pill), Monochrome base palette with high-contrast black actions\n\nAPPROVED NAVIGATION PLAN\nPersistent navigation: bottom-tabs\nItems: Home (home, home) -> Dashboard, History (history, clock) -> History Placeholder, Settings (settings, settings) -> Settings Placeholder\nVisual brief: The navigation is a split floating dock. On the left, a wide pill-shaped container (dg-action-secondary) holds the three primary tab icons (Home, Clock, Settings) with the active icon highlighted. To the right, separated by a small gap, is a perfectly circular black FAB (dg-action-primary) containing a white plus icon. The entire assembly floats above the content with a subtle shadow (dg-shadows-surface).\nScreen chrome: Welcome: bottom-tabs/home, Create Habit: top-bar-back, Dashboard: bottom-tabs/home\n\nCREATIVE DIRECTION\nConcept: Monolith Minimal\nStyle essence: Premium utility through extreme reduction. Every element is either functional or structural, using black and white as the primary drivers of hierarchy.\nColor story: Pure white backgrounds (#FFFFFF) with deep black actions (#000000). Accents are reserved for 'life' elements: a warm orange for streaks and a soft red for the current date indicator.\nTypography mood: Inter-driven. Bold, left-aligned headers create a sense of structure and reliability.\nSurface language: Flat surfaces with no borders. Depth is communicated through floating elements and very soft, large-radius shadows.\nIconography: Thin-stroke Lucide-style icons, used sparingly to maintain the text-first aesthetic.\nComposition principles: Left-aligned text blocks, Generous vertical spacing between sections, Pill-shaped interactive elements\nSignature moments: The split-dock floating navigation bar, The minimalist plant illustration for empty states, The high-contrast black streak badges\nMotion tone: Snappy, vertical transitions and soft fades.\nAvoid: Heavy drop shadows, Complex gradients, Centered headers on root screens\n\nTYPOGRAPHY ROLE CONTRACT\nnav_title: top bars, modal headers, compact detail headers\nscreen_title: default title for normal app feature screens\nhero_title: onboarding, empty states, splash/editorial hero moments only\nsection_title: cards, grouped content, list sections, panel headers\nmetric_value: balances, prices, counters, scores, numeric hero data\nbody: primary body copy, list item titles, main descriptive text\nsupporting: supporting copy, subtitles, secondary descriptions\ncaption: metadata, helper text, and micro-labels\nbutton_label: all buttons, segmented controls, and tappable nav labels"
 }
 
-
-
-
-
-
-
-
-
-
-aong with this build screen run there was another run craeetd whihc was enrich-screen.. wha for this was ???????
 {
-  "screenId": "e33e8665-544f-4480-8369-6e7c0de009e4",
-  "screenName": "Welcome",
-  "code": "<div class=\"w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden\" style=\"font-family: var(--dg-typography-font-family, 'Inter', -apple-system, sans-serif)\" data-drawgle-id=\"dg-1\">\n  \n  <!-- Top Bar Back -->\n  <header class=\"w-full flex items-center px-[var(--dg-mobile-layout-screen-margin)] pt-[var(--dg-mobile-layout-safe-area-top)] h-[64px]\" data-drawgle-id=\"dg-2\">\n    <button class=\"flex items-center justify-center min-w-[48px] min-h-[48px] -ml-[var(--dg-spacing-sm)]\" data-drawgle-id=\"dg-3\">\n      <svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m15 18-6-6 6-6\"/></svg>\n    </button>\n  </header>\n\n  <!-- Main Content Area -->\n  <main class=\"flex-1 flex flex-col justify-center px-[var(--dg-mobile-layout-screen-margin)] pb-[var(--dg-mobile-layout-safe-area-bottom)]\" data-drawgle-id=\"dg-4\">\n    <div class=\"flex flex-col gap-[var(--dg-mobile-layout-section-gap)]\" data-drawgle-id=\"dg-5\">\n      \n      <!-- Hero Text Block -->\n      <div class=\"flex flex-col gap-[var(--dg-mobile-layout-element-gap)]\" data-drawgle-id=\"dg-6\">\n        <h1 class=\"dg-type-hero-title text-[var(--dg-color-text-high-emphasis)] leading-[40px]\" data-drawgle-id=\"dg-7\">\n          Master your<br/>daily flow.\n        </h1>\n        <p class=\"dg-type-body text-[var(--dg-color-text-medium-emphasis)] max-w-[300px]\" data-drawgle-id=\"dg-8\">\n          A distraction-free space designed to help you organize, schedule, and achieve your most important goals.\n        </p>\n      </div>\n\n    </div>\n  </main>\n\n  <!-- Footer CTA -->\n  <footer class=\"w-full px-[var(--dg-mobile-layout-screen-margin)] pb-[var(--dg-mobile-layout-safe-area-bottom)] pt-[var(--dg-mobile-layout-element-gap)]\" data-drawgle-id=\"dg-9\">\n    <button class=\"w-full dg-action-primary h-[var(--dg-sizing-standard-button-height)] rounded-[var(--dg-radii-app)] flex items-center justify-center active:scale-[0.98] transition-transform duration-200\" data-drawgle-id=\"dg-a\">\n      <span class=\"dg-type-button-label text-[var(--dg-color-action-on-primary-text)]\" data-drawgle-id=\"dg-b\">Get Started</span>\n    </button>\n  </footer>\n\n</div>"
+  "finishReasons": [
+    "MAX_TOKENS"
+  ],
+  "issues": [
+    "Generated HTML did not include the Drawgle completion sentinel.",
+    "Model generation stopped because of output length: MAX_TOKENS.",
+    "Generated HTML root is not fully closed (40 opening tags, 36 closing tags)."
+  ],
+  "screenId": "f03f2d45-99ba-4a0d-9a8b-d21b68ce8b9d",
+  "screenName": "Dashboard"
 }
+
