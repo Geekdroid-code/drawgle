@@ -27,6 +27,7 @@ import { buildTokenPromptContext } from "@/lib/token-runtime";
 import type {
   BuildScreenInput,
   LlmInputSnapshot,
+  LlmLogFn,
   CreativeDirection,
   DesignTokenMetadata,
   DesignTokenValues,
@@ -1139,6 +1140,7 @@ export async function planUiFlow({
   existingCharter,
   existingNavigationPlan,
   planningMode = "project",
+  llmLog,
 }: {
   prompt: string;
   image?: PromptImagePayload | null;
@@ -1147,6 +1149,7 @@ export async function planUiFlow({
   existingCharter?: ProjectCharter | null;
   existingNavigationPlan?: NavigationPlan | null;
   planningMode?: PlanningMode;
+  llmLog?: LlmLogFn;
 }): Promise<PlannedUiFlow> {
   const ai = createGeminiClient();
   const parts: Array<Record<string, unknown>> = [];
@@ -1229,11 +1232,27 @@ export async function planUiFlow({
     responseMimeType: "application/json",
     temperature: 0.1,
   });
+  if (llmLog) {
+    const si = typeof policy.config.systemInstruction === "string" ? policy.config.systemInstruction : "";
+    llmLog(`[LLM INPUT] plan-ui-flow`, {
+      model: policy.model,
+      planningMode,
+      systemInstructionLength: si.length,
+      systemInstruction: si,
+      userPartCount: parts.length,
+      userParts: parts.map((p) => (typeof p.text === "string" ? p.text : "[image]")),
+    });
+  }
+
   const response = await ai.models.generateContent({
     model: policy.model,
     contents: { parts },
     config: policy.config,
   });
+
+  if (llmLog && response.usageMetadata) {
+    llmLog(`[TOKEN USAGE] plan-ui-flow`, response.usageMetadata as Record<string, unknown>);
+  }
 
   const rawPlan = parseJsonResponse<unknown>(response.text || "{}");
   const parsed = PlanSchema.safeParse(rawPlan);
@@ -1405,9 +1424,11 @@ export async function planUiFlow({
 export async function generateDesignTokens({
   prompt,
   image,
+  llmLog,
 }: {
   prompt: string;
   image?: PromptImagePayload | null;
+  llmLog?: LlmLogFn;
 }) {
   try {
     const ai = createGeminiClient();
@@ -1445,11 +1466,26 @@ export async function generateDesignTokens({
       text: `Creative Direction:\n${formatCreativeDirection(creativeDirection)}`,
     });
 
+    if (llmLog) {
+      const si = typeof policy.config.systemInstruction === "string" ? policy.config.systemInstruction : "";
+      llmLog(`[LLM INPUT] design-tokens`, {
+        model: policy.model,
+        systemInstructionLength: si.length,
+        systemInstruction: si,
+        userPartCount: parts.length,
+        userParts: parts.map((p) => (typeof p.text === "string" ? p.text : "[image]")),
+      });
+    }
+
     const response = await ai.models.generateContent({
       model: policy.model,
       contents: { parts },
       config: policy.config,
     });
+
+    if (llmLog && response.usageMetadata) {
+      llmLog(`[TOKEN USAGE] design-tokens`, response.usageMetadata as Record<string, unknown>);
+    }
 
     const rawTokens = parseJsonResponse<unknown>(response.text || "{}");
     const parsed = DesignTokensSchema.safeParse(rawTokens);
@@ -1560,6 +1596,8 @@ export async function* editScreenStream({
   navigationArchitecture,
   selectedElementHtml,
   selectedElementDrawgleId,
+  llmLog,
+  onResponseChunk,
 }: {
   messages: Array<Pick<Message, "role" | "content">>;
   screenCode: string;
@@ -1571,6 +1609,8 @@ export async function* editScreenStream({
   selectedElementHtml?: string | null;
   /** Stable data-drawgle-id of the selected element when available. */
   selectedElementDrawgleId?: string | null;
+  llmLog?: LlmLogFn;
+  onResponseChunk?: (chunk: unknown) => void;
 }) {
   const ai = createGeminiClient();
   const history = messages.map((message) => ({
@@ -1644,7 +1684,19 @@ export async function* editScreenStream({
     message: editMessage,
   });
 
+  if (llmLog) {
+    const si = typeof policy.config.systemInstruction === "string" ? policy.config.systemInstruction : "";
+    llmLog(`[LLM INPUT] edit: ${latestUserPrompt.slice(0, 80)}`, {
+      model: policy.model,
+      systemInstructionLength: si.length,
+      systemInstruction: si,
+      editMessage,
+      hasSelectedElement: Boolean(selectedElementHtml),
+    });
+  }
+
   for await (const chunk of responseStream) {
+    onResponseChunk?.(chunk);
     if (chunk.text) {
       yield chunk.text;
     }
@@ -1685,6 +1737,7 @@ export async function buildSectionRepairCode({
   designTokens,
   projectCharter,
   navigationArchitecture,
+  llmLog,
 }: {
   screenName: string;
   screenPrompt: string;
@@ -1696,6 +1749,7 @@ export async function buildSectionRepairCode({
   designTokens?: DesignTokens | null;
   projectCharter?: ProjectCharter | null;
   navigationArchitecture?: NavigationArchitecture | null;
+  llmLog?: LlmLogFn;
 }) {
   const ai = createGeminiClient();
   const surrounding = buildRepairSurroundingContext(currentCode, repairTarget);
@@ -1714,43 +1768,57 @@ export async function buildSectionRepairCode({
       "Return static HTML only: no JSX, React, JavaScript expressions, arrays, .map(...), arrow functions, template literals, className, class={...}, style={{...}}, data attributes with {...}, or scripts. Manually expand repeated UI items.",
     ].join("\n"),
   });
+
+  const userText = [
+    `Screen name: ${screenName}`,
+    `User repair/edit request: ${userPrompt?.trim() || "Repair the broken or incomplete selected section."}`,
+    `Original screen brief:\n${screenPrompt || "No original screen prompt was saved."}`,
+    projectCharter?.creativeDirection ? `Creative direction:\n${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
+    `Navigation architecture:\n${JSON.stringify(navigationArchitecture ?? null, null, 2)}`,
+    `Token context:\n${buildTokenPromptContext(designTokens, "compact_visual")}`,
+    missingAnchors.length > 0 ? `Missing required anchors that must be restored: ${missingAnchors.join(", ")}` : null,
+    healthIssues.length > 0 ? `Detected health issues: ${healthIssues.join("; ")}` : null,
+    `Repair target reason: ${repairTarget.reason}`,
+    [
+      "Code before target:",
+      "```html",
+      surrounding.before,
+      "```",
+    ].join("\n"),
+    [
+      "Broken/incomplete target section to replace:",
+      "```html",
+      repairTarget.snippet,
+      "```",
+    ].join("\n"),
+    [
+      "Code after target:",
+      "```html",
+      surrounding.after,
+      "```",
+    ].join("\n"),
+  ].filter(Boolean).join("\n\n");
+
+  if (llmLog) {
+    const si = typeof policy.config.systemInstruction === "string" ? policy.config.systemInstruction : "";
+    llmLog(`[LLM INPUT] repair: ${screenName}`, {
+      model: policy.model,
+      systemInstructionLength: si.length,
+      systemInstruction: si,
+      userTextLength: userText.length,
+      userText,
+    });
+  }
+
   const response = await ai.models.generateContent({
     model: policy.model,
-    contents: {
-      parts: [{
-        text: [
-          `Screen name: ${screenName}`,
-          `User repair/edit request: ${userPrompt?.trim() || "Repair the broken or incomplete selected section."}`,
-          `Original screen brief:\n${screenPrompt || "No original screen prompt was saved."}`,
-          projectCharter?.creativeDirection ? `Creative direction:\n${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
-          `Navigation architecture:\n${JSON.stringify(navigationArchitecture ?? null, null, 2)}`,
-          `Token context:\n${buildTokenPromptContext(designTokens, "compact_visual")}`,
-          missingAnchors.length > 0 ? `Missing required anchors that must be restored: ${missingAnchors.join(", ")}` : null,
-          healthIssues.length > 0 ? `Detected health issues: ${healthIssues.join("; ")}` : null,
-          `Repair target reason: ${repairTarget.reason}`,
-          [
-            "Code before target:",
-            "```html",
-            surrounding.before,
-            "```",
-          ].join("\n"),
-          [
-            "Broken/incomplete target section to replace:",
-            "```html",
-            repairTarget.snippet,
-            "```",
-          ].join("\n"),
-          [
-            "Code after target:",
-            "```html",
-            surrounding.after,
-            "```",
-          ].join("\n"),
-        ].filter(Boolean).join("\n\n"),
-      }],
-    },
+    contents: { parts: [{ text: userText }] },
     config: policy.config,
   });
+
+  if (llmLog && response.usageMetadata) {
+    llmLog(`[TOKEN USAGE] repair: ${screenName}`, response.usageMetadata as Record<string, unknown>);
+  }
 
   return extractCode(response.text || "").trim();
 }
@@ -1774,6 +1842,7 @@ export async function buildSourceRegionReplacementCode({
   designTokens,
   projectCharter,
   navigationArchitecture,
+  llmLog,
 }: {
   screenName: string;
   screenPrompt: string;
@@ -1784,6 +1853,7 @@ export async function buildSourceRegionReplacementCode({
   designTokens?: DesignTokens | null;
   projectCharter?: ProjectCharter | null;
   navigationArchitecture?: NavigationArchitecture | null;
+  llmLog?: LlmLogFn;
 }) {
   const ai = createGeminiClient();
   const surrounding = buildRepairSurroundingContext(currentCode, repairTarget);
@@ -1803,41 +1873,55 @@ export async function buildSourceRegionReplacementCode({
       ...staticHtmlOutputRules,
     ].filter(Boolean).join("\n"),
   });
+
+  const userText = [
+    `Screen name: ${screenName}`,
+    `User edit request: ${userPrompt.trim() || "Improve the selected region."}`,
+    `Original screen brief:\n${screenPrompt || "No original screen prompt was saved."}`,
+    projectCharter?.creativeDirection ? `Creative direction:\n${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
+    `Navigation architecture:\n${JSON.stringify(navigationArchitecture ?? null, null, 2)}`,
+    `Token context:\n${buildTokenPromptContext(designTokens, "compact_visual")}`,
+    `Source target reason: ${repairTarget.reason}`,
+    [
+      "Code before selected region:",
+      "```html",
+      surrounding.before,
+      "```",
+    ].join("\n"),
+    [
+      "Selected source region to replace:",
+      "```html",
+      repairTarget.snippet,
+      "```",
+    ].join("\n"),
+    [
+      "Code after selected region:",
+      "```html",
+      surrounding.after,
+      "```",
+    ].join("\n"),
+  ].filter(Boolean).join("\n\n");
+
+  if (llmLog) {
+    const si = typeof policy.config.systemInstruction === "string" ? policy.config.systemInstruction : "";
+    llmLog(`[LLM INPUT] region-replace: ${screenName}`, {
+      model: policy.model,
+      systemInstructionLength: si.length,
+      systemInstruction: si,
+      userTextLength: userText.length,
+      userText,
+    });
+  }
+
   const response = await ai.models.generateContent({
     model: policy.model,
-    contents: {
-      parts: [{
-        text: [
-          `Screen name: ${screenName}`,
-          `User edit request: ${userPrompt.trim() || "Improve the selected region."}`,
-          `Original screen brief:\n${screenPrompt || "No original screen prompt was saved."}`,
-          projectCharter?.creativeDirection ? `Creative direction:\n${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
-          `Navigation architecture:\n${JSON.stringify(navigationArchitecture ?? null, null, 2)}`,
-          `Token context:\n${buildTokenPromptContext(designTokens, "compact_visual")}`,
-          `Source target reason: ${repairTarget.reason}`,
-          [
-            "Code before selected region:",
-            "```html",
-            surrounding.before,
-            "```",
-          ].join("\n"),
-          [
-            "Selected source region to replace:",
-            "```html",
-            repairTarget.snippet,
-            "```",
-          ].join("\n"),
-          [
-            "Code after selected region:",
-            "```html",
-            surrounding.after,
-            "```",
-          ].join("\n"),
-        ].filter(Boolean).join("\n\n"),
-      }],
-    },
+    contents: { parts: [{ text: userText }] },
     config: policy.config,
   });
+
+  if (llmLog && response.usageMetadata) {
+    llmLog(`[TOKEN USAGE] region-replace: ${screenName}`, response.usageMetadata as Record<string, unknown>);
+  }
 
   return extractCode(response.text || "").trim();
 }
@@ -1850,6 +1934,7 @@ export async function buildFullScreenReconstructionCode({
   projectCharter,
   navigationArchitecture,
   navigationPlan,
+  llmLog,
 }: {
   screenPlan: ScreenPlan;
   userPrompt?: string | null;
@@ -1858,6 +1943,7 @@ export async function buildFullScreenReconstructionCode({
   projectCharter?: ProjectCharter | null;
   navigationArchitecture?: NavigationArchitecture | null;
   navigationPlan?: NavigationPlan | null;
+  llmLog?: LlmLogFn;
 }) {
   const ai = createGeminiClient();
   const policy = geminiPolicyForTask("full_rebuild", {
@@ -1878,25 +1964,39 @@ export async function buildFullScreenReconstructionCode({
       ...staticHtmlOutputRules,
     ].join("\n"),
   });
+
+  const userText = [
+    `User request: ${userPrompt?.trim() || "Reconstruct the broken screen as production-ready static HTML."}`,
+    projectCharter?.originalPrompt ? `Original project prompt:\n${projectCharter.originalPrompt}` : null,
+    projectCharter?.creativeDirection ? `Creative direction:\n${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
+    [
+      "Current broken source, for visual/content intent only. Do not preserve invalid JSX, duplicated fragments, scripts, or broken structure:",
+      "```html",
+      currentCode.slice(0, 14000),
+      "```",
+    ].join("\n"),
+  ].filter(Boolean).join("\n\n");
+
+  if (llmLog) {
+    const si = typeof policy.config.systemInstruction === "string" ? policy.config.systemInstruction : "";
+    llmLog(`[LLM INPUT] full-rebuild: ${screenPlan.name}`, {
+      model: policy.model,
+      systemInstructionLength: si.length,
+      systemInstruction: si,
+      userTextLength: userText.length,
+      userText,
+    });
+  }
+
   const response = await ai.models.generateContent({
     model: policy.model,
-    contents: {
-      parts: [{
-        text: [
-          `User request: ${userPrompt?.trim() || "Reconstruct the broken screen as production-ready static HTML."}`,
-          projectCharter?.originalPrompt ? `Original project prompt:\n${projectCharter.originalPrompt}` : null,
-          projectCharter?.creativeDirection ? `Creative direction:\n${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
-          [
-            "Current broken source, for visual/content intent only. Do not preserve invalid JSX, duplicated fragments, scripts, or broken structure:",
-            "```html",
-            currentCode.slice(0, 14000),
-            "```",
-          ].join("\n"),
-        ].filter(Boolean).join("\n\n"),
-      }],
-    },
+    contents: { parts: [{ text: userText }] },
     config: policy.config,
   });
+
+  if (llmLog && response.usageMetadata) {
+    llmLog(`[TOKEN USAGE] full-rebuild: ${screenPlan.name}`, response.usageMetadata as Record<string, unknown>);
+  }
 
   return extractCode(response.text || "").trim();
 }
@@ -1918,12 +2018,14 @@ async function refineNavigationShellCode({
   navigationPlan,
   designTokens,
   projectCharter,
+  llmLog,
 }: {
   prompt: string;
   candidateShellCode: string;
   navigationPlan: NavigationPlan;
   designTokens?: DesignTokens | null;
   projectCharter?: ProjectCharter | null;
+  llmLog?: LlmLogFn;
 }) {
   const ai = createGeminiClient();
   const policy = geminiPolicyForTask("navigation_build", {
@@ -1937,27 +2039,41 @@ async function refineNavigationShellCode({
       "If the candidate already meets the bar, return it with only small polish. If it looks amateur, rebuild it while honoring the user request and project tokens.",
     ].join("\n"),
   });
+
+  const userText = [
+    `User navigation request: ${prompt}`,
+    projectCharter ? `Project charter: ${JSON.stringify(projectCharter, null, 2)}` : null,
+    projectCharter?.creativeDirection ? `Creative direction: ${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
+    `Navigation plan: ${JSON.stringify(navigationPlan, null, 2)}`,
+    `Token context: ${buildTokenPromptContext(designTokens, "compact_visual")}`,
+    [
+      "Candidate navigation shell to critique and improve:",
+      "```html",
+      candidateShellCode,
+      "```",
+    ].join("\n"),
+  ].filter(Boolean).join("\n\n");
+
+  if (llmLog) {
+    const si = typeof policy.config.systemInstruction === "string" ? policy.config.systemInstruction : "";
+    llmLog(`[LLM INPUT] nav-refine`, {
+      model: policy.model,
+      systemInstructionLength: si.length,
+      systemInstruction: si,
+      userTextLength: userText.length,
+      userText,
+    });
+  }
+
   const response = await ai.models.generateContent({
     model: policy.model,
-    contents: {
-      parts: [{
-        text: [
-          `User navigation request: ${prompt}`,
-          projectCharter ? `Project charter: ${JSON.stringify(projectCharter, null, 2)}` : null,
-          projectCharter?.creativeDirection ? `Creative direction: ${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
-          `Navigation plan: ${JSON.stringify(navigationPlan, null, 2)}`,
-          `Token context: ${buildTokenPromptContext(designTokens, "compact_visual")}`,
-          [
-            "Candidate navigation shell to critique and improve:",
-            "```html",
-            candidateShellCode,
-            "```",
-          ].join("\n"),
-        ].filter(Boolean).join("\n\n"),
-      }],
-    },
+    contents: { parts: [{ text: userText }] },
     config: policy.config,
   });
+
+  if (llmLog && response.usageMetadata) {
+    llmLog(`[TOKEN USAGE] nav-refine`, response.usageMetadata as Record<string, unknown>);
+  }
 
   const rawRefinedCode = extractCode(response.text || "").trim();
   const refinedCompletion = validateSourceCompletion({ code: rawRefinedCode, requireSentinel: true });
@@ -1974,6 +2090,7 @@ export async function editNavigationShellCode({
   designTokens,
   projectCharter,
   selectedElementHtml,
+  llmLog,
 }: {
   prompt: string;
   currentShellCode: string;
@@ -1981,6 +2098,7 @@ export async function editNavigationShellCode({
   designTokens?: DesignTokens | null;
   projectCharter?: ProjectCharter | null;
   selectedElementHtml?: string | null;
+  llmLog?: LlmLogFn;
 }) {
   if (!navigationPlan.enabled || navigationPlan.kind === "none") {
     throw new Error("This project does not have shared navigation enabled.");
@@ -2002,33 +2120,46 @@ export async function editNavigationShellCode({
       ...navigationDesignQualityRules,
     ].join("\n"),
   });
+  const userText = [
+    `User navigation edit request: ${prompt}`,
+    projectCharter ? `Project charter: ${JSON.stringify(projectCharter, null, 2)}` : null,
+    projectCharter?.creativeDirection ? `Creative direction: ${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
+    `Navigation plan: ${JSON.stringify(navigationPlan, null, 2)}`,
+    `Token context: ${buildTokenPromptContext(designTokens, "compact_visual")}`,
+    selectedElementHtml ? [
+      "Selected navigation element:",
+      "```html",
+      selectedElementHtml,
+      "```",
+    ].join("\n") : null,
+    [
+      "Current shared navigation shell:",
+      "```html",
+      currentShellCode,
+      "```",
+    ].join("\n"),
+  ].filter(Boolean).join("\n\n");
+
+  if (llmLog) {
+    const si = typeof policy.config.systemInstruction === "string" ? policy.config.systemInstruction : "";
+    llmLog(`[LLM INPUT] nav-edit`, {
+      model: policy.model,
+      systemInstructionLength: si.length,
+      systemInstruction: si,
+      userTextLength: userText.length,
+      userText,
+    });
+  }
+
   const response = await ai.models.generateContent({
     model: policy.model,
-    contents: {
-      parts: [{
-        text: [
-          `User navigation edit request: ${prompt}`,
-          projectCharter ? `Project charter: ${JSON.stringify(projectCharter, null, 2)}` : null,
-          projectCharter?.creativeDirection ? `Creative direction: ${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
-          `Navigation plan: ${JSON.stringify(navigationPlan, null, 2)}`,
-          `Token context: ${buildTokenPromptContext(designTokens, "compact_visual")}`,
-          selectedElementHtml ? [
-            "Selected navigation element:",
-            "```html",
-            selectedElementHtml,
-            "```",
-          ].join("\n") : null,
-          [
-            "Current shared navigation shell:",
-            "```html",
-            currentShellCode,
-            "```",
-          ].join("\n"),
-        ].filter(Boolean).join("\n\n"),
-      }],
-    },
+    contents: { parts: [{ text: userText }] },
     config: policy.config,
   });
+
+  if (llmLog && response.usageMetadata) {
+    llmLog(`[TOKEN USAGE] nav-edit`, response.usageMetadata as Record<string, unknown>);
+  }
 
   const rawNextCode = extractCode(response.text || "").trim();
   const nextCompletion = validateSourceCompletion({ code: rawNextCode, requireSentinel: true });
@@ -2046,6 +2177,7 @@ export async function editNavigationShellCode({
     navigationPlan,
     designTokens,
     projectCharter,
+    llmLog,
   });
 }
 
@@ -2055,12 +2187,14 @@ export async function buildNavigationShellCode({
   prompt,
   image,
   projectCharter,
+  llmLog,
 }: {
   navigationPlan: NavigationPlan;
   designTokens?: DesignTokens | null;
   prompt: string;
   image?: PromptImagePayload | null;
   projectCharter?: ProjectCharter | null;
+  llmLog?: LlmLogFn;
 }) {
   if (!navigationPlan.enabled || navigationPlan.kind === "none") {
     return "";
@@ -2107,11 +2241,29 @@ export async function buildNavigationShellCode({
       ].join("\n"),
     });
 
+    if (llmLog) {
+      const si = typeof policy.config.systemInstruction === "string" ? policy.config.systemInstruction : "";
+      const textParts = parts
+        .map((p) => (typeof p.text === "string" ? p.text : "[image]"))
+        .filter(Boolean);
+      llmLog(`[LLM INPUT] nav-build`, {
+        model: policy.model,
+        systemInstructionLength: si.length,
+        systemInstruction: si,
+        userPartCount: textParts.length,
+        userParts: textParts,
+      });
+    }
+
     const response = await ai.models.generateContent({
       model: policy.model,
       contents: { parts },
       config: policy.config,
     });
+
+    if (llmLog && response.usageMetadata) {
+      llmLog(`[TOKEN USAGE] nav-build`, response.usageMetadata as Record<string, unknown>);
+    }
 
     const rawCode = extractCode(response.text || "").trim();
     const completion = validateSourceCompletion({ code: rawCode, requireSentinel: true });
@@ -2129,6 +2281,7 @@ export async function buildNavigationShellCode({
       navigationPlan,
       designTokens,
       projectCharter,
+      llmLog,
     });
   } catch (error) {
     console.error("Failed to generate navigation shell", error);

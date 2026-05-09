@@ -953,6 +953,7 @@ export const generateUiFlowTask = task({
       designTokens = await generateDesignTokens({
         prompt: payload.prompt,
         image: promptImage,
+        llmLog: (label, data) => logger.info(label, data),
       });
 
       await updateProject(admin, payload.projectId, {
@@ -1015,6 +1016,7 @@ export const generateUiFlowTask = task({
           existingCharter: requestedCharter,
           existingNavigationPlan: payload.navigationPlan ?? null,
           planningMode: payload.planningMode ?? "project",
+          llmLog: (label, data) => logger.info(label, data),
         });
     plan.screens = applyNavigationPlanToScreens(plan.screens, plan.navigationPlan);
 
@@ -1024,6 +1026,7 @@ export const generateUiFlowTask = task({
       prompt: payload.prompt,
       image: promptImage,
       projectCharter: plan.charter,
+      llmLog: (label, data) => logger.info(label, data),
     });
     const navigationShellCode = ensureDrawgleIds(tokenizeStaticDrawgleHtml(rawNavigationShellCode, designTokens).code).code;
 

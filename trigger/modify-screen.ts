@@ -135,6 +135,6 @@ export const modifyScreenTask = task({
       target: payload.selectedElementTarget,
     });
 
-    return executeModifyScreenTask(payload);
+    return executeModifyScreenTask(payload, (label, data) => logger.info(label, data));
   },
 });

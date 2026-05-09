@@ -28,6 +28,7 @@ import { fetchProjectMessages, insertProjectMessage } from "@/lib/supabase/queri
 import { tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
 import type {
   DesignTokens,
+  LlmLogFn,
   NavigationArchitecture,
   NavigationPlan,
   ProjectCharter,
@@ -260,15 +261,30 @@ const persistEditMemoryPair = async (
   }
 };
 
-async function runEditScreenStream(input: Parameters<typeof editScreenStream>[0]) {
+async function runEditScreenStream(input: Parameters<typeof editScreenStream>[0], llmLog?: LlmLogFn) {
   let output = "";
-  for await (const chunk of editScreenStream(input)) {
+  const usageMetadata: Record<string, number> = {};
+  for await (const chunk of editScreenStream({
+    ...input,
+    llmLog,
+    onResponseChunk: (c) => {
+      if (!c || typeof c !== "object") return;
+      const rawUsage = (c as { usageMetadata?: unknown }).usageMetadata;
+      if (!rawUsage || typeof rawUsage !== "object" || Array.isArray(rawUsage)) return;
+      for (const [key, value] of Object.entries(rawUsage)) {
+        if (typeof value === "number" && Number.isFinite(value)) usageMetadata[key] = value;
+      }
+    },
+  })) {
     output += chunk;
+  }
+  if (llmLog && Object.keys(usageMetadata).length > 0) {
+    llmLog(`[TOKEN USAGE] edit-stream`, usageMetadata);
   }
   return output;
 }
 
-export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
+export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmLog?: LlmLogFn) {
   const admin = createAdminClient();
   const originalPrompt = payload.prompt.trim();
   const prompt = payload.resolvedInstruction?.trim() || originalPrompt;
@@ -343,6 +359,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
       designTokens,
       projectCharter,
       selectedElementHtml: selectedNavigationElement ? selectedElementHtml : null,
+      llmLog,
     });
     const nextCode = ensureDrawgleIds(tokenizeStaticDrawgleHtml(editedNavigationCode, designTokens).code).code;
 
@@ -625,6 +642,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
       designTokens,
       projectCharter,
       navigationArchitecture,
+      llmLog,
     });
 
     if (!replacement.trim()) {
@@ -812,6 +830,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
       projectCharter,
       navigationArchitecture,
       navigationPlan: projectNavigationPlan,
+      llmLog,
     });
 
     if (!reconstructed.trim()) {
@@ -943,6 +962,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
       designTokens,
       projectCharter,
       navigationArchitecture,
+      llmLog,
     });
 
     if (!replacement.trim()) {
@@ -1042,7 +1062,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
     navigationArchitecture,
     selectedElementHtml: selectedSourceElementHtml,
     selectedElementDrawgleId,
-  });
+  }, llmLog);
   let nextCode = normalizeEditedCode(responseToApply);
 
   if (nextCode === screenCode) {
@@ -1064,7 +1084,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
       navigationArchitecture,
       selectedElementHtml: selectedSourceElementHtml,
       selectedElementDrawgleId,
-    });
+    }, llmLog);
 
     if (retryResponse.trim()) {
       responseToApply = `${responseToApply}\n\n${retryResponse}`;
@@ -1096,6 +1116,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload) {
         designTokens,
         projectCharter,
         navigationArchitecture,
+        llmLog,
       });
 
       if (replacement.trim()) {

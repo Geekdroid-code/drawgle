@@ -444,6 +444,9 @@ export interface ProjectMessage {
   timestamp: string;
 }
 
+/** Pass this to any service function to get Trigger.dev-visible LLM input + token usage logs. */
+export type LlmLogFn = (label: string, data: Record<string, unknown>) => void;
+
 export interface LlmInputSnapshot {
   screenName: string;
   model: string;
