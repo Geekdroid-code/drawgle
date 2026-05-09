@@ -411,6 +411,16 @@ async function collectScreenBuild(input: BuildScreenTaskPayload, screenPlan: Scr
         collectFinishReasons(chunk, finishReasons);
         collectUsageMetadata(chunk, usageMetadata);
       },
+      onLlmInput: (snapshot) => {
+        logger.info(`[LLM INPUT] ${snapshot.screenName}`, {
+          model: snapshot.model,
+          hasImage: snapshot.hasImage,
+          systemInstructionLength: snapshot.systemInstruction.length,
+          systemInstruction: snapshot.systemInstruction,
+          userPartCount: snapshot.userParts.length,
+          userParts: snapshot.userParts,
+        });
+      },
     }),
   );
 
@@ -443,6 +453,16 @@ async function collectNonStreamingScreenBuild(input: BuildScreenTaskPayload, scr
     onResponseChunk: (responseChunk) => {
       collectFinishReasons(responseChunk, finishReasons);
       collectUsageMetadata(responseChunk, usageMetadata);
+    },
+    onLlmInput: (snapshot) => {
+      logger.info(`[LLM INPUT] ${snapshot.screenName}`, {
+        model: snapshot.model,
+        hasImage: snapshot.hasImage,
+        systemInstructionLength: snapshot.systemInstruction.length,
+        systemInstruction: snapshot.systemInstruction,
+        userPartCount: snapshot.userParts.length,
+        userParts: snapshot.userParts,
+      });
     },
   })) {
     rawText += chunk;

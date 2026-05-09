@@ -26,6 +26,7 @@ import { buildRepairSurroundingContext, type RepairTarget } from "@/lib/generati
 import { buildTokenPromptContext } from "@/lib/token-runtime";
 import type {
   BuildScreenInput,
+  LlmInputSnapshot,
   CreativeDirection,
   DesignTokenMetadata,
   DesignTokenValues,
@@ -1497,16 +1498,31 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
     });
   }
 
+  const systemInstruction = buildSystemInstruction({
+    designTokens: input.designTokens,
+    screenPlan: input.screenPlan,
+    requiresBottomNav: input.requiresBottomNav,
+    navigationArchitecture: input.navigationArchitecture,
+    navigationPlan: input.navigationPlan,
+  });
+
   const policy = geminiPolicyForTask("screen_build", {
-    systemInstruction: buildSystemInstruction({
-      designTokens: input.designTokens,
-      screenPlan: input.screenPlan,
-      requiresBottomNav: input.requiresBottomNav,
-      navigationArchitecture: input.navigationArchitecture,
-      navigationPlan: input.navigationPlan,
-    }),
+    systemInstruction,
     temperature: 0.2,
   });
+
+  if (input.onLlmInput) {
+    const snapshot: LlmInputSnapshot = {
+      screenName: input.screenPlan.name,
+      model: policy.model,
+      systemInstruction,
+      userParts: parts
+        .map((p) => (typeof p.text === "string" ? p.text : "[image]"))
+        .filter(Boolean),
+      hasImage: Boolean(toInlineImage(input.image)),
+    };
+    input.onLlmInput(snapshot);
+  }
 
   const responseStream = await ai.models.generateContentStream({
     model: policy.model,

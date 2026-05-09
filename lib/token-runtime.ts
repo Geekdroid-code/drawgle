@@ -1,5 +1,5 @@
 import { normalizeDesignTokens } from "@/lib/design-tokens";
-import type { DesignTokens } from "@/lib/types";
+import type { DesignTokens, DesignTokenValues } from "@/lib/types";
 
 type CssVariable = {
   path: string;
@@ -170,29 +170,70 @@ const pickTokenReferences = (
   prefixes: string[],
 ) => references.filter((reference) => prefixes.some((prefix) => reference.path === prefix || reference.path.startsWith(`${prefix}.`)));
 
+// Raw groups sent verbatim — each value is unique and semantically meaningful by name.
+// spacing, opacities, z_index are intentionally excluded; the semantic map replaces them.
+// typography.font_family is excluded — it is already emitted in buildVisualSystemConstraints.
 const compactVisualTokenPrefixes = [
   "color.background",
   "color.surface",
   "color.text",
   "color.action",
   "color.border",
-  "typography.font_family",
   "typography.nav_title",
   "typography.screen_title",
   "typography.section_title",
   "typography.metric_value",
   "typography.body",
+  "typography.supporting",
   "typography.caption",
   "typography.button_label",
-  "spacing",
   "mobile_layout",
-  "sizing.min_touch_target",
   "sizing.standard_button_height",
   "sizing.standard_input_height",
+  "sizing.icon_small",
+  "sizing.icon_standard",
+  "sizing.bottom_nav_height",
   "radii",
   "border_widths",
   "shadows",
 ];
+
+/**
+ * Resolves spacing/opacities into a compact semantic map for the LLM prompt.
+ * Each entry has a self-describing role name + resolved pixel value so the LLM
+ * can make visual hierarchy judgements without seeing the full raw scale.
+ * z_index is omitted entirely — the LLM should use utility classes, not pick values.
+ */
+function resolveSemanticMap(tokens: DesignTokenValues | undefined): string {
+  const sp = tokens?.spacing ?? {};
+  const ml = tokens?.mobile_layout ?? {};
+  const op = tokens?.opacities ?? {};
+
+  const spacingEntries: Array<[string, string, string]> = [
+    ["screen_edge_padding (outer horizontal padding of every screen)", "--dg-mobile-layout-screen-margin", ml.screen_margin ?? sp.lg ?? "24px"],
+    ["between_sections (gap between major content blocks)", "--dg-mobile-layout-section-gap", ml.section_gap ?? sp.lg ?? "24px"],
+    ["between_elements (gap between items within a section)", "--dg-mobile-layout-element-gap", ml.element_gap ?? sp.md ?? "16px"],
+    ["component_inner (card padding, form field insets)", "--dg-spacing-md", sp.md ?? "16px"],
+    ["tight_inline (icon-to-label, chip padding, badge insets)", "--dg-spacing-xs", sp.xs ?? "8px"],
+    ["micro (dot separators, tiny icon offsets)", "--dg-spacing-xxs", sp.xxs ?? "4px"],
+    ["spacious (hero sections, large visual breathing room)", "--dg-spacing-xl", sp.xl ?? "32px"],
+  ];
+
+  const opacityEntries: Array<[string, string, string]> = [
+    ["opacity_disabled", "--dg-opacities-disabled", op.disabled ?? "0.38"],
+    ["opacity_scrim_overlay", "--dg-opacities-scrim-overlay", op.scrim_overlay ?? "0.50"],
+    ["opacity_pressed_state", "--dg-opacities-pressed", op.pressed ?? "0.12"],
+  ];
+
+  const lines = [
+    "SPACING ROLES (use these — do not invent arbitrary pixel values):",
+    ...spacingEntries.map(([role, variable, value]) => `  ${role}: var(${variable}) = ${value}`),
+    "OPACITY ROLES:",
+    ...opacityEntries.map(([role, variable, value]) => `  ${role}: var(${variable}) = ${value}`),
+  ];
+
+  return lines.join("\n");
+}
 
 export function buildTokenPromptContext(
   designTokens?: DesignTokens | null,
@@ -231,12 +272,16 @@ export function buildTokenPromptContext(
   }
 
   if (mode === "compact_visual") {
+    const filteredReferences = pickTokenReferences(references, compactVisualTokenPrefixes);
+    const semanticMap = resolveSemanticMap(normalized.tokens);
+
     return [
-      "TOKEN CONTEXT: All approved project design tokens. Use these for every color, typography, spacing, sizing, radii, border, shadow, opacity, and z-index decision.",
+      "TOKEN CONTEXT: Approved project design tokens — use these for every visual decision.",
       "Prefer utility classes when the semantic role matches: dg-bg-primary, dg-bg-secondary, dg-surface-card, dg-surface-bottom-sheet, dg-surface-modal, dg-text-high, dg-text-medium, dg-text-low, dg-action-primary, dg-action-secondary, dg-border-divider, dg-border-focused, dg-radius-app, dg-radius-pill, dg-shadow-surface, dg-shadow-overlay, dg-type-nav-title, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-metric-value, dg-type-body, dg-type-supporting, dg-type-caption, dg-type-button-label.",
       "For token values without a named utility, use CSS variables in Tailwind arbitrary classes, e.g. bg-[var(--dg-color-action-primary)], p-[var(--dg-spacing-md)], rounded-[var(--dg-radii-app)], shadow-[var(--dg-shadows-surface)], opacity-[var(--dg-opacities-disabled)].",
       "Use raw hex, raw pixels, and custom gradients only for deliberate one-off visual details such as charts, maps, illustrations, and special effects.",
-      references.length > 0 ? `Project token variables:\n${formatTokenReferences(references, 200)}` : null,
+      filteredReferences.length > 0 ? `Project token variables:\n${formatTokenReferences(filteredReferences, 200)}` : null,
+      semanticMap,
     ].filter(Boolean).join("\n");
   }
 

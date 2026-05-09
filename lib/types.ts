@@ -148,6 +148,21 @@ export interface DesignShadowTokens {
   [key: string]: JsonValue | undefined;
 }
 
+/**
+ * Semantic map: compact, role-named entries sent to the LLM instead of the
+ * raw spacing/sizing/opacities/z-index scales. Each entry resolves to a
+ * concrete CSS variable + pixel value so the LLM can make visual judgements.
+ * The raw scales are still emitted as CSS variables for the browser.
+ */
+export interface DesignSemanticEntry {
+  /** Human-readable role description — the LLM uses this to choose the right token */
+  role: string;
+  /** CSS variable name, e.g. --dg-spacing-md */
+  variable: string;
+  /** Resolved pixel/value, e.g. 16px */
+  value: string;
+}
+
 export interface DesignTokenValues {
   color?: DesignColorTokens;
   typography?: DesignTypographyTokens;
@@ -429,6 +444,14 @@ export interface ProjectMessage {
   timestamp: string;
 }
 
+export interface LlmInputSnapshot {
+  screenName: string;
+  model: string;
+  systemInstruction: string;
+  userParts: string[];
+  hasImage: boolean;
+}
+
 export interface BuildScreenInput {
   screenPlan: ScreenPlan;
   designTokens?: DesignTokens | null;
@@ -439,4 +462,5 @@ export interface BuildScreenInput {
   navigationPlan?: NavigationPlan | null;
   projectContext?: string | null;
   onResponseChunk?: (chunk: unknown) => void;
+  onLlmInput?: (snapshot: LlmInputSnapshot) => void;
 }
