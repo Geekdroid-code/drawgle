@@ -227,6 +227,7 @@ const parseFunctionDecision = (input: AgentRouterInput, functionCall: { name?: s
   });
 };
 
+
 const safeFallbackDecision = (input: AgentRouterInput): AgentRouterDecision => RouterDecisionSchema.parse({
   action: "ask_clarification",
   executionIntent: "chat",
