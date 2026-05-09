@@ -538,6 +538,11 @@ export const buildScreenTask = task({
       requireSentinel: true,
       finishReasons: build.finishReasons,
     });
+
+    if (Object.keys(build.usageMetadata).length > 0) {
+      logger.info(`[TOKEN USAGE] ${payload.screenPlan.name}`, build.usageMetadata);
+    }
+
     attempts.push(buildAttemptDiagnostics({
       attempt: attempts.length + 1,
       retryReason: "initial",
