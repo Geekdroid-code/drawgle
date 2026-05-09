@@ -416,7 +416,7 @@ STRICT DESIGN CONTRACT:
 ${buildStrictDesignContract(designTokens)}
 
 TOKEN CONTEXT:
-${buildTokenPromptContext(designTokens, "full_generation")}
+${buildTokenPromptContext(designTokens, "compact_visual")}
 
 NAVIGATION ARCHITECTURE CONTRACT:
 ${buildNavigationArchitectureContract({ navigationArchitecture })}
@@ -508,7 +508,7 @@ ${buildNavigationArchitectureContract({
 })}
 
 TOKEN CONTEXT:
-${buildTokenPromptContext(designTokens, "full_generation")}
+${buildTokenPromptContext(designTokens, "compact_visual")}
 
 CRITICAL INSTRUCTION 2: NAVIGATION ARCHITECTURE
 ${navigationInstruction}

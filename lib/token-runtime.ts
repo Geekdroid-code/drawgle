@@ -231,15 +231,12 @@ export function buildTokenPromptContext(
   }
 
   if (mode === "compact_visual") {
-    const compactReferences = pickTokenReferences(references, compactVisualTokenPrefixes);
-
     return [
-      "TOKEN CONTEXT MODE: compact_visual",
-      "Use Drawgle live tokens for canonical colors, typography, spacing, sizing, radii, borders, and shadows.",
-      "Prefer utility classes when the semantic role matches: dg-bg-primary, dg-surface-card, dg-text-high, dg-text-medium, dg-text-low, dg-action-primary, dg-border-divider, dg-radius-app, dg-radius-pill, dg-shadow-surface, dg-type-screen-title, dg-type-section-title, dg-type-metric-value, dg-type-body, dg-type-caption, dg-type-button-label.",
-      "For token values without a named utility, use CSS variables in Tailwind arbitrary classes, e.g. bg-[var(--dg-color-action-primary)], p-[var(--dg-spacing-md)], rounded-[var(--dg-radii-app)], shadow-[var(--dg-shadows-surface)].",
+      "TOKEN CONTEXT: All approved project design tokens. Use these for every color, typography, spacing, sizing, radii, border, shadow, opacity, and z-index decision.",
+      "Prefer utility classes when the semantic role matches: dg-bg-primary, dg-bg-secondary, dg-surface-card, dg-surface-bottom-sheet, dg-surface-modal, dg-text-high, dg-text-medium, dg-text-low, dg-action-primary, dg-action-secondary, dg-border-divider, dg-border-focused, dg-radius-app, dg-radius-pill, dg-shadow-surface, dg-shadow-overlay, dg-type-nav-title, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-metric-value, dg-type-body, dg-type-supporting, dg-type-caption, dg-type-button-label.",
+      "For token values without a named utility, use CSS variables in Tailwind arbitrary classes, e.g. bg-[var(--dg-color-action-primary)], p-[var(--dg-spacing-md)], rounded-[var(--dg-radii-app)], shadow-[var(--dg-shadows-surface)], opacity-[var(--dg-opacities-disabled)].",
       "Use raw hex, raw pixels, and custom gradients only for deliberate one-off visual details such as charts, maps, illustrations, and special effects.",
-      compactReferences.length > 0 ? `Relevant token variables:\n${formatTokenReferences(compactReferences, 60)}` : null,
+      references.length > 0 ? `Project token variables:\n${formatTokenReferences(references, 200)}` : null,
     ].filter(Boolean).join("\n");
   }
 

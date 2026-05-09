@@ -13,7 +13,7 @@ The screen is NOT actually half-written HTML. What happens:
 3. `failWithoutSavingGeneratedCode` only fails the Trigger.dev task. It does NOT update `screens.status` to "failed" or `screens.error`. The screen stays forever at `status="building"` showing the spinner.
 4. Result: user sees a screen stuck in the "loading" state — looks half-built.
 
-MY cross question - see, point is not abotut eh spinner. spinner is shown when teh code fails... so my point was why code wriitng fails ..this si what i wanted you to chcekc in my supasbe ...what code that faield screen has. what trigger.dev logs says for that run. 
+#### Action - The fix is not a code logic fix — it's a model config fix in model-policy.ts - Implemented.
 
 ### Issue 2 — Cost (15 INR/screen, target <5 INR)
 Three compounding cost drivers:
@@ -22,6 +22,7 @@ Three compounding cost drivers:
 - `gemini-3-flash-preview` uses `thinkingLevel: "medium"` for screen_build — no fixed cap
 - Thinking tokens billed at premium output rate; for complex screens, 4,000–10,000 thinking tokens per call
 - With 2–3 retries per failed screen → thinking cost multiplied 2–3×
+#### Action - Implemented.
 
 **B. `full_generation` token mode in system instruction (wasteful)**
 - `buildSystemInstruction()` and `buildEditSystemInstruction()` both call `buildTokenPromptContext(designTokens, "full_generation")`
