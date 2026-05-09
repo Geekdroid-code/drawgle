@@ -29,7 +29,7 @@ The live app path now runs through Supabase-backed data, Trigger.dev generation 
 3. Run the app:
    `npm run dev`
 
-## Auth Setup
+## Auth Setup'''
 
 - Email/password auth is supported through Supabase Auth and works with the login page in this repo.
 - Google sign-in stays available, but you must enable the Google provider and configure its Google Cloud credentials in your Supabase project before the OAuth button will work.
