@@ -25,15 +25,15 @@ const envInt = (key: string, fallback: number) => {
   return Number.isFinite(value) && value > 0 ? value : fallback;
 };
 
-const ROUTER_MODEL = env("DRAWGLE_GEMINI_ROUTER_MODEL", "gemini-2.5-flash");
+const ROUTER_MODEL = env("DRAWGLE_GEMINI_ROUTER_MODEL", "gemini-2.5-flash-lite");
 const SELECTED_EDIT_MODEL = env("DRAWGLE_GEMINI_SELECTED_EDIT_MODEL", "gemini-3.1-flash-lite");
 const FULL_BUILD_MODEL = env("DRAWGLE_GEMINI_FULL_BUILD_MODEL", "gemini-3.1-flash-lite");
 const SCREEN_BUILD_MAX_OUTPUT_TOKENS = envInt("DRAWGLE_GEMINI_SCREEN_BUILD_MAX_OUTPUT_TOKENS", 32768);
 const FULL_REBUILD_MAX_OUTPUT_TOKENS = envInt("DRAWGLE_GEMINI_FULL_REBUILD_MAX_OUTPUT_TOKENS", 32768);
 
-const gemini25FlashConfig = (maxOutputTokens = 2048): GenerateContentConfig => ({
+const gemini25FlashConfig = (maxOutputTokens = 2048, thinking = true): GenerateContentConfig => ({
   thinkingConfig: {
-    thinkingBudget: 500,
+    thinkingBudget: thinking ? 500 : 0,
   },
   maxOutputTokens,
   candidateCount: 1,
@@ -56,7 +56,7 @@ const gemini3Config = (
 const policyByTask: Record<GeminiTaskType, GeminiModelPolicy> = {
   router: {
     model: ROUTER_MODEL,
-    config: gemini25FlashConfig(2048),
+    config: gemini25FlashConfig(2048, false), // no thinking: structured enum decision, not reasoning
   },
   chat: {
     model: ROUTER_MODEL,

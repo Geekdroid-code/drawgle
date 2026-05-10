@@ -22,6 +22,7 @@ import { planUiFlow } from "@/lib/generation/service";
 import { buildThinkingSummary, readScreenPlanProposal, type AgentStepMetadata } from "@/lib/agent/message-metadata";
 import { approveScreenPlanProposal, ScreenPlanApprovalError } from "@/lib/agent/screen-plan-approval";
 import { checkScope, SCOPE_REFUSAL_MESSAGE } from "@/lib/agent/scope-policy";
+import { classifyHistoryNeed, HISTORY_LIMITS } from "@/lib/agent/history-policy";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { fetchProjectMessages, insertProjectMessage } from "@/lib/supabase/queries";
@@ -532,7 +533,7 @@ const buildDecisionTarget = (
 
 const compactMessageContent = (content: string) => {
   const trimmed = content.trim();
-  return trimmed.length > 1800 ? `${trimmed.slice(0, 1800)}...` : trimmed;
+  return trimmed.length > 500 ? `${trimmed.slice(0, 500)}...` : trimmed;
 };
 
 const compactEventLabel = (metadata: Record<string, unknown>) => {
@@ -554,10 +555,12 @@ const compactEventLabel = (metadata: Record<string, unknown>) => {
 const buildCompactRecentMessages = (
   messages: ProjectMessage[],
   screens: Array<{ id: string; name: string }>,
+  limit: number,
 ) => {
+  if (limit === 0) return [];
   const screenNames = new Map(screens.map((screen) => [screen.id, screen.name]));
 
-  return messages.slice(-12).map((message) => {
+  return messages.slice(-limit).map((message) => {
     const metadata = metadataRecord(message.metadata);
     return {
       role: message.role,
@@ -915,8 +918,14 @@ export async function POST(request: Request) {
     });
     const selectedScreenId = payload.selectedScreenId ?? payload.focusedScreenId ?? null;
     const navigationPlan = (projectNavigation?.plan as NavigationPlan | null) ?? null;
-    const recentMessages = buildCompactRecentMessages(projectMessages, screenContext);
     const agentState = latestUsableAgentState(projectMessages);
+    const historyNeed = classifyHistoryNeed({
+      prompt,
+      hasImage: Boolean(payload.image),
+      hasSelectedElement: Boolean(payload.selectedElementDrawgleId || payload.selectedElementHtml),
+      agentState,
+    });
+    const recentMessages = buildCompactRecentMessages(projectMessages, screenContext, HISTORY_LIMITS[historyNeed]);
     const routerDecision = await routeAgentPrompt({
       prompt,
       hasImage: Boolean(payload.image),

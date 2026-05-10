@@ -181,10 +181,6 @@
     background:
       linear-gradient(180deg, rgba(255, 255, 255, 0.985) 0%, rgba(249, 250, 251, 0.985) 100%);
     border: 1px solid rgba(15, 23, 42, 0.13);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 1),
-      inset 0 -1px 0 rgba(15, 23, 42, 0.05),
-      0 16px 32px -30px rgba(15, 23, 42, 0.58);
   }
 
   .dg-metal-shell {
