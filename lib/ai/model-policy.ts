@@ -3,6 +3,7 @@ import "server-only";
 import type { GenerateContentConfig } from "@google/genai";
 
 export type GeminiTaskType =
+  | "greeting"
   | "router"
   | "chat"
   | "draft_plan"
@@ -54,6 +55,10 @@ const gemini3Config = (
 });
 
 const policyByTask: Record<GeminiTaskType, GeminiModelPolicy> = {
+  greeting: {
+    model: ROUTER_MODEL,
+    config: gemini25FlashConfig(150, false), // no thinking, tight output cap — warm reply only
+  },
   router: {
     model: ROUTER_MODEL,
     config: gemini25FlashConfig(2048, false), // no thinking: structured enum decision, not reasoning
