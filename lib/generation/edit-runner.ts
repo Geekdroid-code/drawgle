@@ -23,6 +23,7 @@ import {
 } from "@/lib/generation/screen-quality";
 import { findRepairTarget, replaceSourceRegion, type RepairTarget } from "@/lib/generation/screen-repair";
 import { sanitizeScreenCodeForSharedNavigation } from "@/lib/project-navigation";
+import type { AgentStepMetadata } from "@/lib/agent/message-metadata";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchProjectMessages, insertProjectMessage } from "@/lib/supabase/queries";
 import { tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
@@ -181,6 +182,116 @@ const buildRepairingMessage = (screenName: string, targetName: string) =>
     ? `Repairing ${screenName}...`
     : `Repairing ${targetName} in ${screenName}...`;
 
+const metadataRecord = (value: unknown) =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+
+const metadataString = (metadata: Record<string, unknown>, key: string) => {
+  const value = metadata[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+};
+
+const inferAgentStep = (content: string, metadata: Record<string, unknown>): AgentStepMetadata | null => {
+  if (metadata.agentStep && typeof metadata.agentStep === "object" && !Array.isArray(metadata.agentStep)) {
+    return metadata.agentStep as AgentStepMetadata;
+  }
+
+  const editJob = metadataRecord(metadata.editJob);
+  const rawStatus = metadataString(editJob, "status");
+  const action = metadataString(metadata, "action");
+  const screenName = metadataString(metadata, "screenName");
+  const isNavigation = metadataString(editJob, "targetType") === "navigation" || screenName === "Navigation";
+  const failed = rawStatus === "failed" || action?.includes("blocked") || action?.includes("failed");
+  const completed = rawStatus === "completed" || action?.includes("applied") || action?.includes("noop");
+  const queued = rawStatus === "queued" || action?.includes("queued");
+  const editing = rawStatus === "editing" || action?.includes("start");
+
+  if (!rawStatus && !action) {
+    return null;
+  }
+
+  return {
+    kind: isNavigation ? "navigation" : "edit",
+    status: failed ? "failed" : completed ? "completed" : queued ? "queued" : editing ? "editing" : "editing",
+    title: content.replace(/\s+/g, " ").replace(/\.\.\.$/, "").trim() || "Edit UI",
+    detail: content,
+    targetLabel: screenName,
+    processLines: [
+      queued ? "Queued the edit request." : null,
+      editing ? "Applying the UI edit with the resolved canvas target." : null,
+      completed && !failed ? "Saved the updated UI state." : null,
+      failed ? "Stopped before saving an unsafe or incomplete result." : null,
+    ].filter((line): line is string => Boolean(line)),
+  };
+};
+
+const completionTextForStep = (content: string, step: AgentStepMetadata) => {
+  if (step.status === "failed") {
+    return content.startsWith("I ") ? content : `I hit a snag with ${step.targetLabel ?? "that edit"}: ${content}`;
+  }
+
+  if (step.status !== "completed") {
+    return null;
+  }
+
+  if (/^no material/i.test(content)) {
+    return content;
+  }
+
+  return `Done - ${content.replace(/\.$/, "")}. What do you think?`;
+};
+
+async function insertCompletionMessageOnce(
+  admin: AdminClient,
+  activityKey: string,
+  input: ProjectMessageInput,
+  actionMessageId: string,
+  step: AgentStepMetadata | null,
+) {
+  if (!step || (step.status !== "completed" && step.status !== "failed")) {
+    return;
+  }
+
+  const completionContent = completionTextForStep(input.content, step);
+  if (!completionContent) {
+    return;
+  }
+
+  const { data: existing, error: existingError } = await admin
+    .from("project_messages")
+    .select("id")
+    .eq("project_id", input.projectId)
+    .eq("owner_id", input.ownerId)
+    .contains("metadata", { completionForActivityKey: activityKey })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingError) {
+    throw existingError;
+  }
+
+  if (existing) {
+    return;
+  }
+
+  await insertProjectMessage(admin, {
+    projectId: input.projectId,
+    ownerId: input.ownerId,
+    screenId: input.screenId ?? null,
+    role: "model",
+    content: completionContent,
+    messageType: step.status === "failed" ? "error" : "chat",
+    metadata: {
+      ...(input.metadata ?? {}),
+      ui: { variant: step.status === "failed" ? "error" : "chat" },
+      action: "edit_completion",
+      completionForActivityKey: activityKey,
+      completionForMessageId: actionMessageId,
+    },
+  });
+}
+
 async function upsertActivityMessage(
   admin: AdminClient,
   activityKey: string,
@@ -189,6 +300,14 @@ async function upsertActivityMessage(
   const metadata = {
     ...(input.metadata ?? {}),
     activityKey,
+  };
+  const agentStep = inferAgentStep(input.content, metadata);
+  const metadataWithUi = {
+    ...metadata,
+    ...(agentStep ? {
+      ui: { variant: "action_card" },
+      agentStep,
+    } : {}),
   };
 
   const { data: existingMessage, error: existingError } = await admin
@@ -205,17 +324,39 @@ async function upsertActivityMessage(
     throw existingError;
   }
 
-  if (!existingMessage) {
-    return insertProjectMessage(admin, {
-      ...input,
-      metadata,
-    });
+  let resolvedExistingMessage = existingMessage;
+
+  if (!resolvedExistingMessage) {
+    const { data: pathMatchedMessage, error: pathMatchError } = await admin
+      .from("project_messages")
+      .select("id, metadata")
+      .eq("project_id", input.projectId)
+      .eq("owner_id", input.ownerId)
+      .filter("metadata->>activityKey", "eq", activityKey)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (pathMatchError) {
+      throw pathMatchError;
+    }
+
+    resolvedExistingMessage = pathMatchedMessage;
   }
 
-  const existingMetadata = existingMessage.metadata &&
-    typeof existingMessage.metadata === "object" &&
-    !Array.isArray(existingMessage.metadata)
-    ? existingMessage.metadata as Record<string, unknown>
+  if (!resolvedExistingMessage) {
+    const inserted = await insertProjectMessage(admin, {
+      ...input,
+      metadata: metadataWithUi,
+    });
+    await insertCompletionMessageOnce(admin, activityKey, input, inserted.id, agentStep);
+    return inserted;
+  }
+
+  const existingMetadata = resolvedExistingMessage.metadata &&
+    typeof resolvedExistingMessage.metadata === "object" &&
+    !Array.isArray(resolvedExistingMessage.metadata)
+    ? resolvedExistingMessage.metadata as Record<string, unknown>
     : {};
 
   const { data, error } = await admin
@@ -227,16 +368,18 @@ async function upsertActivityMessage(
       message_type: input.messageType ?? "chat",
       metadata: {
         ...existingMetadata,
-        ...metadata,
+        ...metadataWithUi,
       } as never,
     })
-    .eq("id", existingMessage.id)
+    .eq("id", resolvedExistingMessage.id)
     .select("id")
     .single();
 
   if (error) {
     throw error;
   }
+
+  await insertCompletionMessageOnce(admin, activityKey, input, data.id, agentStep);
 
   return { id: data.id };
 }

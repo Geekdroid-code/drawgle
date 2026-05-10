@@ -2,9 +2,6 @@
 
 import { TransformComponent, TransformWrapper, useControls } from "react-zoom-pan-pinch";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ZoomIn, ZoomOut } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
 import { ScreenNode, SCREEN_FRAME_HEIGHT, SCREEN_FRAME_WIDTH } from "./ScreenNode";
 import type { SelectedElementInfo } from "./ScreenNode";
 
@@ -217,16 +214,33 @@ const CanvasControls = ({
     setTransform(state.positionX, state.positionY, newScale, 200);
   };
 
-  return (
-    <div className="absolute right-4 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-50 flex h-8 items-center gap-1 rounded-full dg-panel px-1.5 backdrop-blur-xl">
-      <Button variant="ghost" size="icon" onClick={handleZoomIn} className="h-8 w-8 rounded-full hover:bg-[#f7f7f8]">
-        <ZoomIn className="h-4 w-4 text-gray-700" />
-      </Button>
-      <Button variant="ghost" size="icon" onClick={handleZoomOut} className="h-8 w-8 rounded-full hover:bg-[#f7f7f8]">
-        <ZoomOut className="h-4 w-4 text-gray-700" />
-      </Button>
-    </div>
-  );
+  const handleFitCanvas = () => {
+    if (!viewport) {
+      return;
+    }
+
+    const transform = screenBounds && !selectedScreen
+      ? getFitTransform(screenBounds, viewport, mobileBottomReserve)
+      : selectedScreen
+        ? getSelectedScreenTransform(selectedScreen, viewport, state.scale, mobileBottomReserve)
+        : getEmptyCanvasTransform(viewport, mobileBottomReserve);
+
+    setTransform(transform.positionX, transform.positionY, transform.scale, 360);
+  };
+
+  useEffect(() => {
+    window.addEventListener("drawgle:canvas-zoom-in", handleZoomIn);
+    window.addEventListener("drawgle:canvas-zoom-out", handleZoomOut);
+    window.addEventListener("drawgle:canvas-fit", handleFitCanvas);
+
+    return () => {
+      window.removeEventListener("drawgle:canvas-zoom-in", handleZoomIn);
+      window.removeEventListener("drawgle:canvas-zoom-out", handleZoomOut);
+      window.removeEventListener("drawgle:canvas-fit", handleFitCanvas);
+    };
+  });
+
+  return null;
 };
 
 const CanvasContent = ({

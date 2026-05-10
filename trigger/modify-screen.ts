@@ -1,6 +1,7 @@
 import { logger, task } from "@trigger.dev/sdk";
 
 import { executeModifyScreenTask, type ModifyScreenPayload } from "@/lib/generation/edit-runner";
+import type { AgentStepMetadata } from "@/lib/agent/message-metadata";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const now = () => new Date().toISOString();
@@ -35,6 +36,15 @@ const buildFailedEditAgentState = (payload: ModifyScreenPayload, message: string
 async function markEditFailed(payload: ModifyScreenPayload, message: string) {
   const admin = createAdminClient();
   const activityKey = `edit:${payload.userMessageId}`;
+  const isNavigation = payload.selectedElementTarget === "navigation" || payload.requestTargetsNavigation;
+  const failedStep: AgentStepMetadata = {
+    kind: isNavigation ? "navigation" : "edit",
+    status: "failed",
+    title: isNavigation ? "Edit project navigation" : "Edit screen",
+    detail: message,
+    targetLabel: isNavigation ? "Navigation" : null,
+    processLines: [message],
+  };
 
   const { data: existingMessage } = await admin
     .from("project_messages")
@@ -65,10 +75,12 @@ async function markEditFailed(payload: ModifyScreenPayload, message: string) {
           action: "edit_failed",
           editJob: {
             status: "failed",
-            targetType: payload.selectedElementTarget === "navigation" || payload.requestTargetsNavigation ? "navigation" : "screen",
+            targetType: isNavigation ? "navigation" : "screen",
             screenId: payload.screenId ?? null,
             drawgleId: payload.selectedElementDrawgleId ?? null,
           },
+          ui: { variant: "action_card" },
+          agentStep: failedStep,
           editStrategy: payload.editStrategy ?? null,
           editOperation: payload.editOperation ?? null,
           recoveryContext: payload.recoveryContext ?? null,
@@ -92,10 +104,12 @@ async function markEditFailed(payload: ModifyScreenPayload, message: string) {
       action: "edit_failed",
       editJob: {
         status: "failed",
-        targetType: payload.selectedElementTarget === "navigation" || payload.requestTargetsNavigation ? "navigation" : "screen",
+        targetType: isNavigation ? "navigation" : "screen",
         screenId: payload.screenId ?? null,
         drawgleId: payload.selectedElementDrawgleId ?? null,
       },
+      ui: { variant: "action_card" },
+      agentStep: failedStep,
       editStrategy: payload.editStrategy ?? null,
       editOperation: payload.editOperation ?? null,
       recoveryContext: payload.recoveryContext ?? null,

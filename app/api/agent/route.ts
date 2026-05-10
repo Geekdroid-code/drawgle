@@ -17,6 +17,11 @@ import { applyDeterministicEdits, ensureDrawgleIds, type DeterministicEditOperat
 import { indexScreenCode } from "@/lib/generation/block-index";
 import { persistProjectMessageMemory, persistProjectMessageMemoryPair } from "@/lib/generation/message-memory";
 import { findRepairTarget } from "@/lib/generation/screen-repair";
+import { assembleProjectContext } from "@/lib/generation/context";
+import { planUiFlow } from "@/lib/generation/service";
+import { buildThinkingSummary, readScreenPlanProposal, type AgentStepMetadata } from "@/lib/agent/message-metadata";
+import { approveScreenPlanProposal, ScreenPlanApprovalError } from "@/lib/agent/screen-plan-approval";
+import { checkScope, SCOPE_REFUSAL_MESSAGE } from "@/lib/agent/scope-policy";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { fetchProjectMessages, insertProjectMessage } from "@/lib/supabase/queries";
@@ -29,6 +34,7 @@ import {
   type ProjectCharter,
   type ProjectMessage,
   type PromptImagePayload,
+  type ScreenPlan,
 } from "@/lib/types";
 import type { generateUiFlowTask } from "@/trigger/generate-ui-flow";
 import type { modifyScreenTask } from "@/trigger/modify-screen";
@@ -81,6 +87,231 @@ const whiteLabelAgentMessage = (prompt: string, message?: string | null) => {
 
   return cleanMessage;
 };
+
+const targetLabelFromContext = ({
+  requestTargetsNavigation,
+  shouldUseSelectedElement,
+  targetScreenName,
+}: {
+  requestTargetsNavigation?: boolean;
+  shouldUseSelectedElement?: boolean;
+  targetScreenName?: string | null;
+}) => {
+  if (requestTargetsNavigation) return "Navigation";
+  if (shouldUseSelectedElement) return targetScreenName ? `selected element in ${targetScreenName}` : "selected element";
+  return targetScreenName ?? "selected screen";
+};
+
+const buildVisibleThinkingText = ({
+  action,
+  targetLabel,
+  hasImage,
+}: {
+  action: AgentRouterDecision["action"];
+  targetLabel?: string | null;
+  hasImage: boolean;
+}) => {
+  if (action === "create_new_screen") {
+    return hasImage
+      ? "I reviewed your prompt and reference image, then matched it to a new-screen build request."
+      : "I reviewed your prompt and matched it to a new-screen build request.";
+  }
+
+  if (action === "modify_ui") {
+    return `I checked the selected canvas context and resolved the request to ${targetLabel ?? "the best matching UI target"}.`;
+  }
+
+  if (action === "ask_clarification") {
+    return "I checked the canvas context and found one missing detail before making a change.";
+  }
+
+  return "I read the recent conversation and canvas context before replying.";
+};
+
+const fallbackPreActionMessage = ({
+  action,
+  targetLabel,
+}: {
+  action: AgentRouterDecision["action"];
+  targetLabel?: string | null;
+}) => {
+  if (action === "create_new_screen") {
+    return "Okay, I'm shaping that into a new screen and sending it to the canvas builder now.";
+  }
+
+  if (action === "modify_ui") {
+    return `Okay, I'm applying a precise edit to ${targetLabel ?? "the selected UI"} now.`;
+  }
+
+  return null;
+};
+
+const approvalPromptPattern = /^(yes|yeah|yep|ok|okay|sure|do it|build it|build this|approve|approved|go ahead|looks good|ship it|create it)(\s|[.!?,]|$)/i;
+
+const vagueScreenRequestStopwords = new Set([
+  "a",
+  "an",
+  "and",
+  "app",
+  "build",
+  "can",
+  "create",
+  "for",
+  "generate",
+  "i",
+  "make",
+  "me",
+  "new",
+  "page",
+  "please",
+  "screen",
+  "this",
+  "to",
+  "view",
+  "want",
+  "wanna",
+  "would",
+]);
+
+const isScreenPlanApprovalPrompt = (prompt: string) =>
+  approvalPromptPattern.test(prompt.trim());
+
+const latestPendingScreenPlanProposal = (messages: ProjectMessage[]) => {
+  for (const message of [...messages].reverse()) {
+    const proposal = readScreenPlanProposal(message.metadata);
+    if (!proposal || proposal.status !== "pending" || new Date(proposal.expiresAt).getTime() < Date.now()) {
+      continue;
+    }
+
+    return {
+      messageId: message.id,
+      proposal,
+    };
+  }
+
+  return null;
+};
+
+const isVagueNewScreenRequest = (prompt: string, hasImage: boolean) => {
+  if (hasImage) {
+    return false;
+  }
+
+  const words = prompt
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .split(/\s+/)
+    .map((word) => word.trim())
+    .filter(Boolean);
+  const meaningfulWords = words.filter((word) => !vagueScreenRequestStopwords.has(word));
+
+  if (meaningfulWords.length <= 1) {
+    return true;
+  }
+
+  const hasSpecificScreenType = /\b(detail|checkout|booking|profile|settings|dashboard|home|login|signup|search|results|cart|payment|onboarding|room|product|property|map|calendar|chat|feed|list|form)\b/i.test(prompt);
+  const hasContentRequirements = /\b(with|including|include|show|has|contains|images?|price|cta|button|form|list|cards?|tabs?|filters?|amenities|reviews?)\b/i.test(prompt);
+
+  return !hasSpecificScreenType && !hasContentRequirements;
+};
+
+const buildProposalStep = (screenPlan: ScreenPlan): AgentStepMetadata => ({
+  kind: "proposal",
+  status: "completed",
+  title: screenPlan.name,
+  detail: screenPlan.description,
+  targetLabel: screenPlan.type,
+  processLines: [
+    `Screen type: ${screenPlan.type}`,
+    screenPlan.chromePolicy?.chrome ? `Chrome: ${screenPlan.chromePolicy.chrome}` : "Chrome: project default",
+    "Review this plan before I build it.",
+  ],
+});
+
+async function insertAgentThinkingMessage({
+  admin,
+  projectId,
+  ownerId,
+  screenId,
+  targetLabel,
+  routerMetadata,
+  routerDecision,
+  hasImage,
+}: {
+  admin: ReturnType<typeof createAdminClient>;
+  projectId: string;
+  ownerId: string;
+  screenId?: string | null;
+  targetLabel?: string | null;
+  routerMetadata: Record<string, unknown>;
+  routerDecision: AgentRouterDecision;
+  hasImage: boolean;
+}) {
+  const summary = buildThinkingSummary({
+    label: "Analyzed your request",
+    text: buildVisibleThinkingText({ action: routerDecision.action, targetLabel, hasImage }),
+    durationMs: null,
+    expandedByDefault: false,
+  });
+
+  return insertProjectMessage(admin, {
+    projectId,
+    ownerId,
+    screenId: screenId ?? null,
+    role: "model",
+    content: summary.text,
+    messageType: "chat",
+    metadata: {
+      ...routerMetadata,
+      ui: { variant: "thinking" },
+      thinkingSummary: summary,
+    },
+  });
+}
+
+async function insertPreActionMessage({
+  admin,
+  projectId,
+  ownerId,
+  screenId,
+  prompt,
+  routerDecision,
+  routerMetadata,
+  targetLabel,
+}: {
+  admin: ReturnType<typeof createAdminClient>;
+  projectId: string;
+  ownerId: string;
+  screenId?: string | null;
+  prompt: string;
+  routerDecision: AgentRouterDecision;
+  routerMetadata: Record<string, unknown>;
+  targetLabel?: string | null;
+}) {
+  const fallback = fallbackPreActionMessage({ action: routerDecision.action, targetLabel });
+  const content = whiteLabelAgentMessage(prompt, routerDecision.responseMessage || fallback);
+
+  if (!fallback && !routerDecision.responseMessage) {
+    return null;
+  }
+
+  return insertProjectMessage(admin, {
+    projectId,
+    ownerId,
+    screenId: screenId ?? null,
+    role: "model",
+    content,
+    messageType: "chat",
+    metadata: {
+      ...routerMetadata,
+      ui: { variant: "chat" },
+      action: "pre_action_response",
+      targetLabel: targetLabel ?? null,
+    },
+  });
+}
+
+const buildQueuedAgentStep = (input: AgentStepMetadata): AgentStepMetadata => input;
 
 const metadataRecord = (value: unknown) =>
   value && typeof value === "object" && !Array.isArray(value)
@@ -632,6 +863,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Project not found." }, { status: 404 });
     }
 
+    const scopeCheck = checkScope({
+      prompt,
+      hasImage: Boolean(payload.image),
+      hasSelectedElement: Boolean(payload.selectedElementDrawgleId || payload.selectedElementHtml),
+      hasSelectedScreen: Boolean(payload.selectedScreenId || payload.focusedScreenId),
+    });
+
+    if (scopeCheck.verdict === "hard_reject") {
+      // Hard rejects are never persisted — no DB writes, no router tokens.
+      return NextResponse.json({
+        intent: "out_of_scope",
+        message: scopeCheck.userMessage,
+      });
+    }
+
     const [{ data: screens, error: screensError }, { data: projectNavigation }, activeGeneration, projectMessages] = await Promise.all([
       admin
         .from("screens")
@@ -760,6 +1006,78 @@ export async function POST(request: Request) {
       }, { status });
     };
 
+    const approvePendingProposalTurn = async (pendingProposal: NonNullable<ReturnType<typeof latestPendingScreenPlanProposal>>) => {
+      try {
+        const result = await approveScreenPlanProposal({
+          admin,
+          ownerId: user.id,
+          projectId: payload.projectId,
+          proposalMessageId: pendingProposal.messageId,
+          approvalContent: prompt || "Build this screen.",
+        });
+
+        return NextResponse.json(
+          {
+            intent: "create_new_screen",
+            ...result,
+            routerDecision,
+          },
+          { status: 202 },
+        );
+      } catch (error) {
+        if (!(error instanceof ScreenPlanApprovalError)) {
+          throw error;
+        }
+
+        const userMessage = await insertProjectMessage(admin, {
+          projectId: payload.projectId,
+          ownerId: user.id,
+          screenId: null,
+          role: "user",
+          content: prompt || "[image]",
+          messageType: "chat",
+          metadata: routerMetadata,
+        });
+        const modelMessage = await insertProjectMessage(admin, {
+          projectId: payload.projectId,
+          ownerId: user.id,
+          screenId: null,
+          role: "model",
+          content: error.message,
+          messageType: error.status >= 500 ? "error" : "chat",
+          metadata: {
+            ...routerMetadata,
+            activeGenerationRunId: error.activeGenerationRunId,
+          },
+        });
+
+        await persistProjectMessageMemoryPair({
+          admin,
+          userMessageId: userMessage.id,
+          userContent: prompt || "[image]",
+          modelMessageId: modelMessage.id,
+          modelContent: error.message,
+        }).catch((memoryError) => {
+          console.error("Failed to persist screen approval error memory", memoryError);
+        });
+
+        return NextResponse.json(
+          {
+            intent: "chat_response",
+            message: error.message,
+            activeGenerationRunId: error.activeGenerationRunId,
+            routerDecision,
+          },
+          { status: error.status },
+        );
+      }
+    };
+
+    const promptApprovalProposal = latestPendingScreenPlanProposal(projectMessages);
+    if (promptApprovalProposal && isScreenPlanApprovalPrompt(prompt)) {
+      return approvePendingProposalTurn(promptApprovalProposal);
+    }
+
     if (routerDecision.action === "ask_clarification") {
       const retainedInstruction = routerDecision.instruction?.trim() || agentState?.instruction || prompt;
       const message = whiteLabelAgentMessage(
@@ -839,22 +1157,24 @@ export async function POST(request: Request) {
     }
 
     if (routerDecision.action === "create_new_screen") {
-      if (routerDecision.executionIntent !== "create") {
-        const message = whiteLabelAgentMessage(
-          prompt,
-          routerDecision.responseMessage ||
-            "I can help plan that first. Tell me when you want me to build it on the canvas.",
-        );
+      const pendingProposal = latestPendingScreenPlanProposal(projectMessages);
 
+      if (pendingProposal && isScreenPlanApprovalPrompt(prompt)) {
+        return approvePendingProposalTurn(pendingProposal);
+      }
+
+      const generationPrompt = routerDecision.instruction?.trim() || prompt;
+
+      if (isVagueNewScreenRequest(generationPrompt, Boolean(payload.image))) {
         return saveClarification({
-          message,
-          instruction: routerDecision.instruction?.trim() || prompt,
-          missingFields: ["confirmation"],
+          message: "Sure. What should this screen be for, and what should it contain?",
+          instruction: generationPrompt,
+          missingFields: ["screen_requirements"],
           lastKnownTarget: buildDecisionTarget(routerDecision),
           metadata: {
             serverReconciliation: {
-              finalAction: "chat_response",
-              reason: "create_blocked_without_create_execution_intent",
+              finalAction: "ask_clarification",
+              reason: "new_screen_request_missing_screen_requirements",
             },
           },
         });
@@ -902,73 +1222,48 @@ export async function POST(request: Request) {
         ? normalizeDesignTokens(project.design_tokens as DesignTokens)
         : null;
       const projectCharter = (project.project_charter as ProjectCharter | null) ?? null;
+      const planningContext = await assembleProjectContext({
+        admin,
+        projectId: payload.projectId,
+        userPrompt: generationPrompt,
+      });
+      const plan = await planUiFlow({
+        prompt: generationPrompt,
+        image: payload.image ?? null,
+        designTokens,
+        projectContext: planningContext,
+        existingCharter: projectCharter,
+        existingNavigationPlan: navigationPlan,
+        planningMode: "single-screen",
+      });
+      const screenPlan = plan.screens[0] ?? {
+        name: "New Screen",
+        type: "root" as const,
+        description: generationPrompt,
+      };
       const imagePath = await uploadPromptImage({
         admin,
         ownerId: user.id,
         image: payload.image ?? null,
       });
-      const generationPrompt = routerDecision.instruction?.trim() || prompt;
-
-      await admin
-        .from("projects")
-        .update({
-          status: "queued",
-          updated_at: now(),
-        })
-        .eq("id", payload.projectId);
-
-      const { data: generationRun, error: generationRunError } = await admin
-        .from("generation_runs")
-        .insert({
-          project_id: payload.projectId,
-          owner_id: user.id,
-          prompt: generationPrompt,
-          image_path: imagePath,
-          status: "queued",
-          metadata: {
-            requestedFrom: "agent-router",
-            planningMode: "single-screen",
-            routerDecision,
-          } as never,
-          created_at: now(),
-          updated_at: now(),
-        })
-        .select("id")
-        .single();
-
-      if (generationRunError || !generationRun) {
-        throw generationRunError ?? new Error("Failed to create generation run.");
-      }
-
-      const handle = await tasks.trigger<typeof generateUiFlowTask>(
-        "generate-ui-flow",
-        {
-          generationRunId: generationRun.id,
-          projectId: payload.projectId,
-          ownerId: user.id,
-          prompt: generationPrompt,
-          imagePath,
-          designTokens,
-          plannedScreens: null,
-          requiresBottomNav: navigationPlan?.enabled || projectCharter?.navigationArchitecture?.primaryNavigation === "bottom-tabs",
-          navigationArchitecture: projectCharter?.navigationArchitecture ?? null,
-          navigationPlan,
-          projectCharter,
-          planningMode: "single-screen",
+      const proposalMetadata = {
+        prompt: generationPrompt,
+        screenPlan,
+        requiresBottomNav: plan.requiresBottomNav,
+        navigationArchitecture: plan.navigationArchitecture,
+        navigationPlan: plan.navigationPlan,
+        imagePath,
+        status: "pending",
+        expiresAt: new Date(Date.now() + 1000 * 60 * 45).toISOString(),
+      };
+      const proposalText = `I drafted a plan for ${screenPlan.name}. Review it, then I can build it on the canvas.`;
+      const proposalBaseMetadata = {
+        ...routerMetadata,
+        serverReconciliation: {
+          finalAction: "draft_screen_plan",
+          finalScope: "new_screen",
         },
-        {
-          concurrencyKey: user.id,
-          ttl: "30m",
-        },
-      );
-
-      await admin
-        .from("generation_runs")
-        .update({
-          trigger_run_id: handle.id,
-          updated_at: now(),
-        })
-        .eq("id", generationRun.id);
+      };
 
       const userMessage = await insertProjectMessage(admin, {
         projectId: payload.projectId,
@@ -977,34 +1272,69 @@ export async function POST(request: Request) {
         role: "user",
         content: prompt || "[image]",
         messageType: "chat",
+        metadata: proposalBaseMetadata,
+      });
+      const modelMessage = await insertProjectMessage(admin, {
+        projectId: payload.projectId,
+        ownerId: user.id,
+        screenId: null,
+        role: "model",
+        content: proposalText,
+        messageType: "chat",
         metadata: {
-          ...routerMetadata,
-          generationRunId: generationRun.id,
-          serverReconciliation: {
-            finalAction: "create_new_screen",
-            finalScope: "new_screen",
-          },
+          ...proposalBaseMetadata,
+          ui: { variant: "chat" },
+          action: "screen_plan_proposed_intro",
+          userMessageId: userMessage.id,
+        },
+      });
+      const proposalMessage = await insertProjectMessage(admin, {
+        projectId: payload.projectId,
+        ownerId: user.id,
+        screenId: null,
+        role: "system",
+        content: `Screen plan: ${screenPlan.name}`,
+        messageType: "chat",
+        metadata: {
+          ...proposalBaseMetadata,
+          ui: { variant: "action_card" },
+          action: "screen_plan_proposed",
+          userMessageId: userMessage.id,
+          screenPlanProposal: proposalMetadata,
+          agentStep: buildProposalStep(screenPlan),
+          agentState: makeAgentState({
+            kind: "pending_clarification",
+            instruction: generationPrompt,
+            missingFields: ["approval"],
+            targetCandidates: null,
+            lastKnownTarget: {
+              targetType: "none",
+              scope: "new_screen",
+              screenId: null,
+              screenName: screenPlan.name,
+              selectedElementDrawgleId: null,
+            },
+            message: proposalText,
+          }),
         },
       });
 
-      await persistProjectMessageMemory({
+      await persistProjectMessageMemoryPair({
         admin,
-        messageId: userMessage.id,
-        role: "user",
-        content: prompt || "[image]",
+        userMessageId: userMessage.id,
+        userContent: prompt || "[image]",
+        modelMessageId: modelMessage.id,
+        modelContent: proposalText,
       }).catch((error) => {
-        console.error("Failed to persist create-request memory", error);
+        console.error("Failed to persist screen proposal memory", error);
       });
 
-      return NextResponse.json(
-        {
-          intent: "create_new_screen",
-          generationRunId: generationRun.id,
-          triggerRunId: handle.id,
-          routerDecision,
-        },
-        { status: 202 },
-      );
+      return NextResponse.json({
+        intent: "screen_plan_proposed",
+        proposalMessageId: proposalMessage.id,
+        screenPlan,
+        routerDecision,
+      });
     }
 
     const designTokens = project.design_tokens
@@ -1257,10 +1587,10 @@ export async function POST(request: Request) {
       editStrategy,
       editOperation,
     };
-    const executionRouterDecision = {
+    const executionRouterDecision: AgentRouterDecision = {
       ...routerDecision,
       targetScreenId,
-      targetType: executionRouterMetadata.agentRouter.targetType,
+      targetType: executionRouterMetadata.agentRouter.targetType as AgentTargetType,
       scope: resolvedScope,
       selectedElementDrawgleId: executionRouterMetadata.agentRouter.selectedElementDrawgleId,
       editOperation,
@@ -1329,6 +1659,33 @@ export async function POST(request: Request) {
             operationCount: deterministicStyleIntent.operations.length,
           },
         },
+      });
+      const deterministicTargetLabel = targetLabelFromContext({
+        requestTargetsNavigation,
+        shouldUseSelectedElement,
+        targetScreenName: targetScreen?.name ?? null,
+      });
+
+      await insertAgentThinkingMessage({
+        admin,
+        projectId: payload.projectId,
+        ownerId: user.id,
+        screenId: targetScreenId,
+        targetLabel: deterministicTargetLabel,
+        routerMetadata: executionRouterMetadata,
+        routerDecision: executionRouterDecision,
+        hasImage: Boolean(payload.image),
+      });
+
+      const preActionMessage = await insertPreActionMessage({
+        admin,
+        projectId: payload.projectId,
+        ownerId: user.id,
+        screenId: targetScreenId,
+        prompt,
+        routerDecision: executionRouterDecision,
+        routerMetadata: executionRouterMetadata,
+        targetLabel: deterministicTargetLabel,
       });
 
       let changed = false;
@@ -1425,6 +1782,7 @@ export async function POST(request: Request) {
         messageType: changed ? "edit_applied" : "chat",
         metadata: {
           ...executionRouterMetadata,
+          ui: { variant: "action_card" },
           action: changed ? "deterministic_token_style_applied" : "deterministic_token_style_noop",
           screenName: requestTargetsNavigation ? "Navigation" : screenName,
           userMessageId: userMessage.id,
@@ -1440,6 +1798,17 @@ export async function POST(request: Request) {
             screenId: targetScreenId,
             drawgleId: payload.selectedElementDrawgleId,
           },
+          agentStep: buildQueuedAgentStep({
+            kind: requestTargetsNavigation ? "navigation" : "edit",
+            status: changed ? "completed" : "failed",
+            title: changed ? `Updated ${deterministicTargetLabel}` : `No material style change for ${deterministicTargetLabel}`,
+            detail: modelContent,
+            targetLabel: deterministicTargetLabel,
+            processLines: [
+              "Matched your request to deterministic project-token edits.",
+              changed ? "Saved the updated target." : "The target already matched the requested token change.",
+            ],
+          }),
           agentState: makeAgentState({
             kind: "last_actionable_request",
             instruction: resolvedInstruction,
@@ -1451,12 +1820,32 @@ export async function POST(request: Request) {
         },
       });
 
+      const completionContent = changed
+        ? `Done - I updated ${deterministicTargetLabel}. What do you think?`
+        : `I checked ${deterministicTargetLabel}, but there was no material style change to save.`;
+      const completionMessage = await insertProjectMessage(admin, {
+        projectId: payload.projectId,
+        ownerId: user.id,
+        screenId: targetScreenId,
+        role: "model",
+        content: completionContent,
+        messageType: changed ? "chat" : "error",
+        metadata: {
+          ...executionRouterMetadata,
+          ui: { variant: changed ? "chat" : "error" },
+          action: "edit_completion",
+          userMessageId: userMessage.id,
+          completionForMessageId: modelMessage.id,
+          screenName: requestTargetsNavigation ? "Navigation" : screenName,
+        },
+      });
+
       await persistProjectMessageMemoryPair({
         admin,
         userMessageId: userMessage.id,
         userContent: prompt || "[image]",
-        modelMessageId: modelMessage.id,
-        modelContent,
+        modelMessageId: preActionMessage?.id ?? completionMessage.id,
+        modelContent: preActionMessage?.content ?? completionContent,
       }).catch((error) => {
         console.error("Failed to persist deterministic token edit memory", error);
       });
@@ -1487,6 +1876,34 @@ export async function POST(request: Request) {
       screenName: targetScreen?.name ?? null,
       selectedElementDrawgleId: shouldUseSelectedElement ? payload.selectedElementDrawgleId ?? null : null,
     };
+    const targetLabel = targetLabelFromContext({
+      requestTargetsNavigation,
+      shouldUseSelectedElement,
+      targetScreenName: targetScreen?.name ?? null,
+    });
+
+    await insertAgentThinkingMessage({
+      admin,
+      projectId: payload.projectId,
+      ownerId: user.id,
+      screenId: targetScreenId,
+      targetLabel,
+      routerMetadata: executionRouterMetadata,
+      routerDecision: executionRouterDecision,
+      hasImage: Boolean(payload.image),
+    });
+
+    const preActionMessage = await insertPreActionMessage({
+      admin,
+      projectId: payload.projectId,
+      ownerId: user.id,
+      screenId: targetScreenId,
+      prompt,
+      routerDecision: executionRouterDecision,
+      routerMetadata: executionRouterMetadata,
+      targetLabel,
+    });
+
     const queuedMessage = await insertProjectMessage(admin, {
       projectId: payload.projectId,
       ownerId: user.id,
@@ -1499,6 +1916,7 @@ export async function POST(request: Request) {
       metadata: {
         ...executionRouterMetadata,
         activityKey,
+        ui: { variant: "action_card" },
         action: requestTargetsNavigation ? "navigation_edit_queued" : "edit_queued",
         screenName: requestTargetsNavigation ? "Navigation" : targetScreen?.name ?? null,
         userMessageId: userMessage.id,
@@ -1508,6 +1926,17 @@ export async function POST(request: Request) {
           screenId: targetScreenId,
           drawgleId: shouldUseSelectedElement ? payload.selectedElementDrawgleId ?? null : null,
         },
+        agentStep: buildQueuedAgentStep({
+          kind: requestTargetsNavigation ? "navigation" : "edit",
+          status: "queued",
+          title: requestTargetsNavigation ? "Edit project navigation" : `Edit ${targetLabel}`,
+          detail: resolvedInstruction,
+          targetLabel,
+          processLines: [
+            "Queued the edit request.",
+            shouldUseSelectedElement ? "Using the selected element as the edit boundary." : "Using canvas context to choose the safest editable region.",
+          ],
+        }),
         agentState: makeAgentState({
           kind: "last_actionable_request",
           instruction: resolvedInstruction,
@@ -1545,33 +1974,43 @@ export async function POST(request: Request) {
       },
     );
 
+    const { data: currentQueuedMessage } = await admin
+      .from("project_messages")
+      .select("metadata")
+      .eq("id", queuedMessage.id)
+      .maybeSingle();
+    const currentQueuedMetadata = metadataRecord(currentQueuedMessage?.metadata);
+
     await admin
       .from("project_messages")
       .update({
         metadata: {
-          ...executionRouterMetadata,
-          activityKey,
-          action: requestTargetsNavigation ? "navigation_edit_queued" : "edit_queued",
-          screenName: requestTargetsNavigation ? "Navigation" : targetScreen?.name ?? null,
-          userMessageId: userMessage.id,
+          ...(Object.keys(currentQueuedMetadata).length > 0 ? currentQueuedMetadata : queuedMessage.metadata),
           triggerRunId: handle.id,
-          editJob: {
-            status: "queued",
-            targetType: requestTargetsNavigation ? "navigation" : "screen",
-            screenId: targetScreenId,
-            drawgleId: shouldUseSelectedElement ? payload.selectedElementDrawgleId ?? null : null,
-          },
-          agentState: makeAgentState({
-            kind: "last_actionable_request",
-            instruction: resolvedInstruction,
-            missingFields: null,
-            targetCandidates: null,
-            lastKnownTarget,
-            message: null,
-          }),
         } as never,
       })
       .eq("id", queuedMessage.id);
+
+    if (preActionMessage) {
+      await persistProjectMessageMemoryPair({
+        admin,
+        userMessageId: userMessage.id,
+        userContent: prompt || "[image]",
+        modelMessageId: preActionMessage.id,
+        modelContent: preActionMessage.content,
+      }).catch((error) => {
+        console.error("Failed to persist edit pre-action memory", error);
+      });
+    } else {
+      await persistProjectMessageMemory({
+        admin,
+        messageId: userMessage.id,
+        role: "user",
+        content: prompt || "[image]",
+      }).catch((error) => {
+        console.error("Failed to persist edit-request memory", error);
+      });
+    }
 
     return NextResponse.json(
       {

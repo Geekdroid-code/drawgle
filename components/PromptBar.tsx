@@ -1,15 +1,38 @@
 import Image from "next/image";
 import { useRef, useState } from "react";
+import { Crosshair, Image as ImageIcon, Loader2, Palette, Pencil, Send, Trash2, Type, X } from "lucide-react";
+
+import { AgentThinkingIndicator } from "@/components/AgentBall";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Crosshair, Image as ImageIcon, Loader2, Palette, Pencil, Send, Trash2, Type, X } from "lucide-react";
 import type { ProjectData, PromptImagePayload, ScreenData } from "@/lib/types";
 
-export function PromptBar({
+export type AgentComposerProps = {
+  onSubmit?: (options: { prompt: string; image?: PromptImagePayload | null }) => Promise<boolean>;
+  project?: ProjectData;
+  disabled?: boolean;
+  submitStatusText?: string;
+  selectedScreen?: ScreenData | null;
+  onClearSelectedScreen?: () => void;
+  onDeleteSelectedScreen?: () => void | Promise<void>;
+  mobileTopAccessory?: React.ReactNode;
+  selectionMode?: boolean;
+  onToggleSelectionMode?: () => void;
+  selectedElementPreview?: string | null;
+  selectedElementTargetLabel?: string | null;
+  selectedElementCanEditText?: boolean;
+  selectedElementCanEditDesign?: boolean;
+  onEditSelectedText?: () => void;
+  onEditSelectedDesign?: () => void;
+  onClearSelectedElement?: () => void;
+  variant?: "floating" | "panel";
+};
+
+export function AgentComposer({
   onSubmit,
   project,
   disabled = false,
-  submitStatusText = "Queueing generation...",
+  submitStatusText = "Thinking...",
   selectedScreen = null,
   onClearSelectedScreen,
   onDeleteSelectedScreen,
@@ -23,32 +46,8 @@ export function PromptBar({
   onEditSelectedText,
   onEditSelectedDesign,
   onClearSelectedElement,
-}: {
-  onSubmit?: (options: { prompt: string; image?: PromptImagePayload | null }) => Promise<boolean>;
-  project?: ProjectData;
-  disabled?: boolean;
-  submitStatusText?: string;
-  selectedScreen?: ScreenData | null;
-  onClearSelectedScreen?: () => void;
-  onDeleteSelectedScreen?: () => void | Promise<void>;
-  mobileTopAccessory?: React.ReactNode;
-  /** Whether element selection mode is active on the screen */
-  selectionMode?: boolean;
-  /** Toggle element selection mode on the selected screen */
-  onToggleSelectionMode?: () => void;
-  /** Text preview of the currently selected element (null = no element selected) */
-  selectedElementPreview?: string | null;
-  /** Human readable selected target label, usually the screen name or Navigation. */
-  selectedElementTargetLabel?: string | null;
-  /** Whether selected target has text rows available for deterministic editing. */
-  selectedElementCanEditText?: boolean;
-  /** Whether selected target can receive deterministic design edits. */
-  selectedElementCanEditDesign?: boolean;
-  onEditSelectedText?: () => void;
-  onEditSelectedDesign?: () => void;
-  /** Clear the currently selected element */
-  onClearSelectedElement?: () => void;
-}) {
+  variant = "floating",
+}: AgentComposerProps) {
   const [prompt, setPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [agentStatus, setAgentStatus] = useState("");
@@ -59,8 +58,8 @@ export function PromptBar({
   const activeTargetLabel = selectedElementTargetLabel || selectedScreen?.name || null;
   const isActiveComposer = Boolean(prompt.trim() || activeImage || selectedScreen || hasSelectedElement || selectionMode);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
@@ -68,6 +67,7 @@ export function PromptBar({
       const base64String = reader.result as string;
       const base64Data = base64String.split(",")[1];
       setImage({ data: base64Data, mimeType: file.type });
+      event.target.value = "";
     };
     reader.readAsDataURL(file);
   };
@@ -92,7 +92,7 @@ export function PromptBar({
           setImage(null);
         }
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("Pipeline error:", error);
     } finally {
       setIsGenerating(false);
@@ -100,8 +100,12 @@ export function PromptBar({
     }
   };
 
+  const shellClass = variant === "panel"
+    ? "relative flex flex-col rounded-[20px] border border-slate-950/[0.08] bg-white p-2"
+    : `relative flex flex-col rounded-[20px] p-1.5 backdrop-blur-xl ${isActiveComposer ? "dg-prompt-composer-active" : "dg-prompt-composer"}`;
+
   return (
-    <div className={`relative flex flex-col rounded-[20px] p-1.5 backdrop-blur-xl ${isActiveComposer ? "dg-prompt-composer-active" : "dg-prompt-composer"}`}>
+    <div className={shellClass}>
       {mobileTopAccessory ? (
         <div className="absolute left-3 top-0 z-10 -translate-y-[38%] md:hidden">
           {mobileTopAccessory}
@@ -109,7 +113,7 @@ export function PromptBar({
       ) : null}
 
       {selectedScreen || hasSelectedElement ? (
-        <div className="mb-1 flex min-h-9 items-center justify-between gap-2 rounded-[16px] border border-slate-950/[0.08] bg-[#f7f7f8] px-2.5 py-1.5">
+        <div className="mb-1 flex min-h-9 items-center justify-between gap-2 rounded-[18px] border border-slate-950/[0.08] bg-[#f7f7f8] px-2.5 py-1.5">
           <div className="flex min-w-0 items-center gap-2">
             <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-950/[0.08] bg-white text-slate-600">
               {hasSelectedElement ? <Crosshair className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
@@ -147,7 +151,7 @@ export function PromptBar({
                 title="Edit element overrides"
               >
                 <Palette className="mr-1 h-3.5 w-3.5" />
-                Overrides
+                Style
               </Button>
             ) : null}
             {hasSelectedElement && onClearSelectedElement ? (
@@ -169,6 +173,7 @@ export function PromptBar({
                 className="h-7 w-7 rounded-full text-red-600 hover:bg-red-50 hover:text-red-700"
                 onClick={() => void onDeleteSelectedScreen()}
                 disabled={disabled || isGenerating}
+                title="Delete selected screen"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </Button>
@@ -180,6 +185,7 @@ export function PromptBar({
                 className="h-7 w-7 rounded-full text-slate-500 hover:bg-white hover:text-slate-900"
                 onClick={onClearSelectedScreen}
                 disabled={disabled || isGenerating}
+                title="Clear selected screen"
               >
                 <X className="w-3.5 h-3.5" />
               </Button>
@@ -188,14 +194,14 @@ export function PromptBar({
         </div>
       ) : null}
 
-      {/* Selected element pill — shown when the user has visually selected an element */}
-      {isGenerating && agentStatus && (
+      {variant === "floating" && isGenerating && agentStatus ? (
         <div className="absolute -top-10 left-1/2 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-full dg-button-primary px-3.5 py-1.5 text-xs font-medium text-white">
           <Loader2 className="w-3 h-3 animate-spin" />
           {agentStatus}
         </div>
-      )}
-      {activeImage && (
+      ) : null}
+
+      {activeImage ? (
         <div className="relative inline-block px-3 pt-2">
           <div className="relative h-16 w-16 overflow-hidden rounded-[16px] border border-slate-950/[0.08] bg-white">
             <Image
@@ -209,12 +215,14 @@ export function PromptBar({
             <button
               onClick={() => setImage(null)}
               className="absolute right-1 top-1 rounded-full bg-black/60 p-0.5 text-white hover:bg-black/80"
+              type="button"
             >
               <X className="w-3 h-3" />
             </button>
           </div>
         </div>
-      )}
+      ) : null}
+
       {selectionMode ? (
         <div className="mx-2 mt-1 flex items-center justify-between gap-2 rounded-[14px] border border-teal-500/25 bg-teal-50/90 px-3 py-2 text-xs font-medium text-teal-800">
           <span className="flex min-w-0 items-center gap-2">
@@ -233,6 +241,7 @@ export function PromptBar({
           ) : null}
         </div>
       ) : null}
+
       <Textarea
         placeholder={
           hasSelectedElement
@@ -240,22 +249,23 @@ export function PromptBar({
             : selectedScreen
               ? `Ask AI to modify ${selectedScreen.name}...`
               : project
-                ? "What would you like to edit or create?"
+                ? "What do you want to do?"
                 : "What mobile app shall we design?"
         }
-        className="min-h-[54px] resize-none border-none bg-transparent px-3 py-2.5 text-base leading-6 text-slate-950 shadow-none placeholder:text-slate-400 focus-visible:ring-0"
+        className={`${variant === "panel" ? "min-h-[46px] text-[15px]" : "min-h-[54px] text-base"} resize-none border-none bg-transparent px-3 py-2.5 leading-6 text-slate-950 shadow-none placeholder:text-slate-400 focus-visible:ring-0`}
         value={prompt}
-        onChange={(e) => setPrompt(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
+        onChange={(event) => setPrompt(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
             void handleGenerate();
           }
         }}
         disabled={disabled || isGenerating}
       />
+
       <div className="flex items-center justify-between px-2 pb-1 pt-1">
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           <input
             type="file"
             accept="image/*"
@@ -287,22 +297,29 @@ export function PromptBar({
               className="h-9 w-9 rounded-full dg-control text-slate-500 hover:text-slate-950"
               onClick={() => fileInputRef.current?.click()}
               disabled={disabled || isGenerating}
+              title="Attach image"
             >
               <ImageIcon className="w-5 h-5" />
             </Button>
           ) : null}
+          {variant === "panel" && isGenerating ? (
+            <AgentThinkingIndicator label={agentStatus || submitStatusText} className="text-slate-600" />
+          ) : null}
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            size="icon"
-            className="h-10 w-10 rounded-full dg-button-primary text-white"
-            onClick={() => void handleGenerate()}
-            disabled={disabled || isGenerating || (!prompt.trim() && !activeImage)}
-          >
-            {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-          </Button>
-        </div>
+        <Button
+          size="icon"
+          className="h-10 w-10 rounded-full dg-button-primary text-white"
+          onClick={() => void handleGenerate()}
+          disabled={disabled || isGenerating || (!prompt.trim() && !activeImage)}
+          title="Send"
+        >
+          {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+        </Button>
       </div>
     </div>
   );
+}
+
+export function PromptBar(props: AgentComposerProps) {
+  return <AgentComposer {...props} variant={props.variant ?? "floating"} />;
 }

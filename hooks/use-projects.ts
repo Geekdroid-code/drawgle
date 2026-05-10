@@ -84,8 +84,22 @@ export function useProjects(ownerId: string, initialProjects: ProjectData[] = EM
     };
   }, [ownerId]);
 
+  const deleteProject = async (projectId: string) => {
+    const supabase = createClient();
+    const previousProjects = projects;
+
+    setProjects((currentProjects) => currentProjects.filter((project) => project.id !== projectId));
+
+    const { error } = await supabase.from("projects").delete().eq("id", projectId).eq("owner_id", ownerId);
+    if (error) {
+      setProjects(previousProjects);
+      throw error;
+    }
+  };
+
   return {
     projects,
     isLoading,
+    deleteProject,
   };
 }

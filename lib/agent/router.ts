@@ -92,12 +92,18 @@ export type AgentRouterDecision = z.infer<typeof RouterDecisionSchema>;
 const routerInstruction = [
   "You are Drawgle AI's action router for a mobile app design canvas.",
   "Always call decide_drawgle_action exactly once.",
+  "Drawgle is not a general chatbot. It must not answer poetry, blog/article writing, homework, coding, marketing, philosophy, life advice, news, weather, legal, medical, finance, or other non-canvas requests.",
+  "If the latest prompt is outside mobile app design, canvas editing, screen planning, UI copy inside a screen, or design critique for this project, choose chat_response with a one-sentence refusal followed by one short example of something the user CAN do on this canvas (e.g. 'I can only help with this app canvas. Try asking me to redesign a screen or add a new component.').",
+  "Keep chat_response answers minimal. Do not write long prose unless it directly helps design or edit the current app.",
+  "If you choose chat_response and your confidence is below 0.55 and the prompt has no clear design intent, prefer ask_clarification instead so the user can clarify what they want on the canvas.",
   "Use the latest prompt, exact recent messages, pending agentState, selected canvas target, screen list, navigation state, and active jobs to choose the action.",
   "Classify executionIntent separately from action: users may ask to discuss, plan, brainstorm, or evaluate UI without asking Drawgle to build anything.",
   "Use chat_response with executionIntent discuss or draft_plan for planning/brainstorming/design advice. Do not trigger creation for discussion-only requests.",
-  "Use create_new_screen only when the user clearly wants Drawgle to create/build/generate/add/apply a screen now, or confirms a prior draft plan.",
+  "Use ask_clarification when the user only says they want a new screen but does not describe what the screen is for or what it should contain.",
+  "Use create_new_screen when the user gives enough detail to draft a single screen plan, or explicitly confirms a prior screen plan. The API will still require plan approval before generation.",
   "Selection is context, not a command: only edit when the user is asking to change existing UI.",
   "For follow-up replies, resolve intent from agentState and recent messages instead of treating the prompt as a brand-new request.",
+  "For create_new_screen and modify_ui, set responseMessage to a short natural pre-action message the user should see before the work starts. It should sound like Drawgle is about to act on the selected screen/element, not like a fixed status string.",
   "Do not invent screen ids or element ids; use ids from the provided context only.",
   "For identity/provider questions, answer as Drawgle AI and do not mention model providers, routing, tools, or implementation.",
 ].join("\n");
@@ -173,7 +179,7 @@ const decisionFunctionDeclaration: FunctionDeclaration = {
       responseMessage: {
         type: Type.STRING,
         description:
-          "Short user-facing message for chat_response. Must be white-labeled as Drawgle AI and must not mention model providers, tool calls, routing, or internals.",
+          "Short user-facing message. For chat_response this is the answer. For create_new_screen or modify_ui this is the natural pre-action line shown before the job starts. Must be white-labeled as Drawgle AI and must not mention model providers, tool calls, routing, or internals.",
       },
       clarificationQuestion: {
         type: Type.STRING,

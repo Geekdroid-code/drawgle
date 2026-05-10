@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, BookOpen, Check, ChevronDown, Eye, Layers, Loader2, Navigation, Palette, RotateCcw, Save, X } from "lucide-react";
 
 import { CanvasArea } from "@/components/CanvasArea";
+import { CanvasToolDock } from "@/components/CanvasToolDock";
 import { ChatPanel } from "@/components/ChatPanel";
 import { ColorPickerButton, DesignSystemEditor } from "@/components/DesignSystemEditor";
-import { PromptBar } from "@/components/PromptBar";
 import type { SelectedElementInfo } from "@/components/ScreenNode";
 import { Button } from "@/components/ui/button";
 import {
@@ -954,9 +954,7 @@ export function ProjectShell({
     (selectedElementInfo.editableMetadata?.textNodes?.length ?? 0) > 0,
   );
   const selectedElementCanEditDesign = Boolean(selectedElementInfo?.drawgleId);
-  const mobilePromptReserve = selectedScreen
-    ? 166
-    : 136;
+  const mobilePromptReserve = 96;
   const shellLayoutVars = {
     "--dg-mobile-prompt-reserve": `${mobilePromptReserve}px`,
     "--dg-mobile-prompt-bottom": "calc(env(safe-area-inset-bottom, 0px) + 0.75rem)",
@@ -1344,6 +1342,51 @@ export function ProjectShell({
     }
   };
 
+  const handleApproveScreenPlan = async (proposalMessageId: string) => {
+    if (!project || isCanvasInteractionLocked) {
+      return;
+    }
+
+    setQueueError(null);
+    setIsQueueingGeneration(true);
+
+    try {
+      const response = await fetch("/api/agent/screen-plan/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: project.id,
+          proposalMessageId,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        if (response.status === 409 && payload.activeGenerationRunId) {
+          setPendingQueuedRunId(payload.activeGenerationRunId);
+          setQueueError(payload.error ?? "A generation is already queued or building for this project.");
+          await refreshGenerationRuns();
+          return;
+        }
+
+        throw new Error(payload.error ?? "Drawgle could not approve that screen plan.");
+      }
+
+      if (payload.generationRunId) {
+        setPendingQueuedRunId(payload.generationRunId);
+        setPendingAddScreenRunId(payload.generationRunId);
+        addScreenRefreshAttemptedRunIdRef.current = null;
+      }
+
+      await refreshGenerationRuns();
+    } catch (error) {
+      console.error("Screen plan approval error:", error);
+      setQueueError(error instanceof Error ? error.message : "Failed to approve screen plan.");
+    } finally {
+      setIsQueueingGeneration(false);
+    }
+  };
+
   const handleDeterministicElementEdit = async (operations: DeterministicEditOperation[]) => {
     if (!project || !editSession?.element.drawgleId || operations.length === 0) {
       return false;
@@ -1583,8 +1626,27 @@ export function ProjectShell({
             retryDisabled={isCanvasInteractionLocked}
             isBuilding={isQueueingGeneration}
             onRetryGeneration={handleRetryGeneration}
+            onApproveScreenPlan={handleApproveScreenPlan}
             isCollapsed={isChatCollapsed}
             onCollapseChange={setIsChatCollapsed}
+            onSubmit={handlePromptAction}
+            disabled={isCanvasInteractionLocked}
+            selectionMode={selectionMode}
+            onToggleSelectionMode={() => {
+              setSelectionMode((m) => !m);
+            }}
+            onClearSelectedScreen={() => {
+              setSelectedScreen(null);
+              setEditSession(null);
+            }}
+            onDeleteSelectedScreen={handleDeleteSelectedScreen}
+            selectedElementPreview={selectedElementInfo?.textPreview ?? null}
+            selectedElementTargetLabel={selectedElementTargetLabel}
+            selectedElementCanEditText={selectedElementCanEditText}
+            selectedElementCanEditDesign={selectedElementCanEditDesign}
+            onEditSelectedText={() => setEditSessionMode("text")}
+            onEditSelectedDesign={() => setEditSessionMode("design")}
+            onClearSelectedElement={clearEditSession}
           />
 
           {editSession && editSession.mode !== "selected" ? (
@@ -1601,31 +1663,19 @@ export function ProjectShell({
             />
           ) : null}
 
-          <div className="absolute bottom-[var(--dg-mobile-prompt-bottom)] left-1/2 z-[60] w-full max-w-2xl -translate-x-1/2 px-4 transition-all duration-300 ease-in-out">
-            <PromptBar
-              project={project}
-              selectedScreen={selectedScreen}
-              onClearSelectedScreen={() => {
-                setSelectedScreen(null);
-                setEditSession(null);
-              }}
-              onDeleteSelectedScreen={handleDeleteSelectedScreen}
-              onSubmit={handlePromptAction}
-              disabled={isCanvasInteractionLocked}
-              submitStatusText="Thinking..."
-              selectionMode={selectionMode}
-              onToggleSelectionMode={() => {
-                setSelectionMode((m) => !m);
-              }}
-              selectedElementPreview={selectedElementInfo?.textPreview ?? null}
-              selectedElementTargetLabel={selectedElementTargetLabel}
-              selectedElementCanEditText={selectedElementCanEditText}
-              selectedElementCanEditDesign={selectedElementCanEditDesign}
-              onEditSelectedText={() => setEditSessionMode("text")}
-              onEditSelectedDesign={() => setEditSessionMode("design")}
-              onClearSelectedElement={clearEditSession}
-            />
-          </div>
+          <CanvasToolDock
+            selectionMode={selectionMode}
+            hasSelectedElement={Boolean(selectedElementInfo)}
+            selectedElementCanEditText={selectedElementCanEditText}
+            selectedElementCanEditDesign={selectedElementCanEditDesign}
+            disabled={isCanvasInteractionLocked}
+            onToggleSelectionMode={() => {
+              setSelectionMode((m) => !m);
+            }}
+            onEditSelectedText={() => setEditSessionMode("text")}
+            onEditSelectedDesign={() => setEditSessionMode("design")}
+            onClearSelectedElement={clearEditSession}
+          />
         </div>
       </main>
     </div>

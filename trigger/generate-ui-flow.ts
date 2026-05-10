@@ -876,6 +876,15 @@ export const generateUiFlowTask = task({
         generationRunId: payload.generationRunId,
         activityKey: summaryActivityKey(payload.generationRunId),
         error: message,
+        ui: { variant: "action_card" },
+        agentStep: {
+          kind: "generation",
+          status: "failed",
+          title: "Generation failed",
+          detail: message,
+          targetLabel: "Screen generation",
+          processLines: [message],
+        },
       },
     );
   },
@@ -1343,8 +1352,52 @@ export const generateUiFlowTask = task({
         successfulScreens,
         failedScreens,
         activityKey: summaryActivityKey(payload.generationRunId),
+        ui: { variant: "action_card" },
+        agentStep: {
+          kind: "generation",
+          status: finishedStatus === "completed" ? "completed" : "failed",
+          title: completionContent,
+          detail: finishedStatus === "completed"
+            ? `Delivered ${successfulScreens} screen${successfulScreens === 1 ? "" : "s"}.`
+            : errorSummary,
+          targetLabel: successfulScreens === 1 ? "1 screen" : `${successfulScreens} screens`,
+          processLines: [
+            "Approved plan entered the generation queue.",
+            failedScreens > 0 ? `${failedScreens} screen(s) failed during generation.` : null,
+            successfulScreens > 0 ? `${successfulScreens} screen(s) saved to the canvas.` : null,
+          ].filter(Boolean),
+        },
       },
     );
+
+    const completionMessage = finishedStatus === "completed"
+      ? `Done - I created ${successfulScreens} screen${successfulScreens === 1 ? "" : "s"} and added ${successfulScreens === 1 ? "it" : "them"} to the canvas.`
+      : `I could not finish that screen build. ${errorSummary ?? "Please try again with a tighter brief."}`;
+    const { data: existingCompletion } = await admin
+      .from("project_messages")
+      .select("id")
+      .eq("project_id", payload.projectId)
+      .eq("owner_id", payload.ownerId)
+      .contains("metadata", { completionForGenerationRunId: payload.generationRunId })
+      .limit(1)
+      .maybeSingle();
+
+    if (!existingCompletion) {
+      await admin.from("project_messages").insert({
+        project_id: payload.projectId,
+        owner_id: payload.ownerId,
+        screen_id: null,
+        role: "model",
+        content: completionMessage,
+        message_type: finishedStatus === "completed" ? "chat" : "error",
+        metadata: {
+          ui: { variant: finishedStatus === "completed" ? "chat" : "error" },
+          action: "generation_completion",
+          generationRunId: payload.generationRunId,
+          completionForGenerationRunId: payload.generationRunId,
+        } as never,
+      });
+    }
 
     logger.info("UI flow generation completed", {
       generationRunId: payload.generationRunId,

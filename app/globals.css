@@ -252,9 +252,42 @@
   }
 }
 
+@keyframes dg-agent-ball-breathe {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: scale(0.96) rotate(0deg);
+  }
+
+  45% {
+    opacity: 1;
+    transform: scale(1.05) rotate(8deg);
+  }
+}
+
+@keyframes dg-shimmer-char {
+  0%,
+  100% {
+    opacity: 0.34;
+    transform: translateY(0);
+  }
+
+  35% {
+    opacity: 1;
+    transform: translateY(-0.5px);
+  }
+}
+
+.dg-agent-ball-active {
+  animation: dg-agent-ball-breathe 1.8s ease-in-out infinite;
+  transform-origin: center;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .dg-brief-title-active,
-  .dg-brief-prompt-shimmer::before {
+  .dg-brief-prompt-shimmer::before,
+  .dg-agent-ball-active,
+  .dg-shimmer-char {
     animation: none;
   }
 
