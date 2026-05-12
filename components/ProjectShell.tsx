@@ -1669,6 +1669,7 @@ export function ProjectShell({
             selectedElementCanEditText={selectedElementCanEditText}
             selectedElementCanEditDesign={selectedElementCanEditDesign}
             disabled={isCanvasInteractionLocked}
+            isChatCollapsed={isChatCollapsed}
             onToggleSelectionMode={() => {
               setSelectionMode((m) => !m);
             }}
