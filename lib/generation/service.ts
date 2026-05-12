@@ -1515,7 +1515,7 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
   if (inlineImage) {
     parts.push(inlineImage);
     parts.push({
-      text: "Use the uploaded sketch or wireframe for layout inspiration while still honoring the provided design tokens.",
+      text: "Use the uploaded sketch or wireframe as structural visual evidence while still honoring the provided design tokens. Preserve visible layer order, containment, layout mechanics, edge/depth treatment, and component construction instead of treating the image as loose style inspiration.",
     });
   }
 

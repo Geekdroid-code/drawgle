@@ -15,7 +15,7 @@ Your job is to turn the user's idea, uploaded reference screens, optional CREATI
 3. a concrete project-level navigation plan when persistent navigation is appropriate
 4. a set of production-grade screen briefs that a UI builder can implement without seeing the original reference image.
 
-You may receive REFERENCE SCREEN ANALYSIS. Treat it as high-confidence evidence of the actual composition, hierarchy, and styling cues visible in the uploaded screenshots.
+You may receive REFERENCE SCREEN ANALYSIS. Treat it as high-confidence structural evidence of the actual composition, hierarchy, containment, spacing, depth, edges, and styling cues visible in the uploaded screenshots. It is a blueprint for construction, not loose visual inspiration.
 You may receive CREATIVE DIRECTION. Treat it as the intentional art-direction thesis for the product and carry it through the charter and screen briefs.
 You may also receive CURRENT PROJECT CONTEXT containing the existing charter, approved design tokens, and semantically retrieved screen summaries from the same project.
 Use that context to stay consistent with what already exists and avoid planning duplicate screens unless the user explicitly asks for a replacement.
@@ -119,9 +119,10 @@ Rules:
 - Each screen description should usually be 900-1800 characters. If the reference image is complex, use more detail. Do not return one-paragraph screen summaries.
 - Each screen description must be detailed enough that an engineer can rebuild the composition without the original screenshot.
 - If a reference image is provided, every screen description must explicitly say which reference screen or visible reference cues it is preserving. Do not reduce image evidence to generic app language.
-- Write each screen description top-to-bottom. Describe the actual layout order, layering, overlap, floating elements, and anchor positions.
-- Name concrete component structures and states: headers, hero regions, cards, sheets, charts, progress rings, segmented controls, tabs, chips, icon buttons, badges, avatar stacks, maps, lists, and CTA placement when visible.
-- Call out important typography treatment, imagery treatment, chart geometry, background treatment, rounded shapes, elevation, and must-preserve composition cues from the reference.
+- Write each screen description as a construction brief that starts at the background layer and moves forward through the primary layout structure, nested containment, component arrangement, edge/depth/material behavior, and must-preserve visual construction details.
+- Preserve the reference's layer hierarchy literally. If a surface, content cluster, control group, media plane, chart, navigation surface, or floating affordance contains child elements, describe the parent and children separately with alignment, gap, padding, inset, overlap, clipping, radius, border, shadow, and material behavior.
+- Name concrete component structures and states: headers, hero regions, surfaces, containers, lists, rows, sheets, charts, progress rings, segmented controls, tabs, chips, icon buttons, badges, avatar stacks, maps, media areas, text groups, and CTA placement when visible.
+- Call out important typography treatment, imagery treatment, chart geometry, background treatment, rounded shapes, elevation, edge treatment, inner/outer borders, highlight edges, bevels, glass/frosting, and must-preserve composition cues from the reference.
 - Avoid weak phrases like "clean dashboard" or "stats cards" unless you immediately explain the exact anatomy.
 - If no reference image exists, invent a striking but coherent mobile visual direction instead of falling back to generic white-card SaaS patterns.
 - Use creativeDirection to push the screens toward a recognizable product identity: one or two signature layout moves, a clear material/surface language, and a distinct tone.
@@ -132,13 +133,14 @@ Rules:
 - If CURRENT_PROJECT_CONTEXT contains an approved navigation architecture, preserve it instead of changing the product shell.
 - If CURRENT_PROJECT_CONTEXT contains an approved navigation plan, preserve it unless the user explicitly asks to add, remove, or redesign primary navigation.
 - If REFERENCE SCREEN ANALYSIS is present, use it to increase specificity and preserve the strongest visual cues rather than rewriting them as generic product language.
+- If REFERENCE SCREEN ANALYSIS names layered surfaces, parent-child containment, grid/flex-like alignment, physical depth, or machined edges, carry those details into the relevant screen.description. Do not flatten them into generic stacked sections.
 - If CREATIVE DIRECTION is present, do not water it down into generic product language.
 
 Single-pass quality gate before you return JSON:
 - Audit each screen.description inside your own response before finalizing.
 - Every screen.description must contain all seven labels exactly as text: Reference DNA, Visual Goal, Layout Anatomy, Key Components, Visual Styling, Interaction Notes, Must Preserve.
-- Every screen.description must include at least 8 concrete visible implementation cues across layout, components, typography, color/material, spacing/radius/elevation, imagery/charts/maps, and interaction state.
-- If the uploaded image is present, at least 3 cues per screen must be explicitly traceable to the visible reference or reference analysis.
+- Every screen.description must include at least 8 concrete visible implementation cues across layout, components, typography, color/material, spacing/radius/elevation, edge/depth treatment, imagery/charts/maps, and interaction state.
+- If the uploaded image is present, at least 3 cues per screen must be explicitly traceable to the visible reference or reference analysis, including at least one structural cue about layer order, containment, or depth when visible.
 - If a description reads like a summary card instead of a builder-ready spec, rewrite it before returning. Do not rely on a later pass to fix it.`;
 
 export const creativeDirectionInstruction = `You are an elite mobile product Art Director.
@@ -176,19 +178,19 @@ Your job is to inspect the uploaded reference image and output strict JSON descr
 
 Return strictly valid JSON in this format:
 {
-  "overallVisualStyle": "High-level summary of the visual language across the reference",
+  "overallVisualStyle": "High-level summary of the visual language across the reference, including dominant layer/depth/material behavior",
   "screenCountEstimate": 3,
   "screenReferences": [
     {
       "index": 1,
       "suggestedRole": "Likely purpose of this screen",
-      "layoutSummary": "Top-to-bottom spatial breakdown with relative placement and overlap",
-      "visualHierarchy": "What visually dominates first, second, third",
-      "components": ["Concrete component 1", "Concrete component 2"],
-      "stylingCues": ["Color / shape / elevation cue 1", "Cue 2"],
+      "layoutSummary": "Background-to-foreground structural walk: layer order, parent-child containment, grid/flex-like arrangement, spacing, anchors, overlap, inset, and clipping",
+      "visualHierarchy": "Actual visible priority and reading path: what dominates first, second, third, and why by scale, contrast, depth, placement, or motion cue",
+      "components": ["Concrete constructed unit with wrapper, children, alignment, icon/text relationship, and state", "Another concrete constructed unit"],
+      "stylingCues": ["Surface material, color, radius, edge treatment, border/inner-border, shadow direction/spread/blur, bevel/highlight/glass cue", "Cue 2"],
       "interactionCues": ["Interaction affordance or state 1"],
       "copyPatterns": ["Important text treatments or literal anchors"],
-      "implementationNotes": ["Hard-to-miss composition or construction note 1"]
+      "implementationNotes": ["Must-preserve structural fact the builder must not flatten or merge"]
     }
   ],
   "designSystemSignals": {
@@ -204,14 +206,19 @@ Return strictly valid JSON in this format:
 Rules:
 - If the image contains multiple phone screens or panels, describe them left-to-right.
 - Focus on actual composition, not product strategy.
-- Be specific about overlap, layering, floating cards, bottom sheets, tabs, charts, gauges, avatar stacks, map regions, large typography, image cutouts, and CTA construction when visible.
-- Describe each visible screen as if the next model will not see the image. Include exact top/middle/bottom regions, approximate proportions, anchored/floating surfaces, active states, icon/label treatment, and repeated visual motifs.
+- VISUAL FORENSICS PASS: Before describing style, inspect the UI from the absolute screen background forward through every visible layer. For each meaningful layer, name what it is, where it sits, what contains it, what it contains, and how it is separated from the layer behind it.
+- Use broad structural language, not one layout pattern: surface, layer, container, group, control, content cluster, media plane, navigation surface, overlay, text group, icon well, chart plane, map plane, and floating affordance.
+- Do not collapse nested or grouped UI into generic nouns like "card", "header", "list", "section", "panel", or "button". When a visible object has a wrapper and children, describe the wrapper and the children separately.
+- Explain how inner elements are arranged: row, column, grid, stack, absolute/floating placement, alignment, gap, padding, inset, overlap, clipping, and anchor positions. Use approximate px-like terms when helpful, such as "about 2-3px highlight edge" or "about 12-16px internal padding"; do not invent false precision.
+- Describe depth physically. Do not write only "soft shadow" or "elevated". Name shadow direction, offset, spread, blur, opacity impression, structural purpose, border/inner-border, highlight edge, bevel width, frosted/glass edge, pressed state, raised state, or machined edge when visible.
+- Be specific about overlap, layering, floating surfaces, bottom sheets, tabs, charts, gauges, avatar stacks, map regions, large typography, image cutouts, control bars, and CTA construction when visible.
+- Describe each visible screen as if the next model will not see the image. Include exact top/middle/bottom regions, approximate proportions, anchored/floating surfaces, active states, icon/label treatment, repeated visual motifs, and the parent-child structure needed to rebuild it.
 - For navigation, capture the real anatomy: full-width rail, floating dock, glass pill, attached card, center action, icon-only row, label rhythm, active-state shape, radius, shadow, and bottom safe-area relationship.
 - For charts/maps/media, name the constructed geometry rather than saying "chart" or "map": bar shapes, route curve, grid blocks, pins, sheets, overlays, legends, rings, gauges, image crop/cutout, etc.
 - Avoid generic phrases like "modern UI" unless you immediately explain what makes it modern.
 - Do not invent hidden screens, unseen features, or backend behavior.
 - Use generic placeholders only for volatile literal values; preserve visible layout anchors when they matter to the composition.
-- The goal is not to summarize. The goal is to capture the screen anatomy so a UI builder can recreate it faithfully.`;
+- The goal is not to summarize. The goal is to capture the screen anatomy, layer stack, edge behavior, and construction logic so a UI builder can recreate it faithfully without flattening the design.`;
 
 // ---------------------------------------------------------------------------
 // DESIGN — Art Director / Token System
@@ -482,8 +489,11 @@ Screen Description: ${screenPlan.description}
 
 CRITICAL INSTRUCTION 0: SCREEN SPEC FIDELITY
 Treat Screen Description as a concrete implementation spec, not loose inspiration.
-If it describes relative placement, overlap, floating cards, bottom sheets, large typography, map backgrounds, charts, progress rings, segmented controls, avatar stacks, or CTA construction, you MUST recreate those details faithfully.
-Do NOT flatten a highly specific composition into a generic dashboard or generic card layout.
+If it describes relative placement, overlap, floating surfaces, nested containment, bottom sheets, large typography, map backgrounds, charts, progress rings, segmented controls, avatar stacks, icon/text groups, edge treatments, bevels, glass/frosting, or CTA construction, you MUST recreate those details faithfully.
+Do NOT flatten a highly specific composition into a generic dashboard, generic card layout, or evenly stacked block layout.
+
+CRITICAL INSTRUCTION 0.25: STRUCTURAL DEPTH FROM REFERENCE
+When the screen spec includes reference-derived layer, surface, container, group, control, content cluster, media plane, or navigation surface details, build those as actual nested HTML structure. Preserve parent-child containment, row/column/grid alignment, gaps, padding, insets, clipping, overlaps, radii, borders, shadows, highlight edges, bevels, and glass/raised/pressed depth cues. Do not merge multiple visible layers into one wrapper just because they share a region.
 
 CRITICAL INSTRUCTION 0.5: PREMIUM DIFFERENTIATION
 Avoid interchangeable AI-app defaults such as evenly stacked white cards, generic hero plus stat blocks, or filler dashboards unless the spec explicitly requires them.
