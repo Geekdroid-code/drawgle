@@ -12,12 +12,13 @@ import {
   type AgentTargetType,
   type AgentTurnState,
 } from "@/lib/agent/router";
+import { generateAgentChatResponse } from "@/lib/agent/responder";
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { applyDeterministicEdits, ensureDrawgleIds, type DeterministicEditOperation } from "@/lib/drawgle-dom";
 import { indexScreenCode } from "@/lib/generation/block-index";
 import { persistProjectMessageMemory, persistProjectMessageMemoryPair } from "@/lib/generation/message-memory";
 import { findRepairTarget } from "@/lib/generation/screen-repair";
-import { assembleProjectContext } from "@/lib/generation/context";
+import { assembleProjectContext, buildAgentContextSnapshot } from "@/lib/generation/context";
 import { planUiFlow } from "@/lib/generation/service";
 import { buildThinkingSummary, readScreenPlanProposal, type AgentStepMetadata } from "@/lib/agent/message-metadata";
 import { approveScreenPlanProposal, ScreenPlanApprovalError } from "@/lib/agent/screen-plan-approval";
@@ -72,6 +73,7 @@ const requestSchema = z.object({
 const now = () => new Date().toISOString();
 const providerLeakPattern = /\b(gemini|google|openai|gpt|anthropic|claude|model provider|large language model|llm|system prompt|tool call|router)\b/i;
 const identityQuestionPattern = /\b(who are you|what are you|which model|what model|are you gemini|are you gpt|powered by|who built you)\b/i;
+const structuredLeakPattern = /\b(?:clarificationQuestion|responseMessage|instruction|action|targetType|scope|editOperation)\s*=/i;
 const LOW_CONFIDENCE_CONFLICT_THRESHOLD = 0.74;
 
 type AgentState = AgentTurnState;
@@ -80,7 +82,19 @@ type AgentStateCandidate = NonNullable<AgentTurnState["targetCandidates"]>[numbe
 
 const whiteLabelAgentMessage = (prompt: string, message?: string | null) => {
   const fallback = "I am Drawgle AI, your mobile app design assistant. I can help you create new screens, edit existing designs, and refine UI details on this canvas.";
-  const cleanMessage = message?.trim() || fallback;
+  let cleanMessage = message?.trim() || fallback;
+
+  if (structuredLeakPattern.test(cleanMessage)) {
+    cleanMessage = cleanMessage
+      .replace(/^[\s,;{}"']+/, "")
+      .replace(/\b(?:clarificationQuestion|responseMessage|instruction|action|targetType|scope|editOperation)\s*=\s*/gi, "")
+      .replace(/["'{}]+/g, "")
+      .trim();
+  }
+
+  if (!cleanMessage || /^[,;:=\s-]+$/.test(cleanMessage)) {
+    cleanMessage = fallback;
+  }
 
   if (identityQuestionPattern.test(prompt) || providerLeakPattern.test(cleanMessage)) {
     return fallback;
@@ -112,13 +126,17 @@ const buildVisibleThinkingText = ({
   targetLabel?: string | null;
   hasImage: boolean;
 }) => {
-  if (action === "create_new_screen") {
+  if (action === "draft_new_screen_plan") {
     return hasImage
-      ? "I reviewed your prompt and reference image, then matched it to a new-screen build request."
-      : "I reviewed your prompt and matched it to a new-screen build request.";
+      ? "I reviewed your prompt, reference image, and project context, then matched it to a new-screen planning request."
+      : "I reviewed your prompt and project context, then matched it to a new-screen planning request.";
   }
 
-  if (action === "modify_ui") {
+  if (action === "approve_pending_plan") {
+    return "I matched your reply to the pending screen plan approval.";
+  }
+
+  if (action === "modify_existing_ui") {
     return `I checked the selected canvas context and resolved the request to ${targetLabel ?? "the best matching UI target"}.`;
   }
 
@@ -136,11 +154,11 @@ const fallbackPreActionMessage = ({
   action: AgentRouterDecision["action"];
   targetLabel?: string | null;
 }) => {
-  if (action === "create_new_screen") {
-    return "Okay, I'm shaping that into a new screen and sending it to the canvas builder now.";
+  if (action === "draft_new_screen_plan") {
+    return "Okay, I'm shaping that into a screen plan for this project.";
   }
 
-  if (action === "modify_ui") {
+  if (action === "modify_existing_ui") {
     return `Okay, I'm applying a precise edit to ${targetLabel ?? "the selected UI"} now.`;
   }
 
@@ -148,31 +166,7 @@ const fallbackPreActionMessage = ({
 };
 
 const approvalPromptPattern = /^(yes|yeah|yep|ok|okay|sure|do it|build it|build this|approve|approved|go ahead|looks good|ship it|create it)(\s|[.!?,]|$)/i;
-
-const vagueScreenRequestStopwords = new Set([
-  "a",
-  "an",
-  "and",
-  "app",
-  "build",
-  "can",
-  "create",
-  "for",
-  "generate",
-  "i",
-  "make",
-  "me",
-  "new",
-  "page",
-  "please",
-  "screen",
-  "this",
-  "to",
-  "view",
-  "want",
-  "wanna",
-  "would",
-]);
+const bareNewScreenRequestPattern = /^(?:please\s+)?(?:(?:can\s+you|could\s+you|i\s+want\s+to|i\s+need\s+to)\s+)?(?:(?:create|make|build|generate|plan|draft|add)\s+)?(?:(?:a|an|one|another)\s+)?(?:new\s+)?(?:screen|page|view)(?:\s+(?:for|in)\s+(?:this|the)\s+app)?\s*(?:please)?[.!?]?$/i;
 
 const isScreenPlanApprovalPrompt = (prompt: string) =>
   approvalPromptPattern.test(prompt.trim());
@@ -193,28 +187,8 @@ const latestPendingScreenPlanProposal = (messages: ProjectMessage[]) => {
   return null;
 };
 
-const isVagueNewScreenRequest = (prompt: string, hasImage: boolean) => {
-  if (hasImage) {
-    return false;
-  }
-
-  const words = prompt
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, " ")
-    .split(/\s+/)
-    .map((word) => word.trim())
-    .filter(Boolean);
-  const meaningfulWords = words.filter((word) => !vagueScreenRequestStopwords.has(word));
-
-  if (meaningfulWords.length <= 1) {
-    return true;
-  }
-
-  const hasSpecificScreenType = /\b(detail|checkout|booking|profile|settings|dashboard|home|login|signup|search|results|cart|payment|onboarding|room|product|property|map|calendar|chat|feed|list|form)\b/i.test(prompt);
-  const hasContentRequirements = /\b(with|including|include|show|has|contains|images?|price|cta|button|form|list|cards?|tabs?|filters?|amenities|reviews?)\b/i.test(prompt);
-
-  return !hasSpecificScreenType && !hasContentRequirements;
-};
+const shouldAskForNewScreenRequirements = (prompt: string, hasImage: boolean) =>
+  !hasImage && bareNewScreenRequestPattern.test(prompt.trim());
 
 const buildProposalStep = (screenPlan: ScreenPlan): AgentStepMetadata => ({
   kind: "proposal",
@@ -468,7 +442,13 @@ const makeAgentState = ({
 });
 
 const compatibilityToolName = (action: AgentRouterDecision["action"]) =>
-  action === "modify_ui" ? "modify_screen" : action;
+  action === "modify_existing_ui"
+    ? "modify_screen"
+    : action === "draft_new_screen_plan"
+      ? "create_new_screen"
+      : action === "answer_or_discuss"
+        ? "chat_response"
+        : action;
 
 const makeRouterMetadata = (decision: AgentRouterDecision) => ({
   agentRouter: {
@@ -483,6 +463,8 @@ const makeRouterMetadata = (decision: AgentRouterDecision) => ({
     scope: decision.scope,
     selectedElementDrawgleId: decision.selectedElementDrawgleId ?? null,
     editOperation: decision.editOperation,
+    source: decision.routerSource,
+    failureReason: decision.routerFailureReason ?? null,
   },
 });
 
@@ -858,7 +840,7 @@ export async function POST(request: Request) {
 
     const { data: project, error: projectError } = await admin
       .from("projects")
-      .select("id, owner_id, design_tokens, project_charter")
+      .select("id, owner_id, name, prompt, design_tokens, project_charter")
       .eq("id", payload.projectId)
       .maybeSingle();
 
@@ -884,7 +866,7 @@ export async function POST(request: Request) {
     const [{ data: screens, error: screensError }, { data: projectNavigation }, activeGeneration, projectMessages] = await Promise.all([
       admin
         .from("screens")
-        .select("id, name, status, summary, chrome_policy, navigation_item_id")
+        .select("id, name, prompt, status, summary, chrome_policy, navigation_item_id")
         .eq("project_id", payload.projectId)
         .order("sort_index", { ascending: true }),
       admin
@@ -910,6 +892,7 @@ export async function POST(request: Request) {
       return {
         id: screen.id,
         name: screen.name,
+        prompt: screen.prompt,
         status: screen.status,
         summary: screen.summary,
         chrome: typeof chromePolicy?.chrome === "string" ? chromePolicy.chrome : null,
@@ -926,6 +909,28 @@ export async function POST(request: Request) {
       agentState,
     });
     const recentMessages = buildCompactRecentMessages(projectMessages, screenContext, HISTORY_LIMITS[historyNeed]);
+    const promptApprovalProposal = latestPendingScreenPlanProposal(projectMessages);
+    const agentContext = buildAgentContextSnapshot({
+      project: {
+        id: project.id,
+        name: project.name,
+        prompt: project.prompt,
+        charter: (project.project_charter as ProjectCharter | null) ?? null,
+        hasDesignTokens: Boolean(project.design_tokens),
+      },
+      screens: screenContext,
+      navigationPlan,
+      activeGeneration: activeGeneration ? { id: activeGeneration.id, status: activeGeneration.status } : null,
+      pendingProposal: promptApprovalProposal,
+      agentState,
+      activeScreenId: selectedScreenId,
+      selectedElement: {
+        targetType: payload.selectedElementTarget ?? null,
+        drawgleId: payload.selectedElementDrawgleId ?? null,
+        textPreview: payload.selectedElementPreview ?? null,
+      },
+      recentMessages,
+    });
     const routerDecision = await routeAgentPrompt({
       prompt,
       hasImage: Boolean(payload.image),
@@ -946,8 +951,12 @@ export async function POST(request: Request) {
       activeGeneration: activeGeneration ? { id: activeGeneration.id, status: activeGeneration.status } : null,
       recentMessages,
       agentState,
+      agentContext,
     });
-    const routerMetadata = makeRouterMetadata(routerDecision);
+    const routerMetadata = {
+      ...makeRouterMetadata(routerDecision),
+      agentContextVersion: agentContext.version,
+    };
 
     const saveClarification = async ({
       message,
@@ -1082,9 +1091,27 @@ export async function POST(request: Request) {
       }
     };
 
-    const promptApprovalProposal = latestPendingScreenPlanProposal(projectMessages);
     if (promptApprovalProposal && isScreenPlanApprovalPrompt(prompt)) {
       return approvePendingProposalTurn(promptApprovalProposal);
+    }
+
+    if (routerDecision.action === "approve_pending_plan") {
+      if (promptApprovalProposal) {
+        return approvePendingProposalTurn(promptApprovalProposal);
+      }
+
+      return saveClarification({
+        message: "I can build it after I draft a screen plan. What kind of screen should I plan?",
+        instruction: routerDecision.instruction?.trim() || prompt,
+        missingFields: ["screen_requirements"],
+        lastKnownTarget: buildDecisionTarget(routerDecision),
+        metadata: {
+          serverReconciliation: {
+            finalAction: "ask_clarification",
+            reason: "approval_without_pending_proposal",
+          },
+        },
+      });
     }
 
     if (routerDecision.action === "ask_clarification") {
@@ -1110,23 +1137,59 @@ export async function POST(request: Request) {
       });
     }
 
-    if (routerDecision.action === "chat_response") {
-      const message = whiteLabelAgentMessage(prompt, routerDecision.responseMessage || routerDecision.clarificationQuestion);
-      const chatMetadata = {
-        ...routerMetadata,
-        ...(routerDecision.executionIntent === "draft_plan" || routerDecision.executionIntent === "discuss"
-          ? {
-              agentState: makeAgentState({
-                kind: "pending_clarification",
-                instruction: routerDecision.instruction?.trim() || prompt,
-                missingFields: ["confirmation"],
-                targetCandidates: buildScreenTargetCandidates(screenContext, selectedScreenId, payload.selectedElementDrawgleId),
-                lastKnownTarget: buildDecisionTarget(routerDecision),
-                message,
-              }),
-            }
-          : {}),
-      };
+    if (routerDecision.action === "out_of_scope") {
+      const message = SCOPE_REFUSAL_MESSAGE;
+      const userMessage = await insertProjectMessage(admin, {
+        projectId: payload.projectId,
+        ownerId: user.id,
+        screenId: null,
+        role: "user",
+        content: prompt || "[image]",
+        messageType: "chat",
+        metadata: routerMetadata,
+      });
+      const modelMessage = await insertProjectMessage(admin, {
+        projectId: payload.projectId,
+        ownerId: user.id,
+        screenId: null,
+        role: "model",
+        content: message,
+        messageType: "chat",
+        metadata: routerMetadata,
+      });
+
+      await persistProjectMessageMemoryPair({
+        admin,
+        userMessageId: userMessage.id,
+        userContent: prompt || "[image]",
+        modelMessageId: modelMessage.id,
+        modelContent: message,
+      }).catch((error) => {
+        console.error("Failed to persist out-of-scope chat memory", error);
+      });
+
+      return NextResponse.json({
+        intent: "out_of_scope",
+        message,
+        routerDecision,
+      });
+    }
+
+    if (routerDecision.action === "answer_or_discuss") {
+      const fallbackMessage = whiteLabelAgentMessage(
+        prompt,
+        routerDecision.responseMessage || routerDecision.clarificationQuestion ||
+          "I can help with that. Tell me what direction you want to explore on this project.",
+      );
+      const message = whiteLabelAgentMessage(
+        prompt,
+        await generateAgentChatResponse({
+          prompt,
+          agentContext,
+          fallback: fallbackMessage,
+        }),
+      );
+      const chatMetadata = routerMetadata;
 
       const userMessage = await insertProjectMessage(admin, {
         projectId: payload.projectId,
@@ -1165,25 +1228,19 @@ export async function POST(request: Request) {
       });
     }
 
-    if (routerDecision.action === "create_new_screen") {
-      const pendingProposal = latestPendingScreenPlanProposal(projectMessages);
-
-      if (pendingProposal && isScreenPlanApprovalPrompt(prompt)) {
-        return approvePendingProposalTurn(pendingProposal);
-      }
-
+    if (routerDecision.action === "draft_new_screen_plan") {
       const generationPrompt = routerDecision.instruction?.trim() || prompt;
 
-      if (isVagueNewScreenRequest(generationPrompt, Boolean(payload.image))) {
+      if (shouldAskForNewScreenRequirements(generationPrompt, Boolean(payload.image))) {
         return saveClarification({
-          message: "Sure. What should this screen be for, and what should it contain?",
+          message: "Sure. What kind of screen should I add to this app?",
           instruction: generationPrompt,
           missingFields: ["screen_requirements"],
           lastKnownTarget: buildDecisionTarget(routerDecision),
           metadata: {
             serverReconciliation: {
               finalAction: "ask_clarification",
-              reason: "new_screen_request_missing_screen_requirements",
+              reason: "bare_new_screen_request_missing_role",
             },
           },
         });

@@ -98,6 +98,295 @@ const formatMatches = (matches: MatchedScreen[]) =>
     })
     .join("\n\n");
 
+export type AgentContextScreen = {
+  id: string;
+  name: string;
+  prompt?: string | null;
+  status?: string | null;
+  summary?: string | null;
+  chrome?: string | null;
+  navigationItemId?: string | null;
+};
+
+export type AgentContextRecentMessage = {
+  role: "user" | "model" | "system";
+  content: string;
+  screenId?: string | null;
+  screenName?: string | null;
+  event?: string | null;
+};
+
+export type AgentContextSnapshot = {
+  version: "agent-context-v1";
+  project: {
+    id: string;
+    name?: string | null;
+    originalPrompt?: string | null;
+    charterSummary?: string | null;
+    creativeDirection?: string | null;
+    navigationArchitecture?: string | null;
+    hasDesignTokens: boolean;
+  };
+  navigationPlan: {
+    enabled: boolean;
+    kind?: string | null;
+    items: Array<{
+      id: string;
+      label: string;
+      icon: string;
+      linkedScreenName: string;
+    }>;
+    screenChrome: Array<{
+      screenName: string;
+      chrome: string;
+      navigationItemId?: string | null;
+    }>;
+    visualBrief?: string | null;
+  } | null;
+  activeGeneration?: {
+    id: string;
+    status: string;
+  } | null;
+  pendingProposal?: {
+    messageId: string;
+    prompt: string;
+    screenName: string;
+    screenType: string;
+    screenDescription: string;
+    status?: string | null;
+    expiresAt: string;
+  } | null;
+  agentState?: unknown | null;
+  selected?: {
+    activeScreenId?: string | null;
+    activeScreenName?: string | null;
+    selectedElement?: {
+      targetType?: "screen" | "navigation" | null;
+      drawgleId?: string | null;
+      textPreview?: string | null;
+    } | null;
+  } | null;
+  screens: Array<{
+    id: string;
+    name: string;
+    prompt?: string | null;
+    status?: string | null;
+    summary?: string | null;
+    chrome?: string | null;
+    navigationItemId?: string | null;
+    navigationLabel?: string | null;
+    roleHint?: string | null;
+  }>;
+  recentMessages: AgentContextRecentMessage[];
+};
+
+const compactText = (value: string | null | undefined, limit = 600) => {
+  const text = value?.trim();
+  if (!text) return null;
+  return text.length > limit ? `${text.slice(0, limit)}...` : text;
+};
+
+const deriveScreenRoleHint = (screen: AgentContextScreen, navigationPlan: NavigationPlan | null) => {
+  const navigationItem = navigationPlan?.items.find((item) => item.linkedScreenName === screen.name);
+  if (navigationItem) {
+    return `${navigationItem.label} navigation destination`;
+  }
+
+  if (screen.chrome) {
+    return `${screen.chrome} screen`;
+  }
+
+  return compactText(screen.summary, 120);
+};
+
+export function buildAgentContextSnapshot({
+  project,
+  screens,
+  navigationPlan,
+  activeGeneration,
+  pendingProposal,
+  agentState,
+  activeScreenId,
+  selectedElement,
+  recentMessages,
+}: {
+  project: {
+    id: string;
+    name?: string | null;
+    prompt?: string | null;
+    charter?: ProjectCharter | null;
+    hasDesignTokens?: boolean | null;
+  };
+  screens: AgentContextScreen[];
+  navigationPlan?: NavigationPlan | null;
+  activeGeneration?: { id: string; status: string } | null;
+  pendingProposal?: {
+    messageId: string;
+    proposal: {
+      prompt: string;
+      screenPlan: {
+        name: string;
+        type: string;
+        description: string;
+      };
+      status?: string | null;
+      expiresAt: string;
+    };
+  } | null;
+  agentState?: unknown | null;
+  activeScreenId?: string | null;
+  selectedElement?: {
+    targetType?: "screen" | "navigation" | null;
+    drawgleId?: string | null;
+    textPreview?: string | null;
+  } | null;
+  recentMessages?: AgentContextRecentMessage[];
+}): AgentContextSnapshot {
+  const charter = project.charter ?? null;
+  const activeScreen = activeScreenId ? screens.find((screen) => screen.id === activeScreenId) : null;
+  const navigationByScreenName = new Map(
+    (navigationPlan?.items ?? []).map((item) => [item.linkedScreenName, item.label]),
+  );
+
+  return {
+    version: "agent-context-v1",
+    project: {
+      id: project.id,
+      name: compactText(project.name, 120),
+      originalPrompt: compactText(charter?.originalPrompt ?? project.prompt, 500),
+      charterSummary: charter ? compactText(formatCharter(charter), 1200) : null,
+      creativeDirection: charter?.creativeDirection
+        ? compactText(formatCreativeDirection(charter.creativeDirection), 900)
+        : null,
+      navigationArchitecture: charter?.navigationArchitecture
+        ? compactText(formatNavigationArchitecture(charter), 700)
+        : null,
+      hasDesignTokens: Boolean(project.hasDesignTokens),
+    },
+    navigationPlan: navigationPlan
+      ? {
+          enabled: navigationPlan.enabled,
+          kind: navigationPlan.kind,
+          items: navigationPlan.items.map((item) => ({
+            id: item.id,
+            label: item.label,
+            icon: item.icon,
+            linkedScreenName: item.linkedScreenName,
+          })),
+          screenChrome: navigationPlan.screenChrome.map((entry) => ({
+            screenName: entry.screenName,
+            chrome: entry.chrome,
+            navigationItemId: entry.navigationItemId ?? null,
+          })),
+          visualBrief: compactText(navigationPlan.visualBrief, 500),
+        }
+      : null,
+    activeGeneration: activeGeneration ?? null,
+    pendingProposal: pendingProposal
+      ? {
+          messageId: pendingProposal.messageId,
+          prompt: compactText(pendingProposal.proposal.prompt, 600) ?? pendingProposal.proposal.prompt,
+          screenName: pendingProposal.proposal.screenPlan.name,
+          screenType: pendingProposal.proposal.screenPlan.type,
+          screenDescription: compactText(pendingProposal.proposal.screenPlan.description, 900) ??
+            pendingProposal.proposal.screenPlan.description,
+          status: pendingProposal.proposal.status ?? null,
+          expiresAt: pendingProposal.proposal.expiresAt,
+        }
+      : null,
+    agentState: agentState ?? null,
+    selected: {
+      activeScreenId: activeScreenId ?? null,
+      activeScreenName: activeScreen?.name ?? null,
+      selectedElement: selectedElement ?? null,
+    },
+    screens: screens.map((screen) => ({
+      id: screen.id,
+      name: screen.name,
+      prompt: compactText(screen.prompt, 500),
+      status: screen.status ?? null,
+      summary: compactText(screen.summary, 500),
+      chrome: screen.chrome ?? null,
+      navigationItemId: screen.navigationItemId ?? null,
+      navigationLabel: navigationByScreenName.get(screen.name) ?? null,
+      roleHint: deriveScreenRoleHint(screen, navigationPlan ?? null),
+    })),
+    recentMessages: (recentMessages ?? []).map((message) => ({
+      ...message,
+      content: compactText(message.content, 500) ?? "",
+    })),
+  };
+}
+
+export function formatAgentContextSnapshot(snapshot: AgentContextSnapshot) {
+  const projectLines = [
+    `Project: ${snapshot.project.name ?? snapshot.project.id}`,
+    snapshot.project.originalPrompt ? `Original prompt: ${snapshot.project.originalPrompt}` : null,
+    snapshot.project.charterSummary ? `Charter:\n${snapshot.project.charterSummary}` : null,
+    snapshot.project.creativeDirection ? `Creative direction:\n${snapshot.project.creativeDirection}` : null,
+    snapshot.project.navigationArchitecture ? `Navigation architecture:\n${snapshot.project.navigationArchitecture}` : null,
+    `Design tokens available: ${snapshot.project.hasDesignTokens ? "yes" : "no"}`,
+  ].filter(Boolean);
+
+  const selectedLines = [
+    snapshot.selected?.activeScreenName
+      ? `Active screen: ${snapshot.selected.activeScreenName} (${snapshot.selected.activeScreenId})`
+      : null,
+    snapshot.selected?.selectedElement?.drawgleId
+      ? `Selected element: ${snapshot.selected.selectedElement.drawgleId}${snapshot.selected.selectedElement.textPreview ? `, preview: ${snapshot.selected.selectedElement.textPreview}` : ""}`
+      : null,
+  ].filter(Boolean);
+
+  const screenLines = snapshot.screens.map((screen, index) =>
+    [
+      `${index + 1}. ${screen.name} (${screen.id})`,
+      screen.roleHint ? `Role: ${screen.roleHint}` : null,
+      screen.status ? `Status: ${screen.status}` : null,
+      screen.chrome ? `Chrome: ${screen.chrome}` : null,
+      screen.navigationLabel ? `Navigation: ${screen.navigationLabel}` : null,
+      screen.summary ? `Summary: ${screen.summary}` : null,
+      screen.prompt ? `Original screen prompt: ${screen.prompt}` : null,
+    ].filter(Boolean).join("\n"),
+  );
+
+  const pendingLines = snapshot.pendingProposal
+    ? [
+        `Pending proposal: ${snapshot.pendingProposal.screenName}`,
+        `Prompt: ${snapshot.pendingProposal.prompt}`,
+        `Description: ${snapshot.pendingProposal.screenDescription}`,
+        `Status: ${snapshot.pendingProposal.status ?? "pending"}, expires: ${snapshot.pendingProposal.expiresAt}`,
+      ]
+    : [];
+
+  const navigationLines = snapshot.navigationPlan
+    ? [
+        `Persistent navigation: ${snapshot.navigationPlan.enabled ? snapshot.navigationPlan.kind ?? "enabled" : "disabled"}`,
+        snapshot.navigationPlan.items.length
+          ? `Items: ${snapshot.navigationPlan.items.map((item) => `${item.label} (${item.id}, ${item.icon}) -> ${item.linkedScreenName}`).join(", ")}`
+          : null,
+        snapshot.navigationPlan.visualBrief ? `Visual brief: ${snapshot.navigationPlan.visualBrief}` : null,
+        snapshot.navigationPlan.screenChrome.length
+          ? `Screen chrome: ${snapshot.navigationPlan.screenChrome.map((entry) => `${entry.screenName}: ${entry.chrome}${entry.navigationItemId ? `/${entry.navigationItemId}` : ""}`).join(", ")}`
+          : null,
+      ].filter(Boolean)
+    : [];
+
+  const messageLines = snapshot.recentMessages.map((message) =>
+    `[${message.role}${message.screenName ? `/${message.screenName}` : ""}${message.event ? `/${message.event}` : ""}] ${message.content}`,
+  );
+
+  return [
+    projectLines.length ? `PROJECT\n${projectLines.join("\n")}` : null,
+    navigationLines.length ? `NAVIGATION\n${navigationLines.join("\n")}` : null,
+    pendingLines.length ? `PENDING PROPOSAL\n${pendingLines.join("\n")}` : null,
+    snapshot.activeGeneration ? `ACTIVE GENERATION\n${snapshot.activeGeneration.id}: ${snapshot.activeGeneration.status}` : null,
+    selectedLines.length ? `CURRENT SELECTION\n${selectedLines.join("\n")}` : null,
+    snapshot.agentState ? `LIVE AGENT STATE\n${JSON.stringify(snapshot.agentState)}` : null,
+    screenLines.length ? `SCREEN INVENTORY\n${screenLines.join("\n\n")}` : null,
+    messageLines.length ? `RECENT CONVERSATION\n${messageLines.join("\n")}` : null,
+  ].filter(Boolean).join("\n\n");
+}
+
 export async function assembleProjectContext({
   admin,
   projectId,
