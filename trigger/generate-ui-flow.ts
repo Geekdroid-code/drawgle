@@ -1107,190 +1107,129 @@ export const generateUiFlowTask = task({
       requested_screen_count: screenPlans.length,
     });
 
-    // Concurrent execution: trigger ALL build-screen tasks at once so
-    // every screen starts streaming to the canvas immediately.  Trigger.dev's
-    // per-project concurrencyKey (limit 2) ensures at most 2 Gemini streaming
-    // calls per project — avoiding 429 rate limits while keeping throughput
-    // high.  Screens beyond the limit queue in Trigger.dev and auto-start
-    // as slots open.  All screens get stream tokens from the trigger call
-    // immediately, so the frontend can subscribe before execution begins.
-    //
-    // For each screen we trigger the build task FIRST, grab the handle
-    // (which carries publicAccessToken), then INSERT the placeholder row
-    // with trigger_run_id + stream_public_token already set so the
-    // frontend subscribes from the very first Realtime INSERT event.
+    // Sequential build: each screen is triggered, inserted, and polled to
+    // completion before the next one starts.  This means Screen 1 appears
+    // on the canvas as soon as it is ready, Screen 2 starts immediately
+    // after, and so on — giving the user continuous visible progress
+    // rather than a long wait for all screens to finish simultaneously.
     let successfulScreens = 0;
     let failedScreens = 0;
 
-    type ScreenHandle = {
-      screenId: string;
-      handleId: string;
-      screenName: string;
-    };
+    for (let index = 0; index < screenPlans.length; index++) {
+      const screenPlan = screenPlans[index];
+      const screenId = randomUUID();
+      let rowInserted = false;
 
-    // Phase 1: trigger all builds and insert placeholders concurrently.
-    const screenHandles: ScreenHandle[] = [];
-
-    await Promise.all(
-      screenPlans.map(async (screenPlan, index) => {
-        const screenId = randomUUID();
-
-        try {
-          const handle = await (buildScreenTask as any).trigger(
-            {
-              generationRunId: payload.generationRunId,
-              screenId,
-              projectId: payload.projectId,
-              screenPlan,
-              prompt: payload.prompt,
-              designTokens,
-              image: index === 0 ? promptImage : null,
-              requiresBottomNav: plan.requiresBottomNav,
-              navigationArchitecture: plan.navigationArchitecture,
-              navigationPlan: plan.navigationPlan,
-              projectCharter: plan.charter,
-              projectContext: buildContext,
-            },
-            {
-              // Each unique concurrencyKey gets its own copy of the task's
-              // queue (concurrencyLimit: 2).  This means each project can
-              // run at most 2 Gemini streaming calls at once — enough
-              // throughput to feel fast while staying under rate limits.
-              // Different projects are fully independent.
-              concurrencyKey: `project-${payload.projectId}`,
-            },
-          );
-
-          const { error: insertError } = await admin
-            .from("screens")
-            .insert({
-              id: screenId,
-              owner_id: payload.ownerId,
-              project_id: payload.projectId,
-              generation_run_id: payload.generationRunId,
-              name: screenPlan.name,
-              prompt: screenPlan.description,
-              code: buildPlaceholderCode(screenPlan.name, designTokens),
-              chrome_policy: (screenPlan.chromePolicy ?? null) as never,
-              navigation_item_id: screenPlan.navigationItemId ?? null,
-              status: "building",
-              trigger_run_id: handle.id,
-              stream_public_token: handle.publicAccessToken ?? null,
-              position_x: reservedSlots[index]?.position_x ?? 4800 + index * 450,
-              position_y: reservedSlots[index]?.position_y ?? 4600,
-              sort_index: reservedSlots[index]?.sort_index ?? index,
-              created_at: now(),
-              updated_at: now(),
-            });
-
-          if (insertError) {
-            throw new Error(`Failed to insert placeholder for "${screenPlan.name}": ${insertError.message}`);
-          }
-
-          screenHandles.push({ screenId, handleId: handle.id, screenName: screenPlan.name });
-
-          await postStatusMessage(
-            admin,
-            payload.projectId,
-            payload.ownerId,
-            `Building ${screenPlan.name}...`,
-            "generation_started",
-            {
-              screenName: screenPlan.name,
-              generationRunId: payload.generationRunId,
-              activityKey: screenBuildActivityKey(screenId),
-            },
+      try {
+        const handle = await (buildScreenTask as any).trigger(
+          {
+            generationRunId: payload.generationRunId,
             screenId,
-          );
-        } catch (triggerError) {
-          failedScreens += 1;
-          logger.error("Failed to trigger/insert screen", {
-            screenName: screenPlan.name,
-            error: triggerError,
+            projectId: payload.projectId,
+            screenPlan,
+            prompt: payload.prompt,
+            designTokens,
+            image: index === 0 ? promptImage : null,
+            requiresBottomNav: plan.requiresBottomNav,
+            navigationArchitecture: plan.navigationArchitecture,
+            navigationPlan: plan.navigationPlan,
+            projectCharter: plan.charter,
+            projectContext: buildContext,
+          },
+          {
+            concurrencyKey: `project-${payload.projectId}`,
+          },
+        );
+
+        const { error: insertError } = await admin
+          .from("screens")
+          .insert({
+            id: screenId,
+            owner_id: payload.ownerId,
+            project_id: payload.projectId,
+            generation_run_id: payload.generationRunId,
+            name: screenPlan.name,
+            prompt: screenPlan.description,
+            code: buildPlaceholderCode(screenPlan.name, designTokens),
+            chrome_policy: (screenPlan.chromePolicy ?? null) as never,
+            navigation_item_id: screenPlan.navigationItemId ?? null,
+            status: "building",
+            trigger_run_id: handle.id,
+            stream_public_token: handle.publicAccessToken ?? null,
+            position_x: reservedSlots[index]?.position_x ?? 4800 + index * 450,
+            position_y: reservedSlots[index]?.position_y ?? 4600,
+            sort_index: reservedSlots[index]?.sort_index ?? index,
+            created_at: now(),
+            updated_at: now(),
           });
+
+        if (insertError) {
+          throw new Error(`Failed to insert placeholder for "${screenPlan.name}": ${insertError.message}`);
         }
-      }),
-    );
 
-    // Phase 2: poll all running builds concurrently.
-    await Promise.all(
-      screenHandles.map(async ({ screenId, handleId, screenName }) => {
-        try {
-          const result = await runs.poll(handleId, { pollIntervalMs: 2000 });
+        rowInserted = true;
 
-          if (result?.status === "COMPLETED") {
-            const { data: completedScreen } = await admin
-              .from("screens")
-              .select("status, error")
-              .eq("id", screenId)
-              .maybeSingle();
+        await postStatusMessage(
+          admin,
+          payload.projectId,
+          payload.ownerId,
+          `Building ${screenPlan.name}...`,
+          "generation_started",
+          {
+            screenName: screenPlan.name,
+            generationRunId: payload.generationRunId,
+            activityKey: screenBuildActivityKey(screenId),
+          },
+          screenId,
+        );
 
-            if (completedScreen?.status === "failed") {
-              failedScreens += 1;
+        // Wait for this screen to complete before moving to the next one.
+        const result = await runs.poll(handle.id, { pollIntervalMs: 2000 });
 
-              await postStatusMessage(
-                admin,
-                payload.projectId,
-                payload.ownerId,
-                humanizeScreenBuildFailure(screenName, completedScreen.error),
-                "error",
-                {
-                  generationRunId: payload.generationRunId,
-                  screenName,
-                  activityKey: screenBuildActivityKey(screenId),
-                  error: completedScreen.error ?? "Screen generation failed.",
-                },
-                screenId,
-              );
-              return;
-            }
+        if (result?.status === "COMPLETED") {
+          const { data: completedScreen } = await admin
+            .from("screens")
+            .select("status, error")
+            .eq("id", screenId)
+            .maybeSingle();
 
+          if (completedScreen?.status === "failed") {
+            failedScreens += 1;
+
+            await postStatusMessage(
+              admin,
+              payload.projectId,
+              payload.ownerId,
+              humanizeScreenBuildFailure(screenPlan.name, completedScreen.error),
+              "error",
+              {
+                generationRunId: payload.generationRunId,
+                screenName: screenPlan.name,
+                activityKey: screenBuildActivityKey(screenId),
+                error: completedScreen.error ?? "Screen generation failed.",
+              },
+              screenId,
+            );
+          } else {
             successfulScreens += 1;
 
             await postStatusMessage(
               admin,
               payload.projectId,
               payload.ownerId,
-              `${screenName} ready`,
+              `${screenPlan.name} ready`,
               "generation_completed",
               {
                 generationRunId: payload.generationRunId,
-                screenName,
+                screenName: screenPlan.name,
                 activityKey: screenBuildActivityKey(screenId),
-              },
-              screenId,
-            );
-          } else {
-            failedScreens += 1;
-            const message = result?.error?.message ?? "Unknown error";
-            await admin
-              .from("screens")
-              .update({
-                code: buildErrorCode(message),
-                status: "failed",
-                error: message,
-                updated_at: now(),
-              })
-              .eq("id", screenId);
-
-            await postStatusMessage(
-              admin,
-              payload.projectId,
-              payload.ownerId,
-              `${screenName} failed`,
-              "error",
-              {
-                generationRunId: payload.generationRunId,
-                screenName,
-                activityKey: screenBuildActivityKey(screenId),
-                error: message,
               },
               screenId,
             );
           }
-        } catch (pollError) {
+        } else {
           failedScreens += 1;
-          const message = pollError instanceof Error ? pollError.message : String(pollError);
+          const message = result?.error?.message ?? "Unknown error";
           await admin
             .from("screens")
             .update({
@@ -1305,19 +1244,50 @@ export const generateUiFlowTask = task({
             admin,
             payload.projectId,
             payload.ownerId,
-            `${screenName} failed`,
+            `${screenPlan.name} failed`,
             "error",
             {
               generationRunId: payload.generationRunId,
-              screenName,
+              screenName: screenPlan.name,
               activityKey: screenBuildActivityKey(screenId),
               error: message,
             },
             screenId,
           );
         }
-      }),
-    );
+      } catch (screenError) {
+        failedScreens += 1;
+        const message = screenError instanceof Error ? screenError.message : String(screenError);
+        logger.error("Failed to build screen", { screenName: screenPlan.name, error: screenError });
+
+        if (rowInserted) {
+          await admin
+            .from("screens")
+            .update({
+              code: buildErrorCode(message),
+              status: "failed",
+              error: message,
+              updated_at: now(),
+            })
+            .eq("id", screenId);
+        }
+
+        await postStatusMessage(
+          admin,
+          payload.projectId,
+          payload.ownerId,
+          humanizeScreenBuildFailure(screenPlan.name, message),
+          "error",
+          {
+            generationRunId: payload.generationRunId,
+            screenName: screenPlan.name,
+            activityKey: screenBuildActivityKey(screenId),
+            error: message,
+          },
+          rowInserted ? screenId : undefined,
+        );
+      }
+    }
 
     const finishedStatus = successfulScreens === 0 ? "failed" : "completed";
     const errorSummary = failedScreens > 0 ? `${failedScreens} screen(s) failed during generation.` : null;

@@ -564,7 +564,6 @@ function ThinkingRow({ summary, id, live = false }: { summary: ThinkingSummaryMe
     ? `${Math.max(1, Math.round(summary.durationMs / 1000))}s`
     : null;
 
-// AFTER
   if (live) {
     return (
       <div className="px-5 py-2">
