@@ -55,12 +55,14 @@ export async function approveScreenPlanProposal({
   projectId,
   proposalMessageId,
   approvalContent = "Build this screen.",
+  approvalUserMessageId = null,
 }: {
   admin: AdminClient;
   ownerId: string;
   projectId: string;
   proposalMessageId: string;
   approvalContent?: string;
+  approvalUserMessageId?: string | null;
 }) {
   const { data: project, error: projectError } = await admin
     .from("projects")
@@ -164,7 +166,7 @@ export async function approveScreenPlanProposal({
     throw generationRunError ?? new Error("Failed to create generation run.");
   }
 
-  const userMessage = await insertProjectMessage(admin, {
+  const userMessageId = approvalUserMessageId ?? (await insertProjectMessage(admin, {
     projectId,
     ownerId,
     screenId: null,
@@ -176,7 +178,7 @@ export async function approveScreenPlanProposal({
       proposalMessageId,
       generationRunId: generationRun.id,
     },
-  });
+  })).id;
 
   const queuedStep: AgentStepMetadata = {
     kind: "generation",
@@ -202,7 +204,7 @@ export async function approveScreenPlanProposal({
       activityKey: summaryActivityKey(generationRun.id),
       generationRunId: generationRun.id,
       proposalMessageId,
-      userMessageId: userMessage.id,
+      userMessageId,
       ui: { variant: "action_card" },
       agentStep: queuedStep,
     },
@@ -264,7 +266,7 @@ export async function approveScreenPlanProposal({
 
   await persistProjectMessageMemoryPair({
     admin,
-    userMessageId: userMessage.id,
+    userMessageId,
     userContent: approvalContent,
     modelMessageId: queuedMessage.id,
     modelContent: queuedMessage.content,

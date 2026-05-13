@@ -310,6 +310,43 @@ export async function insertProjectMessage(
   return mapProjectMessageRow(data);
 }
 
+export async function updateProjectMessage(
+  client: Client,
+  input: {
+    messageId: string;
+    content?: string;
+    messageType?: ProjectMessageType;
+    metadata?: Record<string, unknown>;
+  },
+): Promise<ProjectMessage> {
+  const update: Record<string, unknown> = {};
+
+  if (input.content !== undefined) {
+    update.content = input.content;
+  }
+
+  if (input.messageType !== undefined) {
+    update.message_type = input.messageType;
+  }
+
+  if (input.metadata !== undefined) {
+    update.metadata = input.metadata as never;
+  }
+
+  const { data, error } = await client
+    .from("project_messages")
+    .update(update as never)
+    .eq("id", input.messageId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return mapProjectMessageRow(data);
+}
+
 export async function updateProjectMessageMemoryEmbedding(
   client: Client,
   messageId: string,

@@ -12,21 +12,19 @@ import {
   type AgentTargetType,
   type AgentTurnState,
 } from "@/lib/agent/router";
-import { generateAgentChatResponse } from "@/lib/agent/responder";
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { applyDeterministicEdits, ensureDrawgleIds, type DeterministicEditOperation } from "@/lib/drawgle-dom";
 import { indexScreenCode } from "@/lib/generation/block-index";
 import { persistProjectMessageMemory, persistProjectMessageMemoryPair } from "@/lib/generation/message-memory";
 import { findRepairTarget } from "@/lib/generation/screen-repair";
-import { assembleProjectContext, buildAgentContextSnapshot } from "@/lib/generation/context";
+import { assembleProjectContext } from "@/lib/generation/context";
 import { planUiFlow } from "@/lib/generation/service";
-import { buildThinkingSummary, readScreenPlanProposal, type AgentStepMetadata } from "@/lib/agent/message-metadata";
+import { readScreenPlanProposal, type AgentStepMetadata } from "@/lib/agent/message-metadata";
 import { approveScreenPlanProposal, ScreenPlanApprovalError } from "@/lib/agent/screen-plan-approval";
-import { checkScope, SCOPE_REFUSAL_MESSAGE } from "@/lib/agent/scope-policy";
 import { classifyHistoryNeed, HISTORY_LIMITS } from "@/lib/agent/history-policy";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { fetchProjectMessages, insertProjectMessage } from "@/lib/supabase/queries";
+import { fetchProjectMessages, insertProjectMessage, updateProjectMessage } from "@/lib/supabase/queries";
 import { getDrawgleTokenReferences, tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
 import {
   ACTIVE_GENERATION_STATUSES,
@@ -60,6 +58,7 @@ const requestSchema = z.object({
   selectedElementDrawgleId: z.string().nullable().optional(),
   selectedElementTarget: z.enum(["screen", "navigation"]).nullable().optional(),
   selectedElementPreview: z.string().nullable().optional(),
+  clientTurnId: z.string().trim().max(120).nullable().optional(),
 }).superRefine((value, ctx) => {
   if (!value.prompt.trim() && !value.image) {
     ctx.addIssue({
@@ -165,12 +164,6 @@ const fallbackPreActionMessage = ({
   return null;
 };
 
-const approvalPromptPattern = /^(yes|yeah|yep|ok|okay|sure|do it|build it|build this|approve|approved|go ahead|looks good|ship it|create it)(\s|[.!?,]|$)/i;
-const bareNewScreenRequestPattern = /^(?:please\s+)?(?:(?:can\s+you|could\s+you|i\s+want\s+to|i\s+need\s+to)\s+)?(?:(?:create|make|build|generate|plan|draft|add)\s+)?(?:(?:a|an|one|another)\s+)?(?:new\s+)?(?:screen|page|view)(?:\s+(?:for|in)\s+(?:this|the)\s+app)?\s*(?:please)?[.!?]?$/i;
-
-const isScreenPlanApprovalPrompt = (prompt: string) =>
-  approvalPromptPattern.test(prompt.trim());
-
 const latestPendingScreenPlanProposal = (messages: ProjectMessage[]) => {
   for (const message of [...messages].reverse()) {
     const proposal = readScreenPlanProposal(message.metadata);
@@ -187,9 +180,6 @@ const latestPendingScreenPlanProposal = (messages: ProjectMessage[]) => {
   return null;
 };
 
-const shouldAskForNewScreenRequirements = (prompt: string, hasImage: boolean) =>
-  !hasImage && bareNewScreenRequestPattern.test(prompt.trim());
-
 const buildProposalStep = (screenPlan: ScreenPlan): AgentStepMetadata => ({
   kind: "proposal",
   status: "completed",
@@ -203,46 +193,26 @@ const buildProposalStep = (screenPlan: ScreenPlan): AgentStepMetadata => ({
   ],
 });
 
-async function insertAgentThinkingMessage({
-  admin,
-  projectId,
-  ownerId,
-  screenId,
+const buildAgentProgressStep = ({
+  status = "thinking",
+  title,
+  detail,
   targetLabel,
-  routerMetadata,
-  routerDecision,
-  hasImage,
+  processLines,
 }: {
-  admin: ReturnType<typeof createAdminClient>;
-  projectId: string;
-  ownerId: string;
-  screenId?: string | null;
+  status?: AgentStepMetadata["status"];
+  title: string;
+  detail?: string | null;
   targetLabel?: string | null;
-  routerMetadata: Record<string, unknown>;
-  routerDecision: AgentRouterDecision;
-  hasImage: boolean;
-}) {
-  const summary = buildThinkingSummary({
-    label: "Analyzed your request",
-    text: buildVisibleThinkingText({ action: routerDecision.action, targetLabel, hasImage }),
-    durationMs: null,
-    expandedByDefault: false,
-  });
-
-  return insertProjectMessage(admin, {
-    projectId,
-    ownerId,
-    screenId: screenId ?? null,
-    role: "model",
-    content: summary.text,
-    messageType: "chat",
-    metadata: {
-      ...routerMetadata,
-      ui: { variant: "thinking" },
-      thinkingSummary: summary,
-    },
-  });
-}
+  processLines?: string[] | null;
+}): AgentStepMetadata => ({
+  kind: "system",
+  status,
+  title,
+  detail: detail ?? null,
+  targetLabel: targetLabel ?? null,
+  processLines: processLines ?? (detail ? [detail] : null),
+});
 
 async function insertPreActionMessage({
   admin,
@@ -823,6 +793,8 @@ const uploadPromptImage = async ({
 };
 
 export async function POST(request: Request) {
+  let markAgentTurnFailed: ((message: string) => Promise<void>) | null = null;
+
   try {
     const supabase = await createClient();
     const admin = createAdminClient();
@@ -846,21 +818,6 @@ export async function POST(request: Request) {
 
     if (projectError || !project || project.owner_id !== user.id) {
       return NextResponse.json({ error: "Project not found." }, { status: 404 });
-    }
-
-    const scopeCheck = checkScope({
-      prompt,
-      hasImage: Boolean(payload.image),
-      hasSelectedElement: Boolean(payload.selectedElementDrawgleId || payload.selectedElementHtml),
-      hasSelectedScreen: Boolean(payload.selectedScreenId || payload.focusedScreenId),
-    });
-
-    if (scopeCheck.verdict === "hard_reject") {
-      // Hard rejects are never persisted — no DB writes, no router tokens.
-      return NextResponse.json({
-        intent: "out_of_scope",
-        message: scopeCheck.userMessage,
-      });
     }
 
     const [{ data: screens, error: screensError }, { data: projectNavigation }, activeGeneration, projectMessages] = await Promise.all([
@@ -910,27 +867,131 @@ export async function POST(request: Request) {
     });
     const recentMessages = buildCompactRecentMessages(projectMessages, screenContext, HISTORY_LIMITS[historyNeed]);
     const promptApprovalProposal = latestPendingScreenPlanProposal(projectMessages);
-    const agentContext = buildAgentContextSnapshot({
+    const selectedScreen = selectedScreenId
+      ? screenContext.find((screen) => screen.id === selectedScreenId) ?? null
+      : null;
+    const agentContextVersion = "agent-lightweight-v1";
+    const lightweightAgentContext: Record<string, unknown> = {
+      version: agentContextVersion,
       project: {
         id: project.id,
         name: project.name,
-        prompt: project.prompt,
-        charter: (project.project_charter as ProjectCharter | null) ?? null,
         hasDesignTokens: Boolean(project.design_tokens),
       },
-      screens: screenContext,
-      navigationPlan,
-      activeGeneration: activeGeneration ? { id: activeGeneration.id, status: activeGeneration.status } : null,
-      pendingProposal: promptApprovalProposal,
-      agentState,
-      activeScreenId: selectedScreenId,
-      selectedElement: {
-        targetType: payload.selectedElementTarget ?? null,
-        drawgleId: payload.selectedElementDrawgleId ?? null,
-        textPreview: payload.selectedElementPreview ?? null,
+      selectedTarget: {
+        activeScreenId: selectedScreenId,
+        activeScreenName: selectedScreen?.name ?? null,
+        selectedElement: {
+          targetType: payload.selectedElementTarget ?? null,
+          drawgleId: payload.selectedElementDrawgleId ?? null,
+          textPreview: payload.selectedElementPreview ?? null,
+        },
       },
+      screens: screenContext.map((screen) => ({
+        id: screen.id,
+        name: screen.name,
+        status: screen.status,
+        summary: screen.summary,
+        chrome: screen.chrome,
+        navigationItemId: screen.navigationItemId,
+      })),
+      navigation: navigationPlan
+        ? {
+            enabled: navigationPlan.enabled,
+            kind: navigationPlan.kind,
+            itemLabels: navigationPlan.items.map((item) => item.label),
+          }
+        : null,
+      activeGeneration: activeGeneration ? { id: activeGeneration.id, status: activeGeneration.status } : null,
+      pendingProposal: promptApprovalProposal
+        ? {
+            messageId: promptApprovalProposal.messageId,
+            screenName: promptApprovalProposal.proposal.screenPlan.name,
+            screenType: promptApprovalProposal.proposal.screenPlan.type,
+            description: promptApprovalProposal.proposal.screenPlan.description,
+            status: promptApprovalProposal.proposal.status,
+            expiresAt: promptApprovalProposal.proposal.expiresAt,
+          }
+        : null,
+      agentState,
       recentMessages,
+    };
+
+    const agentTurnId = crypto.randomUUID();
+    const clientTurnId = payload.clientTurnId?.trim() || crypto.randomUUID();
+    const turnBaseMetadata = {
+      agentTurnId,
+      clientTurnId,
+      agentContextVersion,
+    };
+    const userMessage = await insertProjectMessage(admin, {
+      projectId: payload.projectId,
+      ownerId: user.id,
+      screenId: null,
+      role: "user",
+      content: prompt || "[image]",
+      messageType: "chat",
+      metadata: {
+        ...turnBaseMetadata,
+        action: "agent_turn_user",
+      },
     });
+    let progressStep: AgentStepMetadata | null = null;
+    let progressMetadata: Record<string, unknown> = {
+      ...turnBaseMetadata,
+      userMessageId: userMessage.id,
+    };
+    let progressMessage: ProjectMessage | null = null;
+    const progressLines = () => progressStep?.processLines ?? [];
+
+    const updateAgentProgress = async ({
+      step,
+      metadata,
+      messageType = "chat",
+    }: {
+      step: AgentStepMetadata;
+      metadata?: Record<string, unknown>;
+      messageType?: "chat" | "error";
+    }) => {
+      progressStep = step;
+      progressMetadata = {
+        ...progressMetadata,
+        ...metadata,
+        action: "agent_turn_progress",
+        ui: { variant: "action_card" },
+        userMessageId: userMessage.id,
+        agentStep: progressStep,
+      };
+      progressMessage = progressMessage
+        ? await updateProjectMessage(admin, {
+            messageId: progressMessage.id,
+            content: step.title,
+            messageType,
+            metadata: progressMetadata,
+          })
+        : await insertProjectMessage(admin, {
+            projectId: payload.projectId,
+            ownerId: user.id,
+            screenId: null,
+            role: "system",
+            content: step.title,
+            messageType,
+            metadata: progressMetadata,
+          });
+      return progressMessage;
+    };
+    markAgentTurnFailed = async (message: string) => {
+      await updateAgentProgress({
+        step: buildAgentProgressStep({
+          status: "failed",
+          title: "Needs review",
+          detail: message,
+          processLines: [...progressLines(), message],
+        }),
+        messageType: "error",
+      });
+    };
+
     const routerDecision = await routeAgentPrompt({
       prompt,
       hasImage: Boolean(payload.image),
@@ -951,12 +1012,34 @@ export async function POST(request: Request) {
       activeGeneration: activeGeneration ? { id: activeGeneration.id, status: activeGeneration.status } : null,
       recentMessages,
       agentState,
-      agentContext,
+      agentContext: lightweightAgentContext,
+      loadProjectContext: () => assembleProjectContext({
+        admin,
+        projectId: payload.projectId,
+        userPrompt: prompt,
+      }),
     });
     const routerMetadata = {
       ...makeRouterMetadata(routerDecision),
-      agentContextVersion: agentContext.version,
+      agentContextVersion,
+      agentTurnId,
+      clientTurnId,
     };
+
+    if (routerDecision.action !== "answer_or_discuss" && routerDecision.action !== "out_of_scope") {
+      await updateAgentProgress({
+        step: buildAgentProgressStep({
+          title: "Interpreting your request",
+          detail: buildVisibleThinkingText({
+            action: routerDecision.action,
+            targetLabel: selectedScreen?.name ?? null,
+            hasImage: Boolean(payload.image),
+          }),
+          processLines: ["Interpreting your request.", "Matched the next agent step."],
+        }),
+        metadata: routerMetadata,
+      });
+    }
 
     const saveClarification = async ({
       message,
@@ -987,13 +1070,13 @@ export async function POST(request: Request) {
         agentState: agentStateMetadata,
       };
 
-      const userMessage = await insertProjectMessage(admin, {
-        projectId: payload.projectId,
-        ownerId: user.id,
-        screenId: null,
-        role: "user",
-        content: prompt || "[image]",
-        messageType: "chat",
+      await updateAgentProgress({
+        step: buildAgentProgressStep({
+          status: "completed",
+          title: "One detail needed",
+          detail: message,
+          processLines: [...progressLines(), "Asked for the missing detail."],
+        }),
         metadata: messageMetadata,
       });
 
@@ -1026,12 +1109,35 @@ export async function POST(request: Request) {
 
     const approvePendingProposalTurn = async (pendingProposal: NonNullable<ReturnType<typeof latestPendingScreenPlanProposal>>) => {
       try {
+        await updateAgentProgress({
+          step: buildAgentProgressStep({
+            title: "Approving the plan",
+            detail: "Turning the approved screen plan into a build job.",
+            processLines: [...progressLines(), "Approving the pending screen plan."],
+          }),
+          metadata: routerMetadata,
+        });
+
         const result = await approveScreenPlanProposal({
           admin,
           ownerId: user.id,
           projectId: payload.projectId,
           proposalMessageId: pendingProposal.messageId,
           approvalContent: prompt || "Build this screen.",
+          approvalUserMessageId: userMessage.id,
+        });
+
+        await updateAgentProgress({
+          step: buildAgentProgressStep({
+            status: "completed",
+            title: "Build queued",
+            detail: "Queued the approved screen for generation.",
+            processLines: [...progressLines(), "Queued the screen build."],
+          }),
+          metadata: {
+            ...routerMetadata,
+            generationRunId: result.generationRunId,
+          },
         });
 
         return NextResponse.json(
@@ -1047,14 +1153,18 @@ export async function POST(request: Request) {
           throw error;
         }
 
-        const userMessage = await insertProjectMessage(admin, {
-          projectId: payload.projectId,
-          ownerId: user.id,
-          screenId: null,
-          role: "user",
-          content: prompt || "[image]",
-          messageType: "chat",
-          metadata: routerMetadata,
+        await updateAgentProgress({
+          step: buildAgentProgressStep({
+            status: "failed",
+            title: "Could not approve",
+            detail: error.message,
+            processLines: [...progressLines(), error.message],
+          }),
+          metadata: {
+            ...routerMetadata,
+            activeGenerationRunId: error.activeGenerationRunId,
+          },
+          messageType: error.status >= 500 ? "error" : "chat",
         });
         const modelMessage = await insertProjectMessage(admin, {
           projectId: payload.projectId,
@@ -1090,10 +1200,6 @@ export async function POST(request: Request) {
         );
       }
     };
-
-    if (promptApprovalProposal && isScreenPlanApprovalPrompt(prompt)) {
-      return approvePendingProposalTurn(promptApprovalProposal);
-    }
 
     if (routerDecision.action === "approve_pending_plan") {
       if (promptApprovalProposal) {
@@ -1138,16 +1244,10 @@ export async function POST(request: Request) {
     }
 
     if (routerDecision.action === "out_of_scope") {
-      const message = SCOPE_REFUSAL_MESSAGE;
-      const userMessage = await insertProjectMessage(admin, {
-        projectId: payload.projectId,
-        ownerId: user.id,
-        screenId: null,
-        role: "user",
-        content: prompt || "[image]",
-        messageType: "chat",
-        metadata: routerMetadata,
-      });
+      const message = whiteLabelAgentMessage(
+        prompt,
+        routerDecision.responseMessage || "I can help with this app canvas: screens, UI edits, product flows, and design decisions.",
+      );
       const modelMessage = await insertProjectMessage(admin, {
         projectId: payload.projectId,
         ownerId: user.id,
@@ -1155,7 +1255,11 @@ export async function POST(request: Request) {
         role: "model",
         content: message,
         messageType: "chat",
-        metadata: routerMetadata,
+        metadata: {
+          ...routerMetadata,
+          ui: { variant: "chat" },
+          userMessageId: userMessage.id,
+        },
       });
 
       await persistProjectMessageMemoryPair({
@@ -1176,30 +1280,11 @@ export async function POST(request: Request) {
     }
 
     if (routerDecision.action === "answer_or_discuss") {
-      const fallbackMessage = whiteLabelAgentMessage(
+      const message = whiteLabelAgentMessage(
         prompt,
         routerDecision.responseMessage || routerDecision.clarificationQuestion ||
           "I can help with that. Tell me what direction you want to explore on this project.",
       );
-      const message = whiteLabelAgentMessage(
-        prompt,
-        await generateAgentChatResponse({
-          prompt,
-          agentContext,
-          fallback: fallbackMessage,
-        }),
-      );
-      const chatMetadata = routerMetadata;
-
-      const userMessage = await insertProjectMessage(admin, {
-        projectId: payload.projectId,
-        ownerId: user.id,
-        screenId: null,
-        role: "user",
-        content: prompt || "[image]",
-        messageType: "chat",
-        metadata: chatMetadata,
-      });
 
       const modelMessage = await insertProjectMessage(admin, {
         projectId: payload.projectId,
@@ -1208,7 +1293,11 @@ export async function POST(request: Request) {
         role: "model",
         content: message,
         messageType: "chat",
-        metadata: chatMetadata,
+        metadata: {
+          ...routerMetadata,
+          ui: { variant: "chat" },
+          userMessageId: userMessage.id,
+        },
       });
 
       await persistProjectMessageMemoryPair({
@@ -1231,32 +1320,20 @@ export async function POST(request: Request) {
     if (routerDecision.action === "draft_new_screen_plan") {
       const generationPrompt = routerDecision.instruction?.trim() || prompt;
 
-      if (shouldAskForNewScreenRequirements(generationPrompt, Boolean(payload.image))) {
-        return saveClarification({
-          message: "Sure. What kind of screen should I add to this app?",
-          instruction: generationPrompt,
-          missingFields: ["screen_requirements"],
-          lastKnownTarget: buildDecisionTarget(routerDecision),
-          metadata: {
-            serverReconciliation: {
-              finalAction: "ask_clarification",
-              reason: "bare_new_screen_request_missing_role",
-            },
-          },
-        });
-      }
-
       if (activeGeneration) {
         const message = "A screen generation is already running. Let that finish, then ask me for the next screen.";
 
-        const userMessage = await insertProjectMessage(admin, {
-          projectId: payload.projectId,
-          ownerId: user.id,
-          screenId: null,
-          role: "user",
-          content: prompt || "[image]",
-          messageType: "chat",
-          metadata: routerMetadata,
+        await updateAgentProgress({
+          step: buildAgentProgressStep({
+            status: "failed",
+            title: "Already building",
+            detail: message,
+            processLines: [...progressLines(), message],
+          }),
+          metadata: {
+            ...routerMetadata,
+            activeGenerationRunId: activeGeneration.id,
+          },
         });
         const modelMessage = await insertProjectMessage(admin, {
           projectId: payload.projectId,
@@ -1288,6 +1365,32 @@ export async function POST(request: Request) {
         ? normalizeDesignTokens(project.design_tokens as DesignTokens)
         : null;
       const projectCharter = (project.project_charter as ProjectCharter | null) ?? null;
+      const planningAck = whiteLabelAgentMessage(
+        prompt,
+        "Got it. I'm turning that into a brand-fit screen plan now.",
+      );
+      const ackMessage = await insertProjectMessage(admin, {
+        projectId: payload.projectId,
+        ownerId: user.id,
+        screenId: null,
+        role: "model",
+        content: planningAck,
+        messageType: "chat",
+        metadata: {
+          ...routerMetadata,
+          ui: { variant: "chat" },
+          action: "screen_plan_acknowledgement",
+          userMessageId: userMessage.id,
+        },
+      });
+      await updateAgentProgress({
+        step: buildAgentProgressStep({
+          title: "Drafting the screen plan",
+          detail: "Choosing the screen role, layout hierarchy, and brand-fit details.",
+          processLines: [...progressLines(), "Drafting the screen plan."],
+        }),
+        metadata: routerMetadata,
+      });
       const planningContext = await assembleProjectContext({
         admin,
         projectId: payload.projectId,
@@ -1331,13 +1434,13 @@ export async function POST(request: Request) {
         },
       };
 
-      const userMessage = await insertProjectMessage(admin, {
-        projectId: payload.projectId,
-        ownerId: user.id,
-        screenId: null,
-        role: "user",
-        content: prompt || "[image]",
-        messageType: "chat",
+      await updateAgentProgress({
+        step: buildAgentProgressStep({
+          status: "completed",
+          title: "Plan ready for review",
+          detail: `Prepared ${screenPlan.name} for approval.`,
+          processLines: [...progressLines(), "Prepared the approval card."],
+        }),
         metadata: proposalBaseMetadata,
       });
       const modelMessage = await insertProjectMessage(admin, {
@@ -1389,8 +1492,8 @@ export async function POST(request: Request) {
         admin,
         userMessageId: userMessage.id,
         userContent: prompt || "[image]",
-        modelMessageId: modelMessage.id,
-        modelContent: proposalText,
+        modelMessageId: ackMessage.id,
+        modelContent: `${planningAck}\n\n${proposalText}`,
       }).catch((error) => {
         console.error("Failed to persist screen proposal memory", error);
       });
@@ -1710,13 +1813,19 @@ export async function POST(request: Request) {
       : null;
 
     if (deterministicStyleIntent && payload.selectedElementDrawgleId) {
-      const userMessage = await insertProjectMessage(admin, {
-        projectId: payload.projectId,
-        ownerId: user.id,
-        screenId: targetScreenId,
-        role: "user",
-        content: prompt || "[image]",
-        messageType: "chat",
+      const deterministicTargetLabel = targetLabelFromContext({
+        requestTargetsNavigation,
+        shouldUseSelectedElement,
+        targetScreenName: targetScreen?.name ?? null,
+      });
+
+      await updateAgentProgress({
+        step: buildAgentProgressStep({
+          title: "Applying selected edit",
+          detail: `Updating ${deterministicTargetLabel} with project tokens.`,
+          targetLabel: deterministicTargetLabel,
+          processLines: [...progressLines(), "Matched the request to deterministic token edits."],
+        }),
         metadata: {
           ...executionRouterMetadata,
           deterministicStyleEdit: {
@@ -1725,22 +1834,6 @@ export async function POST(request: Request) {
             operationCount: deterministicStyleIntent.operations.length,
           },
         },
-      });
-      const deterministicTargetLabel = targetLabelFromContext({
-        requestTargetsNavigation,
-        shouldUseSelectedElement,
-        targetScreenName: targetScreen?.name ?? null,
-      });
-
-      await insertAgentThinkingMessage({
-        admin,
-        projectId: payload.projectId,
-        ownerId: user.id,
-        screenId: targetScreenId,
-        targetLabel: deterministicTargetLabel,
-        routerMetadata: executionRouterMetadata,
-        routerDecision: executionRouterDecision,
-        hasImage: Boolean(payload.image),
       });
 
       const preActionMessage = await insertPreActionMessage({
@@ -1839,6 +1932,20 @@ export async function POST(request: Request) {
         screenName,
         selectedElementDrawgleId: payload.selectedElementDrawgleId,
       };
+      await updateAgentProgress({
+        step: buildAgentProgressStep({
+          status: changed ? "completed" : "failed",
+          title: changed ? "Edit applied" : "No change needed",
+          detail: modelContent,
+          targetLabel: deterministicTargetLabel,
+          processLines: [
+            ...progressLines(),
+            changed ? "Saved the updated target." : "The target already matched the requested token change.",
+          ],
+        }),
+        metadata: executionRouterMetadata,
+        messageType: changed ? "chat" : "error",
+      });
       const modelMessage = await insertProjectMessage(admin, {
         projectId: payload.projectId,
         ownerId: user.id,
@@ -1925,15 +2032,6 @@ export async function POST(request: Request) {
       });
     }
 
-    const userMessage = await insertProjectMessage(admin, {
-      projectId: payload.projectId,
-      ownerId: user.id,
-      screenId: targetScreenId,
-      role: "user",
-      content: prompt || "[image]",
-      messageType: "chat",
-      metadata: executionRouterMetadata,
-    });
     const activityKey = `edit:${userMessage.id}`;
     const lastKnownTarget: AgentStateTarget = {
       targetType: executionRouterMetadata.agentRouter.targetType as AgentTargetType,
@@ -1948,15 +2046,17 @@ export async function POST(request: Request) {
       targetScreenName: targetScreen?.name ?? null,
     });
 
-    await insertAgentThinkingMessage({
-      admin,
-      projectId: payload.projectId,
-      ownerId: user.id,
-      screenId: targetScreenId,
-      targetLabel,
-      routerMetadata: executionRouterMetadata,
-      routerDecision: executionRouterDecision,
-      hasImage: Boolean(payload.image),
+    await updateAgentProgress({
+      step: buildAgentProgressStep({
+        title: "Resolving the edit target",
+        detail: `Targeting ${targetLabel}.`,
+        targetLabel,
+        processLines: [
+          ...progressLines(),
+          shouldUseSelectedElement ? "Using the selected element as the edit boundary." : "Using canvas context to choose the safest editable region.",
+        ],
+      }),
+      metadata: executionRouterMetadata,
     });
 
     const preActionMessage = await insertPreActionMessage({
@@ -2014,6 +2114,23 @@ export async function POST(request: Request) {
       },
     });
 
+    await updateAgentProgress({
+      step: buildAgentProgressStep({
+        status: "queued",
+        title: requestTargetsNavigation ? "Navigation edit queued" : "Edit queued",
+        detail: requestTargetsNavigation
+          ? "Queued the shared navigation edit."
+          : `Queued the edit for ${targetScreen?.name ?? "the selected screen"}.`,
+        targetLabel,
+        processLines: [...progressLines(), "Queued the edit request."],
+      }),
+      metadata: {
+        ...executionRouterMetadata,
+        activityKey,
+        queuedMessageId: queuedMessage.id,
+      },
+    });
+
     const handle = await tasks.trigger<typeof modifyScreenTask>(
       "modify-screen",
       {
@@ -2057,6 +2174,22 @@ export async function POST(request: Request) {
       })
       .eq("id", queuedMessage.id);
 
+    await updateAgentProgress({
+      step: buildAgentProgressStep({
+        status: "queued",
+        title: requestTargetsNavigation ? "Navigation edit queued" : "Edit queued",
+        detail: "The edit worker is now running in the background.",
+        targetLabel,
+        processLines: [...progressLines(), "Started the edit worker."],
+      }),
+      metadata: {
+        ...executionRouterMetadata,
+        activityKey,
+        queuedMessageId: queuedMessage.id,
+        triggerRunId: handle.id,
+      },
+    });
+
     if (preActionMessage) {
       await persistProjectMessageMemoryPair({
         admin,
@@ -2091,6 +2224,12 @@ export async function POST(request: Request) {
   } catch (error: unknown) {
     console.error("Agent route error", error);
     const message = error instanceof Error ? error.message : "Internal server error";
+
+    if (markAgentTurnFailed) {
+      await markAgentTurnFailed(message).catch((progressError) => {
+        console.error("Failed to mark agent turn as failed", progressError);
+      });
+    }
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(

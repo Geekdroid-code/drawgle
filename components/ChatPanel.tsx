@@ -107,6 +107,9 @@ const getMessageGenerationRunId = (message: ProjectMessage) =>
 const getMessageActivityKey = (message: ProjectMessage) =>
   getMetadataString(message.metadata, "activityKey");
 
+const getMessageClientTurnId = (message: ProjectMessage) =>
+  getMetadataString(message.metadata, "clientTurnId");
+
 const compactActionTitle = (content: string) =>
   content.replace(/\s+/g, " ").replace(/\.\.\.$/, "").trim() || "Working";
 
@@ -305,10 +308,17 @@ function buildConversationItems({
       .map(getMessageGenerationRunId)
       .filter((runId): runId is string => Boolean(runId)),
   );
-  const pendingPrompt = pendingTurn?.prompt.trim();
-  const hasPersistedPending = pendingPrompt
-    ? messages.some((message) => message.role === "user" && message.content.trim() === pendingPrompt)
-    : false;
+  const pendingTurnMessages = pendingTurn
+    ? messages.filter((message) => getMessageClientTurnId(message) === pendingTurn.id)
+    : [];
+  const persistedPendingUser = pendingTurnMessages.find((message) => message.role === "user") ?? null;
+  const hasPersistedPending = Boolean(persistedPendingUser);
+  const hasPersistedPendingProgress = pendingTurnMessages.some((message) =>
+    getMetadataString(message.metadata, "action") === "agent_turn_progress",
+  );
+  const hasPersistedPendingResponse = pendingTurnMessages.some((message) =>
+    message.role !== "user" && getMetadataString(message.metadata, "action") !== "agent_turn_progress",
+  );
 
   for (const message of messages) {
     const ui = readAgentUi(message.metadata);
@@ -385,6 +395,12 @@ function buildConversationItems({
         message,
         screens,
       });
+      if (
+        getMetadataString(message.metadata, "action") === "agent_turn_progress" &&
+        normalizedStep.status === "completed"
+      ) {
+        continue;
+      }
       items.push({
         id: `action-${message.id}`,
         kind: "action",
@@ -408,24 +424,29 @@ function buildConversationItems({
     }
   }
 
-  if (pendingTurn && !hasPersistedPending) {
-    items.push({
-      id: `pending-user-${pendingTurn.id}`,
-      kind: "user",
-      content: pendingTurn.prompt || "[image]",
-      image: pendingTurn.image,
-    });
-    items.push({
-      id: `pending-thinking-${pendingTurn.id}`,
-      kind: "thinking",
-      summary: {
-        label: "Analyzing your request",
-        text: "",
-        durationMs: Date.now() - pendingTurn.startedAt,
-        expandedByDefault: false,
-      },
-      live: true,
-    });
+  if (pendingTurn && (!hasPersistedPending || (!hasPersistedPendingProgress && !hasPersistedPendingResponse))) {
+    if (!hasPersistedPending) {
+      items.push({
+        id: `pending-user-${pendingTurn.id}`,
+        kind: "user",
+        content: pendingTurn.prompt || "[image]",
+        image: pendingTurn.image,
+      });
+    }
+
+    if (!hasPersistedPendingProgress && !hasPersistedPendingResponse && Date.now() - pendingTurn.startedAt > 450) {
+      items.push({
+        id: `pending-thinking-${pendingTurn.id}`,
+        kind: "thinking",
+        live: true,
+        summary: {
+          label: "Thinking",
+          text: "Reading your message.",
+          durationMs: Date.now() - pendingTurn.startedAt,
+          expandedByDefault: false,
+        },
+      });
+    }
   }
 
   if (queueError) {
@@ -551,7 +572,7 @@ function ThinkingRow({ summary, id, live = false }: { summary: ThinkingSummaryMe
           <span>{summary.label}</span>
           {seconds ? <span className="font-normal italic opacity-60">{seconds}</span> : null}
         </div>
-        <AgentThinkingIndicator label="Dreaming..." className="mt-2 pl-3 text-slate-500" />
+        <AgentThinkingIndicator label="Thinking..." className="mt-2 pl-3 text-slate-500" />
       </div>
     );
   }
@@ -577,7 +598,7 @@ function ThinkingRow({ summary, id, live = false }: { summary: ThinkingSummaryMe
         {summary.text}
       </div>
       {isLive ? (
-        <AgentThinkingIndicator label="Dreaming..." className="mt-2 pl-3 text-slate-500" />
+        <AgentThinkingIndicator label="Thinking..." className="mt-2 pl-3 text-slate-500" />
       ) : null}
     </div>
   );
@@ -829,7 +850,7 @@ export function ChatPanel({
   onCancelPlan?: () => void;
   isCollapsed: boolean;
   onCollapseChange: (collapsed: boolean) => void;
-  onSubmit?: (options: { prompt: string; image?: PromptImagePayload | null }) => Promise<boolean>;
+  onSubmit?: (options: { prompt: string; image?: PromptImagePayload | null; clientTurnId?: string }) => Promise<boolean>;
   disabled?: boolean;
   selectionMode?: boolean;
   onToggleSelectionMode?: () => void;
@@ -847,6 +868,7 @@ export function ChatPanel({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const reduceMotion = Boolean(useReducedMotion());
   const [pendingTurn, setPendingTurn] = useState<PendingTurn | null>(null);
+  const [pendingTick, setPendingTick] = useState(0);
   const isGenerationActive = isActiveGenerationRun(generationRun);
   const hasAlert = Boolean(queueError || screenPlan?.status === "error");
   const isBusy = isGenerationActive || isQueueing || screenPlan?.status === "planning" || Boolean(pendingTurn);
@@ -861,7 +883,7 @@ export function ChatPanel({
       screenPlan,
       pendingTurn,
     }),
-    [generationRun, generationRuns, messages, pendingTurn, queueError, screenPlan, screens],
+    [generationRun, generationRuns, messages, pendingTick, pendingTurn, queueError, screenPlan, screens],
   );
 
   let collapsedEyebrow = "Drawgle";
@@ -879,21 +901,32 @@ export function ChatPanel({
 
   const handleSubmit = async (options: { prompt: string; image?: PromptImagePayload | null }) => {
     const turn: PendingTurn = {
-      id: `${Date.now()}`,
+      id: crypto.randomUUID(),
       prompt: options.prompt,
       image: options.image ?? null,
       startedAt: Date.now(),
     };
     setPendingTurn(turn);
+    setPendingTick(0);
 
     try {
-      return await onSubmit?.(options) ?? false;
+      return await onSubmit?.({ ...options, clientTurnId: turn.id }) ?? false;
     } finally {
       window.setTimeout(() => {
         setPendingTurn((current) => current?.id === turn.id ? null : current);
       }, 350);
     }
   };
+
+  useEffect(() => {
+    if (!pendingTurn) return;
+
+    const interval = window.setInterval(() => {
+      setPendingTick((value) => value + 1);
+    }, 900);
+
+    return () => window.clearInterval(interval);
+  }, [pendingTurn]);
 
   useEffect(() => {
     if (isCollapsed) return;

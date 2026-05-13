@@ -1,23 +1,33 @@
 import "server-only";
 
-import { FunctionCallingConfigMode, Type, type FunctionDeclaration } from "@google/genai";
+import {
+  FunctionCallingConfigMode,
+  Type,
+  type FunctionCall,
+  type FunctionDeclaration,
+} from "@google/genai";
 import { z } from "zod";
 
 import { createGeminiClient } from "@/lib/ai/gemini";
 import { geminiPolicyForTask } from "@/lib/ai/model-policy";
 
-export type AgentScreenContext = {
-  id: string;
-  name: string;
-  prompt?: string | null;
-  status?: string | null;
-  summary?: string | null;
-  chrome?: string | null;
-  navigationItemId?: string | null;
-};
-
 export type AgentTargetType = "none" | "screen" | "selected_element" | "navigation" | "project";
 export type AgentScope = "none" | "selected_element" | "screen_region" | "whole_screen" | "navigation" | "new_screen";
+export type AgentEditOperation =
+  | "none"
+  | "copy_change"
+  | "style_change"
+  | "layout_change"
+  | "content_change"
+  | "add_element"
+  | "remove_element"
+  | "append_content"
+  | "replace_region"
+  | "restyle_region"
+  | "rewrite_screen"
+  | "repair_screen"
+  | "unknown";
+export type AgentExecutionIntent = "chat" | "plan" | "edit" | "approve" | "clarify" | "refuse";
 export type AgentAction =
   | "answer_or_discuss"
   | "draft_new_screen_plan"
@@ -25,8 +35,6 @@ export type AgentAction =
   | "modify_existing_ui"
   | "ask_clarification"
   | "out_of_scope";
-export type AgentEditOperation = "none" | "append_content" | "replace_region" | "restyle_region" | "rewrite_screen" | "repair_screen";
-export type AgentExecutionIntent = "chat" | "discuss" | "draft_plan" | "create" | "approve" | "modify" | "repair" | "out_of_scope";
 
 export type AgentTurnState = {
   kind: "pending_clarification" | "failed_edit_recovery" | "last_actionable_request";
@@ -53,350 +61,414 @@ export type AgentTurnState = {
 export type AgentRouterInput = {
   prompt: string;
   hasImage: boolean;
-  activeScreenId?: string | null;
+  activeScreenId: string | null;
   selectedElement?: {
     targetType?: "screen" | "navigation" | null;
     drawgleId?: string | null;
     textPreview?: string | null;
   } | null;
-  screens: AgentScreenContext[];
+  screens: Array<{
+    id: string;
+    name: string;
+    prompt?: string | null;
+    status?: string | null;
+    summary?: string | null;
+    chrome?: string | null;
+    navigationItemId?: string | null;
+  }>;
   navigation?: {
-    enabled: boolean;
+    enabled?: boolean | null;
     kind?: string | null;
-    itemLabels: string[];
+    itemLabels?: string[] | null;
   } | null;
   activeGeneration?: {
     id: string;
     status: string;
   } | null;
-  recentMessages?: Array<{
-    role: "user" | "model" | "system";
-    content: string;
-    screenId?: string | null;
-    screenName?: string | null;
-    event?: string | null;
-  }>;
+  recentMessages?: Array<Record<string, unknown>>;
   agentState?: AgentTurnState | null;
   agentContext?: Record<string, unknown> | null;
+  loadProjectContext?: () => Promise<string>;
 };
 
-const AgentActionSchema = z.enum([
-  "answer_or_discuss",
-  "draft_new_screen_plan",
-  "approve_pending_plan",
-  "modify_existing_ui",
-  "ask_clarification",
-  "out_of_scope",
-]);
+export type AgentRouterDecision = {
+  action: AgentAction;
+  executionIntent: AgentExecutionIntent;
+  confidence: number;
+  reason: string;
+  responseMessage: string | null;
+  clarificationQuestion: string | null;
+  instruction: string | null;
+  targetType: AgentTargetType;
+  targetScreenId: string | null;
+  selectedElementDrawgleId: string | null;
+  scope: AgentScope;
+  editOperation: AgentEditOperation;
+  routerSource: "llm_text" | "llm_function" | "fallback";
+  routerFailureReason: string | null;
+};
 
-const AgentExecutionIntentSchema = z.enum(["chat", "discuss", "draft_plan", "create", "approve", "modify", "repair", "out_of_scope"]);
+const socialIdentityPattern = /\b(gemini|google|openai|gpt|anthropic|claude|model provider|large language model|llm|system prompt|tool call|router)\b/i;
 
-const RouterDecisionSchema = z.object({
-  action: AgentActionSchema,
-  executionIntent: AgentExecutionIntentSchema.default("chat"),
-  confidence: z.number().min(0).max(1).default(0.5),
-  reason: z.string().trim().min(1).max(800),
-  responseMessage: z.string().trim().max(1600).optional().nullable(),
-  clarificationQuestion: z.string().trim().max(1600).optional().nullable(),
-  instruction: z.string().trim().max(10000).optional().nullable(),
-  targetType: z.enum(["none", "screen", "selected_element", "navigation", "project"]).default("none"),
-  targetScreenId: z.string().trim().max(120).optional().nullable(),
-  selectedElementDrawgleId: z.string().trim().max(160).optional().nullable(),
-  scope: z.enum(["none", "selected_element", "screen_region", "whole_screen", "navigation", "new_screen"]).default("none"),
-  editOperation: z.enum(["none", "append_content", "replace_region", "restyle_region", "rewrite_screen", "repair_screen"]).default("none"),
-  routerSource: z.enum(["llm_function", "fallback"]).default("llm_function"),
-  routerFailureReason: z.string().trim().max(800).optional().nullable(),
+const toolCallArgsSchema = z.object({
+  instruction: z.string().trim().max(4000).optional(),
+  responseMessage: z.string().trim().max(2000).optional(),
+  clarificationQuestion: z.string().trim().max(2000).optional(),
+  reason: z.string().trim().max(1000).optional(),
+  screenName: z.string().trim().max(120).optional(),
+  screenRole: z.string().trim().max(240).optional(),
+  targetScreenId: z.string().trim().max(120).optional(),
+  selectedElementDrawgleId: z.string().trim().max(120).optional(),
+  targetType: z.string().trim().max(80).optional(),
+  scope: z.string().trim().max(80).optional(),
+  editOperation: z.string().trim().max(80).optional(),
 });
 
-export type AgentRouterDecision = z.infer<typeof RouterDecisionSchema>;
+const targetTypeSchema = z.enum(["none", "screen", "selected_element", "navigation", "project"]);
+const scopeSchema = z.enum(["none", "selected_element", "screen_region", "whole_screen", "navigation", "new_screen"]);
+const editOperationSchema = z.enum([
+  "none",
+  "copy_change",
+  "style_change",
+  "layout_change",
+  "content_change",
+  "add_element",
+  "remove_element",
+  "append_content",
+  "replace_region",
+  "restyle_region",
+  "rewrite_screen",
+  "repair_screen",
+  "unknown",
+]);
 
-const routerInstruction = [
-  "You are Drawgle AI's decision router for a mobile app design canvas.",
-  "Always call decide_drawgle_action exactly once. Do not answer the user directly.",
-  "Your job is only to choose the next agent intent and target metadata. A separate responder, planner, or editor will speak/build/edit.",
-  "Use the full agent context: project charter, existing screens, navigation, pending proposal, selected target, recent turns, and active jobs.",
-  "Treat phrases like 'for this app', 'same app', or 'welcome screen' as meaningful when project context exists.",
-  "Choose draft_new_screen_plan when the user wants a new screen, view, page, flow step, onboarding/welcome/auth/detail/etc. The planner can infer missing app details from project context.",
-  "Choose ask_clarification for new-screen creation only when the user gives no screen role at all, e.g. just 'create a new screen'.",
-  "Choose answer_or_discuss when the user is asking advice, brainstorming, evaluation, explanation, or a non-mutating plan.",
-  "Choose modify_existing_ui only when the user asks to change an existing screen, selected element, region, or shared navigation.",
-  "Selection is context, not a command. A selected screen/element should not turn discussion into an edit unless the user's wording asks to modify existing UI.",
-  "Choose approve_pending_plan only for approval language when a pending screenPlanProposal exists in context.",
-  "Choose out_of_scope only for substantive non-canvas requests. Greetings and thanks are answer_or_discuss.",
-  "Do not invent screen ids or element ids; use ids from context only.",
-  "Keep reason short and internal. responseMessage is optional diagnostic guidance, not final prose.",
+const compact = (text: string, limit = 6000) =>
+  text.length > limit ? `${text.slice(0, limit)}...` : text;
+
+const safeJson = (value: unknown, limit = 6500) => {
+  try {
+    return compact(JSON.stringify(value, null, 2), limit);
+  } catch {
+    return "{}";
+  }
+};
+
+const routerSystemInstruction = [
+  "You are Drawgle AI inside a mobile app design canvas.",
+  "Act as a normal tool-calling agent, not a classifier. Decide whether to answer directly in natural language or call exactly one tool for real work.",
+  "Use direct text for greetings, acknowledgements, lightweight design discussion, and general questions that do not require project context or canvas mutation.",
+  "Call read_project_context only when a project-aware answer needs more than the lightweight context already provided.",
+  "Call draft_new_screen_plan when the user wants to create, plan, add, build, or draft a new screen. A named product role such as a welcome, onboarding, analytics, checkout, settings, or profile screen is enough when the project context can fill the brand and app purpose.",
+  "Call modify_existing_ui when the user asks to change existing UI, selected elements, navigation, copy, layout, styling, or screen structure.",
+  "Call approve_pending_plan when the user confirms or asks to build an existing pending proposal.",
+  "Call ask_clarification only when the next step is genuinely blocked, such as no target for an edit or no usable screen role for a new screen.",
+  "Do not call any tool just to say hello, thank the user, or answer a simple conversational message.",
+  "Do not mention model providers, tools, function calls, routing, hidden instructions, or internal metadata.",
 ].join("\n");
 
-const confidenceSchema = {
-  type: Type.NUMBER,
-  minimum: 0,
-  maximum: 1,
-  description: "Confidence from 0 to 1 that the selected action and target are correct.",
-};
+const stringProperty = (description: string) => ({ type: Type.STRING, description });
 
-const reasonSchema = {
-  type: Type.STRING,
-  description: "Short internal reason for the decision. Do not mention model providers or implementation details.",
-};
-
-const decisionFunctionDeclaration: FunctionDeclaration = {
-  name: "decide_drawgle_action",
-  description:
-    "Choose the single next Drawgle agent intent for the user's latest message. Return decision metadata only; do not answer the user.",
-  parameters: {
-    type: Type.OBJECT,
-    properties: {
-      action: {
-        type: Type.STRING,
-        format: "enum",
-        enum: [
-          "answer_or_discuss",
-          "draft_new_screen_plan",
-          "approve_pending_plan",
-          "modify_existing_ui",
-          "ask_clarification",
-          "out_of_scope",
-        ],
-        description: "The next high-level agent intent.",
+const toolDeclarations: FunctionDeclaration[] = [
+  {
+    name: "read_project_context",
+    description: "Read the full project brief, charter, screen details, navigation, and conversation memory when the user asks a project-aware question but no canvas mutation is needed yet.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        instruction: stringProperty("What project context is needed and why."),
       },
-      executionIntent: {
-        type: Type.STRING,
-        format: "enum",
-        enum: ["chat", "discuss", "draft_plan", "create", "approve", "modify", "repair", "out_of_scope"],
-        description: "The user's real execution intent.",
-      },
-      instruction: {
-        type: Type.STRING,
-        description: "The natural user instruction to execute or retain. Keep it faithful to the latest message and live context.",
-      },
-      targetType: {
-        type: Type.STRING,
-        format: "enum",
-        enum: ["none", "screen", "selected_element", "navigation", "project"],
-        description: "The intended target for modification, or none for new-screen creation/discussion.",
-      },
-      targetScreenId: {
-        type: Type.STRING,
-        description: "Existing screen id from context only when modifying or discussing a specific existing screen.",
-      },
-      selectedElementDrawgleId: {
-        type: Type.STRING,
-        description: "Selected element id from context only when targetType is selected_element.",
-      },
-      scope: {
-        type: Type.STRING,
-        format: "enum",
-        enum: ["none", "selected_element", "screen_region", "whole_screen", "navigation", "new_screen"],
-        description: "Execution scope. Use new_screen only with draft_new_screen_plan.",
-      },
-      editOperation: {
-        type: Type.STRING,
-        format: "enum",
-        enum: ["none", "append_content", "replace_region", "restyle_region", "rewrite_screen", "repair_screen"],
-        description: "The edit shape when action is modify_existing_ui.",
-      },
-      responseMessage: {
-        type: Type.STRING,
-        description: "Optional short diagnostic guidance for the server. This is not the final user-facing answer.",
-      },
-      clarificationQuestion: {
-        type: Type.STRING,
-        description: "Short clarification question only when action is ask_clarification.",
-      },
-      confidence: confidenceSchema,
-      reason: reasonSchema,
     },
-    required: ["action", "executionIntent", "instruction", "targetType", "scope", "editOperation", "confidence", "reason"],
   },
-};
+  {
+    name: "draft_new_screen_plan",
+    description: "Draft a proposal for a new screen to be approved before building. Use for new screen creation or planning requests.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        instruction: stringProperty("Natural-language screen planning instruction to pass to the planner."),
+        screenName: stringProperty("Optional likely screen name."),
+        screenRole: stringProperty("Optional screen role or job in the app."),
+        reason: stringProperty("Short reason this is the right action."),
+      },
+      required: ["instruction"],
+    },
+  },
+  {
+    name: "modify_existing_ui",
+    description: "Modify existing canvas UI, an existing screen, selected element, or navigation.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        instruction: stringProperty("Natural-language edit instruction to execute."),
+        targetType: stringProperty("One of screen, selected_element, navigation, project, or none."),
+        targetScreenId: stringProperty("Screen id if known."),
+        selectedElementDrawgleId: stringProperty("Selected Drawgle element id if known."),
+        scope: stringProperty("One of selected_element, screen_region, whole_screen, navigation, none."),
+        editOperation: stringProperty("One of copy_change, style_change, layout_change, content_change, add_element, remove_element, append_content, replace_region, restyle_region, rewrite_screen, repair_screen, unknown."),
+        reason: stringProperty("Short reason this is the right action."),
+      },
+      required: ["instruction"],
+    },
+  },
+  {
+    name: "approve_pending_plan",
+    description: "Approve and queue the pending screen plan when the user confirms it should be built.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        instruction: stringProperty("Approval wording or build instruction."),
+        reason: stringProperty("Short reason this is the right action."),
+      },
+    },
+  },
+  {
+    name: "ask_clarification",
+    description: "Ask one concise follow-up when the request is blocked and cannot safely be answered or executed with the current context.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        instruction: stringProperty("Original intended task to keep for the next turn."),
+        clarificationQuestion: stringProperty("One concise user-facing question."),
+        reason: stringProperty("Short reason the question is necessary."),
+      },
+      required: ["clarificationQuestion"],
+    },
+  },
+];
 
-const normalizeConfidence = (value: unknown) => {
-  const numeric = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(numeric) ? Math.min(1, Math.max(0, numeric)) : 0.5;
-};
+const actionToolDeclarations = toolDeclarations.filter((tool) => tool.name !== "read_project_context");
 
-const asTrimmedString = (value: unknown) => typeof value === "string" ? value.trim() : "";
-
-const asRecord = (value: unknown) =>
-  value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : {};
-
-const parseEnum = <T extends string>(value: unknown, allowed: readonly T[], fallback: T): T => {
-  const text = asTrimmedString(value);
-  return allowed.includes(text as T) ? text as T : fallback;
-};
-
-const parseFunctionDecision = (input: AgentRouterInput, functionCall: { name?: string; args?: Record<string, unknown> | null }): AgentRouterDecision => {
-  if (functionCall.name !== "decide_drawgle_action") {
-    throw new Error(`Unknown agent router function call: ${functionCall.name ?? "missing"}`);
-  }
-
-  const args = functionCall.args ?? {};
-  const action = parseEnum(args.action, AgentActionSchema.options, "ask_clarification");
-  const executionIntent = parseEnum(args.executionIntent, AgentExecutionIntentSchema.options, "chat");
-  const targetType = parseEnum(args.targetType, ["none", "screen", "selected_element", "navigation", "project"] as const, "none");
-  const scope = parseEnum(args.scope, ["none", "selected_element", "screen_region", "whole_screen", "navigation", "new_screen"] as const, action === "draft_new_screen_plan" ? "new_screen" : "none");
-  const editOperation = parseEnum(args.editOperation, ["none", "append_content", "replace_region", "restyle_region", "rewrite_screen", "repair_screen"] as const, "none");
-
-  return RouterDecisionSchema.parse({
-    action,
-    executionIntent,
-    confidence: normalizeConfidence(args.confidence),
-    reason: asTrimmedString(args.reason) || "Router returned a structured decision.",
-    responseMessage: asTrimmedString(args.responseMessage) || null,
-    clarificationQuestion: asTrimmedString(args.clarificationQuestion) || null,
-    instruction: asTrimmedString(args.instruction) || input.agentState?.instruction || input.prompt.trim(),
-    targetType,
-    targetScreenId: asTrimmedString(args.targetScreenId) || null,
-    selectedElementDrawgleId: asTrimmedString(args.selectedElementDrawgleId) || null,
-    scope,
-    editOperation,
-    routerSource: "llm_function",
-    routerFailureReason: null,
+const routerConfig = (tools: FunctionDeclaration[]) => {
+  const policy = geminiPolicyForTask("router", {
+    systemInstruction: routerSystemInstruction,
+    tools: [{ functionDeclarations: tools }],
+    toolConfig: {
+      functionCallingConfig: {
+        mode: FunctionCallingConfigMode.AUTO,
+      },
+    },
   });
+
+  return policy;
 };
 
-const approvalPromptPattern = /^(yes|yeah|yep|ok|okay|sure|do it|build it|build this|approve|approved|go ahead|looks good|ship it|create it)(\s|[.!?,]|$)/i;
-const explicitScreenSurfacePattern = /\b(screen|page|view)\b/i;
-const bareNewScreenPattern = /^(please\s+)?(?:(create|make|build|generate|plan|draft|add)\s+)?(?:(a|an|one|another)\s+)?(?:new\s+)?(screen|page|view)(?:\s+(for|in)\s+(this|the)\s+app)?\s*(please)?$/i;
-const editIntentPattern = /\b(edit|change|modify|update|replace|remove|delete|redesign|restyle|rewrite|repair|fix|make|move|resize|align|polish|improve|tighten|add)\b/i;
-const discussPromptPattern = /\b(what|how|why|should|could|can|idea|ideas|suggest|recommend|plan|review|critique|explain|include|contain)\b/i;
+const buildRouterPrompt = (input: AgentRouterInput, extraContext?: string) => [
+  `User message:\n${input.prompt || "[image-only request]"}`,
+  `Has image reference: ${input.hasImage ? "yes" : "no"}`,
+  "",
+  "Lightweight canvas context:",
+  safeJson(input.agentContext ?? {
+    activeScreenId: input.activeScreenId,
+    selectedElement: input.selectedElement ?? null,
+    screens: input.screens.map((screen) => ({
+      id: screen.id,
+      name: screen.name,
+      status: screen.status ?? null,
+      summary: screen.summary ?? null,
+      chrome: screen.chrome ?? null,
+    })),
+    navigation: input.navigation ?? null,
+    activeGeneration: input.activeGeneration ?? null,
+    pendingAgentState: input.agentState ?? null,
+    recentMessages: input.recentMessages ?? [],
+  }),
+  extraContext ? `\nFull project context from read_project_context:\n${compact(extraContext, 10000)}` : "",
+].filter(Boolean).join("\n");
 
-const hasPendingProposal = (input: AgentRouterInput) =>
-  Boolean(asRecord(input.agentContext).pendingProposal);
-
-const fallbackDecision = (
-  input: AgentRouterInput,
-  patch: Partial<AgentRouterDecision> & Pick<AgentRouterDecision, "action" | "executionIntent" | "reason">,
-): AgentRouterDecision => RouterDecisionSchema.parse({
-  confidence: 0.35,
-  responseMessage: null,
+const fallbackDecision = (prompt: string, reason: string): AgentRouterDecision => ({
+  action: "answer_or_discuss",
+  executionIntent: "chat",
+  confidence: 0.4,
+  reason: "The agent could not complete tool routing, so it returned a safe direct reply.",
+  responseMessage: prompt.trim()
+    ? "I hit a snag reading that turn. Could you say it once more, and I will pick up from there?"
+    : "I am here. Tell me what you want to create or refine.",
   clarificationQuestion: null,
-  instruction: input.agentState?.instruction || input.prompt.trim(),
+  instruction: prompt.trim() || null,
   targetType: "none",
   targetScreenId: null,
   selectedElementDrawgleId: null,
   scope: "none",
   editOperation: "none",
-  ...patch,
   routerSource: "fallback",
-  routerFailureReason: patch.routerFailureReason ?? "Router function call failed or returned invalid output.",
+  routerFailureReason: reason,
 });
 
-const safeFallbackDecision = (input: AgentRouterInput, failureReason?: string): AgentRouterDecision => {
-  const text = input.prompt.trim();
+const directTextDecision = (prompt: string, text: string, reason = "Gemini answered directly without a tool call."): AgentRouterDecision => ({
+  action: "answer_or_discuss",
+  executionIntent: "chat",
+  confidence: 0.9,
+  reason,
+  responseMessage: socialIdentityPattern.test(text)
+    ? "I am Drawgle AI, your mobile app design assistant. I can help you create screens, edit UI, and refine this project."
+    : text,
+  clarificationQuestion: null,
+  instruction: prompt.trim() || null,
+  targetType: "none",
+  targetScreenId: null,
+  selectedElementDrawgleId: null,
+  scope: "none",
+  editOperation: "none",
+  routerSource: "llm_text",
+  routerFailureReason: null,
+});
 
-  if (hasPendingProposal(input) && approvalPromptPattern.test(text)) {
-    return fallbackDecision(input, {
+const coerceTargetType = (value: unknown, fallback: AgentTargetType): AgentTargetType =>
+  targetTypeSchema.safeParse(value).success ? value as AgentTargetType : fallback;
+
+const coerceScope = (value: unknown, fallback: AgentScope): AgentScope =>
+  scopeSchema.safeParse(value).success ? value as AgentScope : fallback;
+
+const coerceEditOperation = (value: unknown, fallback: AgentEditOperation): AgentEditOperation =>
+  editOperationSchema.safeParse(value).success ? value as AgentEditOperation : fallback;
+
+const parseToolDecision = (input: AgentRouterInput, call: FunctionCall): AgentRouterDecision | null => {
+  const name = call.name;
+  const parsedArgs = toolCallArgsSchema.safeParse(call.args ?? {});
+  const args = parsedArgs.success ? parsedArgs.data : {};
+  const instruction = args.instruction?.trim() || input.prompt.trim() || null;
+  const reason = args.reason?.trim() || `Gemini selected ${name}.`;
+
+  if (name === "draft_new_screen_plan") {
+    const namedInstruction = [
+      instruction,
+      args.screenName ? `Screen name: ${args.screenName}.` : null,
+      args.screenRole ? `Screen role: ${args.screenRole}.` : null,
+    ].filter(Boolean).join("\n");
+
+    return {
+      action: "draft_new_screen_plan",
+      executionIntent: "plan",
+      confidence: 0.88,
+      reason,
+      responseMessage: args.responseMessage ?? null,
+      clarificationQuestion: null,
+      instruction: namedInstruction || instruction,
+      targetType: "none",
+      targetScreenId: null,
+      selectedElementDrawgleId: null,
+      scope: "new_screen",
+      editOperation: "none",
+      routerSource: "llm_function",
+      routerFailureReason: parsedArgs.success ? null : "Invalid draft_new_screen_plan args were partially ignored.",
+    };
+  }
+
+  if (name === "modify_existing_ui") {
+    const selectedDrawgleId = args.selectedElementDrawgleId ?? input.selectedElement?.drawgleId ?? null;
+    const targetType = coerceTargetType(
+      args.targetType,
+      selectedDrawgleId ? "selected_element" : input.activeScreenId ? "screen" : "none",
+    );
+
+    return {
+      action: "modify_existing_ui",
+      executionIntent: "edit",
+      confidence: 0.86,
+      reason,
+      responseMessage: args.responseMessage ?? null,
+      clarificationQuestion: null,
+      instruction,
+      targetType,
+      targetScreenId: args.targetScreenId ?? input.activeScreenId ?? null,
+      selectedElementDrawgleId: selectedDrawgleId,
+      scope: coerceScope(args.scope, targetType === "selected_element" ? "selected_element" : targetType === "navigation" ? "navigation" : "whole_screen"),
+      editOperation: coerceEditOperation(args.editOperation, "unknown"),
+      routerSource: "llm_function",
+      routerFailureReason: parsedArgs.success ? null : "Invalid modify_existing_ui args were partially ignored.",
+    };
+  }
+
+  if (name === "approve_pending_plan") {
+    return {
       action: "approve_pending_plan",
       executionIntent: "approve",
-      reason: "Fallback detected approval for a pending screen plan.",
-      routerFailureReason: failureReason,
-    });
-  }
-
-  if (input.hasImage) {
-    return fallbackDecision(input, {
-      action: "draft_new_screen_plan",
-      executionIntent: "create",
+      confidence: 0.9,
+      reason,
+      responseMessage: args.responseMessage ?? null,
+      clarificationQuestion: null,
+      instruction,
+      targetType: "none",
+      targetScreenId: null,
+      selectedElementDrawgleId: null,
       scope: "new_screen",
-      reason: "Fallback treated an image-backed request as new-screen planning.",
-      routerFailureReason: failureReason,
-    });
+      editOperation: "none",
+      routerSource: "llm_function",
+      routerFailureReason: parsedArgs.success ? null : "Invalid approve_pending_plan args were partially ignored.",
+    };
   }
 
-  if (bareNewScreenPattern.test(text)) {
-    return fallbackDecision(input, {
+  if (name === "ask_clarification") {
+    return {
       action: "ask_clarification",
-      executionIntent: "create",
-      clarificationQuestion: "What kind of screen should I add to this app?",
-      scope: "new_screen",
-      reason: "Fallback found a bare new-screen request without a role.",
-      routerFailureReason: failureReason,
-    });
+      executionIntent: "clarify",
+      confidence: 0.82,
+      reason,
+      responseMessage: args.responseMessage ?? null,
+      clarificationQuestion: args.clarificationQuestion?.trim() || "What should I work on next?",
+      instruction,
+      targetType: "none",
+      targetScreenId: null,
+      selectedElementDrawgleId: null,
+      scope: "none",
+      editOperation: "none",
+      routerSource: "llm_function",
+      routerFailureReason: parsedArgs.success ? null : "Invalid ask_clarification args were partially ignored.",
+    };
   }
 
-  if (explicitScreenSurfacePattern.test(text) && /\b(create|build|generate|add|plan|draft|make)\b/i.test(text)) {
-    return fallbackDecision(input, {
-      action: "draft_new_screen_plan",
-      executionIntent: "create",
-      scope: "new_screen",
-      reason: "Fallback detected a named new-screen request.",
-      routerFailureReason: failureReason,
-    });
-  }
-
-  if ((input.selectedElement?.drawgleId || input.activeScreenId) && editIntentPattern.test(text)) {
-    return fallbackDecision(input, {
-      action: "modify_existing_ui",
-      executionIntent: "modify",
-      targetType: input.selectedElement?.drawgleId ? "selected_element" : "screen",
-      targetScreenId: input.activeScreenId ?? null,
-      selectedElementDrawgleId: input.selectedElement?.drawgleId ?? null,
-      scope: input.selectedElement?.drawgleId ? "selected_element" : "screen_region",
-      editOperation: "replace_region",
-      reason: "Fallback used the selected canvas context for an edit request.",
-      routerFailureReason: failureReason,
-    });
-  }
-
-  return fallbackDecision(input, {
-    action: "answer_or_discuss",
-    executionIntent: discussPromptPattern.test(text) ? "discuss" : "chat",
-    reason: "Fallback chose a non-mutating project-aware response.",
-    routerFailureReason: failureReason,
-  });
+  return null;
 };
+
+const firstFunctionCall = (response: { functionCalls?: FunctionCall[] }) =>
+  response.functionCalls?.[0] ?? null;
+
+async function generateRouterResponse(input: AgentRouterInput, tools: FunctionDeclaration[], extraContext?: string) {
+  const ai = createGeminiClient();
+  const policy = routerConfig(tools);
+
+  return ai.models.generateContent({
+    model: policy.model,
+    contents: {
+      parts: [{ text: buildRouterPrompt(input, extraContext) }],
+    },
+    config: policy.config,
+  });
+}
 
 export async function routeAgentPrompt(input: AgentRouterInput): Promise<AgentRouterDecision> {
   try {
-    const ai = createGeminiClient();
-    const policy = geminiPolicyForTask("router", {
-      systemInstruction: routerInstruction,
-      tools: [{ functionDeclarations: [decisionFunctionDeclaration] }],
-      toolConfig: {
-        functionCallingConfig: {
-          mode: FunctionCallingConfigMode.ANY,
-          allowedFunctionNames: ["decide_drawgle_action"],
-        },
-      },
-    });
-    const response = await ai.models.generateContent({
-      model: policy.model,
-      contents: {
-        parts: [{
-          text: [
-            `User prompt:\n${input.prompt}`,
-            "",
-            `Current turn:\n${JSON.stringify({
-              hasImage: input.hasImage,
-              activeScreenId: input.activeScreenId ?? null,
-              selectedElement: input.selectedElement ?? null,
-            }, null, 2)}`,
-            "",
-            `Agent project context:\n${JSON.stringify(input.agentContext ?? {
-              screens: input.screens,
-              navigation: input.navigation ?? null,
-              activeGeneration: input.activeGeneration ?? null,
-              agentState: input.agentState ?? null,
-              recentMessages: (input.recentMessages ?? []).slice(-12),
-            }, null, 2)}`,
-          ].join("\n"),
-        }],
-      },
-      config: policy.config,
-    });
+    const firstResponse = await generateRouterResponse(input, toolDeclarations);
+    const firstCall = firstFunctionCall(firstResponse);
 
-    const functionCall = response.functionCalls?.[0];
-    if (!functionCall) {
-      return safeFallbackDecision(input, "Router returned no function call.");
+    if (!firstCall) {
+      const text = firstResponse.text?.trim();
+      return directTextDecision(input.prompt, text || "I am here. What would you like to work on?");
     }
 
-    return parseFunctionDecision(input, functionCall);
+    if (firstCall.name === "read_project_context") {
+      const projectContext = await input.loadProjectContext?.().catch((error) => {
+        console.error("Failed to load project context for agent router", error);
+        return "";
+      }) ?? "";
+      const secondResponse = await generateRouterResponse(input, actionToolDeclarations, projectContext);
+      const secondCall = firstFunctionCall(secondResponse);
+
+      if (secondCall) {
+        return parseToolDecision(input, secondCall) ?? fallbackDecision(input.prompt, `Unknown tool call after context: ${secondCall.name ?? "unnamed"}`);
+      }
+
+      const text = secondResponse.text?.trim();
+      return directTextDecision(
+        input.prompt,
+        text || "I reviewed the project context. What would you like to do next?",
+        "Gemini read project context and answered directly.",
+      );
+    }
+
+    return parseToolDecision(input, firstCall) ?? fallbackDecision(input.prompt, `Unknown tool call: ${firstCall.name ?? "unnamed"}`);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error("Agent router failed; using context-aware fallback", error);
-    return safeFallbackDecision(input, message);
+    console.error("Agent tool-calling router failed", error);
+    return fallbackDecision(input.prompt, error instanceof Error ? error.message : "Unknown router failure");
   }
 }

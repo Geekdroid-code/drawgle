@@ -1243,6 +1243,7 @@ export function ProjectShell({
   const handlePromptAction = async (options: {
     prompt: string;
     image?: PromptImagePayload | null;
+    clientTurnId?: string;
   }) => {
     if (!project || isCanvasInteractionLocked) {
       return false;
@@ -1295,6 +1296,7 @@ export function ProjectShell({
           selectedElementDrawgleId: activeEditElement?.drawgleId ?? null,
           selectedElementTarget: activeEditElement?.targetType ?? null,
           selectedElementPreview: activeEditElement?.textPreview ?? null,
+          clientTurnId: options.clientTurnId ?? null,
         }),
       });
       const payload = await agentRes.json().catch(() => ({}));

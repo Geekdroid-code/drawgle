@@ -1394,16 +1394,13 @@ ${cleanScreenCode}
               'inset 0 1px 0 rgba(255,255,255,0.15),' +
               'inset 1px 0 0 rgba(255,255,255,0.04),' +
               'inset -1px 0 0 rgba(0,0,0,0.25)';
-            const ambient =
-              '0 48px 120px rgba(0,0,0,0.42),' +
-              '0 16px 48px rgba(0,0,0,0.22)';
-             if (isSelectionModeActive)
-              return `0 0 0 2px #0d9488,0 0 22px rgba(13,148,136,0.35),${ambient},${frame}`;
+            if (isSelectionModeActive)
+              return `0 0 0 2px #0d9488,0 0 22px rgba(13,148,136,0.35),${frame}`;
             if (isInteractModeActive)
-              return `0 0 0 2px #10b981,0 0 18px rgba(16,185,129,0.38),${ambient},${frame}`;
+              return `0 0 0 2px #10b981,0 0 18px rgba(16,185,129,0.38),${frame}`;
             if (isSelected)
-              return `0 0 0 2px #6366f1,0 0 22px rgba(99,102,241,0.3),${ambient},${frame}`;
-            return `${ambient},${frame}`;
+              return `0 0 0 2px #6366f1,0 0 22px rgba(99,102,241,0.3),${frame}`;
+            return frame;
           })(),
           transition: 'box-shadow 0.22s ease',
           // overflow visible so side buttons (negative-left/right) are shown
