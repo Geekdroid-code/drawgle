@@ -564,15 +564,19 @@ function ThinkingRow({ summary, id, live = false }: { summary: ThinkingSummaryMe
     ? `${Math.max(1, Math.round(summary.durationMs / 1000))}s`
     : null;
 
+// AFTER
   if (live) {
     return (
       <div className="px-5 py-2">
-        <div className="flex items-center gap-1.5 text-left text-[12px] font-medium text-black/40">
-          <Sparkles className="h-3 w-3 opacity-70" />
-          <span>{summary.label}</span>
-          {seconds ? <span className="font-normal italic opacity-60">{seconds}</span> : null}
+        <div className="flex items-center gap-2">
+          <AgentThinkingIndicator
+            label={`${summary.label}...`}
+            className="text-black/40"
+          />
+          {seconds ? (
+            <span className="text-[11px] font-normal italic text-black/30">{seconds}</span>
+          ) : null}
         </div>
-        <AgentThinkingIndicator label="Thinking..." className="mt-2 pl-3 text-slate-500" />
       </div>
     );
   }

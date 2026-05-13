@@ -32,7 +32,7 @@ const FULL_BUILD_MODEL = env("DRAWGLE_GEMINI_FULL_BUILD_MODEL", "gemini-3-flash-
 const SCREEN_BUILD_MAX_OUTPUT_TOKENS = envInt("DRAWGLE_GEMINI_SCREEN_BUILD_MAX_OUTPUT_TOKENS", 40000);
 const FULL_REBUILD_MAX_OUTPUT_TOKENS = envInt("DRAWGLE_GEMINI_FULL_REBUILD_MAX_OUTPUT_TOKENS", 40000);
 
-const gemini25FlashConfig = (maxOutputTokens = 2048, thinking = true): GenerateContentConfig => ({
+const legacyGemini25FlashConfig = (maxOutputTokens = 2048, thinking = true): GenerateContentConfig => ({
   thinkingConfig: {
     thinkingBudget: thinking ? 500 : 0,
   },
@@ -54,50 +54,102 @@ const gemini3Config = (
   candidateCount: 1,
 });
 
+const isGemini3Model = (model: string) => /\bgemini-3(?:[.-]|$)/i.test(model);
+const isGemini25Model = (model: string) => /\bgemini-2\.5(?:[.-]|$)/i.test(model);
+
+const modelConfig = ({
+  model,
+  maxOutputTokens,
+  thinkingBudget,
+  thinkingLevel,
+}: {
+  model: string;
+  maxOutputTokens: number;
+  thinkingBudget?: number;
+  thinkingLevel?: "minimal" | "low";
+}): GenerateContentConfig => {
+  const config: GenerateContentConfig = {
+    maxOutputTokens,
+    candidateCount: 1,
+  };
+
+  // Gemini 2.5 uses thinkingBudget; Gemini 3 uses thinkingLevel.
+  // Env overrides can swap model families, so pick the field at runtime.
+  if (isGemini25Model(model) && typeof thinkingBudget === "number") {
+    config.thinkingConfig = { thinkingBudget };
+  } else if (isGemini3Model(model) && thinkingLevel) {
+    config.thinkingConfig = {
+      thinkingLevel: thinkingLevel as NonNullable<GenerateContentConfig["thinkingConfig"]>["thinkingLevel"],
+    };
+  }
+
+  return config;
+};
+
+const routerModelConfig = (model: string, maxOutputTokens = 2048, thinking = true): GenerateContentConfig =>
+  modelConfig({
+    model,
+    maxOutputTokens,
+    thinkingBudget: thinking ? 500 : 0,
+    thinkingLevel: thinking ? "low" : "minimal",
+  });
+
+const buildModelConfig = (
+  model: string,
+  thinkingLevel: "minimal" | "low",
+  maxOutputTokens: number,
+): GenerateContentConfig =>
+  modelConfig({
+    model,
+    maxOutputTokens,
+    thinkingBudget: thinkingLevel === "low" ? 500 : 0,
+    thinkingLevel,
+  });
+
 const policyByTask: Record<GeminiTaskType, GeminiModelPolicy> = {
   greeting: {
     model: ROUTER_MODEL,
-    config: gemini25FlashConfig(150, false), // no thinking, tight output cap — warm reply only
+    config: routerModelConfig(ROUTER_MODEL, 150, false),
   },
   router: {
     model: ROUTER_MODEL,
-    config: gemini25FlashConfig(2048, false), // no thinking: structured enum decision, not reasoning
+    config: routerModelConfig(ROUTER_MODEL, 2048, false),
   },
   chat: {
     model: ROUTER_MODEL,
-    config: gemini25FlashConfig(2048),
+    config: routerModelConfig(ROUTER_MODEL, 2048),
   },
   draft_plan: {
     model: ROUTER_MODEL,
-    config: gemini25FlashConfig(4096),
+    config: routerModelConfig(ROUTER_MODEL, 4096),
   },
   project_planning: {
     model: FULL_BUILD_MODEL,
-    config: gemini3Config("low", 12000),
+    config: buildModelConfig(FULL_BUILD_MODEL, "low", 12000),
   },
   design_tokens: {
     model: FULL_BUILD_MODEL,
-    config: gemini3Config("low", 8192),
+    config: buildModelConfig(FULL_BUILD_MODEL, "low", 8192),
   },
   navigation_build: {
     model: FULL_BUILD_MODEL,
-    config: gemini3Config("minimal", 12000),
+    config: buildModelConfig(FULL_BUILD_MODEL, "minimal", 12000),
   },
   screen_build: {
     model: FULL_BUILD_MODEL,
-    config: gemini3Config("minimal", SCREEN_BUILD_MAX_OUTPUT_TOKENS),
+    config: buildModelConfig(FULL_BUILD_MODEL, "minimal", SCREEN_BUILD_MAX_OUTPUT_TOKENS),
   },
   selected_region_edit: {
     model: SELECTED_EDIT_MODEL,
-    config: gemini3Config("minimal", 12000),
+    config: buildModelConfig(SELECTED_EDIT_MODEL, "minimal", 12000),
   },
   full_rebuild: {
     model: FULL_BUILD_MODEL,
-    config: gemini3Config("minimal", FULL_REBUILD_MAX_OUTPUT_TOKENS),
+    config: buildModelConfig(FULL_BUILD_MODEL, "minimal", FULL_REBUILD_MAX_OUTPUT_TOKENS),
   },
   repair: {
     model: FULL_BUILD_MODEL,
-    config: gemini3Config("minimal", 18000),
+    config: buildModelConfig(FULL_BUILD_MODEL, "minimal", 18000),
   },
 };
 
