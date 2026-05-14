@@ -914,6 +914,7 @@ export function ProjectShell({
   const [pendingQueuedRunId, setPendingQueuedRunId] = useState<string | null>(null);
   const [pendingAddScreenRunId, setPendingAddScreenRunId] = useState<string | null>(null);
   const [queueError, setQueueError] = useState<string | null>(null);
+  const [selectionNotice, setSelectionNotice] = useState<string | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectionVersion, setSelectionVersion] = useState(0);
   const [editSession, setEditSession] = useState<ElementEditSession | null>(null);
@@ -1259,27 +1260,14 @@ export function ProjectShell({
       : editSession?.screenId ?? selectedScreen?.id ?? null;
     const activeEditElement = editSession?.element ?? null;
     setQueueError(null);
+    if (!activeEditElement) {
+      setSelectionNotice(null);
+    }
 
     if (activeEditElement && !activeEditElement.drawgleId) {
-      try {
-        const supabase = createClient();
-        await insertProjectMessage(supabase, {
-          projectId: project.id,
-          ownerId: user.id,
-          screenId: activeEditElement.targetType === "navigation" ? null : activeEditScreenId,
-          role: "model",
-          content: "I lost the selected section identity. Please reselect the exact element and try again.",
-          messageType: "error",
-          metadata: {
-            action: "selected_element_missing_drawgle_id",
-            selectedElementPreview: activeEditElement.textPreview,
-          },
-        });
-      } catch (messageError) {
-        console.error("Failed to persist stale selection message", messageError);
-      }
-
-      return true;
+      setSelectionNotice("I lost the selected element identity. Please reselect the exact element and try again.");
+      setEditSession(null);
+      return false;
     }
 
     try {
@@ -1453,12 +1441,14 @@ export function ProjectShell({
   const clearEditSession = () => {
     setEditSession(null);
     setPendingElementSelection(null);
+    setSelectionNotice(null);
   };
 
   const commitElementSelection = (info: SelectedElementInfo) => {
     const ownerScreen = screens.find((screen) => screen.id === info.screenId) ?? null;
     const nextSelectionVersion = selectionVersion + 1;
 
+    setSelectionNotice(null);
     setSelectionVersion(nextSelectionVersion);
     setSelectedScreen(ownerScreen);
     setEditSession({
@@ -1471,6 +1461,25 @@ export function ProjectShell({
   };
 
   const handleElementSelected = (info: SelectedElementInfo) => {
+    if (info.selectionReason === "rehydrated") {
+      setEditSession((currentSession) => {
+        if (
+          !currentSession ||
+          currentSession.screenId !== info.screenId ||
+          currentSession.element.drawgleId !== info.drawgleId
+        ) {
+          return currentSession;
+        }
+
+        return {
+          ...currentSession,
+          element: info,
+        };
+      });
+      setSelectionNotice(null);
+      return;
+    }
+
     if (
       editSession &&
       editSession.mode !== "selected" &&
@@ -1481,6 +1490,17 @@ export function ProjectShell({
     }
 
     commitElementSelection(info);
+  };
+
+  const handleElementSelectionLost = (info: { screenId: string; drawgleId: string }) => {
+    if (
+      editSession &&
+      editSession.screenId === info.screenId &&
+      editSession.element.drawgleId === info.drawgleId
+    ) {
+      setSelectionNotice("The selected element changed after the canvas refreshed. Please reselect it before asking for another selected edit.");
+      setEditSession(null);
+    }
   };
 
   const handleCanvasSelectScreen = (screen: ScreenData | null) => {
@@ -1551,6 +1571,7 @@ export function ProjectShell({
             selectedElementScreenId={editSession?.screenId ?? null}
             selectedElementDrawgleId={editSession?.element.drawgleId ?? null}
             onElementSelected={handleElementSelected}
+            onElementSelectionLost={handleElementSelectionLost}
           />
 
           {isProjectPanelOpen ? (
@@ -1624,7 +1645,7 @@ export function ProjectShell({
             generationRun={generationRun}
             generationRuns={generationRuns}
             isQueueing={isQueueingGeneration || Boolean(pendingQueuedRunId)}
-            queueError={queueError}
+            queueError={queueError ?? selectionNotice}
             retryDisabled={isCanvasInteractionLocked}
             isBuilding={isQueueingGeneration}
             onRetryGeneration={handleRetryGeneration}
@@ -1635,14 +1656,16 @@ export function ProjectShell({
             disabled={isCanvasInteractionLocked}
             selectionMode={selectionMode}
             onToggleSelectionMode={() => {
+              setSelectionNotice(null);
               setSelectionMode((m) => !m);
             }}
             onClearSelectedScreen={() => {
               setSelectedScreen(null);
               setEditSession(null);
+              setSelectionNotice(null);
             }}
             onDeleteSelectedScreen={handleDeleteSelectedScreen}
-            selectedElementPreview={selectedElementInfo?.textPreview ?? null}
+            selectedElementPreview={(selectedElementInfo?.textPreview || selectedElementInfo?.editableMetadata?.tagName) ?? null}
             selectedElementTargetLabel={selectedElementTargetLabel}
             selectedElementCanEditText={selectedElementCanEditText}
             selectedElementCanEditDesign={selectedElementCanEditDesign}
@@ -1673,6 +1696,7 @@ export function ProjectShell({
             disabled={isCanvasInteractionLocked}
             isChatCollapsed={isChatCollapsed}
             onToggleSelectionMode={() => {
+              setSelectionNotice(null);
               setSelectionMode((m) => !m);
             }}
             onEditSelectedText={() => setEditSessionMode("text")}

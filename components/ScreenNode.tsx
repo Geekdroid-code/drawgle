@@ -31,6 +31,8 @@ export interface SelectedElementInfo {
   textPreview: string;
   /** CSS breadcrumb path from root to the selected element. */
   breadcrumb: string;
+  /** Whether this came from a direct click or from rehydrating an existing selection after a render update. */
+  selectionReason?: "click" | "rehydrated";
 }
 
 export const SCREEN_FRAME_WIDTH = 390;
@@ -319,6 +321,7 @@ export function ScreenNode({
   selectionMode = false,
   selectedDrawgleId = null,
   onElementSelected,
+  onElementSelectionLost,
 }: {
   screen: ScreenData;
   projectNavigation?: ProjectNavigationData | null;
@@ -332,6 +335,8 @@ export function ScreenNode({
   selectedDrawgleId?: string | null;
   /** Called when the user clicks an element inside the iframe during selection mode. */
   onElementSelected?: (info: SelectedElementInfo) => void;
+  /** Called when a previously selected id no longer exists after the iframe re-renders. */
+  onElementSelectionLost?: (info: { screenId: string; drawgleId: string }) => void;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const safeCode = typeof screen.code === "string" ? screen.code : "";
@@ -446,10 +451,11 @@ export function ScreenNode({
         navigationCode: navigationCodeForRender,
         activeNavigationItemId,
         tokenCss,
+        selectedDrawgleId: selectedDrawgleId ?? null,
       },
       "*",
     );
-  }, [activeNavigationItemId, displayCode, navigationShellCode, sharedNavigationActive, tokenCss]);
+  }, [activeNavigationItemId, displayCode, navigationShellCode, selectedDrawgleId, sharedNavigationActive, tokenCss]);
 
   const handleExportCode = useCallback(() => {
     const cleanScreenCode = stripDrawgleIds(displayCode.trim() ? displayCode : lastNonEmptyDisplayCodeRef.current);
@@ -590,13 +596,20 @@ ${cleanScreenCode}
 
   // ── Listen for elementSelected messages from the iframe
   useEffect(() => {
-    if (!selectionMode || !onElementSelected) return;
+    if (!onElementSelected && !onElementSelectionLost) return;
 
     const handleMessage = (event: MessageEvent) => {
       if (event.source !== iframeRef.current?.contentWindow) return;
-      if (event.data?.type !== 'elementSelected') return;
+      if (event.data?.type === "elementSelectionLost") {
+        const lostDrawgleId = typeof event.data.drawgleId === "string" ? event.data.drawgleId : null;
+        if (lostDrawgleId) {
+          onElementSelectionLost?.({ screenId: screen.id, drawgleId: lostDrawgleId });
+        }
+        return;
+      }
+      if (event.data?.type !== 'elementSelected' || !onElementSelected) return;
 
-      const { outerHTML, drawgleId, textPreview, breadcrumb, boundingRect, editableMetadata } = event.data as {
+      const { outerHTML, drawgleId, textPreview, breadcrumb, boundingRect, editableMetadata, selectionReason } = event.data as {
         type: string;
         outerHTML: string;
         drawgleId?: string | null;
@@ -605,14 +618,15 @@ ${cleanScreenCode}
         editableMetadata?: DrawgleEditableMetadata | null;
         textPreview: string;
         breadcrumb: string;
+        selectionReason?: "click" | "rehydrated";
       };
 
-      if (outerHTML) {
+      if (outerHTML && drawgleId) {
         const screenRect = iframeRef.current?.getBoundingClientRect() ?? null;
         onElementSelected({
           screenId: screen.id,
           outerHTML,
-          drawgleId: drawgleId ?? null,
+          drawgleId,
           targetType: event.data.targetType === "navigation" ? "navigation" : "screen",
           boundingRect: boundingRect ?? null,
           screenRect: screenRect
@@ -630,13 +644,14 @@ ${cleanScreenCode}
           editableMetadata: editableMetadata ?? null,
           textPreview,
           breadcrumb,
+          selectionReason: selectionReason === "rehydrated" ? "rehydrated" : "click",
         });
       }
     };
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [selectionMode, onElementSelected, screen.id]);
+  }, [onElementSelected, onElementSelectionLost, screen.id]);
 
   // ── Delete
   const handleDelete = useCallback(async () => {
@@ -859,6 +874,7 @@ ${cleanScreenCode}
           var initialTokenCss = ${serializeForInlineScript(initialTokenCss)};
           var styleRuntimeReady = false;
           var queuedRenderPayload = null;
+          var pendingSelectedDrawgleId = null;
 
           function markStyleRuntimeReady(mode) {
             styleRuntimeReady = true;
@@ -1096,6 +1112,7 @@ ${cleanScreenCode}
             navigationCode: initialNavigationCode,
             activeNavigationItemId: initialActiveNavigationItemId,
             tokenCss: initialTokenCss,
+            selectedDrawgleId: null,
           };
 
           /* ── Element selection engine ──────────────────────────── */
@@ -1103,6 +1120,7 @@ ${cleanScreenCode}
             var selectionActive = false;
             var hoveredEl = null;
             var selectedEl = null;
+            var currentSelectedDrawgleId = null;
 
             /* Tags that are too granular to be useful edit targets */
             var LEAF_TAGS = new Set([
@@ -1112,12 +1130,24 @@ ${cleanScreenCode}
               'LINEARGRADIENT','RADIALGRADIENT','TEXT','TSPAN',
             ]);
 
+            function hasDrawgleId(el) {
+              return Boolean(el && el.getAttribute && el.getAttribute('data-drawgle-id'));
+            }
+
+            function nearestDrawgleElement(el) {
+              if (!el || !el.closest) return null;
+              var nearest = el.closest('[data-drawgle-id]');
+              var root = document.getElementById('root');
+              if (!nearest || nearest === root) return null;
+              return nearest;
+            }
+
             /* Walk up from a clicked leaf to the nearest meaningful container */
             function resolveTarget(el) {
               var root = document.getElementById('root');
-              if (!root) return el;
+              if (!root || !el) return null;
               var navRoot = el.closest && el.closest('[data-drawgle-primary-nav]');
-              if (navRoot) return navRoot;
+              if (navRoot) return hasDrawgleId(navRoot) ? navRoot : nearestDrawgleElement(navRoot);
               var node = el;
               var maxWalk = 12;
               while (node && node !== root && maxWalk-- > 0) {
@@ -1125,13 +1155,12 @@ ${cleanScreenCode}
                 if (!LEAF_TAGS.has(node.tagName)) {
                   var childElements = node.querySelectorAll(':scope > *');
                   if (childElements.length >= 2 || (node.innerHTML && node.innerHTML.length > 80)) {
-                    return node;
+                    return hasDrawgleId(node) ? node : nearestDrawgleElement(el);
                   }
                 }
                 node = node.parentElement;
               }
-              /* Fallback: if we walked all the way to root, return the original */
-              return el === root ? el : el;
+              return nearestDrawgleElement(el);
             }
 
             function stripHtml(html) {
@@ -1222,6 +1251,42 @@ ${cleanScreenCode}
               };
             }
 
+            function cleanOuterHTML(target) {
+              var clone = target.cloneNode(true);
+              clone.querySelectorAll('.__drawgle-hover-outline').forEach(function(el) {
+                el.classList.remove('__drawgle-hover-outline');
+              });
+              clone.querySelectorAll('.__drawgle-selected-outline').forEach(function(el) {
+                el.classList.remove('__drawgle-selected-outline');
+              });
+              clone.classList.remove('__drawgle-hover-outline', '__drawgle-selected-outline');
+              return clone.outerHTML;
+            }
+
+            function postElementSelected(target, reason) {
+              if (!hasDrawgleId(target)) return false;
+              window.parent.postMessage({
+                type: 'elementSelected',
+                outerHTML: cleanOuterHTML(target),
+                drawgleId: target.getAttribute('data-drawgle-id'),
+                targetType: target.closest && target.closest('[data-drawgle-primary-nav]') ? 'navigation' : 'screen',
+                boundingRect: toRectPayload(target.getBoundingClientRect()),
+                editableMetadata: buildEditableMetadata(target),
+                textPreview: stripHtml(target.innerHTML),
+                breadcrumb: buildBreadcrumb(target),
+                selectionReason: reason || 'click',
+              }, '*');
+              return true;
+            }
+
+            function postSelectionLost(drawgleId) {
+              if (!drawgleId) return;
+              window.parent.postMessage({
+                type: 'elementSelectionLost',
+                drawgleId: drawgleId,
+              }, '*');
+            }
+
             function clearHover() {
               if (hoveredEl) {
                 hoveredEl.classList.remove('__drawgle-hover-outline');
@@ -1240,6 +1305,10 @@ ${cleanScreenCode}
               if (!selectionActive) return;
               e.stopPropagation();
               var target = resolveTarget(e.target);
+              if (!target) {
+                clearHover();
+                return;
+              }
               if (target === hoveredEl) return;
               clearHover();
               hoveredEl = target;
@@ -1256,31 +1325,18 @@ ${cleanScreenCode}
               e.preventDefault();
               e.stopPropagation();
               clearHover();
+              var previousSelectedDrawgleId = currentSelectedDrawgleId;
               clearSelected();
               var target = resolveTarget(e.target);
+              if (!target || !hasDrawgleId(target)) {
+                currentSelectedDrawgleId = null;
+                if (previousSelectedDrawgleId) postSelectionLost(previousSelectedDrawgleId);
+                return;
+              }
               selectedEl = target;
               selectedEl.classList.add('__drawgle-selected-outline');
-
-              /* Build a clean outerHTML without our injected classes */
-              var clone = target.cloneNode(true);
-              clone.querySelectorAll('.__drawgle-hover-outline').forEach(function(el) {
-                el.classList.remove('__drawgle-hover-outline');
-              });
-              clone.querySelectorAll('.__drawgle-selected-outline').forEach(function(el) {
-                el.classList.remove('__drawgle-selected-outline');
-              });
-              clone.classList.remove('__drawgle-hover-outline', '__drawgle-selected-outline');
-
-              window.parent.postMessage({
-                type: 'elementSelected',
-                outerHTML: clone.outerHTML,
-                drawgleId: target.getAttribute && target.getAttribute('data-drawgle-id'),
-                targetType: target.closest && target.closest('[data-drawgle-primary-nav]') ? 'navigation' : 'screen',
-                boundingRect: toRectPayload(target.getBoundingClientRect()),
-                editableMetadata: buildEditableMetadata(target),
-                textPreview: stripHtml(target.innerHTML),
-                breadcrumb: buildBreadcrumb(target),
-              }, '*');
+              currentSelectedDrawgleId = target.getAttribute('data-drawgle-id');
+              postElementSelected(target, 'click');
             }
 
             function enableSelection() {
@@ -1301,13 +1357,20 @@ ${cleanScreenCode}
               document.removeEventListener('click', onClick, true);
             }
 
-            function selectByDrawgleId(drawgleId) {
+            function selectByDrawgleId(drawgleId, options) {
+              options = options || {};
               clearSelected();
-              if (!drawgleId) return;
+              currentSelectedDrawgleId = drawgleId || null;
+              if (!drawgleId) return false;
               var nextSelected = document.querySelector('[data-drawgle-id="' + String(drawgleId).replace(/"/g, '\\"') + '"]');
-              if (!nextSelected) return;
+              if (!nextSelected) {
+                if (options.notifyLost) postSelectionLost(drawgleId);
+                return false;
+              }
               selectedEl = nextSelected;
               selectedEl.classList.add('__drawgle-selected-outline');
+              if (options.notifySelected) postElementSelected(nextSelected, 'rehydrated');
+              return true;
             }
 
             window.addEventListener('message', function(event) {
@@ -1315,15 +1378,22 @@ ${cleanScreenCode}
               if (event.data.type === 'updateCode') {
                 /* Preserve selection state across live code updates */
                 var wasActive = selectionActive;
+                var selectedBeforeRender = currentSelectedDrawgleId || event.data.selectedDrawgleId || null;
                 if (wasActive) disableSelection();
                 queuedRenderPayload = {
                   code: event.data.code || '',
                   navigationCode: event.data.navigationCode || '',
                   activeNavigationItemId: event.data.activeNavigationItemId || '',
                   tokenCss: event.data.tokenCss || '',
+                  selectedDrawgleId: selectedBeforeRender,
                 };
+                pendingSelectedDrawgleId = selectedBeforeRender;
                 if (styleRuntimeReady) {
                   applyRenderPayload(queuedRenderPayload);
+                  if (pendingSelectedDrawgleId) {
+                    selectByDrawgleId(pendingSelectedDrawgleId, { notifySelected: true, notifyLost: true });
+                    pendingSelectedDrawgleId = null;
+                  }
                 }
                 if (wasActive) enableSelection();
               } else if (event.data.type === 'updateDesignTokenCss') {
@@ -1344,6 +1414,10 @@ ${cleanScreenCode}
             ensureTailwindReady(function() {
               if (queuedRenderPayload) {
                 applyRenderPayload(queuedRenderPayload);
+                if (pendingSelectedDrawgleId) {
+                  selectByDrawgleId(pendingSelectedDrawgleId, { notifySelected: true, notifyLost: true });
+                  pendingSelectedDrawgleId = null;
+                }
               }
               notifyParentReady();
             });

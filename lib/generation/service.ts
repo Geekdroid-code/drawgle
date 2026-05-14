@@ -1643,7 +1643,7 @@ export async function* editScreenStream({
       `User edit request: ${latestUserPrompt || "Apply the requested changes."}`,
       "",
       "The user **visually selected** the following element in the rendered screen.",
-      selectedElementDrawgleId ? `Stable source target: data-drawgle-id="${selectedElementDrawgleId}". Prefer matching this attribute in <search> blocks.` : null,
+      selectedElementDrawgleId ? `Stable source target: data-drawgle-id="${selectedElementDrawgleId}". The replacement root for this selected element must preserve this exact id. Do not drop it, duplicate it, rename it, or move it to a child.` : null,
       "Apply the requested changes ONLY to this element and its children.",
       "Use <edit> blocks where the <search> content exactly matches the snippet below (or a portion of it).",
       "",
@@ -1839,10 +1839,12 @@ export async function buildSourceRegionReplacementCode({
   currentCode,
   repairTarget,
   editOperation = "none",
+  requiredRootDrawgleId,
   designTokens,
   projectCharter,
   navigationArchitecture,
   llmLog,
+  onRawResponse,
 }: {
   screenName: string;
   screenPrompt: string;
@@ -1850,10 +1852,12 @@ export async function buildSourceRegionReplacementCode({
   currentCode: string;
   repairTarget: RepairTarget;
   editOperation?: "none" | "append_content" | "replace_region" | "restyle_region" | "rewrite_screen" | "repair_screen";
+  requiredRootDrawgleId?: string | null;
   designTokens?: DesignTokens | null;
   projectCharter?: ProjectCharter | null;
   navigationArchitecture?: NavigationArchitecture | null;
   llmLog?: LlmLogFn;
+  onRawResponse?: (rawText: string) => void;
 }) {
   const ai = createGeminiClient();
   const surrounding = buildRepairSurroundingContext(currentCode, repairTarget);
@@ -1861,8 +1865,13 @@ export async function buildSourceRegionReplacementCode({
     temperature: 0.26,
     systemInstruction: [
       "You replace exactly one selected region inside an existing mobile screen.",
-      "Return ONLY the replacement HTML for that selected region. The caller will splice it into the original source by offsets.",
+      requiredRootDrawgleId
+        ? "Return ONLY the replacement HTML for that selected element. The caller will parse the HTML and swap exactly the source node with the matching Drawgle id."
+        : "Return ONLY the replacement HTML for that selected region. The caller will splice it into the original source by offsets.",
       "Satisfy the user's edit request while preserving the surrounding screen's visual language, spacing rhythm, tokens, and content intent.",
+      requiredRootDrawgleId
+        ? `SELECTED ELEMENT ID CONTRACT: The replacement must be exactly one root HTML element, and that root element MUST keep data-drawgle-id="${requiredRootDrawgleId}". Do not remove it, rename it, move it to a child, duplicate it on descendants, or use that id anywhere except the replacement root.`
+        : null,
       editOperation === "append_content"
         ? "Append-content operation: preserve all existing meaningful children in the selected container and add new sibling items that match the existing pattern. Do not remove, rename, or restyle unrelated existing items."
         : null,
@@ -1923,7 +1932,9 @@ export async function buildSourceRegionReplacementCode({
     llmLog(`[TOKEN USAGE] region-replace: ${screenName}`, response.usageMetadata as Record<string, unknown>);
   }
 
-  return extractCode(response.text || "").trim();
+  const rawText = response.text || "";
+  onRawResponse?.(rawText);
+  return extractCode(rawText).trim();
 }
 
 export async function buildFullScreenReconstructionCode({

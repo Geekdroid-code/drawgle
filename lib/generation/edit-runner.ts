@@ -1,5 +1,7 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
+
 import { detectTargetBlocks, indexScreenCode, isScreenBlockIndexUsable } from "@/lib/generation/block-index";
 import { assembleChatContext } from "@/lib/generation/context";
 import { persistProjectMessageMemoryPair } from "@/lib/generation/message-memory";
@@ -13,6 +15,11 @@ import {
 import { applyEdits } from "@/lib/diff-engine";
 import { ensureDrawgleIds } from "@/lib/drawgle-dom";
 import {
+  countDrawgleIdOccurrencesInHtml,
+  replaceSelectedDrawgleElement,
+  type SelectedElementDomMergeDiagnostics,
+} from "@/lib/drawgle-dom-server";
+import {
   buildScreenHealthError,
   detectScreenHealth,
   isBlockingScreenHealthFailure,
@@ -22,7 +29,7 @@ import {
   validateStaticDrawgleHtml,
 } from "@/lib/generation/screen-quality";
 import { findRepairTarget, replaceSourceRegion, type RepairTarget } from "@/lib/generation/screen-repair";
-import { sanitizeScreenCodeForSharedNavigation } from "@/lib/project-navigation";
+import { sanitizeScreenCodeForSharedNavigation, validateNavigationShell } from "@/lib/project-navigation";
 import type { AgentStepMetadata } from "@/lib/agent/message-metadata";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchProjectMessages, insertProjectMessage } from "@/lib/supabase/queries";
@@ -190,6 +197,69 @@ const metadataRecord = (value: unknown) =>
 const metadataString = (metadata: Record<string, unknown>, key: string) => {
   const value = metadata[key];
   return typeof value === "string" && value.trim() ? value.trim() : null;
+};
+
+const SELECTED_EDIT_PREVIEW_LIMIT = 2400;
+
+const previewSelectedEditText = (value: string) => {
+  const collapsed = value.replace(/\s+/g, " ").trim();
+  return collapsed.length > SELECTED_EDIT_PREVIEW_LIMIT
+    ? `${collapsed.slice(0, SELECTED_EDIT_PREVIEW_LIMIT)}...`
+    : collapsed;
+};
+
+const hashSelectedEditText = (value: string) =>
+  createHash("sha256").update(value).digest("hex");
+
+const errorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error && error.message ? error.message : fallback;
+
+const buildSelectedElementFailureDiagnostics = ({
+  drawgleId,
+  sourceCode,
+  replacement,
+  rawReplacement,
+  error,
+}: {
+  drawgleId: string;
+  sourceCode: string;
+  replacement: string;
+  rawReplacement: string;
+  error: unknown;
+}) => ({
+  selectedDrawgleId: drawgleId,
+  sourceIdCount: countDrawgleIdOccurrencesInHtml(sourceCode, drawgleId),
+  replacementIdCount: countDrawgleIdOccurrencesInHtml(replacement, drawgleId),
+  finalIdCount: null,
+  hadMarkdownFence: /```|`/.test(rawReplacement),
+  replacementRootTag: null,
+  replacementRootCount: null,
+  changed: false,
+  rawReplacementPreview: previewSelectedEditText(rawReplacement),
+  outputHash: hashSelectedEditText(rawReplacement),
+  errorMessage: errorMessage(error, "Selected-element DOM merge failed."),
+});
+
+const finalizeSelectedElementDiagnostics = ({
+  diagnostics,
+  nextCode,
+  drawgleId,
+  changed,
+}: {
+  diagnostics: SelectedElementDomMergeDiagnostics | null;
+  nextCode: string;
+  drawgleId?: string | null;
+  changed: boolean;
+}) => {
+  if (!diagnostics || !drawgleId) {
+    return null;
+  }
+
+  return {
+    ...diagnostics,
+    finalIdCount: countDrawgleIdOccurrencesInHtml(nextCode, drawgleId),
+    changed,
+  };
 };
 
 const inferAgentStep = (content: string, metadata: Record<string, unknown>): AgentStepMetadata | null => {
@@ -477,6 +547,201 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
 
     const navigationCode = ensureDrawgleIds(projectNavigation.shell_code).code;
     const navigationPlan = projectNavigation.plan as unknown as NavigationPlan;
+
+    if (selectedNavigationElement && selectedElementDrawgleId) {
+      const selectedNavigationTarget = findRepairTarget({
+        code: navigationCode,
+        drawgleId: selectedElementDrawgleId,
+        allowFallback: false,
+      });
+
+      if (!selectedNavigationTarget) {
+        const failureContent = "I could not locate that selected navigation item in the saved source. Please reselect it and try again.";
+        const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
+          projectId: payload.projectId,
+          ownerId: payload.ownerId,
+          screenId: null,
+          role: "model",
+          content: failureContent,
+          messageType: "error",
+          metadata: {
+            action: "selected_navigation_target_not_found",
+            target: "project_navigation",
+            screenName: "Navigation",
+            userMessageId: payload.userMessageId,
+            editStrategy: "selected_element_region_replace",
+            editJob: { status: "failed", targetType: "navigation", drawgleId: selectedElementDrawgleId },
+            routerDecision: payload.routerDecision ?? null,
+          },
+        });
+
+        await persistEditMemoryPair(admin, payload.userMessageId, prompt, modelMessage.id, failureContent);
+        return { targetType: "navigation" as const, changed: false, message: failureContent };
+      }
+
+      await upsertActivityMessage(admin, editActivityKey, {
+        projectId: payload.projectId,
+        ownerId: payload.ownerId,
+        screenId: null,
+        role: "system",
+        content: "Editing selected navigation element...",
+        messageType: "chat",
+        metadata: {
+          action: "selected_navigation_region_replace_start",
+          target: "project_navigation",
+          screenName: "Navigation",
+          userMessageId: payload.userMessageId,
+          editStrategy: "selected_element_region_replace",
+          repairTarget: {
+            reason: selectedNavigationTarget.reason,
+            blockId: selectedNavigationTarget.blockId ?? null,
+            drawgleId: selectedNavigationTarget.drawgleId ?? selectedElementDrawgleId,
+            startOffset: selectedNavigationTarget.startOffset,
+            endOffset: selectedNavigationTarget.endOffset,
+          },
+          editJob: { status: "editing", targetType: "navigation", drawgleId: selectedElementDrawgleId },
+          routerDecision: payload.routerDecision ?? null,
+        },
+      });
+
+      let rawReplacement = "";
+      const replacement = await buildSourceRegionReplacementCode({
+        screenName: "Navigation",
+        screenPrompt: `Shared navigation shell plan:\n${JSON.stringify(navigationPlan ?? null, null, 2)}`,
+        userPrompt: prompt,
+        currentCode: navigationCode,
+        repairTarget: selectedNavigationTarget,
+        editOperation,
+        requiredRootDrawgleId: selectedElementDrawgleId,
+        designTokens,
+        projectCharter,
+        navigationArchitecture,
+        llmLog,
+        onRawResponse: (rawText) => {
+          rawReplacement = rawText;
+        },
+      });
+
+      let selectedMerge: ReturnType<typeof replaceSelectedDrawgleElement>;
+      try {
+        selectedMerge = replaceSelectedDrawgleElement({
+          sourceCode: navigationCode,
+          replacementHtml: replacement,
+          rawReplacementHtml: rawReplacement || replacement,
+          drawgleId: selectedElementDrawgleId,
+        });
+      } catch (error) {
+        const failureReason = errorMessage(error, "The replacement did not pass Drawgle id checks.");
+        const failureContent = `I could not safely apply that selected navigation edit. ${failureReason}`;
+        const selectedElementDiagnostics = buildSelectedElementFailureDiagnostics({
+          drawgleId: selectedElementDrawgleId,
+          sourceCode: navigationCode,
+          replacement,
+          rawReplacement: rawReplacement || replacement,
+          error,
+        });
+        const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
+          projectId: payload.projectId,
+          ownerId: payload.ownerId,
+          screenId: null,
+          role: "model",
+          content: failureContent,
+          messageType: "error",
+          metadata: {
+            action: "selected_navigation_region_replace_failed_integrity",
+            target: "project_navigation",
+            screenName: "Navigation",
+            userMessageId: payload.userMessageId,
+            editStrategy: "selected_element_region_replace",
+            selectedElementDiagnostics,
+            editJob: { status: "failed", targetType: "navigation", drawgleId: selectedElementDrawgleId },
+            routerDecision: payload.routerDecision ?? null,
+          },
+        });
+
+        await persistEditMemoryPair(admin, payload.userMessageId, prompt, modelMessage.id, failureContent);
+        return { targetType: "navigation" as const, changed: false, message: failureContent };
+      }
+      const nextCode = selectedMerge.diagnostics.changed
+        ? ensureDrawgleIds(tokenizeStaticDrawgleHtml(selectedMerge.code, designTokens).code).code
+        : navigationCode;
+      const editChanged = selectedMerge.diagnostics.changed && nextCode !== navigationCode;
+      const selectedElementDiagnostics = finalizeSelectedElementDiagnostics({
+        diagnostics: selectedMerge.diagnostics,
+        nextCode,
+        drawgleId: selectedElementDrawgleId,
+        changed: editChanged,
+      });
+
+      if (editChanged && !validateNavigationShell(nextCode, navigationPlan)) {
+        const failureContent = "I could not safely apply that selected navigation edit because the generated replacement would break the shared navigation shell.";
+        const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
+          projectId: payload.projectId,
+          ownerId: payload.ownerId,
+          screenId: null,
+          role: "model",
+          content: failureContent,
+          messageType: "error",
+          metadata: {
+            action: "selected_navigation_region_replace_blocked_by_validation",
+            target: "project_navigation",
+            screenName: "Navigation",
+            userMessageId: payload.userMessageId,
+            editStrategy: "selected_element_region_replace",
+            selectedElementDiagnostics,
+            editJob: { status: "failed", targetType: "navigation", drawgleId: selectedElementDrawgleId },
+            routerDecision: payload.routerDecision ?? null,
+          },
+        });
+
+        await persistEditMemoryPair(admin, payload.userMessageId, prompt, modelMessage.id, failureContent);
+        return { targetType: "navigation" as const, changed: false, message: failureContent };
+      }
+
+      if (editChanged) {
+        const { error: updateError } = await admin
+          .from("project_navigation")
+          .update({
+            shell_code: nextCode,
+            block_index: indexScreenCode(nextCode) as never,
+            status: "ready",
+            error: null,
+            updated_at: now(),
+          })
+          .eq("id", projectNavigation.id);
+
+        if (updateError) {
+          throw updateError;
+        }
+      }
+
+      const fullResponse = !editChanged
+        ? "No material code changes were applied to the selected navigation element."
+        : "Updated selected navigation element.";
+      const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
+        projectId: payload.projectId,
+        ownerId: payload.ownerId,
+        screenId: null,
+        role: "model",
+        content: fullResponse,
+        messageType: !editChanged ? "error" : "edit_applied",
+        metadata: {
+          action: !editChanged
+            ? "selected_navigation_region_replace_noop"
+            : "selected_navigation_region_replace_applied",
+          target: "project_navigation",
+          screenName: "Navigation",
+          userMessageId: payload.userMessageId,
+          editStrategy: "selected_element_region_replace",
+          selectedElementDiagnostics,
+          editJob: { status: "completed", targetType: "navigation", drawgleId: selectedElementDrawgleId },
+          routerDecision: payload.routerDecision ?? null,
+        },
+      });
+
+      await persistEditMemoryPair(admin, payload.userMessageId, prompt, modelMessage.id, fullResponse);
+      return { targetType: "navigation" as const, changed: editChanged, message: fullResponse };
+    }
 
     await upsertActivityMessage(admin, editActivityKey, {
       projectId: payload.projectId,
@@ -775,6 +1040,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
       },
     });
 
+    let rawReplacement = "";
     const replacement = await buildSourceRegionReplacementCode({
       screenName: screen.name,
       screenPrompt,
@@ -782,10 +1048,14 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
       currentCode: screenCode,
       repairTarget: regionReplacementTarget,
       editOperation,
+      requiredRootDrawgleId: resolvedEditStrategy === "selected_element_region_replace" ? selectedElementDrawgleId : null,
       designTokens,
       projectCharter,
       navigationArchitecture,
       llmLog,
+      onRawResponse: (rawText) => {
+        rawReplacement = rawText;
+      },
     });
 
     if (!replacement.trim()) {
@@ -825,11 +1095,93 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
       }
     }
 
-    const replacedCode = replaceSourceRegion(screenCode, regionReplacementTarget, replacement);
-    const nextCode = normalizeScreenCodeForSave(replacedCode);
-    const nextHealth = detectScreenHealth({ code: nextCode, screenPrompt });
+    let selectedElementDiagnostics: SelectedElementDomMergeDiagnostics | null = null;
+    let selectedElementTargetChanged: boolean | null = null;
+    let replacedCode: string;
+    if (resolvedEditStrategy === "selected_element_region_replace" && selectedElementDrawgleId) {
+      try {
+        const selectedMerge = replaceSelectedDrawgleElement({
+          sourceCode: screenCode,
+          replacementHtml: replacement,
+          rawReplacementHtml: rawReplacement || replacement,
+          drawgleId: selectedElementDrawgleId,
+        });
+        selectedElementDiagnostics = selectedMerge.diagnostics;
+        selectedElementTargetChanged = selectedMerge.diagnostics.changed;
+        replacedCode = selectedMerge.diagnostics.changed ? selectedMerge.code : screenCode;
+      } catch (error) {
+        const failureReason = errorMessage(error, "The replacement did not pass Drawgle id checks.");
+        const failureContent = `I could not safely apply that selected edit to ${screen.name}. ${failureReason}`;
+        const failedDiagnostics = buildSelectedElementFailureDiagnostics({
+          drawgleId: selectedElementDrawgleId,
+          sourceCode: screenCode,
+          replacement,
+          rawReplacement: rawReplacement || replacement,
+          error,
+        });
+        const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
+          projectId: payload.projectId,
+          ownerId: payload.ownerId,
+          screenId: screen.id,
+          role: "model",
+          content: failureContent,
+          messageType: "error",
+          metadata: {
+            action: "selected_element_region_replace_failed_integrity",
+            editStrategy: resolvedEditStrategy,
+            editOperation,
+            screenName: screen.name,
+            userMessageId: payload.userMessageId,
+            health,
+            selectedElementDiagnostics: failedDiagnostics,
+            selectedRegionStaticHealth,
+            repairTarget: {
+              reason: regionReplacementTarget.reason,
+              blockId: regionReplacementTarget.blockId ?? null,
+              drawgleId: regionReplacementTarget.drawgleId ?? selectedElementDrawgleId,
+              startOffset: regionReplacementTarget.startOffset,
+              endOffset: regionReplacementTarget.endOffset,
+            },
+            recoveryContext: {
+              kind: "failed_edit_recovery",
+              instruction: prompt,
+              targetType: "screen",
+              targetScope: "selected_element",
+              targetScreenId: screen.id,
+              selectedElementDrawgleId,
+              strategy: resolvedEditStrategy,
+            },
+            agentState: buildEditAgentState({
+              kind: "failed_edit_recovery",
+              instruction: prompt,
+              scope: "selected_element",
+              screenId: screen.id,
+              screenName: screen.name,
+              selectedElementDrawgleId,
+              message: failureContent,
+            }),
+            editJob: { status: "failed", targetType: "screen", screenId: screen.id, drawgleId: selectedElementDrawgleId },
+            routerDecision: payload.routerDecision ?? null,
+          },
+        });
 
-    if (nextCode !== screenCode && isBlockingScreenHealthFailure(nextHealth)) {
+        await persistEditMemoryPair(admin, payload.userMessageId, prompt, modelMessage.id, failureContent);
+        return { targetType: "screen" as const, screenId: screen.id, changed: false, message: failureContent };
+      }
+    } else {
+      replacedCode = replaceSourceRegion(screenCode, regionReplacementTarget, replacement);
+    }
+    const nextCode = normalizeScreenCodeForSave(replacedCode);
+    const editChanged = (selectedElementTargetChanged ?? true) && nextCode !== screenCode;
+    const nextHealth = detectScreenHealth({ code: nextCode, screenPrompt });
+    selectedElementDiagnostics = finalizeSelectedElementDiagnostics({
+      diagnostics: selectedElementDiagnostics,
+      nextCode,
+      drawgleId: selectedElementDrawgleId,
+      changed: editChanged,
+    });
+
+    if (editChanged && isBlockingScreenHealthFailure(nextHealth)) {
       const failureContent = `I could not safely apply that edit to ${screen.name}; the generated replacement would break the saved screen source. Please select a smaller exact section or ask me to repair the screen first.`;
       const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
         projectId: payload.projectId,
@@ -846,6 +1198,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
           userMessageId: payload.userMessageId,
           health,
           nextHealth,
+          selectedElementDiagnostics,
           selectedRegionStaticHealth,
           repairTarget: {
             reason: regionReplacementTarget.reason,
@@ -881,7 +1234,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
       return { targetType: "screen" as const, screenId: screen.id, changed: false, message: failureContent };
     }
 
-    if (nextCode !== screenCode) {
+    if (editChanged) {
       const { error: updateError } = await admin
         .from("screens")
         .update({
@@ -898,7 +1251,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
       }
     }
 
-    const fullResponse = nextCode === screenCode
+    const fullResponse = !editChanged
       ? `No material code changes were applied to ${screen.name}.`
       : buildAppliedEditMessage(screen.name, targetNames);
     const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
@@ -907,9 +1260,9 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
       screenId: screen.id,
       role: "model",
       content: fullResponse,
-      messageType: nextCode === screenCode ? "error" : "edit_applied",
+      messageType: !editChanged ? "error" : "edit_applied",
       metadata: {
-        action: nextCode === screenCode
+        action: !editChanged
           ? "source_region_replace_noop"
           : isBlockingScreenHealthFailure(nextHealth)
             ? "source_region_replace_partial"
@@ -919,8 +1272,9 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
         userMessageId: payload.userMessageId,
         health,
         nextHealth,
+        selectedElementDiagnostics,
         selectedRegionStaticHealth,
-        recoveryContext: nextCode === screenCode ? {
+        recoveryContext: !editChanged ? {
           kind: "failed_edit_recovery",
           instruction: prompt,
           targetType: "screen",
@@ -930,7 +1284,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
           strategy: resolvedEditStrategy,
         } : null,
         agentState: buildEditAgentState({
-          kind: nextCode === screenCode ? "failed_edit_recovery" : "last_actionable_request",
+          kind: !editChanged ? "failed_edit_recovery" : "last_actionable_request",
           instruction: prompt,
           scope: resolvedEditStrategy === "selected_element_region_replace" ? "selected_element" : "screen_region",
           screenId: screen.id,
@@ -944,7 +1298,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
     });
 
     await persistEditMemoryPair(admin, payload.userMessageId, prompt, modelMessage.id, fullResponse);
-    return { targetType: "screen" as const, screenId: screen.id, changed: nextCode !== screenCode, message: fullResponse };
+    return { targetType: "screen" as const, screenId: screen.id, changed: editChanged, message: fullResponse };
   }
 
   if (isBlockingScreenHealthFailure(health) && explicitRewriteRequested) {

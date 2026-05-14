@@ -54,7 +54,12 @@ export function AgentComposer({
   const [image, setImage] = useState<PromptImagePayload | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const activeImage = selectedScreen ? null : image;
-  const hasSelectedElement = Boolean(selectedElementPreview);
+  const hasSelectedElement = Boolean(
+    selectedElementPreview ||
+    selectedElementTargetLabel ||
+    selectedElementCanEditText ||
+    selectedElementCanEditDesign,
+  );
   const activeTargetLabel = selectedElementTargetLabel || selectedScreen?.name || null;
   const isActiveComposer = Boolean(prompt.trim() || activeImage || selectedScreen || hasSelectedElement || selectionMode);
 
@@ -123,8 +128,8 @@ export function AgentComposer({
                 {hasSelectedElement ? `Selected in ${activeTargetLabel ?? "screen"}` : `Editing ${selectedScreen?.name ?? "screen"}`}
               </div>
               {hasSelectedElement ? (
-                <div className="truncate text-xs leading-4 text-slate-700" title={selectedElementPreview ?? undefined}>
-                  {selectedElementPreview}
+                <div className="truncate text-xs leading-4 text-slate-700" title={selectedElementPreview ?? "Selected element"}>
+                  {selectedElementPreview || "Selected element"}
                 </div>
               ) : null}
             </div>

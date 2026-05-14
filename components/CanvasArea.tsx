@@ -254,6 +254,7 @@ const CanvasContent = ({
   selectedElementScreenId,
   selectedElementDrawgleId,
   onElementSelected,
+  onElementSelectionLost,
 }: {
   screens: ScreenData[];
   projectNavigation?: ProjectNavigationData | null;
@@ -265,6 +266,7 @@ const CanvasContent = ({
   selectedElementScreenId?: string | null;
   selectedElementDrawgleId?: string | null;
   onElementSelected?: (info: SelectedElementInfo) => void;
+  onElementSelectionLost?: (info: { screenId: string; drawgleId: string }) => void;
 }) => {
   const { state } = useControls();
   const scale = state.scale;
@@ -290,7 +292,8 @@ const CanvasContent = ({
             scale={scale}
             selectionMode={selectionMode}
             selectedDrawgleId={selectedElementScreenId === screen.id ? selectedElementDrawgleId ?? null : null}
-            onElementSelected={selectionMode ? onElementSelected : undefined}
+            onElementSelected={onElementSelected}
+            onElementSelectionLost={onElementSelectionLost}
           />
         ))}
       </div>
@@ -311,6 +314,7 @@ export function CanvasArea({
   selectedElementScreenId,
   selectedElementDrawgleId,
   onElementSelected,
+  onElementSelectionLost,
 }: {
   screens: ScreenData[];
   projectNavigation?: ProjectNavigationData | null;
@@ -324,6 +328,7 @@ export function CanvasArea({
   selectedElementScreenId?: string | null;
   selectedElementDrawgleId?: string | null;
   onElementSelected?: (info: SelectedElementInfo) => void;
+  onElementSelectionLost?: (info: { screenId: string; drawgleId: string }) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [initialScale, setInitialScale] = useState<number | null>(null);
@@ -395,6 +400,7 @@ export function CanvasArea({
             selectedElementScreenId={selectedElementScreenId}
             selectedElementDrawgleId={selectedElementDrawgleId}
             onElementSelected={onElementSelected}
+            onElementSelectionLost={onElementSelectionLost}
           />
         </>
       </TransformWrapper>

@@ -319,6 +319,28 @@ function buildConversationItems({
   const hasPersistedPendingResponse = pendingTurnMessages.some((message) =>
     message.role !== "user" && getMetadataString(message.metadata, "action") !== "agent_turn_progress",
   );
+  const terminalEditActivityKeys = new Set<string>();
+  const terminalEditMessageIds = new Set<string>();
+
+  for (const message of messages) {
+    const action = getMetadataString(message.metadata, "action");
+    if (action === "agent_turn_progress") {
+      continue;
+    }
+
+    const activityKey = getMessageActivityKey(message);
+    if (!activityKey?.startsWith("edit:")) {
+      continue;
+    }
+
+    const agentStep = resolveAgentStep(readAgentStep(message.metadata), stepFromLegacyMessage(message, screens));
+    if (!isTerminalStep(agentStep)) {
+      continue;
+    }
+
+    terminalEditActivityKeys.add(activityKey);
+    terminalEditMessageIds.add(message.id);
+  }
 
   for (const message of messages) {
     const ui = readAgentUi(message.metadata);
@@ -363,6 +385,16 @@ function buildConversationItems({
     if (agentStep || ui?.variant === "action_card") {
       if (isInternalGenerationActivity(activityKey)) {
         continue;
+      }
+
+      if (getMetadataString(message.metadata, "action") === "agent_turn_progress") {
+        const queuedMessageId = getMetadataString(message.metadata, "queuedMessageId");
+        if (
+          (activityKey && terminalEditActivityKeys.has(activityKey)) ||
+          (queuedMessageId && terminalEditMessageIds.has(queuedMessageId))
+        ) {
+          continue;
+        }
       }
 
       if (
