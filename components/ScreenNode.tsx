@@ -2,7 +2,7 @@
 
 import type { DesignTokens, ProjectNavigationData, ScreenData } from "@/lib/types";
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { MoreHorizontal, Download, Trash2, Edit2, Smartphone, MousePointerClick, Crosshair } from "lucide-react";
+import { MoreHorizontal, Download, Trash2, Edit2, Smartphone, MousePointerClick, Crosshair, MousePointer2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { createClient } from "@/lib/supabase/client";
@@ -253,6 +253,175 @@ function DimensionBadge({ visible }: { visible: boolean }) {
   );
 }
 
+function ScreenBuildPlaceholder({ dimmed }: { dimmed: boolean }) {
+  const shimmerSurface =
+    "relative overflow-hidden rounded-[28px] border border-white/70 bg-white/80 shadow-[0_24px_80px_rgba(15,23,42,0.18)]";
+  const shimmerLine = "drawgle-build-shimmer rounded-full bg-slate-200/90";
+
+  return (
+    <div
+      className={`absolute inset-0 bg-[#f7f8fb] transition-opacity duration-700 ${dimmed ? "opacity-35" : "opacity-100"}`}
+      style={{ zIndex: 16, pointerEvents: "none" }}
+      aria-hidden="true"
+    >
+      <style>{`
+        @keyframes drawgle-build-shimmer {
+          0% { transform: translateX(-120%); }
+          100% { transform: translateX(120%); }
+        }
+        @keyframes drawgle-build-scan {
+          0%, 100% { transform: translateY(-18%); opacity: 0.16; }
+          52% { transform: translateY(92%); opacity: 0.42; }
+        }
+        .drawgle-build-shimmer {
+          position: relative;
+          isolation: isolate;
+        }
+        .drawgle-build-shimmer::after {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(100deg, transparent 0%, rgba(255,255,255,0.88) 42%, transparent 78%);
+          animation: drawgle-build-shimmer 1.65s cubic-bezier(.4,0,.2,1) infinite;
+        }
+        .drawgle-build-scan {
+          animation: drawgle-build-scan 2.8s ease-in-out infinite;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .drawgle-build-shimmer::after,
+          .drawgle-build-scan {
+            animation: none !important;
+          }
+        }
+      `}</style>
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_28%_18%,rgba(99,102,241,0.16),transparent_34%),radial-gradient(circle_at_82%_12%,rgba(20,184,166,0.14),transparent_30%),linear-gradient(180deg,#fbfcff_0%,#eef2f7_100%)]" />
+      <div className="drawgle-build-scan absolute left-0 right-0 top-0 h-36 bg-gradient-to-b from-transparent via-white/80 to-transparent blur-sm" />
+      <div className="relative flex h-full flex-col px-5 pb-7 pt-10">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className={`${shimmerLine} h-4 w-32`} />
+            <div className={`${shimmerLine} mt-3 h-3 w-20 bg-slate-200/70`} />
+          </div>
+          <div className="flex gap-2">
+            <div className="drawgle-build-shimmer h-10 w-10 rounded-full bg-white/90 shadow-[0_10px_24px_rgba(15,23,42,0.12)]" />
+            <div className="drawgle-build-shimmer h-10 w-10 rounded-full bg-white/90 shadow-[0_10px_24px_rgba(15,23,42,0.12)]" />
+          </div>
+        </div>
+
+        <div className={`${shimmerSurface} mt-8 h-44 p-5`}>
+          <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-indigo-300 via-teal-200 to-amber-200" />
+          <div className={`${shimmerLine} h-3 w-20 bg-indigo-100/90`} />
+          <div className={`${shimmerLine} mt-5 h-9 w-48 bg-slate-300/80`} />
+          <div className="mt-8 grid grid-cols-3 gap-3">
+            <div className="drawgle-build-shimmer h-14 rounded-2xl bg-slate-100" />
+            <div className="drawgle-build-shimmer h-14 rounded-2xl bg-slate-100" />
+            <div className="drawgle-build-shimmer h-14 rounded-2xl bg-slate-100" />
+          </div>
+        </div>
+
+        <div className="mt-6 space-y-3">
+          {[0, 1, 2, 3].map((item) => (
+            <div key={item} className="flex items-center gap-3 rounded-[22px] border border-white/80 bg-white/68 p-3 shadow-[0_14px_34px_rgba(15,23,42,0.08)]">
+              <div className="drawgle-build-shimmer h-11 w-11 rounded-2xl bg-slate-200/90" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className={`${shimmerLine} h-3 ${item % 2 === 0 ? "w-36" : "w-28"}`} />
+                <div className={`${shimmerLine} h-2 w-20 bg-slate-200/70`} />
+              </div>
+              <div className={`${shimmerLine} h-4 w-12 bg-slate-200/80`} />
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-auto flex items-center justify-around rounded-[26px] border border-white/80 bg-white/75 px-4 py-3 shadow-[0_18px_44px_rgba(15,23,42,0.12)]">
+          {[0, 1, 2, 3].map((item) => (
+            <div key={item} className="flex flex-col items-center gap-2">
+              <div className="drawgle-build-shimmer h-8 w-8 rounded-full bg-slate-200/80" />
+              <div className="drawgle-build-shimmer h-1.5 w-8 rounded-full bg-slate-200/70" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BuildCursorOverlay({ visible }: { visible: boolean }) {
+  if (!visible) return null;
+
+  return (
+    <div
+      className="absolute inset-0"
+      style={{ zIndex: 18, pointerEvents: "none" }}
+      aria-hidden="true"
+    >
+      <style>{`
+        @keyframes drawgle-build-cursor-path {
+          0% { transform: translate3d(318px, 26px, 0) scale(.92); opacity: 0; }
+          8% { transform: translate3d(284px, 72px, 0) scale(1); opacity: 1; }
+          23% { transform: translate3d(78px, 108px, 0) scale(1); opacity: 1; }
+          34% { transform: translate3d(238px, 206px, 0) scale(1); opacity: 1; }
+          42% { transform: translate3d(238px, 206px, 0) scale(.9); opacity: 1; }
+          47% { transform: translate3d(238px, 206px, 0) scale(1); opacity: 1; }
+          63% { transform: translate3d(82px, 398px, 0) scale(1); opacity: 1; }
+          78% { transform: translate3d(282px, 548px, 0) scale(1); opacity: 1; }
+          92% { transform: translate3d(164px, 716px, 0) scale(1); opacity: .88; }
+          100% { transform: translate3d(318px, 26px, 0) scale(.92); opacity: 0; }
+        }
+        @keyframes drawgle-build-cursor-ping {
+          0%, 36%, 100% { transform: scale(.65); opacity: 0; }
+          40% { transform: scale(.65); opacity: .4; }
+          50% { transform: scale(2.3); opacity: 0; }
+        }
+        .drawgle-build-cursor {
+          animation: drawgle-build-cursor-path 5.4s cubic-bezier(.42,0,.18,1) infinite;
+          will-change: transform, opacity;
+        }
+        .drawgle-build-cursor-ping {
+          animation: drawgle-build-cursor-ping 5.4s cubic-bezier(.2,.8,.2,1) infinite;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .drawgle-build-cursor {
+            animation: none !important;
+            transform: translate3d(268px, 126px, 0) !important;
+            opacity: .72 !important;
+          }
+          .drawgle-build-cursor-ping {
+            animation: none !important;
+            opacity: 0 !important;
+          }
+        }
+      `}</style>
+      <div className="drawgle-build-cursor absolute left-0 top-0">
+        <div className="drawgle-build-cursor-ping absolute left-2 top-2 h-7 w-7 rounded-full border border-indigo-400 bg-indigo-400/20" />
+        <div className="relative flex h-9 w-9 items-center justify-center rounded-full border border-white/80 bg-slate-950/88 text-white shadow-[0_12px_30px_rgba(15,23,42,0.28)] backdrop-blur-md">
+          <MousePointer2 className="h-[18px] w-[18px] -translate-x-0.5 -translate-y-0.5 fill-white" strokeWidth={2.4} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ScreenBuildPresence({
+  visible,
+  hasStreamedCode,
+}: {
+  visible: boolean;
+  hasStreamedCode: boolean;
+}) {
+  if (!visible) return null;
+
+  return (
+    <div className="absolute inset-0" style={{ zIndex: 16, pointerEvents: "none" }} aria-hidden="true">
+      <ScreenBuildPlaceholder dimmed={hasStreamedCode} />
+      <div
+        className={`absolute inset-0 bg-gradient-to-b from-white/12 via-white/4 to-transparent transition-opacity duration-700 ${hasStreamedCode ? "opacity-100" : "opacity-0"}`}
+        style={{ zIndex: 17, pointerEvents: "none" }}
+      />
+      <BuildCursorOverlay visible={hasStreamedCode} />
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Main ScreenNode
 // ---------------------------------------------------------------------------
@@ -354,6 +523,7 @@ export function ScreenNode({
     if (!chunks || chunks.length === 0) return null;
     return stripFences(chunks.join(""));
   }, [triggerStreams]);
+  const hasStreamedBuildCode = Boolean(streamedCode?.trim());
 
   const rawDisplayCode = streamedCode ?? safeCode;
   const sharedNavigationActive = hasSharedNavigation({ screen, projectNavigation });
@@ -1470,6 +1640,8 @@ ${cleanScreenCode}
               }
             }}
           />
+
+          <ScreenBuildPresence visible={isBuilding} hasStreamedCode={hasStreamedBuildCode} />
 
           {/* Home indicator pill */}
           <div
