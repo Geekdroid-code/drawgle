@@ -5,21 +5,28 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import {
   AlertCircle,
+  BookOpen,
   Check,
   ChevronDown,
   Copy,
+  Eye,
   Loader2,
+  MessageCircle,
   Minimize2,
+  Navigation,
+  Palette,
+  RotateCcw,
+  Save,
   Sparkles,
-  ThumbsDown,
-  ThumbsUp,
 } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 
 import { AgentBall, AgentThinkingIndicator } from "@/components/AgentBall";
+import { DesignSystemEditor } from "@/components/DesignSystemEditor";
 import { AgentComposer } from "@/components/PromptBar";
 import { Button } from "@/components/ui/button";
 import { useProjectMessages } from "@/hooks/use-project-messages";
+import { hasApprovedDesignTokens } from "@/lib/design-tokens";
 import {
   readAgentStep,
   readAgentUi,
@@ -31,10 +38,12 @@ import {
 } from "@/lib/agent/message-metadata";
 import type {
   GenerationRunData,
+  DesignTokens,
   NavigationArchitecture,
   NavigationPlan,
   ProjectData,
   ProjectMessage,
+  ProjectNavigationData,
   PromptImagePayload,
   ScreenData,
   ScreenPlan,
@@ -74,6 +83,15 @@ type ConversationItem =
   | { id: string; kind: "assistant"; content: string; timestamp?: string; isError?: boolean }
   | { id: string; kind: "thinking"; summary: ThinkingSummaryMetadata; timestamp?: string; live?: boolean }
   | { id: string; kind: "action"; step: AgentStepMetadata; sourceContent?: string; retryRun?: GenerationRunData; proposal?: ScreenPlanProposalMetadata | null; proposalMessageId?: string | null; timestamp?: string };
+
+type ChatWorkspaceTab = "chat" | "design" | "charter" | "navigation";
+
+const CHAT_WORKSPACE_TABS: Array<{ id: ChatWorkspaceTab; label: string; icon: typeof MessageCircle }> = [
+  { id: "chat", label: "Chat", icon: MessageCircle },
+  { id: "design", label: "Design", icon: Palette },
+  { id: "charter", label: "Charter", icon: BookOpen },
+  { id: "navigation", label: "Nav", icon: Navigation },
+];
 
 const isActiveGenerationRun = (run: GenerationRunData | null) =>
   Boolean(run && (run.status === "queued" || run.status === "planning" || run.status === "building"));
@@ -800,6 +818,182 @@ function EmptyConversation({ isLoading }: { isLoading: boolean }) {
   );
 }
 
+function IntelligenceField({ label, value }: { label: string; value?: string | null }) {
+  if (!value?.trim()) {
+    return null;
+  }
+
+  return (
+    <section className="rounded-[14px] border border-slate-950/[0.08] bg-white px-3 py-3">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">{label}</div>
+      <div className="mt-1 whitespace-pre-line text-[12px] leading-5 text-slate-700">{value}</div>
+    </section>
+  );
+}
+
+const formatNavigationArchitecture = (architecture?: NavigationArchitecture | null) => {
+  if (!architecture) {
+    return null;
+  }
+
+  return [
+    `Kind: ${architecture.kind}`,
+    `Primary navigation: ${architecture.primaryNavigation}`,
+    `Root chrome: ${architecture.rootChrome}`,
+    `Detail chrome: ${architecture.detailChrome}`,
+    architecture.rationale ? `Rationale: ${architecture.rationale}` : null,
+    architecture.consistencyRules?.length ? `Consistency rules:\n${architecture.consistencyRules.map((rule) => `- ${rule}`).join("\n")}` : null,
+  ].filter(Boolean).join("\n\n");
+};
+
+function CharterTab({ project, projectNavigation }: { project: ProjectData; projectNavigation?: ProjectNavigationData | null }) {
+  const charter = project.charter;
+  const direction = charter?.creativeDirection;
+
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto bg-[#f7f7f8] px-3 py-3">
+      <div className="space-y-3">
+        <IntelligenceField label="Original intent" value={charter?.originalPrompt ?? project.prompt} />
+        <IntelligenceField label="App type" value={charter?.appType} />
+        <IntelligenceField label="Audience" value={charter?.targetAudience} />
+        <IntelligenceField label="Navigation model" value={charter?.navigationModel} />
+        <IntelligenceField label="Navigation architecture" value={formatNavigationArchitecture(charter?.navigationArchitecture)} />
+        <IntelligenceField label="Design rationale" value={charter?.designRationale} />
+        <IntelligenceField label="Creative direction" value={direction ? `${direction.conceptName}\n${direction.styleEssence}` : null} />
+        <IntelligenceField label="Color story" value={direction?.colorStory} />
+        <IntelligenceField label="Typography mood" value={direction?.typographyMood} />
+        <IntelligenceField label="Surface language" value={direction?.surfaceLanguage} />
+        <IntelligenceField label="Signature moments" value={direction?.signatureMoments?.join("\n")} />
+        <IntelligenceField label="Avoid" value={direction?.avoid?.join("\n")} />
+        {!charter ? (
+          <div className="rounded-[14px] border border-dashed border-slate-300 bg-white px-4 py-8 text-center text-sm text-slate-500">
+            Project charter details will appear here when planning has finished.
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function NavigationPlanTab({ projectNavigation }: { projectNavigation?: ProjectNavigationData | null }) {
+  const plan = projectNavigation?.plan ?? null;
+
+  if (!plan) {
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center bg-[#f7f7f8] px-5 text-center text-sm leading-6 text-slate-500">
+        Navigation planning will appear here once the project planner runs.
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto bg-[#f7f7f8] px-3 py-3">
+      <div className="space-y-3">
+        <IntelligenceField label="Visual brief" value={plan.visualBrief} />
+        <IntelligenceField label="State" value={plan.enabled ? `${plan.kind} shared navigation` : "No persistent project navigation"} />
+        {plan.items?.map((item) => (
+          <article key={item.id} className="rounded-[14px] border border-slate-950/[0.08] bg-white px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold text-slate-950">{item.label}</div>
+                <div className="mt-1 text-xs leading-5 text-slate-500">{item.role}</div>
+              </div>
+              <span className="shrink-0 rounded-full bg-[#f7f7f8] px-2.5 py-1 text-[10px] font-semibold text-slate-500">{item.icon}</span>
+            </div>
+            <div className="mt-2 text-xs text-slate-500">Linked screen: {item.linkedScreenName}</div>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DesignTab({
+  tokenDraft,
+  tokenDirty,
+  tokenSaving,
+  generationActive,
+  onTokenDraftChange,
+  onSaveTokens,
+  onDiscardTokens,
+}: {
+  tokenDraft?: DesignTokens | null;
+  tokenDirty?: boolean;
+  tokenSaving?: boolean;
+  generationActive?: boolean;
+  onTokenDraftChange?: (tokens: DesignTokens) => void;
+  onSaveTokens?: () => Promise<void>;
+  onDiscardTokens?: () => void;
+}) {
+  const hasTokens = Boolean(tokenDraft && hasApprovedDesignTokens(tokenDraft));
+
+  if (!hasTokens || !tokenDraft || !onTokenDraftChange || !onSaveTokens || !onDiscardTokens) {
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center bg-[#f7f7f8] px-5 text-center text-sm leading-6 text-slate-500">
+        Design tokens will appear here as soon as the generation job finishes design analysis.
+      </div>
+    );
+  }
+
+  const status = generationActive
+    ? "Locked while building"
+    : tokenSaving
+      ? "Saving tokens"
+      : tokenDirty
+        ? "Unsaved token changes"
+        : "Tokens saved";
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col bg-[#f7f7f8]">
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+        <DesignSystemEditor
+          value={tokenDraft}
+          onChange={onTokenDraftChange}
+          onSubmit={onSaveTokens}
+          title="Design System"
+          description="Exact project tokens used by screens and navigation."
+          submitLabel={tokenDirty ? "Save Tokens" : "Tokens Saved"}
+          isSubmitting={tokenSaving}
+          submitStatus="Saving live token system..."
+          layout="panel"
+          showPreview={false}
+        />
+      </div>
+      <div className="shrink-0 border-t border-slate-950/[0.08] bg-white/94 px-3 py-2 backdrop-blur-xl">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="truncate text-[12px] font-medium text-slate-700">{status}</div>
+            <div className="truncate text-[11px] text-slate-400">Preview updates live on canvas</div>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-[10px] text-slate-500 hover:bg-slate-950/[0.05] hover:text-slate-950"
+              disabled={!tokenDirty || tokenSaving}
+              title="Discard token changes"
+              onClick={onDiscardTokens}
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="h-8 rounded-[10px] bg-slate-950 px-3 text-xs font-semibold text-white hover:bg-slate-800"
+              disabled={!tokenDirty || tokenSaving || generationActive}
+              onClick={() => void onSaveTokens()}
+            >
+              {tokenSaving ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1.5 h-3.5 w-3.5" />}
+              Save
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function CollapsedChatTrigger({
   eyebrow,
   title,
@@ -847,6 +1041,14 @@ export function ChatPanel({
   selectedScreen,
   generationRun,
   generationRuns,
+  projectNavigation,
+  tokenDraft,
+  tokenDirty = false,
+  tokenSaving = false,
+  generationActive = false,
+  onTokenDraftChange,
+  onSaveTokens,
+  onDiscardTokens,
   isQueueing,
   queueError,
   retryDisabled,
@@ -874,6 +1076,14 @@ export function ChatPanel({
   selectedScreen: ScreenData | null;
   generationRun: GenerationRunData | null;
   generationRuns: GenerationRunData[];
+  projectNavigation?: ProjectNavigationData | null;
+  tokenDraft?: DesignTokens | null;
+  tokenDirty?: boolean;
+  tokenSaving?: boolean;
+  generationActive?: boolean;
+  onTokenDraftChange?: (tokens: DesignTokens) => void;
+  onSaveTokens?: () => Promise<void>;
+  onDiscardTokens?: () => void;
   isQueueing: boolean;
   queueError?: string | null;
   retryDisabled?: boolean;
@@ -904,20 +1114,24 @@ export function ChatPanel({
   const reduceMotion = Boolean(useReducedMotion());
   const [pendingTurn, setPendingTurn] = useState<PendingTurn | null>(null);
   const [pendingTick, setPendingTick] = useState(0);
+  const [activeTab, setActiveTab] = useState<ChatWorkspaceTab>("chat");
   const isGenerationActive = isActiveGenerationRun(generationRun);
   const hasAlert = Boolean(queueError || screenPlan?.status === "error");
   const isBusy = isGenerationActive || isQueueing || screenPlan?.status === "planning" || Boolean(pendingTurn);
 
   const conversationItems = useMemo(
-    () => buildConversationItems({
-      messages,
-      screens,
-      generationRun,
-      generationRuns,
-      queueError,
-      screenPlan,
-      pendingTurn,
-    }),
+    () => {
+      void pendingTick;
+      return buildConversationItems({
+        messages,
+        screens,
+        generationRun,
+        generationRuns,
+        queueError,
+        screenPlan,
+        pendingTurn,
+      });
+    },
     [generationRun, generationRuns, messages, pendingTick, pendingTurn, queueError, screenPlan, screens],
   );
 
@@ -994,8 +1208,8 @@ export function ChatPanel({
         dg-chat-shell backdrop-blur-xl
       `}
     >
-      <header className="min-h-13 h-13 relative shrink-0 px-5">
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-between gap-8 pl-5 pr-2.5">
+      <header className="relative shrink-0 px-3 pb-2 pt-2">
+        <div className="flex h-10 items-center justify-between gap-3 px-2">
           <h1 className="min-w-0 max-w-[260px] truncate text-[15px] font-semibold text-slate-950">
             {project.name}
           </h1>
@@ -1010,8 +1224,28 @@ export function ChatPanel({
             <Minimize2 className="h-4 w-4" />
           </Button>
         </div>
+        <div className="grid grid-cols-4 gap-1 rounded-[14px] bg-slate-950/[0.04] p-1">
+          {CHAT_WORKSPACE_TABS.map((tab) => {
+            const Icon = tab.icon;
+            const selected = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex h-8 items-center justify-center gap-1.5 rounded-[10px] text-[11px] font-semibold transition ${
+                  selected ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
       </header>
 
+      {activeTab === "chat" ? (
       <div className="chat-history-scrollbar min-h-0 flex-1 overflow-y-auto bg-white pb-8">
         <AnimatePresence initial={false}>
           {conversationItems.length === 0 ? (
@@ -1060,7 +1294,29 @@ export function ChatPanel({
         </AnimatePresence>
         <div ref={messagesEndRef} />
       </div>
+      ) : null}
 
+      {activeTab === "design" ? (
+        <DesignTab
+          tokenDraft={tokenDraft}
+          tokenDirty={tokenDirty}
+          tokenSaving={tokenSaving}
+          generationActive={generationActive}
+          onTokenDraftChange={onTokenDraftChange}
+          onSaveTokens={onSaveTokens}
+          onDiscardTokens={onDiscardTokens}
+        />
+      ) : null}
+
+      {activeTab === "charter" ? (
+        <CharterTab project={project} projectNavigation={projectNavigation} />
+      ) : null}
+
+      {activeTab === "navigation" ? (
+        <NavigationPlanTab projectNavigation={projectNavigation} />
+      ) : null}
+
+      {activeTab === "chat" ? (
       <div className="shrink-0 bg-white px-2 py-2">
         <AgentComposer
           variant="panel"
@@ -1082,6 +1338,7 @@ export function ChatPanel({
           onClearSelectedElement={onClearSelectedElement}
         />
       </div>
+      ) : null}
     </div>
   );
 }

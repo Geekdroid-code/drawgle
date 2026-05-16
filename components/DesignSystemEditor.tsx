@@ -313,17 +313,17 @@ export function DesignSystemEditor({
   return (
     <div className={isPanel ? "relative flex min-h-0 flex-col overflow-visible" : "relative flex min-h-[680px] flex-1 flex-col overflow-hidden lg:h-[calc(100dvh-6.25rem)] lg:min-h-[620px]"}>
       {isSubmitting && submitStatus ? (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-white/72 backdrop-blur-sm">
+        !isPanel ? <div className="absolute inset-0 z-30 flex items-center justify-center bg-white/72 backdrop-blur-sm">
           <div className="rounded-[14px] border border-slate-950/[0.08] bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-[0_18px_50px_-36px_rgba(15,23,42,0.6)]">
             <div className="flex items-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin" />
               {submitStatus}
             </div>
           </div>
-        </div>
+        </div> : null
       ) : null}
 
-      <div className="flex shrink-0 flex-col gap-3 rounded-[16px] border border-slate-950/[0.1] bg-white/92 px-4 py-3 backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
+      {!isPanel ? <div className="flex shrink-0 flex-col gap-3 rounded-[16px] border border-slate-950/[0.1] bg-white/92 px-4 py-3 backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           
           <h2 className="mt-1 truncate text-xl font-semibold tracking-[-0.03em] text-slate-950">{title}</h2>
@@ -357,9 +357,9 @@ export function DesignSystemEditor({
             {recommendedFonts.length || 0} font candidates
           </span>
         </div>
-      </div>
+      </div> : null}
 
-      <div className={shouldShowPreview ? "grid min-h-0 flex-1 gap-4 pt-4 lg:grid-cols-[minmax(0,1fr)_340px]" : "min-h-0 flex-1 pt-4"}>
+      <div className={shouldShowPreview ? `grid min-h-0 flex-1 gap-4 ${isPanel ? "" : "pt-4"} lg:grid-cols-[minmax(0,1fr)_340px]` : `min-h-0 flex-1 ${isPanel ? "" : "pt-4"}`}>
         <section className={`${!shouldShowPreview || mobileView === "tokens" ? "flex" : "hidden"} min-h-0 flex-col rounded-[16px] border border-slate-950/[0.1] bg-white ${isPanel ? "overflow-visible" : "overflow-hidden"} ${shouldShowPreview ? "lg:flex" : ""}`}>
           <div className="shrink-0 border-b border-slate-950/[0.08] bg-white px-3 py-2">
             <div className="grid grid-cols-4 gap-1 rounded-[12px] bg-[#f7f7f8] p-1">
@@ -503,6 +503,7 @@ export function DesignSystemEditor({
                     min={0}
                     max={48}
                     preview="radius"
+                    panel={isPanel}
                     onChange={(nextValue) => handleUpdateToken(["radii", "app"], nextValue)}
                   />
                   <ShapeMetricRow
@@ -511,6 +512,7 @@ export function DesignSystemEditor({
                     min={0}
                     max={9999}
                     preview="pill"
+                    panel={isPanel}
                     onChange={(nextValue) => handleUpdateToken(["radii", "pill"], nextValue)}
                   />
                 </TokenGroup>
@@ -521,6 +523,7 @@ export function DesignSystemEditor({
                     min={0}
                     max={8}
                     preview="border"
+                    panel={isPanel}
                     onChange={(nextValue) => handleUpdateToken(["border_widths", "standard"], nextValue)}
                   />
                 </TokenGroup>
@@ -529,12 +532,14 @@ export function DesignSystemEditor({
                     label="Surface shadow"
                     value={tokens.shadows?.surface || ""}
                     previewRadius={radius}
+                    panel={isPanel}
                     onChange={(nextValue) => handleUpdateToken(["shadows", "surface"], nextValue)}
                   />
                   <ShadowField
                     label="Overlay shadow"
                     value={tokens.shadows?.overlay || ""}
                     previewRadius={radius}
+                    panel={isPanel}
                     onChange={(nextValue) => handleUpdateToken(["shadows", "overlay"], nextValue)}
                   />
                   <TextField label="No elevation" value={tokens.shadows?.none || "none"} onChange={(nextValue) => handleUpdateToken(["shadows", "none"], nextValue)} wide />
@@ -827,7 +832,7 @@ function ColorField({
           onChange={commitPickerColor}
           className={`${panel ? "h-10 w-10 rounded-[12px]" : "h-7 w-7 rounded-[8px]"} shrink-0 border border-slate-950/[0.1] shadow-inner`}
         />
-        <label className={`min-w-0 flex-1 ${panel ? "grid gap-1 sm:grid-cols-[minmax(0,1fr)_130px] sm:items-center" : ""}`}>
+        <label className={`min-w-0 flex-1 ${panel ? "grid gap-1" : ""}`}>
           <span className="min-w-0">
             <span className="block truncate text-xs font-semibold text-slate-800">{label}</span>
             {panel && tokenPathLabel ? (
@@ -1063,6 +1068,7 @@ function ShapeMetricRow({
   min,
   max,
   preview,
+  panel = false,
   onChange,
 }: {
   label: string;
@@ -1070,9 +1076,27 @@ function ShapeMetricRow({
   min: number;
   max: number;
   preview: "radius" | "pill" | "border";
+  panel?: boolean;
   onChange: (value: string) => void;
 }) {
   const numericValue = parsePixelToken(value, min);
+
+  if (panel) {
+    return (
+      <div className="col-span-full rounded-[14px] border border-slate-950/[0.07] bg-white p-3 shadow-[0_1px_0_rgba(255,255,255,0.8)]">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="truncate text-xs font-semibold capitalize text-slate-800">{label}</div>
+            <div className="mt-0.5 font-mono text-[11px] text-slate-400">{serializePixelToken(numericValue, min, max)}</div>
+          </div>
+          <ShapePreview value={numericValue} variant={preview} compact />
+        </div>
+        <div className="mt-3">
+          <TokenMetricField label={label} value={value} min={min} max={max} onChange={onChange} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="col-span-full grid gap-2 rounded-[12px] border border-slate-950/[0.06] bg-white p-2 sm:grid-cols-[minmax(0,1fr)_154px_120px] sm:items-center">
@@ -1086,19 +1110,19 @@ function ShapeMetricRow({
   );
 }
 
-function ShapePreview({ value, variant }: { value: number; variant: "radius" | "pill" | "border" }) {
+function ShapePreview({ value, variant, compact = false }: { value: number; variant: "radius" | "pill" | "border"; compact?: boolean }) {
   if (variant === "border") {
     return (
-      <div className="flex h-12 items-center justify-center rounded-[10px] bg-[#fbfbfc]">
-        <div className="h-8 w-16 rounded-[10px] bg-white" style={{ border: `${clampNumber(value, 0, 8)}px solid #111827` }} />
+      <div className={`${compact ? "h-11 w-20" : "h-12"} flex shrink-0 items-center justify-center rounded-[10px] bg-[#fbfbfc]`}>
+        <div className={`${compact ? "h-7 w-14" : "h-8 w-16"} rounded-[10px] bg-white`} style={{ border: `${clampNumber(value, 0, 8)}px solid #111827` }} />
       </div>
     );
   }
 
   return (
-    <div className="flex h-12 items-center justify-center rounded-[10px] border border-slate-950/[0.06] bg-[#fbfbfc]">
+    <div className={`${compact ? "h-11 w-20" : "h-12"} flex shrink-0 items-center justify-center rounded-[10px] border border-slate-950/[0.06] bg-[#fbfbfc]`}>
       <div
-        className="h-8 w-16 border border-slate-950/[0.08] bg-white shadow-[0_10px_28px_-22px_rgba(15,23,42,0.7)]"
+        className={`${compact ? "h-7 w-14" : "h-8 w-16"} border border-slate-950/[0.08] bg-white shadow-[0_10px_28px_-22px_rgba(15,23,42,0.7)]`}
         style={{ borderRadius: variant === "pill" ? 9999 : clampNumber(value, 0, 48) }}
       />
     </div>
@@ -1109,11 +1133,13 @@ function ShadowField({
   label,
   value,
   previewRadius,
+  panel = false,
   onChange,
 }: {
   label: string;
   value: string;
   previewRadius: string;
+  panel?: boolean;
   onChange: (value: string) => void;
 }) {
   const shadowParts = parseCssShadow(value);
@@ -1124,10 +1150,10 @@ function ShadowField({
   return (
     <div className="col-span-full grid gap-3 rounded-[16px] border border-slate-950/[0.06] bg-white p-3">
       <div className="min-w-0 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
+        <div className="grid gap-2">
+          <div className="min-w-0">
             <div className="text-xs font-semibold capitalize text-slate-800">{label}</div>
-            <div className="mt-0.5 font-mono text-[11px] text-slate-400">{serializeCssShadow(shadowParts)}</div>
+            <div className="mt-0.5 break-words font-mono text-[11px] leading-5 text-slate-400">{serializeCssShadow(shadowParts)}</div>
           </div>
           <div className="flex flex-wrap gap-1.5">
             {SHADOW_PRESETS.map((preset) => (
@@ -1150,17 +1176,18 @@ function ShadowField({
           </div>
         </div>
 
-        <div className="grid gap-2.5 sm:grid-cols-2">
-          <ShadowSlider label="X" min={-40} max={40} value={shadowParts.x} onChange={(nextValue) => updateShadow({ x: nextValue, enabled: true })} />
-          <ShadowSlider label="Y" min={-40} max={40} value={shadowParts.y} onChange={(nextValue) => updateShadow({ y: nextValue, enabled: true })} />
-          <ShadowSlider label="Blur" min={0} max={96} value={shadowParts.blur} onChange={(nextValue) => updateShadow({ blur: nextValue, enabled: true })} />
-          <ShadowSlider label="Spread" min={-40} max={40} value={shadowParts.spread} onChange={(nextValue) => updateShadow({ spread: nextValue, enabled: true })} />
+        <div className={`grid gap-2.5 ${panel ? "" : "sm:grid-cols-2"}`}>
+          <ShadowSlider label="X" min={-40} max={40} value={shadowParts.x} panel={panel} onChange={(nextValue) => updateShadow({ x: nextValue, enabled: true })} />
+          <ShadowSlider label="Y" min={-40} max={40} value={shadowParts.y} panel={panel} onChange={(nextValue) => updateShadow({ y: nextValue, enabled: true })} />
+          <ShadowSlider label="Blur" min={0} max={96} value={shadowParts.blur} panel={panel} onChange={(nextValue) => updateShadow({ blur: nextValue, enabled: true })} />
+          <ShadowSlider label="Spread" min={-40} max={40} value={shadowParts.spread} panel={panel} onChange={(nextValue) => updateShadow({ spread: nextValue, enabled: true })} />
           <ShadowSlider
             label="Opacity"
             min={0}
             max={60}
             value={Math.round(shadowParts.opacity * 100)}
             suffix="%"
+            panel={panel}
             onChange={(nextValue) => updateShadow({ opacity: nextValue / 100, enabled: nextValue > 0 })}
           />
           <ColorField
@@ -1172,9 +1199,9 @@ function ShadowField({
         </div>
       </div>
 
-      <div className="flex min-h-24 items-center justify-center rounded-[14px] bg-[radial-gradient(circle_at_center,#ffffff_0,#f4f5f7_62%,#edf0f4_100%)] p-4">
+      <div className={`${panel ? "min-h-20" : "min-h-24"} flex items-center justify-center rounded-[14px] bg-[#f1f3f6] p-4`}>
         <div
-          className="h-16 w-24 border border-slate-950/[0.08] bg-white transition-[box-shadow,transform] duration-150"
+          className={`${panel ? "h-14 w-20" : "h-16 w-24"} border border-slate-950/[0.08] bg-white transition-[box-shadow,transform] duration-150`}
           style={{
             borderRadius: previewRadius,
             boxShadow: serializeCssShadow(shadowParts),
@@ -1191,6 +1218,7 @@ function ShadowSlider({
   min,
   max,
   suffix = "px",
+  panel = false,
   onChange,
 }: {
   label: string;
@@ -1198,12 +1226,13 @@ function ShadowSlider({
   min: number;
   max: number;
   suffix?: string;
+  panel?: boolean;
   onChange: (value: number) => void;
 }) {
   const roundedValue = Math.round(value);
 
   return (
-    <label className="grid grid-cols-[74px_minmax(0,1fr)_62px] items-center gap-3 rounded-[14px] border border-slate-950/[0.07] bg-[#fbfbfc] px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+    <label className={`${panel ? "grid-cols-[48px_minmax(0,1fr)_50px] gap-2 px-2.5 py-2.5" : "grid-cols-[74px_minmax(0,1fr)_62px] gap-3 px-3 py-3"} grid items-center rounded-[14px] border border-slate-950/[0.07] bg-[#fbfbfc] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]`}>
       <span className="text-xs font-semibold text-slate-600">{label}</span>
       <input
         type="range"
@@ -1213,7 +1242,7 @@ function ShadowSlider({
         onChange={(event) => onChange(Number(event.target.value))}
         className="h-3 min-w-0 cursor-pointer appearance-none rounded-full bg-slate-200 outline-none [--track-fill:#020617] [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-slate-950 [&::-moz-range-thumb]:shadow-[0_4px_14px_rgba(15,23,42,0.28)] [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-slate-950 [&::-webkit-slider-thumb]:shadow-[0_4px_14px_rgba(15,23,42,0.28)]"
       />
-      <span className="rounded-[9px] border border-slate-950/[0.06] bg-white px-2 py-1 text-right font-mono text-[11px] text-slate-600">
+      <span className="rounded-[9px] border border-slate-950/[0.06] bg-white px-1.5 py-1 text-right font-mono text-[11px] text-slate-600">
         {roundedValue}{suffix}
       </span>
     </label>

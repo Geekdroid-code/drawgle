@@ -1,13 +1,13 @@
 "use client";
 
-import { type ComponentType, type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, BookOpen, Check, ChevronDown, Eye, Layers, Loader2, Navigation, Palette, RotateCcw, Save, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, Loader2, Palette, X } from "lucide-react";
 
 import { CanvasArea } from "@/components/CanvasArea";
 import { CanvasToolDock } from "@/components/CanvasToolDock";
 import { ChatPanel } from "@/components/ChatPanel";
-import { ColorPickerButton, DesignSystemEditor } from "@/components/DesignSystemEditor";
+import { ColorPickerButton } from "@/components/DesignSystemEditor";
 import type { SelectedElementInfo } from "@/components/ScreenNode";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,7 +39,6 @@ import type {
   GenerationRunData,
   NavigationArchitecture,
   NavigationPlan,
-  ProjectCharter,
   ProjectData,
   ProjectNavigationData,
   PromptImagePayload,
@@ -66,35 +65,6 @@ class QueueGenerationError extends Error {
 }
 
 type ManualEditMode = "selected" | "text" | "design";
-
-type ProjectPanelTab = "design" | "charter" | "screens" | "navigation";
-
-const PROJECT_PANEL_TABS: Array<{ id: ProjectPanelTab; label: string; icon: ComponentType<{ className?: string }> }> = [
-  { id: "design", label: "Design System", icon: Palette },
-  { id: "charter", label: "Charter", icon: BookOpen },
-  { id: "screens", label: "Screen Plan", icon: Layers },
-  { id: "navigation", label: "Navigation", icon: Navigation },
-];
-
-const isScreenPlanLike = (value: unknown): value is ScreenPlan => {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const candidate = value as Partial<ScreenPlan>;
-  return typeof candidate.name === "string" && typeof candidate.description === "string";
-};
-
-const getLatestPlannedScreens = (generationRuns: GenerationRunData[]) => {
-  for (const run of generationRuns) {
-    const plannedScreens = run.metadata?.plannedScreens as unknown;
-    if (Array.isArray(plannedScreens) && plannedScreens.every(isScreenPlanLike)) {
-      return plannedScreens as ScreenPlan[];
-    }
-  }
-
-  return [] as ScreenPlan[];
-};
 
 type StyleControl = {
   property: DrawgleStyleProperty;
@@ -593,274 +563,6 @@ function SelectedElementInspectorSidebar({
   );
 }
 
-function MetadataField({ label, value }: { label: string; value?: string | null }) {
-  if (!value) {
-    return null;
-  }
-
-  return (
-    <div className="rounded-[12px] border border-slate-950/[0.08] bg-white px-3 py-3">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">{label}</div>
-      <div className="mt-1 whitespace-pre-line text-sm leading-6 text-slate-700">{value}</div>
-    </div>
-  );
-}
-
-const formatNavigationArchitecture = (architecture?: NavigationArchitecture | null) => {
-  if (!architecture) {
-    return null;
-  }
-
-  return [
-    `Kind: ${architecture.kind}`,
-    `Primary navigation: ${architecture.primaryNavigation}`,
-    `Root chrome: ${architecture.rootChrome}`,
-    `Detail chrome: ${architecture.detailChrome}`,
-    `Rationale: ${architecture.rationale}`,
-    architecture.consistencyRules?.length
-      ? `Consistency rules:\n${architecture.consistencyRules.map((rule) => `- ${rule}`).join("\n")}`
-      : null,
-  ].filter(Boolean).join("\n\n");
-};
-
-const formatDesignSystemSignals = (signals?: ProjectCharter["designSystemSignals"] | null) => {
-  if (!signals) {
-    return null;
-  }
-
-  return [
-    signals.palette ? `Palette: ${signals.palette}` : null,
-    signals.typography ? `Typography: ${signals.typography}` : null,
-    signals.surfaces ? `Surfaces: ${signals.surfaces}` : null,
-    signals.iconography ? `Iconography: ${signals.iconography}` : null,
-    signals.density ? `Density: ${signals.density}` : null,
-    signals.motionTone ? `Motion tone: ${signals.motionTone}` : null,
-  ].filter(Boolean).join("\n\n") || null;
-};
-
-const formatReferenceScreens = (screens?: ProjectCharter["referenceScreens"] | null) => {
-  if (!screens?.length) {
-    return null;
-  }
-
-  return screens
-    .map((screen) => [
-      `Reference ${screen.index}: ${screen.suggestedRole}`,
-      `Layout: ${screen.layoutSummary}`,
-      `Hierarchy: ${screen.visualHierarchy}`,
-      screen.components?.length ? `Components: ${screen.components.join("; ")}` : null,
-      screen.stylingCues?.length ? `Styling: ${screen.stylingCues.join("; ")}` : null,
-      screen.implementationNotes?.length ? `Must preserve: ${screen.implementationNotes.join("; ")}` : null,
-    ].filter(Boolean).join("\n"))
-    .join("\n\n");
-};
-
-const formatPlanningDiagnostics = (diagnostics?: ProjectCharter["planningDiagnostics"] | null) => {
-  if (!diagnostics) {
-    return null;
-  }
-
-  return [
-    `Source: ${diagnostics.source}`,
-    typeof diagnostics.rawScreenCount === "number" ? `Raw screens: ${diagnostics.rawScreenCount}` : null,
-    typeof diagnostics.recoveredScreens === "number" ? `Recovered screens: ${diagnostics.recoveredScreens}` : null,
-    diagnostics.validationIssues?.length ? `Validation notes:\n${diagnostics.validationIssues.join("\n")}` : null,
-    diagnostics.notes?.length ? `Planner notes:\n${diagnostics.notes.join("\n")}` : null,
-  ].filter(Boolean).join("\n\n");
-};
-
-function ProjectIntelligencePanel({
-  project,
-  screens,
-  generationRuns,
-  projectNavigation,
-  tokenDraft,
-  tokenDirty,
-  tokenSaving,
-  generationActive,
-  onTokenDraftChange,
-  onSaveTokens,
-  onDiscardTokens,
-  onClose,
-}: {
-  project: ProjectData;
-  screens: ScreenData[];
-  generationRuns: GenerationRunData[];
-  projectNavigation: ProjectNavigationData | null;
-  tokenDraft: DesignTokens | null;
-  tokenDirty: boolean;
-  tokenSaving: boolean;
-  generationActive: boolean;
-  onTokenDraftChange: (tokens: DesignTokens) => void;
-  onSaveTokens: () => Promise<void>;
-  onDiscardTokens: () => void;
-  onClose: () => void;
-}) {
-  const [activeTab, setActiveTab] = useState<ProjectPanelTab>("design");
-  const latestPlannedScreens = useMemo(() => getLatestPlannedScreens(generationRuns), [generationRuns]);
-  const screenPlanRows: Array<ScreenData | ScreenPlan> = screens.length > 0 ? screens : latestPlannedScreens;
-  const charter = project.charter;
-  const hasTokens = Boolean(tokenDraft && hasApprovedDesignTokens(tokenDraft));
-
-  return (
-    <aside className="fixed inset-0 z-[72] flex flex-col overflow-hidden border border-slate-950/[0.1] bg-white/98 shadow-[0_24px_90px_rgba(15,23,42,0.2)] backdrop-blur-xl sm:inset-y-4 sm:left-auto sm:right-4 sm:w-[min(760px,calc(100vw-2rem))] sm:rounded-[22px]">
-      <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-950/[0.08] px-5 py-4">
-        <div className="min-w-0">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#667894]">Project Intelligence</div>
-          <div className="truncate text-lg font-semibold text-slate-950">{project.name}</div>
-        </div>
-        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 rounded-full text-slate-500" onClick={onClose}>
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
-
-      <div className="grid shrink-0 grid-cols-4 gap-1 border-b border-slate-950/[0.08] bg-[#f7f7f8] p-2.5">
-        {PROJECT_PANEL_TABS.map((tab) => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex h-11 items-center justify-center gap-1.5 rounded-[12px] text-[11px] font-semibold transition ${activeTab === tab.id ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:bg-white/70"}`}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">{tab.label}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        {activeTab === "design" ? (
-          hasTokens && tokenDraft ? (
-            <div className="space-y-4">
-              <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-slate-950/[0.08] bg-white/95 px-4 py-3 shadow-[0_12px_36px_rgba(15,23,42,0.08)] backdrop-blur-xl">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
-                    <Eye className="h-4 w-4 text-[#667894]" />
-                    Live on canvas
-                  </div>
-                  <div className="text-xs leading-5 text-slate-500">
-                    Token drafts update real screen iframes immediately. Save persists the system.
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" className="h-9 rounded-[10px] gap-2" disabled={!tokenDirty || tokenSaving} onClick={onDiscardTokens}>
-                    <RotateCcw className="h-3.5 w-3.5" />
-                    Discard
-                  </Button>
-                  <Button className="h-9 rounded-[10px] gap-2" disabled={!tokenDirty || tokenSaving || generationActive} onClick={() => void onSaveTokens()}>
-                    {tokenSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                    Save
-                  </Button>
-                </div>
-                {generationActive ? (
-                  <div className="w-full rounded-[10px] bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
-                    A generation is running. Preview is live, but save is locked so in-flight screens keep a stable token snapshot.
-                  </div>
-                ) : null}
-              </div>
-              <DesignSystemEditor
-                value={tokenDraft}
-                onChange={onTokenDraftChange}
-                onSubmit={onSaveTokens}
-                title="Design System"
-                description="Exact project tokens. Linked screens and navigation read these values through Drawgle CSS variables."
-                submitLabel={tokenDirty ? "Save Tokens" : "Tokens Saved"}
-                isSubmitting={tokenSaving}
-                submitStatus="Saving live token system..."
-                layout="panel"
-                showPreview={false}
-              />
-            </div>
-          ) : (
-            <div className="rounded-[14px] border border-dashed border-slate-300 bg-[#fbfbfc] px-4 py-8 text-center text-sm text-slate-500">
-              Design tokens will appear here as soon as the generation job finishes design analysis.
-            </div>
-          )
-        ) : null}
-
-        {activeTab === "charter" ? (
-          <div className="space-y-3">
-            <MetadataField label="Original intent" value={charter?.originalPrompt ?? project.prompt} />
-            <MetadataField label="Reference image analysis" value={charter?.imageReferenceSummary} />
-            <MetadataField label="Reference screens" value={formatReferenceScreens(charter?.referenceScreens)} />
-            <MetadataField label="Visual DNA" value={formatDesignSystemSignals(charter?.designSystemSignals)} />
-            <MetadataField label="App type" value={charter?.appType} />
-            <MetadataField label="Audience" value={charter?.targetAudience} />
-            <MetadataField label="Navigation model" value={charter?.navigationModel} />
-            <MetadataField label="Navigation architecture" value={formatNavigationArchitecture(charter?.navigationArchitecture)} />
-            <MetadataField label="Design rationale" value={charter?.designRationale} />
-            <MetadataField label="Creative direction" value={charter?.creativeDirection ? `${charter.creativeDirection.conceptName}\n${charter.creativeDirection.styleEssence}` : null} />
-            <MetadataField label="Color story" value={charter?.creativeDirection?.colorStory} />
-            <MetadataField label="Typography mood" value={charter?.creativeDirection?.typographyMood} />
-            <MetadataField label="Surface language" value={charter?.creativeDirection?.surfaceLanguage} />
-            <MetadataField label="Composition principles" value={charter?.creativeDirection?.compositionPrinciples?.join("\n")} />
-            <MetadataField label="Signature moments" value={charter?.creativeDirection?.signatureMoments?.join("\n")} />
-            <MetadataField label="Avoid" value={charter?.creativeDirection?.avoid?.join("\n")} />
-            <MetadataField label="Planning diagnostics" value={formatPlanningDiagnostics(charter?.planningDiagnostics)} />
-          </div>
-        ) : null}
-
-        {activeTab === "screens" ? (
-          <div className="space-y-3">
-            {screenPlanRows.map((screen, index) => {
-              const screenData = "id" in screen ? screen as ScreenData : null;
-              const plan = screen as unknown as ScreenPlan;
-              return (
-                <article key={`${screen.name}-${index}`} className="rounded-[14px] border border-slate-950/[0.08] bg-white px-4 py-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                        {screenData?.status ?? plan.type ?? "planned"}
-                      </div>
-                      <h3 className="mt-1 truncate text-lg font-semibold text-slate-950">{screen.name}</h3>
-                    </div>
-                    <span className="rounded-full bg-[#f7f7f8] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                      {screenData?.chromePolicy?.chrome ?? plan.chromePolicy?.chrome ?? plan.type}
-                    </span>
-                  </div>
-                  <p className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-600">{screenData?.prompt ?? plan.description}</p>
-                </article>
-              );
-            })}
-            {!screens.length && !latestPlannedScreens.length ? (
-              <div className="rounded-[14px] border border-dashed border-slate-300 bg-[#fbfbfc] px-4 py-8 text-center text-sm text-slate-500">
-                Screen planning will appear here when the builder finishes the planning step.
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-
-        {activeTab === "navigation" ? (
-          <div className="space-y-3">
-            <MetadataField label="Visual brief" value={projectNavigation?.plan?.visualBrief} />
-            <MetadataField label="State" value={projectNavigation?.plan?.enabled ? `${projectNavigation.plan.kind} shared navigation` : "No persistent project navigation"} />
-            {projectNavigation?.plan?.items?.map((item) => (
-              <div key={item.id} className="rounded-[14px] border border-slate-950/[0.08] bg-white px-4 py-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-semibold text-slate-950">{item.label}</div>
-                    <div className="text-xs text-slate-500">{item.role}</div>
-                  </div>
-                  <span className="rounded-full bg-[#f7f7f8] px-2.5 py-1 text-[10px] font-semibold text-slate-500">{item.icon}</span>
-                </div>
-                <div className="mt-2 text-xs text-slate-500">Linked screen: {item.linkedScreenName}</div>
-              </div>
-            ))}
-            {!projectNavigation ? (
-              <div className="rounded-[14px] border border-dashed border-slate-300 bg-[#fbfbfc] px-4 py-8 text-center text-sm text-slate-500">
-                Navigation planning will appear here once the project planner runs.
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
-    </aside>
-  );
-}
-
 async function enqueueGeneration(input: {
   projectId: string;
   prompt: string;
@@ -919,7 +621,6 @@ export function ProjectShell({
   const [selectionVersion, setSelectionVersion] = useState(0);
   const [editSession, setEditSession] = useState<ElementEditSession | null>(null);
   const [pendingElementSelection, setPendingElementSelection] = useState<PendingElementSelection | null>(null);
-  const [isProjectPanelOpen, setIsProjectPanelOpen] = useState(false);
   const [tokenDraft, setTokenDraft] = useState<DesignTokens | null>(() =>
     hasApprovedDesignTokens(initialProject.designTokens)
       ? normalizeDesignTokens(initialProject.designTokens)
@@ -1545,16 +1246,6 @@ export function ProjectShell({
               {project.name}
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsProjectPanelOpen(true)}
-            className="h-8 rounded-full dg-panel px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-600 backdrop-blur-xl hover:bg-white"
-          >
-            <Palette className="mr-2 h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Project System</span>
-            <span className="sm:hidden">System</span>
-          </Button>
         </div>
 
         <div className="relative h-full min-w-0 flex-1">
@@ -1573,23 +1264,6 @@ export function ProjectShell({
             onElementSelected={handleElementSelected}
             onElementSelectionLost={handleElementSelectionLost}
           />
-
-          {isProjectPanelOpen ? (
-            <ProjectIntelligencePanel
-              project={project}
-              screens={screens}
-              generationRuns={generationRuns}
-              projectNavigation={projectNavigation}
-              tokenDraft={tokenDraft}
-              tokenDirty={tokenDirty}
-              tokenSaving={tokenSaving}
-              generationActive={isGenerationActive}
-              onTokenDraftChange={handleTokenDraftChange}
-              onSaveTokens={handleSaveTokenDraft}
-              onDiscardTokens={handleDiscardTokenDraft}
-              onClose={() => setIsProjectPanelOpen(false)}
-            />
-          ) : null}
 
           <Dialog
             open={Boolean(pendingElementSelection)}
@@ -1644,6 +1318,14 @@ export function ProjectShell({
             selectedScreen={selectedScreen}
             generationRun={generationRun}
             generationRuns={generationRuns}
+            projectNavigation={projectNavigation}
+            tokenDraft={tokenDraft}
+            tokenDirty={tokenDirty}
+            tokenSaving={tokenSaving}
+            generationActive={isGenerationActive}
+            onTokenDraftChange={handleTokenDraftChange}
+            onSaveTokens={handleSaveTokenDraft}
+            onDiscardTokens={handleDiscardTokenDraft}
             isQueueing={isQueueingGeneration || Boolean(pendingQueuedRunId)}
             queueError={queueError ?? selectionNotice}
             retryDisabled={isCanvasInteractionLocked}
