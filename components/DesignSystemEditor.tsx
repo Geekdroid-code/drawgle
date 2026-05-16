@@ -39,6 +39,11 @@ const TYPOGRAPHY_STYLES = [
 const SPACING_KEYS = ["xxs", "xs", "sm", "md", "lg", "xl", "xxl"] as const;
 const LAYOUT_KEYS = ["screen_margin", "section_gap", "element_gap"] as const;
 const SIZE_KEYS = ["standard_button_height", "standard_input_height", "icon_small", "icon_standard", "bottom_nav_height"] as const;
+const OPACITY_KEYS = [
+  { key: "disabled", label: "Disabled", fallback: "0.38" },
+  { key: "pressed", label: "Pressed", fallback: "0.12" },
+  { key: "scrim_overlay", label: "Scrim overlay", fallback: "0.50" },
+] as const;
 
 type EditorTab = "colors" | "type" | "spacing" | "shape";
 type MobileView = "tokens" | "preview";
@@ -81,6 +86,13 @@ const parsePixelToken = (value: string, fallback: number) => {
 const clampNumber = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 const serializePixelToken = (value: number, min: number, max: number) => `${clampNumber(Math.round(value), min, max)}px`;
+
+const parseOpacityToken = (value: string, fallback: number) => {
+  const parsed = Number.parseFloat(value.trim());
+  return Number.isFinite(parsed) ? clampNumber(parsed, 0, 1) : fallback;
+};
+
+const serializeOpacityToken = (value: number) => clampNumber(value, 0, 1).toFixed(2);
 
 type RgbColor = { r: number; g: number; b: number };
 type HsvColor = { h: number; s: number; v: number };
@@ -281,6 +293,11 @@ export function DesignSystemEditor({
   const actionPrimary = tokens.color?.action?.primary || "#000000";
   const actionSecondary = tokens.color?.action?.secondary || "#333333";
   const actionText = tokens.color?.action?.on_primary_text || "#ffffff";
+  const raisedBg = tokens.color?.background?.surface_elevated || secondaryBg;
+  const actionLabel = tokens.color?.text?.action_label || actionPrimary;
+  const actionGradientStart = tokens.color?.action?.primary_gradient_start || actionPrimary;
+  const actionGradientEnd = tokens.color?.action?.primary_gradient_end || actionSecondary;
+  const actionOnSurface = tokens.color?.action?.on_surface_white_bg || actionPrimary;
   const cardBg = tokens.color?.surface?.card || "#ffffff";
   const borderDivider = tokens.color?.border?.divider || "#e5e7eb";
   const radius = tokens.radii?.app || "18px";
@@ -381,9 +398,10 @@ export function DesignSystemEditor({
           <div className={`${isPanel ? "overflow-visible" : "overflow-y-auto"} min-h-0 flex-1 py-4`}>
             {activeTab === "colors" ? (
               <div className={`grid gap-4 ${isPanel ? "" : "xl:grid-cols-2"}`}>
-                <TokenGroup label="Background" panel={isPanel}>
+                <TokenGroup label="Foundation" panel={isPanel}>
                   <ColorField label="Primary" value={primaryBg} tokenPath={["color", "background", "primary"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "background", "primary"], nextValue)} />
                   <ColorField label="Secondary" value={secondaryBg} tokenPath={["color", "background", "secondary"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "background", "secondary"], nextValue)} />
+                  <ColorField label="Raised" value={raisedBg} tokenPath={["color", "background", "surface_elevated"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "background", "surface_elevated"], nextValue)} />
                 </TokenGroup>
                 <TokenGroup label="Surfaces" panel={isPanel}>
                   <ColorField label="Card" value={cardBg} tokenPath={["color", "surface", "card"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "surface", "card"], nextValue)} />
@@ -391,19 +409,44 @@ export function DesignSystemEditor({
                   <ColorField label="Modal" value={tokens.color?.surface?.modal || "#ffffff"} tokenPath={["color", "surface", "modal"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "surface", "modal"], nextValue)} />
                 </TokenGroup>
                 <TokenGroup label="Text" panel={isPanel}>
-                  <ColorField label="High" value={primaryText} tokenPath={["color", "text", "high_emphasis"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "text", "high_emphasis"], nextValue)} />
-                  <ColorField label="Medium" value={mediumText} tokenPath={["color", "text", "medium_emphasis"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "text", "medium_emphasis"], nextValue)} />
-                  <ColorField label="Low" value={lowText} tokenPath={["color", "text", "low_emphasis"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "text", "low_emphasis"], nextValue)} />
+                  <ColorField label="Primary text" value={primaryText} tokenPath={["color", "text", "high_emphasis"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "text", "high_emphasis"], nextValue)} />
+                  <ColorField label="Muted text" value={mediumText} tokenPath={["color", "text", "medium_emphasis"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "text", "medium_emphasis"], nextValue)} />
+                  <ColorField label="Subtle text" value={lowText} tokenPath={["color", "text", "low_emphasis"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "text", "low_emphasis"], nextValue)} />
+                  <ColorField label="Action label" value={actionLabel} tokenPath={["color", "text", "action_label"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "text", "action_label"], nextValue)} />
                 </TokenGroup>
                 <TokenGroup label="Actions" panel={isPanel}>
                   <ColorField label="Primary" value={actionPrimary} tokenPath={["color", "action", "primary"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "action", "primary"], nextValue)} />
                   <ColorField label="Secondary" value={actionSecondary} tokenPath={["color", "action", "secondary"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "action", "secondary"], nextValue)} />
-                  <ColorField label="On Primary" value={actionText} tokenPath={["color", "action", "on_primary_text"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "action", "on_primary_text"], nextValue)} />
+                  <ColorField label="Foreground" value={actionText} tokenPath={["color", "action", "on_primary_text"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "action", "on_primary_text"], nextValue)} />
+                  <ColorField label="Surface action" value={actionOnSurface} tokenPath={["color", "action", "on_surface_white_bg"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "action", "on_surface_white_bg"], nextValue)} />
+                  <ColorField label="Gradient start" value={actionGradientStart} tokenPath={["color", "action", "primary_gradient_start"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "action", "primary_gradient_start"], nextValue)} />
+                  <ColorField label="Gradient end" value={actionGradientEnd} tokenPath={["color", "action", "primary_gradient_end"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "action", "primary_gradient_end"], nextValue)} />
                   <ColorField label="Disabled" value={tokens.color?.action?.disabled || "#e5e7eb"} tokenPath={["color", "action", "disabled"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "action", "disabled"], nextValue)} />
                 </TokenGroup>
                 <TokenGroup label="Borders" panel={isPanel}>
                   <ColorField label="Divider" value={borderDivider} tokenPath={["color", "border", "divider"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "border", "divider"], nextValue)} />
                   <ColorField label="Focused" value={tokens.color?.border?.focused || "#111827"} tokenPath={["color", "border", "focused"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "border", "focused"], nextValue)} />
+                  <ShapeMetricRow
+                    label="Border width"
+                    value={tokens.border_widths?.standard || ""}
+                    min={0}
+                    max={8}
+                    preview="border"
+                    panel={isPanel}
+                    onChange={(nextValue) => handleUpdateToken(["border_widths", "standard"], nextValue)}
+                  />
+                </TokenGroup>
+                <TokenGroup label="States" panel={isPanel}>
+                  {OPACITY_KEYS.map(({ key, label, fallback }) => (
+                    <OpacityMetricRow
+                      key={key}
+                      label={label}
+                      value={tokens.opacities?.[key] || fallback}
+                      fallback={Number.parseFloat(fallback)}
+                      panel={isPanel}
+                      onChange={(nextValue) => handleUpdateToken(["opacities", key], nextValue)}
+                    />
+                  ))}
                 </TokenGroup>
               </div>
             ) : null}
@@ -455,6 +498,7 @@ export function DesignSystemEditor({
                       value={tokens.spacing?.[key] || ""}
                       min={0}
                       max={96}
+                      panel={isPanel}
                       onChange={(nextValue) => handleUpdateToken(["spacing", key], nextValue)}
                     />
                   ))}
@@ -468,6 +512,7 @@ export function DesignSystemEditor({
                       min={0}
                       max={120}
                       preview="layout"
+                      panel={isPanel}
                       onChange={(nextValue) => handleUpdateToken(["mobile_layout", key], nextValue)}
                     />
                   ))}
@@ -481,6 +526,7 @@ export function DesignSystemEditor({
                       min={8}
                       max={140}
                       preview="component"
+                      panel={isPanel}
                       onChange={(nextValue) => handleUpdateToken(["sizing", key], nextValue)}
                     />
                   ))}
@@ -513,17 +559,6 @@ export function DesignSystemEditor({
                     preview="pill"
                     panel={isPanel}
                     onChange={(nextValue) => handleUpdateToken(["radii", "pill"], nextValue)}
-                  />
-                </TokenGroup>
-                <TokenGroup label="Surface Outline" panel={isPanel}>
-                  <ShapeMetricRow
-                    label="Standard border"
-                    value={tokens.border_widths?.standard || ""}
-                    min={0}
-                    max={8}
-                    preview="border"
-                    panel={isPanel}
-                    onChange={(nextValue) => handleUpdateToken(["border_widths", "standard"], nextValue)}
                   />
                 </TokenGroup>
                 <TokenGroup label="Elevation" panel={isPanel}>
@@ -588,12 +623,12 @@ export function DesignSystemEditor({
 
 function TokenGroup({ label, children, panel = false }: { label: string; children: ReactNode; panel?: boolean }) {
   return (
-    <div className={`${panel ? "rounded-[16px] p-4" : "rounded-[14px] p-3"} border border-slate-950/[0.08] bg-[#fbfbfc]`}>
-      <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+    <div className={`${panel ? "overflow-hidden rounded-[14px]" : "rounded-[14px] p-3"} border border-slate-950/[0.08] bg-[#fbfbfc]`}>
+      <div className={`${panel ? "border-b border-slate-950/[0.06] bg-white/65 px-3 py-2" : "mb-3"} flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500`}>
         <Layers className="h-3.5 w-3.5" />
         {label}
       </div>
-      <div className={`grid gap-2 ${panel ? "grid-cols-1" : "grid-cols-2 sm:grid-cols-3"}`}>{children}</div>
+      <div className={`${panel ? "divide-y divide-slate-950/[0.06]" : "grid gap-2 grid-cols-2 sm:grid-cols-3"}`}>{children}</div>
     </div>
   );
 }
@@ -612,9 +647,8 @@ export function ColorPickerButton({
   const normalizedValue = normalizeHex(value) ?? "#000000";
   const [isOpen, setIsOpen] = useState(false);
   const [hexDraftState, setHexDraftState] = useState({ source: normalizedValue, value: normalizedValue });
-  const [previousColor, setPreviousColor] = useState(normalizedValue);
   const fieldRef = useRef<HTMLDivElement>(null);
-  const [pickerStyle, setPickerStyle] = useState({ left: 12, top: 12, width: 320, maxHeight: 520 });
+  const [pickerStyle, setPickerStyle] = useState({ left: 12, top: 12, width: 304, maxHeight: 360 });
   const hexDraft = hexDraftState.source === normalizedValue ? hexDraftState.value : normalizedValue;
   const rgb = getRgbFallback(normalizedValue);
   const hsv = rgbToHsv(rgb);
@@ -634,12 +668,12 @@ export function ColorPickerButton({
       const gutter = 12;
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
-      const width = Math.min(360, Math.max(280, viewportWidth - gutter * 2));
+      const width = Math.min(304, Math.max(260, viewportWidth - gutter * 2));
       const preferredLeft = rect.right > viewportWidth - width / 2
         ? rect.right - width
         : rect.left;
       const left = clampNumber(preferredLeft, gutter, viewportWidth - width - gutter);
-      const estimatedHeight = 430;
+      const estimatedHeight = 282;
       const preferredTop = rect.bottom + 8;
       const top = preferredTop + estimatedHeight > viewportHeight - gutter
         ? Math.max(gutter, rect.top - estimatedHeight - 8)
@@ -697,7 +731,6 @@ export function ColorPickerButton({
         onClick={(event) => {
           event.preventDefault();
           event.stopPropagation();
-          setPreviousColor(normalizedValue);
           setIsOpen((current) => !current);
         }}
       />
@@ -719,7 +752,7 @@ export function ColorPickerButton({
             aria-valuemax={100}
             aria-valuenow={Math.round(hsv.s * 100)}
             tabIndex={0}
-            className="relative h-40 cursor-crosshair overflow-hidden rounded-[14px] border border-slate-950/[0.08]"
+            className="relative h-28 cursor-crosshair overflow-hidden rounded-[14px] border border-slate-950/[0.08]"
             style={{
               backgroundColor: rgbToHex(hsvToRgb({ h: hsv.h, s: 1, v: 1 })),
               backgroundImage: "linear-gradient(90deg, #FFFFFF, rgba(255,255,255,0)), linear-gradient(0deg, #000000, rgba(0,0,0,0))",
@@ -740,8 +773,8 @@ export function ColorPickerButton({
             />
           </div>
 
-          <div className="mt-3 grid grid-cols-[42px_minmax(0,1fr)] items-center gap-3">
-            <div className="h-10 w-10 rounded-[14px] border border-slate-950/[0.1]" style={{ backgroundColor: normalizedValue }} />
+          <div className="mt-3 grid grid-cols-[36px_minmax(0,1fr)] items-center gap-3">
+            <div className="h-9 w-9 rounded-[12px] border border-slate-950/[0.1] shadow-inner" style={{ backgroundColor: normalizedValue }} />
             <input
               type="range"
               min={0}
@@ -752,10 +785,7 @@ export function ColorPickerButton({
             />
           </div>
 
-          <div className="mt-3 grid grid-cols-4 gap-2">
-            <ColorNumberField label="R" value={rgb.r} onChange={(nextValue) => commitRgb({ ...rgb, r: nextValue })} />
-            <ColorNumberField label="G" value={rgb.g} onChange={(nextValue) => commitRgb({ ...rgb, g: nextValue })} />
-            <ColorNumberField label="B" value={rgb.b} onChange={(nextValue) => commitRgb({ ...rgb, b: nextValue })} />
+          <div className="mt-3 grid grid-cols-[minmax(0,1fr)_76px] items-end gap-2">
             <label className="space-y-1">
               <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Hex</span>
               <input
@@ -765,18 +795,9 @@ export function ColorPickerButton({
                 className={`h-9 w-full rounded-[10px] border bg-[#fbfbfc] px-2 font-mono text-xs uppercase outline-none transition focus:bg-white ${isHexValid ? "border-slate-950/[0.08] focus:border-[#002fa7]/40" : "border-rose-300 text-rose-600"}`}
               />
             </label>
-          </div>
-
-          <div className="mt-3 flex items-center justify-between border-t border-slate-950/[0.08] pt-3">
-            <div className="flex items-center gap-2 text-[11px] font-medium text-slate-500">
-              <span className="h-5 w-5 rounded-full border border-slate-950/[0.1]" style={{ backgroundColor: previousColor }} />
-              Previous
-              <span className="h-5 w-5 rounded-full border border-slate-950/[0.1]" style={{ backgroundColor: normalizedValue }} />
-              Current
-            </div>
             <button
               type="button"
-              className="rounded-[11px] border border-slate-950/[0.08] bg-slate-950 px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
+              className="h-9 rounded-[11px] border border-slate-950/[0.08] bg-slate-950 px-3 text-xs font-semibold text-white transition hover:bg-slate-800"
               onClick={() => setIsOpen(false)}
             >
               Done
@@ -822,6 +843,33 @@ function ColorField({
     onChange(nextHex);
   };
 
+  if (panel) {
+    return (
+      <div className="relative" title={tokenPathLabel ? `${tokenPathLabel}${cssVariableName ? ` / ${cssVariableName}` : ""}` : undefined}>
+        <div className={`group flex min-h-[50px] items-center gap-3 bg-white px-3 py-2 transition hover:bg-[#f8fafc] ${isHexValid ? "" : "bg-rose-50"}`}>
+          <ColorPickerButton
+            label={label}
+            value={normalizedValue}
+            onChange={commitPickerColor}
+            className="h-8 w-8 shrink-0 rounded-full border border-slate-950/[0.1] shadow-inner ring-2 ring-white"
+          />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[13px] font-semibold text-slate-900">{label}</div>
+            <div className="mt-0.5 truncate text-[11px] text-slate-500">Tap swatch to edit</div>
+          </div>
+          <input
+            type="text"
+            value={hexDraft}
+            aria-label={`${label} hex value`}
+            onChange={(event) => commitHex(event.target.value)}
+            className="h-8 w-[92px] shrink-0 rounded-[9px] border border-transparent bg-transparent px-2 text-right font-mono text-[11px] uppercase text-slate-500 outline-none transition focus:border-slate-950/[0.1] focus:bg-white focus:text-slate-950"
+          />
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 -rotate-90 text-slate-300 transition group-hover:text-slate-500" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative">
       <div className={`group flex gap-3 rounded-[12px] border bg-white transition hover:border-slate-950/[0.18] ${panel ? "items-center px-3 py-3" : "items-center px-2 py-2"} ${isHexValid ? "border-slate-950/[0.08]" : "border-rose-300"}`}>
@@ -850,22 +898,6 @@ function ColorField({
         </label>
       </div>
     </div>
-  );
-}
-
-function ColorNumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
-  return (
-    <label className="space-y-1">
-      <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">{label}</span>
-      <input
-        type="number"
-        min={0}
-        max={255}
-        value={Math.round(value)}
-        onChange={(event) => onChange(clampNumber(Number(event.target.value), 0, 255))}
-        className="h-9 w-full rounded-[10px] border border-slate-950/[0.08] bg-[#fbfbfc] px-2 font-mono text-xs text-slate-900 outline-none transition focus:border-[#002fa7]/40 focus:bg-white"
-      />
-    </label>
   );
 }
 
@@ -919,20 +951,23 @@ function TypographyRow({
   const sizeNumber = parsePixelToken(size, fallbackSize);
   const lineNumber = parsePixelToken(lineHeight, Math.round(sizeNumber * 1.35));
   const resolvedWeight = weight || "400";
+  const [expanded, setExpanded] = useState(false);
 
   if (panel) {
     return (
-      <div className="grid gap-3 border-b border-slate-950/[0.06] px-4 py-4 last:border-b-0">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="border-b border-slate-950/[0.06] bg-white last:border-b-0">
+        <button
+          type="button"
+          className="flex min-h-[54px] w-full items-center justify-between gap-3 px-3 py-2 text-left transition hover:bg-[#f8fafc]"
+          onClick={() => setExpanded((current) => !current)}
+        >
           <div className="min-w-0">
-            <div className="text-sm font-semibold text-slate-900">{label}</div>
-            <div className="mt-0.5 font-mono text-[11px] text-slate-400">
-              typography.{TYPOGRAPHY_STYLES.find((style) => style.label === label)?.key ?? label.toLowerCase().replace(/\s+/g, "_")}
-            </div>
+            <div className="truncate text-[13px] font-semibold text-slate-900">{label}</div>
+            <div className="mt-0.5 truncate text-[11px] text-slate-500">{sizeNumber}px / {lineNumber}px / {resolvedWeight}</div>
           </div>
-          <div className="rounded-[10px] border border-slate-950/[0.06] bg-[#fbfbfc] px-3 py-2 text-right text-slate-950">
+          <div className="flex min-w-0 shrink-0 items-center gap-2">
             <div
-              className="max-w-[220px] truncate"
+              className="max-w-[148px] truncate rounded-[10px] bg-[#f4f6f8] px-2.5 py-1.5 text-slate-950"
               style={{
                 fontSize: `${Math.min(sizeNumber, 30)}px`,
                 fontWeight: Number(resolvedWeight),
@@ -941,25 +976,28 @@ function TypographyRow({
             >
               {sample}
             </div>
+            <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition ${expanded ? "rotate-180" : ""}`} />
           </div>
-        </div>
-        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_178px_minmax(0,1fr)]">
-          <TokenMetricField
-            label={`${label} size`}
-            value={size}
-            min={8}
-            max={72}
-            onChange={onSizeChange}
-          />
-          <FontWeightControl value={resolvedWeight} onChange={onWeightChange} />
-          <TokenMetricField
-            label={`${label} line height`}
-            value={lineHeight}
-            min={10}
-            max={96}
-            onChange={onLineHeightChange}
-          />
-        </div>
+        </button>
+        {expanded ? (
+          <div className="grid gap-2 border-t border-slate-950/[0.06] bg-[#fbfbfc] px-3 py-3">
+            <TokenMetricField
+              label={`${label} size`}
+              value={size}
+              min={8}
+              max={72}
+              onChange={onSizeChange}
+            />
+            <FontWeightControl value={resolvedWeight} onChange={onWeightChange} />
+            <TokenMetricField
+              label={`${label} line height`}
+              value={lineHeight}
+              min={10}
+              max={96}
+              onChange={onLineHeightChange}
+            />
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -1005,6 +1043,7 @@ function SpacingMetricRow({
   min,
   max,
   preview = "spacing",
+  panel = false,
   onChange,
 }: {
   label: string;
@@ -1012,9 +1051,41 @@ function SpacingMetricRow({
   min: number;
   max: number;
   preview?: "spacing" | "layout" | "component";
+  panel?: boolean;
   onChange: (value: string) => void;
 }) {
   const numericValue = parsePixelToken(value, min);
+  const [expanded, setExpanded] = useState(false);
+
+  if (panel) {
+    return (
+      <div className="bg-white">
+        <button
+          type="button"
+          className="flex min-h-[52px] w-full items-center gap-3 px-3 py-2 text-left transition hover:bg-[#f8fafc]"
+          onClick={() => setExpanded((current) => !current)}
+        >
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[13px] font-semibold capitalize text-slate-900">{label}</div>
+            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[#e9edf2]">
+              <div
+                className="h-full rounded-full bg-slate-950 transition-all"
+                style={{ width: `${clampNumber((numericValue / max) * 100, 4, 100)}%` }}
+              />
+            </div>
+          </div>
+          <span className="shrink-0 rounded-full bg-[#f1f3f6] px-2 py-1 font-mono text-[11px] text-slate-600">{serializePixelToken(numericValue, min, max)}</span>
+          <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition ${expanded ? "rotate-180" : ""}`} />
+        </button>
+        {expanded ? (
+          <div className="grid gap-2 border-t border-slate-950/[0.06] bg-[#fbfbfc] px-3 py-3">
+            <TokenMetricField label={label} value={value} min={min} max={max} onChange={onChange} />
+            <SpacingPreview value={numericValue} variant={preview} />
+          </div>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className="col-span-full grid gap-2 rounded-[12px] border border-slate-950/[0.06] bg-white p-2 sm:grid-cols-[minmax(0,1fr)_154px_120px] sm:items-center">
@@ -1061,6 +1132,86 @@ function SpacingPreview({ value, variant }: { value: number; variant: "spacing" 
   );
 }
 
+function OpacityMetricRow({
+  label,
+  value,
+  fallback,
+  panel = false,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  fallback: number;
+  panel?: boolean;
+  onChange: (value: string) => void;
+}) {
+  const numericValue = parseOpacityToken(value, fallback);
+  const percentValue = Math.round(numericValue * 100);
+  const [expanded, setExpanded] = useState(false);
+  const updateValue = (nextPercent: number) => onChange(serializeOpacityToken(nextPercent / 100));
+
+  if (panel) {
+    return (
+      <div className="bg-white">
+        <button
+          type="button"
+          className="flex min-h-[52px] w-full items-center gap-3 px-3 py-2 text-left transition hover:bg-[#f8fafc]"
+          onClick={() => setExpanded((current) => !current)}
+        >
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[13px] font-semibold capitalize text-slate-900">{label}</div>
+            <div className="mt-0.5 font-mono text-[11px] text-slate-500">{percentValue}% opacity</div>
+          </div>
+          <OpacityPreview value={numericValue} compact />
+          <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition ${expanded ? "rotate-180" : ""}`} />
+        </button>
+        {expanded ? (
+          <div className="border-t border-slate-950/[0.06] bg-[#fbfbfc] px-3 py-3">
+            <ShadowSlider
+              label={label}
+              value={percentValue}
+              min={0}
+              max={100}
+              suffix="%"
+              panel
+              onChange={updateValue}
+            />
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="col-span-full grid gap-2 rounded-[12px] border border-slate-950/[0.06] bg-white p-2 sm:grid-cols-[minmax(0,1fr)_154px_120px] sm:items-center">
+      <div className="min-w-0">
+        <div className="truncate text-xs font-medium capitalize text-slate-800">{label}</div>
+        <div className="mt-0.5 font-mono text-[11px] text-slate-400">{percentValue}% opacity</div>
+      </div>
+      <ShadowSlider
+        label={label}
+        value={percentValue}
+        min={0}
+        max={100}
+        suffix="%"
+        onChange={updateValue}
+      />
+      <OpacityPreview value={numericValue} />
+    </div>
+  );
+}
+
+function OpacityPreview({ value, compact = false }: { value: number; compact?: boolean }) {
+  return (
+    <div className={`${compact ? "h-11 w-20" : "h-12"} flex shrink-0 items-center justify-center rounded-[10px] bg-[linear-gradient(45deg,#e5e7eb_25%,transparent_25%),linear-gradient(-45deg,#e5e7eb_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#e5e7eb_75%),linear-gradient(-45deg,transparent_75%,#e5e7eb_75%)] bg-[length:12px_12px] bg-[position:0_0,0_6px,6px_-6px,-6px_0]`}>
+      <div
+        className={`${compact ? "h-7 w-14" : "h-8 w-16"} rounded-[10px] bg-slate-950`}
+        style={{ opacity: clampNumber(value, 0, 1) }}
+      />
+    </div>
+  );
+}
+
 function ShapeMetricRow({
   label,
   value,
@@ -1079,20 +1230,28 @@ function ShapeMetricRow({
   onChange: (value: string) => void;
 }) {
   const numericValue = parsePixelToken(value, min);
+  const [expanded, setExpanded] = useState(false);
 
   if (panel) {
     return (
-      <div className="col-span-full rounded-[14px] border border-slate-950/[0.07] bg-white p-3 shadow-[0_1px_0_rgba(255,255,255,0.8)]">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <div className="truncate text-xs font-semibold capitalize text-slate-800">{label}</div>
-            <div className="mt-0.5 font-mono text-[11px] text-slate-400">{serializePixelToken(numericValue, min, max)}</div>
+      <div className="bg-white">
+        <button
+          type="button"
+          className="flex min-h-[52px] w-full items-center gap-3 px-3 py-2 text-left transition hover:bg-[#f8fafc]"
+          onClick={() => setExpanded((current) => !current)}
+        >
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[13px] font-semibold capitalize text-slate-900">{label}</div>
+            <div className="mt-0.5 font-mono text-[11px] text-slate-500">{serializePixelToken(numericValue, min, max)}</div>
           </div>
           <ShapePreview value={numericValue} variant={preview} compact />
-        </div>
-        <div className="mt-3">
-          <TokenMetricField label={label} value={value} min={min} max={max} onChange={onChange} />
-        </div>
+          <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition ${expanded ? "rotate-180" : ""}`} />
+        </button>
+        {expanded ? (
+          <div className="border-t border-slate-950/[0.06] bg-[#fbfbfc] px-3 py-3">
+            <TokenMetricField label={label} value={value} min={min} max={max} onChange={onChange} />
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -1142,9 +1301,74 @@ function ShadowField({
   onChange: (value: string) => void;
 }) {
   const shadowParts = parseCssShadow(value);
+  const [expanded, setExpanded] = useState(false);
   const updateShadow = (partial: Partial<ShadowParts>) => {
     onChange(serializeCssShadow({ ...shadowParts, ...partial }));
   };
+
+  if (panel) {
+    return (
+      <div className="bg-white">
+        <button
+          type="button"
+          className="flex min-h-[58px] w-full items-center gap-3 px-3 py-2 text-left transition hover:bg-[#f8fafc]"
+          onClick={() => setExpanded((current) => !current)}
+        >
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[13px] font-semibold capitalize text-slate-900">{label}</div>
+            <div className="mt-0.5 truncate font-mono text-[11px] text-slate-500">{serializeCssShadow(shadowParts)}</div>
+          </div>
+          <div className="flex h-10 w-16 shrink-0 items-center justify-center rounded-[10px] bg-[#f1f3f6]">
+            <div
+              className="h-6 w-10 border border-slate-950/[0.08] bg-white"
+              style={{ borderRadius: previewRadius, boxShadow: serializeCssShadow(shadowParts) }}
+            />
+          </div>
+          <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition ${expanded ? "rotate-180" : ""}`} />
+        </button>
+        {expanded ? (
+          <div className="grid gap-3 border-t border-slate-950/[0.06] bg-[#fbfbfc] px-3 py-3">
+            <div className="flex flex-wrap gap-1.5">
+              {SHADOW_PRESETS.map((preset) => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  className="rounded-full border border-slate-950/[0.08] bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 transition hover:border-slate-950/[0.16] hover:text-slate-950"
+                  onClick={() => onChange(serializeCssShadow(preset.value))}
+                >
+                  {preset.label}
+                </button>
+              ))}
+              <button
+                type="button"
+                className="rounded-full border border-slate-950/[0.08] bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 transition hover:border-slate-950/[0.16] hover:text-slate-950"
+                onClick={() => onChange("none")}
+              >
+                None
+              </button>
+            </div>
+            <ShadowSlider label="Y" min={-40} max={40} value={shadowParts.y} panel={panel} onChange={(nextValue) => updateShadow({ y: nextValue, enabled: true })} />
+            <ShadowSlider label="Blur" min={0} max={96} value={shadowParts.blur} panel={panel} onChange={(nextValue) => updateShadow({ blur: nextValue, enabled: true })} />
+            <ShadowSlider
+              label="Opacity"
+              min={0}
+              max={60}
+              value={Math.round(shadowParts.opacity * 100)}
+              suffix="%"
+              panel={panel}
+              onChange={(nextValue) => updateShadow({ opacity: nextValue / 100, enabled: nextValue > 0 })}
+            />
+            <ColorField
+              label="Color"
+              value={shadowParts.color}
+              panel
+              onChange={(nextColor) => updateShadow({ color: nextColor, enabled: true })}
+            />
+          </div>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className="col-span-full grid gap-3 rounded-[16px] border border-slate-950/[0.06] bg-white p-3">
