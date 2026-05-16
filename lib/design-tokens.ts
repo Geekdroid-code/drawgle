@@ -217,7 +217,7 @@ const enforcePlatformConstraints = (tokens: DesignTokenValues | undefined) => {
   };
   next.shadows = {
     ...(legacyShadows as DesignTokenValues["shadows"]),
-    none: pickFirstString(legacyShadows.none, "none"),
+    none: "none",
     surface: pickFirstString(
       legacyShadows.surface,
       legacyShadows.md,

@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import { ensureDrawgleIds, stripDrawgleIds, type DrawgleBoundingRect, type DrawgleEditableMetadata } from "@/lib/drawgle-dom";
 import { deleteScreen, updateScreenPosition } from "@/lib/supabase/queries";
 import { hasSharedNavigation } from "@/lib/project-navigation";
-import { buildDrawgleTokenCss } from "@/lib/token-runtime";
+import { buildDrawgleTokenCss, buildGoogleFontAssetLinks, buildGoogleFontHref } from "@/lib/token-runtime";
 import { useRealtimeRunWithStreams } from "@trigger.dev/react-hooks";
 
 /** Data sent from the iframe when the user clicks an element in selection mode. */
@@ -425,11 +425,15 @@ export function ScreenNode({
   const lastNonEmptyNavigationCodeRef = useRef(navigationShellCode.trim() ? navigationShellCode : "");
   const activeNavigationItemId = sharedNavigationActive ? screen.navigationItemId ?? "" : "";
   const tokenCss = useMemo(() => buildDrawgleTokenCss(designTokens), [designTokens]);
+  const googleFontHref = useMemo(() => buildGoogleFontHref(designTokens), [designTokens]);
+  const googleFontAssetLinks = useMemo(() => buildGoogleFontAssetLinks(designTokens), [designTokens]);
   const [bootstrapContent] = useState(() => ({
     screenCode: displayCode,
     navigationShellCode,
     activeNavigationItemId,
     tokenCss,
+    googleFontHref,
+    googleFontAssetLinks,
   }));
   const iframeReadyRef = useRef(false);
 
@@ -451,11 +455,12 @@ export function ScreenNode({
         navigationCode: navigationCodeForRender,
         activeNavigationItemId,
         tokenCss,
+        googleFontHref,
         selectedDrawgleId: selectedDrawgleId ?? null,
       },
       "*",
     );
-  }, [activeNavigationItemId, displayCode, navigationShellCode, selectedDrawgleId, sharedNavigationActive, tokenCss]);
+  }, [activeNavigationItemId, displayCode, googleFontHref, navigationShellCode, selectedDrawgleId, sharedNavigationActive, tokenCss]);
 
   const handleExportCode = useCallback(() => {
     const cleanScreenCode = stripDrawgleIds(displayCode.trim() ? displayCode : lastNonEmptyDisplayCodeRef.current);
@@ -473,6 +478,7 @@ export function ScreenNode({
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script src="https://cdn.tailwindcss.com"><\/script>
     <script src="https://unpkg.com/lucide@latest"><\/script>
+    ${googleFontAssetLinks}
     <style>
 ${tokenCss}
       html, body { margin: 0; min-height: 100%; }
@@ -506,7 +512,7 @@ ${cleanScreenCode}
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
-  }, [activeNavigationItemId, displayCode, navigationShellCode, screen.name, sharedNavigationActive, tokenCss]);
+  }, [activeNavigationItemId, displayCode, googleFontAssetLinks, navigationShellCode, screen.name, sharedNavigationActive, tokenCss]);
 
   // ── Position sync from DB
   //
@@ -836,6 +842,8 @@ ${cleanScreenCode}
     const initialNavigationCode = bootstrapContent.navigationShellCode;
     const initialActiveNavigationItemId = bootstrapContent.activeNavigationItemId;
     const initialTokenCss = bootstrapContent.tokenCss;
+    const initialGoogleFontHref = bootstrapContent.googleFontHref;
+    const initialGoogleFontAssetLinks = bootstrapContent.googleFontAssetLinks;
 
     return `
     <!DOCTYPE html>
@@ -845,6 +853,7 @@ ${cleanScreenCode}
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <script id="drawgle-tailwind-cdn" src="https://cdn.tailwindcss.com" onerror="window.__drawgleTailwindLoadFailed = true"><\/script>
         <script src="https://unpkg.com/lucide@latest"><\/script>
+        ${initialGoogleFontAssetLinks}
         <style>
           html, body { width: 100%; height: 100%; margin: 0; padding: 0; overscroll-behavior: none; }
           body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow: hidden; }
@@ -872,6 +881,7 @@ ${cleanScreenCode}
           var initialNavigationCode = ${serializeForInlineScript(initialNavigationCode)};
           var initialActiveNavigationItemId = ${serializeForInlineScript(initialActiveNavigationItemId)};
           var initialTokenCss = ${serializeForInlineScript(initialTokenCss)};
+          var initialGoogleFontHref = ${serializeForInlineScript(initialGoogleFontHref)};
           var styleRuntimeReady = false;
           var queuedRenderPayload = null;
           var pendingSelectedDrawgleId = null;
@@ -983,6 +993,42 @@ ${cleanScreenCode}
             }
             if (styleEl.textContent !== (cssText || '')) {
               styleEl.textContent = cssText || '';
+            }
+          }
+
+          function applyGoogleFontHref(href) {
+            var existing = document.getElementById('drawgle-google-font');
+            if (!href) {
+              if (existing) existing.remove();
+              return;
+            }
+
+            if (!document.querySelector('link[data-drawgle-font-preconnect="googleapis"]')) {
+              var googleApis = document.createElement('link');
+              googleApis.rel = 'preconnect';
+              googleApis.href = 'https://fonts.googleapis.com';
+              googleApis.setAttribute('data-drawgle-font-preconnect', 'googleapis');
+              document.head.appendChild(googleApis);
+            }
+
+            if (!document.querySelector('link[data-drawgle-font-preconnect="gstatic"]')) {
+              var gstatic = document.createElement('link');
+              gstatic.rel = 'preconnect';
+              gstatic.href = 'https://fonts.gstatic.com';
+              gstatic.crossOrigin = '';
+              gstatic.setAttribute('data-drawgle-font-preconnect', 'gstatic');
+              document.head.appendChild(gstatic);
+            }
+
+            if (!existing) {
+              existing = document.createElement('link');
+              existing.id = 'drawgle-google-font';
+              existing.rel = 'stylesheet';
+              document.head.appendChild(existing);
+            }
+
+            if (existing.getAttribute('href') !== href) {
+              existing.setAttribute('href', href);
             }
           }
 
@@ -1100,18 +1146,21 @@ ${cleanScreenCode}
           document.addEventListener('touchmove', handleInteractTouchMove, { capture: true, passive: false });
 
           function applyRenderPayload(payload) {
+            applyGoogleFontHref(payload.googleFontHref || '');
             applyDesignTokenCss(payload.tokenCss || '');
             renderScreenContent(payload.code || '');
             renderNavigation(payload.navigationCode || '', payload.activeNavigationItemId || '');
             if (interactionModeActive) focusScreenContentHost();
           }
 
+          applyGoogleFontHref(initialGoogleFontHref || '');
           applyDesignTokenCss(initialTokenCss);
           queuedRenderPayload = {
             code: initialScreenCode,
             navigationCode: initialNavigationCode,
             activeNavigationItemId: initialActiveNavigationItemId,
             tokenCss: initialTokenCss,
+            googleFontHref: initialGoogleFontHref,
             selectedDrawgleId: null,
           };
 
@@ -1385,6 +1434,7 @@ ${cleanScreenCode}
                   navigationCode: event.data.navigationCode || '',
                   activeNavigationItemId: event.data.activeNavigationItemId || '',
                   tokenCss: event.data.tokenCss || '',
+                  googleFontHref: event.data.googleFontHref || '',
                   selectedDrawgleId: selectedBeforeRender,
                 };
                 pendingSelectedDrawgleId = selectedBeforeRender;
@@ -1397,6 +1447,7 @@ ${cleanScreenCode}
                 }
                 if (wasActive) enableSelection();
               } else if (event.data.type === 'updateDesignTokenCss') {
+                applyGoogleFontHref(event.data.googleFontHref || '');
                 applyDesignTokenCss(event.data.tokenCss || '');
               } else if (event.data.type === 'enableSelectionMode') {
                 enableSelection();
@@ -1428,6 +1479,8 @@ ${cleanScreenCode}
   `;
   }, [
     bootstrapContent.activeNavigationItemId,
+    bootstrapContent.googleFontAssetLinks,
+    bootstrapContent.googleFontHref,
     bootstrapContent.navigationShellCode,
     bootstrapContent.screenCode,
     bootstrapContent.tokenCss,

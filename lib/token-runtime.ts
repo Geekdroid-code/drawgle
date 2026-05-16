@@ -22,6 +22,34 @@ export type TokenPromptMode =
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
+const GENERIC_FONT_FAMILIES = new Set([
+  "sans-serif",
+  "serif",
+  "monospace",
+  "system-ui",
+  "ui-sans-serif",
+  "ui-serif",
+  "ui-monospace",
+  "-apple-system",
+  "blinkmacsystemfont",
+  "segoe ui",
+  "emoji",
+  "math",
+  "fangsong",
+]);
+
+const TYPOGRAPHY_TOKEN_KEYS = [
+  "nav_title",
+  "screen_title",
+  "hero_title",
+  "section_title",
+  "metric_value",
+  "body",
+  "supporting",
+  "caption",
+  "button_label",
+] as const;
+
 const kebab = (value: string) => value.replace(/_/g, "-").replace(/[^a-zA-Z0-9-]/g, "-").toLowerCase();
 
 const tokenPathToVariableName = (path: string) => {
@@ -40,6 +68,110 @@ const humanize = (value: string) =>
     .replace(/\b\w/g, (character) => character.toUpperCase());
 
 const escapeCssValue = (value: string) => value.replace(/[\n\r;]/g, " ").trim();
+
+const escapeHtmlAttribute = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+const parseFontFamilyList = (fontFamily?: string | null) => {
+  const value = fontFamily?.trim();
+  if (!value) {
+    return [];
+  }
+
+  const families: string[] = [];
+  let current = "";
+  let quote: string | null = null;
+
+  for (const character of value) {
+    if ((character === "'" || character === "\"") && !quote) {
+      quote = character;
+      continue;
+    }
+
+    if (quote === character) {
+      quote = null;
+      continue;
+    }
+
+    if (character === "," && !quote) {
+      if (current.trim()) {
+        families.push(current.trim());
+      }
+      current = "";
+      continue;
+    }
+
+    current += character;
+  }
+
+  if (current.trim()) {
+    families.push(current.trim());
+  }
+
+  return families
+    .map((family) => family.replace(/^['"]|['"]$/g, "").trim())
+    .filter(Boolean);
+};
+
+export const getPrimaryGoogleFontFamily = (designTokens?: DesignTokens | null) => {
+  const normalized = normalizeDesignTokens(designTokens ?? {});
+  const family = parseFontFamilyList(normalized.tokens?.typography?.font_family)[0];
+  if (!family) {
+    return null;
+  }
+
+  const lowerFamily = family.toLowerCase();
+  if (GENERIC_FONT_FAMILIES.has(lowerFamily) || lowerFamily.startsWith("var(")) {
+    return null;
+  }
+
+  if (!/^[\p{L}\p{N} ._-]+$/u.test(family)) {
+    return null;
+  }
+
+  return family;
+};
+
+export const buildGoogleFontHref = (designTokens?: DesignTokens | null) => {
+  const normalized = normalizeDesignTokens(designTokens ?? {});
+  const family = getPrimaryGoogleFontFamily(normalized);
+  if (!family) {
+    return null;
+  }
+
+  const weights = new Set<string>();
+  for (const key of TYPOGRAPHY_TOKEN_KEYS) {
+    const weight = normalized.tokens?.typography?.[key]?.weight;
+    const numericWeight = Number.parseInt(String(weight ?? ""), 10);
+    if (Number.isFinite(numericWeight)) {
+      weights.add(String(Math.min(1000, Math.max(1, numericWeight))));
+    }
+  }
+
+  const weightList = Array.from(weights).sort((first, second) => Number(first) - Number(second));
+  const encodedFamily = family.trim().replace(/\s+/g, "+");
+  const axis = weightList.length ? `:wght@${weightList.join(";")}` : "";
+
+  return `https://fonts.googleapis.com/css2?family=${encodedFamily}${axis}&display=swap`;
+};
+
+export const buildGoogleFontAssetLinks = (designTokens?: DesignTokens | null) => {
+  const href = buildGoogleFontHref(designTokens);
+  if (!href) {
+    return "";
+  }
+
+  const escapedHref = escapeHtmlAttribute(href);
+  return [
+    '<link rel="preconnect" href="https://fonts.googleapis.com" data-drawgle-font-preconnect="googleapis">',
+    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin data-drawgle-font-preconnect="gstatic">',
+    `<link id="drawgle-google-font" rel="stylesheet" href="${escapedHref}">`,
+  ].join("\n");
+};
 
 export function flattenDesignTokensToCssVariables(designTokens?: DesignTokens | null): CssVariable[] {
   const normalized = normalizeDesignTokens(designTokens ?? {});
