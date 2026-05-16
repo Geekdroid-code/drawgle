@@ -1,14 +1,13 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import {
   AlertCircle,
   Check,
   ChevronDown,
   Copy,
-  Download,
   FileText,
   Loader2,
   MessageCircle,
@@ -21,6 +20,7 @@ import {
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 
 import { AgentBall, AgentThinkingIndicator } from "@/components/AgentBall";
+import { DesignMdTab } from "@/components/DesignMdTab";
 import { DesignSystemEditor } from "@/components/DesignSystemEditor";
 import { AgentComposer } from "@/components/PromptBar";
 import { Button } from "@/components/ui/button";
@@ -812,166 +812,6 @@ function EmptyConversation({ isLoading }: { isLoading: boolean }) {
   return (
     <div className="px-5 py-4 text-[13px] leading-6 text-slate-500">
       I&apos;m ready. Tell me what to create or edit, and I&apos;ll talk through the work as it happens.
-    </div>
-  );
-}
-
-const buildDesignMdPayload = ({
-  project,
-  projectNavigation,
-  tokenDraft,
-}: {
-  project: ProjectData;
-  projectNavigation?: ProjectNavigationData | null;
-  tokenDraft?: DesignTokens | null;
-}) => ({
-  version: 1,
-  project: {
-    name: project.name,
-    prompt: project.prompt,
-    updatedAt: project.updatedAt,
-  },
-  designTokens: tokenDraft ?? project.designTokens ?? null,
-  projectCharter: project.charter ?? null,
-  navigationPlan: projectNavigation?.plan ?? null,
-});
-
-const buildDesignMdDocument = ({
-  project,
-  projectNavigation,
-  tokenDraft,
-}: {
-  project: ProjectData;
-  projectNavigation?: ProjectNavigationData | null;
-  tokenDraft?: DesignTokens | null;
-}) => {
-  const payload = buildDesignMdPayload({ project, projectNavigation, tokenDraft });
-
-  return JSON.stringify(payload, null, 2);
-};
-
-const JSON_CODE_TOKEN_PATTERN = /("(?:\\.|[^"\\])*"|true|false|null|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|[{}[\],:])/g;
-
-const renderHighlightedJson = (code: string) => {
-  const nodes: ReactNode[] = [];
-  let cursor = 0;
-
-  for (const match of code.matchAll(JSON_CODE_TOKEN_PATTERN)) {
-    const token = match[0];
-    const index = match.index ?? 0;
-
-    if (index > cursor) {
-      nodes.push(code.slice(cursor, index));
-    }
-
-    const isKey = token.startsWith("\"") && /^\s*:/.test(code.slice(index + token.length));
-    const className = isKey
-      ? "text-sky-300"
-      : token.startsWith("\"")
-        ? "text-emerald-300"
-        : token === "true" || token === "false"
-          ? "text-violet-300"
-          : token === "null"
-            ? "text-slate-500"
-            : /^-?\d/.test(token)
-              ? "text-amber-300"
-              : "text-slate-500";
-
-    nodes.push(
-      <span key={`${index}-${token}`} className={className}>
-        {token}
-      </span>,
-    );
-    cursor = index + token.length;
-  }
-
-  if (cursor < code.length) {
-    nodes.push(code.slice(cursor));
-  }
-
-  return nodes;
-};
-
-function DesignMdTab({
-  project,
-  projectNavigation,
-  tokenDraft,
-  tokenDirty,
-}: {
-  project: ProjectData;
-  projectNavigation?: ProjectNavigationData | null;
-  tokenDraft?: DesignTokens | null;
-  tokenDirty?: boolean;
-}) {
-  const [copied, setCopied] = useState(false);
-  const designMd = useMemo(
-    () => buildDesignMdDocument({ project, projectNavigation, tokenDraft }),
-    [project, projectNavigation, tokenDraft],
-  );
-  const highlightedDesignMd = useMemo(() => renderHighlightedJson(designMd), [designMd]);
-  const lineCount = useMemo(() => designMd.split("\n").length, [designMd]);
-  const status = tokenDirty ? "Includes unsaved token draft" : "Read-only project memory";
-
-  const handleCopy = async () => {
-    await navigator.clipboard?.writeText(designMd).catch(() => undefined);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1200);
-  };
-
-  const handleDownload = () => {
-    const blob = new Blob([designMd], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "design.md";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-  };
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col bg-[#f7f7f8]">
-      <div className="shrink-0 border-b border-slate-950/[0.08] bg-white/92 px-4 py-3 backdrop-blur-xl">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <FileText className="h-4 w-4 text-slate-500" />
-              <h2 className="truncate text-[13px] font-semibold text-slate-950">Design.md</h2>
-            </div>
-            <p className="mt-1 text-[11px] leading-5 text-slate-500">
-              {status} - {lineCount} lines
-            </p>
-          </div>
-          <div className="flex shrink-0 items-center gap-1.5">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-[10px] text-slate-500 hover:bg-slate-950/[0.05] hover:text-slate-950"
-              title="Copy Design.md"
-              onClick={() => void handleCopy()}
-            >
-              {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-[10px] text-slate-500 hover:bg-slate-950/[0.05] hover:text-slate-950"
-              title="Download design.md"
-              onClick={handleDownload}
-            >
-              <Download className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </div>
-      </div>
-      <div className="min-h-0 flex-1 overflow-auto bg-[#0d0f12]">
-        <pre className="min-h-full w-full whitespace-pre-wrap break-words px-5 py-4 font-mono text-[11px] leading-5 text-slate-200 [overflow-wrap:anywhere]">
-          <code>{highlightedDesignMd}</code>
-        </pre>
-      </div>
     </div>
   );
 }
