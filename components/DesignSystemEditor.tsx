@@ -360,8 +360,7 @@ export function DesignSystemEditor({
       </div> : null}
 
       <div className={shouldShowPreview ? `grid min-h-0 flex-1 gap-4 ${isPanel ? "" : "pt-4"} lg:grid-cols-[minmax(0,1fr)_340px]` : `min-h-0 flex-1 ${isPanel ? "" : "pt-4"}`}>
-        <section className={`${!shouldShowPreview || mobileView === "tokens" ? "flex" : "hidden"} min-h-0 flex-col rounded-[16px] border border-slate-950/[0.1] bg-white ${isPanel ? "overflow-visible" : "overflow-hidden"} ${shouldShowPreview ? "lg:flex" : ""}`}>
-          <div className="shrink-0 border-b border-slate-950/[0.08] bg-white px-3 py-2">
+        <section className={`${!shouldShowPreview || mobileView === "tokens" ? "flex" : "hidden"} min-h-0 flex-col  ${isPanel ? "overflow-visible" : "overflow-hidden"} ${shouldShowPreview ? "lg:flex" : ""}`}>
             <div className="grid grid-cols-4 gap-1 rounded-[12px] bg-[#f7f7f8] p-1">
               {EDITOR_TABS.map((tab) => (
                 <button
@@ -376,10 +375,10 @@ export function DesignSystemEditor({
                   <span className="hidden sm:inline">{tab.label}</span>
                 </button>
               ))}
-            </div>
+      
           </div>
 
-          <div className={`${isPanel ? "overflow-visible" : "overflow-y-auto"} min-h-0 flex-1 bg-white px-4 py-4`}>
+          <div className={`${isPanel ? "overflow-visible" : "overflow-y-auto"} min-h-0 flex-1 py-4`}>
             {activeTab === "colors" ? (
               <div className={`grid gap-4 ${isPanel ? "" : "xl:grid-cols-2"}`}>
                 <TokenGroup label="Background" panel={isPanel}>

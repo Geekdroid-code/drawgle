@@ -1,19 +1,18 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import {
   AlertCircle,
-  BookOpen,
   Check,
   ChevronDown,
   Copy,
-  Eye,
+  Download,
+  FileText,
   Loader2,
   MessageCircle,
   Minimize2,
-  Navigation,
   Palette,
   RotateCcw,
   Save,
@@ -84,13 +83,12 @@ type ConversationItem =
   | { id: string; kind: "thinking"; summary: ThinkingSummaryMetadata; timestamp?: string; live?: boolean }
   | { id: string; kind: "action"; step: AgentStepMetadata; sourceContent?: string; retryRun?: GenerationRunData; proposal?: ScreenPlanProposalMetadata | null; proposalMessageId?: string | null; timestamp?: string };
 
-type ChatWorkspaceTab = "chat" | "design" | "charter" | "navigation";
+type ChatWorkspaceTab = "chat" | "design" | "design-md";
 
 const CHAT_WORKSPACE_TABS: Array<{ id: ChatWorkspaceTab; label: string; icon: typeof MessageCircle }> = [
   { id: "chat", label: "Chat", icon: MessageCircle },
   { id: "design", label: "Design", icon: Palette },
-  { id: "charter", label: "Charter", icon: BookOpen },
-  { id: "navigation", label: "Nav", icon: Navigation },
+  { id: "design-md", label: "Design.md", icon: FileText },
 ];
 
 const isActiveGenerationRun = (run: GenerationRunData | null) =>
@@ -818,91 +816,161 @@ function EmptyConversation({ isLoading }: { isLoading: boolean }) {
   );
 }
 
-function IntelligenceField({ label, value }: { label: string; value?: string | null }) {
-  if (!value?.trim()) {
-    return null;
-  }
+const buildDesignMdPayload = ({
+  project,
+  projectNavigation,
+  tokenDraft,
+}: {
+  project: ProjectData;
+  projectNavigation?: ProjectNavigationData | null;
+  tokenDraft?: DesignTokens | null;
+}) => ({
+  version: 1,
+  project: {
+    name: project.name,
+    prompt: project.prompt,
+    updatedAt: project.updatedAt,
+  },
+  designTokens: tokenDraft ?? project.designTokens ?? null,
+  projectCharter: project.charter ?? null,
+  navigationPlan: projectNavigation?.plan ?? null,
+});
 
-  return (
-    <section className="rounded-[14px] border border-slate-950/[0.08] bg-white px-3 py-3">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">{label}</div>
-      <div className="mt-1 whitespace-pre-line text-[12px] leading-5 text-slate-700">{value}</div>
-    </section>
-  );
-}
+const buildDesignMdDocument = ({
+  project,
+  projectNavigation,
+  tokenDraft,
+}: {
+  project: ProjectData;
+  projectNavigation?: ProjectNavigationData | null;
+  tokenDraft?: DesignTokens | null;
+}) => {
+  const payload = buildDesignMdPayload({ project, projectNavigation, tokenDraft });
 
-const formatNavigationArchitecture = (architecture?: NavigationArchitecture | null) => {
-  if (!architecture) {
-    return null;
-  }
-
-  return [
-    `Kind: ${architecture.kind}`,
-    `Primary navigation: ${architecture.primaryNavigation}`,
-    `Root chrome: ${architecture.rootChrome}`,
-    `Detail chrome: ${architecture.detailChrome}`,
-    architecture.rationale ? `Rationale: ${architecture.rationale}` : null,
-    architecture.consistencyRules?.length ? `Consistency rules:\n${architecture.consistencyRules.map((rule) => `- ${rule}`).join("\n")}` : null,
-  ].filter(Boolean).join("\n\n");
+  return JSON.stringify(payload, null, 2);
 };
 
-function CharterTab({ project, projectNavigation }: { project: ProjectData; projectNavigation?: ProjectNavigationData | null }) {
-  const charter = project.charter;
-  const direction = charter?.creativeDirection;
+const JSON_CODE_TOKEN_PATTERN = /("(?:\\.|[^"\\])*"|true|false|null|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|[{}[\],:])/g;
 
-  return (
-    <div className="min-h-0 flex-1 overflow-y-auto bg-[#f7f7f8] px-3 py-3">
-      <div className="space-y-3">
-        <IntelligenceField label="Original intent" value={charter?.originalPrompt ?? project.prompt} />
-        <IntelligenceField label="App type" value={charter?.appType} />
-        <IntelligenceField label="Audience" value={charter?.targetAudience} />
-        <IntelligenceField label="Navigation model" value={charter?.navigationModel} />
-        <IntelligenceField label="Navigation architecture" value={formatNavigationArchitecture(charter?.navigationArchitecture)} />
-        <IntelligenceField label="Design rationale" value={charter?.designRationale} />
-        <IntelligenceField label="Creative direction" value={direction ? `${direction.conceptName}\n${direction.styleEssence}` : null} />
-        <IntelligenceField label="Color story" value={direction?.colorStory} />
-        <IntelligenceField label="Typography mood" value={direction?.typographyMood} />
-        <IntelligenceField label="Surface language" value={direction?.surfaceLanguage} />
-        <IntelligenceField label="Signature moments" value={direction?.signatureMoments?.join("\n")} />
-        <IntelligenceField label="Avoid" value={direction?.avoid?.join("\n")} />
-        {!charter ? (
-          <div className="rounded-[14px] border border-dashed border-slate-300 bg-white px-4 py-8 text-center text-sm text-slate-500">
-            Project charter details will appear here when planning has finished.
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
-}
+const renderHighlightedJson = (code: string) => {
+  const nodes: ReactNode[] = [];
+  let cursor = 0;
 
-function NavigationPlanTab({ projectNavigation }: { projectNavigation?: ProjectNavigationData | null }) {
-  const plan = projectNavigation?.plan ?? null;
+  for (const match of code.matchAll(JSON_CODE_TOKEN_PATTERN)) {
+    const token = match[0];
+    const index = match.index ?? 0;
 
-  if (!plan) {
-    return (
-      <div className="flex min-h-0 flex-1 items-center justify-center bg-[#f7f7f8] px-5 text-center text-sm leading-6 text-slate-500">
-        Navigation planning will appear here once the project planner runs.
-      </div>
+    if (index > cursor) {
+      nodes.push(code.slice(cursor, index));
+    }
+
+    const isKey = token.startsWith("\"") && /^\s*:/.test(code.slice(index + token.length));
+    const className = isKey
+      ? "text-sky-300"
+      : token.startsWith("\"")
+        ? "text-emerald-300"
+        : token === "true" || token === "false"
+          ? "text-violet-300"
+          : token === "null"
+            ? "text-slate-500"
+            : /^-?\d/.test(token)
+              ? "text-amber-300"
+              : "text-slate-500";
+
+    nodes.push(
+      <span key={`${index}-${token}`} className={className}>
+        {token}
+      </span>,
     );
+    cursor = index + token.length;
   }
 
+  if (cursor < code.length) {
+    nodes.push(code.slice(cursor));
+  }
+
+  return nodes;
+};
+
+function DesignMdTab({
+  project,
+  projectNavigation,
+  tokenDraft,
+  tokenDirty,
+}: {
+  project: ProjectData;
+  projectNavigation?: ProjectNavigationData | null;
+  tokenDraft?: DesignTokens | null;
+  tokenDirty?: boolean;
+}) {
+  const [copied, setCopied] = useState(false);
+  const designMd = useMemo(
+    () => buildDesignMdDocument({ project, projectNavigation, tokenDraft }),
+    [project, projectNavigation, tokenDraft],
+  );
+  const highlightedDesignMd = useMemo(() => renderHighlightedJson(designMd), [designMd]);
+  const lineCount = useMemo(() => designMd.split("\n").length, [designMd]);
+  const status = tokenDirty ? "Includes unsaved token draft" : "Read-only project memory";
+
+  const handleCopy = async () => {
+    await navigator.clipboard?.writeText(designMd).catch(() => undefined);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1200);
+  };
+
+  const handleDownload = () => {
+    const blob = new Blob([designMd], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "design.md";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto bg-[#f7f7f8] px-3 py-3">
-      <div className="space-y-3">
-        <IntelligenceField label="Visual brief" value={plan.visualBrief} />
-        <IntelligenceField label="State" value={plan.enabled ? `${plan.kind} shared navigation` : "No persistent project navigation"} />
-        {plan.items?.map((item) => (
-          <article key={item.id} className="rounded-[14px] border border-slate-950/[0.08] bg-white px-4 py-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="truncate text-sm font-semibold text-slate-950">{item.label}</div>
-                <div className="mt-1 text-xs leading-5 text-slate-500">{item.role}</div>
-              </div>
-              <span className="shrink-0 rounded-full bg-[#f7f7f8] px-2.5 py-1 text-[10px] font-semibold text-slate-500">{item.icon}</span>
+    <div className="flex min-h-0 flex-1 flex-col bg-[#f7f7f8]">
+      <div className="shrink-0 border-b border-slate-950/[0.08] bg-white/92 px-4 py-3 backdrop-blur-xl">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-slate-500" />
+              <h2 className="truncate text-[13px] font-semibold text-slate-950">Design.md</h2>
             </div>
-            <div className="mt-2 text-xs text-slate-500">Linked screen: {item.linkedScreenName}</div>
-          </article>
-        ))}
+            <p className="mt-1 text-[11px] leading-5 text-slate-500">
+              {status} - {lineCount} lines
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-[10px] text-slate-500 hover:bg-slate-950/[0.05] hover:text-slate-950"
+              title="Copy Design.md"
+              onClick={() => void handleCopy()}
+            >
+              {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-[10px] text-slate-500 hover:bg-slate-950/[0.05] hover:text-slate-950"
+              title="Download design.md"
+              onClick={handleDownload}
+            >
+              <Download className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+      </div>
+      <div className="min-h-0 flex-1 overflow-auto bg-[#0d0f12]">
+        <pre className="min-h-full w-full whitespace-pre-wrap break-words px-5 py-4 font-mono text-[11px] leading-5 text-slate-200 [overflow-wrap:anywhere]">
+          <code>{highlightedDesignMd}</code>
+        </pre>
       </div>
     </div>
   );
@@ -1224,7 +1292,7 @@ export function ChatPanel({
             <Minimize2 className="h-4 w-4" />
           </Button>
         </div>
-        <div className="grid grid-cols-4 gap-1 rounded-[14px] bg-slate-950/[0.04] p-1">
+        <div className="grid grid-cols-3 gap-1 rounded-[14px] bg-slate-950/[0.04] p-1">
           {CHAT_WORKSPACE_TABS.map((tab) => {
             const Icon = tab.icon;
             const selected = activeTab === tab.id;
@@ -1308,12 +1376,13 @@ export function ChatPanel({
         />
       ) : null}
 
-      {activeTab === "charter" ? (
-        <CharterTab project={project} projectNavigation={projectNavigation} />
-      ) : null}
-
-      {activeTab === "navigation" ? (
-        <NavigationPlanTab projectNavigation={projectNavigation} />
+      {activeTab === "design-md" ? (
+        <DesignMdTab
+          project={project}
+          projectNavigation={projectNavigation}
+          tokenDraft={tokenDraft}
+          tokenDirty={tokenDirty}
+        />
       ) : null}
 
       {activeTab === "chat" ? (
