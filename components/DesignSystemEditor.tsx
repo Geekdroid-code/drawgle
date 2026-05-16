@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState, type ComponentType, type PointerEvent, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ComponentType, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   ArrowRight,
@@ -999,7 +999,21 @@ function FontFamilyField({
   onChange: (value: string) => void;
 }) {
   const options = recommendations.slice(0, 3);
-  const commitFont = (nextValue: string) => onChange(normalizeFontFamilyInput(nextValue));
+  const [isEditing, setIsEditing] = useState(false);
+  const [draftValue, setDraftValue] = useState(value);
+  const displayValue = isEditing ? draftValue : value;
+  const stopTextEntryShortcutPropagation = (event: KeyboardEvent<HTMLInputElement>) => {
+    event.stopPropagation();
+  };
+  const updateDraft = (nextValue: string) => {
+    setDraftValue(nextValue);
+    onChange(nextValue);
+  };
+  const commitFont = (nextValue: string) => {
+    const normalized = normalizeFontFamilyInput(nextValue);
+    setDraftValue(normalized);
+    onChange(normalized);
+  };
 
   if (panel) {
     return (
@@ -1012,10 +1026,19 @@ function FontFamilyField({
         </div>
         <input
           type="text"
-          value={value}
+          value={displayValue}
           placeholder={`"Inter", sans-serif`}
-          onChange={(event) => onChange(event.target.value)}
-          onBlur={(event) => commitFont(event.target.value)}
+          onChange={(event) => updateDraft(event.target.value)}
+          onFocus={() => {
+            setIsEditing(true);
+            setDraftValue(value);
+          }}
+          onBlur={(event) => {
+            commitFont(event.target.value);
+            setIsEditing(false);
+          }}
+          onKeyDown={stopTextEntryShortcutPropagation}
+          onKeyUp={stopTextEntryShortcutPropagation}
           className="h-9 min-w-0 rounded-[10px] border border-slate-950/[0.08] bg-[#fbfbfc] px-2.5 font-mono text-xs text-slate-900 outline-none transition focus:border-[#002fa7]/40 focus:bg-white"
         />
         {options.length ? (
@@ -1041,10 +1064,19 @@ function FontFamilyField({
       <span className="block truncate text-[11px] font-medium capitalize text-slate-500">Font family</span>
       <input
         type="text"
-        value={value}
+        value={displayValue}
         placeholder={`"Inter", sans-serif`}
-        onChange={(event) => onChange(event.target.value)}
-        onBlur={(event) => commitFont(event.target.value)}
+        onChange={(event) => updateDraft(event.target.value)}
+        onFocus={() => {
+          setIsEditing(true);
+          setDraftValue(value);
+        }}
+        onBlur={(event) => {
+          commitFont(event.target.value);
+          setIsEditing(false);
+        }}
+        onKeyDown={stopTextEntryShortcutPropagation}
+        onKeyUp={stopTextEntryShortcutPropagation}
         className="h-9 w-full rounded-[10px] border border-slate-950/[0.08] bg-white px-2.5 font-mono text-xs text-slate-900 outline-none transition focus:border-[#002fa7]/40"
       />
     </label>
@@ -1108,8 +1140,8 @@ function TypographyRow({
           </div>
         </button>
         {expanded ? (
-          <div className="grid gap-2 border-t border-slate-950/[0.06] bg-[#fbfbfc] px-3 py-3">
-            <PanelControl label="Text size" description="Height of the letters.">
+          <div className="grid gap-2 border-t border-slate-950/[0.06] bg-[#fbfbfc] px-3 py-2.5">
+            <PanelControl label="Size">
               <TokenMetricField
                 label={`${label} size`}
                 value={size}
@@ -1118,10 +1150,10 @@ function TypographyRow({
                 onChange={onSizeChange}
               />
             </PanelControl>
-            <PanelControl label="Weight" description="Thickness of the letters.">
+            <PanelControl label="Weight">
               <FontWeightControl value={resolvedWeight} onChange={onWeightChange} />
             </PanelControl>
-            <PanelControl label="Line height" description="Vertical space reserved for each line.">
+            <PanelControl label="Line">
               <TokenMetricField
                 label={`${label} line height`}
                 value={lineHeight}
@@ -1268,10 +1300,10 @@ function SpacingPreview({ value, variant }: { value: number; variant: "spacing" 
 
 function PanelControl({ label, description, children }: { label: string; description?: string; children: ReactNode }) {
   return (
-    <div className="grid gap-2 rounded-[12px] border border-slate-950/[0.06] bg-white p-2.5">
-      <div className="min-w-0">
-        <div className="truncate text-xs font-semibold text-slate-900">{label}</div>
-        {description ? <div className="mt-0.5 text-[11px] text-slate-500">{description}</div> : null}
+    <div className="grid grid-cols-[58px_minmax(0,1fr)] items-center gap-2 rounded-[11px] border border-slate-950/[0.06] bg-white px-2.5 py-2">
+      <div className="min-w-0 text-xs font-semibold text-slate-600">
+        <span className="block truncate">{label}</span>
+        {description ? <span className="mt-0.5 block text-[11px] font-normal text-slate-500">{description}</span> : null}
       </div>
       {children}
     </div>

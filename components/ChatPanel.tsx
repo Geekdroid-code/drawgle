@@ -928,7 +928,7 @@ export function CollapsedChatTrigger({
       onClick={onExpand}
       aria-label={accessibilityLabel}
       title={accessibilityLabel}
-      className="absolute left-4 top-16 z-50 flex h-12 w-12 animate-in items-center justify-center rounded-full dg-bot-bubble fade-in-0 zoom-in-95 duration-200 transition hover:scale-[1.03]"
+      className="absolute left-4 top-16 z-50 flex h-12 w-12 cursor-pointer animate-in items-center justify-center rounded-full dg-bot-bubble fade-in-0 zoom-in-95 duration-200 transition hover:scale-[1.03]"
     >
       {hasAlert ? (
         <AlertCircle className="h-5 w-5" />
@@ -1113,7 +1113,7 @@ export function ChatPanel({
         animate-in fade-in-0 slide-in-from-left-2
         left-2 right-2 top-[var(--dg-mobile-top-reserve)] bottom-3 h-auto rounded-[24px]
         md:left-4 md:right-auto md:top-auto md:bottom-4 md:h-[calc(100dvh-5rem)] md:w-[404px]
-        dg-chat-shell backdrop-blur-xl
+        dg-chat-shell dg-clickable-scope backdrop-blur-xl
       `}
     >
       <header className="relative shrink-0 px-3 pb-2 pt-2">
