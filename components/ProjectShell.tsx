@@ -628,6 +628,7 @@ export function ProjectShell({
   );
   const [tokenDirty, setTokenDirty] = useState(false);
   const [tokenSaving, setTokenSaving] = useState(false);
+  const tokenDirtyRef = useRef(tokenDirty);
   const centeredRunIdRef = useRef<string | null>(null);
   const knownScreenIdsRef = useRef<Set<string>>(new Set());
   const hasHydratedScreenIdsRef = useRef(false);
@@ -669,15 +670,18 @@ export function ProjectShell({
   }, [project, isProjectLoading, router]);
 
   useEffect(() => {
-    if (tokenDirty) {
+    tokenDirtyRef.current = tokenDirty;
+  }, [tokenDirty]);
+
+  useEffect(() => {
+    if (tokenDirtyRef.current) {
       return;
     }
 
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTokenDraft(hasApprovedDesignTokens(project?.designTokens)
       ? normalizeDesignTokens(project?.designTokens)
       : null);
-  }, [project?.designTokens, tokenDirty]);
+  }, [project?.designTokens]);
 
   useEffect(() => {
     if (!selectedScreen) {
