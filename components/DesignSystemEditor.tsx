@@ -78,6 +78,8 @@ const FONT_WEIGHT_OPTIONS = [
   { value: "800", label: "Heavy" },
 ] as const;
 
+const GENERIC_FONT_FAMILIES = new Set(["system-ui", "sans-serif", "serif", "monospace", "ui-sans-serif", "ui-serif", "ui-monospace"]);
+
 const parsePixelToken = (value: string, fallback: number) => {
   const parsed = Number.parseFloat(value.replace("px", "").trim());
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -454,21 +456,40 @@ export function DesignSystemEditor({
             {activeTab === "type" ? (
               <div className="grid gap-4">
                 <TokenGroup label="Font Stack" panel={isPanel}>
-                  <TextField
-                    label="Font family"
+                  <FontFamilyField
                     value={tokens.typography?.font_family || ""}
+                    recommendations={recommendedFonts}
                     onChange={(nextValue) => handleUpdateToken(["typography", "font_family"], nextValue)}
-                    wide
+                    panel={isPanel}
                   />
                 </TokenGroup>
-                <div className={`${isPanel ? "overflow-visible" : "overflow-x-auto overflow-y-hidden"} rounded-[14px] border border-slate-950/[0.08]`}>
-                  <div className={`${isPanel ? "hidden" : "grid min-w-[920px]"} grid-cols-[1.05fr_154px_178px_154px_1fr] gap-3 border-b border-slate-950/[0.08] bg-[#f7f7f8] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500`}>
-                    <span>Style</span>
-                    <span>Size</span>
-                    <span>Weight</span>
-                    <span>Line</span>
-                    <span>Sample</span>
-                  </div>
+                {isPanel ? (
+                  <TokenGroup label="Type Scale" panel>
+                    {TYPOGRAPHY_STYLES.map((style) => (
+                      <TypographyRow
+                        key={style.key}
+                        label={style.label}
+                        size={tokens.typography?.[style.key]?.size || ""}
+                        weight={String(tokens.typography?.[style.key]?.weight ?? "")}
+                        lineHeight={tokens.typography?.[style.key]?.line_height || ""}
+                        onSizeChange={(nextValue) => handleUpdateToken(["typography", style.key, "size"], nextValue)}
+                        onWeightChange={(nextValue) => handleUpdateToken(["typography", style.key, "weight"], nextValue)}
+                        onLineHeightChange={(nextValue) => handleUpdateToken(["typography", style.key, "line_height"], nextValue)}
+                        sample={style.sample}
+                        fallbackSize={style.fallback}
+                        panel
+                      />
+                    ))}
+                  </TokenGroup>
+                ) : (
+                  <div className="overflow-x-auto overflow-y-hidden rounded-[14px] border border-slate-950/[0.08]">
+                    <div className="grid min-w-[920px] grid-cols-[1.05fr_154px_178px_154px_1fr] gap-3 border-b border-slate-950/[0.08] bg-[#f7f7f8] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                      <span>Style</span>
+                      <span>Size</span>
+                      <span>Weight</span>
+                      <span>Line</span>
+                      <span>Sample</span>
+                    </div>
                   {TYPOGRAPHY_STYLES.map((style) => (
                     <TypographyRow
                       key={style.key}
@@ -484,7 +505,8 @@ export function DesignSystemEditor({
                       panel={isPanel}
                     />
                   ))}
-                </div>
+                  </div>
+                )}
               </div>
             ) : null}
 
@@ -531,11 +553,17 @@ export function DesignSystemEditor({
                     />
                   ))}
                 </TokenGroup>
-                <TokenGroup label="Platform Constraints" panel={isPanel}>
+
+
+                {/*
+                // Platform constraints are important for mobile designs, but often not editable in the design tool since they are determined by the OS. Not useful for users to edit if they are not actually going to affect the output of the design tool, and can be a source of confusion if changed without understanding their impact.
+                
+              <TokenGroup label="Platform Constraints" panel={isPanel}>
                   <ReadOnlyMetric label="Safe area top" value={tokens.mobile_layout?.safe_area_top || "16px"} />
                   <ReadOnlyMetric label="Safe area bottom" value={tokens.mobile_layout?.safe_area_bottom || "34px"} />
                   <ReadOnlyMetric label="Min touch" value={tokens.sizing?.min_touch_target || "48px"} />
                 </TokenGroup>
+                */}
               </div>
             ) : null}
 
@@ -576,7 +604,12 @@ export function DesignSystemEditor({
                     panel={isPanel}
                     onChange={(nextValue) => handleUpdateToken(["shadows", "overlay"], nextValue)}
                   />
-                  <TextField label="No elevation" value={tokens.shadows?.none || "none"} onChange={(nextValue) => handleUpdateToken(["shadows", "none"], nextValue)} wide />
+                  <StaticTokenRow
+                    label="Flat shadow"
+                    value={tokens.shadows?.none || "none"}
+                    description="The no-elevation state used when a surface should stay flat."
+                    panel={isPanel}
+                  />
                 </TokenGroup>
               </div>
             ) : null}
@@ -905,13 +938,29 @@ function TextField({
   label,
   value,
   onChange,
+  panel = false,
   wide = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  panel?: boolean;
   wide?: boolean;
 }) {
+  if (panel) {
+    return (
+      <label className="grid min-h-[58px] w-full gap-2 bg-white px-3 py-2.5 sm:grid-cols-[minmax(0,0.52fr)_minmax(0,1fr)] sm:items-center">
+        <span className="truncate text-[13px] font-semibold capitalize text-slate-900">{label}</span>
+        <input
+          type="text"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className="h-9 min-w-0 rounded-[10px] border border-slate-950/[0.08] bg-[#fbfbfc] px-2.5 font-mono text-xs text-slate-900 outline-none transition focus:border-[#002fa7]/40 focus:bg-white"
+        />
+      </label>
+    );
+  }
+
   return (
     <label className={wide ? "col-span-full space-y-1" : "space-y-1"}>
       <span className="block truncate text-[11px] font-medium capitalize text-slate-500">{label}</span>
@@ -919,6 +968,83 @@ function TextField({
         type="text"
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        className="h-9 w-full rounded-[10px] border border-slate-950/[0.08] bg-white px-2.5 font-mono text-xs text-slate-900 outline-none transition focus:border-[#002fa7]/40"
+      />
+    </label>
+  );
+}
+
+const normalizeFontFamilyInput = (value: string) => {
+  const cleaned = value.replace(/[;{}<>]/g, "").trim();
+  if (!cleaned) {
+    return "";
+  }
+
+  if (cleaned.includes(",") || /^['"].*['"]$/.test(cleaned) || GENERIC_FONT_FAMILIES.has(cleaned.toLowerCase())) {
+    return cleaned;
+  }
+
+  return `"${cleaned.replace(/["']/g, "")}", sans-serif`;
+};
+
+function FontFamilyField({
+  value,
+  recommendations,
+  panel = false,
+  onChange,
+}: {
+  value: string;
+  recommendations: string[];
+  panel?: boolean;
+  onChange: (value: string) => void;
+}) {
+  const options = recommendations.slice(0, 3);
+  const commitFont = (nextValue: string) => onChange(normalizeFontFamilyInput(nextValue));
+
+  if (panel) {
+    return (
+      <div className="grid gap-2 bg-white px-3 py-2.5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="truncate text-[13px] font-semibold text-slate-900">Primary font</div>
+            <div className="mt-0.5 text-[11px] text-slate-500">Accepts a font name or CSS font stack</div>
+          </div>
+        </div>
+        <input
+          type="text"
+          value={value}
+          placeholder={`"Inter", sans-serif`}
+          onChange={(event) => onChange(event.target.value)}
+          onBlur={(event) => commitFont(event.target.value)}
+          className="h-9 min-w-0 rounded-[10px] border border-slate-950/[0.08] bg-[#fbfbfc] px-2.5 font-mono text-xs text-slate-900 outline-none transition focus:border-[#002fa7]/40 focus:bg-white"
+        />
+        {options.length ? (
+          <div className="flex min-w-0 flex-wrap gap-1.5">
+            {options.map((font) => (
+              <button
+                key={font}
+                type="button"
+                className="max-w-full truncate rounded-full border border-slate-950/[0.08] bg-[#fbfbfc] px-2.5 py-1 text-[11px] font-medium text-slate-600 transition hover:border-slate-950/[0.16] hover:bg-white hover:text-slate-950"
+                onClick={() => commitFont(font)}
+              >
+                {font}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <label className="col-span-full space-y-1">
+      <span className="block truncate text-[11px] font-medium capitalize text-slate-500">Font family</span>
+      <input
+        type="text"
+        value={value}
+        placeholder={`"Inter", sans-serif`}
+        onChange={(event) => onChange(event.target.value)}
+        onBlur={(event) => commitFont(event.target.value)}
         className="h-9 w-full rounded-[10px] border border-slate-950/[0.08] bg-white px-2.5 font-mono text-xs text-slate-900 outline-none transition focus:border-[#002fa7]/40"
       />
     </label>
@@ -955,7 +1081,7 @@ function TypographyRow({
 
   if (panel) {
     return (
-      <div className="border-b border-slate-950/[0.06] bg-white last:border-b-0">
+      <div className="bg-white">
         <button
           type="button"
           className="flex min-h-[54px] w-full items-center justify-between gap-3 px-3 py-2 text-left transition hover:bg-[#f8fafc]"
@@ -963,7 +1089,9 @@ function TypographyRow({
         >
           <div className="min-w-0">
             <div className="truncate text-[13px] font-semibold text-slate-900">{label}</div>
-            <div className="mt-0.5 truncate text-[11px] text-slate-500">{sizeNumber}px / {lineNumber}px / {resolvedWeight}</div>
+            <div className="mt-0.5 truncate text-[11px] text-slate-500">
+              Size {sizeNumber}px · Line {lineNumber}px · Weight {resolvedWeight}
+            </div>
           </div>
           <div className="flex min-w-0 shrink-0 items-center gap-2">
             <div
@@ -981,21 +1109,27 @@ function TypographyRow({
         </button>
         {expanded ? (
           <div className="grid gap-2 border-t border-slate-950/[0.06] bg-[#fbfbfc] px-3 py-3">
-            <TokenMetricField
-              label={`${label} size`}
-              value={size}
-              min={8}
-              max={72}
-              onChange={onSizeChange}
-            />
-            <FontWeightControl value={resolvedWeight} onChange={onWeightChange} />
-            <TokenMetricField
-              label={`${label} line height`}
-              value={lineHeight}
-              min={10}
-              max={96}
-              onChange={onLineHeightChange}
-            />
+            <PanelControl label="Text size" description="Height of the letters.">
+              <TokenMetricField
+                label={`${label} size`}
+                value={size}
+                min={8}
+                max={72}
+                onChange={onSizeChange}
+              />
+            </PanelControl>
+            <PanelControl label="Weight" description="Thickness of the letters.">
+              <FontWeightControl value={resolvedWeight} onChange={onWeightChange} />
+            </PanelControl>
+            <PanelControl label="Line height" description="Vertical space reserved for each line.">
+              <TokenMetricField
+                label={`${label} line height`}
+                value={lineHeight}
+                min={10}
+                max={96}
+                onChange={onLineHeightChange}
+              />
+            </PanelControl>
           </div>
         ) : null}
       </div>
@@ -1128,6 +1262,50 @@ function SpacingPreview({ value, variant }: { value: number; variant: "spacing" 
       <span className="h-5 w-5 rounded-[6px] bg-slate-950/[0.14]" />
       <span className="h-px bg-slate-950" style={{ width: clampNumber(value, 4, 72) }} />
       <span className="h-5 w-5 rounded-[6px] bg-slate-950/[0.14]" />
+    </div>
+  );
+}
+
+function PanelControl({ label, description, children }: { label: string; description?: string; children: ReactNode }) {
+  return (
+    <div className="grid gap-2 rounded-[12px] border border-slate-950/[0.06] bg-white p-2.5">
+      <div className="min-w-0">
+        <div className="truncate text-xs font-semibold text-slate-900">{label}</div>
+        {description ? <div className="mt-0.5 text-[11px] text-slate-500">{description}</div> : null}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function StaticTokenRow({
+  label,
+  value,
+  description,
+  panel = false,
+}: {
+  label: string;
+  value: string;
+  description: string;
+  panel?: boolean;
+}) {
+  if (panel) {
+    return (
+      <div className="flex min-h-[58px] items-center gap-3 bg-white px-3 py-2.5">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[13px] font-semibold text-slate-900">{label}</div>
+          <div className="mt-0.5 text-[11px] text-slate-500">{description}</div>
+        </div>
+        <span className="shrink-0 rounded-full bg-[#f1f3f6] px-2.5 py-1 font-mono text-[11px] text-slate-600">{value}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="col-span-full rounded-[12px] border border-slate-950/[0.08] bg-white px-2.5 py-2">
+      <div className="truncate text-[11px] font-medium uppercase tracking-[0.08em] text-slate-400">{label}</div>
+      <div className="mt-1 font-mono text-xs text-slate-900">{value}</div>
+      <div className="mt-1 text-[11px] text-slate-500">{description}</div>
     </div>
   );
 }
