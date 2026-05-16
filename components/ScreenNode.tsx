@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { createClient } from "@/lib/supabase/client";
 import { ensureDrawgleIds, stripDrawgleIds, type DrawgleBoundingRect, type DrawgleEditableMetadata } from "@/lib/drawgle-dom";
+import { DRAWGLE_STYLE_PROPERTY_CONFIGS } from "@/lib/element-style-inspection";
 import { deleteScreen, updateScreenPosition } from "@/lib/supabase/queries";
 import { hasSharedNavigation } from "@/lib/project-navigation";
 import { buildDrawgleTokenCss, buildGoogleFontAssetLinks, buildGoogleFontHref } from "@/lib/token-runtime";
@@ -427,6 +428,10 @@ export function ScreenNode({
   const tokenCss = useMemo(() => buildDrawgleTokenCss(designTokens), [designTokens]);
   const googleFontHref = useMemo(() => buildGoogleFontHref(designTokens), [designTokens]);
   const googleFontAssetLinks = useMemo(() => buildGoogleFontAssetLinks(designTokens), [designTokens]);
+  const styleInspectionProperties = useMemo(
+    () => JSON.stringify(DRAWGLE_STYLE_PROPERTY_CONFIGS.map((config) => config.property)),
+    [],
+  );
   const [bootstrapContent] = useState(() => ({
     screenCode: displayCode,
     navigationShellCode,
@@ -1258,15 +1263,47 @@ ${cleanScreenCode}
                 fontSize: style.fontSize,
                 fontWeight: style.fontWeight,
                 lineHeight: style.lineHeight,
+                fontFamily: style.fontFamily,
                 borderRadius: style.borderRadius,
                 paddingTop: style.paddingTop,
                 paddingRight: style.paddingRight,
                 paddingBottom: style.paddingBottom,
                 paddingLeft: style.paddingLeft,
+                marginTop: style.marginTop,
+                marginRight: style.marginRight,
+                marginBottom: style.marginBottom,
+                marginLeft: style.marginLeft,
                 gap: style.gap,
                 borderColor: style.borderColor,
                 borderWidth: style.borderWidth,
                 boxShadow: style.boxShadow,
+                width: style.width,
+                height: style.height,
+                minHeight: style.minHeight,
+                maxWidth: style.maxWidth,
+                opacity: style.opacity,
+              };
+            }
+
+            var INSPECTED_STYLE_PROPERTIES = ${styleInspectionProperties};
+
+            function buildStyleInspectionPayload(el) {
+              var style = window.getComputedStyle(el);
+              var inlineStyle = {};
+              var computedStyle = {};
+
+              INSPECTED_STYLE_PROPERTIES.forEach(function(property) {
+                inlineStyle[property] = el.style ? (el.style.getPropertyValue(property) || '').trim() : '';
+                computedStyle[property] = (style.getPropertyValue(property) || '').trim();
+              });
+
+              return {
+                tagName: el.tagName.toLowerCase(),
+                classList: Array.from(el.classList || []).filter(function(className) {
+                  return className !== '__drawgle-hover-outline' && className !== '__drawgle-selected-outline';
+                }),
+                inlineStyle: inlineStyle,
+                computedStyle: computedStyle,
               };
             }
 
@@ -1297,6 +1334,7 @@ ${cleanScreenCode}
                 tagName: target.tagName.toLowerCase(),
                 textNodes: collectTextNodes(target),
                 style: buildStylePayload(target),
+                styleInspection: buildStyleInspectionPayload(target),
               };
             }
 
@@ -1401,6 +1439,8 @@ ${cleanScreenCode}
               selectionActive = false;
               document.body.style.cursor = '';
               clearHover();
+              clearSelected();
+              currentSelectedDrawgleId = null;
               document.removeEventListener('mouseover', onMouseOver, true);
               document.removeEventListener('mouseout', onMouseOut, true);
               document.removeEventListener('click', onClick, true);
@@ -1427,7 +1467,10 @@ ${cleanScreenCode}
               if (event.data.type === 'updateCode') {
                 /* Preserve selection state across live code updates */
                 var wasActive = selectionActive;
-                var selectedBeforeRender = currentSelectedDrawgleId || event.data.selectedDrawgleId || null;
+                var hasSelectedDrawgleId = Object.prototype.hasOwnProperty.call(event.data, 'selectedDrawgleId');
+                var selectedBeforeRender = hasSelectedDrawgleId
+                  ? (event.data.selectedDrawgleId || null)
+                  : (currentSelectedDrawgleId || null);
                 if (wasActive) disableSelection();
                 queuedRenderPayload = {
                   code: event.data.code || '',
@@ -1484,6 +1527,7 @@ ${cleanScreenCode}
     bootstrapContent.navigationShellCode,
     bootstrapContent.screenCode,
     bootstrapContent.tokenCss,
+    styleInspectionProperties,
   ]);
 
   // =========================================================================

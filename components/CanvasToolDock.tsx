@@ -3,11 +3,9 @@
 import {
   Crosshair,
   Hand,
-  Image as ImageIcon,
   Maximize2,
   MousePointer2,
   Palette,
-  Type,
   X,
   ZoomIn,
   ZoomOut,
@@ -100,10 +98,11 @@ export function CanvasToolDock({
 
         <div className={`items-center gap-1 ${hasSelectedElement ? "flex" : "hidden md:flex"}`}>
           <div className="mx-1 h-6 w-px bg-slate-950/[0.1]" />
-          <DockButton label="Edit selected text" disabled={disabled || !hasSelectedElement || !selectedElementCanEditText} onClick={onEditSelectedText}>
-            <Type className="h-4 w-4 md:h-5 md:w-5" />
-          </DockButton>
-          <DockButton label="Edit selected style" disabled={disabled || !hasSelectedElement || !selectedElementCanEditDesign} onClick={onEditSelectedDesign}>
+          <DockButton
+            label="Open visual editor"
+            disabled={disabled || !hasSelectedElement || (!selectedElementCanEditDesign && !selectedElementCanEditText)}
+            onClick={onEditSelectedDesign ?? onEditSelectedText}
+          >
             <Palette className="h-4 w-4 md:h-5 md:w-5" />
           </DockButton>
           <DockButton label="Clear selection" disabled={disabled || !hasSelectedElement} onClick={onClearSelectedElement}>

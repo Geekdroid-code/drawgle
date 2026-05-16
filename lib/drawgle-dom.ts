@@ -1,3 +1,10 @@
+import {
+  DRAWGLE_STYLE_PROPERTY_SET,
+  validateStyleValue,
+  type DrawgleRawStyleInspection,
+  type DrawgleStyleProperty,
+} from "@/lib/element-style-inspection";
+
 export type DrawgleElementTargetType = "screen" | "navigation";
 
 export type DrawgleTextNodeMeta = {
@@ -17,10 +24,20 @@ export type DrawgleStyleMeta = {
   paddingRight?: string;
   paddingBottom?: string;
   paddingLeft?: string;
+  marginTop?: string;
+  marginRight?: string;
+  marginBottom?: string;
+  marginLeft?: string;
   gap?: string;
   borderColor?: string;
   borderWidth?: string;
   boxShadow?: string;
+  fontFamily?: string;
+  width?: string;
+  height?: string;
+  minHeight?: string;
+  maxWidth?: string;
+  opacity?: string;
 };
 
 export type DrawgleBoundingRect = {
@@ -38,6 +55,7 @@ export type DrawgleEditableMetadata = {
   tagName: string;
   textNodes: DrawgleTextNodeMeta[];
   style: DrawgleStyleMeta;
+  styleInspection?: DrawgleRawStyleInspection | null;
 };
 
 export type DeterministicEditOperation =
@@ -58,21 +76,7 @@ export type DeterministicEditOperation =
       property: DrawgleStyleProperty;
     };
 
-export type DrawgleStyleProperty =
-  | "background-color"
-  | "color"
-  | "font-size"
-  | "font-weight"
-  | "line-height"
-  | "border-radius"
-  | "padding-top"
-  | "padding-right"
-  | "padding-bottom"
-  | "padding-left"
-  | "gap"
-  | "border-color"
-  | "border-width"
-  | "box-shadow";
+export type { DrawgleStyleProperty };
 
 type ParsedElement = {
   tagName: string;
@@ -152,23 +156,6 @@ const IGNORED_TAGS = new Set([
   "svg",
   "title",
   "use",
-]);
-
-const STYLE_PROPERTY_SET = new Set<DrawgleStyleProperty>([
-  "background-color",
-  "color",
-  "font-size",
-  "font-weight",
-  "line-height",
-  "border-radius",
-  "padding-top",
-  "padding-right",
-  "padding-bottom",
-  "padding-left",
-  "gap",
-  "border-color",
-  "border-width",
-  "box-shadow",
 ]);
 
 const parseAttributes = (source: string) => {
@@ -359,7 +346,7 @@ const serializeStyle = (style: Map<string, string>) =>
 const normalizeStyleValue = (value: string) => value.trim().replace(/[<>]/g, "");
 
 const assertStyleProperty = (property: string): DrawgleStyleProperty => {
-  if (!STYLE_PROPERTY_SET.has(property as DrawgleStyleProperty)) {
+  if (!DRAWGLE_STYLE_PROPERTY_SET.has(property as DrawgleStyleProperty)) {
     throw new Error(`Unsupported style property: ${property}`);
   }
   return property as DrawgleStyleProperty;
@@ -391,7 +378,7 @@ function applySetStyle(code: string, drawgleId: string, property: DrawgleStylePr
 
   const openingTag = getOpeningTag(code, element);
   const style = parseStyle(getAttributeValue(openingTag, "style"));
-  const nextValue = normalizeStyleValue(value);
+  const nextValue = validateStyleValue(property, normalizeStyleValue(value));
 
   if (nextValue) {
     style.set(property, nextValue);

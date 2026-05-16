@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { useRef, useState } from "react";
-import { Crosshair, Image as ImageIcon, Loader2, Palette, Pencil, Send, Trash2, Type, X } from "lucide-react";
+import { Image as ImageIcon, Loader2, Palette, Pencil, Send, X } from "lucide-react";
 
 import { AgentThinkingIndicator } from "@/components/AgentBall";
 import { Button } from "@/components/ui/button";
@@ -35,10 +35,10 @@ export function AgentComposer({
   submitStatusText = "Thinking...",
   selectedScreen = null,
   onClearSelectedScreen,
-  onDeleteSelectedScreen,
+  onDeleteSelectedScreen: _onDeleteSelectedScreen,
   mobileTopAccessory,
   selectionMode = false,
-  onToggleSelectionMode,
+  onToggleSelectionMode: _onToggleSelectionMode,
   selectedElementPreview,
   selectedElementTargetLabel,
   selectedElementCanEditText = false,
@@ -62,6 +62,7 @@ export function AgentComposer({
   );
   const activeTargetLabel = selectedElementTargetLabel || selectedScreen?.name || null;
   const isActiveComposer = Boolean(prompt.trim() || activeImage || selectedScreen || hasSelectedElement || selectionMode);
+  const elementTagLabel = (selectedElementPreview || "element").replace(/[<>]/g, "").trim().toUpperCase();
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -105,9 +106,12 @@ export function AgentComposer({
     }
   };
 
+  void _onToggleSelectionMode;
+  void _onDeleteSelectedScreen;
+
   const shellClass = variant === "panel"
-    ? "relative flex flex-col rounded-[20px] border border-slate-950/[0.08] bg-white p-2"
-    : `relative flex flex-col rounded-[20px] p-1.5 backdrop-blur-xl ${isActiveComposer ? "dg-prompt-composer-active" : "dg-prompt-composer"}`;
+    ? "relative flex flex-col overflow-hidden rounded-[22px] border border-slate-950/[0.08] bg-white px-2 pb-2 pt-2"
+    : `relative flex flex-col overflow-hidden rounded-[24px] px-2 pb-2 pt-2 backdrop-blur-xl ${isActiveComposer ? "dg-prompt-composer-active" : "dg-prompt-composer"}`;
 
   return (
     <div className={shellClass}>
@@ -118,84 +122,52 @@ export function AgentComposer({
       ) : null}
 
       {selectedScreen || hasSelectedElement ? (
-        <div className="mb-1 flex min-h-9 items-center justify-between gap-2 rounded-[18px] border border-slate-950/[0.08] bg-[#f7f7f8] px-2.5 py-1.5">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-950/[0.08] bg-white text-slate-600">
-              {hasSelectedElement ? <Crosshair className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
-            </span>
-            <div className="min-w-0">
-              <div className="truncate text-[11px] font-semibold uppercase tracking-[0.12em] text-[#667894]">
-                {hasSelectedElement ? `Selected in ${activeTargetLabel ?? "screen"}` : `Editing ${selectedScreen?.name ?? "screen"}`}
-              </div>
-              {hasSelectedElement ? (
-                <div className="truncate text-xs leading-4 text-slate-700" title={selectedElementPreview ?? "Selected element"}>
-                  {selectedElementPreview || "Selected element"}
-                </div>
+        <div className="mb-1 flex min-h-8 items-center gap-1.5 overflow-x-auto px-0.5 pt-0.5">
+          {(selectedScreen?.name || activeTargetLabel) ? (
+            <span className="inline-flex h-8 max-w-[62%] shrink-0 items-center gap-1.5 rounded-full border border-black/[0.08] bg-[#f4f5f6]/90 px-2.5 text-xs font-medium text-slate-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
+              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-white/80 text-slate-500">
+                <Pencil className="h-2.5 w-2.5" />
+              </span>
+              <span className="truncate">{selectedScreen?.name ?? activeTargetLabel}</span>
+              {onClearSelectedScreen ? (
+                <button
+                  type="button"
+                  className="rounded-full p-0.5 text-slate-400 hover:bg-white hover:text-slate-900"
+                  onClick={onClearSelectedScreen}
+                  disabled={disabled || isGenerating}
+                  title="Clear selected screen"
+                >
+                  <X className="h-3 w-3" />
+                </button>
               ) : null}
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-1">
-            {hasSelectedElement && selectedElementCanEditText && onEditSelectedText ? (
-              <Button
-                variant="ghost"
-                className="h-7 rounded-full px-2 text-[11px] font-semibold text-slate-600 hover:bg-white hover:text-slate-950"
-                onClick={onEditSelectedText}
-                disabled={disabled || isGenerating}
-                title="Edit selected text"
+            </span>
+          ) : null}
+
+          {hasSelectedElement ? (
+            <span className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-black/[0.08] bg-[#f4f5f6]/90 px-2.5 text-xs font-semibold text-slate-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
+              <button
+                type="button"
+                className="inline-flex min-w-0 items-center gap-1.5"
+                onClick={onEditSelectedDesign ?? onEditSelectedText}
+                disabled={disabled || isGenerating || (!selectedElementCanEditDesign && !selectedElementCanEditText)}
+                title="Open visual editor"
               >
-                <Type className="mr-1 h-3.5 w-3.5" />
-                Text
-              </Button>
-            ) : null}
-            {hasSelectedElement && selectedElementCanEditDesign && onEditSelectedDesign ? (
-              <Button
-                variant="ghost"
-                className="h-7 rounded-full px-2 text-[11px] font-semibold text-slate-600 hover:bg-white hover:text-slate-950"
-                onClick={onEditSelectedDesign}
-                disabled={disabled || isGenerating}
-                title="Edit element overrides"
-              >
-                <Palette className="mr-1 h-3.5 w-3.5" />
-                Style
-              </Button>
-            ) : null}
-            {hasSelectedElement && onClearSelectedElement ? (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 rounded-full text-slate-500 hover:bg-white hover:text-slate-900"
-                onClick={onClearSelectedElement}
-                disabled={disabled || isGenerating}
-                title="Clear selected element"
-              >
-                <X className="h-3.5 w-3.5" />
-              </Button>
-            ) : null}
-            {!hasSelectedElement && onDeleteSelectedScreen ? (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 rounded-full text-red-600 hover:bg-red-50 hover:text-red-700"
-                onClick={() => void onDeleteSelectedScreen()}
-                disabled={disabled || isGenerating}
-                title="Delete selected screen"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </Button>
-            ) : null}
-            {!hasSelectedElement && onClearSelectedScreen ? (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 rounded-full text-slate-500 hover:bg-white hover:text-slate-900"
-                onClick={onClearSelectedScreen}
-                disabled={disabled || isGenerating}
-                title="Clear selected screen"
-              >
-                <X className="w-3.5 h-3.5" />
-              </Button>
-            ) : null}
-          </div>
+                <Palette className="h-3.5 w-3.5 text-slate-500" />
+                <span className="max-w-20 truncate tracking-[0.02em]">{elementTagLabel}</span>
+              </button>
+              {onClearSelectedElement ? (
+                <button
+                  type="button"
+                  className="rounded-full p-0.5 text-slate-400 hover:bg-white hover:text-slate-900"
+                  onClick={onClearSelectedElement}
+                  disabled={disabled || isGenerating}
+                  title="Clear selected element"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              ) : null}
+            </span>
+          ) : null}
         </div>
       ) : null}
 
@@ -228,25 +200,6 @@ export function AgentComposer({
         </div>
       ) : null}
 
-      {selectionMode ? (
-        <div className="mx-2 mt-1 flex items-center justify-between gap-2 rounded-[14px] border border-teal-500/25 bg-teal-50/90 px-3 py-2 text-xs font-medium text-teal-800">
-          <span className="flex min-w-0 items-center gap-2">
-            <Crosshair className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">Select mode on. Click any element on any phone to retarget.</span>
-          </span>
-          {onToggleSelectionMode ? (
-            <button
-              type="button"
-              className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-teal-700 hover:text-teal-950"
-              onClick={onToggleSelectionMode}
-              disabled={disabled || isGenerating}
-            >
-              Off
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-
       <Textarea
         placeholder={
           hasSelectedElement
@@ -257,7 +210,7 @@ export function AgentComposer({
                 ? "What do you want to do?"
                 : "What mobile app shall we design?"
         }
-        className={`${variant === "panel" ? "min-h-[46px] text-[15px]" : "min-h-[54px] text-base"} resize-none border-none bg-transparent px-3 py-2.5 leading-6 text-slate-950 shadow-none placeholder:text-slate-400 focus-visible:ring-0`}
+        className={`${variant === "panel" ? "h-[104px] text-[15px]" : "h-[116px] text-base"} [field-sizing:fixed] resize-none overflow-y-auto border-none bg-transparent px-3 pb-12 pt-3 leading-6 text-slate-950 shadow-none placeholder:text-slate-400 focus-visible:ring-0`}
         value={prompt}
         onChange={(event) => setPrompt(event.target.value)}
         onKeyDown={(event) => {
@@ -269,58 +222,42 @@ export function AgentComposer({
         disabled={disabled || isGenerating}
       />
 
-      <div className="flex items-center justify-between px-2 pb-1 pt-1">
-        <div className="flex min-w-0 items-center gap-2">
-          <input
-            type="file"
-            accept="image/*"
-            className="hidden"
-            ref={fileInputRef}
-            onChange={handleImageUpload}
-          />
-          {onToggleSelectionMode ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 rounded-full dg-control transition-colors duration-150"
-              style={selectionMode ? {
-                background: "#ecfeff",
-                border: "1px solid rgba(13,148,136,0.28)",
-                color: "#0f766e",
-              } : undefined}
-              onClick={onToggleSelectionMode}
-              disabled={disabled || isGenerating}
-              title={selectionMode ? "Exit select mode" : "Select an element to edit"}
-            >
-              <Crosshair className="w-5 h-5" />
-            </Button>
-          ) : null}
-          {!selectedScreen ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 rounded-full dg-control text-slate-500 hover:text-slate-950"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={disabled || isGenerating}
-              title="Attach image"
-            >
-              <ImageIcon className="w-5 h-5" />
-            </Button>
-          ) : null}
-          {variant === "panel" && isGenerating ? (
-            <AgentThinkingIndicator label={agentStatus || submitStatusText} className="text-slate-600" />
-          ) : null}
-        </div>
+      <input
+        type="file"
+        accept="image/*"
+        className="hidden"
+        ref={fileInputRef}
+        onChange={handleImageUpload}
+      />
+
+      {!selectedScreen ? (
         <Button
+          variant="ghost"
           size="icon"
-          className="h-10 w-10 rounded-full dg-button-primary text-white"
-          onClick={() => void handleGenerate()}
-          disabled={disabled || isGenerating || (!prompt.trim() && !activeImage)}
-          title="Send"
+          className="absolute bottom-3 left-3 h-9 w-9 rounded-full bg-white/72 text-slate-500 shadow-[0_6px_18px_rgba(15,23,42,0.08)] ring-1 ring-black/[0.06] backdrop-blur-md hover:bg-white hover:text-slate-950"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={disabled || isGenerating}
+          title="Attach image"
         >
-          {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          <ImageIcon className="w-4 h-4" />
         </Button>
-      </div>
+      ) : null}
+
+      {variant === "panel" && isGenerating ? (
+        <div className="pointer-events-none absolute bottom-4 left-4 max-w-[calc(100%-5rem)]">
+          <AgentThinkingIndicator label={agentStatus || submitStatusText} className="text-slate-600" />
+        </div>
+      ) : null}
+
+      <Button
+        size="icon"
+        className="absolute bottom-3 right-3 h-10 w-10 rounded-full bg-slate-950 text-white shadow-[0_12px_28px_rgba(15,23,42,0.28)] hover:bg-slate-800"
+        onClick={() => void handleGenerate()}
+        disabled={disabled || isGenerating || (!prompt.trim() && !activeImage)}
+        title="Send"
+      >
+        {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+      </Button>
     </div>
   );
 }
