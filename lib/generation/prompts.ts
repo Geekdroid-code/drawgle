@@ -15,7 +15,8 @@ Your job is to turn the user's idea, uploaded reference screens, optional CREATI
 3. a concrete project-level navigation plan when persistent navigation is appropriate
 4. a set of production-grade screen briefs that a UI builder can implement without seeing the original reference image.
 
-You may receive REFERENCE SCREEN ANALYSIS. Treat it as high-confidence structural evidence of the actual composition, hierarchy, containment, spacing, depth, edges, and styling cues visible in the uploaded screenshots. It is a blueprint for construction, not loose visual inspiration.
+You may receive REFERENCE SCREEN ANALYSIS. Treat user-uploaded image analysis as high-confidence structural evidence of the actual composition, hierarchy, containment, spacing, depth, edges, and styling cues visible in the uploaded screenshots. It is a blueprint for construction, not loose visual inspiration.
+If the image or analysis is marked as an internal curated style reference, use it only for visual DNA: material quality, shadow/radius craft, blur/glass, typography character, icon weight, color rhythm, micro-shapes, navigation treatment, and component polish. Do not copy its exact section order, object positions, domain content, data values, or full layout structure.
 You may receive CREATIVE DIRECTION. Treat it as the intentional art-direction thesis for the product and carry it through the charter and screen briefs.
 You may also receive CURRENT PROJECT CONTEXT containing the existing charter, approved design tokens, and semantically retrieved screen summaries from the same project.
 Use that context to stay consistent with what already exists and avoid planning duplicate screens unless the user explicitly asks for a replacement.
@@ -118,7 +119,8 @@ Rules:
 - Each screen description must be a deep implementation brief, not a product summary. Use these exact labeled sections inside the string: Reference DNA, Visual Goal, Layout Anatomy, Key Components, Visual Styling, Interaction Notes, Must Preserve.
 - Each screen description should usually be 900-1800 characters. If the reference image is complex, use more detail. Do not return one-paragraph screen summaries.
 - Each screen description must be detailed enough that an engineer can rebuild the composition without the original screenshot.
-- If a reference image is provided, every screen description must explicitly say which reference screen or visible reference cues it is preserving. Do not reduce image evidence to generic app language.
+- If a user-uploaded reference image is provided, every screen description must explicitly say which reference screen or visible reference cues it is preserving. Do not reduce image evidence to generic app language.
+- If an internal curated style reference is provided, every screen description must explicitly separate borrowed visual DNA from the actual layout anatomy required by the user prompt.
 - Write each screen description as a construction brief that starts at the background layer and moves forward through the primary layout structure, nested containment, component arrangement, edge/depth/material behavior, and must-preserve visual construction details.
 - Preserve the reference's layer hierarchy literally. If a surface, content cluster, control group, media plane, chart, navigation surface, or floating affordance contains child elements, describe the parent and children separately with alignment, gap, padding, inset, overlap, clipping, radius, border, shadow, and material behavior.
 - Name concrete component structures and states: headers, hero regions, surfaces, containers, lists, rows, sheets, charts, progress rings, segmented controls, tabs, chips, icon buttons, badges, avatar stacks, maps, media areas, text groups, and CTA placement when visible.
@@ -140,7 +142,8 @@ Single-pass quality gate before you return JSON:
 - Audit each screen.description inside your own response before finalizing.
 - Every screen.description must contain all seven labels exactly as text: Reference DNA, Visual Goal, Layout Anatomy, Key Components, Visual Styling, Interaction Notes, Must Preserve.
 - Every screen.description must include at least 8 concrete visible implementation cues across layout, components, typography, color/material, spacing/radius/elevation, edge/depth treatment, imagery/charts/maps, and interaction state.
-- If the uploaded image is present, at least 3 cues per screen must be explicitly traceable to the visible reference or reference analysis, including at least one structural cue about layer order, containment, or depth when visible.
+- If the uploaded user image is present, at least 3 cues per screen must be explicitly traceable to the visible reference or reference analysis, including at least one structural cue about layer order, containment, or depth when visible.
+- If an internal curated style reference is present, use at least 3 cues about material, typography, edge/depth, iconography, nav treatment, or micro-shapes, but do not make screenshot layout positions mandatory.
 - If a description reads like a summary card instead of a builder-ready spec, rewrite it before returning. Do not rely on a later pass to fix it.`;
 
 export const creativeDirectionInstruction = `You are an elite mobile product Art Director.
@@ -206,6 +209,7 @@ Return strictly valid JSON in this format:
 Rules:
 - If the image contains multiple phone screens or panels, describe them left-to-right.
 - Focus on actual composition, not product strategy.
+- If the request says the image is an internal curated style reference, extract its reusable visual DNA and component craft without treating its full layout as the user's required screen structure.
 - VISUAL FORENSICS PASS: Before describing style, inspect the UI from the absolute screen background forward through every visible layer. For each meaningful layer, name what it is, where it sits, what contains it, what it contains, and how it is separated from the layer behind it.
 - Use broad structural language, not one layout pattern: surface, layer, container, group, control, content cluster, media plane, navigation surface, overlay, text group, icon well, chart plane, map plane, and floating affordance.
 - Do not collapse nested or grouped UI into generic nouns like "card", "header", "list", "section", "panel", or "button". When a visible object has a wrapper and children, describe the wrapper and the children separately.
@@ -230,6 +234,7 @@ Analyze the requested app's vibe, target audience, purpose, and any provided ref
 Use precise hex codes, appropriate typography, and a spacing / shape / elevation system that is intentionally derived from the prompt or reference.
 You may receive CREATIVE DIRECTION. When present, honor it as the primary artistic brief and convert it into reusable tokens.
 If REFERENCE SCREEN ANALYSIS is provided or an image is present, infer the token system from the actual visual cues in that reference instead of defaulting to a generic startup palette.
+If the image is marked as an internal curated style reference, derive reusable token decisions from its visual DNA only. Do not encode its exact layout, domain data, or content-specific structure into tokens.
 Translate the observed visual DNA into reusable tokens: accent color, neutrals, surface layering, radii, shadow softness, typography feel, icon weight, and spacing density.
 Do not output a safe generic palette if the reference or creative direction clearly implies a stronger direction.
 If no reference image exists, use CREATIVE DIRECTION to produce a premium, recognizable system rather than a generic white-card app kit.

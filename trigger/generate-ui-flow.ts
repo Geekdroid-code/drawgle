@@ -4,6 +4,7 @@ import { logger, runs, streams, task } from "@trigger.dev/sdk";
 
 import { ensureDrawgleIds } from "@/lib/drawgle-dom";
 import { geminiPolicyForTask } from "@/lib/ai/model-policy";
+import { loadCuratedStyleReferenceImage, matchCuratedStyleReference } from "@/lib/generation/curated-style-references";
 import { indexScreenCode } from "@/lib/generation/block-index";
 import { assembleProjectContext } from "@/lib/generation/context";
 import { generateEmbedding, generateScreenSummary } from "@/lib/generation/embeddings";
@@ -29,7 +30,7 @@ import {
 import { tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
-import type { DesignTokens, NavigationArchitecture, NavigationPlan, PlanningMode, PromptImagePayload, ProjectCharter, ScreenPlan } from "@/lib/types";
+import type { DesignTokens, NavigationArchitecture, NavigationPlan, PlanningMode, PromptImagePayload, ProjectCharter, ReferenceMode, ScreenPlan } from "@/lib/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -56,6 +57,8 @@ type BuildScreenTaskPayload = {
   prompt: string;
   designTokens?: DesignTokens | null;
   image?: PromptImagePayload | null;
+  referenceMode?: ReferenceMode;
+  referenceId?: string | null;
   requiresBottomNav: boolean;
   navigationArchitecture?: NavigationArchitecture | null;
   navigationPlan?: NavigationPlan | null;
@@ -398,13 +401,15 @@ async function collectScreenBuild(input: BuildScreenTaskPayload, screenPlan: Scr
 
   const { stream: codeStream } = await streams.pipe(
     "code",
-    buildScreenStream({
-      screenPlan,
-      designTokens: input.designTokens,
-      prompt: input.prompt,
-      image: input.image,
-      requiresBottomNav: input.requiresBottomNav,
-      navigationArchitecture: input.navigationArchitecture,
+      buildScreenStream({
+        screenPlan,
+        designTokens: input.designTokens,
+        prompt: input.prompt,
+        image: input.image,
+        referenceMode: input.referenceMode,
+        referenceId: input.referenceId,
+        requiresBottomNav: input.requiresBottomNav,
+        navigationArchitecture: input.navigationArchitecture,
       navigationPlan: input.navigationPlan,
       projectContext: input.projectContext,
       onResponseChunk: (chunk) => {
@@ -415,6 +420,8 @@ async function collectScreenBuild(input: BuildScreenTaskPayload, screenPlan: Scr
         logger.info(`[LLM INPUT] ${snapshot.screenName}`, {
           model: snapshot.model,
           hasImage: snapshot.hasImage,
+          referenceMode: snapshot.referenceMode,
+          referenceId: snapshot.referenceId,
           systemInstructionLength: snapshot.systemInstruction.length,
           systemInstruction: snapshot.systemInstruction,
           userPartCount: snapshot.userParts.length,
@@ -446,6 +453,8 @@ async function collectNonStreamingScreenBuild(input: BuildScreenTaskPayload, scr
     designTokens: input.designTokens,
     prompt: input.prompt,
     image: input.image,
+    referenceMode: input.referenceMode,
+    referenceId: input.referenceId,
     requiresBottomNav: input.requiresBottomNav,
     navigationArchitecture: input.navigationArchitecture,
     navigationPlan: input.navigationPlan,
@@ -458,6 +467,8 @@ async function collectNonStreamingScreenBuild(input: BuildScreenTaskPayload, scr
       logger.info(`[LLM INPUT] ${snapshot.screenName}`, {
         model: snapshot.model,
         hasImage: snapshot.hasImage,
+        referenceMode: snapshot.referenceMode,
+        referenceId: snapshot.referenceId,
         systemInstructionLength: snapshot.systemInstruction.length,
         systemInstruction: snapshot.systemInstruction,
         userPartCount: snapshot.userParts.length,
@@ -937,7 +948,7 @@ export const generateUiFlowTask = task({
       },
     );
 
-    const [promptImage, planningContext] = await Promise.all([
+    const [uploadedPromptImage, planningContext] = await Promise.all([
       loadPromptImage(admin, payload.imagePath),
       assembleProjectContext({
         admin,
@@ -945,6 +956,31 @@ export const generateUiFlowTask = task({
         userPrompt: payload.prompt,
       }),
     ]);
+    let promptImage = uploadedPromptImage;
+    let referenceMode: ReferenceMode = uploadedPromptImage ? "user_recreate" : "user_recreate";
+    let referenceId: string | null = null;
+
+    if (!uploadedPromptImage) {
+      const match = matchCuratedStyleReference({
+        prompt: payload.prompt,
+        planningMode: payload.planningMode ?? "project",
+        existingCharter,
+      });
+
+      if (match) {
+        logger.info("[CURATED STYLE REFERENCE] selected", {
+          referenceId: match.reference.id,
+          score: match.score,
+          matchedTags: match.matchedTags,
+        });
+        const curatedImage = await loadCuratedStyleReferenceImage(match.reference);
+        if (curatedImage) {
+          promptImage = curatedImage;
+          referenceMode = "internal_style";
+          referenceId = match.reference.id;
+        }
+      }
+    }
 
     if (!designTokens) {
       await postStatusMessage(
@@ -962,6 +998,8 @@ export const generateUiFlowTask = task({
       designTokens = await generateDesignTokens({
         prompt: payload.prompt,
         image: promptImage,
+        referenceMode,
+        referenceId,
         llmLog: (label, data) => logger.info(label, data),
       });
 
@@ -991,7 +1029,7 @@ export const generateUiFlowTask = task({
       payload.plannedScreens && payload.plannedScreens.length > 0
         ? fallbackProjectCharter({
             prompt: payload.prompt,
-            image: promptImage,
+            image: referenceMode === "user_recreate" ? promptImage : null,
             navigationArchitecture: requestedNavigationArchitecture,
             existingCharter,
           })
@@ -1021,6 +1059,8 @@ export const generateUiFlowTask = task({
       : await planUiFlow({
           prompt: payload.prompt,
           image: promptImage,
+          referenceMode,
+          referenceId,
           designTokens,
           projectContext: planningContext,
           existingCharter: requestedCharter,
@@ -1035,6 +1075,8 @@ export const generateUiFlowTask = task({
       designTokens,
       prompt: payload.prompt,
       image: promptImage,
+      referenceMode,
+      referenceId,
       projectCharter: plan.charter,
       llmLog: (label, data) => logger.info(label, data),
     });
@@ -1130,6 +1172,8 @@ export const generateUiFlowTask = task({
             prompt: payload.prompt,
             designTokens,
             image: index === 0 ? promptImage : null,
+            referenceMode: index === 0 ? referenceMode : undefined,
+            referenceId: index === 0 ? referenceId : null,
             requiresBottomNav: plan.requiresBottomNav,
             navigationArchitecture: plan.navigationArchitecture,
             navigationPlan: plan.navigationPlan,

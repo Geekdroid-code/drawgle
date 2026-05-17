@@ -36,6 +36,8 @@ export interface PromptImagePayload {
   mimeType: string;
 }
 
+export type ReferenceMode = "user_recreate" | "internal_style";
+
 export interface DesignColorTokens {
   background?: {
     primary?: string;
@@ -453,6 +455,8 @@ export interface LlmInputSnapshot {
   systemInstruction: string;
   userParts: string[];
   hasImage: boolean;
+  referenceMode?: ReferenceMode;
+  referenceId?: string | null;
 }
 
 export interface BuildScreenInput {
@@ -460,6 +464,8 @@ export interface BuildScreenInput {
   designTokens?: DesignTokens | null;
   prompt: string;
   image?: PromptImagePayload | null;
+  referenceMode?: ReferenceMode;
+  referenceId?: string | null;
   requiresBottomNav: boolean;
   navigationArchitecture?: NavigationArchitecture | null;
   navigationPlan?: NavigationPlan | null;

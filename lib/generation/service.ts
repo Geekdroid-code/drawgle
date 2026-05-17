@@ -39,6 +39,7 @@ import type {
   PlannedUiFlow,
   PromptImagePayload,
   ProjectCharter,
+  ReferenceMode,
   ScreenBlockIndex,
   ScreenPlan,
 } from "@/lib/types";
@@ -584,6 +585,7 @@ const fallbackScreensFromReference = ({
 export const fallbackProjectCharter = ({
   prompt,
   image,
+  referenceMode,
   referenceAnalysis,
   creativeDirection,
   navigationArchitecture,
@@ -591,6 +593,7 @@ export const fallbackProjectCharter = ({
 }: {
   prompt: string;
   image?: PromptImagePayload | null;
+  referenceMode?: ReferenceMode | null;
   referenceAnalysis?: ReferenceAnalysis | null;
   creativeDirection?: CreativeDirection | null;
   navigationArchitecture: NavigationArchitecture;
@@ -598,9 +601,13 @@ export const fallbackProjectCharter = ({
 }): ProjectCharter => ({
   originalPrompt: prompt.trim() || existingCharter?.originalPrompt || "Create a polished mobile app experience from the provided reference.",
   imageReferenceSummary: image
-    ? referenceAnalysis
-      ? `Use the uploaded reference as a structural and stylistic blueprint. ${referenceAnalysis.overallVisualStyle}`
-      : "Use the uploaded reference as inspiration for layout hierarchy, tone, and composition while adapting it into a polished product UI."
+    ? normalizeReferenceMode(referenceMode) === "internal_style"
+      ? referenceAnalysis
+        ? `Use the internal curated style reference for visual DNA only. ${referenceAnalysis.overallVisualStyle}`
+        : "Use the internal curated style reference for visual DNA, material quality, typography, color rhythm, and component craft without copying its layout."
+      : referenceAnalysis
+        ? `Use the uploaded reference as a structural and stylistic blueprint. ${referenceAnalysis.overallVisualStyle}`
+        : "Use the uploaded reference as inspiration for layout hierarchy, tone, and composition while adapting it into a polished product UI."
     : null,
   appType: existingCharter?.appType ?? "Mobile application",
   targetAudience: existingCharter?.targetAudience ?? "General product users",
@@ -706,18 +713,24 @@ const enrichProjectCharter = ({
   base,
   source,
   referenceAnalysis,
+  referenceMode,
   navigationArchitecture,
   diagnostics,
 }: {
   base: ProjectCharter;
   source: NonNullable<ProjectCharter["charterSource"]>;
   referenceAnalysis?: ReferenceAnalysis | null;
+  referenceMode?: ReferenceMode | null;
   navigationArchitecture: NavigationArchitecture;
   diagnostics?: ProjectCharter["planningDiagnostics"] | null;
 }): ProjectCharter => ({
   ...base,
   imageReferenceSummary: base.imageReferenceSummary
-    ?? (referenceAnalysis ? `Use the uploaded reference as a structural and stylistic blueprint. ${referenceAnalysis.overallVisualStyle}` : null),
+    ?? (referenceAnalysis
+      ? normalizeReferenceMode(referenceMode) === "internal_style"
+        ? `Use the internal curated style reference for visual DNA only. ${referenceAnalysis.overallVisualStyle}`
+        : `Use the uploaded reference as a structural and stylistic blueprint. ${referenceAnalysis.overallVisualStyle}`
+      : null),
   navigationArchitecture,
   referenceScreens: base.referenceScreens?.length ? base.referenceScreens : referenceScreensForCharter(referenceAnalysis),
   designSystemSignals: base.designSystemSignals ?? referenceAnalysis?.designSystemSignals ?? null,
@@ -729,6 +742,7 @@ const salvageProjectCharterFromRawPlan = ({
   rawPlan,
   prompt,
   image,
+  referenceMode,
   referenceAnalysis,
   creativeDirection,
   navigationArchitecture,
@@ -738,6 +752,7 @@ const salvageProjectCharterFromRawPlan = ({
   rawPlan: unknown;
   prompt: string;
   image?: PromptImagePayload | null;
+  referenceMode?: ReferenceMode | null;
   referenceAnalysis?: ReferenceAnalysis | null;
   creativeDirection?: CreativeDirection | null;
   navigationArchitecture: NavigationArchitecture;
@@ -747,6 +762,7 @@ const salvageProjectCharterFromRawPlan = ({
   const fallback = fallbackProjectCharter({
     prompt,
     image,
+    referenceMode,
     referenceAnalysis,
     creativeDirection,
     navigationArchitecture,
@@ -758,6 +774,7 @@ const salvageProjectCharterFromRawPlan = ({
       base: fallback,
       source: "reference_fallback",
       referenceAnalysis,
+      referenceMode,
       navigationArchitecture,
       diagnostics: { ...diagnostics, source: "reference_fallback" },
     });
@@ -788,6 +805,7 @@ const salvageProjectCharterFromRawPlan = ({
     },
     source: "partial_planner",
     referenceAnalysis,
+    referenceMode,
     navigationArchitecture,
     diagnostics: { ...diagnostics, source: "partial_planner" },
   });
@@ -987,6 +1005,23 @@ const toInlineImage = (image?: PromptImagePayload | null) => {
   };
 };
 
+const normalizeReferenceMode = (referenceMode?: ReferenceMode | null): ReferenceMode =>
+  referenceMode === "internal_style" ? "internal_style" : "user_recreate";
+
+const internalStyleReferenceInstruction = [
+  "Internal curated style reference: use the image only for visual DNA and premium craft.",
+  "Preserve material quality, shadows, radii, blur/glass, typography character, icon weight, color rhythm, polish, micro-shapes, navigation treatment, and component craftsmanship.",
+  "Do not preserve exact section order, object positions, domain content, data values, full layout structure, or literal screen anatomy.",
+  "Build the actual screen structure from the user prompt, planned screen role, project charter, navigation plan, and approved tokens.",
+].join(" ");
+
+const userRecreateReferenceInstruction = "Use the uploaded sketch or wireframe as structural visual evidence while still honoring the provided design tokens. Preserve visible layer order, containment, layout mechanics, edge/depth treatment, and component construction instead of treating the image as loose style inspiration.";
+
+const referenceAnalysisLabel = (referenceMode?: ReferenceMode | null) =>
+  normalizeReferenceMode(referenceMode) === "internal_style"
+    ? "Internal Style Reference Analysis (visual DNA only, do not copy screenshot layout)"
+    : "Reference Screen Analysis";
+
 const formatReferenceAnalysis = (referenceAnalysis: ReferenceAnalysis) => {
   const screenSections = referenceAnalysis.screenReferences
     .map((referenceScreen) => [
@@ -1034,9 +1069,11 @@ const formatCreativeDirection = (creativeDirection: CreativeDirection) => [
 async function analyzeReferenceImage({
   prompt,
   image,
+  referenceMode,
 }: {
   prompt: string;
   image?: PromptImagePayload | null;
+  referenceMode?: ReferenceMode | null;
 }) {
   const inlineImage = toInlineImage(image);
   if (!inlineImage) {
@@ -1051,6 +1088,12 @@ async function analyzeReferenceImage({
       temperature: 0.1,
     });
     const parts: Array<Record<string, unknown>> = [inlineImage];
+
+    if (normalizeReferenceMode(referenceMode) === "internal_style") {
+      parts.push({
+        text: `${internalStyleReferenceInstruction} Extract reusable visual DNA and component/material construction cues. Do not treat this as the user's requested app layout.`,
+      });
+    }
 
     parts.push({
       text: prompt.trim()
@@ -1076,10 +1119,12 @@ async function analyzeReferenceImage({
 async function generateCreativeDirection({
   prompt,
   image,
+  referenceMode,
   referenceAnalysis,
 }: {
   prompt: string;
   image?: PromptImagePayload | null;
+  referenceMode?: ReferenceMode | null;
   referenceAnalysis?: ReferenceAnalysis | null;
 }): Promise<ParsedCreativeDirection | null> {
   try {
@@ -1094,6 +1139,11 @@ async function generateCreativeDirection({
 
     if (inlineImage) {
       parts.push(inlineImage);
+      if (normalizeReferenceMode(referenceMode) === "internal_style") {
+        parts.push({
+          text: internalStyleReferenceInstruction,
+        });
+      }
     }
 
     parts.push({
@@ -1104,7 +1154,7 @@ async function generateCreativeDirection({
 
     if (referenceAnalysis) {
       parts.push({
-        text: `Reference Screen Analysis:\n${formatReferenceAnalysis(referenceAnalysis)}`,
+        text: `${referenceAnalysisLabel(referenceMode)}:\n${formatReferenceAnalysis(referenceAnalysis)}`,
       });
     }
 
@@ -1135,6 +1185,8 @@ export const extractCode = (text: string) => {
 export async function planUiFlow({
   prompt,
   image,
+  referenceMode,
+  referenceId,
   designTokens,
   projectContext,
   existingCharter,
@@ -1144,6 +1196,8 @@ export async function planUiFlow({
 }: {
   prompt: string;
   image?: PromptImagePayload | null;
+  referenceMode?: ReferenceMode | null;
+  referenceId?: string | null;
   designTokens?: DesignTokens | null;
   projectContext?: string | null;
   existingCharter?: ProjectCharter | null;
@@ -1153,7 +1207,8 @@ export async function planUiFlow({
 }): Promise<PlannedUiFlow> {
   const ai = createGeminiClient();
   const parts: Array<Record<string, unknown>> = [];
-  const referenceAnalysis = await analyzeReferenceImage({ prompt, image });
+  const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
+  const referenceAnalysis = await analyzeReferenceImage({ prompt, image, referenceMode: resolvedReferenceMode });
   const explicitScreenSections = parseExplicitScreenSections(prompt);
   const requestedScreenCount = parseRequestedScreenCount(prompt);
   const forceFiniteFlowWithoutPersistentNav = looksLikeFiniteFlowWithoutPersistentNav(prompt, explicitScreenSections);
@@ -1167,6 +1222,7 @@ export async function planUiFlow({
     : await generateCreativeDirection({
         prompt,
         image,
+        referenceMode: resolvedReferenceMode,
         referenceAnalysis,
       });
   const resolvedCreativeDirection = projectContext?.trim()
@@ -1176,6 +1232,11 @@ export async function planUiFlow({
   const inlineImage = toInlineImage(image);
   if (inlineImage) {
     parts.push(inlineImage);
+    if (resolvedReferenceMode === "internal_style") {
+      parts.push({
+        text: `${internalStyleReferenceInstruction} This curated reference id is ${referenceId ?? "unknown"}.`,
+      });
+    }
   }
 
   parts.push({
@@ -1199,7 +1260,7 @@ export async function planUiFlow({
 
   if (referenceAnalysis) {
     parts.push({
-      text: `Reference Screen Analysis:\n${formatReferenceAnalysis(referenceAnalysis)}`,
+      text: `${referenceAnalysisLabel(resolvedReferenceMode)}:\n${formatReferenceAnalysis(referenceAnalysis)}`,
     });
   }
 
@@ -1237,6 +1298,8 @@ export async function planUiFlow({
     llmLog(`[LLM INPUT] plan-ui-flow`, {
       model: policy.model,
       planningMode,
+      referenceMode: resolvedReferenceMode,
+      referenceId: referenceId ?? null,
       systemInstructionLength: si.length,
       systemInstruction: si,
       userPartCount: parts.length,
@@ -1339,6 +1402,7 @@ export async function planUiFlow({
         rawPlan,
         prompt,
         image,
+        referenceMode: resolvedReferenceMode,
         referenceAnalysis,
         creativeDirection: resolvedCreativeDirection,
         navigationArchitecture,
@@ -1366,6 +1430,7 @@ export async function planUiFlow({
     },
     source: "planner",
     referenceAnalysis,
+    referenceMode: resolvedReferenceMode,
     navigationArchitecture,
     diagnostics: {
       source: "planner",
@@ -1424,10 +1489,14 @@ export async function planUiFlow({
 export async function generateDesignTokens({
   prompt,
   image,
+  referenceMode,
+  referenceId,
   llmLog,
 }: {
   prompt: string;
   image?: PromptImagePayload | null;
+  referenceMode?: ReferenceMode | null;
+  referenceId?: string | null;
   llmLog?: LlmLogFn;
 }) {
   try {
@@ -1438,16 +1507,23 @@ export async function generateDesignTokens({
       temperature: 0.35,
     });
     const parts: Array<Record<string, unknown>> = [];
-    const referenceAnalysis = await analyzeReferenceImage({ prompt, image });
+    const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
+    const referenceAnalysis = await analyzeReferenceImage({ prompt, image, referenceMode: resolvedReferenceMode });
     const creativeDirection = (await generateCreativeDirection({
       prompt,
       image,
       referenceAnalysis,
+      referenceMode: resolvedReferenceMode,
     })) ?? fallbackCreativeDirection({ prompt, referenceAnalysis });
 
     const inlineImage = toInlineImage(image);
     if (inlineImage) {
       parts.push(inlineImage);
+      if (resolvedReferenceMode === "internal_style") {
+        parts.push({
+          text: `${internalStyleReferenceInstruction} Derive reusable tokens from the curated image's visual DNA only.`,
+        });
+      }
     }
 
     parts.push({
@@ -1458,7 +1534,7 @@ export async function generateDesignTokens({
 
     if (referenceAnalysis) {
       parts.push({
-        text: `Reference Screen Analysis:\n${formatReferenceAnalysis(referenceAnalysis)}`,
+        text: `${referenceAnalysisLabel(resolvedReferenceMode)}:\n${formatReferenceAnalysis(referenceAnalysis)}`,
       });
     }
 
@@ -1470,6 +1546,8 @@ export async function generateDesignTokens({
       const si = typeof policy.config.systemInstruction === "string" ? policy.config.systemInstruction : "";
       llmLog(`[LLM INPUT] design-tokens`, {
         model: policy.model,
+        referenceMode: resolvedReferenceMode,
+        referenceId: referenceId ?? null,
         systemInstructionLength: si.length,
         systemInstruction: si,
         userPartCount: parts.length,
@@ -1510,12 +1588,15 @@ export async function generateDesignTokens({
 export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerator<string, void, void> {
   const ai = createGeminiClient();
   const parts: Array<Record<string, unknown>> = [];
+  const resolvedReferenceMode = normalizeReferenceMode(input.referenceMode);
 
   const inlineImage = toInlineImage(input.image);
   if (inlineImage) {
     parts.push(inlineImage);
     parts.push({
-      text: "Use the uploaded sketch or wireframe as structural visual evidence while still honoring the provided design tokens. Preserve visible layer order, containment, layout mechanics, edge/depth treatment, and component construction instead of treating the image as loose style inspiration.",
+      text: resolvedReferenceMode === "internal_style"
+        ? `${internalStyleReferenceInstruction} Curated reference id: ${input.referenceId ?? "unknown"}.`
+        : userRecreateReferenceInstruction,
     });
   }
 
@@ -1556,6 +1637,8 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
         .map((p) => (typeof p.text === "string" ? p.text : "[image]"))
         .filter(Boolean),
       hasImage: Boolean(toInlineImage(input.image)),
+      referenceMode: resolvedReferenceMode,
+      referenceId: input.referenceId ?? null,
     };
     input.onLlmInput(snapshot);
   }
@@ -2197,6 +2280,8 @@ export async function buildNavigationShellCode({
   designTokens,
   prompt,
   image,
+  referenceMode,
+  referenceId,
   projectCharter,
   llmLog,
 }: {
@@ -2204,6 +2289,8 @@ export async function buildNavigationShellCode({
   designTokens?: DesignTokens | null;
   prompt: string;
   image?: PromptImagePayload | null;
+  referenceMode?: ReferenceMode | null;
+  referenceId?: string | null;
   projectCharter?: ProjectCharter | null;
   llmLog?: LlmLogFn;
 }) {
@@ -2215,11 +2302,14 @@ export async function buildNavigationShellCode({
     const ai = createGeminiClient();
     const parts: Array<Record<string, unknown>> = [];
     const inlineImage = toInlineImage(image);
+    const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
 
     if (inlineImage) {
       parts.push(inlineImage);
       parts.push({
-        text: "Reference image: inspect the bottom navigation treatment, shell placement, icon/label style, material, radius, elevation, active state, and how it relates to the screen content. Recreate the navigation style family, not just the tab labels.",
+        text: resolvedReferenceMode === "internal_style"
+          ? `${internalStyleReferenceInstruction} For navigation, borrow only the curated image's nav material, radius, elevation, icon/label rhythm, active-state craft, and bottom safe-area treatment. Do not copy exact tab count, labels, positions, or app domain. Curated reference id: ${referenceId ?? "unknown"}.`
+          : "Reference image: inspect the bottom navigation treatment, shell placement, icon/label style, material, radius, elevation, active state, and how it relates to the screen content. Recreate the navigation style family, not just the tab labels.",
       });
     }
 
@@ -2239,7 +2329,9 @@ export async function buildNavigationShellCode({
         "You are an elite mobile product designer building the single shared bottom navigation shell for a mobile app preview system.",
         "Return ONLY valid HTML for the navigation shell. Do not include markdown fences, html, head, body, scripts, or the screen content.",
         "The nav must be project-specific and must follow the provided navigation plan and design tokens.",
-        "Use the reference image and creative direction as high-priority visual evidence. If the reference uses a compact tab rail, floating dock, glass pill, sculpted card, or minimal bottom text/icon row, match that style family.",
+        resolvedReferenceMode === "internal_style"
+          ? "Use the internal style reference and creative direction as high-priority visual craft evidence only. Borrow nav material/shape/state quality, but build labels, item count, hierarchy, and placement from the navigation plan."
+          : "Use the reference image and creative direction as high-priority visual evidence. If the reference uses a compact tab rail, floating dock, glass pill, sculpted card, or minimal bottom text/icon row, match that style family.",
         "Avoid generic 2015 bottom tabs: no plain full-width white rectangle with evenly spaced gray icons unless the reference clearly shows that.",
         "Use one <nav data-drawgle-primary-nav> root. The nav root may be full-width, a floating dock, a compact action nav, or another bottom navigation form that fits the project.",
         "Each item must be a button or anchor with data-nav-item-id exactly matching the plan item id.",
@@ -2259,6 +2351,8 @@ export async function buildNavigationShellCode({
         .filter(Boolean);
       llmLog(`[LLM INPUT] nav-build`, {
         model: policy.model,
+        referenceMode: resolvedReferenceMode,
+        referenceId: referenceId ?? null,
         systemInstructionLength: si.length,
         systemInstruction: si,
         userPartCount: textParts.length,
