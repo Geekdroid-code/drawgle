@@ -116,11 +116,14 @@ Rules:
 - If an image is present, imageReferenceSummary must explain how it should influence the build; otherwise return null.
 - keyFeatures should be concise, durable product capabilities rather than screen names.
 - creativeDirection is required. It should be opinionated, premium, reusable across the product, and specific enough to keep the system out of generic AI-dashboard territory.
+- charter.designRationale must act like a human designer's layout contract, not only a mood statement. Include the shared viewport budget, horizontal rail, vertical rhythm, typography scale discipline, bottom navigation reservation, card density, truncation/wrapping policy, and how screens should stay consistent while still having distinct compositions.
+- creativeDirection.compositionPrinciples must include reusable spatial rules that the builder can execute: screen-edge padding, section rhythm, card/content padding, when to use dense rows vs spacious hero areas, where bottom-safe content must stop, and how text-heavy components avoid overflow.
 - Each screen description must be a deep implementation brief, not a product summary. Use these exact labeled sections inside the string: Reference DNA, Visual Goal, Layout Anatomy, Key Components, Visual Styling, Interaction Notes, Must Preserve.
 - Each screen description should usually be 900-1800 characters. If the reference image is complex, use more detail. Do not return one-paragraph screen summaries.
 - Each screen description must be detailed enough that an engineer can rebuild the composition without the original screenshot.
 - If a user-uploaded reference image is provided, every screen description must explicitly say which reference screen or visible reference cues it is preserving. Do not reduce image evidence to generic app language.
 - If an internal curated style reference is provided, every screen description must explicitly separate borrowed visual DNA from the actual layout anatomy required by the user prompt.
+- For every screen.description, include a layout fit note inside Layout Anatomy: assume a narrow 390px mobile viewport, reserve room for shared navigation when chrome_policy.show_primary_navigation is true, and explain how the screen avoids card overflow, text collision, clipped nav, and bottom-content overlap.
 - Write each screen description as a construction brief that starts at the background layer and moves forward through the primary layout structure, nested containment, component arrangement, edge/depth/material behavior, and must-preserve visual construction details.
 - Preserve the reference's layer hierarchy literally. If a surface, content cluster, control group, media plane, chart, navigation surface, or floating affordance contains child elements, describe the parent and children separately with alignment, gap, padding, inset, overlap, clipping, radius, border, shadow, and material behavior.
 - Name concrete component structures and states: headers, hero regions, surfaces, containers, lists, rows, sheets, charts, progress rings, segmented controls, tabs, chips, icon buttons, badges, avatar stacks, maps, media areas, text groups, and CTA placement when visible.
@@ -144,6 +147,8 @@ Single-pass quality gate before you return JSON:
 - Every screen.description must include at least 8 concrete visible implementation cues across layout, components, typography, color/material, spacing/radius/elevation, edge/depth treatment, imagery/charts/maps, and interaction state.
 - If the uploaded user image is present, at least 3 cues per screen must be explicitly traceable to the visible reference or reference analysis, including at least one structural cue about layer order, containment, or depth when visible.
 - If an internal curated style reference is present, use at least 3 cues about material, typography, edge/depth, iconography, nav treatment, or micro-shapes, but do not make screenshot layout positions mandatory.
+- For every screen that uses shared bottom navigation, verify the description reserves a clear bottom content zone and does not place final rows, CTAs, cards, or map callouts underneath the nav shell.
+- Verify that repeated screens share the same spacing scale, card padding, type roles, nav family, and edge/radius language. Different screens may have different layouts, but they must not feel like separate apps.
 - If a description reads like a summary card instead of a builder-ready spec, rewrite it before returning. Do not rely on a later pass to fix it.`;
 
 export const creativeDirectionInstruction = `You are an elite mobile product Art Director.
@@ -504,6 +509,16 @@ CRITICAL INSTRUCTION 0.5: PREMIUM DIFFERENTIATION
 Avoid interchangeable AI-app defaults such as evenly stacked white cards, generic hero plus stat blocks, or filler dashboards unless the spec explicitly requires them.
 When the screen description or project memory suggests a strong visual concept, express it with clear focal hierarchy, material contrast, and at least one memorable composition move.
 
+CRITICAL INSTRUCTION 0.75: HUMAN LAYOUT PREFLIGHT
+Before writing HTML, mentally simulate this screen inside a narrow mobile viewport around 390px wide and 844px tall. Do not output your reasoning, but use it to prevent bad UI.
+You must decide a layout budget first: top safe area/header height, primary content height, section gaps, card padding, text line counts, and bottom clearance.
+Use one horizontal rail across the app, normally px-[var(--dg-mobile-layout-screen-margin)] unless the brief explicitly calls for full-bleed media.
+Use one vertical rhythm from the tokens: major sections use gap-[var(--dg-mobile-layout-section-gap)], card internals use p-[var(--dg-spacing-md)] or a clearly tighter token, and small icon/label groups use gap-[var(--dg-spacing-xs)].
+If shared bottom navigation is injected, reserve at least 96px plus the bottom safe area at the bottom of the screen content. Put this clearance on the scroll/main content container, not by drawing a fake nav.
+Every compact card, list row, chip row, and nav-adjacent area must be designed for real text: use min-w-0 on flex text groups, truncate or wrap intentionally, avoid fixed heights that cannot contain the copy, and never let labels collide with icons, badges, prices, or chevrons.
+Every chart, map, gauge, progress ring, or visual panel must contain visible constructed geometry. Do not leave blank chart cards, empty axes, empty map panels, or placeholder rectangles.
+If a row/card contains more than two text lines plus controls, increase its height, simplify the copy, or move secondary metadata into a separate line so the surface breathes.
+
 CRITICAL INSTRUCTION 1: LIVE DESIGN TOKENS
 You MUST use Drawgle live token utility classes and CSS variables for canonical colors, typography, spacing, sizing, radii, borders, and shadows.
 Preferred examples: dg-bg-primary, dg-surface-card, dg-text-high, dg-text-medium, dg-action-primary, dg-border-divider, dg-radius-app, dg-radius-pill, dg-shadow-surface, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-body, dg-type-caption.
@@ -544,6 +559,8 @@ RULES:
 11. Build every required section and item named in the Screen Description. If the brief asks for three metric cards, a 2x2 metric grid, a segmented control, avatar stack, chart labels, or a specific CTA construction, include all of them in the HTML. Do not stop after the first visible card.
 12. Let long content extend vertically inside the generated screen content. Do not put overflow-hidden on the outermost screen wrapper in a way that clips required bottom content.
 13. STATIC HTML ONLY: Do NOT output JSX, React, JavaScript expressions, arrays, .map(...), arrow functions, template literals, className, class={...}, style={{...}}, data attributes with {...}, <script>, or code that requires runtime execution. Manually expand repeated items into concrete HTML elements.
-${navigationPlan?.enabled ? "14. Do NOT create a <nav>, bottom tab bar, footer navigation, or persistent primary navigation. Leave bottom space visually compatible with the injected shared shell, but do not draw the shell yourself." : ""}
-15. End the response with this exact sentinel on its own final line: ${DRAWGLE_GENERATION_COMPLETE_SENTINEL}`;
+14. Use a main content wrapper that enforces the shared spacing rhythm. A good default is a flex column with px-[var(--dg-mobile-layout-screen-margin)] and gap-[var(--dg-mobile-layout-section-gap)], with deliberate exceptions only for full-bleed media/maps.
+15. Before returning, audit for mobile fit: no horizontal overflow, no nav overlap, no clipped CTA, no unreadable chart, no empty visual panel, no text hidden behind icon controls, and no inconsistent random margins between sections.
+${navigationPlan?.enabled ? "16. Do NOT create a <nav>, bottom tab bar, footer navigation, or persistent primary navigation. Leave bottom padding for the injected shared shell: the content/main wrapper should include padding-bottom: calc(var(--dg-mobile-layout-safe-area-bottom) + 96px) or an equivalent Tailwind arbitrary pb value. Do not draw the shell yourself." : ""}
+17. End the response with this exact sentinel on its own final line: ${DRAWGLE_GENERATION_COMPLETE_SENTINEL}`;
 };

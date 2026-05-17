@@ -957,7 +957,7 @@ export const generateUiFlowTask = task({
       }),
     ]);
     let promptImage = uploadedPromptImage;
-    let referenceMode: ReferenceMode = uploadedPromptImage ? "user_recreate" : "user_recreate";
+    let referenceMode: ReferenceMode = "user_recreate";
     let referenceId: string | null = null;
 
     if (!uploadedPromptImage) {
@@ -974,11 +974,13 @@ export const generateUiFlowTask = task({
           matchedTags: match.matchedTags,
         });
         const curatedImage = await loadCuratedStyleReferenceImage(match.reference);
-        if (curatedImage) {
-          promptImage = curatedImage;
-          referenceMode = "internal_style";
-          referenceId = match.reference.id;
+        if (!curatedImage) {
+          throw new Error(`Selected curated style reference could not be loaded: ${match.reference.id}`);
         }
+
+        promptImage = curatedImage;
+        referenceMode = "internal_style";
+        referenceId = match.reference.id;
       }
     }
 
@@ -1074,7 +1076,7 @@ export const generateUiFlowTask = task({
       navigationPlan: plan.navigationPlan,
       designTokens,
       prompt: payload.prompt,
-      image: promptImage,
+      image: referenceMode === "user_recreate" ? promptImage : null,
       referenceMode,
       referenceId,
       projectCharter: plan.charter,
@@ -1163,7 +1165,7 @@ export const generateUiFlowTask = task({
       let rowInserted = false;
 
       try {
-        const shouldAttachReferenceImage = referenceMode === "internal_style" || index === 0;
+        const shouldAttachReferenceImage = referenceMode === "user_recreate" && index === 0;
 
         const handle = await (buildScreenTask as any).trigger(
           {

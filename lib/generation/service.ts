@@ -2102,6 +2102,11 @@ const navigationDesignQualityRules = [
   "Preserve every planned label and data-nav-item-id exactly unless the user explicitly asks to rename, hide, add, or remove navigation items.",
   "Preserve the planned icon meanings unless the user explicitly asks for different icons.",
   "Check the tap target comfort, label legibility, active-state clarity, and visual harmony with the screen behind it.",
+  "Design for a narrow 390px mobile viewport. The nav must fit without horizontal scrolling, clipped labels, overlapping icons, or unsafe bottom-edge placement.",
+  "Keep the shell compact enough for app content: target 64-88px visual height including labels, and never create a giant bottom panel unless the navigation plan explicitly asks for an expanded action dock.",
+  "If labels are shown, keep them short, stable, and aligned below their icons. If the available width is tight, use a compact icon-led treatment rather than squeezing text into collisions.",
+  "Use a consistent item rhythm: equal touch targets, stable icon sizes, consistent label line-height, and one active-state shape. Do not mix unrelated margins, radii, or text sizes between nav items.",
+  "Respect bottom safe-area behavior: include a small bottom inset/padding inside the nav surface, but do not push the shell so high that it covers core screen content.",
   "Do not add fake screen spacers or placeholder blocks. The renderer owns fixed placement; the nav shell owns only its own visual design.",
   "The renderer only sets data-active at runtime. All active/inactive visuals must be encoded in the nav HTML/CSS itself.",
 ];
