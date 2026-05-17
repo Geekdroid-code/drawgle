@@ -1163,6 +1163,8 @@ export const generateUiFlowTask = task({
       let rowInserted = false;
 
       try {
+        const shouldAttachReferenceImage = referenceMode === "internal_style" || index === 0;
+
         const handle = await (buildScreenTask as any).trigger(
           {
             generationRunId: payload.generationRunId,
@@ -1171,9 +1173,9 @@ export const generateUiFlowTask = task({
             screenPlan,
             prompt: payload.prompt,
             designTokens,
-            image: index === 0 ? promptImage : null,
-            referenceMode: index === 0 ? referenceMode : undefined,
-            referenceId: index === 0 ? referenceId : null,
+            image: shouldAttachReferenceImage ? promptImage : null,
+            referenceMode: shouldAttachReferenceImage ? referenceMode : undefined,
+            referenceId: shouldAttachReferenceImage ? referenceId : null,
             requiresBottomNav: plan.requiresBottomNav,
             navigationArchitecture: plan.navigationArchitecture,
             navigationPlan: plan.navigationPlan,
