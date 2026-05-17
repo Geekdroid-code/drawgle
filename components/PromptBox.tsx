@@ -6,7 +6,7 @@ import { Send, Loader2, X, Trash2, Image as ImageIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import type { PromptImagePayload, ScreenData } from "@/lib/types";
+import type { ImageReferenceMode, PromptImagePayload, ScreenData } from "@/lib/types";
 
 export function PromptBox({
   selectedScreen,
@@ -21,12 +21,13 @@ export function PromptBox({
   disabled?: boolean;
   isProcessing?: boolean;
   agentStatus?: string;
-  onSend: (options: { prompt: string; image?: PromptImagePayload | null }) => Promise<void>;
+  onSend: (options: { prompt: string; image?: PromptImagePayload | null; imageReferenceMode?: ImageReferenceMode }) => Promise<void>;
   onDeselectScreen: () => void;
   onDeleteSelectedScreen: () => Promise<void>;
 }) {
   const [prompt, setPrompt] = useState("");
   const [image, setImage] = useState<PromptImagePayload | null>(null);
+  const [imageReferenceMode, setImageReferenceMode] = useState<ImageReferenceMode>("recreate");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -46,8 +47,9 @@ export function PromptBox({
     if ((!prompt.trim() && !image) || disabled || isProcessing) return;
     const userPrompt = prompt.trim();
     setPrompt("");
-    await onSend({ prompt: userPrompt, image });
+    await onSend({ prompt: userPrompt, image, imageReferenceMode: image ? imageReferenceMode : "recreate" });
     setImage(null);
+    setImageReferenceMode("recreate");
   };
 
   return (
@@ -98,11 +100,30 @@ export function PromptBox({
                 className="w-full h-full object-cover"
               />
               <button
-                onClick={() => setImage(null)}
+                onClick={() => {
+                  setImage(null);
+                  setImageReferenceMode("recreate");
+                }}
                 className="absolute top-1 right-1 bg-black/50 hover:bg-black/70 text-white rounded-full p-0.5"
               >
                 <X className="w-3 h-3" />
               </button>
+            </div>
+            <div className="mt-2 inline-flex rounded-full border border-slate-950/[0.08] bg-white p-0.5 text-[11px] font-semibold text-slate-500">
+              {([
+                ["recreate", "Image to UI"],
+                ["style", "Style Ref"],
+              ] as const).map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  className={`h-7 cursor-pointer rounded-full px-2.5 transition ${imageReferenceMode === mode ? "bg-slate-950 text-white" : "hover:bg-slate-100"}`}
+                  onClick={() => setImageReferenceMode(mode)}
+                  disabled={disabled || isProcessing}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
         ) : null}

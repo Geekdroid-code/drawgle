@@ -18,6 +18,7 @@ import { indexScreenCode } from "@/lib/generation/block-index";
 import { persistProjectMessageMemory, persistProjectMessageMemoryPair } from "@/lib/generation/message-memory";
 import { findRepairTarget } from "@/lib/generation/screen-repair";
 import { assembleProjectContext } from "@/lib/generation/context";
+import { loadCuratedStyleReferenceImage, matchCuratedStyleReference } from "@/lib/generation/curated-style-references";
 import { planUiFlow } from "@/lib/generation/service";
 import { readScreenPlanProposal, type AgentStepMetadata } from "@/lib/agent/message-metadata";
 import { approveScreenPlanProposal, ScreenPlanApprovalError } from "@/lib/agent/screen-plan-approval";
@@ -34,6 +35,7 @@ import {
   type ProjectCharter,
   type ProjectMessage,
   type PromptImagePayload,
+  type ReferenceMode,
   type ScreenPlan,
 } from "@/lib/types";
 import type { generateUiFlowTask } from "@/trigger/generate-ui-flow";
@@ -52,6 +54,7 @@ const requestSchema = z.object({
     })
     .nullable()
     .optional(),
+  imageReferenceMode: z.enum(["recreate", "style"]).optional().default("recreate"),
   selectedScreenId: z.string().uuid().nullable().optional(),
   focusedScreenId: z.string().uuid().nullable().optional(),
   selectedElementHtml: z.string().nullable().optional(),
@@ -1396,9 +1399,39 @@ export async function POST(request: Request) {
         projectId: payload.projectId,
         userPrompt: generationPrompt,
       });
+      let referenceImage = payload.image ?? null;
+      let referenceMode: ReferenceMode | null = referenceImage
+        ? payload.imageReferenceMode === "style"
+          ? "user_style"
+          : "user_recreate"
+        : null;
+      let referenceId: string | null = null;
+
+      if (!referenceImage) {
+        const match = matchCuratedStyleReference({
+          prompt: generationPrompt,
+          planningMode: "single-screen",
+          existingCharter: projectCharter,
+        });
+
+        if (!match) {
+          throw new Error("No curated style reference is available for no-image planning.");
+        }
+
+        const curatedImage = await loadCuratedStyleReferenceImage(match.reference);
+        if (!curatedImage) {
+          throw new Error(`Selected curated style reference could not be loaded: ${match.reference.id}`);
+        }
+
+        referenceImage = curatedImage;
+        referenceMode = "curated_style";
+        referenceId = match.reference.id;
+      }
       const plan = await planUiFlow({
         prompt: generationPrompt,
-        image: payload.image ?? null,
+        image: referenceImage,
+        referenceMode,
+        referenceId,
         designTokens,
         projectContext: planningContext,
         existingCharter: projectCharter,
@@ -1422,6 +1455,7 @@ export async function POST(request: Request) {
         navigationArchitecture: plan.navigationArchitecture,
         navigationPlan: plan.navigationPlan,
         imagePath,
+        imageReferenceMode: payload.imageReferenceMode,
         status: "pending",
         expiresAt: new Date(Date.now() + 1000 * 60 * 45).toISOString(),
       };

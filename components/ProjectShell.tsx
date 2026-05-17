@@ -48,6 +48,7 @@ import type {
   AuthenticatedUser,
   DesignTokens,
   GenerationRunData,
+  ImageReferenceMode,
   NavigationArchitecture,
   NavigationPlan,
   ProjectData,
@@ -814,6 +815,7 @@ async function enqueueGeneration(input: {
   projectId: string;
   prompt: string;
   image?: PromptImagePayload | null;
+  imageReferenceMode?: ImageReferenceMode;
   designTokens?: DesignTokens | null;
   sourceGenerationRunId?: string;
   plannedScreens?: ScreenPlan[] | null;
@@ -1110,6 +1112,7 @@ export function ProjectShell({
   const queueGenerationRequest = async (input: {
     prompt: string;
     image?: PromptImagePayload | null;
+    imageReferenceMode?: ImageReferenceMode;
     designTokens?: DesignTokens | null;
     sourceGenerationRunId?: string;
     plannedScreens?: ScreenPlan[] | null;
@@ -1131,6 +1134,7 @@ export function ProjectShell({
         projectId: project.id,
         prompt: input.prompt,
         image: input.image ?? null,
+        imageReferenceMode: input.imageReferenceMode ?? "recreate",
         designTokens: input.designTokens ?? null,
         sourceGenerationRunId: input.sourceGenerationRunId,
         plannedScreens: input.plannedScreens ?? null,
@@ -1199,6 +1203,7 @@ export function ProjectShell({
   const handlePromptAction = async (options: {
     prompt: string;
     image?: PromptImagePayload | null;
+    imageReferenceMode?: ImageReferenceMode;
     clientTurnId?: string;
   }) => {
     if (!project || isCanvasInteractionLocked) {
@@ -1233,6 +1238,7 @@ export function ProjectShell({
           projectId: project.id,
           prompt,
           image: options.image ?? null,
+          imageReferenceMode: options.imageReferenceMode ?? "recreate",
           selectedScreenId: activeEditScreenId,
           focusedScreenId: selectedScreen?.id ?? null,
           selectedElementHtml: activeEditElement?.outerHTML ?? null,

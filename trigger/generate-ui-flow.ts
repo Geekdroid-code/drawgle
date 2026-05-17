@@ -30,7 +30,7 @@ import {
 import { tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
-import type { DesignTokens, NavigationArchitecture, NavigationPlan, PlanningMode, PromptImagePayload, ProjectCharter, ReferenceMode, ScreenPlan } from "@/lib/types";
+import type { DesignTokens, ImageReferenceMode, NavigationArchitecture, NavigationPlan, PlanningMode, PromptImagePayload, ProjectCharter, ReferenceMode, ReferenceSource, ScreenPlan } from "@/lib/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -41,6 +41,7 @@ type GenerateUiFlowPayload = {
   prompt: string;
   designTokens?: DesignTokens | null;
   imagePath?: string | null;
+  imageReferenceMode?: ImageReferenceMode;
   plannedScreens?: ScreenPlan[] | null;
   requiresBottomNav?: boolean;
   navigationArchitecture?: NavigationArchitecture | null;
@@ -58,6 +59,7 @@ type BuildScreenTaskPayload = {
   designTokens?: DesignTokens | null;
   image?: PromptImagePayload | null;
   referenceMode?: ReferenceMode;
+  referenceSource?: ReferenceSource | null;
   referenceId?: string | null;
   requiresBottomNav: boolean;
   navigationArchitecture?: NavigationArchitecture | null;
@@ -407,6 +409,7 @@ async function collectScreenBuild(input: BuildScreenTaskPayload, screenPlan: Scr
         prompt: input.prompt,
         image: input.image,
         referenceMode: input.referenceMode,
+        referenceSource: input.referenceSource,
         referenceId: input.referenceId,
         requiresBottomNav: input.requiresBottomNav,
         navigationArchitecture: input.navigationArchitecture,
@@ -421,6 +424,7 @@ async function collectScreenBuild(input: BuildScreenTaskPayload, screenPlan: Scr
           model: snapshot.model,
           hasImage: snapshot.hasImage,
           referenceMode: snapshot.referenceMode,
+          referenceSource: snapshot.referenceSource,
           referenceId: snapshot.referenceId,
           systemInstructionLength: snapshot.systemInstruction.length,
           systemInstruction: snapshot.systemInstruction,
@@ -454,6 +458,7 @@ async function collectNonStreamingScreenBuild(input: BuildScreenTaskPayload, scr
     prompt: input.prompt,
     image: input.image,
     referenceMode: input.referenceMode,
+    referenceSource: input.referenceSource,
     referenceId: input.referenceId,
     requiresBottomNav: input.requiresBottomNav,
     navigationArchitecture: input.navigationArchitecture,
@@ -468,6 +473,7 @@ async function collectNonStreamingScreenBuild(input: BuildScreenTaskPayload, scr
         model: snapshot.model,
         hasImage: snapshot.hasImage,
         referenceMode: snapshot.referenceMode,
+        referenceSource: snapshot.referenceSource,
         referenceId: snapshot.referenceId,
         systemInstructionLength: snapshot.systemInstruction.length,
         systemInstruction: snapshot.systemInstruction,
@@ -957,7 +963,10 @@ export const generateUiFlowTask = task({
       }),
     ]);
     let promptImage = uploadedPromptImage;
-    let referenceMode: ReferenceMode = "user_recreate";
+    let referenceMode: ReferenceMode = uploadedPromptImage && payload.imageReferenceMode === "style"
+      ? "user_style"
+      : "user_recreate";
+    let referenceSource: ReferenceSource | null = uploadedPromptImage ? "user_upload" : null;
     let referenceId: string | null = null;
 
     if (!uploadedPromptImage) {
@@ -967,22 +976,32 @@ export const generateUiFlowTask = task({
         existingCharter,
       });
 
-      if (match) {
-        logger.info("[CURATED STYLE REFERENCE] selected", {
-          referenceId: match.reference.id,
-          score: match.score,
-          matchedTags: match.matchedTags,
-        });
-        const curatedImage = await loadCuratedStyleReferenceImage(match.reference);
-        if (!curatedImage) {
-          throw new Error(`Selected curated style reference could not be loaded: ${match.reference.id}`);
-        }
-
-        promptImage = curatedImage;
-        referenceMode = "internal_style";
-        referenceId = match.reference.id;
+      if (!match) {
+        throw new Error("No curated style reference is available for no-image generation.");
       }
+
+      logger.info("[CURATED STYLE REFERENCE] selected", {
+        referenceId: match.reference.id,
+        score: match.score,
+        matchedTags: match.matchedTags,
+      });
+      const curatedImage = await loadCuratedStyleReferenceImage(match.reference);
+      if (!curatedImage) {
+        throw new Error(`Selected curated style reference could not be loaded: ${match.reference.id}`);
+      }
+
+      promptImage = curatedImage;
+      referenceMode = "curated_style";
+      referenceSource = "curated";
+      referenceId = match.reference.id;
     }
+
+    await mergeGenerationRunMetadata(admin, payload.generationRunId, {
+      requestedImageReferenceMode: payload.imageReferenceMode ?? "recreate",
+      referenceMode,
+      referenceSource,
+      referenceId,
+    });
 
     if (!designTokens) {
       await postStatusMessage(
@@ -1176,8 +1195,9 @@ export const generateUiFlowTask = task({
             prompt: payload.prompt,
             designTokens,
             image: shouldAttachReferenceImage ? promptImage : null,
-            referenceMode: shouldAttachReferenceImage ? referenceMode : undefined,
-            referenceId: shouldAttachReferenceImage ? referenceId : null,
+            referenceMode,
+            referenceSource,
+            referenceId,
             requiresBottomNav: plan.requiresBottomNav,
             navigationArchitecture: plan.navigationArchitecture,
             navigationPlan: plan.navigationPlan,

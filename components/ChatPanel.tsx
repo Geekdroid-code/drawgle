@@ -38,6 +38,7 @@ import {
 import type {
   GenerationRunData,
   DesignTokens,
+  ImageReferenceMode,
   NavigationArchitecture,
   NavigationPlan,
   ProjectData,
@@ -1003,7 +1004,7 @@ export function ChatPanel({
   onCancelPlan?: () => void;
   isCollapsed: boolean;
   onCollapseChange: (collapsed: boolean) => void;
-  onSubmit?: (options: { prompt: string; image?: PromptImagePayload | null; clientTurnId?: string }) => Promise<boolean>;
+  onSubmit?: (options: { prompt: string; image?: PromptImagePayload | null; imageReferenceMode?: ImageReferenceMode; clientTurnId?: string }) => Promise<boolean>;
   disabled?: boolean;
   selectionMode?: boolean;
   onToggleSelectionMode?: () => void;
@@ -1056,7 +1057,7 @@ export function ChatPanel({
     collapsedTitle = selectedScreen.name;
   }
 
-  const handleSubmit = async (options: { prompt: string; image?: PromptImagePayload | null }) => {
+  const handleSubmit = async (options: { prompt: string; image?: PromptImagePayload | null; imageReferenceMode?: ImageReferenceMode }) => {
     const turn: PendingTurn = {
       id: crypto.randomUUID(),
       prompt: options.prompt,

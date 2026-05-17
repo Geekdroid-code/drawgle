@@ -5,10 +5,10 @@ import { Image as ImageIcon, Loader2, Palette, Pencil, Send, X } from "lucide-re
 import { AgentThinkingIndicator } from "@/components/AgentBall";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import type { ProjectData, PromptImagePayload, ScreenData } from "@/lib/types";
+import type { ImageReferenceMode, ProjectData, PromptImagePayload, ScreenData } from "@/lib/types";
 
 export type AgentComposerProps = {
-  onSubmit?: (options: { prompt: string; image?: PromptImagePayload | null }) => Promise<boolean>;
+  onSubmit?: (options: { prompt: string; image?: PromptImagePayload | null; imageReferenceMode?: ImageReferenceMode }) => Promise<boolean>;
   project?: ProjectData;
   disabled?: boolean;
   submitStatusText?: string;
@@ -52,6 +52,7 @@ export function AgentComposer({
   const [isGenerating, setIsGenerating] = useState(false);
   const [agentStatus, setAgentStatus] = useState("");
   const [image, setImage] = useState<PromptImagePayload | null>(null);
+  const [imageReferenceMode, setImageReferenceMode] = useState<ImageReferenceMode>("recreate");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const activeImage = selectedScreen ? null : image;
   const hasSelectedElement = Boolean(
@@ -90,12 +91,17 @@ export function AgentComposer({
     setAgentStatus(submitStatusText);
 
     try {
-      const didSubmit = await onSubmit({ prompt: nextPrompt, image: imageToSubmit });
+      const didSubmit = await onSubmit({
+        prompt: nextPrompt,
+        image: imageToSubmit,
+        imageReferenceMode: imageToSubmit ? imageReferenceMode : "recreate",
+      });
 
       if (didSubmit) {
         setPrompt("");
         if (imageToSubmit) {
           setImage(null);
+          setImageReferenceMode("recreate");
         }
       }
     } catch (error) {
@@ -190,12 +196,31 @@ export function AgentComposer({
               className="w-full h-full object-cover"
             />
             <button
-              onClick={() => setImage(null)}
+              onClick={() => {
+                setImage(null);
+                setImageReferenceMode("recreate");
+              }}
               className="absolute right-1 top-1 rounded-full bg-black/60 p-0.5 text-white hover:bg-black/80"
               type="button"
             >
               <X className="w-3 h-3" />
             </button>
+          </div>
+          <div className="mt-2 inline-flex rounded-full border border-slate-950/[0.08] bg-white p-0.5 text-[11px] font-semibold text-slate-500 shadow-sm">
+            {([
+              ["recreate", "Image to UI"],
+              ["style", "Style Ref"],
+            ] as const).map(([mode, label]) => (
+              <button
+                key={mode}
+                type="button"
+                className={`h-7 cursor-pointer rounded-full px-2.5 transition ${imageReferenceMode === mode ? "bg-slate-950 text-white" : "hover:bg-slate-100"}`}
+                onClick={() => setImageReferenceMode(mode)}
+                disabled={disabled || isGenerating}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </div>
       ) : null}

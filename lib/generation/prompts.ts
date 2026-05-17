@@ -151,6 +151,123 @@ Single-pass quality gate before you return JSON:
 - Verify that repeated screens share the same spacing scale, card padding, type roles, nav family, and edge/radius language. Different screens may have different layouts, but they must not feel like separate apps.
 - If a description reads like a summary card instead of a builder-ready spec, rewrite it before returning. Do not rely on a later pass to fix it.`;
 
+const plannerSharedModeContract = `You are an expert mobile UX Architect for Drawgle.
+You create production-grade mobile app plans from the user's intent, optional reference analysis, creative direction, approved design tokens, and existing project context.
+
+Non-negotiable output discipline:
+- Return strictly valid JSON only.
+- Build one coherent product architecture before describing screens.
+- Keep one spacing scale, typography hierarchy, surface language, icon rhythm, and navigation family across every screen.
+- Treat a 390px mobile viewport as the working mental canvas. Reserve bottom navigation clearance when primary navigation is active.
+- Do not plan text, cards, maps, charts, nav shells, or CTAs that cannot fit the viewport.
+- Do not make each screen feel like a different app. Distinct compositions are allowed; inconsistent padding, line-height, card radii, and nav rhythm are not.
+- Every screen brief must include these labels inside description: Reference DNA, Visual Goal, Layout Anatomy, Key Components, Visual Styling, Interaction Notes, Must Preserve.
+- Each screen brief must be builder-ready, not a product summary. Describe background layer, content rail, parent-child containment, spacing, edge treatment, type roles, nav clearance, and overflow/wrapping policy.`;
+
+const plannerBlueprintJsonContract = `Return JSON with this exact top-level shape:
+{
+  "requires_bottom_nav": true,
+  "navigation_architecture": {
+    "kind": "bottom-tabs-app",
+    "primary_navigation": "bottom-tabs",
+    "root_chrome": "bottom-tabs",
+    "detail_chrome": "top-bar-back",
+    "consistency_rules": ["Rule 1", "Rule 2"],
+    "rationale": "Why this navigation structure fits the product"
+  },
+  "navigation_plan": {
+    "enabled": true,
+    "kind": "bottom-tabs",
+    "items": [
+      {
+        "id": "home",
+        "label": "Home",
+        "icon": "home",
+        "role": "Primary dashboard and launch point",
+        "linked_screen_name": "Home"
+      }
+    ],
+    "visual_brief": "Project-specific nav anatomy: surface, radius, elevation, active state, icon/label rhythm, safe-area relationship.",
+    "screen_chrome": [
+      {
+        "screen_name": "Home",
+        "chrome": "bottom-tabs",
+        "navigation_item_id": "home"
+      }
+    ]
+  },
+  "charter": {
+    "originalPrompt": "Clean restatement of the user's intent",
+    "imageReferenceSummary": "How the reference should influence the project, or null",
+    "appType": "Short product type",
+    "targetAudience": "Who this is for",
+    "navigationModel": "How users move through the app",
+    "keyFeatures": ["Feature 1", "Feature 2"],
+    "designRationale": "Human layout contract: viewport budget, horizontal rail, vertical rhythm, nav reservation, card density, wrapping/truncation policy, and consistency rules.",
+    "creativeDirection": {
+      "conceptName": "Short memorable label",
+      "styleEssence": "Premium and distinct direction",
+      "colorStory": "Color usage",
+      "typographyMood": "Type behavior",
+      "surfaceLanguage": "Cards, sheets, backgrounds, materials",
+      "iconographyStyle": "Icon and badge style",
+      "compositionPrinciples": ["Rule 1", "Rule 2", "Rule 3"],
+      "signatureMoments": ["Standout move 1", "Standout move 2"],
+      "motionTone": "Motion feel",
+      "avoid": ["Pattern to avoid 1", "Pattern to avoid 2"]
+    }
+  }
+}`;
+
+const plannerScreensJsonContract = `Return JSON with this exact top-level shape:
+{
+  "screens": [
+    {
+      "name": "Short Name",
+      "type": "root",
+      "description": "Reference DNA: ...\\nVisual Goal: ...\\nLayout Anatomy: ...\\nKey Components: ...\\nVisual Styling: ...\\nInteraction Notes: ...\\nMust Preserve: ...",
+      "chrome_policy": {
+        "chrome": "bottom-tabs",
+        "show_primary_navigation": true,
+        "shows_back_button": false
+      }
+    }
+  ]
+}`;
+
+export const plannerRecreateInstruction = `${plannerSharedModeContract}
+
+MODE: USER_RECREATE.
+The user uploaded an image and selected Image to UI. Treat uploaded reference analysis and any attached planner image as structural evidence.
+Preserve visible structure, section order, layer order, containment, depth, spacing mechanics, nav treatment, and layout anatomy while adapting copy and product details to the user prompt.
+Do not reinterpret the image as loose style inspiration.`;
+
+export const plannerStyleInstruction = `${plannerSharedModeContract}
+
+MODE: STYLE_REFERENCE.
+The reference is visual inspiration only. It may be uploaded by the user or selected internally by Drawgle.
+Use reference analysis for material quality, shadows, radii, blur/glass, typography character, icon weight, color rhythm, nav treatment, polish, micro-shapes, and component craftsmanship.
+Do not preserve exact section order, object positions, domain content, data values, or full screenshot anatomy.
+Plan screen anatomy from the user prompt, existing project context, charter, and navigation needs.`;
+
+export const plannerBlueprintStepInstruction = (mode: "recreate" | "style") => `${mode === "recreate" ? plannerRecreateInstruction : plannerStyleInstruction}
+
+STEP: PROJECT BLUEPRINT ONLY.
+Create the project charter, navigation architecture, and navigation plan. Do not return screens in this step.
+${plannerBlueprintJsonContract}`;
+
+export const plannerScreenBriefStepInstruction = (mode: "recreate" | "style") => `${mode === "recreate" ? plannerRecreateInstruction : plannerStyleInstruction}
+
+STEP: SCREEN BRIEFS ONLY.
+Use the provided project blueprint as fixed product architecture. Create only the screen list and builder-ready screen descriptions.
+${plannerScreensJsonContract}
+
+Rules:
+- If the user explicitly asked for N screens, return exactly N screens unless the prompt names fewer screens.
+- If the prompt names screens in order, preserve those names and order.
+- Root screens are peer primary destinations. Onboarding, splash, checkout, tracking, map, detail, modal, and confirmation screens are usually detail/immersive screens.
+- Description must include a layout fit note for narrow 390px viewport, bottom nav clearance when applicable, and how the screen avoids overflow, text collision, clipped nav, and bottom overlap.`;
+
 export const creativeDirectionInstruction = `You are an elite mobile product Art Director.
 Your job is to invent or infer a premium, opinionated creative direction that will keep the generated UI out of generic AI-app territory.
 
@@ -229,6 +346,48 @@ Rules:
 - Use generic placeholders only for volatile literal values; preserve visible layout anchors when they matter to the composition.
 - The goal is not to summarize. The goal is to capture the screen anatomy, layer stack, edge behavior, and construction logic so a UI builder can recreate it faithfully without flattening the design.`;
 
+export const referenceAnalysisRecreateInstruction = `${referenceAnalysisInstruction}
+
+MODE LOCK: USER_RECREATE.
+This uploaded image is a structural reference. Extract visible layout anatomy, layer order, containment, spacing, depth, and component construction required to recreate the screenshot faithfully.`;
+
+export const referenceAnalysisStyleInstruction = `You are a specialist in extracting reusable visual DNA from premium mobile UI screenshots.
+This image is a STYLE REFERENCE only. It is not the user's requested layout.
+
+Return strictly valid JSON in this format:
+{
+  "overallVisualStyle": "High-level reusable style language: material quality, color rhythm, typography character, surface craft, navigation feel, and polish",
+  "screenCountEstimate": 1,
+  "screenReferences": [
+    {
+      "index": 1,
+      "suggestedRole": "Reusable style role, not required app screen",
+      "layoutSummary": "Reusable composition principles and constraints, not exact section order or object positions",
+      "visualHierarchy": "How the reference creates priority through scale, contrast, depth, spacing, typography, and focal moments",
+      "components": ["Portable component craft cue", "Another reusable component/material cue"],
+      "stylingCues": ["Material, color, radius, edge, shadow, glass, typography, icon, or micro-shape cue"],
+      "interactionCues": ["Portable interaction or state cue"],
+      "copyPatterns": ["Reusable text rhythm or label treatment"],
+      "implementationNotes": ["Do-not-copy-layout rule plus reusable craftsmanship note"]
+    }
+  ],
+  "designSystemSignals": {
+    "palette": "Reusable palette and accent behavior",
+    "typography": "Reusable font personality, scale, and emphasis behavior",
+    "surfaces": "Reusable card, sheet, panel, background, shadow, radius, border, and blur language",
+    "iconography": "Reusable icon style, weight, framing, and active state language",
+    "density": "Reusable spacing density, content rhythm, and viewport fit constraints",
+    "motionTone": "Likely interaction/motion tone implied by the design"
+  }
+}
+
+Rules:
+- Extract material quality, shadows, radii, blur/glass, typography character, icon weight, color rhythm, polish, micro-shapes, navigation treatment, component craftsmanship, spacing density, and viewport fit constraints.
+- Do not preserve exact section order, object positions, domain content, data values, product objects, literal copy, or full screenshot anatomy.
+- Translate visible structure into portable principles: "floating dock with active pill and generous safe-area clearance", not "put this exact dock in the same place with the same labels".
+- Identify what would make another product feel similarly premium without making it a clone.
+- The downstream planner and builder will create app-specific layouts from the user prompt, so your analysis must separate visual craft from layout template.`;
+
 // ---------------------------------------------------------------------------
 // DESIGN — Art Director / Token System
 // ---------------------------------------------------------------------------
@@ -239,7 +398,7 @@ Analyze the requested app's vibe, target audience, purpose, and any provided ref
 Use precise hex codes, appropriate typography, and a spacing / shape / elevation system that is intentionally derived from the prompt or reference.
 You may receive CREATIVE DIRECTION. When present, honor it as the primary artistic brief and convert it into reusable tokens.
 If REFERENCE SCREEN ANALYSIS is provided or an image is present, infer the token system from the actual visual cues in that reference instead of defaulting to a generic startup palette.
-If the image is marked as an internal curated style reference, derive reusable token decisions from its visual DNA only. Do not encode its exact layout, domain data, or content-specific structure into tokens.
+If the image is marked as a style reference, derive reusable token decisions from its visual DNA only. Do not encode its exact layout, domain data, or content-specific structure into tokens.
 Translate the observed visual DNA into reusable tokens: accent color, neutrals, surface layering, radii, shadow softness, typography feel, icon weight, and spacing density.
 Do not output a safe generic palette if the reference or creative direction clearly implies a stronger direction.
 If no reference image exists, use CREATIVE DIRECTION to produce a premium, recognizable system rather than a generic white-card app kit.
@@ -456,13 +615,13 @@ Additional rules:
 // BUILD — Screen Code Generator
 // ---------------------------------------------------------------------------
 
-export const buildSystemInstruction = ({
+const buildScreenInstruction = ({
   designTokens,
   screenPlan,
   requiresBottomNav,
   navigationArchitecture,
   navigationPlan,
-}: Pick<BuildScreenInput, "designTokens" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan"> & { screenPlan: ScreenPlan }) => {
+}: Pick<BuildScreenInput, "designTokens" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan"> & { screenPlan: ScreenPlan }, mode: "recreate" | "style") => {
   const fontFamily = resolveToken(designTokens, "typography.font_family", "sans-serif");
   const safeTop = resolveToken(designTokens, "mobile_layout.safe_area_top", "16px");
   const safeBottom = resolveToken(designTokens, "mobile_layout.safe_area_bottom", "16px");
@@ -490,12 +649,26 @@ export const buildSystemInstruction = ({
         return "This screen should use a standard top-bar or anchored header treatment. Do not add the primary bottom-tab shell unless the screen chrome contract says so.";
     }
   })();
+  const modeInstruction = mode === "recreate"
+    ? [
+        "REFERENCE MODE: USER_RECREATE.",
+        "If an image is attached in the user parts, treat it as structural evidence for this screen route.",
+        "Preserve visible layer order, containment, layout mechanics, edge/depth treatment, navigation style family, and component construction while honoring the project tokens and screen brief.",
+      ].join(" ")
+    : [
+        "REFERENCE MODE: STYLE_REFERENCE.",
+        "No raw reference image should be attached for this builder route. Build from the screen brief, charter, navigation plan, creative direction, and tokens.",
+        "Borrow polish through the already-written reference analysis and creative direction only: material quality, shadows, radii, typography character, color rhythm, icon weight, nav feel, and component craft.",
+        "Do not clone a curated or uploaded style screenshot's domain content, section order, object positions, or full layout anatomy.",
+      ].join(" ");
 
   return `You are an expert mobile UI designer and frontend developer.
 You are building ONE specific screen for a larger app.
 Screen Name: ${screenPlan.name}
 Screen Type: ${screenPlan.type}
 Screen Description: ${screenPlan.description}
+
+${modeInstruction}
 
 CRITICAL INSTRUCTION 0: SCREEN SPEC FIDELITY
 Treat Screen Description as a concrete implementation spec, not loose inspiration.
@@ -564,3 +737,11 @@ RULES:
 ${navigationPlan?.enabled ? "16. Do NOT create a <nav>, bottom tab bar, footer navigation, or persistent primary navigation. Leave bottom padding for the injected shared shell: the content/main wrapper should include padding-bottom: calc(var(--dg-mobile-layout-safe-area-bottom) + 96px) or an equivalent Tailwind arbitrary pb value. Do not draw the shell yourself." : ""}
 17. End the response with this exact sentinel on its own final line: ${DRAWGLE_GENERATION_COMPLETE_SENTINEL}`;
 };
+
+export const buildRecreateScreenInstruction = (input: Pick<BuildScreenInput, "designTokens" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan"> & { screenPlan: ScreenPlan }) =>
+  buildScreenInstruction(input, "recreate");
+
+export const buildStyleScreenInstruction = (input: Pick<BuildScreenInput, "designTokens" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan"> & { screenPlan: ScreenPlan }) =>
+  buildScreenInstruction(input, "style");
+
+export const buildSystemInstruction = buildRecreateScreenInstruction;

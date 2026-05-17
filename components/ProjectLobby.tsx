@@ -26,6 +26,7 @@ import { describeNavigationArchitecture } from "@/lib/navigation";
 import type {
   AuthenticatedUser,
   DesignTokens,
+  ImageReferenceMode,
   PlannedUiFlow,
   ProjectData,
   PromptImagePayload,
@@ -196,6 +197,7 @@ export function ProjectLobby({
   const [stage, setStage] = useState<LobbyStage>("brief");
   const [prompt, setPrompt] = useState(initialPrompt);
   const [image, setImage] = useState<PromptImagePayload | null>(null);
+  const [imageReferenceMode, setImageReferenceMode] = useState<ImageReferenceMode>("recreate");
   const [selectedBriefStyle, setSelectedBriefStyle] = useState<BriefStyleId>("auto");
   const [designTokens, setDesignTokens] = useState<DesignTokens | null>(null);
   const [plan, setPlan] = useState<PlannedUiFlow | null>(null);
@@ -235,6 +237,7 @@ export function ProjectLobby({
 
   const handleRemoveImage = () => {
     setImage(null);
+    setImageReferenceMode("recreate");
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -255,6 +258,7 @@ export function ProjectLobby({
         body: JSON.stringify({
           prompt: prompt.trim(),
           image,
+          imageReferenceMode,
         }),
       });
 
@@ -286,6 +290,7 @@ export function ProjectLobby({
         body: JSON.stringify({
           prompt: prompt.trim(),
           image,
+          imageReferenceMode,
           designTokens,
         }),
       });
@@ -320,6 +325,7 @@ export function ProjectLobby({
         body: JSON.stringify({
           prompt: prompt.trim(),
           image,
+          imageReferenceMode,
           designTokens,
           plannedScreens: plan.screens,
           requiresBottomNav: plan.requiresBottomNav,
@@ -409,24 +415,42 @@ export function ProjectLobby({
                         </div>
 
                         {image ? (
-                          <button
-                            type="button"
-                            onClick={handleRemoveImage}
-                            className="absolute bottom-[54px] left-3 z-20 flex max-w-[180px] items-center gap-2 rounded-xl border border-neutral-200 bg-white py-1 pl-1 pr-2 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50"
-                            aria-label="Remove reference image"
-                          >
-                            <span className="relative h-8 w-8 shrink-0 overflow-hidden rounded-lg border border-black/10 bg-white">
-                              <Image
-                                src={`data:${image.mimeType};base64,${image.data}`}
-                                alt="Reference preview"
-                                fill
-                                unoptimized
-                                className="object-cover"
-                              />
-                            </span>
-                            <span className="truncate">Reference</span>
-                            <X className="h-3.5 w-3.5 shrink-0" />
-                          </button>
+                          <div className="absolute bottom-[54px] left-3 z-20 flex max-w-[calc(100%-1.5rem)] items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={handleRemoveImage}
+                              className="flex max-w-[160px] cursor-pointer items-center gap-2 rounded-xl border border-neutral-200 bg-white py-1 pl-1 pr-2 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50"
+                              aria-label="Remove reference image"
+                            >
+                              <span className="relative h-8 w-8 shrink-0 overflow-hidden rounded-lg border border-black/10 bg-white">
+                                <Image
+                                  src={`data:${image.mimeType};base64,${image.data}`}
+                                  alt="Reference preview"
+                                  fill
+                                  unoptimized
+                                  className="object-cover"
+                                />
+                              </span>
+                              <span className="truncate">Reference</span>
+                              <X className="h-3.5 w-3.5 shrink-0" />
+                            </button>
+                            <div className="flex h-9 shrink-0 items-center rounded-xl border border-neutral-200 bg-white p-0.5 text-[11px] font-semibold text-neutral-500 shadow-sm">
+                              {([
+                                ["recreate", "Image to UI"],
+                                ["style", "Style Ref"],
+                              ] as const).map(([mode, label]) => (
+                                <button
+                                  key={mode}
+                                  type="button"
+                                  onClick={() => setImageReferenceMode(mode)}
+                                  className={`h-8 cursor-pointer rounded-[10px] px-2.5 transition ${imageReferenceMode === mode ? "bg-neutral-950 text-white shadow-sm" : "text-neutral-600 hover:bg-neutral-100"}`}
+                                  disabled={isGeneratingDesign}
+                                >
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
                         ) : null}
 
                         <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between">

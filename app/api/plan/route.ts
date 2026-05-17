@@ -2,11 +2,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { assembleProjectContext } from "@/lib/generation/context";
+import { loadCuratedStyleReferenceImage, matchCuratedStyleReference } from "@/lib/generation/curated-style-references";
 import { planUiFlow } from "@/lib/generation/service";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
-import type { DesignTokens, NavigationPlan, PlanningMode, ProjectCharter, PromptImagePayload } from "@/lib/types";
+import type { DesignTokens, NavigationPlan, PlanningMode, ProjectCharter, PromptImagePayload, ReferenceMode } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -20,6 +21,7 @@ const requestSchema = z.object({
     })
     .nullable()
     .optional(),
+  imageReferenceMode: z.enum(["recreate", "style"]).optional().default("recreate"),
   designTokens: z.unknown().nullable().optional(),
   planningMode: z.enum(["project", "single-screen"]).optional().default("project"),
 }).superRefine((value, ctx) => {
@@ -77,9 +79,40 @@ export async function POST(req: Request) {
       });
     }
 
+    let referenceImage = (payload.image ?? null) as PromptImagePayload | null;
+    let referenceMode: ReferenceMode | null = referenceImage
+      ? payload.imageReferenceMode === "style"
+        ? "user_style"
+        : "user_recreate"
+      : null;
+    let referenceId: string | null = null;
+
+    if (!referenceImage) {
+      const match = matchCuratedStyleReference({
+        prompt: payload.prompt,
+        planningMode: payload.planningMode as PlanningMode,
+        existingCharter,
+      });
+
+      if (!match) {
+        throw new Error("No curated style reference is available for no-image planning.");
+      }
+
+      const curatedImage = await loadCuratedStyleReferenceImage(match.reference);
+      if (!curatedImage) {
+        throw new Error(`Selected curated style reference could not be loaded: ${match.reference.id}`);
+      }
+
+      referenceImage = curatedImage;
+      referenceMode = "curated_style";
+      referenceId = match.reference.id;
+    }
+
     const plan = await planUiFlow({
       prompt: payload.prompt,
-      image: (payload.image ?? null) as PromptImagePayload | null,
+      image: referenceImage,
+      referenceMode,
+      referenceId,
       designTokens: (payload.designTokens ?? null) as DesignTokens | null,
       projectContext,
       existingCharter,

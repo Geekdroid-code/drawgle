@@ -1,4 +1,4 @@
-import type { NavigationArchitecture, NavigationPlan, ScreenPlan } from "@/lib/types";
+import type { ImageReferenceMode, NavigationArchitecture, NavigationPlan, ScreenPlan } from "@/lib/types";
 
 export type AgentStepStatus = "queued" | "thinking" | "editing" | "completed" | "failed";
 
@@ -41,6 +41,7 @@ export type ScreenPlanProposalMetadata = {
   navigationPlan: NavigationPlan;
   expiresAt: string;
   imagePath?: string | null;
+  imageReferenceMode?: ImageReferenceMode | null;
   status?: "pending" | "approved" | "expired";
   approvedGenerationRunId?: string | null;
 };
@@ -84,6 +85,9 @@ const asStringArray = (value: unknown) =>
     : null;
 
 const asBoolean = (value: unknown) => typeof value === "boolean" ? value : null;
+
+const asImageReferenceMode = (value: unknown): ImageReferenceMode | null =>
+  value === "style" || value === "recreate" ? value : null;
 
 const isScreenPlan = (value: unknown): value is ScreenPlan => {
   const record = asRecord(value);
@@ -183,6 +187,7 @@ export function readScreenPlanProposal(metadata: Record<string, unknown>): Scree
     navigationPlan: proposal.navigationPlan,
     expiresAt,
     imagePath: asString(proposal.imagePath),
+    imageReferenceMode: asImageReferenceMode(proposal.imageReferenceMode),
     status,
     approvedGenerationRunId: asString(proposal.approvedGenerationRunId),
   };

@@ -14,12 +14,15 @@ import {
   validateNavigationShell,
 } from "@/lib/project-navigation";
 import {
-  buildSystemInstruction,
+  buildRecreateScreenInstruction,
+  buildStyleScreenInstruction,
   buildEditSystemInstruction,
   creativeDirectionInstruction,
   designInstruction,
-  plannerInstruction,
-  referenceAnalysisInstruction,
+  plannerBlueprintStepInstruction,
+  plannerScreenBriefStepInstruction,
+  referenceAnalysisRecreateInstruction,
+  referenceAnalysisStyleInstruction,
 } from "@/lib/generation/prompts";
 import { appendRequiredAnchors, DRAWGLE_GENERATION_COMPLETE_SENTINEL, extractRequiredAnchors, stripGenerationCompleteSentinel, validateSourceCompletion } from "@/lib/generation/screen-quality";
 import { buildRepairSurroundingContext, type RepairTarget } from "@/lib/generation/screen-repair";
@@ -110,6 +113,12 @@ const PlanSchema = z.object({
     designRationale: z.string().trim().min(1).max(8000),
     creativeDirection: CreativeDirectionSchema.nullable().optional(),
   }),
+  screens: z.array(ScreenPlanSchema).min(1).max(12),
+});
+
+const ProjectBlueprintSchema = PlanSchema.omit({ screens: true });
+
+const ScreenBriefsSchema = z.object({
   screens: z.array(ScreenPlanSchema).min(1).max(12),
 });
 
@@ -601,10 +610,10 @@ export const fallbackProjectCharter = ({
 }): ProjectCharter => ({
   originalPrompt: prompt.trim() || existingCharter?.originalPrompt || "Create a polished mobile app experience from the provided reference.",
   imageReferenceSummary: image
-    ? normalizeReferenceMode(referenceMode) === "internal_style"
+    ? isStyleReferenceMode(referenceMode)
       ? referenceAnalysis
-        ? `Use the internal curated style reference for visual DNA only. ${referenceAnalysis.overallVisualStyle}`
-        : "Use the internal curated style reference for visual DNA, material quality, typography, color rhythm, and component craft without copying its layout."
+        ? `Use the style reference for visual DNA only. ${referenceAnalysis.overallVisualStyle}`
+        : "Use the style reference for visual DNA, material quality, typography, color rhythm, and component craft without copying its layout."
       : referenceAnalysis
         ? `Use the uploaded reference as a structural and stylistic blueprint. ${referenceAnalysis.overallVisualStyle}`
         : "Use the uploaded reference as inspiration for layout hierarchy, tone, and composition while adapting it into a polished product UI."
@@ -727,8 +736,8 @@ const enrichProjectCharter = ({
   ...base,
   imageReferenceSummary: base.imageReferenceSummary
     ?? (referenceAnalysis
-      ? normalizeReferenceMode(referenceMode) === "internal_style"
-        ? `Use the internal curated style reference for visual DNA only. ${referenceAnalysis.overallVisualStyle}`
+      ? isStyleReferenceMode(referenceMode)
+        ? `Use the style reference for visual DNA only. ${referenceAnalysis.overallVisualStyle}`
         : `Use the uploaded reference as a structural and stylistic blueprint. ${referenceAnalysis.overallVisualStyle}`
       : null),
   navigationArchitecture,
@@ -1005,11 +1014,17 @@ const toInlineImage = (image?: PromptImagePayload | null) => {
   };
 };
 
-const normalizeReferenceMode = (referenceMode?: ReferenceMode | null): ReferenceMode =>
-  referenceMode === "internal_style" ? "internal_style" : "user_recreate";
+const normalizeReferenceMode = (referenceMode?: ReferenceMode | null): Exclude<ReferenceMode, "internal_style"> => {
+  if (referenceMode === "user_style") return "user_style";
+  if (referenceMode === "curated_style" || referenceMode === "internal_style") return "curated_style";
+  return "user_recreate";
+};
 
-const internalStyleReferenceInstruction = [
-  "Internal curated style reference: use the image only for visual DNA and premium craft.",
+const isStyleReferenceMode = (referenceMode?: ReferenceMode | null) =>
+  normalizeReferenceMode(referenceMode) !== "user_recreate";
+
+const styleReferenceInstruction = [
+  "Style reference mode: use the image only for visual DNA and premium craft.",
   "Preserve material quality, shadows, radii, blur/glass, typography character, icon weight, color rhythm, polish, micro-shapes, navigation treatment, and component craftsmanship.",
   "Do not preserve exact section order, object positions, domain content, data values, full layout structure, or literal screen anatomy.",
   "Build the actual screen structure from the user prompt, planned screen role, project charter, navigation plan, and approved tokens.",
@@ -1018,8 +1033,8 @@ const internalStyleReferenceInstruction = [
 const userRecreateReferenceInstruction = "Use the uploaded sketch or wireframe as structural visual evidence while still honoring the provided design tokens. Preserve visible layer order, containment, layout mechanics, edge/depth treatment, and component construction instead of treating the image as loose style inspiration.";
 
 const referenceAnalysisLabel = (referenceMode?: ReferenceMode | null) =>
-  normalizeReferenceMode(referenceMode) === "internal_style"
-    ? "Internal Style Reference Analysis (visual DNA only, do not copy screenshot layout)"
+  isStyleReferenceMode(referenceMode)
+    ? "Style Reference Analysis (visual DNA only, do not copy screenshot layout)"
     : "Reference Screen Analysis";
 
 const formatReferenceAnalysis = (referenceAnalysis: ReferenceAnalysis) => {
@@ -1082,16 +1097,19 @@ async function analyzeReferenceImage({
 
   try {
     const ai = createGeminiClient();
+    const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
     const policy = geminiPolicyForTask("project_planning", {
-      systemInstruction: referenceAnalysisInstruction,
+      systemInstruction: isStyleReferenceMode(resolvedReferenceMode)
+        ? referenceAnalysisStyleInstruction
+        : referenceAnalysisRecreateInstruction,
       responseMimeType: "application/json",
       temperature: 0.1,
     });
     const parts: Array<Record<string, unknown>> = [inlineImage];
 
-    if (normalizeReferenceMode(referenceMode) === "internal_style") {
+    if (isStyleReferenceMode(resolvedReferenceMode)) {
       parts.push({
-        text: `${internalStyleReferenceInstruction} Extract reusable visual DNA and component/material construction cues. Do not treat this as the user's requested app layout.`,
+        text: `${styleReferenceInstruction} Extract reusable visual DNA and component/material construction cues. Do not treat this as the user's requested app layout.`,
       });
     }
 
@@ -1136,12 +1154,13 @@ async function generateCreativeDirection({
     });
     const parts: Array<Record<string, unknown>> = [];
     const inlineImage = toInlineImage(image);
+    const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
 
     if (inlineImage) {
       parts.push(inlineImage);
-      if (normalizeReferenceMode(referenceMode) === "internal_style") {
+      if (isStyleReferenceMode(resolvedReferenceMode)) {
         parts.push({
-          text: internalStyleReferenceInstruction,
+          text: styleReferenceInstruction,
         });
       }
     }
@@ -1154,7 +1173,7 @@ async function generateCreativeDirection({
 
     if (referenceAnalysis) {
       parts.push({
-        text: `${referenceAnalysisLabel(referenceMode)}:\n${formatReferenceAnalysis(referenceAnalysis)}`,
+        text: `${referenceAnalysisLabel(resolvedReferenceMode)}:\n${formatReferenceAnalysis(referenceAnalysis)}`,
       });
     }
 
@@ -1229,14 +1248,9 @@ export async function planUiFlow({
     ? null
     : creativeDirection ?? fallbackCreativeDirection({ prompt, referenceAnalysis });
 
-  const inlineImage = toInlineImage(image);
+  const inlineImage = resolvedReferenceMode === "user_recreate" ? toInlineImage(image) : null;
   if (inlineImage) {
     parts.push(inlineImage);
-    if (resolvedReferenceMode === "internal_style") {
-      parts.push({
-        text: `${internalStyleReferenceInstruction} This curated reference id is ${referenceId ?? "unknown"}.`,
-      });
-    }
   }
 
   parts.push({
@@ -1288,14 +1302,15 @@ export async function planUiFlow({
     });
   }
 
+  const plannerMode = resolvedReferenceMode === "user_recreate" ? "recreate" : "style";
   const policy = geminiPolicyForTask("project_planning", {
-    systemInstruction: plannerInstruction,
+    systemInstruction: plannerBlueprintStepInstruction(plannerMode),
     responseMimeType: "application/json",
     temperature: 0.1,
   });
   if (llmLog) {
     const si = typeof policy.config.systemInstruction === "string" ? policy.config.systemInstruction : "";
-    llmLog(`[LLM INPUT] plan-ui-flow`, {
+    llmLog(`[LLM INPUT] plan-ui-flow-blueprint`, {
       model: policy.model,
       planningMode,
       referenceMode: resolvedReferenceMode,
@@ -1314,11 +1329,63 @@ export async function planUiFlow({
   });
 
   if (llmLog && response.usageMetadata) {
-    llmLog(`[TOKEN USAGE] plan-ui-flow`, response.usageMetadata as Record<string, unknown>);
+    llmLog(`[TOKEN USAGE] plan-ui-flow-blueprint`, response.usageMetadata as Record<string, unknown>);
   }
 
-  const rawPlan = parseJsonResponse<unknown>(response.text || "{}");
-  const parsed = PlanSchema.safeParse(rawPlan);
+  const rawBlueprint = parseJsonResponse<unknown>(response.text || "{}");
+  const parsedBlueprint = ProjectBlueprintSchema.safeParse(rawBlueprint);
+  let rawPlan: unknown = rawBlueprint;
+  let parsed = PlanSchema.safeParse(rawPlan);
+
+  if (parsedBlueprint.success) {
+    const screenParts: Array<Record<string, unknown>> = [
+      ...parts,
+      {
+        text: `Approved Project Blueprint:\n${JSON.stringify(parsedBlueprint.data, null, 2)}`,
+      },
+    ];
+    const screenPolicy = geminiPolicyForTask("project_planning", {
+      systemInstruction: plannerScreenBriefStepInstruction(plannerMode),
+      responseMimeType: "application/json",
+      temperature: 0.1,
+    });
+
+    if (llmLog) {
+      const si = typeof screenPolicy.config.systemInstruction === "string" ? screenPolicy.config.systemInstruction : "";
+      llmLog(`[LLM INPUT] plan-ui-flow-screen-briefs`, {
+        model: screenPolicy.model,
+        planningMode,
+        referenceMode: resolvedReferenceMode,
+        referenceId: referenceId ?? null,
+        systemInstructionLength: si.length,
+        systemInstruction: si,
+        userPartCount: screenParts.length,
+        userParts: screenParts.map((p) => (typeof p.text === "string" ? p.text : "[image]")),
+      });
+    }
+
+    const screenResponse = await ai.models.generateContent({
+      model: screenPolicy.model,
+      contents: { parts: screenParts },
+      config: screenPolicy.config,
+    });
+
+    if (llmLog && screenResponse.usageMetadata) {
+      llmLog(`[TOKEN USAGE] plan-ui-flow-screen-briefs`, screenResponse.usageMetadata as Record<string, unknown>);
+    }
+
+    const rawScreenBriefs = parseJsonResponse<unknown>(screenResponse.text || "{}");
+    const parsedScreenBriefs = ScreenBriefsSchema.safeParse(rawScreenBriefs);
+    rawPlan = {
+      ...parsedBlueprint.data,
+      screens: parsedScreenBriefs.success
+        ? parsedScreenBriefs.data.screens
+        : isRecord(rawScreenBriefs) && Array.isArray(rawScreenBriefs.screens)
+          ? rawScreenBriefs.screens
+          : [],
+    };
+    parsed = PlanSchema.safeParse(rawPlan);
+  }
 
   if (!parsed.success) {
     const validationIssues = parsed.error.issues.map((issue) => `${issue.path.join(".") || "root"}: ${issue.message}`);
@@ -1519,9 +1586,9 @@ export async function generateDesignTokens({
     const inlineImage = toInlineImage(image);
     if (inlineImage) {
       parts.push(inlineImage);
-      if (resolvedReferenceMode === "internal_style") {
+      if (isStyleReferenceMode(resolvedReferenceMode)) {
         parts.push({
-          text: `${internalStyleReferenceInstruction} Derive reusable tokens from the curated image's visual DNA only.`,
+          text: `${styleReferenceInstruction} Derive reusable tokens from the reference image's visual DNA only.`,
         });
       }
     }
@@ -1594,8 +1661,8 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
   if (inlineImage) {
     parts.push(inlineImage);
     parts.push({
-      text: resolvedReferenceMode === "internal_style"
-        ? `${internalStyleReferenceInstruction} Curated reference id: ${input.referenceId ?? "unknown"}.`
+      text: isStyleReferenceMode(resolvedReferenceMode)
+        ? `${styleReferenceInstruction} Reference id: ${input.referenceId ?? "user-upload"}.`
         : userRecreateReferenceInstruction,
     });
   }
@@ -1615,7 +1682,10 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
     });
   }
 
-  const systemInstruction = buildSystemInstruction({
+  const buildInstruction = resolvedReferenceMode === "user_recreate"
+    ? buildRecreateScreenInstruction
+    : buildStyleScreenInstruction;
+  const systemInstruction = buildInstruction({
     designTokens: input.designTokens,
     screenPlan: input.screenPlan,
     requiresBottomNav: input.requiresBottomNav,
@@ -1638,6 +1708,7 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
         .filter(Boolean),
       hasImage: Boolean(toInlineImage(input.image)),
       referenceMode: resolvedReferenceMode,
+      referenceSource: input.referenceSource ?? null,
       referenceId: input.referenceId ?? null,
     };
     input.onLlmInput(snapshot);
@@ -2043,7 +2114,7 @@ export async function buildFullScreenReconstructionCode({
   const policy = geminiPolicyForTask("full_rebuild", {
     temperature: 0.24,
     systemInstruction: [
-      buildSystemInstruction({
+      buildStyleScreenInstruction({
         designTokens,
         screenPlan,
         requiresBottomNav: Boolean(navigationPlan?.enabled),
@@ -2312,8 +2383,8 @@ export async function buildNavigationShellCode({
     if (inlineImage) {
       parts.push(inlineImage);
       parts.push({
-        text: resolvedReferenceMode === "internal_style"
-          ? `${internalStyleReferenceInstruction} For navigation, borrow only the curated image's nav material, radius, elevation, icon/label rhythm, active-state craft, and bottom safe-area treatment. Do not copy exact tab count, labels, positions, or app domain. Curated reference id: ${referenceId ?? "unknown"}.`
+        text: isStyleReferenceMode(resolvedReferenceMode)
+          ? `${styleReferenceInstruction} For navigation, borrow only the reference image's nav material, radius, elevation, icon/label rhythm, active-state craft, and bottom safe-area treatment. Do not copy exact tab count, labels, positions, or app domain. Reference id: ${referenceId ?? "user-upload"}.`
           : "Reference image: inspect the bottom navigation treatment, shell placement, icon/label style, material, radius, elevation, active state, and how it relates to the screen content. Recreate the navigation style family, not just the tab labels.",
       });
     }
@@ -2334,8 +2405,8 @@ export async function buildNavigationShellCode({
         "You are an elite mobile product designer building the single shared bottom navigation shell for a mobile app preview system.",
         "Return ONLY valid HTML for the navigation shell. Do not include markdown fences, html, head, body, scripts, or the screen content.",
         "The nav must be project-specific and must follow the provided navigation plan and design tokens.",
-        resolvedReferenceMode === "internal_style"
-          ? "Use the internal style reference and creative direction as high-priority visual craft evidence only. Borrow nav material/shape/state quality, but build labels, item count, hierarchy, and placement from the navigation plan."
+        isStyleReferenceMode(resolvedReferenceMode)
+          ? "Use the style reference and creative direction as high-priority visual craft evidence only. Borrow nav material/shape/state quality, but build labels, item count, hierarchy, and placement from the navigation plan."
           : "Use the reference image and creative direction as high-priority visual evidence. If the reference uses a compact tab rail, floating dock, glass pill, sculpted card, or minimal bottom text/icon row, match that style family.",
         "Avoid generic 2015 bottom tabs: no plain full-width white rectangle with evenly spaced gray icons unless the reference clearly shows that.",
         "Use one <nav data-drawgle-primary-nav> root. The nav root may be full-width, a floating dock, a compact action nav, or another bottom navigation form that fits the project.",

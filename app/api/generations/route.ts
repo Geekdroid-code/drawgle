@@ -12,6 +12,7 @@ import {
   ACTIVE_GENERATION_STATUSES,
   type DesignTokens,
   type GenerationStatus,
+  type ImageReferenceMode,
   type NavigationArchitecture,
   type NavigationPlan,
   type ProjectCharter,
@@ -34,6 +35,7 @@ const requestSchema = z.object({
     })
     .nullable()
     .optional(),
+  imageReferenceMode: z.enum(["recreate", "style"]).optional().default("recreate"),
   plannedScreens: z
     .array(
       z.object({
@@ -310,6 +312,7 @@ export async function POST(request: Request) {
         metadata: {
           requestedFrom: payload.sourceGenerationRunId ? "retry" : "nextjs-route",
           sourceGenerationRunId: payload.sourceGenerationRunId ?? null,
+          requestedImageReferenceMode: payload.imageReferenceMode,
           navigationArchitecture,
           navigationPlan,
         } as never,
@@ -333,6 +336,7 @@ export async function POST(request: Request) {
         ownerId,
         prompt: payload.prompt,
         imagePath,
+        imageReferenceMode: payload.imageReferenceMode as ImageReferenceMode,
         designTokens,
         plannedScreens,
         requiresBottomNav: payload.requiresBottomNav,
