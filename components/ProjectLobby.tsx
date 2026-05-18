@@ -101,6 +101,11 @@ const briefStyles: Array<{
   },
 ];
 
+const imageReferenceModes: Array<{ id: ImageReferenceMode; label: string; compactLabel: string }> = [
+  { id: "recreate", label: "Image to UI", compactLabel: "Image to UI" },
+  { id: "style", label: "Style reference", compactLabel: "Style Ref" },
+];
+
 const readApiError = (payload: ApiErrorPayload | null | undefined, fallback: string) => {
   if (!payload?.error) {
     return fallback;
@@ -199,6 +204,7 @@ export function ProjectLobby({
   const [image, setImage] = useState<PromptImagePayload | null>(null);
   const [imageReferenceMode, setImageReferenceMode] = useState<ImageReferenceMode>("recreate");
   const [selectedBriefStyle, setSelectedBriefStyle] = useState<BriefStyleId>("auto");
+  const [isThemePickerOpen, setIsThemePickerOpen] = useState(false);
   const [designTokens, setDesignTokens] = useState<DesignTokens | null>(null);
   const [plan, setPlan] = useState<PlannedUiFlow | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -207,6 +213,7 @@ export function ProjectLobby({
   const [isBuilding, setIsBuilding] = useState(false);
 
   const isBriefReady = Boolean(prompt.trim() || image);
+  const selectedBriefStyleLabel = briefStyles.find((style) => style.id === selectedBriefStyle)?.label ?? "Auto";
 
   const handleSignOut = async () => {
     try {
@@ -379,10 +386,10 @@ export function ProjectLobby({
                 
 
                   <div
-                    className={`relative mx-auto mt-7 w-full max-w-[640px] rounded-[24px] bg-[linear-gradient(110deg,#ff9a9e_0%,#fecfef_20%,#e0c3fc_40%,#8ec5fc_60%,#a8edea_80%,#d4fc79_100%)] p-0.5 sm:mt-8 ${isGeneratingDesign ? "dg-brief-generating-shell" : ""}`}
+                    className={`relative mx-auto mt-7 w-full max-w-[720px] rounded-xl bg-[linear-gradient(110deg,#ff9a9e_0%,#fecfef_20%,#e0c3fc_40%,#8ec5fc_60%,#a8edea_80%,#d4fc79_100%)] p-0.5 sm:mt-8 ${isGeneratingDesign ? "dg-brief-generating-shell" : ""}`}
                   >
-                    <div className="rounded-[22px] bg-white p-2">
-                      <div className="flex items-center justify-between px-2 pb-3 pt-2 text-[11px] font-bold uppercase tracking-normal text-neutral-600">
+                    <div className="rounded-xl bg-white p-2.5">
+                      <div className="flex items-center justify-between px-2 pb-2.5 pt-1.5 text-[11px] font-bold uppercase tracking-normal text-neutral-600">
                         <div className="flex items-center gap-1.5">
                           <Sparkles className="h-3.5 w-3.5 text-neutral-700" />
                           <span>Drawgle UI V2.0</span>
@@ -397,8 +404,8 @@ export function ProjectLobby({
                         </button>
                       </div>
 
-                      <div className="relative flex flex-col rounded-2xl border border-neutral-100 bg-[#f4f4f6]">
-                        <div className="max-h-[300px] overflow-y-auto rounded-2xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                      <div className="rounded-lg border border-neutral-200 bg-[#f4f4f6]">
+                        <div className="max-h-[320px] overflow-y-auto rounded-lg [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                           <Textarea
                             value={prompt}
                             onChange={(event) => setPrompt(event.target.value)}
@@ -410,137 +417,170 @@ export function ProjectLobby({
                               }
                             }}
                             placeholder="Describe the app UI you want to design... e.g., A minimalist dashboard for a fintech app with dark mode."
-                            className="min-h-[110px] resize-none rounded-none border-0 bg-transparent px-4 pb-16 pt-4 text-[15px] leading-relaxed text-neutral-800 shadow-none placeholder:text-neutral-400 focus-visible:ring-0 sm:min-h-[132px]"
+                            className="min-h-[116px] resize-none rounded-none border-0 bg-transparent px-4 py-4 text-[15px] leading-relaxed text-neutral-800 shadow-none placeholder:text-neutral-400 focus-visible:ring-0 sm:min-h-[138px]"
                           />
                         </div>
+                      </div>
 
-                        {image ? (
-                          <div className="absolute bottom-[54px] left-3 z-20 flex max-w-[calc(100%-1.5rem)] items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={handleRemoveImage}
-                              className="flex max-w-[160px] cursor-pointer items-center gap-2 rounded-xl border border-neutral-200 bg-white py-1 pl-1 pr-2 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50"
-                              aria-label="Remove reference image"
-                            >
-                              <span className="relative h-8 w-8 shrink-0 overflow-hidden rounded-lg border border-black/10 bg-white">
-                                <Image
-                                  src={`data:${image.mimeType};base64,${image.data}`}
-                                  alt="Reference preview"
-                                  fill
-                                  unoptimized
-                                  className="object-cover"
-                                />
-                              </span>
-                              <span className="truncate">Reference</span>
-                              <X className="h-3.5 w-3.5 shrink-0" />
-                            </button>
-                            <div className="flex h-9 shrink-0 items-center rounded-xl border border-neutral-200 bg-white p-0.5 text-[11px] font-semibold text-neutral-500 shadow-sm">
-                              {([
-                                ["recreate", "Image to UI"],
-                                ["style", "Style Ref"],
-                              ] as const).map(([mode, label]) => (
-                                <button
-                                  key={mode}
-                                  type="button"
-                                  onClick={() => setImageReferenceMode(mode)}
-                                  className={`h-8 cursor-pointer rounded-[10px] px-2.5 transition ${imageReferenceMode === mode ? "bg-neutral-950 text-white shadow-sm" : "text-neutral-600 hover:bg-neutral-100"}`}
-                                  disabled={isGeneratingDesign}
-                                >
-                                  {label}
-                                </button>
-                              ))}
+                      <div className="mt-2 flex items-start justify-between gap-2">
+                        <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-wrap">
+                          <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageUpload} />
+                          {image ? (
+                            <div className="relative shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsThemePickerOpen(false);
+                                  fileInputRef.current?.click();
+                                }}
+                                className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-neutral-200 bg-white p-0 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-50 sm:w-auto sm:max-w-[170px] sm:justify-start sm:gap-2 sm:py-1 sm:pl-1 sm:pr-2"
+                                disabled={isGeneratingDesign}
+                                aria-label="Replace reference image"
+                              >
+                                <span className="relative h-6 w-6 shrink-0 overflow-hidden rounded-lg border border-black/10 bg-white">
+                                  <Image
+                                    src={`data:${image.mimeType};base64,${image.data}`}
+                                    alt="Reference preview"
+                                    fill
+                                    unoptimized
+                                    className="object-cover"
+                                  />
+                                </span>
+                                <span className="hidden min-w-0 truncate sm:block">Reference</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleRemoveImage}
+                                className="absolute -right-1 -top-1 flex h-3.5 w-3.5 cursor-pointer items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-400 transition hover:text-neutral-700"
+                                aria-label="Remove reference image"
+                              >
+                                <X className="h-2.5 w-2.5" />
+                              </button>
                             </div>
-                          </div>
-                        ) : null}
-
-                        <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between">
-                          <div className="flex min-w-0 items-center gap-2">
-                            <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageUpload} />
+                          ) : (
                             <Button
                               type="button"
                               variant="ghost"
-                              className="flex h-9 w-9 items-center justify-center rounded-xl border border-neutral-200 bg-white p-0 text-neutral-600 transition-colors hover:bg-neutral-50 hover:text-neutral-900"
-                              onClick={() => fileInputRef.current?.click()}
+                              className="cursor-pointer flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-white p-0 text-neutral-600 transition-colors hover:bg-neutral-50 hover:text-neutral-900 sm:w-auto sm:gap-1.5 sm:px-2.5"
+                              onClick={() => {
+                                setIsThemePickerOpen(false);
+                                fileInputRef.current?.click();
+                              }}
                               disabled={isGeneratingDesign}
-                              aria-label={image ? "Replace reference image" : "Attach reference image"}
+                              aria-label="Attach reference image"
                             >
                               <ImagePlus className="h-4 w-4" />
+                              <span className="hidden text-xs font-semibold sm:inline">Reference</span>
                             </Button>
+                          )}
 
-                            <div className="group relative">
-                              <button
-                                type="button"
-                                className="relative z-20 flex h-9 items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-3 text-[13px] font-medium text-neutral-700 transition-colors hover:bg-neutral-50"
-                                disabled={isGeneratingDesign}
-                              >
-                                <Palette className="h-4 w-4 text-neutral-600" strokeWidth={1.5} />
-                                <span>Themes</span>
-                                <ChevronDown className="h-3 w-3 text-neutral-400 transition-transform duration-200 group-hover:rotate-180" />
-                              </button>
-
-                              <div className="invisible absolute bottom-full left-0 z-[100] mb-2 w-[min(280px,calc(100vw-3rem))] translate-y-1 rounded-[16px] border border-neutral-200 bg-white p-3 opacity-0 transition-all duration-200 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
-                                <div className="mb-3 flex items-center justify-between px-1">
-                                  <span className="text-[12px] font-semibold text-neutral-800">Design style</span>
-                                  <X className="h-3.5 w-3.5 text-neutral-400" />
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-3">
-                                  {briefStyles.map((style) => {
-                                    const isSelected = selectedBriefStyle === style.id;
-
-                                    return (
-                                      <button
-                                        type="button"
-                                        key={style.id}
-                                        onClick={() => setSelectedBriefStyle(style.id)}
-                                        className="flex min-w-0 flex-col gap-1.5 text-left"
-                                      >
-                                        <span
-                                          className={`relative flex h-[60px] items-center justify-center overflow-hidden rounded-xl border ${style.previewClassName} ${isSelected ? "border-[1.5px] border-orange-500" : "hover:border-neutral-400"}`}
-                                        >
-                                          {style.previewContent}
-                                        </span>
-                                        <span className={`truncate text-[11px] ${isSelected ? "font-semibold text-neutral-700" : "font-medium text-neutral-600"}`}>
-                                          {style.label}
-                                        </span>
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
+                          {image ? (
+                            <div className="flex h-8 shrink-0 items-center rounded-lg border border-neutral-200 bg-white p-0.5">
+                              {imageReferenceModes.map((mode) => (
+                                <button
+                                  key={mode.id}
+                                  type="button"
+                                  onClick={() => setImageReferenceMode(mode.id)}
+                                  className={`cursor-pointer h-7 rounded-md px-2 text-[11px] font-semibold transition sm:px-2.5 ${imageReferenceMode === mode.id ? "bg-neutral-950 text-white" : "text-neutral-600 hover:bg-neutral-100"}`}
+                                  disabled={isGeneratingDesign}
+                                  aria-pressed={imageReferenceMode === mode.id}
+                                >
+                                  <span className="sm:hidden">{mode.compactLabel}</span>
+                                  <span className="hidden sm:inline">{mode.label}</span>
+                                </button>
+                              ))}
                             </div>
-                          </div>
+                          ) : null}
 
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            className={`z-20 h-9 shrink-0 rounded-xl bg-black p-0 text-white transition-transform hover:bg-neutral-800 active:scale-95 disabled:opacity-75 ${isGeneratingDesign ? "w-[116px] px-3" : "w-9"}`}
-                            onClick={() => void handleGenerateDesign()}
-                            disabled={!isBriefReady || isGeneratingDesign}
-                            aria-label="Generate design system"
-                          >
-                            {isGeneratingDesign ? (
-                              <TextShimmerWave
-                                className="text-xs font-semibold"
-                                baseColor="rgba(255,255,255,0.58)"
-                                shimmerColor="#ffffff"
-                                duration={1.1}
-                                spread={1.2}
-                                zDistance={5}
-                                scaleDistance={1.04}
-                                rotateYDistance={5}
-                              >
-                                Creating
-                              </TextShimmerWave>
-                            ) : (
-                              <ArrowUp className="h-4 w-4" strokeWidth={2.5} />
-                            )}
-                          </Button>
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsThemePickerOpen((isOpen) => !isOpen);
+                              }}
+                              className="cursor-pointer flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-white p-0 text-[12px] font-semibold text-neutral-700 transition-colors hover:bg-neutral-50 sm:w-auto sm:max-w-[170px] sm:gap-1.5 sm:px-3"
+                              disabled={isGeneratingDesign}
+                              aria-expanded={isThemePickerOpen}
+                            >
+                              <Palette className="h-4 w-4 shrink-0 text-neutral-600" strokeWidth={1.5} />
+                              <span className="hidden min-w-0 truncate sm:inline">{selectedBriefStyleLabel}</span>
+                              <ChevronDown className={`hidden h-3.5 w-3.5 shrink-0 text-neutral-400 transition-transform sm:block ${isThemePickerOpen ? "rotate-180" : ""}`} />
+                            </button>
+
+                          </div>
                         </div>
+
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className={`cursor-pointer z-20 h-8 shrink-0 rounded-lg bg-black p-0 text-white transition-transform hover:bg-neutral-800 hover:text-white active:scale-95 disabled:opacity-75 ${isGeneratingDesign ? "w-[116px] px-3" : "w-8"}`}
+                          onClick={() => void handleGenerateDesign()}
+                          disabled={!isBriefReady || isGeneratingDesign}
+                          aria-label="Generate design system"
+                        >
+                          {isGeneratingDesign ? (
+                            <TextShimmerWave
+                              className="text-xs font-semibold"
+                              baseColor="rgba(255,255,255,0.58)"
+                              shimmerColor="#ffffff"
+                              duration={1.1}
+                              spread={1.2}
+                              zDistance={5}
+                              scaleDistance={1.04}
+                              rotateYDistance={5}
+                            >
+                              Creating
+                            </TextShimmerWave>
+                          ) : (
+                            <ArrowUp className="h-4 w-4" strokeWidth={2.5} />
+                          )}
+                        </Button>
                       </div>
                     </div>
+                    {isThemePickerOpen ? (
+                      <div className="absolute bottom-12 left-1/2 z-[100] w-[min(300px,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border border-neutral-200 bg-white p-3">
+                        <div className="mb-3 flex items-center justify-between px-1">
+                          <span className="text-[12px] font-semibold text-neutral-800">Design style</span>
+                          <button
+                            type="button"
+                            onClick={() => setIsThemePickerOpen(false)}
+                            className="cursor-pointer flex h-6 w-6 items-center justify-center rounded-lg text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-700"
+                            aria-label="Close design styles"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          {briefStyles.map((style) => {
+                            const isSelected = selectedBriefStyle === style.id;
+
+                            return (
+                              <button
+                                type="button"
+                                key={style.id}
+                                onClick={() => {
+                                  setSelectedBriefStyle(style.id);
+                                  setIsThemePickerOpen(false);
+                                }}
+                                className="cursor-pointer flex min-w-0 flex-col gap-1.5 text-left"
+                              >
+                                <span
+                                  className={`relative flex h-[60px] items-center justify-center overflow-hidden rounded-lg border ${style.previewClassName} ${isSelected ? "border-[1.5px] border-orange-500" : "hover:border-neutral-400"}`}
+                                >
+                                  {style.previewContent}
+                                </span>
+                                <span className={`truncate text-[11px] ${isSelected ? "font-semibold text-neutral-700" : "font-medium text-neutral-600"}`}>
+                                  {style.label}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : null}
                     {isGeneratingDesign ? (
-                      <div className="pointer-events-none absolute inset-0 z-10 rounded-[24px] dg-brief-prompt-shimmer" />
+                      <div className="pointer-events-none absolute inset-0 z-10 rounded-xl dg-brief-prompt-shimmer" />
                     ) : null}
                   </div>
 
