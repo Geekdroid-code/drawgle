@@ -162,7 +162,10 @@ Non-negotiable output discipline:
 - Do not plan text, cards, maps, charts, nav shells, or CTAs that cannot fit the viewport.
 - Do not make each screen feel like a different app. Distinct compositions are allowed; inconsistent padding, line-height, card radii, and nav rhythm are not.
 - Every screen brief must include these labels inside description: Reference DNA, Visual Goal, Layout Anatomy, Key Components, Visual Styling, Interaction Notes, Must Preserve.
-- Each screen brief must be builder-ready, not a product summary. Describe background layer, content rail, parent-child containment, spacing, edge treatment, type roles, nav clearance, and overflow/wrapping policy.`;
+- Each screen brief must be builder-ready, not a product summary. Describe background layer, content rail, parent-child containment, spacing, edge treatment, type roles, nav clearance, and overflow/wrapping policy.
+- Creative direction is the product-wide art-direction thesis. Do not water it down into generic product language.
+- Current project context is continuity evidence. Preserve existing product architecture, approved navigation architecture, approved navigation plan, naming, and design language unless the user explicitly asks to redesign them.
+- If reference analysis is present, use it to increase specificity and preserve the strongest useful cues instead of rewriting them as generic app language.`;
 
 const plannerBlueprintJsonContract = `Return JSON with this exact top-level shape:
 {
@@ -254,7 +257,25 @@ export const plannerBlueprintStepInstruction = (mode: "recreate" | "style") => `
 
 STEP: PROJECT BLUEPRINT ONLY.
 Create the project charter, navigation architecture, and navigation plan. Do not return screens in this step.
-${plannerBlueprintJsonContract}`;
+${plannerBlueprintJsonContract}
+
+Blueprint rules:
+- Analyze the app concept and define one navigation_architecture for the whole product.
+- Use kind "bottom-tabs-app" only when the product has several peer root destinations.
+- Use kind "hierarchical" when the product mostly moves through push-style flows and detail screens.
+- Use kind "single-screen" when the experience is intentionally focused and does not need persistent app-level navigation.
+- A finite described flow is not automatically a bottom-tabs app. Use persistent bottom navigation only when screens are peer root destinations or the user/reference explicitly calls for primary navigation.
+- navigation_plan must be present. Use enabled false and kind "none" when persistent navigation should not exist.
+- navigation_plan.items must contain only project-specific primary destinations, usually 3-5 items for bottom-tabs apps.
+- Do not create nav items for onboarding, splash, transient tracking/detail, checkout, confirmation, modal, or one-off flow screens.
+- Use Lucide icon names for navigation_plan.items.icon.
+- navigation_plan.visual_brief must describe the actual visual anatomy: floating dock, glass pill, compact rail, sculpted card-attached nav, centered action dock, active state, icon/label rhythm, surface, radius, elevation, and safe-area relationship.
+- Prefer modern mobile navigation patterns when appropriate. Do not default to a plain full-width 2015-style tab bar unless the reference or brief requires it.
+- charter.navigationModel must match navigation_architecture, not introduce a conflicting second navigation system.
+- keyFeatures must be durable product capabilities, not just screen names.
+- charter.designRationale must act like a human layout contract: shared viewport budget, horizontal rail, vertical rhythm, typography scale discipline, bottom navigation reservation, card density, wrapping/truncation policy, and how screens stay consistent while still having distinct compositions.
+- creativeDirection.compositionPrinciples must include executable spatial rules: screen-edge padding, section rhythm, card/content padding, dense-row versus spacious-hero usage, bottom-safe content stop points, and text-heavy overflow avoidance.
+- If CURRENT PROJECT CONTEXT contains an approved navigation architecture or navigation plan, preserve it unless the user explicitly asks to add, remove, or redesign primary navigation.`;
 
 export const plannerScreenBriefStepInstruction = (mode: "recreate" | "style") => `${mode === "recreate" ? plannerRecreateInstruction : plannerStyleInstruction}
 
@@ -266,7 +287,22 @@ Rules:
 - If the user explicitly asked for N screens, return exactly N screens unless the prompt names fewer screens.
 - If the prompt names screens in order, preserve those names and order.
 - Root screens are peer primary destinations. Onboarding, splash, checkout, tracking, map, detail, modal, and confirmation screens are usually detail/immersive screens.
-- Description must include a layout fit note for narrow 390px viewport, bottom nav clearance when applicable, and how the screen avoids overflow, text collision, clipped nav, and bottom overlap.`;
+- chrome_policy must match the screen's role in the approved architecture. Detail screens should not carry the primary bottom-tab shell.
+- Onboarding and splash screens should normally use immersive chrome and show_primary_navigation false.
+- Each description should usually be 900-1800 characters and must be detailed enough for the builder to implement without seeing the original image.
+- Write each screen description as a construction brief that starts at the background layer and moves forward through primary layout structure, nested containment, component arrangement, edge/depth/material behavior, and must-preserve visual construction details.
+- Name concrete component structures and states: headers, hero regions, surfaces, containers, lists, rows, sheets, charts, progress rings, segmented controls, tabs, chips, icon buttons, badges, avatar stacks, maps, media areas, text groups, and CTA placement when relevant.
+- Call out typography treatment, imagery treatment, chart geometry, background treatment, rounded shapes, elevation, edge treatment, inner/outer borders, highlight edges, bevels, glass/frosting, and must-preserve composition cues.
+- Avoid weak phrases like "clean dashboard" or "stats cards" unless you immediately explain the exact anatomy.
+- Preserve real copy when it acts as a strong layout anchor; use generic placeholders only for volatile names, numbers, and dates.
+- If multiple screens are visible in one recreate reference collage, map them left-to-right unless the prompt clearly implies a different order.
+- Do not duplicate the same anatomy across screens unless the product shell or reference clearly reuses it.
+- Description must include a layout fit note for narrow 390px viewport, bottom nav clearance when applicable, and how the screen avoids overflow, text collision, clipped nav, and bottom overlap.
+- Every shared-bottom-nav screen must reserve a clear bottom content zone and must not place final rows, CTAs, cards, or map callouts under the nav shell.
+- Every description must contain at least 8 concrete visible implementation cues across layout, components, typography, color/material, spacing/radius/elevation, edge/depth treatment, imagery/charts/maps, and interaction state.
+- If this is recreate mode, include at least 3 cues explicitly traceable to the uploaded reference or reference analysis, including at least one structural cue about layer order, containment, or depth when visible.
+- If this is style mode, include at least 3 cues about borrowed material, typography, edge/depth, iconography, nav treatment, or micro-shapes, but keep the actual layout anatomy driven by the user prompt and project blueprint.
+- Final self-audit before returning JSON: every screen.description must contain all seven labels, must read like a builder-ready spec, and must preserve consistency in spacing scale, card padding, type roles, nav family, and edge/radius language.`;
 
 export const creativeDirectionInstruction = `You are an elite mobile product Art Director.
 Your job is to invent or infer a premium, opinionated creative direction that will keep the generated UI out of generic AI-app territory.
