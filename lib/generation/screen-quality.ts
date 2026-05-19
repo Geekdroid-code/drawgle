@@ -1,4 +1,4 @@
-import type { ScreenPlan, ScreenStatus } from "@/lib/types";
+import type { ScreenAssetManifest, ScreenPlan, ScreenStatus } from "@/lib/types";
 
 export const REQUIRED_ANCHORS_LABEL = "Required screen anchors:";
 export const DRAWGLE_GENERATION_COMPLETE_SENTINEL = "<!-- DRAWGLE_GENERATION_COMPLETE -->";
@@ -471,6 +471,48 @@ export function validateGeneratedScreenCode({
     warnings,
     missingAnchors,
     staticValidation,
+  };
+}
+
+const extractImageUrls = (code: string) => {
+  const urls = new Set<string>();
+
+  for (const match of code.matchAll(/\ssrc\s*=\s*(?:"([^"]+)"|'([^']+)')/gi)) {
+    const value = (match[1] ?? match[2] ?? "").trim();
+    if (value) urls.add(value);
+  }
+
+  for (const match of code.matchAll(/url\((?:"([^"]+)"|'([^']+)'|([^)"']+))\)/gi)) {
+    const value = (match[1] ?? match[2] ?? match[3] ?? "").trim();
+    if (value) urls.add(value);
+  }
+
+  return Array.from(urls);
+};
+
+export function validateScreenAssetPolicy({
+  code,
+  assetManifest = [],
+}: {
+  code: string;
+  assetManifest?: ScreenAssetManifest[] | null;
+}) {
+  const manifest = assetManifest ?? [];
+  const allowedUrls = new Set(manifest.map((asset) => asset.url));
+  const imageUrls = extractImageUrls(code);
+  const invalidUrls = imageUrls.filter((url) => {
+    if (allowedUrls.has(url)) return false;
+    if (/^data:image\/svg\+xml/i.test(url)) return false;
+    return /^https?:\/\//i.test(url) || /^data:image\//i.test(url);
+  });
+  const missingRequiredUrls = manifest
+    .filter((asset) => !code.includes(asset.url))
+    .map((asset) => asset.url);
+
+  return {
+    valid: invalidUrls.length === 0,
+    invalidUrls,
+    missingRequiredUrls,
   };
 }
 

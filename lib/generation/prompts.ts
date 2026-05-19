@@ -2,7 +2,7 @@ import { createNavigationArchitecture, resolveScreenChromePolicy } from "@/lib/n
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { DRAWGLE_GENERATION_COMPLETE_SENTINEL } from "@/lib/generation/screen-quality";
 import { buildTokenPromptContext } from "@/lib/token-runtime";
-import type { BuildScreenInput, DesignTokens, NavigationArchitecture, ScreenPlan } from "@/lib/types";
+import type { BuildScreenInput, DesignTokens, NavigationArchitecture, ScreenAssetManifest, ScreenPlan } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // PLANNER — UX Architect
@@ -554,6 +554,23 @@ const buildTypographyRoleContract = () => [
   "- Do not substitute hero_title for screen_title. Do not invent ad hoc text sizes or font weights outside these semantic roles unless the UI truly requires a one-off chart annotation.",
 ].join("\n");
 
+const buildAssetManifestContract = (assetManifest?: ScreenAssetManifest[] | null) => {
+  if (!assetManifest?.length) {
+    return [
+      "No approved bitmap assets were resolved for this screen.",
+      "Do not invent external image URLs, Unsplash/Pexels/Pixabay links, fal media links, base64 images, or remote placeholders.",
+      "If imagery would help but no asset is supplied, construct the visual with CSS, SVG geometry, gradients, icons, charts, or abstract surfaces instead.",
+    ].join("\n");
+  }
+
+  return [
+    "Use only these approved bitmap assets. Do not invent or search for any other image URLs.",
+    "For transparent PNG/cutout assets use object-contain. For photo assets use object-cover unless the placement hint says otherwise.",
+    "Every critical/supplied asset used must include meaningful alt text, avoid layout overflow, and respect the placement hint.",
+    JSON.stringify(assetManifest, null, 2),
+  ].join("\n");
+};
+
 const buildNavigationArchitectureContract = ({
   navigationArchitecture,
   screenPlan,
@@ -657,7 +674,8 @@ const buildScreenInstruction = ({
   requiresBottomNav,
   navigationArchitecture,
   navigationPlan,
-}: Pick<BuildScreenInput, "designTokens" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan"> & { screenPlan: ScreenPlan }, mode: "recreate" | "style") => {
+  assetManifest,
+}: Pick<BuildScreenInput, "designTokens" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan }, mode: "recreate" | "style") => {
   const fontFamily = resolveToken(designTokens, "typography.font_family", "sans-serif");
   const safeTop = resolveToken(designTokens, "mobile_layout.safe_area_top", "16px");
   const safeBottom = resolveToken(designTokens, "mobile_layout.safe_area_bottom", "16px");
@@ -746,6 +764,9 @@ ${buildNavigationArchitectureContract({
   requiresBottomNav,
 })}
 
+APPROVED VISUAL ASSET MANIFEST:
+${buildAssetManifestContract(assetManifest)}
+
 TOKEN CONTEXT:
 ${buildTokenPromptContext(designTokens, "compact_visual")}
 
@@ -770,14 +791,15 @@ RULES:
 13. STATIC HTML ONLY: Do NOT output JSX, React, JavaScript expressions, arrays, .map(...), arrow functions, template literals, className, class={...}, style={{...}}, data attributes with {...}, <script>, or code that requires runtime execution. Manually expand repeated items into concrete HTML elements.
 14. Use a main content wrapper that enforces the shared spacing rhythm. A good default is a flex column with px-[var(--dg-mobile-layout-screen-margin)] and gap-[var(--dg-mobile-layout-section-gap)], with deliberate exceptions only for full-bleed media/maps.
 15. Before returning, audit for mobile fit: no horizontal overflow, no nav overlap, no clipped CTA, no unreadable chart, no empty visual panel, no text hidden behind icon controls, and no inconsistent random margins between sections.
-${navigationPlan?.enabled ? "16. Do NOT create a <nav>, bottom tab bar, footer navigation, or persistent primary navigation. Leave bottom padding for the injected shared shell: the content/main wrapper should include padding-bottom: calc(var(--dg-mobile-layout-safe-area-bottom) + 96px) or an equivalent Tailwind arbitrary pb value. Do not draw the shell yourself." : ""}
-17. End the response with this exact sentinel on its own final line: ${DRAWGLE_GENERATION_COMPLETE_SENTINEL}`;
+16. Image URL policy: use only URLs from APPROVED VISUAL ASSET MANIFEST. Never invent remote image URLs and never use temporary fal.media URLs, random stock CDN URLs, or placeholder image services.
+${navigationPlan?.enabled ? "17. Do NOT create a <nav>, bottom tab bar, footer navigation, or persistent primary navigation. Leave bottom padding for the injected shared shell: the content/main wrapper should include padding-bottom: calc(var(--dg-mobile-layout-safe-area-bottom) + 96px) or an equivalent Tailwind arbitrary pb value. Do not draw the shell yourself." : ""}
+18. End the response with this exact sentinel on its own final line: ${DRAWGLE_GENERATION_COMPLETE_SENTINEL}`;
 };
 
-export const buildRecreateScreenInstruction = (input: Pick<BuildScreenInput, "designTokens" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan"> & { screenPlan: ScreenPlan }) =>
+export const buildRecreateScreenInstruction = (input: Pick<BuildScreenInput, "designTokens" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan }) =>
   buildScreenInstruction(input, "recreate");
 
-export const buildStyleScreenInstruction = (input: Pick<BuildScreenInput, "designTokens" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan"> & { screenPlan: ScreenPlan }) =>
+export const buildStyleScreenInstruction = (input: Pick<BuildScreenInput, "designTokens" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan }) =>
   buildScreenInstruction(input, "style");
 
 export const buildSystemInstruction = buildRecreateScreenInstruction;

@@ -17,9 +17,11 @@ import {
   stripGenerationCompleteSentinel,
   validateSourceCompletion,
   validateGeneratedScreenCode,
+  validateScreenAssetPolicy,
   validateStaticDrawgleHtml,
 } from "@/lib/generation/screen-quality";
 import { buildNavigationShellCode, buildScreenStream, extractCode, fallbackProjectCharter, generateDesignTokens, planUiFlow } from "@/lib/generation/service";
+import { planVisualAssets, reconcilePendingFalAssetJobs, resolveProjectAssets } from "@/lib/generation/visual-assets";
 import { createNavigationArchitecture, deriveRequiresBottomNav } from "@/lib/navigation";
 import {
   applyNavigationPlanToScreens,
@@ -30,7 +32,7 @@ import {
 import { tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
-import type { DesignTokens, ImageReferenceMode, NavigationArchitecture, NavigationPlan, PlanningMode, PromptImagePayload, ProjectCharter, ReferenceMode, ReferenceSource, ScreenPlan } from "@/lib/types";
+import type { DesignTokens, ImageReferenceMode, NavigationArchitecture, NavigationPlan, PlanningMode, PromptImagePayload, ProjectCharter, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenPlan } from "@/lib/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -64,6 +66,7 @@ type BuildScreenTaskPayload = {
   requiresBottomNav: boolean;
   navigationArchitecture?: NavigationArchitecture | null;
   navigationPlan?: NavigationPlan | null;
+  assetManifest?: ScreenAssetManifest[];
   projectCharter?: ProjectCharter | null;
   projectContext?: string | null;
 };
@@ -403,17 +406,18 @@ async function collectScreenBuild(input: BuildScreenTaskPayload, screenPlan: Scr
 
   const { stream: codeStream } = await streams.pipe(
     "code",
-      buildScreenStream({
-        screenPlan,
-        designTokens: input.designTokens,
-        prompt: input.prompt,
-        image: input.image,
-        referenceMode: input.referenceMode,
-        referenceSource: input.referenceSource,
-        referenceId: input.referenceId,
-        requiresBottomNav: input.requiresBottomNav,
-        navigationArchitecture: input.navigationArchitecture,
+    buildScreenStream({
+      screenPlan,
+      designTokens: input.designTokens,
+      prompt: input.prompt,
+      image: input.image,
+      referenceMode: input.referenceMode,
+      referenceSource: input.referenceSource,
+      referenceId: input.referenceId,
+      requiresBottomNav: input.requiresBottomNav,
+      navigationArchitecture: input.navigationArchitecture,
       navigationPlan: input.navigationPlan,
+      assetManifest: input.assetManifest,
       projectContext: input.projectContext,
       onResponseChunk: (chunk) => {
         collectFinishReasons(chunk, finishReasons);
@@ -463,6 +467,7 @@ async function collectNonStreamingScreenBuild(input: BuildScreenTaskPayload, scr
     requiresBottomNav: input.requiresBottomNav,
     navigationArchitecture: input.navigationArchitecture,
     navigationPlan: input.navigationPlan,
+    assetManifest: input.assetManifest,
     projectContext: input.projectContext,
     onResponseChunk: (responseChunk) => {
       collectFinishReasons(responseChunk, finishReasons);
@@ -716,6 +721,7 @@ export const buildScreenTask = task({
     const tokenizedCode = tokenizeStaticDrawgleHtml(sanitizedCode, payload.designTokens).code;
     const code = ensureDrawgleIds(tokenizedCode).code;
     const health = detectScreenHealth({ code, screenPrompt: payload.screenPlan.description });
+    const assetPolicy = validateScreenAssetPolicy({ code, assetManifest: payload.assetManifest });
     const blockIndex = indexScreenCode(code);
     const screenStatus = screenStatusForHealth(health);
 
@@ -724,7 +730,19 @@ export const buildScreenTask = task({
       screenName: payload.screenPlan.name,
       attempts,
       health,
+      assetPolicy,
     });
+
+    if (!assetPolicy.valid) {
+      await appendScreenBuildDiagnostics(admin, payload.generationRunId, payload.screenId, attempts);
+      return failWithoutSavingGeneratedCode({
+        error: `[screen_generation:invalid_image_url] Generated screen used unapproved image URLs: ${assetPolicy.invalidUrls.slice(0, 4).join(", ")}`,
+        metadata: {
+          attempts,
+          assetPolicy,
+        },
+      });
+    }
 
     if (isBlockingScreenHealthFailure(health)) {
       await appendScreenBuildDiagnostics(admin, payload.generationRunId, payload.screenId, attempts);
@@ -907,6 +925,10 @@ export const generateUiFlowTask = task({
   },
   run: async (payload: GenerateUiFlowPayload) => {
     const admin = createAdminClient();
+
+    reconcilePendingFalAssetJobs({ admin, limit: 6 }).catch((error) => {
+      logger.warn("Visual asset reconciliation failed", { error });
+    });
 
     let designTokens = payload.designTokens ?? null;
     const { data: existingProject } = await admin
@@ -1140,6 +1162,55 @@ export const generateUiFlowTask = task({
       })),
     });
 
+    await postStatusMessage(
+      admin,
+      payload.projectId,
+      payload.ownerId,
+      "Resolving visual assets...",
+      "generation_started",
+      {
+        generationRunId: payload.generationRunId,
+        activityKey: `run:${payload.generationRunId}:assets`,
+      },
+    );
+
+    const assetRequirements = referenceMode === "user_recreate"
+      ? []
+      : await planVisualAssets({
+          prompt: payload.prompt,
+          screens: plan.screens,
+          charter: plan.charter,
+          designTokens,
+          llmLog: (label, data) => logger.info(label, data),
+        });
+    const projectAssetManifest = await resolveProjectAssets({
+      admin,
+      ownerId: payload.ownerId,
+      projectId: payload.projectId,
+      generationRunId: payload.generationRunId,
+      requirements: assetRequirements,
+    });
+
+    await mergeGenerationRunMetadata(admin, payload.generationRunId, {
+      assetRequirements,
+      assetManifest: projectAssetManifest,
+    });
+
+    await postStatusMessage(
+      admin,
+      payload.projectId,
+      payload.ownerId,
+      assetRequirements.length > 0
+        ? `Resolved ${Object.values(projectAssetManifest.assetsByScreen).reduce((count, assets) => count + assets.length, 0)} visual asset${Object.values(projectAssetManifest.assetsByScreen).reduce((count, assets) => count + assets.length, 0) === 1 ? "" : "s"}`
+        : "No external visual assets needed",
+      "generation_completed",
+      {
+        generationRunId: payload.generationRunId,
+        activityKey: `run:${payload.generationRunId}:assets`,
+        assetRequirementCount: assetRequirements.length,
+      },
+    );
+
     const shouldSendBuildContext = Boolean(payload.plannedScreens?.length) || (payload.planningMode ?? "project") === "single-screen";
     const buildContext = shouldSendBuildContext ? compactBuildContext(planningContext) : null;
 
@@ -1201,6 +1272,7 @@ export const generateUiFlowTask = task({
             requiresBottomNav: plan.requiresBottomNav,
             navigationArchitecture: plan.navigationArchitecture,
             navigationPlan: plan.navigationPlan,
+            assetManifest: projectAssetManifest.assetsByScreen[screenPlan.name] ?? [],
             projectCharter: plan.charter,
             projectContext: buildContext,
           },

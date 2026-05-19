@@ -36,6 +36,74 @@ export interface PromptImagePayload {
   mimeType: string;
 }
 
+export type VisualAssetRole =
+  | "hero_cutout"
+  | "product_cutout"
+  | "avatar"
+  | "section_photo"
+  | "background_photo"
+  | "product_photo"
+  | "decorative_object"
+  | "map_texture";
+
+export type VisualAssetType = "transparent_png" | "photo" | "illustration" | "icon_like";
+
+export type VisualAssetSourcePreference = "user_upload" | "internal_library" | "stock" | "ai_generated";
+
+export type VisualAssetPriority = "critical" | "supporting" | "optional";
+
+export type VisualAssetSource = "user_upload" | "internal_library" | "stock" | "ai_generated";
+
+export type VisualAssetProvider =
+  | "user"
+  | "drawgle_r2"
+  | "pexels"
+  | "pixabay"
+  | "fal-ai/gpt-image-1.5"
+  | "fal-ai/gpt-image-1-mini";
+
+export type VisualAssetGenerationStatus =
+  | "queued"
+  | "submitted"
+  | "processing"
+  | "completed"
+  | "failed";
+
+export interface AssetRequirement {
+  id: string;
+  screenName: string;
+  role: VisualAssetRole;
+  subject: string;
+  assetType: VisualAssetType;
+  sourcePreference: VisualAssetSourcePreference;
+  desiredAspectRatio: "1:1" | "4:5" | "5:4" | "16:9" | "free";
+  transparentBackground: boolean;
+  placementHint: string;
+  priority: VisualAssetPriority;
+  reuseKey: string;
+}
+
+export interface ScreenAssetManifest {
+  id: string;
+  requirementId: string;
+  role: VisualAssetRole;
+  url: string;
+  width: number;
+  height: number;
+  hasAlpha: boolean;
+  alt: string;
+  placementHint: string;
+  objectFit: "contain" | "cover";
+  objectPosition: string;
+  source: VisualAssetSource;
+  provider: VisualAssetProvider;
+}
+
+export interface ProjectAssetManifest {
+  requirements: AssetRequirement[];
+  assetsByScreen: Record<string, ScreenAssetManifest[]>;
+}
+
 export type ImageReferenceMode = "recreate" | "style";
 
 export type ReferenceSource = "user_upload" | "curated";
@@ -475,6 +543,7 @@ export interface BuildScreenInput {
   requiresBottomNav: boolean;
   navigationArchitecture?: NavigationArchitecture | null;
   navigationPlan?: NavigationPlan | null;
+  assetManifest?: ScreenAssetManifest[];
   projectContext?: string | null;
   onResponseChunk?: (chunk: unknown) => void;
   onLlmInput?: (snapshot: LlmInputSnapshot) => void;

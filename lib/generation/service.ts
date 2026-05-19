@@ -1691,6 +1691,7 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
     requiresBottomNav: input.requiresBottomNav,
     navigationArchitecture: input.navigationArchitecture,
     navigationPlan: input.navigationPlan,
+    assetManifest: input.assetManifest,
   });
 
   const policy = geminiPolicyForTask("screen_build", {
