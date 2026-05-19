@@ -21,7 +21,7 @@ import {
   validateStaticDrawgleHtml,
 } from "@/lib/generation/screen-quality";
 import { buildNavigationShellCode, buildScreenStream, extractCode, fallbackProjectCharter, generateDesignTokens, planUiFlow } from "@/lib/generation/service";
-import { planVisualAssets, reconcilePendingFalAssetJobs, resolveProjectAssets } from "@/lib/generation/visual-assets";
+import { CriticalAssetResolutionError, planVisualAssets, reconcilePendingFalAssetJobs, resolveProjectAssets } from "@/lib/generation/visual-assets";
 import { createNavigationArchitecture, deriveRequiresBottomNav } from "@/lib/navigation";
 import {
   applyNavigationPlanToScreens,
@@ -32,7 +32,7 @@ import {
 import { tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
-import type { DesignTokens, ImageReferenceMode, NavigationArchitecture, NavigationPlan, PlanningMode, PromptImagePayload, ProjectCharter, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenPlan } from "@/lib/types";
+import type { DesignTokens, ImageReferenceMode, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, PromptImagePayload, ProjectCharter, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenPlan } from "@/lib/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -735,8 +735,11 @@ export const buildScreenTask = task({
 
     if (!assetPolicy.valid) {
       await appendScreenBuildDiagnostics(admin, payload.generationRunId, payload.screenId, attempts);
+      const policyReason = assetPolicy.invalidUrls.length > 0
+        ? `Generated screen used unapproved image URLs: ${assetPolicy.invalidUrls.slice(0, 4).join(", ")}`
+        : `Generated screen did not use required critical visual assets: ${assetPolicy.missingRequiredUrls.slice(0, 4).join(", ")}`;
       return failWithoutSavingGeneratedCode({
-        error: `[screen_generation:invalid_image_url] Generated screen used unapproved image URLs: ${assetPolicy.invalidUrls.slice(0, 4).join(", ")}`,
+        error: `[screen_generation:invalid_image_url] ${policyReason}`,
         metadata: {
           attempts,
           assetPolicy,
@@ -1183,13 +1186,37 @@ export const generateUiFlowTask = task({
           designTokens,
           llmLog: (label, data) => logger.info(label, data),
         });
-    const projectAssetManifest = await resolveProjectAssets({
-      admin,
-      ownerId: payload.ownerId,
-      projectId: payload.projectId,
-      generationRunId: payload.generationRunId,
-      requirements: assetRequirements,
-    });
+    let projectAssetManifest: ProjectAssetManifest;
+    try {
+      projectAssetManifest = await resolveProjectAssets({
+        admin,
+        ownerId: payload.ownerId,
+        projectId: payload.projectId,
+        generationRunId: payload.generationRunId,
+        requirements: assetRequirements,
+      });
+    } catch (error) {
+      if (error instanceof CriticalAssetResolutionError) {
+        await mergeGenerationRunMetadata(admin, payload.generationRunId, {
+          assetRequirements,
+          assetFailures: error.failures,
+        });
+        await postStatusMessage(
+          admin,
+          payload.projectId,
+          payload.ownerId,
+          "Critical visual assets could not be resolved",
+          "error",
+          {
+            generationRunId: payload.generationRunId,
+            activityKey: `run:${payload.generationRunId}:assets`,
+            assetFailures: error.failures,
+          },
+        );
+      }
+
+      throw error;
+    }
 
     await mergeGenerationRunMetadata(admin, payload.generationRunId, {
       assetRequirements,

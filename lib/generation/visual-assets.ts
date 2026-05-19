@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHash, createHmac, randomUUID } from "crypto";
 
+import sharp from "sharp";
 import { z } from "zod";
 
 import { createGeminiClient } from "@/lib/ai/gemini";
@@ -28,11 +29,15 @@ import type {
   VisualAssetRole,
   VisualAssetSource,
   VisualAssetType,
+  VisualAssetVariantName,
+  VisualAssetVerificationStatus,
+  VisualAssetVisibility,
 } from "@/lib/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
 type VisualAssetRow = Database["public"]["Tables"]["visual_assets"]["Row"];
+type VisualAssetVariantRow = Database["public"]["Tables"]["visual_asset_variants"]["Row"];
 type AssetGenerationJobRow = Database["public"]["Tables"]["asset_generation_jobs"]["Row"];
 
 const FAL_MODEL = "fal-ai/gpt-image-1.5";
@@ -41,6 +46,37 @@ const MAX_REQUIREMENTS = 8;
 const MAX_CRITICAL_GENERATED_ASSETS = 3;
 const FAL_POLL_INTERVAL_MS = 2500;
 const FAL_MAX_POLLS = 36;
+
+export class CriticalAssetResolutionError extends Error {
+  failures: ProjectAssetManifest["failures"];
+
+  constructor(failures: NonNullable<ProjectAssetManifest["failures"]>) {
+    super(`Critical visual asset resolution failed: ${failures.map((failure) => `${failure.screenName}/${failure.requirementId}: ${failure.reason}`).join("; ")}`);
+    this.name = "CriticalAssetResolutionError";
+    this.failures = failures;
+  }
+}
+
+class FalAssetTimeoutError extends Error {
+  requestId: string;
+
+  constructor(requestId: string) {
+    super(`fal request did not complete before timeout: ${requestId}`);
+    this.name = "FalAssetTimeoutError";
+    this.requestId = requestId;
+  }
+}
+
+type AssetVerificationResult = {
+  status: VisualAssetVerificationStatus;
+  score: number | null;
+  notes: string;
+};
+
+type SavedAsset = {
+  asset: VisualAssetRow;
+  displayVariant: VisualAssetVariantRow | null;
+};
 
 const VisualAssetRoleSchema = z.enum([
   "hero_cutout",
@@ -71,6 +107,12 @@ const AssetRequirementSchema = z.object({
 
 const AssetRequirementsResponseSchema = z.object({
   assetRequirements: z.array(AssetRequirementSchema).max(MAX_REQUIREMENTS).default([]),
+});
+
+const AssetVerificationResponseSchema = z.object({
+  approved: z.boolean().default(false),
+  score: z.number().min(0).max(1).default(0),
+  notes: z.array(z.string()).default([]),
 });
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -130,6 +172,48 @@ const requirementText = (requirement: AssetRequirement) =>
 
 const stableReuseKey = (requirement: AssetRequirement) =>
   slugify(requirement.reuseKey || `${requirement.role}-${requirement.subject}-${requirement.assetType}`);
+
+const isCriticalRequirement = (requirement: AssetRequirement) => requirement.priority === "critical";
+
+const privateSubjectPattern = /\b(my|our|client|customer|brand|logo|trademark|company|founder|employee|team|user|profile|avatar|headshot|portrait|face|real person|celebrity|influencer|shoe brand|product brand)\b/i;
+
+const personSubjectPattern = /\b(person|people|woman|man|girl|boy|trainer|athlete|model|human|face|portrait|avatar|headshot)\b/i;
+
+const productSubjectPattern = /\b(product|pack|package|bottle|shoe|sneaker|bag|watch|device|phone|card|logo|brand)\b/i;
+
+const determineVisibility = (source: VisualAssetSource, requirement: AssetRequirement): VisualAssetVisibility => {
+  if (requirement.sourcePreference === "user_upload" || requirement.role === "avatar" || privateSubjectPattern.test(requirement.subject)) {
+    return "owner_private";
+  }
+
+  if (personSubjectPattern.test(requirement.subject)) {
+    return "owner_private";
+  }
+
+  if (requirement.role === "product_cutout" || requirement.role === "product_photo" || productSubjectPattern.test(requirement.subject)) {
+    return "project_private";
+  }
+
+  if (source === "stock" || source === "ai_generated" || source === "internal_library") {
+    return "public_reusable";
+  }
+
+  return "owner_private";
+};
+
+const isAssetVisibleToProject = (asset: VisualAssetRow, ownerId: string, projectId: string) => {
+  const visibility = (asset.visibility ?? "owner_private") as VisualAssetVisibility;
+  if (visibility === "public_reusable") return true;
+  if (visibility === "owner_private") return asset.owner_id === ownerId;
+  if (visibility === "project_private") return asset.created_by_project_id === projectId;
+  return false;
+};
+
+const visibleAssets = (assets: VisualAssetRow[], ownerId: string, projectId: string) =>
+  assets.filter((asset) =>
+    isAssetVisibleToProject(asset, ownerId, projectId) &&
+    ["verified", "skipped"].includes(asset.verification_status ?? "pending"),
+  );
 
 const imageSizeForRequirement = (requirement: AssetRequirement) => {
   if (requirement.desiredAspectRatio === "4:5") return "1024x1536";
@@ -284,13 +368,14 @@ export async function planVisualAssets({
   }
 }
 
-const manifestFromAsset = (asset: VisualAssetRow, requirement: AssetRequirement): ScreenAssetManifest => ({
+const manifestFromAsset = (asset: VisualAssetRow, requirement: AssetRequirement, displayVariant?: VisualAssetVariantRow | null): ScreenAssetManifest => ({
   id: asset.id,
   requirementId: requirement.id,
   role: requirement.role,
-  url: asset.public_url,
-  width: asset.width,
-  height: asset.height,
+  url: displayVariant?.public_url ?? asset.public_url,
+  variantUrl: displayVariant?.public_url ?? asset.public_url,
+  width: displayVariant?.width ?? asset.width,
+  height: displayVariant?.height ?? asset.height,
   hasAlpha: asset.has_alpha,
   alt: compact(requirement.subject),
   placementHint: requirement.placementHint,
@@ -298,24 +383,51 @@ const manifestFromAsset = (asset: VisualAssetRow, requirement: AssetRequirement)
   objectPosition: objectPositionForRequirement(requirement),
   source: asset.source as VisualAssetSource,
   provider: asset.provider as VisualAssetProvider,
+  critical: isCriticalRequirement(requirement),
+  visibility: (asset.visibility ?? "owner_private") as VisualAssetVisibility,
+  verificationScore: asset.verification_score ?? null,
 });
 
-const findReusableAsset = async (admin: AdminClient, requirement: AssetRequirement): Promise<VisualAssetRow | null> => {
+const getDisplayVariant = async (admin: AdminClient, assetId: string): Promise<VisualAssetVariantRow | null> => {
+  const { data } = await admin
+    .from("visual_asset_variants")
+    .select("*")
+    .eq("asset_id", assetId)
+    .in("variant", ["display_1024", "preview_512", "original"])
+    .order("variant", { ascending: true })
+    .limit(10);
+
+  const variants = (data ?? []) as VisualAssetVariantRow[];
+  return variants.find((variant) => variant.variant === "display_1024")
+    ?? variants.find((variant) => variant.variant === "preview_512")
+    ?? variants.find((variant) => variant.variant === "original")
+    ?? null;
+};
+
+const findReusableAsset = async (
+  admin: AdminClient,
+  ownerId: string,
+  projectId: string,
+  requirement: AssetRequirement,
+): Promise<SavedAsset | null> => {
   const exact = await admin
     .from("visual_assets")
     .select("*")
     .eq("reuse_key", stableReuseKey(requirement))
     .eq("asset_type", requirement.assetType)
     .eq("has_alpha", requirement.transparentBackground)
+    .in("verification_status", ["verified", "skipped"])
     .gte("quality_score", 0.68)
     .order("quality_score", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(12);
 
   if (exact.error) {
     console.warn("[visual-assets] Exact lookup failed", exact.error);
-  } else if (exact.data) {
-    return exact.data as VisualAssetRow;
+  } else if (exact.data?.length) {
+    const bestExact = visibleAssets(exact.data as VisualAssetRow[], ownerId, projectId)[0];
+    if (bestExact) {
+      return { asset: bestExact, displayVariant: await getDisplayVariant(admin, bestExact.id) };
+    }
   }
 
   try {
@@ -325,6 +437,8 @@ const findReusableAsset = async (admin: AdminClient, requirement: AssetRequireme
       p_asset_type: requirement.assetType,
       p_role: null,
       p_has_alpha: requirement.transparentBackground,
+      p_owner_id: ownerId,
+      p_project_id: projectId,
       match_threshold: requirement.priority === "critical" ? 0.64 : 0.58,
       match_count: 6,
     });
@@ -344,7 +458,14 @@ const findReusableAsset = async (admin: AdminClient, requirement: AssetRequireme
       .eq("id", best.asset_id)
       .maybeSingle();
 
-    return assetError ? null : asset as VisualAssetRow | null;
+    if (assetError || !asset || !isAssetVisibleToProject(asset as VisualAssetRow, ownerId, projectId)) {
+      return null;
+    }
+
+    return {
+      asset: asset as VisualAssetRow,
+      displayVariant: await getDisplayVariant(admin, (asset as VisualAssetRow).id),
+    };
   } catch (error) {
     console.warn("[visual-assets] Vector lookup failed", error);
     return null;
@@ -452,6 +573,291 @@ const fetchRemoteBytes = async (url: string, fallbackMimeType = "application/oct
   };
 };
 
+const imageMetadata = async (bytes: Uint8Array) => {
+  const metadata = await sharp(Buffer.from(bytes)).metadata();
+  return {
+    width: metadata.width ?? null,
+    height: metadata.height ?? null,
+    hasAlpha: Boolean(metadata.hasAlpha || metadata.channels === 4),
+    format: metadata.format ?? null,
+  };
+};
+
+const shouldVerifyAsset = (source: VisualAssetSource, requirement: AssetRequirement) =>
+  source === "ai_generated" || isCriticalRequirement(requirement);
+
+const verifierInstruction = `You are Drawgle's production visual asset verifier.
+Return strict JSON only.
+Approve the asset only when it is safe and useful inside a premium mobile UI.
+Check subject match, crop, orientation, transparent-background expectation, no unwanted text/watermark, and suitability for the described placement.
+If transparency was requested, reject obvious opaque/background-filled images.`;
+
+const verifyAsset = async ({
+  bytes,
+  contentType,
+  requirement,
+  hasAlpha,
+  source,
+}: {
+  bytes: Uint8Array;
+  contentType: string;
+  requirement: AssetRequirement;
+  hasAlpha: boolean;
+  source: VisualAssetSource;
+}): Promise<AssetVerificationResult> => {
+  if (!shouldVerifyAsset(source, requirement)) {
+    return { status: "skipped", score: null, notes: "Verification skipped for non-critical reusable photo asset." };
+  }
+
+  if (requirement.transparentBackground && !hasAlpha) {
+    return {
+      status: "rejected",
+      score: 0,
+      notes: "Rejected before vision verification because a transparent asset was required but no alpha channel was detected.",
+    };
+  }
+
+  const ai = createGeminiClient();
+  const policy = geminiPolicyForTask("project_planning", {
+    systemInstruction: verifierInstruction,
+    responseMimeType: "application/json",
+    temperature: 0,
+    maxOutputTokens: 1024,
+  });
+
+  try {
+    const response = await ai.models.generateContent({
+      model: policy.model,
+      contents: {
+        parts: [
+          {
+            inlineData: {
+              data: Buffer.from(bytes).toString("base64"),
+              mimeType: contentType,
+            },
+          },
+          {
+            text: [
+              `Required subject: ${requirement.subject}`,
+              `Role: ${requirement.role}`,
+              `Asset type: ${requirement.assetType}`,
+              `Transparent background required: ${requirement.transparentBackground ? "yes" : "no"}`,
+              `Placement hint: ${requirement.placementHint}`,
+              `Priority: ${requirement.priority}`,
+              "Return JSON: { \"approved\": boolean, \"score\": 0-1, \"notes\": [\"...\"] }",
+            ].join("\n"),
+          },
+        ],
+      },
+      config: policy.config,
+    });
+
+    const parsed = AssetVerificationResponseSchema.safeParse(parseJsonResponse<unknown>(response.text || "{}"));
+    if (!parsed.success) {
+      return {
+        status: "rejected",
+        score: 0,
+        notes: "Verifier returned invalid JSON.",
+      };
+    }
+
+    return {
+      status: parsed.data.approved && parsed.data.score >= (isCriticalRequirement(requirement) ? 0.68 : 0.6) ? "verified" : "rejected",
+      score: clampQuality(parsed.data.score),
+      notes: parsed.data.notes.join(" ").slice(0, 2000),
+    };
+  } catch (error) {
+    return {
+      status: "rejected",
+      score: 0,
+      notes: `Verifier failed: ${error instanceof Error ? error.message : String(error)}`.slice(0, 2000),
+    };
+  }
+};
+
+const createVariantBuffer = async ({
+  bytes,
+  maxSize,
+  hasAlpha,
+}: {
+  bytes: Uint8Array;
+  maxSize: number;
+  hasAlpha: boolean;
+}) => {
+  const pipeline = sharp(Buffer.from(bytes))
+    .rotate()
+    .resize({
+      width: maxSize,
+      height: maxSize,
+      fit: "inside",
+      withoutEnlargement: true,
+    });
+
+  const output = hasAlpha
+    ? pipeline.png({ compressionLevel: 9, adaptiveFiltering: true })
+    : pipeline.webp({ quality: maxSize >= 1024 ? 84 : 78 });
+
+  const { data, info } = await output.toBuffer({ resolveWithObject: true });
+  return {
+    bytes: new Uint8Array(data),
+    width: info.width,
+    height: info.height,
+    contentType: hasAlpha ? "image/png" : "image/webp",
+    extension: hasAlpha ? "png" : "webp",
+  };
+};
+
+const insertVariant = async ({
+  admin,
+  assetId,
+  variant,
+  key,
+  publicUrl,
+  width,
+  height,
+  contentType,
+  byteSize,
+}: {
+  admin: AdminClient;
+  assetId: string;
+  variant: VisualAssetVariantName;
+  key: string;
+  publicUrl: string;
+  width: number;
+  height: number;
+  contentType: string;
+  byteSize: number;
+}) => {
+  const { data, error } = await admin
+    .from("visual_asset_variants")
+    .upsert({
+      asset_id: assetId,
+      variant,
+      r2_key: key,
+      public_url: publicUrl,
+      width,
+      height,
+      mime_type: contentType,
+      byte_size: byteSize,
+    }, {
+      onConflict: "asset_id,variant",
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data as VisualAssetVariantRow;
+};
+
+const createAndStoreVariants = async ({
+  admin,
+  assetId,
+  originalBytes,
+  originalKey,
+  originalUrl,
+  originalWidth,
+  originalHeight,
+  originalContentType,
+  hasAlpha,
+}: {
+  admin: AdminClient;
+  assetId: string;
+  originalBytes: Uint8Array;
+  originalKey: string;
+  originalUrl: string;
+  originalWidth: number;
+  originalHeight: number;
+  originalContentType: string;
+  hasAlpha: boolean;
+}) => {
+  await insertVariant({
+    admin,
+    assetId,
+    variant: "original",
+    key: originalKey,
+    publicUrl: originalUrl,
+    width: originalWidth,
+    height: originalHeight,
+    contentType: originalContentType,
+    byteSize: originalBytes.byteLength,
+  });
+
+  let displayVariant: VisualAssetVariantRow | null = null;
+  const variants: Array<{ name: VisualAssetVariantName; size: number }> = [
+    { name: "thumb_256", size: 256 },
+    { name: "preview_512", size: 512 },
+    { name: "display_1024", size: 1024 },
+  ];
+
+  for (const target of variants) {
+    const variant = await createVariantBuffer({ bytes: originalBytes, maxSize: target.size, hasAlpha });
+    const key = `visual-assets/${assetId}/${target.name}.${variant.extension}`;
+    const publicUrl = await uploadToR2({ key, bytes: variant.bytes, contentType: variant.contentType });
+    const row = await insertVariant({
+      admin,
+      assetId,
+      variant: target.name,
+      key,
+      publicUrl,
+      width: variant.width,
+      height: variant.height,
+      contentType: variant.contentType,
+      byteSize: variant.bytes.byteLength,
+    });
+
+    if (target.name === "display_1024") {
+      displayVariant = row;
+    }
+  }
+
+  return displayVariant;
+};
+
+const findAssetByContentHash = async ({
+  admin,
+  ownerId,
+  projectId,
+  contentHash,
+  visibility,
+  requirement,
+}: {
+  admin: AdminClient;
+  ownerId: string | null;
+  projectId: string | null;
+  contentHash: string;
+  visibility: VisualAssetVisibility;
+  requirement: AssetRequirement;
+}): Promise<SavedAsset | null> => {
+  const { data, error } = await admin
+    .from("visual_assets")
+    .select("*")
+    .eq("content_hash", contentHash)
+    .eq("visibility", visibility)
+    .eq("asset_type", requirement.assetType)
+    .eq("has_alpha", requirement.transparentBackground)
+    .in("verification_status", ["verified", "skipped"])
+    .order("quality_score", { ascending: false })
+    .limit(8);
+
+  if (error || !data?.length) {
+    return null;
+  }
+
+  const visible = visibleAssets(data as VisualAssetRow[], ownerId ?? "", projectId ?? "");
+  const asset = visible[0];
+  if (!asset) {
+    return null;
+  }
+
+  return {
+    asset,
+    displayVariant: await getDisplayVariant(admin, asset.id),
+  };
+};
+
 const saveAssetFromRemoteUrl = async ({
   admin,
   ownerId,
@@ -476,14 +882,45 @@ const saveAssetFromRemoteUrl = async ({
   width?: number | null;
   height?: number | null;
   metadata?: Record<string, unknown>;
-}): Promise<VisualAssetRow> => {
+}): Promise<SavedAsset> => {
   const fetched = await fetchRemoteBytes(remoteUrl);
+  if (!/^image\//i.test(fetched.contentType)) {
+    throw new Error(`Remote asset did not return an image content type: ${fetched.contentType}`);
+  }
+
+  const contentHash = sha256Hex(fetched.bytes);
+  const metadataFromBytes = await imageMetadata(fetched.bytes);
+  const hasAlpha = metadataFromBytes.hasAlpha || detectPngAlpha(fetched.bytes);
+  const visibility = determineVisibility(source, requirement);
+  const deduped = await findAssetByContentHash({
+    admin,
+    ownerId,
+    projectId,
+    contentHash,
+    visibility,
+    requirement: {
+      ...requirement,
+      transparentBackground: requirement.transparentBackground || hasAlpha,
+    },
+  });
+  if (deduped) {
+    return deduped;
+  }
+
   const extension = mimeExtension(fetched.contentType, requirement.transparentBackground ? "png" : "jpg");
   const assetId = randomUUID();
   const key = `visual-assets/${assetId}/original.${extension}`;
   const publicUrl = await uploadToR2({ key, bytes: fetched.bytes, contentType: fetched.contentType });
-  const hasAlpha = requirement.transparentBackground || detectPngAlpha(fetched.bytes);
   const embedding = await generateEmbedding(requirementText(requirement), "RETRIEVAL_DOCUMENT").catch(() => null);
+  const verification = await verifyAsset({
+    bytes: fetched.bytes,
+    contentType: fetched.contentType,
+    requirement,
+    hasAlpha,
+    source,
+  });
+  const widthValue = metadataFromBytes.width ?? width ?? 1024;
+  const heightValue = metadataFromBytes.height ?? height ?? 1024;
 
   const { data, error } = await admin
     .from("visual_assets")
@@ -499,17 +936,25 @@ const saveAssetFromRemoteUrl = async ({
       license: license ?? null,
       r2_key: key,
       public_url: publicUrl,
-      width: width ?? 1024,
-      height: height ?? 1024,
+      width: widthValue,
+      height: heightValue,
       has_alpha: hasAlpha,
+      visibility,
+      verification_status: verification.status,
+      verification_score: verification.score,
+      verification_notes: verification.notes,
+      content_hash: contentHash,
+      mime_type: fetched.contentType,
+      byte_size: fetched.bytes.byteLength,
       tags: [
         requirement.role,
         requirement.assetType,
+        visibility,
         ...requirement.subject.toLowerCase().split(/[^a-z0-9]+/).filter((part) => part.length > 2).slice(0, 10),
       ],
       reuse_key: stableReuseKey(requirement),
       embedding: embedding as never,
-      quality_score: clampQuality(requirement.priority === "critical" ? 0.78 : 0.68),
+      quality_score: clampQuality(verification.score ?? (requirement.priority === "critical" ? 0.78 : 0.68)),
       metadata: {
         ...metadata,
         placementHint: requirement.placementHint,
@@ -520,21 +965,44 @@ const saveAssetFromRemoteUrl = async ({
     .single();
 
   if (error) {
+    const dedupedAfterInsertRace = await findAssetByContentHash({
+      admin,
+      ownerId,
+      projectId,
+      contentHash,
+      visibility,
+      requirement: {
+        ...requirement,
+        transparentBackground: requirement.transparentBackground || hasAlpha,
+      },
+    });
+    if (dedupedAfterInsertRace) {
+      return dedupedAfterInsertRace;
+    }
+
     throw error;
   }
 
-  await admin.from("visual_asset_variants").insert({
-    asset_id: assetId,
-    variant: "original",
-    r2_key: key,
-    public_url: publicUrl,
-    width: width ?? 1024,
-    height: height ?? 1024,
-    mime_type: fetched.contentType,
-    byte_size: fetched.bytes.byteLength,
+  if (verification.status === "rejected") {
+    throw new Error(`Asset verifier rejected "${requirement.id}": ${verification.notes || "quality threshold not met"}`);
+  }
+
+  const displayVariant = await createAndStoreVariants({
+    admin,
+    assetId,
+    originalBytes: fetched.bytes,
+    originalKey: key,
+    originalUrl: publicUrl,
+    originalWidth: widthValue,
+    originalHeight: heightValue,
+    originalContentType: fetched.contentType,
+    hasAlpha,
   });
 
-  return data as VisualAssetRow;
+  return {
+    asset: data as VisualAssetRow,
+    displayVariant,
+  };
 };
 
 const resolvePexelsStockAsset = async (
@@ -542,7 +1010,7 @@ const resolvePexelsStockAsset = async (
   ownerId: string,
   projectId: string,
   requirement: AssetRequirement,
-): Promise<VisualAssetRow | null> => {
+): Promise<SavedAsset | null> => {
   const apiKey = getOptionalPexelsApiKey();
   if (!apiKey || !isStockEligible(requirement)) {
     return null;
@@ -603,7 +1071,7 @@ const resolvePixabayStockAsset = async (
   ownerId: string,
   projectId: string,
   requirement: AssetRequirement,
-): Promise<VisualAssetRow | null> => {
+): Promise<SavedAsset | null> => {
   const apiKey = getOptionalPixabayApiKey();
   if (!apiKey || !isStockEligible(requirement)) {
     return null;
@@ -728,7 +1196,7 @@ const pollFalResult = async (submitResult: { request_id: string; response_url?: 
     await new Promise((resolve) => setTimeout(resolve, FAL_POLL_INTERVAL_MS));
   }
 
-  throw new Error(`fal request did not complete before timeout: ${submitResult.request_id}`);
+  throw new FalAssetTimeoutError(submitResult.request_id);
 };
 
 const createFalJobRow = async ({
@@ -813,10 +1281,20 @@ const completeFalJobWithPayload = async ({
   requirement: AssetRequirement;
   payload: unknown;
 }) => {
-  if (job.asset_id) {
-    const { data } = await admin.from("visual_assets").select("*").eq("id", job.asset_id).maybeSingle();
+  const { data: latestJob } = await admin
+    .from("asset_generation_jobs")
+    .select("*")
+    .eq("id", job.id)
+    .maybeSingle();
+  const currentJob = (latestJob as AssetGenerationJobRow | null) ?? job;
+
+  if (currentJob.asset_id) {
+    const { data } = await admin.from("visual_assets").select("*").eq("id", currentJob.asset_id).maybeSingle();
     if (data) {
-      return data as VisualAssetRow;
+      return {
+        asset: data as VisualAssetRow,
+        displayVariant: await getDisplayVariant(admin, (data as VisualAssetRow).id),
+      };
     }
   }
 
@@ -825,10 +1303,10 @@ const completeFalJobWithPayload = async ({
     throw new Error("fal payload did not contain an image URL.");
   }
 
-  const asset = await saveAssetFromRemoteUrl({
+  const saved = await saveAssetFromRemoteUrl({
     admin,
-    ownerId: job.owner_id,
-    projectId: job.project_id,
+    ownerId: currentJob.owner_id,
+    projectId: currentJob.project_id,
     requirement,
     remoteUrl: image.url,
     source: "ai_generated",
@@ -837,21 +1315,21 @@ const completeFalJobWithPayload = async ({
     width: image.width,
     height: image.height,
     metadata: {
-      falRequestId: job.fal_request_id,
+      falRequestId: currentJob.fal_request_id,
       falPayload: payload,
       model: FAL_MODEL,
     },
   });
 
-  await updateFalJob(admin, job.id, {
+  await updateFalJob(admin, currentJob.id, {
     status: "completed",
     response_payload: payload as never,
-    asset_id: asset.id,
+    asset_id: saved.asset.id,
     completed_at: new Date().toISOString(),
     error: null,
   });
 
-  return asset;
+  return saved;
 };
 
 const generateFalAsset = async ({
@@ -883,6 +1361,8 @@ const generateFalAsset = async ({
     desiredAspectRatio: requirement.desiredAspectRatio,
     transparentBackground: requirement.transparentBackground,
     placementHint: requirement.placementHint,
+    priority: requirement.priority,
+    reuseKey: stableReuseKey(requirement),
   };
   const job = await createFalJobRow({ admin, ownerId, projectId, requirement, requestPayload });
 
@@ -908,6 +1388,14 @@ const generateFalAsset = async ({
       payload,
     });
   } catch (error) {
+    if (error instanceof FalAssetTimeoutError) {
+      await updateFalJob(admin, job.id, {
+        status: "processing",
+        error: error.message,
+      });
+      throw error;
+    }
+
     await updateFalJob(admin, job.id, {
       status: "failed",
       error: error instanceof Error ? error.message : String(error),
@@ -965,49 +1453,74 @@ export async function resolveProjectAssets({
   requirements: AssetRequirement[];
 }): Promise<ProjectAssetManifest> {
   const assetsByScreen: ProjectAssetManifest["assetsByScreen"] = {};
+  const failures: NonNullable<ProjectAssetManifest["failures"]> = [];
 
   for (const requirement of requirements) {
     try {
-      let asset = await findReusableAsset(admin, requirement);
-
-      if (!asset && requirement.sourcePreference === "stock" && isStockEligible(requirement)) {
-        asset = await resolveStockAsset(admin, ownerId, projectId, requirement);
+      if (requirement.sourcePreference === "user_upload") {
+        throw new Error("User-upload asset resolution is not available yet for this requirement.");
       }
 
-      if (!asset && isStockEligible(requirement)) {
-        asset = await resolveStockAsset(admin, ownerId, projectId, requirement);
+      let saved = await findReusableAsset(admin, ownerId, projectId, requirement);
+
+      if (!saved && requirement.sourcePreference === "stock" && isStockEligible(requirement)) {
+        saved = await resolveStockAsset(admin, ownerId, projectId, requirement);
       }
 
-      if (!asset && isAiEligible(requirement) && requirement.priority !== "optional") {
-        asset = await generateFalAsset({ admin, ownerId, projectId, requirement });
+      if (!saved && isStockEligible(requirement)) {
+        saved = await resolveStockAsset(admin, ownerId, projectId, requirement);
       }
 
-      if (!asset) {
-        if (requirement.priority === "critical") {
-          console.warn("[visual-assets] Critical asset unresolved; builder will use non-image fallback", requirement);
-        }
+      if (!saved && isAiEligible(requirement) && requirement.priority !== "optional") {
+        saved = await generateFalAsset({ admin, ownerId, projectId, requirement });
+      }
+
+      if (!saved) {
+        failures.push({
+          requirementId: requirement.id,
+          screenName: requirement.screenName,
+          subject: requirement.subject,
+          priority: requirement.priority,
+          reason: "No reusable, stock, or generated asset could satisfy this requirement.",
+          fatal: isCriticalRequirement(requirement),
+        });
         continue;
       }
 
-      await recordUsage({ admin, projectId, generationRunId, requirement, assetId: asset.id });
+      await recordUsage({ admin, projectId, generationRunId, requirement, assetId: saved.asset.id });
 
-      const manifest = manifestFromAsset(asset, requirement);
+      const manifest = manifestFromAsset(saved.asset, requirement, saved.displayVariant);
       assetsByScreen[requirement.screenName] = [
         ...(assetsByScreen[requirement.screenName] ?? []),
         manifest,
       ];
     } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      failures.push({
+        requirementId: requirement.id,
+        screenName: requirement.screenName,
+        subject: requirement.subject,
+        priority: requirement.priority,
+        reason,
+        fatal: isCriticalRequirement(requirement),
+      });
       console.warn("[visual-assets] Requirement failed", {
         requirementId: requirement.id,
         subject: requirement.subject,
-        error,
+        error: reason,
       });
     }
+  }
+
+  const fatalFailures = failures.filter((failure) => failure.fatal);
+  if (fatalFailures.length > 0) {
+    throw new CriticalAssetResolutionError(fatalFailures);
   }
 
   return {
     requirements,
     assetsByScreen,
+    failures,
   };
 }
 
@@ -1030,6 +1543,10 @@ export async function completeFalAssetWebhook({
     return { ok: false, reason: "job_not_found" };
   }
 
+  if (job.status === "completed" && job.asset_id) {
+    return { ok: true, assetId: job.asset_id, alreadyCompleted: true };
+  }
+
   const requestPayload = isRecord(job.request_payload) ? job.request_payload : {};
   const requirement = AssetRequirementSchema.safeParse({
     id: job.requirement_id,
@@ -1041,7 +1558,7 @@ export async function completeFalAssetWebhook({
     desiredAspectRatio: typeof requestPayload.desiredAspectRatio === "string" ? requestPayload.desiredAspectRatio : "1:1",
     transparentBackground: Boolean(requestPayload.transparentBackground ?? true),
     placementHint: typeof requestPayload.placementHint === "string" ? requestPayload.placementHint : "Use as a generated UI asset.",
-    priority: "supporting",
+    priority: typeof requestPayload.priority === "string" ? requestPayload.priority : "supporting",
     reuseKey: job.reuse_key,
   });
 
@@ -1054,7 +1571,7 @@ export async function completeFalAssetWebhook({
     return { ok: false, reason: "invalid_requirement" };
   }
 
-  if (isRecord(payload) && payload.status === "ERROR") {
+  if (isRecord(payload) && (payload.status === "ERROR" || payload.error)) {
     await updateFalJob(admin, job.id, {
       status: "failed",
       error: JSON.stringify(payload).slice(0, 2000),
@@ -1063,14 +1580,23 @@ export async function completeFalAssetWebhook({
     return { ok: false, reason: "fal_error" };
   }
 
-  const asset = await completeFalJobWithPayload({
-    admin,
-    job: job as AssetGenerationJobRow,
-    requirement: requirement.data,
-    payload,
-  });
+  try {
+    const saved = await completeFalJobWithPayload({
+      admin,
+      job: job as AssetGenerationJobRow,
+      requirement: requirement.data,
+      payload,
+    });
 
-  return { ok: true, assetId: asset.id };
+    return { ok: true, assetId: saved.asset.id };
+  } catch (error) {
+    await updateFalJob(admin, job.id, {
+      status: "failed",
+      error: error instanceof Error ? error.message : String(error),
+      response_payload: payload as never,
+    });
+    return { ok: false, reason: "completion_failed" };
+  }
 }
 
 export async function reconcilePendingFalAssetJobs({
@@ -1100,6 +1626,15 @@ export async function reconcilePendingFalAssetJobs({
       const status = await falGet<{ status: string; response_url?: string; error?: string }>(
         `${FAL_QUEUE_BASE}/${FAL_MODEL}/requests/${job.fal_request_id}/status`,
       );
+
+      if (status.status === "ERROR" || status.error) {
+        await updateFalJob(admin, job.id, {
+          status: "failed",
+          error: status.error ?? "fal request returned ERROR status",
+          response_payload: status as never,
+        });
+        continue;
+      }
 
       if (status.status !== "COMPLETED") {
         if (status.status === "IN_PROGRESS") {

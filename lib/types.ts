@@ -69,6 +69,12 @@ export type VisualAssetGenerationStatus =
   | "completed"
   | "failed";
 
+export type VisualAssetVisibility = "public_reusable" | "owner_private" | "project_private";
+
+export type VisualAssetVerificationStatus = "pending" | "verified" | "rejected" | "skipped";
+
+export type VisualAssetVariantName = "original" | "thumb_256" | "preview_512" | "display_1024";
+
 export interface AssetRequirement {
   id: string;
   screenName: string;
@@ -88,6 +94,7 @@ export interface ScreenAssetManifest {
   requirementId: string;
   role: VisualAssetRole;
   url: string;
+  variantUrl?: string;
   width: number;
   height: number;
   hasAlpha: boolean;
@@ -97,11 +104,24 @@ export interface ScreenAssetManifest {
   objectPosition: string;
   source: VisualAssetSource;
   provider: VisualAssetProvider;
+  critical: boolean;
+  visibility: VisualAssetVisibility;
+  verificationScore?: number | null;
 }
 
 export interface ProjectAssetManifest {
   requirements: AssetRequirement[];
   assetsByScreen: Record<string, ScreenAssetManifest[]>;
+  failures?: AssetResolutionFailure[];
+}
+
+export interface AssetResolutionFailure {
+  requirementId: string;
+  screenName: string;
+  subject: string;
+  priority: VisualAssetPriority;
+  reason: string;
+  fatal: boolean;
 }
 
 export type ImageReferenceMode = "recreate" | "style";

@@ -565,6 +565,8 @@ const buildAssetManifestContract = (assetManifest?: ScreenAssetManifest[] | null
 
   return [
     "Use only these approved bitmap assets. Do not invent or search for any other image URLs.",
+    "Use the exact url/variantUrl values from this manifest. Local public files and relative image paths are not allowed.",
+    "Every asset marked critical must appear in the returned HTML.",
     "For transparent PNG/cutout assets use object-contain. For photo assets use object-cover unless the placement hint says otherwise.",
     "Every critical/supplied asset used must include meaningful alt text, avoid layout overflow, and respect the placement hint.",
     JSON.stringify(assetManifest, null, 2),
@@ -791,7 +793,7 @@ RULES:
 13. STATIC HTML ONLY: Do NOT output JSX, React, JavaScript expressions, arrays, .map(...), arrow functions, template literals, className, class={...}, style={{...}}, data attributes with {...}, <script>, or code that requires runtime execution. Manually expand repeated items into concrete HTML elements.
 14. Use a main content wrapper that enforces the shared spacing rhythm. A good default is a flex column with px-[var(--dg-mobile-layout-screen-margin)] and gap-[var(--dg-mobile-layout-section-gap)], with deliberate exceptions only for full-bleed media/maps.
 15. Before returning, audit for mobile fit: no horizontal overflow, no nav overlap, no clipped CTA, no unreadable chart, no empty visual panel, no text hidden behind icon controls, and no inconsistent random margins between sections.
-16. Image URL policy: use only URLs from APPROVED VISUAL ASSET MANIFEST. Never invent remote image URLs and never use temporary fal.media URLs, random stock CDN URLs, or placeholder image services.
+16. Image URL policy: use only URLs from APPROVED VISUAL ASSET MANIFEST. Never invent remote image URLs, relative image paths, local public images, temporary fal.media URLs, random stock CDN URLs, or placeholder image services. If a manifest asset is marked critical, include it in the HTML exactly once or as intentionally repeated imagery.
 ${navigationPlan?.enabled ? "17. Do NOT create a <nav>, bottom tab bar, footer navigation, or persistent primary navigation. Leave bottom padding for the injected shared shell: the content/main wrapper should include padding-bottom: calc(var(--dg-mobile-layout-safe-area-bottom) + 96px) or an equivalent Tailwind arbitrary pb value. Do not draw the shell yourself." : ""}
 18. End the response with this exact sentinel on its own final line: ${DRAWGLE_GENERATION_COMPLETE_SENTINEL}`;
 };

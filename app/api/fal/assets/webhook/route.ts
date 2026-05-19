@@ -23,5 +23,9 @@ export async function POST(request: NextRequest) {
     payload,
   });
 
+  if (!result.ok && result.reason === "job_not_found") {
+    return NextResponse.json(result, { status: 503 });
+  }
+
   return NextResponse.json(result);
 }

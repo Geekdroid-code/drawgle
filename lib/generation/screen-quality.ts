@@ -474,20 +474,52 @@ export function validateGeneratedScreenCode({
   };
 }
 
-const extractImageUrls = (code: string) => {
-  const urls = new Set<string>();
+const extractImageReferences = (code: string) => {
+  const refs = new Map<string, "src" | "css-url">();
 
   for (const match of code.matchAll(/\ssrc\s*=\s*(?:"([^"]+)"|'([^']+)')/gi)) {
     const value = (match[1] ?? match[2] ?? "").trim();
-    if (value) urls.add(value);
+    if (value) refs.set(value, "src");
+  }
+
+  for (const match of code.matchAll(/\ssrcset\s*=\s*(?:"([^"]+)"|'([^']+)')/gi)) {
+    const value = (match[1] ?? match[2] ?? "").trim();
+    for (const candidate of value.split(",")) {
+      const url = candidate.trim().split(/\s+/)[0]?.trim();
+      if (url) refs.set(url, "src");
+    }
+  }
+
+  for (const match of code.matchAll(/<image\b[^>]*(?:\shref|\sxlink:href)\s*=\s*(?:"([^"]+)"|'([^']+)')/gi)) {
+    const value = (match[1] ?? match[2] ?? "").trim();
+    if (value) refs.set(value, "src");
   }
 
   for (const match of code.matchAll(/url\((?:"([^"]+)"|'([^']+)'|([^)"']+))\)/gi)) {
     const value = (match[1] ?? match[2] ?? match[3] ?? "").trim();
-    if (value) urls.add(value);
+    if (value) refs.set(value, "css-url");
   }
 
-  return Array.from(urls);
+  return Array.from(refs.entries()).map(([url, kind]) => ({ url, kind }));
+};
+
+const isAllowedInlineSvg = (url: string) => /^data:image\/svg\+xml/i.test(url);
+
+const isBitmapLikeUrl = (url: string, kind: "src" | "css-url") => {
+  if (isAllowedInlineSvg(url) || url.startsWith("#") || /^var\(/i.test(url)) {
+    return false;
+  }
+
+  if (kind === "src") {
+    return true;
+  }
+
+  return /^https?:\/\//i.test(url) ||
+    /^data:image\//i.test(url) ||
+    /^blob:/i.test(url) ||
+    /^\/(?!\/)/.test(url) ||
+    /^\.\.?\//.test(url) ||
+    /\.(png|jpe?g|webp|gif|avif|bmp|svg)(?:[?#].*)?$/i.test(url);
 };
 
 export function validateScreenAssetPolicy({
@@ -498,19 +530,20 @@ export function validateScreenAssetPolicy({
   assetManifest?: ScreenAssetManifest[] | null;
 }) {
   const manifest = assetManifest ?? [];
-  const allowedUrls = new Set(manifest.map((asset) => asset.url));
-  const imageUrls = extractImageUrls(code);
-  const invalidUrls = imageUrls.filter((url) => {
+  const allowedUrls = new Set(manifest.flatMap((asset) => [asset.url, asset.variantUrl]).filter(Boolean));
+  const imageRefs = extractImageReferences(code);
+  const invalidUrls = imageRefs.map((ref) => ref.url).filter((url, index, urls) => {
+    const ref = imageRefs.find((candidate) => candidate.url === url);
+    if (!ref || urls.indexOf(url) !== index) return false;
     if (allowedUrls.has(url)) return false;
-    if (/^data:image\/svg\+xml/i.test(url)) return false;
-    return /^https?:\/\//i.test(url) || /^data:image\//i.test(url);
+    return isBitmapLikeUrl(url, ref.kind);
   });
   const missingRequiredUrls = manifest
-    .filter((asset) => !code.includes(asset.url))
+    .filter((asset) => asset.critical && !code.includes(asset.url) && (!asset.variantUrl || !code.includes(asset.variantUrl)))
     .map((asset) => asset.url);
 
   return {
-    valid: invalidUrls.length === 0,
+    valid: invalidUrls.length === 0 && missingRequiredUrls.length === 0,
     invalidUrls,
     missingRequiredUrls,
   };
