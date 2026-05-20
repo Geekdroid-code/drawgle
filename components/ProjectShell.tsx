@@ -80,6 +80,71 @@ type ManualEditMode = "selected" | "design";
 
 const EMPTY_TEXT_NODES: NonNullable<SelectedElementInfo["editableMetadata"]>["textNodes"] = [];
 const EMPTY_INSPECTED_PROPERTIES: DrawgleResolvedStyleProperty[] = [];
+const MAX_REPLACEMENT_UPLOAD_BYTES = 3.8 * 1024 * 1024;
+const MAX_REPLACEMENT_IMAGE_EDGE = 2400;
+
+const loadImageForUpload = (file: File) =>
+  new Promise<HTMLImageElement>((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Could not read this image file."));
+    };
+    image.src = objectUrl;
+  });
+
+const canvasToBlob = (canvas: HTMLCanvasElement, type: string, quality: number) =>
+  new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error("Could not prepare this image for upload."));
+        return;
+      }
+      resolve(blob);
+    }, type, quality);
+  });
+
+const prepareReplacementImageFile = async (file: File) => {
+  if (file.size <= MAX_REPLACEMENT_UPLOAD_BYTES) {
+    return file;
+  }
+
+  if (file.type === "image/gif") {
+    throw new Error("GIF replacements must be under 4MB. Use PNG, JPEG, or WebP for larger images.");
+  }
+
+  if (!file.type.startsWith("image/")) {
+    return file;
+  }
+
+  const image = await loadImageForUpload(file);
+  const scale = Math.min(1, MAX_REPLACEMENT_IMAGE_EDGE / Math.max(image.naturalWidth, image.naturalHeight));
+  const width = Math.max(1, Math.round(image.naturalWidth * scale));
+  const height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Could not prepare this image for upload.");
+  }
+  context.drawImage(image, 0, 0, width, height);
+
+  const baseName = file.name.replace(/\.[^.]+$/, "") || "replacement-image";
+  for (const quality of [0.86, 0.76, 0.66, 0.56]) {
+    const blob = await canvasToBlob(canvas, "image/webp", quality);
+    if (blob.size <= MAX_REPLACEMENT_UPLOAD_BYTES || quality === 0.56) {
+      return new File([blob], `${baseName}.webp`, { type: "image/webp" });
+    }
+  }
+
+  return file;
+};
 
 const cssColorToHex = (value: string | undefined | null) => {
   const color = normalizeCssValue(value);
@@ -1477,7 +1542,8 @@ export function ProjectShell({
     }
     formData.set("targetKind", target.kind);
     formData.set("targetDrawgleId", target.drawgleId);
-    formData.set("file", file);
+    const uploadFile = await prepareReplacementImageFile(file);
+    formData.set("file", uploadFile);
 
     const response = await fetch("/api/user-image-assets", {
       method: "POST",

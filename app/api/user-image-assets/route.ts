@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
-const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
 
 const extensionForMimeType = (mimeType: string) => {
@@ -44,7 +44,7 @@ export async function POST(req: Request) {
     }
 
     if (file.size > MAX_UPLOAD_BYTES) {
-      return NextResponse.json({ error: "Image must be 10MB or smaller." }, { status: 400 });
+      return NextResponse.json({ error: "Image must be 4MB or smaller after browser optimization." }, { status: 400 });
     }
 
     const supabase = await createClient();

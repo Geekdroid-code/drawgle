@@ -316,6 +316,36 @@ const inferAssetRequirementForScreen = ({
   const priority: VisualAssetPriority = isCritical ? "critical" : "supporting";
   const screenSlug = slugify(screen.name);
 
+  if (mapIntentPattern.test(text)) {
+    return createInferredRequirement({
+      id: `${screenSlug}-map-texture`,
+      screenName: screen.name,
+      role: "map_texture",
+      subject: "abstract premium mobile map texture with roads and route context",
+      assetType: "photo",
+      sourcePreference: "stock",
+      desiredAspectRatio: "5:4",
+      transparentBackground: false,
+      placementHint: "background map/media plane, object-cover, keep controls and bottom navigation above the image",
+      priority: priority === "critical" ? "supporting" : priority,
+    });
+  }
+
+  if (avatarIntentPattern.test(text)) {
+    return createInferredRequirement({
+      id: `${screenSlug}-avatar-photo`,
+      screenName: screen.name,
+      role: "avatar",
+      subject: "generic premium user avatar portrait",
+      assetType: "photo",
+      sourcePreference: "stock",
+      desiredAspectRatio: "1:1",
+      transparentBackground: false,
+      placementHint: "small circular avatar, object-cover, crop face safely",
+      priority: "supporting",
+    });
+  }
+
   if (productIntentPattern.test(text)) {
     return createInferredRequirement({
       id: `${screenSlug}-product-cutout`,
@@ -373,36 +403,6 @@ const inferAssetRequirementForScreen = ({
       transparentBackground: true,
       placementHint: "supporting onboarding or empty-state illustration, object-contain, keep it secondary to the headline and CTA",
       priority,
-    });
-  }
-
-  if (mapIntentPattern.test(text)) {
-    return createInferredRequirement({
-      id: `${screenSlug}-map-texture`,
-      screenName: screen.name,
-      role: "map_texture",
-      subject: "abstract premium mobile map texture with roads and route context",
-      assetType: "photo",
-      sourcePreference: "stock",
-      desiredAspectRatio: "5:4",
-      transparentBackground: false,
-      placementHint: "background map/media plane, object-cover, keep controls and bottom navigation above the image",
-      priority: priority === "critical" ? "supporting" : priority,
-    });
-  }
-
-  if (avatarIntentPattern.test(text)) {
-    return createInferredRequirement({
-      id: `${screenSlug}-avatar-photo`,
-      screenName: screen.name,
-      role: "avatar",
-      subject: "generic premium user avatar portrait",
-      assetType: "photo",
-      sourcePreference: "stock",
-      desiredAspectRatio: "1:1",
-      transparentBackground: false,
-      placementHint: "small circular avatar, object-cover, crop face safely",
-      priority: "supporting",
     });
   }
 
@@ -570,7 +570,7 @@ const placeholderManifest = (requirement: AssetRequirement, reason: string): Scr
   objectPosition: objectPositionForRequirement(requirement),
   source: "placeholder",
   provider: "placeholder",
-  critical: false,
+  critical: isCriticalRequirement(requirement),
   visibility: "public_reusable",
   verificationScore: null,
   placeholder: true,
