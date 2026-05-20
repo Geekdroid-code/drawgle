@@ -985,12 +985,13 @@ const findAssetByContentHash = async ({
   };
 };
 
-const saveAssetFromRemoteUrl = async ({
+const saveAssetFromBytes = async ({
   admin,
   ownerId,
   projectId,
   requirement,
-  remoteUrl,
+  bytes,
+  contentType,
   source,
   provider,
   license,
@@ -999,12 +1000,14 @@ const saveAssetFromRemoteUrl = async ({
   metadata,
   visibilityOverride,
   verificationOverride,
+  originalRemoteUrl,
 }: {
   admin: AdminClient;
   ownerId: string | null;
   projectId: string | null;
   requirement: AssetRequirement;
-  remoteUrl: string;
+  bytes: Uint8Array;
+  contentType: string;
   source: VisualAssetSource;
   provider: VisualAssetProvider;
   license?: string | null;
@@ -1013,15 +1016,15 @@ const saveAssetFromRemoteUrl = async ({
   metadata?: Record<string, unknown>;
   visibilityOverride?: VisualAssetVisibility;
   verificationOverride?: AssetVerificationResult;
+  originalRemoteUrl?: string | null;
 }): Promise<SavedAsset> => {
-  const fetched = await fetchRemoteBytes(remoteUrl);
-  if (!/^image\//i.test(fetched.contentType)) {
-    throw new Error(`Remote asset did not return an image content type: ${fetched.contentType}`);
+  if (!/^image\//i.test(contentType)) {
+    throw new Error(`Asset did not provide an image content type: ${contentType}`);
   }
 
-  const contentHash = sha256Hex(fetched.bytes);
-  const metadataFromBytes = await imageMetadata(fetched.bytes);
-  const hasAlpha = metadataFromBytes.hasAlpha || detectPngAlpha(fetched.bytes);
+  const contentHash = sha256Hex(bytes);
+  const metadataFromBytes = await imageMetadata(bytes);
+  const hasAlpha = metadataFromBytes.hasAlpha || detectPngAlpha(bytes);
   const visibility = visibilityOverride ?? determineVisibility(source, requirement);
   const deduped = await findAssetByContentHash({
     admin,
@@ -1038,14 +1041,14 @@ const saveAssetFromRemoteUrl = async ({
     return deduped;
   }
 
-  const extension = mimeExtension(fetched.contentType, requirement.transparentBackground ? "png" : "jpg");
+  const extension = mimeExtension(contentType, requirement.transparentBackground ? "png" : "jpg");
   const assetId = randomUUID();
   const key = `visual-assets/${assetId}/original.${extension}`;
-  const publicUrl = await uploadToR2({ key, bytes: fetched.bytes, contentType: fetched.contentType });
+  const publicUrl = await uploadToR2({ key, bytes, contentType });
   const embedding = await generateEmbedding(requirementText(requirement), "RETRIEVAL_DOCUMENT").catch(() => null);
   const verification = verificationOverride ?? await verifyAsset({
-    bytes: fetched.bytes,
-    contentType: fetched.contentType,
+    bytes,
+    contentType,
     requirement,
     hasAlpha,
     source,
@@ -1075,8 +1078,8 @@ const saveAssetFromRemoteUrl = async ({
       verification_score: verification.score,
       verification_notes: verification.notes,
       content_hash: contentHash,
-      mime_type: fetched.contentType,
-      byte_size: fetched.bytes.byteLength,
+      mime_type: contentType,
+      byte_size: bytes.byteLength,
       tags: [
         requirement.role,
         requirement.assetType,
@@ -1092,7 +1095,7 @@ const saveAssetFromRemoteUrl = async ({
       metadata: {
         ...metadata,
         placementHint: requirement.placementHint,
-        originalRemoteUrl: remoteUrl,
+        ...(originalRemoteUrl ? { originalRemoteUrl } : {}),
       } as never,
     })
     .select("*")
@@ -1124,12 +1127,12 @@ const saveAssetFromRemoteUrl = async ({
   const displayVariant = await createAndStoreVariants({
     admin,
     assetId,
-    originalBytes: fetched.bytes,
+    originalBytes: bytes,
     originalKey: key,
     originalUrl: publicUrl,
     originalWidth: widthValue,
     originalHeight: heightValue,
-    originalContentType: fetched.contentType,
+    originalContentType: contentType,
     hasAlpha,
   });
 
@@ -1137,6 +1140,56 @@ const saveAssetFromRemoteUrl = async ({
     asset: data as VisualAssetRow,
     displayVariant,
   };
+};
+
+const saveAssetFromRemoteUrl = async ({
+  admin,
+  ownerId,
+  projectId,
+  requirement,
+  remoteUrl,
+  source,
+  provider,
+  license,
+  width,
+  height,
+  metadata,
+  visibilityOverride,
+  verificationOverride,
+}: {
+  admin: AdminClient;
+  ownerId: string | null;
+  projectId: string | null;
+  requirement: AssetRequirement;
+  remoteUrl: string;
+  source: VisualAssetSource;
+  provider: VisualAssetProvider;
+  license?: string | null;
+  width?: number | null;
+  height?: number | null;
+  metadata?: Record<string, unknown>;
+  visibilityOverride?: VisualAssetVisibility;
+  verificationOverride?: AssetVerificationResult;
+}): Promise<SavedAsset> => {
+  const fetched = await fetchRemoteBytes(remoteUrl);
+
+  return saveAssetFromBytes({
+    admin,
+    ownerId,
+    projectId,
+    requirement,
+    bytes: fetched.bytes,
+    contentType: fetched.contentType,
+    source,
+    provider,
+    license,
+    width,
+    height,
+    metadata,
+    visibilityOverride,
+    verificationOverride,
+    originalRemoteUrl: remoteUrl,
+  });
 };
 
 const resolvePexelsStockAsset = async (
@@ -1303,6 +1356,77 @@ export async function importCuratedVisualAsset({
     projectId: null,
     requirement,
     remoteUrl: imageUrl,
+    source: "internal_library",
+    provider: "drawgle_r2",
+    license,
+    width,
+    height,
+    metadata: {
+      ...metadata,
+      tags,
+      curated: true,
+    },
+    visibilityOverride: "public_reusable",
+    verificationOverride: {
+      status: "verified",
+      score: 0.92,
+      notes: "Manually approved curated internal library asset.",
+    },
+  });
+}
+
+export async function importCuratedVisualAssetFromBytes({
+  admin,
+  bytes,
+  contentType,
+  subject,
+  role,
+  assetType = "transparent_png",
+  hasAlpha = true,
+  tags = [],
+  reuseKey,
+  license = "Drawgle curated internal library",
+  width,
+  height,
+  metadata = {},
+}: {
+  admin: AdminClient;
+  bytes: Uint8Array;
+  contentType: string;
+  subject: string;
+  role: VisualAssetRole;
+  assetType?: VisualAssetType;
+  hasAlpha?: boolean;
+  tags?: string[];
+  reuseKey?: string;
+  license?: string | null;
+  width?: number | null;
+  height?: number | null;
+  metadata?: Record<string, unknown>;
+}) {
+  const requirement: AssetRequirement = {
+    id: `curated-${slugify(subject)}`,
+    screenName: "Curated Library",
+    role,
+    subject,
+    assetType,
+    sourcePreference: "internal_library",
+    desiredAspectRatio: width && height
+      ? width > height ? "5:4" : height > width ? "4:5" : "1:1"
+      : "free",
+    transparentBackground: hasAlpha,
+    placementHint: "Reusable curated Drawgle asset for premium mobile UI compositions.",
+    priority: "supporting",
+    reuseKey: reuseKey ?? `${role}-${subject}`,
+  };
+
+  return saveAssetFromBytes({
+    admin,
+    ownerId: null,
+    projectId: null,
+    requirement,
+    bytes,
+    contentType,
     source: "internal_library",
     provider: "drawgle_r2",
     license,
