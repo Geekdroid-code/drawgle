@@ -13,9 +13,11 @@ export const metadata: Metadata = {
 };
 
 export default async function CuratedAssetsAdminPage() {
+  let adminEmail: string | null = null;
+
   try {
     const user = await requireAdminUser();
-    return <CuratedAssetAdminPanel adminEmail={user.email ?? null} />;
+    adminEmail = user.email ?? null;
   } catch (error) {
     if (error instanceof AdminAuthError && error.status === 401) {
       redirect("/login");
@@ -23,4 +25,6 @@ export default async function CuratedAssetsAdminPage() {
 
     notFound();
   }
+
+  return <CuratedAssetAdminPanel adminEmail={adminEmail} />;
 }
