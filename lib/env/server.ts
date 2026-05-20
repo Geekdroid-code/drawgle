@@ -19,11 +19,6 @@ export const getTriggerSecretKey = () =>
 
 export const getTriggerProjectRef = () => process.env.TRIGGER_PROJECT_REF ?? "drawgle-local";
 
-export const getFalKey = () => getRequiredServerEnv("FAL_KEY", process.env.FAL_KEY);
-
-export const getVisualAssetsWebhookSecret = () =>
-  getRequiredServerEnv("VISUAL_ASSETS_WEBHOOK_SECRET", process.env.VISUAL_ASSETS_WEBHOOK_SECRET);
-
 export const getR2Config = () => ({
   accountId: getRequiredServerEnv("R2_ACCOUNT_ID", process.env.R2_ACCOUNT_ID),
   accessKeyId: getRequiredServerEnv("R2_ACCESS_KEY_ID", process.env.R2_ACCESS_KEY_ID),

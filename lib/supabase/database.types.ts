@@ -467,6 +467,57 @@ export interface Database {
         };
         Relationships: [];
       };
+      user_image_assets: {
+        Row: {
+          id: string;
+          owner_id: string;
+          project_id: string;
+          screen_id: string | null;
+          r2_key: string;
+          public_url: string;
+          mime_type: string;
+          byte_size: number;
+          width: number | null;
+          height: number | null;
+          original_filename: string | null;
+          target_drawgle_id: string | null;
+          target_kind: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          project_id: string;
+          screen_id?: string | null;
+          r2_key: string;
+          public_url: string;
+          mime_type: string;
+          byte_size: number;
+          width?: number | null;
+          height?: number | null;
+          original_filename?: string | null;
+          target_drawgle_id?: string | null;
+          target_kind?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          project_id?: string;
+          screen_id?: string | null;
+          r2_key?: string;
+          public_url?: string;
+          mime_type?: string;
+          byte_size?: number;
+          width?: number | null;
+          height?: number | null;
+          original_filename?: string | null;
+          target_drawgle_id?: string | null;
+          target_kind?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       asset_generation_jobs: {
         Row: {
           id: string;
@@ -655,5 +706,6 @@ export type ScreenMessageRow = Database["public"]["Tables"]["screen_messages"]["
 export type ProjectMessageRow = Database["public"]["Tables"]["project_messages"]["Row"];
 export type VisualAssetRow = Database["public"]["Tables"]["visual_assets"]["Row"];
 export type VisualAssetVariantRow = Database["public"]["Tables"]["visual_asset_variants"]["Row"];
+export type UserImageAssetRow = Database["public"]["Tables"]["user_image_assets"]["Row"];
 export type AssetGenerationJobRow = Database["public"]["Tables"]["asset_generation_jobs"]["Row"];
 export type ProjectAssetUsageRow = Database["public"]["Tables"]["project_asset_usages"]["Row"];

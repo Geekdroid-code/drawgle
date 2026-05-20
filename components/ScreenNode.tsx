@@ -1329,10 +1329,56 @@ ${cleanScreenCode}
                 });
             }
 
+            function imageUrlFromBackground(value) {
+              var match = String(value || '').match(/url\\((['"]?)(.*?)\\1\\)/i);
+              return match && match[2] && match[2] !== 'none' ? match[2] : '';
+            }
+
+            function collectImageTargets(target) {
+              var candidates = [target].concat(Array.from(target.querySelectorAll('[data-drawgle-id]')));
+              var seen = new Set();
+              var imageTargets = [];
+
+              candidates.forEach(function(el) {
+                if (!el || !el.getAttribute) return;
+                var drawgleId = el.getAttribute('data-drawgle-id');
+                if (!drawgleId || seen.has(drawgleId)) return;
+
+                if (el.tagName === 'IMG') {
+                  seen.add(drawgleId);
+                  imageTargets.push({
+                    drawgleId: drawgleId,
+                    kind: 'img',
+                    tagName: 'img',
+                    src: el.getAttribute('src') || '',
+                    alt: el.getAttribute('alt') || '',
+                    label: el.getAttribute('alt') || 'Image',
+                  });
+                  return;
+                }
+
+                var backgroundUrl = imageUrlFromBackground(window.getComputedStyle(el).getPropertyValue('background-image'));
+                if (backgroundUrl) {
+                  seen.add(drawgleId);
+                  imageTargets.push({
+                    drawgleId: drawgleId,
+                    kind: 'background',
+                    tagName: el.tagName.toLowerCase(),
+                    src: backgroundUrl,
+                    alt: '',
+                    label: 'Background image',
+                  });
+                }
+              });
+
+              return imageTargets.slice(0, 6);
+            }
+
             function buildEditableMetadata(target) {
               return {
                 tagName: target.tagName.toLowerCase(),
                 textNodes: collectTextNodes(target),
+                imageTargets: collectImageTargets(target),
                 style: buildStylePayload(target),
                 styleInspection: buildStyleInspectionPayload(target),
               };

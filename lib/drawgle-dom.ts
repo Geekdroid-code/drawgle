@@ -13,6 +13,15 @@ export type DrawgleTextNodeMeta = {
   text: string;
 };
 
+export type DrawgleImageTargetMeta = {
+  drawgleId: string;
+  kind: "img" | "background";
+  tagName: string;
+  src: string;
+  alt?: string;
+  label: string;
+};
+
 export type DrawgleStyleMeta = {
   backgroundColor?: string;
   color?: string;
@@ -54,6 +63,7 @@ export type DrawgleBoundingRect = {
 export type DrawgleEditableMetadata = {
   tagName: string;
   textNodes: DrawgleTextNodeMeta[];
+  imageTargets?: DrawgleImageTargetMeta[];
   style: DrawgleStyleMeta;
   styleInspection?: DrawgleRawStyleInspection | null;
 };
@@ -74,6 +84,13 @@ export type DeterministicEditOperation =
       type: "clearStyle";
       drawgleId?: string;
       property: DrawgleStyleProperty;
+    }
+  | {
+      type: "replaceImage";
+      drawgleId?: string;
+      mode: "src" | "background";
+      src: string;
+      alt?: string | null;
     };
 
 export type { DrawgleStyleProperty };
@@ -345,6 +362,14 @@ const serializeStyle = (style: Map<string, string>) =>
 
 const normalizeStyleValue = (value: string) => value.trim().replace(/[<>]/g, "");
 
+const normalizeImageUrl = (value: string) => {
+  const normalized = value.trim().replace(/[<>"']/g, "");
+  if (!/^https?:\/\//i.test(normalized)) {
+    throw new Error("Image replacement requires a stored HTTPS image URL.");
+  }
+  return normalized;
+};
+
 const assertStyleProperty = (property: string): DrawgleStyleProperty => {
   if (!DRAWGLE_STYLE_PROPERTY_SET.has(property as DrawgleStyleProperty)) {
     throw new Error(`Unsupported style property: ${property}`);
@@ -404,6 +429,33 @@ function applyClearStyle(code: string, drawgleId: string, property: DrawgleStyle
   return replaceOpeningTagInCode(code, element, nextOpeningTag);
 }
 
+function applyReplaceImage(code: string, drawgleId: string, mode: "src" | "background", src: string, alt?: string | null) {
+  const element = findDrawgleElement(code, drawgleId);
+  if (!element) {
+    throw new Error("Selected image target is stale. Please reselect the element.");
+  }
+
+  const nextSrc = normalizeImageUrl(src);
+  const openingTag = getOpeningTag(code, element);
+
+  if (mode === "src") {
+    if (element.tagName !== "img") {
+      throw new Error("This replacement target is no longer an image element.");
+    }
+
+    let nextOpeningTag = setOpeningTagAttribute(openingTag, "src", nextSrc);
+    if (typeof alt === "string" && alt.trim()) {
+      nextOpeningTag = setOpeningTagAttribute(nextOpeningTag, "alt", alt.trim().slice(0, 160));
+    }
+    return replaceOpeningTagInCode(code, element, nextOpeningTag);
+  }
+
+  const style = parseStyle(getAttributeValue(openingTag, "style"));
+  style.set("background-image", `url('${nextSrc.replaceAll("'", "%27")}')`);
+  const nextOpeningTag = setOpeningTagAttribute(openingTag, "style", serializeStyle(style));
+  return replaceOpeningTagInCode(code, element, nextOpeningTag);
+}
+
 export function applyDeterministicEdits({
   code,
   drawgleId,
@@ -427,6 +479,8 @@ export function applyDeterministicEdits({
       nextCode = applySetStyle(nextCode, targetDrawgleId, assertStyleProperty(operation.property), operation.value);
     } else if (operation.type === "clearStyle") {
       nextCode = applyClearStyle(nextCode, targetDrawgleId, assertStyleProperty(operation.property));
+    } else if (operation.type === "replaceImage") {
+      nextCode = applyReplaceImage(nextCode, targetDrawgleId, operation.mode, operation.src, operation.alt);
     }
   }
 

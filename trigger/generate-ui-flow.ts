@@ -21,7 +21,7 @@ import {
   validateStaticDrawgleHtml,
 } from "@/lib/generation/screen-quality";
 import { buildNavigationShellCode, buildScreenStream, extractCode, fallbackProjectCharter, generateDesignTokens, planUiFlow } from "@/lib/generation/service";
-import { CriticalAssetResolutionError, planVisualAssets, reconcilePendingFalAssetJobs, resolveProjectAssets } from "@/lib/generation/visual-assets";
+import { planVisualAssets, resolveProjectAssets } from "@/lib/generation/visual-assets";
 import { createNavigationArchitecture, deriveRequiresBottomNav } from "@/lib/navigation";
 import {
   applyNavigationPlanToScreens,
@@ -929,10 +929,6 @@ export const generateUiFlowTask = task({
   run: async (payload: GenerateUiFlowPayload) => {
     const admin = createAdminClient();
 
-    reconcilePendingFalAssetJobs({ admin, limit: 6 }).catch((error) => {
-      logger.warn("Visual asset reconciliation failed", { error });
-    });
-
     let designTokens = payload.designTokens ?? null;
     const { data: existingProject } = await admin
       .from("projects")
@@ -1162,6 +1158,7 @@ export const generateUiFlowTask = task({
         description: screenPlan.description,
         chromePolicy: screenPlan.chromePolicy ?? null,
         navigationItemId: screenPlan.navigationItemId ?? null,
+        assetNeeds: screenPlan.assetNeeds ?? [],
       })),
     });
 
@@ -1186,55 +1183,47 @@ export const generateUiFlowTask = task({
           designTokens,
           llmLog: (label, data) => logger.info(label, data),
         });
-    let projectAssetManifest: ProjectAssetManifest;
-    try {
-      projectAssetManifest = await resolveProjectAssets({
-        admin,
-        ownerId: payload.ownerId,
-        projectId: payload.projectId,
-        generationRunId: payload.generationRunId,
-        requirements: assetRequirements,
-      });
-    } catch (error) {
-      if (error instanceof CriticalAssetResolutionError) {
-        await mergeGenerationRunMetadata(admin, payload.generationRunId, {
-          assetRequirements,
-          assetFailures: error.failures,
-        });
-        await postStatusMessage(
-          admin,
-          payload.projectId,
-          payload.ownerId,
-          "Critical visual assets could not be resolved",
-          "error",
-          {
-            generationRunId: payload.generationRunId,
-            activityKey: `run:${payload.generationRunId}:assets`,
-            assetFailures: error.failures,
-          },
-        );
-      }
-
-      throw error;
-    }
+    const projectAssetManifest = await resolveProjectAssets({
+      admin,
+      ownerId: payload.ownerId,
+      projectId: payload.projectId,
+      generationRunId: payload.generationRunId,
+      requirements: assetRequirements,
+    });
 
     await mergeGenerationRunMetadata(admin, payload.generationRunId, {
       assetRequirements,
       assetManifest: projectAssetManifest,
     });
 
+    const resolvedAssetCount = Object.values(projectAssetManifest.assetsByScreen)
+      .flat()
+      .filter((asset) => !asset.placeholder && asset.url)
+      .length;
+    const placeholderAssetCount = Object.values(projectAssetManifest.assetsByScreen)
+      .flat()
+      .filter((asset) => asset.placeholder)
+      .length;
+    const assetStatusTitle = assetRequirements.length === 0
+      ? "No bitmap assets requested"
+      : resolvedAssetCount === 0 && placeholderAssetCount > 0
+        ? "No matching visual asset found, using placeholders"
+        : placeholderAssetCount > 0
+          ? `Resolved ${resolvedAssetCount} visual asset${resolvedAssetCount === 1 ? "" : "s"}, using ${placeholderAssetCount} placeholder${placeholderAssetCount === 1 ? "" : "s"}`
+          : `Resolved ${resolvedAssetCount} visual asset${resolvedAssetCount === 1 ? "" : "s"}`;
+
     await postStatusMessage(
       admin,
       payload.projectId,
       payload.ownerId,
-      assetRequirements.length > 0
-        ? `Resolved ${Object.values(projectAssetManifest.assetsByScreen).reduce((count, assets) => count + assets.length, 0)} visual asset${Object.values(projectAssetManifest.assetsByScreen).reduce((count, assets) => count + assets.length, 0) === 1 ? "" : "s"}`
-        : "No external visual assets needed",
+      assetStatusTitle,
       "generation_completed",
       {
         generationRunId: payload.generationRunId,
         activityKey: `run:${payload.generationRunId}:assets`,
         assetRequirementCount: assetRequirements.length,
+        resolvedAssetCount,
+        placeholderAssetCount,
       },
     );
 

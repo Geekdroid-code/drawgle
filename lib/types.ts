@@ -48,17 +48,18 @@ export type VisualAssetRole =
 
 export type VisualAssetType = "transparent_png" | "photo" | "illustration" | "icon_like";
 
-export type VisualAssetSourcePreference = "user_upload" | "internal_library" | "stock" | "ai_generated";
+export type VisualAssetSourcePreference = "user_upload" | "internal_library" | "stock";
 
 export type VisualAssetPriority = "critical" | "supporting" | "optional";
 
-export type VisualAssetSource = "user_upload" | "internal_library" | "stock" | "ai_generated";
+export type VisualAssetSource = "user_upload" | "internal_library" | "stock" | "ai_generated" | "placeholder";
 
 export type VisualAssetProvider =
   | "user"
   | "drawgle_r2"
   | "pexels"
   | "pixabay"
+  | "placeholder"
   | "fal-ai/gpt-image-1.5"
   | "fal-ai/gpt-image-1-mini";
 
@@ -93,7 +94,7 @@ export interface ScreenAssetManifest {
   id: string;
   requirementId: string;
   role: VisualAssetRole;
-  url: string;
+  url: string | null;
   variantUrl?: string;
   width: number;
   height: number;
@@ -107,6 +108,10 @@ export interface ScreenAssetManifest {
   critical: boolean;
   visibility: VisualAssetVisibility;
   verificationScore?: number | null;
+  placeholder?: boolean;
+  license?: string | null;
+  attribution?: string | null;
+  sourceUrl?: string | null;
 }
 
 export interface ProjectAssetManifest {
@@ -394,6 +399,7 @@ export interface ScreenPlan {
   description: string;
   chromePolicy?: ScreenChromePolicy | null;
   navigationItemId?: string | null;
+  assetNeeds?: AssetRequirement[];
 }
 
 export interface PlannedUiFlow {

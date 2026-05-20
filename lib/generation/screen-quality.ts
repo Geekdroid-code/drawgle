@@ -530,17 +530,29 @@ export function validateScreenAssetPolicy({
   assetManifest?: ScreenAssetManifest[] | null;
 }) {
   const manifest = assetManifest ?? [];
-  const allowedUrls = new Set(manifest.flatMap((asset) => [asset.url, asset.variantUrl]).filter(Boolean));
+  const allowedUrls = new Set(
+    manifest
+      .flatMap((asset) => [asset.url, asset.variantUrl])
+      .filter((url): url is string => typeof url === "string" && url.trim().length > 0),
+  );
   const imageRefs = extractImageReferences(code);
   const invalidUrls = imageRefs.map((ref) => ref.url).filter((url, index, urls) => {
     const ref = imageRefs.find((candidate) => candidate.url === url);
     if (!ref || urls.indexOf(url) !== index) return false;
     if (allowedUrls.has(url)) return false;
+    if (/^data:image\/svg\+xml/i.test(url)) return false;
     return isBitmapLikeUrl(url, ref.kind);
   });
   const missingRequiredUrls = manifest
-    .filter((asset) => asset.critical && !code.includes(asset.url) && (!asset.variantUrl || !code.includes(asset.variantUrl)))
-    .map((asset) => asset.url);
+    .filter((asset) =>
+      asset.critical &&
+      !asset.placeholder &&
+      Boolean(asset.url) &&
+      !code.includes(asset.url!) &&
+      (!asset.variantUrl || !code.includes(asset.variantUrl))
+    )
+    .map((asset) => asset.url)
+    .filter((url): url is string => Boolean(url));
 
   return {
     valid: invalidUrls.length === 0 && missingRequiredUrls.length === 0,

@@ -66,6 +66,36 @@ const normalizeScreenType = (value: unknown) => {
 
 const ScreenTypeSchema = z.preprocess(normalizeScreenType, z.enum(["root", "detail"])).default("detail");
 
+const AssetNeedSourcePreferenceSchema = z.preprocess((value) => {
+  if (value === "ai_generated") {
+    return "internal_library";
+  }
+  return value;
+}, z.enum(["user_upload", "internal_library", "stock"]));
+
+const AssetNeedSchema = z.object({
+  id: z.string().trim().min(1).max(80),
+  screenName: z.string().trim().min(1).max(100).optional(),
+  role: z.enum([
+    "hero_cutout",
+    "product_cutout",
+    "avatar",
+    "section_photo",
+    "background_photo",
+    "product_photo",
+    "decorative_object",
+    "map_texture",
+  ]),
+  subject: z.string().trim().min(3).max(260),
+  assetType: z.enum(["transparent_png", "photo", "illustration", "icon_like"]),
+  sourcePreference: AssetNeedSourcePreferenceSchema,
+  desiredAspectRatio: z.enum(["1:1", "4:5", "5:4", "16:9", "free"]),
+  transparentBackground: z.boolean(),
+  placementHint: z.string().trim().min(1).max(500),
+  priority: z.enum(["critical", "supporting", "optional"]),
+  reuseKey: z.string().trim().min(1).max(160).optional(),
+});
+
 const ScreenPlanSchema = z.object({
   name: z.string().trim().min(1).max(100),
   type: ScreenTypeSchema,
@@ -75,6 +105,7 @@ const ScreenPlanSchema = z.object({
     show_primary_navigation: z.boolean().optional(),
     shows_back_button: z.boolean().optional(),
   }).optional(),
+  asset_needs: z.array(AssetNeedSchema).max(4).default([]).optional(),
 });
 
 const NavigationArchitectureSchema = z.object({
@@ -478,6 +509,7 @@ const screenPlanFromExplicitSection = (
     name: existing?.name?.trim() || section.name,
     type: existing?.type ?? (index === 0 && !/\b(onboarding|splash|welcome)\b/i.test(section.name) ? "root" : "detail"),
     description: appendRequiredAnchors(baseDescription, section.anchors),
+    assetNeeds: existing?.assetNeeds ?? [],
     chromePolicy: explicitSectionChromePolicy(section, index, forceNoPersistentNav) ?? existing?.chromePolicy ?? null,
   };
 };
@@ -873,6 +905,38 @@ const ensureBuilderGradeScreenBriefs = ({
     };
   });
 
+const normalizeScreenAssetNeeds = (screenName: string, value: unknown): NonNullable<ScreenPlan["assetNeeds"]> => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => {
+      const input = isRecord(item)
+        ? {
+            ...item,
+            assetType: item.assetType ?? item.asset_type,
+            sourcePreference: item.sourcePreference ?? item.source_preference,
+            desiredAspectRatio: item.desiredAspectRatio ?? item.desired_aspect_ratio,
+            transparentBackground: item.transparentBackground ?? item.transparent_background,
+            placementHint: item.placementHint ?? item.placement_hint,
+            reuseKey: item.reuseKey ?? item.reuse_key,
+          }
+        : item;
+      const parsed = AssetNeedSchema.safeParse(input);
+      if (!parsed.success) {
+        return null;
+      }
+
+      return {
+        ...parsed.data,
+        screenName,
+        reuseKey: parsed.data.reuseKey ?? `${parsed.data.role}-${parsed.data.subject}`,
+      };
+    })
+    .filter((item): item is NonNullable<ScreenPlan["assetNeeds"]>[number] => Boolean(item));
+};
+
 const coerceScreenPlanFromRawItem = (item: unknown): ScreenPlan | null => {
   const parsed = ScreenPlanSchema.safeParse(item);
   if (parsed.success) {
@@ -880,6 +944,7 @@ const coerceScreenPlanFromRawItem = (item: unknown): ScreenPlan | null => {
       name: parsed.data.name,
       type: parsed.data.type,
       description: parsed.data.description,
+      assetNeeds: normalizeScreenAssetNeeds(parsed.data.name, parsed.data.asset_needs),
       chromePolicy: parsed.data.chrome_policy
         ? {
             chrome: parsed.data.chrome_policy.chrome,
@@ -911,7 +976,7 @@ const coerceScreenPlanFromRawItem = (item: unknown): ScreenPlan | null => {
     return null;
   }
 
-  const rawType = typeof item.type === "string" ? item.type.toLowerCase() : "";
+  const normalizedType = ScreenTypeSchema.parse(item.type);
   const rawChromePolicy = isRecord(item.chrome_policy)
     ? item.chrome_policy
     : isRecord(item.chromePolicy)
@@ -925,11 +990,16 @@ const coerceScreenPlanFromRawItem = (item: unknown): ScreenPlan | null => {
       })
     : null;
   const parsedChromePolicy = chromePolicy?.success ? chromePolicy.data : null;
+  const assetNeeds = normalizeScreenAssetNeeds(
+    name,
+    Array.isArray(item.asset_needs) ? item.asset_needs : item.assetNeeds,
+  );
 
   return {
     name,
-    type: rawType === "root" ? "root" : "detail",
+    type: normalizedType,
     description,
+    assetNeeds,
     chromePolicy: parsedChromePolicy
       ? {
           chrome: parsedChromePolicy.chrome,
@@ -1531,6 +1601,7 @@ export async function planUiFlow({
     name: screenPlan.name,
     type: screenPlan.type,
     description: screenPlan.description,
+    assetNeeds: normalizeScreenAssetNeeds(screenPlan.name, screenPlan.asset_needs),
     chromePolicy: screenPlan.chrome_policy
       ? {
           chrome: screenPlan.chrome_policy.chrome,
@@ -1550,6 +1621,7 @@ export async function planUiFlow({
         name: screenPlan.name,
         type: screenPlan.type,
         description: screenPlan.description,
+        assetNeeds: screenPlan.assetNeeds ?? [],
         chromePolicy: screenPlan.chromePolicy ?? null,
       },
       navigationArchitecture,

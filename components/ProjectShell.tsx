@@ -2,7 +2,7 @@
 
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, ChevronDown, Loader2, Palette, RotateCcw, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, ImageIcon, Loader2, Palette, RotateCcw, Upload, X } from "lucide-react";
 
 import { CanvasArea } from "@/components/CanvasArea";
 import { CanvasToolDock } from "@/components/CanvasToolDock";
@@ -25,7 +25,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import type { DeterministicEditOperation } from "@/lib/drawgle-dom";
+import type { DeterministicEditOperation, DrawgleImageTargetMeta } from "@/lib/drawgle-dom";
 import {
   getTokenReferencesForStyleProperty,
   normalizeCssValue,
@@ -488,6 +488,7 @@ function SelectedElementInspectorSidebar({
   onModeChange,
   onClose,
   onApplyOperations,
+  onReplaceImage,
 }: {
   project: ProjectData;
   selectedScreen: ScreenData | null;
@@ -497,10 +498,16 @@ function SelectedElementInspectorSidebar({
   onModeChange: (mode: ManualEditMode) => void;
   onClose: () => void;
   onApplyOperations: (operations: DeterministicEditOperation[]) => Promise<boolean>;
+  onReplaceImage: (target: DrawgleImageTargetMeta, file: File) => Promise<boolean>;
 }) {
   const [isSaving, setIsSaving] = useState(false);
+  const [imageUploadError, setImageUploadError] = useState<string | null>(null);
+  const [uploadingImageTargetId, setUploadingImageTargetId] = useState<string | null>(null);
   const [expandedProperty, setExpandedProperty] = useState<DrawgleStyleProperty | null>(null);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const pendingImageTargetRef = useRef<DrawgleImageTargetMeta | null>(null);
   const textNodes = selectedElementInfo.editableMetadata?.textNodes ?? EMPTY_TEXT_NODES;
+  const imageTargets = selectedElementInfo.editableMetadata?.imageTargets ?? [];
   const tokenRefs = useMemo(
     () => getDrawgleTokenReferences(project.designTokens),
     [project.designTokens],
@@ -579,6 +586,35 @@ function SelectedElementInspectorSidebar({
   };
 
   const targetLabel = selectedElementInfo.targetType === "navigation" ? "Navigation" : selectedScreen?.name ?? "Screen";
+  const chooseImageFile = (target: DrawgleImageTargetMeta) => {
+    pendingImageTargetRef.current = target;
+    setImageUploadError(null);
+    imageInputRef.current?.click();
+  };
+
+  const handleImageFileChange = async (file: File | null) => {
+    const target = pendingImageTargetRef.current;
+    if (!target || !file) {
+      return;
+    }
+
+    setUploadingImageTargetId(target.drawgleId);
+    setImageUploadError(null);
+    try {
+      const saved = await onReplaceImage(target, file);
+      if (saved) {
+        onClose();
+      }
+    } catch (error) {
+      setImageUploadError(error instanceof Error ? error.message : "Image upload failed.");
+    } finally {
+      setUploadingImageTargetId(null);
+      pendingImageTargetRef.current = null;
+      if (imageInputRef.current) {
+        imageInputRef.current.value = "";
+      }
+    }
+  };
 
   if (mode === "selected") {
     return null;
@@ -606,6 +642,66 @@ function SelectedElementInspectorSidebar({
       {mode === "design" ? (
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+            {imageTargets.length > 0 ? (
+              <section className="mb-3 overflow-hidden rounded-[20px] border border-slate-950/[0.08] bg-white shadow-[0_1px_0_rgba(15,23,42,0.03)]">
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  className="hidden"
+                  onChange={(event) => void handleImageFileChange(event.target.files?.[0] ?? null)}
+                />
+                <div className="border-b border-slate-950/[0.06] px-3 py-2.5">
+                  <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#667894]">
+                    <ImageIcon className="h-3.5 w-3.5" />
+                    Image
+                  </div>
+                  <div className="mt-0.5 text-[11px] leading-4 text-slate-500">
+                    Replace the selected image source. New files are stored in the project.
+                  </div>
+                </div>
+                <div className="divide-y divide-slate-950/[0.06]">
+                  {imageTargets.map((target) => (
+                    <div key={`${target.kind}-${target.drawgleId}`} className="flex items-center gap-3 px-3 py-2.5">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-slate-950/[0.08] bg-slate-50">
+                        {target.src ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={target.src} alt={target.alt || target.label} className="h-full w-full object-cover" />
+                        ) : (
+                          <ImageIcon className="h-4 w-4 text-slate-400" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-slate-900">{target.label}</div>
+                        <div className="mt-0.5 truncate text-[11px] text-slate-500">
+                          {target.kind === "img" ? "Image element" : "Background image"}
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-9 shrink-0 rounded-full px-3 text-xs"
+                        disabled={disabled || Boolean(uploadingImageTargetId)}
+                        onClick={() => chooseImageFile(target)}
+                      >
+                        {uploadingImageTargetId === target.drawgleId ? (
+                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Upload className="mr-1.5 h-3.5 w-3.5" />
+                        )}
+                        Replace
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+                {imageUploadError ? (
+                  <div className="border-t border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                    {imageUploadError}
+                  </div>
+                ) : null}
+              </section>
+            ) : null}
+
             {textNodes.length > 0 ? (
               <section className="mb-3 overflow-hidden rounded-[20px] border border-slate-950/[0.08] bg-white shadow-[0_1px_0_rgba(15,23,42,0.03)]">
                 <div className="border-b border-slate-950/[0.06] px-3 py-2.5">
@@ -1369,6 +1465,38 @@ export function ProjectShell({
     }
   };
 
+  const handleReplaceSelectedImage = async (target: DrawgleImageTargetMeta, file: File) => {
+    if (!project || !editSession?.element.drawgleId) {
+      return false;
+    }
+
+    const formData = new FormData();
+    formData.set("projectId", project.id);
+    if (editSession.screenId) {
+      formData.set("screenId", editSession.screenId);
+    }
+    formData.set("targetKind", target.kind);
+    formData.set("targetDrawgleId", target.drawgleId);
+    formData.set("file", file);
+
+    const response = await fetch("/api/user-image-assets", {
+      method: "POST",
+      body: formData,
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.error ?? "Failed to upload replacement image.");
+    }
+
+    return await handleDeterministicElementEdit([{
+      type: "replaceImage",
+      drawgleId: target.drawgleId,
+      mode: target.kind === "background" ? "background" : "src",
+      src: payload.url,
+      alt: target.alt || target.label || "Project image",
+    }]);
+  };
+
   const handleTokenDraftChange = (nextTokens: DesignTokens) => {
     setTokenDraft(normalizeDesignTokens(nextTokens));
     setTokenDirty(true);
@@ -1637,6 +1765,7 @@ export function ProjectShell({
               onModeChange={setEditSessionMode}
               onClose={clearEditSession}
               onApplyOperations={handleDeterministicElementEdit}
+              onReplaceImage={handleReplaceSelectedImage}
             />
           ) : null}
 

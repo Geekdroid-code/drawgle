@@ -233,7 +233,21 @@ const plannerScreensJsonContract = `Return JSON with this exact top-level shape:
         "chrome": "bottom-tabs",
         "show_primary_navigation": true,
         "shows_back_button": false
-      }
+      },
+      "asset_needs": [
+        {
+          "id": "home-hero-product-cutout",
+          "role": "product_cutout",
+          "subject": "premium electric scooter side-view product",
+          "assetType": "transparent_png",
+          "sourcePreference": "internal_library",
+          "desiredAspectRatio": "4:5",
+          "transparentBackground": true,
+          "placementHint": "large foreground product image inside hero surface, object-contain, bottom aligned, never overlap text or nav",
+          "priority": "critical",
+          "reuseKey": "premium-electric-scooter-side-view-cutout"
+        }
+      ]
     }
   ]
 }`;
@@ -299,6 +313,13 @@ Rules:
 - Do not duplicate the same anatomy across screens unless the product shell or reference clearly reuses it.
 - Description must include a layout fit note for narrow 390px viewport, bottom nav clearance when applicable, and how the screen avoids overflow, text collision, clipped nav, and bottom overlap.
 - Every shared-bottom-nav screen must reserve a clear bottom content zone and must not place final rows, CTAs, cards, or map callouts under the nav shell.
+- Plan bitmap image needs inside asset_needs while designing the screen anatomy. Use [] when the screen needs no bitmap.
+- Use sourcePreference "internal_library" for transparent foreground cutouts: hero people, product cutouts, premium objects, device mockups, mascots, foreground illustrations, and map-like transparent elements.
+- Use sourcePreference "stock" only for non-transparent photos: avatars, section photos, background photos, generic product photos, and map/scene textures.
+- Use sourcePreference "user_upload" only when the prompt explicitly needs the user's own logo, product, brand photo, person, or private image.
+- Do not output "ai_generated". If a transparent cutout is needed but no internal asset exists, the resolver will provide a simple placeholder.
+- Do not request bitmap assets for icons, decorative blobs, CSS gradients, charts that can be drawn in HTML/CSS, simple cards, or generic UI chrome.
+- If the screen brief calls for a product/vehicle/food/fashion object, hero person, profile avatar, section photo, map texture, or large media plane, asset_needs must declare it explicitly with subject, type, priority, and placementHint.
 - Every description must contain at least 8 concrete visible implementation cues across layout, components, typography, color/material, spacing/radius/elevation, edge/depth treatment, imagery/charts/maps, and interaction state.
 - If this is recreate mode, include at least 3 cues explicitly traceable to the uploaded reference or reference analysis, including at least one structural cue about layer order, containment, or depth when visible.
 - If this is style mode, include at least 3 cues about borrowed material, typography, edge/depth, iconography, nav treatment, or micro-shapes, but keep the actual layout anatomy driven by the user prompt and project blueprint.
@@ -557,20 +578,29 @@ const buildTypographyRoleContract = () => [
 const buildAssetManifestContract = (assetManifest?: ScreenAssetManifest[] | null) => {
   if (!assetManifest?.length) {
     return [
-      "No approved bitmap assets were resolved for this screen.",
-      "Do not invent external image URLs, Unsplash/Pexels/Pixabay links, fal media links, base64 images, or remote placeholders.",
-      "If imagery would help but no asset is supplied, construct the visual with CSS, SVG geometry, gradients, icons, charts, or abstract surfaces instead.",
+      "No approved bitmap assets were requested or resolved for this screen.",
+      "Do not invent external image URLs, Unsplash/Pexels/Pixabay links, fal media links, non-SVG data images, blob URLs, local public files, relative image paths, or remote placeholders.",
+      "Do not create bitmap image slots unless the screen brief explicitly says the visual should be CSS-only.",
+      "When the brief asks for imagery but no asset manifest entry exists, use a simple CSS placeholder surface with a Lucide icon, aspect-ratio box, and short label.",
     ].join("\n");
   }
 
+  const realAssets = assetManifest.filter((asset) => !asset.placeholder && asset.url);
+  const placeholders = assetManifest.filter((asset) => asset.placeholder);
+
   return [
-    "Use only these approved bitmap assets. Do not invent or search for any other image URLs.",
-    "Use the exact url/variantUrl values from this manifest. Local public files and relative image paths are not allowed.",
-    "Every asset marked critical must appear in the returned HTML.",
+    realAssets.length > 0
+      ? "Use only these approved bitmap assets. Do not invent or search for any other image URLs."
+      : "This screen has no approved bitmap URLs. Render the placeholder manifest entries as CSS only.",
+    "Use exact url/variantUrl values from this manifest when url is non-null. Local public files and relative image paths are not allowed.",
+    "Every non-placeholder asset marked critical must appear in the returned HTML.",
+    "For placeholder entries, render a simple neutral placeholder surface: CSS background, border/radius, Lucide icon, aspect ratio, and a short label from the alt/role. Do not draw complex SVG illustration art and do not add an img tag.",
     "For transparent PNG/cutout assets use object-contain. For photo assets use object-cover unless the placement hint says otherwise.",
     "Every critical/supplied asset used must include meaningful alt text, avoid layout overflow, and respect the placement hint.",
+    "Transparent product/person/hero imagery must come only from a curated manifest URL or a placeholder. Photos must come only from a stock/manifest URL or a placeholder.",
+    placeholders.length > 0 ? `Placeholder entries: ${placeholders.length}` : null,
     JSON.stringify(assetManifest, null, 2),
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 };
 
 const buildNavigationArchitectureContract = ({
@@ -793,7 +823,7 @@ RULES:
 13. STATIC HTML ONLY: Do NOT output JSX, React, JavaScript expressions, arrays, .map(...), arrow functions, template literals, className, class={...}, style={{...}}, data attributes with {...}, <script>, or code that requires runtime execution. Manually expand repeated items into concrete HTML elements.
 14. Use a main content wrapper that enforces the shared spacing rhythm. A good default is a flex column with px-[var(--dg-mobile-layout-screen-margin)] and gap-[var(--dg-mobile-layout-section-gap)], with deliberate exceptions only for full-bleed media/maps.
 15. Before returning, audit for mobile fit: no horizontal overflow, no nav overlap, no clipped CTA, no unreadable chart, no empty visual panel, no text hidden behind icon controls, and no inconsistent random margins between sections.
-16. Image URL policy: use only URLs from APPROVED VISUAL ASSET MANIFEST. Never invent remote image URLs, relative image paths, local public images, temporary fal.media URLs, random stock CDN URLs, or placeholder image services. If a manifest asset is marked critical, include it in the HTML exactly once or as intentionally repeated imagery.
+16. Image URL policy: use only URLs from APPROVED VISUAL ASSET MANIFEST. Never invent remote image URLs, relative image paths, local public images, temporary fal.media URLs, random stock CDN URLs, non-SVG data images, or placeholder image services. data:image/svg+xml is allowed only for simple inline vector geometry. If a non-placeholder manifest asset is marked critical, include it in the HTML exactly once or as intentionally repeated imagery.
 ${navigationPlan?.enabled ? "17. Do NOT create a <nav>, bottom tab bar, footer navigation, or persistent primary navigation. Leave bottom padding for the injected shared shell: the content/main wrapper should include padding-bottom: calc(var(--dg-mobile-layout-safe-area-bottom) + 96px) or an equivalent Tailwind arbitrary pb value. Do not draw the shell yourself." : ""}
 18. End the response with this exact sentinel on its own final line: ${DRAWGLE_GENERATION_COMPLETE_SENTINEL}`;
 };

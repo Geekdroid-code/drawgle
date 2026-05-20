@@ -27,6 +27,10 @@ const isOperation = (value: unknown): value is DeterministicEditOperation => {
     return typeof operation.property === "string";
   }
 
+  if (operation.type === "replaceImage") {
+    return typeof operation.mode === "string" && typeof operation.src === "string";
+  }
+
   return false;
 };
 
