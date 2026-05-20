@@ -617,7 +617,7 @@ export async function planVisualAssets({
       .map((requirement) => ({
         ...requirement,
         reuseKey: stableReuseKey(requirement),
-      });
+      }));
 
     const screensWithModelAssets = new Set(modelRequirements.map((requirement) => requirement.screenName));
     const missingInferredRequirements = inferredRequirements.filter((requirement) => !screensWithModelAssets.has(requirement.screenName));
