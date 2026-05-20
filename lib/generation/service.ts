@@ -47,9 +47,28 @@ import type {
   ScreenPlan,
 } from "@/lib/types";
 
+const normalizeScreenType = (value: unknown) => {
+  if (value === undefined || value === null || value === "") {
+    return "detail";
+  }
+
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const normalized = value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  if (["root", "home", "dashboard", "main", "primary", "tab", "tabs", "section", "peer"].includes(normalized)) {
+    return "root";
+  }
+
+  return "detail";
+};
+
+const ScreenTypeSchema = z.preprocess(normalizeScreenType, z.enum(["root", "detail"])).default("detail");
+
 const ScreenPlanSchema = z.object({
   name: z.string().trim().min(1).max(100),
-  type: z.enum(["root", "detail"]).default("detail"),
+  type: ScreenTypeSchema,
   description: z.string().trim().min(1).max(8000),
   chrome_policy: z.object({
     chrome: z.enum(["bottom-tabs", "top-bar", "top-bar-back", "modal-sheet", "immersive"]),

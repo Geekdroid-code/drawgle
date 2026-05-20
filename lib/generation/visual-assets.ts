@@ -26,8 +26,10 @@ import type {
   ScreenAssetManifest,
   ScreenPlan,
   VisualAssetProvider,
+  VisualAssetPriority,
   VisualAssetRole,
   VisualAssetSource,
+  VisualAssetSourcePreference,
   VisualAssetType,
   VisualAssetVariantName,
   VisualAssetVerificationStatus,
@@ -173,6 +175,33 @@ const requirementText = (requirement: AssetRequirement) =>
 const stableReuseKey = (requirement: AssetRequirement) =>
   slugify(requirement.reuseKey || `${requirement.role}-${requirement.subject}-${requirement.assetType}`);
 
+const normalizeMatchKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+const resolveRequirementScreenName = (screens: ScreenPlan[], requestedScreenName: string) => {
+  const exact = screens.find((screen) => screen.name === requestedScreenName);
+  if (exact) {
+    return exact.name;
+  }
+
+  const requestedKey = normalizeMatchKey(requestedScreenName);
+  const normalized = screens.find((screen) => normalizeMatchKey(screen.name) === requestedKey);
+  if (normalized) {
+    return normalized.name;
+  }
+
+  if (requestedKey.length >= 4) {
+    const partial = screens.find((screen) => {
+      const screenKey = normalizeMatchKey(screen.name);
+      return screenKey.includes(requestedKey) || requestedKey.includes(screenKey);
+    });
+    if (partial) {
+      return partial.name;
+    }
+  }
+
+  return screens.length === 1 ? screens[0].name : null;
+};
+
 const isCriticalRequirement = (requirement: AssetRequirement) => requirement.priority === "critical";
 
 const privateSubjectPattern = /\b(my|our|client|customer|brand|logo|trademark|company|founder|employee|team|user|profile|avatar|headshot|portrait|face|real person|celebrity|influencer|shoe brand|product brand)\b/i;
@@ -284,6 +313,216 @@ Return this exact shape:
   ]
 }`;
 
+const imageHeavyIntentPattern = /\b(product|shop|shopping|ecommerce|commerce|store|catalog|cart|checkout|showcase|detail|shoe|sneaker|scooter|bike|car|vehicle|fleet|watch|headphone|chair|furniture|bag|clothing|fashion|food|meal|recipe|restaurant|snack|fitness|workout|yoga|health|trainer|education|coding|course|learn|student|onboarding|hero|photo|image|avatar|profile|map|tracking)\b/i;
+const productIntentPattern = /\b(product|shop|shopping|ecommerce|commerce|store|catalog|cart|checkout|showcase|detail|shoe|sneaker|scooter|bike|car|vehicle|fleet|watch|headphone|chair|furniture|bag|clothing|fashion|bottle|device)\b/i;
+const personIntentPattern = /\b(fitness|workout|yoga|health|trainer|athlete|meditation|wellness|coach|person|woman|man)\b/i;
+const foodIntentPattern = /\b(food|meal|recipe|restaurant|snack|grocery|chips|drink|dish|nutrition)\b/i;
+const educationIntentPattern = /\b(education|coding|course|learn|student|school|lesson|tutorial|developer|code)\b/i;
+const mapIntentPattern = /\b(map|tracking|location|route|fleet|vehicle|delivery|live)\b/i;
+const avatarIntentPattern = /\b(profile|avatar|account|social|community|team|friends)\b/i;
+
+const screenLooksCriticalForImagery = (screen: ScreenPlan, text: string) =>
+  /\b(onboarding|splash|welcome|hero|detail|showcase|product|profile)\b/i.test(screen.name) ||
+  /\b(hero|large image|cutout|foreground|product image|photo-led|visual-led|illustration|mockup|showcase)\b/i.test(text);
+
+const createInferredRequirement = ({
+  id,
+  screenName,
+  role,
+  subject,
+  assetType,
+  sourcePreference,
+  desiredAspectRatio,
+  transparentBackground,
+  placementHint,
+  priority,
+}: {
+  id: string;
+  screenName: string;
+  role: VisualAssetRole;
+  subject: string;
+  assetType: VisualAssetType;
+  sourcePreference: VisualAssetSourcePreference;
+  desiredAspectRatio: AssetRequirement["desiredAspectRatio"];
+  transparentBackground: boolean;
+  placementHint: string;
+  priority: VisualAssetPriority;
+}): AssetRequirement => ({
+  id,
+  screenName,
+  role,
+  subject,
+  assetType,
+  sourcePreference,
+  desiredAspectRatio,
+  transparentBackground,
+  placementHint,
+  priority,
+  reuseKey: stableReuseKey({
+    id,
+    screenName,
+    role,
+    subject,
+    assetType,
+    sourcePreference,
+    desiredAspectRatio,
+    transparentBackground,
+    placementHint,
+    priority,
+    reuseKey: `${role}-${subject}`,
+  }),
+});
+
+const subjectForProductIntent = (text: string) => {
+  if (/\bscooter\b/i.test(text)) return "premium electric scooter product cutout";
+  if (/\b(sneaker|shoe|air max|trainer shoe)\b/i.test(text)) return "premium sneaker product cutout";
+  if (/\b(car|vehicle|fleet)\b/i.test(text)) return "modern connected vehicle cutout";
+  if (/\b(headphone|earbud)\b/i.test(text)) return "premium headphones product cutout";
+  if (/\b(chair|furniture|sofa|lamp)\b/i.test(text)) return "premium furniture product object cutout";
+  if (/\b(watch|smart watch)\b/i.test(text)) return "premium smartwatch product cutout";
+  if (/\b(bag|clothing|fashion)\b/i.test(text)) return "premium fashion product cutout";
+  return "premium product object cutout for the app concept";
+};
+
+const inferAssetRequirementForScreen = ({
+  prompt,
+  screen,
+}: {
+  prompt: string;
+  screen: ScreenPlan;
+}): AssetRequirement | null => {
+  const text = compact(`${prompt} ${screen.name} ${screen.description}`);
+  if (!imageHeavyIntentPattern.test(text)) {
+    return null;
+  }
+
+  const isCritical = screenLooksCriticalForImagery(screen, text);
+  const priority: VisualAssetPriority = isCritical ? "critical" : "supporting";
+  const screenSlug = slugify(screen.name);
+
+  if (productIntentPattern.test(text)) {
+    return createInferredRequirement({
+      id: `${screenSlug}-product-cutout`,
+      screenName: screen.name,
+      role: "product_cutout",
+      subject: subjectForProductIntent(text),
+      assetType: "transparent_png",
+      sourcePreference: "ai_generated",
+      desiredAspectRatio: "4:5",
+      transparentBackground: true,
+      placementHint: "use as the primary product/hero foreground image, object-contain, preserve clear margins and avoid covering text or navigation",
+      priority,
+    });
+  }
+
+  if (personIntentPattern.test(text)) {
+    return createInferredRequirement({
+      id: `${screenSlug}-person-cutout`,
+      screenName: screen.name,
+      role: "hero_cutout",
+      subject: "premium fitness or wellness person cutout matching the app concept",
+      assetType: "transparent_png",
+      sourcePreference: "ai_generated",
+      desiredAspectRatio: "4:5",
+      transparentBackground: true,
+      placementHint: "large human foreground cutout inside the hero area, object-contain, bottom aligned, never clipped through face or limbs",
+      priority,
+    });
+  }
+
+  if (foodIntentPattern.test(text)) {
+    return createInferredRequirement({
+      id: `${screenSlug}-food-cutout`,
+      screenName: screen.name,
+      role: "product_cutout",
+      subject: "premium food or packaged snack product cutout matching the app concept",
+      assetType: "transparent_png",
+      sourcePreference: "ai_generated",
+      desiredAspectRatio: "1:1",
+      transparentBackground: true,
+      placementHint: "foreground food/product image for card or hero composition, object-contain with generous breathing room",
+      priority,
+    });
+  }
+
+  if (educationIntentPattern.test(text)) {
+    return createInferredRequirement({
+      id: `${screenSlug}-learning-illustration`,
+      screenName: screen.name,
+      role: "decorative_object",
+      subject: "premium friendly learning and coding illustration object, no text",
+      assetType: "illustration",
+      sourcePreference: "ai_generated",
+      desiredAspectRatio: "1:1",
+      transparentBackground: true,
+      placementHint: "supporting onboarding or empty-state illustration, object-contain, keep it secondary to the headline and CTA",
+      priority,
+    });
+  }
+
+  if (mapIntentPattern.test(text)) {
+    return createInferredRequirement({
+      id: `${screenSlug}-map-texture`,
+      screenName: screen.name,
+      role: "map_texture",
+      subject: "abstract premium mobile map texture with roads and route context",
+      assetType: "photo",
+      sourcePreference: "stock",
+      desiredAspectRatio: "5:4",
+      transparentBackground: false,
+      placementHint: "background map/media plane, object-cover, keep controls and bottom navigation above the image",
+      priority: priority === "critical" ? "supporting" : priority,
+    });
+  }
+
+  if (avatarIntentPattern.test(text)) {
+    return createInferredRequirement({
+      id: `${screenSlug}-avatar-photo`,
+      screenName: screen.name,
+      role: "avatar",
+      subject: "generic premium user avatar portrait",
+      assetType: "photo",
+      sourcePreference: "stock",
+      desiredAspectRatio: "1:1",
+      transparentBackground: false,
+      placementHint: "small circular avatar, object-cover, crop face safely",
+      priority: "supporting",
+    });
+  }
+
+  return null;
+};
+
+const mergeAssetRequirements = (requirements: AssetRequirement[]) => {
+  const seen = new Set<string>();
+  let generatedCriticalCount = 0;
+  const merged: AssetRequirement[] = [];
+
+  for (const requirement of requirements) {
+    const key = normalizeMatchKey(`${requirement.screenName}-${requirement.role}-${requirement.assetType}-${stableReuseKey(requirement)}`);
+    if (seen.has(key)) {
+      continue;
+    }
+
+    if (requirement.priority === "critical" && isAiEligible(requirement)) {
+      generatedCriticalCount += 1;
+      if (generatedCriticalCount > MAX_CRITICAL_GENERATED_ASSETS) {
+        merged.push({ ...requirement, priority: "supporting" });
+        seen.add(key);
+        continue;
+      }
+    }
+
+    merged.push(requirement);
+    seen.add(key);
+    if (merged.length >= MAX_REQUIREMENTS) {
+      break;
+    }
+  }
+
+  return merged;
+};
+
 export async function planVisualAssets({
   prompt,
   screens,
@@ -343,28 +582,76 @@ export async function planVisualAssets({
 
     const raw = parseJsonResponse<unknown>(response.text || "{}");
     const parsed = AssetRequirementsResponseSchema.safeParse(raw);
+    const inferredRequirements = screens
+      .map((screen) => inferAssetRequirementForScreen({ prompt, screen }))
+      .filter((requirement): requirement is AssetRequirement => Boolean(requirement));
+
     if (!parsed.success) {
-      return [];
+      llmLog?.("[visual-assets] Asset plan schema failed; using deterministic inferred requirements", {
+        zodIssues: parsed.error.issues.map((issue) => `${issue.path.join(".") || "root"}: ${issue.message}`),
+        inferredRequirementCount: inferredRequirements.length,
+        inferredRequirements: inferredRequirements.map((requirement) => ({
+          id: requirement.id,
+          screenName: requirement.screenName,
+          role: requirement.role,
+          assetType: requirement.assetType,
+          priority: requirement.priority,
+        })),
+      });
+      return mergeAssetRequirements(inferredRequirements);
     }
 
-    let generatedCriticalCount = 0;
-    return parsed.data.assetRequirements
-      .filter((requirement) => screens.some((screen) => screen.name === requirement.screenName))
+    const modelRequirements = parsed.data.assetRequirements
+      .map((requirement) => {
+        const screenName = resolveRequirementScreenName(screens, requirement.screenName);
+        if (!screenName) {
+          return null;
+        }
+
+        return {
+          ...requirement,
+          screenName,
+        };
+      })
+      .filter((requirement): requirement is AssetRequirement => Boolean(requirement))
       .map((requirement) => ({
         ...requirement,
         reuseKey: stableReuseKey(requirement),
-      }))
-      .filter((requirement) => {
-        if (requirement.priority !== "critical" || !isAiEligible(requirement)) {
-          return true;
-        }
-
-        generatedCriticalCount += 1;
-        return generatedCriticalCount <= MAX_CRITICAL_GENERATED_ASSETS;
       });
+
+    const screensWithModelAssets = new Set(modelRequirements.map((requirement) => requirement.screenName));
+    const missingInferredRequirements = inferredRequirements.filter((requirement) => !screensWithModelAssets.has(requirement.screenName));
+    const finalRequirements = mergeAssetRequirements([...modelRequirements, ...missingInferredRequirements]);
+    llmLog?.("[visual-assets] Asset plan resolved", {
+      modelRequirementCount: parsed.data.assetRequirements.length,
+      keptModelRequirementCount: modelRequirements.length,
+      inferredRequirementCount: inferredRequirements.length,
+      finalRequirementCount: finalRequirements.length,
+      finalRequirements: finalRequirements.map((requirement) => ({
+        id: requirement.id,
+        screenName: requirement.screenName,
+        role: requirement.role,
+        assetType: requirement.assetType,
+        sourcePreference: requirement.sourcePreference,
+        priority: requirement.priority,
+      })),
+    });
+
+    return finalRequirements;
   } catch (error) {
     console.warn("[visual-assets] Asset planning failed; continuing without external assets", error);
-    return [];
+    const inferredRequirements = mergeAssetRequirements(
+      screens
+        .map((screen) => inferAssetRequirementForScreen({ prompt, screen }))
+        .filter((requirement): requirement is AssetRequirement => Boolean(requirement)),
+    );
+    if (inferredRequirements.length > 0) {
+      llmLog?.("[visual-assets] Asset planning failed; using deterministic inferred requirements", {
+        error: error instanceof Error ? error.message : String(error),
+        inferredRequirementCount: inferredRequirements.length,
+      });
+    }
+    return inferredRequirements;
   }
 }
 
