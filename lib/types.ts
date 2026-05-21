@@ -118,6 +118,7 @@ export interface ProjectAssetManifest {
   requirements: AssetRequirement[];
   assetsByScreen: Record<string, ScreenAssetManifest[]>;
   failures?: AssetResolutionFailure[];
+  diagnostics?: AssetResolutionDiagnostic[];
 }
 
 export interface AssetResolutionFailure {
@@ -127,6 +128,32 @@ export interface AssetResolutionFailure {
   priority: VisualAssetPriority;
   reason: string;
   fatal: boolean;
+}
+
+export interface AssetResolutionDiagnostic {
+  requirementId: string;
+  screenName: string;
+  subject: string;
+  assetType: VisualAssetType;
+  hasAlpha: boolean;
+  sourcePreference: VisualAssetSourcePreference;
+  exactMatchCount: number;
+  vectorMatchCount: number;
+  tagFallbackMatchCount: number;
+  selectedAssetId?: string | null;
+  selectedVia?: "exact" | "vector" | "tag_fallback" | null;
+  rejectedCandidates: Array<{
+    assetId: string;
+    subject: string | null;
+    source: string | null;
+    visibility: string | null;
+    verificationStatus: string | null;
+    assetType: string | null;
+    hasAlpha: boolean | null;
+    qualityScore: number | null;
+    similarity?: number | null;
+    reason: string;
+  }>;
 }
 
 export type ImageReferenceMode = "recreate" | "style";

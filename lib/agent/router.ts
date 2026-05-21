@@ -66,6 +66,11 @@ export type AgentRouterInput = {
     targetType?: "screen" | "navigation" | null;
     drawgleId?: string | null;
     textPreview?: string | null;
+    imageTargets?: Array<{
+      kind?: string | null;
+      label?: string | null;
+      drawgleId?: string | null;
+    }> | null;
   } | null;
   screens: Array<{
     id: string;

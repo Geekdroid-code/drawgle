@@ -1174,15 +1174,13 @@ export const generateUiFlowTask = task({
       },
     );
 
-    const assetRequirements = referenceMode === "user_recreate"
-      ? []
-      : await planVisualAssets({
-          prompt: payload.prompt,
-          screens: plan.screens,
-          charter: plan.charter,
-          designTokens,
-          llmLog: (label, data) => logger.info(label, data),
-        });
+    const assetRequirements = await planVisualAssets({
+      prompt: payload.prompt,
+      screens: plan.screens,
+      charter: plan.charter,
+      designTokens,
+      llmLog: (label, data) => logger.info(label, data),
+    });
     const projectAssetManifest = await resolveProjectAssets({
       admin,
       ownerId: payload.ownerId,
@@ -1194,6 +1192,7 @@ export const generateUiFlowTask = task({
     await mergeGenerationRunMetadata(admin, payload.generationRunId, {
       assetRequirements,
       assetManifest: projectAssetManifest,
+      assetResolutionDiagnostics: projectAssetManifest.diagnostics ?? [],
     });
 
     const resolvedAssetCount = Object.values(projectAssetManifest.assetsByScreen)
@@ -1205,9 +1204,9 @@ export const generateUiFlowTask = task({
       .filter((asset) => asset.placeholder)
       .length;
     const assetStatusTitle = assetRequirements.length === 0
-      ? "No bitmap assets requested"
+      ? "No bitmap assets requested by planner"
       : resolvedAssetCount === 0 && placeholderAssetCount > 0
-        ? "No matching visual asset found, using placeholders"
+        ? "Bitmap assets requested, no match found, placeholders used"
         : placeholderAssetCount > 0
           ? `Resolved ${resolvedAssetCount} visual asset${resolvedAssetCount === 1 ? "" : "s"}, using ${placeholderAssetCount} placeholder${placeholderAssetCount === 1 ? "" : "s"}`
           : `Resolved ${resolvedAssetCount} visual asset${resolvedAssetCount === 1 ? "" : "s"}`;

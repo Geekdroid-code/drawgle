@@ -1339,14 +1339,20 @@ ${cleanScreenCode}
               var seen = new Set();
               var imageTargets = [];
 
+              function pushTarget(targetInfo) {
+                var key = targetInfo.drawgleId + ':' + targetInfo.kind + ':' + (targetInfo.targetIndex || 0);
+                if (seen.has(key)) return;
+                seen.add(key);
+                imageTargets.push(targetInfo);
+              }
+
               candidates.forEach(function(el) {
                 if (!el || !el.getAttribute) return;
                 var drawgleId = el.getAttribute('data-drawgle-id');
-                if (!drawgleId || seen.has(drawgleId)) return;
+                if (!drawgleId) return;
 
                 if (el.tagName === 'IMG') {
-                  seen.add(drawgleId);
-                  imageTargets.push({
+                  pushTarget({
                     drawgleId: drawgleId,
                     kind: 'img',
                     tagName: 'img',
@@ -1359,8 +1365,7 @@ ${cleanScreenCode}
 
                 var backgroundUrl = imageUrlFromBackground(window.getComputedStyle(el).getPropertyValue('background-image'));
                 if (backgroundUrl) {
-                  seen.add(drawgleId);
-                  imageTargets.push({
+                  pushTarget({
                     drawgleId: drawgleId,
                     kind: 'background',
                     tagName: el.tagName.toLowerCase(),
@@ -1370,6 +1375,51 @@ ${cleanScreenCode}
                   });
                 }
               });
+
+              Array.from(target.querySelectorAll('svg')).forEach(function(svg) {
+                if (!svg || !svg.closest) return;
+                var owner = svg.closest('[data-drawgle-id]');
+                if (!owner || !target.contains(owner)) return;
+                var drawgleId = owner.getAttribute('data-drawgle-id');
+                if (!drawgleId) return;
+                var allSvgInOwner = Array.from(owner.querySelectorAll('svg'));
+                var targetIndex = Math.max(0, allSvgInOwner.indexOf(svg));
+                pushTarget({
+                  drawgleId: drawgleId,
+                  kind: 'inline_svg',
+                  tagName: owner.tagName.toLowerCase(),
+                  src: '',
+                  alt: '',
+                  label: 'SVG placeholder',
+                  targetIndex: targetIndex,
+                });
+              });
+
+              if (imageTargets.length === 0) {
+                var targetStyle = window.getComputedStyle(target);
+                var targetRect = target.getBoundingClientRect();
+                var text = (target.textContent || '').replace(/\\s+/g, ' ').trim();
+                var looksVisual =
+                  targetRect.width >= 56 &&
+                  targetRect.height >= 56 &&
+                  text.length <= 80 &&
+                  (
+                    targetStyle.backgroundImage && targetStyle.backgroundImage !== 'none' ||
+                    targetStyle.borderRadius && targetStyle.borderRadius !== '0px' ||
+                    /absolute|relative|rounded|shadow|gradient|object|image|media|visual/i.test(target.className || '')
+                  );
+                if (looksVisual) {
+                  pushTarget({
+                    drawgleId: target.getAttribute('data-drawgle-id'),
+                    kind: 'visual_placeholder',
+                    tagName: target.tagName.toLowerCase(),
+                    src: '',
+                    alt: '',
+                    label: 'Visual placeholder',
+                    targetIndex: 0,
+                  });
+                }
+              }
 
               return imageTargets.slice(0, 6);
             }

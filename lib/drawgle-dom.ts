@@ -15,11 +15,12 @@ export type DrawgleTextNodeMeta = {
 
 export type DrawgleImageTargetMeta = {
   drawgleId: string;
-  kind: "img" | "background";
+  kind: "img" | "background" | "inline_svg" | "visual_placeholder";
   tagName: string;
   src: string;
   alt?: string;
   label: string;
+  targetIndex?: number;
 };
 
 export type DrawgleStyleMeta = {
@@ -88,9 +89,10 @@ export type DeterministicEditOperation =
   | {
       type: "replaceImage";
       drawgleId?: string;
-      mode: "src" | "background";
+      mode: "src" | "background" | "inline_svg" | "visual_placeholder";
       src: string;
       alt?: string | null;
+      targetIndex?: number | null;
     };
 
 export type { DrawgleStyleProperty };
@@ -370,6 +372,9 @@ const normalizeImageUrl = (value: string) => {
   return normalized;
 };
 
+const buildReplacementImageMarkup = (src: string, alt?: string | null) =>
+  `<img src="${escapeAttribute(src)}" alt="${escapeAttribute((alt?.trim() || "Replacement image").slice(0, 160))}" class="h-full w-full object-contain" />`;
+
 const assertStyleProperty = (property: string): DrawgleStyleProperty => {
   if (!DRAWGLE_STYLE_PROPERTY_SET.has(property as DrawgleStyleProperty)) {
     throw new Error(`Unsupported style property: ${property}`);
@@ -429,7 +434,24 @@ function applyClearStyle(code: string, drawgleId: string, property: DrawgleStyle
   return replaceOpeningTagInCode(code, element, nextOpeningTag);
 }
 
-function applyReplaceImage(code: string, drawgleId: string, mode: "src" | "background", src: string, alt?: string | null) {
+function replaceNthInlineSvg(innerHtml: string, targetIndex: number, replacement: string) {
+  const matches = Array.from(innerHtml.matchAll(/<svg\b[\s\S]*?<\/svg>/gi));
+  const match = matches[targetIndex] ?? matches[0];
+  if (!match || match.index === undefined) {
+    throw new Error("This replacement target no longer contains an SVG placeholder.");
+  }
+
+  return `${innerHtml.slice(0, match.index)}${replacement}${innerHtml.slice(match.index + match[0].length)}`;
+}
+
+function applyReplaceImage(
+  code: string,
+  drawgleId: string,
+  mode: "src" | "background" | "inline_svg" | "visual_placeholder",
+  src: string,
+  alt?: string | null,
+  targetIndex?: number | null,
+) {
   const element = findDrawgleElement(code, drawgleId);
   if (!element) {
     throw new Error("Selected image target is stale. Please reselect the element.");
@@ -448,6 +470,18 @@ function applyReplaceImage(code: string, drawgleId: string, mode: "src" | "backg
       nextOpeningTag = setOpeningTagAttribute(nextOpeningTag, "alt", alt.trim().slice(0, 160));
     }
     return replaceOpeningTagInCode(code, element, nextOpeningTag);
+  }
+
+  if (mode === "inline_svg") {
+    const replacement = buildReplacementImageMarkup(nextSrc, alt);
+    const currentInner = code.slice(element.innerStartOffset, element.innerEndOffset);
+    const nextInner = replaceNthInlineSvg(currentInner, Math.max(0, Number(targetIndex ?? 0)), replacement);
+    return `${code.slice(0, element.innerStartOffset)}${nextInner}${code.slice(element.innerEndOffset)}`;
+  }
+
+  if (mode === "visual_placeholder") {
+    const replacement = buildReplacementImageMarkup(nextSrc, alt);
+    return `${code.slice(0, element.innerStartOffset)}${replacement}${code.slice(element.innerEndOffset)}`;
   }
 
   const style = parseStyle(getAttributeValue(openingTag, "style"));
@@ -480,7 +514,7 @@ export function applyDeterministicEdits({
     } else if (operation.type === "clearStyle") {
       nextCode = applyClearStyle(nextCode, targetDrawgleId, assertStyleProperty(operation.property));
     } else if (operation.type === "replaceImage") {
-      nextCode = applyReplaceImage(nextCode, targetDrawgleId, operation.mode, operation.src, operation.alt);
+      nextCode = applyReplaceImage(nextCode, targetDrawgleId, operation.mode, operation.src, operation.alt, operation.targetIndex);
     }
   }
 

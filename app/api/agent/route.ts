@@ -13,7 +13,7 @@ import {
   type AgentTurnState,
 } from "@/lib/agent/router";
 import { normalizeDesignTokens } from "@/lib/design-tokens";
-import { applyDeterministicEdits, ensureDrawgleIds, type DeterministicEditOperation } from "@/lib/drawgle-dom";
+import { applyDeterministicEdits, ensureDrawgleIds, type DeterministicEditOperation, type DrawgleImageTargetMeta } from "@/lib/drawgle-dom";
 import { indexScreenCode } from "@/lib/generation/block-index";
 import { persistProjectMessageMemory, persistProjectMessageMemoryPair } from "@/lib/generation/message-memory";
 import { findRepairTarget } from "@/lib/generation/screen-repair";
@@ -27,6 +27,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { fetchProjectMessages, insertProjectMessage, updateProjectMessage } from "@/lib/supabase/queries";
 import { getDrawgleTokenReferences, tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
+import { storeUserImageAssetFromRemoteUrl } from "@/lib/user-image-assets";
 import {
   ACTIVE_GENERATION_STATUSES,
   type DesignTokens,
@@ -61,6 +62,16 @@ const requestSchema = z.object({
   selectedElementDrawgleId: z.string().nullable().optional(),
   selectedElementTarget: z.enum(["screen", "navigation"]).nullable().optional(),
   selectedElementPreview: z.string().nullable().optional(),
+  selectedElementImageTargets: z.array(z.object({
+    drawgleId: z.string(),
+    kind: z.enum(["img", "background", "inline_svg", "visual_placeholder"]),
+    tagName: z.string().optional().default("div"),
+    src: z.string().optional().default(""),
+    alt: z.string().optional(),
+    label: z.string().optional().default("Image"),
+    targetIndex: z.number().int().min(0).nullable().optional(),
+  })).optional().default([]),
+  selectedElementSelectionVersion: z.number().nullable().optional(),
   clientTurnId: z.string().trim().max(120).nullable().optional(),
 }).superRefine((value, ctx) => {
   if (!value.prompt.trim() && !value.image) {
@@ -117,6 +128,79 @@ const targetLabelFromContext = ({
   if (requestTargetsNavigation) return "Navigation";
   if (shouldUseSelectedElement) return targetScreenName ? `selected element in ${targetScreenName}` : "selected element";
   return targetScreenName ?? "selected screen";
+};
+
+const imageUrlPattern = /https:\/\/[^\s<>"')]+/gi;
+
+const extractSingleImageUrl = (text: string) => {
+  const urls = Array.from(text.matchAll(imageUrlPattern))
+    .map((match) => match[0].replace(/[.,;!?]+$/, ""))
+    .filter((value) => {
+      try {
+        const url = new URL(value);
+        return /\.(png|jpe?g|webp|gif)(?:$|[?#])/i.test(url.pathname + url.search);
+      } catch {
+        return false;
+      }
+    });
+
+  return urls.length === 1 ? urls[0] : null;
+};
+
+const imageReplacementIntentPattern = /\b(replace|swap|use|update|change)\b[\s\S]{0,160}\b(image|png|photo|picture|placeholder|svg|visual|current)\b|\b(image|png|photo|picture|placeholder|svg|visual|current)\b[\s\S]{0,160}\b(replace|swap|use|update|change)\b/i;
+const multiImageReplacementPattern = /\b(both|all|every|placeholders|images|svgs|cards)\b/i;
+
+const modeForImageTarget = (kind: DrawgleImageTargetMeta["kind"]): Extract<DeterministicEditOperation, { type: "replaceImage" }>["mode"] => {
+  if (kind === "background") return "background";
+  if (kind === "inline_svg") return "inline_svg";
+  if (kind === "visual_placeholder") return "visual_placeholder";
+  return "src";
+};
+
+const normalizeImageTargetsFromPayload = ({
+  payloadTargets,
+  selectedHtml,
+  drawgleId,
+}: {
+  payloadTargets?: DrawgleImageTargetMeta[];
+  selectedHtml?: string | null;
+  drawgleId?: string | null;
+}) => {
+  const targets = (payloadTargets ?? []).filter((target) => target.drawgleId && target.kind);
+  if (targets.length > 0 || !selectedHtml || !drawgleId) {
+    return targets;
+  }
+
+  const svgCount = Array.from(selectedHtml.matchAll(/<svg\b/gi)).length;
+  if (svgCount > 0) {
+    return Array.from({ length: Math.min(svgCount, 6) }, (_, index): DrawgleImageTargetMeta => ({
+      drawgleId,
+      kind: "inline_svg",
+      tagName: "div",
+      src: "",
+      alt: "",
+      label: "SVG placeholder",
+      targetIndex: index,
+    }));
+  }
+
+  return targets;
+};
+
+const pickImageTargetsForPrompt = (targets: DrawgleImageTargetMeta[], prompt: string) => {
+  const imageLikeTargets = targets.filter((target) =>
+    ["img", "background", "inline_svg", "visual_placeholder"].includes(target.kind),
+  );
+  if (multiImageReplacementPattern.test(prompt)) {
+    return imageLikeTargets
+      .slice()
+      .sort((left, right) => {
+        if (left.drawgleId !== right.drawgleId) return left.drawgleId.localeCompare(right.drawgleId);
+        return (right.targetIndex ?? 0) - (left.targetIndex ?? 0);
+      });
+  }
+
+  return imageLikeTargets.slice(0, 1);
 };
 
 const buildVisibleThinkingText = ({
@@ -888,6 +972,8 @@ export async function POST(request: Request) {
           targetType: payload.selectedElementTarget ?? null,
           drawgleId: payload.selectedElementDrawgleId ?? null,
           textPreview: payload.selectedElementPreview ?? null,
+          imageTargets: payload.selectedElementImageTargets ?? [],
+          selectionVersion: payload.selectedElementSelectionVersion ?? null,
         },
       },
       screens: screenContext.map((screen) => ({
@@ -1003,6 +1089,7 @@ export async function POST(request: Request) {
         targetType: payload.selectedElementTarget ?? null,
         drawgleId: payload.selectedElementDrawgleId ?? null,
         textPreview: payload.selectedElementPreview ?? null,
+        imageTargets: payload.selectedElementImageTargets ?? [],
       },
       screens: screenContext,
       navigation: navigationPlan
@@ -1560,6 +1647,239 @@ export async function POST(request: Request) {
     const requestTargetsNavigation =
       routerTargetsNavigation ||
       (payload.selectedElementTarget === "navigation" && selectedElementRequested);
+    const selectedImageUrl = extractSingleImageUrl(prompt);
+    const selectedImageTargets = normalizeImageTargetsFromPayload({
+      payloadTargets: payload.selectedElementImageTargets as DrawgleImageTargetMeta[],
+      selectedHtml: payload.selectedElementHtml,
+      drawgleId: payload.selectedElementDrawgleId,
+    });
+    const shouldRunDeterministicImageReplacement =
+      Boolean(selectedImageUrl) &&
+      imageReplacementIntentPattern.test(prompt) &&
+      hasSelectedElementPayload &&
+      payload.selectedElementTarget !== "navigation";
+
+    if (shouldRunDeterministicImageReplacement) {
+      const targetScreenId = selectedScreenId;
+      const targetScreen = targetScreenId ? screenContext.find((screen) => screen.id === targetScreenId) ?? null : null;
+      const targetsToReplace = pickImageTargetsForPrompt(selectedImageTargets, prompt);
+
+      if (!targetScreenId || !targetScreen) {
+        return saveClarification({
+          message: whiteLabelAgentMessage(prompt, "I can replace that image, but I lost which screen it belongs to. Please reselect the image or placeholder and try again."),
+          instruction: resolvedInstruction,
+          missingFields: ["screen"],
+          metadata: {
+            serverReconciliation: {
+              finalAction: "ask_clarification",
+              reason: "image_replacement_screen_missing",
+            },
+          },
+        });
+      }
+
+      if (targetsToReplace.length === 0) {
+        return saveClarification({
+          message: whiteLabelAgentMessage(prompt, "The selected element does not expose an image, background image, SVG placeholder, or visual placeholder I can replace yet. Select the visual object or its card and try again."),
+          instruction: resolvedInstruction,
+          missingFields: ["selected_image_target"],
+          lastKnownTarget: {
+            targetType: "selected_element",
+            scope: "selected_element",
+            screenId: targetScreenId,
+            screenName: targetScreen.name,
+            selectedElementDrawgleId: payload.selectedElementDrawgleId ?? null,
+          },
+          metadata: {
+            serverReconciliation: {
+              finalAction: "ask_clarification",
+              reason: "selected_image_target_missing",
+            },
+          },
+        });
+      }
+
+      const verification = await verifySelectedElementSource({
+        admin,
+        projectId: payload.projectId,
+        screenId: targetScreenId,
+        targetType: "screen",
+        drawgleId: payload.selectedElementDrawgleId,
+      });
+
+      if (!verification.ok) {
+        return saveClarification({
+          message: whiteLabelAgentMessage(prompt, verification.message),
+          instruction: resolvedInstruction,
+          missingFields: ["selected_element"],
+          lastKnownTarget: {
+            targetType: "selected_element",
+            scope: "selected_element",
+            screenId: targetScreenId,
+            screenName: targetScreen.name,
+            selectedElementDrawgleId: payload.selectedElementDrawgleId ?? null,
+          },
+          status: 409,
+          metadata: {
+            serverReconciliation: {
+              finalAction: "ask_clarification",
+              reason: verification.reason,
+            },
+          },
+        });
+      }
+
+      const targetLabel = targetScreen.name ? `selected visual in ${targetScreen.name}` : "selected visual";
+      await updateAgentProgress({
+        step: buildAgentProgressStep({
+          title: "Replacing selected image",
+          detail: `Importing the image and updating ${targetLabel}.`,
+          targetLabel,
+          processLines: [...progressLines(), "Detected a direct image replacement request.", "Importing the supplied image URL into this project."],
+        }),
+        metadata: {
+          action: "deterministic_image_replacement",
+          imageReplacement: {
+            targetCount: targetsToReplace.length,
+            targetKinds: targetsToReplace.map((target) => target.kind),
+          },
+        },
+      });
+
+      const storedImage = await storeUserImageAssetFromRemoteUrl({
+        admin,
+        ownerId: user.id,
+        projectId: payload.projectId,
+        screenId: targetScreenId,
+        targetKind: targetsToReplace[0]?.kind ?? "img",
+        targetDrawgleId: payload.selectedElementDrawgleId ?? null,
+        imageUrl: selectedImageUrl!,
+      });
+
+      const operations: DeterministicEditOperation[] = targetsToReplace.map((target) => ({
+        type: "replaceImage",
+        drawgleId: target.drawgleId,
+        mode: modeForImageTarget(target.kind),
+        src: storedImage.url,
+        alt: target.alt || target.label || "Replacement image",
+        targetIndex: target.targetIndex ?? null,
+      }));
+
+      const { data: screen, error: screenError } = await admin
+        .from("screens")
+        .select("id, name, code")
+        .eq("id", targetScreenId)
+        .eq("project_id", payload.projectId)
+        .maybeSingle();
+
+      if (screenError || !screen) {
+        throw screenError ?? new Error("Screen not found for image replacement.");
+      }
+
+      const currentCode = ensureDrawgleIds(screen.code ?? "").code;
+      const editedCode = applyDeterministicEdits({
+        code: currentCode,
+        drawgleId: payload.selectedElementDrawgleId ?? "",
+        operations,
+      });
+      const nextCode = tokenizeStaticDrawgleHtml(editedCode, designTokens).code;
+      const changed = nextCode !== currentCode;
+
+      await admin
+        .from("screens")
+        .update({
+          code: nextCode,
+          block_index: indexScreenCode(nextCode) as never,
+          status: "ready",
+          error: null,
+          updated_at: now(),
+        })
+        .eq("id", screen.id);
+
+      const completionContent = changed
+        ? `Done - Replaced ${targetsToReplace.length === 1 ? "the selected image" : `${targetsToReplace.length} selected image placeholders`} in ${screen.name}. What do you think?`
+        : `I imported the image, but ${screen.name} already matched the selected image replacement.`;
+
+      await updateAgentProgress({
+        step: buildAgentProgressStep({
+          status: changed ? "completed" : "failed",
+          title: changed ? "Image replaced" : "No image change needed",
+          detail: completionContent,
+          targetLabel,
+          processLines: [
+            ...progressLines(),
+            "Saved the image into project storage.",
+            changed ? "Updated the selected visual target." : "No material source change was needed.",
+          ],
+        }),
+        metadata: {
+          action: "deterministic_image_replacement",
+          imageReplacement: {
+            storedImageId: storedImage.id,
+            targetCount: targetsToReplace.length,
+            targetKinds: targetsToReplace.map((target) => target.kind),
+          },
+          editJob: {
+            status: "completed",
+            targetType: "screen",
+            screenId: targetScreenId,
+            drawgleId: payload.selectedElementDrawgleId ?? null,
+          },
+        },
+        messageType: changed ? "chat" : "error",
+      });
+
+      const modelMessage = await insertProjectMessage(admin, {
+        projectId: payload.projectId,
+        ownerId: user.id,
+        screenId: targetScreenId,
+        role: "model",
+        content: completionContent,
+        messageType: changed ? "edit_applied" : "chat",
+        metadata: {
+          action: "deterministic_image_replacement_applied",
+          ui: { variant: "action_card" },
+          userMessageId: userMessage.id,
+          screenName: screen.name,
+          imageReplacement: {
+            storedImageId: storedImage.id,
+            targetCount: targetsToReplace.length,
+            targetKinds: targetsToReplace.map((target) => target.kind),
+          },
+          agentState: makeAgentState({
+            kind: "last_actionable_request",
+            instruction: resolvedInstruction,
+            missingFields: null,
+            targetCandidates: null,
+            lastKnownTarget: {
+              targetType: "selected_element",
+              scope: "selected_element",
+              screenId: targetScreenId,
+              screenName: screen.name,
+              selectedElementDrawgleId: payload.selectedElementDrawgleId ?? null,
+            },
+            message: null,
+          }),
+        },
+      });
+
+      await persistProjectMessageMemoryPair({
+        admin,
+        userMessageId: userMessage.id,
+        userContent: prompt || "[image]",
+        modelMessageId: modelMessage.id,
+        modelContent: completionContent,
+      }).catch((error) => {
+        console.error("Failed to persist deterministic image replacement memory", error);
+      });
+
+      return NextResponse.json({
+        intent: "modify_screen",
+        deterministic: true,
+        targetType: "screen",
+        screenId: targetScreenId,
+      });
+    }
 
     if (routerDecision.targetType === "project") {
       const message = whiteLabelAgentMessage(
@@ -1637,33 +1957,6 @@ export async function POST(request: Request) {
           serverReconciliation: {
             finalAction: "ask_clarification",
             reason: "selected_element_missing",
-          },
-        },
-      });
-    }
-
-    if (
-      selectedElementRequested &&
-      routerDecision.selectedElementDrawgleId &&
-      payload.selectedElementDrawgleId &&
-      routerDecision.selectedElementDrawgleId !== payload.selectedElementDrawgleId
-    ) {
-      const message = whiteLabelAgentMessage(
-        prompt,
-        "I see a selected element, but the target is not clear. Please reselect the exact element you want me to change.",
-      );
-
-      return saveClarification({
-        message,
-        instruction: resolvedInstruction,
-        missingFields: ["selected_element"],
-        lastKnownTarget: buildDecisionTarget(routerDecision),
-        metadata: {
-          serverReconciliation: {
-            finalAction: "ask_clarification",
-            reason: "selected_element_id_conflict",
-            selectedElementDrawgleId: payload.selectedElementDrawgleId,
-            routerSelectedElementDrawgleId: routerDecision.selectedElementDrawgleId,
           },
         },
       });

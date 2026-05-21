@@ -80,7 +80,7 @@ type ManualEditMode = "selected" | "design";
 
 const EMPTY_TEXT_NODES: NonNullable<SelectedElementInfo["editableMetadata"]>["textNodes"] = [];
 const EMPTY_INSPECTED_PROPERTIES: DrawgleResolvedStyleProperty[] = [];
-const MAX_REPLACEMENT_UPLOAD_BYTES = 3.8 * 1024 * 1024;
+const MAX_REPLACEMENT_UPLOAD_BYTES = 2.8 * 1024 * 1024;
 const MAX_REPLACEMENT_IMAGE_EDGE = 2400;
 
 const loadImageForUpload = (file: File) =>
@@ -144,6 +144,20 @@ const prepareReplacementImageFile = async (file: File) => {
   }
 
   return file;
+};
+
+const labelForImageTargetKind = (kind: DrawgleImageTargetMeta["kind"]) => {
+  if (kind === "img") return "Image element";
+  if (kind === "background") return "Background image";
+  if (kind === "inline_svg") return "SVG placeholder";
+  return "Visual placeholder";
+};
+
+const replaceModeForImageTarget = (kind: DrawgleImageTargetMeta["kind"]): Extract<DeterministicEditOperation, { type: "replaceImage" }>["mode"] => {
+  if (kind === "background") return "background";
+  if (kind === "inline_svg") return "inline_svg";
+  if (kind === "visual_placeholder") return "visual_placeholder";
+  return "src";
 };
 
 const cssColorToHex = (value: string | undefined | null) => {
@@ -727,7 +741,7 @@ function SelectedElementInspectorSidebar({
                 </div>
                 <div className="divide-y divide-slate-950/[0.06]">
                   {imageTargets.map((target) => (
-                    <div key={`${target.kind}-${target.drawgleId}`} className="flex items-center gap-3 px-3 py-2.5">
+                    <div key={`${target.kind}-${target.drawgleId}-${target.targetIndex ?? 0}`} className="flex items-center gap-3 px-3 py-2.5">
                       <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-slate-950/[0.08] bg-slate-50">
                         {target.src ? (
                           // eslint-disable-next-line @next/next/no-img-element
@@ -739,7 +753,7 @@ function SelectedElementInspectorSidebar({
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm font-medium text-slate-900">{target.label}</div>
                         <div className="mt-0.5 truncate text-[11px] text-slate-500">
-                          {target.kind === "img" ? "Image element" : "Background image"}
+                          {labelForImageTargetKind(target.kind)}
                         </div>
                       </div>
                       <Button
@@ -1406,6 +1420,8 @@ export function ProjectShell({
           selectedElementDrawgleId: activeEditElement?.drawgleId ?? null,
           selectedElementTarget: activeEditElement?.targetType ?? null,
           selectedElementPreview: activeEditElement?.textPreview ?? null,
+          selectedElementImageTargets: activeEditElement?.editableMetadata?.imageTargets ?? [],
+          selectedElementSelectionVersion: editSession?.selectionVersion ?? null,
           clientTurnId: options.clientTurnId ?? null,
         }),
       });
@@ -1557,9 +1573,10 @@ export function ProjectShell({
     return await handleDeterministicElementEdit([{
       type: "replaceImage",
       drawgleId: target.drawgleId,
-      mode: target.kind === "background" ? "background" : "src",
+      mode: replaceModeForImageTarget(target.kind),
       src: payload.url,
       alt: target.alt || target.label || "Project image",
+      targetIndex: target.targetIndex ?? null,
     }]);
   };
 

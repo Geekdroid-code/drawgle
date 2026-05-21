@@ -581,7 +581,7 @@ const buildAssetManifestContract = (assetManifest?: ScreenAssetManifest[] | null
       "No approved bitmap assets were requested or resolved for this screen.",
       "Do not invent external image URLs, Unsplash/Pexels/Pixabay links, fal media links, non-SVG data images, blob URLs, local public files, relative image paths, or remote placeholders.",
       "Do not create bitmap image slots unless the screen brief explicitly says the visual should be CSS-only.",
-      "When the brief asks for imagery but no asset manifest entry exists, use a simple CSS placeholder surface with a Lucide icon, aspect-ratio box, and short label.",
+      "When the brief asks for imagery but no asset manifest entry exists, use only a simple neutral CSS placeholder surface with a Lucide icon, aspect-ratio box, and short label. Do not hand-draw product/person objects as SVG, gradients, or CSS illustration shapes.",
     ].join("\n");
   }
 
@@ -594,7 +594,7 @@ const buildAssetManifestContract = (assetManifest?: ScreenAssetManifest[] | null
       : "This screen has no approved bitmap URLs. Render the placeholder manifest entries as CSS only.",
     "Use exact url/variantUrl values from this manifest when url is non-null. Local public files and relative image paths are not allowed.",
     "Every non-placeholder asset marked critical must appear in the returned HTML.",
-    "For placeholder entries, render a simple neutral placeholder surface: CSS background, border/radius, Lucide icon, aspect ratio, and a short label from the alt/role. Do not draw complex SVG illustration art and do not add an img tag.",
+    "For placeholder entries, render a simple neutral placeholder surface: CSS background, border/radius, Lucide icon, aspect ratio, and a short label from the alt/role. Do not draw product/person/object artwork as SVG, gradients, absolute CSS shapes, or fake bitmap art, and do not add an img tag.",
     "For transparent PNG/cutout assets use object-contain. For photo assets use object-cover unless the placement hint says otherwise.",
     "Every critical/supplied asset used must include meaningful alt text, avoid layout overflow, and respect the placement hint.",
     "Transparent product/person/hero imagery must come only from a curated manifest URL or a placeholder. Photos must come only from a stock/manifest URL or a placeholder.",

@@ -17,6 +17,7 @@ import type { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 import type {
   AssetRequirement,
+  AssetResolutionDiagnostic,
   DesignTokens,
   LlmLogFn,
   ProjectAssetManifest,
@@ -50,6 +51,12 @@ type AssetVerificationResult = {
 type SavedAsset = {
   asset: VisualAssetRow;
   displayVariant: VisualAssetVariantRow | null;
+  selectedVia?: AssetResolutionDiagnostic["selectedVia"];
+};
+
+type ReusableAssetLookupResult = {
+  saved: SavedAsset | null;
+  diagnostic: AssetResolutionDiagnostic;
 };
 
 const VisualAssetRoleSchema = z.enum([
@@ -140,6 +147,47 @@ const stableReuseKey = (requirement: AssetRequirement) =>
   slugify(requirement.reuseKey || `${requirement.role}-${requirement.subject}-${requirement.assetType}`);
 
 const normalizeMatchKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+const tokenizeAssetText = (value: string) =>
+  Array.from(new Set(value
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length >= 3)
+    .filter((token) => !["premium", "mobile", "object", "cutout", "transparent", "background", "image", "photo", "screen", "app", "with", "for", "the"].includes(token))));
+
+const assetRowQuality = (asset: VisualAssetRow) =>
+  typeof asset.quality_score === "number" ? asset.quality_score : Number(asset.quality_score ?? 0);
+
+const rejectionReasonForAsset = (
+  asset: VisualAssetRow,
+  ownerId: string,
+  projectId: string,
+  requirement: AssetRequirement,
+) => {
+  const reasons: string[] = [];
+  if (asset.source !== "internal_library") reasons.push(`source=${asset.source ?? "null"}`);
+  if (!isAssetVisibleToProject(asset, ownerId, projectId)) reasons.push(`visibility=${asset.visibility ?? "null"}`);
+  if (!["verified", "skipped"].includes(asset.verification_status ?? "pending")) reasons.push(`status=${asset.verification_status ?? "null"}`);
+  if (asset.asset_type !== requirement.assetType) reasons.push(`assetType=${asset.asset_type ?? "null"}`);
+  if (asset.has_alpha !== requirement.transparentBackground) reasons.push(`hasAlpha=${String(asset.has_alpha)}`);
+  if (assetRowQuality(asset) < 0.52) reasons.push(`quality=${assetRowQuality(asset).toFixed(2)}`);
+  return reasons.length > 0 ? reasons.join(", ") : "eligible but lower textual/tag match";
+};
+
+const buildBaseDiagnostic = (requirement: AssetRequirement): AssetResolutionDiagnostic => ({
+  requirementId: requirement.id,
+  screenName: requirement.screenName,
+  subject: requirement.subject,
+  assetType: requirement.assetType,
+  hasAlpha: requirement.transparentBackground,
+  sourcePreference: requirement.sourcePreference,
+  exactMatchCount: 0,
+  vectorMatchCount: 0,
+  tagFallbackMatchCount: 0,
+  selectedAssetId: null,
+  selectedVia: null,
+  rejectedCandidates: [],
+});
 
 const resolveRequirementScreenName = (screens: ScreenPlan[], requestedScreenName: string) => {
   const exact = screens.find((screen) => screen.name === requestedScreenName);
@@ -595,12 +643,107 @@ const getDisplayVariant = async (admin: AdminClient, assetId: string): Promise<V
     ?? null;
 };
 
+const collectSearchDiagnostics = async (
+  admin: AdminClient,
+  ownerId: string,
+  projectId: string,
+  requirement: AssetRequirement,
+  vectorRows: Array<{ asset_id: string; similarity?: number | null; quality_score?: number | null }> = [],
+) => {
+  const subjectTokens = tokenizeAssetText(requirement.subject);
+  const { data } = await admin
+    .from("visual_assets")
+    .select("id, subject, source, visibility, verification_status, asset_type, has_alpha, quality_score, tags")
+    .or([
+      subjectTokens.map((token) => `subject.ilike.%${token}%`).join(","),
+      subjectTokens.map((token) => `tags.cs.{${token}}`).join(","),
+    ].filter(Boolean).join(",") || `asset_type.eq.${requirement.assetType}`)
+    .limit(24);
+
+  const vectorById = new Map(vectorRows.map((row) => [row.asset_id, row]));
+  return ((data ?? []) as VisualAssetRow[])
+    .map((asset) => ({
+      assetId: asset.id,
+      subject: asset.subject,
+      source: asset.source,
+      visibility: asset.visibility,
+      verificationStatus: asset.verification_status,
+      assetType: asset.asset_type,
+      hasAlpha: asset.has_alpha,
+      qualityScore: assetRowQuality(asset),
+      similarity: vectorById.get(asset.id)?.similarity ?? null,
+      reason: rejectionReasonForAsset(asset, ownerId, projectId, requirement),
+    }))
+    .slice(0, 12);
+};
+
+const findTagFallbackAsset = async (
+  admin: AdminClient,
+  ownerId: string,
+  projectId: string,
+  requirement: AssetRequirement,
+): Promise<{ saved: SavedAsset | null; matchCount: number }> => {
+  const requirementTokens = new Set(tokenizeAssetText(`${requirement.subject} ${requirement.role}`));
+  if (requirementTokens.size === 0) {
+    return { saved: null, matchCount: 0 };
+  }
+
+  const { data, error } = await admin
+    .from("visual_assets")
+    .select("*")
+    .eq("source", "internal_library")
+    .eq("asset_type", requirement.assetType)
+    .eq("has_alpha", requirement.transparentBackground)
+    .in("verification_status", ["verified", "skipped"])
+    .order("quality_score", { ascending: false })
+    .limit(48);
+
+  if (error || !data?.length) {
+    return { saved: null, matchCount: 0 };
+  }
+
+  const ranked = visibleAssets(data as VisualAssetRow[], ownerId, projectId)
+    .map((asset) => {
+      const assetTokens = new Set(tokenizeAssetText([
+        asset.subject ?? "",
+        asset.role ?? "",
+        ...(Array.isArray(asset.tags) ? asset.tags : []),
+      ].join(" ")));
+      let overlap = 0;
+      for (const token of requirementTokens) {
+        if (assetTokens.has(token)) overlap += 1;
+      }
+      const containsSubjectTerm = Array.from(requirementTokens).some((token) =>
+        (asset.subject ?? "").toLowerCase().includes(token),
+      );
+      return {
+        asset,
+        score: overlap + (containsSubjectTerm ? 0.75 : 0) + assetRowQuality(asset) * 0.25,
+      };
+    })
+    .filter((candidate) => candidate.score >= 1.1)
+    .sort((left, right) => right.score - left.score);
+
+  const best = ranked[0]?.asset ?? null;
+  return {
+    matchCount: ranked.length,
+    saved: best
+      ? {
+          asset: best,
+          displayVariant: await getDisplayVariant(admin, best.id),
+          selectedVia: "tag_fallback",
+        }
+      : null,
+  };
+};
+
 const findReusableAsset = async (
   admin: AdminClient,
   ownerId: string,
   projectId: string,
   requirement: AssetRequirement,
-): Promise<SavedAsset | null> => {
+): Promise<ReusableAssetLookupResult> => {
+  const diagnostic = buildBaseDiagnostic(requirement);
   const exact = await admin
     .from("visual_assets")
     .select("*")
@@ -616,12 +759,24 @@ const findReusableAsset = async (
   if (exact.error) {
     console.warn("[visual-assets] Exact lookup failed", exact.error);
   } else if (exact.data?.length) {
+    diagnostic.exactMatchCount = exact.data.length;
     const bestExact = visibleAssets(exact.data as VisualAssetRow[], ownerId, projectId)[0];
     if (bestExact) {
-      return { asset: bestExact, displayVariant: await getDisplayVariant(admin, bestExact.id) };
+      diagnostic.selectedAssetId = bestExact.id;
+      diagnostic.selectedVia = "exact";
+      diagnostic.rejectedCandidates = await collectSearchDiagnostics(admin, ownerId, projectId, requirement);
+      return {
+        saved: {
+          asset: bestExact,
+          displayVariant: await getDisplayVariant(admin, bestExact.id),
+          selectedVia: "exact",
+        },
+        diagnostic,
+      };
     }
   }
 
+  let vectorRows: Array<{ asset_id: string; similarity?: number | null; quality_score?: number | null }> = [];
   try {
     const embedding = await generateEmbedding(requirementText(requirement), "RETRIEVAL_QUERY");
     const { data, error } = await admin.rpc("match_visual_assets", {
@@ -636,12 +791,29 @@ const findReusableAsset = async (
     });
 
     if (error || !data?.length) {
-      return null;
+      const fallback = await findTagFallbackAsset(admin, ownerId, projectId, requirement);
+      diagnostic.tagFallbackMatchCount = fallback.matchCount;
+      if (fallback.saved) {
+        diagnostic.selectedAssetId = fallback.saved.asset.id;
+        diagnostic.selectedVia = "tag_fallback";
+      }
+      diagnostic.rejectedCandidates = await collectSearchDiagnostics(admin, ownerId, projectId, requirement);
+      return { saved: fallback.saved, diagnostic };
     }
 
-    const best = data.find((candidate: { quality_score: number }) => candidate.quality_score >= 0.62);
+    vectorRows = data as Array<{ asset_id: string; similarity?: number | null; quality_score?: number | null }>;
+    diagnostic.vectorMatchCount = vectorRows.length;
+
+    const best = vectorRows.find((candidate: { quality_score?: number | null }) => Number(candidate.quality_score ?? 0) >= 0.62);
     if (!best) {
-      return null;
+      const fallback = await findTagFallbackAsset(admin, ownerId, projectId, requirement);
+      diagnostic.tagFallbackMatchCount = fallback.matchCount;
+      if (fallback.saved) {
+        diagnostic.selectedAssetId = fallback.saved.asset.id;
+        diagnostic.selectedVia = "tag_fallback";
+      }
+      diagnostic.rejectedCandidates = await collectSearchDiagnostics(admin, ownerId, projectId, requirement, vectorRows);
+      return { saved: fallback.saved, diagnostic };
     }
 
     const { data: asset, error: assetError } = await admin
@@ -652,16 +824,37 @@ const findReusableAsset = async (
       .maybeSingle();
 
     if (assetError || !asset || !isAssetVisibleToProject(asset as VisualAssetRow, ownerId, projectId)) {
-      return null;
+      const fallback = await findTagFallbackAsset(admin, ownerId, projectId, requirement);
+      diagnostic.tagFallbackMatchCount = fallback.matchCount;
+      if (fallback.saved) {
+        diagnostic.selectedAssetId = fallback.saved.asset.id;
+        diagnostic.selectedVia = "tag_fallback";
+      }
+      diagnostic.rejectedCandidates = await collectSearchDiagnostics(admin, ownerId, projectId, requirement, vectorRows);
+      return { saved: fallback.saved, diagnostic };
     }
 
+    diagnostic.selectedAssetId = (asset as VisualAssetRow).id;
+    diagnostic.selectedVia = "vector";
+    diagnostic.rejectedCandidates = await collectSearchDiagnostics(admin, ownerId, projectId, requirement, vectorRows);
     return {
-      asset: asset as VisualAssetRow,
-      displayVariant: await getDisplayVariant(admin, (asset as VisualAssetRow).id),
+      saved: {
+        asset: asset as VisualAssetRow,
+        displayVariant: await getDisplayVariant(admin, (asset as VisualAssetRow).id),
+        selectedVia: "vector",
+      },
+      diagnostic,
     };
   } catch (error) {
     console.warn("[visual-assets] Vector lookup failed", error);
-    return null;
+    const fallback = await findTagFallbackAsset(admin, ownerId, projectId, requirement);
+    diagnostic.tagFallbackMatchCount = fallback.matchCount;
+    if (fallback.saved) {
+      diagnostic.selectedAssetId = fallback.saved.asset.id;
+      diagnostic.selectedVia = "tag_fallback";
+    }
+    diagnostic.rejectedCandidates = await collectSearchDiagnostics(admin, ownerId, projectId, requirement, vectorRows);
+    return { saved: fallback.saved, diagnostic };
   }
 };
 
@@ -1486,6 +1679,7 @@ export async function resolveProjectAssets({
 }): Promise<ProjectAssetManifest> {
   const assetsByScreen: ProjectAssetManifest["assetsByScreen"] = {};
   const failures: NonNullable<ProjectAssetManifest["failures"]> = [];
+  const diagnostics: NonNullable<ProjectAssetManifest["diagnostics"]> = [];
 
   for (const requirement of requirements) {
     try {
@@ -1511,10 +1705,11 @@ export async function resolveProjectAssets({
       const shouldSearchStock = requirement.sourcePreference === "stock" || isStockEligible(requirement);
 
       if (shouldSearchCurated) {
-        const saved = await findReusableAsset(admin, ownerId, projectId, requirement);
-        if (saved) {
-          await recordUsage({ admin, projectId, generationRunId, requirement, assetId: saved.asset.id });
-          manifest = manifestFromAsset(saved.asset, requirement, saved.displayVariant);
+        const lookup = await findReusableAsset(admin, ownerId, projectId, requirement);
+        diagnostics.push(lookup.diagnostic);
+        if (lookup.saved) {
+          await recordUsage({ admin, projectId, generationRunId, requirement, assetId: lookup.saved.asset.id });
+          manifest = manifestFromAsset(lookup.saved.asset, requirement, lookup.saved.displayVariant);
         }
       }
 
@@ -1567,5 +1762,6 @@ export async function resolveProjectAssets({
     requirements,
     assetsByScreen,
     failures,
+    diagnostics,
   };
 }
