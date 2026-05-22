@@ -27,6 +27,7 @@ import { DesignSystemEditor } from "@/components/DesignSystemEditor";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useProjects } from "@/hooks/use-projects";
 import { describeNavigationArchitecture } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
@@ -304,8 +305,21 @@ export function ProjectLobby({
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Projects data hook and query filtering
-  const { projects, deleteProject } = useProjects(user.id, initialProjects);
+  const { projects, deleteProject, hasMore, loadMore, isLoadingMore } = useProjects(user.id, initialProjects);
   const [query, setQuery] = useState("");
+
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const sentinelCallbackRef = (node: HTMLDivElement | null) => {
+    if (observerRef.current) observerRef.current.disconnect();
+    if (!node || !hasMore || isLoadingMore) return;
+
+    observerRef.current = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        void loadMore();
+      }
+    }, { rootMargin: "100px" });
+    observerRef.current.observe(node);
+  };
 
   const filteredProjects = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -360,6 +374,8 @@ export function ProjectLobby({
       const base64String = reader.result as string;
       const base64Data = base64String.split(",")[1];
       setImage({ data: base64Data, mimeType: file.type });
+      setSelectedBriefStyle("auto");
+      setIsThemePickerOpen(false);
     };
     reader.readAsDataURL(file);
   };
@@ -557,6 +573,16 @@ export function ProjectLobby({
             </div>
           ))}
 
+          {hasMore && (
+            <div ref={sentinelCallbackRef} className="py-4 flex justify-center items-center">
+              {isLoadingMore ? (
+                <Loader2 className="h-5 w-5 animate-spin text-neutral-400" />
+              ) : (
+                <span className="text-[11px] font-semibold text-neutral-400">Loading more...</span>
+              )}
+            </div>
+          )}
+
           {filteredProjects.length === 0 ? (
             <div className="mx-1 mt-2 rounded-xl border border-dashed border-slate-200 bg-neutral-50 px-4 py-6 text-sm text-center leading-relaxed text-neutral-400">
               {query.trim()
@@ -622,7 +648,7 @@ export function ProjectLobby({
       )}
 
       {/* 3. Main Dashboard Content Panel */}
-      <main className="flex-1 flex flex-col bg-white border border-neutral-200/80 rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.03)] h-full overflow-hidden relative">
+      <main className="flex-1 flex flex-col h-full overflow-hidden relative">
         {/* Floating mobile hamburger menu button */}
         <button
           type="button"
@@ -640,7 +666,7 @@ export function ProjectLobby({
         ) : null}
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="flex h-full min-h-0 w-full flex-col p-4 sm:p-6 lg:p-8">
+          <div className="flex h-full min-h-0 w-full flex-col">
             {stage === "brief" ? (
               <section className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto">
                 <div className="w-full max-w-2xl py-12 flex flex-col items-center">
@@ -657,48 +683,54 @@ export function ProjectLobby({
                     <div className="bg-[#f2f3f5] rounded-[36px] p-2 flex flex-col relative z-20">
                       
                       {/* Top Section: Attachment Preview Sitting on Gray */}
-                      {image && (
-                        <div className="flex flex-wrap items-center gap-2.5 px-3 pt-2 pb-2.5">
-                          <div className="flex items-center gap-2.5 bg-white border border-[#e2e4e7] rounded-[18px] pl-3 pr-2 py-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-all hover:bg-neutral-50 group">
-                            <span className="relative h-5 w-5 shrink-0 overflow-hidden rounded-md border border-neutral-200">
-                              <Image
-                                src={`data:${image.mimeType};base64,${image.data}`}
-                                alt="Reference preview"
-                                fill
-                                unoptimized
-                                className="object-cover"
-                              />
-                            </span>
-                            <span className="text-[13px] font-semibold text-neutral-700 truncate max-w-[120px]">
-                              Reference image
-                            </span>
-                            <button
-                              type="button"
-                              onClick={handleRemoveImage}
-                              className="text-neutral-400 hover:text-neutral-700 transition-colors ml-1 p-0.5 rounded-full hover:bg-neutral-100"
-                              aria-label="Remove reference image"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </div>
-
-                          {/* Image Reference Modes toggle pill */}
-                          <div className="flex h-8 items-center rounded-[18px] border border-[#e2e4e7] bg-white p-0.5 shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
-                            {imageReferenceModes.map((mode) => (
+                      <div className="flex flex-wrap items-center gap-2.5 px-3 pt-2 pb-2.5 min-h-[44px]">
+                        {image ? (
+                          <>
+                            <div className="flex items-center gap-2.5 bg-white border border-[#e2e4e7] rounded-[18px] pl-3 pr-2 py-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-all hover:bg-neutral-50 group">
+                              <span className="relative h-5 w-5 shrink-0 overflow-hidden rounded-md border border-neutral-200">
+                                <Image
+                                  src={`data:${image.mimeType};base64,${image.data}`}
+                                  alt="Reference preview"
+                                  fill
+                                  unoptimized
+                                  className="object-cover"
+                                />
+                              </span>
+                              <span className="text-[13px] font-semibold text-neutral-700 truncate max-w-[120px]">
+                                Reference image
+                              </span>
                               <button
-                                key={mode.id}
                                 type="button"
-                                onClick={() => setImageReferenceMode(mode.id)}
-                                className={`cursor-pointer h-7 rounded-[15px] px-3 text-[11px] font-bold transition duration-200 ${imageReferenceMode === mode.id ? "bg-neutral-950 text-white shadow-sm" : "text-neutral-500 hover:bg-neutral-50"}`}
-                                disabled={isGeneratingDesign}
-                                aria-pressed={imageReferenceMode === mode.id}
+                                onClick={handleRemoveImage}
+                                className="text-neutral-400 hover:text-neutral-700 transition-colors ml-1 p-0.5 rounded-full hover:bg-neutral-100"
+                                aria-label="Remove reference image"
                               >
-                                {mode.label}
+                                <X className="h-3 w-3" />
                               </button>
-                            ))}
+                            </div>
+
+                            {/* Image Reference Modes toggle pill */}
+                            <div className="flex h-8 items-center rounded-[18px] border border-[#e2e4e7] bg-white p-0.5 shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
+                              {imageReferenceModes.map((mode) => (
+                                <button
+                                  key={mode.id}
+                                  type="button"
+                                  onClick={() => setImageReferenceMode(mode.id)}
+                                  className={`cursor-pointer h-7 rounded-[15px] px-3 text-[11px] font-bold transition duration-200 ${imageReferenceMode === mode.id ? "bg-neutral-950 text-white shadow-sm" : "text-neutral-500 hover:bg-neutral-50"}`}
+                                  disabled={isGeneratingDesign}
+                                  aria-pressed={imageReferenceMode === mode.id}
+                                >
+                                  {mode.label}
+                                </button>
+                              ))}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-[12px] font-medium text-neutral-400 px-1 w-full text-left">
+                            Attach reference images or documents to guide the design
                           </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
 
                       {/* Inner White Container */}
                       <div className="bg-white border border-[#e2e4e7]/80 rounded-[28px] shadow-[0_2px_8px_rgba(0,0,0,0.04)] flex flex-col relative">
@@ -716,7 +748,7 @@ export function ProjectLobby({
                               }
                             }}
                             placeholder="Describe the app UI you want to design... e.g., A minimalist dashboard for a fintech app with dark mode."
-                            className="min-h-[100px] sm:min-h-[120px] resize-none rounded-none border-0 bg-transparent px-2 py-2 text-[17px] leading-relaxed text-neutral-800 shadow-none placeholder:text-neutral-400 focus-visible:ring-0 focus-visible:ring-offset-0"
+                            className="h-[100px] sm:h-[120px] [field-sizing:fixed] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden resize-none rounded-none border-0 bg-transparent px-2 py-2 text-[17px] leading-relaxed text-neutral-800 shadow-none placeholder:text-neutral-400 focus-visible:ring-0 focus-visible:ring-offset-0"
                           />
                         </div>
 
@@ -724,35 +756,56 @@ export function ProjectLobby({
                         <div className="flex items-center justify-between px-3 pb-3">
                           
                           {/* Left tools grouped pill */}
-                          <div className="flex items-center bg-[#f7f8f9] p-1 rounded-[22px] border border-[#e2e4e7]/60 shadow-[inset_0_1px_2px_rgba(0,0,0,0.01)] relative">
-                            
-                            {/* Hidden input file for images */}
-                            <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageUpload} />
-                            
-                            {/* Tool 1: Attach reference image */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setIsThemePickerOpen(false);
-                                fileInputRef.current?.click();
-                              }}
-                              className={`w-[36px] h-[36px] rounded-[18px] flex items-center justify-center text-neutral-500 hover:text-neutral-800 hover:bg-white hover:shadow-sm hover:border hover:border-neutral-200/50 transition-all active:scale-95 focus:outline-none ${image ? "bg-white text-neutral-800 shadow-sm border border-neutral-200/50" : ""}`}
-                              disabled={isGeneratingDesign}
-                              title="Attach reference image"
-                            >
-                              <ImagePlus className="h-4.5 w-4.5" />
-                            </button>
+                          <TooltipProvider>
+                            <div className="flex items-center bg-[#f7f8f9] p-1 rounded-[22px] border border-[#e2e4e7]/60 shadow-[inset_0_1px_2px_rgba(0,0,0,0.01)] relative">
+                              
+                              {/* Hidden input file for images */}
+                              <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageUpload} />
+                              
+                              {/* Tool 1: Attach reference image */}
+                              <Tooltip>
+                                <TooltipTrigger
+                                  render={
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setIsThemePickerOpen(false);
+                                        fileInputRef.current?.click();
+                                      }}
+                                      className={`w-[36px] h-[36px] rounded-[18px] flex items-center justify-center text-neutral-500 hover:text-neutral-800 hover:bg-white hover:shadow-sm hover:border hover:border-neutral-200/50 transition-all active:scale-95 focus:outline-none ${image ? "bg-white text-neutral-800 shadow-sm border border-neutral-200/50" : ""}`}
+                                      disabled={isGeneratingDesign}
+                                      aria-label="Attach reference image"
+                                    >
+                                      <ImagePlus className="h-4.5 w-4.5" />
+                                    </button>
+                                  }
+                                />
+                                <TooltipContent>Attach reference image</TooltipContent>
+                              </Tooltip>
 
-                            {/* Tool 2: Select design style */}
-                            <button
-                              type="button"
-                              onClick={() => setIsThemePickerOpen((prev) => !prev)}
-                              className={`w-[36px] h-[36px] rounded-[18px] flex items-center justify-center text-neutral-500 hover:text-neutral-800 hover:bg-white hover:shadow-sm hover:border hover:border-neutral-200/50 transition-all active:scale-95 focus:outline-none ml-1 ${isThemePickerOpen ? "bg-white text-neutral-800 shadow-sm border border-neutral-200/50" : ""}`}
-                              disabled={isGeneratingDesign}
-                              title="Select design style"
-                            >
-                              <Palette className="h-4.5 w-4.5" />
-                            </button>
+                              {/* Tool 2: Select design style */}
+                              <Tooltip>
+                                <TooltipTrigger
+                                  render={
+                                    <button
+                                      type="button"
+                                      onClick={() => setIsThemePickerOpen((prev) => !prev)}
+                                      className={cn(
+                                        "w-[36px] h-[36px] rounded-[18px] flex items-center justify-center text-neutral-500 hover:text-neutral-800 hover:bg-white hover:shadow-sm hover:border hover:border-neutral-200/50 transition-all active:scale-95 focus:outline-none ml-1",
+                                        isThemePickerOpen && "bg-white text-neutral-800 shadow-sm border border-neutral-200/50",
+                                        image && "opacity-40 cursor-not-allowed hover:bg-transparent hover:text-neutral-500 hover:shadow-none hover:border-transparent"
+                                      )}
+                                      disabled={isGeneratingDesign || Boolean(image)}
+                                      aria-label="Select design style"
+                                    >
+                                      <Palette className="h-4.5 w-4.5" />
+                                    </button>
+                                  }
+                                />
+                                <TooltipContent>
+                                  {image ? "Design styles are not available when using a reference image" : "Select design style"}
+                                </TooltipContent>
+                              </Tooltip>
 
                             {/* Style Picker Dropdown Content positioned relative to this tool pill */}
                             {isThemePickerOpen && (
@@ -799,6 +852,7 @@ export function ProjectLobby({
                             )}
 
                           </div>
+                        </TooltipProvider>
 
                           {/* Selected Style Text label */}
                           <div className="hidden sm:flex items-center text-xs font-semibold text-neutral-400 mr-auto ml-4">

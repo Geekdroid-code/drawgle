@@ -23,7 +23,8 @@ export default async function NewProjectPage({
   const { data: projectRows, error: projectError } = await supabase
     .from("projects")
     .select("*")
-    .order("updated_at", { ascending: false });
+    .order("updated_at", { ascending: false })
+    .limit(20);
 
   if (projectError) {
     console.error("Failed to fetch workspace projects", projectError);

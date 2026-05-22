@@ -5,6 +5,7 @@ import { Image as ImageIcon, Loader2, Palette, Pencil, Send, X } from "lucide-re
 import { AgentThinkingIndicator } from "@/components/AgentBall";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ImageReferenceMode, ProjectData, PromptImagePayload, ScreenData } from "@/lib/types";
 
 export type AgentComposerProps = {
@@ -136,41 +137,62 @@ export function AgentComposer({
               </span>
               <span className="truncate">{selectedScreen?.name ?? activeTargetLabel}</span>
               {onClearSelectedScreen ? (
-                <button
-                  type="button"
-                  className="rounded-full p-0.5 text-slate-400 hover:bg-white hover:text-slate-900"
-                  onClick={onClearSelectedScreen}
-                  disabled={disabled || isGenerating}
-                  title="Clear selected screen"
-                >
-                  <X className="h-3 w-3" />
-                </button>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        type="button"
+                        className="rounded-full p-0.5 text-slate-400 hover:bg-white hover:text-slate-900"
+                        onClick={onClearSelectedScreen}
+                        disabled={disabled || isGenerating}
+                        aria-label="Clear selected screen"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    }
+                  />
+                  <TooltipContent>Clear selected screen</TooltipContent>
+                </Tooltip>
               ) : null}
             </span>
           ) : null}
 
           {hasSelectedElement ? (
             <span className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-black/[0.08] bg-[#f4f5f6]/90 px-2.5 text-xs font-semibold text-slate-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
-              <button
-                type="button"
-                className="inline-flex min-w-0 items-center gap-1.5"
-                onClick={onEditSelectedDesign ?? onEditSelectedText}
-                disabled={disabled || isGenerating || (!selectedElementCanEditDesign && !selectedElementCanEditText)}
-                title="Open visual editor"
-              >
-                <Palette className="h-3.5 w-3.5 text-slate-500" />
-                <span className="max-w-20 truncate tracking-[0.02em]">{elementTagLabel}</span>
-              </button>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button
+                      type="button"
+                      className="inline-flex min-w-0 items-center gap-1.5"
+                      onClick={onEditSelectedDesign ?? onEditSelectedText}
+                      disabled={disabled || isGenerating || (!selectedElementCanEditDesign && !selectedElementCanEditText)}
+                      aria-label="Open visual editor"
+                    >
+                      <Palette className="h-3.5 w-3.5 text-slate-500" />
+                      <span className="max-w-20 truncate tracking-[0.02em]">{elementTagLabel}</span>
+                    </button>
+                  }
+                />
+                <TooltipContent>Open visual editor</TooltipContent>
+              </Tooltip>
               {onClearSelectedElement ? (
-                <button
-                  type="button"
-                  className="rounded-full p-0.5 text-slate-400 hover:bg-white hover:text-slate-900"
-                  onClick={onClearSelectedElement}
-                  disabled={disabled || isGenerating}
-                  title="Clear selected element"
-                >
-                  <X className="h-3 w-3" />
-                </button>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        type="button"
+                        className="rounded-full p-0.5 text-slate-400 hover:bg-white hover:text-slate-900"
+                        onClick={onClearSelectedElement}
+                        disabled={disabled || isGenerating}
+                        aria-label="Clear selected element"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    }
+                  />
+                  <TooltipContent>Clear selected element</TooltipContent>
+                </Tooltip>
               ) : null}
             </span>
           ) : null}
@@ -256,16 +278,23 @@ export function AgentComposer({
       />
 
       {!selectedScreen ? (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute bottom-3 left-3 h-9 w-9 rounded-full bg-white/72 text-slate-500 shadow-[0_6px_18px_rgba(15,23,42,0.08)] ring-1 ring-black/[0.06] backdrop-blur-md hover:bg-white hover:text-slate-950"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={disabled || isGenerating}
-          title="Attach image"
-        >
-          <ImageIcon className="w-4 h-4" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute bottom-3 left-3 h-9 w-9 rounded-full bg-white/72 text-slate-500 shadow-[0_6px_18px_rgba(15,23,42,0.08)] ring-1 ring-black/[0.06] backdrop-blur-md hover:bg-white hover:text-slate-950"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={disabled || isGenerating}
+                aria-label="Attach image"
+              >
+                <ImageIcon className="w-4 h-4" />
+              </Button>
+            }
+          />
+          <TooltipContent>Attach image</TooltipContent>
+        </Tooltip>
       ) : null}
 
       {variant === "panel" && isGenerating ? (
@@ -274,15 +303,22 @@ export function AgentComposer({
         </div>
       ) : null}
 
-      <Button
-        size="icon"
-        className="absolute bottom-3 right-3 h-10 w-10 rounded-full bg-slate-950 text-white shadow-[0_12px_28px_rgba(15,23,42,0.28)] hover:bg-slate-800"
-        onClick={() => void handleGenerate()}
-        disabled={disabled || isGenerating || (!prompt.trim() && !activeImage)}
-        title="Send"
-      >
-        {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-      </Button>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              size="icon"
+              className="absolute bottom-3 right-3 h-10 w-10 rounded-full bg-slate-950 text-white shadow-[0_12px_28px_rgba(15,23,42,0.28)] hover:bg-slate-800"
+              onClick={() => void handleGenerate()}
+              disabled={disabled || isGenerating || (!prompt.trim() && !activeImage)}
+              aria-label="Send"
+            >
+              {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            </Button>
+          }
+        />
+        <TooltipContent>Send</TooltipContent>
+      </Tooltip>
     </div>
   );
 }
