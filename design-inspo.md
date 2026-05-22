@@ -16,25 +16,23 @@
                         sans: ['Inter', 'sans-serif'],
                     },
                     colors: {
-                        bgMain: '#f4f5f5',
+                        bgMain: '#f9fafb', 
+                        promptGrayOuter: '#f2f3f5', /* The main gray container bg */
                         wireframeStroke: '#e5e7eb',
                         cardBg: '#ffffff',
-                        toolbarBg: '#f2f3f5',
-                        toolbarBtnActive: '#e5e6e8',
-                        textPrimary: '#1a1a1a',
+                        toolbarBg: '#f7f8f9', /* Slightly off-white for the tools pill */
+                        textPrimary: '#111111',
                         textSecondary: '#666666',
-                        accentBlue: '#2563eb',
-                        thumb1Green: '#1C5F4A',
-                        thumb1Orange: '#E46A2A',
-                        thumb2Green: '#124C3B',
-                        thumb3Orange: '#DF5A26',
-                        thumb3Red: '#CD332B'
+                        textMuted: '#999999',
+                        pdfRed: '#e94235',
+                        imgBlue: '#7dd3fc'
                     },
                     boxShadow: {
-                        /* Added the subtle 1px structural shadow to the main card alongside its large blur */
-                        'card': '0 1px 2px rgba(0, 0, 0, 0.03), 0 24px 60px -15px rgba(0, 0, 0, 0.1), 0 10px 30px -10px rgba(0, 0, 0, 0.05)',
-                        'btn': '0 2px 6px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02)',
-                        'btnSubmit': '0 4px 12px rgba(0, 0, 0, 0.15)',
+                        'outerApp': '0 24px 60px -15px rgba(0, 0, 0, 0.05), 0 4px 12px rgba(0, 0, 0, 0.02)',
+                        'promptBox': '0 12px 32px -10px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.03)',
+                        'innerWhiteBox': '0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02)',
+                        'pill': '0 1px 2px rgba(0, 0, 0, 0.03)',
+                        'btnSubmit': '0 4px 14px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255,255,255,0.1)',
                     }
                 }
             }
@@ -42,266 +40,201 @@
     </script>
     <style>
         body {
-            background-color: #f4f5f5;
+            background-color: #f9fafb;
+            background-image: radial-gradient(#e5e7eb 1px, transparent 1px);
+            background-size: 24px 24px;
             overflow: hidden;
         }
 
-        /* Subtle blinking cursor animation */
         @keyframes blink {
             0%, 100% { opacity: 1; }
             50% { opacity: 0; }
         }
         .cursor-blink {
             animation: blink 1s step-end infinite;
-            color: #2563eb;
+            color: #1a1a1a;
             font-weight: 300;
             margin-left: 1px;
             display: inline-block;
             transform: translateY(-1px);
         }
 
-        /* CSS Art for Thumbnails to avoid external dependencies while maintaining aesthetic */
-        .thumb-1::before {
-            content: '';
-            position: absolute;
-            right: 0; top: 0; bottom: 0;
-            width: 55%;
-            background-color: #E46A2A;
-        }
-        .thumb-1::after {
-            content: '';
-            position: absolute;
-            bottom: 0; left: 50%;
-            transform: translateX(-50%);
-            width: 48px; height: 50px;
-            background-color: #F2A77A; /* skin tone approx */
-            border-radius: 20px 20px 0 0;
-            border: 4px solid #1C5F4A;
-            z-index: 10;
-        }
-        .thumb-1-detail {
-            position: absolute;
-            bottom: 10px; left: 50%;
-            transform: translateX(-50%);
-            width: 60px; height: 24px;
-            background-color: #1C56A4; /* blue pants approx */
-            border-radius: 12px;
-            z-index: 20;
-            box-shadow: 0 4px 0 #E3342F; /* red shoes approx */
-        }
-
-        .thumb-2::before {
-            content: '';
-            position: absolute;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%) rotate(-15deg);
-            width: 36px; height: 80px;
-            background-color: #F1E9DE; /* white dress approx */
-            border-radius: 16px;
-            box-shadow: inset 0 -10px 0 rgba(0,0,0,0.1);
-        }
-        .thumb-2-detail {
-            position: absolute;
-            top: 15px; left: 30px;
-            width: 12px; height: 12px;
-            background-color: #DF6526; /* skin tone approx */
-            border-radius: 50%;
-        }
-
-        .thumb-3::before {
-            content: '';
-            position: absolute;
-            bottom: 0; left: 0; right: 0;
-            height: 45%;
-            background-color: #DF5A26; /* orange floor */
-        }
-        .thumb-3::after {
-            content: '';
-            position: absolute;
-            top: 35%; left: 15%;
-            width: 50px; height: 20px;
-            background-color: #F1E9DE; /* white fabric approx */
-            border-radius: 10px;
-            transform: rotate(20deg);
-            z-index: 10;
-        }
-        .thumb-3-detail {
-            position: absolute;
-            top: 25%; left: 35%;
-            width: 24px; height: 34px;
-            background-color: #1a1a1a; /* dark hair/shadow approx */
-            border-radius: 12px 12px 0 0;
-        }
-
         [contenteditable]:empty:before {
             content: attr(placeholder);
-            color: #9ca3af;
+            color: #a1a1aa;
             cursor: text;
         }
         
-        /* Remove outline from contenteditable */
         [contenteditable]:focus {
             outline: none;
+        }
+
+        /* CSS art for the PDF icon */
+        .pdf-icon {
+            width: 14px;
+            height: 18px;
+            background-color: #f2f2f2;
+            border: 1px solid #e2e4e7;
+            border-radius: 3px;
+            position: relative;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding-bottom: 2px;
+            box-shadow: inset 0 -4px 0 rgba(233, 66, 53, 0.1);
+        }
+        .pdf-icon::before {
+            content: '';
+            position: absolute;
+            top: -1px; right: -1px;
+            width: 5px; height: 5px;
+            background-color: #e2e4e7;
+            border-bottom-left-radius: 3px;
+            clip-path: polygon(100% 0, 0 100%, 100% 100%);
+        }
+        .pdf-text {
+            font-size: 4px;
+            font-weight: 800;
+            color: #e94235;
+            letter-spacing: -0.2px;
         }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center relative font-sans antialiased text-textPrimary">
 
-    <!-- Background Wireframe -->
-    <div class="absolute inset-0 pointer-events-none flex items-center justify-center select-none overflow-hidden">
-        <!-- Horizontal dashed lines -->
-        <div class="absolute w-full border-t border-dashed border-wireframeStroke top-[20%]"></div>
-        <div class="absolute w-full border-t border-dashed border-wireframeStroke top-[80%]"></div>
+    <!-- Outer Presentation Wrapper -->
+    <div class="bg-white border border-[#e2e4e7] rounded-[48px] w-[800px] h-[560px] shadow-outerApp p-12 flex flex-col justify-end relative overflow-hidden">
         
-        <!-- Central Browser Wireframe Container -->
-        <div class="relative w-[760px] h-[640px]">
-            <!-- Dashed outline stretching beyond window -->
-            <div class="absolute -inset-x-20 inset-y-0 border-x border-dashed border-wireframeStroke"></div>
-            
-            <!-- Browser Window Shape -->
-            <div class="absolute inset-0 border border-wireframeStroke rounded-[32px] overflow-hidden flex flex-col">
-                <!-- Top Bar -->
-                <div class="h-16 border-b border-wireframeStroke flex items-center px-8 relative">
-                    <!-- Mac style dots -->
-                    <div class="flex gap-2">
-                        <div class="w-2.5 h-2.5 rounded-full bg-[#d1d5db]"></div>
-                        <div class="w-2.5 h-2.5 rounded-full bg-[#d1d5db]"></div>
-                        <div class="w-2.5 h-2.5 rounded-full bg-[#d1d5db]"></div>
-                    </div>
-                    <!-- Address Bar -->
-                    <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-8 border border-wireframeStroke rounded-md flex items-center justify-end px-3">
-                        <span class="text-[10px] font-bold text-[#9ca3af] tracking-wider">LEFT</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+        <!-- Gradient fade to simulate content above -->
+        <div class="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-white to-transparent pointer-events-none z-10"></div>
 
-    <!-- Main Application Card - Added the crisp e2e4e7 border to match button styling -->
-    <div class="bg-cardBg border border-[#e2e4e7] rounded-[28px] w-[520px] shadow-card relative z-10 p-5 pt-4 flex flex-col gap-5">
-        
-        <!-- Header -->
-        <div class="flex justify-between items-center px-1">
-            <button class="bg-white border border-[#e2e4e7] shadow-sm hover:bg-gray-50 transition-all rounded-full p-2.5 flex items-center justify-center group focus:outline-none">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-textPrimary group-hover:scale-110 transition-transform">
-                    <path d="M18 6 6 18"/>
-                    <path d="m6 6 12 12"/>
-                </svg>
-            </button>
-            <span class="font-bold text-[17px] text-textPrimary tracking-tight pr-2">Drafts</span>
-        </div>
-
-        <!-- Image Thumbnails Section -->
-        <div class="flex gap-3 px-1">
-            <!-- Thumbnail 1 -->
-            <div class="w-[88px] h-[88px] rounded-2xl overflow-hidden relative shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)] bg-thumb1Green thumb-1">
-                <div class="thumb-1-detail"></div>
-            </div>
+        <!-- NEW STRUCTURE: Outer Gray Prompt Container -->
+        <div class="bg-promptGrayOuter border border-[#e2e4e7] rounded-[36px] shadow-promptBox p-2 flex flex-col relative z-20">
             
-            <!-- Thumbnail 2 -->
-            <div class="w-[88px] h-[88px] rounded-2xl overflow-hidden relative shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)] bg-thumb2Green thumb-2">
-                <div class="thumb-2-detail"></div>
-            </div>
-            
-            <!-- Thumbnail 3 -->
-            <div class="w-[88px] h-[88px] rounded-2xl overflow-hidden relative shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)] bg-thumb3Red thumb-3">
-                <div class="thumb-3-detail"></div>
-            </div>
-        </div>
-
-        <!-- Text Input Area -->
-        <div class="px-1 mt-1">
-            <p class="text-[19px] leading-[1.45] text-textPrimary font-normal tracking-[-0.01em] whitespace-pre-wrap cursor-text" contenteditable="true" spellcheck="false">Use the storyboard uploaded to create an advertising retro short video in 30 seconds.<span class="cursor-blink">|</span></p>
-        </div>
-
-        <!-- Bottom Toolbar - Expanded background pill to cover all items -->
-        <div class="flex items-center justify-between mt-3 bg-[#f2f3f5] p-1.5 rounded-[24px] border border-[#e2e4e7]/80 mx-0.5">
-            
-            <!-- Left Action Group -->
-            <div class="flex items-center">
+            <!-- Top Section: Attachments (Sitting on Gray Background) -->
+            <div class="flex flex-wrap items-center gap-2.5 px-3 pt-2 pb-2.5">
                 
-                <!-- Add Button -->
-                <button class="bg-white border border-[#e2e4e7] shadow-[0_1px_2px_rgba(0,0,0,0.03)] hover:bg-gray-50 flex items-center justify-center w-11 h-11 rounded-[16px] text-textPrimary transition-all active:scale-95 focus:outline-none">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M5 12h14"/>
-                        <path d="M12 5v14"/>
-                    </svg>
-                </button>
-
-                <!-- Magic/AI Button -->
-                <button class="bg-white border border-[#e2e4e7] shadow-[0_1px_2px_rgba(0,0,0,0.03)] hover:bg-gray-50 flex items-center justify-center w-11 h-11 rounded-[16px] text-textPrimary transition-all active:scale-95 focus:outline-none ml-1.5 relative overflow-hidden group">
-                    <!-- Custom SVG representing the 'A with lightning bolt' -->
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-105 transition-transform">
-                        <path d="m4 19 6-14 6 14"/>
-                        <path d="M6 14h8"/>
-                        <!-- Filled lightning bolt -->
-                        <polygon points="19 6 15 13 19 13 13 22 15 14 11 14 19 6" fill="currentColor" stroke="none" transform="translate(4, -1) scale(0.65)"/>
-                    </svg>
-                </button>
-
-                <!-- Small gap between actions and toggles -->
-                <div class="w-2"></div>
-
-                <!-- Media Type Toggles Container -->
-                <div class="flex items-center gap-0.5 bg-[#e5e6e8] p-0.5 rounded-[16px] border border-[#e2e4e7]/50">
-                    <!-- Image Toggle -->
-                    <button class="flex items-center gap-2 px-3 py-2 rounded-[14px] text-[15px] font-medium text-textSecondary hover:text-textPrimary transition-colors focus:outline-none">
-                        <!-- Custom Image/Crop Icon -->
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M4 8V4h4"/>
-                            <path d="M20 8V4h-4"/>
-                            <path d="M4 16v4h4"/>
-                            <path d="M20 16v4h-4"/>
-                            <rect width="8" height="8" x="8" y="8" rx="1"/>
-                            <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/>
+                <!-- Attachment Pill: PDF -->
+                <div class="flex items-center gap-2.5 bg-white border border-[#e2e4e7] rounded-[18px] pl-3 pr-2.5 py-1.5 shadow-pill transition-all hover:bg-gray-50 cursor-pointer group">
+                    <div class="pdf-icon">
+                        <span class="pdf-text">PDF</span>
+                    </div>
+                    <span class="text-[15px] font-medium text-textPrimary tracking-tight">brief.pdf</span>
+                    <button class="text-textMuted hover:text-textPrimary transition-colors focus:outline-none ml-1 group-hover:bg-gray-100 rounded-full p-0.5">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M18 6 6 18"/>
+                            <path d="m6 6 12 12"/>
                         </svg>
-                        Image
-                    </button>
-
-                    <!-- Video Toggle (Active State) -->
-                    <button class="flex items-center gap-2 px-3 py-2 rounded-[14px] text-[15px] font-medium text-textPrimary bg-white border border-[#e2e4e7] shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-all focus:outline-none">
-                        <!-- Standard Pen/Edit Icon representing video generation tweaks -->
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M12 20h9"/>
-                            <path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/>
-                        </svg>
-                        Video
                     </button>
                 </div>
+
+                <!-- Attachment Pill: Image -->
+                <div class="flex items-center gap-2.5 bg-white border border-[#e2e4e7] rounded-[18px] pl-3 pr-2.5 py-1.5 shadow-pill transition-all hover:bg-gray-50 cursor-pointer group">
+                    <div class="w-4 h-4 rounded-full bg-imgBlue shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)]"></div>
+                    <span class="text-[15px] font-medium text-textPrimary tracking-tight">cloud.png</span>
+                    <button class="text-textMuted hover:text-textPrimary transition-colors focus:outline-none ml-1 group-hover:bg-gray-100 rounded-full p-0.5">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M18 6 6 18"/>
+                            <path d="m6 6 12 12"/>
+                        </svg>
+                    </button>
+                </div>
+
             </div>
 
-            <!-- Right Action Group -->
-            <div class="flex items-center gap-1 pr-0.5">
-                <!-- Microphone Button -->
-                <button class="p-3 text-textSecondary hover:text-textPrimary transition-colors flex items-center justify-center rounded-full focus:outline-none">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
-                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                        <line x1="12" x2="12" y1="19" y2="22"/>
-                    </svg>
-                </button>
+            <!-- Inner White Container (Prompt Box + Toolbar) -->
+            <div class="bg-white border border-[#e2e4e7]/80 rounded-[28px] shadow-innerWhiteBox flex flex-col">
+                
+                <!-- Middle Section: Text Input -->
+                <div class="px-4 pt-4 pb-6">
+                    <p class="text-[22px] leading-[1.3] text-textPrimary font-normal tracking-[-0.01em] whitespace-pre-wrap cursor-text" contenteditable="true" spellcheck="false">Can you create folders in Google Docs<span class="cursor-blink">|</span></p>
+                </div>
 
-                <!-- Submit Button -->
-                <button class="bg-[#1a1a1a] hover:bg-black text-white flex items-center justify-center w-[46px] h-[46px] rounded-[18px] shadow-btnSubmit transition-all active:scale-95 focus:outline-none">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="m5 12 7-7 7 7"/>
-                        <path d="M12 19V5"/>
-                    </svg>
-                </button>
+                <!-- Bottom Section: Toolbar -->
+                <div class="flex items-center justify-between px-2 pb-2">
+                    
+                    <!-- Left Tools (Grouped in pill) -->
+                    <div class="flex items-center bg-toolbarBg p-1 rounded-[22px] border border-[#e2e4e7]/60 mr-auto shadow-[inset_0_1px_2px_rgba(0,0,0,0.01)]">
+                        
+                        <!-- Tool 1: Add Document (Outline) -->
+                        <button class="w-[36px] h-[36px] rounded-[18px] flex items-center justify-center text-textSecondary hover:text-textPrimary hover:bg-white transition-all active:scale-95 focus:outline-none">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <path d="M12 18v-6"/>
+                                <path d="M9 15h6"/>
+                            </svg>
+                        </button>
+
+                        <!-- Tool 2: Magic Wand (Active state - solid background) -->
+                        <button class="w-[36px] h-[36px] rounded-[18px] flex items-center justify-center text-textPrimary bg-white shadow-pill border border-[#e2e4e7]/50 transition-all active:scale-95 focus:outline-none ml-0.5">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="m15.5 4.5 4 4-10 10h-4v-4l10-10Z"/>
+                                <path d="M10 5l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/>
+                                <path d="m2 22 4-4"/>
+                            </svg>
+                        </button>
+
+                        <!-- Tool 3: Dashed Circle/Focus -->
+                        <button class="w-[36px] h-[36px] rounded-[18px] flex items-center justify-center text-textMuted hover:text-textPrimary hover:bg-white transition-all active:scale-95 focus:outline-none ml-0.5">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="8" stroke-dasharray="4 4"/>
+                            </svg>
+                        </button>
+
+                        <!-- Tool 4: Dashed Selection & Cursor -->
+                        <button class="w-[36px] h-[36px] rounded-[18px] flex items-center justify-center text-textMuted hover:text-textPrimary hover:bg-white transition-all active:scale-95 focus:outline-none ml-0.5 relative">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="3" width="16" height="16" rx="3" stroke-dasharray="4 4" class="opacity-60"/>
+                                <!-- Solid pointer arrow overlapping the dashed line -->
+                                <path d="M12 12l6.5 2.5-2.5 1-1 2.5L12 12z" fill="white" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                            </svg>
+                        </button>
+
+                    </div>
+
+                    <!-- Middle: Model Selector -->
+                    <button class="flex items-center gap-2 bg-white border border-[#e2e4e7] rounded-full px-4 py-2 shadow-pill hover:bg-gray-50 transition-colors focus:outline-none mr-2.5">
+                        <!-- Knot/AI Logo -->
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="text-textPrimary">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z" stroke-dasharray="2 2" class="opacity-50"/>
+                            <path d="M12 6a6 6 0 1 0 0 12 6 6 0 1 0 0-12z"/>
+                            <path d="M8.5 8.5l7 7m0-7l-7 7"/>
+                        </svg>
+                        <span class="text-[15px] font-medium text-textPrimary tracking-tight mt-px">GPT 5.0</span>
+                    </button>
+
+                    <!-- Right: Submit/Voice Button -->
+                    <button class="bg-gradient-to-b from-[#2a2a2a] to-[#111111] border border-[#000000] hover:from-[#333333] hover:to-[#1a1a1a] text-white w-[42px] h-[42px] rounded-[16px] flex items-center justify-center shadow-btnSubmit transition-all active:scale-95 focus:outline-none mr-0.5">
+                        <!-- Waveform/Voice Icon -->
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 4v16"/>
+                            <path d="M8 8v8"/>
+                            <path d="M16 8v8"/>
+                            <path d="M4 11v2"/>
+                            <path d="M20 11v2"/>
+                        </svg>
+                    </button>
+
+                </div>
             </div>
-            
         </div>
+        
+        <!-- Subtle Expand Icon (bottom right corner artifact) -->
+        <div class="absolute bottom-6 right-6 text-textMuted hover:text-textPrimary cursor-pointer transition-colors">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m15 9-6 6"/>
+                <path d="M9 9h6v6"/>
+            </svg>
+        </div>
+
     </div>
 
     <!-- Script to handle custom cursor behavior inside contenteditable -->
     <script>
-        // Optional script to make the fake cursor behave a bit more naturally 
-        // by hiding it when the user actually focuses and clicks into the text area
         const editableElement = document.querySelector('[contenteditable]');
         const cursorSpan = document.querySelector('.cursor-blink');
 
         editableElement.addEventListener('focus', () => {
-            // Once they start typing or modifying, we let the native browser cursor take over
             editableElement.addEventListener('input', hideFakeCursor, { once: true });
             editableElement.addEventListener('click', hideFakeCursor, { once: true });
         });
