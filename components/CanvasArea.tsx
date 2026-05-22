@@ -255,6 +255,7 @@ const CanvasContent = ({
   selectedElementDrawgleId,
   onElementSelected,
   onElementSelectionLost,
+  onExportCode,
 }: {
   screens: ScreenData[];
   projectNavigation?: ProjectNavigationData | null;
@@ -267,6 +268,7 @@ const CanvasContent = ({
   selectedElementDrawgleId?: string | null;
   onElementSelected?: (info: SelectedElementInfo) => void;
   onElementSelectionLost?: (info: { screenId: string; drawgleId: string; reason?: ElementSelectionLostReason }) => void;
+  onExportCode?: (cleanScreenCode: string, cleanNavigationCode: string, screenName: string) => void;
 }) => {
   const { state } = useControls();
   const scale = state.scale;
@@ -294,6 +296,7 @@ const CanvasContent = ({
             selectedDrawgleId={selectedElementScreenId === screen.id ? selectedElementDrawgleId ?? null : null}
             onElementSelected={onElementSelected}
             onElementSelectionLost={onElementSelectionLost}
+            onExportCode={onExportCode}
           />
         ))}
       </div>
@@ -315,6 +318,7 @@ export function CanvasArea({
   selectedElementDrawgleId,
   onElementSelected,
   onElementSelectionLost,
+  onExportCode,
 }: {
   screens: ScreenData[];
   projectNavigation?: ProjectNavigationData | null;
@@ -329,6 +333,7 @@ export function CanvasArea({
   selectedElementDrawgleId?: string | null;
   onElementSelected?: (info: SelectedElementInfo) => void;
   onElementSelectionLost?: (info: { screenId: string; drawgleId: string; reason?: ElementSelectionLostReason }) => void;
+  onExportCode?: (cleanScreenCode: string, cleanNavigationCode: string, screenName: string) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [initialScale, setInitialScale] = useState<number | null>(null);
@@ -401,6 +406,7 @@ export function CanvasArea({
             selectedElementDrawgleId={selectedElementDrawgleId}
             onElementSelected={onElementSelected}
             onElementSelectionLost={onElementSelectionLost}
+            onExportCode={onExportCode}
           />
         </>
       </TransformWrapper>

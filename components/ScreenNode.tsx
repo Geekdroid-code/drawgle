@@ -325,6 +325,7 @@ export function ScreenNode({
   selectedDrawgleId = null,
   onElementSelected,
   onElementSelectionLost,
+  onExportCode,
 }: {
   screen: ScreenData;
   projectNavigation?: ProjectNavigationData | null;
@@ -340,6 +341,8 @@ export function ScreenNode({
   onElementSelected?: (info: SelectedElementInfo) => void;
   /** Called when a previously selected id no longer exists after the iframe re-renders. */
   onElementSelectionLost?: (info: { screenId: string; drawgleId: string; reason?: ElementSelectionLostReason }) => void;
+  /** Callback for custom code export drawer. */
+  onExportCode?: (cleanScreenCode: string, cleanNavigationCode: string, screenName: string) => void;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const safeCode = typeof screen.code === "string" ? screen.code : "";
@@ -478,6 +481,12 @@ export function ScreenNode({
           : lastNonEmptyNavigationCodeRef.current
         : "",
     );
+
+    if (onExportCode) {
+      onExportCode(cleanScreenCode, cleanNavigationCode, screen.name);
+      return;
+    }
+
     const exportCode = `<!DOCTYPE html>
 <html>
   <head>
@@ -519,7 +528,7 @@ ${cleanScreenCode}
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
-  }, [activeNavigationItemId, displayCode, googleFontAssetLinks, navigationShellCode, screen.name, sharedNavigationActive, tokenCss]);
+  }, [activeNavigationItemId, displayCode, googleFontAssetLinks, navigationShellCode, screen.name, sharedNavigationActive, tokenCss, onExportCode]);
 
   // ── Position sync from DB
   //

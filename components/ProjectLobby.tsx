@@ -669,7 +669,7 @@ export function ProjectLobby({
           <div className="flex h-full min-h-0 w-full flex-col">
             {stage === "brief" ? (
               <section className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto">
-                <div className="w-full max-w-2xl py-12 flex flex-col items-center">
+                <div className="w-full max-w-3xl py-12 flex flex-col items-center">
                   
                   {/* Title section with styling */}
                   <h1 className="text-center text-[clamp(2.0rem,5.5vw,3.0rem)] font-extrabold leading-[1.05] tracking-tight text-neutral-900 sm:text-5xl max-w-xl mb-8 select-text">

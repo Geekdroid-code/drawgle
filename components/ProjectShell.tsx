@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, ChevronDown, ImageIcon, Loader2, Palette, RotateCcw, Upload, X } from "lucide-react";
 
 import { CanvasArea } from "@/components/CanvasArea";
+import { MobileExportDrawer } from "@/components/MobileExportDrawer";
 import { CanvasToolDock } from "@/components/CanvasToolDock";
 import { ChatPanel } from "@/components/ChatPanel";
 import { ColorPickerButton } from "@/components/DesignSystemEditor";
@@ -1054,6 +1055,10 @@ export function ProjectShell({
   const [tokenDirty, setTokenDirty] = useState(false);
   const [tokenSaving, setTokenSaving] = useState(false);
   const tokenDirtyRef = useRef(tokenDirty);
+  const [exportDrawerOpen, setExportDrawerOpen] = useState(false);
+  const [exportScreenCode, setExportScreenCode] = useState("");
+  const [exportNavigationCode, setExportNavigationCode] = useState("");
+  const [exportScreenName, setExportScreenName] = useState("");
   const centeredRunIdRef = useRef<string | null>(null);
   const knownScreenIdsRef = useRef<Set<string>>(new Set());
   const hasHydratedScreenIdsRef = useRef(false);
@@ -1790,6 +1795,12 @@ export function ProjectShell({
             selectedElementDrawgleId={editSession?.element.drawgleId ?? null}
             onElementSelected={handleElementSelected}
             onElementSelectionLost={handleElementSelectionLost}
+            onExportCode={(cleanScreenCode, cleanNavigationCode, screenName) => {
+              setExportScreenCode(cleanScreenCode);
+              setExportNavigationCode(cleanNavigationCode);
+              setExportScreenName(screenName);
+              setExportDrawerOpen(true);
+            }}
           />
 
           <Dialog
@@ -1906,6 +1917,15 @@ export function ProjectShell({
             onEditSelectedText={() => setEditSessionMode("design")}
             onEditSelectedDesign={() => setEditSessionMode("design")}
             onClearSelectedElement={clearEditSession}
+          />
+
+          <MobileExportDrawer
+            open={exportDrawerOpen}
+            onClose={() => setExportDrawerOpen(false)}
+            screenCode={exportScreenCode}
+            navigationCode={exportNavigationCode}
+            screenName={exportScreenName}
+            designTokens={effectiveDesignTokens}
           />
         </div>
       </main>

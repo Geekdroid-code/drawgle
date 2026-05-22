@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" data-drawgle-font-preconnect="googleapis">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin data-drawgle-font-preconnect="gstatic">
+<link id="drawgle-google-font" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&amp;display=swap">
+    <style>
+:root {
+  --dg-color-text-low-emphasis: #666666;
+  --dg-color-text-high-emphasis: #FFFFFF;
+  --dg-color-text-medium-emphasis: #A1A1A1;
+  --dg-color-action-primary: #E88D48;
+  --dg-color-action-disabled: #2C2C2E;
+  --dg-color-action-secondary: #FFFFFF;
+  --dg-color-action-on-primary-text: #0F0F0F;
+  --dg-color-border-divider: rgba(255, 255, 255, 0.08);
+  --dg-color-border-focused: #E88D48;
+  --dg-color-surface-card: #212124;
+  --dg-color-surface-modal: #1C1C1E;
+  --dg-color-surface-bottom-sheet: #161618;
+  --dg-color-background-primary: #0F0F0F;
+  --dg-color-background-secondary: #1A1A1A;
+  --dg-radii-app: 28px;
+  --dg-radii-pill: 9999px;
+  --dg-sizing-icon-small: 18px;
+  --dg-sizing-icon-standard: 24px;
+  --dg-sizing-min-touch-target: 48px;
+  --dg-sizing-bottom-nav-height: 84px;
+  --dg-sizing-standard-input-height: 52px;
+  --dg-sizing-standard-button-height: 56px;
+  --dg-shadows-none: none;
+  --dg-shadows-overlay: 0 20px 50px rgba(0,0,0,0.8);
+  --dg-shadows-surface: 0 10px 30px rgba(0,0,0,0.5);
+  --dg-spacing-none: 0px;
+  --dg-spacing-lg: 24px;
+  --dg-spacing-md: 16px;
+  --dg-spacing-sm: 12px;
+  --dg-spacing-xl: 32px;
+  --dg-spacing-xs: 8px;
+  --dg-spacing-xxl: 48px;
+  --dg-spacing-xxs: 4px;
+  --dg-z-index-base: 0;
+  --dg-z-index-bottom-nav: 20;
+  --dg-z-index-bottom-sheet: 30;
+  --dg-z-index-modal-dialog: 40;
+  --dg-z-index-sticky-header: 10;
+  --dg-z-index-toast-snackbar: 50;
+  --dg-opacities-opaque: 1;
+  --dg-opacities-pressed: 0.15;
+  --dg-opacities-disabled: 0.38;
+  --dg-opacities-transparent: 0;
+  --dg-opacities-scrim-overlay: 0.70;
+  --dg-typography-font-family: 'Outfit', 'Inter', sans-serif;
+  --dg-type-nav-title-size: 17px;
+  --dg-type-nav-title-weight: 600;
+  --dg-type-nav-title-line-height: 22px;
+  --dg-type-screen-title-size: 34px;
+  --dg-type-screen-title-weight: 400;
+  --dg-type-screen-title-line-height: 40px;
+  --dg-type-hero-title-size: 48px;
+  --dg-type-hero-title-weight: 500;
+  --dg-type-hero-title-line-height: 52px;
+  --dg-type-section-title-size: 24px;
+  --dg-type-section-title-weight: 500;
+  --dg-type-section-title-line-height: 30px;
+  --dg-type-metric-value-size: 32px;
+  --dg-type-metric-value-weight: 600;
+  --dg-type-metric-value-line-height: 36px;
+  --dg-type-body-size: 16px;
+  --dg-type-body-weight: 400;
+  --dg-type-body-line-height: 24px;
+  --dg-type-supporting-size: 14px;
+  --dg-type-supporting-weight: 500;
+  --dg-type-supporting-line-height: 18px;
+  --dg-type-caption-size: 12px;
+  --dg-type-caption-weight: 400;
+  --dg-type-caption-line-height: 16px;
+  --dg-type-button-label-size: 15px;
+  --dg-type-button-label-weight: 600;
+  --dg-type-button-label-line-height: 20px;
+  --dg-border-widths-standard: 1px;
+  --dg-mobile-layout-element-gap: 12px;
+  --dg-mobile-layout-section-gap: 40px;
+  --dg-mobile-layout-safe-area-top: 16px;
+  --dg-mobile-layout-screen-margin: 20px;
+  --dg-mobile-layout-safe-area-bottom: 16px;
+}
+
+#root {
+  --dg-preview-background: var(--dg-color-background-primary, #ffffff);
+  background: var(--dg-preview-background);
+}
+
+.dg-bg-primary { background-color: var(--dg-color-background-primary); }
+.dg-bg-secondary { background-color: var(--dg-color-background-secondary); }
+.dg-surface-card { background-color: var(--dg-color-surface-card); }
+.dg-surface-bottom-sheet { background-color: var(--dg-color-surface-bottom-sheet); }
+.dg-surface-modal { background-color: var(--dg-color-surface-modal); }
+.dg-text-high { color: var(--dg-color-text-high-emphasis); }
+.dg-text-medium { color: var(--dg-color-text-medium-emphasis); }
+.dg-text-low { color: var(--dg-color-text-low-emphasis); }
+.dg-action-primary {
+  background-color: var(--dg-color-action-primary);
+  color: var(--dg-color-action-on-primary-text);
+}
+.dg-action-secondary { background-color: var(--dg-color-action-secondary); }
+.dg-border-divider { border-color: var(--dg-color-border-divider); }
+.dg-border-focused { border-color: var(--dg-color-border-focused); }
+.dg-radius-app { border-radius: var(--dg-radii-app); }
+.dg-radius-pill { border-radius: var(--dg-radii-pill); }
+.dg-shadow-surface { box-shadow: var(--dg-shadows-surface); }
+.dg-shadow-overlay { box-shadow: var(--dg-shadows-overlay); }
+.dg-screen-padding { padding-left: var(--dg-mobile-layout-screen-margin); padding-right: var(--dg-mobile-layout-screen-margin); }
+.dg-section-gap { gap: var(--dg-mobile-layout-section-gap); }
+.dg-element-gap { gap: var(--dg-mobile-layout-element-gap); }
+
+.dg-type-nav-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-nav-title-size);
+  font-weight: var(--dg-type-nav-title-weight);
+  line-height: var(--dg-type-nav-title-line-height);
+}
+
+.dg-type-screen-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-screen-title-size);
+  font-weight: var(--dg-type-screen-title-weight);
+  line-height: var(--dg-type-screen-title-line-height);
+}
+
+.dg-type-hero-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-hero-title-size);
+  font-weight: var(--dg-type-hero-title-weight);
+  line-height: var(--dg-type-hero-title-line-height);
+}
+
+.dg-type-section-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-section-title-size);
+  font-weight: var(--dg-type-section-title-weight);
+  line-height: var(--dg-type-section-title-line-height);
+}
+
+.dg-type-metric-value {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-metric-value-size);
+  font-weight: var(--dg-type-metric-value-weight);
+  line-height: var(--dg-type-metric-value-line-height);
+}
+
+.dg-type-body {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-body-size);
+  font-weight: var(--dg-type-body-weight);
+  line-height: var(--dg-type-body-line-height);
+}
+
+.dg-type-supporting {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-supporting-size);
+  font-weight: var(--dg-type-supporting-weight);
+  line-height: var(--dg-type-supporting-line-height);
+}
+
+.dg-type-caption {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-caption-size);
+  font-weight: var(--dg-type-caption-weight);
+  line-height: var(--dg-type-caption-line-height);
+}
+
+.dg-type-button-label {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-button-label-size);
+  font-weight: var(--dg-type-button-label-weight);
+  line-height: var(--dg-type-button-label-line-height);
+}
+      html, body { margin: 0; min-height: 100%; }
+      body { font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif); background: var(--dg-color-background-primary, #ffffff); }
+      #drawgle-export-root { position: relative; min-height: 100vh; overflow-x: hidden; }
+      #drawgle-export-navigation { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; pointer-events: none; }
+      #drawgle-export-navigation [data-drawgle-primary-nav] { pointer-events: auto; }
+    </style>
+  </head>
+  <body>
+    <div id="drawgle-export-root">
+<div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden" style="font-family: var(--dg-typography-font-family, 'Outfit', 'Inter', sans-serif)">
+  <!-- Header Section -->
+  <header class="flex items-center justify-between px-[var(--dg-mobile-layout-screen-margin)] pt-[calc(var(--dg-mobile-layout-safe-area-top)+8px)] mb-[var(--dg-spacing-xl)]">
+    <div class="flex items-center gap-[var(--dg-spacing-md)]">
+      <div class="w-[32px] h-[32px] rounded-full overflow-hidden border border-[var(--dg-color-border-divider)]">
+        <img src="https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/60ae5021-d010-4997-839a-7198a052762d/display_1024.png" alt="User Avatar" class="w-full h-full object-cover">
+      </div>
+      <div class="flex flex-col">
+        <span class="text-[var(--dg-color-text-high-emphasis)] font-semibold text-[14px] leading-tight">James</span>
+        <span class="text-[var(--dg-color-text-medium-emphasis)] text-[12px] leading-tight">Figueroa</span>
+      </div>
+    </div>
+
+    <!-- Cart Pill -->
+    <div class="flex flex-col items-end gap-[var(--dg-spacing-xs)]" style="background-color: var(--dg-color-surface-card)">
+      <div class="w-[36px] h-[36px] rounded-full bg-black flex items-center justify-center">
+        <i data-lucide="shopping-bag" class="w-[18px] h-[18px] text-white"></i>
+      </div>
+      <div class="bg-white rounded-[12px] px-[var(--dg-spacing-md)] py-[var(--dg-spacing-xs)] flex flex-col items-center shadow-[var(--dg-shadows-surface)]">
+        <span class="text-black font-bold text-[20px] leading-none">6</span>
+        <span class="text-black text-[10px] font-medium uppercase tracking-wider">products</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Title -->
+  <section class="px-[var(--dg-mobile-layout-screen-margin)] mb-[var(--dg-mobile-layout-section-gap)]">
+    <div class="flex flex-col">
+      <h1 class="dg-type-screen-title text-[var(--dg-color-text-high-emphasis)]">Cookies</h1>
+      <h2 class="dg-type-screen-title text-[var(--dg-color-action-primary)] -mt-2">Premium</h2>
+    </div>
+    <div class="flex justify-end -mt-6">
+      <button class="text-[var(--dg-color-action-primary)] text-[14px] font-medium flex items-center gap-1">
+        See more
+      </button>
+    </div>
+  </section>
+
+  <!-- Horizontal Product Rail -->
+  <section class="mb-[var(--dg-mobile-layout-section-gap)]">
+    <div class="flex overflow-x-auto no-scrollbar gap-[var(--dg-mobile-layout-element-gap)] px-[var(--dg-mobile-layout-screen-margin)] pb-4">
+      
+      <!-- Product Card 1 -->
+      <div class="relative flex-shrink-0 w-[160px] pt-[40px]">
+        <!-- Overlapping Image -->
+        <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[100px] h-[100px] z-10 drop-shadow-2xl">
+          <img src="https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/60ae5021-d010-4997-839a-7198a052762d/display_1024.png" alt="Chocolate chip cookie" class="w-full h-full object-contain">
+        </div>
+        <!-- Card Surface -->
+        <div class="dg-surface-card rounded-[var(--dg-radii-app)] p-[var(--dg-spacing-md)] pt-[60px] flex flex-col h-full">
+          <h3 class="text-[14px] font-medium text-[var(--dg-color-text-high-emphasis)] leading-tight mb-1">Chocolate chips</h3>
+          <div class="flex items-center gap-1 mb-4">
+            <i data-lucide="crown" class="w-[10px] h-[10px] text-[var(--dg-color-action-primary)]"></i>
+            <span class="text-[10px] uppercase tracking-widest text-[var(--dg-color-action-primary)] font-bold">Premium</span>
+          </div>
+          <div class="mt-auto flex items-center justify-between">
+            <span class="text-[14px] font-bold">20 USD</span>
+            <button class="w-[32px] h-[32px] rounded-full bg-black flex items-center justify-center">
+              <i data-lucide="arrow-right" class="w-[14px] h-[14px] text-white"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Product Card 2 -->
+      <div class="relative flex-shrink-0 w-[160px] pt-[40px]">
+        <!-- Overlapping Image (Placeholder for Oatmeal) -->
+        <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[100px] h-[100px] z-10 drop-shadow-2xl flex items-center justify-center">
+          <div class="w-[80px] h-[80px] rounded-full bg-[#3A2A1D] border-4 border-[var(--dg-color-surface-card)] flex items-center justify-center">
+             <i data-lucide="cookie" class="text-[var(--dg-color-action-primary)] w-8 h-8 opacity-50"></i>
+          </div>
+        </div>
+        <!-- Card Surface -->
+        <div class="dg-surface-card rounded-[var(--dg-radii-app)] p-[var(--dg-spacing-md)] pt-[60px] flex flex-col h-full">
+          <h3 class="text-[14px] font-medium text-[var(--dg-color-text-high-emphasis)] leading-tight mb-1">Oatmeal with raisins</h3>
+          <div class="flex items-center gap-1 mb-4">
+            <i data-lucide="crown" class="w-[10px] h-[10px] text-[var(--dg-color-action-primary)]"></i>
+            <span class="text-[10px] uppercase tracking-widest text-[var(--dg-color-action-primary)] font-bold">Premium</span>
+          </div>
+          <div class="mt-auto flex items-center justify-between">
+            <span class="text-[14px] font-bold">16 USD</span>
+            <button class="w-[32px] h-[32px] rounded-full bg-black flex items-center justify-center">
+              <i data-lucide="arrow-right" class="w-[14px] h-[14px] text-white"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Offers Section -->
+  <section class="px-[var(--dg-mobile-layout-screen-margin)] mb-[var(--dg-mobile-layout-section-gap)]">
+    <div class="flex items-center justify-between mb-[var(--dg-mobile-layout-element-gap)]">
+      <h2 class="dg-type-section-title">Offers</h2>
+      <button class="text-[var(--dg-color-action-primary)] text-[14px] font-medium">See more</button>
+    </div>
+
+    <!-- Offer Card -->
+    <div class="dg-surface-card rounded-[var(--dg-radii-app)] p-[var(--dg-spacing-md)] flex items-center gap-[var(--dg-spacing-md)] relative overflow-hidden">
+      <!-- Product Thumbnail -->
+      <div class="w-[80px] h-[80px] flex-shrink-0">
+        <div class="w-full h-full rounded-[20px] bg-[var(--dg-color-background-secondary)] flex items-center justify-center overflow-hidden">
+           <img src="https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/60ae5021-d010-4997-839a-7198a052762d/display_1024.png" alt="Double chocolate" class="w-[120%] h-[120%] object-contain rotate-12">
+        </div>
+      </div>
+      
+      <!-- Content -->
+      <div class="flex-grow">
+        <h3 class="text-[16px] font-medium text-white leading-tight">Double chocolate</h3>
+        <div class="flex items-center gap-1 mb-2">
+          <i data-lucide="crown" class="w-[10px] h-[10px] text-[var(--dg-color-action-primary)]"></i>
+          <span class="text-[10px] uppercase tracking-widest text-[var(--dg-color-action-primary)] font-bold">Premium</span>
+        </div>
+        <div class="flex items-baseline gap-2">
+          <span class="text-[16px] font-bold text-white">12 USD</span>
+          <span class="text-[12px] text-[var(--dg-color-text-low-emphasis)] line-through">20 USD</span>
+        </div>
+      </div>
+
+      <!-- Action -->
+      <button class="w-[40px] h-[40px] rounded-full bg-black flex items-center justify-center self-end">
+        <i data-lucide="arrow-right" class="w-[18px] h-[18px] text-white"></i>
+      </button>
+    </div>
+  </section>
+
+  <!-- Bottom Spacing for Shared Nav -->
+  <div class="h-[calc(var(--dg-mobile-layout-safe-area-bottom)+96px)]"></div>
+</div>
+      <div id="drawgle-export-navigation"><nav data-drawgle-primary-nav class="dg-nav-shell" aria-label="Primary navigation">
+  <style>
+    [data-drawgle-primary-nav].dg-nav-shell {
+      position: fixed;
+      bottom: var(--dg-mobile-layout-safe-area-bottom, 16px);
+      left: 50%;
+      transform: translateX(-50%);
+      width: calc(100% - (var(--dg-mobile-layout-screen-margin, 20px) * 2));
+      max-width: 350px;
+      height: 68px;
+      background: color-mix(in srgb, var(--dg-color-background-secondary, #1A1A1A) 80%, transparent);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: var(--dg-radii-pill, 9999px);
+      border: 1px solid var(--dg-color-border-divider, rgba(255, 255, 255, 0.08));
+      box-shadow: var(--dg-shadows-overlay, 0 20px 50px rgba(0, 0, 0, 0.8));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 8px;
+      z-index: 1000;
+      pointer-events: auto;
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-shell-inner {
+      display: flex;
+      width: 100%;
+      justify-content: space-around;
+      align-items: center;
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-item {
+      position: relative;
+      appearance: none;
+      border: none;
+      background: transparent;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      padding: 8px 16px;
+      min-width: 64px;
+      height: 52px;
+      border-radius: var(--dg-radii-pill, 9999px);
+      color: var(--dg-color-text-medium-emphasis, #A1A1A1);
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-item[data-active="true"] {
+      color: var(--dg-color-action-primary, #E88D48);
+    }
+
+    /* Subtle inner glow for active state to match Midnight Bakery theme */
+    [data-drawgle-primary-nav] .dg-nav-item[data-active="true"]::after {
+      content: '';
+      position: absolute;
+      bottom: 6px;
+      width: 4px;
+      height: 4px;
+      background: var(--dg-color-action-primary, #E88D48);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--dg-color-action-primary, #E88D48);
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: var(--dg-sizing-icon-standard, 24px);
+      height: var(--dg-sizing-icon-standard, 24px);
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-icon svg {
+      width: 100%;
+      height: 100%;
+      stroke-width: 1.5px; /* Editorial thin-stroke style */
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-label {
+      font-family: inherit;
+      font-size: var(--dg-type-caption-size, 12px);
+      font-weight: var(--dg-type-supporting-weight, 500);
+      line-height: var(--dg-type-caption-line-height, 16px);
+      letter-spacing: 0.02em;
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-item:active {
+      transform: scale(0.92);
+      opacity: var(--dg-opacities-pressed, 0.7);
+    }
+  </style>
+
+  <div class="dg-nav-shell-inner">
+    <button type="button" class="dg-nav-item" data-nav-item-id="home" data-active="true" aria-label="Home">
+      <span class="dg-nav-icon">
+        <i data-lucide="home"></i>
+      </span>
+      <span class="dg-nav-label">Home</span>
+    </button>
+  </div>
+</nav></div>
+    </div>
+    <script>
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+      document.querySelectorAll('[data-nav-item-id]').forEach(function(item) {
+        var active = item.getAttribute('data-nav-item-id') === "home";
+        item.setAttribute('data-active', active ? 'true' : 'false');
+        item.setAttribute('aria-current', active ? 'page' : 'false');
+      });
+    </script>
+  </body>
+</html>
