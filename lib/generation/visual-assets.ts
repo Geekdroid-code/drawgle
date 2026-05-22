@@ -168,6 +168,7 @@ const rejectionReasonForAsset = (
   if (asset.source !== "internal_library") reasons.push(`source=${asset.source ?? "null"}`);
   if (!isAssetVisibleToProject(asset, ownerId, projectId)) reasons.push(`visibility=${asset.visibility ?? "null"}`);
   if (!["verified", "skipped"].includes(asset.verification_status ?? "pending")) reasons.push(`status=${asset.verification_status ?? "null"}`);
+  if (asset.role !== requirement.role) reasons.push(`role=${asset.role ?? "null"}`);
   if (asset.asset_type !== requirement.assetType) reasons.push(`assetType=${asset.asset_type ?? "null"}`);
   if (asset.has_alpha !== requirement.transparentBackground) reasons.push(`hasAlpha=${String(asset.has_alpha)}`);
   if (assetRowQuality(asset) < 0.52) reasons.push(`quality=${assetRowQuality(asset).toFixed(2)}`);
@@ -692,6 +693,7 @@ const findTagFallbackAsset = async (
     .from("visual_assets")
     .select("*")
     .eq("source", "internal_library")
+    .eq("role", requirement.role)
     .eq("asset_type", requirement.assetType)
     .eq("has_alpha", requirement.transparentBackground)
     .in("verification_status", ["verified", "skipped"])
@@ -749,6 +751,7 @@ const findReusableAsset = async (
     .select("*")
     .eq("source", "internal_library")
     .eq("reuse_key", stableReuseKey(requirement))
+    .eq("role", requirement.role)
     .eq("asset_type", requirement.assetType)
     .eq("has_alpha", requirement.transparentBackground)
     .in("verification_status", ["verified", "skipped"])
@@ -782,7 +785,7 @@ const findReusableAsset = async (
     const { data, error } = await admin.rpc("match_visual_assets", {
       query_embedding: embedding,
       p_asset_type: requirement.assetType,
-      p_role: null,
+      p_role: requirement.role,
       p_has_alpha: requirement.transparentBackground,
       p_owner_id: ownerId,
       p_project_id: projectId,

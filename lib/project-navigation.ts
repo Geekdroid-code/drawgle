@@ -142,7 +142,6 @@ export function normalizeNavigationPlan({
   requiresBottomNav?: boolean;
 }): NavigationPlan {
   const fallback = createFallbackNavigationPlan({ screens, navigationArchitecture, requiresBottomNav });
-  const screenNames = new Set(screens.map((screen) => screen.name.toLowerCase()));
   const requestedEnabled = navigationPlan?.enabled ?? fallback.enabled;
   const seen = new Set<string>();
   const rawItems = requestedEnabled
@@ -164,11 +163,23 @@ export function normalizeNavigationPlan({
             linkedScreenName: (item.linkedScreenName || fallback.items[index]?.linkedScreenName || screens[index]?.name || "").trim(),
           };
         })
-        .filter((item) => screenNames.has(item.linkedScreenName.toLowerCase()))
+        .filter((item) => item.label.length > 0 && item.id.length > 0)
     : [];
   const enabled = requestedEnabled && rawItems.length > 0;
   const kind = enabled ? "bottom-tabs" : "none";
   const items = enabled ? rawItems : [];
+  const rootScreens = screens.filter((screen) => screen.type === "root");
+  const firstRootScreenName = rootScreens[0]?.name ?? screens[0]?.name ?? null;
+  const firstItem = items[0] ?? null;
+  const itemForScreen = (screen: ScreenPlan) => {
+    const planned = navigationPlan?.screenChrome?.find((entry) => entry.screenName.toLowerCase() === screen.name.toLowerCase());
+    const plannedItem = planned?.navigationItemId
+      ? items.find((item) => item.id === planned.navigationItemId)
+      : null;
+    const linkedItem = items.find((item) => item.linkedScreenName.toLowerCase() === screen.name.toLowerCase());
+
+    return plannedItem ?? linkedItem ?? (screen.name === firstRootScreenName ? firstItem : null);
+  };
 
   return {
     enabled,
@@ -178,7 +189,7 @@ export function normalizeNavigationPlan({
     screenChrome: screens.map((screen) => {
       const planned = navigationPlan?.screenChrome?.find((entry) => entry.screenName.toLowerCase() === screen.name.toLowerCase());
       const fallbackChrome = fallback.screenChrome.find((entry) => entry.screenName === screen.name);
-      const matchingItem = items.find((item) => item.linkedScreenName.toLowerCase() === screen.name.toLowerCase());
+      const matchingItem = itemForScreen(screen);
       return {
         screenName: screen.name,
         chrome: planned?.chrome ?? fallbackChrome?.chrome ?? screen.chromePolicy?.chrome ?? "top-bar",

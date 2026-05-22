@@ -1,9 +1,10 @@
 "use client";
 
 import {
-  Crosshair,
+  
   Hand,
-  Maximize2,
+  LassoSelect,
+  Expand,
   MousePointer2,
   Palette,
   X,
@@ -79,7 +80,7 @@ export function CanvasToolDock({
           <MousePointer2 className="h-4 w-4 md:h-5 md:w-5" />
         </DockButton>
         <DockButton label={selectionMode ? "Exit select mode" : "Select element"} active={selectionMode} disabled={disabled} onClick={onToggleSelectionMode}>
-          <Crosshair className="h-4 w-4 md:h-5 md:w-5" />
+          <LassoSelect className="h-4 w-4 md:h-5 md:w-5" />
         </DockButton>
         <div className="mx-1 hidden h-6 w-px bg-slate-950/[0.1] md:block" />
 
@@ -87,7 +88,7 @@ export function CanvasToolDock({
           <Hand className="h-4 w-4 md:h-5 md:w-5" />
         </DockButton>
         <DockButton label="Fit canvas" disabled={disabled} onClick={() => dispatchCanvasEvent("drawgle:canvas-fit")}>
-          <Maximize2 className="h-4 w-4 md:h-5 md:w-5" />
+          <Expand className="h-4 w-4 md:h-5 md:w-5" />
         </DockButton>
         <DockButton label="Zoom out" disabled={disabled} onClick={() => dispatchCanvasEvent("drawgle:canvas-zoom-out")}>
           <ZoomOut className="h-4 w-4 md:h-5 md:w-5" />
