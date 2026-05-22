@@ -554,8 +554,13 @@ export function validateScreenAssetPolicy({
     .map((asset) => asset.url)
     .filter((url): url is string => Boolean(url));
 
+  const warnings = invalidUrls.map((url) => `Generated screen used unapproved external image URL: ${url}`);
+  const blocking = missingRequiredUrls.length > 0;
+
   return {
-    valid: invalidUrls.length === 0 && missingRequiredUrls.length === 0,
+    valid: !blocking,
+    blocking,
+    warnings,
     invalidUrls,
     missingRequiredUrls,
   };

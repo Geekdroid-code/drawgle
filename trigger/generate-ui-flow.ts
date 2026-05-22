@@ -799,11 +799,25 @@ export const buildScreenTask = task({
       assetPolicy,
     });
 
+    if (assetPolicy.warnings.length > 0) {
+      const latestAttempt = attempts.at(-1);
+      if (latestAttempt) {
+        latestAttempt.qualityWarnings = Array.from(new Set([
+          ...latestAttempt.qualityWarnings,
+          ...assetPolicy.warnings,
+        ]));
+      }
+
+      logger.warn("Screen build saved with external image URL diagnostics", {
+        screenId: payload.screenId,
+        screenName: payload.screenPlan.name,
+        invalidUrls: assetPolicy.invalidUrls,
+      });
+    }
+
     if (!assetPolicy.valid) {
       await appendScreenBuildDiagnostics(admin, payload.generationRunId, payload.screenId, attempts);
-      const policyReason = assetPolicy.invalidUrls.length > 0
-        ? `Generated screen used unapproved image URLs: ${assetPolicy.invalidUrls.slice(0, 4).join(", ")}`
-        : `Generated screen did not use required critical visual assets: ${assetPolicy.missingRequiredUrls.slice(0, 4).join(", ")}`;
+      const policyReason = `Generated screen did not use required critical visual assets: ${assetPolicy.missingRequiredUrls.slice(0, 4).join(", ")}`;
       return failWithoutSavingGeneratedCode({
         error: `[screen_generation:invalid_image_url] ${policyReason}`,
         metadata: {
@@ -1620,13 +1634,19 @@ export const generateUiFlowTask = task({
       status: finishedStatus === "completed" ? "completed" : "failed",
     });
 
+    const plannedScreenCount = plan.screens.length;
+    const partialFailure = successfulScreens > 0 && failedScreens > 0;
     const completionContent = finishedStatus === "completed"
-      ? `Created ${successfulScreens} screen${successfulScreens === 1 ? "" : "s"}`
+      ? partialFailure
+        ? `Created ${successfulScreens} of ${plannedScreenCount} screens`
+        : `Created ${successfulScreens} screen${successfulScreens === 1 ? "" : "s"}`
       : `Generation finished with ${failedScreens} failure${failedScreens > 1 ? "s" : ""}`;
     generationJournal.status = finishedStatus;
     generationJournal.title = completionContent;
     generationJournal.detail = finishedStatus === "completed"
-      ? `Delivered ${successfulScreens} screen${successfulScreens === 1 ? "" : "s"} to the canvas.`
+      ? partialFailure
+        ? `Delivered ${successfulScreens} screen${successfulScreens === 1 ? "" : "s"} to the canvas. ${failedScreens} screen${failedScreens === 1 ? "" : "s"} failed.`
+        : `Delivered ${successfulScreens} screen${successfulScreens === 1 ? "" : "s"} to the canvas.`
       : errorSummary;
     setJournalPhase(
       generationJournal,
@@ -1654,7 +1674,9 @@ export const generateUiFlowTask = task({
           status: finishedStatus === "completed" ? "completed" : "failed",
           title: completionContent,
           detail: finishedStatus === "completed"
-            ? `Delivered ${successfulScreens} screen${successfulScreens === 1 ? "" : "s"}.`
+            ? partialFailure
+              ? `Delivered ${successfulScreens} of ${plannedScreenCount} screens. ${failedScreens} failed.`
+              : `Delivered ${successfulScreens} screen${successfulScreens === 1 ? "" : "s"}.`
             : errorSummary,
           targetLabel: successfulScreens === 1 ? "1 screen" : `${successfulScreens} screens`,
           processLines: [
@@ -1667,7 +1689,9 @@ export const generateUiFlowTask = task({
     );
 
     const completionMessage = finishedStatus === "completed"
-      ? `Done - I created ${successfulScreens} screen${successfulScreens === 1 ? "" : "s"} and added ${successfulScreens === 1 ? "it" : "them"} to the canvas.`
+      ? partialFailure
+        ? `Done - I created ${successfulScreens} of ${plannedScreenCount} screens and added ${successfulScreens === 1 ? "it" : "them"} to the canvas. ${failedScreens} screen${failedScreens === 1 ? "" : "s"} failed during generation.`
+        : `Done - I created ${successfulScreens} screen${successfulScreens === 1 ? "" : "s"} and added ${successfulScreens === 1 ? "it" : "them"} to the canvas.`
       : `I could not finish that screen build. ${errorSummary ?? "Please try again with a tighter brief."}`;
     const { data: existingCompletion } = await admin
       .from("project_messages")
