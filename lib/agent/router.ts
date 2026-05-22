@@ -72,6 +72,17 @@ export type AgentRouterInput = {
       drawgleId?: string | null;
     }> | null;
   } | null;
+  activeSelection?: {
+    present: boolean;
+    screenId?: string | null;
+    drawgleId?: string | null;
+    targetType?: "screen" | "navigation" | null;
+    targetLabel?: string | null;
+    textPreview?: string | null;
+    outerHTML?: string | null;
+    selectionVersion?: number | null;
+    freshness?: "fresh" | "stale" | null;
+  } | null;
   screens: Array<{
     id: string;
     name: string;
@@ -165,6 +176,9 @@ const routerSystemInstruction = [
   "Call read_project_context only when a project-aware answer needs more than the lightweight context already provided.",
   "Call draft_new_screen_plan when the user wants to create, plan, add, build, or draft a new screen. A named product role such as a welcome, onboarding, analytics, checkout, settings, or profile screen is enough when the project context can fill the brand and app purpose.",
   "Call modify_existing_ui when the user asks to change existing UI, selected elements, navigation, copy, layout, styling, or screen structure.",
+  "When activeSelection.present is true, treat it as strong current canvas context, but not a hard mode. If the user asks to edit the selected thing, call modify_existing_ui with targetType selected_element, scope selected_element, the activeSelection drawgleId, and the activeSelection screenId when present.",
+  "If activeSelection.present is true but the user clearly asks for broader work such as a new screen, a whole-screen rewrite, project planning, or general discussion, choose that broader action instead of forcing a selected-element edit.",
+  "For modify_existing_ui, always choose explicit targetType, scope, and editOperation values. Use ask_clarification only when the target is genuinely ambiguous after considering activeSelection and the active screen.",
   "Call approve_pending_plan when the user confirms or asks to build an existing pending proposal.",
   "Call ask_clarification only when the next step is genuinely blocked, such as no target for an edit or no usable screen role for a new screen.",
   "Do not call any tool just to say hello, thank the user, or answer a simple conversational message.",
@@ -212,7 +226,7 @@ const toolDeclarations: FunctionDeclaration[] = [
         editOperation: stringProperty("One of copy_change, style_change, layout_change, content_change, add_element, remove_element, append_content, replace_region, restyle_region, rewrite_screen, repair_screen, unknown."),
         reason: stringProperty("Short reason this is the right action."),
       },
-      required: ["instruction"],
+      required: ["instruction", "targetType", "scope", "editOperation"],
     },
   },
   {
@@ -257,6 +271,14 @@ const routerConfig = (tools: FunctionDeclaration[]) => {
   return policy;
 };
 
+const compactActiveSelectionForRouter = (selection: AgentRouterInput["activeSelection"]) =>
+  selection
+    ? {
+        ...selection,
+        outerHTML: selection.outerHTML ? compact(selection.outerHTML, 900) : null,
+      }
+    : null;
+
 const buildRouterPrompt = (input: AgentRouterInput, extraContext?: string) => [
   `User message:\n${input.prompt || "[image-only request]"}`,
   `Has image reference: ${input.hasImage ? "yes" : "no"}`,
@@ -265,6 +287,7 @@ const buildRouterPrompt = (input: AgentRouterInput, extraContext?: string) => [
   safeJson(input.agentContext ?? {
     activeScreenId: input.activeScreenId,
     selectedElement: input.selectedElement ?? null,
+    activeSelection: compactActiveSelectionForRouter(input.activeSelection),
     screens: input.screens.map((screen) => ({
       id: screen.id,
       name: screen.name,
@@ -360,11 +383,14 @@ const parseToolDecision = (input: AgentRouterInput, call: FunctionCall): AgentRo
   }
 
   if (name === "modify_existing_ui") {
-    const selectedDrawgleId = args.selectedElementDrawgleId ?? input.selectedElement?.drawgleId ?? null;
     const targetType = coerceTargetType(
       args.targetType,
-      selectedDrawgleId ? "selected_element" : input.activeScreenId ? "screen" : "none",
+      input.activeScreenId ? "screen" : "none",
     );
+    const selectedDrawgleId = targetType === "selected_element"
+      ? args.selectedElementDrawgleId ?? input.activeSelection?.drawgleId ?? input.selectedElement?.drawgleId ?? null
+      : null;
+    const missingRequiredRoutingArgs = !args.targetType || !args.scope || !args.editOperation;
 
     return {
       action: "modify_existing_ui",
@@ -375,12 +401,16 @@ const parseToolDecision = (input: AgentRouterInput, call: FunctionCall): AgentRo
       clarificationQuestion: null,
       instruction,
       targetType,
-      targetScreenId: args.targetScreenId ?? input.activeScreenId ?? null,
+      targetScreenId: args.targetScreenId ?? (targetType === "selected_element" ? input.activeSelection?.screenId ?? input.activeScreenId : input.activeScreenId) ?? null,
       selectedElementDrawgleId: selectedDrawgleId,
       scope: coerceScope(args.scope, targetType === "selected_element" ? "selected_element" : targetType === "navigation" ? "navigation" : "whole_screen"),
       editOperation: coerceEditOperation(args.editOperation, "unknown"),
       routerSource: "llm_function",
-      routerFailureReason: parsedArgs.success ? null : "Invalid modify_existing_ui args were partially ignored.",
+      routerFailureReason: parsedArgs.success
+        ? missingRequiredRoutingArgs
+          ? "modify_existing_ui omitted one or more explicit routing args."
+          : null
+        : "Invalid modify_existing_ui args were partially ignored.",
     };
   }
 

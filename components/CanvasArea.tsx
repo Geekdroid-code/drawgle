@@ -3,7 +3,7 @@
 import { TransformComponent, TransformWrapper, useControls } from "react-zoom-pan-pinch";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ScreenNode, SCREEN_FRAME_HEIGHT, SCREEN_FRAME_WIDTH } from "./ScreenNode";
-import type { SelectedElementInfo } from "./ScreenNode";
+import type { ElementSelectionLostReason, SelectedElementInfo } from "./ScreenNode";
 
 import type { DesignTokens, ProjectNavigationData, ScreenData } from "@/lib/types";
 
@@ -266,7 +266,7 @@ const CanvasContent = ({
   selectedElementScreenId?: string | null;
   selectedElementDrawgleId?: string | null;
   onElementSelected?: (info: SelectedElementInfo) => void;
-  onElementSelectionLost?: (info: { screenId: string; drawgleId: string }) => void;
+  onElementSelectionLost?: (info: { screenId: string; drawgleId: string; reason?: ElementSelectionLostReason }) => void;
 }) => {
   const { state } = useControls();
   const scale = state.scale;
@@ -328,7 +328,7 @@ export function CanvasArea({
   selectedElementScreenId?: string | null;
   selectedElementDrawgleId?: string | null;
   onElementSelected?: (info: SelectedElementInfo) => void;
-  onElementSelectionLost?: (info: { screenId: string; drawgleId: string }) => void;
+  onElementSelectionLost?: (info: { screenId: string; drawgleId: string; reason?: ElementSelectionLostReason }) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [initialScale, setInitialScale] = useState<number | null>(null);

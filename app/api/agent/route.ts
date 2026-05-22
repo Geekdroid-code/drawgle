@@ -72,6 +72,17 @@ const requestSchema = z.object({
     targetIndex: z.number().int().min(0).nullable().optional(),
   })).optional().default([]),
   selectedElementSelectionVersion: z.number().nullable().optional(),
+  activeSelection: z.object({
+    present: z.boolean(),
+    screenId: z.string().uuid().nullable().optional(),
+    drawgleId: z.string().nullable().optional(),
+    targetType: z.enum(["screen", "navigation"]).nullable().optional(),
+    targetLabel: z.string().nullable().optional(),
+    textPreview: z.string().nullable().optional(),
+    outerHTML: z.string().nullable().optional(),
+    selectionVersion: z.number().nullable().optional(),
+    freshness: z.enum(["fresh", "stale"]).nullable().optional(),
+  }).nullable().optional(),
   clientTurnId: z.string().trim().max(120).nullable().optional(),
 }).superRefine((value, ctx) => {
   if (!value.prompt.trim() && !value.image) {
@@ -87,7 +98,6 @@ const now = () => new Date().toISOString();
 const providerLeakPattern = /\b(gemini|google|openai|gpt|anthropic|claude|model provider|large language model|llm|system prompt|tool call|router)\b/i;
 const identityQuestionPattern = /\b(who are you|what are you|which model|what model|are you gemini|are you gpt|powered by|who built you)\b/i;
 const structuredLeakPattern = /\b(?:clarificationQuestion|responseMessage|instruction|action|targetType|scope|editOperation)\s*=/i;
-const LOW_CONFIDENCE_CONFLICT_THRESHOLD = 0.74;
 
 type AgentState = AgentTurnState;
 type AgentStateTarget = NonNullable<AgentTurnState["lastKnownTarget"]>;
@@ -943,13 +953,20 @@ export async function POST(request: Request) {
         navigationItemId: screen.navigation_item_id,
       };
     });
-    const selectedScreenId = payload.selectedScreenId ?? payload.focusedScreenId ?? null;
+    const selectedScreenId = payload.activeSelection?.present && payload.activeSelection.targetType !== "navigation"
+      ? payload.activeSelection.screenId ?? payload.selectedScreenId ?? payload.focusedScreenId ?? null
+      : payload.selectedScreenId ?? payload.focusedScreenId ?? null;
     const navigationPlan = (projectNavigation?.plan as NavigationPlan | null) ?? null;
     const agentState = latestUsableAgentState(projectMessages);
+    const hasActiveSelection = Boolean(
+      payload.activeSelection?.present ||
+      payload.selectedElementDrawgleId ||
+      payload.selectedElementHtml,
+    );
     const historyNeed = classifyHistoryNeed({
       prompt,
       hasImage: Boolean(payload.image),
-      hasSelectedElement: Boolean(payload.selectedElementDrawgleId || payload.selectedElementHtml),
+      hasSelectedElement: hasActiveSelection,
       agentState,
     });
     const recentMessages = buildCompactRecentMessages(projectMessages, screenContext, HISTORY_LIMITS[historyNeed]);
@@ -957,6 +974,39 @@ export async function POST(request: Request) {
     const selectedScreen = selectedScreenId
       ? screenContext.find((screen) => screen.id === selectedScreenId) ?? null
       : null;
+    const activeSelectionDrawgleId = payload.activeSelection?.drawgleId ?? payload.selectedElementDrawgleId ?? null;
+    const activeSelectionTargetType = payload.activeSelection?.targetType ?? payload.selectedElementTarget ?? null;
+    const activeSelection = hasActiveSelection
+      ? {
+          present: true,
+          screenId: activeSelectionTargetType === "navigation" ? null : selectedScreenId,
+          drawgleId: activeSelectionDrawgleId,
+          targetType: activeSelectionTargetType,
+          targetLabel: payload.activeSelection?.targetLabel ?? (
+            activeSelectionTargetType === "navigation"
+              ? "Navigation"
+              : selectedScreen?.name ?? null
+          ),
+          textPreview: payload.activeSelection?.textPreview ?? payload.selectedElementPreview ?? null,
+          outerHTML: payload.activeSelection?.outerHTML ?? payload.selectedElementHtml ?? null,
+          selectionVersion: payload.activeSelection?.selectionVersion ?? payload.selectedElementSelectionVersion ?? null,
+          freshness: payload.activeSelection?.freshness ?? "fresh",
+        }
+      : {
+          present: false,
+          screenId: null,
+          drawgleId: null,
+          targetType: null,
+          targetLabel: null,
+          textPreview: null,
+          outerHTML: null,
+          selectionVersion: null,
+          freshness: null,
+        };
+    const activeSelectionForContext = {
+      ...activeSelection,
+      outerHTML: activeSelection.outerHTML ? compactMessageContent(activeSelection.outerHTML) : null,
+    };
     const agentContextVersion = "agent-lightweight-v1";
     const lightweightAgentContext: Record<string, unknown> = {
       version: agentContextVersion,
@@ -968,12 +1018,13 @@ export async function POST(request: Request) {
       selectedTarget: {
         activeScreenId: selectedScreenId,
         activeScreenName: selectedScreen?.name ?? null,
+        activeSelection: activeSelectionForContext,
         selectedElement: {
-          targetType: payload.selectedElementTarget ?? null,
-          drawgleId: payload.selectedElementDrawgleId ?? null,
-          textPreview: payload.selectedElementPreview ?? null,
+          targetType: activeSelection.targetType,
+          drawgleId: activeSelection.drawgleId,
+          textPreview: activeSelection.textPreview,
           imageTargets: payload.selectedElementImageTargets ?? [],
-          selectionVersion: payload.selectedElementSelectionVersion ?? null,
+          selectionVersion: activeSelection.selectionVersion,
         },
       },
       screens: screenContext.map((screen) => ({
@@ -1086,11 +1137,12 @@ export async function POST(request: Request) {
       hasImage: Boolean(payload.image),
       activeScreenId: selectedScreenId,
       selectedElement: {
-        targetType: payload.selectedElementTarget ?? null,
-        drawgleId: payload.selectedElementDrawgleId ?? null,
-        textPreview: payload.selectedElementPreview ?? null,
+        targetType: activeSelection.targetType,
+        drawgleId: activeSelection.drawgleId,
+        textPreview: activeSelection.textPreview,
         imageTargets: payload.selectedElementImageTargets ?? [],
       },
+      activeSelection,
       screens: screenContext,
       navigation: navigationPlan
         ? {
@@ -1109,11 +1161,30 @@ export async function POST(request: Request) {
         userPrompt: prompt,
       }),
     });
+    const routerSelectedElementUsed =
+      routerDecision.targetType === "selected_element" ||
+      routerDecision.scope === "selected_element";
+    const activeSelectionDiagnostics = hasActiveSelection
+      ? {
+          present: true,
+          screenId: activeSelection.screenId,
+          drawgleId: activeSelection.drawgleId,
+          targetType: activeSelection.targetType,
+          targetLabel: activeSelection.targetLabel,
+          freshness: activeSelection.freshness,
+          selectionVersion: activeSelection.selectionVersion,
+          routerAction: routerDecision.action,
+          routerTargetType: routerDecision.targetType,
+          routerScope: routerDecision.scope,
+          routerSelectedElementUsed,
+        }
+      : null;
     const routerMetadata = {
       ...makeRouterMetadata(routerDecision),
       agentContextVersion,
       agentTurnId,
       clientTurnId,
+      activeSelectionDiagnostics,
     };
 
     if (routerDecision.action !== "answer_or_discuss" && routerDecision.action !== "out_of_scope") {
@@ -1150,7 +1221,7 @@ export async function POST(request: Request) {
         kind: "pending_clarification",
         instruction,
         missingFields,
-        targetCandidates: buildScreenTargetCandidates(screenContext, selectedScreenId, payload.selectedElementDrawgleId),
+        targetCandidates: buildScreenTargetCandidates(screenContext, selectedScreenId, activeSelection.drawgleId),
         lastKnownTarget: lastKnownTarget ?? buildDecisionTarget(routerDecision),
         message,
       });
@@ -1631,33 +1702,24 @@ export async function POST(request: Request) {
       ? normalizeDesignTokens(project.design_tokens as DesignTokens)
       : null;
     const resolvedInstruction = routerDecision.instruction?.trim() || agentState?.instruction || prompt;
-    const hasSelectedElementPayload = Boolean(payload.selectedElementDrawgleId && payload.selectedElementTarget);
+    const hasSelectedElementPayload = Boolean(activeSelection.drawgleId && activeSelection.targetType);
     const routerTargetsNavigation = routerDecision.targetType === "navigation" || routerDecision.scope === "navigation";
-    const routerExplicitWholeScreen = routerDecision.scope === "whole_screen" || routerDecision.editOperation === "rewrite_screen";
-    const selectedElementRequested =
-      routerDecision.targetType === "selected_element" ||
-      routerDecision.scope === "selected_element" ||
-      (
-        hasSelectedElementPayload &&
-        !routerTargetsNavigation &&
-        !routerExplicitWholeScreen &&
-        routerDecision.targetType !== "project" &&
-        routerDecision.scope !== "new_screen"
-      );
+    const selectedElementRequested = routerSelectedElementUsed;
     const requestTargetsNavigation =
       routerTargetsNavigation ||
-      (payload.selectedElementTarget === "navigation" && selectedElementRequested);
+      (activeSelection.targetType === "navigation" && selectedElementRequested);
     const selectedImageUrl = extractSingleImageUrl(prompt);
     const selectedImageTargets = normalizeImageTargetsFromPayload({
       payloadTargets: payload.selectedElementImageTargets as DrawgleImageTargetMeta[],
-      selectedHtml: payload.selectedElementHtml,
-      drawgleId: payload.selectedElementDrawgleId,
+      selectedHtml: activeSelection.outerHTML,
+      drawgleId: activeSelection.drawgleId,
     });
     const shouldRunDeterministicImageReplacement =
       Boolean(selectedImageUrl) &&
       imageReplacementIntentPattern.test(prompt) &&
+      selectedElementRequested &&
       hasSelectedElementPayload &&
-      payload.selectedElementTarget !== "navigation";
+      activeSelection.targetType !== "navigation";
 
     if (shouldRunDeterministicImageReplacement) {
       const targetScreenId = selectedScreenId;
@@ -1688,7 +1750,7 @@ export async function POST(request: Request) {
             scope: "selected_element",
             screenId: targetScreenId,
             screenName: targetScreen.name,
-            selectedElementDrawgleId: payload.selectedElementDrawgleId ?? null,
+            selectedElementDrawgleId: activeSelectionDrawgleId,
           },
           metadata: {
             serverReconciliation: {
@@ -1704,7 +1766,7 @@ export async function POST(request: Request) {
         projectId: payload.projectId,
         screenId: targetScreenId,
         targetType: "screen",
-        drawgleId: payload.selectedElementDrawgleId,
+        drawgleId: activeSelectionDrawgleId,
       });
 
       if (!verification.ok) {
@@ -1717,7 +1779,7 @@ export async function POST(request: Request) {
             scope: "selected_element",
             screenId: targetScreenId,
             screenName: targetScreen.name,
-            selectedElementDrawgleId: payload.selectedElementDrawgleId ?? null,
+            selectedElementDrawgleId: activeSelectionDrawgleId,
           },
           status: 409,
           metadata: {
@@ -1752,7 +1814,7 @@ export async function POST(request: Request) {
         projectId: payload.projectId,
         screenId: targetScreenId,
         targetKind: targetsToReplace[0]?.kind ?? "img",
-        targetDrawgleId: payload.selectedElementDrawgleId ?? null,
+        targetDrawgleId: activeSelectionDrawgleId,
         imageUrl: selectedImageUrl!,
       });
 
@@ -1779,7 +1841,7 @@ export async function POST(request: Request) {
       const currentCode = ensureDrawgleIds(screen.code ?? "").code;
       const editedCode = applyDeterministicEdits({
         code: currentCode,
-        drawgleId: payload.selectedElementDrawgleId ?? "",
+        drawgleId: activeSelectionDrawgleId ?? "",
         operations,
       });
       const nextCode = tokenizeStaticDrawgleHtml(editedCode, designTokens).code;
@@ -1823,7 +1885,7 @@ export async function POST(request: Request) {
             status: "completed",
             targetType: "screen",
             screenId: targetScreenId,
-            drawgleId: payload.selectedElementDrawgleId ?? null,
+            drawgleId: activeSelectionDrawgleId,
           },
         },
         messageType: changed ? "chat" : "error",
@@ -1856,7 +1918,7 @@ export async function POST(request: Request) {
               scope: "selected_element",
               screenId: targetScreenId,
               screenName: screen.name,
-              selectedElementDrawgleId: payload.selectedElementDrawgleId ?? null,
+              selectedElementDrawgleId: activeSelectionDrawgleId,
             },
             message: null,
           }),
@@ -1942,7 +2004,7 @@ export async function POST(request: Request) {
       });
     }
 
-    if (selectedElementRequested && !payload.selectedElementDrawgleId) {
+    if (selectedElementRequested && !activeSelectionDrawgleId) {
       const message = whiteLabelAgentMessage(
         prompt,
         routerDecision.clarificationQuestion || "I can make that selected-element change, but no element is currently selected. Which element should I update?",
@@ -1963,24 +2025,28 @@ export async function POST(request: Request) {
     }
 
     if (
-      payload.selectedElementDrawgleId &&
-      routerDecision.scope === "whole_screen" &&
-      routerDecision.confidence < LOW_CONFIDENCE_CONFLICT_THRESHOLD
+      selectedElementRequested &&
+      routerDecision.selectedElementDrawgleId &&
+      activeSelectionDrawgleId &&
+      routerDecision.selectedElementDrawgleId !== activeSelectionDrawgleId
     ) {
       const message = whiteLabelAgentMessage(
         prompt,
-        "Do you mean the selected element, or the whole screen?",
+        "The selected element changed while I was reading that request. Please reselect the exact element and try again.",
       );
 
       return saveClarification({
         message,
         instruction: resolvedInstruction,
-        missingFields: ["target_scope"],
+        missingFields: ["selected_element"],
         lastKnownTarget: buildDecisionTarget(routerDecision),
+        status: 409,
         metadata: {
           serverReconciliation: {
             finalAction: "ask_clarification",
-            reason: "low_confidence_selected_element_vs_whole_screen",
+            reason: "selected_element_router_client_mismatch",
+            routerSelectedElementDrawgleId: routerDecision.selectedElementDrawgleId,
+            activeSelectionDrawgleId,
           },
         },
       });
@@ -2066,7 +2132,7 @@ export async function POST(request: Request) {
         targetType: requestTargetsNavigation ? "navigation" : shouldUseSelectedElement ? "selected_element" : "screen",
         targetScope: resolvedScope,
         scope: resolvedScope,
-        selectedElementDrawgleId: shouldUseSelectedElement ? payload.selectedElementDrawgleId ?? null : null,
+        selectedElementDrawgleId: shouldUseSelectedElement ? activeSelectionDrawgleId : null,
         editOperation,
       },
       serverReconciliation: {
@@ -2076,7 +2142,8 @@ export async function POST(request: Request) {
         selectedScreenId,
         focusedScreenId: payload.focusedScreenId ?? null,
         targetScreenId,
-        selectedElementDrawgleId: shouldUseSelectedElement ? payload.selectedElementDrawgleId ?? null : null,
+        selectedElementDrawgleId: shouldUseSelectedElement ? activeSelectionDrawgleId : null,
+        activeSelection: hasActiveSelection ? activeSelection : null,
         filledTargetScreenFromSelection: !routerScreenId && Boolean(selectedScreenId && targetScreenId === selectedScreenId),
         filledTargetScreenFromAgentState: !routerScreenId && !selectedScreenId && Boolean(stateScreenId && targetScreenId === stateScreenId),
       },
@@ -2092,7 +2159,7 @@ export async function POST(request: Request) {
       editOperation,
     };
     let verifiedSelectedElementHtml = shouldUseSelectedElement
-      ? payload.selectedElementHtml ?? null
+      ? activeSelection.outerHTML ?? null
       : null;
 
     if (shouldUseSelectedElement) {
@@ -2101,7 +2168,7 @@ export async function POST(request: Request) {
         projectId: payload.projectId,
         screenId: targetScreenId,
         targetType: requestTargetsNavigation ? "navigation" : "screen",
-        drawgleId: payload.selectedElementDrawgleId,
+        drawgleId: activeSelectionDrawgleId,
       });
 
       if (!verification.ok) {
@@ -2114,7 +2181,7 @@ export async function POST(request: Request) {
             scope: requestTargetsNavigation ? "navigation" : "selected_element",
             screenId: targetScreenId,
             screenName: requestTargetsNavigation ? "Navigation" : targetScreen?.name ?? null,
-            selectedElementDrawgleId: payload.selectedElementDrawgleId ?? null,
+            selectedElementDrawgleId: activeSelectionDrawgleId,
           },
           status: 409,
           metadata: {
@@ -2139,7 +2206,7 @@ export async function POST(request: Request) {
         })
       : null;
 
-    if (deterministicStyleIntent && payload.selectedElementDrawgleId) {
+    if (deterministicStyleIntent && activeSelectionDrawgleId) {
       const deterministicTargetLabel = targetLabelFromContext({
         requestTargetsNavigation,
         shouldUseSelectedElement,
@@ -2192,7 +2259,7 @@ export async function POST(request: Request) {
         const currentCode = ensureDrawgleIds(navigation.shell_code ?? "").code;
         const editedCode = applyDeterministicEdits({
           code: currentCode,
-          drawgleId: payload.selectedElementDrawgleId,
+          drawgleId: activeSelectionDrawgleId,
           operations: deterministicStyleIntent.operations,
         });
         const nextCode = tokenizeStaticDrawgleHtml(editedCode, designTokens).code;
@@ -2231,7 +2298,7 @@ export async function POST(request: Request) {
         const currentCode = ensureDrawgleIds(screen.code ?? "").code;
         const editedCode = applyDeterministicEdits({
           code: currentCode,
-          drawgleId: payload.selectedElementDrawgleId,
+          drawgleId: activeSelectionDrawgleId,
           operations: deterministicStyleIntent.operations,
         });
         const nextCode = tokenizeStaticDrawgleHtml(editedCode, designTokens).code;
@@ -2257,7 +2324,7 @@ export async function POST(request: Request) {
         scope: requestTargetsNavigation ? "navigation" : "selected_element",
         screenId: targetScreenId,
         screenName,
-        selectedElementDrawgleId: payload.selectedElementDrawgleId,
+        selectedElementDrawgleId: activeSelectionDrawgleId,
       };
       await updateAgentProgress({
         step: buildAgentProgressStep({
@@ -2296,7 +2363,7 @@ export async function POST(request: Request) {
             status: "completed",
             targetType: requestTargetsNavigation ? "navigation" : "screen",
             screenId: targetScreenId,
-            drawgleId: payload.selectedElementDrawgleId,
+            drawgleId: activeSelectionDrawgleId,
           },
           agentStep: buildQueuedAgentStep({
             kind: requestTargetsNavigation ? "navigation" : "edit",
@@ -2365,7 +2432,7 @@ export async function POST(request: Request) {
       scope: resolvedScope,
       screenId: targetScreenId,
       screenName: targetScreen?.name ?? null,
-      selectedElementDrawgleId: shouldUseSelectedElement ? payload.selectedElementDrawgleId ?? null : null,
+      selectedElementDrawgleId: shouldUseSelectedElement ? activeSelectionDrawgleId : null,
     };
     const targetLabel = targetLabelFromContext({
       requestTargetsNavigation,
@@ -2417,7 +2484,7 @@ export async function POST(request: Request) {
           status: "queued",
           targetType: requestTargetsNavigation ? "navigation" : "screen",
           screenId: targetScreenId,
-          drawgleId: shouldUseSelectedElement ? payload.selectedElementDrawgleId ?? null : null,
+          drawgleId: shouldUseSelectedElement ? activeSelectionDrawgleId : null,
         },
         agentStep: buildQueuedAgentStep({
           kind: requestTargetsNavigation ? "navigation" : "edit",
@@ -2468,7 +2535,7 @@ export async function POST(request: Request) {
         userMessageId: userMessage.id,
         screenId: targetScreenId,
         selectedElementHtml: shouldUseSelectedElement ? verifiedSelectedElementHtml : null,
-        selectedElementDrawgleId: shouldUseSelectedElement ? payload.selectedElementDrawgleId ?? null : null,
+        selectedElementDrawgleId: shouldUseSelectedElement ? activeSelectionDrawgleId : null,
         selectedElementTarget: requestTargetsNavigation ? "navigation" : "screen",
         requestTargetsNavigation,
         targetScope: resolvedScope,

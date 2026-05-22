@@ -8,7 +8,7 @@ import { CanvasArea } from "@/components/CanvasArea";
 import { CanvasToolDock } from "@/components/CanvasToolDock";
 import { ChatPanel } from "@/components/ChatPanel";
 import { ColorPickerButton } from "@/components/DesignSystemEditor";
-import type { SelectedElementInfo } from "@/components/ScreenNode";
+import type { ElementSelectionLostReason, SelectedElementInfo } from "@/components/ScreenNode";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -552,6 +552,7 @@ type ElementEditSession = {
   mode: ManualEditMode;
   selectedAt: string;
   selectionVersion: number;
+  freshness: "fresh" | "stale";
 };
 
 type PendingElementSelection = {
@@ -1133,7 +1134,7 @@ export function ProjectShell({
   }, [editSession?.screenId, screens, selectedScreen]);
 
   useEffect(() => {
-    if (!selectionMode) {
+    if (!selectionMode && !editSession) {
       return;
     }
 
@@ -1148,7 +1149,7 @@ export function ProjectShell({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectionMode]);
+  }, [editSession, selectionMode]);
 
   useEffect(() => {
     if (screens.length === 0 || hasQueuedInitialFitRef.current) {
@@ -1394,6 +1395,11 @@ export function ProjectShell({
       ? null
       : editSession?.screenId ?? selectedScreen?.id ?? null;
     const activeEditElement = editSession?.element ?? null;
+    const activeSelectionTargetLabel = activeEditElement
+      ? activeEditElement.targetType === "navigation"
+        ? "Navigation"
+        : selectedElementScreen?.name ?? selectedScreen?.name ?? "Screen"
+      : null;
     setQueueError(null);
     if (!activeEditElement) {
       setSelectionNotice(null);
@@ -1422,6 +1428,29 @@ export function ProjectShell({
           selectedElementPreview: activeEditElement?.textPreview ?? null,
           selectedElementImageTargets: activeEditElement?.editableMetadata?.imageTargets ?? [],
           selectedElementSelectionVersion: editSession?.selectionVersion ?? null,
+          activeSelection: activeEditElement
+            ? {
+                present: true,
+                screenId: activeEditScreenId,
+                drawgleId: activeEditElement.drawgleId,
+                targetType: activeEditElement.targetType,
+                targetLabel: activeSelectionTargetLabel,
+                textPreview: activeEditElement.textPreview,
+                outerHTML: activeEditElement.outerHTML,
+                selectionVersion: editSession?.selectionVersion ?? null,
+                freshness: editSession?.freshness ?? "fresh",
+              }
+            : {
+                present: false,
+                screenId: null,
+                drawgleId: null,
+                targetType: null,
+                targetLabel: null,
+                textPreview: null,
+                outerHTML: null,
+                selectionVersion: null,
+                freshness: null,
+              },
           clientTurnId: options.clientTurnId ?? null,
         }),
       });
@@ -1642,6 +1671,7 @@ export function ProjectShell({
       mode: "selected",
       selectedAt: new Date().toISOString(),
       selectionVersion: nextSelectionVersion,
+      freshness: "fresh",
     });
   };
 
@@ -1659,6 +1689,7 @@ export function ProjectShell({
         return {
           ...currentSession,
           element: info,
+          freshness: "fresh",
         };
       });
       setSelectionNotice(null);
@@ -1677,12 +1708,24 @@ export function ProjectShell({
     commitElementSelection(info);
   };
 
-  const handleElementSelectionLost = (info: { screenId: string; drawgleId: string }) => {
+  const handleElementSelectionLost = (info: { screenId: string; drawgleId: string; reason?: ElementSelectionLostReason }) => {
     if (
       editSession &&
       editSession.screenId === info.screenId &&
       editSession.element.drawgleId === info.drawgleId
     ) {
+      if (info.reason === "rehydrate_failed") {
+        setSelectionNotice("The selected element is being verified from the saved screen before the next edit.");
+        setEditSession((currentSession) =>
+          currentSession &&
+          currentSession.screenId === info.screenId &&
+          currentSession.element.drawgleId === info.drawgleId
+            ? { ...currentSession, freshness: "stale" }
+            : currentSession,
+        );
+        return;
+      }
+
       setSelectionNotice("The selected element changed after the canvas refreshed. Please reselect it before asking for another selected edit.");
       setEditSession(null);
     }

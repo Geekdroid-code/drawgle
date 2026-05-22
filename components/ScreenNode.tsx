@@ -36,6 +36,8 @@ export interface SelectedElementInfo {
   selectionReason?: "click" | "rehydrated";
 }
 
+export type ElementSelectionLostReason = "rehydrate_failed" | "click_miss" | "source_changed";
+
 export const SCREEN_FRAME_WIDTH = 390;
 export const SCREEN_FRAME_HEIGHT = 844;
 
@@ -337,7 +339,7 @@ export function ScreenNode({
   /** Called when the user clicks an element inside the iframe during selection mode. */
   onElementSelected?: (info: SelectedElementInfo) => void;
   /** Called when a previously selected id no longer exists after the iframe re-renders. */
-  onElementSelectionLost?: (info: { screenId: string; drawgleId: string }) => void;
+  onElementSelectionLost?: (info: { screenId: string; drawgleId: string; reason?: ElementSelectionLostReason }) => void;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const safeCode = typeof screen.code === "string" ? screen.code : "";
@@ -613,8 +615,11 @@ ${cleanScreenCode}
       if (event.source !== iframeRef.current?.contentWindow) return;
       if (event.data?.type === "elementSelectionLost") {
         const lostDrawgleId = typeof event.data.drawgleId === "string" ? event.data.drawgleId : null;
+        const lostReason = event.data.reason === "rehydrate_failed" || event.data.reason === "click_miss" || event.data.reason === "source_changed"
+          ? event.data.reason
+          : undefined;
         if (lostDrawgleId) {
-          onElementSelectionLost?.({ screenId: screen.id, drawgleId: lostDrawgleId });
+          onElementSelectionLost?.({ screenId: screen.id, drawgleId: lostDrawgleId, reason: lostReason });
         }
         return;
       }
@@ -1462,11 +1467,12 @@ ${cleanScreenCode}
               return true;
             }
 
-            function postSelectionLost(drawgleId) {
+            function postSelectionLost(drawgleId, reason) {
               if (!drawgleId) return;
               window.parent.postMessage({
                 type: 'elementSelectionLost',
                 drawgleId: drawgleId,
+                reason: reason || 'source_changed',
               }, '*');
             }
 
@@ -1513,7 +1519,7 @@ ${cleanScreenCode}
               var target = resolveTarget(e.target);
               if (!target || !hasDrawgleId(target)) {
                 currentSelectedDrawgleId = null;
-                if (previousSelectedDrawgleId) postSelectionLost(previousSelectedDrawgleId);
+                if (previousSelectedDrawgleId) postSelectionLost(previousSelectedDrawgleId, 'click_miss');
                 return;
               }
               selectedEl = target;
@@ -1549,7 +1555,7 @@ ${cleanScreenCode}
               if (!drawgleId) return false;
               var nextSelected = document.querySelector('[data-drawgle-id="' + String(drawgleId).replace(/"/g, '\\"') + '"]');
               if (!nextSelected) {
-                if (options.notifyLost) postSelectionLost(drawgleId);
+                if (options.notifyLost) postSelectionLost(drawgleId, options.lostReason || 'source_changed');
                 return false;
               }
               selectedEl = nextSelected;
@@ -1580,7 +1586,7 @@ ${cleanScreenCode}
                 if (styleRuntimeReady) {
                   applyRenderPayload(queuedRenderPayload);
                   if (pendingSelectedDrawgleId) {
-                    selectByDrawgleId(pendingSelectedDrawgleId, { notifySelected: true, notifyLost: true });
+                    selectByDrawgleId(pendingSelectedDrawgleId, { notifySelected: true, notifyLost: true, lostReason: 'rehydrate_failed' });
                     pendingSelectedDrawgleId = null;
                   }
                 }
@@ -1605,7 +1611,7 @@ ${cleanScreenCode}
               if (queuedRenderPayload) {
                 applyRenderPayload(queuedRenderPayload);
                 if (pendingSelectedDrawgleId) {
-                  selectByDrawgleId(pendingSelectedDrawgleId, { notifySelected: true, notifyLost: true });
+                  selectByDrawgleId(pendingSelectedDrawgleId, { notifySelected: true, notifyLost: true, lostReason: 'rehydrate_failed' });
                   pendingSelectedDrawgleId = null;
                 }
               }
