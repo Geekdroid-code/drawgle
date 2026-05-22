@@ -429,12 +429,56 @@ export interface ScreenPlan {
   assetNeeds?: AssetRequirement[];
 }
 
+export interface ScreenCountContract {
+  exactCount: number | null;
+  source: "planning_mode" | "prompt_count" | "named_screens" | "reference_image" | "open_project";
+  reason: string;
+  namedScreens?: string[];
+  referenceScreenCount?: number | null;
+  disableSharedNavigation?: boolean;
+}
+
+export type ScreenCountEnforcement = "none" | "trimmed" | "filled";
+
 export interface PlannedUiFlow {
   requiresBottomNav: boolean;
   navigationArchitecture: NavigationArchitecture;
   navigationPlan: NavigationPlan;
   screens: ScreenPlan[];
   charter: ProjectCharter;
+  screenCountContract?: ScreenCountContract;
+  screenCountEnforcement?: ScreenCountEnforcement;
+}
+
+export interface GenerationJournalScreen {
+  name: string;
+  type?: ScreenPlan["type"] | null;
+  description?: string | null;
+  chrome?: ScreenChromeKind | null;
+  navigationItemId?: string | null;
+  assetNeedCount?: number;
+  status?: "planned" | "queued" | "building" | "ready" | "failed";
+}
+
+export interface GenerationJournalMetadata {
+  version: 1;
+  generationRunId: string;
+  status: "queued" | "planning" | "building" | "completed" | "failed";
+  title: string;
+  detail?: string | null;
+  activePhase?: string | null;
+  phases: Array<{
+    id: string;
+    label: string;
+    status: "pending" | "active" | "completed" | "failed";
+    detail?: string | null;
+  }>;
+  screens?: GenerationJournalScreen[];
+  assetSummary?: {
+    requested: number;
+    resolved: number;
+    placeholders: number;
+  } | null;
 }
 
 export type PlanningMode = "project" | "single-screen";

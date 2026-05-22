@@ -35,6 +35,7 @@ import type {
   DesignTokenMetadata,
   DesignTokenValues,
   DesignTokens,
+  JsonValue,
   Message,
   NavigationArchitecture,
   NavigationPlan,
@@ -43,6 +44,8 @@ import type {
   PromptImagePayload,
   ProjectCharter,
   ReferenceMode,
+  ScreenCountContract,
+  ScreenCountEnforcement,
   ScreenBlockIndex,
   ScreenPlan,
 } from "@/lib/types";
@@ -512,6 +515,168 @@ const screenPlanFromExplicitSection = (
     assetNeeds: existing?.assetNeeds ?? [],
     chromePolicy: explicitSectionChromePolicy(section, index, forceNoPersistentNav) ?? existing?.chromePolicy ?? null,
   };
+};
+
+const clampScreenCount = (value: number | null | undefined) => {
+  if (!Number.isFinite(value ?? NaN)) {
+    return null;
+  }
+
+  return Math.min(12, Math.max(1, Math.round(value as number)));
+};
+
+const buildScreenCountContract = ({
+  prompt,
+  planningMode,
+  referenceMode,
+  referenceAnalysis,
+  explicitScreenSections,
+  requestedScreenCount,
+}: {
+  prompt: string;
+  planningMode: PlanningMode;
+  referenceMode: ReferenceMode;
+  referenceAnalysis: ReferenceAnalysis | null;
+  explicitScreenSections: ExplicitScreenSection[];
+  requestedScreenCount: number | null;
+}): ScreenCountContract => {
+  if (planningMode === "single-screen") {
+    return {
+      exactCount: 1,
+      source: "planning_mode",
+      reason: "Single-screen planning mode always returns exactly one screen.",
+      disableSharedNavigation: false,
+    };
+  }
+
+  const clampedRequestedCount = clampScreenCount(requestedScreenCount);
+  if (clampedRequestedCount) {
+    return {
+      exactCount: clampedRequestedCount,
+      source: "prompt_count",
+      reason: `The user explicitly requested ${clampedRequestedCount} screen${clampedRequestedCount === 1 ? "" : "s"}.`,
+      namedScreens: explicitScreenSections.map((section) => section.name),
+      disableSharedNavigation: referenceMode === "user_recreate" && clampedRequestedCount === 1,
+    };
+  }
+
+  if (explicitScreenSections.length > 0) {
+    return {
+      exactCount: clampScreenCount(explicitScreenSections.length),
+      source: "named_screens",
+      reason: `The prompt explicitly named ${explicitScreenSections.length} screen${explicitScreenSections.length === 1 ? "" : "s"}.`,
+      namedScreens: explicitScreenSections.map((section) => section.name),
+      disableSharedNavigation: referenceMode === "user_recreate" && explicitScreenSections.length === 1,
+    };
+  }
+
+  const referenceScreenCount = clampScreenCount(referenceAnalysis?.screenCountEstimate);
+  if (referenceMode === "user_recreate" && referenceScreenCount) {
+    return {
+      exactCount: referenceScreenCount,
+      source: "reference_image",
+      reason: `The uploaded reference appears to contain ${referenceScreenCount} screen${referenceScreenCount === 1 ? "" : "s"}.`,
+      referenceScreenCount,
+      disableSharedNavigation: referenceScreenCount === 1,
+    };
+  }
+
+  return {
+    exactCount: null,
+    source: "open_project",
+    reason: prompt.trim()
+      ? "No exact screen count was requested, so project planning may choose the right number of screens."
+      : "No exact screen count was available from the prompt or reference.",
+    referenceScreenCount,
+    disableSharedNavigation: false,
+  };
+};
+
+const formatScreenCountContract = (contract: ScreenCountContract) => {
+  const lines = [
+    "Screen count contract:",
+    contract.exactCount
+      ? `- Return exactly ${contract.exactCount} screen${contract.exactCount === 1 ? "" : "s"}.`
+      : "- Screen count is open; choose only the screens genuinely needed by the app brief.",
+    `- Authority: ${contract.source}. ${contract.reason}`,
+    contract.namedScreens?.length
+      ? `- Named screens to preserve when possible: ${contract.namedScreens.join(", ")}.`
+      : null,
+    contract.disableSharedNavigation
+      ? "- Shared project navigation is disabled for this run. If the reference has visible tabs, treat them as static visual chrome inside the planned screen, not as extra screens."
+      : "- Navigation must not create additional screens beyond this contract.",
+  ].filter(Boolean);
+
+  return lines.join("\n");
+};
+
+const screenCountContractJson = (contract: ScreenCountContract): JsonValue => ({
+  exactCount: contract.exactCount,
+  source: contract.source,
+  reason: contract.reason,
+  namedScreens: contract.namedScreens ?? [],
+  referenceScreenCount: contract.referenceScreenCount ?? null,
+  disableSharedNavigation: Boolean(contract.disableSharedNavigation),
+});
+
+const screenPlanFromReferenceScreen = ({
+  referenceScreen,
+  index,
+  prompt,
+}: {
+  referenceScreen?: ReferenceAnalysis["screenReferences"][number];
+  index: number;
+  prompt: string;
+}): ScreenPlan => {
+  if (referenceScreen) {
+    return {
+      name: humanizeReferenceRole(referenceScreen.suggestedRole, referenceScreen.index),
+      type: index === 0 ? "root" : "detail",
+      description: buildStructuredScreenDescription(referenceScreen),
+      assetNeeds: [],
+    };
+  }
+
+  return {
+    ...fallbackScreenPlan(prompt || `Screen ${index + 1}`),
+    name: index === 0 ? "Home" : `Screen ${index + 1}`,
+    type: index === 0 ? "root" : "detail",
+  };
+};
+
+const enforceScreenCountContract = ({
+  screens,
+  contract,
+  prompt,
+  referenceAnalysis,
+}: {
+  screens: ScreenPlan[];
+  contract: ScreenCountContract;
+  prompt: string;
+  referenceAnalysis: ReferenceAnalysis | null;
+}): { screens: ScreenPlan[]; enforcement: ScreenCountEnforcement } => {
+  const exactCount = contract.exactCount;
+  if (!exactCount) {
+    return { screens, enforcement: "none" };
+  }
+
+  if (screens.length > exactCount) {
+    return { screens: screens.slice(0, exactCount), enforcement: "trimmed" };
+  }
+
+  if (screens.length < exactCount) {
+    const nextScreens = [...screens];
+    for (let index = screens.length; index < exactCount; index++) {
+      nextScreens.push(screenPlanFromReferenceScreen({
+        referenceScreen: referenceAnalysis?.screenReferences[index],
+        index,
+        prompt,
+      }));
+    }
+    return { screens: nextScreens, enforcement: "filled" };
+  }
+
+  return { screens, enforcement: "none" };
 };
 
 const reconcileScreensWithPrompt = ({
@@ -1319,8 +1484,16 @@ export async function planUiFlow({
   const referenceAnalysis = await analyzeReferenceImage({ prompt, image, referenceMode: resolvedReferenceMode });
   const explicitScreenSections = parseExplicitScreenSections(prompt);
   const requestedScreenCount = parseRequestedScreenCount(prompt);
+  const screenCountContract = buildScreenCountContract({
+    prompt,
+    planningMode,
+    referenceMode: resolvedReferenceMode,
+    referenceAnalysis,
+    explicitScreenSections,
+    requestedScreenCount,
+  });
   const forceFiniteFlowWithoutPersistentNav = looksLikeFiniteFlowWithoutPersistentNav(prompt, explicitScreenSections);
-  const fallbackRequiresBottomNav = inferLegacyRequiresBottomNav({
+  const fallbackRequiresBottomNav = screenCountContract.disableSharedNavigation ? false : inferLegacyRequiresBottomNav({
     prompt,
     planningMode,
     referenceAnalysis,
@@ -1346,18 +1519,13 @@ export async function planUiFlow({
     text: prompt.trim() ? `User Prompt: "${prompt}"` : "Convert this sketch or reference UI in the image into a high-fidelity mobile UI.",
   });
 
-  if (planningMode !== "single-screen" && (requestedScreenCount || explicitScreenSections.length > 0)) {
+  parts.push({
+    text: formatScreenCountContract(screenCountContract),
+  });
+
+  if (forceFiniteFlowWithoutPersistentNav) {
     parts.push({
-      text: [
-        "Explicit screen-count contract:",
-        requestedScreenCount ? `- The user requested exactly ${requestedScreenCount} screen${requestedScreenCount === 1 ? "" : "s"}. Return that many screens unless the prompt itself contains fewer named screens.` : null,
-        explicitScreenSections.length > 0
-          ? `- The user explicitly named these screens. Preserve them in order: ${explicitScreenSections.map((section) => `Screen ${section.index}: ${section.name}`).join("; ")}.`
-          : null,
-        forceFiniteFlowWithoutPersistentNav
-          ? "- This reads as a finite flow with onboarding/detail-style screens, not a peer bottom-tab app. Do not force persistent navigation unless the prompt explicitly asks for tabs/navigation."
-          : null,
-      ].filter(Boolean).join("\n"),
+      text: "This reads as a finite flow with onboarding/detail-style screens, not a peer bottom-tab app. Do not force persistent navigation unless the prompt explicitly asks for tabs/navigation.",
     });
   }
 
@@ -1404,6 +1572,7 @@ export async function planUiFlow({
       planningMode,
       referenceMode: resolvedReferenceMode,
       referenceId: referenceId ?? null,
+      screenCountContract: screenCountContractJson(screenCountContract),
       systemInstructionLength: si.length,
       systemInstruction: si,
       userPartCount: parts.length,
@@ -1446,6 +1615,7 @@ export async function planUiFlow({
         planningMode,
         referenceMode: resolvedReferenceMode,
         referenceId: referenceId ?? null,
+        screenCountContract,
         systemInstructionLength: si.length,
         systemInstruction: si,
         userPartCount: screenParts.length,
@@ -1500,7 +1670,7 @@ export async function planUiFlow({
     // -------------------------------------------------------------------
     const salvaged = salvageScreensFromRawPlan(rawPlan);
 
-    const navigationArchitecture = forceFiniteFlowWithoutPersistentNav
+    const navigationArchitecture = screenCountContract.disableSharedNavigation || forceFiniteFlowWithoutPersistentNav
       ? createNavigationArchitecture({ requiresBottomNav: false })
       : coerceNavigationArchitecture({
           parsedNavigationArchitecture: salvaged.navigationArchitecture,
@@ -1517,16 +1687,23 @@ export async function planUiFlow({
           planningMode,
           referenceAnalysis,
         }).map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture }));
+    const reconciledScreens = reconcileScreensWithPrompt({
+      prompt,
+      screens: rawScreens,
+      planningMode,
+    }).map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture }));
+    const enforced = enforceScreenCountContract({
+      screens: reconciledScreens,
+      contract: screenCountContract,
+      prompt,
+      referenceAnalysis,
+    });
     const screens = ensureBuilderGradeScreenBriefs({
       referenceAnalysis,
-      screens: reconcileScreensWithPrompt({
-        prompt,
-        screens: rawScreens,
-        planningMode,
-      }).map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture })),
+      screens: enforced.screens.map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture })),
     });
     const navigationPlan = normalizeNavigationPlan({
-      navigationPlan: forceFiniteFlowWithoutPersistentNav ? null : salvaged.navigationPlan ?? (planningMode === "single-screen" ? existingNavigationPlan : null),
+      navigationPlan: screenCountContract.disableSharedNavigation || forceFiniteFlowWithoutPersistentNav ? null : salvaged.navigationPlan ?? (planningMode === "single-screen" ? existingNavigationPlan : null),
       screens,
       navigationArchitecture,
       requiresBottomNav: deriveRequiresBottomNav(navigationArchitecture),
@@ -1544,6 +1721,8 @@ export async function planUiFlow({
       rawPlanKeys,
       rawScreenCount,
       recoveredScreens: plannedScreens.length,
+      screenCountContract: screenCountContractJson(screenCountContract),
+      screenCountEnforcement: enforced.enforcement,
       notes: [
         "Recovered planner output independently instead of replacing the whole charter with generic fallback.",
         salvaged.screens.length > 0 ? "Screen plans came from valid planner screen objects." : "Screen plans came from reference analysis fallback because no usable planner screens were recovered.",
@@ -1566,10 +1745,12 @@ export async function planUiFlow({
         diagnostics: planningDiagnostics,
       }),
       screens: plannedScreens,
+      screenCountContract,
+      screenCountEnforcement: enforced.enforcement,
     };
   }
 
-  const navigationArchitecture = forceFiniteFlowWithoutPersistentNav
+  const navigationArchitecture = screenCountContract.disableSharedNavigation || forceFiniteFlowWithoutPersistentNav
     ? createNavigationArchitecture({ requiresBottomNav: false })
     : coerceNavigationArchitecture({
         parsedNavigationArchitecture: parsed.data.navigation_architecture ?? null,
@@ -1593,10 +1774,13 @@ export async function planUiFlow({
       rawPlanKeys: isRecord(rawPlan) ? Object.keys(rawPlan) : [],
       rawScreenCount: parsed.data.screens.length,
       recoveredScreens: parsed.data.screens.length,
+      screenCountContract: screenCountContractJson(screenCountContract),
     },
   });
 
-  const parsedScreens = planningMode === "single-screen" ? parsed.data.screens.slice(0, 1) : parsed.data.screens;
+  const parsedScreens = planningMode === "single-screen"
+      ? parsed.data.screens.slice(0, 1)
+      : parsed.data.screens;
   const rawScreens = parsedScreens.map((screenPlan) => ({
     name: screenPlan.name,
     type: screenPlan.type,
@@ -1610,13 +1794,29 @@ export async function planUiFlow({
         }
       : null,
   }));
+  const reconciledScreens = reconcileScreensWithPrompt({
+    prompt,
+    screens: rawScreens,
+    planningMode,
+  }).map((screenPlan) => resolvePlannedScreen({
+    screenPlan: {
+      name: screenPlan.name,
+      type: screenPlan.type,
+      description: screenPlan.description,
+      assetNeeds: screenPlan.assetNeeds ?? [],
+      chromePolicy: screenPlan.chromePolicy ?? null,
+    },
+    navigationArchitecture,
+  }));
+  const enforced = enforceScreenCountContract({
+    screens: reconciledScreens,
+    contract: screenCountContract,
+    prompt,
+    referenceAnalysis,
+  });
   const screens = ensureBuilderGradeScreenBriefs({
     referenceAnalysis,
-    screens: reconcileScreensWithPrompt({
-      prompt,
-      screens: rawScreens,
-      planningMode,
-    }).map((screenPlan) => resolvePlannedScreen({
+    screens: enforced.screens.map((screenPlan) => resolvePlannedScreen({
       screenPlan: {
         name: screenPlan.name,
         type: screenPlan.type,
@@ -1628,7 +1828,7 @@ export async function planUiFlow({
     })),
   });
   const navigationPlan = normalizeNavigationPlan({
-    navigationPlan: forceFiniteFlowWithoutPersistentNav ? null : toNavigationPlan(parsed.data.navigation_plan) ?? (planningMode === "single-screen" ? existingNavigationPlan : null),
+    navigationPlan: screenCountContract.disableSharedNavigation || forceFiniteFlowWithoutPersistentNav ? null : toNavigationPlan(parsed.data.navigation_plan) ?? (planningMode === "single-screen" ? existingNavigationPlan : null),
     screens,
     navigationArchitecture,
     requiresBottomNav: deriveRequiresBottomNav(navigationArchitecture),
@@ -1641,6 +1841,8 @@ export async function planUiFlow({
     navigationPlan,
     charter,
     screens: plannedScreens,
+    screenCountContract,
+    screenCountEnforcement: enforced.enforcement,
   };
 }
 

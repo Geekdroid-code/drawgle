@@ -32,7 +32,7 @@ import {
 import { tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
-import type { DesignTokens, ImageReferenceMode, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, PromptImagePayload, ProjectCharter, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenPlan } from "@/lib/types";
+import type { DesignTokens, GenerationJournalMetadata, ImageReferenceMode, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, PromptImagePayload, ProjectCharter, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenPlan } from "@/lib/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -397,6 +397,63 @@ async function postStatusMessage(
   } catch (err) {
     logger.warn("Failed to post status message", { content, error: err });
   }
+}
+
+const journalActivityKey = (generationRunId: string) => `run:${generationRunId}:journal`;
+
+function createGenerationJournal(generationRunId: string): GenerationJournalMetadata {
+  return {
+    version: 1,
+    generationRunId,
+    status: "planning",
+    title: "Designing your app",
+    detail: "Turning the brief into a buildable mobile UI plan.",
+    activePhase: "brief",
+    phases: [
+      { id: "brief", label: "Brief received", status: "active" },
+      { id: "reference", label: "Reference direction", status: "pending" },
+      { id: "design", label: "Design system", status: "pending" },
+      { id: "blueprint", label: "Project blueprint", status: "pending" },
+      { id: "screens", label: "Screen plan", status: "pending" },
+      { id: "assets", label: "Visual assets", status: "pending" },
+      { id: "build", label: "Screen build", status: "pending" },
+    ],
+    screens: [],
+    assetSummary: null,
+  };
+}
+
+function setJournalPhase(
+  journal: GenerationJournalMetadata,
+  phaseId: string,
+  status: GenerationJournalMetadata["phases"][number]["status"],
+  detail?: string | null,
+) {
+  journal.phases = journal.phases.map((phase) =>
+    phase.id === phaseId ? { ...phase, status, detail: detail ?? phase.detail ?? null } : phase,
+  );
+  journal.activePhase = status === "completed" || status === "failed" ? journal.activePhase : phaseId;
+}
+
+async function postGenerationJournal(
+  admin: AdminClient,
+  projectId: string,
+  ownerId: string,
+  journal: GenerationJournalMetadata,
+) {
+  await postStatusMessage(
+    admin,
+    projectId,
+    ownerId,
+    journal.title,
+    journal.status === "completed" ? "generation_completed" : journal.status === "failed" ? "error" : "generation_started",
+    {
+      generationRunId: journal.generationRunId,
+      activityKey: journalActivityKey(journal.generationRunId),
+      generationJournal: journal,
+      ui: { variant: "generation_journal" },
+    },
+  );
 }
 
 async function collectScreenBuild(input: BuildScreenTaskPayload, screenPlan: ScreenPlan) {
@@ -904,6 +961,19 @@ export const generateUiFlowTask = task({
       ),
     ));
 
+    const failedJournal = createGenerationJournal(payload.generationRunId);
+    failedJournal.status = "failed";
+    failedJournal.title = "Generation failed";
+    failedJournal.detail = message;
+    failedJournal.activePhase = null;
+    failedJournal.screens = (stuckScreens ?? []).map((screen) => ({
+      name: screen.name,
+      status: "failed",
+      description: message,
+    }));
+    setJournalPhase(failedJournal, "build", "failed", message);
+    await postGenerationJournal(admin, payload.projectId, payload.ownerId, failedJournal);
+
     await postStatusMessage(
       admin,
       payload.projectId,
@@ -928,6 +998,7 @@ export const generateUiFlowTask = task({
   },
   run: async (payload: GenerateUiFlowPayload) => {
     const admin = createAdminClient();
+    const generationJournal = createGenerationJournal(payload.generationRunId);
 
     let designTokens = payload.designTokens ?? null;
     const { data: existingProject } = await admin
@@ -974,6 +1045,8 @@ export const generateUiFlowTask = task({
         activityKey: planningActivityKey(payload.generationRunId),
       },
     );
+    setJournalPhase(generationJournal, "brief", "completed", "Received the project brief and queued planning.");
+    await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
     const [uploadedPromptImage, planningContext] = await Promise.all([
       loadPromptImage(admin, payload.imagePath),
@@ -1016,6 +1089,17 @@ export const generateUiFlowTask = task({
       referenceSource = "curated";
       referenceId = match.reference.id;
     }
+    setJournalPhase(
+      generationJournal,
+      "reference",
+      "completed",
+      referenceMode === "user_recreate"
+        ? "Using the uploaded image as structural UI evidence."
+        : referenceMode === "user_style"
+          ? "Using the uploaded image as style direction."
+          : `Matched internal style reference${referenceId ? `: ${referenceId}` : ""}.`,
+    );
+    await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
     await mergeGenerationRunMetadata(admin, payload.generationRunId, {
       requestedImageReferenceMode: payload.imageReferenceMode ?? "recreate",
@@ -1025,6 +1109,9 @@ export const generateUiFlowTask = task({
     });
 
     if (!designTokens) {
+      setJournalPhase(generationJournal, "design", "active", "Extracting the visual system and token direction.");
+      await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
+
       await postStatusMessage(
         admin,
         payload.projectId,
@@ -1066,6 +1153,11 @@ export const generateUiFlowTask = task({
           action: "design_system_ready",
         },
       );
+      setJournalPhase(generationJournal, "design", "completed", "Design tokens are ready for the build.");
+      await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
+    } else {
+      setJournalPhase(generationJournal, "design", "completed", "Using the approved project design tokens.");
+      await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
     }
     const requestedCharter = payload.projectCharter ?? existingCharter ?? (
       payload.plannedScreens && payload.plannedScreens.length > 0
@@ -1084,6 +1176,10 @@ export const generateUiFlowTask = task({
       contextChars: planningContext.length,
       approxTokens: Math.round(planningContext.length / 4),
     });
+
+    setJournalPhase(generationJournal, "blueprint", "active", "Choosing navigation scope and project structure.");
+    setJournalPhase(generationJournal, "screens", "active", "Drafting builder-ready screen briefs.");
+    await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
     const plan = payload.plannedScreens && payload.plannedScreens.length > 0
       ? {
@@ -1111,6 +1207,23 @@ export const generateUiFlowTask = task({
           llmLog: (label, data) => logger.info(label, data),
         });
     plan.screens = applyNavigationPlanToScreens(plan.screens, plan.navigationPlan);
+    setJournalPhase(
+      generationJournal,
+      "blueprint",
+      "completed",
+      plan.navigationPlan.enabled ? "Shared navigation is planned for this project." : "No shared navigation is needed for this run.",
+    );
+    setJournalPhase(generationJournal, "screens", "completed", `Planned ${plan.screens.length} screen${plan.screens.length === 1 ? "" : "s"}.`);
+    generationJournal.screens = plan.screens.map((screenPlan) => ({
+      name: screenPlan.name,
+      type: screenPlan.type,
+      description: screenPlan.description,
+      chrome: screenPlan.chromePolicy?.chrome ?? null,
+      navigationItemId: screenPlan.navigationItemId ?? null,
+      assetNeedCount: screenPlan.assetNeeds?.length ?? 0,
+      status: "planned",
+    }));
+    await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
     const rawNavigationShellCode = await buildNavigationShellCode({
       navigationPlan: plan.navigationPlan,
@@ -1160,7 +1273,13 @@ export const generateUiFlowTask = task({
         navigationItemId: screenPlan.navigationItemId ?? null,
         assetNeeds: screenPlan.assetNeeds ?? [],
       })),
+      screenCountContract: plan.screenCountContract ?? null,
+      screenCountEnforcement: plan.screenCountEnforcement ?? "none",
+      navigationEnabled: plan.navigationPlan.enabled,
     });
+
+    setJournalPhase(generationJournal, "assets", "active", "Resolving curated assets, stock photos, or simple placeholders.");
+    await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
     await postStatusMessage(
       admin,
@@ -1225,6 +1344,13 @@ export const generateUiFlowTask = task({
         placeholderAssetCount,
       },
     );
+    setJournalPhase(generationJournal, "assets", "completed", assetStatusTitle);
+    generationJournal.assetSummary = {
+      requested: assetRequirements.length,
+      resolved: resolvedAssetCount,
+      placeholders: placeholderAssetCount,
+    };
+    await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
     const shouldSendBuildContext = Boolean(payload.plannedScreens?.length) || (payload.planningMode ?? "project") === "single-screen";
     const buildContext = shouldSendBuildContext ? compactBuildContext(planningContext) : null;
@@ -1255,6 +1381,9 @@ export const generateUiFlowTask = task({
       requires_bottom_nav: plan.requiresBottomNav,
       requested_screen_count: screenPlans.length,
     });
+    generationJournal.status = "building";
+    setJournalPhase(generationJournal, "build", "active", `Building ${screenPlans.length} screen${screenPlans.length === 1 ? "" : "s"} on the canvas.`);
+    await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
     // Sequential build: each screen is triggered, inserted, and polled to
     // completion before the next one starts.  This means Screen 1 appears
@@ -1271,6 +1400,10 @@ export const generateUiFlowTask = task({
 
       try {
         const shouldAttachReferenceImage = referenceMode === "user_recreate" && index === 0;
+        generationJournal.screens = generationJournal.screens?.map((screen) =>
+          screen.name === screenPlan.name ? { ...screen, status: "building" } : screen,
+        );
+        await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
         const handle = await (buildScreenTask as any).trigger(
           {
@@ -1350,6 +1483,10 @@ export const generateUiFlowTask = task({
 
           if (completedScreen?.status === "failed") {
             failedScreens += 1;
+            generationJournal.screens = generationJournal.screens?.map((screen) =>
+              screen.name === screenPlan.name ? { ...screen, status: "failed" } : screen,
+            );
+            await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
             await postStatusMessage(
               admin,
@@ -1367,6 +1504,10 @@ export const generateUiFlowTask = task({
             );
           } else {
             successfulScreens += 1;
+            generationJournal.screens = generationJournal.screens?.map((screen) =>
+              screen.name === screenPlan.name ? { ...screen, status: "ready" } : screen,
+            );
+            await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
             await postStatusMessage(
               admin,
@@ -1385,6 +1526,10 @@ export const generateUiFlowTask = task({
         } else {
           failedScreens += 1;
           const message = result?.error?.message ?? "Unknown error";
+          generationJournal.screens = generationJournal.screens?.map((screen) =>
+            screen.name === screenPlan.name ? { ...screen, status: "failed" } : screen,
+          );
+          await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
           await admin
             .from("screens")
             .update({
@@ -1414,6 +1559,10 @@ export const generateUiFlowTask = task({
         failedScreens += 1;
         const message = screenError instanceof Error ? screenError.message : String(screenError);
         logger.error("Failed to build screen", { screenName: screenPlan.name, error: screenError });
+        generationJournal.screens = generationJournal.screens?.map((screen) =>
+          screen.name === screenPlan.name ? { ...screen, status: "failed" } : screen,
+        );
+        await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
         if (rowInserted) {
           await admin
@@ -1465,6 +1614,19 @@ export const generateUiFlowTask = task({
     const completionContent = finishedStatus === "completed"
       ? `Created ${successfulScreens} screen${successfulScreens === 1 ? "" : "s"}`
       : `Generation finished with ${failedScreens} failure${failedScreens > 1 ? "s" : ""}`;
+    generationJournal.status = finishedStatus;
+    generationJournal.title = completionContent;
+    generationJournal.detail = finishedStatus === "completed"
+      ? `Delivered ${successfulScreens} screen${successfulScreens === 1 ? "" : "s"} to the canvas.`
+      : errorSummary;
+    setJournalPhase(
+      generationJournal,
+      "build",
+      finishedStatus === "completed" ? "completed" : "failed",
+      generationJournal.detail,
+    );
+    generationJournal.activePhase = null;
+    await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
     await postStatusMessage(
       admin,

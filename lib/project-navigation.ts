@@ -93,10 +93,10 @@ export function normalizeNavigationPlan({
   requiresBottomNav?: boolean;
 }): NavigationPlan {
   const fallback = createFallbackNavigationPlan({ screens, navigationArchitecture, requiresBottomNav });
-  const enabled = navigationPlan?.enabled ?? fallback.enabled;
-  const kind = enabled ? "bottom-tabs" : "none";
+  const screenNames = new Set(screens.map((screen) => screen.name.toLowerCase()));
+  const requestedEnabled = navigationPlan?.enabled ?? fallback.enabled;
   const seen = new Set<string>();
-  const items = enabled
+  const rawItems = requestedEnabled
     ? (navigationPlan?.items?.length ? navigationPlan.items : fallback.items)
         .slice(0, 5)
         .map((item, index) => {
@@ -115,7 +115,11 @@ export function normalizeNavigationPlan({
             linkedScreenName: (item.linkedScreenName || fallback.items[index]?.linkedScreenName || screens[index]?.name || "").trim(),
           };
         })
+        .filter((item) => screenNames.has(item.linkedScreenName.toLowerCase()))
     : [];
+  const enabled = requestedEnabled && rawItems.length > 0;
+  const kind = enabled ? "bottom-tabs" : "none";
+  const items = enabled ? rawItems : [];
 
   return {
     enabled,

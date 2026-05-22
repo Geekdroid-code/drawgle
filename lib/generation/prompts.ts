@@ -274,6 +274,8 @@ Create the project charter, navigation architecture, and navigation plan. Do not
 ${plannerBlueprintJsonContract}
 
 Blueprint rules:
+- Screen Count Contract is the highest authority for screen quantity. Navigation architecture may not add, imply, or preserve extra screens beyond that contract.
+- When the contract says exactly 1 screen in Image to UI mode, visible screenshot tabs are visual chrome only. Do not turn them into peer screens or shared navigation unless the user explicitly requested multiple screens/prototype navigation.
 - Analyze the app concept and define one navigation_architecture for the whole product.
 - Use kind "bottom-tabs-app" only when the product has several peer root destinations.
 - Use kind "hierarchical" when the product mostly moves through push-style flows and detail screens.
@@ -298,7 +300,9 @@ Use the provided project blueprint as fixed product architecture. Create only th
 ${plannerScreensJsonContract}
 
 Rules:
-- If the user explicitly asked for N screens, return exactly N screens unless the prompt names fewer screens.
+- If the user explicitly asked for N screens, return exactly N screens.
+- If a Screen Count Contract is present, it overrides visible tab count, inferred app sections, and navigation_plan item count.
+- In Image to UI mode, visible bottom tabs in a one-screen screenshot are part of the visual anatomy for that one screen, not permission to create additional screens.
 - If the prompt names screens in order, preserve those names and order.
 - Root screens are peer primary destinations. Onboarding, splash, checkout, tracking, map, detail, modal, and confirmation screens are usually detail/immersive screens.
 - chrome_policy must match the screen's role in the approved architecture. Detail screens should not carry the primary bottom-tab shell.
@@ -387,6 +391,7 @@ Return strictly valid JSON in this format:
 
 Rules:
 - If the image contains multiple phone screens or panels, describe them left-to-right.
+- screenCountEstimate counts only visible phone screens/panels in the uploaded image. Bottom navigation tabs, side tabs, segmented controls, carousel dots, menu items, or labels inside one visible screen are not additional screens.
 - Focus on actual composition, not product strategy.
 - If the request says the image is an internal curated style reference, extract its reusable visual DNA and component craft without treating its full layout as the user's required screen structure.
 - VISUAL FORENSICS PASS: Before describing style, inspect the UI from the absolute screen background forward through every visible layer. For each meaningful layer, name what it is, where it sits, what contains it, what it contains, and how it is separated from the layer behind it.

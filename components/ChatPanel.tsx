@@ -37,6 +37,7 @@ import {
 } from "@/lib/agent/message-metadata";
 import type {
   GenerationRunData,
+  GenerationJournalMetadata,
   DesignTokens,
   ImageReferenceMode,
   NavigationArchitecture,
@@ -82,6 +83,7 @@ type ConversationItem =
   | { id: string; kind: "user"; content: string; image?: PromptImagePayload | null; timestamp?: string }
   | { id: string; kind: "assistant"; content: string; timestamp?: string; isError?: boolean }
   | { id: string; kind: "thinking"; summary: ThinkingSummaryMetadata; timestamp?: string; live?: boolean }
+  | { id: string; kind: "generation_journal"; journal: GenerationJournalMetadata; timestamp?: string }
   | { id: string; kind: "action"; step: AgentStepMetadata; sourceContent?: string; retryRun?: GenerationRunData; proposal?: ScreenPlanProposalMetadata | null; proposalMessageId?: string | null; timestamp?: string };
 
 type ChatWorkspaceTab = "chat" | "design" | "design-md";
@@ -137,10 +139,83 @@ const isInternalGenerationActivity = (activityKey: string | null) =>
   Boolean(
     activityKey &&
     (
-      /^run:[^:]+:(planning|design)$/.test(activityKey) ||
+      /^run:[^:]+:(planning|design|assets)$/.test(activityKey) ||
       /^screen:[^:]+:build$/.test(activityKey)
     ),
   );
+
+const JOURNAL_PHASE_STATUSES = new Set(["pending", "active", "completed", "failed"]);
+const JOURNAL_STATUSES = new Set(["queued", "planning", "building", "completed", "failed"]);
+const JOURNAL_SCREEN_STATUSES = new Set(["planned", "queued", "building", "ready", "failed"]);
+
+const readGenerationJournal = (metadata: Record<string, unknown>): GenerationJournalMetadata | null => {
+  const journal = metadataRecord(metadata.generationJournal);
+  if (journal.version !== 1) return null;
+  if (typeof journal.generationRunId !== "string" || !journal.generationRunId) return null;
+  if (typeof journal.title !== "string" || !journal.title.trim()) return null;
+  if (typeof journal.status !== "string" || !JOURNAL_STATUSES.has(journal.status)) return null;
+  if (!Array.isArray(journal.phases)) return null;
+
+  const phases = journal.phases.flatMap((phaseValue) => {
+    const phase = metadataRecord(phaseValue);
+    const id = typeof phase.id === "string" ? phase.id : null;
+    const label = typeof phase.label === "string" ? phase.label : null;
+    const status = typeof phase.status === "string" && JOURNAL_PHASE_STATUSES.has(phase.status) ? phase.status : null;
+    if (!id || !label || !status) return [];
+    return [{
+      id,
+      label,
+      status: status as GenerationJournalMetadata["phases"][number]["status"],
+      detail: typeof phase.detail === "string" ? phase.detail : null,
+    }];
+  });
+  if (!phases.length) return null;
+
+  const screens: GenerationJournalMetadata["screens"] = Array.isArray(journal.screens)
+    ? journal.screens.flatMap((screenValue) => {
+        const screen = metadataRecord(screenValue);
+        const name = typeof screen.name === "string" ? screen.name : null;
+        if (!name) return [];
+        const type: NonNullable<GenerationJournalMetadata["screens"]>[number]["type"] =
+          screen.type === "root" || screen.type === "detail" ? screen.type : null;
+        const chrome: NonNullable<GenerationJournalMetadata["screens"]>[number]["chrome"] =
+          typeof screen.chrome === "string" ? screen.chrome as NonNullable<GenerationJournalMetadata["screens"]>[number]["chrome"] : null;
+        const status = typeof screen.status === "string" && JOURNAL_SCREEN_STATUSES.has(screen.status)
+          ? screen.status as NonNullable<GenerationJournalMetadata["screens"]>[number]["status"]
+          : "planned";
+        return [{
+          name,
+          type,
+          description: typeof screen.description === "string" ? screen.description : null,
+          chrome,
+          navigationItemId: typeof screen.navigationItemId === "string" ? screen.navigationItemId : null,
+          assetNeedCount: typeof screen.assetNeedCount === "number" && Number.isFinite(screen.assetNeedCount) ? screen.assetNeedCount : 0,
+          status,
+        }];
+      })
+    : [];
+
+  const assetSummaryRecord = metadataRecord(journal.assetSummary);
+  const assetSummary = typeof assetSummaryRecord.requested === "number"
+    ? {
+        requested: assetSummaryRecord.requested,
+        resolved: typeof assetSummaryRecord.resolved === "number" ? assetSummaryRecord.resolved : 0,
+        placeholders: typeof assetSummaryRecord.placeholders === "number" ? assetSummaryRecord.placeholders : 0,
+      }
+    : null;
+
+  return {
+    version: 1,
+    generationRunId: journal.generationRunId,
+    status: journal.status as GenerationJournalMetadata["status"],
+    title: journal.title,
+    detail: typeof journal.detail === "string" ? journal.detail : null,
+    activePhase: typeof journal.activePhase === "string" ? journal.activePhase : null,
+    phases,
+    screens,
+    assetSummary,
+  };
+};
 
 const isUsefulThinkingSummary = (summary: ThinkingSummaryMetadata) => {
   const text = summary.text.trim();
@@ -364,6 +439,8 @@ function buildConversationItems({
     const thinkingSummary = readThinkingSummary(message.metadata);
     const screenPlanProposal = readScreenPlanProposal(message.metadata);
     const agentStep = resolveAgentStep(readAgentStep(message.metadata), stepFromLegacyMessage(message, screens));
+    const generationJournal = readGenerationJournal(message.metadata);
+    const uiVariant = getMetadataString(metadataRecord(message.metadata.ui), "variant");
     const activityKey = getMessageActivityKey(message);
     const generationRunId = getMessageGenerationRunId(message);
     const run = generationRunId ? generationRunById.get(generationRunId) : null;
@@ -375,6 +452,18 @@ function buildConversationItems({
         content: message.content,
         timestamp: message.timestamp,
       });
+      continue;
+    }
+
+    if (generationJournal || uiVariant === "generation_journal") {
+      if (generationJournal) {
+        items.push({
+          id: `generation-journal-${message.id}`,
+          kind: "generation_journal",
+          journal: generationJournal,
+          timestamp: message.timestamp,
+        });
+      }
       continue;
     }
 
@@ -801,6 +890,151 @@ function ActionCard({
   );
 }
 
+const journalScreenStatusCopy = (status?: NonNullable<GenerationJournalMetadata["screens"]>[number]["status"]) => {
+  if (status === "ready") return "Ready";
+  if (status === "failed") return "Failed";
+  if (status === "building") return "Building";
+  if (status === "queued") return "Queued";
+  return "Planned";
+};
+
+const compactJournalDescription = (description?: string | null) => {
+  const clean = description?.replace(/\s+/g, " ").trim() ?? "";
+  if (!clean) return "Builder-ready screen brief prepared.";
+  return clean.length > 150 ? `${clean.slice(0, 147).trim()}...` : clean;
+};
+
+function JournalPhaseMark({ status }: { status: GenerationJournalMetadata["phases"][number]["status"] }) {
+  if (status === "failed") {
+    return <AlertCircle className="h-3.5 w-3.5 text-rose-600" />;
+  }
+
+  if (status === "active") {
+    return <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-700" />;
+  }
+
+  if (status === "completed") {
+    return <Check className="h-3.5 w-3.5 text-slate-700" />;
+  }
+
+  return <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />;
+}
+
+function GenerationJournalCard({ journal }: { journal: GenerationJournalMetadata }) {
+  const [expanded, setExpanded] = useState(journal.status !== "completed");
+  const busy = journal.status === "queued" || journal.status === "planning" || journal.status === "building";
+  const failed = journal.status === "failed";
+  const activePhase = journal.phases.find((phase) => phase.status === "active") ?? null;
+  const detail = activePhase?.detail ?? journal.detail ?? (busy ? "Working through the plan and build steps." : null);
+
+  return (
+    <div className="px-3 py-2">
+      <div className="overflow-hidden rounded-[18px] border border-slate-950/[0.1] bg-[#f6f6f7] text-slate-800">
+        <div className="p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <AgentBall className="h-4 w-4" active={busy} />
+                <h3 className="truncate text-[13px] font-semibold text-slate-950">{journal.title}</h3>
+              </div>
+              {detail ? (
+                <div className="mt-2 line-clamp-2 text-[12px] leading-5 text-slate-600">{detail}</div>
+              ) : null}
+            </div>
+            <div className="flex h-5 w-5 shrink-0 items-center justify-center">
+              <AgentMark busy={busy} failed={failed} />
+            </div>
+          </div>
+
+          <div className="mt-3 grid grid-cols-7 gap-1.5">
+            {journal.phases.map((phase) => (
+              <div
+                key={phase.id}
+                title={`${phase.label}${phase.detail ? ` - ${phase.detail}` : ""}`}
+                className={`h-1.5 rounded-full ${
+                  phase.status === "failed"
+                    ? "bg-rose-500"
+                    : phase.status === "completed"
+                      ? "bg-slate-950"
+                      : phase.status === "active"
+                        ? "bg-slate-500"
+                        : "bg-slate-950/[0.1]"
+                }`}
+              />
+            ))}
+          </div>
+
+          <button
+            type="button"
+            className="mt-3 text-left text-[12px] font-medium underline text-slate-600 hover:text-slate-950"
+            onClick={() => setExpanded((value) => !value)}
+          >
+            {expanded ? "Hide plan" : "Show plan"}
+          </button>
+        </div>
+
+        {expanded ? (
+          <div className="border-t border-slate-950/[0.08] bg-white/60 px-4 py-3">
+            <div className="space-y-2">
+              {journal.phases.map((phase) => (
+                <div key={phase.id} className="flex items-start gap-2 text-[12px] leading-5">
+                  <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">
+                    <JournalPhaseMark status={phase.status} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-medium text-slate-800">{phase.label}</div>
+                    {phase.detail ? <div className="text-slate-500">{phase.detail}</div> : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {journal.screens?.length ? (
+              <div className="mt-4 space-y-2">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Screen Briefs</div>
+                {journal.screens.map((screen, index) => (
+                  <div key={`${screen.name}-${index}`} className="rounded-[12px] border border-slate-950/[0.08] bg-white px-3 py-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="truncate text-[12px] font-semibold text-slate-950">{screen.name}</div>
+                        <div className="mt-0.5 text-[11px] text-slate-500">
+                          {[screen.type, screen.chrome ? `${screen.chrome} chrome` : null, screen.assetNeedCount ? `${screen.assetNeedCount} asset need${screen.assetNeedCount === 1 ? "" : "s"}` : null]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </div>
+                      </div>
+                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                        screen.status === "failed"
+                          ? "bg-rose-50 text-rose-700"
+                          : screen.status === "ready"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : screen.status === "building"
+                              ? "bg-slate-950 text-white"
+                              : "bg-slate-950/[0.06] text-slate-600"
+                      }`}>
+                        {journalScreenStatusCopy(screen.status)}
+                      </span>
+                    </div>
+                    <div className="mt-2 line-clamp-2 text-[11px] leading-5 text-slate-600">
+                      {compactJournalDescription(screen.description)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {journal.assetSummary ? (
+              <div className="mt-4 rounded-[12px] bg-slate-950/[0.04] px-3 py-2 text-[11px] leading-5 text-slate-600">
+                Assets: {journal.assetSummary.requested} requested, {journal.assetSummary.resolved} resolved, {journal.assetSummary.placeholders} placeholder{journal.assetSummary.placeholders === 1 ? "" : "s"}.
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function EmptyConversation({ isLoading }: { isLoading: boolean }) {
   if (isLoading) {
     return (
@@ -1173,6 +1407,14 @@ export function ChatPanel({
                 return (
                   <motion.div key={item.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
                     <ThinkingRow summary={item.summary} id={item.id} live={item.live} />
+                  </motion.div>
+                );
+              }
+
+              if (item.kind === "generation_journal") {
+                return (
+                  <motion.div key={item.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+                    <GenerationJournalCard journal={item.journal} />
                   </motion.div>
                 );
               }
