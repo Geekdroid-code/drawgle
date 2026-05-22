@@ -11,6 +11,7 @@ import { createNavigationArchitecture, deriveRequiresBottomNav, resolveScreenChr
 import {
   applyNavigationPlanToScreens,
   normalizeNavigationPlan,
+  renderDeterministicNavigationShell,
   validateNavigationShell,
 } from "@/lib/project-navigation";
 import {
@@ -69,6 +70,94 @@ const normalizeScreenType = (value: unknown) => {
 
 const ScreenTypeSchema = z.preprocess(normalizeScreenType, z.enum(["root", "detail"])).default("detail");
 
+const SCREEN_CHROME_KINDS = ["bottom-tabs", "top-bar", "top-bar-back", "modal-sheet", "immersive"] as const;
+
+const normalizeChromeKind = (value: unknown) => {
+  if (value === undefined || value === null || value === "") {
+    return "top-bar";
+  }
+
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const normalized = value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+  if (/(bottom|tab)/.test(normalized)) return "bottom-tabs";
+  if (/(back|detail|return)/.test(normalized)) return "top-bar-back";
+  if (/(modal|sheet|drawer)/.test(normalized)) return "modal-sheet";
+  if (/(immersive|full-screen|fullscreen|splash|onboarding|cover|hero)/.test(normalized)) return "immersive";
+  if (/(top|header|nav-bar|navbar)/.test(normalized)) return "top-bar";
+
+  return "top-bar";
+};
+
+const ScreenChromeKindSchema = z.preprocess(normalizeChromeKind, z.enum(SCREEN_CHROME_KINDS));
+
+const normalizeNavigationArchitectureKind = (value: unknown) => {
+  if (value === undefined || value === null || value === "") {
+    return "hierarchical";
+  }
+
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const normalized = value.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  if (/(bottom|tab|root|peer|multi)/.test(normalized)) return "bottom-tabs-app";
+  if (/(single|one|standalone)/.test(normalized)) return "single-screen";
+  return "hierarchical";
+};
+
+const NavigationArchitectureKindSchema = z.preprocess(
+  normalizeNavigationArchitectureKind,
+  z.enum(["bottom-tabs-app", "hierarchical", "single-screen"]),
+);
+
+const normalizePrimaryNavigation = (value: unknown) => {
+  if (typeof value !== "string") {
+    return value ?? "none";
+  }
+
+  return /(bottom|tab)/i.test(value) ? "bottom-tabs" : "none";
+};
+
+const PrimaryNavigationSchema = z.preprocess(normalizePrimaryNavigation, z.enum(["bottom-tabs", "none"]).default("none"));
+
+const normalizeNavigationPlanKind = (value: unknown) => {
+  if (typeof value !== "string") {
+    return value ?? "none";
+  }
+
+  return /(bottom|tab)/i.test(value) ? "bottom-tabs" : "none";
+};
+
+const NavigationPlanKindSchema = z.preprocess(normalizeNavigationPlanKind, z.enum(["bottom-tabs", "none"]));
+
+const coerceBooleanish = (value: unknown): boolean | null => {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (["true", "yes", "1", "enabled", "on"].includes(normalized)) return true;
+  if (["false", "no", "0", "disabled", "off", "none"].includes(normalized)) return false;
+  return null;
+};
+
+const BooleanishSchema = z.preprocess((value) => {
+  const coerced = coerceBooleanish(value);
+  if (coerced !== null) {
+    return coerced;
+  }
+
+  return value;
+}, z.boolean());
+
 const AssetNeedSourcePreferenceSchema = z.preprocess((value) => {
   if (value === "ai_generated") {
     return "internal_library";
@@ -104,25 +193,25 @@ const ScreenPlanSchema = z.object({
   type: ScreenTypeSchema,
   description: z.string().trim().min(1).max(8000),
   chrome_policy: z.object({
-    chrome: z.enum(["bottom-tabs", "top-bar", "top-bar-back", "modal-sheet", "immersive"]),
-    show_primary_navigation: z.boolean().optional(),
-    shows_back_button: z.boolean().optional(),
+    chrome: ScreenChromeKindSchema,
+    show_primary_navigation: BooleanishSchema.optional(),
+    shows_back_button: BooleanishSchema.optional(),
   }).optional(),
   asset_needs: z.array(AssetNeedSchema).max(4).default([]).optional(),
 });
 
 const NavigationArchitectureSchema = z.object({
-  kind: z.enum(["bottom-tabs-app", "hierarchical", "single-screen"]),
-  primary_navigation: z.enum(["bottom-tabs", "none"]).default("none"),
-  root_chrome: z.enum(["bottom-tabs", "top-bar", "top-bar-back", "modal-sheet", "immersive"]),
-  detail_chrome: z.enum(["bottom-tabs", "top-bar", "top-bar-back", "modal-sheet", "immersive"]),
+  kind: NavigationArchitectureKindSchema,
+  primary_navigation: PrimaryNavigationSchema,
+  root_chrome: ScreenChromeKindSchema,
+  detail_chrome: ScreenChromeKindSchema,
   consistency_rules: z.array(z.string().trim().min(1).max(500)).min(1).max(10),
   rationale: z.string().trim().min(1).max(2400),
 });
 
 const NavigationPlanSchema = z.object({
-  enabled: z.boolean(),
-  kind: z.enum(["bottom-tabs", "none"]),
+  enabled: BooleanishSchema,
+  kind: NavigationPlanKindSchema,
   items: z.array(z.object({
     id: z.string().trim().min(1).max(80),
     label: z.string().trim().min(1).max(40),
@@ -133,7 +222,7 @@ const NavigationPlanSchema = z.object({
   visual_brief: z.string().trim().min(1).max(1600),
   screen_chrome: z.array(z.object({
     screen_name: z.string().trim().min(1).max(100),
-    chrome: z.enum(["bottom-tabs", "top-bar", "top-bar-back", "modal-sheet", "immersive"]),
+    chrome: ScreenChromeKindSchema,
     navigation_item_id: z.string().trim().min(1).max(80).nullable().optional(),
   })).default([]),
 }).optional();
@@ -153,7 +242,7 @@ const CreativeDirectionSchema = z.object({
 });
 
 const PlanSchema = z.object({
-  requires_bottom_nav: z.boolean().optional(),
+  requires_bottom_nav: BooleanishSchema.optional(),
   navigation_architecture: NavigationArchitectureSchema.optional(),
   navigation_plan: NavigationPlanSchema,
   charter: z.object({
@@ -1102,6 +1191,34 @@ const normalizeScreenAssetNeeds = (screenName: string, value: unknown): NonNulla
     .filter((item): item is NonNullable<ScreenPlan["assetNeeds"]>[number] => Boolean(item));
 };
 
+const extractRawScreenArray = (value: unknown): unknown[] => {
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  if (!isRecord(value)) {
+    return [];
+  }
+
+  const screenKeys = [
+    "screens",
+    "screen_briefs",
+    "screenBriefs",
+    "screen_plans",
+    "screenPlans",
+    "planned_screens",
+    "plannedScreens",
+  ];
+
+  for (const key of screenKeys) {
+    if (Array.isArray(value[key])) {
+      return value[key] as unknown[];
+    }
+  }
+
+  return isRecord(value.data) ? extractRawScreenArray(value.data) : [];
+};
+
 const coerceScreenPlanFromRawItem = (item: unknown): ScreenPlan | null => {
   const parsed = ScreenPlanSchema.safeParse(item);
   if (parsed.success) {
@@ -1213,9 +1330,10 @@ const salvageScreensFromRawPlan = (rawPlan: unknown): {
 
   // --- screens ---
   let screens: ScreenPlan[] = [];
-  if (Array.isArray(raw.screens)) {
+  const rawScreens = extractRawScreenArray(raw);
+  if (rawScreens.length > 0) {
     const validScreens: ScreenPlan[] = [];
-    for (const item of raw.screens) {
+    for (const item of rawScreens) {
       const screenPlan = coerceScreenPlanFromRawItem(item);
       if (screenPlan) {
         validScreens.push(screenPlan);
@@ -1250,7 +1368,7 @@ const salvageScreensFromRawPlan = (rawPlan: unknown): {
   }
 
   // --- requires_bottom_nav ---
-  const requiresBottomNav = typeof raw.requires_bottom_nav === "boolean" ? raw.requires_bottom_nav : null;
+  const requiresBottomNav = coerceBooleanish(raw.requires_bottom_nav);
 
   return { screens, navigationArchitecture, navigationPlan, requiresBottomNav };
 };
@@ -1634,14 +1752,15 @@ export async function planUiFlow({
     }
 
     const rawScreenBriefs = parseJsonResponse<unknown>(screenResponse.text || "{}");
-    const parsedScreenBriefs = ScreenBriefsSchema.safeParse(rawScreenBriefs);
+    const rawScreenItems = extractRawScreenArray(rawScreenBriefs);
+    const parsedScreenBriefs = ScreenBriefsSchema.safeParse(
+      rawScreenItems.length > 0 ? { screens: rawScreenItems } : rawScreenBriefs,
+    );
     rawPlan = {
       ...parsedBlueprint.data,
       screens: parsedScreenBriefs.success
         ? parsedScreenBriefs.data.screens
-        : isRecord(rawScreenBriefs) && Array.isArray(rawScreenBriefs.screens)
-          ? rawScreenBriefs.screens
-          : [],
+        : rawScreenItems,
     };
     parsed = PlanSchema.safeParse(rawPlan);
   }
@@ -2649,9 +2768,9 @@ export async function buildNavigationShellCode({
   navigationPlan,
   designTokens,
   prompt,
-  image,
-  referenceMode,
-  referenceId,
+  image: _image,
+  referenceMode: _referenceMode,
+  referenceId: _referenceId,
   projectCharter,
   llmLog,
 }: {
@@ -2668,100 +2787,27 @@ export async function buildNavigationShellCode({
     return "";
   }
 
+  const deterministicShellCode = renderDeterministicNavigationShell(navigationPlan);
+  if (!validateNavigationShell(deterministicShellCode, navigationPlan)) {
+    console.error("[navigation] Deterministic navigation shell failed validation", {
+      navigationItemIds: navigationPlan.items.map((item) => item.id),
+    });
+    return deterministicShellCode;
+  }
+
   try {
-    const ai = createGeminiClient();
-    const parts: Array<Record<string, unknown>> = [];
-    const inlineImage = toInlineImage(image);
-    const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
-
-    if (inlineImage) {
-      parts.push(inlineImage);
-      parts.push({
-        text: isStyleReferenceMode(resolvedReferenceMode)
-          ? `${styleReferenceInstruction} For navigation, borrow only the reference image's nav material, radius, elevation, icon/label rhythm, active-state craft, and bottom safe-area treatment. Do not copy exact tab count, labels, positions, or app domain. Reference id: ${referenceId ?? "user-upload"}.`
-          : "Reference image: inspect the bottom navigation treatment, shell placement, icon/label style, material, radius, elevation, active state, and how it relates to the screen content. Recreate the navigation style family, not just the tab labels.",
-      });
-    }
-
-    parts.push({
-      text: [
-        `Project prompt: ${prompt || "No prompt provided."}`,
-        projectCharter ? `Project charter: ${JSON.stringify(projectCharter, null, 2)}` : null,
-        projectCharter?.creativeDirection ? `Creative direction: ${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
-        `Navigation plan: ${JSON.stringify(navigationPlan, null, 2)}`,
-        `Token context: ${buildTokenPromptContext(designTokens, "compact_visual")}`,
-      ].filter(Boolean).join("\n\n"),
-    });
-
-    const policy = geminiPolicyForTask("navigation_build", {
-      temperature: 0.28,
-      systemInstruction: [
-        "You are an elite mobile product designer building the single shared bottom navigation shell for a mobile app preview system.",
-        "Return ONLY valid HTML for the navigation shell. Do not include markdown fences, html, head, body, scripts, or the screen content.",
-        "The nav must be project-specific and must follow the provided navigation plan and design tokens.",
-        isStyleReferenceMode(resolvedReferenceMode)
-          ? "Use the style reference and creative direction as high-priority visual craft evidence only. Borrow nav material/shape/state quality, but build labels, item count, hierarchy, and placement from the navigation plan."
-          : "Use the reference image and creative direction as high-priority visual evidence. If the reference uses a compact tab rail, floating dock, glass pill, sculpted card, or minimal bottom text/icon row, match that style family.",
-        "Avoid generic 2015 bottom tabs: no plain full-width white rectangle with evenly spaced gray icons unless the reference clearly shows that.",
-        "Use one <nav data-drawgle-primary-nav> root. The nav root may be full-width, a floating dock, a compact action nav, or another bottom navigation form that fits the project.",
-        "Each item must be a button or anchor with data-nav-item-id exactly matching the plan item id.",
-        "Use Lucide icons with <i data-lucide=\"icon-name\"></i>.",
-        "The renderer mounts the shell in a fixed bottom viewport host. The HTML you return owns the nav's visual geometry, width, radius, surface, spacing, and active state.",
-        "Make active/inactive states explicit through data-active=true selectors, utility classes, or inline CSS variables. The renderer will set data-active at runtime.",
-        "Do not hard-code generic tab labels. Use only the planned item labels and preserve them exactly.",
-        `End the response with this exact sentinel on its own final line: ${DRAWGLE_GENERATION_COMPLETE_SENTINEL}`,
-        ...navigationDesignQualityRules,
-      ].join("\n"),
-    });
-
-    if (llmLog) {
-      const si = typeof policy.config.systemInstruction === "string" ? policy.config.systemInstruction : "";
-      const textParts = parts
-        .map((p) => (typeof p.text === "string" ? p.text : "[image]"))
-        .filter(Boolean);
-      llmLog(`[LLM INPUT] nav-build`, {
-        model: policy.model,
-        referenceMode: resolvedReferenceMode,
-        referenceId: referenceId ?? null,
-        systemInstructionLength: si.length,
-        systemInstruction: si,
-        userPartCount: textParts.length,
-        userParts: textParts,
-      });
-    }
-
-    const response = await ai.models.generateContent({
-      model: policy.model,
-      contents: { parts },
-      config: policy.config,
-    });
-
-    if (llmLog && response.usageMetadata) {
-      llmLog(`[TOKEN USAGE] nav-build`, response.usageMetadata as Record<string, unknown>);
-    }
-
-    const rawCode = extractCode(response.text || "").trim();
-    const completion = validateSourceCompletion({ code: rawCode, requireSentinel: true });
-    if (!completion.valid) {
-      throw new Error(`Navigation shell generation returned incomplete markup: ${completion.issues.join(" | ")}`);
-    }
-    const code = stripGenerationCompleteSentinel(rawCode);
-    if (!validateNavigationShell(code, navigationPlan)) {
-      throw new Error("Navigation shell generation did not produce valid project navigation markup.");
-    }
-
-    return refineNavigationShellCode({
+    return await refineNavigationShellCode({
       prompt,
-      candidateShellCode: code,
+      candidateShellCode: deterministicShellCode,
       navigationPlan,
       designTokens,
       projectCharter,
       llmLog,
     });
   } catch (error) {
-    console.error("Failed to generate navigation shell", error);
-    throw error instanceof Error
-      ? error
-      : new Error("Failed to generate navigation shell.");
+    console.warn("[navigation] Optional navigation refinement failed; using deterministic shell", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return deterministicShellCode;
   }
 }

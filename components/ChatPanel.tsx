@@ -400,6 +400,11 @@ function buildConversationItems({
       .map(getMessageGenerationRunId)
       .filter((runId): runId is string => Boolean(runId)),
   );
+  const journalRunIds = new Set(
+    messages
+      .map((message) => readGenerationJournal(message.metadata)?.generationRunId)
+      .filter((runId): runId is string => Boolean(runId)),
+  );
   const pendingTurnMessages = pendingTurn
     ? messages.filter((message) => getMessageClientTurnId(message) === pendingTurn.id)
     : [];
@@ -490,6 +495,14 @@ function buildConversationItems({
 
     if (agentStep || ui?.variant === "action_card") {
       if (isInternalGenerationActivity(activityKey)) {
+        continue;
+      }
+
+      if (
+        generationRunId &&
+        journalRunIds.has(generationRunId) &&
+        activityKey === `run:${generationRunId}:summary`
+      ) {
         continue;
       }
 

@@ -11,6 +11,17 @@ import type {
 
 const FALLBACK_ICONS = ["home", "search", "grid-2x2", "bell", "user"];
 
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+const escapeAttribute = (value: string) =>
+  escapeHtml(value)
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
 const slugify = (value: string, fallback: string) => {
   const slug = value
     .toLowerCase()
@@ -20,6 +31,44 @@ const slugify = (value: string, fallback: string) => {
 
   return slug || fallback;
 };
+
+export function renderDeterministicNavigationShell(navigationPlan: NavigationPlan) {
+  if (!navigationPlan.enabled || navigationPlan.kind === "none" || navigationPlan.items.length === 0) {
+    return "";
+  }
+
+  const navItems = navigationPlan.items.slice(0, 5);
+  const items = navItems.map((item, index) => {
+    const id = escapeAttribute(item.id);
+    const label = escapeHtml(item.label || item.linkedScreenName || `Tab ${index + 1}`);
+    const ariaLabel = escapeAttribute(item.label || item.linkedScreenName || `Tab ${index + 1}`);
+    const icon = escapeAttribute(slugify(item.icon || FALLBACK_ICONS[index] || "circle", FALLBACK_ICONS[index] || "circle"));
+
+    return [
+      `<button type="button" class="dg-nav-item" data-nav-item-id="${id}" data-active="false" aria-label="${ariaLabel}">`,
+      `  <span class="dg-nav-icon"><i data-lucide="${icon}"></i></span>`,
+      `  <span class="dg-nav-label">${label}</span>`,
+      `</button>`,
+    ].join("\n");
+  }).join("\n");
+
+  return [
+    `<nav data-drawgle-primary-nav class="dg-nav-shell" aria-label="Primary navigation">`,
+    `<style>`,
+    `[data-drawgle-primary-nav].dg-nav-shell{box-sizing:border-box;width:min(356px,calc(100% - 32px));margin:0 auto 10px;padding:8px;border-radius:999px;background:color-mix(in srgb,var(--dg-color-surface-card,#ffffff) 92%,transparent);border:1px solid color-mix(in srgb,var(--dg-color-border-divider,#e5e7eb) 82%,transparent);box-shadow:var(--dg-shadows-overlay,0 18px 45px rgba(15,23,42,.16));backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);pointer-events:auto;}`,
+    `[data-drawgle-primary-nav] .dg-nav-shell-inner{display:grid;grid-template-columns:repeat(${navItems.length},minmax(0,1fr));align-items:center;gap:4px;}`,
+    `[data-drawgle-primary-nav] .dg-nav-item{appearance:none;border:0;background:transparent;color:var(--dg-color-text-low-emphasis,#94a3b8);min-width:0;height:48px;border-radius:999px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-family:var(--dg-typography-font-family,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);font-size:10px;line-height:1;font-weight:700;letter-spacing:0;cursor:pointer;transition:background .18s ease,color .18s ease,transform .18s ease;}`,
+    `[data-drawgle-primary-nav] .dg-nav-item[data-active="true"]{background:var(--dg-color-action-primary,#111827);color:var(--dg-color-action-on-primary-text,#ffffff);box-shadow:0 10px 24px rgba(15,23,42,.16);}`,
+    `[data-drawgle-primary-nav] .dg-nav-icon{display:flex;height:18px;width:18px;align-items:center;justify-content:center;}`,
+    `[data-drawgle-primary-nav] .dg-nav-icon svg{height:18px;width:18px;stroke-width:2.2;}`,
+    `[data-drawgle-primary-nav] .dg-nav-label{max-width:54px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}`,
+    `</style>`,
+    `<div class="dg-nav-shell-inner">`,
+    items,
+    `</div>`,
+    `</nav>`,
+  ].join("\n");
+}
 
 export function hasSharedNavigation({
   screen,
@@ -167,7 +216,10 @@ export function validateNavigationShell(shellCode: string, navigationPlan: Navig
     return false;
   }
 
-  return navigationPlan.items.every((item) => shellCode.includes(`data-nav-item-id="${item.id}"`) || shellCode.includes(`data-nav-item-id='${item.id}'`));
+  return navigationPlan.items.every((item) => {
+    const id = escapeAttribute(item.id);
+    return shellCode.includes(`data-nav-item-id="${id}"`) || shellCode.includes(`data-nav-item-id='${id}'`);
+  });
 }
 
 export function sanitizeScreenCodeForSharedNavigation(code: string, screenPlan: ScreenPlan) {

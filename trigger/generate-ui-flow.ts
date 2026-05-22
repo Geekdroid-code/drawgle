@@ -435,6 +435,15 @@ function setJournalPhase(
   journal.activePhase = status === "completed" || status === "failed" ? journal.activePhase : phaseId;
 }
 
+function journalPhaseForError(message: string) {
+  const normalized = message.toLowerCase();
+  if (normalized.includes("navigation shell") || normalized.includes("project navigation")) return "blueprint";
+  if (normalized.includes("asset") || normalized.includes("visual")) return "assets";
+  if (normalized.includes("design token") || normalized.includes("design system")) return "design";
+  if (normalized.includes("plan") || normalized.includes("schema") || normalized.includes("screen brief")) return "screens";
+  return "build";
+}
+
 async function postGenerationJournal(
   admin: AdminClient,
   projectId: string,
@@ -971,7 +980,7 @@ export const generateUiFlowTask = task({
       status: "failed",
       description: message,
     }));
-    setJournalPhase(failedJournal, "build", "failed", message);
+    setJournalPhase(failedJournal, journalPhaseForError(message), "failed", message);
     await postGenerationJournal(admin, payload.projectId, payload.ownerId, failedJournal);
 
     await postStatusMessage(
@@ -1245,7 +1254,7 @@ export const generateUiFlowTask = task({
         plan: plan.navigationPlan as never,
         shell_code: navigationShellCode,
         block_index: indexNavigationShell(navigationShellCode) as never,
-        status: plan.navigationPlan.enabled ? "ready" : "queued",
+        status: "ready",
         error: null,
         updated_at: now(),
       }, { onConflict: "project_id" });
