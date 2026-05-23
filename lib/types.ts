@@ -52,6 +52,12 @@ export type VisualAssetSourcePreference = "user_upload" | "internal_library" | "
 
 export type VisualAssetPriority = "critical" | "supporting" | "optional";
 
+export type VisualAssetRequirementOrigin =
+  | "reference_visible"
+  | "user_explicit"
+  | "planner_inferred"
+  | "heuristic_inferred";
+
 export type VisualAssetSource = "user_upload" | "internal_library" | "stock" | "ai_generated" | "placeholder";
 
 export type VisualAssetProvider =
@@ -88,6 +94,7 @@ export interface AssetRequirement {
   placementHint: string;
   priority: VisualAssetPriority;
   reuseKey: string;
+  origin?: VisualAssetRequirementOrigin;
 }
 
 export interface ScreenAssetManifest {
@@ -112,6 +119,7 @@ export interface ScreenAssetManifest {
   license?: string | null;
   attribution?: string | null;
   sourceUrl?: string | null;
+  requirementOrigin?: VisualAssetRequirementOrigin;
 }
 
 export interface ProjectAssetManifest {
@@ -429,6 +437,35 @@ export interface ScreenPlan {
   assetNeeds?: AssetRequirement[];
 }
 
+export type GenerationIntentKind =
+  | "exact_recreate"
+  | "style_reference_app"
+  | "full_app"
+  | "add_screen"
+  | "edit_existing";
+
+export interface GenerationIntentContract {
+  kind: GenerationIntentKind;
+  source: "planning_mode" | "prompt" | "reference_image" | "image_reference_mode";
+  reason: string;
+  exactScreenCount?: number | null;
+  maxInitialScreens?: number | null;
+  explicitScreenCount?: number | null;
+  referenceScreenCount?: number | null;
+  allowSharedNavigation: boolean;
+  visibleNavigationHandling: "shared_navigation" | "inline_static_chrome";
+}
+
+export interface ScreenFamilyContract {
+  summary: string;
+  surfaces: string;
+  typography: string;
+  spacing: string;
+  navigation: string;
+  imagery: string;
+  consistencyRules: string[];
+}
+
 export interface ScreenCountContract {
   exactCount: number | null;
   source: "planning_mode" | "prompt_count" | "named_screens" | "reference_image" | "open_project";
@@ -436,6 +473,7 @@ export interface ScreenCountContract {
   namedScreens?: string[];
   referenceScreenCount?: number | null;
   disableSharedNavigation?: boolean;
+  maxScreens?: number | null;
 }
 
 export type ScreenCountEnforcement = "none" | "trimmed" | "filled";
@@ -448,6 +486,8 @@ export interface PlannedUiFlow {
   charter: ProjectCharter;
   screenCountContract?: ScreenCountContract;
   screenCountEnforcement?: ScreenCountEnforcement;
+  intentContract?: GenerationIntentContract;
+  screenFamilyContract?: ScreenFamilyContract;
 }
 
 export interface GenerationJournalScreen {

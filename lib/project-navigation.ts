@@ -135,14 +135,17 @@ export function normalizeNavigationPlan({
   screens,
   navigationArchitecture,
   requiresBottomNav,
+  strictScreenLinks = true,
 }: {
   navigationPlan?: NavigationPlan | null;
   screens: ScreenPlan[];
   navigationArchitecture?: NavigationArchitecture | null;
   requiresBottomNav?: boolean;
+  strictScreenLinks?: boolean;
 }): NavigationPlan {
   const fallback = createFallbackNavigationPlan({ screens, navigationArchitecture, requiresBottomNav });
   const requestedEnabled = navigationPlan?.enabled ?? fallback.enabled;
+  const screenNameSet = new Set(screens.map((screen) => screen.name.toLowerCase()));
   const seen = new Set<string>();
   const rawItems = requestedEnabled
     ? (navigationPlan?.items?.length ? navigationPlan.items : fallback.items)
@@ -164,8 +167,9 @@ export function normalizeNavigationPlan({
           };
         })
         .filter((item) => item.label.length > 0 && item.id.length > 0)
+        .filter((item) => !strictScreenLinks || screenNameSet.has(item.linkedScreenName.toLowerCase()))
     : [];
-  const enabled = requestedEnabled && rawItems.length > 0;
+  const enabled = requestedEnabled && rawItems.length > 0 && (!strictScreenLinks || screens.length > 1);
   const kind = enabled ? "bottom-tabs" : "none";
   const items = enabled ? rawItems : [];
   const rootScreens = screens.filter((screen) => screen.type === "root");

@@ -38,6 +38,7 @@ import type {
   DesignTokens,
   JsonValue,
   Message,
+  GenerationIntentContract,
   NavigationArchitecture,
   NavigationPlan,
   PlanningMode,
@@ -47,6 +48,7 @@ import type {
   ReferenceMode,
   ScreenCountContract,
   ScreenCountEnforcement,
+  ScreenFamilyContract,
   ScreenBlockIndex,
   ScreenPlan,
 } from "@/lib/types";
@@ -186,6 +188,7 @@ const AssetNeedSchema = z.object({
   placementHint: z.string().trim().min(1).max(500),
   priority: z.enum(["critical", "supporting", "optional"]),
   reuseKey: z.string().trim().min(1).max(160).optional(),
+  origin: z.enum(["reference_visible", "user_explicit", "planner_inferred", "heuristic_inferred"]).optional(),
 });
 
 const ScreenPlanSchema = z.object({
@@ -614,7 +617,14 @@ const clampScreenCount = (value: number | null | undefined) => {
   return Math.min(12, Math.max(1, Math.round(value as number)));
 };
 
-const buildScreenCountContract = ({
+const INITIAL_PROJECT_SCREEN_LIMIT = 5;
+
+const hasFullAppIntent = (prompt: string) =>
+  /\b(?:full|complete|entire|whole)\s+(?:app|application|product|prototype)\b/i.test(prompt) ||
+  /\b(?:multi[-\s]?screen|app\s+flow|prototype|full\s+flow|multiple\s+screens)\b/i.test(prompt) ||
+  /\b(?:create|build|design|make)\s+(?:an?\s+)?(?:mobile\s+)?(?:app|application|product)\b/i.test(prompt);
+
+const compileGenerationIntentContract = ({
   prompt,
   planningMode,
   referenceMode,
@@ -628,56 +638,109 @@ const buildScreenCountContract = ({
   referenceAnalysis: ReferenceAnalysis | null;
   explicitScreenSections: ExplicitScreenSection[];
   requestedScreenCount: number | null;
-}): ScreenCountContract => {
+}): GenerationIntentContract => {
+  const explicitCount = clampScreenCount(requestedScreenCount) ?? (
+    explicitScreenSections.length > 0 ? clampScreenCount(explicitScreenSections.length) : null
+  );
+  const referenceScreenCount = clampScreenCount(referenceAnalysis?.screenCountEstimate);
+  const explicitMultiScreen = Boolean(explicitCount && explicitCount > 1);
+  const fullAppRequested = hasFullAppIntent(prompt) || explicitMultiScreen;
+
   if (planningMode === "single-screen") {
     return {
-      exactCount: 1,
+      kind: "add_screen",
       source: "planning_mode",
-      reason: "Single-screen planning mode always returns exactly one screen.",
-      disableSharedNavigation: false,
-    };
-  }
-
-  const clampedRequestedCount = clampScreenCount(requestedScreenCount);
-  if (clampedRequestedCount) {
-    return {
-      exactCount: clampedRequestedCount,
-      source: "prompt_count",
-      reason: `The user explicitly requested ${clampedRequestedCount} screen${clampedRequestedCount === 1 ? "" : "s"}.`,
-      namedScreens: explicitScreenSections.map((section) => section.name),
-      disableSharedNavigation: referenceMode === "user_recreate" && clampedRequestedCount === 1,
-    };
-  }
-
-  if (explicitScreenSections.length > 0) {
-    return {
-      exactCount: clampScreenCount(explicitScreenSections.length),
-      source: "named_screens",
-      reason: `The prompt explicitly named ${explicitScreenSections.length} screen${explicitScreenSections.length === 1 ? "" : "s"}.`,
-      namedScreens: explicitScreenSections.map((section) => section.name),
-      disableSharedNavigation: referenceMode === "user_recreate" && explicitScreenSections.length === 1,
-    };
-  }
-
-  const referenceScreenCount = clampScreenCount(referenceAnalysis?.screenCountEstimate);
-  if (referenceMode === "user_recreate" && referenceScreenCount) {
-    return {
-      exactCount: referenceScreenCount,
-      source: "reference_image",
-      reason: `The uploaded reference appears to contain ${referenceScreenCount} screen${referenceScreenCount === 1 ? "" : "s"}.`,
+      reason: "Single-screen planning mode queues exactly one additional screen.",
+      exactScreenCount: 1,
+      maxInitialScreens: 1,
+      explicitScreenCount: explicitCount,
       referenceScreenCount,
-      disableSharedNavigation: referenceScreenCount === 1,
+      allowSharedNavigation: true,
+      visibleNavigationHandling: "shared_navigation",
+    };
+  }
+
+  if (referenceMode === "user_recreate" && !fullAppRequested) {
+    const exactScreenCount = explicitCount ?? referenceScreenCount ?? 1;
+    return {
+      kind: "exact_recreate",
+      source: explicitCount ? "prompt" : "reference_image",
+      reason: explicitCount
+        ? `The user explicitly requested ${explicitCount} screen${explicitCount === 1 ? "" : "s"} while recreating the uploaded reference.`
+        : referenceScreenCount
+          ? `The uploaded reference appears to contain ${referenceScreenCount} visible screen${referenceScreenCount === 1 ? "" : "s"}.`
+          : "The user asked to recreate the uploaded reference, so uncertain reference count defaults to one visible screen.",
+      exactScreenCount,
+      maxInitialScreens: exactScreenCount,
+      explicitScreenCount: explicitCount,
+      referenceScreenCount,
+      allowSharedNavigation: exactScreenCount > 1 && hasExplicitNavigationRequest(prompt),
+      visibleNavigationHandling: "inline_static_chrome",
+    };
+  }
+
+  if (fullAppRequested) {
+    return {
+      kind: "full_app",
+      source: explicitCount ? "prompt" : "prompt",
+      reason: explicitCount
+        ? `The user requested a multi-screen app with ${explicitCount} screen${explicitCount === 1 ? "" : "s"}.`
+        : `The user asked for a full app/product experience; initial generation is capped at ${INITIAL_PROJECT_SCREEN_LIMIT} screens.`,
+      exactScreenCount: explicitCount ? Math.min(explicitCount, INITIAL_PROJECT_SCREEN_LIMIT) : null,
+      maxInitialScreens: INITIAL_PROJECT_SCREEN_LIMIT,
+      explicitScreenCount: explicitCount,
+      referenceScreenCount,
+      allowSharedNavigation: true,
+      visibleNavigationHandling: "shared_navigation",
+    };
+  }
+
+  return {
+    kind: "style_reference_app",
+    source: referenceMode === "user_style" || referenceMode === "curated_style" ? "image_reference_mode" : "prompt",
+    reason: `No exact recreate contract was detected; initial app planning is capped at ${INITIAL_PROJECT_SCREEN_LIMIT} screens.`,
+    exactScreenCount: explicitCount,
+    maxInitialScreens: INITIAL_PROJECT_SCREEN_LIMIT,
+    explicitScreenCount: explicitCount,
+    referenceScreenCount,
+    allowSharedNavigation: true,
+    visibleNavigationHandling: "shared_navigation",
+  };
+};
+
+const buildScreenCountContract = ({
+  intentContract,
+  explicitScreenSections,
+}: {
+  intentContract: GenerationIntentContract;
+  explicitScreenSections: ExplicitScreenSection[];
+}): ScreenCountContract => {
+  if (intentContract.exactScreenCount) {
+    const source: ScreenCountContract["source"] =
+      intentContract.kind === "add_screen"
+        ? "planning_mode"
+        : intentContract.explicitScreenCount
+          ? explicitScreenSections.length > 0 ? "named_screens" : "prompt_count"
+          : intentContract.source === "reference_image" ? "reference_image" : "open_project";
+
+    return {
+      exactCount: intentContract.exactScreenCount,
+      source,
+      reason: intentContract.reason,
+      namedScreens: explicitScreenSections.map((section) => section.name),
+      referenceScreenCount: intentContract.referenceScreenCount,
+      disableSharedNavigation: !intentContract.allowSharedNavigation,
+      maxScreens: intentContract.maxInitialScreens ?? null,
     };
   }
 
   return {
     exactCount: null,
     source: "open_project",
-    reason: prompt.trim()
-      ? "No exact screen count was requested, so project planning may choose the right number of screens."
-      : "No exact screen count was available from the prompt or reference.",
-    referenceScreenCount,
-    disableSharedNavigation: false,
+    reason: intentContract.reason,
+    referenceScreenCount: intentContract.referenceScreenCount,
+    disableSharedNavigation: !intentContract.allowSharedNavigation,
+    maxScreens: intentContract.maxInitialScreens ?? null,
   };
 };
 
@@ -694,6 +757,9 @@ const formatScreenCountContract = (contract: ScreenCountContract) => {
     contract.disableSharedNavigation
       ? "- Shared project navigation is disabled for this run. If the reference has visible tabs, treat them as static visual chrome inside the planned screen, not as extra screens."
       : "- Navigation must not create additional screens beyond this contract.",
+    !contract.exactCount && contract.maxScreens
+      ? `- Return no more than ${contract.maxScreens} screen${contract.maxScreens === 1 ? "" : "s"} for this initial generation.`
+      : null,
   ].filter(Boolean);
 
   return lines.join("\n");
@@ -706,6 +772,99 @@ const screenCountContractJson = (contract: ScreenCountContract): JsonValue => ({
   namedScreens: contract.namedScreens ?? [],
   referenceScreenCount: contract.referenceScreenCount ?? null,
   disableSharedNavigation: Boolean(contract.disableSharedNavigation),
+  maxScreens: contract.maxScreens ?? null,
+});
+
+const intentContractJson = (contract: GenerationIntentContract): JsonValue => ({
+  kind: contract.kind,
+  source: contract.source,
+  reason: contract.reason,
+  exactScreenCount: contract.exactScreenCount ?? null,
+  maxInitialScreens: contract.maxInitialScreens ?? null,
+  explicitScreenCount: contract.explicitScreenCount ?? null,
+  referenceScreenCount: contract.referenceScreenCount ?? null,
+  allowSharedNavigation: contract.allowSharedNavigation,
+  visibleNavigationHandling: contract.visibleNavigationHandling,
+});
+
+const buildScreenFamilyContract = ({
+  referenceAnalysis,
+  creativeDirection,
+  designTokens,
+  intentContract,
+}: {
+  referenceAnalysis: ReferenceAnalysis | null;
+  creativeDirection?: CreativeDirection | null;
+  designTokens?: DesignTokens | null;
+  intentContract: GenerationIntentContract;
+}): ScreenFamilyContract => {
+  const tokenColor = designTokens?.tokens?.color;
+  const tokenRadius = designTokens?.tokens?.radii;
+  const signals = referenceAnalysis?.designSystemSignals;
+  return {
+    summary: creativeDirection?.styleEssence ?? referenceAnalysis?.overallVisualStyle ?? "Maintain one coherent mobile product visual system across all generated screens.",
+    surfaces: signals?.surfaces ?? [
+      tokenColor?.surface?.card ? `Use card surfaces from approved tokens such as ${tokenColor.surface.card}.` : "Use one shared card/surface language.",
+      tokenRadius?.app ? `Preserve the approved app radius ${tokenRadius.app}.` : "Keep radius, shadow, border, and elevation consistent across screens.",
+    ].join(" "),
+    typography: signals?.typography ?? "Use the same type scale, weight rhythm, label casing, and hierarchy across every screen.",
+    spacing: signals?.density ?? "Keep screen-edge padding, card padding, vertical rhythm, and grid gaps consistent with the reference/design tokens.",
+    navigation: intentContract.visibleNavigationHandling === "inline_static_chrome"
+      ? "Visible navigation from a one-screen recreate reference is static visual chrome inside that screen, not shared project navigation."
+      : "Shared navigation, when present, is derived from the approved screen slate and must not create additional screens.",
+    imagery: "Use bitmap imagery only when it is visible in the reference, explicitly requested, or truly required by the screen purpose; otherwise use CSS, icons, charts, and text structure.",
+    consistencyRules: [
+      ...(creativeDirection?.compositionPrinciples ?? []).slice(0, 4),
+      ...(referenceAnalysis?.screenReferences[0]?.stylingCues ?? []).slice(0, 3),
+      "Every planned screen must look like it belongs to the same product family while keeping a screen-specific composition.",
+    ].slice(0, 8),
+  };
+};
+
+const formatScreenFamilyContract = (contract: ScreenFamilyContract) => [
+  "Screen family contract:",
+  `- Summary: ${contract.summary}`,
+  `- Surfaces: ${contract.surfaces}`,
+  `- Typography: ${contract.typography}`,
+  `- Spacing: ${contract.spacing}`,
+  `- Navigation: ${contract.navigation}`,
+  `- Imagery: ${contract.imagery}`,
+  contract.consistencyRules.length
+    ? `- Consistency rules: ${contract.consistencyRules.join(" | ")}`
+    : null,
+].filter(Boolean).join("\n");
+
+const normalizeScreenBriefsWithFamilyContract = ({
+  screens,
+  prompt,
+  screenFamilyContract,
+}: {
+  screens: ScreenPlan[];
+  prompt: string;
+  screenFamilyContract: ScreenFamilyContract;
+}) => screens.map((screen) => {
+  const profileContext = /\b(profile|settings|account|user)\b/i.test(screen.name)
+    ? [
+        "Contextual profile/settings repair:",
+        `This screen must serve the actual product requested by the user: "${prompt.trim().slice(0, 260) || "the app brief"}".`,
+        "Avoid generic interchangeable settings filler. Use domain-specific rows, labels, badges, reminders, privacy/data controls, and account details that fit this product.",
+      ].join("\n")
+    : null;
+
+  const familyAppendix = [
+    "Shared product family requirements:",
+    formatScreenFamilyContract(screenFamilyContract),
+    profileContext,
+  ].filter(Boolean).join("\n\n");
+
+  if (screen.description.includes("Shared product family requirements:")) {
+    return screen;
+  }
+
+  return {
+    ...screen,
+    description: `${screen.description}\n\n${familyAppendix}`.slice(0, 9000),
+  };
 });
 
 const screenPlanFromReferenceScreen = ({
@@ -746,6 +905,9 @@ const enforceScreenCountContract = ({
 }): { screens: ScreenPlan[]; enforcement: ScreenCountEnforcement } => {
   const exactCount = contract.exactCount;
   if (!exactCount) {
+    if (contract.maxScreens && screens.length > contract.maxScreens) {
+      return { screens: screens.slice(0, contract.maxScreens), enforcement: "trimmed" };
+    }
     return { screens, enforcement: "none" };
   }
 
@@ -1165,7 +1327,7 @@ const normalizeScreenAssetNeeds = (screenName: string, value: unknown): NonNulla
   }
 
   return value
-    .map((item) => {
+    .map((item): NonNullable<ScreenPlan["assetNeeds"]>[number] | null => {
       const input = isRecord(item)
         ? {
             ...item,
@@ -1175,6 +1337,7 @@ const normalizeScreenAssetNeeds = (screenName: string, value: unknown): NonNulla
             transparentBackground: item.transparentBackground ?? item.transparent_background,
             placementHint: item.placementHint ?? item.placement_hint,
             reuseKey: item.reuseKey ?? item.reuse_key,
+            origin: item.origin,
           }
         : item;
       const parsed = AssetNeedSchema.safeParse(input);
@@ -1186,6 +1349,7 @@ const normalizeScreenAssetNeeds = (screenName: string, value: unknown): NonNulla
         ...parsed.data,
         screenName,
         reuseKey: parsed.data.reuseKey ?? `${parsed.data.role}-${parsed.data.subject}`,
+        origin: parsed.data.origin ?? (parsed.data.sourcePreference === "user_upload" ? "user_explicit" : "planner_inferred"),
       };
     })
     .filter((item): item is NonNullable<ScreenPlan["assetNeeds"]>[number] => Boolean(item));
@@ -1602,13 +1766,17 @@ export async function planUiFlow({
   const referenceAnalysis = await analyzeReferenceImage({ prompt, image, referenceMode: resolvedReferenceMode });
   const explicitScreenSections = parseExplicitScreenSections(prompt);
   const requestedScreenCount = parseRequestedScreenCount(prompt);
-  const screenCountContract = buildScreenCountContract({
+  const intentContract = compileGenerationIntentContract({
     prompt,
     planningMode,
     referenceMode: resolvedReferenceMode,
     referenceAnalysis,
     explicitScreenSections,
     requestedScreenCount,
+  });
+  const screenCountContract = buildScreenCountContract({
+    intentContract,
+    explicitScreenSections,
   });
   const forceFiniteFlowWithoutPersistentNav = looksLikeFiniteFlowWithoutPersistentNav(prompt, explicitScreenSections);
   const fallbackRequiresBottomNav = screenCountContract.disableSharedNavigation ? false : inferLegacyRequiresBottomNav({
@@ -1627,6 +1795,12 @@ export async function planUiFlow({
   const resolvedCreativeDirection = projectContext?.trim()
     ? null
     : creativeDirection ?? fallbackCreativeDirection({ prompt, referenceAnalysis });
+  const screenFamilyContract = buildScreenFamilyContract({
+    referenceAnalysis,
+    creativeDirection: resolvedCreativeDirection,
+    designTokens,
+    intentContract,
+  });
 
   const inlineImage = resolvedReferenceMode === "user_recreate" ? toInlineImage(image) : null;
   if (inlineImage) {
@@ -1639,6 +1813,14 @@ export async function planUiFlow({
 
   parts.push({
     text: formatScreenCountContract(screenCountContract),
+  });
+
+  parts.push({
+    text: `Generation Intent Contract:\n${JSON.stringify(intentContractJson(intentContract), null, 2)}`,
+  });
+
+  parts.push({
+    text: formatScreenFamilyContract(screenFamilyContract),
   });
 
   if (forceFiniteFlowWithoutPersistentNav) {
@@ -1690,6 +1872,7 @@ export async function planUiFlow({
       planningMode,
       referenceMode: resolvedReferenceMode,
       referenceId: referenceId ?? null,
+      intentContract: intentContractJson(intentContract),
       screenCountContract: screenCountContractJson(screenCountContract),
       systemInstructionLength: si.length,
       systemInstruction: si,
@@ -1733,6 +1916,7 @@ export async function planUiFlow({
         planningMode,
         referenceMode: resolvedReferenceMode,
         referenceId: referenceId ?? null,
+        intentContract,
         screenCountContract,
         systemInstructionLength: si.length,
         systemInstruction: si,
@@ -1817,15 +2001,20 @@ export async function planUiFlow({
       prompt,
       referenceAnalysis,
     });
-    const screens = ensureBuilderGradeScreenBriefs({
+    const screens = normalizeScreenBriefsWithFamilyContract({
+      prompt,
+      screenFamilyContract,
+      screens: ensureBuilderGradeScreenBriefs({
       referenceAnalysis,
       screens: enforced.screens.map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture })),
+      }),
     });
     const navigationPlan = normalizeNavigationPlan({
       navigationPlan: screenCountContract.disableSharedNavigation || forceFiniteFlowWithoutPersistentNav ? null : salvaged.navigationPlan ?? (planningMode === "single-screen" ? existingNavigationPlan : null),
       screens,
       navigationArchitecture,
       requiresBottomNav: deriveRequiresBottomNav(navigationArchitecture),
+      strictScreenLinks: planningMode !== "single-screen",
     });
     const plannedScreens = applyNavigationPlanToScreens(screens, navigationPlan);
 
@@ -1841,6 +2030,8 @@ export async function planUiFlow({
       rawScreenCount,
       recoveredScreens: plannedScreens.length,
       screenCountContract: screenCountContractJson(screenCountContract),
+      intentContract: intentContractJson(intentContract),
+      screenFamilyContract: screenFamilyContract as unknown as JsonValue,
       screenCountEnforcement: enforced.enforcement,
       notes: [
         "Recovered planner output independently instead of replacing the whole charter with generic fallback.",
@@ -1866,6 +2057,8 @@ export async function planUiFlow({
       screens: plannedScreens,
       screenCountContract,
       screenCountEnforcement: enforced.enforcement,
+      intentContract,
+      screenFamilyContract,
     };
   }
 
@@ -1894,6 +2087,8 @@ export async function planUiFlow({
       rawScreenCount: parsed.data.screens.length,
       recoveredScreens: parsed.data.screens.length,
       screenCountContract: screenCountContractJson(screenCountContract),
+      intentContract: intentContractJson(intentContract),
+      screenFamilyContract: screenFamilyContract as unknown as JsonValue,
     },
   });
 
@@ -1933,7 +2128,10 @@ export async function planUiFlow({
     prompt,
     referenceAnalysis,
   });
-  const screens = ensureBuilderGradeScreenBriefs({
+  const screens = normalizeScreenBriefsWithFamilyContract({
+    prompt,
+    screenFamilyContract,
+    screens: ensureBuilderGradeScreenBriefs({
     referenceAnalysis,
     screens: enforced.screens.map((screenPlan) => resolvePlannedScreen({
       screenPlan: {
@@ -1945,12 +2143,14 @@ export async function planUiFlow({
       },
       navigationArchitecture,
     })),
+    }),
   });
   const navigationPlan = normalizeNavigationPlan({
     navigationPlan: screenCountContract.disableSharedNavigation || forceFiniteFlowWithoutPersistentNav ? null : toNavigationPlan(parsed.data.navigation_plan) ?? (planningMode === "single-screen" ? existingNavigationPlan : null),
     screens,
     navigationArchitecture,
     requiresBottomNav: deriveRequiresBottomNav(navigationArchitecture),
+    strictScreenLinks: planningMode !== "single-screen",
   });
   const plannedScreens = applyNavigationPlanToScreens(screens, navigationPlan);
 
@@ -1962,6 +2162,8 @@ export async function planUiFlow({
     screens: plannedScreens,
     screenCountContract,
     screenCountEnforcement: enforced.enforcement,
+    intentContract,
+    screenFamilyContract,
   };
 }
 

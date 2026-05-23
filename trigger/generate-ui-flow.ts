@@ -223,6 +223,10 @@ const humanizeScreenBuildFailure = (screenName: string, error?: string | null) =
     return `${screenName} could not be built because the generated HTML was incomplete.`;
   }
 
+  if (/invalid_image_url|asset_policy|critical visual assets|required critical visual assets/i.test(message)) {
+    return `${screenName} was generated but did not satisfy the required visual asset policy.`;
+  }
+
   if (/static_html|structurally|jsx|script|duplicate|tag_imbalance|invalid/i.test(message)) {
     return `${screenName} could not be built because the generated HTML was structurally invalid.`;
   }
@@ -611,6 +615,40 @@ export const buildScreenTask = task({
       return { screenId: payload.screenId, status: "failed" as const, error };
     };
 
+    const failAfterSavingGeneratedCode = async ({
+      error,
+      code,
+      blockIndex,
+      metadata,
+    }: {
+      error: string;
+      code: string;
+      blockIndex: ReturnType<typeof indexScreenCode>;
+      metadata?: Record<string, unknown>;
+    }) => {
+      await admin
+        .from("screens")
+        .update({
+          code,
+          block_index: blockIndex as never,
+          chrome_policy: (payload.screenPlan.chromePolicy ?? null) as never,
+          navigation_item_id: payload.screenPlan.navigationItemId ?? null,
+          status: "failed",
+          error,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", payload.screenId);
+
+      logger.warn("Screen generation output was saved with blocking diagnostics", {
+        screenId: payload.screenId,
+        screenName: payload.screenPlan.name,
+        error,
+        ...metadata,
+      });
+
+      return { screenId: payload.screenId, status: "failed" as const, error };
+    };
+
     const buildPayload: BuildScreenTaskPayload = {
       ...payload,
       projectContext: compactBuildContext(payload.projectContext),
@@ -818,8 +856,10 @@ export const buildScreenTask = task({
     if (!assetPolicy.valid) {
       await appendScreenBuildDiagnostics(admin, payload.generationRunId, payload.screenId, attempts);
       const policyReason = `Generated screen did not use required critical visual assets: ${assetPolicy.missingRequiredUrls.slice(0, 4).join(", ")}`;
-      return failWithoutSavingGeneratedCode({
+      return failAfterSavingGeneratedCode({
         error: `[screen_generation:invalid_image_url] ${policyReason}`,
+        code,
+        blockIndex,
         metadata: {
           attempts,
           assetPolicy,
@@ -1213,9 +1253,14 @@ export const generateUiFlowTask = task({
             screens: payload.plannedScreens,
             navigationArchitecture: requestedNavigationArchitecture,
             requiresBottomNav: deriveRequiresBottomNav(requestedNavigationArchitecture),
+            strictScreenLinks: (payload.planningMode ?? "project") !== "single-screen",
           }),
           charter: requestedCharter!,
           screens: payload.plannedScreens,
+          screenCountContract: null,
+          screenCountEnforcement: "none" as const,
+          intentContract: null,
+          screenFamilyContract: null,
         }
       : await planUiFlow({
           prompt: payload.prompt,
@@ -1298,6 +1343,9 @@ export const generateUiFlowTask = task({
       })),
       screenCountContract: plan.screenCountContract ?? null,
       screenCountEnforcement: plan.screenCountEnforcement ?? "none",
+      intentContract: plan.intentContract ?? null,
+      screenFamilyContract: plan.screenFamilyContract ?? null,
+      plannedScreenCount: plan.screens.length,
       navigationEnabled: plan.navigationPlan.enabled,
     });
 
@@ -1321,6 +1369,8 @@ export const generateUiFlowTask = task({
       screens: plan.screens,
       charter: plan.charter,
       designTokens,
+      referenceMode,
+      intentContract: plan.intentContract ?? null,
       llmLog: (label, data) => logger.info(label, data),
     });
     const projectAssetManifest = await resolveProjectAssets({
@@ -1402,7 +1452,7 @@ export const generateUiFlowTask = task({
     await updateGenerationRun(admin, payload.generationRunId, {
       status: "building",
       requires_bottom_nav: plan.requiresBottomNav,
-      requested_screen_count: screenPlans.length,
+      requested_screen_count: plan.screenCountContract?.exactCount ?? null,
     });
     generationJournal.status = "building";
     setJournalPhase(generationJournal, "build", "active", `Building ${screenPlans.length} screen${screenPlans.length === 1 ? "" : "s"} on the canvas.`);

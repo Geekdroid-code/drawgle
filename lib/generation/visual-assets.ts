@@ -27,6 +27,7 @@ import type {
   VisualAssetProvider,
   VisualAssetPriority,
   VisualAssetRole,
+  VisualAssetRequirementOrigin,
   VisualAssetSource,
   VisualAssetSourcePreference,
   VisualAssetType,
@@ -91,6 +92,7 @@ const AssetRequirementSchema = z.object({
   placementHint: z.string().trim().min(1).max(500),
   priority: z.enum(["critical", "supporting", "optional"]),
   reuseKey: z.string().trim().min(1).max(160),
+  origin: z.enum(["reference_visible", "user_explicit", "planner_inferred", "heuristic_inferred"]).optional(),
 });
 
 const AssetVerificationResponseSchema = z.object({
@@ -215,7 +217,10 @@ const resolveRequirementScreenName = (screens: ScreenPlan[], requestedScreenName
   return screens.length === 1 ? screens[0].name : null;
 };
 
-const isCriticalRequirement = (requirement: AssetRequirement) => requirement.priority === "critical";
+const isBlockingRequirementOrigin = (origin?: VisualAssetRequirementOrigin) =>
+  origin === "reference_visible" || origin === "user_explicit";
+const isCriticalRequirement = (requirement: AssetRequirement) =>
+  requirement.priority === "critical" && isBlockingRequirementOrigin(requirement.origin);
 
 const privateSubjectPattern = /\b(my|our|client|customer|brand|logo|trademark|company|founder|employee|team|user|profile|avatar|headshot|portrait|face|real person|celebrity|influencer|shoe brand|product brand)\b/i;
 
@@ -301,6 +306,7 @@ const createInferredRequirement = ({
   transparentBackground,
   placementHint,
   priority,
+  origin = "heuristic_inferred",
 }: {
   id: string;
   screenName: string;
@@ -312,6 +318,7 @@ const createInferredRequirement = ({
   transparentBackground: boolean;
   placementHint: string;
   priority: VisualAssetPriority;
+  origin?: VisualAssetRequirementOrigin;
 }): AssetRequirement => ({
   id,
   screenName,
@@ -323,6 +330,7 @@ const createInferredRequirement = ({
   transparentBackground,
   placementHint,
   priority,
+  origin,
   reuseKey: stableReuseKey({
     id,
     screenName,
@@ -334,6 +342,7 @@ const createInferredRequirement = ({
     transparentBackground,
     placementHint,
     priority,
+    origin,
     reuseKey: `${role}-${subject}`,
   }),
 });
@@ -498,28 +507,38 @@ const normalizePlannedAssetNeed = (screen: ScreenPlan, need: AssetRequirement): 
   return {
     ...parsed.data,
     reuseKey: stableReuseKey(parsed.data),
+    origin: parsed.data.origin ?? (parsed.data.sourcePreference === "user_upload" ? "user_explicit" : "planner_inferred"),
   };
 };
 
 export async function planVisualAssets({
   prompt,
   screens,
+  referenceMode,
+  intentContract,
   llmLog,
 }: {
   prompt: string;
   screens: ScreenPlan[];
   charter?: ProjectCharter | null;
   designTokens?: DesignTokens | null;
+  referenceMode?: string | null;
+  intentContract?: { kind?: string | null } | null;
   llmLog?: LlmLogFn;
 }): Promise<AssetRequirement[]> {
+  const exactRecreate = referenceMode === "user_recreate" && intentContract?.kind === "exact_recreate";
   const plannedRequirements = screens.flatMap((screen) =>
     (screen.assetNeeds ?? [])
       .map((need) => normalizePlannedAssetNeed(screen, need))
       .filter((need): need is AssetRequirement => Boolean(need)),
-  );
-  const inferredRequirements = screens
-    .map((screen) => inferAssetRequirementForScreen({ prompt, screen }))
-    .filter((requirement): requirement is AssetRequirement => Boolean(requirement));
+  ).map((requirement) => exactRecreate && !isBlockingRequirementOrigin(requirement.origin)
+    ? { ...requirement, priority: requirement.priority === "critical" ? "supporting" : requirement.priority }
+    : requirement);
+  const inferredRequirements = exactRecreate
+    ? []
+    : screens
+      .map((screen) => inferAssetRequirementForScreen({ prompt, screen }))
+      .filter((requirement): requirement is AssetRequirement => Boolean(requirement));
   const screensWithPlannedAssets = new Set(plannedRequirements.map((requirement) => requirement.screenName));
   const missingInferredRequirements = inferredRequirements.filter((requirement) => !screensWithPlannedAssets.has(requirement.screenName));
   const finalRequirements = mergeAssetRequirements([...plannedRequirements, ...missingInferredRequirements]);
@@ -535,6 +554,7 @@ export async function planVisualAssets({
       assetType: requirement.assetType,
       sourcePreference: requirement.sourcePreference,
       priority: requirement.priority,
+      origin: requirement.origin ?? null,
     })),
   });
 
@@ -560,6 +580,7 @@ const manifestFromAsset = (asset: VisualAssetRow, requirement: AssetRequirement,
   visibility: (asset.visibility ?? "owner_private") as VisualAssetVisibility,
   verificationScore: asset.verification_score ?? null,
   license: asset.license,
+  requirementOrigin: requirement.origin,
 });
 
 const transientStockManifest = ({
@@ -603,6 +624,7 @@ const transientStockManifest = ({
   license,
   attribution: attribution ?? null,
   sourceUrl: sourceUrl ?? null,
+  requirementOrigin: requirement.origin,
 });
 
 const placeholderManifest = (requirement: AssetRequirement, reason: string): ScreenAssetManifest => ({
@@ -626,6 +648,7 @@ const placeholderManifest = (requirement: AssetRequirement, reason: string): Scr
   license: null,
   attribution: null,
   sourceUrl: null,
+  requirementOrigin: requirement.origin,
 });
 
 const getDisplayVariant = async (admin: AdminClient, assetId: string): Promise<VisualAssetVariantRow | null> => {

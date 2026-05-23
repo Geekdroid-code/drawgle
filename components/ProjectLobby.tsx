@@ -678,7 +678,7 @@ export function ProjectLobby({
 
                   {/* Redesigned Prompt Box inside outer gradient border */}
                   <div
-                    className={`relative w-full rounded-[38px] bg-[linear-gradient(110deg,#ff9a9e_0%,#fecfef_20%,#e0c3fc_40%,#8ec5fc_60%,#a8edea_80%,#d4fc79_100%)] p-[2px] shadow-[0_12px_32px_rgba(0,0,0,0.06)] transition-all duration-300 ${isGeneratingDesign ? "dg-brief-generating-shell animate-pulse" : ""}`}
+                    className={`relative w-full rounded-[38px] bg-[linear-gradient(110deg,#ff9a9e_0%,#fecfef_20%,#e0c3fc_40%,#8ec5fc_60%,#a8edea_80%,#d4fc79_100%)] p-[2px]  transition-all duration-300 ${isGeneratingDesign ? "dg-brief-generating-shell animate-pulse" : ""}`}
                   >
                     <div className="bg-[#f2f3f5] rounded-[36px] p-2 flex flex-col relative z-20">
                       
@@ -727,13 +727,13 @@ export function ProjectLobby({
                           </>
                         ) : (
                           <div className="text-[12px] font-medium text-neutral-400 px-1 w-full text-left">
-                            Attach reference images or documents to guide the design
+                            Attach reference image to guide the design
                           </div>
                         )}
                       </div>
 
                       {/* Inner White Container */}
-                      <div className="bg-white border border-[#e2e4e7]/80 rounded-[28px] shadow-[0_2px_8px_rgba(0,0,0,0.04)] flex flex-col relative">
+                      <div className="bg-white border border-[#e2e4e7]/80 rounded-[28px] flex flex-col relative">
                         
                         {/* Middle Section: Text input */}
                         <div className="px-4 pt-4 pb-2">

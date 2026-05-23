@@ -275,6 +275,7 @@ ${plannerBlueprintJsonContract}
 
 Blueprint rules:
 - Screen Count Contract is the highest authority for screen quantity. Navigation architecture may not add, imply, or preserve extra screens beyond that contract.
+- Treat the screen slate as the source of truth. Navigation is only a projection of screens the user actually asked for or the intent contract allows.
 - When the contract says exactly 1 screen in Image to UI mode, visible screenshot tabs are visual chrome only. Do not turn them into peer screens or shared navigation unless the user explicitly requested multiple screens/prototype navigation.
 - Analyze the app concept and define one navigation_architecture for the whole product.
 - Use kind "bottom-tabs-app" only when the product has several peer root destinations.
@@ -282,7 +283,7 @@ Blueprint rules:
 - Use kind "single-screen" when the experience is intentionally focused and does not need persistent app-level navigation.
 - A finite described flow is not automatically a bottom-tabs app. Use persistent bottom navigation only when screens are peer root destinations or the user/reference explicitly calls for primary navigation.
 - navigation_plan must be present. Use enabled false and kind "none" when persistent navigation should not exist.
-- navigation_plan.items must contain only project-specific primary destinations, usually 3-5 items for bottom-tabs apps.
+- navigation_plan.items must contain only project-specific primary destinations from the approved screen slate, usually 3-5 items for bottom-tabs apps. Never create screens because navigation needs more tabs.
 - Do not create nav items for onboarding, splash, transient tracking/detail, checkout, confirmation, modal, or one-off flow screens.
 - Use Lucide icon names for navigation_plan.items.icon.
 - navigation_plan.visual_brief must describe the actual visual anatomy: floating dock, glass pill, compact rail, sculpted card-attached nav, centered action dock, active state, icon/label rhythm, surface, radius, elevation, and safe-area relationship.
@@ -302,6 +303,7 @@ ${plannerScreensJsonContract}
 Rules:
 - If the user explicitly asked for N screens, return exactly N screens.
 - If a Screen Count Contract is present, it overrides visible tab count, inferred app sections, and navigation_plan item count.
+- Screen briefs decide what exists. Use the user's scope and intent contract first; treat navigation tabs, settings rows, segmented controls, and menu labels as UI elements unless the user asked for those destinations as screens.
 - In Image to UI mode, visible bottom tabs in a one-screen screenshot are part of the visual anatomy for that one screen, not permission to create additional screens.
 - If the prompt names screens in order, preserve those names and order.
 - Root screens are peer primary destinations. Onboarding, splash, checkout, tracking, map, detail, modal, and confirmation screens are usually detail/immersive screens.
@@ -599,6 +601,7 @@ const buildAssetManifestContract = (assetManifest?: ScreenAssetManifest[] | null
       : "This screen has no approved bitmap URLs. Render the placeholder manifest entries as CSS only.",
     "Use exact url/variantUrl values from this manifest when url is non-null. Local public files and relative image paths are not allowed.",
     "Every non-placeholder asset marked critical must appear in the returned HTML.",
+    "Use each manifest asset only for its declared role. Avatar assets are for avatars only; product_cutout/hero_cutout/decorative_object assets must never be used as avatars or profile photos.",
     "For placeholder entries, render a simple neutral placeholder surface: CSS background, border/radius, Lucide icon, aspect ratio, and a short label from the alt/role. Do not draw product/person/object artwork as SVG, gradients, absolute CSS shapes, or fake bitmap art, and do not add an img tag.",
     "For transparent PNG/cutout assets use object-contain. For photo assets use object-cover unless the placement hint says otherwise.",
     "Every critical/supplied asset used must include meaningful alt text, avoid layout overflow, and respect the placement hint.",
