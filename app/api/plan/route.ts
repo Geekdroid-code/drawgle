@@ -87,7 +87,19 @@ export async function POST(req: Request) {
       : null;
     let referenceId: string | null = null;
 
-    if (!referenceImage) {
+    const hasExistingProjectVisualMemory = Boolean(
+      payload.projectId
+      && (
+        payload.designTokens
+        || existingCharter
+        || existingNavigationPlan?.items?.length
+        || projectContext?.includes("RELEVANT EXISTING SCREENS")
+      ),
+    );
+
+    if (!referenceImage && hasExistingProjectVisualMemory) {
+      referenceMode = "user_style";
+    } else if (!referenceImage) {
       const match = matchCuratedStyleReference({
         prompt: payload.prompt,
         planningMode: payload.planningMode as PlanningMode,

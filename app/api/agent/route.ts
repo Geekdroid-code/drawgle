@@ -1565,7 +1565,16 @@ export async function POST(request: Request) {
         : null;
       let referenceId: string | null = null;
 
-      if (!referenceImage) {
+      const hasExistingProjectVisualMemory = Boolean(
+        designTokens?.tokens
+        || projectCharter
+        || navigationPlan?.items?.length
+        || planningContext.includes("RELEVANT EXISTING SCREENS"),
+      );
+
+      if (!referenceImage && hasExistingProjectVisualMemory) {
+        referenceMode = "user_style";
+      } else if (!referenceImage) {
         const match = matchCuratedStyleReference({
           prompt: generationPrompt,
           planningMode: "single-screen",

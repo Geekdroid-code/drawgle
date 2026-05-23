@@ -220,9 +220,9 @@ Rules:
 - The result should be specific enough that a planner, token generator, and builder can all use it as a shared artistic brief.`;
 
 export const referenceAnalysisInstruction = `You are a specialist in reverse-engineering mobile UI screenshots into implementation-ready visual analysis.
-Your job is to inspect the uploaded reference image and output strict JSON describing the actual layout and styling cues in enough detail that another model can recreate the screens faithfully.
+Your job is to inspect and look deep in the pixels of the uploaded reference image and output strict JSON describing the actual layout and styling cues in enough detail that another model can recreate the screens faithfully.
 
-Return strictly valid JSON in this format:
+Return strictly valid JSON in this format after inspecting the image with a expert designer's eye for every visible compositional detail:
 {
   "overallVisualStyle": "High-level summary of the visual language across the reference, including dominant layer/depth/material behavior",
   "screenCountEstimate": 3,
@@ -253,16 +253,15 @@ Rules:
 - If the image contains multiple phone screens or panels, describe them left-to-right.
 - screenCountEstimate counts only visible phone screens/panels in the uploaded image. Bottom navigation tabs, side tabs, segmented controls, carousel dots, menu items, or labels inside one visible screen are not additional screens.
 - Focus on actual composition, not product strategy.
-- If the request says the image is an internal curated style reference, extract its reusable visual DNA and component craft without treating its full layout as the user's required screen structure.
-- VISUAL FORENSICS PASS: Before describing style, inspect the UI from the absolute screen background forward through every visible layer. For each meaningful layer, name what it is, where it sits, what contains it, what it contains, and how it is separated from the layer behind it.
+- VISUAL FORENSICS PASS: Before summarizing, inspect the UI from the absolute screen background forward through every visible layer. For each meaningful layer, name what it is, where it sits, what contains it, what it contains, and how it is separated from the layer behind it.
 - Use broad structural language, not one layout pattern: surface, layer, container, group, control, content cluster, media plane, navigation surface, overlay, text group, icon well, chart plane, map plane, and floating affordance.
 - Do not collapse nested or grouped UI into generic nouns like "card", "header", "list", "section", "panel", or "button". When a visible object has a wrapper and children, describe the wrapper and the children separately.
 - Explain how inner elements are arranged: row, column, grid, stack, absolute/floating placement, alignment, gap, padding, inset, overlap, clipping, and anchor positions. Use approximate px-like terms when helpful, such as "about 2-3px highlight edge" or "about 12-16px internal padding"; do not invent false precision.
 - Describe depth physically. Do not write only "soft shadow" or "elevated". Name shadow direction, offset, spread, blur, opacity impression, structural purpose, border/inner-border, highlight edge, bevel width, frosted/glass edge, pressed state, raised state, or machined edge when visible.
 - Be specific about overlap, layering, floating surfaces, bottom sheets, tabs, charts, gauges, avatar stacks, map regions, large typography, image cutouts, control bars, and CTA construction when visible.
-- Describe each visible screen as if the next model will not see the image. Include exact top/middle/bottom regions, approximate proportions, anchored/floating surfaces, active states, icon/label treatment, repeated visual motifs, and the parent-child structure needed to rebuild it.
+- Describe each visible screen as if the next designer ai model will not see the image. Include exact top/middle/bottom regions, approximate proportions, anchored/floating surfaces, active states, icon/label treatment, repeated visual motifs, and the parent-child structure needed to rebuild it.
 - For navigation, capture the real anatomy: full-width rail, floating dock, glass pill, attached card, center action, icon-only row, label rhythm, active-state shape, radius, shadow, and bottom safe-area relationship.
-- For charts/maps/media, name the constructed geometry rather than saying "chart" or "map": bar shapes, route curve, grid blocks, pins, sheets, overlays, legends, rings, gauges, image crop/cutout, etc.
+- For charts/maps/media, name the constructed geometry rather than saying "chart" or "map": bar shapes, route curves, grid blocks, pins, sheets, overlays, legends, rings, gauges, image crop/cutouts, etc. Also capture the visual container's height, internal padding, clipping behavior, visible top/bottom bounds, label/axis placement, and whether the plotted geometry has enough breathing room so the builder does not create empty chart areas or clipped graph lines.
 - Avoid generic phrases like "modern UI" unless you immediately explain what makes it modern.
 - Do not invent hidden screens, unseen features, or backend behavior.
 - Use generic placeholders only for volatile literal values; preserve visible layout anchors when they matter to the composition.
@@ -271,7 +270,7 @@ Rules:
 export const referenceAnalysisRecreateInstruction = `${referenceAnalysisInstruction}
 
 MODE LOCK: USER_RECREATE.
-This uploaded image is a structural reference. Extract visible layout anatomy, layer order, containment, spacing, depth, and component construction required to recreate the screenshot faithfully.`;
+This uploaded image is a structural reference. Extract visible layout anatomy, layer order, containment, spacing, depth, and component construction required to recreate the mobile screen ui faithfully.`;
 
 export const referenceAnalysisStyleInstruction = `You are a specialist in extracting reusable visual DNA from premium mobile UI screenshots.
 This image is a STYLE REFERENCE only. It is not the user's requested layout.
@@ -307,6 +306,11 @@ Rules:
 - Extract material quality, shadows, radii, blur/glass, typography character, icon weight, color rhythm, polish, micro-shapes, navigation treatment, component craftsmanship, spacing density, and viewport fit constraints.
 - Do not preserve exact section order, object positions, domain content, data values, product objects, literal copy, or full screenshot anatomy.
 - Translate visible structure into portable principles: "floating dock with active pill and generous safe-area clearance", not "put this exact dock in the same place with the same labels".
+- Inspect the reference like a design-system sample: identify repeatable surface recipes, elevation levels, border/highlight behavior, corner radius rhythm, icon framing, control sizing, card density, and how text is grouped inside surfaces.
+- Capture hierarchy mechanics, not just style words: what creates the focal point, how secondary content recedes, how dense areas stay readable, how empty space is budgeted, and how the eye moves through the screen.
+- Extract reusable layout instincts without cloning coordinates: content rail width, safe-area handling, section rhythm, card/internal padding relationship, bottom-nav clearance, media/chart breathing room, and overflow avoidance.
+- For charts, maps, media, or large visuals, describe the reusable treatment: geometry style, crop behavior, label density, axis/legend subtlety, container padding, clipping discipline, and how the visual remains legible inside a mobile viewport.
+- Name anti-patterns to avoid when applying this style to another product, such as flattening layered surfaces, using generic gray cards, overusing the accent color, making all cards equal weight, or turning crafted navigation into a default tab bar.
 - Identify what would make another product feel similarly premium without making it a clone.
 - The downstream planner and builder will create app-specific layouts from the user prompt, so your analysis must separate visual craft from layout template.`;
 
@@ -440,13 +444,46 @@ const buildTypographyRoleContract = () => [
   "- Do not substitute hero_title for screen_title. Do not invent ad hoc text sizes or font weights outside these semantic roles unless the UI truly requires a one-off chart annotation.",
 ].join("\n");
 
+const compactPromptField = (value: unknown, fallback = "none") => {
+  if (value === null || value === undefined) {
+    return fallback;
+  }
+  const text = String(value).replace(/\s+/g, " ").replace(/\|/g, "/").trim();
+  return text || fallback;
+};
+
+const formatAssetManifestLine = (asset: ScreenAssetManifest, index: number) => {
+  const fields = [
+    `#${index + 1}`,
+    `role=${compactPromptField(asset.role)}`,
+    `critical=${asset.critical ? "true" : "false"}`,
+    `placeholder=${asset.placeholder ? "true" : "false"}`,
+    `url=${compactPromptField(asset.variantUrl || asset.url)}`,
+    `fit=${compactPromptField(asset.objectFit)}`,
+    `pos=${compactPromptField(asset.objectPosition)}`,
+    `size=${asset.width}x${asset.height}`,
+    `alpha=${asset.hasAlpha ? "true" : "false"}`,
+    `source=${compactPromptField(asset.source)}/${compactPromptField(asset.provider)}`,
+    `alt=${compactPromptField(asset.alt)}`,
+    `hint=${compactPromptField(asset.placementHint)}`,
+    asset.id ? `id=${compactPromptField(asset.id)}` : null,
+    asset.requirementId ? `req=${compactPromptField(asset.requirementId)}` : null,
+    asset.license ? `license=${compactPromptField(asset.license)}` : null,
+    asset.attribution ? `attr=${compactPromptField(asset.attribution)}` : null,
+    asset.sourceUrl ? `sourceUrl=${compactPromptField(asset.sourceUrl)}` : null,
+  ].filter(Boolean);
+
+  return `- ${fields.join(" | ")}`;
+};
+
 const buildAssetManifestContract = (assetManifest?: ScreenAssetManifest[] | null) => {
   if (!assetManifest?.length) {
     return [
-      "No approved bitmap assets were requested or resolved for this screen.",
-      "Do not invent external image URLs, Unsplash/Pexels/Pixabay links, fal media links, non-SVG data images, blob URLs, local public files, relative image paths, or remote placeholders.",
-      "Do not create bitmap image slots unless the screen brief explicitly says the visual should be CSS-only.",
-      "When the brief asks for imagery but no asset manifest entry exists, use only a simple neutral CSS placeholder surface with a Lucide icon, aspect-ratio box, and short label. Do not hand-draw product/person objects as SVG, gradients, or CSS illustration shapes.",
+      "No approved bitmap URLs are available for this screen.",
+      "Use <img> only when an asset manifest entry provides a URL.",
+      "Do not invent remote/stock/CDN/fal/blob/local/relative image URLs, remote placeholders, or non-SVG data images.",
+      "If the brief needs an image/media area, build it with CSS surfaces, inline SVG geometry, Lucide icons, charts/maps, gradients, or a neutral placeholder surface with aspect ratio and a short label.",
+      "Do not hand-draw fake product/person/object bitmap art as SVG, gradients, or CSS illustration shapes.",
     ].join("\n");
   }
 
@@ -454,18 +491,14 @@ const buildAssetManifestContract = (assetManifest?: ScreenAssetManifest[] | null
   const placeholders = assetManifest.filter((asset) => asset.placeholder);
 
   return [
-    realAssets.length > 0
-      ? "Use only these approved bitmap assets. Do not invent or search for any other image URLs."
-      : "This screen has no approved bitmap URLs. Render the placeholder manifest entries as CSS only.",
-    "Use exact url/variantUrl values from this manifest when url is non-null. Local public files and relative image paths are not allowed.",
-    "Every non-placeholder asset marked critical must appear in the returned HTML.",
-    "Use each manifest asset only for its declared role. Avatar assets are for avatars only; product_cutout/hero_cutout/decorative_object assets must never be used as avatars or profile photos.",
-    "For placeholder entries, render a simple neutral placeholder surface: CSS background, border/radius, Lucide icon, aspect ratio, and a short label from the alt/role. Do not draw product/person/object artwork as SVG, gradients, absolute CSS shapes, or fake bitmap art, and do not add an img tag.",
-    "For transparent PNG/cutout assets use object-contain. For photo assets use object-cover unless the placement hint says otherwise.",
-    "Every critical/supplied asset used must include meaningful alt text, avoid layout overflow, and respect the placement hint.",
-    "Transparent product/person/hero imagery must come only from a curated manifest URL or a placeholder. Photos must come only from a stock/manifest URL or a placeholder.",
-    placeholders.length > 0 ? `Placeholder entries: ${placeholders.length}` : null,
-    JSON.stringify(assetManifest, null, 2),
+    realAssets.length > 0 ? "Use only listed bitmap URLs. Never invent/search image URLs." : "No approved bitmap URLs; render listed placeholders as CSS only.",
+    "Use each entry only for its role. Avatar assets are avatars only; product/hero/decorative assets must never become profile photos.",
+    "Critical non-placeholder entries must appear in returned HTML. Use exact url/variantUrl, meaningful alt text, and the placement hint.",
+    "Placeholder entries: CSS surface + border/radius + Lucide icon + aspect ratio + short alt/role label; no img tag and no fake product/person/object artwork.",
+    "Transparent cutouts use object-contain. Photos use object-cover unless hint says otherwise.",
+    `Manifest summary: total=${assetManifest.length}; urls=${realAssets.length}; placeholders=${placeholders.length}.`,
+    "Manifest entries:",
+    ...assetManifest.map(formatAssetManifestLine),
   ].filter(Boolean).join("\n");
 };
 
@@ -506,6 +539,32 @@ const buildNavigationArchitectureContract = ({
   }
 
   return lines.join("\n");
+};
+
+const buildSharedNavigationContract = ({
+  navigationInstruction,
+  navigationPlan,
+  screenPlan,
+}: {
+  navigationInstruction: string;
+  navigationPlan?: BuildScreenInput["navigationPlan"];
+  screenPlan: ScreenPlan;
+}) => {
+  if (!navigationPlan?.enabled) {
+    return [
+      navigationInstruction,
+      "Any navigation surface must match the app family: spacing, icon size, label treatment, active state, radius, and elevation.",
+    ].join("\n");
+  }
+
+  return [
+    "Drawgle renders the shared navigation shell outside this screen.",
+    `Screen activeNav=${screenPlan.navigationItemId ?? "none"}. Items=${navigationPlan.items.map((item) => `${item.label}(${item.icon})`).join(", ")}.`,
+    navigationPlan.visualBrief ? `Visual brief=${navigationPlan.visualBrief}` : null,
+    "Do not output <nav>, <footer>, bottom tabs, tab bars, docks, or persistent primary navigation markup.",
+    "Build only screen content above the shell; reserve bottom clearance on the main scroll/content wrapper: calc(var(--dg-mobile-layout-safe-area-bottom) + 96px) or equivalent Tailwind pb value.",
+    "If the screen has local/top navigation, keep it visually consistent with the shared shell family.",
+  ].filter(Boolean).join("\n");
 };
 
 export const editInstruction = `You are an expert frontend developer modifying an existing HTML/Tailwind UI.
@@ -580,6 +639,7 @@ const buildScreenInstruction = ({
   const minTouch = resolveToken(designTokens, "sizing.min_touch_target", "48px");
   const textHigh = resolveToken(designTokens, "color.text.high_emphasis", "#000000");
   const resolvedNavigationArchitecture = createNavigationArchitecture({ navigationArchitecture, requiresBottomNav });
+  const hasAssetEntries = Boolean(assetManifest?.length);
   const screenChrome = resolveScreenChromePolicy({
     screenPlan,
     navigationArchitecture: resolvedNavigationArchitecture,
@@ -616,6 +676,7 @@ const buildScreenInstruction = ({
 
   return `You are an expert mobile UI designer and frontend developer.
 You are building ONE specific screen for a larger app.
+Builder Variant: ${mode === "recreate" ? "recreate reference fidelity" : "style/project-memory fidelity"}; assets=${hasAssetEntries ? "manifest" : "no approved bitmap URLs"}.
 Screen Name: ${screenPlan.name}
 Screen Type: ${screenPlan.type}
 Screen Description: ${screenPlan.description}
@@ -668,30 +729,24 @@ ${buildAssetManifestContract(assetManifest)}
 TOKEN CONTEXT:
 ${buildTokenPromptContext(designTokens, "compact_visual")}
 
-CRITICAL INSTRUCTION 2: NAVIGATION ARCHITECTURE
-${navigationInstruction}
-Any navigation surfaces in this app must read as one family: same spacing discipline, icon sizing, label treatment, active-state logic, radius language, and border/elevation treatment.
-${navigationPlan?.enabled ? `The shared navigation plan has already been created for this project. Active tab for this screen: ${screenPlan.navigationItemId ?? "none"}. Shared nav items: ${navigationPlan.items.map((item) => `${item.label} (${item.icon})`).join(", ")}. Visual brief: ${navigationPlan.visualBrief}` : ""}
+SHARED NAVIGATION CONTRACT:
+${buildSharedNavigationContract({ navigationInstruction, navigationPlan, screenPlan })}
 
-RULES:
-1. Outermost element MUST be: <div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden" style="font-family: var(--dg-typography-font-family, ${fontFamily})">
-2. Respect mobile safe areas: Add pt-[${safeTop}] to the top container and pb-[${safeBottom}] to the bottom container (or bottom nav).
-3. Use min-h-[${minTouch}] for ALL clickable elements (buttons, links, icon buttons).
-4. Use project token classes or variables for text colors (for example dg-text-high or text-[var(--dg-color-text-high-emphasis)]). The current high-emphasis text token resolves to ${textHigh}.
-5. Do NOT wrap the UI in a phone frame or add a status bar.
-6. Return ONLY valid HTML code with Tailwind classes. Do NOT wrap in markdown blocks like \`\`\`html.
-7. Do NOT include <html>, <head>, or <body> tags. Just the content.
-8. Use Lucide icons via standard SVG or <i data-lucide="icon-name"></i> tags.
-9. If additional project memory context is supplied in the request, keep naming, information architecture, interaction patterns, and art direction aligned with it without cloning an existing screen verbatim.
-10. If project memory includes a creative direction or signature moments, reflect them in the composition instead of ignoring them.
-11. Build every required section and item named in the Screen Description. If the brief asks for three metric cards, a 2x2 metric grid, a segmented control, avatar stack, chart labels, or a specific CTA construction, include all of them in the HTML. Do not stop after the first visible card.
-12. Let long content extend vertically inside the generated screen content. Do not put overflow-hidden on the outermost screen wrapper in a way that clips required bottom content.
-13. STATIC HTML ONLY: Do NOT output JSX, React, JavaScript expressions, arrays, .map(...), arrow functions, template literals, className, class={...}, style={{...}}, data attributes with {...}, <script>, or code that requires runtime execution. Manually expand repeated items into concrete HTML elements.
-14. Use a main content wrapper that enforces the shared spacing rhythm. A good default is a flex column with px-[var(--dg-mobile-layout-screen-margin)] and gap-[var(--dg-mobile-layout-section-gap)], with deliberate exceptions only for full-bleed media/maps.
-15. Before returning, audit for mobile fit: no horizontal overflow, no nav overlap, no clipped CTA, no unreadable chart, no empty visual panel, no text hidden behind icon controls, and no inconsistent random margins between sections.
-16. Image URL policy: use only URLs from APPROVED VISUAL ASSET MANIFEST. Never invent remote image URLs, relative image paths, local public images, temporary fal.media URLs, random stock CDN URLs, non-SVG data images, or placeholder image services. data:image/svg+xml is allowed only for simple inline vector geometry. If a non-placeholder manifest asset is marked critical, include it in the HTML exactly once or as intentionally repeated imagery.
-${navigationPlan?.enabled ? "17. Do NOT create a <nav>, bottom tab bar, footer navigation, or persistent primary navigation. Leave bottom padding for the injected shared shell: the content/main wrapper should include padding-bottom: calc(var(--dg-mobile-layout-safe-area-bottom) + 96px) or an equivalent Tailwind arbitrary pb value. Do not draw the shell yourself." : ""}
-18. End the response with this exact sentinel on its own final line: ${DRAWGLE_GENERATION_COMPLETE_SENTINEL}`;
+OUTPUT RULES:
+- Root element MUST be exactly: <div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden" style="font-family: var(--dg-typography-font-family, ${fontFamily})">
+- Safe areas: top container pt-[${safeTop}], bottom/content pb-[${safeBottom}] unless shared nav requires larger clearance.
+- Clickable controls: min-h-[${minTouch}].
+- Text colors: use token classes/vars such as dg-text-high or text-[var(--dg-color-text-high-emphasis)] (current high text ${textHigh}).
+- No phone frame, device mockup, notch, status bar, markdown fence, html/head/body tags, scripts, JSX, React, className, JS expressions, arrays, map(), template literals, or class/style objects.
+- Static HTML only. Manually expand repeated UI items. Return only the content HTML.
+- Icons: use Lucide via <i data-lucide="icon-name"></i> or static inline SVG.
+- Match supplied project memory, creative direction, naming, IA, and interaction patterns without cloning an unrelated screen.
+- Build every named requirement in Screen Description: all cards, metrics, controls, labels, charts, avatar stacks, CTAs, and visual panels.
+- Allow vertical scrolling for long content; do not clip required bottom content with overflow-hidden.
+- Main content should normally use px-[var(--dg-mobile-layout-screen-margin)] and gap-[var(--dg-mobile-layout-section-gap)] unless the brief requires full-bleed media/maps.
+- Final self-audit: no horizontal overflow, nav overlap, clipped CTA, unreadable/empty chart, blank visual panel, text-icon collision, or random spacing drift.
+- Image URLs: use only APPROVED VISUAL ASSET MANIFEST URLs. Inline data:image/svg+xml is allowed only for simple vector geometry.
+- End with sentinel on its own final line: ${DRAWGLE_GENERATION_COMPLETE_SENTINEL}`;
 };
 
 export const buildRecreateScreenInstruction = (input: Pick<BuildScreenInput, "designTokens" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan }) =>
