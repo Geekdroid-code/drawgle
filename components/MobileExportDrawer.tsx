@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
-import { Copy, Check, Download, Loader2, ChevronDown, Smartphone } from "lucide-react";
+import { Copy, Check, Download, Loader2, ChevronDown, Smartphone, Search, X } from "lucide-react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import {
@@ -229,6 +229,14 @@ export function MobileExportDrawer({
     }
   }
 
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredScreens = useMemo(() => {
+    if (!searchQuery.trim()) return screens;
+    const query = searchQuery.toLowerCase();
+    return screens.filter((screen) => screen.name.toLowerCase().includes(query));
+  }, [screens, searchQuery]);
+
   const activeScreen = useMemo(() => {
     return screens.find((s) => s.id === activeScreenId) || screens[0] || null;
   }, [screens, activeScreenId]);
@@ -380,45 +388,110 @@ ${cleanScreen}
       >
         <div className="flex h-full flex-col min-h-0">
           {/* Header */}
-          <SheetHeader className="border-b border-slate-950/[0.08] bg-white px-6 pb-4 pt-6 shrink-0 space-y-0">
-            <div className="flex items-center justify-between">
-              <div className="flex-1 min-w-0 pr-4 text-left">
-                <SheetTitle className="text-[15px] font-semibold text-slate-950 flex items-center gap-1.5">
-                  <Smartphone className="h-4 w-4 text-slate-400 shrink-0" />
-                  Code Export
-                </SheetTitle>
-                <SheetDescription className="mt-1 text-[13px] text-slate-500">
-                  Select a screen and download native framework output.
-                </SheetDescription>
+          <SheetHeader className="border-b border-slate-950/[0.08] bg-white px-6 pb-5 pt-6 shrink-0 space-y-0">
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <div className="text-left">
+                  <SheetTitle className="text-[16px] font-extrabold tracking-tight text-slate-950 flex items-center gap-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-slate-950 text-white shadow-sm shrink-0">
+                      <Smartphone className="h-3.5 w-3.5" />
+                    </span>
+                    Code Export
+                  </SheetTitle>
+                  <SheetDescription className="mt-1 text-[13px] text-slate-500">
+                    Export high-fidelity compilable code for your screens.
+                  </SheetDescription>
+                </div>
               </div>
-              
-              {/* Screen Picker Dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <Button
-                      variant="outline"
-                      className="h-9 gap-1.5 rounded-[12px] border-slate-950/[0.08] bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
-                    >
-                      <span className="truncate max-w-[120px]">{screenName}</span>
-                      <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
-                    </Button>
-                  }
-                />
-                <DropdownMenuContent align="end" className="w-[180px] rounded-[14px]">
-                  {screens.map((screen) => (
-                    <DropdownMenuItem
-                      key={screen.id}
-                      onClick={() => setActiveScreenId(screen.id)}
-                      className={`text-xs font-medium rounded-[10px] px-3 py-2 cursor-pointer ${
-                        activeScreenId === screen.id ? "bg-slate-950 text-white focus:bg-slate-900 focus:text-white" : ""
-                      }`}
-                    >
-                      <span className="truncate">{screen.name}</span>
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
+
+              {/* Ultra-Premium Screen Selector */}
+              <div className="flex flex-col gap-1.5 text-left">
+                <div className="flex items-center justify-between px-0.5">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#667894]">Active Screen</span>
+                  <span className="text-[10px] font-bold text-slate-400">{screens.length} screens total</span>
+                </div>
+                
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <button
+                        type="button"
+                        className="flex h-11 w-full items-center justify-between gap-3 rounded-[14px] border border-slate-950/[0.08] bg-slate-50/80 px-3.5 text-left text-sm font-semibold text-slate-800 transition hover:bg-slate-100 hover:border-slate-950/[0.16] shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-950/20"
+                      >
+                        <span className="flex min-w-0 items-center gap-2">
+                          <Smartphone className="h-4 w-4 text-[#FF4F00]" />
+                          <span className="truncate">{screenName}</span>
+                        </span>
+                        <ChevronDown className="h-4 w-4 text-slate-400 shrink-0" />
+                      </button>
+                    }
+                  />
+                  <DropdownMenuContent
+                    align="start"
+                    className="w-[320px] rounded-[18px] border border-slate-950/[0.08] bg-white p-2 shadow-[0_20px_70px_rgba(15,23,42,0.2)] flex flex-col gap-2"
+                  >
+                    {/* Live Search Box */}
+                    <div className="relative flex items-center px-1 py-0.5">
+                      <Search className="absolute left-3.5 h-3.5 w-3.5 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Search screens..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="h-9 w-full rounded-[12px] bg-slate-950/[0.04] pl-8 pr-8 text-xs font-semibold text-slate-900 placeholder-slate-400 border-none outline-none focus:bg-slate-950/[0.06] transition"
+                      />
+                      {searchQuery && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSearchQuery("");
+                          }}
+                          className="absolute right-3 h-5 w-5 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Scrollable list */}
+                    <div className="max-h-[220px] overflow-y-auto flex flex-col gap-0.5 pr-1 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+                      {filteredScreens.length > 0 ? (
+                        filteredScreens.map((screen) => {
+                          const isSelected = activeScreenId === screen.id;
+                          return (
+                            <DropdownMenuItem
+                              key={screen.id}
+                              onClick={() => {
+                                setActiveScreenId(screen.id);
+                                setSearchQuery("");
+                              }}
+                              className={`flex w-full items-center justify-between rounded-[12px] px-3 py-2 text-left transition cursor-pointer ${
+                                isSelected
+                                  ? "bg-slate-950 text-white focus:bg-slate-900 focus:text-white"
+                                  : "hover:bg-slate-50 focus:bg-slate-50 text-slate-700"
+                              }`}
+                            >
+                              <span className="flex min-w-0 items-center gap-2.5">
+                                <Smartphone className={`h-4 w-4 ${isSelected ? "text-white" : "text-slate-400"}`} />
+                                <span className="truncate text-xs font-semibold">{screen.name}</span>
+                              </span>
+                              {isSelected && (
+                                <Check className="h-3.5 w-3.5 text-white shrink-0" />
+                              )}
+                            </DropdownMenuItem>
+                          );
+                        })
+                      ) : (
+                        <div className="py-6 text-center text-xs text-slate-400 font-semibold">
+                          No screens match &ldquo;{searchQuery}&rdquo;
+                        </div>
+                      )}
+                    </div>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
             
             {/* Segmented Pill Selector Row — 5 tabs including HTML */}
