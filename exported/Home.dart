@@ -47,7 +47,7 @@ class HomeScreen extends StatelessWidget {
     children: [
     Container(
         decoration: BoxDecoration(
-      color: AppTheme.backgroundPrimary,
+      color: Color(0xFFF9F9F7),
     ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -55,7 +55,7 @@ class HomeScreen extends StatelessWidget {
         children: [
         Container(
             height: 64.0,
-            padding: EdgeInsets.only(left: AppTheme.screenPadding, top: 0.0, right: AppTheme.screenPadding, bottom: 0.0),
+            padding: EdgeInsets.only(left: 24.0, top: 16.0, right: 24.0, bottom: 0.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -79,8 +79,8 @@ class HomeScreen extends StatelessWidget {
             Text(
               'Diagnostics',
               style: TextStyle(
-                fontSize: 17.0,
-                color: AppTheme.textHigh,
+                fontSize: 14.0,
+                color: Color(0xFF1A1A1A),
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -104,6 +104,7 @@ Column(
                   ],
                 ),
               ),
+              SizedBox(height: 8.0),
               ElevatedButton(
                 onPressed: () {},
                 style: ElevatedButton.styleFrom(
@@ -126,15 +127,16 @@ Column(
           ),
         ),
         Container(
-            padding: EdgeInsets.only(left: AppTheme.screenPadding, top: AppTheme.sectionGap, right: AppTheme.screenPadding, bottom: 96.0),
+            padding: EdgeInsets.only(left: 24.0, top: 32.0, right: 24.0, bottom: 0.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisAlignment: MainAxisAlignment.start,
             children: [
             Container(
+                padding: EdgeInsets.only(left: 32.0, top: 32.0, right: 32.0, bottom: 32.0),
                 decoration: BoxDecoration(
       color: Color(0xFFE3F2FD),
-      borderRadius: BorderRadius.circular(AppTheme.borderRadiusApp),
+      borderRadius: BorderRadius.circular(32.0),
     ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -147,11 +149,12 @@ Column(
                   Text(
                     'Heartbeat',
                     style: TextStyle(
-                      fontSize: 12.0,
-                      color: AppTheme.textHigh,
+                      fontSize: 14.0,
+                      color: Color(0xFF1A1A1A),
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+                  SizedBox(height: 4.0),
 Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     mainAxisAlignment: MainAxisAlignment.start,
@@ -159,17 +162,16 @@ Column(
                     Text(
                       '82',
                       style: TextStyle(
-                        fontSize: 32.0,
-                        color: AppTheme.textHigh,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 14.0,
+                        color: Color(0xFF1A1A1A),
                       ),
                     ),
                     SizedBox(height: 4.0),
                     Text(
                       'bpm',
                       style: TextStyle(
-                        fontSize: 16.0,
-                        color: AppTheme.textHigh,
+                        fontSize: 14.0,
+                        color: Color(0xFF1A1A1A),
                       ),
                     )
                     ],
@@ -195,11 +197,12 @@ Column(
                 ],
               ),
             ),
-            SizedBox(height: AppTheme.sectionGap),
+            SizedBox(height: 32.0),
             Container(
+                padding: EdgeInsets.only(left: 32.0, top: 32.0, right: 32.0, bottom: 32.0),
                 decoration: BoxDecoration(
-      color: Color(0xFFFFFFFF),
-      borderRadius: BorderRadius.circular(AppTheme.borderRadiusApp),
+      color: Color(0xFFE8F5E9),
+      borderRadius: BorderRadius.circular(32.0),
     ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -212,11 +215,12 @@ Column(
                   Text(
                     'R-R Interval',
                     style: TextStyle(
-                      fontSize: 12.0,
-                      color: AppTheme.textHigh,
+                      fontSize: 14.0,
+                      color: Color(0xFF1A1A1A),
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+                  SizedBox(height: 4.0),
 Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     mainAxisAlignment: MainAxisAlignment.start,
@@ -224,17 +228,16 @@ Column(
                     Text(
                       '851',
                       style: TextStyle(
-                        fontSize: 32.0,
-                        color: AppTheme.textHigh,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 14.0,
+                        color: Color(0xFF1A1A1A),
                       ),
                     ),
                     SizedBox(height: 4.0),
                     Text(
                       'ms',
                       style: TextStyle(
-                        fontSize: 16.0,
-                        color: AppTheme.textHigh,
+                        fontSize: 14.0,
+                        color: Color(0xFF1A1A1A),
                       ),
                     )
                     ],
@@ -255,11 +258,12 @@ Column(
                 ],
               ),
             ),
-            SizedBox(height: AppTheme.sectionGap),
+            SizedBox(height: 32.0),
             Container(
+                padding: EdgeInsets.only(left: 32.0, top: 32.0, right: 32.0, bottom: 32.0),
                 decoration: BoxDecoration(
-      color: AppTheme.surfaceCard,
-      borderRadius: BorderRadius.circular(AppTheme.borderRadiusApp),
+      color: Color(0xFFFFFFFF),
+      borderRadius: BorderRadius.circular(32.0),
     ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -272,7 +276,7 @@ Column(
                   Text(
                     'Results',
                     style: TextStyle(
-                      fontSize: 18.0,
+                      fontSize: 14.0,
                       color: Color(0xFF111827),
                       fontWeight: FontWeight.bold,
                     ),
@@ -280,13 +284,14 @@ Column(
                   Text(
                     'Today',
                     style: TextStyle(
-                      fontSize: 12.0,
-                      color: AppTheme.textMedium,
+                      fontSize: 14.0,
+                      color: Color(0xFF6B6B6B),
                       fontWeight: FontWeight.bold,
                     ),
                   )
                   ],
                 ),
+                SizedBox(height: 16.0),
 Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   mainAxisAlignment: MainAxisAlignment.start,
@@ -304,7 +309,7 @@ Column(
                           width: 8.0,
     height: 8.0,
                           decoration: BoxDecoration(
-      color: AppTheme.textHigh,
+      color: Color(0xFF1A1A1A),
       borderRadius: BorderRadius.circular(9999.0),
     ),
                         child: Column(
@@ -317,6 +322,7 @@ Column(
                       ],
                     ),
                   ),
+                  SizedBox(height: 32.0),
 Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     mainAxisAlignment: MainAxisAlignment.start,
@@ -324,8 +330,8 @@ Column(
                     Text(
                       'Optimal Balance',
                       style: TextStyle(
-                        fontSize: 16.0,
-                        color: AppTheme.textHigh,
+                        fontSize: 14.0,
+                        color: Color(0xFF1A1A1A),
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -334,19 +340,20 @@ Column(
                       'Your heart rate variability indicates a healthy recovery state.',
                       style: TextStyle(
                         fontSize: 14.0,
-                        color: AppTheme.textMedium,
+                        color: Color(0xFF6B6B6B),
                       ),
                     )
                     ],
                   )
                   ],
                 ),
+                SizedBox(height: 16.0),
                 ElevatedButton(
                   onPressed: () {},
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Color(0xFFFFFFFF),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppTheme.borderRadiusPill),
+                      borderRadius: BorderRadius.circular(9999.0),
                     ),
                     padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
                   ),
@@ -356,7 +363,7 @@ Column(
                       Text(
                         'View Full Report',
                         style: TextStyle(
-                          fontSize: 15.0,
+                          fontSize: 14.0,
                           color: Color(0xFF111827),
                           fontWeight: FontWeight.bold,
                         ),
@@ -369,15 +376,16 @@ Column(
                 ],
               ),
             ),
-            SizedBox(height: AppTheme.sectionGap),
+            SizedBox(height: 32.0),
 Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisAlignment: MainAxisAlignment.start,
               children: [
               Container(
+                  padding: EdgeInsets.only(left: 16.0, top: 16.0, right: 16.0, bottom: 16.0),
                   decoration: BoxDecoration(
-      color: AppTheme.surfaceCard,
-      borderRadius: BorderRadius.circular(AppTheme.borderRadiusApp),
+      color: Color(0xFFFFFFFF),
+      borderRadius: BorderRadius.circular(32.0),
     ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -386,8 +394,8 @@ Column(
                   Text(
                     'Stress',
                     style: TextStyle(
-                      fontSize: 12.0,
-                      color: AppTheme.textLow,
+                      fontSize: 14.0,
+                      color: Color(0xFFA1A1A1),
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -408,11 +416,12 @@ Column(
                   ],
                 ),
               ),
-              SizedBox(height: AppTheme.elementGap),
+              SizedBox(height: 12.0),
               Container(
+                  padding: EdgeInsets.only(left: 16.0, top: 16.0, right: 16.0, bottom: 16.0),
                   decoration: BoxDecoration(
-      color: AppTheme.surfaceCard,
-      borderRadius: BorderRadius.circular(AppTheme.borderRadiusApp),
+      color: Color(0xFFFFFFFF),
+      borderRadius: BorderRadius.circular(32.0),
     ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -421,8 +430,8 @@ Column(
                   Text(
                     'Recovery',
                     style: TextStyle(
-                      fontSize: 12.0,
-                      color: AppTheme.textLow,
+                      fontSize: 14.0,
+                      color: Color(0xFFA1A1A1),
                       fontWeight: FontWeight.bold,
                     ),
                   ),

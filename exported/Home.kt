@@ -61,13 +61,13 @@ fun HomeScreen() {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(AppTheme.BackgroundPrimary)
+                .background(Color(0xFFF9F9F7))
             horizontalAlignment = Alignment.Start,
         ) {
             Column(
                 modifier = Modifier
                     .height(64.dp)
-                    .padding(start = AppTheme.ScreenPadding, top = 0.dp, end = AppTheme.ScreenPadding, bottom = 0.dp)
+                    .padding(start = 24.dp, top = 16.dp, end = 24.dp, bottom = 0.dp)
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Button(
@@ -90,14 +90,15 @@ fun HomeScreen() {
                 }
                 Text(
                     text = "Diagnostics",
-                    fontSize = 17.sp,
-                    color = AppTheme.TextHigh,
+                    fontSize = 14.sp,
+                    color = Color(0xFF1A1A1A),
                     fontWeight = FontWeight.Bold,
                 
                 )
                 Column(
                     modifier = Modifier
                     horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Button(
                         onClick = { /* Action */ },
@@ -139,25 +140,27 @@ fun HomeScreen() {
             }
             Column(
                 modifier = Modifier
-                    .padding(start = AppTheme.ScreenPadding, top = AppTheme.SectionGap, end = AppTheme.ScreenPadding, bottom = 96.dp)
+                    .padding(start = 24.dp, top = 32.dp, end = 24.dp, bottom = 0.dp)
                 horizontalAlignment = Alignment.Start,
-                verticalArrangement = Arrangement.spacedBy(AppTheme.SectionGap),
+                verticalArrangement = Arrangement.spacedBy(32.dp),
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(Color(0xFFE3F2FD))
-                        .clip(RoundedCornerShape(AppTheme.BorderRadiusApp))
+                        .clip(RoundedCornerShape(32.dp))
+                        .padding(start = 32.dp, top = 32.dp, end = 32.dp, bottom = 32.dp)
                     horizontalAlignment = Alignment.Start,
                 ) {
                     Column(
                         modifier = Modifier
                         horizontalAlignment = Alignment.Start,
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         Text(
                             text = "Heartbeat",
-                            fontSize = 12.sp,
-                            color = AppTheme.TextHigh,
+                            fontSize = 14.sp,
+                            color = Color(0xFF1A1A1A),
                             fontWeight = FontWeight.Bold,
                         
                         )
@@ -168,15 +171,14 @@ fun HomeScreen() {
                         ) {
                             Text(
                                 text = "82",
-                                fontSize = 32.sp,
-                                color = AppTheme.TextHigh,
-                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = Color(0xFF1A1A1A),
                             
                             )
                             Text(
                                 text = "bpm",
-                                fontSize = 16.sp,
-                                color = AppTheme.TextHigh,
+                                fontSize = 14.sp,
+                                color = Color(0xFF1A1A1A),
                             
                             )
                         }
@@ -202,18 +204,20 @@ fun HomeScreen() {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFFFFFFFF))
-                        .clip(RoundedCornerShape(AppTheme.BorderRadiusApp))
+                        .background(Color(0xFFE8F5E9))
+                        .clip(RoundedCornerShape(32.dp))
+                        .padding(start = 32.dp, top = 32.dp, end = 32.dp, bottom = 32.dp)
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Column(
                         modifier = Modifier
                         horizontalAlignment = Alignment.Start,
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         Text(
                             text = "R-R Interval",
-                            fontSize = 12.sp,
-                            color = AppTheme.TextHigh,
+                            fontSize = 14.sp,
+                            color = Color(0xFF1A1A1A),
                             fontWeight = FontWeight.Bold,
                         
                         )
@@ -224,15 +228,14 @@ fun HomeScreen() {
                         ) {
                             Text(
                                 text = "851",
-                                fontSize = 32.sp,
-                                color = AppTheme.TextHigh,
-                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = Color(0xFF1A1A1A),
                             
                             )
                             Text(
                                 text = "ms",
-                                fontSize = 16.sp,
-                                color = AppTheme.TextHigh,
+                                fontSize = 14.sp,
+                                color = Color(0xFF1A1A1A),
                             
                             )
                         }
@@ -254,9 +257,11 @@ fun HomeScreen() {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(AppTheme.SurfaceCard)
-                        .clip(RoundedCornerShape(AppTheme.BorderRadiusApp))
+                        .background(Color(0xFFFFFFFF))
+                        .clip(RoundedCornerShape(32.dp))
+                        .padding(start = 32.dp, top = 32.dp, end = 32.dp, bottom = 32.dp)
                     horizontalAlignment = Alignment.Start,
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     Column(
                         modifier = Modifier
@@ -264,15 +269,15 @@ fun HomeScreen() {
                     ) {
                         Text(
                             text = "Results",
-                            fontSize = 18.sp,
+                            fontSize = 14.sp,
                             color = Color(0xFF111827),
                             fontWeight = FontWeight.Bold,
                         
                         )
                         Text(
                             text = "Today",
-                            fontSize = 12.sp,
-                            color = AppTheme.TextMedium,
+                            fontSize = 14.sp,
+                            color = Color(0xFF6B6B6B),
                             fontWeight = FontWeight.Bold,
                         
                         )
@@ -280,6 +285,7 @@ fun HomeScreen() {
                     Column(
                         modifier = Modifier
                         horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(32.dp),
                     ) {
                         Column(
                             modifier = Modifier
@@ -303,7 +309,7 @@ fun HomeScreen() {
                                 modifier = Modifier
                                     .width(8.dp)
                                     .height(8.dp)
-                                    .background(AppTheme.TextHigh)
+                                    .background(Color(0xFF1A1A1A))
                                     .clip(RoundedCornerShape(9999.dp))
                                 horizontalAlignment = Alignment.Start,
                             ) {
@@ -316,15 +322,15 @@ fun HomeScreen() {
                         ) {
                             Text(
                                 text = "Optimal Balance",
-                                fontSize = 16.sp,
-                                color = AppTheme.TextHigh,
+                                fontSize = 14.sp,
+                                color = Color(0xFF1A1A1A),
                                 fontWeight = FontWeight.Bold,
                             
                             )
                             Text(
                                 text = "Your heart rate variability indicates a healthy recovery state.",
                                 fontSize = 14.sp,
-                                color = AppTheme.TextMedium,
+                                color = Color(0xFF6B6B6B),
                             
                             )
                         }
@@ -332,7 +338,7 @@ fun HomeScreen() {
                     Button(
                         onClick = { /* Action */ },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFFFFF)),
-                        shape = RoundedCornerShape(AppTheme.BorderRadiusPill),
+                        shape = RoundedCornerShape(9999.dp),
                         modifier = Modifier
                     ) {
                         Row(
@@ -341,7 +347,7 @@ fun HomeScreen() {
                         ) {
                             Text(
                                 text = "View Full Report",
-                                fontSize = 15.sp,
+                                fontSize = 14.sp,
                                 color = Color(0xFF111827),
                                 fontWeight = FontWeight.Bold,
                             
@@ -358,18 +364,19 @@ fun HomeScreen() {
                 Column(
                     modifier = Modifier
                     horizontalAlignment = Alignment.Start,
-                    verticalArrangement = Arrangement.spacedBy(AppTheme.ElementGap),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Column(
                         modifier = Modifier
-                            .background(AppTheme.SurfaceCard)
-                            .clip(RoundedCornerShape(AppTheme.BorderRadiusApp))
+                            .background(Color(0xFFFFFFFF))
+                            .clip(RoundedCornerShape(32.dp))
+                            .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 16.dp)
                         horizontalAlignment = Alignment.Start,
                     ) {
                         Text(
                             text = "Stress",
-                            fontSize = 12.sp,
-                            color = AppTheme.TextLow,
+                            fontSize = 14.sp,
+                            color = Color(0xFFA1A1A1),
                             fontWeight = FontWeight.Bold,
                         
                         )
@@ -389,14 +396,15 @@ fun HomeScreen() {
                     }
                     Column(
                         modifier = Modifier
-                            .background(AppTheme.SurfaceCard)
-                            .clip(RoundedCornerShape(AppTheme.BorderRadiusApp))
+                            .background(Color(0xFFFFFFFF))
+                            .clip(RoundedCornerShape(32.dp))
+                            .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 16.dp)
                         horizontalAlignment = Alignment.Start,
                     ) {
                         Text(
                             text = "Recovery",
-                            fontSize = 12.sp,
-                            color = AppTheme.TextLow,
+                            fontSize = 14.sp,
+                            color = Color(0xFFA1A1A1),
                             fontWeight = FontWeight.Bold,
                         
                         )

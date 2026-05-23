@@ -62,14 +62,16 @@ export default function HomeScreen() {
     <View style={{
       flexDirection: 'column',
       width: '100%',
-      backgroundColor: AppTheme.colors.bgPrimary,
+      backgroundColor: '#F9F9F7',
     }}>
       <View style={{
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'space-between',
         height: 64,
-        paddingHorizontal: AppTheme.layout.screenPadding,
+        paddingTop: 16,
+        paddingLeft: 24,
+        paddingRight: 24,
       }}>
         <TouchableOpacity 
           onPress={() => {}}
@@ -84,8 +86,8 @@ export default function HomeScreen() {
           <Icon name="arrow-left" size={14} color={'#111827'} />
         </TouchableOpacity>
         <Text style={{
-          fontSize: 17,
-          color: AppTheme.colors.textHigh,
+          fontSize: 14,
+          color: '#1A1A1A',
           fontWeight: 'bold',
         }}>
           Diagnostics
@@ -93,6 +95,7 @@ export default function HomeScreen() {
         <View style={{
           flexDirection: 'column',
           alignItems: 'center',
+          gap: 8,
         }}>
           <TouchableOpacity 
             onPress={() => {}}
@@ -122,24 +125,29 @@ export default function HomeScreen() {
       </View>
       <View style={{
         flexDirection: 'column',
-        gap: AppTheme.layout.sectionGap,
-        paddingHorizontal: AppTheme.layout.screenPadding,
-        paddingTop: AppTheme.layout.sectionGap,
-        paddingBottom: 96,
+        gap: 32,
+        paddingTop: 32,
+        paddingLeft: 24,
+        paddingRight: 24,
       }}>
         <View style={{
           flexDirection: 'column',
           justifyContent: 'space-between',
           width: '100%',
           backgroundColor: '#E3F2FD',
-          borderRadius: AppTheme.radii.app,
+          borderRadius: 32,
+          paddingTop: 32,
+          paddingBottom: 32,
+          paddingLeft: 32,
+          paddingRight: 32,
         }}>
           <View style={{
             flexDirection: 'column',
+            gap: 4,
           }}>
             <Text style={{
-              fontSize: 12,
-              color: AppTheme.colors.textHigh,
+              fontSize: 14,
+              color: '#1A1A1A',
               fontWeight: 'bold',
             }}>
               Heartbeat
@@ -149,15 +157,14 @@ export default function HomeScreen() {
               gap: 4,
             }}>
               <Text style={{
-                fontSize: 32,
-                color: AppTheme.colors.textHigh,
-                fontWeight: 'bold',
+                fontSize: 14,
+                color: '#1A1A1A',
               }}>
                 82
               </Text>
               <Text style={{
-                fontSize: 16,
-                color: AppTheme.colors.textHigh,
+                fontSize: 14,
+                color: '#1A1A1A',
               }}>
                 bpm
               </Text>
@@ -180,15 +187,20 @@ export default function HomeScreen() {
           alignItems: 'center',
           justifyContent: 'space-between',
           width: '100%',
-          backgroundColor: 'var(--dg-color-action-secondary)',
-          borderRadius: AppTheme.radii.app,
+          backgroundColor: '#E8F5E9',
+          borderRadius: 32,
+          paddingTop: 32,
+          paddingBottom: 32,
+          paddingLeft: 32,
+          paddingRight: 32,
         }}>
           <View style={{
             flexDirection: 'column',
+            gap: 4,
           }}>
             <Text style={{
-              fontSize: 12,
-              color: AppTheme.colors.textHigh,
+              fontSize: 14,
+              color: '#1A1A1A',
               fontWeight: 'bold',
             }}>
               R-R Interval
@@ -198,15 +210,14 @@ export default function HomeScreen() {
               gap: 4,
             }}>
               <Text style={{
-                fontSize: 32,
-                color: AppTheme.colors.textHigh,
-                fontWeight: 'bold',
+                fontSize: 14,
+                color: '#1A1A1A',
               }}>
                 851
               </Text>
               <Text style={{
-                fontSize: 16,
-                color: AppTheme.colors.textHigh,
+                fontSize: 14,
+                color: '#1A1A1A',
               }}>
                 ms
               </Text>
@@ -222,9 +233,14 @@ export default function HomeScreen() {
         </View>
         <View style={{
           flexDirection: 'column',
+          gap: 16,
           width: '100%',
-          backgroundColor: AppTheme.colors.surfaceCard,
-          borderRadius: AppTheme.radii.app,
+          backgroundColor: '#FFFFFF',
+          borderRadius: 32,
+          paddingTop: 32,
+          paddingBottom: 32,
+          paddingLeft: 32,
+          paddingRight: 32,
         }}>
           <View style={{
             flexDirection: 'column',
@@ -232,15 +248,15 @@ export default function HomeScreen() {
             justifyContent: 'space-between',
           }}>
             <Text style={{
-              fontSize: 18,
+              fontSize: 14,
               color: '#111827',
               fontWeight: 'bold',
             }}>
               Results
             </Text>
             <Text style={{
-              fontSize: 12,
-              color: AppTheme.colors.textMedium,
+              fontSize: 14,
+              color: '#6B6B6B',
               fontWeight: 'bold',
             }}>
               Today
@@ -249,6 +265,7 @@ export default function HomeScreen() {
           <View style={{
             flexDirection: 'column',
             alignItems: 'center',
+            gap: 32,
           }}>
             <View style={{
               flexDirection: 'column',
@@ -263,7 +280,7 @@ export default function HomeScreen() {
                 flexDirection: 'column',
                 width: 8,
                 height: 8,
-                backgroundColor: AppTheme.colors.textHigh,
+                backgroundColor: '#1A1A1A',
                 borderRadius: 9999,
               }}>
               </View>
@@ -273,15 +290,15 @@ export default function HomeScreen() {
               gap: 4,
             }}>
               <Text style={{
-                fontSize: 16,
-                color: AppTheme.colors.textHigh,
+                fontSize: 14,
+                color: '#1A1A1A',
                 fontWeight: 'bold',
               }}>
                 Optimal Balance
               </Text>
               <Text style={{
                 fontSize: 14,
-                color: AppTheme.colors.textMedium,
+                color: '#6B6B6B',
               }}>
                 Your heart rate variability indicates a healthy recovery state.
               </Text>
@@ -290,7 +307,7 @@ export default function HomeScreen() {
           <TouchableOpacity 
             onPress={() => {}}
             style={{
-              borderRadius: AppTheme.radii.pill,
+              borderRadius: 9999,
               paddingVertical: 12,
               paddingHorizontal: 16,
               flexDirection: 'row',
@@ -299,7 +316,7 @@ export default function HomeScreen() {
             }}
           >
             <Text style={{
-              fontSize: 15,
+              fontSize: 14,
               color: '#111827',
               fontWeight: 'bold',
             }}>
@@ -310,16 +327,20 @@ export default function HomeScreen() {
         </View>
         <View style={{
           flexDirection: 'column',
-          gap: AppTheme.layout.elementGap,
+          gap: 12,
         }}>
           <View style={{
             flexDirection: 'column',
-            backgroundColor: AppTheme.colors.surfaceCard,
-            borderRadius: AppTheme.radii.app,
+            backgroundColor: '#FFFFFF',
+            borderRadius: 32,
+            paddingTop: 16,
+            paddingBottom: 16,
+            paddingLeft: 16,
+            paddingRight: 16,
           }}>
             <Text style={{
-              fontSize: 12,
-              color: AppTheme.colors.textLow,
+              fontSize: 14,
+              color: '#A1A1A1',
               fontWeight: 'bold',
             }}>
               Stress
@@ -339,12 +360,16 @@ export default function HomeScreen() {
           </View>
           <View style={{
             flexDirection: 'column',
-            backgroundColor: AppTheme.colors.surfaceCard,
-            borderRadius: AppTheme.radii.app,
+            backgroundColor: '#FFFFFF',
+            borderRadius: 32,
+            paddingTop: 16,
+            paddingBottom: 16,
+            paddingLeft: 16,
+            paddingRight: 16,
           }}>
             <Text style={{
-              fontSize: 12,
-              color: AppTheme.colors.textLow,
+              fontSize: 14,
+              color: '#A1A1A1',
               fontWeight: 'bold',
             }}>
               Recovery

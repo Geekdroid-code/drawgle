@@ -76,10 +76,10 @@ struct HomeView: View {
                     .foregroundColor(Color(hex: "#111827"))
                 }
                 Text("Diagnostics")
-                    .font(.system(size: 17))
+                    .font(.system(size: 14))
                     .fontWeight(.semibold)
-                    .foregroundColor(AppTheme.textHigh)
-                VStack() {
+                    .foregroundColor(Color(hex: "#1A1A1A"))
+                VStack(spacing: 8) {
                     Button(action: {
                         // Action here
                     }) {
@@ -106,23 +106,24 @@ struct HomeView: View {
                     }
                 }
             }
-            .padding(.horizontal, AppTheme.screenPadding)
+            .padding(.top, 16)
+            .padding(.leading, 24)
+            .padding(.trailing, 24)
             .frame(height: 64)
-            VStack(spacing: AppTheme.sectionGap) {
+            VStack(spacing: 32) {
                 VStack() {
-                    VStack() {
+                    VStack(spacing: 4) {
                         Text("Heartbeat")
-                            .font(.system(size: 12))
+                            .font(.system(size: 14))
                             .fontWeight(.semibold)
-                            .foregroundColor(AppTheme.textHigh)
+                            .foregroundColor(Color(hex: "#1A1A1A"))
                         VStack(spacing: 4) {
                             Text("82")
-                                .font(.system(size: 32))
-                                .fontWeight(.semibold)
-                                .foregroundColor(AppTheme.textHigh)
+                                .font(.system(size: 14))
+                                .foregroundColor(Color(hex: "#1A1A1A"))
                             Text("bpm")
-                                .font(.system(size: 16))
-                                .foregroundColor(AppTheme.textHigh)
+                                .font(.system(size: 14))
+                                .foregroundColor(Color(hex: "#1A1A1A"))
                         }
                     }
                     VStack() {
@@ -134,23 +135,26 @@ struct HomeView: View {
                     }
                     .frame(height: 120)
                 }
+                .padding(.top, 32)
+                .padding(.bottom, 32)
+                .padding(.leading, 32)
+                .padding(.trailing, 32)
                 .background(Color(hex: "#E3F2FD"))
-                .cornerRadius(AppTheme.borderRadiusApp)
+                .cornerRadius(32)
                 .frame(maxWidth: .infinity)
                 VStack() {
-                    VStack() {
+                    VStack(spacing: 4) {
                         Text("R-R Interval")
-                            .font(.system(size: 12))
+                            .font(.system(size: 14))
                             .fontWeight(.semibold)
-                            .foregroundColor(AppTheme.textHigh)
+                            .foregroundColor(Color(hex: "#1A1A1A"))
                         VStack(spacing: 4) {
                             Text("851")
-                                .font(.system(size: 32))
-                                .fontWeight(.semibold)
-                                .foregroundColor(AppTheme.textHigh)
+                                .font(.system(size: 14))
+                                .foregroundColor(Color(hex: "#1A1A1A"))
                             Text("ms")
-                                .font(.system(size: 16))
-                                .foregroundColor(AppTheme.textHigh)
+                                .font(.system(size: 14))
+                                .foregroundColor(Color(hex: "#1A1A1A"))
                         }
                     }
                     VStack() {
@@ -160,21 +164,25 @@ struct HomeView: View {
                     }
                     .frame(width: 120, height: 40)
                 }
-                .background(Color(hex: "var(--dg-color-action-secondary)"))
-                .cornerRadius(AppTheme.borderRadiusApp)
+                .padding(.top, 32)
+                .padding(.bottom, 32)
+                .padding(.leading, 32)
+                .padding(.trailing, 32)
+                .background(Color(hex: "#E8F5E9"))
+                .cornerRadius(32)
                 .frame(maxWidth: .infinity)
-                VStack() {
+                VStack(spacing: 16) {
                     VStack() {
                         Text("Results")
-                            .font(.system(size: 18))
+                            .font(.system(size: 14))
                             .fontWeight(.semibold)
                             .foregroundColor(Color(hex: "#111827"))
                         Text("Today")
-                            .font(.system(size: 12))
+                            .font(.system(size: 14))
                             .fontWeight(.semibold)
-                            .foregroundColor(AppTheme.textMedium)
+                            .foregroundColor(Color(hex: "#6B6B6B"))
                     }
-                    VStack() {
+                    VStack(spacing: 32) {
                         VStack() {
                             Image(systemName: "star") // Lucide: star
                                 .font(.system(size: 14))
@@ -184,19 +192,19 @@ struct HomeView: View {
                                 .foregroundColor(Color(hex: "#111827"))
                             VStack() {
                             }
-                            .background(AppTheme.textHigh)
+                            .background(Color(hex: "#1A1A1A"))
                             .cornerRadius(9999)
                             .frame(width: 8, height: 8)
                         }
                         .frame(width: 80, height: 80)
                         VStack(spacing: 4) {
                             Text("Optimal Balance")
-                                .font(.system(size: 16))
+                                .font(.system(size: 14))
                                 .fontWeight(.semibold)
-                                .foregroundColor(AppTheme.textHigh)
+                                .foregroundColor(Color(hex: "#1A1A1A"))
                             Text("Your heart rate variability indicates a healthy recovery state.")
                                 .font(.system(size: 14))
-                                .foregroundColor(AppTheme.textMedium)
+                                .foregroundColor(Color(hex: "#6B6B6B"))
                         }
                     }
                     Button(action: {
@@ -204,7 +212,7 @@ struct HomeView: View {
                     }) {
                         HStack(spacing: 8) {
                             Text("View Full Report")
-                                .font(.system(size: 15))
+                                .font(.system(size: 14))
                                 .fontWeight(.semibold)
                                 .foregroundColor(Color(hex: "#111827"))
                             Image(systemName: "star") // Lucide: star
@@ -213,19 +221,23 @@ struct HomeView: View {
                         }
                         .padding(.vertical, 12)
                         .padding(.horizontal, 16)
-                        .cornerRadius(AppTheme.borderRadiusPill)
+                        .cornerRadius(9999)
                         .foregroundColor(Color(hex: "#111827"))
                     }
                 }
-                .background(AppTheme.surfaceCard)
-                .cornerRadius(AppTheme.borderRadiusApp)
+                .padding(.top, 32)
+                .padding(.bottom, 32)
+                .padding(.leading, 32)
+                .padding(.trailing, 32)
+                .background(Color(hex: "#FFFFFF"))
+                .cornerRadius(32)
                 .frame(maxWidth: .infinity)
-                VStack(spacing: AppTheme.elementGap) {
+                VStack(spacing: 12) {
                     VStack() {
                         Text("Stress")
-                            .font(.system(size: 12))
+                            .font(.system(size: 14))
                             .fontWeight(.semibold)
-                            .foregroundColor(AppTheme.textLow)
+                            .foregroundColor(Color(hex: "#A1A1A1"))
                         VStack(spacing: 4) {
                             Text("Low")
                                 .font(.system(size: 14))
@@ -233,13 +245,17 @@ struct HomeView: View {
                                 .foregroundColor(Color(hex: "#111827"))
                         }
                     }
-                    .background(AppTheme.surfaceCard)
-                    .cornerRadius(AppTheme.borderRadiusApp)
+                    .padding(.top, 16)
+                    .padding(.bottom, 16)
+                    .padding(.leading, 16)
+                    .padding(.trailing, 16)
+                    .background(Color(hex: "#FFFFFF"))
+                    .cornerRadius(32)
                     VStack() {
                         Text("Recovery")
-                            .font(.system(size: 12))
+                            .font(.system(size: 14))
                             .fontWeight(.semibold)
-                            .foregroundColor(AppTheme.textLow)
+                            .foregroundColor(Color(hex: "#A1A1A1"))
                         VStack(spacing: 4) {
                             Text("92%")
                                 .font(.system(size: 14))
@@ -247,15 +263,19 @@ struct HomeView: View {
                                 .foregroundColor(Color(hex: "#111827"))
                         }
                     }
-                    .background(AppTheme.surfaceCard)
-                    .cornerRadius(AppTheme.borderRadiusApp)
+                    .padding(.top, 16)
+                    .padding(.bottom, 16)
+                    .padding(.leading, 16)
+                    .padding(.trailing, 16)
+                    .background(Color(hex: "#FFFFFF"))
+                    .cornerRadius(32)
                 }
             }
-            .padding(.horizontal, AppTheme.screenPadding)
-            .padding(.top, AppTheme.sectionGap)
-            .padding(.bottom, 96)
+            .padding(.top, 32)
+            .padding(.leading, 24)
+            .padding(.trailing, 24)
         }
-        .background(AppTheme.backgroundPrimary)
+        .background(Color(hex: "#F9F9F7"))
         .frame(maxWidth: .infinity)
     }
         }

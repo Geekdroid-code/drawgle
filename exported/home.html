@@ -5,187 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com" data-drawgle-font-preconnect="googleapis">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin data-drawgle-font-preconnect="gstatic">
-<link id="drawgle-google-font" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
     <style>
-:root {
-  --dg-color-text-low-emphasis: #A1A1A1;
-  --dg-color-text-high-emphasis: #1A1A1A;
-  --dg-color-text-medium-emphasis: #6B6B6B;
-  --dg-color-action-primary: #1A1A1A;
-  --dg-color-action-disabled: #E0E0E0;
-  --dg-color-action-secondary: #E8F5E9;
-  --dg-color-action-on-primary-text: #FFFFFF;
-  --dg-color-border-divider: rgba(0, 0, 0, 0.05);
-  --dg-color-border-focused: #1A1A1A;
-  --dg-color-surface-card: #FFFFFF;
-  --dg-color-surface-modal: #FFFFFF;
-  --dg-color-surface-bottom-sheet: #FFFFFF;
-  --dg-color-background-primary: #F9F9F7;
-  --dg-color-background-secondary: #FFFFFF;
-  --dg-color-functional-sky: #D1EAF0;
-  --dg-color-functional-mint: #E8F5E9;
-  --dg-color-functional-amber: #FFE082;
-  --dg-color-functional-lavender: #E8EAF6;
-  --dg-radii-app: 32px;
-  --dg-radii-pill: 9999px;
-  --dg-sizing-icon-small: 18px;
-  --dg-sizing-icon-standard: 24px;
-  --dg-sizing-min-touch-target: 48px;
-  --dg-sizing-bottom-nav-height: 72px;
-  --dg-sizing-standard-input-height: 52px;
-  --dg-sizing-standard-button-height: 56px;
-  --dg-shadows-none: none;
-  --dg-shadows-overlay: 0px 10px 40px rgba(0, 0, 0, 0.08);
-  --dg-shadows-surface: 0px 4px 20px rgba(0, 0, 0, 0.02);
-  --dg-spacing-none: 0px;
-  --dg-spacing-lg: 24px;
-  --dg-spacing-md: 16px;
-  --dg-spacing-sm: 12px;
-  --dg-spacing-xl: 32px;
-  --dg-spacing-xs: 8px;
-  --dg-spacing-xxl: 48px;
-  --dg-spacing-xxs: 4px;
-  --dg-z-index-base: 0;
-  --dg-z-index-bottom-nav: 20;
-  --dg-z-index-bottom-sheet: 30;
-  --dg-z-index-modal-dialog: 40;
-  --dg-z-index-sticky-header: 10;
-  --dg-z-index-toast-snackbar: 50;
-  --dg-opacities-opaque: 1;
-  --dg-opacities-pressed: 0.10;
-  --dg-opacities-disabled: 0.38;
-  --dg-opacities-transparent: 0;
-  --dg-opacities-scrim-overlay: 0.40;
-  --dg-typography-font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
-  --dg-type-nav-title-size: 17px;
-  --dg-type-nav-title-weight: 600;
-  --dg-type-nav-title-line-height: 22px;
-  --dg-type-screen-title-size: 32px;
-  --dg-type-screen-title-weight: 800;
-  --dg-type-screen-title-line-height: 38px;
-  --dg-type-hero-title-size: 40px;
-  --dg-type-hero-title-weight: 800;
-  --dg-type-hero-title-line-height: 44px;
-  --dg-type-section-title-size: 22px;
-  --dg-type-section-title-weight: 700;
-  --dg-type-section-title-line-height: 28px;
-  --dg-type-metric-value-size: 36px;
-  --dg-type-metric-value-weight: 500;
-  --dg-type-metric-value-line-height: 40px;
-  --dg-type-body-size: 16px;
-  --dg-type-body-weight: 400;
-  --dg-type-body-line-height: 24px;
-  --dg-type-supporting-size: 14px;
-  --dg-type-supporting-weight: 500;
-  --dg-type-supporting-line-height: 20px;
-  --dg-type-caption-size: 12px;
-  --dg-type-caption-weight: 600;
-  --dg-type-caption-line-height: 16px;
-  --dg-type-button-label-size: 15px;
-  --dg-type-button-label-weight: 600;
-  --dg-type-button-label-line-height: 20px;
-  --dg-border-widths-standard: 1px;
-  --dg-mobile-layout-element-gap: 12px;
-  --dg-mobile-layout-section-gap: 32px;
-  --dg-mobile-layout-safe-area-top: 16px;
-  --dg-mobile-layout-screen-margin: 24px;
-  --dg-mobile-layout-safe-area-bottom: 16px;
-}
-
-#root {
-  --dg-preview-background: var(--dg-color-background-primary, #ffffff);
-  background: var(--dg-preview-background);
-}
-
-.dg-bg-primary { background-color: var(--dg-color-background-primary); }
-.dg-bg-secondary { background-color: var(--dg-color-background-secondary); }
-.dg-surface-card { background-color: var(--dg-color-surface-card); }
-.dg-surface-bottom-sheet { background-color: var(--dg-color-surface-bottom-sheet); }
-.dg-surface-modal { background-color: var(--dg-color-surface-modal); }
-.dg-text-high { color: var(--dg-color-text-high-emphasis); }
-.dg-text-medium { color: var(--dg-color-text-medium-emphasis); }
-.dg-text-low { color: var(--dg-color-text-low-emphasis); }
-.dg-action-primary {
-  background-color: var(--dg-color-action-primary);
-  color: var(--dg-color-action-on-primary-text);
-}
-.dg-action-secondary { background-color: var(--dg-color-action-secondary); }
-.dg-border-divider { border-color: var(--dg-color-border-divider); }
-.dg-border-focused { border-color: var(--dg-color-border-focused); }
-.dg-radius-app { border-radius: var(--dg-radii-app); }
-.dg-radius-pill { border-radius: var(--dg-radii-pill); }
-.dg-shadow-surface { box-shadow: var(--dg-shadows-surface); }
-.dg-shadow-overlay { box-shadow: var(--dg-shadows-overlay); }
-.dg-screen-padding { padding-left: var(--dg-mobile-layout-screen-margin); padding-right: var(--dg-mobile-layout-screen-margin); }
-.dg-section-gap { gap: var(--dg-mobile-layout-section-gap); }
-.dg-element-gap { gap: var(--dg-mobile-layout-element-gap); }
-
-.dg-type-nav-title {
-  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
-  font-size: var(--dg-type-nav-title-size);
-  font-weight: var(--dg-type-nav-title-weight);
-  line-height: var(--dg-type-nav-title-line-height);
-}
-
-.dg-type-screen-title {
-  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
-  font-size: var(--dg-type-screen-title-size);
-  font-weight: var(--dg-type-screen-title-weight);
-  line-height: var(--dg-type-screen-title-line-height);
-}
-
-.dg-type-hero-title {
-  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
-  font-size: var(--dg-type-hero-title-size);
-  font-weight: var(--dg-type-hero-title-weight);
-  line-height: var(--dg-type-hero-title-line-height);
-}
-
-.dg-type-section-title {
-  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
-  font-size: var(--dg-type-section-title-size);
-  font-weight: var(--dg-type-section-title-weight);
-  line-height: var(--dg-type-section-title-line-height);
-}
-
-.dg-type-metric-value {
-  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
-  font-size: var(--dg-type-metric-value-size);
-  font-weight: var(--dg-type-metric-value-weight);
-  line-height: var(--dg-type-metric-value-line-height);
-}
-
-.dg-type-body {
-  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
-  font-size: var(--dg-type-body-size);
-  font-weight: var(--dg-type-body-weight);
-  line-height: var(--dg-type-body-line-height);
-}
-
-.dg-type-supporting {
-  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
-  font-size: var(--dg-type-supporting-size);
-  font-weight: var(--dg-type-supporting-weight);
-  line-height: var(--dg-type-supporting-line-height);
-}
-
-.dg-type-caption {
-  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
-  font-size: var(--dg-type-caption-size);
-  font-weight: var(--dg-type-caption-weight);
-  line-height: var(--dg-type-caption-line-height);
-}
-
-.dg-type-button-label {
-  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
-  font-size: var(--dg-type-button-label-size);
-  font-weight: var(--dg-type-button-label-weight);
-  line-height: var(--dg-type-button-label-line-height);
-}
       html, body { margin: 0; min-height: 100%; }
-      body { font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif); background: var(--dg-color-background-primary, #ffffff); }
+      body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #F9F9F7; }
       #drawgle-export-root { position: relative; min-height: 100vh; overflow-x: hidden; }
       #drawgle-export-navigation { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; pointer-events: none; }
       #drawgle-export-navigation [data-drawgle-primary-nav] { pointer-events: auto; }
@@ -193,14 +18,14 @@
   </head>
   <body>
     <div id="drawgle-export-root">
-<div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden" style="font-family: 'Plus Jakarta Sans', -apple-system, sans-serif">
+      <div class="w-full min-h-screen bg-[#F9F9F7] text-[#1A1A1A] flex flex-col relative overflow-x-hidden" style="font-family: 'Plus Jakarta Sans', -apple-system, sans-serif">
   <!-- Top Navigation Bar -->
-  <header class="flex items-center justify-between px-[var(--dg-mobile-layout-screen-margin)] pt-[var(--dg-mobile-layout-safe-area-top)] h-[64px]">
+  <header class="flex items-center justify-between px-[24px] pt-[16px] h-[64px]">
     <button class="w-[48px] h-[48px] flex items-center justify-start" aria-label="Go back">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
     </button>
-    <h1 class="dg-type-nav-title text-[var(--dg-color-text-high-emphasis)]">Diagnostics</h1>
-    <div class="flex items-center gap-[var(--dg-spacing-xs)]">
+    <h1 class="font-['Plus Jakarta Sans',sans-serif] text-[17px] font-semibold leading-[22px] text-[#1A1A1A]">Diagnostics</h1>
+    <div class="flex items-center gap-[8px]">
       <button class="w-[44px] h-[44px] flex items-center justify-center" aria-label="Documents">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
       </button>
@@ -211,15 +36,15 @@
   </header>
 
   <!-- Main Content Scroll Area -->
-  <main class="flex-1 flex flex-col px-[var(--dg-mobile-layout-screen-margin)] py-[var(--dg-mobile-layout-section-gap)] gap-[var(--dg-mobile-layout-section-gap)] pb-[calc(var(--dg-mobile-layout-safe-area-bottom)+96px)]">
+  <main class="flex-1 flex flex-col px-[24px] py-[32px] gap-[32px] pb-[0px+96px)]">
     
     <!-- Heartbeat ECG Card (Sky Blue) -->
-    <section class="relative w-full bg-[#E3F2FD] rounded-[var(--dg-radii-app)] p-[var(--dg-spacing-xl)] overflow-hidden min-h-[240px] flex flex-col justify-between">
-      <div class="flex flex-col gap-[var(--dg-spacing-xxs)]">
-        <span class="dg-type-caption text-[var(--dg-color-text-high-emphasis)] opacity-60 uppercase tracking-wider">Heartbeat</span>
+    <section class="relative w-full bg-[#E3F2FD] rounded-[32px] p-[32px] overflow-hidden min-h-[240px] flex flex-col justify-between">
+      <div class="flex flex-col gap-[4px]">
+        <span class="font-['Plus Jakarta Sans',sans-serif] text-[12px] font-semibold leading-[16px] text-[#1A1A1A] opacity-60 uppercase tracking-wider">Heartbeat</span>
         <div class="flex items-baseline gap-1">
-          <span class="dg-type-metric-value text-[var(--dg-color-text-high-emphasis)]">82</span>
-          <span class="dg-type-body text-[var(--dg-color-text-high-emphasis)] opacity-60">bpm</span>
+          <span class="font-['Plus Jakarta Sans',sans-serif] text-[36px] font-medium leading-[40px] text-[#1A1A1A]">82</span>
+          <span class="font-['Plus Jakarta Sans',sans-serif] text-[16px] leading-[24px] text-[#1A1A1A] opacity-60">bpm</span>
         </div>
       </div>
 
@@ -238,12 +63,12 @@
     </section>
 
     <!-- R-R Interval Card (Mint Green) -->
-    <section class="w-full bg-[var(--dg-color-action-secondary)] rounded-[var(--dg-radii-app)] p-[var(--dg-spacing-xl)] flex items-center justify-between min-h-[140px]">
-      <div class="flex flex-col gap-[var(--dg-spacing-xxs)]">
-        <span class="dg-type-caption text-[var(--dg-color-text-high-emphasis)] opacity-60 uppercase tracking-wider">R-R Interval</span>
+    <section class="w-full bg-[#E8F5E9] rounded-[32px] p-[32px] flex items-center justify-between min-h-[140px]">
+      <div class="flex flex-col gap-[4px]">
+        <span class="font-['Plus Jakarta Sans',sans-serif] text-[12px] font-semibold leading-[16px] text-[#1A1A1A] opacity-60 uppercase tracking-wider">R-R Interval</span>
         <div class="flex items-baseline gap-1">
-          <span class="dg-type-metric-value text-[var(--dg-color-text-high-emphasis)]">851</span>
-          <span class="dg-type-body text-[var(--dg-color-text-high-emphasis)] opacity-60">ms</span>
+          <span class="font-['Plus Jakarta Sans',sans-serif] text-[36px] font-medium leading-[40px] text-[#1A1A1A]">851</span>
+          <span class="font-['Plus Jakarta Sans',sans-serif] text-[16px] leading-[24px] text-[#1A1A1A] opacity-60">ms</span>
         </div>
       </div>
       
@@ -256,13 +81,13 @@
     </section>
 
     <!-- Results Summary Card -->
-    <section class="w-full dg-surface-card rounded-[var(--dg-radii-app)] p-[var(--dg-spacing-xl)] dg-shadow-surface flex flex-col gap-[var(--dg-spacing-md)]">
+    <section class="w-full bg-[#FFFFFF] rounded-[32px] p-[32px] dg-shadow-surface flex flex-col gap-[16px]">
       <div class="flex items-center justify-between">
-        <h2 class="dg-type-section-title">Results</h2>
-        <span class="dg-type-caption px-3 py-1 bg-[var(--dg-color-background-primary)] rounded-full text-[var(--dg-color-text-medium-emphasis)]">Today</span>
+        <h2 class="font-['Plus Jakarta Sans',sans-serif] text-[22px] font-bold leading-[28px]">Results</h2>
+        <span class="font-['Plus Jakarta Sans',sans-serif] text-[12px] font-semibold leading-[16px] px-3 py-1 bg-[#F9F9F7] rounded-full text-[#6B6B6B]">Today</span>
       </div>
 
-      <div class="flex items-center gap-[var(--dg-spacing-xl)]">
+      <div class="flex items-center gap-[32px]">
         <!-- Circular Status Graphic -->
         <div class="relative w-[80px] h-[80px] flex items-center justify-center">
           <!-- Outer Ring -->
@@ -275,33 +100,33 @@
             <circle cx="24" cy="24" r="20" stroke="rgba(0,0,0,0.05)" stroke-width="4" fill="none" />
             <circle cx="24" cy="24" r="20" stroke="#4CAF50" stroke-width="4" fill="none" stroke-dasharray="125" stroke-dashoffset="40" stroke-linecap="round" />
           </svg>
-          <div class="w-2 h-2 bg-[var(--dg-color-text-high-emphasis)] rounded-full"></div>
+          <div class="w-2 h-2 bg-[#1A1A1A] rounded-full"></div>
         </div>
 
         <!-- Summary Text -->
         <div class="flex-1 flex flex-col gap-1">
-          <p class="dg-type-body font-semibold text-[var(--dg-color-text-high-emphasis)]">Optimal Balance</p>
-          <p class="dg-type-supporting text-[var(--dg-color-text-medium-emphasis)]">Your heart rate variability indicates a healthy recovery state.</p>
+          <p class="font-['Plus Jakarta Sans',sans-serif] text-[16px] leading-[24px] font-semibold text-[#1A1A1A]">Optimal Balance</p>
+          <p class="font-['Plus Jakarta Sans',sans-serif] text-[14px] font-medium leading-[20px] text-[#6B6B6B]">Your heart rate variability indicates a healthy recovery state.</p>
         </div>
       </div>
 
       <!-- Expand Button -->
-      <button class="w-full h-[var(--dg-sizing-standard-button-height)] mt-2 border border-[var(--dg-color-border-divider)] rounded-[var(--dg-radii-pill)] flex items-center justify-center gap-2 hover:bg-[var(--dg-color-background-primary)] transition-colors">
-        <span class="dg-type-button-label">View Full Report</span>
+      <button class="w-full h-[56px] mt-2 border border-[rgba(0, 0, 0, 0.05)] rounded-[9999px] flex items-center justify-center gap-2 hover:bg-[#F9F9F7] transition-colors">
+        <span class="font-['Plus Jakarta Sans',sans-serif] text-[15px] font-semibold leading-[20px]">View Full Report</span>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
       </button>
     </section>
 
     <!-- Secondary Metrics Grid -->
-    <div class="grid grid-cols-2 gap-[var(--dg-mobile-layout-element-gap)]">
-      <div class="dg-surface-card p-[var(--dg-spacing-md)] rounded-[var(--dg-radii-app)] dg-shadow-surface">
-        <span class="dg-type-caption text-[var(--dg-color-text-low-emphasis)] uppercase">Stress</span>
+    <div class="grid grid-cols-2 gap-[12px]">
+      <div class="bg-[#FFFFFF] p-[16px] rounded-[32px] dg-shadow-surface">
+        <span class="font-['Plus Jakarta Sans',sans-serif] text-[12px] font-semibold leading-[16px] text-[#A1A1A1] uppercase">Stress</span>
         <div class="flex items-baseline gap-1 mt-1">
           <span class="text-[24px] font-bold">Low</span>
         </div>
       </div>
-      <div class="dg-surface-card p-[var(--dg-spacing-md)] rounded-[var(--dg-radii-app)] dg-shadow-surface">
-        <span class="dg-type-caption text-[var(--dg-color-text-low-emphasis)] uppercase">Recovery</span>
+      <div class="bg-[#FFFFFF] p-[16px] rounded-[32px] dg-shadow-surface">
+        <span class="font-['Plus Jakarta Sans',sans-serif] text-[12px] font-semibold leading-[16px] text-[#A1A1A1] uppercase">Recovery</span>
         <div class="flex items-baseline gap-1 mt-1">
           <span class="text-[24px] font-bold">92%</span>
         </div>
@@ -310,7 +135,6 @@
 
   </main>
 </div>
-      
     </div>
     <script>
       if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
