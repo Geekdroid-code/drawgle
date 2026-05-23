@@ -1463,6 +1463,65 @@ const parseJsonResponse = <T>(text: string): T => {
   try {
     return JSON.parse(cleaned) as T;
   } catch {
+    const firstBrace = cleaned.indexOf("{");
+    const firstBracket = cleaned.indexOf("[");
+    let startIdx = -1;
+    let openChar = "";
+    let closeChar = "";
+
+    if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
+      startIdx = firstBrace;
+      openChar = "{";
+      closeChar = "}";
+    } else if (firstBracket !== -1) {
+      startIdx = firstBracket;
+      openChar = "[";
+      closeChar = "]";
+    }
+
+    if (startIdx === -1) {
+      throw new Error("The model did not return valid JSON.");
+    }
+
+    let balance = 0;
+    let inString = false;
+    let escaped = false;
+
+    for (let i = startIdx; i < cleaned.length; i++) {
+      const char = cleaned[i];
+
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+
+      if (char === '"') {
+        inString = !inString;
+        continue;
+      }
+
+      if (!inString) {
+        if (char === openChar) {
+          balance++;
+        } else if (char === closeChar) {
+          balance--;
+          if (balance === 0) {
+            const potentialJson = cleaned.slice(startIdx, i + 1);
+            try {
+              return JSON.parse(potentialJson) as T;
+            } catch {
+              break;
+            }
+          }
+        }
+      }
+    }
+
     const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       throw new Error("The model did not return valid JSON.");
