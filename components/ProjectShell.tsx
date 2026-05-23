@@ -2,7 +2,7 @@
 
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, ChevronDown, ImageIcon, Loader2, Palette, RotateCcw, Upload, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, ImageIcon, Loader2, Palette, RotateCcw, Upload, X, Sun, HelpCircle, Megaphone, Play, Share2, LogOut, FolderSync } from "lucide-react";
 
 import { CanvasArea } from "@/components/CanvasArea";
 import { MobileExportDrawer } from "@/components/MobileExportDrawer";
@@ -11,6 +11,12 @@ import { ChatPanel } from "@/components/ChatPanel";
 import { ColorPickerButton } from "@/components/DesignSystemEditor";
 import type { ElementSelectionLostReason, SelectedElementInfo } from "@/components/ScreenNode";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -44,7 +50,7 @@ import { useScreens } from "@/hooks/use-screens";
 import { hasApprovedDesignTokens, normalizeDesignTokens } from "@/lib/design-tokens";
 import { createClient } from "@/lib/supabase/client";
 import { deleteScreen, insertProjectMessage, updateProjectFields } from "@/lib/supabase/queries";
-import { getDrawgleTokenReferences } from "@/lib/token-runtime";
+import { getDrawgleTokenReferences, buildDrawgleTokenCss, buildGoogleFontAssetLinks } from "@/lib/token-runtime";
 import type {
   AuthenticatedUser,
   DesignTokens,
@@ -1056,12 +1062,26 @@ export function ProjectShell({
   const [tokenSaving, setTokenSaving] = useState(false);
   const tokenDirtyRef = useRef(tokenDirty);
   const [exportDrawerOpen, setExportDrawerOpen] = useState(false);
-  const [exportScreenCode, setExportScreenCode] = useState("");
-  const [exportNavigationCode, setExportNavigationCode] = useState("");
-  const [exportScreenName, setExportScreenName] = useState("");
-  const [exportTokenCss, setExportTokenCss] = useState('');
-  const [exportGoogleFontLinks, setExportGoogleFontLinks] = useState('');
   const [exportActiveNavItemId, setExportActiveNavItemId] = useState<string | null>(null);
+
+  const handleSignOut = async () => {
+    try {
+      await fetch("/auth/signout", {
+        method: "POST",
+      });
+      router.replace("/login");
+      router.refresh();
+    } catch (signOutError) {
+      console.error("Failed to sign out", signOutError);
+    }
+  };
+
+  const effectiveDesignTokens = tokenDraft && hasApprovedDesignTokens(tokenDraft)
+    ? tokenDraft
+    : project?.designTokens ?? null;
+
+  const exportTokenCss = useMemo(() => buildDrawgleTokenCss(effectiveDesignTokens), [effectiveDesignTokens]);
+  const exportGoogleFontLinks = useMemo(() => buildGoogleFontAssetLinks(effectiveDesignTokens), [effectiveDesignTokens]);
   const centeredRunIdRef = useRef<string | null>(null);
   const knownScreenIdsRef = useRef<Set<string>>(new Set());
   const hasHydratedScreenIdsRef = useRef(false);
@@ -1073,9 +1093,6 @@ export function ProjectShell({
     generationRun &&
     (generationRun.status === "queued" || generationRun.status === "planning" || generationRun.status === "building"),
   );
-  const effectiveDesignTokens = tokenDraft && hasApprovedDesignTokens(tokenDraft)
-    ? tokenDraft
-    : project?.designTokens ?? null;
   const selectedElementInfo = editSession?.element ?? null;
   const selectedElementScreen = editSession?.screenId
     ? screens.find((screen) => screen.id === editSession.screenId) ?? null
@@ -1783,6 +1800,107 @@ export function ProjectShell({
           </div>
         </div>
 
+        <div className="absolute right-4 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-50 flex items-center gap-3">
+          {/* Group 1 (Utilities): Sun/Moon button, HelpCircle button, Megaphone button */}
+          <div className="flex h-8 items-center rounded-full dg-panel px-1.5 backdrop-blur-xl gap-0.5">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 rounded-full text-neutral-600 hover:bg-[#f7f7f8] focus-visible:bg-[#f7f7f8] flex items-center justify-center"
+              title="Theme Toggle"
+              onClick={() => {
+                document.documentElement.classList.toggle("dark");
+              }}
+            >
+              <Sun className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 rounded-full text-neutral-600 hover:bg-[#f7f7f8] focus-visible:bg-[#f7f7f8] flex items-center justify-center"
+              title="Help"
+            >
+              <HelpCircle className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 rounded-full text-neutral-600 hover:bg-[#f7f7f8] focus-visible:bg-[#f7f7f8] flex items-center justify-center"
+              title="Updates"
+            >
+              <Megaphone className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+
+          {/* Group 2 (Actions): Preview, Share, Export */}
+          <div className="flex h-8 items-center rounded-full dg-panel px-1.5 backdrop-blur-xl gap-0.5">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 gap-1 rounded-full px-2 text-[10px] font-bold uppercase tracking-wider text-neutral-700 hover:bg-[#f7f7f8] flex items-center"
+            >
+              <Play className="h-2.5 w-2.5 fill-neutral-700 text-neutral-700" />
+              Preview
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 gap-1 rounded-full px-2 text-[10px] font-bold uppercase tracking-wider text-neutral-700 hover:bg-[#f7f7f8] flex items-center"
+            >
+              <Share2 className="h-2.5 w-2.5 text-neutral-700" />
+              Share
+            </Button>
+            <Button
+              size="sm"
+              className="h-6 rounded-full bg-[#FF4F00] hover:bg-[#E04500] px-3 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm transition-all"
+              onClick={() => {
+                setExportDrawerOpen(true);
+              }}
+            >
+              Export
+            </Button>
+          </div>
+
+          {/* Group 3 (User Profile): Gradient Avatar Circle with Radix Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <button
+                  type="button"
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-tr from-pink-400 via-rose-400 to-amber-300 shadow-md ring-2 ring-white hover:ring-rose-200 transition-all focus:outline-none"
+                >
+                  <span className="text-[10px] font-bold text-white uppercase select-none">
+                    {user.email ? user.email.slice(0, 2) : "US"}
+                  </span>
+                </button>
+              }
+            />
+            <DropdownMenuContent align="end" className="w-[220px] rounded-[18px] border border-slate-950/[0.08] bg-white p-2 shadow-[0_20px_70px_rgba(15,23,42,0.2)]">
+              <div className="px-2.5 py-2 border-b border-slate-950/[0.06] mb-1 text-left">
+                <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400 mb-0.5">Account</div>
+                <div className="truncate text-xs font-semibold text-slate-900">{user.email || "user@drawgle.com"}</div>
+                <div className="mt-1 inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-emerald-700">
+                  Pro Member
+                </div>
+              </div>
+              <DropdownMenuItem
+                onClick={() => router.push("/project/new")}
+                className="flex w-full items-center gap-2 rounded-[12px] px-2.5 py-2 text-left text-xs font-semibold text-slate-700 transition hover:bg-slate-50 cursor-pointer"
+              >
+                <FolderSync className="h-3.5 w-3.5 text-slate-500" />
+                Switch Projects
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={handleSignOut}
+                className="flex w-full items-center gap-2 rounded-[12px] px-2.5 py-2 text-left text-xs font-semibold text-rose-600 transition hover:bg-rose-50 cursor-pointer focus:text-rose-600 focus:bg-rose-50"
+              >
+                <LogOut className="h-3.5 w-3.5 text-rose-500" />
+                Log Out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
         <div className="relative h-full min-w-0 flex-1">
           <CanvasArea
             screens={screens}
@@ -1799,11 +1917,10 @@ export function ProjectShell({
             onElementSelected={handleElementSelected}
             onElementSelectionLost={handleElementSelectionLost}
             onExportCode={(cleanScreenCode, cleanNavigationCode, screenName, tokenCss, googleFontAssetLinks, activeNavigationItemId) => {
-              setExportScreenCode(cleanScreenCode);
-              setExportNavigationCode(cleanNavigationCode);
-              setExportScreenName(screenName);
-              setExportTokenCss(tokenCss);
-              setExportGoogleFontLinks(googleFontAssetLinks);
+              const matchedScreen = screens.find((s) => s.name === screenName);
+              if (matchedScreen) {
+                setSelectedScreen(matchedScreen);
+              }
               setExportActiveNavItemId(activeNavigationItemId);
               setExportDrawerOpen(true);
             }}
@@ -1928,9 +2045,9 @@ export function ProjectShell({
           <MobileExportDrawer
             open={exportDrawerOpen}
             onClose={() => setExportDrawerOpen(false)}
-            screenCode={exportScreenCode}
-            navigationCode={exportNavigationCode}
-            screenName={exportScreenName}
+            screens={screens}
+            initialScreenId={selectedScreen?.id || null}
+            navigationCode={projectNavigation?.shellCode || ""}
             designTokens={effectiveDesignTokens}
             tokenCss={exportTokenCss}
             googleFontAssetLinks={exportGoogleFontLinks}
