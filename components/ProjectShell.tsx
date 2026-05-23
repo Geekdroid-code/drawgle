@@ -1834,14 +1834,7 @@ export function ProjectShell({
 
           {/* Group 2 (Actions): Preview, Share, Export */}
           <div className="flex h-8 items-center rounded-full dg-panel px-1.5 backdrop-blur-xl gap-0.5">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 gap-1 rounded-full px-2 text-[10px] font-bold uppercase tracking-wider text-neutral-700 hover:bg-[#f7f7f8] flex items-center"
-            >
-              <Play className="h-2.5 w-2.5 fill-neutral-700 text-neutral-700" />
-              Preview
-            </Button>
+           
             <Button
               variant="ghost"
               size="sm"
@@ -1867,7 +1860,7 @@ export function ProjectShell({
               render={
                 <button
                   type="button"
-                  className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-tr from-pink-400 via-rose-400 to-amber-300 shadow-md ring-2 ring-white hover:ring-rose-200 transition-all focus:outline-none"
+                  className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-tr from-pink-400 via-rose-400 to-amber-300 shadow-md ring-2 ring-white hover:ring-rose-200 transition-all focus:outline-none"
                 >
                   <span className="text-[10px] font-bold text-white uppercase select-none">
                     {user.email ? user.email.slice(0, 2) : "US"}
