@@ -268,7 +268,7 @@ const CanvasContent = ({
   selectedElementDrawgleId?: string | null;
   onElementSelected?: (info: SelectedElementInfo) => void;
   onElementSelectionLost?: (info: { screenId: string; drawgleId: string; reason?: ElementSelectionLostReason }) => void;
-  onExportCode?: (cleanScreenCode: string, cleanNavigationCode: string, screenName: string) => void;
+  onExportCode?: (cleanScreenCode: string, cleanNavigationCode: string, screenName: string, tokenCss: string, googleFontAssetLinks: string, activeNavigationItemId: string | null) => void;
 }) => {
   const { state } = useControls();
   const scale = state.scale;
@@ -333,7 +333,7 @@ export function CanvasArea({
   selectedElementDrawgleId?: string | null;
   onElementSelected?: (info: SelectedElementInfo) => void;
   onElementSelectionLost?: (info: { screenId: string; drawgleId: string; reason?: ElementSelectionLostReason }) => void;
-  onExportCode?: (cleanScreenCode: string, cleanNavigationCode: string, screenName: string) => void;
+  onExportCode?: (cleanScreenCode: string, cleanNavigationCode: string, screenName: string, tokenCss: string, googleFontAssetLinks: string, activeNavigationItemId: string | null) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [initialScale, setInitialScale] = useState<number | null>(null);

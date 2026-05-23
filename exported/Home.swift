@@ -18,6 +18,10 @@ struct AppTheme {
     
     static let borderRadiusApp: CGFloat = 18
     static let borderRadiusPill: CGFloat = 9999.0
+    
+    static let screenPadding: CGFloat = 24
+    static let sectionGap: CGFloat = 24
+    static let elementGap: CGFloat = 16
 }
 
 extension Color {
@@ -59,270 +63,40 @@ struct HomeView: View {
     VStack() {
         VStack() {
             VStack() {
-                VStack() {
-                    VStack() {
-                        AsyncImage(url: URL(string: "https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/60ae5021-d010-4997-839a-7198a052762d/display_1024.png")) { image in
-                            image.resizable()
-                                .aspectRatio(contentMode: .fill)
-                        } placeholder: {
-                            Color.gray.opacity(0.1)
-                        }
-                    }
-                    .cornerRadius(9999)
-                    .frame(width: 32, height: 32)
-                    VStack() {
-                        Text("James")
+                Button(action: {
+                    // Action here
+                }) {
+                    HStack() {
+                        Image(systemName: "arrow.left") // Lucide: arrow-left
                             .font(.system(size: 14))
-                            .fontWeight(.semibold)
-                            .foregroundColor(Color(hex: "#FFFFFF"))
-                        Text("Figueroa")
-                            .font(.system(size: 14))
-                            .foregroundColor(Color(hex: "#A1A1A1"))
+                            .foregroundColor(Color(hex: "#111827"))
                     }
+                    .padding(.vertical, 12)
+                    .padding(.horizontal, 16)
+                    .foregroundColor(Color(hex: "#111827"))
                 }
-                VStack(alignment: .trailing) {
-                    VStack() {
-                        VStack() {
-                        }
-                        .frame(width: 18, height: 18)
-                    }
-                    .background(Color(hex: "#000000"))
-                    .cornerRadius(9999)
-                    .frame(width: 36, height: 36)
-                    VStack() {
-                        Text("6")
-                            .font(.system(size: 14))
-                            .fontWeight(.semibold)
-                            .foregroundColor(Color(hex: "#000000"))
-                        Text("products")
-                            .font(.system(size: 14))
-                            .foregroundColor(Color(hex: "#000000"))
-                    }
-                    .background(Color(hex: "#FFFFFF"))
-                    .cornerRadius(12)
-                }
-                .background(Color(hex: "#212124"))
-            }
-            VStack() {
-                VStack() {
-                    Text("Cookies")
-                        .font(.system(size: 24))
-                        .fontWeight(.semibold)
-                        .foregroundColor(Color(hex: "#FFFFFF"))
-                    Text("Premium")
-                        .font(.system(size: 24))
-                        .fontWeight(.semibold)
-                        .foregroundColor(Color(hex: "#E88D48"))
-                }
+                Text("Diagnostics")
+                    .font(.system(size: 17))
+                    .fontWeight(.semibold)
+                    .foregroundColor(AppTheme.textHigh)
                 VStack() {
                     Button(action: {
                         // Action here
                     }) {
-                        HStack(spacing: 4) {
-                            Text("See more")
+                        HStack() {
+                            Image(systemName: "file.text") // Lucide: file-text
+                                .font(.system(size: 14))
+                                .foregroundColor(Color(hex: "#111827"))
                         }
                         .padding(.vertical, 12)
                         .padding(.horizontal, 16)
-                        .foregroundColor(Color(hex: "#E88D48"))
-                    }
-                }
-            }
-            VStack() {
-                VStack() {
-                    VStack() {
-                        VStack() {
-                            AsyncImage(url: URL(string: "https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/60ae5021-d010-4997-839a-7198a052762d/display_1024.png")) { image in
-                                image.resizable()
-                                    .aspectRatio(contentMode: .fill)
-                            } placeholder: {
-                                Color.gray.opacity(0.1)
-                            }
-                        }
-                        .frame(width: 100, height: 100)
-                        VStack() {
-                            Text("Chocolate chips")
-                                .font(.system(size: 14))
-                                .foregroundColor(Color(hex: "#FFFFFF"))
-                                .padding(.bottom, 4)
-                            VStack(spacing: 4) {
-                                VStack() {
-                                }
-                                .frame(width: 10, height: 10)
-                                Text("Premium")
-                                    .font(.system(size: 14))
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(Color(hex: "#E88D48"))
-                            }
-                            VStack() {
-                                Text("20 USD")
-                                    .font(.system(size: 14))
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(Color(hex: "#111827"))
-                                Button(action: {
-                                    // Action here
-                                }) {
-                                    HStack(spacing: 8) {
-                                        VStack() {
-                                        }
-                                        .frame(width: 14, height: 14)
-                                    }
-                                    .padding(.vertical, 12)
-                                    .padding(.horizontal, 16)
-                                    .background(Color(hex: "#000000"))
-                                    .cornerRadius(9999)
-                                    .foregroundColor(Color(hex: "#111827"))
-                                }
-                            }
-                        }
-                        .background(Color(hex: "#212124"))
-                        .cornerRadius(28)
-                    }
-                    .frame(width: 160)
-                    VStack() {
-                        VStack() {
-                            VStack() {
-                                VStack() {
-                                }
-                                .frame(width: 32, height: 32)
-                            }
-                            .background(Color(hex: "#3A2A1D"))
-                            .cornerRadius(9999)
-                            .frame(width: 80, height: 80)
-                        }
-                        .frame(width: 100, height: 100)
-                        VStack() {
-                            Text("Oatmeal with raisins")
-                                .font(.system(size: 14))
-                                .foregroundColor(Color(hex: "#FFFFFF"))
-                                .padding(.bottom, 4)
-                            VStack(spacing: 4) {
-                                VStack() {
-                                }
-                                .frame(width: 10, height: 10)
-                                Text("Premium")
-                                    .font(.system(size: 14))
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(Color(hex: "#E88D48"))
-                            }
-                            VStack() {
-                                Text("16 USD")
-                                    .font(.system(size: 14))
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(Color(hex: "#111827"))
-                                Button(action: {
-                                    // Action here
-                                }) {
-                                    HStack(spacing: 8) {
-                                        VStack() {
-                                        }
-                                        .frame(width: 14, height: 14)
-                                    }
-                                    .padding(.vertical, 12)
-                                    .padding(.horizontal, 16)
-                                    .background(Color(hex: "#000000"))
-                                    .cornerRadius(9999)
-                                    .foregroundColor(Color(hex: "#111827"))
-                                }
-                            }
-                        }
-                        .background(Color(hex: "#212124"))
-                        .cornerRadius(28)
-                    }
-                    .frame(width: 160)
-                }
-                .padding(.bottom, 16)
-            }
-            VStack() {
-                VStack() {
-                    Text("Offers")
-                        .font(.system(size: 18))
-                        .fontWeight(.semibold)
-                        .foregroundColor(Color(hex: "#111827"))
-                    Button(action: {
-                        // Action here
-                    }) {
-                        HStack(spacing: 8) {
-                            Text("See more")
-                        }
-                        .padding(.vertical, 12)
-                        .padding(.horizontal, 16)
-                        .foregroundColor(Color(hex: "#E88D48"))
-                    }
-                }
-                VStack() {
-                    VStack() {
-                        VStack() {
-                            AsyncImage(url: URL(string: "https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/60ae5021-d010-4997-839a-7198a052762d/display_1024.png")) { image in
-                                image.resizable()
-                                    .aspectRatio(contentMode: .fill)
-                            } placeholder: {
-                                Color.gray.opacity(0.1)
-                            }
-                        }
-                        .background(Color(hex: "#1A1A1A"))
-                        .cornerRadius(20)
-                        .frame(maxWidth: .infinity)
-                    }
-                    .frame(width: 80, height: 80)
-                    VStack() {
-                        Text("Double chocolate")
-                            .font(.system(size: 14))
-                            .foregroundColor(Color(hex: "#FFFFFF"))
-                        VStack(spacing: 4) {
-                            VStack() {
-                            }
-                            .frame(width: 10, height: 10)
-                            Text("Premium")
-                                .font(.system(size: 14))
-                                .fontWeight(.semibold)
-                                .foregroundColor(Color(hex: "#E88D48"))
-                        }
-                        VStack(spacing: 8) {
-                            Text("12 USD")
-                                .font(.system(size: 14))
-                                .fontWeight(.semibold)
-                                .foregroundColor(Color(hex: "#FFFFFF"))
-                            Text("20 USD")
-                                .font(.system(size: 14))
-                                .foregroundColor(Color(hex: "#666666"))
-                        }
-                    }
-                    Button(action: {
-                        // Action here
-                    }) {
-                        HStack(spacing: 8) {
-                            VStack() {
-                            }
-                            .frame(width: 18, height: 18)
-                        }
-                        .padding(.vertical, 12)
-                        .padding(.horizontal, 16)
-                        .background(Color(hex: "#000000"))
-                        .cornerRadius(9999)
                         .foregroundColor(Color(hex: "#111827"))
                     }
-                }
-                .background(Color(hex: "#212124"))
-                .cornerRadius(28)
-            }
-            VStack() {
-            }
-        }
-        .background(Color(hex: "#0F0F0F"))
-        .frame(maxWidth: .infinity)
-        VStack() {
-            VStack() {
-                VStack() {
                     Button(action: {
                         // Action here
                     }) {
-                        HStack(spacing: 8) {
-                            VStack() {
-                                Image(systemName: "house.fill")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(Color(hex: "#111827"))
-                            }
-                            Text("Home")
+                        HStack() {
+                            Image(systemName: "filter") // Lucide: filter
                                 .font(.system(size: 14))
                                 .foregroundColor(Color(hex: "#111827"))
                         }
@@ -332,7 +106,157 @@ struct HomeView: View {
                     }
                 }
             }
+            .padding(.horizontal, AppTheme.screenPadding)
+            .frame(height: 64)
+            VStack(spacing: AppTheme.sectionGap) {
+                VStack() {
+                    VStack() {
+                        Text("Heartbeat")
+                            .font(.system(size: 12))
+                            .fontWeight(.semibold)
+                            .foregroundColor(AppTheme.textHigh)
+                        VStack(spacing: 4) {
+                            Text("82")
+                                .font(.system(size: 32))
+                                .fontWeight(.semibold)
+                                .foregroundColor(AppTheme.textHigh)
+                            Text("bpm")
+                                .font(.system(size: 16))
+                                .foregroundColor(AppTheme.textHigh)
+                        }
+                    }
+                    VStack() {
+                        VStack() {
+                            Image(systemName: "star") // Lucide: star
+                                .font(.system(size: 14))
+                                .foregroundColor(Color(hex: "#111827"))
+                        }
+                    }
+                    .frame(height: 120)
+                }
+                .background(Color(hex: "#E3F2FD"))
+                .cornerRadius(AppTheme.borderRadiusApp)
+                .frame(maxWidth: .infinity)
+                VStack() {
+                    VStack() {
+                        Text("R-R Interval")
+                            .font(.system(size: 12))
+                            .fontWeight(.semibold)
+                            .foregroundColor(AppTheme.textHigh)
+                        VStack(spacing: 4) {
+                            Text("851")
+                                .font(.system(size: 32))
+                                .fontWeight(.semibold)
+                                .foregroundColor(AppTheme.textHigh)
+                            Text("ms")
+                                .font(.system(size: 16))
+                                .foregroundColor(AppTheme.textHigh)
+                        }
+                    }
+                    VStack() {
+                        Image(systemName: "star") // Lucide: star
+                            .font(.system(size: 14))
+                            .foregroundColor(Color(hex: "#111827"))
+                    }
+                    .frame(width: 120, height: 40)
+                }
+                .background(Color(hex: "var(--dg-color-action-secondary)"))
+                .cornerRadius(AppTheme.borderRadiusApp)
+                .frame(maxWidth: .infinity)
+                VStack() {
+                    VStack() {
+                        Text("Results")
+                            .font(.system(size: 18))
+                            .fontWeight(.semibold)
+                            .foregroundColor(Color(hex: "#111827"))
+                        Text("Today")
+                            .font(.system(size: 12))
+                            .fontWeight(.semibold)
+                            .foregroundColor(AppTheme.textMedium)
+                    }
+                    VStack() {
+                        VStack() {
+                            Image(systemName: "star") // Lucide: star
+                                .font(.system(size: 14))
+                                .foregroundColor(Color(hex: "#111827"))
+                            Image(systemName: "star") // Lucide: star
+                                .font(.system(size: 14))
+                                .foregroundColor(Color(hex: "#111827"))
+                            VStack() {
+                            }
+                            .background(AppTheme.textHigh)
+                            .cornerRadius(9999)
+                            .frame(width: 8, height: 8)
+                        }
+                        .frame(width: 80, height: 80)
+                        VStack(spacing: 4) {
+                            Text("Optimal Balance")
+                                .font(.system(size: 16))
+                                .fontWeight(.semibold)
+                                .foregroundColor(AppTheme.textHigh)
+                            Text("Your heart rate variability indicates a healthy recovery state.")
+                                .font(.system(size: 14))
+                                .foregroundColor(AppTheme.textMedium)
+                        }
+                    }
+                    Button(action: {
+                        // Action here
+                    }) {
+                        HStack(spacing: 8) {
+                            Text("View Full Report")
+                                .font(.system(size: 15))
+                                .fontWeight(.semibold)
+                                .foregroundColor(Color(hex: "#111827"))
+                            Image(systemName: "star") // Lucide: star
+                                .font(.system(size: 14))
+                                .foregroundColor(Color(hex: "#111827"))
+                        }
+                        .padding(.vertical, 12)
+                        .padding(.horizontal, 16)
+                        .cornerRadius(AppTheme.borderRadiusPill)
+                        .foregroundColor(Color(hex: "#111827"))
+                    }
+                }
+                .background(AppTheme.surfaceCard)
+                .cornerRadius(AppTheme.borderRadiusApp)
+                .frame(maxWidth: .infinity)
+                VStack(spacing: AppTheme.elementGap) {
+                    VStack() {
+                        Text("Stress")
+                            .font(.system(size: 12))
+                            .fontWeight(.semibold)
+                            .foregroundColor(AppTheme.textLow)
+                        VStack(spacing: 4) {
+                            Text("Low")
+                                .font(.system(size: 14))
+                                .fontWeight(.semibold)
+                                .foregroundColor(Color(hex: "#111827"))
+                        }
+                    }
+                    .background(AppTheme.surfaceCard)
+                    .cornerRadius(AppTheme.borderRadiusApp)
+                    VStack() {
+                        Text("Recovery")
+                            .font(.system(size: 12))
+                            .fontWeight(.semibold)
+                            .foregroundColor(AppTheme.textLow)
+                        VStack(spacing: 4) {
+                            Text("92%")
+                                .font(.system(size: 14))
+                                .fontWeight(.semibold)
+                                .foregroundColor(Color(hex: "#111827"))
+                        }
+                    }
+                    .background(AppTheme.surfaceCard)
+                    .cornerRadius(AppTheme.borderRadiusApp)
+                }
+            }
+            .padding(.horizontal, AppTheme.screenPadding)
+            .padding(.top, AppTheme.sectionGap)
+            .padding(.bottom, 96)
         }
+        .background(AppTheme.backgroundPrimary)
+        .frame(maxWidth: .infinity)
     }
         }
         .background(AppTheme.backgroundPrimary)

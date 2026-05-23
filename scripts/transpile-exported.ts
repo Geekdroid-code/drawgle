@@ -38,13 +38,7 @@ function cheerioToMockDom(htmlString: string): any {
         value
       }));
 
-      const childNodes: any[] = [];
-      (node.children || []).forEach((c: any) => {
-        const parsed = walk(c);
-        if (parsed) childNodes.push(parsed);
-      });
-
-      const mockElement = {
+      const mockElement: any = {
         nodeType: 1,
         tagName: tagName.toUpperCase(),
         classList,
@@ -53,8 +47,16 @@ function cheerioToMockDom(htmlString: string): any {
           return $(node).attr(name) || null;
         },
         attributes: attributesList,
-        childNodes
+        childNodes: []
       };
+
+      (node.children || []).forEach((c: any) => {
+        const parsed = walk(c);
+        if (parsed) {
+          parsed.parentElement = mockElement;
+          mockElement.childNodes.push(parsed);
+        }
+      });
 
       return mockElement;
     }

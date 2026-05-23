@@ -18,6 +18,11 @@ export const AppTheme = {
   radii: {
     app: 18,
     pill: 9999,
+  },
+  layout: {
+    screenPadding: 24,
+    sectionGap: 24,
+    elementGap: 16,
   }
 };
 
@@ -57,116 +62,37 @@ export default function HomeScreen() {
     <View style={{
       flexDirection: 'column',
       width: '100%',
-      backgroundColor: '#0F0F0F',
+      backgroundColor: AppTheme.colors.bgPrimary,
     }}>
       <View style={{
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'space-between',
+        height: 64,
+        paddingHorizontal: AppTheme.layout.screenPadding,
       }}>
+        <TouchableOpacity 
+          onPress={() => {}}
+          style={{
+            paddingVertical: 12,
+            paddingHorizontal: 16,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Icon name="arrow-left" size={14} color={'#111827'} />
+        </TouchableOpacity>
+        <Text style={{
+          fontSize: 17,
+          color: AppTheme.colors.textHigh,
+          fontWeight: 'bold',
+        }}>
+          Diagnostics
+        </Text>
         <View style={{
           flexDirection: 'column',
           alignItems: 'center',
-        }}>
-          <View style={{
-            flexDirection: 'column',
-            width: 32,
-            height: 32,
-            borderRadius: 9999,
-          }}>
-            <Image 
-              source={{ uri: 'https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/60ae5021-d010-4997-839a-7198a052762d/display_1024.png' }}
-              alt="User Avatar"
-              style={{
-                width: '100%',
-              }}
-            />
-          </View>
-          <View style={{
-            flexDirection: 'column',
-          }}>
-            <Text style={{
-              fontSize: 14,
-              color: '#FFFFFF',
-              fontWeight: 'bold',
-            }}>
-              James
-            </Text>
-            <Text style={{
-              fontSize: 14,
-              color: '#A1A1A1',
-            }}>
-              Figueroa
-            </Text>
-          </View>
-        </View>
-        <View style={{
-          flexDirection: 'column',
-          alignItems: 'flex-end',
-          backgroundColor: '#212124',
-        }}>
-          <View style={{
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 36,
-            height: 36,
-            backgroundColor: '#000000',
-            borderRadius: 9999,
-          }}>
-            <View style={{
-              flexDirection: 'column',
-              width: 18,
-              height: 18,
-            }}>
-            </View>
-          </View>
-          <View style={{
-            flexDirection: 'column',
-            alignItems: 'center',
-            backgroundColor: '#FFFFFF',
-            borderRadius: 12,
-          }}>
-            <Text style={{
-              fontSize: 14,
-              color: '#000000',
-              fontWeight: 'bold',
-            }}>
-              6
-            </Text>
-            <Text style={{
-              fontSize: 14,
-              color: '#000000',
-            }}>
-              products
-            </Text>
-          </View>
-        </View>
-      </View>
-      <View style={{
-        flexDirection: 'column',
-      }}>
-        <View style={{
-          flexDirection: 'column',
-        }}>
-          <Text style={{
-            fontSize: 24,
-            color: '#FFFFFF',
-            fontWeight: 'bold',
-          }}>
-            Cookies
-          </Text>
-          <Text style={{
-            fontSize: 24,
-            color: '#E88D48',
-            fontWeight: 'bold',
-          }}>
-            Premium
-          </Text>
-        </View>
-        <View style={{
-          flexDirection: 'column',
-          justifyContent: 'flex-end',
         }}>
           <TouchableOpacity 
             onPress={() => {}}
@@ -178,301 +104,193 @@ export default function HomeScreen() {
               justifyContent: 'center',
             }}
           >
-            <Text>See more</Text>
+            <Icon name="file-text" size={14} color={'#111827'} />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={() => {}}
+            style={{
+              paddingVertical: 12,
+              paddingHorizontal: 16,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Icon name="filter" size={14} color={'#111827'} />
           </TouchableOpacity>
         </View>
       </View>
       <View style={{
         flexDirection: 'column',
+        gap: AppTheme.layout.sectionGap,
+        paddingHorizontal: AppTheme.layout.screenPadding,
+        paddingTop: AppTheme.layout.sectionGap,
+        paddingBottom: 96,
       }}>
         <View style={{
           flexDirection: 'column',
-          paddingBottom: 16,
+          justifyContent: 'space-between',
+          width: '100%',
+          backgroundColor: '#E3F2FD',
+          borderRadius: AppTheme.radii.app,
         }}>
           <View style={{
             flexDirection: 'column',
-            width: 160,
           }}>
-            <View style={{
-              flexDirection: 'column',
-              width: 100,
-              height: 100,
+            <Text style={{
+              fontSize: 12,
+              color: AppTheme.colors.textHigh,
+              fontWeight: 'bold',
             }}>
-              <Image 
-                source={{ uri: 'https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/60ae5021-d010-4997-839a-7198a052762d/display_1024.png' }}
-                alt="Chocolate chip cookie"
-                style={{
-                  width: '100%',
-                }}
-              />
-            </View>
+              Heartbeat
+            </Text>
             <View style={{
               flexDirection: 'column',
-              backgroundColor: '#212124',
-              borderRadius: 28,
+              gap: 4,
             }}>
               <Text style={{
-                fontSize: 14,
-                color: '#FFFFFF',
-                marginBottom: 4,
+                fontSize: 32,
+                color: AppTheme.colors.textHigh,
+                fontWeight: 'bold',
               }}>
-                Chocolate chips
+                82
               </Text>
-              <View style={{
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 4,
+              <Text style={{
+                fontSize: 16,
+                color: AppTheme.colors.textHigh,
               }}>
-                <View style={{
-                  flexDirection: 'column',
-                  width: 10,
-                  height: 10,
-                }}>
-                </View>
-                <Text style={{
-                  fontSize: 14,
-                  color: '#E88D48',
-                  fontWeight: 'bold',
-                }}>
-                  Premium
-                </Text>
-              </View>
-              <View style={{
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}>
-                <Text style={{
-                  fontSize: 14,
-                  color: '#111827',
-                  fontWeight: 'bold',
-                }}>
-                  20 USD
-                </Text>
-                <TouchableOpacity 
-                  onPress={() => {}}
-                  style={{
-                    backgroundColor: '#000000',
-                    borderRadius: 9999,
-                    paddingVertical: 12,
-                    paddingHorizontal: 16,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <View style={{
-                    flexDirection: 'column',
-                    width: 14,
-                    height: 14,
-                  }}>
-                  </View>
-                </TouchableOpacity>
-              </View>
+                bpm
+              </Text>
             </View>
           </View>
           <View style={{
             flexDirection: 'column',
-            width: 160,
+            height: 120,
           }}>
             <View style={{
               flexDirection: 'column',
               alignItems: 'center',
-              justifyContent: 'center',
-              width: 100,
-              height: 100,
             }}>
-              <View style={{
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: 80,
-                height: 80,
-                backgroundColor: '#3A2A1D',
-                borderRadius: 9999,
-              }}>
-                <View style={{
-                  flexDirection: 'column',
-                  width: 32,
-                  height: 32,
-                }}>
-                </View>
-              </View>
-            </View>
-            <View style={{
-              flexDirection: 'column',
-              backgroundColor: '#212124',
-              borderRadius: 28,
-            }}>
-              <Text style={{
-                fontSize: 14,
-                color: '#FFFFFF',
-                marginBottom: 4,
-              }}>
-                Oatmeal with raisins
-              </Text>
-              <View style={{
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 4,
-              }}>
-                <View style={{
-                  flexDirection: 'column',
-                  width: 10,
-                  height: 10,
-                }}>
-                </View>
-                <Text style={{
-                  fontSize: 14,
-                  color: '#E88D48',
-                  fontWeight: 'bold',
-                }}>
-                  Premium
-                </Text>
-              </View>
-              <View style={{
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}>
-                <Text style={{
-                  fontSize: 14,
-                  color: '#111827',
-                  fontWeight: 'bold',
-                }}>
-                  16 USD
-                </Text>
-                <TouchableOpacity 
-                  onPress={() => {}}
-                  style={{
-                    backgroundColor: '#000000',
-                    borderRadius: 9999,
-                    paddingVertical: 12,
-                    paddingHorizontal: 16,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <View style={{
-                    flexDirection: 'column',
-                    width: 14,
-                    height: 14,
-                  }}>
-                  </View>
-                </TouchableOpacity>
-              </View>
+              <Icon name="star" size={14} color={'#111827'} />
             </View>
           </View>
         </View>
-      </View>
-      <View style={{
-        flexDirection: 'column',
-      }}>
         <View style={{
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'space-between',
+          width: '100%',
+          backgroundColor: 'var(--dg-color-action-secondary)',
+          borderRadius: AppTheme.radii.app,
         }}>
-          <Text style={{
-            fontSize: 18,
-            color: '#111827',
-            fontWeight: 'bold',
-          }}>
-            Offers
-          </Text>
-          <TouchableOpacity 
-            onPress={() => {}}
-            style={{
-              paddingVertical: 12,
-              paddingHorizontal: 16,
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Text>See more</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={{
-          flexDirection: 'column',
-          alignItems: 'center',
-          backgroundColor: '#212124',
-          borderRadius: 28,
-        }}>
-          <View style={{
-            flexDirection: 'column',
-            width: 80,
-            height: 80,
-          }}>
-            <View style={{
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '100%',
-              backgroundColor: '#1A1A1A',
-              borderRadius: 20,
-            }}>
-              <Image 
-                source={{ uri: 'https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/60ae5021-d010-4997-839a-7198a052762d/display_1024.png' }}
-                alt="Double chocolate"
-                style={{
-                }}
-              />
-            </View>
-          </View>
           <View style={{
             flexDirection: 'column',
           }}>
             <Text style={{
-              fontSize: 14,
-              color: '#FFFFFF',
+              fontSize: 12,
+              color: AppTheme.colors.textHigh,
+              fontWeight: 'bold',
             }}>
-              Double chocolate
+              R-R Interval
             </Text>
             <View style={{
               flexDirection: 'column',
-              alignItems: 'center',
               gap: 4,
             }}>
-              <View style={{
-                flexDirection: 'column',
-                width: 10,
-                height: 10,
-              }}>
-              </View>
               <Text style={{
-                fontSize: 14,
-                color: '#E88D48',
+                fontSize: 32,
+                color: AppTheme.colors.textHigh,
                 fontWeight: 'bold',
               }}>
-                Premium
+                851
               </Text>
+              <Text style={{
+                fontSize: 16,
+                color: AppTheme.colors.textHigh,
+              }}>
+                ms
+              </Text>
+            </View>
+          </View>
+          <View style={{
+            flexDirection: 'column',
+            width: 120,
+            height: 40,
+          }}>
+            <Icon name="star" size={14} color={'#111827'} />
+          </View>
+        </View>
+        <View style={{
+          flexDirection: 'column',
+          width: '100%',
+          backgroundColor: AppTheme.colors.surfaceCard,
+          borderRadius: AppTheme.radii.app,
+        }}>
+          <View style={{
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}>
+            <Text style={{
+              fontSize: 18,
+              color: '#111827',
+              fontWeight: 'bold',
+            }}>
+              Results
+            </Text>
+            <Text style={{
+              fontSize: 12,
+              color: AppTheme.colors.textMedium,
+              fontWeight: 'bold',
+            }}>
+              Today
+            </Text>
+          </View>
+          <View style={{
+            flexDirection: 'column',
+            alignItems: 'center',
+          }}>
+            <View style={{
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 80,
+              height: 80,
+            }}>
+              <Icon name="star" size={14} color={'#111827'} />
+              <Icon name="star" size={14} color={'#111827'} />
+              <View style={{
+                flexDirection: 'column',
+                width: 8,
+                height: 8,
+                backgroundColor: AppTheme.colors.textHigh,
+                borderRadius: 9999,
+              }}>
+              </View>
             </View>
             <View style={{
               flexDirection: 'column',
-              gap: 8,
+              gap: 4,
             }}>
               <Text style={{
-                fontSize: 14,
-                color: '#FFFFFF',
+                fontSize: 16,
+                color: AppTheme.colors.textHigh,
                 fontWeight: 'bold',
               }}>
-                12 USD
+                Optimal Balance
               </Text>
               <Text style={{
                 fontSize: 14,
-                color: '#666666',
+                color: AppTheme.colors.textMedium,
               }}>
-                20 USD
+                Your heart rate variability indicates a healthy recovery state.
               </Text>
             </View>
           </View>
           <TouchableOpacity 
             onPress={() => {}}
             style={{
-              backgroundColor: '#000000',
-              borderRadius: 9999,
+              borderRadius: AppTheme.radii.pill,
               paddingVertical: 12,
               paddingHorizontal: 16,
               flexDirection: 'row',
@@ -480,51 +298,70 @@ export default function HomeScreen() {
               justifyContent: 'center',
             }}
           >
-            <View style={{
-              flexDirection: 'column',
-              width: 18,
-              height: 18,
+            <Text style={{
+              fontSize: 15,
+              color: '#111827',
+              fontWeight: 'bold',
             }}>
-            </View>
+              View Full Report
+            </Text>
+            <Icon name="star" size={14} color={'#111827'} />
           </TouchableOpacity>
         </View>
-      </View>
-      <View style={{
-        flexDirection: 'column',
-      }}>
-      </View>
-    </View>
-    <View style={{
-      flexDirection: 'column',
-    }}>
-      <View style={{
-        flexDirection: 'column',
-      }}>
         <View style={{
           flexDirection: 'column',
+          gap: AppTheme.layout.elementGap,
         }}>
-          <TouchableOpacity 
-            onPress={() => {}}
-            style={{
-              paddingVertical: 12,
-              paddingHorizontal: 16,
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
+          <View style={{
+            flexDirection: 'column',
+            backgroundColor: AppTheme.colors.surfaceCard,
+            borderRadius: AppTheme.radii.app,
+          }}>
+            <Text style={{
+              fontSize: 12,
+              color: AppTheme.colors.textLow,
+              fontWeight: 'bold',
+            }}>
+              Stress
+            </Text>
             <View style={{
               flexDirection: 'column',
+              gap: 4,
             }}>
-              <Icon name="home" size={14} color="#111827" />
+              <Text style={{
+                fontSize: 14,
+                color: '#111827',
+                fontWeight: 'bold',
+              }}>
+                Low
+              </Text>
             </View>
+          </View>
+          <View style={{
+            flexDirection: 'column',
+            backgroundColor: AppTheme.colors.surfaceCard,
+            borderRadius: AppTheme.radii.app,
+          }}>
             <Text style={{
-              fontSize: 14,
-              color: '#111827',
+              fontSize: 12,
+              color: AppTheme.colors.textLow,
+              fontWeight: 'bold',
             }}>
-              Home
+              Recovery
             </Text>
-          </TouchableOpacity>
+            <View style={{
+              flexDirection: 'column',
+              gap: 4,
+            }}>
+              <Text style={{
+                fontSize: 14,
+                color: '#111827',
+                fontWeight: 'bold',
+              }}>
+                92%
+              </Text>
+            </View>
+          </View>
         </View>
       </View>
     </View>

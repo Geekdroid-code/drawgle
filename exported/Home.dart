@@ -18,6 +18,10 @@ class AppTheme {
   
   static const double borderRadiusApp = 18;
   static const double borderRadiusPill = 9999.0;
+  
+  static const double screenPadding = 24;
+  static const double sectionGap = 24;
+  static const double elementGap = 16;
 }
 
 //
@@ -43,455 +47,23 @@ class HomeScreen extends StatelessWidget {
     children: [
     Container(
         decoration: BoxDecoration(
-      color: Color(0xFF0F0F0F),
+      color: AppTheme.backgroundPrimary,
     ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisAlignment: MainAxisAlignment.start,
         children: [
-Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            mainAxisAlignment: MainAxisAlignment.start,
-            children: [
-            Container(
-                width: 32.0,
-    height: 32.0,
-                decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(9999.0),
-      border: Border.all(color: Color(0xFFFFFFFF), width: 1.0),
-    ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisAlignment: MainAxisAlignment.start,
-                children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(0.0),
-                  child: Image.network(
-                    'https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/60ae5021-d010-4997-839a-7198a052762d/display_1024.png',
-                    fit: BoxFit.cover,
-                  ),
-                )
-                ],
-              ),
-            ),
-Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisAlignment: MainAxisAlignment.start,
-              children: [
-              Text(
-                'James',
-                style: TextStyle(
-                  fontSize: 14.0,
-                  color: Color(0xFFFFFFFF),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                'Figueroa',
-                style: TextStyle(
-                  fontSize: 14.0,
-                  color: Color(0xFFA1A1A1),
-                ),
-              )
-              ],
-            )
-            ],
-          ),
-          Container(
-              decoration: BoxDecoration(
-      color: Color(0xFF212124),
-    ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisAlignment: MainAxisAlignment.start,
-              children: [
-              Container(
-                  width: 36.0,
-    height: 36.0,
-                  decoration: BoxDecoration(
-      color: Color(0xFF000000),
-      borderRadius: BorderRadius.circular(9999.0),
-    ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                  Container(
-                      width: 18.0,
-    height: 18.0,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      children: [
-                      ],
-                    ),
-                  )
-                  ],
-                ),
-              ),
-              Container(
-                  decoration: BoxDecoration(
-      color: Color(0xFFFFFFFF),
-      borderRadius: BorderRadius.circular(12.0),
-    ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  children: [
-                  Text(
-                    '6',
-                    style: TextStyle(
-                      fontSize: 14.0,
-                      color: Color(0xFF000000),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    'products',
-                    style: TextStyle(
-                      fontSize: 14.0,
-                      color: Color(0xFF000000),
-                    ),
-                  )
-                  ],
-                ),
-              )
-              ],
-            ),
-          )
-          ],
-        ),
-Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisAlignment: MainAxisAlignment.start,
-            children: [
-            Text(
-              'Cookies',
-              style: TextStyle(
-                fontSize: 24.0,
-                color: Color(0xFFFFFFFF),
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            Text(
-              'Premium',
-              style: TextStyle(
-                fontSize: 24.0,
-                color: Color(0xFFE88D48),
-                fontWeight: FontWeight.bold,
-              ),
-            )
-            ],
-          ),
-Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-            ElevatedButton(
-              onPressed: () {},
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFF#FFFFFF),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12.0),
-                ),
-                padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('See more')
-                ],
-              ),
-            )
-            ],
-          )
-          ],
-        ),
-Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-          Container(
-              padding: EdgeInsets.only(left: 0.0, top: 0.0, right: 0.0, bottom: 16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisAlignment: MainAxisAlignment.start,
-              children: [
-              Container(
-                  width: 160.0,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  children: [
-                  Container(
-                      width: 100.0,
-    height: 100.0,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(0.0),
-                        child: Image.network(
-                          'https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/60ae5021-d010-4997-839a-7198a052762d/display_1024.png',
-                          fit: BoxFit.cover,
-                        ),
-                      )
-                      ],
-                    ),
-                  ),
-                  Container(
-                      decoration: BoxDecoration(
-      color: Color(0xFF212124),
-      borderRadius: BorderRadius.circular(28.0),
-    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      children: [
-                      Padding(
-                        padding: EdgeInsets.only(top: 0.0, bottom: 4.0),
-                        child: Text(
-                        'Chocolate chips',
-                        style: TextStyle(
-                          fontSize: 14.0,
-                          color: Color(0xFFFFFFFF),
-                        ),
-                      ),
-                      ),
-Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        children: [
-                        Container(
-                            width: 10.0,
-    height: 10.0,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            mainAxisAlignment: MainAxisAlignment.start,
-                            children: [
-                            ],
-                          ),
-                        ),
-                        SizedBox(height: 4.0),
-                        Text(
-                          'Premium',
-                          style: TextStyle(
-                            fontSize: 14.0,
-                            color: Color(0xFFE88D48),
-                            fontWeight: FontWeight.bold,
-                          ),
-                        )
-                        ],
-                      ),
-Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                        Text(
-                          '20 USD',
-                          style: TextStyle(
-                            fontSize: 14.0,
-                            color: Color(0xFF111827),
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        ElevatedButton(
-                          onPressed: () {},
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Color(0xFF000000),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(9999.0),
-                            ),
-                            padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                  width: 14.0,
-    height: 14.0,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                                  mainAxisAlignment: MainAxisAlignment.start,
-                                  children: [
-                                  ],
-                                ),
-                              )
-                            ],
-                          ),
-                        )
-                        ],
-                      )
-                      ],
-                    ),
-                  )
-                  ],
-                ),
-              ),
-              Container(
-                  width: 160.0,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  children: [
-                  Container(
-                      width: 100.0,
-    height: 100.0,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                      Container(
-                          width: 80.0,
-    height: 80.0,
-                          decoration: BoxDecoration(
-      color: Color(0xFF3A2A1D),
-      borderRadius: BorderRadius.circular(9999.0),
-      border: Border.all(color: Color(0xFF212124), width: 4.0),
-    ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                          Container(
-                              width: 32.0,
-    height: 32.0,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              mainAxisAlignment: MainAxisAlignment.start,
-                              children: [
-                              ],
-                            ),
-                          )
-                          ],
-                        ),
-                      )
-                      ],
-                    ),
-                  ),
-                  Container(
-                      decoration: BoxDecoration(
-      color: Color(0xFF212124),
-      borderRadius: BorderRadius.circular(28.0),
-    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      children: [
-                      Padding(
-                        padding: EdgeInsets.only(top: 0.0, bottom: 4.0),
-                        child: Text(
-                        'Oatmeal with raisins',
-                        style: TextStyle(
-                          fontSize: 14.0,
-                          color: Color(0xFFFFFFFF),
-                        ),
-                      ),
-                      ),
-Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        children: [
-                        Container(
-                            width: 10.0,
-    height: 10.0,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            mainAxisAlignment: MainAxisAlignment.start,
-                            children: [
-                            ],
-                          ),
-                        ),
-                        SizedBox(height: 4.0),
-                        Text(
-                          'Premium',
-                          style: TextStyle(
-                            fontSize: 14.0,
-                            color: Color(0xFFE88D48),
-                            fontWeight: FontWeight.bold,
-                          ),
-                        )
-                        ],
-                      ),
-Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                        Text(
-                          '16 USD',
-                          style: TextStyle(
-                            fontSize: 14.0,
-                            color: Color(0xFF111827),
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        ElevatedButton(
-                          onPressed: () {},
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Color(0xFF000000),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(9999.0),
-                            ),
-                            padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                  width: 14.0,
-    height: 14.0,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                                  mainAxisAlignment: MainAxisAlignment.start,
-                                  children: [
-                                  ],
-                                ),
-                              )
-                            ],
-                          ),
-                        )
-                        ],
-                      )
-                      ],
-                    ),
-                  )
-                  ],
-                ),
-              )
-              ],
-            ),
-          )
-          ],
-        ),
-Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-Column(
+        Container(
+            height: 64.0,
+            padding: EdgeInsets.only(left: AppTheme.screenPadding, top: 0.0, right: AppTheme.screenPadding, bottom: 0.0),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-            Text(
-              'Offers',
-              style: TextStyle(
-                fontSize: 18.0,
-                color: Color(0xFF111827),
-                fontWeight: FontWeight.bold,
-              ),
-            ),
             ElevatedButton(
               onPressed: () {},
               style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFF#FFFFFF),
+                backgroundColor: Color(0xFFFFFFFF),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12.0),
                 ),
@@ -500,195 +72,384 @@ Column(
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('See more')
+                  Icon(Icons.arrow_left, size: 14.0, color: Color(0xFF111827))
                 ],
               ),
-            )
-            ],
-          ),
-          Container(
-              decoration: BoxDecoration(
-      color: Color(0xFF212124),
-      borderRadius: BorderRadius.circular(28.0),
-    ),
-            child: Column(
+            ),
+            Text(
+              'Diagnostics',
+              style: TextStyle(
+                fontSize: 17.0,
+                color: AppTheme.textHigh,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               mainAxisAlignment: MainAxisAlignment.start,
               children: [
-              Container(
-                  width: 80.0,
-    height: 80.0,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  children: [
-                  Container(
-                      decoration: BoxDecoration(
-      color: Color(0xFF1A1A1A),
-      borderRadius: BorderRadius.circular(20.0),
-    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(0.0),
-                        child: Image.network(
-                          'https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/60ae5021-d010-4997-839a-7198a052762d/display_1024.png',
-                          fit: BoxFit.cover,
-                        ),
-                      )
-                      ],
-                    ),
-                  )
-                  ],
-                ),
-              ),
-Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisAlignment: MainAxisAlignment.start,
-                children: [
-                Text(
-                  'Double chocolate',
-                  style: TextStyle(
-                    fontSize: 14.0,
-                    color: Color(0xFFFFFFFF),
-                  ),
-                ),
-Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  children: [
-                  Container(
-                      width: 10.0,
-    height: 10.0,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      children: [
-                      ],
-                    ),
-                  ),
-                  SizedBox(height: 4.0),
-                  Text(
-                    'Premium',
-                    style: TextStyle(
-                      fontSize: 14.0,
-                      color: Color(0xFFE88D48),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  )
-                  ],
-                ),
-Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  children: [
-                  Text(
-                    '12 USD',
-                    style: TextStyle(
-                      fontSize: 14.0,
-                      color: Color(0xFFFFFFFF),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  SizedBox(height: 8.0),
-                  Text(
-                    '20 USD',
-                    style: TextStyle(
-                      fontSize: 14.0,
-                      color: Color(0xFF666666),
-                    ),
-                  )
-                  ],
-                )
-                ],
-              ),
               ElevatedButton(
                 onPressed: () {},
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF000000),
+                  backgroundColor: Color(0xFFFFFFFF),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(9999.0),
+                    borderRadius: BorderRadius.circular(12.0),
                   ),
                   padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                        width: 18.0,
-    height: 18.0,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        children: [
-                        ],
-                      ),
-                    )
+                    Icon(Icons.file_text, size: 14.0, color: Color(0xFF111827))
+                  ],
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () {},
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Color(0xFFFFFFFF),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12.0),
+                  ),
+                  padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.filter, size: 14.0, color: Color(0xFF111827))
                   ],
                 ),
               )
               ],
-            ),
-          )
-          ],
+            )
+            ],
+          ),
         ),
-Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-          ],
-        )
-        ],
-      ),
+        Container(
+            padding: EdgeInsets.only(left: AppTheme.screenPadding, top: AppTheme.sectionGap, right: AppTheme.screenPadding, bottom: 96.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: [
+            Container(
+                decoration: BoxDecoration(
+      color: Color(0xFFE3F2FD),
+      borderRadius: BorderRadius.circular(AppTheme.borderRadiusApp),
     ),
-Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisAlignment: MainAxisAlignment.start,
-      children: [
-Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: [
-Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-          ElevatedButton(
-            onPressed: () {},
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Color(0xFF#FFFFFF),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12.0),
-              ),
-              padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
 Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   mainAxisAlignment: MainAxisAlignment.start,
                   children: [
-                  Icon(Icons.home, size: 14.0, color: Color(0xFF111827))
+                  Text(
+                    'Heartbeat',
+                    style: TextStyle(
+                      fontSize: 12.0,
+                      color: AppTheme.textHigh,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    children: [
+                    Text(
+                      '82',
+                      style: TextStyle(
+                        fontSize: 32.0,
+                        color: AppTheme.textHigh,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 4.0),
+                    Text(
+                      'bpm',
+                      style: TextStyle(
+                        fontSize: 16.0,
+                        color: AppTheme.textHigh,
+                      ),
+                    )
+                    ],
+                  )
                   ],
                 ),
-                Text(
-                  'Home',
-                  style: TextStyle(
-                    fontSize: 14.0,
-                    color: Color(0xFF111827),
+                Container(
+                    height: 120.0,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    children: [
+Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      children: [
+                      Icon(Icons.star, size: 14.0, color: Color(0xFF111827))
+                      ],
+                    )
+                    ],
                   ),
                 )
-              ],
+                ],
+              ),
             ),
-          )
-          ],
+            SizedBox(height: AppTheme.sectionGap),
+            Container(
+                decoration: BoxDecoration(
+      color: Color(0xFFFFFFFF),
+      borderRadius: BorderRadius.circular(AppTheme.borderRadiusApp),
+    ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: [
+                  Text(
+                    'R-R Interval',
+                    style: TextStyle(
+                      fontSize: 12.0,
+                      color: AppTheme.textHigh,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    children: [
+                    Text(
+                      '851',
+                      style: TextStyle(
+                        fontSize: 32.0,
+                        color: AppTheme.textHigh,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 4.0),
+                    Text(
+                      'ms',
+                      style: TextStyle(
+                        fontSize: 16.0,
+                        color: AppTheme.textHigh,
+                      ),
+                    )
+                    ],
+                  )
+                  ],
+                ),
+                Container(
+                    width: 120.0,
+    height: 40.0,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    children: [
+                    Icon(Icons.star, size: 14.0, color: Color(0xFF111827))
+                    ],
+                  ),
+                )
+                ],
+              ),
+            ),
+            SizedBox(height: AppTheme.sectionGap),
+            Container(
+                decoration: BoxDecoration(
+      color: AppTheme.surfaceCard,
+      borderRadius: BorderRadius.circular(AppTheme.borderRadiusApp),
+    ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                  Text(
+                    'Results',
+                    style: TextStyle(
+                      fontSize: 18.0,
+                      color: Color(0xFF111827),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    'Today',
+                    style: TextStyle(
+                      fontSize: 12.0,
+                      color: AppTheme.textMedium,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  )
+                  ],
+                ),
+Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: [
+                  Container(
+                      width: 80.0,
+    height: 80.0,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                      Icon(Icons.star, size: 14.0, color: Color(0xFF111827)),
+                      Icon(Icons.star, size: 14.0, color: Color(0xFF111827)),
+                      Container(
+                          width: 8.0,
+    height: 8.0,
+                          decoration: BoxDecoration(
+      color: AppTheme.textHigh,
+      borderRadius: BorderRadius.circular(9999.0),
+    ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisAlignment: MainAxisAlignment.start,
+                          children: [
+                          ],
+                        ),
+                      )
+                      ],
+                    ),
+                  ),
+Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    children: [
+                    Text(
+                      'Optimal Balance',
+                      style: TextStyle(
+                        fontSize: 16.0,
+                        color: AppTheme.textHigh,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 4.0),
+                    Text(
+                      'Your heart rate variability indicates a healthy recovery state.',
+                      style: TextStyle(
+                        fontSize: 14.0,
+                        color: AppTheme.textMedium,
+                      ),
+                    )
+                    ],
+                  )
+                  ],
+                ),
+                ElevatedButton(
+                  onPressed: () {},
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFFFFFFFF),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppTheme.borderRadiusPill),
+                    ),
+                    padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'View Full Report',
+                        style: TextStyle(
+                          fontSize: 15.0,
+                          color: Color(0xFF111827),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(width: 8.0),
+                      Icon(Icons.star, size: 14.0, color: Color(0xFF111827))
+                    ],
+                  ),
+                )
+                ],
+              ),
+            ),
+            SizedBox(height: AppTheme.sectionGap),
+Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: [
+              Container(
+                  decoration: BoxDecoration(
+      color: AppTheme.surfaceCard,
+      borderRadius: BorderRadius.circular(AppTheme.borderRadiusApp),
+    ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: [
+                  Text(
+                    'Stress',
+                    style: TextStyle(
+                      fontSize: 12.0,
+                      color: AppTheme.textLow,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    children: [
+                    Text(
+                      'Low',
+                      style: TextStyle(
+                        fontSize: 14.0,
+                        color: Color(0xFF111827),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    )
+                    ],
+                  )
+                  ],
+                ),
+              ),
+              SizedBox(height: AppTheme.elementGap),
+              Container(
+                  decoration: BoxDecoration(
+      color: AppTheme.surfaceCard,
+      borderRadius: BorderRadius.circular(AppTheme.borderRadiusApp),
+    ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: [
+                  Text(
+                    'Recovery',
+                    style: TextStyle(
+                      fontSize: 12.0,
+                      color: AppTheme.textLow,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    children: [
+                    Text(
+                      '92%',
+                      style: TextStyle(
+                        fontSize: 14.0,
+                        color: Color(0xFF111827),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    )
+                    ],
+                  )
+                  ],
+                ),
+              )
+              ],
+            )
+            ],
+          ),
         )
         ],
-      )
-      ],
+      ),
     )
     ],
   ),

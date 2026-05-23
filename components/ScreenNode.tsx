@@ -342,7 +342,7 @@ export function ScreenNode({
   /** Called when a previously selected id no longer exists after the iframe re-renders. */
   onElementSelectionLost?: (info: { screenId: string; drawgleId: string; reason?: ElementSelectionLostReason }) => void;
   /** Callback for custom code export drawer. */
-  onExportCode?: (cleanScreenCode: string, cleanNavigationCode: string, screenName: string) => void;
+  onExportCode?: (cleanScreenCode: string, cleanNavigationCode: string, screenName: string, tokenCss: string, googleFontAssetLinks: string, activeNavigationItemId: string | null) => void;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const safeCode = typeof screen.code === "string" ? screen.code : "";
@@ -483,7 +483,7 @@ export function ScreenNode({
     );
 
     if (onExportCode) {
-      onExportCode(cleanScreenCode, cleanNavigationCode, screen.name);
+      onExportCode(cleanScreenCode, cleanNavigationCode, screen.name, tokenCss, googleFontAssetLinks, activeNavigationItemId);
       return;
     }
 

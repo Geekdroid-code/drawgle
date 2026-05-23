@@ -1059,6 +1059,9 @@ export function ProjectShell({
   const [exportScreenCode, setExportScreenCode] = useState("");
   const [exportNavigationCode, setExportNavigationCode] = useState("");
   const [exportScreenName, setExportScreenName] = useState("");
+  const [exportTokenCss, setExportTokenCss] = useState('');
+  const [exportGoogleFontLinks, setExportGoogleFontLinks] = useState('');
+  const [exportActiveNavItemId, setExportActiveNavItemId] = useState<string | null>(null);
   const centeredRunIdRef = useRef<string | null>(null);
   const knownScreenIdsRef = useRef<Set<string>>(new Set());
   const hasHydratedScreenIdsRef = useRef(false);
@@ -1795,10 +1798,13 @@ export function ProjectShell({
             selectedElementDrawgleId={editSession?.element.drawgleId ?? null}
             onElementSelected={handleElementSelected}
             onElementSelectionLost={handleElementSelectionLost}
-            onExportCode={(cleanScreenCode, cleanNavigationCode, screenName) => {
+            onExportCode={(cleanScreenCode, cleanNavigationCode, screenName, tokenCss, googleFontAssetLinks, activeNavigationItemId) => {
               setExportScreenCode(cleanScreenCode);
               setExportNavigationCode(cleanNavigationCode);
               setExportScreenName(screenName);
+              setExportTokenCss(tokenCss);
+              setExportGoogleFontLinks(googleFontAssetLinks);
+              setExportActiveNavItemId(activeNavigationItemId);
               setExportDrawerOpen(true);
             }}
           />
@@ -1926,6 +1932,9 @@ export function ProjectShell({
             navigationCode={exportNavigationCode}
             screenName={exportScreenName}
             designTokens={effectiveDesignTokens}
+            tokenCss={exportTokenCss}
+            googleFontAssetLinks={exportGoogleFontLinks}
+            activeNavigationItemId={exportActiveNavItemId}
           />
         </div>
       </main>

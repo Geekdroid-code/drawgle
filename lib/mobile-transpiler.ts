@@ -30,6 +30,21 @@ export interface ParsedStyles {
   textAlign: "left" | "center" | "right";
 
   shadow: string | null; // e.g. "surface", "overlay", or null
+
+  // Dynamic theme token mapping fields
+  backgroundColorToken?: string;
+  textColorToken?: string;
+  borderColorToken?: string;
+  borderRadiusToken?: string;
+  gapToken?: string;
+  paddingLeftToken?: string;
+  paddingRightToken?: string;
+  paddingTopToken?: string;
+  paddingBottomToken?: string;
+  marginLeftToken?: string;
+  marginRightToken?: string;
+  marginTopToken?: string;
+  marginBottomToken?: string;
 }
 
 export interface TranspileNode {
@@ -85,24 +100,27 @@ const TAILWIND_COLOR_MAP: Record<string, string> = {
   "yellow-400": "#FACC15", "yellow-500": "#EAB308", "yellow-600": "#CA8A04",
 };
 
-// Map Lucide icons to SF Symbols (SwiftUI), Jetpack Compose standard Icons, and Material Icons (Flutter)
-const ICON_MAP: Record<string, { sf: string; compose: string; flutter: string }> = {
-  "home": { sf: "house.fill", compose: "Icons.Default.Home", flutter: "Icons.home" },
-  "search": { sf: "magnifyingglass", compose: "Icons.Default.Search", flutter: "Icons.search" },
-  "settings": { sf: "gearshape.fill", compose: "Icons.Default.Settings", flutter: "Icons.settings" },
-  "user": { sf: "person.crop.circle.fill", compose: "Icons.Default.Person", flutter: "Icons.person" },
-  "bell": { sf: "bell.fill", compose: "Icons.Default.Notifications", flutter: "Icons.notifications" },
-  "heart": { sf: "heart.fill", compose: "Icons.Default.Favorite", flutter: "Icons.favorite" },
-  "plus": { sf: "plus.circle.fill", compose: "Icons.Default.Add", flutter: "Icons.add" },
-  "check": { sf: "checkmark.circle.fill", compose: "Icons.Default.Check", flutter: "Icons.check" },
-  "x": { sf: "xmark.circle.fill", compose: "Icons.Default.Close", flutter: "Icons.close" },
-  "arrow-left": { sf: "arrow.left", compose: "Icons.Default.ArrowBack", flutter: "Icons.arrow_back" },
-  "chevron-right": { sf: "chevron.right", compose: "Icons.Default.KeyboardArrowRight", flutter: "Icons.keyboard_arrow_right" },
-  "chevron-left": { sf: "chevron.left", compose: "Icons.Default.KeyboardArrowLeft", flutter: "Icons.keyboard_arrow_left" },
-  "camera": { sf: "camera.fill", compose: "Icons.Default.PlayArrow", flutter: "Icons.camera_alt" },
-  "image": { sf: "photo.fill", compose: "Icons.Default.List", flutter: "Icons.image" },
-  "trash": { sf: "trash.fill", compose: "Icons.Default.Delete", flutter: "Icons.delete" },
-};
+// ---------------------------------------------------------------------------
+// DYNAMIC ICON NAME CONVERTERS (no hardcoded map — works for ANY Lucide icon)
+// ---------------------------------------------------------------------------
+
+function toFlutterIconName(lucideName: string): string {
+  return `Icons.${lucideName.replace(/-/g, '_')}`;
+}
+
+function toComposeIconName(lucideName: string): string {
+  const pascal = lucideName.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('');
+  return `Icons.Default.${pascal}`;
+}
+
+function toSwiftSFSymbol(lucideName: string): string {
+  // SF Symbols use dot-separated names; best-effort conversion from Lucide kebab-case
+  return lucideName.replace(/-/g, '.');
+}
+
+function toRNIconName(lucideName: string): string {
+  return lucideName; // React Native icon libraries accept kebab-case directly
+}
 
 function parsePixel(value: string | undefined): number {
   if (!value) return 0;
@@ -113,6 +131,87 @@ function parsePixel(value: string | undefined): number {
 function resolveCssVariable(varName: string, varMap: Map<string, string>): string {
   const cleanVar = varName.trim().replace(/^var\(/, "").replace(/\)$/, "").trim();
   return varMap.get(cleanVar) || varName;
+}
+
+// Resolves compound values like calc(var(--x) + 8px), plain 120px, var(--x), etc.
+function resolveArbitraryValue(val: string, varMap: Map<string, string>): number {
+  const trimmed = val.trim();
+  // Plain pixel value: "120px" or "120"
+  if (/^[\d.]+(?:px)?$/.test(trimmed)) return parseFloat(trimmed);
+  // Plain percentage: "100%" — not convertible to a number for spacing, return 0
+  if (trimmed.endsWith('%')) return 0;
+  // var() reference
+  if (trimmed.startsWith('var(')) {
+    const resolved = resolveCssVariable(trimmed, varMap);
+    return parsePixel(resolved);
+  }
+  // calc() expression: resolve inner var() refs, then evaluate simple +/- arithmetic
+  if (trimmed.startsWith('calc(')) {
+    let inner = trimmed.slice(5, -1).trim(); // strip calc( and )
+    // Resolve all nested var() references
+    inner = inner.replace(/var\([^)]+\)/g, (match) => {
+      const resolved = resolveCssVariable(match, varMap);
+      return String(parsePixel(resolved));
+    });
+    // Evaluate simple addition/subtraction: "16 + 8" or "16+8px"
+    try {
+      // Strip remaining "px" units and split on +/- preserving the operator
+      const cleaned = inner.replace(/px/g, '').trim();
+      const tokens = cleaned.split(/([+-])/).map(t => t.trim()).filter(Boolean);
+      let result = parseFloat(tokens[0]) || 0;
+      for (let i = 1; i < tokens.length; i += 2) {
+        const op = tokens[i];
+        const operand = parseFloat(tokens[i + 1]) || 0;
+        if (op === '+') result += operand;
+        else if (op === '-') result -= operand;
+      }
+      return isNaN(result) ? 0 : result;
+    } catch (_e) {
+      return 0;
+    }
+  }
+  // color-mix() — not a numeric value, return 0
+  if (trimmed.startsWith('color-mix(')) return 0;
+  // Fallback
+  return parseFloat(trimmed) || 0;
+}
+
+// Resolves a color from an arbitrary bracket value like [var(--dg-color-x)] or [#FF0000] or [color-mix(...)]
+function resolveArbitraryColor(val: string, varMap: Map<string, string>): string {
+  const trimmed = val.trim();
+  if (trimmed.startsWith('#')) return trimmed;
+  if (trimmed.startsWith('var(')) return resolveCssVariable(trimmed, varMap);
+  if (trimmed.startsWith('color-mix(')) {
+    // Extract the first color argument as fallback
+    const match = trimmed.match(/,\s*(#[0-9a-fA-F]{3,8}|var\([^)]+\))/);  
+    if (match) {
+      if (match[1].startsWith('var(')) return resolveCssVariable(match[1], varMap);
+      return match[1];
+    }
+    return 'transparent';
+  }
+  return trimmed;
+}
+
+function getStyleTokenKey(varName: string): string | undefined {
+  const clean = varName.trim().replace(/^var\(/, "").replace(/\)$/, "").trim();
+  switch (clean) {
+    case "--dg-color-background-primary": return "bgPrimary";
+    case "--dg-color-background-secondary": return "bgSecondary";
+    case "--dg-color-surface-card": return "surfaceCard";
+    case "--dg-color-action-primary": return "actionPrimary";
+    case "--dg-color-action-on-primary-text": return "actionOnPrimary";
+    case "--dg-color-text-high-emphasis": return "textHigh";
+    case "--dg-color-text-medium-emphasis": return "textMedium";
+    case "--dg-color-text-low-emphasis": return "textLow";
+    case "--dg-color-border-divider": return "borderDivider";
+    case "--dg-radii-app": return "borderRadiusApp";
+    case "--dg-radii-pill": return "borderRadiusPill";
+    case "--dg-mobile-layout-screen-margin": return "screenPadding";
+    case "--dg-mobile-layout-section-gap": return "sectionGap";
+    case "--dg-mobile-layout-element-gap": return "elementGap";
+    default: return undefined;
+  }
 }
 
 export function parseStyles(element: HTMLElement, varMap: Map<string, string>): ParsedStyles {
@@ -143,6 +242,21 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>): 
   let textAlign: "left" | "center" | "right" = "left";
 
   let shadow: string | null = null;
+
+  // Dynamic theme token mapping variables
+  let backgroundColorToken: string | undefined;
+  let textColorToken: string | undefined;
+  let borderColorToken: string | undefined;
+  let borderRadiusToken: string | undefined;
+  let gapToken: string | undefined;
+  let paddingLeftToken: string | undefined;
+  let paddingRightToken: string | undefined;
+  let paddingTopToken: string | undefined;
+  let paddingBottomToken: string | undefined;
+  let marginLeftToken: string | undefined;
+  let marginRightToken: string | undefined;
+  let marginTopToken: string | undefined;
+  let marginBottomToken: string | undefined;
 
   // Resolve Drawgle Token classes first
   classes.forEach(c => {
@@ -256,43 +370,105 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>): 
     if (hMatch) height = parseInt(hMatch[1]) * 4;
 
     // Arbitrary brackets e.g. w-[120px] or p-[var(--dg-spacing-md)]
+    // Arbitrary bracket values — use resolveArbitraryValue for robust calc/var resolution
     const arbWidth = c.match(/^w-\[(.+)\]$/);
     if (arbWidth) {
       const val = arbWidth[1];
-      if (val.startsWith("var(")) {
-        width = parsePixel(resolveCssVariable(val, varMap));
-      } else if (val.endsWith("px")) {
-        width = parseFloat(val);
-      } else {
-        width = val;
-      }
+      if (val === '100%' || val === 'auto' || val === 'fit-content') { width = val; }
+      else { width = resolveArbitraryValue(val, varMap) || val; }
     }
     const arbHeight = c.match(/^h-\[(.+)\]$/);
     if (arbHeight) {
       const val = arbHeight[1];
-      if (val.startsWith("var(")) {
-        height = parsePixel(resolveCssVariable(val, varMap));
-      } else if (val.endsWith("px")) {
-        height = parseFloat(val);
-      } else {
-        height = val;
-      }
+      if (val === '100%' || val === 'auto' || val === 'fit-content') { height = val; }
+      else { height = resolveArbitraryValue(val, varMap) || val; }
     }
     const arbPadding = c.match(/^p-\[(.+)\]$/);
     if (arbPadding) {
       const val = arbPadding[1];
-      const parsedVal = val.startsWith("var(") ? parsePixel(resolveCssVariable(val, varMap)) : parseFloat(val);
-      padding.top = padding.right = padding.bottom = padding.left = parsedVal;
+      padding.top = padding.right = padding.bottom = padding.left = resolveArbitraryValue(val, varMap);
+      const t = getStyleTokenKey(val);
+      if (t) {
+        paddingTopToken = paddingRightToken = paddingBottomToken = paddingLeftToken = t;
+      }
+    }
+    const arbPx = c.match(/^px-\[(.+)\]$/);
+    if (arbPx) {
+      const val = arbPx[1];
+      padding.left = padding.right = resolveArbitraryValue(val, varMap);
+      const t = getStyleTokenKey(val);
+      if (t) {
+        paddingLeftToken = paddingRightToken = t;
+      }
+    }
+    const arbPy = c.match(/^py-\[(.+)\]$/);
+    if (arbPy) {
+      const val = arbPy[1];
+      padding.top = padding.bottom = resolveArbitraryValue(val, varMap);
+      const t = getStyleTokenKey(val);
+      if (t) {
+        paddingTopToken = paddingBottomToken = t;
+      }
+    }
+    const arbPt = c.match(/^pt-\[(.+)\]$/);
+    if (arbPt) {
+      const val = arbPt[1];
+      padding.top = resolveArbitraryValue(val, varMap);
+      paddingTopToken = getStyleTokenKey(val);
+    }
+    const arbPr = c.match(/^pr-\[(.+)\]$/);
+    if (arbPr) {
+      const val = arbPr[1];
+      padding.right = resolveArbitraryValue(val, varMap);
+      paddingRightToken = getStyleTokenKey(val);
+    }
+    const arbPb = c.match(/^pb-\[(.+)\]$/);
+    if (arbPb) {
+      const val = arbPb[1];
+      padding.bottom = resolveArbitraryValue(val, varMap);
+      paddingBottomToken = getStyleTokenKey(val);
+    }
+    const arbPl = c.match(/^pl-\[(.+)\]$/);
+    if (arbPl) {
+      const val = arbPl[1];
+      padding.left = resolveArbitraryValue(val, varMap);
+      paddingLeftToken = getStyleTokenKey(val);
+    }
+    const arbMt = c.match(/^mt-\[(.+)\]$/);
+    if (arbMt) {
+      const val = arbMt[1];
+      margin.top = resolveArbitraryValue(val, varMap);
+      marginTopToken = getStyleTokenKey(val);
+    }
+    const arbMb = c.match(/^mb-\[(.+)\]$/);
+    if (arbMb) {
+      const val = arbMb[1];
+      margin.bottom = resolveArbitraryValue(val, varMap);
+      marginBottomToken = getStyleTokenKey(val);
+    }
+    const arbMl = c.match(/^ml-\[(.+)\]$/);
+    if (arbMl) {
+      const val = arbMl[1];
+      margin.left = resolveArbitraryValue(val, varMap);
+      marginLeftToken = getStyleTokenKey(val);
+    }
+    const arbMr = c.match(/^mr-\[(.+)\]$/);
+    if (arbMr) {
+      const val = arbMr[1];
+      margin.right = resolveArbitraryValue(val, varMap);
+      marginRightToken = getStyleTokenKey(val);
     }
     const arbGap = c.match(/^gap-\[(.+)\]$/);
     if (arbGap) {
       const val = arbGap[1];
-      gap = val.startsWith("var(") ? parsePixel(resolveCssVariable(val, varMap)) : parseFloat(val);
+      gap = resolveArbitraryValue(val, varMap);
+      gapToken = getStyleTokenKey(val);
     }
     const arbRadius = c.match(/^rounded-\[(.+)\]$/);
     if (arbRadius) {
       const val = arbRadius[1];
-      borderRadius = val.startsWith("var(") ? parsePixel(resolveCssVariable(val, varMap)) : parseFloat(val);
+      borderRadius = resolveArbitraryValue(val, varMap);
+      borderRadiusToken = getStyleTokenKey(val);
     }
 
     // Color utilities
@@ -301,7 +477,9 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>): 
       if (TAILWIND_COLOR_MAP[col]) {
         backgroundColor = TAILWIND_COLOR_MAP[col];
       } else if (col.startsWith("[var(")) {
-        backgroundColor = resolveCssVariable(col.substring(1, col.length - 1), varMap);
+        const varPart = col.substring(1, col.length - 1);
+        backgroundColor = resolveCssVariable(varPart, varMap);
+        backgroundColorToken = getStyleTokenKey(varPart);
       } else if (col.startsWith("[#")) {
         backgroundColor = col.substring(1, col.length - 1);
       }
@@ -311,7 +489,9 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>): 
       if (TAILWIND_COLOR_MAP[col]) {
         textColor = TAILWIND_COLOR_MAP[col];
       } else if (col.startsWith("[var(")) {
-        textColor = resolveCssVariable(col.substring(1, col.length - 1), varMap);
+        const varPart = col.substring(1, col.length - 1);
+        textColor = resolveCssVariable(varPart, varMap);
+        textColorToken = getStyleTokenKey(varPart);
       } else if (col.startsWith("[#")) {
         textColor = col.substring(1, col.length - 1);
       }
@@ -321,33 +501,76 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>): 
       if (TAILWIND_COLOR_MAP[col]) {
         borderColor = TAILWIND_COLOR_MAP[col];
       } else if (col.startsWith("[var(")) {
-        borderColor = resolveCssVariable(col.substring(1, col.length - 1), varMap);
+        const varPart = col.substring(1, col.length - 1);
+        borderColor = resolveCssVariable(varPart, varMap);
+        borderColorToken = getStyleTokenKey(varPart);
       } else if (col.startsWith("[#")) {
         borderColor = col.substring(1, col.length - 1);
       }
     }
 
     // Drawgle Semantic tokens
-    if (c === "dg-bg-primary") backgroundColor = varMap.get("--dg-color-background-primary") || "#FFFFFF";
-    if (c === "dg-bg-secondary") backgroundColor = varMap.get("--dg-color-background-secondary") || "#F3F4F6";
-    if (c === "dg-surface-card") backgroundColor = varMap.get("--dg-color-surface-card") || "#FFFFFF";
-    if (c === "dg-surface-bottom-sheet") backgroundColor = varMap.get("--dg-color-surface-bottom-sheet") || "#FFFFFF";
-    if (c === "dg-surface-modal") backgroundColor = varMap.get("--dg-color-surface-modal") || "#FFFFFF";
+    if (c === "dg-bg-primary") {
+      backgroundColor = varMap.get("--dg-color-background-primary") || "#FFFFFF";
+      backgroundColorToken = "bgPrimary";
+    }
+    if (c === "dg-bg-secondary") {
+      backgroundColor = varMap.get("--dg-color-background-secondary") || "#F3F4F6";
+      backgroundColorToken = "bgSecondary";
+    }
+    if (c === "dg-surface-card") {
+      backgroundColor = varMap.get("--dg-color-surface-card") || "#FFFFFF";
+      backgroundColorToken = "surfaceCard";
+    }
+    if (c === "dg-surface-bottom-sheet") {
+      backgroundColor = varMap.get("--dg-color-surface-bottom-sheet") || "#FFFFFF";
+      backgroundColorToken = "surfaceCard";
+    }
+    if (c === "dg-surface-modal") {
+      backgroundColor = varMap.get("--dg-color-surface-modal") || "#FFFFFF";
+      backgroundColorToken = "surfaceCard";
+    }
     
-    if (c === "dg-text-high") textColor = varMap.get("--dg-color-text-high-emphasis") || "#111827";
-    if (c === "dg-text-medium") textColor = varMap.get("--dg-color-text-medium-emphasis") || "#4B5563";
-    if (c === "dg-text-low") textColor = varMap.get("--dg-color-text-low-emphasis") || "#9CA3AF";
+    if (c === "dg-text-high") {
+      textColor = varMap.get("--dg-color-text-high-emphasis") || "#111827";
+      textColorToken = "textHigh";
+    }
+    if (c === "dg-text-medium") {
+      textColor = varMap.get("--dg-color-text-medium-emphasis") || "#4B5563";
+      textColorToken = "textMedium";
+    }
+    if (c === "dg-text-low") {
+      textColor = varMap.get("--dg-color-text-low-emphasis") || "#9CA3AF";
+      textColorToken = "textLow";
+    }
 
     if (c === "dg-action-primary") {
       backgroundColor = varMap.get("--dg-color-action-primary") || "#3B82F6";
       textColor = varMap.get("--dg-color-action-on-primary-text") || "#FFFFFF";
+      backgroundColorToken = "actionPrimary";
+      textColorToken = "actionOnPrimary";
     }
-    if (c === "dg-action-secondary") backgroundColor = varMap.get("--dg-color-action-secondary") || "#E5E7EB";
-    if (c === "dg-border-divider") borderColor = varMap.get("--dg-color-border-divider") || "#E5E7EB";
-    if (c === "dg-border-focused") borderColor = varMap.get("--dg-color-border-focused") || "#3B82F6";
+    if (c === "dg-action-secondary") {
+      backgroundColor = varMap.get("--dg-color-action-secondary") || "#E5E7EB";
+      backgroundColorToken = "bgSecondary";
+    }
+    if (c === "dg-border-divider") {
+      borderColor = varMap.get("--dg-color-border-divider") || "#E5E7EB";
+      borderColorToken = "borderDivider";
+    }
+    if (c === "dg-border-focused") {
+      borderColor = varMap.get("--dg-color-border-focused") || "#3B82F6";
+      borderColorToken = "actionPrimary";
+    }
     
-    if (c === "dg-radius-app") borderRadius = parsePixel(varMap.get("--dg-radii-app") || "18px");
-    if (c === "dg-radius-pill") borderRadius = parsePixel(varMap.get("--dg-radii-pill") || "9999px");
+    if (c === "dg-radius-app") {
+      borderRadius = parsePixel(varMap.get("--dg-radii-app") || "18px");
+      borderRadiusToken = "borderRadiusApp";
+    }
+    if (c === "dg-radius-pill") {
+      borderRadius = parsePixel(varMap.get("--dg-radii-pill") || "9999px");
+      borderRadiusToken = "borderRadiusPill";
+    }
 
     if (c === "dg-shadow-surface") shadow = "surface";
     if (c === "dg-shadow-overlay") shadow = "overlay";
@@ -355,9 +578,16 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>): 
     if (c === "dg-screen-padding") {
       const val = parsePixel(varMap.get("--dg-mobile-layout-screen-margin") || "24px");
       padding.left = padding.right = val;
+      paddingLeftToken = paddingRightToken = "screenPadding";
     }
-    if (c === "dg-section-gap") gap = parsePixel(varMap.get("--dg-mobile-layout-section-gap") || "24px");
-    if (c === "dg-element-gap") gap = parsePixel(varMap.get("--dg-mobile-layout-element-gap") || "16px");
+    if (c === "dg-section-gap") {
+      gap = parsePixel(varMap.get("--dg-mobile-layout-section-gap") || "24px");
+      gapToken = "sectionGap";
+    }
+    if (c === "dg-element-gap") {
+      gap = parsePixel(varMap.get("--dg-mobile-layout-element-gap") || "16px");
+      gapToken = "elementGap";
+    }
 
     // Semantic typography classes
     if (c.startsWith("dg-type-")) {
@@ -428,7 +658,57 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>): 
     fontWeight,
     textAlign,
     shadow,
+    backgroundColorToken,
+    textColorToken,
+    borderColorToken,
+    borderRadiusToken,
+    gapToken,
+    paddingLeftToken,
+    paddingRightToken,
+    paddingTopToken,
+    paddingBottomToken,
+    marginLeftToken,
+    marginRightToken,
+    marginTopToken,
+    marginBottomToken,
   };
+}
+
+function getIconNameFromSvg(htmlElement: HTMLElement): string {
+  // 1. Try attributes
+  const attr = htmlElement.getAttribute("data-lucide") || htmlElement.getAttribute("data-drawgle-icon");
+  if (attr) return attr;
+
+  // 2. Try class name lucide-*
+  const classList = Array.from(htmlElement.classList);
+  for (const c of classList) {
+    if (c.startsWith("lucide-")) {
+      return c.replace("lucide-", "");
+    }
+  }
+
+  // 3. Inference based on parent button attributes / texts
+  const parent = htmlElement.parentElement;
+  if (parent) {
+    const ariaLabel = parent.getAttribute("aria-label")?.toLowerCase() || "";
+    if (ariaLabel.includes("back") || ariaLabel.includes("prev")) return "arrow-left";
+    if (ariaLabel.includes("next") || ariaLabel.includes("forward")) return "arrow-right";
+    if (ariaLabel.includes("filter")) return "filter";
+    if (ariaLabel.includes("document") || ariaLabel.includes("report")) return "file-text";
+    if (ariaLabel.includes("search")) return "search";
+    if (ariaLabel.includes("settings")) return "settings";
+    if (ariaLabel.includes("menu")) return "menu";
+    if (ariaLabel.includes("close") || ariaLabel.includes("dismiss")) return "x";
+    if (ariaLabel.includes("add") || ariaLabel.includes("create") || ariaLabel.includes("new")) return "plus";
+    if (ariaLabel.includes("delete") || ariaLabel.includes("trash") || ariaLabel.includes("remove")) return "trash";
+    if (ariaLabel.includes("heart") || ariaLabel.includes("like")) return "heart";
+    if (ariaLabel.includes("share")) return "share";
+    if (ariaLabel.includes("chevron-right") || ariaLabel.includes("expand")) return "chevron-right";
+    if (ariaLabel.includes("chevron-left")) return "chevron-left";
+  }
+
+  // 4. Fallback based on visual dimensions or tag name
+  return "star";
 }
 
 // Recursively builds the TranspileNode tree starting from an element
@@ -440,6 +720,27 @@ export function buildTranspileTree(element: Element, varMap: Map<string, string>
   // Exclude stylesheets and script blocks from the native visual layout
   if (tagName === "style" || tagName === "script") {
     return null;
+  }
+
+  // If it's an SVG, treat it as a leaf icon node to prevent nested layout garbage
+  if (tagName === "svg") {
+    const iconName = getIconNameFromSvg(htmlElement);
+    const attributes: Record<string, string> = {};
+    Array.from(htmlElement.attributes).forEach(attr => {
+      attributes[attr.name] = attr.value;
+    });
+    attributes["data-lucide"] = iconName;
+
+    const styles = parseStyles(htmlElement, varMap);
+    return {
+      tagName: "svg",
+      classes: Array.from(htmlElement.classList),
+      id: htmlElement.id || "",
+      styleText: htmlElement.getAttribute("style") || "",
+      styles,
+      attributes,
+      children: [], // leaf node, do not crawl SVG children
+    };
   }
 
   // Read data-lucide icons
@@ -460,6 +761,22 @@ export function buildTranspileTree(element: Element, varMap: Map<string, string>
     }
   });
 
+  // Prune empty structural containers that produce dead widgets like Column(children: [])
+  const prunedChildren = children.filter(child => {
+    if (typeof child === 'string') return true;
+    const c = child as TranspileNode;
+    // Keep nodes that have children, icons, images, or visual styling
+    if (c.children.length > 0) return true;
+    if (c.attributes['data-lucide'] || c.attributes['data-drawgle-icon']) return true;
+    if (c.attributes['src']) return true;
+    if (c.tagName === 'img' || c.tagName === 'input' || c.tagName === 'textarea') return true;
+    if (c.styles.backgroundColor !== 'transparent') return true;
+    if (c.styles.borderWidth > 0) return true;
+    // Empty div/span with no visual content — prune it
+    if (c.tagName === 'div' || c.tagName === 'span') return false;
+    return true;
+  });
+
   const node: TranspileNode = {
     tagName: htmlElement.tagName.toLowerCase(),
     classes: Array.from(htmlElement.classList),
@@ -467,7 +784,7 @@ export function buildTranspileTree(element: Element, varMap: Map<string, string>
     styleText: htmlElement.getAttribute("style") || "",
     styles: parseStyles(htmlElement, varMap),
     attributes,
-    children,
+    children: prunedChildren,
   };
 
   return node;
@@ -538,20 +855,34 @@ export function generateTokenHeaderComment(designTokens?: DesignTokens | null): 
     pill: map.get("--dg-radii-pill") || "9999px",
   };
 
+  const layout = {
+    screenPadding: map.get("--dg-mobile-layout-screen-margin") || "24px",
+    sectionGap: map.get("--dg-mobile-layout-section-gap") || "24px",
+    elementGap: map.get("--dg-mobile-layout-element-gap") || "16px",
+  };
+
   return {
-    swift: `//\n//  DesignTokens.swift\n//  Drawgle Auto-generated\n//\n\nimport SwiftUI\n\nstruct AppTheme {\n    static let backgroundPrimary = Color(hex: "${colors.bgPrimary}")\n    static let backgroundSecondary = Color(hex: "${colors.bgSecondary}")\n    static let surfaceCard = Color(hex: "${colors.surfaceCard}")\n    static let actionPrimary = Color(hex: "${colors.actionPrimary}")\n    static let actionOnPrimary = Color(hex: "${colors.actionOnPrimary}")\n    static let textHigh = Color(hex: "${colors.textHigh}")\n    static let textMedium = Color(hex: "${colors.textMedium}")\n    static let textLow = Color(hex: "${colors.textLow}")\n    static let borderDivider = Color(hex: "${colors.borderDivider}")\n    \n    static let borderRadiusApp: CGFloat = ${parseFloat(radii.app)}\n    static let borderRadiusPill: CGFloat = 9999.0\n}\n\nextension Color {\n    init(hex: String) {\n        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)\n        var int: UInt64 = 0\n        Scanner(string: hex).scanHexInt64(&int)\n        let a, r, g, b: UInt64\n        switch hex.count {\n        case 3: // RGB (12-bit)\n            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)\n        case 6: // RGB (24-bit)\n            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)\n        case 8: // ARGB (32-bit)\n            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)\n        default:\n            (a, r, g, b) = (255, 0, 0, 0)\n        }\n        self.init(\n            .sRGB,\n            red: Double(r) / 255,\n            green: Double(g) / 255,\n            blue:  Double(b) / 255,\n            opacity: Double(a) / 255\n        )\n    }\n}\n`,
+    swift: `//\n//  DesignTokens.swift\n//  Drawgle Auto-generated\n//\n\nimport SwiftUI\n\nstruct AppTheme {\n    static let backgroundPrimary = Color(hex: "${colors.bgPrimary}")\n    static let backgroundSecondary = Color(hex: "${colors.bgSecondary}")\n    static let surfaceCard = Color(hex: "${colors.surfaceCard}")\n    static let actionPrimary = Color(hex: "${colors.actionPrimary}")\n    static let actionOnPrimary = Color(hex: "${colors.actionOnPrimary}")\n    static let textHigh = Color(hex: "${colors.textHigh}")\n    static let textMedium = Color(hex: "${colors.textMedium}")\n    static let textLow = Color(hex: "${colors.textLow}")\n    static let borderDivider = Color(hex: "${colors.borderDivider}")\n    \n    static let borderRadiusApp: CGFloat = ${parseFloat(radii.app)}\n    static let borderRadiusPill: CGFloat = 9999.0\n    \n    static let screenPadding: CGFloat = ${parseFloat(layout.screenPadding)}\n    static let sectionGap: CGFloat = ${parseFloat(layout.sectionGap)}\n    static let elementGap: CGFloat = ${parseFloat(layout.elementGap)}\n}\n\nextension Color {\n    init(hex: String) {\n        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)\n        var int: UInt64 = 0\n        Scanner(string: hex).scanHexInt64(&int)\n        let a, r, g, b: UInt64\n        switch hex.count {\n        case 3: // RGB (12-bit)\n            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)\n        case 6: // RGB (24-bit)\n            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)\n        case 8: // ARGB (32-bit)\n            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)\n        default:\n            (a, r, g, b) = (255, 0, 0, 0)\n        }\n        self.init(\n            .sRGB,\n            red: Double(r) / 255,\n            green: Double(g) / 255,\n            blue:  Double(b) / 255,\n            opacity: Double(a) / 255\n        )\n    }\n}\n`,
 
-    compose: `/*\n * AppTheme.kt\n * Drawgle Auto-generated\n */\n\npackage com.drawgle.theme\n\nimport androidx.compose.ui.graphics.Color\nimport androidx.compose.ui.unit.dp\n\nobject AppTheme {\n    val BackgroundPrimary = Color(0xFF${cleanHexColor(colors.bgPrimary)})\n    val BackgroundSecondary = Color(0xFF${cleanHexColor(colors.bgSecondary)})\n    val SurfaceCard = Color(0xFF${cleanHexColor(colors.surfaceCard)})\n    val ActionPrimary = Color(0xFF${cleanHexColor(colors.actionPrimary)})\n    val ActionOnPrimary = Color(0xFF${cleanHexColor(colors.actionOnPrimary)})\n    val TextHigh = Color(0xFF${cleanHexColor(colors.textHigh)})\n    val TextMedium = Color(0xFF${cleanHexColor(colors.textMedium)})\n    val TextLow = Color(0xFF${cleanHexColor(colors.textLow)})\n    val BorderDivider = Color(0xFF${cleanHexColor(colors.borderDivider)})\n    \n    val BorderRadiusApp = ${parseFloat(radii.app)}.dp\n    val BorderRadiusPill = 9999.dp\n}\n`,
+    compose: `/*\n * AppTheme.kt\n * Drawgle Auto-generated\n */\n\npackage com.drawgle.theme\n\nimport androidx.compose.ui.graphics.Color\nimport androidx.compose.ui.unit.dp\n\nobject AppTheme {\n    val BackgroundPrimary = Color(0xFF${cleanHexColor(colors.bgPrimary)})\n    val BackgroundSecondary = Color(0xFF${cleanHexColor(colors.bgSecondary)})\n    val SurfaceCard = Color(0xFF${cleanHexColor(colors.surfaceCard)})\n    val ActionPrimary = Color(0xFF${cleanHexColor(colors.actionPrimary)})\n    val ActionOnPrimary = Color(0xFF${cleanHexColor(colors.actionOnPrimary)})\n    val TextHigh = Color(0xFF${cleanHexColor(colors.textHigh)})\n    val TextMedium = Color(0xFF${cleanHexColor(colors.textMedium)})\n    val TextLow = Color(0xFF${cleanHexColor(colors.textLow)})\n    val BorderDivider = Color(0xFF${cleanHexColor(colors.borderDivider)})\n    \n    val BorderRadiusApp = ${parseFloat(radii.app)}.dp\n    val BorderRadiusPill = 9999.dp\n    \n    val ScreenPadding = ${parseFloat(layout.screenPadding)}.dp\n    val SectionGap = ${parseFloat(layout.sectionGap)}.dp\n    val ElementGap = ${parseFloat(layout.elementGap)}.dp\n}\n`,
 
-    rn: `//\n// AppTheme.js\n// Drawgle Auto-generated\n//\n\nexport const AppTheme = {\n  colors: {\n    backgroundPrimary: '${colors.bgPrimary}',\n    backgroundSecondary: '${colors.bgSecondary}',\n    surfaceCard: '${colors.surfaceCard}',\n    actionPrimary: '${colors.actionPrimary}',\n    actionOnPrimary: '${colors.actionOnPrimary}',\n    textHigh: '${colors.textHigh}',\n    textMedium: '${colors.textMedium}',\n    textLow: '${colors.textLow}',\n    borderDivider: '${colors.borderDivider}',\n  },\n  radii: {\n    app: ${parseFloat(radii.app)},\n    pill: 9999,\n  }\n};\n`,
+    rn: `//\n// AppTheme.js\n// Drawgle Auto-generated\n//\n\nexport const AppTheme = {\n  colors: {\n    backgroundPrimary: '${colors.bgPrimary}',\n    backgroundSecondary: '${colors.bgSecondary}',\n    surfaceCard: '${colors.surfaceCard}',\n    actionPrimary: '${colors.actionPrimary}',\n    actionOnPrimary: '${colors.actionOnPrimary}',\n    textHigh: '${colors.textHigh}',\n    textMedium: '${colors.textMedium}',\n    textLow: '${colors.textLow}',\n    borderDivider: '${colors.borderDivider}',\n  },\n  radii: {\n    app: ${parseFloat(radii.app)},\n    pill: 9999,\n  },\n  layout: {\n    screenPadding: ${parseFloat(layout.screenPadding)},\n    sectionGap: ${parseFloat(layout.sectionGap)},\n    elementGap: ${parseFloat(layout.elementGap)},\n  }\n};\n`,
 
-    flutter: `//\n// app_theme.dart\n// Drawgle Auto-generated\n//\n\nimport 'package:flutter/material.dart';\n\nclass AppTheme {\n  static const Color backgroundPrimary = Color(0xFF${cleanHexColor(colors.bgPrimary)});\n  static const Color backgroundSecondary = Color(0xFF${cleanHexColor(colors.bgSecondary)});\n  static const Color surfaceCard = Color(0xFF${cleanHexColor(colors.surfaceCard)});\n  static const Color actionPrimary = Color(0xFF${cleanHexColor(colors.actionPrimary)});\n  static const Color actionOnPrimary = Color(0xFF${cleanHexColor(colors.actionOnPrimary)});\n  static const Color textHigh = Color(0xFF${cleanHexColor(colors.textHigh)});\n  static const Color textMedium = Color(0xFF${cleanHexColor(colors.textMedium)});\n  static const Color textLow = Color(0xFF${cleanHexColor(colors.textLow)});\n  static const Color borderDivider = Color(0xFF${cleanHexColor(colors.borderDivider)});\n  \n  static const double borderRadiusApp = ${parseFloat(radii.app)};\n  static const double borderRadiusPill = 9999.0;\n}\n`
+    flutter: `//\n// app_theme.dart\n// Drawgle Auto-generated\n//\n\nimport 'package:flutter/material.dart';\n\nclass AppTheme {\n  static const Color backgroundPrimary = Color(0xFF${cleanHexColor(colors.bgPrimary)});\n  static const Color backgroundSecondary = Color(0xFF${cleanHexColor(colors.bgSecondary)});\n  static const Color surfaceCard = Color(0xFF${cleanHexColor(colors.surfaceCard)});\n  static const Color actionPrimary = Color(0xFF${cleanHexColor(colors.actionPrimary)});\n  static const Color actionOnPrimary = Color(0xFF${cleanHexColor(colors.actionOnPrimary)});\n  static const Color textHigh = Color(0xFF${cleanHexColor(colors.textHigh)});\n  static const Color textMedium = Color(0xFF${cleanHexColor(colors.textMedium)});\n  static const Color textLow = Color(0xFF${cleanHexColor(colors.textLow)});\n  static const Color borderDivider = Color(0xFF${cleanHexColor(colors.borderDivider)});\n  \n  static const double borderRadiusApp = ${parseFloat(radii.app)};\n  static const double borderRadiusPill = 9999.0;\n  \n  static const double screenPadding = ${parseFloat(layout.screenPadding)};\n  static const double sectionGap = ${parseFloat(layout.sectionGap)};\n  static const double elementGap = ${parseFloat(layout.elementGap)};\n}\n`
   };
 }
 
 // ---------------------------------------------------------------------------
 // SWIFTUI TRANSPILER
 // ---------------------------------------------------------------------------
+// Spacing/Color theme-aware helpers for Swift
+function toSwiftThemeToken(token: string | undefined, fallbackVal: string): string {
+  if (!token) return fallbackVal;
+  if (token === "bgPrimary") return "AppTheme.backgroundPrimary";
+  if (token === "bgSecondary") return "AppTheme.backgroundSecondary";
+  return `AppTheme.${token}`;
+}
+
 export function transpileToSwiftUI(root: TranspileNode): string {
   let indentLevel = 1;
   const getIndent = () => "    ".repeat(indentLevel);
@@ -568,11 +899,13 @@ export function transpileToSwiftUI(root: TranspileNode): string {
     
     let out = "";
     
-    // Lucide Icon mapping
-    if (lucide && ICON_MAP[lucide]) {
-      out += `${getIndent()}Image(systemName: "${ICON_MAP[lucide].sf}")\n`;
+    // Lucide Icon — dynamic name conversion (works for ANY icon)
+    if (lucide) {
+      out += `${getIndent()}Image(systemName: "${toSwiftSFSymbol(lucide)}") // Lucide: ${lucide}\n`;
       out += `${getIndent()}    .font(.system(size: ${styles.fontSize || 20}))\n`;
-      if (styles.textColor !== "transparent") {
+      if (styles.textColorToken) {
+        out += `${getIndent()}    .foregroundColor(${toSwiftThemeToken(styles.textColorToken, "")})\n`;
+      } else if (styles.textColor !== "transparent") {
         out += `${getIndent()}    .foregroundColor(Color(hex: "${styles.textColor}"))\n`;
       }
       return out;
@@ -596,7 +929,9 @@ export function transpileToSwiftUI(root: TranspileNode): string {
         const comma = wStr && hStr ? ", " : "";
         out += `${getIndent()}.frame(${wStr}${comma}${hStr})\n`;
       }
-      if (styles.borderRadius > 0) {
+      if (styles.borderRadiusToken) {
+        out += `${getIndent()}.cornerRadius(${toSwiftThemeToken(styles.borderRadiusToken, "")})\n`;
+      } else if (styles.borderRadius > 0) {
         out += `${getIndent()}.cornerRadius(${styles.borderRadius})\n`;
       }
       return out;
@@ -609,7 +944,9 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       indentLevel++;
       
       // Content wrapper inside SwiftUI button (HStack is standard)
-      out += `${getIndent()}HStack(spacing: ${styles.gap || 8}) {\n`;
+      const btnGap = styles.gapToken ? toSwiftThemeToken(styles.gapToken, "") : String(styles.gap || 8);
+      const stackCombo = styles.gapToken ? `spacing: ${btnGap}` : (styles.gap > 0 ? `spacing: ${styles.gap}` : "");
+      out += `${getIndent()}HStack(${stackCombo}) {\n`;
       indentLevel++;
       node.children.forEach(c => {
         out += walk(c);
@@ -618,15 +955,24 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       out += `${getIndent()}}\n`;
       
       // Style button
-      out += `${getIndent()}.padding(.vertical, ${styles.padding.top || 12})\n`;
-      out += `${getIndent()}.padding(.horizontal, ${styles.padding.left || 16})\n`;
-      if (styles.backgroundColor !== "transparent") {
+      const paddingY = styles.paddingTopToken ? toSwiftThemeToken(styles.paddingTopToken, "") : String(styles.padding.top || 12);
+      const paddingX = styles.paddingLeftToken ? toSwiftThemeToken(styles.paddingLeftToken, "") : String(styles.padding.left || 16);
+      out += `${getIndent()}.padding(.vertical, ${paddingY})\n`;
+      out += `${getIndent()}.padding(.horizontal, ${paddingX})\n`;
+      
+      if (styles.backgroundColorToken) {
+        out += `${getIndent()}.background(${toSwiftThemeToken(styles.backgroundColorToken, "")})\n`;
+      } else if (styles.backgroundColor !== "transparent") {
         out += `${getIndent()}.background(Color(hex: "${styles.backgroundColor}"))\n`;
       }
-      if (styles.borderRadius > 0) {
+      if (styles.borderRadiusToken) {
+        out += `${getIndent()}.cornerRadius(${toSwiftThemeToken(styles.borderRadiusToken, "")})\n`;
+      } else if (styles.borderRadius > 0) {
         out += `${getIndent()}.cornerRadius(${styles.borderRadius})\n`;
       }
-      if (styles.textColor !== "transparent") {
+      if (styles.textColorToken) {
+        out += `${getIndent()}.foregroundColor(${toSwiftThemeToken(styles.textColorToken, "")})\n`;
+      } else if (styles.textColor !== "transparent") {
         out += `${getIndent()}.foregroundColor(Color(hex: "${styles.textColor}"))\n`;
       }
       indentLevel--;
@@ -647,7 +993,9 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       if (styles.fontWeight === "bold" || styles.fontWeight === "semibold") {
         out += `${getIndent()}    .fontWeight(.semibold)\n`;
       }
-      if (styles.textColor !== "transparent") {
+      if (styles.textColorToken) {
+        out += `${getIndent()}    .foregroundColor(${toSwiftThemeToken(styles.textColorToken, "")})\n`;
+      } else if (styles.textColor !== "transparent") {
         out += `${getIndent()}    .foregroundColor(Color(hex: "${styles.textColor}"))\n`;
       }
       if (styles.textAlign === "center") {
@@ -655,8 +1003,10 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       }
       
       // Handle margin
-      if (styles.margin.top > 0) out += `${getIndent()}    .padding(.top, ${styles.margin.top})\n`;
-      if (styles.margin.bottom > 0) out += `${getIndent()}    .padding(.bottom, ${styles.margin.bottom})\n`;
+      const mt = styles.marginTopToken ? toSwiftThemeToken(styles.marginTopToken, "") : String(styles.margin.top);
+      const mb = styles.marginBottomToken ? toSwiftThemeToken(styles.marginBottomToken, "") : String(styles.margin.bottom);
+      if (styles.margin.top > 0 || styles.marginTopToken) out += `${getIndent()}    .padding(.top, ${mt})\n`;
+      if (styles.margin.bottom > 0 || styles.marginBottomToken) out += `${getIndent()}    .padding(.bottom, ${mb})\n`;
       return out;
     }
 
@@ -666,7 +1016,9 @@ export function transpileToSwiftUI(root: TranspileNode): string {
     const alignStr = isCol 
       ? (styles.alignItems === "start" ? "alignment: .leading" : styles.alignItems === "end" ? "alignment: .trailing" : "")
       : (styles.alignItems === "start" ? "alignment: .top" : styles.alignItems === "end" ? "alignment: .bottom" : "");
-    const spacingStr = styles.gap > 0 ? `spacing: ${styles.gap}` : "";
+    const spacingStr = styles.gapToken
+      ? `spacing: ${toSwiftThemeToken(styles.gapToken, "")}`
+      : (styles.gap > 0 ? `spacing: ${styles.gap}` : "");
     const combo = alignStr && spacingStr ? `${alignStr}, ${spacingStr}` : (alignStr || spacingStr);
     
     out += `${getIndent()}${stackName}(${combo}) {\n`;
@@ -680,22 +1032,30 @@ export function transpileToSwiftUI(root: TranspileNode): string {
     out += `${getIndent()}}\n`;
 
     // Modifiers on stack
-    if (styles.padding.top > 0 || styles.padding.bottom > 0 || styles.padding.left > 0 || styles.padding.right > 0) {
-      if (styles.padding.top === styles.padding.bottom && styles.padding.left === styles.padding.right) {
-        out += `${getIndent()}.padding(.vertical, ${styles.padding.top})\n`;
-        out += `${getIndent()}.padding(.horizontal, ${styles.padding.left})\n`;
-      } else {
-        if (styles.padding.top > 0) out += `${getIndent()}.padding(.top, ${styles.padding.top})\n`;
-        if (styles.padding.bottom > 0) out += `${getIndent()}.padding(.bottom, ${styles.padding.bottom})\n`;
-        if (styles.padding.left > 0) out += `${getIndent()}.padding(.leading, ${styles.padding.left})\n`;
-        if (styles.padding.right > 0) out += `${getIndent()}.padding(.trailing, ${styles.padding.right})\n`;
-      }
+    const pt = styles.paddingTopToken ? toSwiftThemeToken(styles.paddingTopToken, "") : String(styles.padding.top);
+    const pb = styles.paddingBottomToken ? toSwiftThemeToken(styles.paddingBottomToken, "") : String(styles.padding.bottom);
+    const pl = styles.paddingLeftToken ? toSwiftThemeToken(styles.paddingLeftToken, "") : String(styles.padding.left);
+    const pr = styles.paddingRightToken ? toSwiftThemeToken(styles.paddingRightToken, "") : String(styles.padding.right);
+
+    if (styles.paddingLeftToken === "screenPadding" && styles.paddingRightToken === "screenPadding") {
+      out += `${getIndent()}.padding(.horizontal, AppTheme.screenPadding)\n`;
+      if (styles.padding.top > 0 || styles.paddingTopToken) out += `${getIndent()}.padding(.top, ${pt})\n`;
+      if (styles.padding.bottom > 0 || styles.paddingBottomToken) out += `${getIndent()}.padding(.bottom, ${pb})\n`;
+    } else {
+      if (styles.padding.top > 0 || styles.paddingTopToken) out += `${getIndent()}.padding(.top, ${pt})\n`;
+      if (styles.padding.bottom > 0 || styles.paddingBottomToken) out += `${getIndent()}.padding(.bottom, ${pb})\n`;
+      if (styles.padding.left > 0 || styles.paddingLeftToken) out += `${getIndent()}.padding(.leading, ${pl})\n`;
+      if (styles.padding.right > 0 || styles.paddingRightToken) out += `${getIndent()}.padding(.trailing, ${pr})\n`;
     }
 
-    if (styles.backgroundColor !== "transparent") {
+    if (styles.backgroundColorToken) {
+      out += `${getIndent()}.background(${toSwiftThemeToken(styles.backgroundColorToken, "")})\n`;
+    } else if (styles.backgroundColor !== "transparent") {
       out += `${getIndent()}.background(Color(hex: "${styles.backgroundColor}"))\n`;
     }
-    if (styles.borderRadius > 0) {
+    if (styles.borderRadiusToken) {
+      out += `${getIndent()}.cornerRadius(${toSwiftThemeToken(styles.borderRadiusToken, "")})\n`;
+    } else if (styles.borderRadius > 0) {
       out += `${getIndent()}.cornerRadius(${styles.borderRadius})\n`;
     }
     
@@ -718,6 +1078,15 @@ export function transpileToSwiftUI(root: TranspileNode): string {
 // ---------------------------------------------------------------------------
 // JETPACK COMPOSE TRANSPILER
 // ---------------------------------------------------------------------------
+// Spacing/Color theme-aware helpers for Compose
+function toComposeThemeToken(token: string | undefined, fallbackVal: string): string {
+  if (!token) return fallbackVal;
+  if (token === "bgPrimary") return "AppTheme.BackgroundPrimary";
+  if (token === "bgSecondary") return "AppTheme.BackgroundSecondary";
+  const name = token.charAt(0).toUpperCase() + token.slice(1);
+  return `AppTheme.${name}`;
+}
+
 export function transpileToCompose(root: TranspileNode): string {
   let indentLevel = 1;
   const getIndent = () => "    ".repeat(indentLevel);
@@ -727,19 +1096,20 @@ export function transpileToCompose(root: TranspileNode): string {
       return `${getIndent()}Text(text = "${node.replace(/"/g, '\\"')}")\n`;
     }
 
-    const { styles } = root;
+    const { styles } = node;
     const isButton = node.tagName === "button" || node.tagName === "a";
     const isImage = node.tagName === "img";
     const lucide = node.attributes["data-lucide"] || node.attributes["data-drawgle-icon"];
     
     let out = "";
 
-    if (lucide && ICON_MAP[lucide]) {
+    if (lucide) {
+      const tintColor = styles.textColorToken ? toComposeThemeToken(styles.textColorToken, "") : `Color(0xFF${cleanHexColor(styles.textColor)})`;
       out += `${getIndent()}Icon(\n`;
-      out += `${getIndent()}    imageVector = ${ICON_MAP[lucide].compose},\n`;
+      out += `${getIndent()}    imageVector = ${toComposeIconName(lucide)}, // Lucide: ${lucide}\n`;
       out += `${getIndent()}    contentDescription = null,\n`;
-      out += `${getIndent()}    tint = Color(0xFF${cleanHexColor(node.styles.textColor)}),\n`;
-      out += `${getIndent()}    modifier = Modifier.size(${node.styles.fontSize || 24}.dp)\n`;
+      out += `${getIndent()}    tint = ${tintColor},\n`;
+      out += `${getIndent()}    modifier = Modifier.size(${styles.fontSize || 24}.dp)\n`;
       out += `${getIndent()})\n`;
       return out;
     }
@@ -751,33 +1121,42 @@ export function transpileToCompose(root: TranspileNode): string {
       out += `${getIndent()}    contentDescription = null,\n`;
       out += `${getIndent()}    modifier = Modifier\n`;
       
-      const w = node.styles.width;
-      const h = node.styles.height;
+      const w = styles.width;
+      const h = styles.height;
       if (w === "100%") out += `${getIndent()}        .fillMaxWidth()\n`;
       else if (typeof w === "number") out += `${getIndent()}        .width(${w}.dp)\n`;
       if (typeof h === "number") out += `${getIndent()}        .height(${h}.dp)\n`;
-      if (node.styles.borderRadius > 0) {
-        out += `${getIndent()}        .clip(RoundedCornerShape(${node.styles.borderRadius}.dp))\n`;
+      
+      if (styles.borderRadiusToken) {
+        out += `${getIndent()}        .clip(RoundedCornerShape(${toComposeThemeToken(styles.borderRadiusToken, "")}))\n`;
+      } else if (styles.borderRadius > 0) {
+        out += `${getIndent()}        .clip(RoundedCornerShape(${styles.borderRadius}.dp))\n`;
       }
       out += `${getIndent()})\n`;
       return out;
     }
 
     if (isButton) {
+      const containerColor = styles.backgroundColorToken ? toComposeThemeToken(styles.backgroundColorToken, "") : `Color(0xFF${cleanHexColor(styles.backgroundColor)})`;
+      const btnShape = styles.borderRadiusToken ? `RoundedCornerShape(${toComposeThemeToken(styles.borderRadiusToken, "")})` : `RoundedCornerShape(${(styles.borderRadius || 12)}.dp)`;
+      const paddingX = styles.paddingLeftToken ? toComposeThemeToken(styles.paddingLeftToken, "") : `${(styles.padding.left || 16)}.dp`;
+      const paddingY = styles.paddingTopToken ? toComposeThemeToken(styles.paddingTopToken, "") : `${(styles.padding.top || 12)}.dp`;
+
       out += `${getIndent()}Button(\n`;
       out += `${getIndent()}    onClick = { /* Action */ },\n`;
-      out += `${getIndent()}    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF${cleanHexColor(node.styles.backgroundColor)})),\n`;
-      out += `${getIndent()}    shape = RoundedCornerShape(${node.styles.borderRadius || 12}.dp),\n`;
+      out += `${getIndent()}    colors = ButtonDefaults.buttonColors(containerColor = ${containerColor}),\n`;
+      out += `${getIndent()}    shape = ${btnShape},\n`;
       out += `${getIndent()}    modifier = Modifier\n`;
-      if (node.styles.padding.left > 0 || node.styles.padding.top > 0) {
-        out += `${getIndent()}        .padding(horizontal = ${node.styles.padding.left || 16}.dp, vertical = ${node.styles.padding.top || 12}.dp)\n`;
+      if (styles.padding.left > 0 || styles.padding.top > 0 || styles.paddingLeftToken || styles.paddingTopToken) {
+        out += `${getIndent()}        .padding(horizontal = ${paddingX}, vertical = ${paddingY})\n`;
       }
       out += `${getIndent()}) {\n`;
       indentLevel++;
       
       // Inline children
+      const btnGap = styles.gapToken ? toComposeThemeToken(styles.gapToken, "") : `${(styles.gap || 8)}.dp`;
       out += `${getIndent()}Row(\n`;
-      out += `${getIndent()}    horizontalArrangement = Arrangement.spacedBy(${node.styles.gap || 8}.dp),\n`;
+      out += `${getIndent()}    horizontalArrangement = Arrangement.spacedBy(${btnGap}),\n`;
       out += `${getIndent()}    verticalAlignment = Alignment.CenterVertically\n`;
       out += `${getIndent()}) {\n`;
       indentLevel++;
@@ -797,23 +1176,24 @@ export function transpileToCompose(root: TranspileNode): string {
 
     if (isTextLeaf) {
       const textVal = node.children[0] as string;
+      const textTint = styles.textColorToken ? toComposeThemeToken(styles.textColorToken, "") : `Color(0xFF${cleanHexColor(styles.textColor)})`;
       out += `${getIndent()}Text(\n`;
       out += `${getIndent()}    text = "${textVal.replace(/"/g, '\\"')}",\n`;
-      out += `${getIndent()}    fontSize = ${node.styles.fontSize}.sp,\n`;
-      out += `${getIndent()}    color = Color(0xFF${cleanHexColor(node.styles.textColor)}),\n`;
-      if (node.styles.fontWeight === "bold" || node.styles.fontWeight === "semibold") {
+      out += `${getIndent()}    fontSize = ${styles.fontSize}.sp,\n`;
+      out += `${getIndent()}    color = ${textTint},\n`;
+      if (styles.fontWeight === "bold" || styles.fontWeight === "semibold") {
         out += `${getIndent()}    fontWeight = FontWeight.Bold,\n`;
       }
-      if (node.styles.textAlign === "center") {
+      if (styles.textAlign === "center") {
         out += `${getIndent()}    textAlign = TextAlign.Center,\n`;
       }
       
       // Modifier spacing
       out += `${getIndent()}    modifier = Modifier\n`;
-      const mt = node.styles.margin.top;
-      const mb = node.styles.margin.bottom;
-      if (mt > 0 || mb > 0) {
-        out += `${getIndent()}        .padding(top = ${mt}.dp, bottom = ${mb}.dp)\n`;
+      const mt = styles.marginTopToken ? toComposeThemeToken(styles.marginTopToken, "") : `${styles.margin.top}.dp`;
+      const mb = styles.marginBottomToken ? toComposeThemeToken(styles.marginBottomToken, "") : `${styles.margin.bottom}.dp`;
+      if (styles.margin.top > 0 || styles.margin.bottom > 0 || styles.marginTopToken || styles.marginBottomToken) {
+        out += `${getIndent()}        .padding(top = ${mt}, bottom = ${mb})\n`;
       }
       // strip trailing modifiers if not used
       if (out.endsWith("modifier = Modifier\n")) {
@@ -824,44 +1204,54 @@ export function transpileToCompose(root: TranspileNode): string {
     }
 
     // Standard Stack
-    const isCol = node.styles.flexDirection === "column";
+    const isCol = styles.flexDirection === "column";
     const composeLayout = isCol ? "Column" : "Row";
     
     out += `${getIndent()}${composeLayout}(\n`;
     out += `${getIndent()}    modifier = Modifier\n`;
     
-    if (node.styles.width === "100%") out += `${getIndent()}        .fillMaxWidth()\n`;
-    else if (typeof node.styles.width === "number") out += `${getIndent()}        .width(${node.styles.width}.dp)\n`;
-    if (typeof node.styles.height === "number") out += `${getIndent()}        .height(${node.styles.height}.dp)\n`;
+    if (styles.width === "100%") out += `${getIndent()}        .fillMaxWidth()\n`;
+    else if (typeof styles.width === "number") out += `${getIndent()}        .width(${styles.width}.dp)\n`;
+    if (typeof styles.height === "number") out += `${getIndent()}        .height(${styles.height}.dp)\n`;
 
-    if (node.styles.backgroundColor !== "transparent") {
-      out += `${getIndent()}        .background(Color(0xFF${cleanHexColor(node.styles.backgroundColor)}))\n`;
+    if (styles.backgroundColorToken) {
+      out += `${getIndent()}        .background(${toComposeThemeToken(styles.backgroundColorToken, "")})\n`;
+    } else if (styles.backgroundColor !== "transparent") {
+      out += `${getIndent()}        .background(Color(0xFF${cleanHexColor(styles.backgroundColor)}))\n`;
     }
-    if (node.styles.borderRadius > 0) {
-      out += `${getIndent()}        .clip(RoundedCornerShape(${node.styles.borderRadius}.dp))\n`;
+    
+    if (styles.borderRadiusToken) {
+      out += `${getIndent()}        .clip(RoundedCornerShape(${toComposeThemeToken(styles.borderRadiusToken, "")}))\n`;
+    } else if (styles.borderRadius > 0) {
+      out += `${getIndent()}        .clip(RoundedCornerShape(${styles.borderRadius}.dp))\n`;
     }
 
     // Padding
-    const pt = node.styles.padding.top;
-    const pb = node.styles.padding.bottom;
-    const pl = node.styles.padding.left;
-    const pr = node.styles.padding.right;
-    if (pt > 0 || pb > 0 || pl > 0 || pr > 0) {
-      out += `${getIndent()}        .padding(start = ${pl}.dp, top = ${pt}.dp, end = ${pr}.dp, bottom = ${pb}.dp)\n`;
+    const pt = styles.paddingTopToken ? toComposeThemeToken(styles.paddingTopToken, "") : `${styles.padding.top}.dp`;
+    const pb = styles.paddingBottomToken ? toComposeThemeToken(styles.paddingBottomToken, "") : `${styles.padding.bottom}.dp`;
+    const pl = styles.paddingLeftToken ? toComposeThemeToken(styles.paddingLeftToken, "") : `${styles.padding.left}.dp`;
+    const pr = styles.paddingRightToken ? toComposeThemeToken(styles.paddingRightToken, "") : `${styles.padding.right}.dp`;
+
+    if (styles.paddingLeftToken === "screenPadding" && styles.paddingRightToken === "screenPadding") {
+      out += `${getIndent()}        .padding(start = AppTheme.ScreenPadding, top = ${pt}, end = AppTheme.ScreenPadding, bottom = ${pb})\n`;
+    } else if (styles.padding.top > 0 || styles.padding.bottom > 0 || styles.padding.left > 0 || styles.padding.right > 0 ||
+               styles.paddingTopToken || styles.paddingBottomToken || styles.paddingLeftToken || styles.paddingRightToken) {
+      out += `${getIndent()}        .padding(start = ${pl}, top = ${pt}, end = ${pr}, bottom = ${pb})\n`;
     }
 
     // Alignments
+    const gapVal = styles.gapToken ? toComposeThemeToken(styles.gapToken, "") : `${styles.gap}.dp`;
     if (isCol) {
-      const align = node.styles.alignItems === "center" ? "Alignment.CenterHorizontally" : node.styles.alignItems === "end" ? "Alignment.End" : "Alignment.Start";
+      const align = styles.alignItems === "center" ? "Alignment.CenterHorizontally" : styles.alignItems === "end" ? "Alignment.End" : "Alignment.Start";
       out += `${getIndent()}    horizontalAlignment = ${align},\n`;
-      if (node.styles.gap > 0) {
-        out += `${getIndent()}    verticalArrangement = Arrangement.spacedBy(${node.styles.gap}.dp),\n`;
+      if (styles.gap > 0 || styles.gapToken) {
+        out += `${getIndent()}    verticalArrangement = Arrangement.spacedBy(${gapVal}),\n`;
       }
     } else {
-      const align = node.styles.alignItems === "center" ? "Alignment.CenterVertically" : node.styles.alignItems === "end" ? "Alignment.Bottom" : "Alignment.Top";
+      const align = styles.alignItems === "center" ? "Alignment.CenterVertically" : styles.alignItems === "end" ? "Alignment.Bottom" : "Alignment.Top";
       out += `${getIndent()}    verticalAlignment = ${align},\n`;
-      if (node.styles.gap > 0) {
-        out += `${getIndent()}    horizontalArrangement = Arrangement.spacedBy(${node.styles.gap}.dp),\n`;
+      if (styles.gap > 0 || styles.gapToken) {
+        out += `${getIndent()}    horizontalArrangement = Arrangement.spacedBy(${gapVal}),\n`;
       }
     }
 
@@ -887,6 +1277,15 @@ export function transpileToCompose(root: TranspileNode): string {
 // ---------------------------------------------------------------------------
 // REACT NATIVE TRANSPILER
 // ---------------------------------------------------------------------------
+// Spacing/Color theme-aware helpers for React Native
+function toRNThemeToken(token: string | undefined, fallbackVal: string): string {
+  if (!token) return fallbackVal;
+  if (token === "borderRadiusApp") return "AppTheme.radii.app";
+  if (token === "borderRadiusPill") return "AppTheme.radii.pill";
+  if (token === "screenPadding" || token === "sectionGap" || token === "elementGap") return `AppTheme.layout.${token}`;
+  return `AppTheme.colors.${token}`;
+}
+
 export function transpileToReactNative(root: TranspileNode): string {
   let indentLevel = 1;
   const getIndent = () => "  ".repeat(indentLevel);
@@ -903,8 +1302,9 @@ export function transpileToReactNative(root: TranspileNode): string {
     
     let out = "";
 
-    if (lucide && ICON_MAP[lucide]) {
-      out += `${getIndent()}<Icon name="${lucide}" size={${styles.fontSize || 24}} color="${styles.textColor}" />\n`;
+    if (lucide) {
+      const tintColor = styles.textColorToken ? toRNThemeToken(styles.textColorToken, "") : `'${styles.textColor}'`;
+      out += `${getIndent()}<Icon name="${toRNIconName(lucide)}" size={${styles.fontSize || 24}} color={${tintColor}} />\n`;
       return out;
     }
 
@@ -920,20 +1320,34 @@ export function transpileToReactNative(root: TranspileNode): string {
       if (styles.width === "100%") out += `${getIndent()}    width: '100%',\n`;
       else if (typeof styles.width === "number") out += `${getIndent()}    width: ${styles.width},\n`;
       if (typeof styles.height === "number") out += `${getIndent()}    height: ${styles.height},\n`;
-      if (styles.borderRadius > 0) out += `${getIndent()}    borderRadius: ${styles.borderRadius},\n`;
+      
+      if (styles.borderRadiusToken) {
+        out += `${getIndent()}    borderRadius: ${toRNThemeToken(styles.borderRadiusToken, "")},\n`;
+      } else if (styles.borderRadius > 0) {
+        out += `${getIndent()}    borderRadius: ${styles.borderRadius},\n`;
+      }
       out += `${getIndent()}  }}\n`;
       out += `${getIndent()}/>\n`;
       return out;
     }
 
     if (isButton) {
+      const containerColor = styles.backgroundColorToken ? toRNThemeToken(styles.backgroundColorToken, "") : `'${styles.backgroundColor}'`;
+      const btnRadius = styles.borderRadiusToken ? toRNThemeToken(styles.borderRadiusToken, "") : String(styles.borderRadius || 12);
+      const paddingY = styles.paddingTopToken ? toRNThemeToken(styles.paddingTopToken, "") : String(styles.padding.top || 12);
+      const paddingX = styles.paddingLeftToken ? toRNThemeToken(styles.paddingLeftToken, "") : String(styles.padding.left || 16);
+
       out += `${getIndent()}<TouchableOpacity \n`;
       out += `${getIndent()}  onPress={() => {}}\n`;
       out += `${getIndent()}  style={{\n`;
-      if (styles.backgroundColor !== "transparent") out += `${getIndent()}    backgroundColor: '${styles.backgroundColor}',\n`;
-      if (styles.borderRadius > 0) out += `${getIndent()}    borderRadius: ${styles.borderRadius},\n`;
-      out += `${getIndent()}    paddingVertical: ${styles.padding.top || 12},\n`;
-      out += `${getIndent()}    paddingHorizontal: ${styles.padding.left || 16},\n`;
+      if (styles.backgroundColorToken || styles.backgroundColor !== "transparent") {
+        out += `${getIndent()}    backgroundColor: ${containerColor},\n`;
+      }
+      if (styles.borderRadiusToken || styles.borderRadius > 0) {
+        out += `${getIndent()}    borderRadius: ${btnRadius},\n`;
+      }
+      out += `${getIndent()}    paddingVertical: ${paddingY},\n`;
+      out += `${getIndent()}    paddingHorizontal: ${paddingX},\n`;
       out += `${getIndent()}    flexDirection: 'row',\n`;
       out += `${getIndent()}    alignItems: 'center',\n`;
       out += `${getIndent()}    justifyContent: 'center',\n`;
@@ -955,19 +1369,21 @@ export function transpileToReactNative(root: TranspileNode): string {
 
     if (isTextLeaf) {
       const textVal = node.children[0] as string;
+      const textTint = styles.textColorToken ? toRNThemeToken(styles.textColorToken, "") : `'${styles.textColor}'`;
       out += `${getIndent()}<Text style={{\n`;
       out += `${getIndent()}  fontSize: ${styles.fontSize},\n`;
-      out += `${getIndent()}  color: '${styles.textColor}',\n`;
+      out += `${getIndent()}  color: ${textTint},\n`;
       if (styles.fontWeight === "bold" || styles.fontWeight === "semibold") {
         out += `${getIndent()}  fontWeight: 'bold',\n`;
       }
       if (styles.textAlign === "center") {
         out += `${getIndent()}  textAlign: 'center',\n`;
       }
-      const mt = styles.margin.top;
-      const mb = styles.margin.bottom;
-      if (mt > 0) out += `${getIndent()}  marginTop: ${mt},\n`;
-      if (mb > 0) out += `${getIndent()}  marginBottom: ${mb},\n`;
+      
+      const mt = styles.marginTopToken ? toRNThemeToken(styles.marginTopToken, "") : String(styles.margin.top);
+      const mb = styles.marginBottomToken ? toRNThemeToken(styles.marginBottomToken, "") : String(styles.margin.bottom);
+      if (styles.margin.top > 0 || styles.marginTopToken) out += `${getIndent()}  marginTop: ${mt},\n`;
+      if (styles.margin.bottom > 0 || styles.marginBottomToken) out += `${getIndent()}  marginBottom: ${mb},\n`;
       
       out += `${getIndent()}}}>\n`;
       out += `${getIndent()}  ${textVal.replace(/"/g, '\\"')}\n`;
@@ -985,25 +1401,43 @@ export function transpileToReactNative(root: TranspileNode): string {
       const justify = styles.justifyContent === "center" ? "center" : styles.justifyContent === "end" ? "flex-end" : styles.justifyContent === "between" ? "space-between" : "space-around";
       out += `${getIndent()}  justifyContent: '${justify}',\n`;
     }
-    if (styles.gap > 0) {
-      out += `${getIndent()}  gap: ${styles.gap},\n`;
+    
+    if (styles.gap > 0 || styles.gapToken) {
+      const gapVal = styles.gapToken ? toRNThemeToken(styles.gapToken, "") : String(styles.gap);
+      out += `${getIndent()}  gap: ${gapVal},\n`;
     }
     if (styles.width === "100%") out += `${getIndent()}  width: '100%',\n`;
     else if (typeof styles.width === "number") out += `${getIndent()}  width: ${styles.width},\n`;
     if (typeof styles.height === "number") out += `${getIndent()}  height: ${styles.height},\n`;
 
-    if (styles.backgroundColor !== "transparent") {
+    if (styles.backgroundColorToken) {
+      out += `${getIndent()}  backgroundColor: ${toRNThemeToken(styles.backgroundColorToken, "")},\n`;
+    } else if (styles.backgroundColor !== "transparent") {
       out += `${getIndent()}  backgroundColor: '${styles.backgroundColor}',\n`;
     }
-    if (styles.borderRadius > 0) {
+    
+    if (styles.borderRadiusToken) {
+      out += `${getIndent()}  borderRadius: ${toRNThemeToken(styles.borderRadiusToken, "")},\n`;
+    } else if (styles.borderRadius > 0) {
       out += `${getIndent()}  borderRadius: ${styles.borderRadius},\n`;
     }
 
     // Padding
-    if (styles.padding.top > 0) out += `${getIndent()}  paddingTop: ${styles.padding.top},\n`;
-    if (styles.padding.bottom > 0) out += `${getIndent()}  paddingBottom: ${styles.padding.bottom},\n`;
-    if (styles.padding.left > 0) out += `${getIndent()}  paddingLeft: ${styles.padding.left},\n`;
-    if (styles.padding.right > 0) out += `${getIndent()}  paddingRight: ${styles.padding.right},\n`;
+    const pt = styles.paddingTopToken ? toRNThemeToken(styles.paddingTopToken, "") : String(styles.padding.top);
+    const pb = styles.paddingBottomToken ? toRNThemeToken(styles.paddingBottomToken, "") : String(styles.padding.bottom);
+    const pl = styles.paddingLeftToken ? toRNThemeToken(styles.paddingLeftToken, "") : String(styles.padding.left);
+    const pr = styles.paddingRightToken ? toRNThemeToken(styles.paddingRightToken, "") : String(styles.padding.right);
+
+    if (styles.paddingLeftToken === "screenPadding" && styles.paddingRightToken === "screenPadding") {
+      out += `${getIndent()}  paddingHorizontal: AppTheme.layout.screenPadding,\n`;
+      if (styles.padding.top > 0 || styles.paddingTopToken) out += `${getIndent()}  paddingTop: ${pt},\n`;
+      if (styles.padding.bottom > 0 || styles.paddingBottomToken) out += `${getIndent()}  paddingBottom: ${pb},\n`;
+    } else {
+      if (styles.padding.top > 0 || styles.paddingTopToken) out += `${getIndent()}  paddingTop: ${pt},\n`;
+      if (styles.padding.bottom > 0 || styles.paddingBottomToken) out += `${getIndent()}  paddingBottom: ${pb},\n`;
+      if (styles.padding.left > 0 || styles.paddingLeftToken) out += `${getIndent()}  paddingLeft: ${pl},\n`;
+      if (styles.padding.right > 0 || styles.paddingRightToken) out += `${getIndent()}  paddingRight: ${pr},\n`;
+    }
 
     out += `${getIndent()}}}>\n`;
     indentLevel++;
@@ -1023,6 +1457,14 @@ export function transpileToReactNative(root: TranspileNode): string {
 // ---------------------------------------------------------------------------
 // FLUTTER TRANSPILER
 // ---------------------------------------------------------------------------
+// Spacing/Color theme-aware helpers for Flutter
+function toFlutterThemeToken(token: string | undefined, fallbackVal: string): string {
+  if (!token) return fallbackVal;
+  if (token === "bgPrimary") return "AppTheme.backgroundPrimary";
+  if (token === "bgSecondary") return "AppTheme.backgroundSecondary";
+  return `AppTheme.${token}`;
+}
+
 export function transpileToFlutter(root: TranspileNode): string {
   let indentLevel = 1;
   const getIndent = () => "  ".repeat(indentLevel);
@@ -1039,15 +1481,17 @@ export function transpileToFlutter(root: TranspileNode): string {
     
     let out = "";
 
-    if (lucide && ICON_MAP[lucide]) {
-      out += `${getIndent()}Icon(${ICON_MAP[lucide].flutter}, size: ${styles.fontSize || 24}.0, color: Color(0xFF${cleanHexColor(styles.textColor)}))\n`;
+    if (lucide) {
+      const tintColor = styles.textColorToken ? toFlutterThemeToken(styles.textColorToken, "") : `Color(0xFF${cleanHexColor(styles.textColor)})`;
+      out += `${getIndent()}Icon(${toFlutterIconName(lucide)}, size: ${styles.fontSize || 24}.0, color: ${tintColor})\n`;
       return out;
     }
 
     if (isImage) {
       const src = node.attributes["src"] || "https://images.unsplash.com/photo-1579546929518-9e396f3cc809";
+      const rad = styles.borderRadiusToken ? toFlutterThemeToken(styles.borderRadiusToken, "") : `${(styles.borderRadius || 0)}.0`;
       out += `${getIndent()}ClipRRect(\n`;
-      out += `${getIndent()}  borderRadius: BorderRadius.circular(${styles.borderRadius || 0}.0),\n`;
+      out += `${getIndent()}  borderRadius: BorderRadius.circular(${rad}),\n`;
       out += `${getIndent()}  child: Image.network(\n`;
       out += `${getIndent()}    '${src}',\n`;
       if (typeof styles.width === "number") out += `${getIndent()}    width: ${styles.width}.0,\n`;
@@ -1059,14 +1503,19 @@ export function transpileToFlutter(root: TranspileNode): string {
     }
 
     if (isButton) {
+      const containerColor = styles.backgroundColorToken ? toFlutterThemeToken(styles.backgroundColorToken, "") : `Color(0xFF${cleanHexColor(styles.backgroundColor)})`;
+      const btnRadius = styles.borderRadiusToken ? toFlutterThemeToken(styles.borderRadiusToken, "") : `${(styles.borderRadius || 12)}.0`;
+      const paddingX = styles.paddingLeftToken ? toFlutterThemeToken(styles.paddingLeftToken, "") : `${(styles.padding.left || 16)}.0`;
+      const paddingY = styles.paddingTopToken ? toFlutterThemeToken(styles.paddingTopToken, "") : `${(styles.padding.top || 12)}.0`;
+
       out += `${getIndent()}ElevatedButton(\n`;
       out += `${getIndent()}  onPressed: () {},\n`;
       out += `${getIndent()}  style: ElevatedButton.styleFrom(\n`;
-      out += `${getIndent()}    backgroundColor: Color(0xFF${cleanHexColor(styles.backgroundColor)}),\n`;
+      out += `${getIndent()}    backgroundColor: ${containerColor},\n`;
       out += `${getIndent()}    shape: RoundedRectangleBorder(\n`;
-      out += `${getIndent()}      borderRadius: BorderRadius.circular(${styles.borderRadius || 12}.0),\n`;
+      out += `${getIndent()}      borderRadius: BorderRadius.circular(${btnRadius}),\n`;
       out += `${getIndent()}    ),\n`;
-      out += `${getIndent()}    padding: EdgeInsets.symmetric(horizontal: ${styles.padding.left || 16}.0, vertical: ${styles.padding.top || 12}.0),\n`;
+      out += `${getIndent()}    padding: EdgeInsets.symmetric(horizontal: ${paddingX}, vertical: ${paddingY}),\n`;
       out += `${getIndent()}  ),\n`;
       out += `${getIndent()}  child: Row(\n`;
       out += `${getIndent()}    mainAxisSize: MainAxisSize.min,\n`;
@@ -1074,7 +1523,11 @@ export function transpileToFlutter(root: TranspileNode): string {
       indentLevel += 3;
       node.children.forEach((c, idx) => {
         out += walk(c);
-        if (idx < node.children.length - 1) out = out.trimEnd() + ",\n";
+        if (idx < node.children.length - 1) {
+          out = out.trimEnd() + ",\n";
+          const btnGap = styles.gapToken ? toFlutterThemeToken(styles.gapToken, "") : `${(styles.gap || 8)}.0`;
+          out += `${getIndent()}SizedBox(width: ${btnGap}),\n`;
+        }
       });
       indentLevel -= 3;
       out += `${getIndent()}    ],\n`;
@@ -1088,11 +1541,12 @@ export function transpileToFlutter(root: TranspileNode): string {
 
     if (isTextLeaf) {
       const textVal = node.children[0] as string;
+      const textTint = styles.textColorToken ? toFlutterThemeToken(styles.textColorToken, "") : `Color(0xFF${cleanHexColor(styles.textColor)})`;
       out += `${getIndent()}Text(\n`;
       out += `${getIndent()}  '${textVal.replace(/'/g, "\\'")}',\n`;
       out += `${getIndent()}  style: TextStyle(\n`;
       out += `${getIndent()}    fontSize: ${styles.fontSize}.0,\n`;
-      out += `${getIndent()}    color: Color(0xFF${cleanHexColor(styles.textColor)}),\n`;
+      out += `${getIndent()}    color: ${textTint},\n`;
       if (styles.fontWeight === "bold" || styles.fontWeight === "semibold") {
         out += `${getIndent()}    fontWeight: FontWeight.bold,\n`;
       }
@@ -1103,11 +1557,11 @@ export function transpileToFlutter(root: TranspileNode): string {
       out += `${getIndent()})\n`;
       
       // Wrap with Padding if margins exist
-      const mt = styles.margin.top;
-      const mb = styles.margin.bottom;
-      if (mt > 0 || mb > 0) {
+      const mt = styles.marginTopToken ? toFlutterThemeToken(styles.marginTopToken, "") : `${styles.margin.top}.0`;
+      const mb = styles.marginBottomToken ? toFlutterThemeToken(styles.marginBottomToken, "") : `${styles.margin.bottom}.0`;
+      if (styles.margin.top > 0 || styles.margin.bottom > 0 || styles.marginTopToken || styles.marginBottomToken) {
         out = `${getIndent()}Padding(\n` +
-              `${getIndent()}  padding: EdgeInsets.only(top: ${mt}.0, bottom: ${mb}.0),\n` +
+              `${getIndent()}  padding: EdgeInsets.only(top: ${mt}, bottom: ${mb}),\n` +
               `${getIndent()}  child: ${out.trim()},\n` +
               `${getIndent()})\n`;
       }
@@ -1122,17 +1576,26 @@ export function transpileToFlutter(root: TranspileNode): string {
     let decoration = "";
     
     // Determine decoration
-    if (styles.backgroundColor !== "transparent" || styles.borderRadius > 0 || styles.borderWidth > 0) {
+    if (styles.backgroundColorToken || styles.backgroundColor !== "transparent" || 
+        styles.borderRadiusToken || styles.borderRadius > 0 || 
+        styles.borderColorToken || styles.borderWidth > 0) {
       containerWrap = true;
       decoration += `    decoration: BoxDecoration(\n`;
-      if (styles.backgroundColor !== "transparent") {
+      if (styles.backgroundColorToken) {
+        decoration += `      color: ${toFlutterThemeToken(styles.backgroundColorToken, "")},\n`;
+      } else if (styles.backgroundColor !== "transparent") {
         decoration += `      color: Color(0xFF${cleanHexColor(styles.backgroundColor)}),\n`;
       }
-      if (styles.borderRadius > 0) {
+      
+      if (styles.borderRadiusToken) {
+        decoration += `      borderRadius: BorderRadius.circular(${toFlutterThemeToken(styles.borderRadiusToken, "")}),\n`;
+      } else if (styles.borderRadius > 0) {
         decoration += `      borderRadius: BorderRadius.circular(${styles.borderRadius}.0),\n`;
       }
-      if (styles.borderWidth > 0) {
-        decoration += `      border: Border.all(color: Color(0xFF${cleanHexColor(styles.borderColor)}), width: ${styles.borderWidth}.0),\n`;
+      
+      if (styles.borderColorToken || styles.borderWidth > 0) {
+        const borderCol = styles.borderColorToken ? toFlutterThemeToken(styles.borderColorToken, "") : `Color(0xFF${cleanHexColor(styles.borderColor)})`;
+        decoration += `      border: Border.all(color: ${borderCol}, width: ${styles.borderWidth || 1}.0),\n`;
       }
       decoration += `    ),\n`;
     }
@@ -1142,13 +1605,18 @@ export function transpileToFlutter(root: TranspileNode): string {
     if (typeof styles.width === "number") sizeAttrs += `    width: ${styles.width}.0,\n`;
     if (typeof styles.height === "number") sizeAttrs += `    height: ${styles.height}.0,\n`;
     
-    const pt = styles.padding.top;
-    const pb = styles.padding.bottom;
-    const pl = styles.padding.left;
-    const pr = styles.padding.right;
+    const pt = styles.paddingTopToken ? toFlutterThemeToken(styles.paddingTopToken, "") : `${styles.padding.top}.0`;
+    const pb = styles.paddingBottomToken ? toFlutterThemeToken(styles.paddingBottomToken, "") : `${styles.padding.bottom}.0`;
+    const pl = styles.paddingLeftToken ? toFlutterThemeToken(styles.paddingLeftToken, "") : `${styles.padding.left}.0`;
+    const pr = styles.paddingRightToken ? toFlutterThemeToken(styles.paddingRightToken, "") : `${styles.padding.right}.0`;
     let paddingWrap = "";
-    if (pt > 0 || pb > 0 || pl > 0 || pr > 0) {
-      paddingWrap = `    padding: EdgeInsets.only(left: ${pl}.0, top: ${pt}.0, right: ${pr}.0, bottom: ${pb}.0),\n`;
+
+    if (styles.paddingLeftToken === "screenPadding" && styles.paddingRightToken === "screenPadding") {
+      paddingWrap = `    padding: EdgeInsets.only(left: AppTheme.screenPadding, top: ${pt}, right: AppTheme.screenPadding, bottom: ${pb}),\n`;
+      containerWrap = true;
+    } else if (styles.padding.top > 0 || styles.padding.bottom > 0 || styles.padding.left > 0 || styles.padding.right > 0 ||
+               styles.paddingTopToken || styles.paddingBottomToken || styles.paddingLeftToken || styles.paddingRightToken) {
+      paddingWrap = `    padding: EdgeInsets.only(left: ${pl}, top: ${pt}, right: ${pr}, bottom: ${pb}),\n`;
       containerWrap = true;
     }
 
@@ -1179,8 +1647,9 @@ export function transpileToFlutter(root: TranspileNode): string {
       if (idx < node.children.length - 1) {
         out = out.trimEnd() + ",\n";
         // Handle spacing between children (gap representation in Flutter)
-        if (styles.gap > 0) {
-          const gapSize = isCol ? `height: ${styles.gap}.0` : `width: ${styles.gap}.0`;
+        if (styles.gap > 0 || styles.gapToken) {
+          const gapVal = styles.gapToken ? toFlutterThemeToken(styles.gapToken, "") : `${styles.gap}.0`;
+          const gapSize = isCol ? `height: ${gapVal}` : `width: ${gapVal}`;
           out += `${getIndent()}SizedBox(${gapSize}),\n`;
         }
       }
