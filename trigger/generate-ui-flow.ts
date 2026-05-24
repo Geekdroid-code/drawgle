@@ -1480,16 +1480,6 @@ export const generateUiFlowTask = task({
       throw new Error(errorMessage);
     }
 
-    const deduction = await adminCreditService.deductCredits(
-      payload.ownerId,
-      requiredCredits,
-      `Generated ${screenPlans.length} screens for project`
-    );
-
-    if (!deduction.success) {
-      throw new Error(deduction.error || "Failed to deduct credits");
-    }
-
     const reservedSlots = await reserveScreenSlots(admin, payload.projectId, screenPlans.length);
 
     await updateGenerationRun(admin, payload.generationRunId, {
@@ -1706,6 +1696,29 @@ export const generateUiFlowTask = task({
           },
           rowInserted ? screenId : undefined,
         );
+      }
+    }
+
+    // Deduct credits for successful screens finally saved in Supabase
+    if (successfulScreens > 0) {
+      const actualCost = successfulScreens * 30;
+      const deductionResult = await adminCreditService.deductCredits(
+        payload.ownerId,
+        actualCost,
+        `Generated ${successfulScreens} successful screen${successfulScreens === 1 ? "" : "s"} for project`
+      );
+      if (!deductionResult.success) {
+        logger.error("Failed to deduct credits for successful screens", {
+          ownerId: payload.ownerId,
+          actualCost,
+          error: deductionResult.error,
+        });
+      } else {
+        logger.info("Successfully deducted credits for successful screens", {
+          ownerId: payload.ownerId,
+          actualCost,
+          newBalance: deductionResult.newBalance,
+        });
       }
     }
 

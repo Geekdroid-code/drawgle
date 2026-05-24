@@ -331,12 +331,7 @@ function ProjectMenuItem({
                 {time}
               </span>
             </span>
-            <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] leading-4 text-neutral-500">
-              <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", getStatusDotClass(project.status))} />
-              <span className="min-w-0 truncate">{context}</span>
-              <span className="shrink-0 text-neutral-300">/</span>
-              <span className="shrink-0">{status}</span>
-            </span>
+            
           </span>
         )}
       />

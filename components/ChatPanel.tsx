@@ -1102,7 +1102,7 @@ function DesignTab({
 
   return (
     <div className="dg-token-editor-muted flex min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 [scrollbar-gutter:stable]">
         <DesignSystemEditor
           value={tokenDraft}
           onChange={onTokenDraftChange}

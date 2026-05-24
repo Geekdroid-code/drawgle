@@ -647,12 +647,12 @@ export function DesignSystemEditor({
 
 function TokenGroup({ label, children, panel = false }: { label: string; children: ReactNode; panel?: boolean }) {
   return (
-    <div className={`${panel ? "overflow-hidden rounded-[14px]" : "rounded-[14px] p-3"} border border-slate-950/[0.08] bg-[#fbfbfc]`}>
-      <div className={`${panel ? "border-b border-slate-950/[0.06] bg-white/65 px-3 py-2" : "mb-3"} flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500`}>
+    <div className={`${panel ? "overflow-hidden rounded-[14px]" : "rounded-[14px] p-3"} border border-slate-950/[0.08] bg-[#fbfbfc] dark:border-white/[0.10] dark:bg-[#1b1e25]`}>
+      <div className={`${panel ? "border-b border-slate-950/[0.06] bg-white/65 px-3 py-2 dark:border-white/[0.08] dark:bg-[#222630]" : "mb-3"} flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-[#8f98aa]`}>
         <Layers className="h-3.5 w-3.5" />
         {label}
       </div>
-      <div className={`${panel ? "divide-y divide-slate-950/[0.06]" : "grid gap-2 grid-cols-2 sm:grid-cols-3"}`}>{children}</div>
+      <div className={`${panel ? "divide-y divide-slate-950/[0.06] dark:divide-white/[0.07]" : "grid gap-2 grid-cols-2 sm:grid-cols-3"}`}>{children}</div>
     </div>
   );
 }
@@ -761,7 +761,7 @@ export function ColorPickerButton({
 
       {isOpen && typeof document !== "undefined" ? createPortal(
         <div
-          className="dg-token-popover fixed z-[110] overflow-y-auto rounded-[18px] border border-slate-950/[0.1] bg-white p-3 shadow-[0_28px_80px_-42px_rgba(15,23,42,0.9)]"
+          className="dg-token-popover fixed z-[110] overflow-y-auto rounded-[18px] border border-slate-950/[0.1] bg-white p-3 shadow-[0_28px_80px_-42px_rgba(15,23,42,0.9)] dark:border-white/[0.10] dark:bg-[#1b1e25] dark:shadow-[0_28px_90px_-42px_rgba(0,0,0,0.95)]"
           style={{
             left: pickerStyle.left,
             top: pickerStyle.top,
@@ -776,7 +776,7 @@ export function ColorPickerButton({
             aria-valuemax={100}
             aria-valuenow={Math.round(hsv.s * 100)}
             tabIndex={0}
-            className="relative h-28 cursor-crosshair overflow-hidden rounded-[14px] border border-slate-950/[0.08]"
+            className="relative h-28 cursor-crosshair overflow-hidden rounded-[14px] border border-slate-950/[0.08] dark:border-white/[0.10]"
             style={{
               backgroundColor: rgbToHex(hsvToRgb({ h: hsv.h, s: 1, v: 1 })),
               backgroundImage: "linear-gradient(90deg, #FFFFFF, rgba(255,255,255,0)), linear-gradient(0deg, #000000, rgba(0,0,0,0))",
@@ -798,7 +798,7 @@ export function ColorPickerButton({
           </div>
 
           <div className="mt-3 grid grid-cols-[36px_minmax(0,1fr)] items-center gap-3">
-            <div className="h-9 w-9 rounded-[12px] border border-slate-950/[0.1] shadow-inner" style={{ backgroundColor: normalizedValue }} />
+            <div className="h-9 w-9 rounded-[12px] border border-slate-950/[0.1] shadow-inner dark:border-white/[0.12]" style={{ backgroundColor: normalizedValue }} />
             <input
               type="range"
               min={0}
@@ -811,17 +811,17 @@ export function ColorPickerButton({
 
           <div className="mt-3 grid grid-cols-[minmax(0,1fr)_76px] items-end gap-2">
             <label className="space-y-1">
-              <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Hex</span>
+              <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-[#8f98aa]">Hex</span>
               <input
                 type="text"
                 value={hexDraft}
                 onChange={(event) => commitHex(event.target.value)}
-                className={`h-9 w-full rounded-[10px] border bg-[#fbfbfc] px-2 font-mono text-xs uppercase outline-none transition focus:bg-white ${isHexValid ? "border-slate-950/[0.08] focus:border-[#002fa7]/40" : "border-rose-300 text-rose-600"}`}
+                className={`h-9 w-full rounded-[10px] border bg-[#fbfbfc] px-2 font-mono text-xs uppercase outline-none transition focus:bg-white dark:bg-[#252a34] dark:text-[#e7ebf3] dark:focus:bg-[#2b303b] ${isHexValid ? "border-slate-950/[0.08] focus:border-[#002fa7]/40 dark:border-white/[0.10] dark:focus:border-[#7c8cff]/45" : "border-rose-300 text-rose-600 dark:border-rose-400/40 dark:text-rose-200"}`}
               />
             </label>
             <button
               type="button"
-              className="h-9 rounded-[11px] border border-slate-950/[0.08] bg-slate-950 px-3 text-xs font-semibold text-white transition hover:bg-slate-800"
+              className="h-9 rounded-[11px] border border-slate-950/[0.08] bg-slate-950 px-3 text-xs font-semibold text-white transition hover:bg-slate-800 dark:border-white/[0.10] dark:bg-[#e7ebf3] dark:text-[#111827] dark:hover:bg-white"
               onClick={() => setIsOpen(false)}
             >
               Done
@@ -870,25 +870,25 @@ function ColorField({
   if (panel) {
     return (
       <div className="relative" title={tokenPathLabel ? `${tokenPathLabel}${cssVariableName ? ` / ${cssVariableName}` : ""}` : undefined}>
-        <div className={`group flex min-h-[50px] items-center gap-3 bg-white px-3 py-2 transition hover:bg-[#f8fafc] ${isHexValid ? "" : "bg-rose-50"}`}>
+        <div className={`group flex min-h-[50px] items-center gap-3 bg-white px-3 py-2 transition hover:bg-[#f8fafc] dark:bg-[#1b1e25] dark:hover:bg-[#222630] ${isHexValid ? "" : "bg-rose-50 dark:bg-rose-950/25"}`}>
           <ColorPickerButton
             label={label}
             value={normalizedValue}
             onChange={commitPickerColor}
-            className="h-8 w-8 shrink-0 rounded-full border border-slate-950/[0.1] shadow-inner ring-2 ring-white"
+            className="h-8 w-8 shrink-0 rounded-full border border-slate-950/[0.1] shadow-inner ring-2 ring-white dark:border-white/[0.12] dark:ring-[#2a2f39]"
           />
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[13px] font-semibold text-slate-900">{label}</div>
-            <div className="mt-0.5 truncate text-[11px] text-slate-500">Tap swatch to edit</div>
+            <div className="truncate text-[13px] font-semibold text-slate-900 dark:text-[#e7ebf3]">{label}</div>
+            <div className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-[#8f98aa]">Tap swatch to edit</div>
           </div>
           <input
             type="text"
             value={hexDraft}
             aria-label={`${label} hex value`}
             onChange={(event) => commitHex(event.target.value)}
-            className="h-8 w-[92px] shrink-0 rounded-[9px] border border-transparent bg-transparent px-2 text-right font-mono text-[11px] uppercase text-slate-500 outline-none transition focus:border-slate-950/[0.1] focus:bg-white focus:text-slate-950"
+            className="h-8 w-[92px] shrink-0 rounded-[9px] border border-transparent bg-transparent px-2 text-right font-mono text-[11px] uppercase text-slate-500 outline-none transition focus:border-slate-950/[0.1] focus:bg-white focus:text-slate-950 dark:text-[#aab3c2] dark:focus:border-white/[0.12] dark:focus:bg-[#252a34] dark:focus:text-[#f4f7fb]"
           />
-          <ChevronDown className="h-3.5 w-3.5 shrink-0 -rotate-90 text-slate-300 transition group-hover:text-slate-500" />
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 -rotate-90 text-slate-300 transition group-hover:text-slate-500 dark:text-[#5f6878] dark:group-hover:text-[#aab3c2]" />
         </div>
       </div>
     );
@@ -940,13 +940,13 @@ function TextField({
 }) {
   if (panel) {
     return (
-      <label className="grid min-h-[58px] w-full gap-2 bg-white px-3 py-2.5 sm:grid-cols-[minmax(0,0.52fr)_minmax(0,1fr)] sm:items-center">
-        <span className="truncate text-[13px] font-semibold capitalize text-slate-900">{label}</span>
+      <label className="grid min-h-[58px] w-full gap-2 bg-white px-3 py-2.5 dark:bg-[#1b1e25] sm:grid-cols-[minmax(0,0.52fr)_minmax(0,1fr)] sm:items-center">
+        <span className="truncate text-[13px] font-semibold capitalize text-slate-900 dark:text-[#e7ebf3]">{label}</span>
         <input
           type="text"
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="h-9 min-w-0 rounded-[10px] border border-slate-950/[0.08] bg-[#fbfbfc] px-2.5 font-mono text-xs text-slate-900 outline-none transition focus:border-[#002fa7]/40 focus:bg-white"
+          className="h-9 min-w-0 rounded-[10px] border border-slate-950/[0.08] bg-[#fbfbfc] px-2.5 font-mono text-xs text-slate-900 outline-none transition focus:border-[#002fa7]/40 focus:bg-white dark:border-white/[0.10] dark:bg-[#252a34] dark:text-[#e7ebf3] dark:focus:border-[#7c8cff]/45 dark:focus:bg-[#2b303b]"
         />
       </label>
     );
@@ -1008,11 +1008,11 @@ function FontFamilyField({
 
   if (panel) {
     return (
-      <div className="grid gap-2 bg-white px-3 py-2.5">
+      <div className="grid gap-2 bg-white px-3 py-2.5 dark:bg-[#1b1e25]">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="truncate text-[13px] font-semibold text-slate-900">Primary font</div>
-            <div className="mt-0.5 text-[11px] text-slate-500">Accepts a font name or CSS font stack</div>
+            <div className="truncate text-[13px] font-semibold text-slate-900 dark:text-[#e7ebf3]">Primary font</div>
+            <div className="mt-0.5 text-[11px] text-slate-500 dark:text-[#8f98aa]">Accepts a font name or CSS font stack</div>
           </div>
         </div>
         <input
@@ -1030,7 +1030,7 @@ function FontFamilyField({
           }}
           onKeyDown={stopTextEntryShortcutPropagation}
           onKeyUp={stopTextEntryShortcutPropagation}
-          className="h-9 min-w-0 rounded-[10px] border border-slate-950/[0.08] bg-[#fbfbfc] px-2.5 font-mono text-xs text-slate-900 outline-none transition focus:border-[#002fa7]/40 focus:bg-white"
+          className="h-9 min-w-0 rounded-[10px] border border-slate-950/[0.08] bg-[#fbfbfc] px-2.5 font-mono text-xs text-slate-900 outline-none transition focus:border-[#002fa7]/40 focus:bg-white dark:border-white/[0.10] dark:bg-[#252a34] dark:text-[#e7ebf3] dark:placeholder:text-[#606a7a] dark:focus:border-[#7c8cff]/45 dark:focus:bg-[#2b303b]"
         />
         {options.length ? (
           <div className="flex min-w-0 flex-wrap gap-1.5">
@@ -1038,7 +1038,7 @@ function FontFamilyField({
               <button
                 key={font}
                 type="button"
-                className="max-w-full truncate rounded-full border border-slate-950/[0.08] bg-[#fbfbfc] px-2.5 py-1 text-[11px] font-medium text-slate-600 transition hover:border-slate-950/[0.16] hover:bg-white hover:text-slate-950"
+                className="max-w-full truncate rounded-full border border-slate-950/[0.08] bg-[#fbfbfc] px-2.5 py-1 text-[11px] font-medium text-slate-600 transition hover:border-slate-950/[0.16] hover:bg-white hover:text-slate-950 dark:border-white/[0.10] dark:bg-[#252a34] dark:text-[#c6cedb] dark:hover:border-white/[0.16] dark:hover:bg-[#2b303b] dark:hover:text-white"
                 onClick={() => commitFont(font)}
               >
                 {font}
@@ -1104,21 +1104,21 @@ function TypographyRow({
 
   if (panel) {
     return (
-      <div className="bg-white">
+      <div className="bg-white dark:bg-[#1b1e25]">
         <button
           type="button"
-          className="flex min-h-[54px] w-full items-center justify-between gap-3 px-3 py-2 text-left transition hover:bg-[#f8fafc]"
+          className="flex min-h-[54px] w-full items-center justify-between gap-3 px-3 py-2 text-left transition hover:bg-[#f8fafc] dark:hover:bg-[#222630]"
           onClick={() => setExpanded((current) => !current)}
         >
           <div className="min-w-0">
-            <div className="truncate text-[13px] font-semibold text-slate-900">{label}</div>
-            <div className="mt-0.5 truncate text-[11px] text-slate-500">
+            <div className="truncate text-[13px] font-semibold text-slate-900 dark:text-[#e7ebf3]">{label}</div>
+            <div className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-[#8f98aa]">
               Size {sizeNumber}px · Line {lineNumber}px · Weight {resolvedWeight}
             </div>
           </div>
           <div className="flex min-w-0 shrink-0 items-center gap-2">
             <div
-              className="max-w-[148px] truncate rounded-[10px] bg-[#f4f6f8] px-2.5 py-1.5 text-slate-950"
+              className="max-w-[148px] truncate rounded-[10px] bg-[#f4f6f8] px-2.5 py-1.5 text-slate-950 dark:border dark:border-white/[0.08] dark:bg-[#252a34] dark:text-[#eef2f8]"
               style={{
                 fontSize: `${Math.min(sizeNumber, 30)}px`,
                 fontWeight: Number(resolvedWeight),
@@ -1127,11 +1127,11 @@ function TypographyRow({
             >
               {sample}
             </div>
-            <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition ${expanded ? "rotate-180" : ""}`} />
+            <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition dark:text-[#6f7888] ${expanded ? "rotate-180" : ""}`} />
           </div>
         </button>
         {expanded ? (
-          <div className="grid gap-2 border-t border-slate-950/[0.06] bg-[#fbfbfc] px-3 py-2.5">
+          <div className="grid gap-2 border-t border-slate-950/[0.06] bg-[#fbfbfc] px-3 py-2.5 dark:border-white/[0.08] dark:bg-[#151820]">
             <PanelControl label="Size">
               <TokenMetricField
                 label={`${label} size`}
@@ -1216,26 +1216,26 @@ function SpacingMetricRow({
 
   if (panel) {
     return (
-      <div className="bg-white">
+      <div className="bg-white dark:bg-[#1b1e25]">
         <button
           type="button"
-          className="flex min-h-[52px] w-full items-center gap-3 px-3 py-2 text-left transition hover:bg-[#f8fafc]"
+          className="flex min-h-[52px] w-full items-center gap-3 px-3 py-2 text-left transition hover:bg-[#f8fafc] dark:hover:bg-[#222630]"
           onClick={() => setExpanded((current) => !current)}
         >
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[13px] font-semibold capitalize text-slate-900">{label}</div>
-            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[#e9edf2]">
+            <div className="truncate text-[13px] font-semibold capitalize text-slate-900 dark:text-[#e7ebf3]">{label}</div>
+            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[#e9edf2] dark:bg-[#2a303a]">
               <div
-                className="h-full rounded-full bg-slate-950 transition-all"
+                className="h-full rounded-full bg-slate-950 transition-all dark:bg-[#d7ddea]"
                 style={{ width: `${clampNumber((numericValue / max) * 100, 4, 100)}%` }}
               />
             </div>
           </div>
-          <span className="shrink-0 rounded-full bg-[#f1f3f6] px-2 py-1 font-mono text-[11px] text-slate-600">{serializePixelToken(numericValue, min, max)}</span>
-          <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition ${expanded ? "rotate-180" : ""}`} />
+          <span className="shrink-0 rounded-full bg-[#f1f3f6] px-2 py-1 font-mono text-[11px] text-slate-600 dark:bg-[#252a34] dark:text-[#c6cedb]">{serializePixelToken(numericValue, min, max)}</span>
+          <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition dark:text-[#6f7888] ${expanded ? "rotate-180" : ""}`} />
         </button>
         {expanded ? (
-          <div className="grid gap-2 border-t border-slate-950/[0.06] bg-[#fbfbfc] px-3 py-3">
+          <div className="grid gap-2 border-t border-slate-950/[0.06] bg-[#fbfbfc] px-3 py-3 dark:border-white/[0.08] dark:bg-[#151820]">
             <TokenMetricField label={label} value={value} min={min} max={max} onChange={onChange} />
             <SpacingPreview value={numericValue} variant={preview} />
           </div>
@@ -1264,9 +1264,9 @@ function SpacingMetricRow({
 function SpacingPreview({ value, variant }: { value: number; variant: "spacing" | "layout" | "component" }) {
   if (variant === "layout") {
     return (
-      <div className="flex h-12 items-center justify-center rounded-[10px] border border-slate-950/[0.06] bg-[#fbfbfc] p-1.5">
-        <div className="h-full w-16 rounded-[8px] border border-slate-300 bg-white p-1" style={{ padding: clampNumber(value / 4, 2, 12) }}>
-          <div className="h-full rounded-[5px] bg-slate-950/[0.12]" />
+      <div className="flex h-12 items-center justify-center rounded-[10px] border border-slate-950/[0.06] bg-[#fbfbfc] p-1.5 dark:border-white/[0.08] dark:bg-[#252a34]">
+        <div className="h-full w-16 rounded-[8px] border border-slate-300 bg-white p-1 dark:border-white/[0.12] dark:bg-[#171a21]" style={{ padding: clampNumber(value / 4, 2, 12) }}>
+          <div className="h-full rounded-[5px] bg-slate-950/[0.12] dark:bg-white/[0.14]" />
         </div>
       </div>
     );
@@ -1274,27 +1274,27 @@ function SpacingPreview({ value, variant }: { value: number; variant: "spacing" 
 
   if (variant === "component") {
     return (
-      <div className="flex h-12 items-center justify-center rounded-[10px] border border-slate-950/[0.06] bg-[#fbfbfc]">
-        <div className="rounded-full bg-slate-950" style={{ width: clampNumber(value * 1.25, 20, 92), height: clampNumber(value / 3, 8, 28) }} />
+      <div className="flex h-12 items-center justify-center rounded-[10px] border border-slate-950/[0.06] bg-[#fbfbfc] dark:border-white/[0.08] dark:bg-[#252a34]">
+        <div className="rounded-full bg-slate-950 dark:bg-[#d7ddea]" style={{ width: clampNumber(value * 1.25, 20, 92), height: clampNumber(value / 3, 8, 28) }} />
       </div>
     );
   }
 
   return (
-    <div className="flex h-12 items-center justify-center gap-1 rounded-[10px] border border-slate-950/[0.06] bg-[#fbfbfc]">
-      <span className="h-5 w-5 rounded-[6px] bg-slate-950/[0.14]" />
-      <span className="h-px bg-slate-950" style={{ width: clampNumber(value, 4, 72) }} />
-      <span className="h-5 w-5 rounded-[6px] bg-slate-950/[0.14]" />
+    <div className="flex h-12 items-center justify-center gap-1 rounded-[10px] border border-slate-950/[0.06] bg-[#fbfbfc] dark:border-white/[0.08] dark:bg-[#252a34]">
+      <span className="h-5 w-5 rounded-[6px] bg-slate-950/[0.14] dark:bg-white/[0.14]" />
+      <span className="h-px bg-slate-950 dark:bg-[#d7ddea]" style={{ width: clampNumber(value, 4, 72) }} />
+      <span className="h-5 w-5 rounded-[6px] bg-slate-950/[0.14] dark:bg-white/[0.14]" />
     </div>
   );
 }
 
 function PanelControl({ label, description, children }: { label: string; description?: string; children: ReactNode }) {
   return (
-    <div className="grid grid-cols-[58px_minmax(0,1fr)] items-center gap-2 rounded-[11px] border border-slate-950/[0.06] bg-white px-2.5 py-2">
-      <div className="min-w-0 text-xs font-semibold text-slate-600">
+    <div className="grid grid-cols-[58px_minmax(0,1fr)] items-center gap-2 rounded-[11px] border border-slate-950/[0.06] bg-white px-2.5 py-2 dark:border-white/[0.08] dark:bg-[#1b1e25]">
+      <div className="min-w-0 text-xs font-semibold text-slate-600 dark:text-[#c6cedb]">
         <span className="block truncate">{label}</span>
-        {description ? <span className="mt-0.5 block text-[11px] font-normal text-slate-500">{description}</span> : null}
+        {description ? <span className="mt-0.5 block text-[11px] font-normal text-slate-500 dark:text-[#8f98aa]">{description}</span> : null}
       </div>
       {children}
     </div>
@@ -1314,12 +1314,12 @@ function StaticTokenRow({
 }) {
   if (panel) {
     return (
-      <div className="flex min-h-[58px] items-center gap-3 bg-white px-3 py-2.5">
+      <div className="flex min-h-[58px] items-center gap-3 bg-white px-3 py-2.5 dark:bg-[#1b1e25]">
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[13px] font-semibold text-slate-900">{label}</div>
-          <div className="mt-0.5 text-[11px] text-slate-500">{description}</div>
+          <div className="truncate text-[13px] font-semibold text-slate-900 dark:text-[#e7ebf3]">{label}</div>
+          <div className="mt-0.5 text-[11px] text-slate-500 dark:text-[#8f98aa]">{description}</div>
         </div>
-        <span className="shrink-0 rounded-full bg-[#f1f3f6] px-2.5 py-1 font-mono text-[11px] text-slate-600">{value}</span>
+        <span className="shrink-0 rounded-full bg-[#f1f3f6] px-2.5 py-1 font-mono text-[11px] text-slate-600 dark:bg-[#252a34] dark:text-[#c6cedb]">{value}</span>
       </div>
     );
   }
@@ -1353,21 +1353,21 @@ function OpacityMetricRow({
 
   if (panel) {
     return (
-      <div className="bg-white">
+      <div className="bg-white dark:bg-[#1b1e25]">
         <button
           type="button"
-          className="flex min-h-[52px] w-full items-center gap-3 px-3 py-2 text-left transition hover:bg-[#f8fafc]"
+          className="flex min-h-[52px] w-full items-center gap-3 px-3 py-2 text-left transition hover:bg-[#f8fafc] dark:hover:bg-[#222630]"
           onClick={() => setExpanded((current) => !current)}
         >
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[13px] font-semibold capitalize text-slate-900">{label}</div>
-            <div className="mt-0.5 font-mono text-[11px] text-slate-500">{percentValue}% opacity</div>
+            <div className="truncate text-[13px] font-semibold capitalize text-slate-900 dark:text-[#e7ebf3]">{label}</div>
+            <div className="mt-0.5 font-mono text-[11px] text-slate-500 dark:text-[#8f98aa]">{percentValue}% opacity</div>
           </div>
           <OpacityPreview value={numericValue} compact />
-          <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition ${expanded ? "rotate-180" : ""}`} />
+          <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition dark:text-[#6f7888] ${expanded ? "rotate-180" : ""}`} />
         </button>
         {expanded ? (
-          <div className="border-t border-slate-950/[0.06] bg-[#fbfbfc] px-3 py-3">
+          <div className="border-t border-slate-950/[0.06] bg-[#fbfbfc] px-3 py-3 dark:border-white/[0.08] dark:bg-[#151820]">
             <ShadowSlider
               label={label}
               value={percentValue}
@@ -1404,9 +1404,9 @@ function OpacityMetricRow({
 
 function OpacityPreview({ value, compact = false }: { value: number; compact?: boolean }) {
   return (
-    <div className={`${compact ? "h-11 w-20" : "h-12"} flex shrink-0 items-center justify-center rounded-[10px] bg-[linear-gradient(45deg,#e5e7eb_25%,transparent_25%),linear-gradient(-45deg,#e5e7eb_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#e5e7eb_75%),linear-gradient(-45deg,transparent_75%,#e5e7eb_75%)] bg-[length:12px_12px] bg-[position:0_0,0_6px,6px_-6px,-6px_0]`}>
+    <div className={`${compact ? "h-11 w-20" : "h-12"} flex shrink-0 items-center justify-center rounded-[10px] bg-[linear-gradient(45deg,#e5e7eb_25%,transparent_25%),linear-gradient(-45deg,#e5e7eb_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#e5e7eb_75%),linear-gradient(-45deg,transparent_75%,#e5e7eb_75%)] bg-[length:12px_12px] bg-[position:0_0,0_6px,6px_-6px,-6px_0] dark:bg-[linear-gradient(45deg,#343a46_25%,transparent_25%),linear-gradient(-45deg,#343a46_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#343a46_75%),linear-gradient(-45deg,transparent_75%,#343a46_75%)]`}>
       <div
-        className={`${compact ? "h-7 w-14" : "h-8 w-16"} rounded-[10px] bg-slate-950`}
+        className={`${compact ? "h-7 w-14" : "h-8 w-16"} rounded-[10px] bg-slate-950 dark:bg-[#d7ddea]`}
         style={{ opacity: clampNumber(value, 0, 1) }}
       />
     </div>
@@ -1435,21 +1435,21 @@ function ShapeMetricRow({
 
   if (panel) {
     return (
-      <div className="bg-white">
+      <div className="bg-white dark:bg-[#1b1e25]">
         <button
           type="button"
-          className="flex min-h-[52px] w-full items-center gap-3 px-3 py-2 text-left transition hover:bg-[#f8fafc]"
+          className="flex min-h-[52px] w-full items-center gap-3 px-3 py-2 text-left transition hover:bg-[#f8fafc] dark:hover:bg-[#222630]"
           onClick={() => setExpanded((current) => !current)}
         >
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[13px] font-semibold capitalize text-slate-900">{label}</div>
-            <div className="mt-0.5 font-mono text-[11px] text-slate-500">{serializePixelToken(numericValue, min, max)}</div>
+            <div className="truncate text-[13px] font-semibold capitalize text-slate-900 dark:text-[#e7ebf3]">{label}</div>
+            <div className="mt-0.5 font-mono text-[11px] text-slate-500 dark:text-[#8f98aa]">{serializePixelToken(numericValue, min, max)}</div>
           </div>
           <ShapePreview value={numericValue} variant={preview} compact />
-          <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition ${expanded ? "rotate-180" : ""}`} />
+          <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition dark:text-[#6f7888] ${expanded ? "rotate-180" : ""}`} />
         </button>
         {expanded ? (
-          <div className="border-t border-slate-950/[0.06] bg-[#fbfbfc] px-3 py-3">
+          <div className="border-t border-slate-950/[0.06] bg-[#fbfbfc] px-3 py-3 dark:border-white/[0.08] dark:bg-[#151820]">
             <TokenMetricField label={label} value={value} min={min} max={max} onChange={onChange} />
           </div>
         ) : null}
@@ -1472,16 +1472,16 @@ function ShapeMetricRow({
 function ShapePreview({ value, variant, compact = false }: { value: number; variant: "radius" | "pill" | "border"; compact?: boolean }) {
   if (variant === "border") {
     return (
-      <div className={`${compact ? "h-11 w-20" : "h-12"} flex shrink-0 items-center justify-center rounded-[10px] bg-[#fbfbfc]`}>
-        <div className={`${compact ? "h-7 w-14" : "h-8 w-16"} rounded-[10px] bg-white`} style={{ border: `${clampNumber(value, 0, 8)}px solid #111827` }} />
+      <div className={`${compact ? "h-11 w-20" : "h-12"} flex shrink-0 items-center justify-center rounded-[10px] bg-[#fbfbfc] dark:bg-[#252a34]`}>
+        <div className={`${compact ? "h-7 w-14" : "h-8 w-16"} rounded-[10px] bg-white dark:bg-[#e7ebf3]`} style={{ border: `${clampNumber(value, 0, 8)}px solid #111827` }} />
       </div>
     );
   }
 
   return (
-    <div className={`${compact ? "h-11 w-20" : "h-12"} flex shrink-0 items-center justify-center rounded-[10px] border border-slate-950/[0.06] bg-[#fbfbfc]`}>
+    <div className={`${compact ? "h-11 w-20" : "h-12"} flex shrink-0 items-center justify-center rounded-[10px] border border-slate-950/[0.06] bg-[#fbfbfc] dark:border-white/[0.08] dark:bg-[#252a34]`}>
       <div
-        className={`${compact ? "h-7 w-14" : "h-8 w-16"} border border-slate-950/[0.08] bg-white shadow-[0_10px_28px_-22px_rgba(15,23,42,0.7)]`}
+        className={`${compact ? "h-7 w-14" : "h-8 w-16"} border border-slate-950/[0.08] bg-white shadow-[0_10px_28px_-22px_rgba(15,23,42,0.7)] dark:border-white/[0.10] dark:bg-[#171a21]`}
         style={{ borderRadius: variant === "pill" ? 9999 : clampNumber(value, 0, 48) }}
       />
     </div>
@@ -1509,32 +1509,32 @@ function ShadowField({
 
   if (panel) {
     return (
-      <div className="bg-white">
+      <div className="bg-white dark:bg-[#1b1e25]">
         <button
           type="button"
-          className="flex min-h-[58px] w-full items-center gap-3 px-3 py-2 text-left transition hover:bg-[#f8fafc]"
+          className="flex min-h-[58px] w-full items-center gap-3 px-3 py-2 text-left transition hover:bg-[#f8fafc] dark:hover:bg-[#222630]"
           onClick={() => setExpanded((current) => !current)}
         >
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[13px] font-semibold capitalize text-slate-900">{label}</div>
-            <div className="mt-0.5 truncate font-mono text-[11px] text-slate-500">{serializeCssShadow(shadowParts)}</div>
+            <div className="truncate text-[13px] font-semibold capitalize text-slate-900 dark:text-[#e7ebf3]">{label}</div>
+            <div className="mt-0.5 truncate font-mono text-[11px] text-slate-500 dark:text-[#8f98aa]">{serializeCssShadow(shadowParts)}</div>
           </div>
-          <div className="flex h-10 w-16 shrink-0 items-center justify-center rounded-[10px] bg-[#f1f3f6]">
+          <div className="flex h-10 w-16 shrink-0 items-center justify-center rounded-[10px] bg-[#f1f3f6] dark:bg-[#252a34]">
             <div
-              className="h-6 w-10 border border-slate-950/[0.08] bg-white"
+              className="h-6 w-10 border border-slate-950/[0.08] bg-white dark:border-white/[0.10] dark:bg-[#171a21]"
               style={{ borderRadius: previewRadius, boxShadow: serializeCssShadow(shadowParts) }}
             />
           </div>
-          <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition ${expanded ? "rotate-180" : ""}`} />
+          <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition dark:text-[#6f7888] ${expanded ? "rotate-180" : ""}`} />
         </button>
         {expanded ? (
-          <div className="grid gap-3 border-t border-slate-950/[0.06] bg-[#fbfbfc] px-3 py-3">
+          <div className="grid gap-3 border-t border-slate-950/[0.06] bg-[#fbfbfc] px-3 py-3 dark:border-white/[0.08] dark:bg-[#151820]">
             <div className="flex flex-wrap gap-1.5">
               {SHADOW_PRESETS.map((preset) => (
                 <button
                   key={preset.label}
                   type="button"
-                  className="rounded-full border border-slate-950/[0.08] bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 transition hover:border-slate-950/[0.16] hover:text-slate-950"
+                  className="rounded-full border border-slate-950/[0.08] bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 transition hover:border-slate-950/[0.16] hover:text-slate-950 dark:border-white/[0.10] dark:bg-[#252a34] dark:text-[#c6cedb] dark:hover:border-white/[0.16] dark:hover:bg-[#2b303b] dark:hover:text-white"
                   onClick={() => onChange(serializeCssShadow(preset.value))}
                 >
                   {preset.label}
@@ -1542,7 +1542,7 @@ function ShadowField({
               ))}
               <button
                 type="button"
-                className="rounded-full border border-slate-950/[0.08] bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 transition hover:border-slate-950/[0.16] hover:text-slate-950"
+                className="rounded-full border border-slate-950/[0.08] bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 transition hover:border-slate-950/[0.16] hover:text-slate-950 dark:border-white/[0.10] dark:bg-[#252a34] dark:text-[#c6cedb] dark:hover:border-white/[0.16] dark:hover:bg-[#2b303b] dark:hover:text-white"
                 onClick={() => onChange("none")}
               >
                 None
@@ -1656,17 +1656,17 @@ function ShadowSlider({
   const roundedValue = Math.round(value);
 
   return (
-    <label className={`${panel ? "grid-cols-[48px_minmax(0,1fr)_50px] gap-2 px-2.5 py-2.5" : "grid-cols-[74px_minmax(0,1fr)_62px] gap-3 px-3 py-3"} grid items-center rounded-[14px] border border-slate-950/[0.07] bg-[#fbfbfc] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]`}>
-      <span className="text-xs font-semibold text-slate-600">{label}</span>
+    <label className={`${panel ? "grid-cols-[48px_minmax(0,1fr)_50px] gap-2 px-2.5 py-2.5" : "grid-cols-[74px_minmax(0,1fr)_62px] gap-3 px-3 py-3"} grid items-center rounded-[14px] border border-slate-950/[0.07] bg-[#fbfbfc] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] dark:border-white/[0.08] dark:bg-[#1b1e25] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]`}>
+      <span className="text-xs font-semibold text-slate-600 dark:text-[#c6cedb]">{label}</span>
       <input
         type="range"
         min={min}
         max={max}
         value={roundedValue}
         onChange={(event) => onChange(Number(event.target.value))}
-        className="h-3 min-w-0 cursor-pointer appearance-none rounded-full bg-slate-200 outline-none [--track-fill:#020617] [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-slate-950 [&::-moz-range-thumb]:shadow-[0_4px_14px_rgba(15,23,42,0.28)] [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-slate-950 [&::-webkit-slider-thumb]:shadow-[0_4px_14px_rgba(15,23,42,0.28)]"
+        className="h-3 min-w-0 cursor-pointer appearance-none rounded-full bg-slate-200 outline-none dark:bg-[#303642] [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-slate-950 [&::-moz-range-thumb]:shadow-[0_4px_14px_rgba(15,23,42,0.28)] dark:[&::-moz-range-thumb]:border-[#151820] dark:[&::-moz-range-thumb]:bg-[#e7ebf3] [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-slate-950 [&::-webkit-slider-thumb]:shadow-[0_4px_14px_rgba(15,23,42,0.28)] dark:[&::-webkit-slider-thumb]:border-[#151820] dark:[&::-webkit-slider-thumb]:bg-[#e7ebf3]"
       />
-      <span className="rounded-[9px] border border-slate-950/[0.06] bg-white px-1.5 py-1 text-right font-mono text-[11px] text-slate-600">
+      <span className="rounded-[9px] border border-slate-950/[0.06] bg-white px-1.5 py-1 text-right font-mono text-[11px] text-slate-600 dark:border-white/[0.08] dark:bg-[#252a34] dark:text-[#c6cedb]">
         {roundedValue}{suffix}
       </span>
     </label>
@@ -1690,16 +1690,16 @@ function TokenMetricField({
   const updateValue = (nextValue: number) => onChange(serializePixelToken(nextValue, min, max));
 
   return (
-    <div className="grid h-9 grid-cols-[30px_minmax(0,1fr)_30px] overflow-hidden rounded-[10px] border border-slate-950/[0.08] bg-white">
+    <div className="grid h-9 grid-cols-[30px_minmax(0,1fr)_30px] overflow-hidden rounded-[10px] border border-slate-950/[0.08] bg-white dark:border-white/[0.10] dark:bg-[#252a34]">
       <button
         type="button"
         aria-label={`Decrease ${label}`}
-        className="flex items-center justify-center border-r border-slate-950/[0.06] text-slate-500 transition hover:bg-[#f7f7f8] hover:text-slate-900"
+        className="flex items-center justify-center border-r border-slate-950/[0.06] text-slate-500 transition hover:bg-[#f7f7f8] hover:text-slate-900 dark:border-white/[0.08] dark:text-[#8f98aa] dark:hover:bg-[#2b303b] dark:hover:text-white"
         onClick={() => updateValue(numericValue - 1)}
       >
         <Minus className="h-3.5 w-3.5" />
       </button>
-      <label className="flex min-w-0 items-center bg-[#fbfbfc] px-2 focus-within:bg-white">
+      <label className="flex min-w-0 items-center bg-[#fbfbfc] px-2 focus-within:bg-white dark:bg-[#1b1e25] dark:focus-within:bg-[#20242d]">
         <input
           type="number"
           min={min}
@@ -1715,14 +1715,14 @@ function TokenMetricField({
             const nextValue = Number.parseFloat(event.target.value);
             updateValue(Number.isFinite(nextValue) ? nextValue : numericValue);
           }}
-          className="h-full min-w-0 flex-1 bg-transparent font-mono text-xs text-slate-900 outline-none"
+          className="h-full min-w-0 flex-1 bg-transparent font-mono text-xs text-slate-900 outline-none dark:text-[#e7ebf3]"
         />
-        <span className="shrink-0 font-mono text-[11px] text-slate-400">px</span>
+        <span className="shrink-0 font-mono text-[11px] text-slate-400 dark:text-[#8f98aa]">px</span>
       </label>
       <button
         type="button"
         aria-label={`Increase ${label}`}
-        className="flex items-center justify-center border-l border-slate-950/[0.06] text-slate-500 transition hover:bg-[#f7f7f8] hover:text-slate-900"
+        className="flex items-center justify-center border-l border-slate-950/[0.06] text-slate-500 transition hover:bg-[#f7f7f8] hover:text-slate-900 dark:border-white/[0.08] dark:text-[#8f98aa] dark:hover:bg-[#2b303b] dark:hover:text-white"
         onClick={() => updateValue(numericValue + 1)}
       >
         <Plus className="h-3.5 w-3.5" />
@@ -1741,17 +1741,17 @@ function FontWeightControl({ value, onChange }: { value: string; onChange: (valu
     <div className="relative">
       <button
         type="button"
-        className="flex h-9 w-full items-center justify-between gap-2 rounded-[10px] border border-slate-950/[0.08] bg-white px-2.5 text-left text-xs font-medium text-slate-800 outline-none transition hover:border-slate-950/[0.16] focus:border-[#002fa7]/40"
+        className="flex h-9 w-full items-center justify-between gap-2 rounded-[10px] border border-slate-950/[0.08] bg-white px-2.5 text-left text-xs font-medium text-slate-800 outline-none transition hover:border-slate-950/[0.16] focus:border-[#002fa7]/40 dark:border-white/[0.10] dark:bg-[#252a34] dark:text-[#e7ebf3] dark:hover:border-white/[0.16] dark:focus:border-[#7c8cff]/45"
         onClick={() => setIsOpen((current) => !current)}
       >
         <span className="truncate">{selectedLabel}</span>
-        <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition ${isOpen ? "rotate-180" : ""}`} />
+        <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition dark:text-[#8f98aa] ${isOpen ? "rotate-180" : ""}`} />
       </button>
 
       {isOpen ? (
-        <div className="absolute left-0 top-[calc(100%+6px)] z-30 w-full min-w-[178px] overflow-hidden rounded-[12px] border border-slate-950/[0.1] bg-white p-1 shadow-[0_18px_60px_-34px_rgba(15,23,42,0.75)]">
+        <div className="absolute left-0 top-[calc(100%+6px)] z-30 w-full min-w-[178px] overflow-hidden rounded-[12px] border border-slate-950/[0.1] bg-white p-1 shadow-[0_18px_60px_-34px_rgba(15,23,42,0.75)] dark:border-white/[0.10] dark:bg-[#1b1e25] dark:shadow-[0_18px_70px_-34px_rgba(0,0,0,0.9)]">
           {!hasPresetValue ? (
-            <div className="flex h-8 items-center justify-between rounded-[9px] bg-[#f7f7f8] px-2 text-xs font-medium text-slate-500">
+            <div className="flex h-8 items-center justify-between rounded-[9px] bg-[#f7f7f8] px-2 text-xs font-medium text-slate-500 dark:bg-[#252a34] dark:text-[#c6cedb]">
               <span>Custom {value}</span>
               <Check className="h-3.5 w-3.5" />
             </div>
@@ -1763,7 +1763,7 @@ function FontWeightControl({ value, onChange }: { value: string; onChange: (valu
                 key={option.value}
                 type="button"
                 className={`flex h-8 w-full items-center justify-between rounded-[9px] px-2 text-left text-xs font-medium transition ${
-                  selected ? "bg-slate-950 text-white" : "text-slate-700 hover:bg-[#f7f7f8]"
+                  selected ? "bg-slate-950 text-white dark:bg-[#e7ebf3] dark:text-[#111827]" : "text-slate-700 hover:bg-[#f7f7f8] dark:text-[#c6cedb] dark:hover:bg-[#252a34] dark:hover:text-white"
                 }`}
                 onClick={() => {
                   onChange(option.value);
@@ -1783,9 +1783,9 @@ function FontWeightControl({ value, onChange }: { value: string; onChange: (valu
 
 function ReadOnlyMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[12px] border border-slate-950/[0.08] bg-white px-2.5 py-2">
-      <div className="truncate text-[11px] font-medium uppercase tracking-[0.08em] text-slate-400">{label}</div>
-      <div className="mt-1 font-mono text-xs text-slate-900">{value}</div>
+    <div className="rounded-[12px] border border-slate-950/[0.08] bg-white px-2.5 py-2 dark:border-white/[0.08] dark:bg-[#1b1e25]">
+      <div className="truncate text-[11px] font-medium uppercase tracking-[0.08em] text-slate-400 dark:text-[#8f98aa]">{label}</div>
+      <div className="mt-1 font-mono text-xs text-slate-900 dark:text-[#e7ebf3]">{value}</div>
     </div>
   );
 }

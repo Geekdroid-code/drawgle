@@ -184,17 +184,31 @@ export const modifyScreenTask = task({
       throw new Error(errorMessage);
     }
 
-    // Deduct credits prior to LLM run
-    const deduction = await adminCreditService.deductCredits(
-      payload.ownerId,
-      requiredCredits,
-      `UI Edit: ${scopeLabel}`
-    );
+    const result = await executeModifyScreenTask(payload, (label, data) => logger.info(label, data));
 
-    if (!deduction.success) {
-      throw new Error(deduction.error || "Failed to deduct credits");
+    // Deduct credits ONLY if the edit was successful (changed === true)
+    if (result.changed) {
+      const deduction = await adminCreditService.deductCredits(
+        payload.ownerId,
+        requiredCredits,
+        `UI Edit: ${scopeLabel}`
+      );
+
+      if (!deduction.success) {
+        logger.error("Failed to deduct credits after successful edit", {
+          ownerId: payload.ownerId,
+          requiredCredits,
+          error: deduction.error,
+        });
+      } else {
+        logger.info("Successfully deducted credits after successful edit", {
+          ownerId: payload.ownerId,
+          requiredCredits,
+          newBalance: deduction.newBalance,
+        });
+      }
     }
 
-    return executeModifyScreenTask(payload, (label, data) => logger.info(label, data));
+    return result;
   },
 });
