@@ -46,7 +46,7 @@ export async function POST(req: Request) {
   }
 
   const admin = createAdminClient();
-  const results = [];
+  const results: { id: string; subject: string; publicUrl: string; displayUrl: string }[] = [];
   for (const asset of parsed.data.assets) {
     const saved = await importCuratedVisualAsset({
       admin,
