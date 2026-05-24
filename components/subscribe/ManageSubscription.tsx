@@ -12,7 +12,7 @@ import type { Plan as BSDKPlan, CurrentPlan as BSDKCurrentPlan } from '@/lib/bil
 import { Button } from '@/components/ui/button'
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog'
 import { useRouter } from 'next/navigation'
-import { createClient as createSupabaseClient } from '@/utils/supabase/client'
+import { createClient as createSupabaseClient } from '@/lib/supabase/client'
 
 type SubscriptionStatus = 'pending' | 'active' | 'cancelled' | 'expired'
 
@@ -223,7 +223,7 @@ export default function ManageSubscription({ subscription, plans, userEmail }: M
         try {
             setBusy(true)
             const origin = typeof window !== 'undefined' ? window.location.origin : ''
-            const return_url = `${origin}/subscribe?pm_updated=1`
+            const return_url = `${origin}/billing?pm_updated=1`
             const res = await apiUpdatePaymentMethod(subscription.subscription_id, return_url)
             if (res?.url) {
                 window.location.href = res.url

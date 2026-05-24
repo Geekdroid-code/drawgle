@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
+import { createClient } from '@/lib/supabase/client'
 
 // Production-grade debounce to prevent refresh floods
 function useDebounce<T extends (...args: any[]) => void>(fn: T, delay: number): T {

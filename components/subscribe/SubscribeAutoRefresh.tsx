@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 
 /**
  * After returning from hosted checkout (e.g., ?subscribed=1) or short PM flow,
- * keep the /subscribe page fresh without manual reloads.
+ * keep the /billing page fresh without manual reloads.
  * Strategy:
  * - If URL has subscribed=1 or pm_updated=1, trigger a short refresh loop.
  * - Use router.refresh() to re-render SSR data until webhook updates arrive.

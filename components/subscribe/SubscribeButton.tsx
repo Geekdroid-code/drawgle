@@ -11,13 +11,13 @@ export default function SubscribeButton({ productId, isAuthenticated, className,
     const handleCheckout = useCallback(async () => {
         try {
             if (!isAuthenticated) {
-                router.push('/login?redirect=/subscribe')
+                router.push('/login?redirect=/billing')
                 return
             }
 
             setLoading(true)
             const origin = typeof window !== 'undefined' ? window.location.origin : ''
-            const return_url = `${origin}/subscribe?subscribed=1`
+            const return_url = `${origin}/billing?subscribed=1`
 
             const { checkout_url } = await checkout(
                 [
@@ -30,7 +30,7 @@ export default function SubscribeButton({ productId, isAuthenticated, className,
                 undefined as any,
                 undefined as any,
                 return_url,
-                { source: 'subscribe_page' }
+                { source: 'billing_page' }
             )
 
             if (checkout_url) {

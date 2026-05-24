@@ -1,8 +1,7 @@
-import { createClient } from '@/utils/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { AccountDashboard } from '@/components/account/account-dashboard'
-import FeedbackForm from "@/components/FeedbackForm"
-import { GlobalCard } from '@/components/ui/global-card'
+import { Card } from '@/components/ui/card'
 
 export default async function AccountPage() {
   const supabase = await createClient()
@@ -89,7 +88,7 @@ export default async function AccountPage() {
 
   return (
     <div className="container mx-auto">
-      <GlobalCard contentClassName="p-6">
+      <Card className="w-full max-w-2xl p-6">
         <div className="mb-6">
           <h1 className="text-3xl font-bold">Account</h1>
           <p className="text-muted-foreground mt-2">
@@ -104,8 +103,7 @@ export default async function AccountPage() {
           totalCreditsPurchased={totalCreditsPurchased}
           subscription={subscription}
         />
-        <FeedbackForm userId={user.id} />
-      </GlobalCard>
+      </Card>
     </div>
   )
 }
