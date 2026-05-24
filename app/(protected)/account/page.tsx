@@ -1,9 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { AccountDashboard } from '@/components/account/account-dashboard'
-import { Card } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
+import { cookies } from 'next/headers'
 
 export default async function AccountPage() {
+  await cookies() // enable dynamic cookie routing context
   const supabase = await createClient()
 
   const {
@@ -83,16 +85,18 @@ export default async function AccountPage() {
 
   // Calculate total credits purchased from completed payments
   const totalCreditsPurchased = payments
-    ?.filter(payment => payment.status === 'completed')
+    ?.filter(payment => payment.status === 'completed' || payment.status === 'succeeded')
     ?.reduce((sum, payment) => sum + payment.credits, 0) || 0
 
   return (
-    <div className="container mx-auto">
-      <Card className="w-full max-w-2xl p-6">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold">Account</h1>
-          <p className="text-muted-foreground mt-2">
-            Manage your profile, view payment history, and track your credits
+    <div className="container mx-auto py-10 px-4 max-w-4xl min-h-screen text-slate-900 dark:text-slate-100 flex flex-col gap-6">
+      <Card className="border-slate-100 dark:border-white/[0.06] bg-white dark:bg-[#1a1d22] p-6 text-left shadow-[0_4px_20px_rgba(0,0,0,0.02)]">
+        <div className="mb-8">
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 font-heading">
+            Account Management
+          </h1>
+          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1.5 leading-relaxed">
+            Manage your account metrics, inspect active plans, and securely download billing receipts.
           </p>
         </div>
 
@@ -109,6 +113,6 @@ export default async function AccountPage() {
 }
 
 export const metadata = {
-  title: 'Account',
-  description: 'Manage your account, view payment history, and track credits',
+  title: 'User Account Details',
+  description: 'Manage your profile, view payment history, and track credits',
 }

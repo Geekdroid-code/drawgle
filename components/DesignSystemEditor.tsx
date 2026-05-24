@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { PremiumSegmentedTabs, PremiumTabPanel } from "@/components/ui/premium-segmented-tabs";
 import {
   getFontRecommendations,
   normalizeDesignTokens,
@@ -330,7 +331,7 @@ export function DesignSystemEditor({
   };
 
   return (
-    <div className={`dg-token-editor ${isPanel ? "relative flex min-h-0 flex-col overflow-visible" : "relative flex min-h-[680px] flex-1 flex-col overflow-hidden lg:h-[calc(100dvh-6.25rem)] lg:min-h-[620px]"}`}>
+    <div className={`${isPanel ? "relative flex min-h-0 flex-col overflow-visible" : "relative flex min-h-[680px] flex-1 flex-col overflow-hidden lg:h-[calc(100dvh-6.25rem)] lg:min-h-[620px]"}`}>
       {isSubmitting && submitStatus ? (
         !isPanel ? <div className="absolute inset-0 z-30 flex items-center justify-center bg-white/72 backdrop-blur-sm">
           <div className="rounded-[14px] border border-slate-950/[0.08] bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-[0_18px_50px_-36px_rgba(15,23,42,0.6)]">
@@ -350,21 +351,17 @@ export function DesignSystemEditor({
         </div>
 
         {shouldShowPreview ? (
-        <div className="grid grid-cols-2 rounded-[12px] border border-slate-950/[0.08] bg-[#f7f7f8] p-1 text-xs font-medium lg:hidden">
-          {[
+        <PremiumSegmentedTabs<MobileView>
+          items={[
             { id: "tokens", label: "Tokens" },
             { id: "preview", label: "Preview" },
-          ].map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={`rounded-[9px] px-2 py-1.5 transition ${mobileView === item.id ? "bg-white text-slate-950 shadow-sm" : "text-slate-500"}`}
-              onClick={() => setMobileView(item.id as MobileView)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+          ]}
+          value={mobileView}
+          onValueChange={setMobileView}
+          size="sm"
+          layoutId="design-mobile-view-tab"
+          className="text-xs font-medium lg:hidden"
+        />
         ) : null}
 
         <div className="hidden items-center gap-2 lg:flex">
@@ -380,24 +377,17 @@ export function DesignSystemEditor({
 
       <div className={shouldShowPreview ? `grid min-h-0 flex-1 gap-4 ${isPanel ? "" : "pt-4"} lg:grid-cols-[minmax(0,1fr)_340px]` : `min-h-0 flex-1 ${isPanel ? "" : "pt-4"}`}>
         <section className={`${!shouldShowPreview || mobileView === "tokens" ? "flex" : "hidden"} min-h-0 flex-col  ${isPanel ? "overflow-visible" : "overflow-hidden"} ${shouldShowPreview ? "lg:flex" : ""}`}>
-            <div className="grid grid-cols-4 gap-1 rounded-[12px] bg-[#f7f7f8] p-1">
-              {EDITOR_TABS.map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex h-9 items-center justify-center gap-1.5 rounded-[9px] text-xs font-semibold transition ${
-                    activeTab === tab.id ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:text-slate-800"
-                  }`}
-                >
-                  <tab.icon className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">{tab.label}</span>
-                </button>
-              ))}
-      
-          </div>
+          <PremiumSegmentedTabs
+            items={EDITOR_TABS}
+            value={activeTab}
+            onValueChange={setActiveTab}
+            size="md"
+            layoutId="design-system-editor-tab"
+            hideLabelsOnMobile
+          />
 
           <div className={`${isPanel ? "overflow-visible" : "overflow-y-auto"} min-h-0 flex-1 py-4`}>
+            <PremiumTabPanel panelKey={activeTab}>
             {activeTab === "colors" ? (
               <div className={`grid gap-4 ${isPanel ? "" : "xl:grid-cols-2"}`}>
                 <TokenGroup label="Foundation" panel={isPanel}>
@@ -613,6 +603,7 @@ export function DesignSystemEditor({
                 </TokenGroup>
               </div>
             ) : null}
+            </PremiumTabPanel>
           </div>
         </section>
 

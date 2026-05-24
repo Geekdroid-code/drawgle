@@ -24,6 +24,7 @@ import { DesignMdTab } from "@/components/DesignMdTab";
 import { DesignSystemEditor } from "@/components/DesignSystemEditor";
 import { AgentComposer } from "@/components/PromptBar";
 import { Button } from "@/components/ui/button";
+import { PremiumSegmentedTabs, PremiumTabPanel } from "@/components/ui/premium-segmented-tabs";
 import { useProjectMessages } from "@/hooks/use-project-messages";
 import { hasApprovedDesignTokens } from "@/lib/design-tokens";
 import {
@@ -1380,130 +1381,119 @@ export function ChatPanel({
             <Minimize2 className="h-4 w-4" />
           </Button>
         </div>
-        <div className="grid grid-cols-3 gap-1 rounded-[14px] bg-slate-950/[0.04] p-1">
-          {CHAT_WORKSPACE_TABS.map((tab) => {
-            const Icon = tab.icon;
-            const selected = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex h-8 items-center justify-center gap-1.5 rounded-[10px] text-[11px] font-semibold transition ${
-                  selected ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
+        <PremiumSegmentedTabs
+          items={CHAT_WORKSPACE_TABS}
+          value={activeTab}
+          onValueChange={setActiveTab}
+          size="sm"
+          layoutId="chat-workspace-tab"
+        />
       </header>
 
-      {activeTab === "chat" ? (
-      <div className="chat-history-scrollbar dg-chat-body min-h-0 flex-1 overflow-y-auto pb-8">
-        <AnimatePresence initial={false}>
-          {conversationItems.length === 0 ? (
-            <EmptyConversation isLoading={isLoading} />
-          ) : (
-            conversationItems.map((item) => {
-              if (item.kind === "user") {
-                return (
-                  <motion.div key={item.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-                    <UserBubble content={item.content} image={item.image} />
-                  </motion.div>
-                );
-              }
+      <PremiumTabPanel panelKey={activeTab} className="min-h-0 flex-1 flex flex-col">
+        {activeTab === "chat" ? (
+          <>
+            <div className="chat-history-scrollbar dg-chat-body min-h-0 flex-1 overflow-y-auto pb-8">
+              <AnimatePresence initial={false}>
+                {conversationItems.length === 0 ? (
+                  <EmptyConversation isLoading={isLoading} />
+                ) : (
+                  conversationItems.map((item) => {
+                    if (item.kind === "user") {
+                      return (
+                        <motion.div key={item.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+                          <UserBubble content={item.content} image={item.image} />
+                        </motion.div>
+                      );
+                    }
 
-              if (item.kind === "thinking") {
-                return (
-                  <motion.div key={item.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-                    <ThinkingRow summary={item.summary} id={item.id} live={item.live} />
-                  </motion.div>
-                );
-              }
+                    if (item.kind === "thinking") {
+                      return (
+                        <motion.div key={item.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+                          <ThinkingRow summary={item.summary} id={item.id} live={item.live} />
+                        </motion.div>
+                      );
+                    }
 
-              if (item.kind === "generation_journal") {
-                return (
-                  <motion.div key={item.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-                    <GenerationJournalCard journal={item.journal} />
-                  </motion.div>
-                );
-              }
+                    if (item.kind === "generation_journal") {
+                      return (
+                        <motion.div key={item.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+                          <GenerationJournalCard journal={item.journal} />
+                        </motion.div>
+                      );
+                    }
 
-              if (item.kind === "action") {
-                return (
-                  <motion.div key={item.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-                    <ActionCard
-                      step={item.step}
-                      retryRun={item.retryRun}
-                      retryDisabled={retryDisabled}
-                      proposal={item.proposal}
-                      proposalMessageId={item.proposalMessageId}
-                      onRetryGeneration={onRetryGeneration}
-                      onApproveScreenPlan={onApproveScreenPlan}
-                    />
-                  </motion.div>
-                );
-              }
+                    if (item.kind === "action") {
+                      return (
+                        <motion.div key={item.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+                          <ActionCard
+                            step={item.step}
+                            retryRun={item.retryRun}
+                            retryDisabled={retryDisabled}
+                            proposal={item.proposal}
+                            proposalMessageId={item.proposalMessageId}
+                            onRetryGeneration={onRetryGeneration}
+                            onApproveScreenPlan={onApproveScreenPlan}
+                          />
+                        </motion.div>
+                      );
+                    }
 
-              return (
-                <motion.div key={item.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-                  <AssistantMessage content={item.content} isError={item.isError} />
-                </motion.div>
-              );
-            })
-          )}
-        </AnimatePresence>
-        <div ref={messagesEndRef} />
-      </div>
-      ) : null}
+                    return (
+                      <motion.div key={item.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+                        <AssistantMessage content={item.content} isError={item.isError} />
+                      </motion.div>
+                    );
+                  })
+                )}
+              </AnimatePresence>
+              <div ref={messagesEndRef} />
+            </div>
+            <div className="dg-chat-footer shrink-0 px-2 py-2">
+              <AgentComposer
+                variant="panel"
+                project={project}
+                selectedScreen={selectedScreen}
+                onClearSelectedScreen={onClearSelectedScreen}
+                onDeleteSelectedScreen={onDeleteSelectedScreen}
+                onSubmit={handleSubmit}
+                disabled={disabled}
+                submitStatusText="Thinking..."
+                selectionMode={selectionMode}
+                onToggleSelectionMode={onToggleSelectionMode}
+                selectedElementPreview={selectedElementPreview}
+                selectedElementTargetLabel={selectedElementTargetLabel}
+                selectedElementCanEditText={selectedElementCanEditText}
+                selectedElementCanEditDesign={selectedElementCanEditDesign}
+                onEditSelectedText={onEditSelectedText}
+                onEditSelectedDesign={onEditSelectedDesign}
+                onClearSelectedElement={onClearSelectedElement}
+              />
+            </div>
+          </>
+        ) : null}
 
-      {activeTab === "design" ? (
-        <DesignTab
-          tokenDraft={tokenDraft}
-          tokenDirty={tokenDirty}
-          tokenSaving={tokenSaving}
-          generationActive={generationActive}
-          onTokenDraftChange={onTokenDraftChange}
-          onSaveTokens={onSaveTokens}
-          onDiscardTokens={onDiscardTokens}
-        />
-      ) : null}
+        {activeTab === "design" ? (
+          <DesignTab
+            tokenDraft={tokenDraft}
+            tokenDirty={tokenDirty}
+            tokenSaving={tokenSaving}
+            generationActive={generationActive}
+            onTokenDraftChange={onTokenDraftChange}
+            onSaveTokens={onSaveTokens}
+            onDiscardTokens={onDiscardTokens}
+          />
+        ) : null}
 
-      {activeTab === "design-md" ? (
-        <DesignMdTab
-          project={project}
-          projectNavigation={projectNavigation}
-          tokenDraft={tokenDraft}
-          tokenDirty={tokenDirty}
-        />
-      ) : null}
-
-      {activeTab === "chat" ? (
-      <div className="dg-chat-footer shrink-0 px-2 py-2">
-        <AgentComposer
-          variant="panel"
-          project={project}
-          selectedScreen={selectedScreen}
-          onClearSelectedScreen={onClearSelectedScreen}
-          onDeleteSelectedScreen={onDeleteSelectedScreen}
-          onSubmit={handleSubmit}
-          disabled={disabled}
-          submitStatusText="Thinking..."
-          selectionMode={selectionMode}
-          onToggleSelectionMode={onToggleSelectionMode}
-          selectedElementPreview={selectedElementPreview}
-          selectedElementTargetLabel={selectedElementTargetLabel}
-          selectedElementCanEditText={selectedElementCanEditText}
-          selectedElementCanEditDesign={selectedElementCanEditDesign}
-          onEditSelectedText={onEditSelectedText}
-          onEditSelectedDesign={onEditSelectedDesign}
-          onClearSelectedElement={onClearSelectedElement}
-        />
-      </div>
-      ) : null}
+        {activeTab === "design-md" ? (
+          <DesignMdTab
+            project={project}
+            projectNavigation={projectNavigation}
+            tokenDraft={tokenDraft}
+            tokenDirty={tokenDirty}
+          />
+        ) : null}
+      </PremiumTabPanel>
     </div>
   );
 }

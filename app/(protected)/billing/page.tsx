@@ -1,20 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
-import Image from 'next/image'
 import { cookies } from 'next/headers'
-import SubscribeButton from '@/components/subscribe/SubscribeButton'
 import ManageSubscription from '@/components/subscribe/ManageSubscription'
 import RealtimeSubscriptionSync from '@/components/subscribe/RealtimeSubscriptionSync'
-import { Check, Loader2, Sparkles, Zap } from 'lucide-react'
+import PlanGrid from '@/components/subscribe/PlanGrid'
 import { Card } from '@/components/ui/card'
-
-function formatPrice(value: number | string, currency: string) {
-    const n = typeof value === 'number' ? value : Number(value || 0)
-    try {
-        return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(n)
-    } catch {
-        return `$${n.toFixed(2)}`
-    }
-}
 
 type PlanRow = {
     id: string
@@ -131,144 +120,39 @@ export default async function SubscribePage() {
         }
     }
 
-    // If user has an active subscription, show management instead of checkout
-    if (subscriptionSummary?.status === 'active') {
-        return (
-            <main className="min-h-screen font-sans text-stone-900 flex flex-col items-center">
-                {/* Live updates for webhook-driven lifecycle changes */}
-                <RealtimeSubscriptionSync userId={user?.id} />
-                <div className="w-full ">
-                    <ManageSubscription
-                        subscription={subscriptionSummary}
-                        plans={plans}
-                        userEmail={user?.email || null}
-                    />
-                </div>
-            </main>
-        )
-    }
-
-    // Otherwise, render subscribe/checkout UI (marketing + CTA)
-    const plan = plans?.[0]
+    const isActive = subscriptionSummary?.status === 'active'
 
     return (
-        <main className="min-h-screen font-sans text-stone-900 flex flex-col items-center justify-center py-4">
-            {/* After returning from hosted checkout (?subscribed=1), auto-refresh and poll until active */}
+        <main className="min-h-screen font-sans bg-slate-50 dark:bg-[#111215] text-slate-900 dark:text-slate-100 flex flex-col items-center py-10">
+            {/* Live updates for webhook-driven lifecycle changes */}
             <RealtimeSubscriptionSync userId={user?.id} />
 
-            {/* ISLAND CARD CONTAINER */}
-            <Card className="w-full max-w-2xl overflow-hidden">
-
-                {/* Header Section */}
-                <div className="text-center pt-10 pb-6 border-b border-stone-100 px-6">
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-stone-100 border border-stone-200 mb-4">
-                        <Sparkles className="w-3.5 h-3.5 text-stone-600 fill-stone-600/20" />
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-stone-600">Early Bird Pricing</span>
-                    </div>
-                    <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-stone-900 mb-3">
-                        Stop publishing generic fluff.
-                    </h1>
-                    <p className="text-stone-500 text-sm sm:text-base max-w-lg mx-auto leading-relaxed">
-                        Get the only AI that researches like an expert and writes in <i>your</i> voice.
-                        <br className="hidden sm:block" />
-                        Start ranking with content that actually converts.
-                    </p>
-                </div>
-
-                {/* Content Section */}
-                {plan ? (
-                    <div className="p-4 sm:p-6">
-
-                        {/* Price Block */}
-                        <div className="flex flex-col items-center mb-8">
-                            <div className="flex items-center gap-2 mb-2">
-                                <span className="text-base text-stone-400 line-through">
-                                    $149/mo
-                                </span>
-
-                            </div>
-                            <div className="flex items-baseline gap-1">
-                                <span className="text-5xl font-bold tracking-tighter text-stone-900">
-                                    {formatPrice(plan.price, plan.currency ?? 'USD')}
-                                </span>
-                                <span className="text-stone-400 font-medium">/mo</span>
-                            </div>
-                            <p className="text-xs text-stone-400 mt-2 font-medium bg-stone-50 px-3 py-1 rounded-full border border-stone-100">
-                                Include {plan.credits ?? 0} article credits
-                            </p>
-                        </div>
-
-                        {/* Features Grid */}
-                        <div className="grid sm:grid-cols-2 gap-y-3 gap-x-6 mb-8 max-w-lg mx-auto text-left">
-                            <FeatureItem text="30 articles every month" />
-                            <FeatureItem text="Strategic content planning" />
-                            <FeatureItem text="Daily autopilot writing" />
-                            <FeatureItem text="Writes in your brand voice" />
-                            <FeatureItem text="Smart internal & external linking" />
-                            <FeatureItem text="1-click publish to your CMS" />
-                            <FeatureItem text="On-brand cover and blog images" />
-                            <FeatureItem text="Cancel anytime, no lock-in" />
-                        </div>
-
-                        {/* Button Section */}
-                        <div className="max-w-xs mx-auto flex flex-col items-center">
-                            <SubscribeButton
-                                productId={plan.dodo_product_id}
-                                isAuthenticated={!!user}
-                                className="
-                    cursor-pointer w-full sm:w-full rounded-lg text-base font-semibold text-white shadow-xs
-                    bg-gradient-to-b from-stone-800 to-stone-950
-                    hover:from-stone-700 hover:to-stone-900
-                    shadow-[0_0_1px_1px_rgba(255,255,255,0.08)_inset,0_1px_1.5px_0_rgba(0,0,0,0.32)]
-                    active:scale-[0.98] transition-all
-                  "
-                            >
-                                <span className="flex items-center gap-2">
-                                    <Zap className="w-4 h-4 fill-white/20" />
-                                    Subscribe to Pro
-                                </span>
-                            </SubscribeButton>
-                            <p className="text-center text-[10px] text-stone-400 mt-3 font-medium">
-                                30 articles/mo · No lock-in · 14-day money-back guarantee
-                            </p>
-                        </div>
-
-                    </div>
-                ) : (
-                    <div className="p-12 text-center text-stone-500">
-                        <p>Loading plan...</p>
+            <div className="w-full max-w-4xl px-4 flex flex-col gap-10 items-center">
+                {/* 1. Subscription Management Cockpit (Active Subscribers Only) */}
+                {isActive && subscriptionSummary && (
+                    <div className="w-full">
+                        <ManageSubscription
+                            subscription={subscriptionSummary}
+                            plans={plans}
+                            userEmail={user?.email || null}
+                        />
                     </div>
                 )}
 
-                {/* Footer Info */}
-                <div className="bg-stone-50/50 border-t border-stone-100 p-4 flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8">
-
-                    <div className="flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
-                        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">
-                            Secure payments by{' '}
-                            <Image
-                                src="/dodo-logo.png"
-                                alt="Dodo Payments"
-                                width={70}
-                                height={14}
-                                className="inline-block align-middle ml-1"
-                            />
-                        </span>
-                    </div>
+                {/* 2. Choose/Compare Plans Grid (All Users) */}
+                <div className="w-full flex justify-center">
+                    <PlanGrid
+                        plans={plans}
+                        subscription={subscriptionSummary}
+                        isAuthenticated={!!user}
+                    />
                 </div>
-            </Card>
-
-
-
+            </div>
         </main>
     )
 }
 
-function FeatureItem({ text }: { text: string }) {
-    return (
-        <div className="flex items-center gap-2.5">
-            <Check className="w-4 h-4 text-stone-900 flex-shrink-0" strokeWidth={3} />
-            <span className="text-sm text-stone-700 font-medium">{text}</span>
-        </div>
-    )
+export const metadata = {
+    title: 'Billing & Subscriptions',
+    description: 'Manage your pricing plans, upgrades, and billing details.',
 }

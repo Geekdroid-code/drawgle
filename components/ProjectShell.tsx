@@ -2,7 +2,7 @@
 
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, ChevronDown, ImageIcon, Loader2, Palette, RotateCcw, Upload, X, Sun, Moon, HelpCircle, Megaphone, Play, Share2, LogOut, FolderSync, CircleDollarSign } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, ImageIcon, Loader2, Palette, RotateCcw, Upload, X, Sun, Moon, HelpCircle, Megaphone, Play, Share2, LogOut, FolderSync, CircleDollarSign, User, CreditCard } from "lucide-react";
 
 import { CanvasArea } from "@/components/CanvasArea";
 import { MobileExportDrawer } from "@/components/MobileExportDrawer";
@@ -1916,6 +1916,20 @@ export function ProjectShell({
               >
                 <FolderSync className="h-3.5 w-3.5 text-slate-500" />
                 Switch Projects
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => router.push("/account")}
+                className="flex w-full items-center gap-2 rounded-[12px] px-2.5 py-2 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-white/10 cursor-pointer"
+              >
+                <User className="h-3.5 w-3.5 text-slate-500" />
+                Account Settings
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => router.push("/billing")}
+                className="flex w-full items-center gap-2 rounded-[12px] px-2.5 py-2 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-white/10 cursor-pointer"
+              >
+                <CreditCard className="h-3.5 w-3.5 text-slate-500" />
+                Billing & Subscription
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={handleSignOut}

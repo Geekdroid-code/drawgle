@@ -23,12 +23,15 @@ import {
   LogOut,
   Check,
   Menu,
+  CreditCard,
+  User,
 } from "lucide-react";
 
 import { DesignSystemEditor } from "@/components/DesignSystemEditor";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useProjects } from "@/hooks/use-projects";
 import { useCredits } from "@/hooks/useCredits";
@@ -643,27 +646,57 @@ export function ProjectLobby({
 
         {/* Sidebar Footer */}
         <div className="border-t border-slate-100 dark:border-white/[0.06] p-3">
-          <div className="flex items-center gap-3 rounded-xl border border-neutral-250 dark:border-white/[0.06] bg-[#fcfcfd] dark:bg-[#1e2128] p-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-            <Avatar className="h-9 w-9 border border-slate-250/[0.08] bg-white">
-              <AvatarImage src={user.avatarUrl || ""} />
-              <AvatarFallback>{getAccountInitial(user)}</AvatarFallback>
-            </Avatar>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-xs font-semibold text-neutral-800 dark:text-neutral-200">
-                {user.fullName ?? "Drawgle account"}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-3 rounded-xl border border-neutral-250 dark:border-white/[0.06] bg-[#fcfcfd] dark:bg-[#1e2128] p-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.02)] text-left hover:bg-neutral-50 dark:hover:bg-white/[0.04] transition-all cursor-pointer focus:outline-none"
+                >
+                  <Avatar className="h-9 w-9 border border-slate-250/[0.08] bg-white">
+                    <AvatarImage src={user.avatarUrl || ""} />
+                    <AvatarFallback>{getAccountInitial(user)}</AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-xs font-semibold text-neutral-800 dark:text-neutral-200">
+                      {user.fullName ?? "Drawgle account"}
+                    </div>
+                    <div className="truncate text-[10px] text-neutral-400 dark:text-neutral-500">
+                      {user.email ?? "Signed in"}
+                    </div>
+                  </div>
+                  <ChevronDown className="h-4 w-4 text-neutral-400 shrink-0" />
+                </button>
+              }
+            />
+            <DropdownMenuContent align="end" className="w-[260px] rounded-[18px] border border-slate-950/[0.08] dark:border-white/[0.08] bg-white dark:bg-[#1c1f26] p-2 shadow-[0_20px_70px_rgba(15,23,42,0.2)] dark:shadow-[0_20px_70px_rgba(0,0,0,0.6)] mb-2">
+              <div className="px-2.5 py-2 border-b border-slate-950/[0.06] dark:border-white/[0.06] mb-1">
+                <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500 mb-0.5 font-sans">Account</div>
+                <div className="truncate text-xs font-semibold text-slate-900 dark:text-slate-100 font-sans">{user.email || "user@drawgle.com"}</div>
               </div>
-              <div className="truncate text-[10px] text-neutral-400 dark:text-neutral-500">
-                {user.email ?? "Signed in"}
-              </div>
-            </div>
-            <button
-              onClick={handleSignOut}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 dark:hover:bg-white/10 hover:text-neutral-855 transition-all"
-              aria-label="Sign out"
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
-          </div>
+              <DropdownMenuItem
+                onClick={() => router.push("/account")}
+                className="flex w-full items-center gap-2 rounded-[12px] px-2.5 py-2 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-white/10 cursor-pointer"
+              >
+                <User className="h-3.5 w-3.5 text-slate-500" />
+                Account Settings
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => router.push("/billing")}
+                className="flex w-full items-center gap-2 rounded-[12px] px-2.5 py-2 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-white/10 cursor-pointer"
+              >
+                <CreditCard className="h-3.5 w-3.5 text-slate-500" />
+                Billing & Subscription
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={handleSignOut}
+                className="flex w-full items-center gap-2 rounded-[12px] px-2.5 py-2 text-left text-xs font-semibold text-rose-600 transition hover:bg-rose-55 hover:text-rose-700 cursor-pointer"
+              >
+                <LogOut className="h-3.5 w-3.5 text-rose-500" />
+                Log Out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     );

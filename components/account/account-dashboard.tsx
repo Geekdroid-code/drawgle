@@ -1,36 +1,27 @@
 'use client'
 
-import { useState, useCallback } from 'react'
-import { User } from '@supabase/supabase-js'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
-import { User as UserIcon, Activity } from 'lucide-react'
-import { formatDistanceToNow } from 'date-fns'
-import Link from 'next/link'
+import React, { useMemo } from 'react'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { InvoiceHistory, type InvoiceItem } from '@/components/billingsdk/invoice-history'
+import { Mail, Calendar, CircleDollarSign, Zap, User, Sparkles } from 'lucide-react'
+import type { AuthenticatedUser } from '@/lib/types'
 
-// Removed complex credit transaction service dependency
-
-interface Payment {
+export interface PaymentRow {
   id: string
+  created_at: string
+  user_id: string
+  dodo_payment_id: string
+  pricing_plan_id: string
   amount: number
   currency: string
   status: string
   credits: number
-  created_at: string
-  completed_at?: string
-  pricing_plan: {
+  pricing_plan?: {
     name: string
-    price: number
-  }
-  dodo_payment_id?: string
+  } | null
 }
 
-interface SubscriptionSummary {
+export interface SubscriptionSummary {
   subscription_id: string
   status: 'pending' | 'active' | 'cancelled' | 'expired'
   plan_name?: string
@@ -43,180 +34,131 @@ interface SubscriptionSummary {
 }
 
 interface AccountDashboardProps {
-  user: User
-  payments: Payment[]
+  user: any
+  payments: PaymentRow[]
   currentCredits: number
   totalCreditsPurchased: number
-  subscription?: SubscriptionSummary | null
+  subscription: SubscriptionSummary | null
 }
 
-interface UsageStats {
-  totalSpent: number
-  thisMonth: number
-  lastMonth: number
-  topFeatures: Array<{ feature: string; credits: number }>
-}
+export function AccountDashboard({
+  user,
+  payments,
+  currentCredits,
+  totalCreditsPurchased,
+  subscription,
+}: AccountDashboardProps) {
 
-export function AccountDashboard({ user, payments, currentCredits, totalCreditsPurchased, subscription }: AccountDashboardProps) {
+  // Map database payments to BSDK InvoiceItem
+  const invoices = useMemo<InvoiceItem[]>(() => {
+    return (payments || []).map((p) => {
+      const sym = p.currency === 'USD' ? '$' : p.currency === 'EUR' ? '€' : p.currency || '$'
+      const status: InvoiceItem['status'] =
+        p.status === 'completed' || p.status === 'succeeded'
+          ? 'paid'
+          : p.status === 'refunded'
+          ? 'refunded'
+          : 'open'
 
-  const formatCurrency = (amount: number, currency: string = 'USD') => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currency,
-    }).format(amount)
-  }
+      return {
+        id: p.dodo_payment_id,
+        date: new Date(p.created_at).toLocaleDateString(),
+        amount: `${sym}${Number(p.amount).toFixed(2)}`,
+        status,
+        invoiceUrl: `/api/dodopayments/invoices/${p.dodo_payment_id}`,
+        description: `${p.credits} AI credits purchased (${p.pricing_plan?.name || 'SaaS Plan'})`,
+      }
+    })
+  }, [payments])
 
-  const mapStatusToInvoice = (status: string): 'paid' | 'refunded' | 'open' | 'void' => {
-    const s = (status || '').toLowerCase()
-    if (s === 'completed' || s === 'succeeded' || s === 'paid') return 'paid'
-    if (s === 'refunded') return 'refunded'
-    if (s === 'failed' || s === 'cancelled' || s === 'canceled' || s === 'void') return 'void'
-    return 'open'
-  }
-
-  // NOTE: $0 payments (e.g. 100% discount) don't have invoices in Dodo Payments
-  // See: https://docs.dodopayments.com/miscellaneous/faq (Q73)
-  const invoices: InvoiceItem[] = (payments || []).map((p) => {
-    const paymentAmount = Number(p.amount ?? 0)
-    const hasInvoice = p.dodo_payment_id && paymentAmount > 0
-
-    return {
-      id: String(p.dodo_payment_id || p.id),
-      date: new Date(p.created_at).toISOString().slice(0, 10),
-      amount: formatCurrency(paymentAmount, p.currency || 'USD'),
-      status: mapStatusToInvoice(p.status),
-      invoiceUrl: hasInvoice ? `/api/dodopayments/invoices/${encodeURIComponent(p.dodo_payment_id!)}` : undefined,
-      description: p?.pricing_plan?.name ? `Plan: ${p.pricing_plan.name}` : undefined,
+  const joinedDate = useMemo(() => {
+    if (user?.created_at) {
+      return new Date(user.created_at).toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })
     }
-  })
-
+    return 'Recently'
+  }, [user])
 
   return (
-    <div className="space-y-6">
-      {/* Profile Information */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <UserIcon className="h-5 w-5" />
-            Profile Information
-          </CardTitle>
-          <CardDescription>
-            See your personal information and account settings
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex items-center gap-4">
-            <Avatar className="h-20 w-20">
-              <AvatarImage src={user.user_metadata?.avatar_url} />
-              <AvatarFallback className="text-lg">
-                {user.user_metadata?.full_name?.charAt(0) || user.email?.charAt(0) || 'U'}
-              </AvatarFallback>
-            </Avatar>
-            <div className="space-y-1">
-              <h3 className="text-lg font-medium">
-                {user.user_metadata?.full_name || 'User'}
-              </h3>
-              <p className="text-sm text-muted-foreground">{user.email}</p>
-              <p className="text-xs text-muted-foreground">
-                Member since {formatDistanceToNow(new Date(user.created_at), { addSuffix: true })}
+    <div className="space-y-8 text-left">
+      {/* Metrics Row */}
+      <div className="grid gap-6 md:grid-cols-3">
+        {/* User Card */}
+        <Card className="border-slate-100 dark:border-white/[0.06] bg-white dark:bg-[#1a1d22]">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+              <User className="h-4 w-4 text-[#1b7fcc]" />
+              Account Info
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2.5">
+            <div className="flex items-center gap-2">
+              <Mail className="h-4 w-4 text-slate-400 shrink-0" />
+              <span className="truncate text-sm font-semibold text-slate-700 dark:text-slate-200">
+                {user?.email || 'user@drawgle.com'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-slate-400 shrink-0" />
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                Joined: {joinedDate}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Credits Card */}
+        <Card className="border-slate-100 dark:border-white/[0.06] bg-white dark:bg-[#1a1d22]">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+              <CircleDollarSign className="h-4 w-4 text-emerald-500" />
+              AI Credits Balance
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            <div className="text-3xl font-extrabold text-slate-900 dark:text-slate-100 flex items-baseline gap-1">
+              <span>{currentCredits}</span>
+              <span className="text-xs font-semibold text-slate-450 dark:text-slate-500">remaining</span>
+            </div>
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">
+              Total purchased: {totalCreditsPurchased} credits
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Subscription Plan Card */}
+        <Card className="border-slate-100 dark:border-white/[0.06] bg-white dark:bg-[#1a1d22]">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+              <Sparkles className="h-4 w-4 text-indigo-500" />
+              Current Plan
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+              {subscription?.status === 'active' ? `${subscription.plan_name} Tier` : 'Free Tier'}
+            </div>
+            {subscription?.status === 'active' ? (
+              <div className="flex items-center gap-1.5 mt-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xs text-slate-500 dark:text-slate-400 capitalize">
+                  {subscription.status} subscription
+                </span>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                Subscribe on the billing page to unlock premium AI tools.
               </p>
-            </div>
-          </div>
-          <Separator />
-          <div className="grid gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" value={user.email || ''} disabled />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
-      {/* Subscription */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <UserIcon className="h-5 w-5" />
-            Subscription
-          </CardTitle>
-          <CardDescription>Manage your subscription and billing</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {subscription ? (
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <Badge
-                    variant={
-                      subscription.status === 'active'
-                        ? 'default'
-                        : subscription.status === 'pending'
-                          ? 'secondary'
-                          : 'destructive'
-                    }
-                  >
-                    {subscription.status}
-                  </Badge>
-                  <span className="text-sm font-medium">
-                    {subscription.plan_name || 'Subscription'}
-                  </span>
-                </div>
-                {subscription.next_billing_date && (
-                  <p className="text-sm text-muted-foreground">
-                    Next billing:{' '}
-                    {new Date(subscription.next_billing_date).toLocaleString()}
-                  </p>
-                )}
-                {typeof subscription.cancel_at_period_end === 'boolean' &&
-                  subscription.cancel_at_period_end && (
-                    <p className="text-xs text-amber-600">
-                      Cancellation scheduled at period end
-                    </p>
-                  )}
-                {subscription.status === 'cancelled' && (
-                  <p className="text-xs text-red-600">
-                    {`Cancelled${subscription.canceled_at ? ' on ' + new Date(subscription.canceled_at).toLocaleString() : ''}`}
-                  </p>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <Link
-                  href="/billing"
-                  className="cursor-pointer px-3 py-2 text-sm bg-stone-900 text-white rounded hover:bg-stone-800"
-                >
-                  Open billing
-                </Link>
-              </div>
-            </div>
-          ) : (
-            <div className="text-sm text-muted-foreground">
-              No active subscription found.
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Invoice History */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Activity className="h-5 w-5" />
-            Invoice History
-          </CardTitle>
-          <CardDescription>
-            View and download your billing invoices
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {invoices && invoices.length > 0 ? (
-            <InvoiceHistory invoices={invoices} />
-          ) : (
-            <div className="text-sm text-muted-foreground">No invoices available yet.</div>
-          )}
-        </CardContent>
-      </Card>
-
-
+      {/* Invoice History section */}
+      <InvoiceHistory invoices={invoices} />
     </div>
   )
 }

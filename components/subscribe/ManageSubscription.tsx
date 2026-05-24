@@ -98,6 +98,35 @@ export default function ManageSubscription({ subscription, plans, userEmail }: M
 
     // Map pricing plans to BillingSDK Plan type
     const billingPlans = useMemo<BSDKPlan[]>(() => {
+        const getPlanFeatures = (name: string, credits: number) => {
+            const lower = name.toLowerCase()
+            if (lower === 'lite') {
+                return [
+                    { name: `${credits} AI generation credits/mo`, icon: 'check' },
+                    { name: 'Build ~20 screens per month', icon: 'check' },
+                    { name: 'Free blueprint brief planner', icon: 'check' },
+                    { name: 'Tailwind CSS component exports', icon: 'check' },
+                    { name: 'Figma design system matching', icon: 'check' },
+                ]
+            }
+            if (lower === 'starter') {
+                return [
+                    { name: `${credits} AI generation credits/mo`, icon: 'check' },
+                    { name: 'Build ~50 screens per month', icon: 'check' },
+                    { name: 'Style reference image matching', icon: 'check' },
+                    { name: 'Priority AI generation speed', icon: 'check' },
+                    { name: 'All Lite features included', icon: 'check' },
+                ]
+            }
+            return [
+                { name: `${credits} AI generation credits/mo`, icon: 'check' },
+                { name: 'Build ~333 screens per month', icon: 'check' },
+                { name: 'Multi-screen system planning', icon: 'check' },
+                { name: 'Unlimited Figma exports', icon: 'check' },
+                { name: 'Priority developer support', icon: 'check' },
+            ]
+        }
+
         return (plans || []).map((p) => ({
             id: p.id,
             title: p.name,
@@ -106,15 +135,8 @@ export default function ManageSubscription({ subscription, plans, userEmail }: M
             monthlyPrice: String(p.price ?? 0),
             yearlyPrice: String((p.price ?? 0) * 12),
             buttonText: 'Select',
-            features: [
-                { name: p.credits ? `${p.credits} Human-like articles per month` : 'AI-generated articles', icon: 'check' },
-                { name: 'Automated content strategy', icon: 'check' },
-                { name: 'CMS integration', icon: 'check' },
-                { name: 'On-brand AI images', icon: 'check' },
-                { name: 'Smart internal linking', icon: 'check' },
-                { name: 'Real-time research with citations', icon: 'check' },
-                { name: 'Cancel anytime', icon: 'check' },
-            ],
+            credits: p.credits ?? 0,
+            features: getPlanFeatures(p.name, p.credits ?? 0),
         }))
     }, [plans])
 

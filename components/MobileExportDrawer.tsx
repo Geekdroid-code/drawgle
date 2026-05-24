@@ -4,6 +4,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { Copy, Check, Download, Loader2, ChevronDown, Smartphone, Search, X } from "lucide-react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { PremiumSegmentedTabs, PremiumTabPanel } from "@/components/ui/premium-segmented-tabs";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,6 +34,14 @@ interface MobileExportDrawerProps {
 }
 
 type MobileFramework = "html" | "swiftui" | "compose" | "reactnative" | "flutter";
+
+const FRAMEWORK_TABS: Array<{ id: MobileFramework; label: string; compactLabel: string }> = [
+  { id: "html", label: "HTML", compactLabel: "HTML" },
+  { id: "swiftui", label: "SwiftUI", compactLabel: "Swift" },
+  { id: "compose", label: "Compose", compactLabel: "Kotlin" },
+  { id: "reactnative", label: "React Native", compactLabel: "RN" },
+  { id: "flutter", label: "Flutter", compactLabel: "Flutter" },
+];
 
 const FILE_SEPARATOR = "// ════════════════════════════════════════════════════════════";
 
@@ -495,27 +504,15 @@ ${cleanScreen}
             </div>
             
             {/* Segmented Pill Selector Row — 5 tabs including HTML */}
-            <div className="mt-6 grid grid-cols-5 gap-1 rounded-[14px] bg-slate-950/[0.04] p-1">
-              {(["html", "swiftui", "compose", "reactnative", "flutter"] as MobileFramework[]).map((tab) => {
-                const isActive = activeTab === tab;
-                return (
-                  <button
-                    key={tab}
-                    type="button"
-                    onClick={() => setActiveTab(tab)}
-                    className={`flex h-8 items-center justify-center rounded-[10px] text-[11px] font-semibold transition ${
-                      isActive ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:text-slate-800"
-                    }`}
-                  >
-                    {tab === "html" && "HTML"}
-                    {tab === "swiftui" && "SwiftUI"}
-                    {tab === "compose" && "Compose"}
-                    {tab === "reactnative" && "React Native"}
-                    {tab === "flutter" && "Flutter"}
-                  </button>
-                );
-              })}
-            </div>
+            <PremiumSegmentedTabs
+              items={FRAMEWORK_TABS}
+              value={activeTab}
+              onValueChange={setActiveTab}
+              size="sm"
+              layoutId="export-framework-tab"
+              className="mt-6"
+              tabClassName="px-1 text-[10px] sm:text-[11px]"
+            />
           </SheetHeader>
 
           {/* Content Area */}
@@ -535,16 +532,18 @@ ${cleanScreen}
                 </div>
               </div>
               <div className="flex-1 min-h-0 relative font-mono text-[12px] leading-relaxed">
-                {compiledCodes ? (
-                  <pre className="h-full w-full overflow-auto p-4 text-slate-700 select-text scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
-                    <code>{activeCode}</code>
-                  </pre>
-                ) : (
-                  <div className="flex h-full flex-col items-center justify-center gap-3 text-center px-6">
-                    <Loader2 className="h-5 w-5 text-slate-400 animate-spin" />
-                    <div className="text-[13px] text-slate-500">Compiling native code...</div>
-                  </div>
-                )}
+                <PremiumTabPanel panelKey={activeTab} className="h-full">
+                  {compiledCodes ? (
+                    <pre className="h-full w-full overflow-auto p-4 text-slate-700 select-text scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+                      <code>{activeCode}</code>
+                    </pre>
+                  ) : (
+                    <div className="flex h-full flex-col items-center justify-center gap-3 text-center px-6">
+                      <Loader2 className="h-5 w-5 text-slate-400 animate-spin" />
+                      <div className="text-[13px] text-slate-500">Compiling native code...</div>
+                    </div>
+                  )}
+                </PremiumTabPanel>
               </div>
             </div>
           </div>
