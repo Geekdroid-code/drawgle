@@ -384,7 +384,7 @@ ${cleanScreen}
     <Sheet open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <SheetContent
         side="right"
-        className="!w-full sm:!w-[540px] sm:!max-w-[540px] border-l border-slate-950/[0.1] bg-white p-0 text-slate-900 shadow-2xl overflow-hidden flex flex-col h-full"
+        className="dg-export-drawer !w-full sm:!w-[540px] sm:!max-w-[540px] border-l border-slate-950/[0.1] bg-white p-0 text-slate-900 shadow-2xl overflow-hidden flex flex-col h-full"
       >
         <div className="flex h-full flex-col min-h-0">
           {/* Header */}
@@ -416,30 +416,30 @@ ${cleanScreen}
                     render={
                       <button
                         type="button"
-                        className="flex h-11 w-full items-center justify-between gap-3 rounded-[14px] border border-slate-950/[0.08] bg-slate-50/80 px-3.5 text-left text-sm font-semibold text-slate-800 transition hover:bg-slate-100 hover:border-slate-950/[0.16] shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-950/20"
+                        className="flex h-11 w-full items-center justify-between gap-3 rounded-[14px] border border-[var(--dg-border)] bg-[var(--dg-surface-muted)] px-3.5 text-left text-sm font-semibold text-[var(--dg-text)] shadow-sm transition hover:border-[var(--dg-border-strong)] hover:bg-[var(--dg-surface)] focus:outline-none focus:ring-2 focus:ring-[var(--dg-border-strong)] dark:border-white/[0.08] dark:bg-[#252830] dark:text-[#e8eaf0] dark:hover:bg-[#2c3039]"
                       >
                         <span className="flex min-w-0 items-center gap-2">
                           <Smartphone className="h-4 w-4 text-[#FF4F00]" />
                           <span className="truncate">{screenName}</span>
                         </span>
-                        <ChevronDown className="h-4 w-4 text-slate-400 shrink-0" />
+                        <ChevronDown className="h-4 w-4 text-[var(--dg-text-muted)] shrink-0" />
                       </button>
                     }
                   />
                   <DropdownMenuContent
                     align="start"
-                    className="w-[320px] rounded-[18px] border border-slate-950/[0.08] bg-white p-2 shadow-[0_20px_70px_rgba(15,23,42,0.2)] flex flex-col gap-2"
+                    className="dg-export-screen-menu flex w-[320px] flex-col gap-2 rounded-[18px] border border-[var(--dg-border)] bg-[var(--dg-surface)] p-2 text-[var(--dg-text)] shadow-[0_20px_70px_rgba(15,23,42,0.2)] dark:border-white/[0.08] dark:bg-[#1c1f26] dark:shadow-[0_20px_70px_rgba(0,0,0,0.58)]"
                   >
                     {/* Live Search Box */}
                     <div className="relative flex items-center px-1 py-0.5">
-                      <Search className="absolute left-3.5 h-3.5 w-3.5 text-slate-400" />
+                      <Search className="absolute left-3.5 h-3.5 w-3.5 text-[var(--dg-text-muted)]" />
                       <input
                         type="text"
                         placeholder="Search screens..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         onClick={(e) => e.stopPropagation()}
-                        className="h-9 w-full rounded-[12px] bg-slate-950/[0.04] pl-8 pr-8 text-xs font-semibold text-slate-900 placeholder-slate-400 border-none outline-none focus:bg-slate-950/[0.06] transition"
+                        className="h-9 w-full rounded-[12px] border-none bg-[var(--dg-surface-muted)] pl-8 pr-8 text-xs font-semibold text-[var(--dg-text)] outline-none transition placeholder:text-[var(--dg-text-muted)] focus:bg-[var(--dg-surface-muted)] dark:bg-[#252830] dark:text-[#e8eaf0] dark:placeholder:text-[#6f7785]"
                       />
                       {searchQuery && (
                         <button
@@ -448,7 +448,7 @@ ${cleanScreen}
                             e.stopPropagation();
                             setSearchQuery("");
                           }}
-                          className="absolute right-3 h-5 w-5 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition"
+                          className="absolute right-3 flex h-5 w-5 items-center justify-center rounded-full text-[var(--dg-text-muted)] transition hover:bg-[var(--dg-surface-muted)] hover:text-[var(--dg-text)] dark:hover:bg-white/10"
                         >
                           <X className="h-3 w-3" />
                         </button>
@@ -456,7 +456,7 @@ ${cleanScreen}
                     </div>
 
                     {/* Scrollable list */}
-                    <div className="max-h-[220px] overflow-y-auto flex flex-col gap-0.5 pr-1 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+                    <div className="max-h-[220px] overflow-y-auto flex flex-col gap-0.5 pr-1 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent dark:scrollbar-thumb-white/20">
                       {filteredScreens.length > 0 ? (
                         filteredScreens.map((screen) => {
                           const isSelected = activeScreenId === screen.id;
@@ -469,12 +469,12 @@ ${cleanScreen}
                               }}
                               className={`flex w-full items-center justify-between rounded-[12px] px-3 py-2 text-left transition cursor-pointer ${
                                 isSelected
-                                  ? "bg-slate-950 text-white focus:bg-slate-900 focus:text-white"
-                                  : "hover:bg-slate-50 focus:bg-slate-50 text-slate-700"
+                                  ? "bg-slate-950 text-white focus:bg-slate-900 focus:text-white dark:bg-[#0f172a] dark:text-white dark:ring-1 dark:ring-white/[0.10] dark:focus:bg-[#111c33] dark:focus:text-white"
+                                  : "text-[var(--dg-text)] hover:bg-[var(--dg-surface-muted)] focus:bg-[var(--dg-surface-muted)] dark:text-[#d8dde7] dark:hover:bg-white/[0.06] dark:focus:bg-white/[0.06]"
                               }`}
                             >
                               <span className="flex min-w-0 items-center gap-2.5">
-                                <Smartphone className={`h-4 w-4 ${isSelected ? "text-white" : "text-slate-400"}`} />
+                                <Smartphone className={`h-4 w-4 ${isSelected ? "text-current" : "text-[var(--dg-text-muted)]"}`} />
                                 <span className="truncate text-xs font-semibold">{screen.name}</span>
                               </span>
                               {isSelected && (
@@ -484,7 +484,7 @@ ${cleanScreen}
                           );
                         })
                       ) : (
-                        <div className="py-6 text-center text-xs text-slate-400 font-semibold">
+                        <div className="py-6 text-center text-xs font-semibold text-[var(--dg-text-muted)]">
                           No screens match &ldquo;{searchQuery}&rdquo;
                         </div>
                       )}

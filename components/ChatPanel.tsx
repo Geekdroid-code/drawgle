@@ -1085,7 +1085,7 @@ function DesignTab({
 
   if (!hasTokens || !tokenDraft || !onTokenDraftChange || !onSaveTokens || !onDiscardTokens) {
     return (
-      <div className="flex min-h-0 flex-1 items-center justify-center bg-[#f7f7f8] px-5 text-center text-sm leading-6 text-slate-500">
+      <div className="dg-token-editor-muted flex min-h-0 flex-1 items-center justify-center px-5 text-center text-sm leading-6 text-slate-500">
         Design tokens will appear here as soon as the generation job finishes design analysis.
       </div>
     );
@@ -1100,7 +1100,7 @@ function DesignTab({
         : "Tokens saved";
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-[#f7f7f8]">
+    <div className="dg-token-editor-muted flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
         <DesignSystemEditor
           value={tokenDraft}
@@ -1115,7 +1115,7 @@ function DesignTab({
           showPreview={false}
         />
       </div>
-      <div className="shrink-0 border-t border-slate-950/[0.08] bg-white/94 px-3 py-2 backdrop-blur-xl">
+      <div className="dg-token-editor-surface shrink-0 border-t border-slate-950/[0.08] px-3 py-2 backdrop-blur-xl">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
             <div className="truncate text-[12px] font-medium text-slate-700">{status}</div>
@@ -1402,7 +1402,7 @@ export function ChatPanel({
       </header>
 
       {activeTab === "chat" ? (
-      <div className="chat-history-scrollbar min-h-0 flex-1 overflow-y-auto bg-white pb-8">
+      <div className="chat-history-scrollbar dg-chat-body min-h-0 flex-1 overflow-y-auto pb-8">
         <AnimatePresence initial={false}>
           {conversationItems.length === 0 ? (
             <EmptyConversation isLoading={isLoading} />
@@ -1482,7 +1482,7 @@ export function ChatPanel({
       ) : null}
 
       {activeTab === "chat" ? (
-      <div className="shrink-0 bg-white px-2 py-2">
+      <div className="dg-chat-footer shrink-0 px-2 py-2">
         <AgentComposer
           variant="panel"
           project={project}

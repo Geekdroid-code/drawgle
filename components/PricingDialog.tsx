@@ -114,7 +114,7 @@ export function PricingDialog({
       <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
         showCloseButton={false}
-        className="flex max-h-[90vh] lg:max-h-[95vh] flex-col w-[95vw] sm:max-w-4xl lg:max-w-5xl xl:max-w-[1100px] gap-0 overflow-hidden rounded-[20px] lg:rounded-[28px] border border-slate-200/60 bg-[#fcfcfc] p-0 shadow-2xl"
+        className="dg-pricing-dialog flex max-h-[90vh] lg:max-h-[95vh] flex-col w-[95vw] sm:max-w-4xl lg:max-w-5xl xl:max-w-[1100px] gap-0 overflow-hidden rounded-[20px] lg:rounded-[28px] border border-slate-200/60 bg-[#fcfcfc] p-0 shadow-2xl"
       >
         <div className="relative shrink-0 px-6 pt-7 pb-4 lg:px-10 lg:pt-10 lg:pb-6 text-center">
           <button

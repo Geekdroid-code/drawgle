@@ -46,12 +46,12 @@ export function ScreenHeaderOverlay({
         zIndex: 100,
         pointerEvents: "auto",
       }}
-      className="flex items-center gap-2 px-4 py-2 rounded-xl shadow-lg bg-white border border-gray-200"
+      className="flex items-center gap-2 rounded-xl border border-[var(--dg-border)] bg-[var(--dg-surface)] px-4 py-2 text-[var(--dg-text)] shadow-lg"
     >
-      <span className="font-semibold text-gray-900 text-base truncate max-w-[200px]">{screen.name}</span>
+      <span className="max-w-[200px] truncate text-base font-semibold text-[var(--dg-text)]">{screen.name}</span>
       <DropdownMenu>
-        <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-gray-100" />}>
-          <MoreHorizontal className="w-4 h-4 text-gray-900" />
+        <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-[var(--dg-text-muted)] hover:bg-[var(--dg-surface-muted)] hover:text-[var(--dg-text)]" />}>
+          <MoreHorizontal className="w-4 h-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={onEdit}>

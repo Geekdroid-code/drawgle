@@ -117,7 +117,7 @@ export function AgentComposer({
   void _onDeleteSelectedScreen;
 
   const shellClass = variant === "panel"
-    ? "relative flex flex-col overflow-hidden rounded-[22px] border border-slate-950/[0.08] bg-white px-2 pb-2 pt-2"
+    ? "relative flex flex-col overflow-hidden rounded-[22px] border border-[var(--dg-border)] bg-[var(--dg-surface)] px-2 pb-2 pt-2 text-[var(--dg-text)]"
     : `relative flex flex-col overflow-hidden rounded-[24px] px-2 pb-2 pt-2 backdrop-blur-xl ${isActiveComposer ? "dg-prompt-composer-active" : "dg-prompt-composer"}`;
 
   return (
@@ -131,8 +131,8 @@ export function AgentComposer({
       {selectedScreen || hasSelectedElement ? (
         <div className="mb-1 flex min-h-8 items-center gap-1.5 overflow-x-auto px-0.5 pt-0.5">
           {(selectedScreen?.name || activeTargetLabel) ? (
-            <span className="inline-flex h-8 max-w-[62%] shrink-0 items-center gap-1.5 rounded-full border border-black/[0.08] bg-[#f4f5f6]/90 px-2.5 text-xs font-medium text-slate-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
-              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-white/80 text-slate-500">
+            <span className="dg-prompt-target-pill inline-flex h-8 max-w-[62%] shrink-0 items-center gap-1.5 rounded-full border border-[var(--dg-border)] bg-[var(--dg-surface-muted)] px-2.5 text-xs font-medium text-[var(--dg-text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] dark:border-white/[0.10] dark:bg-[#252830] dark:text-[#e8eaf0]">
+              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[var(--dg-surface)] text-[var(--dg-text-muted)] dark:bg-[#1c1f26] dark:text-[#aeb5c2]">
                 <Pencil className="h-2.5 w-2.5" />
               </span>
               <span className="truncate">{selectedScreen?.name ?? activeTargetLabel}</span>
@@ -142,7 +142,7 @@ export function AgentComposer({
                     render={
                       <button
                         type="button"
-                        className="rounded-full p-0.5 text-slate-400 hover:bg-white hover:text-slate-900"
+                        className="rounded-full p-0.5 text-[var(--dg-text-muted)] hover:bg-[var(--dg-surface)] hover:text-[var(--dg-text)] dark:text-[#aeb5c2] dark:hover:bg-white/10 dark:hover:text-white"
                         onClick={onClearSelectedScreen}
                         disabled={disabled || isGenerating}
                         aria-label="Clear selected screen"
@@ -158,7 +158,7 @@ export function AgentComposer({
           ) : null}
 
           {hasSelectedElement ? (
-            <span className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-black/[0.08] bg-[#f4f5f6]/90 px-2.5 text-xs font-semibold text-slate-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
+            <span className="dg-prompt-target-pill inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-[var(--dg-border)] bg-[var(--dg-surface-muted)] px-2.5 text-xs font-semibold text-[var(--dg-text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] dark:border-white/[0.10] dark:bg-[#252830] dark:text-[#e8eaf0]">
               <Tooltip>
                 <TooltipTrigger
                   render={
@@ -169,7 +169,7 @@ export function AgentComposer({
                       disabled={disabled || isGenerating || (!selectedElementCanEditDesign && !selectedElementCanEditText)}
                       aria-label="Open visual editor"
                     >
-                      <Palette className="h-3.5 w-3.5 text-slate-500" />
+                      <Palette className="h-3.5 w-3.5 text-[var(--dg-text-muted)] dark:text-[#aeb5c2]" />
                       <span className="max-w-20 truncate tracking-[0.02em]">{elementTagLabel}</span>
                     </button>
                   }
@@ -182,7 +182,7 @@ export function AgentComposer({
                     render={
                       <button
                         type="button"
-                        className="rounded-full p-0.5 text-slate-400 hover:bg-white hover:text-slate-900"
+                        className="rounded-full p-0.5 text-[var(--dg-text-muted)] hover:bg-[var(--dg-surface)] hover:text-[var(--dg-text)] dark:text-[#aeb5c2] dark:hover:bg-white/10 dark:hover:text-white"
                         onClick={onClearSelectedElement}
                         disabled={disabled || isGenerating}
                         aria-label="Clear selected element"
@@ -257,7 +257,7 @@ export function AgentComposer({
                 ? "What do you want to do?"
                 : "What mobile app shall we design?"
         }
-        className={`${variant === "panel" ? "h-[104px] text-[15px]" : "h-[116px] text-base"} [field-sizing:fixed] resize-none overflow-y-auto border-none bg-transparent px-3 pb-12 pt-3 leading-6 text-slate-950 shadow-none placeholder:text-slate-400 focus-visible:ring-0`}
+        className={`${variant === "panel" ? "h-[104px] text-[15px]" : "h-[116px] text-base"} [field-sizing:fixed] resize-none overflow-y-auto border-none bg-transparent px-3 pb-12 pt-3 leading-6 text-[var(--dg-text)] shadow-none placeholder:text-[var(--dg-text-muted)] focus-visible:ring-0`}
         value={prompt}
         onChange={(event) => setPrompt(event.target.value)}
         onKeyDown={(event) => {

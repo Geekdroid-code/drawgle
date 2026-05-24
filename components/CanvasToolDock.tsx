@@ -35,7 +35,7 @@ function DockButton({ label, active, disabled, onClick, children }: DockButtonPr
             aria-label={label}
             disabled={disabled}
             onClick={onClick}
-            className={`h-9 w-9 rounded-full transition md:h-10 md:w-10 ${active ? "bg-slate-950 text-white hover:bg-slate-900 hover:text-white" : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"}`}
+            className={`h-9 w-9 rounded-full transition md:h-10 md:w-10 ${active ? "bg-[var(--dg-text)] text-[var(--dg-bg)] hover:bg-[var(--dg-text)] hover:text-[var(--dg-bg)]" : "text-[var(--dg-text-muted)] hover:bg-[var(--dg-surface-muted)] hover:text-[var(--dg-text)]"}`}
           >
             {children}
           </Button>
@@ -75,14 +75,14 @@ export function CanvasToolDock({
 }) {
   return (
     <TooltipProvider>
-      <div className={`canvas-pan-exclude absolute bottom-[calc(env(safe-area-inset-bottom,0px)+1rem)] left-1/2 z-[55] -translate-x-1/2 items-center gap-1 rounded-full border border-slate-950/[0.08] bg-white/92 p-1.5 shadow-[0_18px_55px_-34px_rgba(15,23,42,0.8)] backdrop-blur-xl ${isChatCollapsed ? "flex" : "hidden md:flex"}`}>
+      <div className={`canvas-pan-exclude absolute bottom-[calc(env(safe-area-inset-bottom,0px)+1rem)] left-1/2 z-[55] -translate-x-1/2 items-center gap-1 rounded-full border border-[var(--dg-border)] bg-[color-mix(in_oklab,var(--dg-surface)_92%,transparent)] p-1.5 shadow-[0_18px_55px_-34px_rgba(15,23,42,0.8)] backdrop-blur-xl ${isChatCollapsed ? "flex" : "hidden md:flex"}`}>
         <DockButton label="Pointer" active={!selectionMode} disabled={disabled} onClick={selectionMode ? onToggleSelectionMode : undefined}>
           <MousePointer2 className="h-4 w-4 md:h-5 md:w-5" />
         </DockButton>
         <DockButton label={selectionMode ? "Exit select mode" : "Select element"} active={selectionMode} disabled={disabled} onClick={onToggleSelectionMode}>
           <LassoSelect className="h-4 w-4 md:h-5 md:w-5" />
         </DockButton>
-        <div className="mx-1 hidden h-6 w-px bg-slate-950/[0.1] md:block" />
+        <div className="mx-1 hidden h-6 w-px bg-[var(--dg-border-strong)] md:block" />
 
         <DockButton label="Pan canvas" disabled={disabled}>
           <Hand className="h-4 w-4 md:h-5 md:w-5" />
@@ -98,7 +98,7 @@ export function CanvasToolDock({
         </DockButton>
 
         <div className={`items-center gap-1 ${hasSelectedElement ? "flex" : "hidden md:flex"}`}>
-          <div className="mx-1 h-6 w-px bg-slate-950/[0.1]" />
+          <div className="mx-1 h-6 w-px bg-[var(--dg-border-strong)]" />
           <DockButton
             label="Open visual editor"
             disabled={disabled || !hasSelectedElement || (!selectedElementCanEditDesign && !selectedElementCanEditText)}

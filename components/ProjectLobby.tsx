@@ -24,7 +24,6 @@ import {
   Check,
   Menu,
 } from "lucide-react";
-import { useTheme } from "next-themes";
 
 import { DesignSystemEditor } from "@/components/DesignSystemEditor";
 import { Button } from "@/components/ui/button";
@@ -34,6 +33,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useProjects } from "@/hooks/use-projects";
 import { useCredits } from "@/hooks/useCredits";
 import { PricingDialog } from "@/components/PricingDialog";
+import { useAppTheme } from "@/contexts/app-theme-context";
 import { describeNavigationArchitecture } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import type {
@@ -292,7 +292,7 @@ export function ProjectLobby({
   initialProjects: ProjectData[];
 }) {
   const router = useRouter();
-  const { resolvedTheme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useAppTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [stage, setStage] = useState<LobbyStage>("brief");
   const [prompt, setPrompt] = useState(initialPrompt);

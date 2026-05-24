@@ -25,13 +25,13 @@
 
   .dg-dashed-grid-bg {
     background-color: var(--dg-bg);
-    background-image: radial-gradient(rgba(15, 23, 42, 0.14) 1.2px, transparent 1.2px);
-    background-size: 24px 24px;
+    background-image: radial-gradient(circle, var(--canvas-dot) 1px, transparent 1px);
+    background-size: 20px 20px;
   }
 
   :is(.dark *) .dg-dashed-grid-bg,
   .dark .dg-dashed-grid-bg {
-    background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1.2px, transparent 1.2px);
+    background-image: radial-gradient(circle, var(--canvas-dot) 1px, transparent 1px);
   }
 
   .dg-panel {
@@ -237,12 +237,161 @@
     background:
       linear-gradient(180deg, rgba(255, 255, 255, 0.985) 0%, rgba(249, 250, 251, 0.985) 100%);
     border: 1px solid rgba(15, 23, 42, 0.13);
+    color: var(--dg-text);
   }
 
   :is(.dark *) .dg-chat-shell,
   .dark .dg-chat-shell {
     background: linear-gradient(180deg, rgba(28, 31, 38, 0.985) 0%, rgba(22, 25, 32, 0.985) 100%);
     border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .dg-chat-body,
+  .dg-chat-footer,
+  .dg-export-drawer,
+  .dg-export-drawer-surface,
+  .dg-pricing-dialog,
+  .dg-token-editor,
+  .dg-token-editor-surface,
+  .dg-visual-editor,
+  .dg-visual-editor-surface {
+    background: var(--dg-surface);
+    color: var(--dg-text);
+  }
+
+  .dg-export-drawer-muted,
+  .dg-pricing-dialog :is([class*="bg-slate-50"], [class*="bg-slate-100"]),
+  .dg-token-editor-muted,
+  .dg-visual-editor-muted,
+  .dg-export-drawer :is([class*="bg-[#f7f7f8]"], [class*="bg-[#fbfbfc]"], [class*="bg-slate-50"], [class*="bg-slate-100"]),
+  .dg-visual-editor :is([class*="bg-[#f7f7f8]"], [class*="bg-[#fbfbfc]"], [class*="bg-slate-50"], [class*="bg-slate-100"]),
+  .dg-token-editor :is([class*="bg-[#f1f3f6]"], [class*="bg-[#f4f6f8]"], [class*="bg-[#f6f6f7]"], [class*="bg-[#f7f7f8]"], [class*="bg-[#fbfbfc]"], [class*="bg-slate-50"]),
+  .dg-chat-shell :is([class*="bg-[#f0f0f1]"], [class*="bg-[#f4f4f5]"], [class*="bg-[#f6f6f7]"]) {
+    background: var(--dg-surface-muted);
+  }
+
+  .dg-token-popover {
+    background: var(--dg-surface);
+    color: var(--dg-text);
+    border-color: var(--dg-border);
+  }
+
+  :is(.dark *) .dg-chat-shell :is(.text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-gray-950, .text-gray-900, .text-gray-800, .text-neutral-950, .text-neutral-900, .text-neutral-800),
+  .dark .dg-chat-shell :is(.text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-gray-950, .text-gray-900, .text-gray-800, .text-neutral-950, .text-neutral-900, .text-neutral-800),
+  :is(.dark *) .dg-export-drawer :is(.text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-gray-950, .text-gray-900, .text-gray-800, .text-neutral-950, .text-neutral-900, .text-neutral-800),
+  .dark .dg-export-drawer :is(.text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-gray-950, .text-gray-900, .text-gray-800, .text-neutral-950, .text-neutral-900, .text-neutral-800),
+  :is(.dark *) .dg-pricing-dialog :is(.text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-gray-950, .text-gray-900, .text-gray-800, .text-neutral-950, .text-neutral-900, .text-neutral-800),
+  .dark .dg-pricing-dialog :is(.text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-gray-950, .text-gray-900, .text-gray-800, .text-neutral-950, .text-neutral-900, .text-neutral-800),
+  :is(.dark *) .dg-token-editor :is(.text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-gray-950, .text-gray-900, .text-gray-800, .text-neutral-950, .text-neutral-900, .text-neutral-800),
+  .dark .dg-token-editor :is(.text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-gray-950, .text-gray-900, .text-gray-800, .text-neutral-950, .text-neutral-900, .text-neutral-800),
+  :is(.dark *) .dg-token-popover :is(.text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-gray-950, .text-gray-900, .text-gray-800, .text-neutral-950, .text-neutral-900, .text-neutral-800),
+  .dark .dg-token-popover :is(.text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-gray-950, .text-gray-900, .text-gray-800, .text-neutral-950, .text-neutral-900, .text-neutral-800),
+  :is(.dark *) .dg-visual-editor :is(.text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-gray-950, .text-gray-900, .text-gray-800, .text-neutral-950, .text-neutral-900, .text-neutral-800),
+  .dark .dg-visual-editor :is(.text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-gray-950, .text-gray-900, .text-gray-800, .text-neutral-950, .text-neutral-900, .text-neutral-800) {
+    color: var(--dg-text) !important;
+  }
+
+  :is(.dark *) .dg-chat-shell :is(.text-slate-600, .text-slate-500, .text-gray-600, .text-gray-500, .text-neutral-600, .text-neutral-500),
+  .dark .dg-chat-shell :is(.text-slate-600, .text-slate-500, .text-gray-600, .text-gray-500, .text-neutral-600, .text-neutral-500),
+  :is(.dark *) .dg-export-drawer :is(.text-slate-600, .text-slate-500, .text-gray-600, .text-gray-500, .text-neutral-600, .text-neutral-500),
+  .dark .dg-export-drawer :is(.text-slate-600, .text-slate-500, .text-gray-600, .text-gray-500, .text-neutral-600, .text-neutral-500),
+  :is(.dark *) .dg-pricing-dialog :is(.text-slate-600, .text-slate-500, .text-gray-600, .text-gray-500, .text-neutral-600, .text-neutral-500),
+  .dark .dg-pricing-dialog :is(.text-slate-600, .text-slate-500, .text-gray-600, .text-gray-500, .text-neutral-600, .text-neutral-500),
+  :is(.dark *) .dg-token-editor :is(.text-slate-600, .text-slate-500, .text-gray-600, .text-gray-500, .text-neutral-600, .text-neutral-500),
+  .dark .dg-token-editor :is(.text-slate-600, .text-slate-500, .text-gray-600, .text-gray-500, .text-neutral-600, .text-neutral-500),
+  :is(.dark *) .dg-token-popover :is(.text-slate-600, .text-slate-500, .text-gray-600, .text-gray-500, .text-neutral-600, .text-neutral-500),
+  .dark .dg-token-popover :is(.text-slate-600, .text-slate-500, .text-gray-600, .text-gray-500, .text-neutral-600, .text-neutral-500),
+  :is(.dark *) .dg-visual-editor :is(.text-slate-600, .text-slate-500, .text-gray-600, .text-gray-500, .text-neutral-600, .text-neutral-500),
+  .dark .dg-visual-editor :is(.text-slate-600, .text-slate-500, .text-gray-600, .text-gray-500, .text-neutral-600, .text-neutral-500) {
+    color: var(--dg-text-muted) !important;
+  }
+
+  :is(.dark *) .dg-chat-shell :is(.text-slate-400, .text-gray-400, .text-neutral-400),
+  .dark .dg-chat-shell :is(.text-slate-400, .text-gray-400, .text-neutral-400),
+  :is(.dark *) .dg-export-drawer :is(.text-slate-400, .text-gray-400, .text-neutral-400),
+  .dark .dg-export-drawer :is(.text-slate-400, .text-gray-400, .text-neutral-400),
+  :is(.dark *) .dg-pricing-dialog :is(.text-slate-400, .text-gray-400, .text-neutral-400),
+  .dark .dg-pricing-dialog :is(.text-slate-400, .text-gray-400, .text-neutral-400),
+  :is(.dark *) .dg-token-editor :is(.text-slate-400, .text-gray-400, .text-neutral-400),
+  .dark .dg-token-editor :is(.text-slate-400, .text-gray-400, .text-neutral-400),
+  :is(.dark *) .dg-token-popover :is(.text-slate-400, .text-gray-400, .text-neutral-400),
+  .dark .dg-token-popover :is(.text-slate-400, .text-gray-400, .text-neutral-400),
+  :is(.dark *) .dg-visual-editor :is(.text-slate-400, .text-gray-400, .text-neutral-400),
+  .dark .dg-visual-editor :is(.text-slate-400, .text-gray-400, .text-neutral-400) {
+    color: var(--dg-text-faint) !important;
+  }
+
+  :is(.dark *) .dg-token-editor :is(.bg-white, [class*="bg-white/"]),
+  .dark .dg-token-editor :is(.bg-white, [class*="bg-white/"]),
+  :is(.dark *) .dg-chat-shell :is(.bg-white, [class*="bg-white/"]),
+  .dark .dg-chat-shell :is(.bg-white, [class*="bg-white/"]),
+  :is(.dark *) .dg-export-drawer :is(.bg-white, [class*="bg-white/"]),
+  .dark .dg-export-drawer :is(.bg-white, [class*="bg-white/"]),
+  :is(.dark *) .dg-pricing-dialog :is(.bg-white, [class*="bg-white/"]),
+  .dark .dg-pricing-dialog :is(.bg-white, [class*="bg-white/"]),
+  :is(.dark *) .dg-visual-editor :is(.bg-white, [class*="bg-white/"]),
+  .dark .dg-visual-editor :is(.bg-white, [class*="bg-white/"]),
+  :is(.dark *) .dg-token-popover :is(.bg-white, [class*="bg-white/"]),
+  .dark .dg-token-popover :is(.bg-white, [class*="bg-white/"]) {
+    background: var(--dg-surface) !important;
+  }
+
+  :is(.dark *) .dg-token-editor :is([class*="bg-[#f1f3f6]"], [class*="bg-[#f4f6f8]"], [class*="bg-[#f6f6f7]"], [class*="bg-[#f7f7f8]"], [class*="bg-[#fbfbfc]"], [class*="bg-slate-50"], .hover\:bg-\[\#f8fafc\]:hover, .hover\:bg-\[\#f7f7f8\]:hover, .hover\:bg-white:hover),
+  .dark .dg-token-editor :is([class*="bg-[#f1f3f6]"], [class*="bg-[#f4f6f8]"], [class*="bg-[#f6f6f7]"], [class*="bg-[#f7f7f8]"], [class*="bg-[#fbfbfc]"], [class*="bg-slate-50"], .hover\:bg-\[\#f8fafc\]:hover, .hover\:bg-\[\#f7f7f8\]:hover, .hover\:bg-white:hover),
+  :is(.dark *) .dg-chat-shell :is([class*="bg-[#f0f0f1]"], [class*="bg-[#f4f4f5]"], [class*="bg-[#f6f6f7]"], .hover\:bg-\[\#f8fafc\]:hover, .hover\:bg-\[\#f7f7f8\]:hover, .hover\:bg-white:hover),
+  .dark .dg-chat-shell :is([class*="bg-[#f0f0f1]"], [class*="bg-[#f4f4f5]"], [class*="bg-[#f6f6f7]"], .hover\:bg-\[\#f8fafc\]:hover, .hover\:bg-\[\#f7f7f8\]:hover, .hover\:bg-white:hover),
+  :is(.dark *) .dg-export-drawer :is([class*="bg-slate-50"], [class*="bg-slate-100"], .hover\:bg-slate-50:hover, .hover\:bg-slate-100:hover, .hover\:bg-white:hover),
+  .dark .dg-export-drawer :is([class*="bg-slate-50"], [class*="bg-slate-100"], .hover\:bg-slate-50:hover, .hover\:bg-slate-100:hover, .hover\:bg-white:hover),
+  :is(.dark *) .dg-pricing-dialog :is([class*="bg-slate-50"], [class*="bg-slate-100"], .hover\:bg-slate-50:hover, .hover\:bg-slate-100:hover, .hover\:bg-white:hover),
+  .dark .dg-pricing-dialog :is([class*="bg-slate-50"], [class*="bg-slate-100"], .hover\:bg-slate-50:hover, .hover\:bg-slate-100:hover, .hover\:bg-white:hover),
+  :is(.dark *) .dg-visual-editor :is([class*="bg-slate-50"], [class*="bg-slate-100"], .hover\:bg-slate-50:hover, .hover\:bg-slate-100:hover, .hover\:bg-white:hover),
+  .dark .dg-visual-editor :is([class*="bg-slate-50"], [class*="bg-slate-100"], .hover\:bg-slate-50:hover, .hover\:bg-slate-100:hover, .hover\:bg-white:hover) {
+    background: var(--dg-surface-muted) !important;
+  }
+
+  :is(.dark *) .dg-token-editor :is([class*="border-slate-950"], [class*="border-black"], .border-gray-100, .border-gray-200),
+  .dark .dg-token-editor :is([class*="border-slate-950"], [class*="border-black"], .border-gray-100, .border-gray-200),
+  :is(.dark *) .dg-chat-shell :is([class*="border-slate-950"], [class*="border-black"], .border-gray-100, .border-gray-200),
+  .dark .dg-chat-shell :is([class*="border-slate-950"], [class*="border-black"], .border-gray-100, .border-gray-200),
+  :is(.dark *) .dg-export-drawer :is([class*="border-slate-950"], [class*="border-black"], .border-gray-100, .border-gray-200),
+  .dark .dg-export-drawer :is([class*="border-slate-950"], [class*="border-black"], .border-gray-100, .border-gray-200),
+  :is(.dark *) .dg-pricing-dialog :is([class*="border-slate-950"], [class*="border-black"], .border-slate-100, .border-slate-200, .border-gray-100, .border-gray-200),
+  .dark .dg-pricing-dialog :is([class*="border-slate-950"], [class*="border-black"], .border-slate-100, .border-slate-200, .border-gray-100, .border-gray-200),
+  :is(.dark *) .dg-visual-editor :is([class*="border-slate-950"], [class*="border-black"], .border-gray-100, .border-gray-200),
+  .dark .dg-visual-editor :is([class*="border-slate-950"], [class*="border-black"], .border-gray-100, .border-gray-200) {
+    border-color: var(--dg-border) !important;
+  }
+
+  :is(.dark *) .dg-token-editor input,
+  .dark .dg-token-editor input,
+  :is(.dark *) .dg-token-popover input,
+  .dark .dg-token-popover input,
+  :is(.dark *) .dg-export-drawer input,
+  .dark .dg-export-drawer input,
+  :is(.dark *) .dg-visual-editor input,
+  .dark .dg-visual-editor input,
+  :is(.dark *) .dg-visual-editor textarea,
+  .dark .dg-visual-editor textarea {
+    color: var(--dg-text);
+    background: var(--dg-surface-muted);
+  }
+
+  :is(.dark *) .dg-export-drawer pre,
+  .dark .dg-export-drawer pre {
+    color: var(--dg-text);
+    background: var(--dg-surface);
+  }
+
+  :is(.dark *) .dg-pricing-dialog,
+  .dark .dg-pricing-dialog {
+    background: var(--dg-surface) !important;
+    border-color: var(--dg-border) !important;
+    color: var(--dg-text);
+  }
+
+  :is(.dark *) .dg-pricing-dialog :is(.ring-slate-900, [class*="ring-slate-900"]),
+  .dark .dg-pricing-dialog :is(.ring-slate-900, [class*="ring-slate-900"]) {
+    --tw-ring-color: var(--dg-border-strong) !important;
   }
 
   .dg-clickable-scope button:not(:disabled),
@@ -440,6 +589,7 @@
 }
 
 :root {
+    --canvas-dot: rgba(15, 23, 42, 0.16);
     --dg-bg: #f7f7f8;
     --dg-bg-strong: #eaedf1;
     --dg-surface: #ffffff;
@@ -488,6 +638,7 @@
 }
 
 .dark {
+    --canvas-dot: rgba(232, 234, 240, 0.12);
     --dg-bg: #111215;
     --dg-bg-strong: #1a1d22;
     --dg-surface: #1c1f26;

@@ -330,7 +330,7 @@ export function DesignSystemEditor({
   };
 
   return (
-    <div className={isPanel ? "relative flex min-h-0 flex-col overflow-visible" : "relative flex min-h-[680px] flex-1 flex-col overflow-hidden lg:h-[calc(100dvh-6.25rem)] lg:min-h-[620px]"}>
+    <div className={`dg-token-editor ${isPanel ? "relative flex min-h-0 flex-col overflow-visible" : "relative flex min-h-[680px] flex-1 flex-col overflow-hidden lg:h-[calc(100dvh-6.25rem)] lg:min-h-[620px]"}`}>
       {isSubmitting && submitStatus ? (
         !isPanel ? <div className="absolute inset-0 z-30 flex items-center justify-center bg-white/72 backdrop-blur-sm">
           <div className="rounded-[14px] border border-slate-950/[0.08] bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-[0_18px_50px_-36px_rgba(15,23,42,0.6)]">
@@ -770,7 +770,7 @@ export function ColorPickerButton({
 
       {isOpen && typeof document !== "undefined" ? createPortal(
         <div
-          className="fixed z-[110] overflow-y-auto rounded-[18px] border border-slate-950/[0.1] bg-white p-3 shadow-[0_28px_80px_-42px_rgba(15,23,42,0.9)]"
+          className="dg-token-popover fixed z-[110] overflow-y-auto rounded-[18px] border border-slate-950/[0.1] bg-white p-3 shadow-[0_28px_80px_-42px_rgba(15,23,42,0.9)]"
           style={{
             left: pickerStyle.left,
             top: pickerStyle.top,

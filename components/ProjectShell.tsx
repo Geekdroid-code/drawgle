@@ -2,7 +2,6 @@
 
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useTheme } from "next-themes";
 import { ArrowLeft, Check, ChevronDown, ImageIcon, Loader2, Palette, RotateCcw, Upload, X, Sun, Moon, HelpCircle, Megaphone, Play, Share2, LogOut, FolderSync, CircleDollarSign } from "lucide-react";
 
 import { CanvasArea } from "@/components/CanvasArea";
@@ -14,6 +13,7 @@ import type { ElementSelectionLostReason, SelectedElementInfo } from "@/componen
 import { Button } from "@/components/ui/button";
 import { useCredits } from "@/hooks/useCredits";
 import { PricingDialog } from "@/components/PricingDialog";
+import { useAppTheme } from "@/contexts/app-theme-context";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -502,46 +502,46 @@ function TokenValuePicker({
         render={(
           <button
             type="button"
-            className="flex h-10 w-full items-center justify-between gap-2 rounded-[14px] border border-slate-950/[0.08] bg-white/80 px-3 text-left text-xs font-medium text-slate-700 transition hover:border-slate-950/[0.16] hover:bg-white"
+            className="flex h-10 w-full items-center justify-between gap-2 rounded-[14px] border border-[var(--dg-border)] bg-[var(--dg-surface-muted)] px-3 text-left text-xs font-medium text-[var(--dg-text)] transition hover:border-[var(--dg-border-strong)] hover:bg-[var(--dg-surface)] dark:border-white/[0.08] dark:bg-[#1c1f26] dark:text-[#e8eaf0] dark:hover:bg-[#252830]"
           />
         )}
       >
         <span className="flex min-w-0 items-center gap-2">
           <span
-            className="h-4 w-4 shrink-0 rounded-full border border-slate-950/[0.12]"
+            className="h-4 w-4 shrink-0 rounded-full border border-[var(--dg-border-strong)] dark:border-white/[0.16]"
             style={{ backgroundColor: activeToken?.value ?? "#ffffff" }}
           />
           <span className="truncate">
             {activeToken ? activeToken.label : getTokenPickerLabel(property)}
           </span>
         </span>
-        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[var(--dg-text-muted)]" />
       </PopoverTrigger>
       <PopoverContent
         align="end"
         side="bottom"
         sideOffset={8}
-        className="w-[min(320px,calc(100vw-2rem))] rounded-[18px] border border-slate-950/[0.08] bg-white p-2 shadow-[0_20px_70px_rgba(15,23,42,0.2)]"
+        className="dg-token-popover w-[min(320px,calc(100vw-2rem))] rounded-[18px] border border-[var(--dg-border)] bg-[var(--dg-surface)] p-2 text-[var(--dg-text)] shadow-[0_20px_70px_rgba(15,23,42,0.2)] dark:border-white/[0.08] dark:bg-[#1c1f26] dark:shadow-[0_20px_70px_rgba(0,0,0,0.58)]"
       >
         <div className="px-2 pb-1 pt-1">
           <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#667894]">Project Tokens</div>
-          <div className="mt-0.5 text-xs leading-5 text-slate-500">{getTokenPickerDescription(property)}</div>
+          <div className="mt-0.5 text-xs leading-5 text-[var(--dg-text-muted)]">{getTokenPickerDescription(property)}</div>
         </div>
         <div className="max-h-72 space-y-1 overflow-y-auto pr-1">
           {pickerTokens.map((token) => (
             <button
               key={token.name}
               type="button"
-              className="flex w-full items-center gap-3 rounded-[14px] px-2 py-2 text-left transition hover:bg-slate-50"
+              className="flex w-full items-center gap-3 rounded-[14px] px-2 py-2 text-left text-[var(--dg-text)] transition hover:bg-[var(--dg-surface-muted)] dark:hover:bg-white/[0.06]"
               onClick={() => onSelect(token.name)}
             >
               <span
-              className="h-8 w-8 shrink-0 rounded-full border border-slate-950/[0.1]"
+              className="h-8 w-8 shrink-0 rounded-full border border-[var(--dg-border-strong)] dark:border-white/[0.12]"
                 style={property === "color" || property === "background-color" || property === "border-color" ? { backgroundColor: token.value } : undefined}
               />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium text-slate-900">{token.label}</span>
-                <span className="block truncate text-[11px] text-slate-500">{token.value}</span>
+                <span className="block truncate text-sm font-medium text-[var(--dg-text)]">{token.label}</span>
+                <span className="block truncate text-[11px] text-[var(--dg-text-muted)]">{token.value}</span>
               </span>
               {activeTokenName === token.name ? (
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-950 text-white">
@@ -711,7 +711,7 @@ function SelectedElementInspectorSidebar({
   }
 
   return (
-    <aside className="fixed bottom-[calc(var(--dg-mobile-prompt-bottom)+8.75rem)] left-3 right-3 top-auto z-[80] flex max-h-[min(72vh,660px)] flex-col overflow-hidden rounded-[26px] border border-slate-950/[0.08] bg-white/96 backdrop-blur-xl md:bottom-4 md:left-auto md:right-4 md:top-[calc(env(safe-area-inset-top,0px)+4.25rem)] md:max-h-none md:w-[min(420px,calc(100%-1rem))]">
+    <aside className="dg-visual-editor fixed bottom-[calc(var(--dg-mobile-prompt-bottom)+8.75rem)] left-3 right-3 top-auto z-[80] flex max-h-[min(72vh,660px)] flex-col overflow-hidden rounded-[26px] border border-slate-950/[0.08] bg-white/96 backdrop-blur-xl md:bottom-4 md:left-auto md:right-4 md:top-[calc(env(safe-area-inset-top,0px)+4.25rem)] md:max-h-none md:w-[min(420px,calc(100%-1rem))]">
       <div className="flex items-start justify-between gap-3 border-b border-slate-950/[0.06] px-4 pb-3 pt-4">
         <div className="min-w-0">
           <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#667894]">
@@ -1040,7 +1040,7 @@ export function ProjectShell({
   initialProjectNavigation: ProjectNavigationData | null;
 }) {
   const router = useRouter();
-  const { resolvedTheme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useAppTheme();
   const { project, isLoading: isProjectLoading } = useProject(initialProject.id, initialProject);
   const { screens, refreshScreens } = useScreens(initialProject.id, initialScreens);
   const { projectNavigation } = useProjectNavigation(initialProject.id, initialProjectNavigation);
@@ -1794,16 +1794,16 @@ export function ProjectShell({
   }
 
   return (
-    <div className="h-[100dvh] overflow-hidden bg-[#f7f7f8] dark:bg-[#111215] text-gray-900 dark:text-gray-100" style={shellLayoutVars}>
+    <div className="h-[100dvh] overflow-hidden bg-[var(--dg-bg)] text-[var(--dg-text)]" style={shellLayoutVars}>
       <main className="relative z-0 flex h-full w-full overflow-hidden">
         <div className="absolute left-4 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-50 flex items-center gap-2">
           <div className="flex h-8 items-center rounded-full dg-panel px-2 backdrop-blur-xl lg:px-3">
-            <Button variant="ghost" size="sm" onClick={() => router.push("/project/new")} className="h-8 rounded-full text-neutral-700 hover:bg-[#f7f7f8] focus-visible:bg-[#f7f7f8] data-[state=open]:bg-[#f7f7f8]">
+            <Button variant="ghost" size="sm" onClick={() => router.push("/project/new")} className="h-8 rounded-full text-[var(--dg-text)] hover:bg-[var(--dg-surface-muted)] focus-visible:bg-[var(--dg-surface-muted)] data-[state=open]:bg-[var(--dg-surface-muted)]">
               <ArrowLeft className="mr-2 h-4 w-4" />
               Workspace
             </Button>
-            <div className="hidden h-5 w-px bg-slate-950/[0.1] sm:block" />
-            <div className="hidden max-w-[240px] truncate pl-2 text-[11px] font-semibold uppercase text-neutral-500 sm:block">
+            <div className="hidden h-5 w-px bg-[var(--dg-border-strong)] sm:block" />
+            <div className="hidden max-w-[240px] truncate pl-2 text-[11px] font-semibold uppercase text-[var(--dg-text-muted)] sm:block">
               {project.name}
             </div>
           </div>

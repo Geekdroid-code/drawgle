@@ -143,17 +143,17 @@ function ScreenLabelBar({
               ? "rgba(16,185,129,0.15)"
               : isSelected
                 ? "rgba(99,102,241,0.12)"
-                : "rgba(0,0,0,0.06)",
+                : "color-mix(in oklab, var(--dg-surface-muted) 80%, transparent)",
           }}
         >
           <Smartphone
             className="w-3.5 h-3.5 transition-colors duration-200"
-            style={{ color: selectionMode ? "#0d9488" : interactMode ? "#10b981" : isSelected ? "#6366f1" : "#6b7280" }}
+            style={{ color: selectionMode ? "#0d9488" : interactMode ? "#10b981" : isSelected ? "#6366f1" : "var(--dg-text-muted)" }}
           />
         </div>
         <span
           className="text-[13px] font-semibold truncate max-w-[150px] leading-none transition-colors duration-200"
-          style={{ color: selectionMode ? "#115e59" : interactMode ? "#064e3b" : isSelected ? "#1e1b4b" : "#374151" }}
+          style={{ color: selectionMode ? "#2dd4bf" : interactMode ? "#34d399" : isSelected ? "#c7d2fe" : "var(--dg-text)" }}
         >
           {screen.name}
         </span>
@@ -186,7 +186,7 @@ function ScreenLabelBar({
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 rounded-lg transition-colors duration-150"
+            className="h-7 w-7 rounded-lg text-[var(--dg-text)] opacity-90 transition-colors duration-150 hover:bg-[var(--dg-surface-muted)] hover:text-[var(--dg-text)] hover:opacity-100 dark:text-[#d8dde7] dark:hover:bg-white/10"
             style={interactMode ? {
               background: "rgba(16,185,129,0.15)",
               color: "#059669",
@@ -202,7 +202,7 @@ function ScreenLabelBar({
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7 rounded-lg hover:bg-indigo-50 hover:text-indigo-600 text-gray-500"
+          className="h-7 w-7 rounded-lg text-[var(--dg-text)] opacity-90 hover:bg-[var(--dg-surface-muted)] hover:text-[var(--dg-text)] hover:opacity-100 dark:text-[#d8dde7] dark:hover:bg-white/10"
           title="Export code"
           onClick={onExport}
         >
@@ -216,7 +216,7 @@ function ScreenLabelBar({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 rounded-lg hover:bg-gray-100 text-gray-500"
+                className="h-7 w-7 rounded-lg text-[var(--dg-text)] opacity-90 hover:bg-[var(--dg-surface-muted)] hover:text-[var(--dg-text)] hover:opacity-100 dark:text-[#d8dde7] dark:hover:bg-white/10"
                 title="More actions"
               />
             }
