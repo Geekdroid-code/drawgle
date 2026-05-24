@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useMemo, type CSSProperties, type ChangeEvent, type ReactNode } from "react";
-import { motion, type Transition, LayoutGroup } from "motion/react";
+import { motion, type Transition, LayoutGroup, AnimatePresence } from "motion/react";
 import {
   ArrowUp,
   ArrowRight,
@@ -874,14 +874,20 @@ export function ProjectLobby({
                                       type="button"
                                       onClick={() => setIsThemePickerOpen((prev) => !prev)}
                                       className={cn(
-                                        "w-[36px] h-[36px] rounded-[18px] flex items-center justify-center text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-100 hover:bg-white dark:hover:bg-white/10 hover:shadow-sm hover:border hover:border-neutral-200/50 dark:hover:border-white/10 transition-all active:scale-95 focus:outline-none ml-1",
+                                        "relative w-[36px] h-[36px] rounded-[18px] flex items-center justify-center text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-100 hover:bg-white dark:hover:bg-white/10 hover:shadow-sm hover:border hover:border-neutral-200/50 dark:hover:border-white/10 transition-all active:scale-95 focus:outline-none ml-1",
                                         isThemePickerOpen && "bg-white dark:bg-white/10 text-neutral-800 dark:text-neutral-100 shadow-sm border border-neutral-200/50 dark:border-white/10",
                                         image && "opacity-40 cursor-not-allowed hover:bg-transparent hover:text-neutral-500 hover:shadow-none hover:border-transparent"
                                       )}
                                       disabled={isGeneratingDesign || Boolean(image)}
                                       aria-label="Select design style"
                                     >
-                                      <Palette className="h-4.5 w-4.5" />
+                                      <Palette className="h-4.5 w-4.5 relative z-10" />
+                                      {!isThemePickerOpen && (
+                                        <motion.div
+                                          layoutId="stylePickerWrapper"
+                                          className="absolute inset-0 rounded-[18px] bg-transparent"
+                                        />
+                                      )}
                                     </button>
                                   }
                                 />
@@ -891,48 +897,73 @@ export function ProjectLobby({
                               </Tooltip>
 
                             {/* Style Picker Dropdown Content positioned relative to this tool pill */}
-                            {isThemePickerOpen && (
-                              <div className="absolute bottom-14 left-0 z-50 w-[240px] rounded-2xl border border-neutral-200/80 dark:border-white/[0.08] bg-white dark:bg-[#1b1b1b] p-3 shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200">
-                                <div className="mb-2.5 flex items-center justify-between px-1">
-                                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-neutral-400">Design style</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => setIsThemePickerOpen(false)}
-                                    className="cursor-pointer flex h-5 w-5 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
-                                    aria-label="Close styling options"
-                                  >
-                                    <X className="h-3.5 w-3.5" />
-                                  </button>
-                                </div>
+                            <AnimatePresence>
+                              {isThemePickerOpen && (
+                                <motion.div
+                                  layoutId="stylePickerWrapper"
+                                  className="absolute bottom-14 left-0 z-50 w-[240px] rounded-2xl border border-neutral-200/80 dark:border-white/[0.08] bg-white dark:bg-[#1b1b1b] p-3 shadow-xl overflow-hidden"
+                                  transition={{ type: "spring", damping: 30, stiffness: 350, mass: 0.8 }}
+                                >
+                                  <div className="mb-2.5 flex items-center justify-between px-1">
+                                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-neutral-400">Design style</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setIsThemePickerOpen(false)}
+                                      className="cursor-pointer flex h-5 w-5 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-white/10 dark:hover:text-white"
+                                      aria-label="Close styling options"
+                                    >
+                                      <X className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
 
-                                <div className="grid grid-cols-2 gap-2">
-                                  {briefStyles.map((style) => {
-                                    const isSelected = selectedBriefStyle === style.id;
+                                  <div className="grid grid-cols-2 gap-2">
+                                    {briefStyles.map((style, index) => {
+                                      const isSelected = selectedBriefStyle === style.id;
+                                      const staggerDelay = (index + 2) * 0.035;
 
-                                    return (
-                                      <button
-                                        type="button"
-                                        key={style.id}
-                                        onClick={() => {
-                                          setSelectedBriefStyle(style.id);
-                                          setIsThemePickerOpen(false);
-                                        }}
-                                        className="cursor-pointer flex min-w-0 flex-col gap-1.5 text-left"
-                                      >
-                                        <span
-                                          className={`relative flex h-[50px] items-center justify-center overflow-hidden rounded-xl border ${style.previewClassName} ${isSelected ? "border-[2.5px] border-neutral-900 shadow-sm" : "hover:border-neutral-300"}`}
+                                      return (
+                                        <motion.button
+                                          type="button"
+                                          key={style.id}
+                                          initial={{ opacity: 0, y: 15 }}
+                                          animate={{ opacity: 1, y: 0 }}
+                                          transition={{
+                                            type: "spring",
+                                            bounce: 0.12,
+                                            duration: 0.3,
+                                            delay: staggerDelay,
+                                          }}
+                                          onClick={() => {
+                                            setSelectedBriefStyle(style.id);
+                                            setTimeout(() => {
+                                              setIsThemePickerOpen(false);
+                                            }, 100);
+                                          }}
+                                          className="cursor-pointer flex min-w-0 flex-col gap-1.5 text-left group"
                                         >
-                                          {style.previewContent}
-                                        </span>
-                                        <span className={`truncate text-[11px] text-center w-full ${isSelected ? "font-bold text-neutral-800" : "font-semibold text-neutral-500"}`}>
-                                          {style.label}
-                                        </span>
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
+                                          <span
+                                            className={`relative flex h-[50px] items-center justify-center overflow-hidden rounded-xl border transition-all duration-150 ${style.previewClassName} ${
+                                              isSelected
+                                                ? "border-[2.5px] border-neutral-900 dark:border-white shadow-sm scale-98"
+                                                : "hover:border-neutral-300 dark:hover:border-neutral-600 hover:scale-102 active:scale-98"
+                                            }`}
+                                          >
+                                            {style.previewContent}
+                                          </span>
+                                          <span className={`truncate text-[11px] text-center w-full transition-colors duration-150 ${
+                                            isSelected
+                                              ? "font-bold text-neutral-800 dark:text-neutral-100"
+                                              : "font-semibold text-neutral-500 dark:text-neutral-400 group-hover:text-neutral-800 dark:group-hover:text-neutral-200"
+                                          }`}>
+                                            {style.label}
+                                          </span>
+                                        </motion.button>
+                                      );
+                                    })}
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
 
                           </div>
                         </TooltipProvider>
