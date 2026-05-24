@@ -292,7 +292,7 @@ async function upsertSubscriptionFromEvent(supabase: ReturnType<typeof createAdm
     }
 
     // Upsert subscription by unique dodo_subscription_id
-    await supabase
+    const { error: upsertError } = await supabase
         .from('dodo_subscriptions')
         .upsert(
             {
@@ -306,6 +306,11 @@ async function upsertSubscriptionFromEvent(supabase: ReturnType<typeof createAdm
             },
             { onConflict: 'dodo_subscription_id' },
         )
+
+    if (upsertError) {
+        console.error('[Webhook] Failed to upsert dodo_subscriptions:', upsertError)
+        throw upsertError
+    }
 
     return { pricing_plan_id: finalPricingPlanId, planCredits }
 }
