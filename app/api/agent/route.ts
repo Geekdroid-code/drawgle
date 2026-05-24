@@ -1732,7 +1732,7 @@ export async function POST(request: Request) {
 
     if (shouldRunDeterministicImageReplacement) {
       const targetScreenId = selectedScreenId;
-      const targetScreen = targetScreenId ? screenContext.find((screen) => screen.id === targetScreenId) ?? null : null;
+      const targetScreen = targetScreenId ? screenContext.find((screen: any) => screen.id === targetScreenId) ?? null : null;
       const targetsToReplace = pickImageTargetsForPrompt(selectedImageTargets, prompt);
 
       if (!targetScreenId || !targetScreen) {
@@ -2063,7 +2063,7 @@ export async function POST(request: Request) {
 
     const routerScreenId = routerDecision.targetScreenId ?? null;
     const routerScreenExists = routerScreenId
-      ? screenContext.some((screen) => screen.id === routerScreenId)
+      ? screenContext.some((screen: any) => screen.id === routerScreenId)
       : false;
 
     if (routerScreenId && !routerScreenExists) {
@@ -2087,13 +2087,13 @@ export async function POST(request: Request) {
       });
     }
 
-    const stateScreenId = agentState?.lastKnownTarget?.screenId && screenContext.some((screen) => screen.id === agentState.lastKnownTarget?.screenId)
+    const stateScreenId = agentState?.lastKnownTarget?.screenId && screenContext.some((screen: any) => screen.id === agentState.lastKnownTarget?.screenId)
       ? agentState.lastKnownTarget.screenId
       : null;
     const targetScreenId = requestTargetsNavigation
       ? null
       : routerScreenId || selectedScreenId || stateScreenId;
-    const targetScreen = targetScreenId ? screenContext.find((screen) => screen.id === targetScreenId) : null;
+    const targetScreen = targetScreenId ? screenContext.find((screen: any) => screen.id === targetScreenId) : null;
 
     if (!requestTargetsNavigation && !targetScreenId) {
       const message = whiteLabelAgentMessage(

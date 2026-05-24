@@ -353,8 +353,8 @@ export async function POST(request: Request) {
     const handle = await tasks.trigger<typeof generateUiFlowTask>(
       "generate-ui-flow",
       {
-        generationRunId,
-        projectId,
+        generationRunId: generationRunId!,
+        projectId: projectId!,
         ownerId,
         prompt: payload.prompt,
         imagePath,
