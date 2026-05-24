@@ -2,7 +2,8 @@
 
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, ChevronDown, ImageIcon, Loader2, Palette, RotateCcw, Upload, X, Sun, HelpCircle, Megaphone, Play, Share2, LogOut, FolderSync, CircleDollarSign } from "lucide-react";
+import { useTheme } from "next-themes";
+import { ArrowLeft, Check, ChevronDown, ImageIcon, Loader2, Palette, RotateCcw, Upload, X, Sun, Moon, HelpCircle, Megaphone, Play, Share2, LogOut, FolderSync, CircleDollarSign } from "lucide-react";
 
 import { CanvasArea } from "@/components/CanvasArea";
 import { MobileExportDrawer } from "@/components/MobileExportDrawer";
@@ -1039,6 +1040,7 @@ export function ProjectShell({
   initialProjectNavigation: ProjectNavigationData | null;
 }) {
   const router = useRouter();
+  const { resolvedTheme, setTheme } = useTheme();
   const { project, isLoading: isProjectLoading } = useProject(initialProject.id, initialProject);
   const { screens, refreshScreens } = useScreens(initialProject.id, initialScreens);
   const { projectNavigation } = useProjectNavigation(initialProject.id, initialProjectNavigation);
@@ -1792,7 +1794,7 @@ export function ProjectShell({
   }
 
   return (
-    <div className="h-[100dvh] overflow-hidden bg-[#f7f7f8] text-gray-900" style={shellLayoutVars}>
+    <div className="h-[100dvh] overflow-hidden bg-[#f7f7f8] dark:bg-[#111215] text-gray-900 dark:text-gray-100" style={shellLayoutVars}>
       <main className="relative z-0 flex h-full w-full overflow-hidden">
         <div className="absolute left-4 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-50 flex items-center gap-2">
           <div className="flex h-8 items-center rounded-full dg-panel px-2 backdrop-blur-xl lg:px-3">
@@ -1813,18 +1815,16 @@ export function ProjectShell({
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6 rounded-full text-neutral-600 hover:bg-[#f7f7f8] focus-visible:bg-[#f7f7f8] flex items-center justify-center"
-              title="Theme Toggle"
-              onClick={() => {
-                document.documentElement.classList.toggle("dark");
-              }}
+              className="h-6 w-6 rounded-full text-neutral-600 dark:text-neutral-300 hover:bg-[#f7f7f8] dark:hover:bg-white/10 focus-visible:bg-[#f7f7f8] dark:focus-visible:bg-white/10 flex items-center justify-center"
+              title="Toggle theme"
+              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
             >
-              <Sun className="h-3.5 w-3.5" />
+              {resolvedTheme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
             </Button>
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6 rounded-full text-neutral-600 hover:bg-[#f7f7f8] focus-visible:bg-[#f7f7f8] flex items-center justify-center"
+              className="h-6 w-6 rounded-full text-neutral-600 dark:text-neutral-300 hover:bg-[#f7f7f8] dark:hover:bg-white/10 focus-visible:bg-[#f7f7f8] dark:focus-visible:bg-white/10 flex items-center justify-center"
               title="Help"
             >
               <HelpCircle className="h-3.5 w-3.5" />
@@ -1832,7 +1832,7 @@ export function ProjectShell({
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6 rounded-full text-neutral-600 hover:bg-[#f7f7f8] focus-visible:bg-[#f7f7f8] flex items-center justify-center"
+              className="h-6 w-6 rounded-full text-neutral-600 dark:text-neutral-300 hover:bg-[#f7f7f8] dark:hover:bg-white/10 focus-visible:bg-[#f7f7f8] dark:focus-visible:bg-white/10 flex items-center justify-center"
               title="Updates"
             >
               <Megaphone className="h-3.5 w-3.5" />
@@ -1845,9 +1845,9 @@ export function ProjectShell({
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 gap-1 rounded-full px-2 text-[10px] font-bold uppercase tracking-wider text-neutral-700 hover:bg-[#f7f7f8] flex items-center"
+              className="h-6 gap-1 rounded-full px-2 text-[10px] font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300 hover:bg-[#f7f7f8] dark:hover:bg-white/10 flex items-center"
             >
-              <Share2 className="h-2.5 w-2.5 text-neutral-700" />
+              <Share2 className="h-2.5 w-2.5 text-neutral-700 dark:text-neutral-300" />
               Share
             </Button>
             <Button
@@ -1889,7 +1889,7 @@ export function ProjectShell({
               render={
                 <button
                   type="button"
-                  className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-tr from-sky-400 via-[#1b7fcc] to-blue-600 shadow-md ring-2 ring-white hover:ring-blue-200 transition-all focus:outline-none"
+                  className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-tr from-sky-400 via-[#1b7fcc] to-blue-600 shadow-md ring-2 ring-white dark:ring-slate-800 hover:ring-blue-200 dark:hover:ring-[#1b7fcc]/60 transition-all focus:outline-none"
                 >
                   <span className="text-[10px] font-bold text-white uppercase select-none">
                     {user.email ? user.email.slice(0, 2) : "US"}
@@ -1897,10 +1897,10 @@ export function ProjectShell({
                 </button>
               }
             />
-            <DropdownMenuContent align="end" className="w-[220px] rounded-[18px] border border-slate-950/[0.08] bg-white p-2 shadow-[0_20px_70px_rgba(15,23,42,0.2)]">
-              <div className="px-2.5 py-2 border-b border-slate-950/[0.06] mb-1 text-left">
-                <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400 mb-0.5">Account</div>
-                <div className="truncate text-xs font-semibold text-slate-900">{user.email || "user@drawgle.com"}</div>
+            <DropdownMenuContent align="end" className="w-[220px] rounded-[18px] border border-slate-950/[0.08] dark:border-white/[0.08] bg-white dark:bg-[#1c1f26] p-2 shadow-[0_20px_70px_rgba(15,23,42,0.2)] dark:shadow-[0_20px_70px_rgba(0,0,0,0.6)]">
+              <div className="px-2.5 py-2 border-b border-slate-950/[0.06] dark:border-white/[0.06] mb-1 text-left">
+                <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500 mb-0.5">Account</div>
+                <div className="truncate text-xs font-semibold text-slate-900 dark:text-slate-100">{user.email || "user@drawgle.com"}</div>
                 <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-[#1b7fcccc]/50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#1b7fcccc]">
                   {loadingCredits ? "..." : (
                     <>
@@ -1912,7 +1912,7 @@ export function ProjectShell({
               </div>
               <DropdownMenuItem
                 onClick={() => router.push("/project/new")}
-                className="flex w-full items-center gap-2 rounded-[12px] px-2.5 py-2 text-left text-xs font-semibold text-slate-700 transition hover:bg-slate-50 cursor-pointer"
+                className="flex w-full items-center gap-2 rounded-[12px] px-2.5 py-2 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-white/10 cursor-pointer"
               >
                 <FolderSync className="h-3.5 w-3.5 text-slate-500" />
                 Switch Projects

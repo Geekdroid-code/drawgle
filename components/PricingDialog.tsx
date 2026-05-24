@@ -231,7 +231,7 @@ export function PricingDialog({
                                 <Tooltip>
                                   <TooltipTrigger>
                                     <span className="shrink-0 cursor-help text-slate-400 hover:text-slate-600 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 rounded-full mt-0.5">
-                                      <Info className="h-4 w-4" />
+                                      <Info className="h-3 w-3" />
                                     </span>
                                   </TooltipTrigger>
                                   <TooltipContent side="top" className="max-w-[220px] text-center p-2 text-[12px] font-medium leading-relaxed bg-slate-950 text-white border-none shadow-lg">

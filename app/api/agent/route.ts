@@ -936,7 +936,7 @@ export async function POST(request: Request) {
       throw screensError;
     }
 
-    const screenContext = (screens ?? []).map((screen) => {
+    const screenContext = (screens ?? []).map((screen: any) => {
       const chromePolicy = screen.chrome_policy &&
         typeof screen.chrome_policy === "object" &&
         !Array.isArray(screen.chrome_policy)

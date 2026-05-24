@@ -108,7 +108,7 @@ export function HeroSection() {
 
           {/* Premium Prompt Box */}
           <div className="max-w-3xl mx-auto w-full mt-8 mb-10">
-            <div className="bg-[#151515] border border-white/10 rounded-[20px] p-5 sm:p-6 text-left flex flex-col justify-between shadow-2xl min-h-[140px] sm:min-h-[160px]">
+            <div className="bg-[#151515] border border-[#5b5b5b] rounded-[20px] p-4 sm:p-5 text-left flex flex-col justify-between shadow-2xl min-h-[140px] sm:min-h-[160px]">
               <div className="text-white text-md font-medium mb-8 min-h-[56px] relative">
                 <AnimatedPlaceholderText 
                   phrases={placeholderPhrases}

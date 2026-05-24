@@ -12,8 +12,10 @@ import {
   ImagePlus,
   LayoutTemplate,
   Loader2,
+  Moon,
   Palette,
   Sparkles,
+  Sun,
   X,
   Search,
   Trash2,
@@ -22,6 +24,7 @@ import {
   Check,
   Menu,
 } from "lucide-react";
+import { useTheme } from "next-themes";
 
 import { DesignSystemEditor } from "@/components/DesignSystemEditor";
 import { Button } from "@/components/ui/button";
@@ -289,6 +292,7 @@ export function ProjectLobby({
   initialProjects: ProjectData[];
 }) {
   const router = useRouter();
+  const { resolvedTheme, setTheme } = useTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [stage, setStage] = useState<LobbyStage>("brief");
   const [prompt, setPrompt] = useState(initialPrompt);
@@ -508,9 +512,9 @@ export function ProjectLobby({
 
   const renderSidebarContents = () => {
     return (
-      <div className="flex h-full flex-col overflow-hidden bg-white">
+      <div className="flex h-full flex-col overflow-hidden bg-white dark:bg-[#1c1f26]">
         {/* Sidebar Header */}
-        <div className="px-4 pb-4 pt-5 border-b border-slate-100 flex flex-col gap-4">
+        <div className="px-4 pb-4 pt-5 border-b border-slate-100 dark:border-white/[0.06] flex flex-col gap-4">
           <div className="flex items-center justify-between gap-3">
             <button
               type="button"
@@ -520,23 +524,33 @@ export function ProjectLobby({
               }}
               className="flex min-w-0 items-center gap-3 text-left hover:opacity-85 transition-opacity"
             >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-[12px] font-bold tracking-wider text-white shadow-sm">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-neutral-900 dark:bg-neutral-700 text-[12px] font-bold tracking-wider text-white shadow-sm">
                 DG
               </span>
               <span className="min-w-0">
                 <span className="block text-[10px] font-bold uppercase tracking-[0.2em] text-neutral-400">
                   Workspace
                 </span>
-                <span className="block truncate text-[15px] font-bold tracking-tight text-neutral-800">
+                <span className="block truncate text-[15px] font-bold tracking-tight text-neutral-800 dark:text-neutral-100">
                   Drawgle
                 </span>
               </span>
             </button>
 
-            <Avatar className="h-9 w-9 shrink-0 border border-slate-250/[0.08] bg-white">
-              <AvatarImage src={user.avatarUrl || ""} />
-              <AvatarFallback>{getAccountInitial(user)}</AvatarFallback>
-            </Avatar>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+                className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-white/10 hover:text-neutral-700 dark:hover:text-neutral-200 transition-all"
+                aria-label="Toggle theme"
+              >
+                {resolvedTheme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+              </button>
+              <Avatar className="h-9 w-9 shrink-0 border border-slate-250/[0.08] bg-white">
+                <AvatarImage src={user.avatarUrl || ""} />
+                <AvatarFallback>{getAccountInitial(user)}</AvatarFallback>
+              </Avatar>
+            </div>
           </div>
 
           <Button
@@ -557,7 +571,7 @@ export function ProjectLobby({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search projects"
-              className="h-10 w-full rounded-xl border border-neutral-200 bg-neutral-50 pl-10 pr-4 text-sm text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-300 focus:ring-1 focus:ring-neutral-200 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)] transition-all"
+              className="h-10 w-full rounded-xl border border-neutral-200 dark:border-white/[0.08] bg-neutral-50 dark:bg-[#252830] pl-10 pr-4 text-sm text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-600 focus:outline-none focus:border-neutral-300 dark:focus:border-white/20 focus:ring-1 focus:ring-neutral-200 dark:focus:ring-white/10 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)] transition-all"
             />
           </div>
         </div>
@@ -597,14 +611,14 @@ export function ProjectLobby({
           )}
 
           {filteredProjects.length === 0 ? (
-            <div className="mx-1 mt-2 rounded-xl border border-dashed border-slate-200 bg-neutral-50 px-4 py-6 text-sm text-center leading-relaxed text-neutral-400">
+            <div className="mx-1 mt-2 rounded-xl border border-dashed border-slate-200 dark:border-white/[0.08] bg-neutral-50 dark:bg-[#1a1d22] px-4 py-6 text-sm text-center leading-relaxed text-neutral-400">
               {query.trim()
                 ? "No projects match that search."
                 : "No projects yet. Start the first one from this workspace."}
             </div>
           ) : null}
 
-          <div className="mx-1 mt-4 rounded-xl border border-neutral-100 bg-[#fbfbfc] px-4 py-4 text-xs leading-relaxed text-neutral-500">
+          <div className="mx-1 mt-4 rounded-xl border border-neutral-100 dark:border-white/[0.06] bg-[#fbfbfc] dark:bg-[#1a1d22] px-4 py-4 text-xs leading-relaxed text-neutral-500 dark:text-neutral-500">
             New projects start here. The brief becomes the charter, design system, screen plan, and build kickoff.
           </div>
         </div>
@@ -628,23 +642,23 @@ export function ProjectLobby({
         </div>
 
         {/* Sidebar Footer */}
-        <div className="border-t border-slate-100 p-3">
-          <div className="flex items-center gap-3 rounded-xl border border-neutral-250 bg-[#fcfcfd] p-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+        <div className="border-t border-slate-100 dark:border-white/[0.06] p-3">
+          <div className="flex items-center gap-3 rounded-xl border border-neutral-250 dark:border-white/[0.06] bg-[#fcfcfd] dark:bg-[#1e2128] p-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
             <Avatar className="h-9 w-9 border border-slate-250/[0.08] bg-white">
               <AvatarImage src={user.avatarUrl || ""} />
               <AvatarFallback>{getAccountInitial(user)}</AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
-              <div className="truncate text-xs font-semibold text-neutral-800">
+              <div className="truncate text-xs font-semibold text-neutral-800 dark:text-neutral-200">
                 {user.fullName ?? "Drawgle account"}
               </div>
-              <div className="truncate text-[10px] text-neutral-400">
+              <div className="truncate text-[10px] text-neutral-400 dark:text-neutral-500">
                 {user.email ?? "Signed in"}
               </div>
             </div>
             <button
               onClick={handleSignOut}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-855 transition-all"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 dark:hover:bg-white/10 hover:text-neutral-855 transition-all"
               aria-label="Sign out"
             >
               <LogOut className="h-4 w-4" />
@@ -656,10 +670,10 @@ export function ProjectLobby({
   };
 
   return (
-    <div className="h-screen w-screen bg-[#f8f9fb] p-4 flex gap-4 overflow-hidden text-neutral-900 select-none">
+    <div className="h-screen w-screen bg-[#f8f9fb] dark:bg-[#111215] p-4 flex gap-4 overflow-hidden text-neutral-900 dark:text-neutral-100 select-none">
       
       {/* 1. Desktop Floating Sidebar */}
-      <aside className="hidden md:flex flex-col w-[300px] shrink-0 bg-white border border-neutral-200/80 rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.03)] h-full overflow-hidden">
+      <aside className="hidden md:flex flex-col w-[300px] shrink-0 bg-white dark:bg-[#1c1f26] border border-neutral-200/80 dark:border-white/[0.08] rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.03)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.3)] h-full overflow-hidden">
         {renderSidebarContents()}
       </aside>
 
@@ -672,7 +686,7 @@ export function ProjectLobby({
             onClick={() => setIsMobileSidebarOpen(false)}
           />
           {/* Floating Drawer Card */}
-          <aside className="relative flex flex-col w-[280px] bg-white border border-neutral-200/80 rounded-[24px] shadow-2xl h-[calc(100%-2rem)] my-4 ml-4 overflow-hidden z-10 animate-in slide-in-from-left duration-300">
+          <aside className="relative flex flex-col w-[280px] bg-white dark:bg-[#1c1f26] border border-neutral-200/80 dark:border-white/[0.08] rounded-[24px] shadow-2xl h-[calc(100%-2rem)] my-4 ml-4 overflow-hidden z-10 animate-in slide-in-from-left duration-300">
             {renderSidebarContents()}
           </aside>
         </div>
@@ -684,7 +698,7 @@ export function ProjectLobby({
         <button
           type="button"
           onClick={() => setIsMobileSidebarOpen(true)}
-          className="absolute left-4 top-4 z-40 md:hidden flex h-9 w-9 items-center justify-center rounded-full border border-neutral-200/85 bg-white/90 text-neutral-600 shadow-sm backdrop-blur-md hover:bg-neutral-50 active:scale-95 transition-all"
+          className="absolute left-4 top-4 z-40 md:hidden flex h-9 w-9 items-center justify-center rounded-full border border-neutral-200/85 dark:border-white/[0.1] bg-white/90 dark:bg-[#1c1f26]/90 text-neutral-600 dark:text-neutral-300 shadow-sm backdrop-blur-md hover:bg-neutral-50 dark:hover:bg-white/10 active:scale-95 transition-all"
           aria-label="Open sidebar"
         >
           <Menu className="h-4.5 w-4.5" />
@@ -703,7 +717,7 @@ export function ProjectLobby({
                 <div className="w-full max-w-3xl py-12 flex flex-col items-center">
                   
                   {/* Title section with styling */}
-                  <h1 className="text-center text-[clamp(2.0rem,5.5vw,3.0rem)] font-extrabold leading-[1.05] tracking-tight text-neutral-900 sm:text-5xl max-w-xl mb-8 select-text">
+                  <h1 className="text-center text-[clamp(2.0rem,5.5vw,3.0rem)] font-extrabold leading-[1.05] tracking-tight text-neutral-900 dark:text-neutral-100 sm:text-5xl max-w-xl mb-8 select-text">
                     What Mobile App shall we <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500">design today?</span>
                   </h1>
 
@@ -711,13 +725,13 @@ export function ProjectLobby({
                   <div
                     className={`relative w-full rounded-[38px] bg-[linear-gradient(110deg,#ff9a9e_0%,#fecfef_20%,#e0c3fc_40%,#8ec5fc_60%,#a8edea_80%,#d4fc79_100%)] p-[2px]  transition-all duration-300 ${isGeneratingDesign ? "dg-brief-generating-shell animate-pulse" : ""}`}
                   >
-                    <div className="bg-[#f2f3f5] rounded-[36px] p-2 flex flex-col relative z-20">
+                    <div className="bg-[#f2f3f5] dark:bg-[#1a1d22] rounded-[36px] p-2 flex flex-col relative z-20">
                       
                       {/* Top Section: Attachment Preview Sitting on Gray */}
                       <div className="flex flex-wrap items-center gap-2.5 px-3 pt-2 pb-2.5 min-h-[44px]">
                         {image ? (
                           <>
-                            <div className="flex items-center gap-2.5 bg-white border border-[#e2e4e7] rounded-[18px] pl-3 pr-2 py-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-all hover:bg-neutral-50 group">
+                            <div className="flex items-center gap-2.5 bg-white dark:bg-[#1c1f26] border border-[#e2e4e7] dark:border-white/[0.08] rounded-[18px] pl-3 pr-2 py-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-all hover:bg-neutral-50 dark:hover:bg-white/5 group">
                               <span className="relative h-5 w-5 shrink-0 overflow-hidden rounded-md border border-neutral-200">
                                 <Image
                                   src={`data:${image.mimeType};base64,${image.data}`}
@@ -727,7 +741,7 @@ export function ProjectLobby({
                                   className="object-cover"
                                 />
                               </span>
-                              <span className="text-[13px] font-semibold text-neutral-700 truncate max-w-[120px]">
+                              <span className="text-[13px] font-semibold text-neutral-700 dark:text-neutral-300 truncate max-w-[120px]">
                                 Reference image
                               </span>
                               <button
@@ -741,7 +755,7 @@ export function ProjectLobby({
                             </div>
 
                             {/* Image Reference Modes toggle pill */}
-                            <div className="flex h-8 items-center rounded-[18px] border border-[#e2e4e7] bg-white p-0.5 shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
+                            <div className="flex h-8 items-center rounded-[18px] border border-[#e2e4e7] dark:border-white/[0.08] bg-white dark:bg-[#1c1f26] p-0.5 shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
                               {imageReferenceModes.map((mode) => (
                                 <button
                                   key={mode.id}
@@ -764,7 +778,7 @@ export function ProjectLobby({
                       </div>
 
                       {/* Inner White Container */}
-                      <div className="bg-white border border-[#e2e4e7]/80 rounded-[28px] flex flex-col relative">
+<div className="bg-white dark:bg-[#1c1f26] border border-[#e2e4e7]/80 dark:border-white/[0.08] rounded-[28px] flex flex-col relative">
                         
                         {/* Middle Section: Text input */}
                         <div className="px-4 pt-4 pb-2">
@@ -795,7 +809,7 @@ export function ProjectLobby({
                               }
                             }}
                             placeholder="Describe the app UI you want to design... e.g., A minimalist dashboard for a fintech app with dark mode."
-                            className="h-[100px] sm:h-[120px] [field-sizing:fixed] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden resize-none rounded-none border-0 bg-transparent px-2 py-2 text-[17px] leading-relaxed text-neutral-800 shadow-none placeholder:text-neutral-400 focus-visible:ring-0 focus-visible:ring-offset-0"
+                            className="h-[100px] sm:h-[120px] [field-sizing:fixed] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden resize-none rounded-none border-0 bg-transparent px-2 py-2 text-[17px] leading-relaxed text-neutral-800 dark:text-neutral-100 shadow-none placeholder:text-neutral-400 dark:placeholder:text-neutral-600 focus-visible:ring-0 focus-visible:ring-offset-0"
                           />
                         </div>
 
@@ -804,7 +818,7 @@ export function ProjectLobby({
                           
                           {/* Left tools grouped pill */}
                           <TooltipProvider>
-                            <div className="flex items-center bg-[#f7f8f9] p-1 rounded-[22px] border border-[#e2e4e7]/60 shadow-[inset_0_1px_2px_rgba(0,0,0,0.01)] relative">
+                            <div className="flex items-center bg-[#f7f8f9] dark:bg-[#252830] p-1 rounded-[22px] border border-[#e2e4e7]/60 dark:border-white/[0.07] shadow-[inset_0_1px_2px_rgba(0,0,0,0.01)] relative">
                               
                               {/* Hidden input file for images */}
                               <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageUpload} />
@@ -819,7 +833,7 @@ export function ProjectLobby({
                                         setIsThemePickerOpen(false);
                                         fileInputRef.current?.click();
                                       }}
-                                      className={`w-[36px] h-[36px] rounded-[18px] flex items-center justify-center text-neutral-500 hover:text-neutral-800 hover:bg-white hover:shadow-sm hover:border hover:border-neutral-200/50 transition-all active:scale-95 focus:outline-none ${image ? "bg-white text-neutral-800 shadow-sm border border-neutral-200/50" : ""}`}
+                                      className={`w-[36px] h-[36px] rounded-[18px] flex items-center justify-center text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-100 hover:bg-white dark:hover:bg-white/10 hover:shadow-sm hover:border hover:border-neutral-200/50 dark:hover:border-white/10 transition-all active:scale-95 focus:outline-none ${image ? "bg-white dark:bg-white/10 text-neutral-800 dark:text-neutral-100 shadow-sm border border-neutral-200/50 dark:border-white/10" : ""}`}
                                       disabled={isGeneratingDesign}
                                       aria-label="Attach reference image"
                                     >
@@ -838,8 +852,8 @@ export function ProjectLobby({
                                       type="button"
                                       onClick={() => setIsThemePickerOpen((prev) => !prev)}
                                       className={cn(
-                                        "w-[36px] h-[36px] rounded-[18px] flex items-center justify-center text-neutral-500 hover:text-neutral-800 hover:bg-white hover:shadow-sm hover:border hover:border-neutral-200/50 transition-all active:scale-95 focus:outline-none ml-1",
-                                        isThemePickerOpen && "bg-white text-neutral-800 shadow-sm border border-neutral-200/50",
+                                        "w-[36px] h-[36px] rounded-[18px] flex items-center justify-center text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-100 hover:bg-white dark:hover:bg-white/10 hover:shadow-sm hover:border hover:border-neutral-200/50 dark:hover:border-white/10 transition-all active:scale-95 focus:outline-none ml-1",
+                                        isThemePickerOpen && "bg-white dark:bg-white/10 text-neutral-800 dark:text-neutral-100 shadow-sm border border-neutral-200/50 dark:border-white/10",
                                         image && "opacity-40 cursor-not-allowed hover:bg-transparent hover:text-neutral-500 hover:shadow-none hover:border-transparent"
                                       )}
                                       disabled={isGeneratingDesign || Boolean(image)}
@@ -856,7 +870,7 @@ export function ProjectLobby({
 
                             {/* Style Picker Dropdown Content positioned relative to this tool pill */}
                             {isThemePickerOpen && (
-                              <div className="absolute bottom-14 left-0 z-50 w-[240px] rounded-2xl border border-neutral-200/80 bg-white p-3 shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200">
+                              <div className="absolute bottom-14 left-0 z-50 w-[240px] rounded-2xl border border-neutral-200/80 dark:border-white/[0.08] bg-white dark:bg-[#1c1f26] p-3 shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200">
                                 <div className="mb-2.5 flex items-center justify-between px-1">
                                   <span className="text-[10px] font-extrabold uppercase tracking-widest text-neutral-400">Design style</span>
                                   <button
@@ -902,8 +916,8 @@ export function ProjectLobby({
                         </TooltipProvider>
 
                           {/* Selected Style Text label */}
-                          <div className="hidden sm:flex items-center text-xs font-semibold text-neutral-400 mr-auto ml-4">
-                            Style: <span className="text-neutral-700 ml-1.5 font-bold bg-neutral-100 px-2.5 py-1 rounded-full">{selectedBriefStyleLabel}</span>
+                          <div className="hidden sm:flex items-center text-xs font-semibold text-neutral-400 dark:text-neutral-500 mr-auto ml-4">
+                            Style: <span className="text-neutral-700 dark:text-neutral-300 ml-1.5 font-bold bg-neutral-100 dark:bg-white/10 px-2.5 py-1 rounded-full">{selectedBriefStyleLabel}</span>
                           </div>
 
                           {/* Right: Submit Button capsule */}
@@ -914,7 +928,7 @@ export function ProjectLobby({
                             className={`h-[42px] px-5 rounded-[16px] flex items-center justify-center text-white text-[14px] font-semibold transition-all active:scale-95 focus:outline-none shadow-[0_4px_14px_rgba(0,0,0,0.12),inset_0_1px_0_rgba(255,255,255,0.1)] ${
                               isBriefReady 
                                 ? "bg-gradient-to-b from-[#2a2a2a] to-[#111111] border border-black hover:from-[#333] hover:to-[#1a1a1a]" 
-                                : "bg-neutral-200 border-neutral-300 text-neutral-400 cursor-not-allowed shadow-none"
+                                : "bg-neutral-200 dark:bg-white/10 border-neutral-300 dark:border-white/10 text-neutral-400 dark:text-neutral-600 cursor-not-allowed shadow-none"
                             }`}
                           >
                             {isGeneratingDesign ? (
@@ -1189,13 +1203,13 @@ function ProjectMenuItem({
           "w-full text-left rounded-xl p-3 transition-all relative flex flex-col gap-1",
           active
             ? "bg-neutral-950 text-white shadow-sm"
-            : "hover:bg-neutral-50 text-neutral-800"
+            : "hover:bg-neutral-50 dark:hover:bg-white/[0.06] text-neutral-800 dark:text-neutral-200"
         )}
       >
         <div className="flex w-full items-start justify-between gap-2">
           <span className={cn(
             "truncate text-[13px] font-semibold tracking-tight",
-            active ? "text-white" : "text-neutral-800"
+            active ? "text-white" : "text-neutral-800 dark:text-neutral-200"
           )}>
             {project.name}
           </span>
@@ -1250,7 +1264,7 @@ function ProjectMenuItem({
             "absolute right-2.5 top-1/2 z-20 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full opacity-0 group-hover/project:opacity-100 transition-all hover:scale-105 shadow-sm border border-neutral-100 focus-visible:opacity-100",
             active 
               ? "bg-white/10 hover:bg-rose-500 hover:text-white border-white/5 text-white/70"
-              : "bg-white hover:bg-rose-50 hover:text-rose-500 text-neutral-400"
+              : "bg-white dark:bg-[#1c1f26] hover:bg-rose-50 dark:hover:bg-rose-950/60 hover:text-rose-500 text-neutral-400 border-neutral-100 dark:border-white/[0.06]"
           )}
           aria-label="Delete project"
         >
