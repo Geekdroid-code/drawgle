@@ -54,7 +54,7 @@ export class CreditService {
         return { balance: 0 }
       }
 
-      return { balance: data.credits || 0 }
+      return { balance: Number(data.credits) || 0 }
     } catch (error) {
       return { balance: 0, error: 'Error fetching credits' }
     }

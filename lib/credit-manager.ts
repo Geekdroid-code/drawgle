@@ -52,7 +52,7 @@ class CreditManager {
         return 0
       }
 
-      const balance = data?.credits || 0
+      const balance = Number(data?.credits) || 0
       this.userCredits.set(userId, balance)
 
       // Set up real-time subscription if not already exists
@@ -81,7 +81,7 @@ class CreditManager {
         },
         (payload: any) => {
           if (payload.new && typeof payload.new === 'object' && 'credits' in payload.new) {
-            const newBalance = payload.new.credits as number
+            const newBalance = Number(payload.new.credits) || 0
             const oldBalance = this.userCredits.get(userId) || 0
             const change = newBalance - oldBalance
 

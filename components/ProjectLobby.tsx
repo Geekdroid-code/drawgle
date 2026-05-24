@@ -809,7 +809,7 @@ export function ProjectLobby({
                               }
                             }}
                             placeholder="Describe the app UI you want to design... e.g., A minimalist dashboard for a fintech app with dark mode."
-                            className="h-[100px] sm:h-[120px] [field-sizing:fixed] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden resize-none rounded-none border-0 bg-transparent px-2 py-2 text-[17px] leading-relaxed text-neutral-800 dark:text-neutral-100 shadow-none placeholder:text-neutral-400 dark:placeholder:text-neutral-600 focus-visible:ring-0 focus-visible:ring-offset-0"
+                            className="rounded-lg h-[100px] sm:h-[120px] [field-sizing:fixed] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden resize-none border-0 bg-transparent px-2 py-2 text-[17px] leading-relaxed text-neutral-800 dark:text-neutral-100 shadow-none placeholder:text-neutral-400 dark:placeholder:text-neutral-600 focus-visible:ring-0 focus-visible:ring-offset-0"
                           />
                         </div>
 

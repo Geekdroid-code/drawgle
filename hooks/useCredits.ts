@@ -17,7 +17,7 @@ export function useCredits() {
             const res = await fetch('/api/credits/check?requiredCredits=1')
             if (!res.ok) throw new Error('Failed to check credits')
             const data = await res.json()
-            setBalance(data.balance ?? 0)
+            setBalance(Number(data.currentBalance) || 0)
             setHasCredits(data.hasCredits ?? false)
             setError(null)
         } catch (e: any) {
