@@ -425,7 +425,7 @@ ${cleanScreen}
                     render={
                       <button
                         type="button"
-                        className="flex h-11 w-full items-center justify-between gap-3 rounded-[14px] border border-[var(--dg-border)] bg-[var(--dg-surface-muted)] px-3.5 text-left text-sm font-semibold text-[var(--dg-text)] shadow-sm transition hover:border-[var(--dg-border-strong)] hover:bg-[var(--dg-surface)] focus:outline-none focus:ring-2 focus:ring-[var(--dg-border-strong)] dark:border-white/[0.08] dark:bg-[#252830] dark:text-[#e8eaf0] dark:hover:bg-[#2c3039]"
+                        className="flex h-11 w-full items-center justify-between gap-3 rounded-[14px] border border-[var(--dg-border)] bg-[var(--dg-surface-muted)] px-3.5 text-left text-sm font-semibold text-[var(--dg-text)] shadow-sm transition hover:border-[var(--dg-border-strong)] hover:bg-[var(--dg-surface)] focus:outline-none focus:ring-2 focus:ring-[var(--dg-border-strong)] dark:border-white/[0.08] dark:bg-[#2a2a2a] dark:text-[#e8eaf0] dark:hover:bg-[#2c3039]"
                       >
                         <span className="flex min-w-0 items-center gap-2">
                           <Smartphone className="h-4 w-4 text-[#FF4F00]" />
@@ -437,7 +437,7 @@ ${cleanScreen}
                   />
                   <DropdownMenuContent
                     align="start"
-                    className="dg-export-screen-menu flex w-[320px] flex-col gap-2 rounded-[18px] border border-[var(--dg-border)] bg-[var(--dg-surface)] p-2 text-[var(--dg-text)] shadow-[0_20px_70px_rgba(15,23,42,0.2)] dark:border-white/[0.08] dark:bg-[#1c1f26] dark:shadow-[0_20px_70px_rgba(0,0,0,0.58)]"
+                    className="dg-export-screen-menu flex w-[320px] flex-col gap-2 rounded-[18px] border border-[var(--dg-border)] bg-[var(--dg-surface)] p-2 text-[var(--dg-text)] shadow-[0_20px_70px_rgba(15,23,42,0.2)] dark:border-white/[0.08] dark:bg-[#1b1b1b] dark:shadow-[0_20px_70px_rgba(0,0,0,0.58)]"
                   >
                     {/* Live Search Box */}
                     <div className="relative flex items-center px-1 py-0.5">
@@ -448,7 +448,7 @@ ${cleanScreen}
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         onClick={(e) => e.stopPropagation()}
-                        className="h-9 w-full rounded-[12px] border-none bg-[var(--dg-surface-muted)] pl-8 pr-8 text-xs font-semibold text-[var(--dg-text)] outline-none transition placeholder:text-[var(--dg-text-muted)] focus:bg-[var(--dg-surface-muted)] dark:bg-[#252830] dark:text-[#e8eaf0] dark:placeholder:text-[#6f7785]"
+                        className="h-9 w-full rounded-[12px] border-none bg-[var(--dg-surface-muted)] pl-8 pr-8 text-xs font-semibold text-[var(--dg-text)] outline-none transition placeholder:text-[var(--dg-text-muted)] focus:bg-[var(--dg-surface-muted)] dark:bg-[#2a2a2a] dark:text-[#e8eaf0] dark:placeholder:text-[#6f7785]"
                       />
                       {searchQuery && (
                         <button

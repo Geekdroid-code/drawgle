@@ -131,8 +131,8 @@ export function AgentComposer({
       {selectedScreen || hasSelectedElement ? (
         <div className="mb-1 flex min-h-8 items-center gap-1.5 overflow-x-auto px-0.5 pt-0.5">
           {(selectedScreen?.name || activeTargetLabel) ? (
-            <span className="dg-prompt-target-pill inline-flex h-8 max-w-[62%] shrink-0 items-center gap-1.5 rounded-full border border-[var(--dg-border)] bg-[var(--dg-surface-muted)] px-2.5 text-xs font-medium text-[var(--dg-text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] dark:border-white/[0.10] dark:bg-[#252830] dark:text-[#e8eaf0]">
-              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[var(--dg-surface)] text-[var(--dg-text-muted)] dark:bg-[#1c1f26] dark:text-[#aeb5c2]">
+            <span className="dg-prompt-target-pill inline-flex h-8 max-w-[62%] shrink-0 items-center gap-1.5 rounded-full border border-[var(--dg-border)] bg-[var(--dg-surface-muted)] px-2.5 text-xs font-medium text-[var(--dg-text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] dark:border-white/[0.10] dark:bg-[#2a2a2a] dark:text-[#e8eaf0]">
+              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[var(--dg-surface)] text-[var(--dg-text-muted)] dark:bg-[#1b1b1b] dark:text-[#aeb5c2]">
                 <Pencil className="h-2.5 w-2.5" />
               </span>
               <span className="truncate">{selectedScreen?.name ?? activeTargetLabel}</span>
@@ -158,7 +158,7 @@ export function AgentComposer({
           ) : null}
 
           {hasSelectedElement ? (
-            <span className="dg-prompt-target-pill inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-[var(--dg-border)] bg-[var(--dg-surface-muted)] px-2.5 text-xs font-semibold text-[var(--dg-text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] dark:border-white/[0.10] dark:bg-[#252830] dark:text-[#e8eaf0]">
+            <span className="dg-prompt-target-pill inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-[var(--dg-border)] bg-[var(--dg-surface-muted)] px-2.5 text-xs font-semibold text-[var(--dg-text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] dark:border-white/[0.10] dark:bg-[#2a2a2a] dark:text-[#e8eaf0]">
               <Tooltip>
                 <TooltipTrigger
                   render={

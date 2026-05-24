@@ -502,7 +502,7 @@ function TokenValuePicker({
         render={(
           <button
             type="button"
-            className="flex h-10 w-full items-center justify-between gap-2 rounded-[14px] border border-[var(--dg-border)] bg-[var(--dg-surface-muted)] px-3 text-left text-xs font-medium text-[var(--dg-text)] transition hover:border-[var(--dg-border-strong)] hover:bg-[var(--dg-surface)] dark:border-white/[0.08] dark:bg-[#1c1f26] dark:text-[#e8eaf0] dark:hover:bg-[#252830]"
+            className="flex h-10 w-full items-center justify-between gap-2 rounded-[14px] border border-[var(--dg-border)] bg-[var(--dg-surface-muted)] px-3 text-left text-xs font-medium text-[var(--dg-text)] transition hover:border-[var(--dg-border-strong)] hover:bg-[var(--dg-surface)] dark:border-white/[0.08] dark:bg-[#1b1b1b] dark:text-[#e8eaf0] dark:hover:bg-[#2a2a2a]"
           />
         )}
       >
@@ -521,7 +521,7 @@ function TokenValuePicker({
         align="end"
         side="bottom"
         sideOffset={8}
-        className="dg-token-popover w-[min(320px,calc(100vw-2rem))] rounded-[18px] border border-[var(--dg-border)] bg-[var(--dg-surface)] p-2 text-[var(--dg-text)] shadow-[0_20px_70px_rgba(15,23,42,0.2)] dark:border-white/[0.08] dark:bg-[#1c1f26] dark:shadow-[0_20px_70px_rgba(0,0,0,0.58)]"
+        className="dg-token-popover w-[min(320px,calc(100vw-2rem))] rounded-[18px] border border-[var(--dg-border)] bg-[var(--dg-surface)] p-2 text-[var(--dg-text)] shadow-[0_20px_70px_rgba(15,23,42,0.2)] dark:border-white/[0.08] dark:bg-[#1b1b1b] dark:shadow-[0_20px_70px_rgba(0,0,0,0.58)]"
       >
         <div className="px-2 pb-1 pt-1">
           <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#667894]">Project Tokens</div>
@@ -1897,7 +1897,7 @@ export function ProjectShell({
                 </button>
               }
             />
-            <DropdownMenuContent align="end" className="w-[220px] rounded-[18px] border border-slate-950/[0.08] dark:border-white/[0.08] bg-white dark:bg-[#1c1f26] p-2 shadow-[0_20px_70px_rgba(15,23,42,0.2)] dark:shadow-[0_20px_70px_rgba(0,0,0,0.6)]">
+            <DropdownMenuContent align="end" className="w-[220px] rounded-[18px] border border-slate-950/[0.08] dark:border-white/[0.08] bg-white dark:bg-[#1b1b1b] p-2 shadow-[0_20px_70px_rgba(15,23,42,0.2)] dark:shadow-[0_20px_70px_rgba(0,0,0,0.6)]">
               <div className="px-2.5 py-2 border-b border-slate-950/[0.06] dark:border-white/[0.06] mb-1 text-left">
                 <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500 mb-0.5">Account</div>
                 <div className="truncate text-xs font-semibold text-slate-900 dark:text-slate-100">{user.email || "user@drawgle.com"}</div>

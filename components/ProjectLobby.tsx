@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useMemo, type CSSProperties, type ChangeEvent, type ReactNode } from "react";
-import { motion, type Transition } from "motion/react";
+import { motion, type Transition, LayoutGroup } from "motion/react";
 import {
   ArrowUp,
   ArrowRight,
@@ -25,6 +25,8 @@ import {
   Menu,
   CreditCard,
   User,
+  MoreVertical,
+  Share2,
 } from "lucide-react";
 
 import { DesignSystemEditor } from "@/components/DesignSystemEditor";
@@ -33,6 +35,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { useProjects } from "@/hooks/use-projects";
 import { useCredits } from "@/hooks/useCredits";
 import { PricingDialog } from "@/components/PricingDialog";
@@ -515,7 +518,7 @@ export function ProjectLobby({
 
   const renderSidebarContents = () => {
     return (
-      <div className="flex h-full flex-col overflow-hidden bg-white dark:bg-[#1c1f26]">
+      <div className="flex h-full flex-col overflow-hidden bg-white dark:bg-[#1b1b1b]">
         {/* Sidebar Header */}
         <div className="px-4 pb-4 pt-5 border-b border-slate-100 dark:border-white/[0.06] flex flex-col gap-4">
           <div className="flex items-center justify-between gap-3">
@@ -574,34 +577,20 @@ export function ProjectLobby({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search projects"
-              className="h-10 w-full rounded-xl border border-neutral-200 dark:border-white/[0.08] bg-neutral-50 dark:bg-[#252830] pl-10 pr-4 text-sm text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-600 focus:outline-none focus:border-neutral-300 dark:focus:border-white/20 focus:ring-1 focus:ring-neutral-200 dark:focus:ring-white/10 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)] transition-all"
+              className="h-10 w-full rounded-xl border border-neutral-200 dark:border-white/[0.08] bg-neutral-50 dark:bg-[#2a2a2a] pl-10 pr-4 text-sm text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-600 focus:outline-none focus:border-neutral-300 dark:focus:border-white/20 focus:ring-1 focus:ring-neutral-200 dark:focus:ring-white/10 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)] transition-all"
             />
           </div>
         </div>
 
         {/* Sidebar Scrollable Body */}
         <div className="flex-1 overflow-y-auto px-3 pb-4 pt-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {visibleGroups.map((label) => (
-            <div key={label} className="mb-4">
-              <div className="px-2 mb-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-neutral-400">
-                {label}
-              </div>
-              <div className="space-y-0.5">
-                {groupedProjects[label].map((project) => (
-                  <ProjectMenuItem
-                    key={project.id}
-                    project={project}
-                    active={false}
-                    onDelete={() => deleteProject(project.id)}
-                    onNavigate={() => {
-                      setIsMobileSidebarOpen(false);
-                      router.push(`/project/${project.id}`);
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
+          <SidebarProjectList 
+            visibleGroups={visibleGroups} 
+            groupedProjects={groupedProjects} 
+            deleteProject={deleteProject} 
+            router={router} 
+            setIsMobileSidebarOpen={setIsMobileSidebarOpen} 
+          />
 
           {hasMore && (
             <div ref={sentinelCallbackRef} className="py-4 flex justify-center items-center">
@@ -669,7 +658,7 @@ export function ProjectLobby({
                 </button>
               }
             />
-            <DropdownMenuContent align="end" className="w-[260px] rounded-[18px] border border-slate-950/[0.08] dark:border-white/[0.08] bg-white dark:bg-[#1c1f26] p-2 shadow-[0_20px_70px_rgba(15,23,42,0.2)] dark:shadow-[0_20px_70px_rgba(0,0,0,0.6)] mb-2">
+            <DropdownMenuContent align="end" className="w-[260px] rounded-[18px] border border-slate-950/[0.08] dark:border-white/[0.08] bg-white dark:bg-[#1b1b1b] p-2 shadow-[0_20px_70px_rgba(15,23,42,0.2)] dark:shadow-[0_20px_70px_rgba(0,0,0,0.6)] mb-2">
               <div className="px-2.5 py-2 border-b border-slate-950/[0.06] dark:border-white/[0.06] mb-1">
                 <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500 mb-0.5 font-sans">Account</div>
                 <div className="truncate text-xs font-semibold text-slate-900 dark:text-slate-100 font-sans">{user.email || "user@drawgle.com"}</div>
@@ -706,7 +695,7 @@ export function ProjectLobby({
     <div className="h-screen w-screen bg-[#f8f9fb] dark:bg-[#111215] p-4 flex gap-4 overflow-hidden text-neutral-900 dark:text-neutral-100 select-none">
       
       {/* 1. Desktop Floating Sidebar */}
-      <aside className="hidden md:flex flex-col w-[300px] shrink-0 bg-white dark:bg-[#1c1f26] border border-neutral-200/80 dark:border-white/[0.08] rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.03)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.3)] h-full overflow-hidden">
+      <aside className="hidden md:flex flex-col w-[300px] shrink-0 bg-white dark:bg-[#1b1b1b] border border-neutral-200/80 dark:border-white/[0.08] rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.03)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.3)] h-full overflow-hidden">
         {renderSidebarContents()}
       </aside>
 
@@ -719,7 +708,7 @@ export function ProjectLobby({
             onClick={() => setIsMobileSidebarOpen(false)}
           />
           {/* Floating Drawer Card */}
-          <aside className="relative flex flex-col w-[280px] bg-white dark:bg-[#1c1f26] border border-neutral-200/80 dark:border-white/[0.08] rounded-[24px] shadow-2xl h-[calc(100%-2rem)] my-4 ml-4 overflow-hidden z-10 animate-in slide-in-from-left duration-300">
+          <aside className="relative flex flex-col w-[280px] bg-white dark:bg-[#1b1b1b] border border-neutral-200/80 dark:border-white/[0.08] rounded-[24px] shadow-2xl h-[calc(100%-2rem)] my-4 ml-4 overflow-hidden z-10 animate-in slide-in-from-left duration-300">
             {renderSidebarContents()}
           </aside>
         </div>
@@ -731,7 +720,7 @@ export function ProjectLobby({
         <button
           type="button"
           onClick={() => setIsMobileSidebarOpen(true)}
-          className="absolute left-4 top-4 z-40 md:hidden flex h-9 w-9 items-center justify-center rounded-full border border-neutral-200/85 dark:border-white/[0.1] bg-white/90 dark:bg-[#1c1f26]/90 text-neutral-600 dark:text-neutral-300 shadow-sm backdrop-blur-md hover:bg-neutral-50 dark:hover:bg-white/10 active:scale-95 transition-all"
+          className="absolute left-4 top-4 z-40 md:hidden flex h-9 w-9 items-center justify-center rounded-full border border-neutral-200/85 dark:border-white/[0.1] bg-white/90 dark:bg-[#1b1b1b]/90 text-neutral-600 dark:text-neutral-300 shadow-sm backdrop-blur-md hover:bg-neutral-50 dark:hover:bg-white/10 active:scale-95 transition-all"
           aria-label="Open sidebar"
         >
           <Menu className="h-4.5 w-4.5" />
@@ -764,7 +753,7 @@ export function ProjectLobby({
                       <div className="flex flex-wrap items-center gap-2.5 px-3 pt-2 pb-2.5 min-h-[44px]">
                         {image ? (
                           <>
-                            <div className="flex items-center gap-2.5 bg-white dark:bg-[#1c1f26] border border-[#e2e4e7] dark:border-white/[0.08] rounded-[18px] pl-3 pr-2 py-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-all hover:bg-neutral-50 dark:hover:bg-white/5 group">
+                            <div className="flex items-center gap-2.5 bg-white dark:bg-[#1b1b1b] border border-[#e2e4e7] dark:border-white/[0.08] rounded-[18px] pl-3 pr-2 py-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-all hover:bg-neutral-50 dark:hover:bg-white/5 group">
                               <span className="relative h-5 w-5 shrink-0 overflow-hidden rounded-md border border-neutral-200">
                                 <Image
                                   src={`data:${image.mimeType};base64,${image.data}`}
@@ -788,7 +777,7 @@ export function ProjectLobby({
                             </div>
 
                             {/* Image Reference Modes toggle pill */}
-                            <div className="flex h-8 items-center rounded-[18px] border border-[#e2e4e7] dark:border-white/[0.08] bg-white dark:bg-[#1c1f26] p-0.5 shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
+                            <div className="flex h-8 items-center rounded-[18px] border border-[#e2e4e7] dark:border-white/[0.08] bg-white dark:bg-[#1b1b1b] p-0.5 shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
                               {imageReferenceModes.map((mode) => (
                                 <button
                                   key={mode.id}
@@ -811,7 +800,7 @@ export function ProjectLobby({
                       </div>
 
                       {/* Inner White Container */}
-<div className="bg-white dark:bg-[#1c1f26] border border-[#e2e4e7]/80 dark:border-white/[0.08] rounded-[28px] flex flex-col relative">
+<div className="bg-white dark:bg-[#1b1b1b] border border-[#e2e4e7]/80 dark:border-white/[0.08] rounded-[28px] flex flex-col relative">
                         
                         {/* Middle Section: Text input */}
                         <div className="px-4 pt-4 pb-2">
@@ -851,7 +840,7 @@ export function ProjectLobby({
                           
                           {/* Left tools grouped pill */}
                           <TooltipProvider>
-                            <div className="flex items-center bg-[#f7f8f9] dark:bg-[#252830] p-1 rounded-[22px] border border-[#e2e4e7]/60 dark:border-white/[0.07] shadow-[inset_0_1px_2px_rgba(0,0,0,0.01)] relative">
+                            <div className="flex items-center bg-[#f7f8f9] dark:bg-[#2a2a2a] p-1 rounded-[22px] border border-[#e2e4e7]/60 dark:border-white/[0.07] shadow-[inset_0_1px_2px_rgba(0,0,0,0.01)] relative">
                               
                               {/* Hidden input file for images */}
                               <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageUpload} />
@@ -903,7 +892,7 @@ export function ProjectLobby({
 
                             {/* Style Picker Dropdown Content positioned relative to this tool pill */}
                             {isThemePickerOpen && (
-                              <div className="absolute bottom-14 left-0 z-50 w-[240px] rounded-2xl border border-neutral-200/80 dark:border-white/[0.08] bg-white dark:bg-[#1c1f26] p-3 shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200">
+                              <div className="absolute bottom-14 left-0 z-50 w-[240px] rounded-2xl border border-neutral-200/80 dark:border-white/[0.08] bg-white dark:bg-[#1b1b1b] p-3 shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200">
                                 <div className="mb-2.5 flex items-center justify-between px-1">
                                   <span className="text-[10px] font-extrabold uppercase tracking-widest text-neutral-400">Design style</span>
                                   <button
@@ -1211,99 +1200,172 @@ function MetadataBlock({
   );
 }
 
+function SidebarProjectList({
+  visibleGroups,
+  groupedProjects,
+  deleteProject,
+  router,
+  setIsMobileSidebarOpen,
+}: {
+  visibleGroups: string[];
+  groupedProjects: Record<string, ProjectData[]>;
+  deleteProject: (id: string) => void;
+  router: any;
+  setIsMobileSidebarOpen: (isOpen: boolean) => void;
+}) {
+  const [hoveredProjectId, setHoveredProjectId] = useState<string | null>(null);
+
+  return (
+    <LayoutGroup id="lobby-sidebar-projects-hover">
+      {visibleGroups.map((label) => (
+        <div key={label} className="mb-4">
+          <div className="px-2 mb-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-neutral-400">
+            {label}
+          </div>
+          <div className="space-y-0.5">
+            {groupedProjects[label].map((project) => (
+              <ProjectMenuItem
+                key={project.id}
+                project={project}
+                onDelete={() => deleteProject(project.id)}
+                onNavigate={() => {
+                  setIsMobileSidebarOpen(false);
+                  router.push(`/project/${project.id}`);
+                }}
+                hoveredProjectId={hoveredProjectId}
+                onHover={setHoveredProjectId}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </LayoutGroup>
+  );
+}
+
 function ProjectMenuItem({
   project,
-  active = false,
   onDelete,
   onNavigate,
+  hoveredProjectId,
+  onHover,
 }: {
   project: ProjectData;
-  active?: boolean;
   onDelete: () => void;
   onNavigate: () => void;
+  hoveredProjectId: string | null;
+  onHover: (id: string | null) => void;
 }) {
-  const [confirming, setConfirming] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  
   const context = getProjectContext(project);
   const status = PROJECT_STATUS_LABEL[project.status] ?? "Project";
   const time = formatCompactTime(project.updatedAt);
+  const isHovered = hoveredProjectId === project.id;
+
+  const handleShare = async () => {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/project/${project.id}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy link", err);
+    }
+  };
 
   return (
-    <div className="group/project relative mb-1">
+    <div 
+      className="group/project relative"
+      onMouseEnter={() => onHover(project.id)}
+      onMouseLeave={() => onHover(null)}
+    >
       <button
         type="button"
         onClick={onNavigate}
-        className={cn(
-          "w-full text-left rounded-xl p-3 transition-all relative flex flex-col gap-1",
-          active
-            ? "bg-neutral-950 text-white shadow-sm"
-            : "hover:bg-neutral-50 dark:hover:bg-white/[0.06] text-neutral-800 dark:text-neutral-200"
-        )}
+        className="relative flex flex-col justify-center min-h-[32px] w-[calc(100%-0.5rem)] rounded-xl px-3 transition-colors select-none text-left z-10 text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100 cursor-pointer"
       >
-        <div className="flex w-full items-start justify-between gap-2">
-          <span className={cn(
-            "truncate text-[13px] font-semibold tracking-tight",
-            active ? "text-white" : "text-neutral-800 dark:text-neutral-200"
-          )}>
-            {project.name}
+        {/* Hover background capsule slider */}
+        {isHovered && (
+          <motion.div
+            layoutId="project-hover-bg"
+            className="absolute inset-0 rounded-lg bg-slate-950/[0.04] border border-slate-950/[0.05] dark:bg-white/[0.04] dark:border-white/[0.05] -z-10"
+            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+          />
+        )}
+
+        {/* Left vertical indicator pill */}
+        {isHovered && (
+          <motion.div
+            layoutId="project-hover-pill"
+            className="absolute left-0 w-[3px] h-5 rounded-full bg-[#1b1b1b] dark:bg-white z-20"
+            style={{ top: "calc(50% - 10px)" }}
+            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+          />
+        )}
+
+        {/* Content (Title & Timestamp) */}
+        <span className="block min-w-0 w-full">
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-neutral-800 dark:text-neutral-200 group-hover/project:text-neutral-900 dark:group-hover/project:text-neutral-100">
+              {project.name}
+            </span>
+            <span className="shrink-0 text-[10px] text-neutral-400 font-normal">
+              {time}
+            </span>
           </span>
-          <span className={cn(
-            "text-[10px] shrink-0 mt-0.5",
-            active ? "text-neutral-400" : "text-neutral-400"
-          )}>
-            {time}
-          </span>
-        </div>
         
-        <div className="flex items-center gap-1.5 text-[10px] font-medium">
-          <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", getStatusDotClass(project.status))} />
-          <span className={cn("truncate max-w-[120px]", active ? "text-neutral-300" : "text-neutral-500")}>
-            {context}
-          </span>
-          <span className="text-neutral-300">/</span>
-          <span className={active ? "text-neutral-300" : "text-neutral-500"}>
-            {status}
-          </span>
-        </div>
+        </span>
       </button>
 
-      {/* Delete trigger */}
-      {confirming ? (
-        <div className="absolute right-2.5 top-1/2 z-20 flex -translate-y-1/2 items-center gap-1">
-          <button
-            type="button"
-            onClick={() => {
-              setConfirming(false);
-              onDelete();
-            }}
-            className="flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-white hover:bg-rose-600 transition-colors shadow-sm"
-            aria-label="Confirm delete"
-          >
-            <Check className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setConfirming(false)}
-            className="flex h-6 w-6 items-center justify-center rounded-full bg-neutral-200 text-neutral-600 hover:bg-neutral-300 transition-colors shadow-sm"
-            aria-label="Cancel"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
+      {/* Action Dropdown Menu */}
+      <div className="absolute right-2 top-0 bottom-0 pr-1 pl-12 flex items-center justify-end z-20 rounded-r-xl opacity-0 group-hover/project:opacity-100 transition-opacity bg-gradient-to-l from-[#f5f5f6] via-[#f5f5f6]/90 to-transparent dark:from-slate-900 dark:via-slate-900/90 pointer-events-none">
+        <div className="pointer-events-auto">
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <button
+                  type="button"
+                  className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 transition-colors hover:bg-slate-900/10 dark:hover:bg-white/10 hover:text-neutral-900 dark:hover:text-neutral-100 cursor-pointer"
+                  aria-label="Project actions"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </button>
+              }
+            />
+          <DropdownMenuContent align="end" className="w-[160px] rounded-xl border border-slate-950/[0.08] dark:border-white/[0.08] bg-white dark:bg-[#1b1b1b] p-1.5 shadow-lg">
+            <DropdownMenuItem
+              onClick={handleShare}
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/10 cursor-pointer focus:bg-slate-50 dark:focus:bg-white/10"
+            >
+              <Share2 className="h-3.5 w-3.5 text-slate-500" />
+              {copied ? "Copied!" : "Share Project"}
+            </DropdownMenuItem>
+            
+            <DropdownMenuItem
+              onClick={() => setIsDeleteDialogOpen(true)}
+              variant="destructive"
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50 cursor-pointer focus:bg-rose-50 dark:focus:bg-rose-50"
+            >
+              <Trash2 className="h-3.5 w-3.5 text-rose-500" />
+              Delete Project
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setConfirming(true)}
-          className={cn(
-            "absolute right-2.5 top-1/2 z-20 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full opacity-0 group-hover/project:opacity-100 transition-all hover:scale-105 shadow-sm border border-neutral-100 focus-visible:opacity-100",
-            active 
-              ? "bg-white/10 hover:bg-rose-500 hover:text-white border-white/5 text-white/70"
-              : "bg-white dark:bg-[#1c1f26] hover:bg-rose-50 dark:hover:bg-rose-950/60 hover:text-rose-500 text-neutral-400 border-neutral-100 dark:border-white/[0.06]"
-          )}
-          aria-label="Delete project"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
-      )}
+      </div>
+
+      {/* Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => setIsDeleteDialogOpen(false)}
+        onConfirm={onDelete}
+        title="Delete Project"
+        description={`Are you sure you want to delete "${project.name}"? This action is permanent and cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="destructive"
+      />
     </div>
   );
 }

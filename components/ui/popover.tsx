@@ -37,7 +37,7 @@ function PopoverContent({
         <PopoverPrimitive.Popup
           data-slot="popover-content"
           className={cn(
-            "z-50 flex w-72 origin-(--transform-origin) flex-col gap-2.5 rounded-lg border border-[var(--dg-border)] bg-[var(--dg-surface)] p-2.5 text-sm text-[var(--dg-text)] shadow-md ring-1 ring-foreground/10 outline-hidden duration-100 dark:border-white/[0.08] dark:bg-[#1c1f26] dark:text-[#e8eaf0] dark:shadow-[0_20px_70px_rgba(0,0,0,0.55)] data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+            "z-50 flex w-72 origin-(--transform-origin) flex-col gap-2.5 rounded-lg border border-[var(--dg-border)] bg-[var(--dg-surface)] p-2.5 text-sm text-[var(--dg-text)] shadow-md ring-1 ring-foreground/10 outline-hidden duration-100 dark:border-white/[0.08] dark:bg-[#1b1b1b] dark:text-[#e8eaf0] dark:shadow-[0_20px_70px_rgba(0,0,0,0.55)] data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
             className
           )}
           {...props}

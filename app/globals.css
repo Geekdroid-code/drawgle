@@ -641,8 +641,8 @@
     --canvas-dot: rgba(232, 234, 240, 0.12);
     --dg-bg: #111215;
     --dg-bg-strong: #1a1d22;
-    --dg-surface: #1c1f26;
-    --dg-surface-muted: #252830;
+    --dg-surface: #1b1b1b;
+    --dg-surface-muted: #2a2a2a;
     --dg-border: rgba(255, 255, 255, 0.07);
     --dg-border-strong: rgba(255, 255, 255, 0.13);
     --dg-text: #e8eaf0;
