@@ -1027,7 +1027,7 @@ export async function POST(request: Request) {
           selectionVersion: activeSelection.selectionVersion,
         },
       },
-      screens: screenContext.map((screen) => ({
+      screens: screenContext.map((screen: any) => ({
         id: screen.id,
         name: screen.name,
         status: screen.status,
