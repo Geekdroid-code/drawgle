@@ -11,6 +11,8 @@ import { ChatPanel } from "@/components/ChatPanel";
 import { ColorPickerButton } from "@/components/DesignSystemEditor";
 import type { ElementSelectionLostReason, SelectedElementInfo } from "@/components/ScreenNode";
 import { Button } from "@/components/ui/button";
+import { useCredits } from "@/hooks/useCredits";
+import { PricingDialog } from "@/components/PricingDialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1051,6 +1053,11 @@ export function ProjectShell({
   const [selectionNotice, setSelectionNotice] = useState<string | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectionVersion, setSelectionVersion] = useState(0);
+
+  // Credits & Pricing Dialog state
+  const { balance, loading: loadingCredits } = useCredits();
+  const [isPricingOpen, setIsPricingOpen] = useState(false);
+  const [pricingReason, setPricingReason] = useState<"upgrade" | "insufficient_credits">("upgrade");
   const [editSession, setEditSession] = useState<ElementEditSession | null>(null);
   const [pendingElementSelection, setPendingElementSelection] = useState<PendingElementSelection | null>(null);
   const [tokenDraft, setTokenDraft] = useState<DesignTokens | null>(() =>
@@ -1854,6 +1861,23 @@ export function ProjectShell({
             </Button>
           </div>
 
+          {/* Credits & Upgrade pill */}
+          <div className="flex h-8 items-center rounded-full bg-indigo-50/80 border border-indigo-200/50 pl-3 pr-1 backdrop-blur-xl gap-2.5 shadow-[0_1px_2px_rgba(99,102,241,0.03)]">
+            <span className="text-[11px] font-extrabold text-indigo-700 tracking-tight select-none">
+              {loadingCredits ? "..." : `${balance} credits`}
+            </span>
+            <Button
+              onClick={() => {
+                setPricingReason("upgrade");
+                setIsPricingOpen(true);
+              }}
+              size="sm"
+              className="h-6 rounded-full bg-indigo-600 hover:bg-indigo-700 px-3 text-[10px] font-bold uppercase tracking-wider text-white shadow-xs transition-all cursor-pointer"
+            >
+              Upgrade
+            </Button>
+          </div>
+
           {/* Group 3 (User Profile): Gradient Avatar Circle with Radix Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -1872,8 +1896,8 @@ export function ProjectShell({
               <div className="px-2.5 py-2 border-b border-slate-950/[0.06] mb-1 text-left">
                 <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400 mb-0.5">Account</div>
                 <div className="truncate text-xs font-semibold text-slate-900">{user.email || "user@drawgle.com"}</div>
-                <div className="mt-1 inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-emerald-700">
-                  Pro Member
+                <div className="mt-1 inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-indigo-700">
+                  {loadingCredits ? "..." : `${balance} Credits`}
                 </div>
               </div>
               <DropdownMenuItem
@@ -2048,6 +2072,11 @@ export function ProjectShell({
           />
         </div>
       </main>
+      <PricingDialog
+        open={isPricingOpen}
+        onOpenChange={setIsPricingOpen}
+        triggerReason={pricingReason}
+      />
     </div>
   );
 }

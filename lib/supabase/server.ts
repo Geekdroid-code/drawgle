@@ -6,7 +6,7 @@ import { cookies } from "next/headers";
 import { getSupabasePublicEnv } from "@/lib/env/public";
 import type { Database } from "@/lib/supabase/database.types";
 
-export async function createClient() {
+export async function createClient(): Promise<any> {
   const cookieStore = await cookies();
   const { url, publishableKey } = getSupabasePublicEnv();
 

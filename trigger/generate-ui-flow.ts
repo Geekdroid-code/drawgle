@@ -31,6 +31,7 @@ import {
 } from "@/lib/project-navigation";
 import { tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { adminCreditService } from "@/lib/credits";
 import type { Database } from "@/lib/supabase/database.types";
 import type { DesignTokens, GenerationJournalMetadata, ImageReferenceMode, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, PromptImagePayload, ProjectCharter, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenPlan } from "@/lib/types";
 
@@ -1446,6 +1447,48 @@ export const generateUiFlowTask = task({
         activityKey: planningActivityKey(payload.generationRunId),
       },
     );
+
+    // Each screen build costs 30 credits (planning is completely free!)
+    const requiredCredits = screenPlans.length * 30;
+    const creditCheck = await adminCreditService.hasCredits(payload.ownerId, requiredCredits);
+
+    if (!creditCheck.hasCredits) {
+      const errorMessage = `Insufficient credits to build planned screens. (Required: ${requiredCredits}, Balance: ${creditCheck.currentBalance}). Please upgrade your plan.`;
+      
+      await updateGenerationRun(admin, payload.generationRunId, {
+        status: "failed",
+        error: errorMessage,
+        completed_at: now(),
+      });
+      
+      await updateProject(admin, payload.projectId, {
+        status: "failed",
+      });
+
+      await postStatusMessage(
+        admin,
+        payload.projectId,
+        payload.ownerId,
+        errorMessage,
+        "error",
+        {
+          generationRunId: payload.generationRunId,
+          activityKey: `run:${payload.generationRunId}:credits_error`,
+        }
+      );
+      
+      throw new Error(errorMessage);
+    }
+
+    const deduction = await adminCreditService.deductCredits(
+      payload.ownerId,
+      requiredCredits,
+      `Generated ${screenPlans.length} screens for project`
+    );
+
+    if (!deduction.success) {
+      throw new Error(deduction.error || "Failed to deduct credits");
+    }
 
     const reservedSlots = await reserveScreenSlots(admin, payload.projectId, screenPlans.length);
 

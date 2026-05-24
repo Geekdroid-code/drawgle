@@ -3,6 +3,7 @@ import { logger, task } from "@trigger.dev/sdk";
 import { executeModifyScreenTask, type ModifyScreenPayload } from "@/lib/generation/edit-runner";
 import type { AgentStepMetadata } from "@/lib/agent/message-metadata";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { adminCreditService } from "@/lib/credits";
 
 const now = () => new Date().toISOString();
 
@@ -148,6 +149,51 @@ export const modifyScreenTask = task({
       screenId: payload.screenId,
       target: payload.selectedElementTarget,
     });
+
+    // Calculate dynamic credit cost based on the scope/size of the edit
+    const selectedElementHtml = payload.selectedElementHtml?.trim() || "";
+    const isNavigation = payload.selectedElementTarget === "navigation" || payload.requestTargetsNavigation;
+    
+    let requiredCredits = 30; // Default to full screen or navigation edit
+    let scopeLabel = "Full Screen Edit";
+
+    if (isNavigation) {
+      requiredCredits = 30;
+      scopeLabel = "Navigation Edit";
+    } else if (selectedElementHtml) {
+      const length = selectedElementHtml.length;
+      if (length < 1000) {
+        requiredCredits = 5;
+        scopeLabel = "Small Component Edit";
+      } else if (length <= 3000) {
+        requiredCredits = 15;
+        scopeLabel = "Medium Container Edit";
+      } else {
+        requiredCredits = 25;
+        scopeLabel = "Large Section Edit";
+      }
+    }
+
+    // Gated Credit Check
+    const creditCheck = await adminCreditService.hasCredits(payload.ownerId, requiredCredits);
+
+    if (!creditCheck.hasCredits) {
+      const errorMessage = `Insufficient credits for ${scopeLabel}. (Required: ${requiredCredits}, Balance: ${creditCheck.currentBalance}). Please upgrade your plan.`;
+      
+      await markEditFailed(payload, errorMessage);
+      throw new Error(errorMessage);
+    }
+
+    // Deduct credits prior to LLM run
+    const deduction = await adminCreditService.deductCredits(
+      payload.ownerId,
+      requiredCredits,
+      `UI Edit: ${scopeLabel}`
+    );
+
+    if (!deduction.success) {
+      throw new Error(deduction.error || "Failed to deduct credits");
+    }
 
     return executeModifyScreenTask(payload, (label, data) => logger.info(label, data));
   },

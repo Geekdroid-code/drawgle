@@ -29,6 +29,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useProjects } from "@/hooks/use-projects";
+import { useCredits } from "@/hooks/useCredits";
+import { PricingDialog } from "@/components/PricingDialog";
 import { describeNavigationArchitecture } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import type {
@@ -304,6 +306,11 @@ export function ProjectLobby({
   // Mobile sidebar drawer state
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
+  // Credits & Pricing Dialog state
+  const { balance, loading: loadingCredits } = useCredits();
+  const [isPricingOpen, setIsPricingOpen] = useState(false);
+  const [pricingReason, setPricingReason] = useState<"upgrade" | "insufficient_credits">("upgrade");
+
   // Projects data hook and query filtering
   const { projects, deleteProject, hasMore, loadMore, isLoadingMore } = useProjects(user.id, initialProjects);
   const [query, setQuery] = useState("");
@@ -390,6 +397,12 @@ export function ProjectLobby({
 
   const handleGenerateDesign = async () => {
     if (!isBriefReady || isGeneratingDesign) {
+      return;
+    }
+
+    if (!loadingCredits && balance <= 0) {
+      setPricingReason("insufficient_credits");
+      setIsPricingOpen(true);
       return;
     }
 
@@ -596,6 +609,24 @@ export function ProjectLobby({
           </div>
         </div>
 
+        {/* Credits & Subscription Gating */}
+        <div className="px-4 py-3 mx-3 mb-2 bg-gradient-to-br from-indigo-50/60 via-purple-50/40 to-pink-50/20 border border-indigo-100/10 rounded-2xl shadow-[0_2px_8px_rgba(99,102,241,0.03)] flex flex-col gap-2 shrink-0">
+          <div className="flex justify-between items-center">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">Credits Balance</span>
+            <span className="text-xs font-bold text-neutral-800">{loadingCredits ? "..." : `${balance} credits`}</span>
+          </div>
+          <button 
+            type="button" 
+            onClick={() => {
+              setPricingReason("upgrade");
+              setIsPricingOpen(true);
+            }}
+            className="w-full text-center py-1.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs hover:shadow-sm transition-all active:scale-[0.98] cursor-pointer"
+          >
+            Upgrade Plan
+          </button>
+        </div>
+
         {/* Sidebar Footer */}
         <div className="border-t border-slate-100 p-3">
           <div className="flex items-center gap-3 rounded-xl border border-neutral-250 bg-[#fcfcfd] p-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
@@ -741,6 +772,22 @@ export function ProjectLobby({
                             value={prompt}
                             onChange={(event) => setPrompt(event.target.value)}
                             readOnly={isGeneratingDesign}
+                            onClick={(event) => {
+                              if (!loadingCredits && balance <= 0) {
+                                event.preventDefault();
+                                event.currentTarget.blur();
+                                setPricingReason("insufficient_credits");
+                                setIsPricingOpen(true);
+                              }
+                            }}
+                            onFocus={(event) => {
+                              if (!loadingCredits && balance <= 0) {
+                                event.preventDefault();
+                                event.currentTarget.blur();
+                                setPricingReason("insufficient_credits");
+                                setIsPricingOpen(true);
+                              }
+                            }}
                             onKeyDown={(event) => {
                               if (event.key === "Enter" && !event.shiftKey) {
                                 event.preventDefault();
@@ -1042,6 +1089,11 @@ export function ProjectLobby({
           </div>
         </div>
       </main>
+      <PricingDialog
+        open={isPricingOpen}
+        onOpenChange={setIsPricingOpen}
+        triggerReason={pricingReason}
+      />
     </div>
   );
 }

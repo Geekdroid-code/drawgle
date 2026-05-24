@@ -6,7 +6,7 @@ import { getSupabasePublicEnv } from "@/lib/env/public";
 import { getSupabaseServiceRoleKey } from "@/lib/env/server";
 import type { Database } from "@/lib/supabase/database.types";
 
-export function createAdminClient() {
+export function createAdminClient(): any {
   const { url } = getSupabasePublicEnv();
 
   return createSupabaseClient<Database>(url, getSupabaseServiceRoleKey(), {
