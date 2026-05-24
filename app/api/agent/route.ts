@@ -972,7 +972,7 @@ export async function POST(request: Request) {
     const recentMessages = buildCompactRecentMessages(projectMessages, screenContext, HISTORY_LIMITS[historyNeed]);
     const promptApprovalProposal = latestPendingScreenPlanProposal(projectMessages);
     const selectedScreen = selectedScreenId
-      ? screenContext.find((screen) => screen.id === selectedScreenId) ?? null
+      ? screenContext.find((screen: any) => screen.id === selectedScreenId) ?? null
       : null;
     const activeSelectionDrawgleId = payload.activeSelection?.drawgleId ?? payload.selectedElementDrawgleId ?? null;
     const activeSelectionTargetType = payload.activeSelection?.targetType ?? payload.selectedElementTarget ?? null;
