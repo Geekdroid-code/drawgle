@@ -1,12 +1,26 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Check, Loader2, Sparkles, Zap, X } from "lucide-react";
+import { Check, Loader2, Sparkles, Zap, X, Info } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { checkout } from "@/lib/dodopayments";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+
+const FEATURE_TOOLTIPS: Record<string, string> = {
+  "Unlimited Projects": "Create and manage an infinite number of design projects within your workspace.",
+  "Unlimited Code Exports": "Generate and download production-ready code as many times as you need without limits.",
+  "Export to 5 Frameworks": "Export your UI into Production ready React Native, SwiftUI, Compose, Flutter, or raw HTML/Tailwind.",
+  "Export Design.md Specs": "Automatically generate a comprehensive Markdown design specification for your team.",
+  "Live Design Tokens Sync": "Extract and sync precise color, typography, and spacing tokens dynamically.",
+  "AI-powered Screen Editing": "Prompt the AI to modify, iterate, or fix specific parts of your screen instantly.",
+  "Manual UI Adjustments": "Take full manual control over the generated code for pixel-perfect tweaks.",
+  "Priority generation speed": "Skip the queue with prioritized AI rendering for instant results.",
+  "Advanced multi-screen systems": "Plan and generate entire cohesive user flows with shared context.",
+  "Direct team collaboration support": "Invite team members to view, edit, and collaborate on your design systems."
+};
 
 type PlanRow = {
   id: string;
@@ -96,7 +110,8 @@ export function PricingDialog({
   }, [user]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <TooltipProvider>
+      <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
         showCloseButton={false}
         className="flex max-h-[90vh] lg:max-h-[95vh] flex-col w-[95vw] sm:max-w-4xl lg:max-w-5xl xl:max-w-[1100px] gap-0 overflow-hidden rounded-[20px] lg:rounded-[28px] border border-slate-200/60 bg-[#fcfcfc] p-0 shadow-2xl"
@@ -129,30 +144,7 @@ export function PricingDialog({
               {plans.map((plan) => {
                 const planName = plan.name.toLowerCase();
                 const isPopular = planName === "starter";
-                
-                // Override features based on actual Drawgle application capabilities
-                const features = planName === "lite"
-                  ? [
-                      "Generate ~20 full screens/mo",
-                      "React & Tailwind code export",
-                      "Standard generation speed",
-                      "Community support"
-                    ]
-                  : planName === "starter"
-                  ? [
-                      "Generate ~50 full screens/mo",
-                      "React & Tailwind code export",
-                      "Priority generation queue",
-                      "App screen variations",
-                      "Early access to features"
-                    ]
-                  : [
-                      "Generate ~333 full screens/mo",
-                      "React & Tailwind code export",
-                      "Lightning fast generation",
-                      "App screen variations",
-                      "Priority support"
-                    ];
+                const features = plan.metadata?.features || [];
 
                 return (
                   <div
@@ -174,11 +166,11 @@ export function PricingDialog({
                       <h3 className="text-lg lg:text-xl font-bold text-slate-900">{plan.name}</h3>
                     </div>
                     
-                    <p className="text-[11px] lg:text-sm text-slate-500 leading-relaxed min-h-[34px] lg:min-h-[48px] mb-4 lg:mb-6 font-medium">
+                    <p className="text-[11px] lg:text-sm text-slate-500 leading-relaxed min-h-[34px] lg:min-h-[48px] mb-4 font-medium">
                       {plan.description}
                     </p>
 
-                    <div className="mb-4 lg:mb-6 flex items-baseline gap-1">
+                    <div className="mb-4 flex items-baseline gap-1">
                       <span className="text-3xl lg:text-4xl font-extrabold tracking-tight text-slate-950">
                         ${plan.price}
                       </span>
@@ -189,7 +181,7 @@ export function PricingDialog({
                       onClick={() => handleCheckout(plan.dodo_product_id)}
                       disabled={Boolean(checkoutProductId)}
                       className={cn(
-                        "mb-4 lg:mb-6 h-9 lg:h-12 w-full rounded-lg lg:rounded-xl text-xs lg:text-sm font-bold transition-all lg:hover:scale-[1.02]",
+                        "mb-4 h-9 lg:h-12 w-full rounded-lg lg:rounded-xl text-xs lg:text-sm font-bold transition-all lg:hover:scale-[1.02]",
                         isPopular
                           ? "bg-slate-900 hover:bg-slate-800 text-white shadow-sm lg:shadow-md"
                           : "bg-white hover:bg-slate-50 text-slate-900 border border-slate-200 shadow-none"
@@ -202,7 +194,7 @@ export function PricingDialog({
                       )}
                     </Button>
                     
-                    <div className="mb-4 lg:mb-6 flex items-center justify-between rounded-lg lg:rounded-xl bg-slate-50/80 px-3 py-2 lg:px-4 lg:py-3 text-xs lg:text-sm font-semibold text-slate-800 border border-slate-100">
+                    <div className="mb-4 flex items-center justify-between rounded-lg lg:rounded-xl bg-slate-50/80 px-3 py-2 lg:px-4 lg:py-3 text-xs lg:text-sm font-semibold text-slate-800 border border-slate-100">
                       <span className="flex items-center gap-1.5 lg:gap-2">
                         <span className="bg-amber-100/80 p-1 lg:p-1.5 rounded-md lg:rounded-lg flex items-center justify-center">
                           <Zap className="h-3 w-3 lg:h-4 lg:w-4 text-amber-500 fill-amber-500" />
@@ -216,17 +208,41 @@ export function PricingDialog({
                       What's Included
                     </div>
                     
-                    <ul className="flex-1 space-y-2 lg:space-y-3 text-left">
-                      {features.map((feature: string, i: number) => (
-                        <li key={i} className="flex items-start gap-2.5 lg:gap-3">
-                          <div className="mt-0.5 lg:mt-1 rounded-full bg-slate-100 p-0.5 lg:p-1 flex items-center justify-center shrink-0">
-                            <Check className="h-2.5 w-2.5 lg:h-3.5 lg:w-3.5 text-slate-700" strokeWidth={3} />
-                          </div>
-                          <span className="text-xs lg:text-sm font-medium text-slate-600 leading-tight">
-                            {feature}
-                          </span>
-                        </li>
-                      ))}
+                    <ul className="flex-1 space-y-3 text-left">
+                      {features.map((feature: string, i: number) => {
+                        let tooltip = FEATURE_TOOLTIPS[feature];
+                        
+                        // Dynamically handle the screen generation count tooltip
+                        const screenMatch = feature.match(/Generate ~([\d,]+) full screens\/mo/i);
+                        if (screenMatch) {
+                          tooltip = `Approximately ${screenMatch[1]} screens. Generating a screen uses ~30 credits, edits range from 5-30 credits depending on scope.`;
+                        }
+                        
+                        return (
+                          <li key={i} className="flex items-start gap-3">
+ <div className="mt-[2px] flex h-3 w-3 lg:h-4 lg:w-4 shrink-0 items-center justify-center rounded-full bg-gradient-to-b from-slate-800 to-slate-950 text-white shadow-sm ring-1 ring-slate-950/5">
+                              <Check className="h-2 w-2 lg:h-2.5 lg:w-2.5" strokeWidth={3} />
+                            </div>
+                                                        <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="text-sm font-medium text-slate-600 leading-snug">
+                                {feature}
+                              </span>
+                              {tooltip && (
+                                <Tooltip>
+                                  <TooltipTrigger>
+                                    <span className="shrink-0 cursor-help text-slate-400 hover:text-slate-600 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 rounded-full mt-0.5">
+                                      <Info className="h-4 w-4" />
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="max-w-[220px] text-center p-2 text-[12px] font-medium leading-relaxed bg-slate-950 text-white border-none shadow-lg">
+                                    {tooltip}
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
+                            </div>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
                 );
@@ -235,6 +251,7 @@ export function PricingDialog({
           )}
         </div>
       </DialogContent>
-    </Dialog>
+      </Dialog>
+    </TooltipProvider>
   );
 }
