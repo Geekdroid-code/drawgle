@@ -5,12 +5,7 @@ import { Copy, Check, Download, Loader2, ChevronDown, Smartphone, Search, X } fr
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { PremiumSegmentedTabs, PremiumTabPanel } from "@/components/ui/premium-segmented-tabs";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { PremiumDropdown } from "@/components/ui/premium-dropdown";
 import type { DesignTokens, ScreenData } from "@/lib/types";
 import {
   parseScreenHtml,
@@ -239,6 +234,7 @@ export function MobileExportDrawer({
   }
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   const filteredScreens = useMemo(() => {
     if (!searchQuery.trim()) return screens;
@@ -420,25 +416,26 @@ ${cleanScreen}
                   <span className="text-[10px] font-bold text-slate-400">{screens.length} screens total</span>
                 </div>
                 
-                <DropdownMenu>
-                  <DropdownMenuTrigger
-                    render={
-                      <button
-                        type="button"
-                        className="flex h-11 w-full items-center justify-between gap-3 rounded-[14px] border border-[var(--dg-border)] bg-[var(--dg-surface-muted)] px-3.5 text-left text-sm font-semibold text-[var(--dg-text)] shadow-sm transition hover:border-[var(--dg-border-strong)] hover:bg-[var(--dg-surface)] focus:outline-none focus:ring-2 focus:ring-[var(--dg-border-strong)] dark:border-white/[0.08] dark:bg-[#2a2a2a] dark:text-[#e8eaf0] dark:hover:bg-[#2c3039]"
-                      >
-                        <span className="flex min-w-0 items-center gap-2">
-                          <Smartphone className="h-4 w-4 text-[#FF4F00]" />
-                          <span className="truncate">{screenName}</span>
-                        </span>
-                        <ChevronDown className="h-4 w-4 text-[var(--dg-text-muted)] shrink-0" />
-                      </button>
-                    }
-                  />
-                  <DropdownMenuContent
-                    align="start"
-                    className="dg-export-screen-menu flex w-[320px] flex-col gap-2 rounded-[18px] border border-[var(--dg-border)] bg-[var(--dg-surface)] p-2 text-[var(--dg-text)] shadow-[0_20px_70px_rgba(15,23,42,0.2)] dark:border-white/[0.08] dark:bg-[#1b1b1b] dark:shadow-[0_20px_70px_rgba(0,0,0,0.58)]"
-                  >
+                <PremiumDropdown
+                  align="start"
+                  width={320}
+                  className="w-full"
+                  open={dropdownOpen}
+                  onOpenChange={setDropdownOpen}
+                  trigger={
+                    <button
+                      type="button"
+                      className="flex h-11 w-full items-center justify-between gap-3 rounded-[14px] border border-[var(--dg-border)] bg-[var(--dg-surface-muted)] px-3.5 text-left text-sm font-semibold text-[var(--dg-text)] shadow-sm transition hover:border-[var(--dg-border-strong)] hover:bg-[var(--dg-surface)] focus:outline-none focus:ring-2 focus:ring-[var(--dg-border-strong)] dark:border-white/[0.08] dark:bg-[#2a2a2a] dark:text-[#e8eaf0] dark:hover:bg-[#2c3039]"
+                    >
+                      <span className="flex min-w-0 items-center gap-2">
+                        <Smartphone className="h-4 w-4 text-[#FF4F00]" />
+                        <span className="truncate">{screenName}</span>
+                      </span>
+                      <ChevronDown className="h-4 w-4 text-[var(--dg-text-muted)] shrink-0" />
+                    </button>
+                  }
+                >
+                  <div className="flex flex-col gap-2 p-1 font-sans">
                     {/* Live Search Box */}
                     <div className="relative flex items-center px-1 py-0.5">
                       <Search className="absolute left-3.5 h-3.5 w-3.5 text-[var(--dg-text-muted)]" />
@@ -465,21 +462,24 @@ ${cleanScreen}
                     </div>
 
                     {/* Scrollable list */}
-                    <div className="max-h-[220px] overflow-y-auto flex flex-col gap-0.5 pr-1 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent dark:scrollbar-thumb-white/20">
+                    <div className="max-h-[220px] overflow-y-auto flex flex-col gap-0.5 pr-1 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent dark:scrollbar-thumb-white/20 text-left">
                       {filteredScreens.length > 0 ? (
                         filteredScreens.map((screen) => {
                           const isSelected = activeScreenId === screen.id;
                           return (
-                            <DropdownMenuItem
+                            <button
+                              type="button"
                               key={screen.id}
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setActiveScreenId(screen.id);
                                 setSearchQuery("");
+                                setDropdownOpen(false);
                               }}
-                              className={`flex w-full items-center justify-between rounded-[12px] px-3 py-2 text-left transition cursor-pointer ${
+                              className={`flex w-full items-center justify-between rounded-[12px] px-3 py-2 text-left transition cursor-pointer border-none outline-none ${
                                 isSelected
-                                  ? "bg-slate-950 text-white focus:bg-slate-900 focus:text-white dark:bg-[#0f172a] dark:text-white dark:ring-1 dark:ring-white/[0.10] dark:focus:bg-[#111c33] dark:focus:text-white"
-                                  : "text-[var(--dg-text)] hover:bg-[var(--dg-surface-muted)] focus:bg-[var(--dg-surface-muted)] dark:text-[#d8dde7] dark:hover:bg-white/[0.06] dark:focus:bg-white/[0.06]"
+                                  ? "bg-slate-950 text-white dark:bg-[#0f172a] dark:text-white dark:ring-1 dark:ring-white/[0.10]"
+                                  : "text-[var(--dg-text)] hover:bg-[var(--dg-surface-muted)] dark:text-[#d8dde7] dark:hover:bg-white/[0.06]"
                               }`}
                             >
                               <span className="flex min-w-0 items-center gap-2.5">
@@ -489,7 +489,7 @@ ${cleanScreen}
                               {isSelected && (
                                 <Check className="h-3.5 w-3.5 text-white shrink-0" />
                               )}
-                            </DropdownMenuItem>
+                            </button>
                           );
                         })
                       ) : (
@@ -498,8 +498,8 @@ ${cleanScreen}
                         </div>
                       )}
                     </div>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                  </div>
+                </PremiumDropdown>
               </div>
             </div>
             

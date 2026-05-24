@@ -2,7 +2,7 @@
 
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, ChevronDown, ImageIcon, Loader2, Palette, RotateCcw, Upload, X, Sun, Moon, HelpCircle, Megaphone, Play, Share2, LogOut, FolderSync, CircleDollarSign, User, CreditCard } from "lucide-react";
+import { ArrowLeft, Sparkles, Check, ChevronDown, ImageIcon, Loader2, Palette, RotateCcw, Upload, X, Sun, Moon, HelpCircle, Megaphone, Play, Share2, LogOut, FolderSync, CircleDollarSign, User, CreditCard, Download, Mail, MessageCircle } from "lucide-react";
 
 import { CanvasArea } from "@/components/CanvasArea";
 import { MobileExportDrawer } from "@/components/MobileExportDrawer";
@@ -14,12 +14,7 @@ import { Button } from "@/components/ui/button";
 import { useCredits } from "@/hooks/useCredits";
 import { PricingDialog } from "@/components/PricingDialog";
 import { useAppTheme } from "@/contexts/app-theme-context";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { PremiumDropdown } from "@/components/ui/premium-dropdown";
 import {
   Dialog,
   DialogContent,
@@ -1798,9 +1793,9 @@ export function ProjectShell({
       <main className="relative z-0 flex h-full w-full overflow-hidden">
         <div className="absolute left-4 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-50 flex items-center gap-2">
           <div className="flex h-8 items-center rounded-full dg-panel px-2 backdrop-blur-xl lg:px-3">
-            <Button variant="ghost" size="sm" onClick={() => router.push("/project/new")} className="h-8 rounded-full text-[var(--dg-text)] hover:bg-[var(--dg-surface-muted)] focus-visible:bg-[var(--dg-surface-muted)] data-[state=open]:bg-[var(--dg-surface-muted)]">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Workspace
+            <Button variant="ghost" size="sm" onClick={() => router.push("/project/new")} className="h-8 rounded-full text-[var(--dg-text)] hover:bg-[var(--dg-surface-muted)] focus-visible:bg-[var(--dg-surface-muted)] data-[state=open]:bg-[var(--dg-surface-muted)] px-2 sm:px-3 flex items-center justify-center">
+              <ArrowLeft className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Workspace</span>
             </Button>
             <div className="hidden h-5 w-px bg-[var(--dg-border-strong)] sm:block" />
             <div className="hidden max-w-[240px] truncate pl-2 text-[11px] font-semibold uppercase text-[var(--dg-text-muted)] sm:block">
@@ -1809,60 +1804,79 @@ export function ProjectShell({
           </div>
         </div>
 
-        <div className="absolute right-4 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-50 flex items-center gap-3">
-          {/* Group 1 (Utilities): Sun/Moon button, HelpCircle button, Megaphone button */}
-          <div className="flex h-8 items-center rounded-full dg-panel px-1.5 backdrop-blur-xl gap-0.5">
+        <div className="absolute right-4 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-50 flex items-center gap-1.5 sm:gap-3">
+          {/* Group 1 (Utilities): Sun/Moon theme toggle + Help contact dropdown */}
+          <div className="flex h-8 shrink-0 items-center rounded-full dg-panel px-1.5 backdrop-blur-xl gap-0.5">
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6 rounded-full text-neutral-600 dark:text-neutral-300 hover:bg-[#f7f7f8] dark:hover:bg-white/10 focus-visible:bg-[#f7f7f8] dark:focus-visible:bg-white/10 flex items-center justify-center"
+              className="h-6 w-6 rounded-full text-neutral-600 dark:text-neutral-300 hover:bg-[#f7f7f8] dark:hover:bg-white/10 focus-visible:bg-[#f7f7f8] dark:focus-visible:bg-white/10 flex items-center justify-center cursor-pointer"
               title="Toggle theme"
               onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
             >
               {resolvedTheme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 rounded-full text-neutral-600 dark:text-neutral-300 hover:bg-[#f7f7f8] dark:hover:bg-white/10 focus-visible:bg-[#f7f7f8] dark:focus-visible:bg-white/10 flex items-center justify-center"
-              title="Help"
-            >
-              <HelpCircle className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 rounded-full text-neutral-600 dark:text-neutral-300 hover:bg-[#f7f7f8] dark:hover:bg-white/10 focus-visible:bg-[#f7f7f8] dark:focus-visible:bg-white/10 flex items-center justify-center"
-              title="Updates"
-            >
-              <Megaphone className="h-3.5 w-3.5" />
-            </Button>
+            
+            <PremiumDropdown
+              align="start"
+              width={200}
+              trigger={
+                <button
+                  type="button"
+                  className="flex h-6 w-6 items-center justify-center rounded-full text-neutral-600 dark:text-neutral-300 hover:bg-[#f7f7f8] dark:hover:bg-white/10 focus:outline-none transition-colors cursor-pointer"
+                  title="Help"
+                >
+                  <HelpCircle className="h-3.5 w-3.5" />
+                </button>
+              }
+              header={
+                <div className="text-left font-sans">
+                  <div className="text-[12px] font-bold text-slate-700 dark:text-slate-300">Get in touch</div>
+                </div>
+              }
+              items={[
+                {
+                  id: "x",
+                  label: "Send message on X",
+                  icon: MessageCircle,
+                  onClick: () => window.open("https://x.com/OkUseAI", "_blank"),
+                },
+                {
+                  id: "email",
+                  label: "Send us an email",
+                  icon: Mail,
+                  onClick: () => {
+                    window.location.href = "mailto:support@drawgle.com";
+                  },
+                },
+              ]}
+            />
           </div>
 
           {/* Group 2 (Actions): Preview, Share, Export */}
-          <div className="flex h-8 items-center rounded-full dg-panel px-1.5 backdrop-blur-xl gap-0.5">
-           
+          <div className="flex h-8 shrink-0 items-center rounded-full dg-panel px-1.5 backdrop-blur-xl gap-0.5 shadow-sm">
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 gap-1 rounded-full px-2 text-[10px] font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300 hover:bg-[#f7f7f8] dark:hover:bg-white/10 flex items-center"
+              className="h-6 gap-1 rounded-full px-2 text-[10px] font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300 hover:bg-[#f7f7f8] dark:hover:bg-white/10 flex items-center justify-center"
             >
-              <Share2 className="h-2.5 w-2.5 text-neutral-700 dark:text-neutral-300" />
-              Share
+              <Share2 className="h-3 w-3 text-neutral-700 dark:text-neutral-300" />
+              <span className="hidden sm:inline">Share</span>
             </Button>
             <Button
               size="sm"
-              className="h-6 rounded-full bg-[#1b7fcccc] hover:bg-[#1b7fcccc]/90 px-3 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm transition-all"
+              className="h-6 rounded-full bg-[#1b7fcccc] hover:bg-[#1b7fcccc]/90 px-2 sm:px-3 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm transition-all flex items-center justify-center gap-1"
               onClick={() => {
                 setExportDrawerOpen(true);
               }}
             >
-              Export
+              <Download className="h-3 w-3 shrink-0" />
+              <span className="hidden sm:inline">Export</span>
             </Button>
           </div>
 
           {/* Credits & Upgrade pill */}
-          <div className="flex h-8 items-center rounded-full dg-panel px-1.5 backdrop-blur-xl gap-0.5 border border-[#1b7fcccc]/50 pl-2 shadow-[0_1px_2px_rgba(99,102,241,0.03)]">
+          <div className="flex h-8 shrink-0 items-center rounded-full dg-panel px-1.5 backdrop-blur-xl gap-0.5 border border-[#1b7fcccc]/50 pl-2 shadow-[0_1px_2px_rgba(99,102,241,0.03)]">
             <span className="flex items-center gap-1.5 text-[12px] font-extrabold text-[#1b7fcccc] tracking-tight select-none mr-1">
               {loadingCredits ? "..." : (
                 <>
@@ -1877,28 +1891,29 @@ export function ProjectShell({
                 setIsPricingOpen(true);
               }}
               size="sm"
-              className="h-6 rounded-full bg-[#1b7fcccc] hover:bg-[#1b7fcccc]/90 px-3 text-[10px] font-bold uppercase tracking-wider text-white shadow-xs transition-all cursor-pointer"
+              className="h-6 rounded-full bg-[#1b7fcccc] hover:bg-[#1b7fcccc]/90 px-2 sm:px-3 text-[10px] font-bold uppercase tracking-wider text-white shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1"
             >
-              Upgrade
+              <CreditCard className="h-3 w-3 sm:hidden" />
+              <span className="hidden sm:inline">Upgrade</span>
             </Button>
           </div>
 
           {/* Group 3 (User Profile): Gradient Avatar Circle with Radix Dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <button
-                  type="button"
-                  className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-tr from-sky-400 via-[#1b7fcc] to-blue-600 shadow-md ring-2 ring-white dark:ring-slate-800 hover:ring-blue-200 dark:hover:ring-[#1b7fcc]/60 transition-all focus:outline-none"
-                >
-                  <span className="text-[10px] font-bold text-white uppercase select-none">
-                    {user.email ? user.email.slice(0, 2) : "US"}
-                  </span>
-                </button>
-              }
-            />
-            <DropdownMenuContent align="end" className="w-[220px] rounded-[18px] border border-slate-950/[0.08] dark:border-white/[0.08] bg-white dark:bg-[#1b1b1b] p-2 shadow-[0_20px_70px_rgba(15,23,42,0.2)] dark:shadow-[0_20px_70px_rgba(0,0,0,0.6)]">
-              <div className="px-2.5 py-2 border-b border-slate-950/[0.06] dark:border-white/[0.06] mb-1 text-left">
+          <PremiumDropdown
+            align="end"
+            width={220}
+            trigger={
+              <button
+                type="button"
+                className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-tr from-sky-400 via-[#1b7fcc] to-blue-600 shadow-md ring-2 ring-white dark:ring-slate-800 hover:ring-blue-200 dark:hover:ring-[#1b7fcc]/60 transition-all focus:outline-none"
+              >
+                <span className="text-[10px] font-bold text-white uppercase select-none">
+                  {user.email ? user.email.slice(0, 2) : "US"}
+                </span>
+              </button>
+            }
+            header={
+              <div className="text-left">
                 <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500 mb-0.5">Account</div>
                 <div className="truncate text-xs font-semibold text-slate-900 dark:text-slate-100">{user.email || "user@drawgle.com"}</div>
                 <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-[#1b7fcccc]/50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#1b7fcccc]">
@@ -1910,36 +1925,35 @@ export function ProjectShell({
                   )}
                 </div>
               </div>
-              <DropdownMenuItem
-                onClick={() => router.push("/project/new")}
-                className="flex w-full items-center gap-2 rounded-[12px] px-2.5 py-2 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-white/10 cursor-pointer"
-              >
-                <FolderSync className="h-3.5 w-3.5 text-slate-500" />
-                Switch Projects
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => router.push("/account")}
-                className="flex w-full items-center gap-2 rounded-[12px] px-2.5 py-2 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-white/10 cursor-pointer"
-              >
-                <User className="h-3.5 w-3.5 text-slate-500" />
-                Account Settings
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => router.push("/billing")}
-                className="flex w-full items-center gap-2 rounded-[12px] px-2.5 py-2 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-white/10 cursor-pointer"
-              >
-                <CreditCard className="h-3.5 w-3.5 text-slate-500" />
-                Billing & Subscription
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={handleSignOut}
-                className="flex w-full items-center gap-2 rounded-[12px] px-2.5 py-2 text-left text-xs font-semibold text-rose-600 transition hover:bg-rose-50 cursor-pointer focus:text-rose-600 focus:bg-rose-50"
-              >
-                <LogOut className="h-3.5 w-3.5 text-rose-500" />
-                Log Out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            }
+            items={[
+              {
+                id: "switch",
+                label: "Switch Projects",
+                icon: FolderSync,
+                onClick: () => router.push("/project/new"),
+              },
+              {
+                id: "account",
+                label: "Account Settings",
+                icon: User,
+                onClick: () => router.push("/account"),
+              },
+              {
+                id: "billing",
+                label: "Billing & Subscription",
+                icon: CreditCard,
+                onClick: () => router.push("/billing"),
+              },
+              {
+                id: "logout",
+                label: "Log Out",
+                icon: LogOut,
+                variant: "destructive" as const,
+                onClick: handleSignOut,
+              },
+            ]}
+          />
         </div>
 
         <div className="relative h-full min-w-0 flex-1">

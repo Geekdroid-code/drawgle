@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { PremiumDropdown } from "@/components/ui/premium-dropdown";
 import { MoreHorizontal, Edit2, Play, Download, Trash2 } from "lucide-react";
 
 export function ScreenHeaderOverlay({
@@ -49,29 +49,20 @@ export function ScreenHeaderOverlay({
       className="flex items-center gap-2 rounded-xl border border-[var(--dg-border)] bg-[var(--dg-surface)] px-4 py-2 text-[var(--dg-text)] shadow-lg"
     >
       <span className="max-w-[200px] truncate text-base font-semibold text-[var(--dg-text)]">{screen.name}</span>
-      <DropdownMenu>
-        <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-[var(--dg-text-muted)] hover:bg-[var(--dg-surface-muted)] hover:text-[var(--dg-text)]" />}>
-          <MoreHorizontal className="w-4 h-4" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={onEdit}>
-            <Edit2 className="w-4 h-4 mr-2" />
-            Edit Prompt
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={onPreview}>
-            <Play className="w-4 h-4 mr-2" />
-            Preview
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={onExport}>
-            <Download className="w-4 h-4 mr-2" />
-            Export Code
-          </DropdownMenuItem>
-          <DropdownMenuItem className="text-red-600" onClick={onDelete}>
-            <Trash2 className="w-4 h-4 mr-2" />
-            Delete
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <PremiumDropdown
+        align="end"
+        trigger={
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-[var(--dg-text-muted)] hover:bg-[var(--dg-surface-muted)] hover:text-[var(--dg-text)]">
+            <MoreHorizontal className="w-4 h-4" />
+          </Button>
+        }
+        items={[
+          ...(onEdit ? [{ id: "edit", label: "Edit Prompt", icon: Edit2, onClick: onEdit }] : []),
+          ...(onPreview ? [{ id: "preview", label: "Preview", icon: Play, onClick: onPreview }] : []),
+          ...(onExport ? [{ id: "export", label: "Export Code", icon: Download, onClick: onExport }] : []),
+          ...(onDelete ? [{ id: "delete", label: "Delete", icon: Trash2, onClick: onDelete, variant: "destructive" as const }] : []),
+        ]}
+      />
     </div>
   );
 }

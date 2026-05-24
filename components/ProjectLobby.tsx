@@ -22,7 +22,7 @@ import {
   Plus,
   LogOut,
   Check,
-  Menu,
+  PanelRightClose,
   CreditCard,
   User,
   MoreVertical,
@@ -33,7 +33,7 @@ import { DesignSystemEditor } from "@/components/DesignSystemEditor";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { PremiumDropdown } from "@/components/ui/premium-dropdown";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { useProjects } from "@/hooks/use-projects";
@@ -534,11 +534,12 @@ export function ProjectLobby({
                 DG
               </span>
               <span className="min-w-0">
-                <span className="block text-[10px] font-bold uppercase tracking-[0.2em] text-neutral-400">
-                  Workspace
-                </span>
+                
                 <span className="block truncate text-[15px] font-bold tracking-tight text-neutral-800 dark:text-neutral-100">
                   Drawgle
+                </span>
+                <span className="block text-[10px] font-bold uppercase tracking-[0.2em] text-neutral-400">
+                  AI App UI Generator
                 </span>
               </span>
             </button>
@@ -547,15 +548,12 @@ export function ProjectLobby({
               <button
                 type="button"
                 onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-                className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-white/10 hover:text-neutral-700 dark:hover:text-neutral-200 transition-all"
+                className="cursor-pointer flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-white/10 hover:text-neutral-700 dark:hover:text-neutral-200 transition-all"
                 aria-label="Toggle theme"
               >
                 {resolvedTheme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
               </button>
-              <Avatar className="h-9 w-9 shrink-0 border border-slate-250/[0.08] bg-white">
-                <AvatarImage src={user.avatarUrl || ""} />
-                <AvatarFallback>{getAccountInitial(user)}</AvatarFallback>
-              </Avatar>
+ 
             </div>
           </div>
 
@@ -635,57 +633,59 @@ export function ProjectLobby({
 
         {/* Sidebar Footer */}
         <div className="border-t border-slate-100 dark:border-white/[0.06] p-3">
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-3 rounded-xl border border-neutral-250 dark:border-white/[0.06] bg-[#fcfcfd] dark:bg-[#1e2128] p-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.02)] text-left hover:bg-neutral-50 dark:hover:bg-white/[0.04] transition-all cursor-pointer focus:outline-none"
-                >
-                  <Avatar className="h-9 w-9 border border-slate-250/[0.08] bg-white">
-                    <AvatarImage src={user.avatarUrl || ""} />
-                    <AvatarFallback>{getAccountInitial(user)}</AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-xs font-semibold text-neutral-800 dark:text-neutral-200">
-                      {user.fullName ?? "Drawgle account"}
-                    </div>
-                    <div className="truncate text-[10px] text-neutral-400 dark:text-neutral-500">
-                      {user.email ?? "Signed in"}
-                    </div>
+          <PremiumDropdown
+            align="end"
+            side="top"
+            width={260}
+            className="w-full text-left"
+            trigger={
+              <button
+                type="button"
+                className="flex w-full items-center gap-3 rounded-xl border border-neutral-250 dark:border-white/[0.06] bg-[#fcfcfd] dark:bg-[#1e2128] p-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.02)] text-left hover:bg-neutral-50 dark:hover:bg-white/[0.04] transition-all cursor-pointer focus:outline-none"
+              >
+                <Avatar className="h-9 w-9 border border-slate-250/[0.08] bg-white">
+                  <AvatarImage src={user.avatarUrl || ""} />
+                  <AvatarFallback>{getAccountInitial(user)}</AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-xs font-semibold text-neutral-800 dark:text-neutral-200">
+                    {user.fullName ?? "Drawgle account"}
                   </div>
-                  <ChevronDown className="h-4 w-4 text-neutral-400 shrink-0" />
-                </button>
-              }
-            />
-            <DropdownMenuContent align="end" className="w-[260px] rounded-[18px] border border-slate-950/[0.08] dark:border-white/[0.08] bg-white dark:bg-[#1b1b1b] p-2 shadow-[0_20px_70px_rgba(15,23,42,0.2)] dark:shadow-[0_20px_70px_rgba(0,0,0,0.6)] mb-2">
-              <div className="px-2.5 py-2 border-b border-slate-950/[0.06] dark:border-white/[0.06] mb-1">
-                <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500 mb-0.5 font-sans">Account</div>
-                <div className="truncate text-xs font-semibold text-slate-900 dark:text-slate-100 font-sans">{user.email || "user@drawgle.com"}</div>
+                  <div className="truncate text-[10px] text-neutral-400 dark:text-neutral-500">
+                    {user.email ?? "Signed in"}
+                  </div>
+                </div>
+                <ChevronDown className="h-4 w-4 text-neutral-400 shrink-0" />
+              </button>
+            }
+            header={
+              <div className="text-left font-sans">
+                <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500 mb-0.5">Account</div>
+                <div className="truncate text-xs font-semibold text-slate-900 dark:text-slate-100">{user.email || "user@drawgle.com"}</div>
               </div>
-              <DropdownMenuItem
-                onClick={() => router.push("/account")}
-                className="flex w-full items-center gap-2 rounded-[12px] px-2.5 py-2 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-white/10 cursor-pointer"
-              >
-                <User className="h-3.5 w-3.5 text-slate-500" />
-                Account Settings
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => router.push("/billing")}
-                className="flex w-full items-center gap-2 rounded-[12px] px-2.5 py-2 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-white/10 cursor-pointer"
-              >
-                <CreditCard className="h-3.5 w-3.5 text-slate-500" />
-                Billing & Subscription
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={handleSignOut}
-                className="flex w-full items-center gap-2 rounded-[12px] px-2.5 py-2 text-left text-xs font-semibold text-rose-600 transition hover:bg-rose-55 hover:text-rose-700 cursor-pointer"
-              >
-                <LogOut className="h-3.5 w-3.5 text-rose-500" />
-                Log Out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            }
+            items={[
+              {
+                id: "account",
+                label: "Account Settings",
+                icon: User,
+                onClick: () => router.push("/account"),
+              },
+              {
+                id: "billing",
+                label: "Billing & Subscription",
+                icon: CreditCard,
+                onClick: () => router.push("/billing"),
+              },
+              {
+                id: "logout",
+                label: "Log Out",
+                icon: LogOut,
+                variant: "destructive" as const,
+                onClick: handleSignOut,
+              },
+            ]}
+          />
         </div>
       </div>
     );
@@ -720,10 +720,10 @@ export function ProjectLobby({
         <button
           type="button"
           onClick={() => setIsMobileSidebarOpen(true)}
-          className="absolute left-4 top-4 z-40 md:hidden flex h-9 w-9 items-center justify-center rounded-full border border-neutral-200/85 dark:border-white/[0.1] bg-white/90 dark:bg-[#1b1b1b]/90 text-neutral-600 dark:text-neutral-300 shadow-sm backdrop-blur-md hover:bg-neutral-50 dark:hover:bg-white/10 active:scale-95 transition-all"
+          className="absolute z-40 md:hidden flex h-9 w-9 items-center justify-center rounded-full border border-neutral-200/85 dark:border-white/[0.1] bg-white/90 dark:bg-[#1b1b1b]/90 text-neutral-600 dark:text-neutral-300 shadow-sm backdrop-blur-md hover:bg-neutral-50 dark:hover:bg-white/10 active:scale-95 transition-all"
           aria-label="Open sidebar"
         >
-          <Menu className="h-4.5 w-4.5" />
+          <PanelRightClose className="h-4.5 w-4.5" />
         </button>
 
         {error ? (
@@ -1219,7 +1219,7 @@ function SidebarProjectList({
     <LayoutGroup id="lobby-sidebar-projects-hover">
       {visibleGroups.map((label) => (
         <div key={label} className="mb-4">
-          <div className="px-2 mb-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-neutral-400">
+          <div className="px-2 mb-1.5 text-[10px] font-normal uppercase tracking-[0.2em] text-neutral-400">
             {label}
           </div>
           <div className="space-y-0.5">
@@ -1321,37 +1321,34 @@ function ProjectMenuItem({
       {/* Action Dropdown Menu */}
       <div className="absolute right-2 top-0 bottom-0 pr-1 pl-12 flex items-center justify-end z-20 rounded-r-xl opacity-0 group-hover/project:opacity-100 transition-opacity bg-gradient-to-l from-[#f5f5f6] via-[#f5f5f6]/90 to-transparent dark:from-slate-900 dark:via-slate-900/90 pointer-events-none">
         <div className="pointer-events-auto">
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <button
-                  type="button"
-                  className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 transition-colors hover:bg-slate-900/10 dark:hover:bg-white/10 hover:text-neutral-900 dark:hover:text-neutral-100 cursor-pointer"
-                  aria-label="Project actions"
-                >
-                  <MoreVertical className="h-4 w-4" />
-                </button>
-              }
-            />
-          <DropdownMenuContent align="end" className="w-[160px] rounded-xl border border-slate-950/[0.08] dark:border-white/[0.08] bg-white dark:bg-[#1b1b1b] p-1.5 shadow-lg">
-            <DropdownMenuItem
-              onClick={handleShare}
-              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/10 cursor-pointer focus:bg-slate-50 dark:focus:bg-white/10"
-            >
-              <Share2 className="h-3.5 w-3.5 text-slate-500" />
-              {copied ? "Copied!" : "Share Project"}
-            </DropdownMenuItem>
-            
-            <DropdownMenuItem
-              onClick={() => setIsDeleteDialogOpen(true)}
-              variant="destructive"
-              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50 cursor-pointer focus:bg-rose-50 dark:focus:bg-rose-50"
-            >
-              <Trash2 className="h-3.5 w-3.5 text-rose-500" />
-              Delete Project
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          <PremiumDropdown
+            align="end"
+            width={160}
+            trigger={
+              <button
+                type="button"
+                className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 transition-colors hover:bg-slate-900/10 dark:hover:bg-white/10 hover:text-neutral-900 dark:hover:text-neutral-100 cursor-pointer"
+                aria-label="Project actions"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </button>
+            }
+            items={[
+              {
+                id: "share",
+                label: copied ? "Copied!" : "Share Project",
+                icon: Share2,
+                onClick: handleShare,
+              },
+              {
+                id: "delete",
+                label: "Delete Project",
+                icon: Trash2,
+                variant: "destructive" as const,
+                onClick: () => setIsDeleteDialogOpen(true),
+              },
+            ]}
+          />
         </div>
       </div>
 

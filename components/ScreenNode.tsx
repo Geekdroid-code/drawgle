@@ -4,7 +4,7 @@ import type { DesignTokens, ProjectNavigationData, ScreenData } from "@/lib/type
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { MoreHorizontal, Download, Trash2, Edit2, Smartphone, MousePointerClick, Crosshair } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { PremiumDropdown } from "@/components/ui/premium-dropdown";
 import { createClient } from "@/lib/supabase/client";
 import { ensureDrawgleIds, stripDrawgleIds, type DrawgleBoundingRect, type DrawgleEditableMetadata } from "@/lib/drawgle-dom";
 import { DRAWGLE_STYLE_PROPERTY_CONFIGS } from "@/lib/element-style-inspection";
@@ -210,32 +210,31 @@ function ScreenLabelBar({
         </Button>
 
         {/* More / Delete */}
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 rounded-lg text-[var(--dg-text)] opacity-90 hover:bg-[var(--dg-surface-muted)] hover:text-[var(--dg-text)] hover:opacity-100 dark:text-[#d8dde7] dark:hover:bg-white/10"
-                title="More actions"
-              />
-            }
-          >
-            <MoreHorizontal className="w-3.5 h-3.5" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              className="text-red-600 focus:text-red-600 focus:bg-red-50"
-              onClick={(e) => {
+        <PremiumDropdown
+          align="end"
+          trigger={
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 rounded-lg text-[var(--dg-text)] opacity-90 hover:bg-[var(--dg-surface-muted)] hover:text-[var(--dg-text)] hover:opacity-100 dark:text-[#d8dde7] dark:hover:bg-white/10"
+              title="More actions"
+            >
+              <MoreHorizontal className="w-3.5 h-3.5" />
+            </Button>
+          }
+          items={[
+            {
+              id: "delete",
+              label: "Delete",
+              icon: Trash2,
+              variant: "destructive" as const,
+              onClick: (e) => {
                 e.stopPropagation();
                 onDelete();
-              }}
-            >
-              <Trash2 className="w-4 h-4 mr-2" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              },
+            },
+          ]}
+        />
       </div>
     </div>
   );
