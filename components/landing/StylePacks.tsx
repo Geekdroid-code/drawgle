@@ -75,7 +75,7 @@ export default function StylePacks() {
                 </p>
               <h2 className="text-4xl md:text-6xl text-white font-bold mb-6">
                 
-                Explore the Curated Shoots Library of <span className="text-[#ff6f00]">Our AI Photo Maker</span>
+                Explore the Curated Shoots Library of <span className="text-[#1b7fcccc]">Our AI Photo Maker</span>
               </h2>
             </div>
 
@@ -84,7 +84,7 @@ export default function StylePacks() {
               {cardData.map((card, index) => (
                 <Card
                   key={index}
-                  className="bg-black p-0 rounded-[15px] overflow-hidden border border-gray-700 shadow-md transition-all duration-300 hover:border-[#ff6f00] hover:border-2"
+                  className="bg-black p-0 rounded-[15px] overflow-hidden border border-gray-700 shadow-md transition-all duration-300 hover:border-[#1b7fcccc] hover:border-2"
                 >
                   <CardContent className="p-0">
                     <div className="relative">
@@ -101,7 +101,7 @@ export default function StylePacks() {
                       <Link href={card.url}>
                         <Button
                           size="icon"
-                          className="absolute top-3 right-3 rounded-full bg-[#ff6f00]/80 hover:bg-[#ff6f00] transition-colors duration-300 z-20"
+                          className="absolute top-3 right-3 rounded-full bg-[#1b7fcccc]/80 hover:bg-[#1b7fcccc] transition-colors duration-300 z-20"
                         >
                           <ArrowUpRight className="h-5 w-5 text-white" />
                         </Button>
@@ -125,7 +125,7 @@ export default function StylePacks() {
               <div className="max-w-2xl mb-4 md:mb-0">
                 <p className="text-lg text-gray-300 max-w-3xl mx-auto">
                 UnrealShot AI turns your selfies into professional AI photoshoots.{" "}
-                  <span className="text-[#ff6f00] font-semibold">
+                  <span className="text-[#1b7fcccc] font-semibold">
                   Upload your photos, choose a style pack, enter a prompt,{" "}  
                   </span> 
                    and get photos that feel real, not AI-generated.

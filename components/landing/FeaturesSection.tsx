@@ -44,7 +44,7 @@ export function FeaturesSection() {
 	 	 	 	 <div className="mx-auto max-w-3xl text-center mb-12"> 
 	 	 	 	 	 <h2 className="text-white text-4xl md:text-5xl lg:text-6xl font-bold mb-6"> 
 	 	 	 	 	 	 The Full Studio Experience.  <br /> 
-	 	 	 	 	 	 <span className="text-[#ff6f00]">Zero Studio Hassle.</span> 
+	 	 	 	 	 	 <span className="text-[#1b7fcccc]">Zero Studio Hassle.</span> 
 	 	 	 	 	 </h2> 
 	 	 	 	 	 <p className="text-lg sm:text-xl text-gray-300 max-w-3xl mx-auto leading-tight"> 
 	 	 	 	 	 	Unrealshot is a suite of powerful photoshoot ai tools designed to give you complete creative control and stunning, authentic results.

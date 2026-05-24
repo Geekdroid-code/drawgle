@@ -65,7 +65,7 @@ export default function PricingCards() {
           
            <h2 className="text-4xl sm:text-6xl max-w-4xl mx-auto font-bold leading-[1.1] mb-4 font-[var(--font-inter-tight)]">
             A professional photoshoot <br />
-            <span className="text-[#ff6f00]">for a fraction of the cost.</span>
+            <span className="text-[#1b7fcccc]">for a fraction of the cost.</span>
           </h2>
           <p className="text-lg md:text-xl text-gray-600 max-w-3xl mx-auto leading-tight mb-4 ">
             Get a complete portfolio of stunning, high-quality images without the time, hassle, and expense of a traditional studio.
@@ -87,7 +87,7 @@ export default function PricingCards() {
             <span className="text-5xl font-bold text-gray-900 tracking-tighter">$9.99</span>
             <span className="text-gray-500 text-lg ml-1">one-time</span>
           </div>
-          <button className="w-full group relative bg-[#ff6f00] hover:bg-[#ff6f00]/90 text-white rounded-md overflow-hidden cursor-pointer pr-12 py-4 font-semibold text-base shadow-[0_4px_20px_-5px_rgba(0,0,0,0.2)]">
+          <button className="w-full group relative bg-[#1b7fcccc] hover:bg-[#1b7fcccc]/90 text-white rounded-md overflow-hidden cursor-pointer pr-12 py-4 font-semibold text-base shadow-[0_4px_20px_-5px_rgba(0,0,0,0.2)]">
             Start Your Photoshoot
             <div className="bg-white rounded-sm p-3 absolute right-1 top-1/2 -translate-y-1/2">
               <img
@@ -121,7 +121,7 @@ export default function PricingCards() {
         <div className="bg-gray-800 rounded-2xl p-8 mb-2">
           <div className="flex items-center gap-2 mb-3">
             <h3 className="text-3xl font-bold text-white tracking-tight">Pro</h3>
-            <span className="bg-[#ff6f00] text-white text-xs font-semibold px-2.5 py-0.5 rounded-full">Best Value</span>
+            <span className="bg-[#1b7fcccc] text-white text-xs font-semibold px-2.5 py-0.5 rounded-full">Best Value</span>
           </div>
           <p className="text-gray-300 text-base leading-relaxed mb-8">
             Get 80 professional AI photos with 1 model training. Perfect for maximum variety and creative control over your online presence.
@@ -132,7 +132,7 @@ export default function PricingCards() {
           </div>
           <button className="w-full group relative bg-white hover:bg-white/90 text-black rounded-md overflow-hidden cursor-pointer pr-12 py-4 font-semibold text-base shadow-[0_4px_20px_-5px_rgba(0,0,0,0.2)]">
             Get The Pro Photoshoot
-            <div className="bg-[#ff6f00] rounded-sm p-3 absolute right-1 top-1/2 -translate-y-1/2">
+            <div className="bg-[#1b7fcccc] rounded-sm p-3 absolute right-1 top-1/2 -translate-y-1/2">
               <img
                 src="/arrow.svg"
                 alt="arrow-right"
@@ -157,13 +157,13 @@ export default function PricingCards() {
             </div>
             <div className="flex items-center justify-between text-sm mt-2">
               <span className="text-gray-400">Best Value:</span>
-              <span className="font-semibold text-[#ff6f00]"> 4x photos for 2x price</span>
+              <span className="font-semibold text-[#1b7fcccc]"> 4x photos for 2x price</span>
             </div>
           </div>
         </div>
       </div>
     </div>
-    <p className="text-center  text-gray-600 text-base leading-relaxed mt-8"><Shield className="w-4 h-4 text-[#ff6f00] inline-block mr-1" />
+    <p className="text-center  text-gray-600 text-base leading-relaxed mt-8"><Shield className="w-4 h-4 text-[#1b7fcccc] inline-block mr-1" />
      Payments are processed securly with 
      <Image src="/dodo-logo.png" alt="dodopayments" width={96} height={96} className="inline-block ml-1 bg-black" />
     </p>

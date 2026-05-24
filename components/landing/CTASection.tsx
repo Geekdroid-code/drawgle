@@ -12,7 +12,7 @@ export function CTASection() {
 
             {/* The Headline */}
             <h2 className="text-4xl sm:text-5xl max-w-4xl mx-auto font-bold leading-tight mb-4 font-[var(--font-inter-tight)] text-gray-900">
-              Your professional photoshoot is <span className="text-[#ff6f00]">one click away.</span>
+              Your professional photoshoot is <span className="text-[#1b7fcccc]">one click away.</span>
             </h2>
             
             {/* The Sub-headline */}
@@ -23,7 +23,7 @@ export function CTASection() {
             {/* The Primary Call to Action Button */}
         <Link href="/login">
               <Button
-                className="text-md py-6 group relative bg-[#ff6f00] hover:bg-[#ff6f00]/90 text-white rounded-md overflow-hidden cursor-pointer pr-12"
+                className="text-md py-6 group relative bg-[#1b7fcccc] hover:bg-[#1b7fcccc]/90 text-white rounded-md overflow-hidden cursor-pointer pr-12"
               >
                 Start Your Photoshoot
                 <div className="bg-white rounded-sm p-3 absolute right-1 top-1/2 -translate-y-1/2">

@@ -32,7 +32,7 @@ export default function PrivacySection() {
       <div className="text-center mb-12">
         <h2 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6 text-center">
           We Might Not Be Perfect.
-          <span className="block mt-2 text-[#ff6f00]"> But We're The Best.</span>
+          <span className="block mt-2 text-[#1b7fcccc]"> But We're The Best.</span>
         </h2>      
         <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto text-center">
 We deliver hyper-realistic results without the subscription trap or data retention risks.        </p>
@@ -58,7 +58,7 @@ We deliver hyper-realistic results without the subscription trap or data retenti
       
       <div className="text-center relative">
         <div className="inline-block relative">
-          <Button className="group relative bg-[#ff6f00] hover:bg-[#ff6f00]/90 text-white rounded-md overflow-hidden cursor-pointer px-6 pr-16 py-6 font-semibold text-base shadow-[0_4px_20px_-5px_rgba(0,0,0,0.2)]">
+          <Button className="group relative bg-[#1b7fcccc] hover:bg-[#1b7fcccc]/90 text-white rounded-md overflow-hidden cursor-pointer px-6 pr-16 py-6 font-semibold text-base shadow-[0_4px_20px_-5px_rgba(0,0,0,0.2)]">
             Choose Your Photoshoot Package
             <div className="bg-white rounded-sm p-3 absolute right-1 top-1/2 -translate-y-1/2">
                   <img

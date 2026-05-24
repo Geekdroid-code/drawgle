@@ -21,7 +21,7 @@ export default function HowItWorksShowcase() {
         {/* Header */}
         <div className="text-center mb-16 sm:mb-20">
           <h2 className="text-4xl sm:text-5xl md:text-6xl max-w-4xl mx-auto font-bold leading-none mb-4 font-[var(--font-inter-tight)] text-gray-900">
-            Your Professional Photoshoot in <span className="text-[#ff6f00]">3 Simple Steps.</span>
+            Your Professional Photoshoot in <span className="text-[#1b7fcccc]">3 Simple Steps.</span>
           </h2>
           <p className="text-lg md:text-xl text-gray-600 max-w-3xl mx-auto">
             Our process is designed to be effortless, transparent, and deliver stunning results every time.
@@ -34,11 +34,11 @@ export default function HowItWorksShowcase() {
           {/* --- STEP 1: UPLOAD --- */}
           <div className="relative flex flex-col items-center">
             {/* Circle with gradient and number */}
-            <div className="bg-gradient-to-l from-[#ff6f00] to-orange-400 text-white rounded-full h-12 w-12 flex items-center justify-center font-bold z-10">
+            <div className="bg-gradient-to-l from-[#1b7fcccc] to-orange-400 text-white rounded-full h-12 w-12 flex items-center justify-center font-bold z-10">
               1
             </div>
             {/* Gradient stroke line with fade out at the end */}
-            <div className="w-1 h-10 rounded-lg bg-gradient-to-b from-[#ff6f00] to-transparent mt-[-2px]"></div>
+            <div className="w-1 h-10 rounded-lg bg-gradient-to-b from-[#1b7fcccc] to-transparent mt-[-2px]"></div>
           </div>
 
           {/* Text element */}
@@ -130,9 +130,9 @@ Start by providing 5+ clear photos. Our AI learns from a diverse set of your ima
 
                         
                         {/* Upload area - smaller since we have file list */}
-                        <div className="border border-dashed border-[#ff6f00]/50 rounded-lg p-3 mb-4 bg-gray-50/50">
+                        <div className="border border-dashed border-[#1b7fcccc]/50 rounded-lg p-3 mb-4 bg-gray-50/50">
                           <div className="flex flex-col items-center text-center">
-                            <div className="w-8 h-8 bg-[#ff6f00]/30 rounded-full flex items-center justify-center mb-2">
+                            <div className="w-8 h-8 bg-[#1b7fcccc]/30 rounded-full flex items-center justify-center mb-2">
                               <UploadCloud className="w-4 h-4 text-gray-500" />
                             </div>
                             <p className="text-xs font-medium text-gray-700 mb-1">Drop your images here</p>
@@ -253,11 +253,11 @@ Start by providing 5+ clear photos. Our AI learns from a diverse set of your ima
           {/* Circle element */}
           <div className="relative flex flex-col items-center mt-8">
             {/* Circle with gradient and number */}
-            <div className="bg-gradient-to-l from-slate-700 to-[#ff6f00] text-white rounded-full h-12 w-12 flex items-center justify-center font-bold z-10">
+            <div className="bg-gradient-to-l from-slate-700 to-[#1b7fcccc] text-white rounded-full h-12 w-12 flex items-center justify-center font-bold z-10">
               2
             </div>
             {/* Gradient stroke line with fade out at the end */}
-            <div className="mt-[-75px] w-1 h-28 rounded-lg bg-gradient-to-b from-transparent via-[#ff6f00] to-transparent bg-[length:100%_100%]"></div>
+            <div className="mt-[-75px] w-1 h-28 rounded-lg bg-gradient-to-b from-transparent via-[#1b7fcccc] to-transparent bg-[length:100%_100%]"></div>
           </div>
 
           {/* Text element */}
@@ -271,7 +271,7 @@ This isn't a filter - it's a generative engine. Our system analyzes your feature
           {/* AI Visual element */}
           <div className="flex justify-center items-center mt-8">
             <div 
-              className="relative w-[95%] xl:w-[1050px] border-[#ff6f00] border-4 h-[200px] sm:h-[350px] md:h-[400px] lg:h-[500px] xl:h-[600px] rounded-2xl overflow-hidden shadow-2xl group cursor-pointer"
+              className="relative w-[95%] xl:w-[1050px] border-[#1b7fcccc] border-4 h-[200px] sm:h-[350px] md:h-[400px] lg:h-[500px] xl:h-[600px] rounded-2xl overflow-hidden shadow-2xl group cursor-pointer"
               onClick={() => {
                 const iframe = document.getElementById('video-iframe') as HTMLIFrameElement;
                 const thumbnail = document.getElementById('video-thumbnail') as HTMLElement;
@@ -284,7 +284,7 @@ This isn't a filter - it's a generative engine. Our system analyzes your feature
             >
               {/* Custom Thumbnail Background */}
               <div id="video-thumbnail" className="absolute inset-0 transition-opacity duration-300">
-                <div className="absolute inset-0 bg-gradient-to-br from-[#ff6f00]/20 via-orange-100/50 to-[#ff6f00]/30">
+                <div className="absolute inset-0 bg-gradient-to-br from-[#1b7fcccc]/20 via-orange-100/50 to-[#1b7fcccc]/30">
                   <div className="w-full h-full bg-[url('/images/howtothumbnail.webp')] bg-cover bg-center opacity-80"></div>
                 </div>
                 
@@ -292,7 +292,7 @@ This isn't a filter - it's a generative engine. Our system analyzes your feature
                 <div className="absolute inset-0 bg-black/20"></div>
                 
                <div className="absolute inset-0 flex items-center justify-center group-hover:scale-100 scale-[0.9] transition-all duration-200 ease-out rounded-2xl">
-          <div className="bg-[#ff6f00]/10 flex items-center justify-center rounded-full backdrop-blur-md size-28">
+          <div className="bg-[#1b7fcccc]/10 flex items-center justify-center rounded-full backdrop-blur-md size-28">
             <div
               className={`flex items-center justify-center bg-gradient-to-b from-primary/30 to-primary shadow-md rounded-full size-20 transition-all ease-out duration-200 relative group-hover:scale-[1.2] scale-100`}
             >

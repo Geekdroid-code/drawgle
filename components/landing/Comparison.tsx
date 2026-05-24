@@ -27,7 +27,7 @@ export default function TheVerdictFinal() {
         {/* Header (Unchanged, as it works well) */}
         <div className="text-center mb-12">
           <h2 className="leading-none text-4xl sm:text-5xl md:text-6xl max-w-4xl mx-auto font-bold mb-4 font-[var(--font-inter-tight)] text-gray-900">
-            The Traditional Photoshoot <span className="text-[#ff6f00]">is obsolete.</span>
+            The Traditional Photoshoot <span className="text-[#1b7fcccc]">is obsolete.</span>
           </h2>
         
           <p className="text-lg md:text-xl text-gray-600 max-w-3xl mx-auto">
@@ -58,7 +58,7 @@ export default function TheVerdictFinal() {
             </div>
 </div>
 <div className="p-4 sm:p-6 ">
-                 <h3 className="text-center text-xl font-bold text-[#ff6f00] mb-6">The Unrealshot Way</h3>
+                 <h3 className="text-center text-xl font-bold text-[#1b7fcccc] mb-6">The Unrealshot Way</h3>
 
             {/* --- Right Pane: The Cure (Unrealshot) --- */}
             <div className="p-4 sm:p-6 bg-black border border-dashed border-gray-700 rounded-2xl">
@@ -71,7 +71,7 @@ export default function TheVerdictFinal() {
                 ))}
               </ul>
                <div className="mt-8 pt-6 border-t border-gray-700">
-                <p className="text-sm font-medium text-[#ff6f00]/80 mb-1">TOTAL TIME</p>
+                <p className="text-sm font-medium text-[#1b7fcccc]/80 mb-1">TOTAL TIME</p>
                 <p className="text-3xl font-bold text-white">~20 Minutes</p>
               </div>
             </div>

@@ -265,7 +265,7 @@ const getStatusDotClass = (status: ProjectData["status"]) => {
   }
 
   if (status === "generating" || status === "queued") {
-    return "bg-indigo-600";
+    return "bg-[#1b7fcccc]";
   }
 
   if (status === "active" || status === "completed") {
@@ -610,9 +610,9 @@ export function ProjectLobby({
         </div>
 
         {/* Credits & Subscription Gating */}
-        <div className="px-4 py-3 mx-3 mb-2 bg-gradient-to-br from-indigo-50/60 via-purple-50/40 to-pink-50/20 border border-indigo-100/10 rounded-2xl shadow-[0_2px_8px_rgba(99,102,241,0.03)] flex flex-col gap-2 shrink-0">
+        <div className="px-4 py-3 mx-3 mb-2 bg-gradient-to-br from-[#1b7fcccc]/60 via-[#1b7fcccc]/40 to-[#1b7fcccc]/20 border border-[#1b7fcccc]/10 rounded-2xl shadow-[0_2px_8px_rgba(99,102,241,0.03)] flex flex-col gap-2 shrink-0">
           <div className="flex justify-between items-center">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">Credits Balance</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-black">Credits Balance</span>
             <span className="text-xs font-bold text-neutral-800">{loadingCredits ? "..." : `${balance} credits`}</span>
           </div>
           <button 
@@ -621,7 +621,7 @@ export function ProjectLobby({
               setPricingReason("upgrade");
               setIsPricingOpen(true);
             }}
-            className="w-full text-center py-1.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs hover:shadow-sm transition-all active:scale-[0.98] cursor-pointer"
+            className="w-full text-center py-1.5 px-3 rounded-lg bg-[#1b7fcccc] hover:bg-[#1b7fcccc]/90 text-white text-xs font-bold shadow-xs hover:shadow-sm transition-all active:scale-[0.98] cursor-pointer"
           >
             Upgrade Plan
           </button>

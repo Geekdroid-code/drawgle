@@ -2,7 +2,7 @@
 
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, ChevronDown, ImageIcon, Loader2, Palette, RotateCcw, Upload, X, Sun, HelpCircle, Megaphone, Play, Share2, LogOut, FolderSync } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, ImageIcon, Loader2, Palette, RotateCcw, Upload, X, Sun, HelpCircle, Megaphone, Play, Share2, LogOut, FolderSync, CircleDollarSign } from "lucide-react";
 
 import { CanvasArea } from "@/components/CanvasArea";
 import { MobileExportDrawer } from "@/components/MobileExportDrawer";
@@ -1852,7 +1852,7 @@ export function ProjectShell({
             </Button>
             <Button
               size="sm"
-              className="h-6 rounded-full bg-[#FF4F00] hover:bg-[#E04500] px-3 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm transition-all"
+              className="h-6 rounded-full bg-[#1b7fcccc] hover:bg-[#1b7fcccc]/90 px-3 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm transition-all"
               onClick={() => {
                 setExportDrawerOpen(true);
               }}
@@ -1862,9 +1862,14 @@ export function ProjectShell({
           </div>
 
           {/* Credits & Upgrade pill */}
-          <div className="flex h-8 items-center rounded-full bg-indigo-50/80 border border-indigo-200/50 pl-3 pr-1 backdrop-blur-xl gap-2.5 shadow-[0_1px_2px_rgba(99,102,241,0.03)]">
-            <span className="text-[11px] font-extrabold text-indigo-700 tracking-tight select-none">
-              {loadingCredits ? "..." : `${balance} credits`}
+          <div className="flex h-8 items-center rounded-full dg-panel px-1.5 backdrop-blur-xl gap-0.5 border border-[#1b7fcccc]/50 pl-2 shadow-[0_1px_2px_rgba(99,102,241,0.03)]">
+            <span className="flex items-center gap-1.5 text-[12px] font-extrabold text-[#1b7fcccc] tracking-tight select-none mr-1">
+              {loadingCredits ? "..." : (
+                <>
+                  <CircleDollarSign className="h-4 w-4 stroke-[2.5]" />
+                  {balance}
+                </>
+              )}
             </span>
             <Button
               onClick={() => {
@@ -1872,7 +1877,7 @@ export function ProjectShell({
                 setIsPricingOpen(true);
               }}
               size="sm"
-              className="h-6 rounded-full bg-indigo-600 hover:bg-indigo-700 px-3 text-[10px] font-bold uppercase tracking-wider text-white shadow-xs transition-all cursor-pointer"
+              className="h-6 rounded-full bg-[#1b7fcccc] hover:bg-[#1b7fcccc]/90 px-3 text-[10px] font-bold uppercase tracking-wider text-white shadow-xs transition-all cursor-pointer"
             >
               Upgrade
             </Button>
@@ -1884,7 +1889,7 @@ export function ProjectShell({
               render={
                 <button
                   type="button"
-                  className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-tr from-pink-400 via-rose-400 to-amber-300 shadow-md ring-2 ring-white hover:ring-rose-200 transition-all focus:outline-none"
+                  className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-tr from-sky-400 via-[#1b7fcc] to-blue-600 shadow-md ring-2 ring-white hover:ring-blue-200 transition-all focus:outline-none"
                 >
                   <span className="text-[10px] font-bold text-white uppercase select-none">
                     {user.email ? user.email.slice(0, 2) : "US"}
@@ -1896,8 +1901,13 @@ export function ProjectShell({
               <div className="px-2.5 py-2 border-b border-slate-950/[0.06] mb-1 text-left">
                 <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400 mb-0.5">Account</div>
                 <div className="truncate text-xs font-semibold text-slate-900">{user.email || "user@drawgle.com"}</div>
-                <div className="mt-1 inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-indigo-700">
-                  {loadingCredits ? "..." : `${balance} Credits`}
+                <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-[#1b7fcccc]/50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#1b7fcccc]">
+                  {loadingCredits ? "..." : (
+                    <>
+                      <CircleDollarSign className="h-3 w-3 stroke-[2.5]" />
+                      {balance}
+                    </>
+                  )}
                 </div>
               </div>
               <DropdownMenuItem

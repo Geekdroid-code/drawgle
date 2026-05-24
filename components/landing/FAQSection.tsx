@@ -74,7 +74,7 @@ export default function FAQSection() {
         <div className="text-center mb-16">
           
           <h2 className="text-white text-4xl sm:text-6xl max-w-4xl mx-auto font-bold leading-[1.1] mb-4 font-[var(--font-inter-tight)]">
-            Frequently asked <span className="text-[#ff6f00]">photoshoot questions</span> 
+            Frequently asked <span className="text-[#1b7fcccc]">photoshoot questions</span> 
           </h2>
           <p className="text-lg sm:text-xl text-gray-300 max-w-3xl mx-auto leading-tight">
             Everything you need to know about Unrealshot AI photoshoots.

@@ -8,7 +8,7 @@ export default function ShowCase() {
           {/* The strong, refined headline stays. */}
           <h2 className="text-4xl sm:text-6xl max-w-4xl mx-auto font-bold leading-[1.1] mb-4 font-[var(--font-inter-tight)] text-white">
             From Casual Selfies to
-            <span className="text-[#ff6f00] ml-3">Professional Photoshoots.</span>
+            <span className="text-[#1b7fcccc] ml-3">Professional Photoshoots.</span>
           </h2>
           <p className="text-lg text-gray-300 max-w-3xl mx-auto">
             Our AI doesn't just apply a filter. It learns your unique features from your selfies and then generates brand new, hyper-realistic photos in any style you can imagine. This is the magic of generative AI.
@@ -56,7 +56,7 @@ export default function ShowCase() {
         
         {/* --- CTA IS NOW CORRECTLY PLACED AT THE BOTTOM --- */}
         <div className="mt-16 text-center">
-            <a href="#" className="bg-[#ff6f00] text-black font-bold text-lg px-8 py-4 rounded-lg hover:bg-orange-400 transition-colors">
+            <a href="#" className="bg-[#1b7fcccc] text-black font-bold text-lg px-8 py-4 rounded-lg hover:bg-orange-400 transition-colors">
                 Start Your Photoshoot →
             </a>
         </div>

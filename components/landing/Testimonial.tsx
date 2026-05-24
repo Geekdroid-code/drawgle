@@ -104,7 +104,7 @@ export default function TestimonialSection() {
         <div className="text-center mb-16">
           
           <h2 className="text-white text-4xl md:text-5xl lg:text-6xl font-bold mb-6">
-            Real Results from <br /><span className="text-[#ff6f00]">Real Peoples</span>
+            Real Results from <br /><span className="text-[#1b7fcccc]">Real Peoples</span>
           </h2>
           <p className="mx-auto max-w-2xl text-xl text-gray-300">
             Don't just take our word for it. See what our users are saying about their transformative experiences.
@@ -146,7 +146,7 @@ export default function TestimonialSection() {
             <Link href="/ai-glamour-photoshoot" className="inline-block">
               <Button
                 size="lg"
-                className="group relative bg-[#ff6f00] hover:bg-[#ff6f00]/90 text-white rounded-md overflow-hidden cursor-pointer px-6 pr-16 py-6 font-semibold text-base shadow-[0_4px_20px_-5px_rgba(0,0,0,0.2)]"
+                className="group relative bg-[#1b7fcccc] hover:bg-[#1b7fcccc]/90 text-white rounded-md overflow-hidden cursor-pointer px-6 pr-16 py-6 font-semibold text-base shadow-[0_4px_20px_-5px_rgba(0,0,0,0.2)]"
               >
                 Transform Your Photos Now
                 <div className="bg-white rounded-sm p-3 absolute right-1 top-1/2 -translate-y-1/2">
