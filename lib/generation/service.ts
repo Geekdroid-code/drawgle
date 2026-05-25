@@ -2361,6 +2361,7 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
   const systemInstruction = buildInstruction({
     designTokens: input.designTokens,
     screenPlan: input.screenPlan,
+    prompt: input.prompt,
     requiresBottomNav: input.requiresBottomNav,
     navigationArchitecture: input.navigationArchitecture,
     navigationPlan: input.navigationPlan,
@@ -2785,12 +2786,17 @@ export async function buildFullScreenReconstructionCode({
   llmLog?: LlmLogFn;
 }) {
   const ai = createGeminiClient();
+  const rebuildPromptContext = [userPrompt, projectCharter?.originalPrompt]
+    .map((value) => value?.trim())
+    .filter(Boolean)
+    .join("\n");
   const policy = geminiPolicyForTask("full_rebuild", {
     temperature: 0.24,
     systemInstruction: [
       buildStyleScreenInstruction({
         designTokens,
         screenPlan,
+        prompt: rebuildPromptContext,
         requiresBottomNav: Boolean(navigationPlan?.enabled),
         navigationArchitecture,
         navigationPlan,

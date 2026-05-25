@@ -26,25 +26,19 @@ const envInt = (key: string, fallback: number) => {
   return Number.isFinite(value) && value > 0 ? value : fallback;
 };
 
-const ROUTER_MODEL = env("DRAWGLE_GEMINI_ROUTER_MODEL", "gemini-2.5-flash-lite");
-const SELECTED_EDIT_MODEL = env("DRAWGLE_GEMINI_SELECTED_EDIT_MODEL", "gemini-3.1-flash-lite");
+const GEMINI_FLASH_LITE_MODEL = "gemini-3.1-flash-lite";
+
+const ROUTER_MODEL = env("DRAWGLE_GEMINI_ROUTER_MODEL", GEMINI_FLASH_LITE_MODEL);
+const SELECTED_EDIT_MODEL = env("DRAWGLE_GEMINI_SELECTED_EDIT_MODEL", GEMINI_FLASH_LITE_MODEL);
 const FULL_BUILD_MODEL = env("DRAWGLE_GEMINI_FULL_BUILD_MODEL", "gemini-3-flash-preview");
 const SCREEN_BUILD_MAX_OUTPUT_TOKENS = envInt("DRAWGLE_GEMINI_SCREEN_BUILD_MAX_OUTPUT_TOKENS", 40000);
 const FULL_REBUILD_MAX_OUTPUT_TOKENS = envInt("DRAWGLE_GEMINI_FULL_REBUILD_MAX_OUTPUT_TOKENS", 40000);
 
-const legacyGemini25FlashConfig = (maxOutputTokens = 2048, thinking = true): GenerateContentConfig => ({
-  thinkingConfig: {
-    thinkingBudget: thinking ? 500 : 0,
-  },
-  maxOutputTokens,
-  candidateCount: 1,
-});
-
-// Gemini 3 series uses thinkingLevel, not thinkingBudget.
+// Gemini 3 series uses thinkingLevel.
 // minimal — code generation (screen build, repair, edits, nav build): minimal overhead, maximum output budget
 // low     — planning/reasoning (project planning, design tokens): light reasoning without blowing the output cap
 const gemini3Config = (
-  thinkingLevel: "minimal" | "low" ,
+  thinkingLevel: "minimal" | "low",
   maxOutputTokens: number,
 ): GenerateContentConfig => ({
   thinkingConfig: {
@@ -54,102 +48,59 @@ const gemini3Config = (
   candidateCount: 1,
 });
 
-const isGemini3Model = (model: string) => /\bgemini-3(?:[.-]|$)/i.test(model);
-const isGemini25Model = (model: string) => /\bgemini-2\.5(?:[.-]|$)/i.test(model);
-
-const modelConfig = ({
-  model,
-  maxOutputTokens,
-  thinkingBudget,
-  thinkingLevel,
-}: {
-  model: string;
-  maxOutputTokens: number;
-  thinkingBudget?: number;
-  thinkingLevel?: "minimal" | "low";
-}): GenerateContentConfig => {
-  const config: GenerateContentConfig = {
-    maxOutputTokens,
-    candidateCount: 1,
-  };
-
-  // Gemini 2.5 uses thinkingBudget; Gemini 3 uses thinkingLevel.
-  // Env overrides can swap model families, so pick the field at runtime.
-  if (isGemini25Model(model) && typeof thinkingBudget === "number") {
-    config.thinkingConfig = { thinkingBudget };
-  } else if (isGemini3Model(model) && thinkingLevel) {
-    config.thinkingConfig = {
-      thinkingLevel: thinkingLevel as NonNullable<GenerateContentConfig["thinkingConfig"]>["thinkingLevel"],
-    };
-  }
-
-  return config;
-};
-
-const routerModelConfig = (model: string, maxOutputTokens = 2048, thinking = true): GenerateContentConfig =>
-  modelConfig({
-    model,
-    maxOutputTokens,
-    thinkingBudget: thinking ? 500 : 0,
-    thinkingLevel: thinking ? "low" : "minimal",
-  });
+const routerModelConfig = (maxOutputTokens = 2048, thinkingLevel: "minimal" | "low" = "low"): GenerateContentConfig =>
+  gemini3Config(thinkingLevel, maxOutputTokens);
 
 const buildModelConfig = (
-  model: string,
   thinkingLevel: "minimal" | "low",
   maxOutputTokens: number,
 ): GenerateContentConfig =>
-  modelConfig({
-    model,
-    maxOutputTokens,
-    thinkingBudget: thinkingLevel === "low" ? 500 : 0,
-    thinkingLevel,
-  });
+  gemini3Config(thinkingLevel, maxOutputTokens);
 
 const policyByTask: Record<GeminiTaskType, GeminiModelPolicy> = {
   greeting: {
     model: ROUTER_MODEL,
-    config: routerModelConfig(ROUTER_MODEL, 150, false),
+    config: routerModelConfig(150, "minimal"),
   },
   router: {
     model: ROUTER_MODEL,
-    config: routerModelConfig(ROUTER_MODEL, 2048, false),
+    config: routerModelConfig(2048, "minimal"),
   },
   chat: {
     model: ROUTER_MODEL,
-    config: routerModelConfig(ROUTER_MODEL, 2048),
+    config: routerModelConfig(2048, "low"),
   },
   draft_plan: {
     model: ROUTER_MODEL,
-    config: routerModelConfig(ROUTER_MODEL, 4096),
+    config: routerModelConfig(4096, "low"),
   },
   project_planning: {
     model: FULL_BUILD_MODEL,
-    config: buildModelConfig(FULL_BUILD_MODEL, "low", 12000),
+    config: buildModelConfig("low", 12000),
   },
   design_tokens: {
     model: FULL_BUILD_MODEL,
-    config: buildModelConfig(FULL_BUILD_MODEL, "low", 8192),
+    config: buildModelConfig("low", 8192),
   },
   navigation_build: {
     model: FULL_BUILD_MODEL,
-    config: buildModelConfig(FULL_BUILD_MODEL, "minimal", 12000),
+    config: buildModelConfig("minimal", 12000),
   },
   screen_build: {
     model: FULL_BUILD_MODEL,
-    config: buildModelConfig(FULL_BUILD_MODEL, "minimal", SCREEN_BUILD_MAX_OUTPUT_TOKENS),
+    config: buildModelConfig("minimal", SCREEN_BUILD_MAX_OUTPUT_TOKENS),
   },
   selected_region_edit: {
     model: SELECTED_EDIT_MODEL,
-    config: buildModelConfig(SELECTED_EDIT_MODEL, "minimal", 12000),
+    config: buildModelConfig("low", 12000),
   },
   full_rebuild: {
     model: FULL_BUILD_MODEL,
-    config: buildModelConfig(FULL_BUILD_MODEL, "minimal", FULL_REBUILD_MAX_OUTPUT_TOKENS),
+    config: buildModelConfig("minimal", FULL_REBUILD_MAX_OUTPUT_TOKENS),
   },
   repair: {
     model: FULL_BUILD_MODEL,
-    config: buildModelConfig(FULL_BUILD_MODEL, "minimal", 18000),
+    config: buildModelConfig("minimal", 18000),
   },
 };
 

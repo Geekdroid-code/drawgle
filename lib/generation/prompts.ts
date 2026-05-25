@@ -625,14 +625,32 @@ Additional rules:
 // BUILD — Screen Code Generator
 // ---------------------------------------------------------------------------
 
+const CHART_BUILD_RULE =
+  "If building any chart, draw real visible marks inside a definite-height plot area; never use percentage-height bars in auto-height wrappers or leave empty axes.";
+
+const hasChartBuildIntent = ({
+  screenPlan,
+  prompt,
+}: {
+  screenPlan: ScreenPlan;
+  prompt?: string | null;
+}) => {
+  const text = [screenPlan.description, prompt].filter(Boolean).join("\n");
+
+  return /\b(?:charts?|graphs?|sparklines?|trends?|plots?|visuali[sz]ations?|gauges?)\b/i.test(text)
+    || /\b(?:donut|pie)\s+(?:chart|graph|visuali[sz]ation)\b/i.test(text)
+    || /\b(?:bar\s+(?:chart|graph|plot|visuali[sz]ation)|(?:chart|graph|plot)\s+bars?|bars?\s+in\s+(?:this\s+)?(?:chart|graph|plot))\b/i.test(text);
+};
+
 const buildScreenInstruction = ({
   designTokens,
   screenPlan,
+  prompt,
   requiresBottomNav,
   navigationArchitecture,
   navigationPlan,
   assetManifest,
-}: Pick<BuildScreenInput, "designTokens" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan }, mode: "recreate" | "style") => {
+}: Pick<BuildScreenInput, "designTokens" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }, mode: "recreate" | "style") => {
   const fontFamily = resolveToken(designTokens, "typography.font_family", "sans-serif");
   const safeTop = resolveToken(designTokens, "mobile_layout.safe_area_top", "16px");
   const safeBottom = resolveToken(designTokens, "mobile_layout.safe_area_bottom", "16px");
@@ -640,6 +658,7 @@ const buildScreenInstruction = ({
   const textHigh = resolveToken(designTokens, "color.text.high_emphasis", "#000000");
   const resolvedNavigationArchitecture = createNavigationArchitecture({ navigationArchitecture, requiresBottomNav });
   const hasAssetEntries = Boolean(assetManifest?.length);
+  const chartBuildInstruction = hasChartBuildIntent({ screenPlan, prompt }) ? `${CHART_BUILD_RULE}\n` : "";
   const screenChrome = resolveScreenChromePolicy({
     screenPlan,
     navigationArchitecture: resolvedNavigationArchitecture,
@@ -681,6 +700,7 @@ Screen Name: ${screenPlan.name}
 Screen Type: ${screenPlan.type}
 Screen Description: ${screenPlan.description}
 
+${chartBuildInstruction}
 ${modeInstruction}
 
 CRITICAL INSTRUCTION 0: SCREEN SPEC FIDELITY
@@ -749,10 +769,10 @@ OUTPUT RULES:
 - End with sentinel on its own final line: ${DRAWGLE_GENERATION_COMPLETE_SENTINEL}`;
 };
 
-export const buildRecreateScreenInstruction = (input: Pick<BuildScreenInput, "designTokens" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan }) =>
+export const buildRecreateScreenInstruction = (input: Pick<BuildScreenInput, "designTokens" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }) =>
   buildScreenInstruction(input, "recreate");
 
-export const buildStyleScreenInstruction = (input: Pick<BuildScreenInput, "designTokens" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan }) =>
+export const buildStyleScreenInstruction = (input: Pick<BuildScreenInput, "designTokens" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }) =>
   buildScreenInstruction(input, "style");
 
 export const buildSystemInstruction = buildRecreateScreenInstruction;
