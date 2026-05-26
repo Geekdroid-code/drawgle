@@ -21,8 +21,11 @@ export class CreditService {
   }
 
   private async getClient() {
-    // Use custom client if provided (e.g., admin client for background jobs)
+    // Use custom client if provided (e.g., admin client function or client instance for background jobs)
     if (this.customClient) {
+      if (typeof this.customClient === 'function') {
+        return this.customClient()
+      }
       return this.customClient
     }
     // Otherwise use the server client (requires auth context)
@@ -46,7 +49,8 @@ export class CreditService {
         .single() as { data: Credits | null; error: any }
 
       if (error && error.code !== 'PGRST116') {
-        return { balance: 0, error: 'Failed to fetch credits' }
+        console.error('getUserCredits error:', error)
+        return { balance: 0, error: `Failed to fetch credits: ${error.message}` }
       }
 
       if (!data) {
@@ -55,8 +59,9 @@ export class CreditService {
       }
 
       return { balance: Number(data.credits) || 0 }
-    } catch (error) {
-      return { balance: 0, error: 'Error fetching credits' }
+    } catch (err: any) {
+      console.error('getUserCredits exception:', err)
+      return { balance: 0, error: `Error fetching credits: ${err.message}` }
     }
   }
 
@@ -110,10 +115,15 @@ export class CreditService {
         return { success: false, error: 'Invalid parameters' }
       }
 
-      const { balance: currentBalance } = await this.getUserCredits(userId)
+      const { balance: currentBalance, error: fetchError } = await this.getUserCredits(userId)
+
+      if (fetchError) {
+        console.error('deductCredits balance check failed:', fetchError)
+        return { success: false, error: fetchError }
+      }
 
       if (currentBalance < amount) {
-        return { success: false, error: 'Insufficient credits' }
+        return { success: false, error: `Insufficient credits. Available: ${currentBalance}, Required: ${amount}` }
       }
 
       const newBalance = currentBalance - amount
@@ -126,12 +136,14 @@ export class CreditService {
         .eq('user_id', userId)
 
       if (error) {
-        return { success: false, error: 'Failed to deduct credits' }
+        console.error('deductCredits update failed:', error)
+        return { success: false, error: `Failed to deduct credits: ${error.message}` }
       }
 
       return { success: true, newBalance }
-    } catch (error) {
-      return { success: false, error: 'Error deducting credits' }
+    } catch (err: any) {
+      console.error('deductCredits exception:', err)
+      return { success: false, error: `Error deducting credits: ${err.message}` }
     }
   }
 
@@ -198,12 +210,14 @@ export class CreditService {
         .insert(creditData)
 
       if (error && error.code !== '23505') {
-        return { success: false, error: 'Failed to initialize credits' }
+        console.error('initializeUserCredits error:', error)
+        return { success: false, error: `Failed to initialize credits: ${error.message}` }
       }
 
       return { success: true }
-    } catch (error) {
-      return { success: false, error: 'Error initializing credits' }
+    } catch (err: any) {
+      console.error('initializeUserCredits exception:', err)
+      return { success: false, error: `Error initializing credits: ${err.message}` }
     }
   }
 }
@@ -212,7 +226,7 @@ export class CreditService {
 export const creditService = new CreditService()
 
 // Export admin service for background jobs (no auth context needed)
-export const adminCreditService = new CreditService(createAdminClient())
+export const adminCreditService = new CreditService(createAdminClient)
 
 // Helper functions using server client (require auth context)
 export async function getUserCredits(userId: string) {
