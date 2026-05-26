@@ -11,7 +11,7 @@ export default function ShowCase() {
             <span className="text-[#1b7fcccc] ml-3">Professional Photoshoots.</span>
           </h2>
           <p className="text-lg text-gray-300 max-w-3xl mx-auto">
-            Our AI doesn't just apply a filter. It learns your unique features from your selfies and then generates brand new, hyper-realistic photos in any style you can imagine. This is the magic of generative AI.
+            Our AI doesn&apos;t just apply a filter. It learns your unique features from your selfies and then generates brand new, hyper-realistic photos in any style you can imagine. This is the magic of generative AI.
           </p>
           {/* CTA has been REMOVED from the top. */}
         </div>

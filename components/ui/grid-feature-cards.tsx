@@ -15,7 +15,10 @@ export function FeatureCard({ feature, className, ...props }: FeatureCardPorps) 
 	const [pattern, setPattern] = React.useState<number[][]>([]);
 
 	React.useEffect(() => {
-		setPattern(genRandomPattern());
+		const handle = requestAnimationFrame(() => {
+			setPattern(genRandomPattern());
+		});
+		return () => cancelAnimationFrame(handle);
 	}, []);
 
 	return (

@@ -202,7 +202,7 @@ const ProblemSolutionVariant2 = () => {
         <div className="text-center mt-16">
           <div className="bg-[#1b7fcccc] rounded-lg p-8 max-w-2xl mx-auto">
             <h3 className="text-2xl font-bold text-white mb-4">Ready to Transform Your Professional Image?</h3>
-            <p className="text-orange-100 mb-6">Join thousands who've already made the switch to AI headshots</p>
+            <p className="text-orange-100 mb-6">Join thousands who&apos;ve already made the switch to AI headshots</p>
             <button className="bg-white text-[#1b7fcccc] font-medium py-3 px-8 rounded hover:bg-gray-100 transition-colors duration-200">
               Get Started Now
             </button>

@@ -34,7 +34,7 @@ const NicheTestimonialCard: React.FC<NicheTestimonialCardProps> = ({ quote, name
         ))}
       </div>
       <blockquote className="text-gray-300 mb-4 text-sm leading-relaxed">
-        "{quote}"
+        &ldquo;{quote}&rdquo;
       </blockquote>
       <div className="flex items-center">
         <img

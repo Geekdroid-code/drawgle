@@ -205,7 +205,7 @@ export function PricingDialog({
                     </div>
 
                     <div className="text-[9px] lg:text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2.5 lg:mb-4">
-                      What's Included
+                      What&apos;s Included
                     </div>
                     
                     <ul className="flex-1 space-y-3 text-left">

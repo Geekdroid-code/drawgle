@@ -34,7 +34,7 @@ const TestimonialCard: React.FC<TestimonialCardProps> = ({ quote, name, role, av
         ))}
       </div>
       <blockquote className="text-gray-300 mb-4 text-sm leading-relaxed">
-        "{quote}"
+        &ldquo;{quote}&rdquo;
       </blockquote>
       <div className="flex items-center">
         <img
@@ -107,7 +107,7 @@ export default function TestimonialSection() {
             Real Results from <br /><span className="text-[#1b7fcccc]">Real Peoples</span>
           </h2>
           <p className="mx-auto max-w-2xl text-xl text-gray-300">
-            Don't just take our word for it. See what our users are saying about their transformative experiences.
+            Don&apos;t just take our word for it. See what our users are saying about their transformative experiences.
           </p>
         </div>
 

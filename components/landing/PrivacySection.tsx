@@ -32,7 +32,7 @@ export default function PrivacySection() {
       <div className="text-center mb-12">
         <h2 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6 text-center">
           We Might Not Be Perfect.
-          <span className="block mt-2 text-[#1b7fcccc]"> But We're The Best.</span>
+          <span className="block mt-2 text-[#1b7fcccc]"> But We&apos;re The Best.</span>
         </h2>      
         <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto text-center">
 We deliver hyper-realistic results without the subscription trap or data retention risks.        </p>
@@ -89,7 +89,7 @@ We deliver hyper-realistic results without the subscription trap or data retenti
           <p className={`text-gray-600 ${caveat.className} text-lg font-semibold leading-none 
                         md:absolute md:transform md:rotate-6 md:-right-52 md:top-1/2 md:-translate-y-1/2 md:w-48
                         sm:static sm:mt-2 sm:transform-none sm:rotate-0 sm:text-center sm:w-auto`}>
-            If you're not happy, we will refund your full money
+            If you&apos;re not happy, we will refund your full money
           </p>
         </div>
       </div>

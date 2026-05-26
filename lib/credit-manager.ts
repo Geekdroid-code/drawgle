@@ -181,9 +181,11 @@ export function useCreditManager(userId: string | null) {
 
   React.useEffect(() => {
     if (!userId) {
-      setBalance(0)
-      setLoading(false)
-      return
+      const timer = setTimeout(() => {
+        setBalance(0)
+        setLoading(false)
+      }, 0)
+      return () => clearTimeout(timer)
     }
 
     // Initialize user and get current balance

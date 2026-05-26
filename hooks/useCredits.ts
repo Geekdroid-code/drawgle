@@ -30,9 +30,14 @@ export function useCredits() {
     }, [])
 
     useEffect(() => {
-        fetchCredits()
+        const timer = setTimeout(() => {
+            fetchCredits()
+        }, 0)
         const interval = setInterval(fetchCredits, 120000)
-        return () => clearInterval(interval)
+        return () => {
+            clearTimeout(timer)
+            clearInterval(interval)
+        }
     }, [fetchCredits])
 
     return {

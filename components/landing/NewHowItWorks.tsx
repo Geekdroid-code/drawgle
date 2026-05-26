@@ -265,7 +265,7 @@ Start by providing 5+ clear photos. Our AI learns from a diverse set of your ima
             Our AI gets to work
           </h3>
           <p className="text-center text-lg md:text-xl text-gray-600 max-w-3xl mx-auto">
-This isn't a filter - it's a generative engine. Our system analyzes your features to create a hyper-realistic model trained exclusively on you.
+This isn&apos;t a filter - it&apos;s a generative engine. Our system analyzes your features to create a hyper-realistic model trained exclusively on you.
           </p>
 
           {/* AI Visual element */}

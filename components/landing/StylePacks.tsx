@@ -132,7 +132,7 @@ export default function StylePacks() {
                 </p>
               </div>
               <p className="text-gray-300 italic text-sm md:transform md:rotate-6 md:w-48 sm:text-center sm:w-auto">
-                If you're not happy, we will refund your full money
+                If you&apos;re not happy, we will refund your full money
               </p>
             </div>
           </div>
