@@ -53,6 +53,20 @@ export interface ParsedStyles {
   // Flex-1 (fill available space)
   hasFlex1: boolean;
 
+  // Absolute positioning
+  isAbsolute: boolean;
+  isBackgroundAbsolute: boolean;
+  absolutePosition?: {
+    top?: number;
+    right?: number;
+    bottom?: number;
+    left?: number;
+    topToken?: string;
+    rightToken?: string;
+    bottomToken?: string;
+    leftToken?: string;
+  };
+
   // Dynamic theme token mapping fields
   backgroundColorToken?: string;
   textColorToken?: string;
@@ -227,6 +241,8 @@ function getStyleTokenKey(varName: string): string | undefined {
     case "--dg-color-text-medium-emphasis": return "textMedium";
     case "--dg-color-text-low-emphasis": return "textLow";
     case "--dg-color-border-divider": return "borderDivider";
+    case "--dg-color-border-subtle": return "borderDivider";
+    case "--dg-color-border-strong": return "borderDivider";
     case "--dg-radii-app": return "borderRadiusApp";
     case "--dg-radii-pill": return "borderRadiusPill";
     case "--dg-mobile-layout-screen-margin": return "screenPadding";
@@ -240,7 +256,9 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>): 
   const classes = Array.from(element.classList);
   
   // Default values
-  let isFlex = classes.includes("flex") || classes.some(c => c.startsWith("flex-"));
+  let isFlex = classes.includes("flex") || 
+               classes.some(c => c.startsWith("flex-") || c.startsWith("justify-") || c.startsWith("items-") || c.startsWith("gap-")) ||
+               element.tagName === "NAV" || element.tagName === "nav";
   let flexDirection: "row" | "column" = "column";
   let alignItems: "start" | "center" | "end" | "stretch" = "stretch";
   let justifyContent: "start" | "center" | "end" | "between" | "around" = "start";
@@ -285,6 +303,11 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>): 
 
   // Flex-1
   let hasFlex1 = false;
+
+  // Absolute positioning
+  let isAbsolute = false;
+  let isBackgroundAbsolute = false;
+  let absolutePosition: ParsedStyles["absolutePosition"] = undefined;
 
   // Dynamic theme token mapping variables
   let backgroundColorToken: string | undefined;
@@ -691,7 +714,62 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>): 
     if (c === "items-baseline") alignItems = "start";
 
     // flex-1 (fill available space in flex parent)
-    if (c === "flex-1") hasFlex1 = true;
+    if (c === "flex-1" || c === "flex-grow" || c === "flex-grow-1" || c.startsWith("flex-[") || c.startsWith("flex-grow-") || c.startsWith("flex-1-")) hasFlex1 = true;
+
+    // absolute positioning classes
+    if (c === "absolute") isAbsolute = true;
+
+    const topMatch = c.match(/^top-([0-9\.]+)$/);
+    if (topMatch) {
+      if (!absolutePosition) absolutePosition = {};
+      absolutePosition.top = parseFloat(topMatch[1]) * 4;
+    }
+    const arbTop = c.match(/^top-\[(.+)\]$/);
+    if (arbTop) {
+      if (!absolutePosition) absolutePosition = {};
+      const val = arbTop[1];
+      absolutePosition.top = resolveArbitraryValue(val, varMap);
+      absolutePosition.topToken = getStyleTokenKey(val);
+    }
+
+    const rightMatch = c.match(/^right-([0-9\.]+)$/);
+    if (rightMatch) {
+      if (!absolutePosition) absolutePosition = {};
+      absolutePosition.right = parseFloat(rightMatch[1]) * 4;
+    }
+    const arbRight = c.match(/^right-\[(.+)\]$/);
+    if (arbRight) {
+      if (!absolutePosition) absolutePosition = {};
+      const val = arbRight[1];
+      absolutePosition.right = resolveArbitraryValue(val, varMap);
+      absolutePosition.rightToken = getStyleTokenKey(val);
+    }
+
+    const bottomMatch = c.match(/^bottom-([0-9\.]+)$/);
+    if (bottomMatch) {
+      if (!absolutePosition) absolutePosition = {};
+      absolutePosition.bottom = parseFloat(bottomMatch[1]) * 4;
+    }
+    const arbBottom = c.match(/^bottom-\[(.+)\]$/);
+    if (arbBottom) {
+      if (!absolutePosition) absolutePosition = {};
+      const val = arbBottom[1];
+      absolutePosition.bottom = resolveArbitraryValue(val, varMap);
+      absolutePosition.bottomToken = getStyleTokenKey(val);
+    }
+
+    const leftMatch = c.match(/^left-([0-9\.]+)$/);
+    if (leftMatch) {
+      if (!absolutePosition) absolutePosition = {};
+      absolutePosition.left = parseFloat(leftMatch[1]) * 4;
+    }
+    const arbLeft = c.match(/^left-\[(.+)\]$/);
+    if (arbLeft) {
+      if (!absolutePosition) absolutePosition = {};
+      const val = arbLeft[1];
+      absolutePosition.left = resolveArbitraryValue(val, varMap);
+      absolutePosition.leftToken = getStyleTokenKey(val);
+    }
   });
 
   // Post-loop: CSS/Tailwind default — display:flex without flex-col = row direction
@@ -700,7 +778,7 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>): 
   }
 
   // Post-loop: Merge fixed position flags
-  isFixedBottom = _hasFixedClass && _hasBottom0;
+  isFixedBottom = _hasFixedClass || element.tagName === "NAV" || element.tagName === "nav" || classes.includes("fixed");
 
   // Parse inline style declarations as overriding attributes
   const inlineStyle = element.getAttribute("style");
@@ -712,6 +790,18 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>): 
       const key = parts[0].trim().toLowerCase();
       const val = parts.slice(1).join(":").trim();
 
+      if (key === "flex" || key === "flex-grow") {
+        if (val.trim() === "1" || val.includes("1") || val === "grow") {
+          hasFlex1 = true;
+        }
+      }
+      if (key === "position") {
+        if (val === "fixed") _hasFixedClass = true;
+        else if (val === "absolute") isAbsolute = true;
+      }
+      if (key === "bottom" && (val === "0" || val === "0px" || val === "0.0")) {
+        _hasBottom0 = true;
+      }
       if (key === "background-color" || key === "background") {
         if (val.startsWith("#")) backgroundColor = val;
         else if (val.startsWith("var(")) backgroundColor = resolveCssVariable(val, varMap);
@@ -736,8 +826,18 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>): 
     });
   }
 
+  if (isAbsolute) {
+    const hasZIndex0OrNeg = classes.some(c => c === "z-0" || c === "z-[-1]" || c.startsWith("z-[-"));
+    const hasInset0 = classes.includes("inset-0");
+    const isImg = element.tagName === "IMG";
+    if (hasZIndex0OrNeg || hasInset0 || isImg) {
+      isBackgroundAbsolute = true;
+    }
+  }
+
   return {
     isFlex,
+    isBackgroundAbsolute,
     flexDirection,
     alignItems,
     justifyContent,
@@ -763,6 +863,8 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>): 
     gradient,
     isRawSvg: false, // Set externally in buildTranspileTree for SVG nodes
     hasFlex1,
+    isAbsolute,
+    absolutePosition,
     backgroundColorToken,
     textColorToken,
     borderColorToken,
@@ -1004,11 +1106,36 @@ function gradientDirectionToFlutter(direction: string): { begin: string; end: st
   return map[direction] || { begin: 'Alignment.topLeft', end: 'Alignment.bottomRight' };
 }
 
+function isRedundantWrapper(node: TranspileNode): boolean {
+  if (node.children.length !== 1) return false;
+  const child = node.children[0];
+  if (typeof child === "string") return false;
+  
+  const { styles } = node;
+  const hasStyling = 
+    (styles.backgroundColorToken || styles.backgroundColor !== "transparent") ||
+    (styles.borderRadiusToken || styles.borderRadius > 0) ||
+    (styles.borderColorToken || styles.borderWidth > 0) ||
+    (styles.paddingTopToken || styles.padding.top > 0 || styles.padding.bottom > 0 || styles.padding.left > 0 || styles.padding.right > 0) ||
+    (styles.marginTopToken || styles.margin.top > 0 || styles.margin.bottom > 0 || styles.margin.left > 0 || styles.margin.right > 0) ||
+    (typeof styles.width === "number" || typeof styles.height === "number" || styles.width === "100%" || styles.hasFlex1 || styles.minHeight !== "auto") ||
+    styles.isAbsolute || styles.isFixedBottom || styles.isGrid || styles.gradient;
+    
+  return !hasStyling;
+}
+
 // ---------------------------------------------------------------------------
 // TO-HEX CONVERTOR HELPER FOR NATIVE DEFS
 // ---------------------------------------------------------------------------
 function cleanHexColor(hex: string): string {
   if (!hex || hex === "transparent") return "FFFFFF"; // fallback without '#'
+  if (hex.startsWith("var(--") || hex.includes("var(")) {
+    if (hex.includes("border")) return "E5E7EB";
+    if (hex.includes("background") || hex.includes("surface")) return "FFFFFF";
+    if (hex.includes("text")) return "111827";
+    if (hex.includes("action")) return "3B82F6";
+    return "FFFFFF";
+  }
   if (hex.startsWith("#")) {
     let clean = hex.substring(1);
     if (clean.length === 3) {
@@ -1083,9 +1210,20 @@ export function transpileToSwiftUI(root: TranspileNode): string {
   let indentLevel = 1;
   const getIndent = () => "    ".repeat(indentLevel);
 
+  function wrapFlexIfNeeded(node: TranspileNode, outCode: string, indent: string): string {
+    if (node.styles.hasFlex1) {
+      return outCode.trimEnd() + `\n${indent}.frame(maxWidth: .infinity)\n`;
+    }
+    return outCode;
+  }
+
   function walk(node: TranspileNode | string): string {
     if (typeof node === "string") {
       return `${getIndent()}Text("${node.replace(/"/g, '\\"')}")\n`;
+    }
+
+    if (typeof node !== "string" && isRedundantWrapper(node)) {
+      return walk(node.children[0]);
     }
 
     const { styles } = node;
@@ -1102,9 +1240,9 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       if (styles.textColorToken) {
         out += `${getIndent()}    .foregroundColor(${toSwiftThemeToken(styles.textColorToken, "")})\n`;
       } else if (styles.textColor !== "transparent") {
-        out += `${getIndent()}    .foregroundColor(Color(hex: "${styles.textColor}"))\n`;
+        out += `${getIndent()}    .foregroundColor(Color(hex: "#${cleanHexColor(styles.textColor)}"))\n`;
       }
-      return out;
+      return wrapFlexIfNeeded(node, out, getIndent());
     }
 
     // Raw SVG placeholder — don't hallucinate SF Symbols for inline SVGs
@@ -1112,7 +1250,7 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       const svgW = typeof styles.width === 'number' ? styles.width : 48;
       const svgH = typeof styles.height === 'number' ? styles.height : 48;
       out += `${getIndent()}Color.clear.frame(width: ${svgW}, height: ${svgH}) // TODO: Add custom SVG/Asset here\n`;
-      return out;
+      return wrapFlexIfNeeded(node, out, getIndent());
     }
 
     if (isImage) {
@@ -1138,7 +1276,7 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       } else if (styles.borderRadius > 0) {
         out += `${getIndent()}.cornerRadius(${styles.borderRadius})\n`;
       }
-      return out;
+      return wrapFlexIfNeeded(node, out, getIndent());
     }
 
     if (isButton) {
@@ -1167,7 +1305,7 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       if (styles.backgroundColorToken) {
         out += `${getIndent()}.background(${toSwiftThemeToken(styles.backgroundColorToken, "")})\n`;
       } else if (styles.backgroundColor !== "transparent") {
-        out += `${getIndent()}.background(Color(hex: "${styles.backgroundColor}"))\n`;
+        out += `${getIndent()}.background(Color(hex: "#${cleanHexColor(styles.backgroundColor)}"))\n`;
       }
       if (styles.borderRadiusToken) {
         out += `${getIndent()}.cornerRadius(${toSwiftThemeToken(styles.borderRadiusToken, "")})\n`;
@@ -1177,11 +1315,11 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       if (styles.textColorToken) {
         out += `${getIndent()}.foregroundColor(${toSwiftThemeToken(styles.textColorToken, "")})\n`;
       } else if (styles.textColor !== "transparent") {
-        out += `${getIndent()}.foregroundColor(Color(hex: "${styles.textColor}"))\n`;
+        out += `${getIndent()}.foregroundColor(Color(hex: "#${cleanHexColor(styles.textColor)}"))\n`;
       }
       indentLevel--;
       out += `${getIndent()}}\n`;
-      return out;
+      return wrapFlexIfNeeded(node, out, getIndent());
     }
 
     // Text Leaf Node Optimization
@@ -1200,7 +1338,7 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       if (styles.textColorToken) {
         out += `${getIndent()}    .foregroundColor(${toSwiftThemeToken(styles.textColorToken, "")})\n`;
       } else if (styles.textColor !== "transparent") {
-        out += `${getIndent()}    .foregroundColor(Color(hex: "${styles.textColor}"))\n`;
+        out += `${getIndent()}    .foregroundColor(Color(hex: "#${cleanHexColor(styles.textColor)}"))\n`;
       }
       if (styles.textAlign === "center") {
         out += `${getIndent()}    .multilineTextAlignment(.center)\n`;
@@ -1211,6 +1349,85 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       const mb = styles.marginBottomToken ? toSwiftThemeToken(styles.marginBottomToken, "") : String(styles.margin.bottom);
       if (styles.margin.top > 0 || styles.marginTopToken) out += `${getIndent()}    .padding(.top, ${mt})\n`;
       if (styles.margin.bottom > 0 || styles.marginBottomToken) out += `${getIndent()}    .padding(.bottom, ${mb})\n`;
+      return wrapFlexIfNeeded(node, out, getIndent());
+    }
+
+    // Empty Container Optimization (e.g., Progress Bar segments or Flex Spacers)
+    if (node.children.length === 0) {
+      let baseColor = "Color.clear";
+      if (styles.backgroundColorToken) {
+        baseColor = toSwiftThemeToken(styles.backgroundColorToken, "");
+      } else if (styles.backgroundColor !== "transparent") {
+        baseColor = `Color(hex: "#${cleanHexColor(styles.backgroundColor)}")`;
+      }
+      
+      out += `${getIndent()}${baseColor}\n`;
+
+      // Apply modifiers directly to the Color view
+      const pt = styles.paddingTopToken ? toSwiftThemeToken(styles.paddingTopToken, "") : String(styles.padding.top);
+      const pb = styles.paddingBottomToken ? toSwiftThemeToken(styles.paddingBottomToken, "") : String(styles.padding.bottom);
+      const pl = styles.paddingLeftToken ? toSwiftThemeToken(styles.paddingLeftToken, "") : String(styles.padding.left);
+      const pr = styles.paddingRightToken ? toSwiftThemeToken(styles.paddingRightToken, "") : String(styles.padding.right);
+
+      if (styles.paddingLeftToken === "screenPadding" && styles.paddingRightToken === "screenPadding") {
+        out += `${getIndent()}.padding(.horizontal, AppTheme.screenPadding)\n`;
+        if (styles.padding.top > 0 || styles.paddingTopToken) out += `${getIndent()}.padding(.top, ${pt})\n`;
+        if (styles.padding.bottom > 0 || styles.paddingBottomToken) out += `${getIndent()}.padding(.bottom, ${pb})\n`;
+      } else {
+        if (styles.padding.top > 0 || styles.paddingTopToken) out += `${getIndent()}.padding(.top, ${pt})\n`;
+        if (styles.padding.bottom > 0 || styles.paddingBottomToken) out += `${getIndent()}.padding(.bottom, ${pb})\n`;
+        if (styles.padding.left > 0 || styles.paddingLeftToken) out += `${getIndent()}.padding(.leading, ${pl})\n`;
+        if (styles.padding.right > 0 || styles.paddingRightToken) out += `${getIndent()}.padding(.trailing, ${pr})\n`;
+      }
+
+      if (styles.gradient && styles.gradient.fromColor && styles.gradient.toColor) {
+        const { start, end } = gradientDirectionToSwift(styles.gradient.direction);
+        out += `${getIndent()}.background(LinearGradient(gradient: Gradient(colors: [Color(hex: "#${cleanHexColor(styles.gradient.fromColor)}"), Color(hex: "#${cleanHexColor(styles.gradient.toColor)}")]), startPoint: ${start}, endPoint: ${end}))\n`;
+      }
+
+      if (styles.borderRadiusToken) {
+        out += `${getIndent()}.cornerRadius(${toSwiftThemeToken(styles.borderRadiusToken, "")})\n`;
+      } else if (styles.borderRadius > 0) {
+        out += `${getIndent()}.cornerRadius(${styles.borderRadius})\n`;
+      }
+
+      if (styles.borderWidth > 0 && styles.borderColor !== 'transparent') {
+        const borderCol = styles.borderColorToken ? toSwiftThemeToken(styles.borderColorToken, '') : `Color(hex: "#${cleanHexColor(styles.borderColor)}")`;
+        if (styles.borderRadiusToken || styles.borderRadius > 0) {
+          const radius = styles.borderRadiusToken ? toSwiftThemeToken(styles.borderRadiusToken, '') : String(styles.borderRadius);
+          out += `${getIndent()}.overlay(RoundedRectangle(cornerRadius: ${radius}).stroke(${borderCol}, lineWidth: ${styles.borderWidth}))\n`;
+        }
+      }
+
+      if (styles.opacity < 1) {
+        out += `${getIndent()}.opacity(${styles.opacity})\n`;
+      }
+      
+      const w = styles.width;
+      const h = styles.height;
+      const frameParts: string[] = [];
+      if (w === "100%" || styles.hasFlex1) frameParts.push("maxWidth: .infinity");
+      else if (typeof w === "number") frameParts.push(`width: ${w}`);
+      if (typeof h === "number") frameParts.push(`height: ${h}`);
+      if (typeof styles.minHeight === "number" && styles.minHeight > 0) frameParts.push(`minHeight: ${styles.minHeight}`);
+      if (frameParts.length > 0) {
+        out += `${getIndent()}.frame(${frameParts.join(", ")})\n`;
+      }
+
+      if (styles.isAbsolute && styles.absolutePosition) {
+        const { top, right, bottom, left, topToken, rightToken, bottomToken, leftToken } = styles.absolutePosition;
+        let offsetPart = "";
+        if (left !== undefined || leftToken) offsetPart += `x: ${leftToken ? toSwiftThemeToken(leftToken, "") : left}`;
+        else if (right !== undefined || rightToken) offsetPart += `x: -(${rightToken ? toSwiftThemeToken(rightToken, "") : right})`;
+        
+        if (top !== undefined || topToken) offsetPart += `${offsetPart ? ", " : ""}y: ${topToken ? toSwiftThemeToken(topToken, "") : top}`;
+        else if (bottom !== undefined || bottomToken) offsetPart += `${offsetPart ? ", " : ""}y: -(${bottomToken ? toSwiftThemeToken(bottomToken, "") : bottom})`;
+        
+        if (offsetPart) {
+          out += `${getIndent()}.offset(${offsetPart})\n`;
+        }
+      }
+
       return out;
     }
 
@@ -1225,18 +1442,18 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       // Grid modifiers
       if (styles.gradient && styles.gradient.fromColor && styles.gradient.toColor) {
         const { start, end } = gradientDirectionToSwift(styles.gradient.direction);
-        out += `${getIndent()}.background(LinearGradient(gradient: Gradient(colors: [Color(hex: "${styles.gradient.fromColor}"), Color(hex: "${styles.gradient.toColor}")]), startPoint: ${start}, endPoint: ${end}))\n`;
+        out += `${getIndent()}.background(LinearGradient(gradient: Gradient(colors: [Color(hex: "#${cleanHexColor(styles.gradient.fromColor)}"), Color(hex: "#${cleanHexColor(styles.gradient.toColor)}")]), startPoint: ${start}, endPoint: ${end}))\n`;
       } else if (styles.backgroundColorToken) {
         out += `${getIndent()}.background(${toSwiftThemeToken(styles.backgroundColorToken, '')})\n`;
       } else if (styles.backgroundColor !== 'transparent') {
-        out += `${getIndent()}.background(Color(hex: "${styles.backgroundColor}"))\n`;
+        out += `${getIndent()}.background(Color(hex: "#${cleanHexColor(styles.backgroundColor)}"))\n`;
       }
       if (styles.borderRadiusToken) {
         out += `${getIndent()}.cornerRadius(${toSwiftThemeToken(styles.borderRadiusToken, '')})\n`;
       } else if (styles.borderRadius > 0) {
         out += `${getIndent()}.cornerRadius(${styles.borderRadius})\n`;
       }
-      return out;
+      return wrapFlexIfNeeded(node, out, getIndent());
     }
 
     // Standard Stack Container
@@ -1250,19 +1467,53 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       : (styles.gap > 0 ? `spacing: ${styles.gap}` : "");
     const combo = alignStr && spacingStr ? `${alignStr}, ${spacingStr}` : (alignStr || spacingStr);
     
-    out += `${getIndent()}${stackName}(${combo}) {\n`;
-    indentLevel++;
-    
-    // Spacer injection for justify-between (Bug 2 fix)
-    node.children.forEach((c, idx) => {
-      out += walk(c);
-      if (styles.justifyContent === "between" && idx < node.children.length - 1) {
-        out += `${getIndent()}Spacer()\n`;
-      }
-    });
-    
-    indentLevel--;
-    out += `${getIndent()}}\n`;
+    const normalChildren = node.children.filter(c => typeof c === 'string' || !c.styles.isAbsolute);
+    const absoluteChildren = node.children.filter(c => typeof c !== 'string' && c.styles.isAbsolute) as TranspileNode[];
+    const hasAbsolute = absoluteChildren.length > 0;
+
+    if (hasAbsolute) {
+      const bgAbsoluteChildren = absoluteChildren.filter(c => c.styles.isBackgroundAbsolute);
+      const fgAbsoluteChildren = absoluteChildren.filter(c => !c.styles.isBackgroundAbsolute);
+
+      out += `${getIndent()}ZStack(alignment: .topLeading) {\n`;
+      indentLevel++;
+      
+      // 1. Paint background absolute children FIRST (bottom of ZStack painting hierarchy)
+      bgAbsoluteChildren.forEach(c => {
+        out += walk(c);
+      });
+
+      // 2. Paint normal children inside stack
+      out += `${getIndent()}${stackName}(${combo}) {\n`;
+      indentLevel++;
+      normalChildren.forEach((c, idx) => {
+        out += walk(c);
+        if (styles.justifyContent === "between" && idx < normalChildren.length - 1) {
+          out += `${getIndent()}Spacer()\n`;
+        }
+      });
+      indentLevel--;
+      out += `${getIndent()}}\n`;
+      
+      // 3. Paint foreground absolute children LAST (top of ZStack painting hierarchy)
+      fgAbsoluteChildren.forEach(c => {
+        out += walk(c);
+      });
+      
+      indentLevel--;
+      out += `${getIndent()}}\n`;
+    } else {
+      out += `${getIndent()}${stackName}(${combo}) {\n`;
+      indentLevel++;
+      normalChildren.forEach((c, idx) => {
+        out += walk(c);
+        if (styles.justifyContent === "between" && idx < normalChildren.length - 1) {
+          out += `${getIndent()}Spacer()\n`;
+        }
+      });
+      indentLevel--;
+      out += `${getIndent()}}\n`;
+    }
 
     // Modifiers on stack
     const pt = styles.paddingTopToken ? toSwiftThemeToken(styles.paddingTopToken, "") : String(styles.padding.top);
@@ -1281,14 +1532,14 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       if (styles.padding.right > 0 || styles.paddingRightToken) out += `${getIndent()}.padding(.trailing, ${pr})\n`;
     }
 
-    // Background — with gradient support (Bug 6 fix)
+    // Background — with gradient support
     if (styles.gradient && styles.gradient.fromColor && styles.gradient.toColor) {
       const { start, end } = gradientDirectionToSwift(styles.gradient.direction);
-      out += `${getIndent()}.background(LinearGradient(gradient: Gradient(colors: [Color(hex: "${styles.gradient.fromColor}"), Color(hex: "${styles.gradient.toColor}")]), startPoint: ${start}, endPoint: ${end}))\n`;
+      out += `${getIndent()}.background(LinearGradient(gradient: Gradient(colors: [Color(hex: "#${cleanHexColor(styles.gradient.fromColor)}"), Color(hex: "#${cleanHexColor(styles.gradient.toColor)}")]), startPoint: ${start}, endPoint: ${end}))\n`;
     } else if (styles.backgroundColorToken) {
       out += `${getIndent()}.background(${toSwiftThemeToken(styles.backgroundColorToken, "")})\n`;
     } else if (styles.backgroundColor !== "transparent") {
-      out += `${getIndent()}.background(Color(hex: "${styles.backgroundColor}"))\n`;
+      out += `${getIndent()}.background(Color(hex: "#${cleanHexColor(styles.backgroundColor)}"))\n`;
     }
     if (styles.borderRadiusToken) {
       out += `${getIndent()}.cornerRadius(${toSwiftThemeToken(styles.borderRadiusToken, "")})\n`;
@@ -1298,7 +1549,7 @@ export function transpileToSwiftUI(root: TranspileNode): string {
 
     // Border overlay
     if (styles.borderWidth > 0 && styles.borderColor !== 'transparent') {
-      const borderCol = styles.borderColorToken ? toSwiftThemeToken(styles.borderColorToken, '') : `Color(hex: "${styles.borderColor}")`;
+      const borderCol = styles.borderColorToken ? toSwiftThemeToken(styles.borderColorToken, '') : `Color(hex: "#${cleanHexColor(styles.borderColor)}")`;
       if (styles.borderRadiusToken || styles.borderRadius > 0) {
         const radius = styles.borderRadiusToken ? toSwiftThemeToken(styles.borderRadiusToken, '') : String(styles.borderRadius);
         out += `${getIndent()}.overlay(RoundedRectangle(cornerRadius: ${radius}).stroke(${borderCol}, lineWidth: ${styles.borderWidth}))\n`;
@@ -1320,6 +1571,21 @@ export function transpileToSwiftUI(root: TranspileNode): string {
     if (typeof styles.minHeight === "number" && styles.minHeight > 0) frameParts.push(`minHeight: ${styles.minHeight}`);
     if (frameParts.length > 0) {
       out += `${getIndent()}.frame(${frameParts.join(", ")})\n`;
+    }
+
+    // Absolute position modifier
+    if (styles.isAbsolute && styles.absolutePosition) {
+      const { top, right, bottom, left, topToken, rightToken, bottomToken, leftToken } = styles.absolutePosition;
+      let offsetPart = "";
+      if (left !== undefined || leftToken) offsetPart += `x: ${leftToken ? toSwiftThemeToken(leftToken, "") : left}`;
+      else if (right !== undefined || rightToken) offsetPart += `x: -(${rightToken ? toSwiftThemeToken(rightToken, "") : right})`;
+      
+      if (top !== undefined || topToken) offsetPart += `${offsetPart ? ", " : ""}y: ${topToken ? toSwiftThemeToken(topToken, "") : top}`;
+      else if (bottom !== undefined || bottomToken) offsetPart += `${offsetPart ? ", " : ""}y: -(${bottomToken ? toSwiftThemeToken(bottomToken, "") : bottom})`;
+      
+      if (offsetPart) {
+        out += `${getIndent()}.offset(${offsetPart})\n`;
+      }
     }
 
     return out;
@@ -1344,9 +1610,13 @@ export function transpileToCompose(root: TranspileNode): string {
   let indentLevel = 1;
   const getIndent = () => "    ".repeat(indentLevel);
 
-  function walk(node: TranspileNode | string): string {
+  function walk(node: TranspileNode | string, parentIsFixedBottomRow = false): string {
     if (typeof node === "string") {
       return `${getIndent()}Text(text = "${node.replace(/"/g, '\\"')}")\n`;
+    }
+
+    if (typeof node !== "string" && isRedundantWrapper(node)) {
+      return walk(node.children[0], parentIsFixedBottomRow);
     }
 
     const { styles } = node;
@@ -1362,7 +1632,7 @@ export function transpileToCompose(root: TranspileNode): string {
       out += `${getIndent()}    imageVector = ${toComposeIconName(lucide)}, // Lucide: ${lucide}\n`;
       out += `${getIndent()}    contentDescription = null,\n`;
       out += `${getIndent()}    tint = ${tintColor},\n`;
-      out += `${getIndent()}    modifier = Modifier.size(${styles.fontSize || 24}.dp)\n`;
+      out += `${getIndent()}    modifier = Modifier.size(${styles.fontSize || 24}.dp)${styles.hasFlex1 ? '.weight(1f)' : ''}\n`;
       out += `${getIndent()})\n`;
       return out;
     }
@@ -1370,7 +1640,7 @@ export function transpileToCompose(root: TranspileNode): string {
     // Raw SVG placeholder
     if (styles.isRawSvg) {
       const svgSize = typeof styles.width === 'number' ? styles.width : 48;
-      out += `${getIndent()}Box(modifier = Modifier.size(${svgSize}.dp)) { /* TODO: Add custom SVG/Asset */ }\n`;
+      out += `${getIndent()}Box(modifier = Modifier.size(${svgSize}.dp)${styles.hasFlex1 ? '.weight(1f)' : ''}) { /* TODO: Add custom SVG/Asset */ }\n`;
       return out;
     }
 
@@ -1386,6 +1656,7 @@ export function transpileToCompose(root: TranspileNode): string {
       if (w === "100%") out += `${getIndent()}        .fillMaxWidth()\n`;
       else if (typeof w === "number") out += `${getIndent()}        .width(${w}.dp)\n`;
       if (typeof h === "number") out += `${getIndent()}        .height(${h}.dp)\n`;
+      if (styles.hasFlex1) out += `${getIndent()}        .weight(1f)\n`;
       
       if (styles.borderRadiusToken) {
         out += `${getIndent()}        .clip(RoundedCornerShape(${toComposeThemeToken(styles.borderRadiusToken, "")}))\n`;
@@ -1421,7 +1692,7 @@ export function transpileToCompose(root: TranspileNode): string {
       out += `${getIndent()}) {\n`;
       indentLevel++;
       node.children.forEach(c => {
-        out += walk(c);
+        out += walk(c, parentIsFixedBottomRow);
       });
       indentLevel--;
       out += `${getIndent()}}\n`;
@@ -1469,41 +1740,56 @@ export function transpileToCompose(root: TranspileNode): string {
       out += `${getIndent()}LazyVerticalGrid(\n`;
       out += `${getIndent()}    columns = GridCells.Fixed(${styles.gridCols}),\n`;
       out += `${getIndent()}    horizontalArrangement = Arrangement.spacedBy(${spacing}),\n`;
-      out += `${getIndent()}    verticalArrangement = Arrangement.spacedBy(${spacing})\n`;
+      out += `${getIndent()}    verticalArrangement = Arrangement.spacedBy(${spacing}),\n`;
+      out += `${getIndent()}    modifier = Modifier.height(280.dp)\n`;
       out += `${getIndent()}) {\n`;
       indentLevel++;
-      node.children.forEach(c => { out += walk(c); });
+      node.children.forEach(c => {
+        out += `${getIndent()}item {\n`;
+        indentLevel++;
+        out += walk(c, false);
+        indentLevel--;
+        out += `${getIndent()}}\n`;
+      });
       indentLevel--;
       out += `${getIndent()}}\n`;
       return out;
     }
 
     // Standard Stack
-    const isCol = styles.flexDirection === "column";
+    let isCol = styles.flexDirection === "column";
+    if (parentIsFixedBottomRow && !isButton && !isImage && !lucide && !styles.isRawSvg && !isTextLeaf && !styles.isGrid) {
+      isCol = false; // Force Row layout for container children under fixed-bottom row
+    }
     const composeLayout = isCol ? "Column" : "Row";
     
-    out += `${getIndent()}${composeLayout}(\n`;
-    out += `${getIndent()}    modifier = Modifier\n`;
-    
-    if (styles.width === "100%" || styles.hasFlex1) out += `${getIndent()}        .fillMaxWidth()\n`;
-    else if (typeof styles.width === "number") out += `${getIndent()}        .width(${styles.width}.dp)\n`;
-    if (typeof styles.height === "number") out += `${getIndent()}        .height(${styles.height}.dp)\n`;
-    if (typeof styles.minHeight === "number" && styles.minHeight > 0) out += `${getIndent()}        .heightIn(min = ${styles.minHeight}.dp)\n`;
+    const normalChildren = node.children.filter(c => typeof c === 'string' || !c.styles.isAbsolute);
+    const absoluteChildren = node.children.filter(c => typeof c !== 'string' && c.styles.isAbsolute) as TranspileNode[];
+    const hasAbsolute = absoluteChildren.length > 0;
+
+    let stackModifier = "Modifier";
+    if (styles.width === "100%" || styles.hasFlex1) stackModifier += "\n        .fillMaxWidth()";
+    else if (typeof styles.width === "number") stackModifier += `\n        .width(${styles.width}.dp)`;
+    if (typeof styles.height === "number") stackModifier += `\n        .height(${styles.height}.dp)`;
+    if (typeof styles.minHeight === "number" && styles.minHeight > 0) stackModifier += `\n        .heightIn(min = ${styles.minHeight}.dp)`;
+    if (styles.hasFlex1 && !styles.isAbsolute) {
+      stackModifier += "\n        .weight(1f)";
+    }
+
+    if (styles.borderRadiusToken) {
+      stackModifier += `\n        .clip(RoundedCornerShape(${toComposeThemeToken(styles.borderRadiusToken, "")}))`;
+    } else if (styles.borderRadius > 0) {
+      stackModifier += `\n        .clip(RoundedCornerShape(${styles.borderRadius}.dp))`;
+    }
 
     // Background — with gradient support
     if (styles.gradient && styles.gradient.fromColor && styles.gradient.toColor) {
       const { start, end } = gradientDirectionToCompose(styles.gradient.direction);
-      out += `${getIndent()}        .background(Brush.linearGradient(colors = listOf(Color(0xFF${cleanHexColor(styles.gradient.fromColor)}), Color(0xFF${cleanHexColor(styles.gradient.toColor)})), start = ${start}, end = ${end}))\n`;
+      stackModifier += `\n        .background(Brush.linearGradient(colors = listOf(Color(0xFF${cleanHexColor(styles.gradient.fromColor)}), Color(0xFF${cleanHexColor(styles.gradient.toColor)})), start = ${start}, end = ${end}))`;
     } else if (styles.backgroundColorToken) {
-      out += `${getIndent()}        .background(${toComposeThemeToken(styles.backgroundColorToken, "")})\n`;
+      stackModifier += `\n        .background(${toComposeThemeToken(styles.backgroundColorToken, "")})`;
     } else if (styles.backgroundColor !== "transparent") {
-      out += `${getIndent()}        .background(Color(0xFF${cleanHexColor(styles.backgroundColor)}))\n`;
-    }
-    
-    if (styles.borderRadiusToken) {
-      out += `${getIndent()}        .clip(RoundedCornerShape(${toComposeThemeToken(styles.borderRadiusToken, "")}))\n`;
-    } else if (styles.borderRadius > 0) {
-      out += `${getIndent()}        .clip(RoundedCornerShape(${styles.borderRadius}.dp))\n`;
+      stackModifier += `\n        .background(Color(0xFF${cleanHexColor(styles.backgroundColor)}))`;
     }
 
     // Border overlay
@@ -1511,13 +1797,13 @@ export function transpileToCompose(root: TranspileNode): string {
       const borderCol = styles.borderColorToken ? toComposeThemeToken(styles.borderColorToken, '') : `Color(0xFF${cleanHexColor(styles.borderColor)})`;
       if (styles.borderRadiusToken || styles.borderRadius > 0) {
         const radius = styles.borderRadiusToken ? toComposeThemeToken(styles.borderRadiusToken, '') : `${styles.borderRadius}.dp`;
-        out += `${getIndent()}        .border(${styles.borderWidth}.dp, ${borderCol}, RoundedCornerShape(${radius}))\n`;
+        stackModifier += `\n        .border(${styles.borderWidth}.dp, ${borderCol}, RoundedCornerShape(${radius}))`;
       }
     }
 
     // Opacity
     if (styles.opacity < 1) {
-      out += `${getIndent()}        .alpha(${styles.opacity}f)\n`;
+      stackModifier += `\n        .alpha(${styles.opacity}f)`;
     }
 
     // Padding
@@ -1527,45 +1813,117 @@ export function transpileToCompose(root: TranspileNode): string {
     const pr = styles.paddingRightToken ? toComposeThemeToken(styles.paddingRightToken, "") : `${styles.padding.right}.dp`;
 
     if (styles.paddingLeftToken === "screenPadding" && styles.paddingRightToken === "screenPadding") {
-      out += `${getIndent()}        .padding(start = AppTheme.ScreenPadding, top = ${pt}, end = AppTheme.ScreenPadding, bottom = ${pb})\n`;
+      stackModifier += `\n        .padding(start = AppTheme.ScreenPadding, top = ${pt}, end = AppTheme.ScreenPadding, bottom = ${pb})`;
     } else if (styles.padding.top > 0 || styles.padding.bottom > 0 || styles.padding.left > 0 || styles.padding.right > 0 ||
                styles.paddingTopToken || styles.paddingBottomToken || styles.paddingLeftToken || styles.paddingRightToken) {
-      out += `${getIndent()}        .padding(start = ${pl}, top = ${pt}, end = ${pr}, bottom = ${pb})\n`;
+      stackModifier += `\n        .padding(start = ${pl}, top = ${pt}, end = ${pr}, bottom = ${pb})`;
     }
 
-    // Alignments — with justify-between support
-    const gapVal = styles.gapToken ? toComposeThemeToken(styles.gapToken, "") : `${styles.gap}.dp`;
-    if (isCol) {
-      const align = styles.alignItems === "center" ? "Alignment.CenterHorizontally" : styles.alignItems === "end" ? "Alignment.End" : "Alignment.Start";
-      out += `${getIndent()}    horizontalAlignment = ${align},\n`;
-      if (styles.justifyContent === "between") {
-        out += `${getIndent()}    verticalArrangement = Arrangement.SpaceBetween,\n`;
-      } else if (styles.gap > 0 || styles.gapToken) {
-        out += `${getIndent()}    verticalArrangement = Arrangement.spacedBy(${gapVal}),\n`;
+    // Absolute position modifier
+    if (styles.isAbsolute && styles.absolutePosition) {
+      const { top, right, bottom, left, topToken, rightToken, bottomToken, leftToken } = styles.absolutePosition;
+      let offsetPart = "";
+      if (left !== undefined || leftToken) offsetPart += `x = ${leftToken ? toComposeThemeToken(leftToken, "") : `${left}.dp`}`;
+      else if (right !== undefined || rightToken) offsetPart += `x = -(${rightToken ? toComposeThemeToken(rightToken, "") : `${right}.dp`})`;
+      
+      if (top !== undefined || topToken) offsetPart += `${offsetPart ? ", " : ""}y = ${topToken ? toComposeThemeToken(topToken, "") : `${top}.dp`}`;
+      else if (bottom !== undefined || bottomToken) offsetPart += `${offsetPart ? ", " : ""}y = -(${bottomToken ? toComposeThemeToken(bottomToken, "") : `${bottom}.dp`})`;
+      
+      if (offsetPart) {
+        stackModifier += `\n        .offset(${offsetPart})`;
       }
+    }
+
+    // Fixed bottom alignment in Box
+    if (styles.isFixedBottom) {
+      stackModifier += "\n        .align(Alignment.BottomCenter)\n        .fillMaxWidth()";
+    }
+
+    const isCurrentFixedBottomRow = styles.isFixedBottom && styles.flexDirection === "row";
+
+    if (hasAbsolute) {
+      const bgAbsoluteChildren = absoluteChildren.filter(c => c.styles.isBackgroundAbsolute);
+      const fgAbsoluteChildren = absoluteChildren.filter(c => !c.styles.isBackgroundAbsolute);
+
+      out += `${getIndent()}Box(\n`;
+      out += `${getIndent()}    modifier = ${stackModifier.replace(/\n        /g, "\n        ")}\n`;
+      out += `${getIndent()}) {\n`;
+      indentLevel++;
+      
+      // 1. Render background absolute children FIRST
+      bgAbsoluteChildren.forEach(c => {
+        out += walk(c, parentIsFixedBottomRow || isCurrentFixedBottomRow);
+      });
+
+      // 2. Inner stack (normal children)
+      out += `${getIndent()}${composeLayout}(\n`;
+      out += `${getIndent()}    modifier = Modifier.fillMaxSize(),\n`;
+      
+      // Alignments & Arrangement
+      const gapVal = styles.gapToken ? toComposeThemeToken(styles.gapToken, "") : `${styles.gap}.dp`;
+      if (isCol) {
+        const align = styles.alignItems === "center" ? "Alignment.CenterHorizontally" : styles.alignItems === "end" ? "Alignment.End" : "Alignment.Start";
+        out += `${getIndent()}    horizontalAlignment = ${align},\n`;
+        if (styles.justifyContent === "between") {
+          out += `${getIndent()}    verticalArrangement = Arrangement.SpaceBetween,\n`;
+        } else if (styles.gap > 0 || styles.gapToken) {
+          out += `${getIndent()}    verticalArrangement = Arrangement.spacedBy(${gapVal}),\n`;
+        }
+      } else {
+        const align = styles.alignItems === "center" ? "Alignment.CenterVertically" : styles.alignItems === "end" ? "Alignment.Bottom" : "Alignment.Top";
+        out += `${getIndent()}    verticalAlignment = ${align},\n`;
+        if (styles.justifyContent === "between") {
+          out += `${getIndent()}    horizontalArrangement = Arrangement.SpaceBetween,\n`;
+        } else if (styles.gap > 0 || styles.gapToken) {
+          out += `${getIndent()}    horizontalArrangement = Arrangement.spacedBy(${gapVal}),\n`;
+        }
+      }
+      out += `${getIndent()}) {\n`;
+      indentLevel++;
+      normalChildren.forEach(c => {
+        out += walk(c, parentIsFixedBottomRow || isCurrentFixedBottomRow);
+      });
+      indentLevel--;
+      out += `${getIndent()}}\n`;
+      
+      // 3. Render foreground absolute children LAST
+      fgAbsoluteChildren.forEach(c => {
+        out += walk(c, parentIsFixedBottomRow || isCurrentFixedBottomRow);
+      });
+      
+      indentLevel--;
+      out += `${getIndent()}}\n`;
     } else {
-      const align = styles.alignItems === "center" ? "Alignment.CenterVertically" : styles.alignItems === "end" ? "Alignment.Bottom" : "Alignment.Top";
-      out += `${getIndent()}    verticalAlignment = ${align},\n`;
-      if (styles.justifyContent === "between") {
-        out += `${getIndent()}    horizontalArrangement = Arrangement.SpaceBetween,\n`;
-      } else if (styles.gap > 0 || styles.gapToken) {
-        out += `${getIndent()}    horizontalArrangement = Arrangement.spacedBy(${gapVal}),\n`;
+      out += `${getIndent()}${composeLayout}(\n`;
+      out += `${getIndent()}    modifier = ${stackModifier},\n`;
+      
+      // Alignments & Arrangement
+      const gapVal = styles.gapToken ? toComposeThemeToken(styles.gapToken, "") : `${styles.gap}.dp`;
+      if (isCol) {
+        const align = styles.alignItems === "center" ? "Alignment.CenterHorizontally" : styles.alignItems === "end" ? "Alignment.End" : "Alignment.Start";
+        out += `${getIndent()}    horizontalAlignment = ${align},\n`;
+        if (styles.justifyContent === "between") {
+          out += `${getIndent()}    verticalArrangement = Arrangement.SpaceBetween,\n`;
+        } else if (styles.gap > 0 || styles.gapToken) {
+          out += `${getIndent()}    verticalArrangement = Arrangement.spacedBy(${gapVal}),\n`;
+        }
+      } else {
+        const align = styles.alignItems === "center" ? "Alignment.CenterVertically" : styles.alignItems === "end" ? "Alignment.Bottom" : "Alignment.Top";
+        out += `${getIndent()}    verticalAlignment = ${align},\n`;
+        if (styles.justifyContent === "between") {
+          out += `${getIndent()}    horizontalArrangement = Arrangement.SpaceBetween,\n`;
+        } else if (styles.gap > 0 || styles.gapToken) {
+          out += `${getIndent()}    horizontalArrangement = Arrangement.spacedBy(${gapVal}),\n`;
+        }
       }
+      out += `${getIndent()}) {\n`;
+      indentLevel++;
+      normalChildren.forEach(c => {
+        out += walk(c, parentIsFixedBottomRow || isCurrentFixedBottomRow);
+      });
+      indentLevel--;
+      out += `${getIndent()}}\n`;
     }
-
-    if (out.endsWith("modifier = Modifier\n")) {
-      out = out.substring(0, out.length - 24) + "\n";
-    }
-
-    out += `${getIndent()}) {\n`;
-    indentLevel++;
-    
-    node.children.forEach(c => {
-      out += walk(c);
-    });
-
-    indentLevel--;
-    out += `${getIndent()}}\n`;
     return out;
   }
 
@@ -1575,22 +1933,44 @@ export function transpileToCompose(root: TranspileNode): string {
 // ---------------------------------------------------------------------------
 // REACT NATIVE TRANSPILER
 // ---------------------------------------------------------------------------
+function gradientDirectionToRN(direction: string): { start: { x: number; y: number }; end: { x: number; y: number } } {
+  const map: Record<string, { start: { x: number; y: number }; end: { x: number; y: number } }> = {
+    'r':  { start: { x: 0, y: 0.5 }, end: { x: 1, y: 0.5 } },
+    'l':  { start: { x: 1, y: 0.5 }, end: { x: 0, y: 0.5 } },
+    'b':  { start: { x: 0.5, y: 0 }, end: { x: 0.5, y: 1 } },
+    't':  { start: { x: 0.5, y: 1 }, end: { x: 0.5, y: 0 } },
+    'br': { start: { x: 0, y: 0 }, end: { x: 1, y: 1 } },
+    'bl': { start: { x: 1, y: 0 }, end: { x: 0, y: 1 } },
+    'tr': { start: { x: 0, y: 1 }, end: { x: 1, y: 0 } },
+    'tl': { start: { x: 1, y: 1 }, end: { x: 0, y: 0 } },
+  };
+  return map[direction] || { start: { x: 0, y: 0 }, end: { x: 1, y: 1 } };
+}
+
 // Spacing/Color theme-aware helpers for React Native
 function toRNThemeToken(token: string | undefined, fallbackVal: string): string {
   if (!token) return fallbackVal;
   if (token === "borderRadiusApp") return "AppTheme.radii.app";
   if (token === "borderRadiusPill") return "AppTheme.radii.pill";
   if (token === "screenPadding" || token === "sectionGap" || token === "elementGap") return `AppTheme.layout.${token}`;
-  return `AppTheme.colors.${token}`;
+  
+  let colorToken = token;
+  if (token === "bgPrimary") colorToken = "backgroundPrimary";
+  if (token === "bgSecondary") colorToken = "backgroundSecondary";
+  return `AppTheme.colors.${colorToken}`;
 }
 
 export function transpileToReactNative(root: TranspileNode): string {
   let indentLevel = 1;
   const getIndent = () => "  ".repeat(indentLevel);
 
-  function walk(node: TranspileNode | string): string {
+  function walk(node: TranspileNode | string, isGridChildOfCols?: number, parentIsFixedBottomRow = false): string {
     if (typeof node === "string") {
       return `${getIndent()}<Text>${node.replace(/"/g, '\\"')}</Text>\n`;
+    }
+
+    if (typeof node !== "string" && isRedundantWrapper(node)) {
+      return walk(node.children[0], isGridChildOfCols, parentIsFixedBottomRow);
     }
 
     const { styles } = node;
@@ -1599,6 +1979,20 @@ export function transpileToReactNative(root: TranspileNode): string {
     const lucide = node.attributes["data-lucide"] || node.attributes["data-drawgle-icon"];
     
     let out = "";
+
+    // Width percent for Grid children
+    let widthPercent = "";
+    if (isGridChildOfCols && isGridChildOfCols > 0) {
+      if (isGridChildOfCols === 2) {
+        widthPercent = "48%";
+      } else if (isGridChildOfCols === 3) {
+        widthPercent = "31%";
+      } else if (isGridChildOfCols === 4) {
+        widthPercent = "22%";
+      } else {
+        widthPercent = `${Math.floor(100 / isGridChildOfCols) - 2}%`;
+      }
+    }
 
     if (lucide) {
       const tintColor = styles.textColorToken ? toRNThemeToken(styles.textColorToken, "") : `'${styles.textColor}'`;
@@ -1609,7 +2003,8 @@ export function transpileToReactNative(root: TranspileNode): string {
     // Raw SVG placeholder
     if (styles.isRawSvg) {
       const svgSize = typeof styles.width === 'number' ? styles.width : 48;
-      out += `${getIndent()}<View style={{ width: ${svgSize}, height: ${svgSize} }}>{/* TODO: Add custom SVG/Asset */}</View>\n`;
+      const finalWidth = (isGridChildOfCols && isGridChildOfCols > 0) ? `'${widthPercent}'` : svgSize;
+      out += `${getIndent()}<View style={{ width: ${finalWidth}, height: ${svgSize} }}>{/* TODO: Add custom SVG/Asset */}</View>\n`;
       return out;
     }
 
@@ -1622,9 +2017,36 @@ export function transpileToReactNative(root: TranspileNode): string {
       
       // Inline styles for RN
       out += `${getIndent()}  style={{\n`;
-      if (styles.width === "100%") out += `${getIndent()}    width: '100%',\n`;
-      else if (typeof styles.width === "number") out += `${getIndent()}    width: ${styles.width},\n`;
-      if (typeof styles.height === "number") out += `${getIndent()}    height: ${styles.height},\n`;
+      if (isGridChildOfCols && isGridChildOfCols > 0) {
+        out += `${getIndent()}    width: '${widthPercent}',\n`;
+      }
+      if (styles.isAbsolute) {
+        out += `${getIndent()}    position: 'absolute',\n`;
+        if (styles.isBackgroundAbsolute) {
+          out += `${getIndent()}    top: 0,\n`;
+          out += `${getIndent()}    left: 0,\n`;
+          out += `${getIndent()}    right: 0,\n`;
+          out += `${getIndent()}    bottom: 0,\n`;
+        } else if (styles.absolutePosition) {
+          const { top, right, bottom, left, topToken, rightToken, bottomToken, leftToken } = styles.absolutePosition;
+          if (top !== undefined || topToken) out += `${getIndent()}    top: ${topToken ? toRNThemeToken(topToken, "") : top},\n`;
+          if (right !== undefined || rightToken) out += `${getIndent()}    right: ${rightToken ? toRNThemeToken(rightToken, "") : right},\n`;
+          if (bottom !== undefined || bottomToken) out += `${getIndent()}    bottom: ${bottomToken ? toRNThemeToken(bottomToken, "") : bottom},\n`;
+          if (left !== undefined || leftToken) out += `${getIndent()}    left: ${leftToken ? toRNThemeToken(leftToken, "") : left},\n`;
+        }
+      }
+      if (!(isGridChildOfCols && isGridChildOfCols > 0)) {
+        if (styles.isBackgroundAbsolute) {
+          out += `${getIndent()}    width: '100%',\n`;
+          out += `${getIndent()}    height: '100%',\n`;
+        } else {
+          if (styles.width === "100%") out += `${getIndent()}    width: '100%',\n`;
+          else if (typeof styles.width === "number") out += `${getIndent()}    width: ${styles.width},\n`;
+          if (typeof styles.height === "number") out += `${getIndent()}    height: ${styles.height},\n`;
+        }
+      } else if (typeof styles.height === "number") {
+        out += `${getIndent()}    height: ${styles.height},\n`;
+      }
       
       if (styles.borderRadiusToken) {
         out += `${getIndent()}    borderRadius: ${toRNThemeToken(styles.borderRadiusToken, "")},\n`;
@@ -1645,6 +2067,19 @@ export function transpileToReactNative(root: TranspileNode): string {
       out += `${getIndent()}<TouchableOpacity \n`;
       out += `${getIndent()}  onPress={() => {}}\n`;
       out += `${getIndent()}  style={{\n`;
+      if (isGridChildOfCols && isGridChildOfCols > 0) {
+        out += `${getIndent()}    width: '${widthPercent}',\n`;
+      }
+      if (styles.isAbsolute) {
+        out += `${getIndent()}    position: 'absolute',\n`;
+        if (styles.absolutePosition) {
+          const { top, right, bottom, left, topToken, rightToken, bottomToken, leftToken } = styles.absolutePosition;
+          if (top !== undefined || topToken) out += `${getIndent()}    top: ${topToken ? toRNThemeToken(topToken, "") : top},\n`;
+          if (right !== undefined || rightToken) out += `${getIndent()}    right: ${rightToken ? toRNThemeToken(rightToken, "") : right},\n`;
+          if (bottom !== undefined || bottomToken) out += `${getIndent()}    bottom: ${bottomToken ? toRNThemeToken(bottomToken, "") : bottom},\n`;
+          if (left !== undefined || leftToken) out += `${getIndent()}    left: ${leftToken ? toRNThemeToken(leftToken, "") : left},\n`;
+        }
+      }
       if (styles.backgroundColorToken || styles.backgroundColor !== "transparent") {
         out += `${getIndent()}    backgroundColor: ${containerColor},\n`;
       }
@@ -1661,7 +2096,7 @@ export function transpileToReactNative(root: TranspileNode): string {
       indentLevel++;
       
       node.children.forEach(c => {
-        out += walk(c);
+        out += walk(c, undefined, parentIsFixedBottomRow);
       });
 
       indentLevel--;
@@ -1676,6 +2111,19 @@ export function transpileToReactNative(root: TranspileNode): string {
       const textVal = node.children[0] as string;
       const textTint = styles.textColorToken ? toRNThemeToken(styles.textColorToken, "") : `'${styles.textColor}'`;
       out += `${getIndent()}<Text style={{\n`;
+      if (isGridChildOfCols && isGridChildOfCols > 0) {
+        out += `${getIndent()}  width: '${widthPercent}',\n`;
+      }
+      if (styles.isAbsolute) {
+        out += `${getIndent()}  position: 'absolute',\n`;
+        if (styles.absolutePosition) {
+          const { top, right, bottom, left, topToken, rightToken, bottomToken, leftToken } = styles.absolutePosition;
+          if (top !== undefined || topToken) out += `${getIndent()}  top: ${topToken ? toRNThemeToken(topToken, "") : top},\n`;
+          if (right !== undefined || rightToken) out += `${getIndent()}  right: ${rightToken ? toRNThemeToken(rightToken, "") : right},\n`;
+          if (bottom !== undefined || bottomToken) out += `${getIndent()}  bottom: ${bottomToken ? toRNThemeToken(bottomToken, "") : bottom},\n`;
+          if (left !== undefined || leftToken) out += `${getIndent()}  left: ${leftToken ? toRNThemeToken(leftToken, "") : left},\n`;
+        }
+      }
       out += `${getIndent()}  fontSize: ${styles.fontSize},\n`;
       out += `${getIndent()}  color: ${textTint},\n`;
       if (styles.fontWeight === "bold" || styles.fontWeight === "semibold") {
@@ -1696,25 +2144,72 @@ export function transpileToReactNative(root: TranspileNode): string {
       return out;
     }
 
-    // Grid Layout → FlatList with numColumns
+    // Grid Layout → View wrapping children with flexWrap
     if (styles.isGrid && styles.gridCols > 0) {
       const gapVal = styles.gapToken ? toRNThemeToken(styles.gapToken, '') : String(styles.gap);
-      out += `${getIndent()}<View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: ${gapVal} }}>\n`;
+      out += `${getIndent()}<View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: ${gapVal} }}>\n`;
       indentLevel++;
-      node.children.forEach(c => { out += walk(c); });
+      node.children.forEach(c => { out += walk(c, styles.gridCols, false); });
       indentLevel--;
       out += `${getIndent()}</View>\n`;
       return out;
     }
 
     // View component in React Native
-    out += `${getIndent()}<View style={{\n`;
-    out += `${getIndent()}  flexDirection: '${styles.flexDirection === "row" ? "row" : "column"}',\n`;
+    const hasGradient = styles.gradient && styles.gradient.fromColor && styles.gradient.toColor;
+    const tag = hasGradient ? "LinearGradient" : "View";
+
+    if (hasGradient) {
+      const { start, end } = gradientDirectionToRN(styles.gradient!.direction);
+      const color1 = `#${cleanHexColor(styles.gradient!.fromColor)}`;
+      const color2 = `#${cleanHexColor(styles.gradient!.toColor)}`;
+      out += `${getIndent()}<LinearGradient\n`;
+      out += `${getIndent()}  colors={['${color1}', '${color2}']}\n`;
+      out += `${getIndent()}  start={{ x: ${start.x}, y: ${start.y} }}\n`;
+      out += `${getIndent()}  end={{ x: ${end.x}, y: ${end.y} }}\n`;
+      out += `${getIndent()}  style={{\n`;
+    } else {
+      out += `${getIndent()}<View style={{\n`;
+    }
+
+    if (isGridChildOfCols && isGridChildOfCols > 0) {
+      out += `${getIndent()}  width: '${widthPercent}',\n`;
+    }
+
+    if (styles.isAbsolute) {
+      out += `${getIndent()}  position: 'absolute',\n`;
+      if (styles.isBackgroundAbsolute) {
+        out += `${getIndent()}  top: 0,\n`;
+        out += `${getIndent()}  left: 0,\n`;
+        out += `${getIndent()}  right: 0,\n`;
+        out += `${getIndent()}  bottom: 0,\n`;
+      } else if (styles.absolutePosition) {
+        const { top, right, bottom, left, topToken, rightToken, bottomToken, leftToken } = styles.absolutePosition;
+        if (top !== undefined || topToken) out += `${getIndent()}  top: ${topToken ? toRNThemeToken(topToken, "") : top},\n`;
+        if (right !== undefined || rightToken) out += `${getIndent()}  right: ${rightToken ? toRNThemeToken(rightToken, "") : right},\n`;
+        if (bottom !== undefined || bottomToken) out += `${getIndent()}  bottom: ${bottomToken ? toRNThemeToken(bottomToken, "") : bottom},\n`;
+        if (left !== undefined || leftToken) out += `${getIndent()}  left: ${leftToken ? toRNThemeToken(leftToken, "") : left},\n`;
+      }
+    }
+
+    let isRow = styles.flexDirection === "row";
+    if (parentIsFixedBottomRow && !isButton && !isImage && !lucide && !styles.isRawSvg && !isTextLeaf && !styles.isGrid) {
+      isRow = true; // Force horizontal layout inside fixed bottom row
+    }
+
+    out += `${getIndent()}  flexDirection: '${isRow ? "row" : "column"}',\n`;
     if (styles.alignItems !== "stretch") {
       out += `${getIndent()}  alignItems: '${styles.alignItems === "start" ? "flex-start" : styles.alignItems === "end" ? "flex-end" : "center"}',\n`;
     }
+
+    let justify = "flex-start";
     if (styles.justifyContent !== "start") {
-      const justify = styles.justifyContent === "center" ? "center" : styles.justifyContent === "end" ? "flex-end" : styles.justifyContent === "between" ? "space-between" : "space-around";
+      justify = styles.justifyContent === "center" ? "center" : styles.justifyContent === "end" ? "flex-end" : styles.justifyContent === "between" ? "space-between" : "space-around";
+    }
+    if (styles.isFixedBottom && isRow && styles.justifyContent === "start") {
+      justify = "space-around"; // Default bottom nav to space-around
+    }
+    if (justify !== "flex-start") {
       out += `${getIndent()}  justifyContent: '${justify}',\n`;
     }
     
@@ -1722,15 +2217,19 @@ export function transpileToReactNative(root: TranspileNode): string {
       const gapVal = styles.gapToken ? toRNThemeToken(styles.gapToken, "") : String(styles.gap);
       out += `${getIndent()}  gap: ${gapVal},\n`;
     }
-    if (styles.width === "100%" || styles.hasFlex1) out += `${getIndent()}  ${styles.hasFlex1 ? 'flex: 1' : "width: '100%'"},\n`;
-    else if (typeof styles.width === "number") out += `${getIndent()}  width: ${styles.width},\n`;
+    if (!(isGridChildOfCols && isGridChildOfCols > 0)) {
+      if (styles.width === "100%" || styles.hasFlex1) out += `${getIndent()}  ${styles.hasFlex1 ? 'flex: 1' : "width: '100%'"},\n`;
+      else if (typeof styles.width === "number") out += `${getIndent()}  width: ${styles.width},\n`;
+    }
     if (typeof styles.height === "number") out += `${getIndent()}  height: ${styles.height},\n`;
     if (typeof styles.minHeight === "number" && styles.minHeight > 0) out += `${getIndent()}  minHeight: ${styles.minHeight},\n`;
 
-    if (styles.backgroundColorToken) {
-      out += `${getIndent()}  backgroundColor: ${toRNThemeToken(styles.backgroundColorToken, "")},\n`;
-    } else if (styles.backgroundColor !== "transparent") {
-      out += `${getIndent()}  backgroundColor: '${styles.backgroundColor}',\n`;
+    if (!hasGradient) {
+      if (styles.backgroundColorToken) {
+        out += `${getIndent()}  backgroundColor: ${toRNThemeToken(styles.backgroundColorToken, "")},\n`;
+      } else if (styles.backgroundColor !== "transparent") {
+        out += `${getIndent()}  backgroundColor: '${styles.backgroundColor}',\n`;
+      }
     }
     
     if (styles.borderRadiusToken) {
@@ -1771,12 +2270,26 @@ export function transpileToReactNative(root: TranspileNode): string {
     out += `${getIndent()}}}>\n`;
     indentLevel++;
 
-    node.children.forEach(c => {
-      out += walk(c);
+    const normalChildren = node.children.filter(c => typeof c === 'string' || !c.styles.isAbsolute);
+    const absoluteChildren = node.children.filter(c => typeof c !== 'string' && c.styles.isAbsolute) as TranspileNode[];
+
+    const bgAbsoluteChildren = absoluteChildren.filter(c => c.styles.isBackgroundAbsolute);
+    const fgAbsoluteChildren = absoluteChildren.filter(c => !c.styles.isBackgroundAbsolute);
+
+    const isCurrentFixedBottomRow = styles.isFixedBottom && isRow;
+
+    bgAbsoluteChildren.forEach(c => {
+      out += walk(c, isGridChildOfCols, parentIsFixedBottomRow || isCurrentFixedBottomRow);
+    });
+    normalChildren.forEach(c => {
+      out += walk(c, isGridChildOfCols, parentIsFixedBottomRow || isCurrentFixedBottomRow);
+    });
+    fgAbsoluteChildren.forEach(c => {
+      out += walk(c, isGridChildOfCols, parentIsFixedBottomRow || isCurrentFixedBottomRow);
     });
 
     indentLevel--;
-    out += `${getIndent()}</View>\n`;
+    out += `${getIndent()}</${tag}>\n`;
     return out;
   }
 
@@ -1798,9 +2311,22 @@ export function transpileToFlutter(root: TranspileNode): string {
   let indentLevel = 1;
   const getIndent = () => "  ".repeat(indentLevel);
 
-  function walk(node: TranspileNode | string): string {
+  function wrapExpandedIfNeeded(node: TranspileNode, outCode: string, indent: string): string {
+    if (node.styles.hasFlex1 && !node.styles.isAbsolute) {
+      return `${indent}Expanded(\n` +
+             `${indent}  child: ${outCode.trim()},\n` +
+             `${indent})\n`;
+    }
+    return outCode;
+  }
+
+  function walk(node: TranspileNode | string, parentIsFixedBottomRow = false): string {
     if (typeof node === "string") {
       return `${getIndent()}Text('${node.replace(/'/g, "\\'")}')\n`;
+    }
+
+    if (typeof node !== "string" && isRedundantWrapper(node)) {
+      return walk(node.children[0], parentIsFixedBottomRow);
     }
 
     const { styles } = node;
@@ -1813,14 +2339,14 @@ export function transpileToFlutter(root: TranspileNode): string {
     if (lucide) {
       const tintColor = styles.textColorToken ? toFlutterThemeToken(styles.textColorToken, "") : `Color(0xFF${cleanHexColor(styles.textColor)})`;
       out += `${getIndent()}Icon(${toFlutterIconName(lucide)}, size: ${styles.fontSize || 24}.0, color: ${tintColor})\n`;
-      return out;
+      return wrapExpandedIfNeeded(node, out, getIndent());
     }
 
     // Raw SVG placeholder
     if (styles.isRawSvg) {
       const svgSize = typeof styles.width === 'number' ? styles.width : 48;
       out += `${getIndent()}SizedBox(width: ${svgSize}.0, height: ${svgSize}.0) // TODO: Add custom SVG/Asset\n`;
-      return out;
+      return wrapExpandedIfNeeded(node, out, getIndent());
     }
 
     if (isImage) {
@@ -1835,7 +2361,7 @@ export function transpileToFlutter(root: TranspileNode): string {
       out += `${getIndent()}    fit: BoxFit.cover,\n`,
       out += `${getIndent()}  ),\n`;
       out += `${getIndent()})\n`;
-      return out;
+      return wrapExpandedIfNeeded(node, out, getIndent());
     }
 
     if (isButton) {
@@ -1858,7 +2384,7 @@ export function transpileToFlutter(root: TranspileNode): string {
       out += `${getIndent()}    children: [\n`;
       indentLevel += 3;
       node.children.forEach((c, idx) => {
-        out += walk(c);
+        out += walk(c, parentIsFixedBottomRow);
         if (idx < node.children.length - 1) {
           out = out.trimEnd() + ",\n";
           const btnGap = styles.gapToken ? toFlutterThemeToken(styles.gapToken, "") : `${(styles.gap || 8)}.0`;
@@ -1869,7 +2395,7 @@ export function transpileToFlutter(root: TranspileNode): string {
       out += `${getIndent()}    ],\n`;
       out += `${getIndent()}  ),\n`;
       out += `${getIndent()})\n`;
-      return out;
+      return wrapExpandedIfNeeded(node, out, getIndent());
     }
 
     const isTextLeaf = ["p", "span", "h1", "h2", "h3", "h4", "h5", "h6"].includes(node.tagName) && 
@@ -1901,32 +2427,52 @@ export function transpileToFlutter(root: TranspileNode): string {
               `${getIndent()}  child: ${out.trim()},\n` +
               `${getIndent()})\n`;
       }
-      return out;
+      return wrapExpandedIfNeeded(node, out, getIndent());
     }
 
-    // Grid Layout → GridView.count
+    // Grid Layout → GridView.count or Wrap
     if (styles.isGrid && styles.gridCols > 0) {
       const spacing = styles.gapToken ? toFlutterThemeToken(styles.gapToken, '') : `${styles.gap}.0`;
-      out += `${getIndent()}GridView.count(\n`;
-      out += `${getIndent()}  crossAxisCount: ${styles.gridCols},\n`;
-      out += `${getIndent()}  crossAxisSpacing: ${spacing},\n`;
-      out += `${getIndent()}  mainAxisSpacing: ${spacing},\n`;
-      out += `${getIndent()}  shrinkWrap: true,\n`;
-      out += `${getIndent()}  physics: NeverScrollableScrollPhysics(),\n`;
-      out += `${getIndent()}  children: [\n`;
-      indentLevel += 2;
-      node.children.forEach((c, idx) => {
-        out += walk(c);
-        if (idx < node.children.length - 1) out = out.trimEnd() + ",\n";
-      });
-      indentLevel -= 2;
-      out += `${getIndent()}  ],\n`;
-      out += `${getIndent()})\n`;
-      return out;
+      const useWrap = styles.gridCols >= 4;
+      
+      if (useWrap) {
+        out += `${getIndent()}Wrap(\n`;
+        out += `${getIndent()}  spacing: ${spacing},\n`;
+        out += `${getIndent()}  runSpacing: ${spacing},\n`;
+        out += `${getIndent()}  children: [\n`;
+        indentLevel += 2;
+        node.children.forEach((c, idx) => {
+          out += walk(c, false);
+          if (idx < node.children.length - 1) out = out.trimEnd() + ",\n";
+        });
+        indentLevel -= 2;
+        out += `${getIndent()}  ],\n`;
+        out += `${getIndent()})\n`;
+      } else {
+        out += `${getIndent()}GridView.count(\n`;
+        out += `${getIndent()}  crossAxisCount: ${styles.gridCols},\n`;
+        out += `${getIndent()}  crossAxisSpacing: ${spacing},\n`;
+        out += `${getIndent()}  mainAxisSpacing: ${spacing},\n`;
+        out += `${getIndent()}  shrinkWrap: true,\n`;
+        out += `${getIndent()}  physics: NeverScrollableScrollPhysics(),\n`;
+        out += `${getIndent()}  children: [\n`;
+        indentLevel += 2;
+        node.children.forEach((c, idx) => {
+          out += walk(c, false);
+          if (idx < node.children.length - 1) out = out.trimEnd() + ",\n";
+        });
+        indentLevel -= 2;
+        out += `${getIndent()}  ],\n`;
+        out += `${getIndent()})\n`;
+      }
+      return wrapExpandedIfNeeded(node, out, getIndent());
     }
 
     // Stack container (Column / Row) in Flutter
-    const isCol = styles.flexDirection === "column";
+    let isCol = styles.flexDirection === "column";
+    if (parentIsFixedBottomRow && !isButton && !isImage && !lucide && !styles.isRawSvg && !isTextLeaf && !styles.isGrid) {
+      isCol = false; // Force horizontal layout inside fixed bottom row
+    }
     const widgetName = isCol ? "Column" : "Row";
     
     let containerWrap = false;
@@ -1991,48 +2537,138 @@ export function transpileToFlutter(root: TranspileNode): string {
       containerWrap = true;
     }
 
-    if (containerWrap || sizeAttrs) {
-      out += `${getIndent()}Container(\n`;
-      if (sizeAttrs) out += getIndent() + sizeAttrs;
-      if (paddingWrap) out += getIndent() + paddingWrap;
-      if (decoration) out += getIndent() + decoration;
-      out += `${getIndent()}  child: `;
-      indentLevel++;
-    }
-
     // Nested stack children
     const alignStr = isCol
       ? `crossAxisAlignment: CrossAxisAlignment.${styles.alignItems === "start" ? "start" : styles.alignItems === "end" ? "end" : styles.alignItems === "center" ? "center" : "stretch"}`
       : `crossAxisAlignment: CrossAxisAlignment.${styles.alignItems === "start" ? "start" : styles.alignItems === "end" ? "end" : "center"}`;
     
-    const justifyStr = `mainAxisAlignment: MainAxisAlignment.${styles.justifyContent === "center" ? "center" : styles.justifyContent === "end" ? "end" : styles.justifyContent === "between" ? "spaceBetween" : "start"}`;
+    let justifyVal = "start";
+    if (styles.justifyContent !== "start") {
+      justifyVal = styles.justifyContent === "center" ? "center" : styles.justifyContent === "end" ? "end" : styles.justifyContent === "between" ? "spaceBetween" : "spaceAround";
+    }
+    if (styles.isFixedBottom && !isCol && styles.justifyContent === "start") {
+      justifyVal = "spaceAround"; // Default bottom nav to spaceAround
+    }
+    const justifyStr = `mainAxisAlignment: MainAxisAlignment.${justifyVal}`;
 
-    out += `${getIndent().trim()}${widgetName}(\n`;
-    out += `${getIndent()}  ${alignStr},\n`;
-    out += `${getIndent()}  ${justifyStr},\n`;
-    out += `${getIndent()}  children: [\n`;
-    
-    indentLevel++;
-    node.children.forEach((c, idx) => {
-      out += walk(c);
-      if (idx < node.children.length - 1) {
-        out = out.trimEnd() + ",\n";
-        // Handle spacing between children (gap representation in Flutter)
-        if (styles.gap > 0 || styles.gapToken) {
-          const gapVal = styles.gapToken ? toFlutterThemeToken(styles.gapToken, "") : `${styles.gap}.0`;
-          const gapSize = isCol ? `height: ${gapVal}` : `width: ${gapVal}`;
-          out += `${getIndent()}SizedBox(${gapSize}),\n`;
+    const normalChildren = node.children.filter(c => typeof c === 'string' || !c.styles.isAbsolute);
+    const absoluteChildren = node.children.filter(c => typeof c !== 'string' && c.styles.isAbsolute) as TranspileNode[];
+    const hasAbsolute = absoluteChildren.length > 0;
+
+    const isCurrentFixedBottomRow = styles.isFixedBottom && !isCol;
+
+    let innerStackOut = "";
+    if (normalChildren.length > 0) {
+      innerStackOut += `${getIndent()}${widgetName}(\n`;
+      innerStackOut += `${getIndent()}  ${alignStr},\n`;
+      innerStackOut += `${getIndent()}  ${justifyStr},\n`;
+      innerStackOut += `${getIndent()}  children: [\n`;
+      
+      indentLevel++;
+      normalChildren.forEach((c, idx) => {
+        innerStackOut += walk(c, parentIsFixedBottomRow || isCurrentFixedBottomRow);
+        if (idx < normalChildren.length - 1) {
+          innerStackOut = innerStackOut.trimEnd() + ",\n";
+          if (styles.gap > 0 || styles.gapToken) {
+            const gapVal = styles.gapToken ? toFlutterThemeToken(styles.gapToken, "") : `${styles.gap}.0`;
+            const gapSize = isCol ? `height: ${gapVal}` : `width: ${gapVal}`;
+            innerStackOut += `${getIndent()}SizedBox(${gapSize}),\n`;
+          }
         }
-      }
-    });
-    indentLevel--;
-
-    out += `${getIndent()}  ],\n`;
-    out += `${getIndent()})\n`;
+      });
+      indentLevel--;
+      innerStackOut += `${getIndent()}  ],\n`;
+      innerStackOut += `${getIndent()})\n`;
+    }
 
     if (containerWrap || sizeAttrs) {
+      if (innerStackOut.trim() !== "") {
+        innerStackOut = `${getIndent()}Container(\n` +
+                        (sizeAttrs ? getIndent() + "  " + sizeAttrs.trim() + "\n" : "") +
+                        (paddingWrap ? getIndent() + "  " + paddingWrap.trim() + "\n" : "") +
+                        (decoration ? getIndent() + "  " + decoration.trim() + "\n" : "") +
+                        `${getIndent()}  child: ${innerStackOut.trim()},\n` +
+                        `${getIndent()})\n`;
+      } else {
+        innerStackOut = `${getIndent()}Container(\n` +
+                        (sizeAttrs ? getIndent() + "  " + sizeAttrs.trim() + "\n" : "") +
+                        (paddingWrap ? getIndent() + "  " + paddingWrap.trim() + "\n" : "") +
+                        (decoration ? getIndent() + "  " + decoration.trim() + "\n" : "") +
+                        `${getIndent()})\n`;
+      }
+    }
+
+    if (hasAbsolute) {
+      const bgAbsoluteChildren = absoluteChildren.filter(c => c.styles.isBackgroundAbsolute);
+      const fgAbsoluteChildren = absoluteChildren.filter(c => !c.styles.isBackgroundAbsolute);
+
+      out += `${getIndent()}Stack(\n`;
+      out += `${getIndent()}  children: [\n`;
+      indentLevel++;
+      
+      // 1. Paint background absolute children FIRST (bottom of Stack painting hierarchy)
+      bgAbsoluteChildren.forEach(c => {
+        out += walk(c, parentIsFixedBottomRow || isCurrentFixedBottomRow).trimEnd() + ",\n";
+      });
+
+      // 2. Paint normal children inside Stack
+      if (innerStackOut.trim() !== "") {
+        out += innerStackOut.trimEnd() + ",\n";
+      }
+
+      // 3. Paint foreground absolute children LAST (top of Stack painting hierarchy)
+      fgAbsoluteChildren.forEach(c => {
+        out += walk(c, parentIsFixedBottomRow || isCurrentFixedBottomRow).trimEnd() + ",\n";
+      });
+
       indentLevel--;
-      out = out.trimEnd() + ",\n" + `${getIndent()})\n`;
+      out += `${getIndent()}  ],\n`;
+      out += `${getIndent()})\n`;
+    } else {
+      out += innerStackOut;
+    }
+
+    if (typeof node !== "string") {
+      if (styles.opacity < 1) {
+        out = `${getIndent()}Opacity(\n` +
+              `${getIndent()}  opacity: ${styles.opacity},\n` +
+              `${getIndent()}  child: ${out.trim()},\n` +
+              `${getIndent()})\n`;
+      }
+      if (styles.isAbsolute) {
+        if (styles.isBackgroundAbsolute) {
+          out = `${getIndent()}Positioned.fill(\n` +
+                `${getIndent()}  child: ${out.trim()},\n` +
+                `${getIndent()})\n`;
+        } else if (styles.absolutePosition) {
+          const { top, right, bottom, left, topToken, rightToken, bottomToken, leftToken } = styles.absolutePosition;
+          let posAttrs = "";
+          if (top !== undefined || topToken) posAttrs += `top: ${topToken ? toFlutterThemeToken(topToken, "") : `${top}.0`}, `;
+          if (right !== undefined || rightToken) posAttrs += `right: ${rightToken ? toFlutterThemeToken(rightToken, "") : `${right}.0`}, `;
+          if (bottom !== undefined || bottomToken) posAttrs += `bottom: ${bottomToken ? toFlutterThemeToken(bottomToken, "") : `${bottom}.0`}, `;
+          if (left !== undefined || leftToken) posAttrs += `left: ${leftToken ? toFlutterThemeToken(leftToken, "") : `${left}.0`}, `;
+          
+          out = `${getIndent()}Positioned(\n` +
+                `${getIndent()}  ${posAttrs.trim()}\n` +
+                `${getIndent()}  child: ${out.trim()},\n` +
+                `${getIndent()})\n`;
+        } else {
+          out = `${getIndent()}Positioned.fill(\n` +
+                `${getIndent()}  child: ${out.trim()},\n` +
+                `${getIndent()})\n`;
+        }
+      }
+      if (styles.isFixedBottom) {
+        out = `${getIndent()}Align(\n` +
+              `${getIndent()}  alignment: Alignment.bottomCenter,\n` +
+              `${getIndent()}  child: ${out.trim()},\n` +
+              `${getIndent()})\n`;
+      }
+      if (styles.hasFlex1 && !styles.isAbsolute) {
+        out = `${getIndent()}Expanded(\n` +
+              `${getIndent()}  child: ${out.trim()},\n` +
+              `${getIndent()})\n`;
+      }
     }
 
     return out;

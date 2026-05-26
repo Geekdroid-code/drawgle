@@ -1,5 +1,4 @@
-HTML: 
-
+## HTML:
 <!DOCTYPE html>
 <html>
   <head>
@@ -9,34 +8,34 @@ HTML:
     <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link id="drawgle-google-font" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap">
+<link id="drawgle-google-font" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;500;600;700;800&amp;display=swap">
     <style>
 :root {
-  --dg-color-text-low-emphasis: #505050;
+  --dg-color-text-low-emphasis: #48484A;
   --dg-color-text-high-emphasis: #FFFFFF;
-  --dg-color-text-medium-emphasis: #A0A0A0;
-  --dg-color-action-primary: #FFFFFF;
-  --dg-color-action-disabled: #2C2C2C;
-  --dg-color-action-secondary: #1A1A1A;
+  --dg-color-text-medium-emphasis: #8E8E93;
+  --dg-color-action-primary: #32D74B;
+  --dg-color-action-disabled: #2C2C2E;
+  --dg-color-action-secondary: #FF453A;
   --dg-color-action-on-primary-text: #000000;
-  --dg-color-border-divider: #222222;
-  --dg-color-border-focused: #FFFFFF;
+  --dg-color-border-divider: rgba(255, 255, 255, 0.08);
+  --dg-color-border-focused: rgba(255, 255, 255, 0.20);
   --dg-color-surface-card: #121212;
-  --dg-color-surface-modal: #1C1C1C;
+  --dg-color-surface-modal: #1C1C1E;
   --dg-color-surface-bottom-sheet: #161616;
   --dg-color-background-primary: #000000;
-  --dg-color-background-secondary: #080808;
-  --dg-radii-app: 23px;
+  --dg-color-background-secondary: #0A0A0A;
+  --dg-radii-app: 22px;
   --dg-radii-pill: 9999px;
-  --dg-sizing-icon-small: 16px;
+  --dg-sizing-icon-small: 18px;
   --dg-sizing-icon-standard: 24px;
   --dg-sizing-min-touch-target: 48px;
   --dg-sizing-bottom-nav-height: 84px;
-  --dg-sizing-standard-input-height: 52px;
-  --dg-sizing-standard-button-height: 56px;
+  --dg-sizing-standard-input-height: 44px;
+  --dg-sizing-standard-button-height: 52px;
   --dg-shadows-none: none;
-  --dg-shadows-overlay: 0px 8px 32px rgba(0, 0, 0, 0.8);
-  --dg-shadows-surface: 0px 4px 20px rgba(0, 0, 0, 0.5);
+  --dg-shadows-overlay: 0 12px 32px rgba(0,0,0,0.8);
+  --dg-shadows-surface: 0 4px 12px rgba(0,0,0,0.5), inset 0 0.5px 0 rgba(255,255,255,0.1);
   --dg-spacing-none: 0px;
   --dg-spacing-lg: 24px;
   --dg-spacing-md: 16px;
@@ -56,37 +55,37 @@ HTML:
   --dg-opacities-disabled: 0.38;
   --dg-opacities-transparent: 0;
   --dg-opacities-scrim-overlay: 0.70;
-  --dg-typography-font-family: 'Inter', -apple-system, sans-serif;
-  --dg-type-nav-title-size: 18px;
+  --dg-typography-font-family: SF Pro Display, -apple-system, BlinkMacSystemFont, sans-serif;
+  --dg-type-nav-title-size: 17px;
   --dg-type-nav-title-weight: 600;
-  --dg-type-nav-title-line-height: 24px;
+  --dg-type-nav-title-line-height: 22px;
   --dg-type-screen-title-size: 34px;
   --dg-type-screen-title-weight: 700;
-  --dg-type-screen-title-line-height: 40px;
-  --dg-type-hero-title-size: 42px;
+  --dg-type-screen-title-line-height: 41px;
+  --dg-type-hero-title-size: 28px;
   --dg-type-hero-title-weight: 800;
-  --dg-type-hero-title-line-height: 48px;
-  --dg-type-section-title-size: 16px;
+  --dg-type-hero-title-line-height: 34px;
+  --dg-type-section-title-size: 13px;
   --dg-type-section-title-weight: 600;
-  --dg-type-section-title-line-height: 20px;
-  --dg-type-metric-value-size: 28px;
-  --dg-type-metric-value-weight: 600;
-  --dg-type-metric-value-line-height: 32px;
-  --dg-type-body-size: 15px;
+  --dg-type-section-title-line-height: 18px;
+  --dg-type-metric-value-size: 24px;
+  --dg-type-metric-value-weight: 700;
+  --dg-type-metric-value-line-height: 28px;
+  --dg-type-body-size: 16px;
   --dg-type-body-weight: 400;
-  --dg-type-body-line-height: 22px;
-  --dg-type-supporting-size: 13px;
+  --dg-type-body-line-height: 21px;
+  --dg-type-supporting-size: 14px;
   --dg-type-supporting-weight: 400;
   --dg-type-supporting-line-height: 18px;
-  --dg-type-caption-size: 11px;
+  --dg-type-caption-size: 12px;
   --dg-type-caption-weight: 500;
-  --dg-type-caption-line-height: 14px;
-  --dg-type-button-label-size: 14px;
+  --dg-type-caption-line-height: 16px;
+  --dg-type-button-label-size: 15px;
   --dg-type-button-label-weight: 600;
-  --dg-type-button-label-line-height: 16px;
+  --dg-type-button-label-line-height: 20px;
   --dg-border-widths-standard: 1px;
-  --dg-mobile-layout-element-gap: 8px;
-  --dg-mobile-layout-section-gap: 12px;
+  --dg-mobile-layout-element-gap: 12px;
+  --dg-mobile-layout-section-gap: 32px;
   --dg-mobile-layout-safe-area-top: 16px;
   --dg-mobile-layout-screen-margin: 20px;
   --dg-mobile-layout-safe-area-bottom: 16px;
@@ -200,208 +199,236 @@ HTML:
   </head>
   <body>
     <div id="drawgle-export-root">
-<div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden" style="font-family: 'Inter', -apple-system, sans-serif">
-  <!-- Header Section -->
-  <header class="flex items-center justify-between px-[var(--dg-mobile-layout-screen-margin)] pt-[56px] pb-[var(--dg-mobile-layout-section-gap)]">
-    <h1 class="dg-type-screen-title">Workouts</h1>
-    <div class="flex items-center gap-[var(--dg-mobile-layout-element-gap)]">
-      <button class="w-[44px] h-[44px] flex items-center justify-center dg-surface-card rounded-full border border-[var(--dg-color-border-divider)]">
-        <i data-lucide="sliders-horizontal" class="w-[20px] h-[20px]"></i>
-      </button>
-      <button class="w-[44px] h-[44px] flex items-center justify-center dg-surface-card rounded-full border border-[var(--dg-color-border-divider)]">
-        <i data-lucide="plus-square" class="w-[20px] h-[20px]"></i>
-      </button>
-    </div>
-  </header>
-
-  <!-- Main Content Scroll Area -->
-  <main class="flex-1 px-[var(--dg-mobile-layout-screen-margin)] flex flex-col gap-[var(--dg-mobile-layout-section-gap)] pb-[120px]">
-    
-    <!-- Top Grid: Workout # and Body Weight -->
-    <div class="grid grid-cols-2 gap-[var(--dg-mobile-layout-section-gap)]">
-      <!-- Workout Card -->
-      <div class="dg-surface-card rounded-[var(--dg-radii-app)] p-[var(--dg-spacing-md)] flex flex-col justify-between min-h-[160px]">
-        <div class="flex justify-between items-start">
-          <div class="relative w-[48px] h-[48px] flex items-center justify-center">
-            <svg class="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 48 48">
-              <circle cx="24" cy="24" r="22" fill="none" stroke="var(--dg-color-border-divider)" stroke-width="2"></circle>
-              <circle cx="24" cy="24" r="22" fill="none" stroke="white" stroke-width="2" stroke-dasharray="138" stroke-dashoffset="35" stroke-linecap="round"></circle>
-            </svg>
-            <span class="dg-type-section-title">1</span>
-          </div>
-          <i data-lucide="sliders-horizontal" class="w-[16px] h-[16px] dg-text-medium"></i>
-        </div>
-        <div>
-          <p class="dg-type-body font-semibold">Chest + Triceps</p>
-          <p class="dg-type-supporting dg-text-medium">Saturday</p>
-        </div>
-      </div>
-
-      <!-- Body Weight Card -->
-      <div class="dg-surface-card rounded-[var(--dg-radii-app)] p-[var(--dg-spacing-md)] flex flex-col justify-between min-h-[160px]">
-        <div class="flex justify-end">
-          <i data-lucide="sliders-horizontal" class="w-[16px] h-[16px] dg-text-medium"></i>
-        </div>
-        <div class="flex items-baseline gap-1">
-          <span class="dg-type-metric-value">200</span>
-          <span class="dg-type-supporting dg-text-medium">lbs</span>
-        </div>
-        <div>
-          <p class="dg-type-body font-semibold">Body Weight</p>
-          <p class="dg-type-supporting dg-text-medium">31 min ago</p>
-        </div>
-      </div>
+<div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden" style="font-family: SF Pro Display, -apple-system, BlinkMacSystemFont, sans-serif">
+    <!-- Background Immersive Layer -->
+    <div class="absolute inset-0 z-0">
+        <img src="https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/b8041495-1552-4079-9c20-80bd656e240f/display_1024.png" alt="Background" class="w-full h-full object-cover opacity-20 blur-2xl scale-110">
+        <div class="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black"></div>
     </div>
 
-    <!-- Activity Heatmap Card -->
-    <div class="dg-surface-card rounded-[var(--dg-radii-app)] p-[var(--dg-spacing-md)] flex flex-col gap-[var(--dg-spacing-xl)]">
-      <!-- Dot Matrix Heatmap -->
-      <div class="flex justify-between">
-        <!-- Jan -->
-        <div class="flex flex-col gap-2">
-          <span class="dg-type-caption dg-text-medium text-center">Jan</span>
-          <div class="grid grid-cols-4 gap-[6px]">
-            <div class="w-[6px] h-[6px] rounded-full bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full dg-text-low opacity-20 bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full dg-text-low opacity-20 bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full dg-text-low opacity-20 bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full bg-white"></div>
-          </div>
+    <!-- Top Navigation Bar -->
+    <header class="relative z-10 flex items-center justify-between px-[var(--dg-mobile-layout-screen-margin)] pt-[var(--dg-mobile-layout-safe-area-top)] h-[64px]">
+        <button class="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 backdrop-blur-md border border-white/10">
+            <i data-lucide="chevron-left" class="w-6 h-6"></i>
+        </button>
+        <div class="flex flex-col items-center">
+            <span class="text-[10px] uppercase tracking-widest text-[var(--dg-color-text-medium-emphasis)] font-bold">Tempo Decorrido</span>
+            <span class="text-[20px] font-mono font-bold tracking-tighter">00:00:01</span>
         </div>
-        <!-- Feb -->
-        <div class="flex flex-col gap-2">
-          <span class="dg-type-caption dg-text-medium text-center">Feb</span>
-          <div class="grid grid-cols-4 gap-[6px]">
-            <div class="w-[6px] h-[6px] rounded-full dg-text-low opacity-20 bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full dg-text-low opacity-20 bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full dg-text-low opacity-20 bg-white"></div>
-          </div>
-        </div>
-        <!-- Mar -->
-        <div class="flex flex-col gap-2">
-          <span class="dg-type-caption dg-text-medium text-center">Mar</span>
-          <div class="grid grid-cols-4 gap-[6px]">
-            <div class="w-[6px] h-[6px] rounded-full bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full dg-text-low opacity-20 bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full dg-text-low opacity-20 bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full dg-text-low opacity-20 bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full dg-text-low opacity-20 bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full dg-text-low opacity-20 bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full dg-text-low opacity-20 bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full dg-text-low opacity-20 bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full dg-text-low opacity-20 bg-white"></div>
-            <div class="w-[6px] h-[6px] rounded-full dg-text-low opacity-20 bg-white"></div>
-          </div>
-        </div>
-      </div>
+        <button class="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 backdrop-blur-md border border-white/10">
+            <i data-lucide="x" class="w-6 h-6"></i>
+        </button>
+    </header>
 
-      <!-- Recent Workout Row -->
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-[var(--dg-spacing-md)]">
-          <div class="w-[40px] h-[40px] rounded-full border border-[var(--dg-color-border-divider)] flex items-center justify-center">
-            <span class="dg-type-section-title">2</span>
-          </div>
-          <div>
-            <p class="dg-type-body font-semibold">Back + Biceps + Legs</p>
-            <p class="dg-type-supporting dg-text-medium">Monday</p>
-          </div>
+    <!-- Main Content Area -->
+    <main class="relative z-10 flex-1 flex flex-col items-center justify-center px-[var(--dg-mobile-layout-screen-margin)] py-[var(--dg-mobile-layout-section-gap)]">
+        <!-- Exercise Visual -->
+        <div class="w-full max-w-[280px] aspect-square relative flex items-center justify-center mb-8">
+            <!-- Red Exercise Icon/Illustration Placeholder -->
+            <div class="w-full h-full rounded-[var(--dg-radii-app)] bg-gradient-to-br from-[var(--dg-color-action-secondary)] to-[#C42B22] flex items-center justify-center shadow-2xl">
+                <img src="https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/b8041495-1552-4079-9c20-80bd656e240f/display_1024.png" alt="Exercise Illustration" class="w-4/5 h-4/5 object-contain drop-shadow-2xl">
+            </div>
         </div>
-        <i data-lucide="sliders-horizontal" class="w-[16px] h-[16px] dg-text-medium"></i>
-      </div>
-    </div>
 
-    <!-- Volume Card -->
-    <div class="dg-surface-card rounded-[var(--dg-radii-app)] p-[var(--dg-spacing-md)] flex items-center justify-between">
-      <div>
-        <p class="dg-type-body font-semibold">Volume lifted</p>
-        <p class="dg-type-supporting dg-text-medium">Last 7 days</p>
-      </div>
-      <div class="flex items-center gap-[var(--dg-spacing-md)]">
-        <div class="flex items-baseline gap-1">
-          <span class="dg-type-metric-value">3.200</span>
-          <span class="dg-type-supporting dg-text-medium">lbs</span>
+        <!-- Exercise Info -->
+        <div class="text-center space-y-2">
+            <h1 class="text-[32px] font-bold leading-tight tracking-tight">Alongamento Dinâmico</h1>
+            <p class="text-[var(--dg-color-text-medium-emphasis)] text-[18px]">Próximo: Agachamento Livre</p>
         </div>
-        <i data-lucide="sliders-horizontal" class="w-[16px] h-[16px] dg-text-medium"></i>
-      </div>
-    </div>
 
-    <!-- Secondary Feature Cards -->
-    <div class="grid grid-cols-2 gap-[var(--dg-mobile-layout-section-gap)]">
-      <div class="dg-surface-card relative overflow-hidden rounded-[var(--dg-radii-app)] p-[var(--dg-spacing-md)] flex flex-col gap-4 bg-gradient-to-br from-[var(--dg-color-surface-bottom-sheet)] to-[var(--dg-color-surface-card)] border border-[#1f1f1f]">
-  <div class="w-10 h-10 rounded-full bg-[var(--dg-color-action-secondary)] flex items-center justify-center border border-[#252525]">
-    <i data-lucide="target" class="w-[20px] h-[20px] text-white"></i>
+        <!-- YouTube Help Button -->
+        <button class="mt-8 flex items-center gap-2 px-6 py-3 rounded-full bg-white/5 border border-white/10 backdrop-blur-sm active:opacity-70 transition-opacity">
+            <i data-lucide="youtube" class="w-5 h-5 text-[#FF0000]"></i>
+            <span class="text-[14px] font-semibold">Ver execução</span>
+        </button>
+    </main>
+
+    <!-- Bottom Controls Section -->
+    <section class="relative z-10 px-[var(--dg-mobile-layout-screen-margin)] pb-[calc(var(--dg-mobile-layout-safe-area-bottom)+24px)] space-y-8">
+        
+        <!-- Spotify Integration Card -->
+        <div class="dg-surface-card rounded-[var(--dg-radii-app)] p-4 flex items-center gap-4 border border-white/5 shadow-[var(--dg-shadows-surface)]">
+            <div class="w-12 h-12 rounded-lg bg-zinc-800 overflow-hidden flex-shrink-0">
+                <div class="w-full h-full bg-gradient-to-tr from-green-900 to-zinc-700 flex items-center justify-center">
+                    <i data-lucide="music" class="w-6 h-6 text-white/40"></i>
+                </div>
+            </div>
+            <div class="flex-1 min-w-0">
+                <p class="text-[14px] font-bold truncate">Phonk Workout Mix 2024</p>
+                <p class="text-[12px] text-[var(--dg-color-text-medium-emphasis)] truncate">Spotify • Tocando agora</p>
+            </div>
+            <div class="flex items-center gap-4 px-2">
+                <i data-lucide="skip-back" class="w-5 h-5 text-white/60"></i>
+                <i data-lucide="pause" class="w-5 h-5 text-white"></i>
+                <i data-lucide="skip-forward" class="w-5 h-5 text-white/60"></i>
+            </div>
+        </div>
+
+        <!-- Multi-colored Segmented Progress Bar -->
+        <div class="space-y-3">
+            <div class="h-2 w-full flex gap-1 rounded-full overflow-hidden">
+                <div class="h-full w-[15%] bg-[var(--dg-color-action-secondary)]"></div>
+                <div class="h-full w-[20%] bg-[#FF9F0A]"></div>
+                <div class="h-full w-[25%] bg-[#FFD60A]"></div>
+                <div class="h-full w-[30%] bg-[var(--dg-color-action-primary)]"></div>
+                <div class="h-full w-[10%] bg-[#BF5AF2]"></div>
+            </div>
+            <div class="flex justify-between text-[12px] font-bold text-[var(--dg-color-text-medium-emphasis)] uppercase tracking-widest">
+                <span>Aquecimento</span>
+                <span>01:45 / 12:00</span>
+            </div>
+        </div>
+
+        <!-- Playback Controls -->
+        <div class="flex items-center justify-center gap-10">
+            <button class="w-14 h-14 flex items-center justify-center rounded-full bg-white/5 border border-white/10 active:scale-95 transition-transform">
+                <i data-lucide="skip-back" class="w-7 h-7"></i>
+            </button>
+            
+            <button class="w-20 h-20 flex items-center justify-center rounded-full bg-[var(--dg-color-action-primary)] text-black shadow-[0_0_30px_rgba(50,215,75,0.3)] active:scale-90 transition-transform">
+                <i data-lucide="pause" class="w-10 h-10 fill-current"></i>
+            </button>
+            
+            <button class="w-14 h-14 flex items-center justify-center rounded-full bg-white/5 border border-white/10 active:scale-95 transition-transform">
+                <i data-lucide="skip-forward" class="w-7 h-7"></i>
+            </button>
+        </div>
+    </section>
+</div>
+      <div id="drawgle-export-navigation"><nav data-drawgle-primary-nav class="dg-nav-shell" aria-label="Primary navigation">
+  <style>
+    [data-drawgle-primary-nav].dg-nav-shell {
+      position: fixed;
+      bottom: var(--dg-mobile-layout-safe-area-bottom, 16px);
+      left: 50%;
+      transform: translateX(-50%);
+      width: calc(100% - (var(--dg-mobile-layout-screen-margin, 20px) * 2));
+      max-width: 350px;
+      height: 72px;
+      background: rgba(18, 18, 18, 0.8);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border-radius: var(--dg-radii-pill, 9999px);
+      border: 1px solid var(--dg-color-border-divider, rgba(255, 255, 255, 0.08));
+      box-shadow: var(--dg-shadows-overlay);
+      padding: 6px;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      box-sizing: border-box;
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-shell-inner {
+      display: flex;
+      width: 100%;
+      height: 100%;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-item {
+      flex: 1;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      background: transparent;
+      border: none;
+      padding: 0;
+      margin: 0;
+      color: var(--dg-color-text-medium-emphasis, #8E8E93);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-icon {
+      width: var(--dg-sizing-icon-standard, 24px);
+      height: var(--dg-sizing-icon-standard, 24px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-icon svg {
+      width: 22px;
+      height: 22px;
+      stroke-width: 1.5px;
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-label {
+      font-size: var(--dg-type-caption-size, 11px);
+      font-weight: var(--dg-type-caption-weight, 500);
+      line-height: var(--dg-type-caption-line-height, 1);
+      letter-spacing: 0.02em;
+    }
+
+    /* Active State for Standard Tabs */
+    [data-drawgle-primary-nav] .dg-nav-item[]:not([data-nav-item-id="active-session"]) {
+      color: var(--dg-color-text-high-emphasis, #FFFFFF);
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-item[]:not([data-nav-item-id="active-session"])::after {
+      content: '';
+      position: absolute;
+      bottom: 4px;
+      width: 4px;
+      height: 4px;
+      background: var(--dg-color-action-primary, #32D74B);
+      border-radius: 50%;
+    }
+
+    /* Specialized Play Button Treatment */
+    [data-drawgle-primary-nav] .dg-nav-item[data-nav-item-id="active-session"] {
+      flex: 0 0 60px;
+      height: 60px;
+      background: var(--dg-color-action-primary, #32D74B);
+      color: var(--dg-color-action-on-primary-text, #000000);
+      border-radius: 50%;
+      margin-left: 4px;
+      box-shadow: 0 4px 12px rgba(50, 215, 75, 0.3);
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-item[data-nav-item-id="active-session"] .dg-nav-label {
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 10px;
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-item[data-nav-item-id="active-session"] .dg-nav-icon svg {
+      fill: currentColor;
+      stroke-width: 0;
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-item:active {
+      opacity: 0.7;
+      transform: scale(0.96);
+    }
+  </style>
+
+  <div class="dg-nav-shell-inner">
+    <button type="button" class="dg-nav-item" data-nav-item-id="home" aria-label="Home">
+      <span class="dg-nav-icon"><i data-lucide="home"></i></span>
+      <span class="dg-nav-label">Home</span>
+    </button>
+
+    <button type="button" class="dg-nav-item" data-nav-item-id="routine" aria-label="Rotina">
+      <span class="dg-nav-icon"><i data-lucide="calendar"></i></span>
+      <span class="dg-nav-label">Rotina</span>
+    </button>
+
+    <button type="button" class="dg-nav-item" data-nav-item-id="settings" aria-label="Ajustes">
+      <span class="dg-nav-icon"><i data-lucide="settings"></i></span>
+      <span class="dg-nav-label">Ajustes</span>
+    </button>
+
+    <button type="button" class="dg-nav-item" data-nav-item-id="active-session" aria-label="Play Workout">
+      <span class="dg-nav-icon"><i data-lucide="play"></i></span>
+      <span class="dg-nav-label">Play</span>
+    </button>
   </div>
-  <p class="dg-type-body font-semibold text-white">Weekly Goals</p>
-</div>
-      <div class="dg-surface-card rounded-[var(--dg-radii-app)] p-[var(--dg-spacing-md)] flex flex-col gap-2 border border-[var(--dg-color-border-subtle)] shadow-sm" style="border-color: var(--dg-color-action-disabled)">
-        <i data-lucide="activity" class="w-[24px] h-[24px] dg-text-medium"></i>
-        <p class="dg-type-body font-semibold">Recovery Score</p>
-      </div>
-      <div class="dg-surface-card rounded-[var(--dg-radii-app)] p-[var(--dg-spacing-md)] flex flex-col gap-2">
-        <i data-lucide="heart" class="w-[24px] h-[24px] dg-text-medium"></i>
-        <p class="dg-type-body font-semibold">Heart Rate</p>
-      </div>
-      <div class="dg-surface-card rounded-[var(--dg-radii-app)] p-[var(--dg-spacing-md)] flex flex-col gap-2">
-        <i data-lucide="book" class="w-[24px] h-[24px] dg-text-medium"></i>
-        <p class="dg-type-body font-semibold">Workout Log</p>
-      </div>
-    </div>
-
-    <!-- Square Action Button -->
-    <div class="w-[100px] h-[100px] dg-surface-card rounded-[var(--dg-radii-app)] flex items-center justify-center">
-      <div class="grid grid-cols-2 gap-[var(--dg-spacing-xxs)]">
-        <div class="w-[12px] h-[12px] border border-white rounded-[2px]"></div>
-        <div class="w-[12px] h-[12px] flex items-center justify-center text-[10px] font-bold">+</div>
-        <div class="w-[12px] h-[12px] border border-white rounded-[2px]"></div>
-        <div class="w-[12px] h-[12px] border border-white rounded-[2px]"></div>
-      </div>
-    </div>
-
-  </main>
-
-  <!-- Bottom Navigation -->
-  <nav class="fixed bottom-0 left-0 right-0 h-[var(--dg-sizing-bottom-nav-height)] dg-bg-primary border-t border-[var(--dg-color-border-divider)] px-[var(--dg-mobile-layout-screen-margin)] flex items-center justify-between z-50">
-    <div class="flex flex-col items-center gap-1">
-      <div class="w-[48px] h-[48px] flex items-center justify-center dg-text-high">
-        <i data-lucide="layout-grid" class="w-[24px] h-[24px]"></i>
-      </div>
-    </div>
-    <div class="flex flex-col items-center gap-1">
-      <div class="w-[48px] h-[48px] flex items-center justify-center dg-text-medium opacity-50">
-        <i data-lucide="calendar" class="w-[24px] h-[24px]"></i>
-      </div>
-    </div>
-    <div class="flex flex-col items-center gap-1">
-      <div class="w-[48px] h-[48px] flex items-center justify-center dg-text-medium opacity-50">
-        <i data-lucide="line-chart" class="w-[24px] h-[24px]"></i>
-      </div>
-    </div>
-    <div class="flex flex-col items-center gap-1">
-      <div class="w-[48px] h-[48px] flex items-center justify-center dg-text-medium opacity-50">
-        <i data-lucide="message-circle" class="w-[24px] h-[24px]"></i>
-      </div>
-    </div>
-  </nav>
-</div>
-      
+</nav></div>
     </div>
     <script>
       if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
@@ -415,609 +442,593 @@ HTML:
 </html>
 
 
-Swift UI:
+
+## flutter
 
 // ════════════════════════════════════════════════════════════
-// FILE 1: AppTheme.swift — Add to your project's theme directory
+// FILE 1: app_theme.dart — Add to your project's theme directory
 // ════════════════════════════════════════════════════════════
 
 //
-//  DesignTokens.swift
-//  Drawgle Auto-generated
+// app_theme.dart
+// Drawgle Auto-generated
 //
 
-import SwiftUI
+import 'package:flutter/material.dart';
 
-struct AppTheme {
-    static let backgroundPrimary = Color(hex: "#000000")
-    static let backgroundSecondary = Color(hex: "#080808")
-    static let surfaceCard = Color(hex: "#121212")
-    static let actionPrimary = Color(hex: "#FFFFFF")
-    static let actionOnPrimary = Color(hex: "#000000")
-    static let textHigh = Color(hex: "#FFFFFF")
-    static let textMedium = Color(hex: "#A0A0A0")
-    static let textLow = Color(hex: "#505050")
-    static let borderDivider = Color(hex: "#222222")
-    
-    static let borderRadiusApp: CGFloat = 23
-    static let borderRadiusPill: CGFloat = 9999.0
-    
-    static let screenPadding: CGFloat = 20
-    static let sectionGap: CGFloat = 12
-    static let elementGap: CGFloat = 8
-}
-
-extension Color {
-    init(hex: String) {
-        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var int: UInt64 = 0
-        Scanner(string: hex).scanHexInt64(&int)
-        let a, r, g, b: UInt64
-        switch hex.count {
-        case 3: // RGB (12-bit)
-            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
-        case 6: // RGB (24-bit)
-            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
-        case 8: // ARGB (32-bit)
-            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
-        default:
-            (a, r, g, b) = (255, 0, 0, 0)
-        }
-        self.init(
-            .sRGB,
-            red: Double(r) / 255,
-            green: Double(g) / 255,
-            blue:  Double(b) / 255,
-            opacity: Double(a) / 255
-        )
-    }
+class AppTheme {
+  static const Color backgroundPrimary = Color(0xFF000000);
+  static const Color backgroundSecondary = Color(0xFF0A0A0A);
+  static const Color surfaceCard = Color(0xFF121212);
+  static const Color actionPrimary = Color(0xFF32D74B);
+  static const Color actionOnPrimary = Color(0xFF000000);
+  static const Color textHigh = Color(0xFFFFFFFF);
+  static const Color textMedium = Color(0xFF8E8E93);
+  static const Color textLow = Color(0xFF48484A);
+  static const Color borderDivider = Color(0xFFFFFFFF);
+  
+  static const double borderRadiusApp = 22;
+  static const double borderRadiusPill = 9999.0;
+  
+  static const double screenPadding = 20;
+  static const double sectionGap = 32;
+  static const double elementGap = 12;
 }
 
 
 // ════════════════════════════════════════════════════════════
-// FILE 2: WorkoutsView.swift — Add to your screens directory
+// FILE 2: workoutplayer_screen.dart — Add to your screens directory
 // ════════════════════════════════════════════════════════════
 
 //
-//  WorkoutsView.swift
-//  Auto-generated by Drawgle
+// workoutplayer_screen.dart
+// Auto-generated by Drawgle
 //
 
-import SwiftUI
-// Import your project's AppTheme file here
-// import AppTheme
+import 'package:flutter/material.dart';
+// Import your project's AppTheme here
+// import 'package:your_app/theme/app_theme.dart';
 
 // 💡 PRODUCTION DESIGN SYSTEM INTEGRATION HINT:
 // Instead of copying the generated AppTheme class above, you can easily map the exported tokens
-// directly into your project's native theme catalog:
-// - AppTheme.backgroundPrimary ➔ Color("PrimaryBackground")
-// - AppTheme.surfaceCard       ➔ Color("CardBackground")
-// - AppTheme.actionPrimary     ➔ Color.accentColor
-// - AppTheme.textHigh          ➔ Color.primary
-// - AppTheme.borderRadiusApp   ➔ 32.0 (or your custom corner radius parameter)
+// directly to your existing Flutter ColorScheme / TextTheme design system:
+// - AppTheme.backgroundPrimary ➔ Theme.of(context).colorScheme.background
+// - AppTheme.surfaceCard       ➔ Theme.of(context).colorScheme.surface
+// - AppTheme.actionPrimary     ➔ Theme.of(context).colorScheme.primary
+// - AppTheme.textHigh          ➔ Theme.of(context).colorScheme.onBackground
+// - AppTheme.borderRadiusApp   ➔ 32.0 (or your custom double corner constant)
 
-struct WorkoutsView: View {
-    var body: some View {
-        ScrollView {
-    VStack() {
-        VStack() {
-            VStack() {
-                Text("Workouts")
-                    .font(.system(size: 24))
-                    .fontWeight(.semibold)
-                    .foregroundColor(Color(hex: "#111827"))
-                VStack(spacing: AppTheme.elementGap) {
-                    Button(action: {
-                        // Action here
-                    }) {
-                        HStack() {
-                            Image(systemName: "sliders.horizontal") // Lucide: sliders-horizontal
-                                .font(.system(size: 14))
-                                .foregroundColor(Color(hex: "#111827"))
-                        }
-                        .padding(.vertical, 12)
-                        .padding(.horizontal, 16)
-                        .background(AppTheme.surfaceCard)
-                        .cornerRadius(9999)
-                        .foregroundColor(Color(hex: "#111827"))
-                    }
-                    Button(action: {
-                        // Action here
-                    }) {
-                        HStack() {
-                            Image(systemName: "plus.square") // Lucide: plus-square
-                                .font(.system(size: 14))
-                                .foregroundColor(Color(hex: "#111827"))
-                        }
-                        .padding(.vertical, 12)
-                        .padding(.horizontal, 16)
-                        .background(AppTheme.surfaceCard)
-                        .cornerRadius(9999)
-                        .foregroundColor(Color(hex: "#111827"))
-                    }
-                }
-            }
-            .padding(.horizontal, AppTheme.screenPadding)
-            .padding(.top, 56)
-            .padding(.bottom, AppTheme.sectionGap)
-            VStack(spacing: AppTheme.sectionGap) {
-                VStack(spacing: AppTheme.sectionGap) {
-                    VStack() {
-                        VStack(alignment: .leading) {
-                            VStack() {
-                                Image(systemName: "star") // Lucide: star
-                                    .font(.system(size: 14))
-                                    .foregroundColor(Color(hex: "#111827"))
-                                Text("1")
-                                    .font(.system(size: 18))
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(Color(hex: "#111827"))
-                            }
-                            .frame(width: 48, height: 48)
-                            Image(systemName: "sliders.horizontal") // Lucide: sliders-horizontal
-                                .font(.system(size: 14))
-                                .foregroundColor(AppTheme.textMedium)
-                        }
-                        VStack() {
-                            Text("Chest + Triceps")
-                                .font(.system(size: 16))
-                                .fontWeight(.semibold)
-                                .foregroundColor(Color(hex: "#111827"))
-                            Text("Saturday")
-                                .font(.system(size: 14))
-                                .foregroundColor(AppTheme.textMedium)
-                        }
-                    }
-                    .padding(.top, 16)
-                    .padding(.bottom, 16)
-                    .padding(.leading, 16)
-                    .padding(.trailing, 16)
-                    .background(AppTheme.surfaceCard)
-                    .cornerRadius(AppTheme.borderRadiusApp)
-                    VStack() {
-                        VStack() {
-                            Image(systemName: "sliders.horizontal") // Lucide: sliders-horizontal
-                                .font(.system(size: 14))
-                                .foregroundColor(AppTheme.textMedium)
-                        }
-                        VStack(spacing: 4) {
-                            Text("200")
-                                .font(.system(size: 32))
-                                .fontWeight(.semibold)
-                                .foregroundColor(Color(hex: "#111827"))
-                            Text("lbs")
-                                .font(.system(size: 14))
-                                .foregroundColor(AppTheme.textMedium)
-                        }
-                        VStack() {
-                            Text("Body Weight")
-                                .font(.system(size: 16))
-                                .fontWeight(.semibold)
-                                .foregroundColor(Color(hex: "#111827"))
-                            Text("31 min ago")
-                                .font(.system(size: 14))
-                                .foregroundColor(AppTheme.textMedium)
-                        }
-                    }
-                    .padding(.top, 16)
-                    .padding(.bottom, 16)
-                    .padding(.leading, 16)
-                    .padding(.trailing, 16)
-                    .background(AppTheme.surfaceCard)
-                    .cornerRadius(AppTheme.borderRadiusApp)
-                }
-                VStack(spacing: 32) {
-                    VStack() {
-                        VStack(spacing: 8) {
-                            Text("Jan")
-                                .font(.system(size: 12))
-                                .fontWeight(.semibold)
-                                .foregroundColor(AppTheme.textMedium)
-                                .multilineTextAlignment(.center)
-                            VStack(spacing: 6) {
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                            }
-                        }
-                        VStack(spacing: 8) {
-                            Text("Feb")
-                                .font(.system(size: 12))
-                                .fontWeight(.semibold)
-                                .foregroundColor(AppTheme.textMedium)
-                                .multilineTextAlignment(.center)
-                            VStack(spacing: 6) {
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                            }
-                        }
-                        VStack(spacing: 8) {
-                            Text("Mar")
-                                .font(.system(size: 12))
-                                .fontWeight(.semibold)
-                                .foregroundColor(AppTheme.textMedium)
-                                .multilineTextAlignment(.center)
-                            VStack(spacing: 6) {
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                                VStack() {
-                                }
-                                .background(Color(hex: "#FFFFFF"))
-                                .cornerRadius(9999)
-                                .frame(width: 6, height: 6)
-                            }
-                        }
-                    }
-                    VStack() {
-                        VStack(spacing: 16) {
-                            VStack() {
-                                Text("2")
-                                    .font(.system(size: 18))
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(Color(hex: "#111827"))
-                            }
-                            .cornerRadius(9999)
-                            .frame(width: 40, height: 40)
-                            VStack() {
-                                Text("Back + Biceps + Legs")
-                                    .font(.system(size: 16))
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(Color(hex: "#111827"))
-                                Text("Monday")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(AppTheme.textMedium)
-                            }
-                        }
-                        Image(systemName: "sliders.horizontal") // Lucide: sliders-horizontal
-                            .font(.system(size: 14))
-                            .foregroundColor(AppTheme.textMedium)
-                    }
-                }
-                .padding(.top, 16)
-                .padding(.bottom, 16)
-                .padding(.leading, 16)
-                .padding(.trailing, 16)
-                .background(AppTheme.surfaceCard)
-                .cornerRadius(AppTheme.borderRadiusApp)
-                VStack() {
-                    VStack() {
-                        Text("Volume lifted")
-                            .font(.system(size: 16))
-                            .fontWeight(.semibold)
-                            .foregroundColor(Color(hex: "#111827"))
-                        Text("Last 7 days")
-                            .font(.system(size: 14))
-                            .foregroundColor(AppTheme.textMedium)
-                    }
-                    VStack(spacing: 16) {
-                        VStack(spacing: 4) {
-                            Text("3.200")
-                                .font(.system(size: 32))
-                                .fontWeight(.semibold)
-                                .foregroundColor(Color(hex: "#111827"))
-                            Text("lbs")
-                                .font(.system(size: 14))
-                                .foregroundColor(AppTheme.textMedium)
-                        }
-                        Image(systemName: "sliders.horizontal") // Lucide: sliders-horizontal
-                            .font(.system(size: 14))
-                            .foregroundColor(AppTheme.textMedium)
-                    }
-                }
-                .padding(.top, 16)
-                .padding(.bottom, 16)
-                .padding(.leading, 16)
-                .padding(.trailing, 16)
-                .background(AppTheme.surfaceCard)
-                .cornerRadius(AppTheme.borderRadiusApp)
-                VStack(spacing: AppTheme.sectionGap) {
-                    VStack(spacing: 16) {
-                        VStack() {
-                            Image(systemName: "target") // Lucide: target
-                                .font(.system(size: 14))
-                                .foregroundColor(Color(hex: "#FFFFFF"))
-                        }
-                        .background(Color(hex: "#1A1A1A"))
-                        .cornerRadius(9999)
-                        .frame(width: 40, height: 40)
-                        Text("Weekly Goals")
-                            .font(.system(size: 16))
-                            .fontWeight(.semibold)
-                            .foregroundColor(Color(hex: "#FFFFFF"))
-                    }
-                    .padding(.top, 16)
-                    .padding(.bottom, 16)
-                    .padding(.leading, 16)
-                    .padding(.trailing, 16)
-                    .background(AppTheme.surfaceCard)
-                    .cornerRadius(AppTheme.borderRadiusApp)
-                    VStack(spacing: 8) {
-                        Image(systemName: "activity") // Lucide: activity
-                            .font(.system(size: 14))
-                            .foregroundColor(AppTheme.textMedium)
-                        Text("Recovery Score")
-                            .font(.system(size: 16))
-                            .fontWeight(.semibold)
-                            .foregroundColor(Color(hex: "#111827"))
-                    }
-                    .padding(.top, 16)
-                    .padding(.bottom, 16)
-                    .padding(.leading, 16)
-                    .padding(.trailing, 16)
-                    .background(AppTheme.surfaceCard)
-                    .cornerRadius(AppTheme.borderRadiusApp)
-                    VStack(spacing: 8) {
-                        Image(systemName: "heart") // Lucide: heart
-                            .font(.system(size: 14))
-                            .foregroundColor(AppTheme.textMedium)
-                        Text("Heart Rate")
-                            .font(.system(size: 16))
-                            .fontWeight(.semibold)
-                            .foregroundColor(Color(hex: "#111827"))
-                    }
-                    .padding(.top, 16)
-                    .padding(.bottom, 16)
-                    .padding(.leading, 16)
-                    .padding(.trailing, 16)
-                    .background(AppTheme.surfaceCard)
-                    .cornerRadius(AppTheme.borderRadiusApp)
-                    VStack(spacing: 8) {
-                        Image(systemName: "book") // Lucide: book
-                            .font(.system(size: 14))
-                            .foregroundColor(AppTheme.textMedium)
-                        Text("Workout Log")
-                            .font(.system(size: 16))
-                            .fontWeight(.semibold)
-                            .foregroundColor(Color(hex: "#111827"))
-                    }
-                    .padding(.top, 16)
-                    .padding(.bottom, 16)
-                    .padding(.leading, 16)
-                    .padding(.trailing, 16)
-                    .background(AppTheme.surfaceCard)
-                    .cornerRadius(AppTheme.borderRadiusApp)
-                }
-                VStack() {
-                    VStack(spacing: 4) {
-                        VStack() {
-                        }
-                        .cornerRadius(2)
-                        .frame(width: 12, height: 12)
-                        VStack() {
-                            Text("+")
-                        }
-                        .frame(width: 12, height: 12)
-                        VStack() {
-                        }
-                        .cornerRadius(2)
-                        .frame(width: 12, height: 12)
-                        VStack() {
-                        }
-                        .cornerRadius(2)
-                        .frame(width: 12, height: 12)
-                    }
-                }
-                .background(AppTheme.surfaceCard)
-                .cornerRadius(AppTheme.borderRadiusApp)
-                .frame(width: 100, height: 100)
-            }
-            .padding(.horizontal, AppTheme.screenPadding)
-            .padding(.bottom, 120)
-            VStack() {
-                VStack(spacing: 4) {
-                    VStack() {
-                        Image(systemName: "layout.grid") // Lucide: layout-grid
-                            .font(.system(size: 14))
-                            .foregroundColor(Color(hex: "#111827"))
-                    }
-                    .frame(width: 48, height: 48)
-                }
-                VStack(spacing: 4) {
-                    VStack() {
-                        Image(systemName: "calendar") // Lucide: calendar
-                            .font(.system(size: 14))
-                            .foregroundColor(Color(hex: "#111827"))
-                    }
-                    .frame(width: 48, height: 48)
-                }
-                VStack(spacing: 4) {
-                    VStack() {
-                        Image(systemName: "line.chart") // Lucide: line-chart
-                            .font(.system(size: 14))
-                            .foregroundColor(Color(hex: "#111827"))
-                    }
-                    .frame(width: 48, height: 48)
-                }
-                VStack(spacing: 4) {
-                    VStack() {
-                        Image(systemName: "message.circle") // Lucide: message-circle
-                            .font(.system(size: 14))
-                            .foregroundColor(Color(hex: "#111827"))
-                    }
-                    .frame(width: 48, height: 48)
-                }
-            }
-            .padding(.horizontal, AppTheme.screenPadding)
-            .background(AppTheme.backgroundPrimary)
-            .frame(height: 84)
-        }
-        .background(AppTheme.backgroundPrimary)
-        .frame(maxWidth: .infinity)
-    }
-        }
-        .background(AppTheme.backgroundPrimary)
-        .edgesIgnoringSafeArea(.all)
-    }
-}
+class WorkoutPlayerScreen extends StatelessWidget {
+  const WorkoutPlayerScreen({Key? key}) : super(key: key);
 
-#Preview {
-    WorkoutsView()
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold( 
+      backgroundColor: AppTheme.backgroundPrimary,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            SingleChildScrollView(
+              child: Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    mainAxisAlignment: MainAxisAlignment.start,
+    children: [
+    Stack(
+      children: [
+      Positioned.fill(
+        child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisAlignment: MainAxisAlignment.start,
+        children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(0.0),
+          child: Image.network(
+            'https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/b8041495-1552-4079-9c20-80bd656e240f/display_1024.png',
+            fit: BoxFit.cover,
+          ),
+        )
+        ],
+      ),
+      ),
+    Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+      color: AppTheme.backgroundPrimary,
+    ),
+      child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisAlignment: MainAxisAlignment.start,
+      children: [
+      Container(
+        height: 64.0,
+        padding: EdgeInsets.only(left: AppTheme.screenPadding, top: 16.0, right: AppTheme.screenPadding, bottom: 0.0),
+        child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+        ElevatedButton(
+          onPressed: () {},
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Color(0xFFFFFFFF),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(9999.0),
+            ),
+            padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.chevron_left, size: 14.0, color: Color(0xFF111827))
+            ],
+          ),
+        ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+          Text(
+            'Tempo Decorrido',
+            style: TextStyle(
+              fontSize: 14.0,
+              color: AppTheme.textMedium,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          Text(
+            '00:00:01',
+            style: TextStyle(
+              fontSize: 14.0,
+              color: Color(0xFF111827),
+              fontWeight: FontWeight.bold,
+            ),
+          )
+          ],
+        ),
+        ElevatedButton(
+          onPressed: () {},
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Color(0xFFFFFFFF),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(9999.0),
+            ),
+            padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.x, size: 14.0, color: Color(0xFF111827))
+            ],
+          ),
+        )
+        ],
+      ),
+      ),
+      Expanded(
+        child: Container(
+        width: double.infinity,
+        padding: EdgeInsets.only(left: AppTheme.screenPadding, top: AppTheme.sectionGap, right: AppTheme.screenPadding, bottom: AppTheme.sectionGap),
+        child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+        Container(
+          width: double.infinity,
+          child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+          Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xFFFF453A), Color(0xFFC42B22)],
+      ),
+      borderRadius: BorderRadius.circular(AppTheme.borderRadiusApp),
+    ),
+            child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(0.0),
+              child: Image.network(
+                'https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/b8041495-1552-4079-9c20-80bd656e240f/display_1024.png',
+                fit: BoxFit.cover,
+              ),
+            )
+            ],
+          ),
+          )
+          ],
+        ),
+        ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+          Text(
+            'Alongamento Dinâmico',
+            style: TextStyle(
+              fontSize: 14.0,
+              color: Color(0xFF111827),
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          Text(
+            'Próximo: Agachamento Livre',
+            style: TextStyle(
+              fontSize: 14.0,
+              color: AppTheme.textMedium,
+            ),
+          )
+          ],
+        ),
+        ElevatedButton(
+          onPressed: () {},
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Color(0xFFFFFFFF),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(9999.0),
+            ),
+            padding: EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.youtube, size: 14.0, color: Color(0xFFFF0000)),
+              SizedBox(width: 8.0),
+              Text(
+                'Ver execução',
+                style: TextStyle(
+                  fontSize: 14.0,
+                  color: Color(0xFF111827),
+                  fontWeight: FontWeight.bold,
+                ),
+              )
+            ],
+          ),
+        )
+        ],
+      ),
+      ),
+      ),
+      Container(
+        padding: EdgeInsets.only(left: AppTheme.screenPadding, top: 0.0, right: AppTheme.screenPadding, bottom: 40.0),
+        child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisAlignment: MainAxisAlignment.start,
+        children: [
+        Container(
+          padding: EdgeInsets.only(left: 16.0, top: 16.0, right: 16.0, bottom: 16.0),
+          decoration: BoxDecoration(
+      color: AppTheme.surfaceCard,
+      borderRadius: BorderRadius.circular(AppTheme.borderRadiusApp),
+      border: Border.all(color: Color(0xFFFFFFFF), width: 1.0),
+    ),
+          child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+          Container(
+            width: 48.0,
+    height: 48.0,
+            decoration: BoxDecoration(
+      color: Color(0xFF27272A),
+      borderRadius: BorderRadius.circular(12.0),
+    ),
+            child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: [
+            Container(
+              width: double.infinity,
+              child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+              Icon(Icons.music, size: 14.0, color: Color(0xFF111827))
+              ],
+            ),
+            )
+            ],
+          ),
+          ),
+          SizedBox(width: 16.0),
+          Expanded(
+            child: Container(
+            width: double.infinity,
+            child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: [
+            Text(
+              'Phonk Workout Mix 2024',
+              style: TextStyle(
+                fontSize: 14.0,
+                color: Color(0xFF111827),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              'Spotify • Tocando agora',
+              style: TextStyle(
+                fontSize: 14.0,
+                color: AppTheme.textMedium,
+              ),
+            )
+            ],
+          ),
+          ),
+          ),
+          SizedBox(width: 16.0),
+          Container(
+            padding: EdgeInsets.only(left: 8.0, top: 0.0, right: 8.0, bottom: 0.0),
+            child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: [
+            Icon(Icons.skip_back, size: 14.0, color: Color(0xFF111827)),
+            SizedBox(width: 16.0),
+            Icon(Icons.pause, size: 14.0, color: Color(0xFFFFFFFF)),
+            SizedBox(width: 16.0),
+            Icon(Icons.skip_forward, size: 14.0, color: Color(0xFF111827))
+            ],
+          ),
+          )
+          ],
+        ),
+        ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+          Container(
+            width: double.infinity,
+    height: 8.0,
+            decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(9999.0),
+    ),
+            child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: [
+            Container(
+              decoration: BoxDecoration(
+      color: Color(0xFFFF453A),
+    ),
+            ),
+            SizedBox(width: 4.0),
+            Container(
+              decoration: BoxDecoration(
+      color: Color(0xFFFF9F0A),
+    ),
+            ),
+            SizedBox(width: 4.0),
+            Container(
+              decoration: BoxDecoration(
+      color: Color(0xFFFFD60A),
+    ),
+            ),
+            SizedBox(width: 4.0),
+            Container(
+              decoration: BoxDecoration(
+      color: AppTheme.actionPrimary,
+    ),
+            ),
+            SizedBox(width: 4.0),
+            Container(
+              decoration: BoxDecoration(
+      color: Color(0xFFBF5AF2),
+    ),
+            )
+            ],
+          ),
+          ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+            Text(
+              'Aquecimento',
+              style: TextStyle(
+                fontSize: 14.0,
+                color: Color(0xFF111827),
+              ),
+            ),
+            Text(
+              '01:45 / 12:00',
+              style: TextStyle(
+                fontSize: 14.0,
+                color: Color(0xFF111827),
+              ),
+            )
+            ],
+          )
+          ],
+        ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+          ElevatedButton(
+            onPressed: () {},
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Color(0xFFFFFFFF),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(9999.0),
+              ),
+              padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.skip_back, size: 14.0, color: Color(0xFF111827))
+              ],
+            ),
+          ),
+          SizedBox(width: 40.0),
+          ElevatedButton(
+            onPressed: () {},
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.actionPrimary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(9999.0),
+              ),
+              padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.pause, size: 14.0, color: Color(0xFF111827))
+              ],
+            ),
+          ),
+          SizedBox(width: 40.0),
+          ElevatedButton(
+            onPressed: () {},
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Color(0xFFFFFFFF),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(9999.0),
+              ),
+              padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.skip_forward, size: 14.0, color: Color(0xFF111827))
+              ],
+            ),
+          )
+          ],
+        )
+        ],
+      ),
+      )
+      ],
+    ),
+    ),
+      ],
+    ),
+    ],
+  ),
+            ),
+  Align(
+    alignment: Alignment.bottomCenter,
+    child: Row(
+    crossAxisAlignment: CrossAxisAlignment.center,
+    mainAxisAlignment: MainAxisAlignment.start,
+    children: [
+    Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisAlignment: MainAxisAlignment.start,
+      children: [
+      ElevatedButton(
+        onPressed: () {},
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Color(0xFFFFFFFF),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12.0),
+          ),
+          padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.home, size: 14.0, color: Color(0xFF111827)),
+            SizedBox(width: 8.0),
+            Text(
+              'Home',
+              style: TextStyle(
+                fontSize: 14.0,
+                color: Color(0xFF111827),
+              ),
+            )
+          ],
+        ),
+      ),
+      ElevatedButton(
+        onPressed: () {},
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Color(0xFFFFFFFF),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12.0),
+          ),
+          padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.calendar, size: 14.0, color: Color(0xFF111827)),
+            SizedBox(width: 8.0),
+            Text(
+              'Rotina',
+              style: TextStyle(
+                fontSize: 14.0,
+                color: Color(0xFF111827),
+              ),
+            )
+          ],
+        ),
+      ),
+      ElevatedButton(
+        onPressed: () {},
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Color(0xFFFFFFFF),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12.0),
+          ),
+          padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.settings, size: 14.0, color: Color(0xFF111827)),
+            SizedBox(width: 8.0),
+            Text(
+              'Ajustes',
+              style: TextStyle(
+                fontSize: 14.0,
+                color: Color(0xFF111827),
+              ),
+            )
+          ],
+        ),
+      ),
+      ElevatedButton(
+        onPressed: () {},
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Color(0xFFFFFFFF),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12.0),
+          ),
+          padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.play, size: 14.0, color: Color(0xFF111827)),
+            SizedBox(width: 8.0),
+            Text(
+              'Play',
+              style: TextStyle(
+                fontSize: 14.0,
+                color: Color(0xFF111827),
+              ),
+            )
+          ],
+        ),
+      )
+      ],
+    )
+    ],
+  ),
+  )
+          ],
+        ),
+      ),
+    );
+  }
 }
