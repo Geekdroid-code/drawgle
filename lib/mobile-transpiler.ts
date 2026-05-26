@@ -31,6 +31,28 @@ export interface ParsedStyles {
 
   shadow: string | null; // e.g. "surface", "overlay", or null
 
+  // Grid layout
+  isGrid: boolean;
+  gridCols: number;
+
+  // Fixed positioning
+  isFixedBottom: boolean;
+
+  // Opacity
+  opacity: number;
+
+  // Min dimensions
+  minHeight: string | number;
+
+  // Gradient
+  gradient: { direction: string; fromColor: string; toColor: string } | null;
+
+  // Raw SVG flag (no icon mapping available)
+  isRawSvg: boolean;
+
+  // Flex-1 (fill available space)
+  hasFlex1: boolean;
+
   // Dynamic theme token mapping fields
   backgroundColorToken?: string;
   textColorToken?: string;
@@ -242,6 +264,27 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>): 
   let textAlign: "left" | "center" | "right" = "left";
 
   let shadow: string | null = null;
+
+  // Grid layout
+  let isGrid = false;
+  let gridCols = 0;
+
+  // Fixed positioning tracking
+  let isFixedBottom = false;
+  let _hasFixedClass = false;
+  let _hasBottom0 = false;
+
+  // Opacity
+  let opacity = 1;
+
+  // Min dimensions
+  let minHeight: string | number = "auto";
+
+  // Gradient
+  let gradient: { direction: string; fromColor: string; toColor: string } | null = null;
+
+  // Flex-1
+  let hasFlex1 = false;
 
   // Dynamic theme token mapping variables
   let backgroundColorToken: string | undefined;
@@ -603,7 +646,61 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>): 
       else if (typeName === "caption") { fontSize = 12; fontWeight = "semibold"; }
       else if (typeName === "button_label") { fontSize = 15; fontWeight = "bold"; }
     }
+
+    // Grid layout detection
+    if (c === "grid") isGrid = true;
+    const gridColsMatch = c.match(/^grid-cols-(\d+)$/);
+    if (gridColsMatch) { isGrid = true; gridCols = parseInt(gridColsMatch[1]); }
+    const arbGridCols = c.match(/^grid-cols-\[(\d+)\]$/);
+    if (arbGridCols) { isGrid = true; gridCols = parseInt(arbGridCols[1]); }
+
+    // Fixed positioning detection
+    if (c === "fixed") _hasFixedClass = true;
+    if (c === "bottom-0") _hasBottom0 = true;
+
+    // Opacity (e.g. opacity-20 → 0.2, opacity-50 → 0.5)
+    const opacityMatch = c.match(/^opacity-(\d+)$/);
+    if (opacityMatch) opacity = parseInt(opacityMatch[1]) / 100;
+
+    // Min-height (e.g. min-h-[160px])
+    const minHMatch = c.match(/^min-h-\[(.+)\]$/);
+    if (minHMatch) {
+      const val = minHMatch[1];
+      if (val.endsWith('%')) { minHeight = val; }
+      else { minHeight = resolveArbitraryValue(val, varMap); }
+    }
+
+    // Gradient (bg-gradient-to-br, from-[color], to-[color])
+    const gradDirMatch = c.match(/^bg-gradient-to-(t|tr|r|br|b|bl|l|tl)$/);
+    if (gradDirMatch) {
+      if (!gradient) gradient = { direction: '', fromColor: '', toColor: '' };
+      gradient.direction = gradDirMatch[1];
+    }
+    const fromColorMatch = c.match(/^from-\[(.+)\]$/);
+    if (fromColorMatch) {
+      if (!gradient) gradient = { direction: 'b', fromColor: '', toColor: '' };
+      gradient.fromColor = resolveArbitraryColor(fromColorMatch[1], varMap);
+    }
+    const toColorMatch = c.match(/^to-\[(.+)\]$/);
+    if (toColorMatch) {
+      if (!gradient) gradient = { direction: 'b', fromColor: '', toColor: '' };
+      gradient.toColor = resolveArbitraryColor(toColorMatch[1], varMap);
+    }
+
+    // items-baseline → closest native equivalent is start/top alignment
+    if (c === "items-baseline") alignItems = "start";
+
+    // flex-1 (fill available space in flex parent)
+    if (c === "flex-1") hasFlex1 = true;
   });
+
+  // Post-loop: CSS/Tailwind default — display:flex without flex-col = row direction
+  if (isFlex && !classes.includes('flex-col')) {
+    flexDirection = "row";
+  }
+
+  // Post-loop: Merge fixed position flags
+  isFixedBottom = _hasFixedClass && _hasBottom0;
 
   // Parse inline style declarations as overriding attributes
   const inlineStyle = element.getAttribute("style");
@@ -658,6 +755,14 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>): 
     fontWeight,
     textAlign,
     shadow,
+    isGrid,
+    gridCols,
+    isFixedBottom,
+    opacity,
+    minHeight,
+    gradient,
+    isRawSvg: false, // Set externally in buildTranspileTree for SVG nodes
+    hasFlex1,
     backgroundColorToken,
     textColorToken,
     borderColorToken,
@@ -724,14 +829,25 @@ export function buildTranspileTree(element: Element, varMap: Map<string, string>
 
   // If it's an SVG, treat it as a leaf icon node to prevent nested layout garbage
   if (tagName === "svg") {
-    const iconName = getIconNameFromSvg(htmlElement);
     const attributes: Record<string, string> = {};
     Array.from(htmlElement.attributes).forEach(attr => {
       attributes[attr.name] = attr.value;
     });
-    attributes["data-lucide"] = iconName;
+
+    // Only keep icon name if there's a real data-lucide/data-drawgle-icon attribute
+    const existingIcon = htmlElement.getAttribute("data-lucide") || htmlElement.getAttribute("data-drawgle-icon");
+    if (existingIcon) {
+      attributes["data-lucide"] = existingIcon;
+    }
+    // If no icon attribute exists, this is a raw/inline SVG — don't hallucinate an icon
 
     const styles = parseStyles(htmlElement, varMap);
+
+    // Mark raw SVGs (those without icon mappings) so transpilers emit placeholders
+    if (!existingIcon) {
+      styles.isRawSvg = true;
+    }
+
     return {
       tagName: "svg",
       classes: Array.from(htmlElement.classList),
@@ -806,6 +922,86 @@ export function parseScreenHtml(htmlString: string, designTokens?: DesignTokens 
   });
 
   return buildTranspileTree(root, varMap);
+}
+
+// ---------------------------------------------------------------------------
+// FIXED-BOTTOM NODE EXTRACTION
+// ---------------------------------------------------------------------------
+// Pre-processes the AST to separate fixed-bottom nodes (e.g., bottom navigation)
+// from the main scrollable content tree. Returns the cleaned main tree and
+// an array of extracted fixed-bottom nodes.
+
+export function extractFixedBottomNodes(root: TranspileNode): {
+  mainTree: TranspileNode;
+  fixedBottomNodes: TranspileNode[];
+} {
+  const fixedBottomNodes: TranspileNode[] = [];
+
+  function filterChildren(node: TranspileNode): TranspileNode {
+    const filteredChildren: (TranspileNode | string)[] = [];
+    for (const child of node.children) {
+      if (typeof child === 'string') {
+        filteredChildren.push(child);
+        continue;
+      }
+      if (child.styles.isFixedBottom) {
+        fixedBottomNodes.push(child);
+        continue; // Remove from main tree
+      }
+      // Recursively filter children
+      filteredChildren.push(filterChildren(child));
+    }
+    return { ...node, children: filteredChildren };
+  }
+
+  const mainTree = filterChildren(root);
+  return { mainTree, fixedBottomNodes };
+}
+
+// ---------------------------------------------------------------------------
+// GRADIENT DIRECTION MAPPING HELPERS
+// ---------------------------------------------------------------------------
+
+function gradientDirectionToSwift(direction: string): { start: string; end: string } {
+  const map: Record<string, { start: string; end: string }> = {
+    'r':  { start: '.leading', end: '.trailing' },
+    'l':  { start: '.trailing', end: '.leading' },
+    'b':  { start: '.top', end: '.bottom' },
+    't':  { start: '.bottom', end: '.top' },
+    'br': { start: '.topLeading', end: '.bottomTrailing' },
+    'bl': { start: '.topTrailing', end: '.bottomLeading' },
+    'tr': { start: '.bottomLeading', end: '.topTrailing' },
+    'tl': { start: '.bottomTrailing', end: '.topLeading' },
+  };
+  return map[direction] || { start: '.topLeading', end: '.bottomTrailing' };
+}
+
+function gradientDirectionToCompose(direction: string): { start: string; end: string } {
+  const map: Record<string, { start: string; end: string }> = {
+    'r':  { start: 'Offset(0f, 0.5f)', end: 'Offset(1f, 0.5f)' },
+    'l':  { start: 'Offset(1f, 0.5f)', end: 'Offset(0f, 0.5f)' },
+    'b':  { start: 'Offset(0.5f, 0f)', end: 'Offset(0.5f, 1f)' },
+    't':  { start: 'Offset(0.5f, 1f)', end: 'Offset(0.5f, 0f)' },
+    'br': { start: 'Offset(0f, 0f)', end: 'Offset(1f, 1f)' },
+    'bl': { start: 'Offset(1f, 0f)', end: 'Offset(0f, 1f)' },
+    'tr': { start: 'Offset(0f, 1f)', end: 'Offset(1f, 0f)' },
+    'tl': { start: 'Offset(1f, 1f)', end: 'Offset(0f, 0f)' },
+  };
+  return map[direction] || { start: 'Offset(0f, 0f)', end: 'Offset(1f, 1f)' };
+}
+
+function gradientDirectionToFlutter(direction: string): { begin: string; end: string } {
+  const map: Record<string, { begin: string; end: string }> = {
+    'r':  { begin: 'Alignment.centerLeft', end: 'Alignment.centerRight' },
+    'l':  { begin: 'Alignment.centerRight', end: 'Alignment.centerLeft' },
+    'b':  { begin: 'Alignment.topCenter', end: 'Alignment.bottomCenter' },
+    't':  { begin: 'Alignment.bottomCenter', end: 'Alignment.topCenter' },
+    'br': { begin: 'Alignment.topLeft', end: 'Alignment.bottomRight' },
+    'bl': { begin: 'Alignment.topRight', end: 'Alignment.bottomLeft' },
+    'tr': { begin: 'Alignment.bottomLeft', end: 'Alignment.topRight' },
+    'tl': { begin: 'Alignment.bottomRight', end: 'Alignment.topLeft' },
+  };
+  return map[direction] || { begin: 'Alignment.topLeft', end: 'Alignment.bottomRight' };
 }
 
 // ---------------------------------------------------------------------------
@@ -911,6 +1107,14 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       return out;
     }
 
+    // Raw SVG placeholder — don't hallucinate SF Symbols for inline SVGs
+    if (styles.isRawSvg) {
+      const svgW = typeof styles.width === 'number' ? styles.width : 48;
+      const svgH = typeof styles.height === 'number' ? styles.height : 48;
+      out += `${getIndent()}Color.clear.frame(width: ${svgW}, height: ${svgH}) // TODO: Add custom SVG/Asset here\n`;
+      return out;
+    }
+
     if (isImage) {
       const src = node.attributes["src"] || "https://images.unsplash.com/photo-1579546929518-9e396f3cc809";
       out += `${getIndent()}AsyncImage(url: URL(string: "${src}")) { image in\n`;
@@ -1010,6 +1214,31 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       return out;
     }
 
+    // Grid Layout → LazyVGrid
+    if (styles.isGrid && styles.gridCols > 0) {
+      const spacing = styles.gapToken ? toSwiftThemeToken(styles.gapToken, '') : String(styles.gap);
+      out += `${getIndent()}LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: ${spacing}), count: ${styles.gridCols}), spacing: ${spacing}) {\n`;
+      indentLevel++;
+      node.children.forEach(c => { out += walk(c); });
+      indentLevel--;
+      out += `${getIndent()}}\n`;
+      // Grid modifiers
+      if (styles.gradient && styles.gradient.fromColor && styles.gradient.toColor) {
+        const { start, end } = gradientDirectionToSwift(styles.gradient.direction);
+        out += `${getIndent()}.background(LinearGradient(gradient: Gradient(colors: [Color(hex: "${styles.gradient.fromColor}"), Color(hex: "${styles.gradient.toColor}")]), startPoint: ${start}, endPoint: ${end}))\n`;
+      } else if (styles.backgroundColorToken) {
+        out += `${getIndent()}.background(${toSwiftThemeToken(styles.backgroundColorToken, '')})\n`;
+      } else if (styles.backgroundColor !== 'transparent') {
+        out += `${getIndent()}.background(Color(hex: "${styles.backgroundColor}"))\n`;
+      }
+      if (styles.borderRadiusToken) {
+        out += `${getIndent()}.cornerRadius(${toSwiftThemeToken(styles.borderRadiusToken, '')})\n`;
+      } else if (styles.borderRadius > 0) {
+        out += `${getIndent()}.cornerRadius(${styles.borderRadius})\n`;
+      }
+      return out;
+    }
+
     // Standard Stack Container
     const isCol = styles.flexDirection === "column";
     const stackName = isCol ? "VStack" : "HStack";
@@ -1024,8 +1253,12 @@ export function transpileToSwiftUI(root: TranspileNode): string {
     out += `${getIndent()}${stackName}(${combo}) {\n`;
     indentLevel++;
     
-    node.children.forEach(c => {
+    // Spacer injection for justify-between (Bug 2 fix)
+    node.children.forEach((c, idx) => {
       out += walk(c);
+      if (styles.justifyContent === "between" && idx < node.children.length - 1) {
+        out += `${getIndent()}Spacer()\n`;
+      }
     });
     
     indentLevel--;
@@ -1048,7 +1281,11 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       if (styles.padding.right > 0 || styles.paddingRightToken) out += `${getIndent()}.padding(.trailing, ${pr})\n`;
     }
 
-    if (styles.backgroundColorToken) {
+    // Background — with gradient support (Bug 6 fix)
+    if (styles.gradient && styles.gradient.fromColor && styles.gradient.toColor) {
+      const { start, end } = gradientDirectionToSwift(styles.gradient.direction);
+      out += `${getIndent()}.background(LinearGradient(gradient: Gradient(colors: [Color(hex: "${styles.gradient.fromColor}"), Color(hex: "${styles.gradient.toColor}")]), startPoint: ${start}, endPoint: ${end}))\n`;
+    } else if (styles.backgroundColorToken) {
       out += `${getIndent()}.background(${toSwiftThemeToken(styles.backgroundColorToken, "")})\n`;
     } else if (styles.backgroundColor !== "transparent") {
       out += `${getIndent()}.background(Color(hex: "${styles.backgroundColor}"))\n`;
@@ -1058,15 +1295,31 @@ export function transpileToSwiftUI(root: TranspileNode): string {
     } else if (styles.borderRadius > 0) {
       out += `${getIndent()}.cornerRadius(${styles.borderRadius})\n`;
     }
+
+    // Border overlay
+    if (styles.borderWidth > 0 && styles.borderColor !== 'transparent') {
+      const borderCol = styles.borderColorToken ? toSwiftThemeToken(styles.borderColorToken, '') : `Color(hex: "${styles.borderColor}")`;
+      if (styles.borderRadiusToken || styles.borderRadius > 0) {
+        const radius = styles.borderRadiusToken ? toSwiftThemeToken(styles.borderRadiusToken, '') : String(styles.borderRadius);
+        out += `${getIndent()}.overlay(RoundedRectangle(cornerRadius: ${radius}).stroke(${borderCol}, lineWidth: ${styles.borderWidth}))\n`;
+      }
+    }
+
+    // Opacity
+    if (styles.opacity < 1) {
+      out += `${getIndent()}.opacity(${styles.opacity})\n`;
+    }
     
-    // Frame
+    // Frame — with min-height and flex-1 support
     const w = styles.width;
     const h = styles.height;
-    if (w === "100%" || typeof w === "number" || typeof h === "number") {
-      const wStr = w === "100%" ? "maxWidth: .infinity" : typeof w === "number" ? `width: ${w}` : "";
-      const hStr = typeof h === "number" ? `height: ${h}` : "";
-      const comma = wStr && hStr ? ", " : "";
-      out += `${getIndent()}.frame(${wStr}${comma}${hStr})\n`;
+    const frameParts: string[] = [];
+    if (w === "100%" || styles.hasFlex1) frameParts.push("maxWidth: .infinity");
+    else if (typeof w === "number") frameParts.push(`width: ${w}`);
+    if (typeof h === "number") frameParts.push(`height: ${h}`);
+    if (typeof styles.minHeight === "number" && styles.minHeight > 0) frameParts.push(`minHeight: ${styles.minHeight}`);
+    if (frameParts.length > 0) {
+      out += `${getIndent()}.frame(${frameParts.join(", ")})\n`;
     }
 
     return out;
@@ -1111,6 +1364,13 @@ export function transpileToCompose(root: TranspileNode): string {
       out += `${getIndent()}    tint = ${tintColor},\n`;
       out += `${getIndent()}    modifier = Modifier.size(${styles.fontSize || 24}.dp)\n`;
       out += `${getIndent()})\n`;
+      return out;
+    }
+
+    // Raw SVG placeholder
+    if (styles.isRawSvg) {
+      const svgSize = typeof styles.width === 'number' ? styles.width : 48;
+      out += `${getIndent()}Box(modifier = Modifier.size(${svgSize}.dp)) { /* TODO: Add custom SVG/Asset */ }\n`;
       return out;
     }
 
@@ -1203,6 +1463,21 @@ export function transpileToCompose(root: TranspileNode): string {
       return out;
     }
 
+    // Grid Layout → LazyVerticalGrid
+    if (styles.isGrid && styles.gridCols > 0) {
+      const spacing = styles.gapToken ? toComposeThemeToken(styles.gapToken, '') : `${styles.gap}.dp`;
+      out += `${getIndent()}LazyVerticalGrid(\n`;
+      out += `${getIndent()}    columns = GridCells.Fixed(${styles.gridCols}),\n`;
+      out += `${getIndent()}    horizontalArrangement = Arrangement.spacedBy(${spacing}),\n`;
+      out += `${getIndent()}    verticalArrangement = Arrangement.spacedBy(${spacing})\n`;
+      out += `${getIndent()}) {\n`;
+      indentLevel++;
+      node.children.forEach(c => { out += walk(c); });
+      indentLevel--;
+      out += `${getIndent()}}\n`;
+      return out;
+    }
+
     // Standard Stack
     const isCol = styles.flexDirection === "column";
     const composeLayout = isCol ? "Column" : "Row";
@@ -1210,11 +1485,16 @@ export function transpileToCompose(root: TranspileNode): string {
     out += `${getIndent()}${composeLayout}(\n`;
     out += `${getIndent()}    modifier = Modifier\n`;
     
-    if (styles.width === "100%") out += `${getIndent()}        .fillMaxWidth()\n`;
+    if (styles.width === "100%" || styles.hasFlex1) out += `${getIndent()}        .fillMaxWidth()\n`;
     else if (typeof styles.width === "number") out += `${getIndent()}        .width(${styles.width}.dp)\n`;
     if (typeof styles.height === "number") out += `${getIndent()}        .height(${styles.height}.dp)\n`;
+    if (typeof styles.minHeight === "number" && styles.minHeight > 0) out += `${getIndent()}        .heightIn(min = ${styles.minHeight}.dp)\n`;
 
-    if (styles.backgroundColorToken) {
+    // Background — with gradient support
+    if (styles.gradient && styles.gradient.fromColor && styles.gradient.toColor) {
+      const { start, end } = gradientDirectionToCompose(styles.gradient.direction);
+      out += `${getIndent()}        .background(Brush.linearGradient(colors = listOf(Color(0xFF${cleanHexColor(styles.gradient.fromColor)}), Color(0xFF${cleanHexColor(styles.gradient.toColor)})), start = ${start}, end = ${end}))\n`;
+    } else if (styles.backgroundColorToken) {
       out += `${getIndent()}        .background(${toComposeThemeToken(styles.backgroundColorToken, "")})\n`;
     } else if (styles.backgroundColor !== "transparent") {
       out += `${getIndent()}        .background(Color(0xFF${cleanHexColor(styles.backgroundColor)}))\n`;
@@ -1224,6 +1504,20 @@ export function transpileToCompose(root: TranspileNode): string {
       out += `${getIndent()}        .clip(RoundedCornerShape(${toComposeThemeToken(styles.borderRadiusToken, "")}))\n`;
     } else if (styles.borderRadius > 0) {
       out += `${getIndent()}        .clip(RoundedCornerShape(${styles.borderRadius}.dp))\n`;
+    }
+
+    // Border overlay
+    if (styles.borderWidth > 0 && styles.borderColor !== 'transparent') {
+      const borderCol = styles.borderColorToken ? toComposeThemeToken(styles.borderColorToken, '') : `Color(0xFF${cleanHexColor(styles.borderColor)})`;
+      if (styles.borderRadiusToken || styles.borderRadius > 0) {
+        const radius = styles.borderRadiusToken ? toComposeThemeToken(styles.borderRadiusToken, '') : `${styles.borderRadius}.dp`;
+        out += `${getIndent()}        .border(${styles.borderWidth}.dp, ${borderCol}, RoundedCornerShape(${radius}))\n`;
+      }
+    }
+
+    // Opacity
+    if (styles.opacity < 1) {
+      out += `${getIndent()}        .alpha(${styles.opacity}f)\n`;
     }
 
     // Padding
@@ -1239,18 +1533,22 @@ export function transpileToCompose(root: TranspileNode): string {
       out += `${getIndent()}        .padding(start = ${pl}, top = ${pt}, end = ${pr}, bottom = ${pb})\n`;
     }
 
-    // Alignments
+    // Alignments — with justify-between support
     const gapVal = styles.gapToken ? toComposeThemeToken(styles.gapToken, "") : `${styles.gap}.dp`;
     if (isCol) {
       const align = styles.alignItems === "center" ? "Alignment.CenterHorizontally" : styles.alignItems === "end" ? "Alignment.End" : "Alignment.Start";
       out += `${getIndent()}    horizontalAlignment = ${align},\n`;
-      if (styles.gap > 0 || styles.gapToken) {
+      if (styles.justifyContent === "between") {
+        out += `${getIndent()}    verticalArrangement = Arrangement.SpaceBetween,\n`;
+      } else if (styles.gap > 0 || styles.gapToken) {
         out += `${getIndent()}    verticalArrangement = Arrangement.spacedBy(${gapVal}),\n`;
       }
     } else {
       const align = styles.alignItems === "center" ? "Alignment.CenterVertically" : styles.alignItems === "end" ? "Alignment.Bottom" : "Alignment.Top";
       out += `${getIndent()}    verticalAlignment = ${align},\n`;
-      if (styles.gap > 0 || styles.gapToken) {
+      if (styles.justifyContent === "between") {
+        out += `${getIndent()}    horizontalArrangement = Arrangement.SpaceBetween,\n`;
+      } else if (styles.gap > 0 || styles.gapToken) {
         out += `${getIndent()}    horizontalArrangement = Arrangement.spacedBy(${gapVal}),\n`;
       }
     }
@@ -1305,6 +1603,13 @@ export function transpileToReactNative(root: TranspileNode): string {
     if (lucide) {
       const tintColor = styles.textColorToken ? toRNThemeToken(styles.textColorToken, "") : `'${styles.textColor}'`;
       out += `${getIndent()}<Icon name="${toRNIconName(lucide)}" size={${styles.fontSize || 24}} color={${tintColor}} />\n`;
+      return out;
+    }
+
+    // Raw SVG placeholder
+    if (styles.isRawSvg) {
+      const svgSize = typeof styles.width === 'number' ? styles.width : 48;
+      out += `${getIndent()}<View style={{ width: ${svgSize}, height: ${svgSize} }}>{/* TODO: Add custom SVG/Asset */}</View>\n`;
       return out;
     }
 
@@ -1391,6 +1696,17 @@ export function transpileToReactNative(root: TranspileNode): string {
       return out;
     }
 
+    // Grid Layout → FlatList with numColumns
+    if (styles.isGrid && styles.gridCols > 0) {
+      const gapVal = styles.gapToken ? toRNThemeToken(styles.gapToken, '') : String(styles.gap);
+      out += `${getIndent()}<View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: ${gapVal} }}>\n`;
+      indentLevel++;
+      node.children.forEach(c => { out += walk(c); });
+      indentLevel--;
+      out += `${getIndent()}</View>\n`;
+      return out;
+    }
+
     // View component in React Native
     out += `${getIndent()}<View style={{\n`;
     out += `${getIndent()}  flexDirection: '${styles.flexDirection === "row" ? "row" : "column"}',\n`;
@@ -1406,9 +1722,10 @@ export function transpileToReactNative(root: TranspileNode): string {
       const gapVal = styles.gapToken ? toRNThemeToken(styles.gapToken, "") : String(styles.gap);
       out += `${getIndent()}  gap: ${gapVal},\n`;
     }
-    if (styles.width === "100%") out += `${getIndent()}  width: '100%',\n`;
+    if (styles.width === "100%" || styles.hasFlex1) out += `${getIndent()}  ${styles.hasFlex1 ? 'flex: 1' : "width: '100%'"},\n`;
     else if (typeof styles.width === "number") out += `${getIndent()}  width: ${styles.width},\n`;
     if (typeof styles.height === "number") out += `${getIndent()}  height: ${styles.height},\n`;
+    if (typeof styles.minHeight === "number" && styles.minHeight > 0) out += `${getIndent()}  minHeight: ${styles.minHeight},\n`;
 
     if (styles.backgroundColorToken) {
       out += `${getIndent()}  backgroundColor: ${toRNThemeToken(styles.backgroundColorToken, "")},\n`;
@@ -1420,6 +1737,18 @@ export function transpileToReactNative(root: TranspileNode): string {
       out += `${getIndent()}  borderRadius: ${toRNThemeToken(styles.borderRadiusToken, "")},\n`;
     } else if (styles.borderRadius > 0) {
       out += `${getIndent()}  borderRadius: ${styles.borderRadius},\n`;
+    }
+
+    // Border
+    if (styles.borderWidth > 0 && styles.borderColor !== 'transparent') {
+      const borderCol = styles.borderColorToken ? toRNThemeToken(styles.borderColorToken, '') : `'${styles.borderColor}'`;
+      out += `${getIndent()}  borderWidth: ${styles.borderWidth},\n`;
+      out += `${getIndent()}  borderColor: ${borderCol},\n`;
+    }
+
+    // Opacity
+    if (styles.opacity < 1) {
+      out += `${getIndent()}  opacity: ${styles.opacity},\n`;
     }
 
     // Padding
@@ -1484,6 +1813,13 @@ export function transpileToFlutter(root: TranspileNode): string {
     if (lucide) {
       const tintColor = styles.textColorToken ? toFlutterThemeToken(styles.textColorToken, "") : `Color(0xFF${cleanHexColor(styles.textColor)})`;
       out += `${getIndent()}Icon(${toFlutterIconName(lucide)}, size: ${styles.fontSize || 24}.0, color: ${tintColor})\n`;
+      return out;
+    }
+
+    // Raw SVG placeholder
+    if (styles.isRawSvg) {
+      const svgSize = typeof styles.width === 'number' ? styles.width : 48;
+      out += `${getIndent()}SizedBox(width: ${svgSize}.0, height: ${svgSize}.0) // TODO: Add custom SVG/Asset\n`;
       return out;
     }
 
@@ -1568,6 +1904,27 @@ export function transpileToFlutter(root: TranspileNode): string {
       return out;
     }
 
+    // Grid Layout → GridView.count
+    if (styles.isGrid && styles.gridCols > 0) {
+      const spacing = styles.gapToken ? toFlutterThemeToken(styles.gapToken, '') : `${styles.gap}.0`;
+      out += `${getIndent()}GridView.count(\n`;
+      out += `${getIndent()}  crossAxisCount: ${styles.gridCols},\n`;
+      out += `${getIndent()}  crossAxisSpacing: ${spacing},\n`;
+      out += `${getIndent()}  mainAxisSpacing: ${spacing},\n`;
+      out += `${getIndent()}  shrinkWrap: true,\n`;
+      out += `${getIndent()}  physics: NeverScrollableScrollPhysics(),\n`;
+      out += `${getIndent()}  children: [\n`;
+      indentLevel += 2;
+      node.children.forEach((c, idx) => {
+        out += walk(c);
+        if (idx < node.children.length - 1) out = out.trimEnd() + ",\n";
+      });
+      indentLevel -= 2;
+      out += `${getIndent()}  ],\n`;
+      out += `${getIndent()})\n`;
+      return out;
+    }
+
     // Stack container (Column / Row) in Flutter
     const isCol = styles.flexDirection === "column";
     const widgetName = isCol ? "Column" : "Row";
@@ -1575,13 +1932,23 @@ export function transpileToFlutter(root: TranspileNode): string {
     let containerWrap = false;
     let decoration = "";
     
-    // Determine decoration
-    if (styles.backgroundColorToken || styles.backgroundColor !== "transparent" || 
+    // Determine decoration — with gradient support
+    if ((styles.gradient && styles.gradient.fromColor && styles.gradient.toColor) ||
+        styles.backgroundColorToken || styles.backgroundColor !== "transparent" || 
         styles.borderRadiusToken || styles.borderRadius > 0 || 
         styles.borderColorToken || styles.borderWidth > 0) {
       containerWrap = true;
       decoration += `    decoration: BoxDecoration(\n`;
-      if (styles.backgroundColorToken) {
+
+      // Gradient background
+      if (styles.gradient && styles.gradient.fromColor && styles.gradient.toColor) {
+        const { begin, end } = gradientDirectionToFlutter(styles.gradient.direction);
+        decoration += `      gradient: LinearGradient(\n`;
+        decoration += `        begin: ${begin},\n`;
+        decoration += `        end: ${end},\n`;
+        decoration += `        colors: [Color(0xFF${cleanHexColor(styles.gradient.fromColor)}), Color(0xFF${cleanHexColor(styles.gradient.toColor)})],\n`;
+        decoration += `      ),\n`;
+      } else if (styles.backgroundColorToken) {
         decoration += `      color: ${toFlutterThemeToken(styles.backgroundColorToken, "")},\n`;
       } else if (styles.backgroundColor !== "transparent") {
         decoration += `      color: Color(0xFF${cleanHexColor(styles.backgroundColor)}),\n`;
@@ -1603,7 +1970,11 @@ export function transpileToFlutter(root: TranspileNode): string {
     // Determine dimensions & padding wrapping
     let sizeAttrs = "";
     if (typeof styles.width === "number") sizeAttrs += `    width: ${styles.width}.0,\n`;
+    else if (styles.width === "100%" || styles.hasFlex1) sizeAttrs += `    width: double.infinity,\n`;
     if (typeof styles.height === "number") sizeAttrs += `    height: ${styles.height}.0,\n`;
+    if (typeof styles.minHeight === "number" && styles.minHeight > 0) {
+      sizeAttrs += `    constraints: BoxConstraints(minHeight: ${styles.minHeight}.0),\n`;
+    }
     
     const pt = styles.paddingTopToken ? toFlutterThemeToken(styles.paddingTopToken, "") : `${styles.padding.top}.0`;
     const pb = styles.paddingBottomToken ? toFlutterThemeToken(styles.paddingBottomToken, "") : `${styles.padding.bottom}.0`;
