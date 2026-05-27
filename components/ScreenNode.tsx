@@ -1214,10 +1214,10 @@ ${cleanScreenCode}
               var root = document.getElementById('root');
               if (!root || !el) return null;
               var navRoot = el.closest && el.closest('[data-drawgle-primary-nav]');
-              if (navRoot) return hasDrawgleId(navRoot) ? navRoot : nearestDrawgleElement(navRoot);
+              
               var node = el;
               var maxWalk = 12;
-              while (node && node !== root && maxWalk-- > 0) {
+              while (node && node !== root && node !== navRoot && maxWalk-- > 0) {
                 /* Stop bubbling if this element has layout classes or multiple children */
                 if (!LEAF_TAGS.has(node.tagName)) {
                   var childElements = node.querySelectorAll(':scope > *');
@@ -1227,8 +1227,14 @@ ${cleanScreenCode}
                 }
                 node = node.parentElement;
               }
-              return nearestDrawgleElement(el);
+              
+              var nearest = nearestDrawgleElement(el);
+              if (nearest) return nearest;
+              
+              if (navRoot) return hasDrawgleId(navRoot) ? navRoot : null;
+              return null;
             }
+
 
             function stripHtml(html) {
               var tmp = document.createElement('div');

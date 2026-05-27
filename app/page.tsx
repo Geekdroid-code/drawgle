@@ -1,7 +1,6 @@
 
 import PublicHeader from '@/components/landing/Header'
 import { HeroSection } from '@/components/landing/HeroSection'
-import LiveTokenPlayground from '@/components/landing/live-token-playground/LiveTokenPlayground'
 import NewHowItWorks from '@/components/landing/NewHowItWorks'
 import { FeaturesSection } from '@/components/landing/FeaturesSection'
 import PremiumComparison from "@/components/landing/Comparison";
@@ -22,7 +21,6 @@ export default function Home() {
       <PublicHeader />
       <main>
         <HeroSection />
-        <LiveTokenPlayground />
         <NewHowItWorks />
         <StylePacks />
         <PremiumComparison />
