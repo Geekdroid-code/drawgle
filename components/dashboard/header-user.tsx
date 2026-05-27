@@ -10,6 +10,7 @@ import {
   Sparkles,
 } from "lucide-react";
 
+import { AnimatedThemeToggle } from "@/components/AnimatedThemeToggle";
 import {
   Avatar,
   AvatarFallback,
@@ -65,6 +66,8 @@ export function HeaderUser({ user }: HeaderUserProps) {
           {creditBalance.toLocaleString()}
         </span>
       </div>
+
+      <AnimatedThemeToggle variant="circle" className="[&_svg]:size-4" />
 
       <DropdownMenu>
         <DropdownMenuTrigger

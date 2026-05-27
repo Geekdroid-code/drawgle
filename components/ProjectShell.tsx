@@ -2,8 +2,9 @@
 
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Sparkles, Check, ChevronDown, ImageIcon, Loader2, Palette, RotateCcw, Upload, X, Sun, Moon, HelpCircle, Megaphone, Play, Share2, LogOut, FolderSync, CircleDollarSign, User, CreditCard, Download, Mail, MessageCircle } from "lucide-react";
+import { ArrowLeft, Sparkles, Check, ChevronDown, ImageIcon, Loader2, Palette, RotateCcw, Upload, X, HelpCircle, Megaphone, Play, Share2, LogOut, FolderSync, CircleDollarSign, User, CreditCard, Download, Mail, MessageCircle } from "lucide-react";
 
+import { AnimatedThemeToggle } from "@/components/AnimatedThemeToggle";
 import { CanvasArea } from "@/components/CanvasArea";
 import { MobileExportDrawer } from "@/components/MobileExportDrawer";
 import { CanvasToolDock } from "@/components/CanvasToolDock";
@@ -13,7 +14,6 @@ import type { ElementSelectionLostReason, SelectedElementInfo } from "@/componen
 import { Button } from "@/components/ui/button";
 import { useCredits } from "@/hooks/useCredits";
 import { PricingDialog } from "@/components/PricingDialog";
-import { useAppTheme } from "@/contexts/app-theme-context";
 import { PremiumDropdown } from "@/components/ui/premium-dropdown";
 import {
   Dialog,
@@ -1035,7 +1035,6 @@ export function ProjectShell({
   initialProjectNavigation: ProjectNavigationData | null;
 }) {
   const router = useRouter();
-  const { resolvedTheme, setTheme } = useAppTheme();
   const { project, isLoading: isProjectLoading } = useProject(initialProject.id, initialProject);
   const { screens, refreshScreens } = useScreens(initialProject.id, initialScreens);
   const { projectNavigation } = useProjectNavigation(initialProject.id, initialProjectNavigation);
@@ -1807,15 +1806,11 @@ export function ProjectShell({
         <div className="absolute right-4 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-50 flex items-center gap-1.5 sm:gap-3">
           {/* Group 1 (Utilities): Sun/Moon theme toggle + Help contact dropdown */}
           <div className="flex h-8 shrink-0 items-center rounded-full dg-panel px-1.5 backdrop-blur-xl gap-0.5">
-            <Button
-              variant="ghost"
+            <AnimatedThemeToggle
               size="icon"
-              className="h-6 w-6 rounded-full text-neutral-600 dark:text-neutral-300 hover:bg-[#f7f7f8] dark:hover:bg-white/10 focus-visible:bg-[#f7f7f8] dark:focus-visible:bg-white/10 flex items-center justify-center cursor-pointer"
-              title="Toggle theme"
-              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-            >
-              {resolvedTheme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-            </Button>
+              variant="circle"
+              className="h-6 w-6 rounded-full text-neutral-600 hover:bg-[#f7f7f8] focus-visible:bg-[#f7f7f8] dark:text-neutral-300 dark:hover:bg-white/10 dark:focus-visible:bg-white/10 [&_svg]:size-3.5"
+            />
             
             <PremiumDropdown
               align="start"

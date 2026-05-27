@@ -38,7 +38,7 @@ export function ProtectedDashboardShell({
   return (
     <SidebarProvider>
       <AppSidebar user={user} initialProjects={initialProjects} />
-      <SidebarInset className="min-h-svh overflow-hidden bg-[#f8f9fb] dark:bg-[#111215]">
+      <SidebarInset className="min-h-svh overflow-hidden bg-[#f8f9fb] dark:bg-[#121212]">
         <header className="flex h-14 shrink-0 items-center gap-3 px-3 sm:px-4">
           <SidebarTrigger className="shrink-0" />
           <div className="min-w-0 flex-1">
@@ -46,7 +46,7 @@ export function ProtectedDashboardShell({
           </div>
           <HeaderUser user={userData} initialCreditBalance={0} />
         </header>
-        <div className="min-h-0 flex-1 overflow-auto">
+        <div className="min-h-0 flex-1 overflow-auto [scrollbar-gutter:stable]">
           {children}
         </div>
       </SidebarInset>

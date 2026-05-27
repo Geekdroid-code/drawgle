@@ -99,15 +99,15 @@ export function PremiumSegmentedTabs<T extends string>({
                   className={cn(
                     "h-3.5 w-3.5 shrink-0 transition-transform duration-300",
                     active && "scale-110",
-                    active && "dark:text-[#111215]",
+                    active && "dark:text-[#121212]",
                   )}
                 />
               ) : null}
-              <span className={cn("truncate", active && "dark:text-[#111215]", (hideLabelsOnMobile || item.compactLabel) && "hidden sm:inline")}>
+              <span className={cn("truncate", active && "dark:text-[#121212]", (hideLabelsOnMobile || item.compactLabel) && "hidden sm:inline")}>
                 {item.label}
               </span>
               {item.compactLabel ? (
-                <span className={cn("truncate sm:hidden", active && "dark:text-[#111215]")}>
+                <span className={cn("truncate sm:hidden", active && "dark:text-[#121212]")}>
                   {item.compactLabel}
                 </span>
               ) : null}

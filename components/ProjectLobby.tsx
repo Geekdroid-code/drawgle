@@ -341,7 +341,7 @@ export function ProjectLobby({
   };
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#f8f9fb] text-neutral-900 select-none dark:bg-[#111215] dark:text-neutral-100">
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#f8f9fb] text-neutral-900 select-none dark:bg-[#121212] dark:text-neutral-100 dg-dashed-grid-bg">
       <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
         {error ? (
           <div className="m-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 shadow-sm">
@@ -352,112 +352,106 @@ export function ProjectLobby({
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div className="flex h-full min-h-0 w-full flex-col">
             {stage === "brief" ? (
-              <section className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto">
-                <div className="w-full max-w-3xl py-12 flex flex-col items-center">
+              <section className="flex min-h-0 flex-1 items-start justify-center overflow-y-auto px-4 pb-10 pt-24 sm:items-center sm:px-6 sm:py-12">
+                <div className="flex w-full max-w-3xl flex-col items-center">
                   
                   {/* Title section with styling */}
-                  <h1 className="text-center text-[clamp(2.0rem,5.5vw,3.0rem)] font-extrabold leading-[1.05] tracking-tight text-neutral-900 dark:text-neutral-100 sm:text-5xl max-w-xl mb-8 select-text">
-                    What Mobile App shall we <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500">design today?</span>
+                  <h1 className="mb-8 max-w-[21rem] select-text text-center text-[2.05rem] font-bold leading-[1.12] tracking-normal text-neutral-950 dark:text-white min-[390px]:max-w-[24rem] min-[390px]:text-[2.3rem] sm:max-w-2xl sm:text-[3.35rem]">
+                    What are we{" "}
+                    <span className="inline-block bg-[linear-gradient(100deg,#002fa7_0%,#1b7fcc_42%,#e4002b_100%)] bg-clip-text pb-1 text-transparent dark:bg-[linear-gradient(100deg,#8fd3ff_0%,#ffffff_48%,#ff8aa6_100%)]">
+                      bringing to life?
+                    </span>
                   </h1>
+
+                  {image ? (
+                    <div className="mb-3 flex w-full justify-center">
+                      <div className="grid grid-cols-2 gap-1 rounded-lg border border-black/10 bg-white/80 p-1 shadow-[0_10px_28px_-24px_rgba(15,23,42,0.7)] dark:border-white/[0.08] dark:bg-white/[0.04]">
+                        {imageReferenceModes.map((mode) => (
+                          <button
+                            key={mode.id}
+                            type="button"
+                            onClick={() => setImageReferenceMode(mode.id)}
+                            className={cn(
+                              "h-8 rounded-md px-3 text-[11px] font-bold transition duration-200",
+                              imageReferenceMode === mode.id
+                                ? "bg-neutral-950 text-white shadow-sm dark:bg-white dark:text-neutral-950"
+                                : "text-neutral-500 hover:bg-black/5 dark:text-neutral-400 dark:hover:bg-white/10"
+                            )}
+                            disabled={isGeneratingDesign}
+                            aria-pressed={imageReferenceMode === mode.id}
+                          >
+                            {mode.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
 
                   {/* Redesigned Prompt Box inside outer gradient border */}
                   <div
-                    className={`relative w-full rounded-[38px] bg-[linear-gradient(110deg,#ff9a9e_0%,#fecfef_20%,#e0c3fc_40%,#8ec5fc_60%,#a8edea_80%,#d4fc79_100%)] p-[2px]  transition-all duration-300 ${isGeneratingDesign ? "dg-brief-generating-shell animate-pulse" : ""}`}
+                    className={`relative w-full rounded-[30px] bg-[linear-gradient(110deg,#ff9a9e_0%,#fecfef_20%,#e0c3fc_40%,#8ec5fc_60%,#a8edea_80%,#d4fc79_100%)] p-[1.5px] transition-all duration-300 sm:rounded-[38px] sm:p-[2px] ${isGeneratingDesign ? "dg-brief-generating-shell animate-pulse" : ""}`}
                   >
-                    <div className="bg-[#f2f3f5] dark:bg-[#1a1d22] rounded-[36px] p-2 flex flex-col relative z-20">
-                      
-                      {/* Top Section: Attachment Preview Sitting on Gray */}
-                      <div className="flex flex-wrap items-center gap-2.5 px-3 pt-2 pb-2.5 min-h-[44px]">
-                        {image ? (
-                          <>
-                            <div className="flex items-center gap-2.5 bg-white dark:bg-[#1b1b1b] border border-[#e2e4e7] dark:border-white/[0.08] rounded-[18px] pl-3 pr-2 py-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-all hover:bg-neutral-50 dark:hover:bg-white/5 group">
-                              <span className="relative h-5 w-5 shrink-0 overflow-hidden rounded-md border border-neutral-200">
-                                <Image
-                                  src={`data:${image.mimeType};base64,${image.data}`}
-                                  alt="Reference preview"
-                                  fill
-                                  unoptimized
-                                  className="object-cover"
-                                />
-                              </span>
-                              <span className="text-[13px] font-semibold text-neutral-700 dark:text-neutral-300 truncate max-w-[120px]">
-                                Reference image
-                              </span>
-                              <button
-                                type="button"
-                                onClick={handleRemoveImage}
-                                className="text-neutral-400 hover:text-neutral-700 transition-colors ml-1 p-0.5 rounded-full hover:bg-neutral-100"
-                                aria-label="Remove reference image"
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </div>
-
-                            {/* Image Reference Modes toggle pill */}
-                            <div className="flex h-8 items-center rounded-[18px] border border-[#e2e4e7] dark:border-white/[0.08] bg-white dark:bg-[#1b1b1b] p-0.5 shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
-                              {imageReferenceModes.map((mode) => (
-                                <button
-                                  key={mode.id}
-                                  type="button"
-                                  onClick={() => setImageReferenceMode(mode.id)}
-                                  className={`cursor-pointer h-7 rounded-[15px] px-3 text-[11px] font-bold transition duration-200 ${imageReferenceMode === mode.id ? "bg-neutral-950 text-white shadow-sm" : "text-neutral-500 hover:bg-neutral-50"}`}
-                                  disabled={isGeneratingDesign}
-                                  aria-pressed={imageReferenceMode === mode.id}
-                                >
-                                  {mode.label}
-                                </button>
-                              ))}
-                            </div>
-                          </>
-                        ) : (
-                          <div className="text-[12px] font-medium text-neutral-400 px-1 w-full text-left">
-                            Attach reference image to guide the design
+                    <div className="relative z-20 min-h-[220px] rounded-[28.5px] bg-white/95 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] dark:bg-[#1f1f1f] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:min-h-[230px] sm:rounded-[36px] sm:p-5">
+                      {image ? (
+                        <div className="absolute -left-1 -top-5 z-40 rotate-[-5deg] sm:-left-2 sm:-top-12">
+                          <div className="group relative h-16 w-16 overflow-hidden rounded-lg border border-white/80 bg-neutral-100 shadow-[0_14px_34px_-24px_rgba(15,23,42,0.9)] transition-all hover:rotate-[2deg] hover:shadow-[0_18px_38px_-24px_rgba(15,23,42,0.95)] dark:border-white/15 dark:bg-neutral-900 sm:h-[72px] sm:w-[72px]">
+                            <span className="relative block h-full w-full">
+                              <Image
+                                src={`data:${image.mimeType};base64,${image.data}`}
+                                alt="Reference preview"
+                                fill
+                                unoptimized
+                                className="object-cover"
+                              />
+                            </span>
+                            <button
+                              type="button"
+                              onClick={handleRemoveImage}
+                              className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-md bg-black/55 text-white opacity-0 transition-opacity hover:bg-black/75 group-hover:opacity-100"
+                              aria-label="Remove reference image"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
                           </div>
-                        )}
-                      </div>
-
-                      {/* Inner White Container */}
-<div className="bg-white dark:bg-[#1b1b1b] border border-[#e2e4e7]/80 dark:border-white/[0.08] rounded-[28px] flex flex-col relative">
-                        
-                        {/* Middle Section: Text input */}
-                        <div className="px-4 pt-4 pb-2">
-                          <Textarea
-                            value={prompt}
-                            onChange={(event) => setPrompt(event.target.value)}
-                            readOnly={isGeneratingDesign}
-                            onClick={(event) => {
-                              if (!loadingCredits && balance <= 0) {
-                                event.preventDefault();
-                                event.currentTarget.blur();
-                                setPricingReason("insufficient_credits");
-                                setIsPricingOpen(true);
-                              }
-                            }}
-                            onFocus={(event) => {
-                              if (!loadingCredits && balance <= 0) {
-                                event.preventDefault();
-                                event.currentTarget.blur();
-                                setPricingReason("insufficient_credits");
-                                setIsPricingOpen(true);
-                              }
-                            }}
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter" && !event.shiftKey) {
-                                event.preventDefault();
-                                void handleGenerateDesign();
-                              }
-                            }}
-                            placeholder="Describe the app UI you want to design... e.g., A minimalist dashboard for a fintech app with dark mode."
-                            className="rounded-lg h-[100px] sm:h-[120px] [field-sizing:fixed] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden resize-none border-0 bg-transparent px-2 py-2 text-[17px] leading-relaxed text-neutral-800 dark:text-neutral-100 shadow-none placeholder:text-neutral-400 dark:placeholder:text-neutral-600 focus-visible:ring-0 focus-visible:ring-offset-0"
-                          />
                         </div>
+                      ) : null}
 
-                        {/* Bottom Section: Inline Toolbar Capsule */}
-                        <div className="flex items-center justify-between px-3 pb-3">
+                      <div className="relative min-h-[188px] sm:min-h-[190px]">
+                        <Textarea
+                          value={prompt}
+                          onChange={(event) => setPrompt(event.target.value)}
+                          readOnly={isGeneratingDesign}
+                          onClick={(event) => {
+                            if (!loadingCredits && balance <= 0) {
+                              event.preventDefault();
+                              event.currentTarget.blur();
+                              setPricingReason("insufficient_credits");
+                              setIsPricingOpen(true);
+                            }
+                          }}
+                          onFocus={(event) => {
+                            if (!loadingCredits && balance <= 0) {
+                              event.preventDefault();
+                              event.currentTarget.blur();
+                              setPricingReason("insufficient_credits");
+                              setIsPricingOpen(true);
+                            }
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" && !event.shiftKey) {
+                              event.preventDefault();
+                              void handleGenerateDesign();
+                            }
+                          }}
+                          placeholder="Describe the app UI you want to design... e.g., A minimalist dashboard for a fintech app with dark mode."
+                          className="relative z-10 h-[188px] min-h-[188px] resize-none rounded-none border-0 bg-transparent px-0 pb-20 pt-0 text-[17px] leading-relaxed text-neutral-800 shadow-none [field-sizing:fixed] [scrollbar-width:none] placeholder:text-neutral-400 focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-transparent dark:text-neutral-100 dark:placeholder:text-neutral-600 sm:h-[190px] sm:min-h-[190px] sm:pb-20 [&::-webkit-scrollbar]:hidden"
+                        />
+
+                        {/* Bottom controls sit inside the text field surface. */}
+                        <div className="absolute bottom-0 left-0 right-0 z-30 flex items-center justify-between gap-3">
                           
-                          {/* Left tools grouped pill */}
                           <TooltipProvider>
-                            <div className="flex items-center bg-[#f7f8f9] dark:bg-[#2a2a2a] p-1 rounded-[22px] border border-[#e2e4e7]/60 dark:border-white/[0.07] shadow-[inset_0_1px_2px_rgba(0,0,0,0.01)] relative">
+                            <div className="pointer-events-auto relative flex items-center gap-1">
                               
                               {/* Hidden input file for images */}
                               <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageUpload} />
@@ -472,7 +466,7 @@ export function ProjectLobby({
                                         setIsThemePickerOpen(false);
                                         fileInputRef.current?.click();
                                       }}
-                                      className={`w-[36px] h-[36px] rounded-[18px] flex items-center justify-center text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-100 hover:bg-white dark:hover:bg-white/10 hover:shadow-sm hover:border hover:border-neutral-200/50 dark:hover:border-white/10 transition-all active:scale-95 focus:outline-none ${image ? "bg-white dark:bg-white/10 text-neutral-800 dark:text-neutral-100 shadow-sm border border-neutral-200/50 dark:border-white/10" : ""}`}
+                                      className={`flex h-9 w-9 items-center justify-center rounded-[18px] text-neutral-500 transition-all hover:bg-black/5 hover:text-neutral-800 active:scale-95 focus:outline-none dark:text-neutral-400 dark:hover:bg-white/10 dark:hover:text-neutral-100 ${image ? "bg-black/5 text-neutral-800 dark:bg-white/10 dark:text-neutral-100" : ""}`}
                                       disabled={isGeneratingDesign}
                                       aria-label="Attach reference image"
                                     >
@@ -491,9 +485,9 @@ export function ProjectLobby({
                                       type="button"
                                       onClick={() => setIsThemePickerOpen((prev) => !prev)}
                                       className={cn(
-                                        "relative w-[36px] h-[36px] rounded-[18px] flex items-center justify-center text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-100 hover:bg-white dark:hover:bg-white/10 hover:shadow-sm hover:border hover:border-neutral-200/50 dark:hover:border-white/10 transition-all active:scale-95 focus:outline-none ml-1",
-                                        isThemePickerOpen && "bg-white dark:bg-white/10 text-neutral-800 dark:text-neutral-100 shadow-sm border border-neutral-200/50 dark:border-white/10",
-                                        image && "opacity-40 cursor-not-allowed hover:bg-transparent hover:text-neutral-500 hover:shadow-none hover:border-transparent"
+                                        "relative flex h-9 w-9 items-center justify-center rounded-[18px] text-neutral-500 transition-all hover:bg-black/5 hover:text-neutral-800 active:scale-95 focus:outline-none dark:text-neutral-400 dark:hover:bg-white/10 dark:hover:text-neutral-100",
+                                        isThemePickerOpen && "bg-black/5 text-neutral-800 dark:bg-white/10 dark:text-neutral-100",
+                                        image && "cursor-not-allowed opacity-40 hover:bg-transparent hover:text-neutral-500"
                                       )}
                                       disabled={isGeneratingDesign || Boolean(image)}
                                       aria-label="Select design style"
@@ -518,7 +512,7 @@ export function ProjectLobby({
                               {isThemePickerOpen && (
                                 <motion.div
                                   layoutId="stylePickerWrapper"
-                                  className="absolute bottom-14 left-0 z-50 w-[240px] rounded-2xl border border-neutral-200/80 dark:border-white/[0.08] bg-white dark:bg-[#1b1b1b] p-3 shadow-xl overflow-hidden"
+                                  className="absolute bottom-12 left-0 z-50 w-[240px] overflow-hidden rounded-2xl border border-neutral-200/80 bg-white p-3 shadow-xl dark:border-white/[0.08] dark:bg-[#1b1b1b]"
                                   transition={{ type: "spring", damping: 30, stiffness: 350, mass: 0.8 }}
                                 >
                                   <div className="mb-2.5 flex items-center justify-between px-1">
@@ -586,8 +580,8 @@ export function ProjectLobby({
                         </TooltipProvider>
 
                           {/* Selected Style Text label */}
-                          <div className="hidden sm:flex items-center text-xs font-semibold text-neutral-400 dark:text-neutral-500 mr-auto ml-4">
-                            Style: <span className="text-neutral-700 dark:text-neutral-300 ml-1.5 font-bold bg-neutral-100 dark:bg-white/10 px-2.5 py-1 rounded-full">{selectedBriefStyleLabel}</span>
+                          <div className="pointer-events-none mr-auto hidden min-w-0 items-center text-xs font-semibold text-neutral-400 dark:text-neutral-500 sm:flex">
+                            Style: <span className="ml-1.5 truncate font-bold text-neutral-700 dark:text-neutral-300">{selectedBriefStyleLabel}</span>
                           </div>
 
                           {/* Right: Submit Button capsule */}
@@ -595,7 +589,7 @@ export function ProjectLobby({
                             type="button"
                             onClick={() => void handleGenerateDesign()}
                             disabled={!isBriefReady || isGeneratingDesign}
-                            className={`h-[42px] px-5 rounded-[16px] flex items-center justify-center text-white text-[14px] font-semibold transition-all active:scale-95 focus:outline-none shadow-[0_4px_14px_rgba(0,0,0,0.12),inset_0_1px_0_rgba(255,255,255,0.1)] ${
+                            className={`pointer-events-auto flex h-[42px] items-center justify-center rounded-[16px] px-5 text-[14px] font-semibold text-white shadow-[0_4px_14px_rgba(0,0,0,0.12),inset_0_1px_0_rgba(255,255,255,0.1)] transition-all active:scale-95 focus:outline-none ${
                               isBriefReady 
                                 ? "bg-gradient-to-b from-[#2a2a2a] to-[#111111] border border-black hover:from-[#333] hover:to-[#1a1a1a]" 
                                 : "bg-neutral-200 dark:bg-white/10 border-neutral-300 dark:border-white/10 text-neutral-400 dark:text-neutral-600 cursor-not-allowed shadow-none"
@@ -623,7 +617,6 @@ export function ProjectLobby({
                           </button>
 
                         </div>
-
                       </div>
                     </div>
                   </div>
