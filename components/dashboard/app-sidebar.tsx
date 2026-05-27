@@ -168,46 +168,9 @@ function ProjectGroups({
 
   return (
     <>
-      <SidebarGroup>
-        <SidebarGroupLabel>Workspace</SidebarGroupLabel>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              render={
-                <Link
-                  href="/project/new"
-                  prefetch={false}
-                  onClick={() => setOpenMobile(false)}
-                />
-              }
-              isActive={pathname === "/project/new"}
-              tooltip="New project"
-            >
-              <FolderPlus />
-              <span>New project</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              render={
-                <Link
-                  href="/account"
-                  prefetch={false}
-                  onClick={() => setOpenMobile(false)}
-                />
-              }
-              isActive={pathname === "/account"}
-              tooltip="Account"
-            >
-              <LayoutDashboard />
-              <span>Account</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarGroup>
+     
 
       <SidebarGroup className="group-data-[collapsible=icon]:hidden">
-        <SidebarGroupLabel>Projects</SidebarGroupLabel>
         <div className="relative px-2 pb-2">
           <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-sidebar-foreground/45" />
           <SidebarInput
@@ -221,7 +184,7 @@ function ProjectGroups({
         <div className="min-h-0 space-y-4">
           {visibleGroups.map((label) => (
             <div key={label}>
-              <div className="px-2 pb-1 text-[10px] font-medium uppercase tracking-[0.18em] text-sidebar-foreground/45">
+              <div className="px-2 pb-1 text-[10px] font-medium uppercase tracking-[0.18em] text-sidebar-foreground/45 mt-3">
                 {label}
               </div>
               <SidebarMenu>
