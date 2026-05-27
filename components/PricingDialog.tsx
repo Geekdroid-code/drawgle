@@ -215,7 +215,7 @@ export function PricingDialog({
                         // Dynamically handle the screen generation count tooltip
                         const screenMatch = feature.match(/Generate ~([\d,]+) full screens\/mo/i);
                         if (screenMatch) {
-                          tooltip = `Approximately ${screenMatch[1]} screens. Generating a screen uses ~30 credits, edits range from 5-30 credits depending on scope.`;
+                          tooltip = `Approximately ${screenMatch[1]} screens. Generating a screen uses ~20 credits, edits range from 3-20 credits depending on scope.`;
                         }
                         
                         return (

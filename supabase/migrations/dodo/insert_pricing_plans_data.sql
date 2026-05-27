@@ -14,34 +14,34 @@ INSERT INTO public.dodo_pricing_plans (
 ) VALUES 
 
 (
-  'Lite',
-  'Casual designers, indie hackers, validating concepts.',
-  9.99,
-  600,
-  'USD',
-  'pdt_lite_placeholder', -- Replaceable in Dodo Dashboard
-  true,
-  '{"features": ["600 AI credits per month", "Build ~20 full screens/mo", "Research-backed brief planner (Free)", "Figma integration & export", "Tailwind CSS components"]}'
-),
-
-(
   'Starter',
-  'Startups, active developers, active builders.',
-  17.49,
-  1500,
+  'Skeptical devs, casual indie hackers, validating concepts.',
+  9.00,
+  600,
   'USD',
   'pdt_starter_placeholder', -- Replaceable in Dodo Dashboard
   true,
-  '{"features": ["1,500 AI credits per month", "Build ~50 full screens/mo", "Research-backed brief planner (Free)", "Figma export with custom styles", "Style reference matching", "Priority generation speed"]}'
+  '{"features": ["600 AI credits per month", "Generate ~30 full screens/mo", "Standard build speeds", "AI-powered element edits", "Figma integration & export", "Tailwind CSS components"]}'
 ),
 
 (
   'Pro',
-  'Agencies, hyper-active builders, design teams.',
-  49.99,
-  10000,
+  'Startups, active developers, active builders.',
+  29.00,
+  2400,
   'USD',
   'pdt_pro_placeholder', -- Replaceable in Dodo Dashboard
   true,
-  '{"features": ["10,000 AI credits per month", "Build ~333 full screens/mo", "Research-backed brief planner (Free)", "Figma export & design assets", "Advanced multi-screen systems", "Direct team collaboration support"]}'
+  '{"features": ["2,400 AI credits per month", "Generate ~120 full screens/mo", "Priority generation speed", "Advanced screen layout options", "Full commercial license", "Premium customer support"]}'
+),
+
+(
+  'Studio',
+  'Agencies, hyper-active builders, design teams.',
+  79.00,
+  8000,
+  'USD',
+  'pdt_studio_placeholder', -- Replaceable in Dodo Dashboard
+  true,
+  '{"features": ["8,000 AI credits per month", "Generate ~400 full screens/mo", "Ultra-priority processing", "Agency & team collaboration", "Custom design system presets", "Dedicated account manager"]}'
 );

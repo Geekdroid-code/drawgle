@@ -1448,8 +1448,8 @@ export const generateUiFlowTask = task({
       },
     );
 
-    // Each screen build costs 30 credits (planning is completely free!)
-    const requiredCredits = screenPlans.length * 30;
+    // Each screen build costs 20 credits (planning is completely free!)
+    const requiredCredits = screenPlans.length * 20;
     const creditCheck = await adminCreditService.hasCredits(payload.ownerId, requiredCredits);
 
     if (!creditCheck.hasCredits) {
@@ -1701,7 +1701,7 @@ export const generateUiFlowTask = task({
 
     // Deduct credits for successful screens finally saved in Supabase
     if (successfulScreens > 0) {
-      const actualCost = successfulScreens * 30;
+      const actualCost = successfulScreens * 20;
       const deductionResult = await adminCreditService.deductCredits(
         payload.ownerId,
         actualCost,

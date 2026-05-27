@@ -154,22 +154,22 @@ export const modifyScreenTask = task({
     const selectedElementHtml = payload.selectedElementHtml?.trim() || "";
     const isNavigation = payload.selectedElementTarget === "navigation" || payload.requestTargetsNavigation;
     
-    let requiredCredits = 30; // Default to full screen or navigation edit
+    let requiredCredits = 20; // Default to full screen or navigation edit
     let scopeLabel = "Full Screen Edit";
 
     if (isNavigation) {
-      requiredCredits = 30;
+      requiredCredits = 20;
       scopeLabel = "Navigation Edit";
     } else if (selectedElementHtml) {
       const length = selectedElementHtml.length;
       if (length < 1000) {
-        requiredCredits = 5;
+        requiredCredits = 3;
         scopeLabel = "Small Component Edit";
       } else if (length <= 3000) {
-        requiredCredits = 15;
+        requiredCredits = 10;
         scopeLabel = "Medium Container Edit";
       } else {
-        requiredCredits = 25;
+        requiredCredits = 15;
         scopeLabel = "Large Section Edit";
       }
     }

@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useMemo, type CSSProperties, type ChangeEvent, type ReactNode } from "react";
 import { motion, type Transition, LayoutGroup, AnimatePresence } from "motion/react";
@@ -1311,8 +1312,8 @@ function ProjectMenuItem({
       onMouseEnter={() => onHover(project.id)}
       onMouseLeave={() => onHover(null)}
     >
-      <button
-        type="button"
+      <Link
+        href={`/project/${project.id}`}
         onClick={onNavigate}
         className="relative flex flex-col justify-center min-h-[32px] w-[calc(100%-0.5rem)] rounded-xl px-3 transition-colors select-none text-left z-10 text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100 cursor-pointer"
       >
@@ -1347,10 +1348,10 @@ function ProjectMenuItem({
           </span>
         
         </span>
-      </button>
+      </Link>
 
       {/* Action Dropdown Menu */}
-      <div className="absolute right-2 top-0 bottom-0 pr-1 pl-12 flex items-center justify-end z-20 rounded-r-xl opacity-0 group-hover/project:opacity-100 transition-opacity bg-gradient-to-l from-[#f5f5f6] via-[#f5f5f6]/90 to-transparent dark:from-slate-900 dark:via-slate-900/90 pointer-events-none">
+      <div className="absolute right-2 top-0 bottom-0 pr-1 pl-12 flex items-center justify-end z-20 rounded-r-xl opacity-100 md:opacity-0 md:group-hover/project:opacity-100 transition-opacity bg-gradient-to-l from-white via-white/90 to-transparent dark:from-[#1b1b1b] dark:via-[#1b1b1b]/90 pointer-events-none">
         <div className="pointer-events-auto">
           <PremiumDropdown
             align="end"

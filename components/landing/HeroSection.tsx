@@ -102,8 +102,7 @@ export function HeroSection() {
             </h1>
 
             <p className="text-md sm:text-lg text-gray-300 max-w-3xl mx-auto mb-8">
-              Drawgle uses advanced AI to generate production-ready React, Tailwind, and Flutter screens from simple text prompts. Go from idea to live code in seconds.
-            </p>
+Drawgle uses advanced AI to generate production-ready SwiftUI, Compose, Flutter, and React screens from simple text prompts. Go from idea to native code in seconds.            </p>
           </div>
 
           {/* Premium Prompt Box */}
