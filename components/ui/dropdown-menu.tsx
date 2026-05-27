@@ -41,7 +41,7 @@ function DropdownMenuContent({
       >
         <MenuPrimitive.Popup
           data-slot="dropdown-menu-content"
-          className={cn("z-50 max-h-(--available-height) w-(--anchor-width) min-w-32 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-lg border border-[var(--dg-border)] bg-[var(--dg-surface)] p-1 text-[var(--dg-text)] shadow-md ring-1 ring-foreground/10 duration-100 outline-none dark:border-white/[0.08] dark:bg-[#1b1b1b] dark:text-[#e8eaf0] dark:shadow-[0_20px_70px_rgba(0,0,0,0.55)] data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:overflow-hidden data-closed:fade-out-0 data-closed:zoom-out-95", className )}
+          className={cn("z-50 max-h-(--available-height) w-(--anchor-width) min-w-32 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-lg border border-[var(--dg-border)] bg-[var(--dg-surface)] p-1 text-[var(--dg-text)] shadow-md ring-1 ring-foreground/10 outline-none dark:border-white/[0.08] dark:bg-[#1b1b1b] dark:text-[#e8eaf0] dark:shadow-[0_20px_70px_rgba(0,0,0,0.55)]", className )}
           {...props}
         />
       </MenuPrimitive.Positioner>
@@ -57,11 +57,11 @@ function DropdownMenuLabel({
   className,
   inset,
   ...props
-}: MenuPrimitive.GroupLabel.Props & {
+}: React.ComponentProps<"div"> & {
   inset?: boolean
 }) {
   return (
-    <MenuPrimitive.GroupLabel
+    <div
       data-slot="dropdown-menu-label"
       data-inset={inset}
       className={cn(
@@ -135,7 +135,7 @@ function DropdownMenuSubContent({
   return (
     <DropdownMenuContent
       data-slot="dropdown-menu-sub-content"
-      className={cn("w-auto min-w-[96px] rounded-lg border border-[var(--dg-border)] bg-[var(--dg-surface)] p-1 text-[var(--dg-text)] shadow-lg ring-1 ring-foreground/10 duration-100 dark:border-white/[0.08] dark:bg-[#1b1b1b] dark:text-[#e8eaf0] data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95", className )}
+      className={cn("w-auto min-w-[96px] rounded-lg border border-[var(--dg-border)] bg-[var(--dg-surface)] p-1 text-[var(--dg-text)] shadow-lg ring-1 ring-foreground/10 dark:border-white/[0.08] dark:bg-[#1b1b1b] dark:text-[#e8eaf0]", className )}
       align={align}
       alignOffset={alignOffset}
       side={side}

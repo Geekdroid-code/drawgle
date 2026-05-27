@@ -1,46 +1,28 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState, useMemo, type CSSProperties, type ChangeEvent, type ReactNode } from "react";
-import { motion, type Transition, LayoutGroup, AnimatePresence } from "motion/react";
+import { useRef, useState, type CSSProperties, type ChangeEvent, type ReactNode } from "react";
+import { motion, type Transition, AnimatePresence } from "motion/react";
 import {
   ArrowUp,
   ArrowRight,
-  ChevronDown,
   CheckCircle2,
   ImagePlus,
   LayoutTemplate,
   Loader2,
-  Moon,
   Palette,
   Sparkles,
-  Sun,
   X,
-  Search,
-  Trash2,
-  Plus,
-  LogOut,
   Check,
-  PanelRightClose,
-  CreditCard,
-  User,
-  MoreVertical,
-  Share2,
 } from "lucide-react";
 
 import { DesignSystemEditor } from "@/components/DesignSystemEditor";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { PremiumDropdown } from "@/components/ui/premium-dropdown";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
-import { useProjects } from "@/hooks/use-projects";
 import { useCredits } from "@/hooks/useCredits";
 import { PricingDialog } from "@/components/PricingDialog";
-import { useAppTheme } from "@/contexts/app-theme-context";
 import { describeNavigationArchitecture } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import type {
@@ -192,114 +174,14 @@ function TextShimmerWave({
   );
 }
 
-const DAY_IN_MS = 86_400_000;
-const PROJECT_GROUP_ORDER = ["Today", "Yesterday", "Last 7 days", "Earlier"] as const;
-const PROJECT_STATUS_LABEL: Record<ProjectData["status"], string> = {
-  draft: "Draft",
-  active: "Active",
-  queued: "Queued",
-  generating: "Building",
-  failed: "Needs attention",
-  completed: "Ready",
-  archived: "Archived",
-};
-
-const startOfLocalDay = (value: string) => {
-  const date = new Date(value);
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-};
-
-const getGroupLabel = (updatedAt: string) => {
-  const diffInDays = Math.floor(
-    (startOfLocalDay(new Date().toISOString()) - startOfLocalDay(updatedAt)) / DAY_IN_MS,
-  );
-
-  if (diffInDays <= 0) {
-    return "Today";
-  }
-
-  if (diffInDays === 1) {
-    return "Yesterday";
-  }
-
-  if (diffInDays < 7) {
-    return "Last 7 days";
-  }
-
-  return "Earlier";
-};
-
-const getProjectContext = (project: ProjectData) => {
-  if (project.charter?.appType) {
-    return project.charter.appType;
-  }
-
-  if (project.charter?.creativeDirection?.conceptName) {
-    return project.charter.creativeDirection.conceptName;
-  }
-
-  return PROJECT_STATUS_LABEL[project.status] ?? "Design project";
-};
-
-const formatCompactTime = (updatedAt: string) => {
-  const timestamp = new Date(updatedAt).getTime();
-  const diff = Math.max(Date.now() - timestamp, 0);
-  const minute = 60_000;
-  const hour = 60 * minute;
-
-  if (diff < minute) {
-    return "now";
-  }
-
-  if (diff < hour) {
-    return `${Math.floor(diff / minute)}m`;
-  }
-
-  if (diff < DAY_IN_MS) {
-    return `${Math.floor(diff / hour)}h`;
-  }
-
-  if (diff < DAY_IN_MS * 7) {
-    return `${Math.floor(diff / DAY_IN_MS)}d`;
-  }
-
-  return new Date(updatedAt).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
-};
-
-const getStatusDotClass = (status: ProjectData["status"]) => {
-  if (status === "failed") {
-    return "bg-rose-500";
-  }
-
-  if (status === "generating" || status === "queued") {
-    return "bg-[#1b7fcccc]";
-  }
-
-  if (status === "active" || status === "completed") {
-    return "bg-emerald-500";
-  }
-
-  return "bg-neutral-300";
-};
-
-const getAccountInitial = (user: AuthenticatedUser) => (
-  user.fullName?.charAt(0) || user.email?.charAt(0) || "U"
-);
-
 export function ProjectLobby({
   initialPrompt = "",
-  user,
-  initialProjects,
 }: {
   initialPrompt?: string;
   user: AuthenticatedUser;
   initialProjects: ProjectData[];
 }) {
   const router = useRouter();
-  const { resolvedTheme, setTheme } = useAppTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [stage, setStage] = useState<LobbyStage>("brief");
   const [prompt, setPrompt] = useState(initialPrompt);
@@ -313,73 +195,14 @@ export function ProjectLobby({
   const [isGeneratingDesign, setIsGeneratingDesign] = useState(false);
   const [isPlanning, setIsPlanning] = useState(false);
   const [isBuilding, setIsBuilding] = useState(false);
-  
-  // Mobile sidebar drawer state
-  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Credits & Pricing Dialog state
   const { balance, loading: loadingCredits } = useCredits();
   const [isPricingOpen, setIsPricingOpen] = useState(false);
   const [pricingReason, setPricingReason] = useState<"upgrade" | "insufficient_credits">("upgrade");
 
-  // Projects data hook and query filtering
-  const { projects, deleteProject, hasMore, loadMore, isLoadingMore } = useProjects(user.id, initialProjects);
-  const [query, setQuery] = useState("");
-
-  const observerRef = useRef<IntersectionObserver | null>(null);
-  const sentinelCallbackRef = (node: HTMLDivElement | null) => {
-    if (observerRef.current) observerRef.current.disconnect();
-    if (!node || !hasMore || isLoadingMore) return;
-
-    observerRef.current = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting) {
-        void loadMore();
-      }
-    }, { rootMargin: "100px" });
-    observerRef.current.observe(node);
-  };
-
-  const filteredProjects = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    if (!normalizedQuery) {
-      return projects;
-    }
-
-    return projects.filter((project) => (
-      project.name.toLowerCase().includes(normalizedQuery) ||
-      project.prompt.toLowerCase().includes(normalizedQuery)
-    ));
-  }, [projects, query]);
-
-  const groupedProjects = useMemo(
-    () => filteredProjects.reduce<Record<string, ProjectData[]>>((groups, project) => {
-      const label = getGroupLabel(project.updatedAt);
-
-      if (!groups[label]) {
-        groups[label] = [];
-      }
-
-      groups[label].push(project);
-      return groups;
-    }, {}),
-    [filteredProjects],
-  );
-
-  const visibleGroups = PROJECT_GROUP_ORDER.filter((label) => groupedProjects[label]?.length);
   const isBriefReady = Boolean(prompt.trim() || image);
   const selectedBriefStyleLabel = briefStyles.find((style) => style.id === selectedBriefStyle)?.label ?? "Auto";
-
-  const handleSignOut = async () => {
-    try {
-      await fetch("/auth/signout", {
-        method: "POST",
-      });
-      router.replace("/login");
-      router.refresh();
-    } catch (signOutError) {
-      console.error("Failed to sign out", signOutError);
-    }
-  };
 
   const handleImageUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -517,216 +340,9 @@ export function ProjectLobby({
     }
   };
 
-  const renderSidebarContents = () => {
-    return (
-      <div className="flex h-full flex-col overflow-hidden bg-white dark:bg-[#1b1b1b]">
-        {/* Sidebar Header */}
-        <div className="px-4 pb-4 pt-5 border-b border-slate-100 dark:border-white/[0.06] flex flex-col gap-4">
-          <div className="flex items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={() => {
-                setIsMobileSidebarOpen(false);
-                router.push("/project/new");
-              }}
-              className="flex min-w-0 items-center gap-3 text-left hover:opacity-85 transition-opacity"
-            >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-neutral-900 dark:bg-neutral-700 text-[12px] font-bold tracking-wider text-white shadow-sm">
-                DG
-              </span>
-              <span className="min-w-0">
-                
-                <span className="block truncate text-[15px] font-bold tracking-tight text-neutral-800 dark:text-neutral-100">
-                  Drawgle
-                </span>
-                <span className="block text-[10px] font-bold uppercase tracking-[0.2em] text-neutral-400">
-                  AI App UI Generator
-                </span>
-              </span>
-            </button>
-
-            <div className="flex items-center gap-1.5 shrink-0">
-              <button
-                type="button"
-                onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-                className="cursor-pointer flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-white/10 hover:text-neutral-700 dark:hover:text-neutral-200 transition-all"
-                aria-label="Toggle theme"
-              >
-                {resolvedTheme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-              </button>
- 
-            </div>
-          </div>
-
-          <Button
-            type="button"
-            onClick={() => {
-              setIsMobileSidebarOpen(false);
-              router.push("/project/new");
-            }}
-            className="h-10 w-full justify-start rounded-xl px-4 text-sm font-semibold bg-neutral-900 hover:bg-neutral-800 text-white transition-all shadow-sm flex items-center gap-2"
-          >
-            <Plus className="h-4 w-4" />
-            <span>New project</span>
-          </Button>
-
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search projects"
-              className="h-10 w-full rounded-xl border border-neutral-200 dark:border-white/[0.08] bg-neutral-50 dark:bg-[#2a2a2a] pl-10 pr-4 text-sm text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-600 focus:outline-none focus:border-neutral-300 dark:focus:border-white/20 focus:ring-1 focus:ring-neutral-200 dark:focus:ring-white/10 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)] transition-all"
-            />
-          </div>
-        </div>
-
-        {/* Sidebar Scrollable Body */}
-        <div className="flex-1 overflow-y-auto px-3 pb-4 pt-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <SidebarProjectList 
-            visibleGroups={visibleGroups} 
-            groupedProjects={groupedProjects} 
-            deleteProject={deleteProject} 
-            router={router} 
-            setIsMobileSidebarOpen={setIsMobileSidebarOpen} 
-          />
-
-          {hasMore && (
-            <div ref={sentinelCallbackRef} className="py-4 flex justify-center items-center">
-              {isLoadingMore ? (
-                <Loader2 className="h-5 w-5 animate-spin text-neutral-400" />
-              ) : (
-                <span className="text-[11px] font-semibold text-neutral-400">Loading more...</span>
-              )}
-            </div>
-          )}
-
-          {filteredProjects.length === 0 ? (
-            <div className="mx-1 mt-2 rounded-xl border border-dashed border-slate-200 dark:border-white/[0.08] bg-neutral-50 dark:bg-[#1a1d22] px-4 py-6 text-sm text-center leading-relaxed text-neutral-400">
-              {query.trim()
-                ? "No projects match that search."
-                : "No projects yet. Start the first one from this workspace."}
-            </div>
-          ) : null}
-
-          <div className="mx-1 mt-4 rounded-xl border border-neutral-100 dark:border-white/[0.06] bg-[#fbfbfc] dark:bg-[#1a1d22] px-4 py-4 text-xs leading-relaxed text-neutral-500 dark:text-neutral-500">
-            New projects start here. The brief becomes the charter, design system, screen plan, and build kickoff.
-          </div>
-        </div>
-
-        {/* Credits & Subscription Gating */}
-        <div className="px-4 py-3 mx-3 mb-2 bg-gradient-to-br from-[#1b7fcccc]/60 via-[#1b7fcccc]/40 to-[#1b7fcccc]/20 border border-[#1b7fcccc]/10 rounded-2xl shadow-[0_2px_8px_rgba(99,102,241,0.03)] flex flex-col gap-2 shrink-0">
-          <div className="flex justify-between items-center">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-black">Credits Balance</span>
-            <span className="text-xs font-bold text-neutral-800">{loadingCredits ? "..." : `${balance} credits`}</span>
-          </div>
-          <button 
-            type="button" 
-            onClick={() => {
-              setPricingReason("upgrade");
-              setIsPricingOpen(true);
-            }}
-            className="w-full text-center py-1.5 px-3 rounded-lg bg-[#1b7fcccc] hover:bg-[#1b7fcccc]/90 text-white text-xs font-bold shadow-xs hover:shadow-sm transition-all active:scale-[0.98] cursor-pointer"
-          >
-            Upgrade Plan
-          </button>
-        </div>
-
-        {/* Sidebar Footer */}
-        <div className="border-t border-slate-100 dark:border-white/[0.06] p-3">
-          <PremiumDropdown
-            align="end"
-            side="top"
-            width={260}
-            className="w-full text-left"
-            trigger={
-              <button
-                type="button"
-                className="flex w-full items-center gap-3 rounded-xl border border-neutral-250 dark:border-white/[0.06] bg-[#fcfcfd] dark:bg-[#1e2128] p-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.02)] text-left hover:bg-neutral-50 dark:hover:bg-white/[0.04] transition-all cursor-pointer focus:outline-none"
-              >
-                <Avatar className="h-9 w-9 border border-slate-250/[0.08] bg-white">
-                  <AvatarImage src={user.avatarUrl || ""} />
-                  <AvatarFallback>{getAccountInitial(user)}</AvatarFallback>
-                </Avatar>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-xs font-semibold text-neutral-800 dark:text-neutral-200">
-                    {user.fullName ?? "Drawgle account"}
-                  </div>
-                  <div className="truncate text-[10px] text-neutral-400 dark:text-neutral-500">
-                    {user.email ?? "Signed in"}
-                  </div>
-                </div>
-                <ChevronDown className="h-4 w-4 text-neutral-400 shrink-0" />
-              </button>
-            }
-            header={
-              <div className="text-left font-sans">
-                <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500 mb-0.5">Account</div>
-                <div className="truncate text-xs font-semibold text-slate-900 dark:text-slate-100">{user.email || "user@drawgle.com"}</div>
-              </div>
-            }
-            items={[
-              {
-                id: "account",
-                label: "Account Settings",
-                icon: User,
-                onClick: () => router.push("/account"),
-              },
-              {
-                id: "billing",
-                label: "Billing & Subscription",
-                icon: CreditCard,
-                onClick: () => router.push("/billing"),
-              },
-              {
-                id: "logout",
-                label: "Log Out",
-                icon: LogOut,
-                variant: "destructive" as const,
-                onClick: handleSignOut,
-              },
-            ]}
-          />
-        </div>
-      </div>
-    );
-  };
-
   return (
-    <div className="h-screen w-screen bg-[#f8f9fb] dark:bg-[#111215] p-4 flex gap-4 overflow-hidden text-neutral-900 dark:text-neutral-100 select-none">
-      
-      {/* 1. Desktop Floating Sidebar */}
-      <aside className="hidden md:flex flex-col w-[300px] shrink-0 bg-white dark:bg-[#1b1b1b] border border-neutral-200/80 dark:border-white/[0.08] rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.03)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.3)] h-full overflow-hidden">
-        {renderSidebarContents()}
-      </aside>
-
-      {/* 2. Mobile Drawer Sidebar (with backdrop) */}
-      {isMobileSidebarOpen && (
-        <div className="fixed inset-0 z-50 md:hidden flex">
-          {/* Backdrop */}
-          <div 
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300"
-            onClick={() => setIsMobileSidebarOpen(false)}
-          />
-          {/* Floating Drawer Card */}
-          <aside className="relative flex flex-col w-[280px] bg-white dark:bg-[#1b1b1b] border border-neutral-200/80 dark:border-white/[0.08] rounded-[24px] shadow-2xl h-[calc(100%-2rem)] my-4 ml-4 overflow-hidden z-10 animate-in slide-in-from-left duration-300">
-            {renderSidebarContents()}
-          </aside>
-        </div>
-      )}
-
-      {/* 3. Main Dashboard Content Panel */}
-      <main className="flex-1 flex flex-col h-full overflow-hidden relative">
-        {/* Floating mobile hamburger menu button */}
-        <button
-          type="button"
-          onClick={() => setIsMobileSidebarOpen(true)}
-          className="absolute z-40 md:hidden flex h-9 w-9 items-center justify-center rounded-full border border-neutral-200/85 dark:border-white/[0.1] bg-white/90 dark:bg-[#1b1b1b]/90 text-neutral-600 dark:text-neutral-300 shadow-sm backdrop-blur-md hover:bg-neutral-50 dark:hover:bg-white/10 active:scale-95 transition-all"
-          aria-label="Open sidebar"
-        >
-          <PanelRightClose className="h-4.5 w-4.5" />
-        </button>
-
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#f8f9fb] text-neutral-900 select-none dark:bg-[#111215] dark:text-neutral-100">
+      <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
         {error ? (
           <div className="m-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 shadow-sm">
             {error}
@@ -1228,173 +844,6 @@ function MetadataBlock({
       <div className={`mt-1 text-sm ${multiline ? "whitespace-pre-line leading-6 text-neutral-700" : "font-medium text-neutral-900"}`}>
         {value}
       </div>
-    </div>
-  );
-}
-
-function SidebarProjectList({
-  visibleGroups,
-  groupedProjects,
-  deleteProject,
-  router,
-  setIsMobileSidebarOpen,
-}: {
-  visibleGroups: string[];
-  groupedProjects: Record<string, ProjectData[]>;
-  deleteProject: (id: string) => void;
-  router: any;
-  setIsMobileSidebarOpen: (isOpen: boolean) => void;
-}) {
-  const [hoveredProjectId, setHoveredProjectId] = useState<string | null>(null);
-
-  return (
-    <LayoutGroup id="lobby-sidebar-projects-hover">
-      {visibleGroups.map((label) => (
-        <div key={label} className="mb-4">
-          <div className="px-2 mb-1.5 text-[10px] font-normal uppercase tracking-[0.2em] text-neutral-400">
-            {label}
-          </div>
-          <div className="space-y-0.5">
-            {groupedProjects[label].map((project) => (
-              <ProjectMenuItem
-                key={project.id}
-                project={project}
-                onDelete={() => deleteProject(project.id)}
-                onNavigate={() => {
-                  setIsMobileSidebarOpen(false);
-                  router.push(`/project/${project.id}`);
-                }}
-                hoveredProjectId={hoveredProjectId}
-                onHover={setHoveredProjectId}
-              />
-            ))}
-          </div>
-        </div>
-      ))}
-    </LayoutGroup>
-  );
-}
-
-function ProjectMenuItem({
-  project,
-  onDelete,
-  onNavigate,
-  hoveredProjectId,
-  onHover,
-}: {
-  project: ProjectData;
-  onDelete: () => void;
-  onNavigate: () => void;
-  hoveredProjectId: string | null;
-  onHover: (id: string | null) => void;
-}) {
-  const [copied, setCopied] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  
-  const context = getProjectContext(project);
-  const status = PROJECT_STATUS_LABEL[project.status] ?? "Project";
-  const time = formatCompactTime(project.updatedAt);
-  const isHovered = hoveredProjectId === project.id;
-
-  const handleShare = async () => {
-    try {
-      await navigator.clipboard.writeText(`${window.location.origin}/project/${project.id}`);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error("Failed to copy link", err);
-    }
-  };
-
-  return (
-    <div 
-      className="group/project relative"
-      onMouseEnter={() => onHover(project.id)}
-      onMouseLeave={() => onHover(null)}
-    >
-      <Link
-        href={`/project/${project.id}`}
-        onClick={onNavigate}
-        className="relative flex flex-col justify-center min-h-[32px] w-[calc(100%-0.5rem)] rounded-xl px-3 transition-colors select-none text-left z-10 text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100 cursor-pointer"
-      >
-        {/* Hover background capsule slider */}
-        {isHovered && (
-          <motion.div
-            layoutId="project-hover-bg"
-            className="absolute inset-0 rounded-lg bg-slate-950/[0.04] border border-slate-950/[0.05] dark:bg-white/[0.04] dark:border-white/[0.05] -z-10"
-            transition={{ type: "spring", stiffness: 400, damping: 30 }}
-          />
-        )}
-
-        {/* Left vertical indicator pill */}
-        {isHovered && (
-          <motion.div
-            layoutId="project-hover-pill"
-            className="absolute left-0 w-[3px] h-5 rounded-full bg-[#1b1b1b] dark:bg-white z-20"
-            style={{ top: "calc(50% - 10px)" }}
-            transition={{ type: "spring", stiffness: 400, damping: 30 }}
-          />
-        )}
-
-        {/* Content (Title & Timestamp) */}
-        <span className="block min-w-0 w-full">
-          <span className="flex min-w-0 items-center gap-2">
-            <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-neutral-800 dark:text-neutral-200 group-hover/project:text-neutral-900 dark:group-hover/project:text-neutral-100">
-              {project.name}
-            </span>
-            <span className="shrink-0 text-[10px] text-neutral-400 font-normal">
-              {time}
-            </span>
-          </span>
-        
-        </span>
-      </Link>
-
-      {/* Action Dropdown Menu */}
-      <div className="absolute right-2 top-0 bottom-0 pr-1 pl-12 flex items-center justify-end z-20 rounded-r-xl opacity-100 md:opacity-0 md:group-hover/project:opacity-100 transition-opacity bg-gradient-to-l from-white via-white/90 to-transparent dark:from-[#1b1b1b] dark:via-[#1b1b1b]/90 pointer-events-none">
-        <div className="pointer-events-auto">
-          <PremiumDropdown
-            align="end"
-            width={160}
-            trigger={
-              <button
-                type="button"
-                className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 transition-colors hover:bg-slate-900/10 dark:hover:bg-white/10 hover:text-neutral-900 dark:hover:text-neutral-100 cursor-pointer"
-                aria-label="Project actions"
-              >
-                <MoreVertical className="h-4 w-4" />
-              </button>
-            }
-            items={[
-              {
-                id: "share",
-                label: copied ? "Copied!" : "Share Project",
-                icon: Share2,
-                onClick: handleShare,
-              },
-              {
-                id: "delete",
-                label: "Delete Project",
-                icon: Trash2,
-                variant: "destructive" as const,
-                onClick: () => setIsDeleteDialogOpen(true),
-              },
-            ]}
-          />
-        </div>
-      </div>
-
-      {/* Confirmation Dialog */}
-      <ConfirmationDialog
-        isOpen={isDeleteDialogOpen}
-        onClose={() => setIsDeleteDialogOpen(false)}
-        onConfirm={onDelete}
-        title="Delete Project"
-        description={`Are you sure you want to delete "${project.name}"? This action is permanent and cannot be undone.`}
-        confirmText="Delete"
-        cancelText="Cancel"
-        variant="destructive"
-      />
     </div>
   );
 }

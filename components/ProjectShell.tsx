@@ -1782,14 +1782,14 @@ export function ProjectShell({
 
   if (isProjectLoading || !project) {
     return (
-      <div className="flex h-[100dvh] items-center justify-center bg-[#f7f7f8]">
+      <div className="flex h-full min-h-0 items-center justify-center bg-[#f7f7f8]">
         <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
       </div>
     );
   }
 
   return (
-    <div className="h-[100dvh] overflow-hidden bg-[var(--dg-bg)] text-[var(--dg-text)]" style={shellLayoutVars}>
+    <div className="h-full min-h-0 overflow-hidden bg-[var(--dg-bg)] text-[var(--dg-text)]" style={shellLayoutVars}>
       <main className="relative z-0 flex h-full w-full overflow-hidden">
         <div className="absolute left-4 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-50 flex items-center gap-2">
           <div className="flex h-8 items-center rounded-full dg-panel px-2 backdrop-blur-xl lg:px-3">
