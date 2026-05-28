@@ -29,6 +29,36 @@ const BracketDown = () => (
   </div>
 );
 
+const VerticalRuler = ({ side }: { side: 'left' | 'right' }) => {
+  const ticks = Array.from({ length: 30 }).map((_, i) => i * 50);
+  
+  return (
+    <div className={`absolute top-0 bottom-0 w-8 pointer-events-none hidden xl:block opacity-60
+      ${side === 'left' ? 'left-0 border-r border-gray-200' : 'right-0 border-l border-gray-200'}`}
+    >
+      {ticks.map(tick => (
+        <div key={tick} className={`absolute w-full flex items-center h-[1px] ${side === 'left' ? 'justify-end' : 'justify-start'}`} style={{ top: `${tick}px` }}>
+           {side === 'left' ? (
+             <>
+               <span className="text-[10px] font-mono text-[#BDBDBD] -rotate-90 origin-right mr-1.5 -translate-y-1/2 select-none tracking-widest">
+                 {tick === 0 ? '0' : tick}
+               </span>
+               <div className="w-1.5 h-[1px] bg-gray-300"></div>
+             </>
+           ) : (
+             <>
+               <div className="w-1.5 h-[1px] bg-gray-300"></div>
+               <span className="text-[10px] font-mono text-[#BDBDBD] -rotate-90 origin-left ml-1.5 -translate-y-1/2 select-none tracking-widest">
+                 {tick === 0 ? '0' : tick}
+               </span>
+             </>
+           )}
+        </div>
+      ))}
+    </div>
+  );
+};
+
 export default function DescribeToDesign() {
   const [currentStep, setCurrentStep] = useState(0);
   const codeContainerRef = useRef<HTMLDivElement>(null);
@@ -180,6 +210,8 @@ export default function DescribeToDesign() {
 
   return (
     <section className="relative w-full max-w-[1200px] mx-auto px-4 md:px-6 py-16 md:py-24 mb-16 z-10 bg-[#FAFAFA] font-sans">
+      <VerticalRuler side="left" />
+      <VerticalRuler side="right" />
       
       <div className="flex flex-col items-center text-center">
         <h2 className="text-[28px] md:text-[36px] font-medium text-[#4A4A4A] leading-[1.2] mb-3">
@@ -234,7 +266,8 @@ export default function DescribeToDesign() {
         <BracketDown />
       </div>
 
-      <div className="w-full max-w-[1060px] mx-auto bg-white rounded-[24px] border border-gray-200/80 shadow-[0_4px_24px_rgba(0,0,0,0.03)] overflow-hidden flex flex-col mb-16 relative z-20">
+      <div className="w-full max-w-[1060px] mx-auto relative mb-16 z-20">
+        <div className="bg-white rounded-[24px] border border-gray-200/80 shadow-[0_4px_24px_rgba(0,0,0,0.03)] overflow-hidden flex flex-col">
         
         {/* Editor Top Bar */}
         <div className="h-[48px] border-b border-gray-100 flex items-center px-4 bg-white select-none">
@@ -474,6 +507,7 @@ export default function DescribeToDesign() {
           </div>
 
         </div>
+      </div>
       </div>
       
       {/* CSS for custom scrollbar in the code editor to make it sleek */}
