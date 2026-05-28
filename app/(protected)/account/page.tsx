@@ -89,13 +89,13 @@ export default async function AccountPage() {
     ?.reduce((sum, payment) => sum + payment.credits, 0) || 0
 
   return (
-    <div className="container mx-auto py-10 px-4 max-w-4xl min-h-screen text-slate-900 dark:text-slate-100 flex flex-col gap-6">
-      <Card className="border-slate-100 dark:border-white/[0.06] bg-white dark:bg-[#1a1d22] p-6 text-left">
+    <div className="container mx-auto flex min-h-screen max-w-4xl flex-col gap-6 px-4 py-10 text-[var(--dg-text)]">
+      <Card className="border-[var(--dg-border)] bg-[var(--dg-surface)] p-6 text-left">
         <div className="mb-8">
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 font-heading">
+          <h1 className="font-heading text-3xl font-extrabold tracking-tight text-[var(--dg-text)]">
             Account Management
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1.5 leading-relaxed">
+          <p className="mt-1.5 text-sm leading-relaxed text-[var(--dg-text-muted)]">
             Manage your account metrics, inspect active plans, and securely download billing receipts.
           </p>
         </div>

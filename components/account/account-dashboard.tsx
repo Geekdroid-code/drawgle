@@ -87,23 +87,23 @@ export function AccountDashboard({
       {/* Metrics Row */}
       <div className="grid gap-6 md:grid-cols-3">
         {/* User Card */}
-        <Card className="border-slate-100 dark:border-white/[0.06] bg-white dark:bg-[#1a1d22]">
+        <Card className="border-[var(--dg-border)] bg-[var(--dg-surface)]">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+            <CardTitle className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider text-[var(--dg-text-muted)]">
               <User className="h-4 w-4 text-[#1b7fcc]" />
               Account Info
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2.5">
             <div className="flex items-center gap-2">
-              <Mail className="h-4 w-4 text-slate-400 shrink-0" />
-              <span className="truncate text-sm font-semibold text-slate-700 dark:text-slate-200">
+              <Mail className="h-4 w-4 shrink-0 text-[var(--dg-text-faint)]" />
+              <span className="truncate text-sm font-semibold text-[var(--dg-text)]">
                 {user?.email || 'user@drawgle.com'}
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-slate-400 shrink-0" />
-              <span className="text-xs text-slate-500 dark:text-slate-400">
+              <Calendar className="h-4 w-4 shrink-0 text-[var(--dg-text-faint)]" />
+              <span className="text-xs text-[var(--dg-text-muted)]">
                 Joined: {joinedDate}
               </span>
             </div>
@@ -111,45 +111,45 @@ export function AccountDashboard({
         </Card>
 
         {/* Credits Card */}
-        <Card className="border-slate-100 dark:border-white/[0.06] bg-white dark:bg-[#1a1d22]">
+        <Card className="border-[var(--dg-border)] bg-[var(--dg-surface)]">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+            <CardTitle className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider text-[var(--dg-text-muted)]">
               <CircleDollarSign className="h-4 w-4 text-emerald-500" />
               AI Credits Balance
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-1">
-            <div className="text-3xl font-extrabold text-slate-900 dark:text-slate-100 flex items-baseline gap-1">
+            <div className="flex items-baseline gap-1 text-3xl font-extrabold text-[var(--dg-text)]">
               <span>{currentCredits}</span>
-              <span className="text-xs font-semibold text-slate-450 dark:text-slate-500">remaining</span>
+              <span className="text-xs font-semibold text-[var(--dg-text-muted)]">remaining</span>
             </div>
-            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--dg-text-muted)]">
               Total purchased: {totalCreditsPurchased} credits
             </p>
           </CardContent>
         </Card>
 
         {/* Subscription Plan Card */}
-        <Card className="border-slate-100 dark:border-white/[0.06] bg-white dark:bg-[#1a1d22]">
+        <Card className="border-[var(--dg-border)] bg-[var(--dg-surface)]">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+            <CardTitle className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider text-[var(--dg-text-muted)]">
               <Sparkles className="h-4 w-4 text-indigo-500" />
               Current Plan
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-1">
-            <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+            <div className="text-2xl font-bold text-[var(--dg-text)]">
               {subscription?.status === 'active' ? `${subscription.plan_name} Tier` : 'Free Tier'}
             </div>
             {subscription?.status === 'active' ? (
               <div className="flex items-center gap-1.5 mt-2">
                 <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-xs text-slate-500 dark:text-slate-400 capitalize">
+                <span className="text-xs capitalize text-[var(--dg-text-muted)]">
                   {subscription.status} subscription
                 </span>
               </div>
             ) : (
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+              <p className="mt-2 text-xs text-[var(--dg-text-muted)]">
                 Subscribe on the billing page to unlock premium AI tools.
               </p>
             )}

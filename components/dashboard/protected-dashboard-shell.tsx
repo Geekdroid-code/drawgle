@@ -38,7 +38,7 @@ export function ProtectedDashboardShell({
   return (
     <SidebarProvider>
       <AppSidebar user={user} initialProjects={initialProjects} />
-      <SidebarInset className="min-h-svh overflow-hidden bg-[#f8f9fb] dark:bg-[#121212]">
+      <SidebarInset className="min-h-svh overflow-hidden bg-[var(--dg-bg)] text-[var(--dg-text)]">
         <header className="flex h-14 shrink-0 items-center gap-3 px-3 sm:px-4">
           <SidebarTrigger className="shrink-0" />
           <div className="min-w-0 flex-1">

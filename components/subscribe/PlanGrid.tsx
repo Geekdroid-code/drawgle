@@ -116,10 +116,10 @@ export default function PlanGrid({ plans, subscription, isAuthenticated }: PlanG
           <Sparkles className="w-3.5 h-3.5 text-[#1b7fcc]" />
           <span className="text-[10px] font-bold uppercase tracking-wider text-[#1b7fcc] dark:text-[#38bdf8]">Pricing & Upgrades</span>
         </div>
-        <h2 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 mb-3 font-heading">
+        <h2 className="mb-3 font-heading text-3xl font-extrabold tracking-tight text-[var(--dg-text)]">
           Flexible, credit-backed subscription plans
         </h2>
-        <p className="text-slate-500 dark:text-slate-400 text-sm max-w-xl mx-auto leading-relaxed">
+        <p className="mx-auto max-w-xl text-sm leading-relaxed text-[var(--dg-text-muted)]">
           Drawgle consumes credits dynamically based on LLM execution costs. Choose a plan that fits your builder velocity.
         </p>
       </div>
@@ -134,12 +134,12 @@ export default function PlanGrid({ plans, subscription, isAuthenticated }: PlanG
           return (
             <Card
               key={p.id}
-              className={`relative flex flex-col overflow-hidden transition-all duration-200 bg-white dark:bg-[#1a1d22] border ${
+              className={`relative flex flex-col overflow-hidden bg-[var(--dg-surface)] transition-all duration-200 border ${
                 isActive
                   ? 'ring-2 ring-[#1b7fcc] border-transparent shadow-[0_8px_30px_rgba(27,127,204,0.12)]'
                   : isStarter
                   ? 'border-[#1b7fcc]/40 dark:border-[#1b7fcc]/20 shadow-[0_4px_20px_rgba(0,0,0,0.02)]'
-                  : 'border-slate-100 dark:border-white/[0.06] hover:border-slate-200 dark:hover:border-white/[0.12]'
+                  : 'border-[var(--dg-border)] hover:border-[var(--dg-border-strong)]'
               }`}
             >
               {/* Highlight Badge */}
@@ -155,25 +155,25 @@ export default function PlanGrid({ plans, subscription, isAuthenticated }: PlanG
               )}
 
               {/* Card Title & Desc */}
-              <div className="p-6 border-b border-slate-50 dark:border-white/[0.04] text-left">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+              <div className="border-b border-[var(--dg-border)] p-6 text-left">
+                <h3 className="text-lg font-bold text-[var(--dg-text)]">
                   {p.name}
                 </h3>
-                <p className="text-slate-400 dark:text-slate-500 text-xs mt-1.5 min-h-[32px] leading-relaxed">
+                <p className="mt-1.5 min-h-[32px] text-xs leading-relaxed text-[var(--dg-text-muted)]">
                   {p.description}
                 </p>
 
                 {/* Price block */}
                 <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
+                  <span className="text-3xl font-extrabold tracking-tight text-[var(--dg-text)]">
                     {formatPrice(p.price, p.currency ?? 'USD')}
                   </span>
-                  <span className="text-slate-400 dark:text-slate-500 text-xs font-semibold">/mo</span>
+                  <span className="text-xs font-semibold text-[var(--dg-text-muted)]">/mo</span>
                 </div>
 
-                <div className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-50 dark:bg-white/[0.03] border border-slate-100 dark:border-white/[0.05]">
+                <div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-[var(--dg-border)] bg-[var(--dg-surface-muted)] px-2.5 py-0.5">
                   <Zap className="w-3 h-3 text-[#1b7fcc] fill-[#1b7fcc]/10" />
-                  <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
+                  <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--dg-text-muted)]">
                     {p.credits} Monthly Credits
                   </span>
                 </div>
@@ -183,7 +183,7 @@ export default function PlanGrid({ plans, subscription, isAuthenticated }: PlanG
               <div className="flex-1 p-6 flex flex-col gap-4 text-left">
                 <ul className="space-y-3 flex-1">
                   {features.map((feat, i) => (
-                    <li key={i} className="flex items-start gap-2.5 text-xs text-slate-600 dark:text-slate-300 font-medium leading-normal">
+                    <li key={i} className="flex items-start gap-2.5 text-xs font-medium leading-normal text-[var(--dg-text-muted)]">
                       <Check className="w-4 h-4 text-[#1b7fcc] flex-shrink-0 mt-0.5" strokeWidth={3} />
                       <span>{feat}</span>
                     </li>
@@ -195,7 +195,7 @@ export default function PlanGrid({ plans, subscription, isAuthenticated }: PlanG
                   {isActive ? (
                     <Button
                       variant="outline"
-                      className="w-full h-10 font-bold uppercase tracking-wider text-xs border-[#1b7fcc]/40 text-[#1b7fcc] dark:text-[#38bdf8] opacity-80 cursor-not-allowed select-none bg-sky-50/10"
+                      className="h-10 w-full cursor-not-allowed select-none border-[#1b7fcc]/40 bg-[var(--dg-surface-muted)] text-xs font-bold uppercase tracking-wider text-[#1b7fcc] opacity-80 dark:text-[#38bdf8]"
                       disabled
                     >
                       Current Plan
@@ -204,7 +204,7 @@ export default function PlanGrid({ plans, subscription, isAuthenticated }: PlanG
                     <Button
                       onClick={() => handlePlanClick(p)}
                       disabled={busy}
-                      className="w-full h-10 font-bold uppercase tracking-wider text-xs text-white bg-[#1b7fcc] hover:bg-[#1b7fcc]/90 transition-all active:scale-[0.98]"
+                      className="dg-button-primary h-10 w-full text-xs font-bold uppercase tracking-wider transition-all active:scale-[0.98]"
                     >
                       Upgrade to {p.name}
                     </Button>
@@ -212,7 +212,7 @@ export default function PlanGrid({ plans, subscription, isAuthenticated }: PlanG
                     <SubscribeButton
                       productId={p.dodo_product_id}
                       isAuthenticated={isAuthenticated}
-                      className="w-full cursor-pointer h-10 rounded-lg text-xs font-bold uppercase tracking-wider text-white shadow-xs bg-gradient-to-b from-[#1b7fcc] to-[#146ba8] hover:from-[#248fdc] hover:to-[#1777b8] transition-all active:scale-[0.98]"
+                      className="dg-button-primary h-10 w-full cursor-pointer rounded-lg text-xs font-bold uppercase tracking-wider shadow-xs transition-all active:scale-[0.98]"
                     >
                       Choose {p.name}
                     </SubscribeButton>
@@ -226,8 +226,8 @@ export default function PlanGrid({ plans, subscription, isAuthenticated }: PlanG
 
       {/* Security note */}
       <div className="mt-8 flex items-center justify-center gap-2 opacity-50 dark:opacity-40">
-        <ShieldCheck className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-        <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+        <ShieldCheck className="h-4 w-4 text-[var(--dg-text-muted)]" />
+        <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--dg-text-muted)]">
           Securely handled by Dodo Payments. Cancel anytime with 1-click.
         </span>
       </div>

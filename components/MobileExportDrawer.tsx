@@ -397,7 +397,7 @@ ${cleanScreen}
 
           {/* Content Area */}
           <div className="flex-1 min-h-0 bg-[#f7f7f8] px-4 py-4 flex flex-col">
-            <div className="flex-1 min-h-0 flex flex-col rounded-[16px] border border-slate-950/[0.08] bg-white overflow-hidden shadow-sm">
+            <div className="flex-1 min-h-0 flex flex-col rounded-xl border border-slate-950/[0.08] bg-white overflow-hidden shadow-sm">
               <div className="flex items-center justify-between border-b border-slate-950/[0.05] bg-white px-4 py-2 shrink-0">
                 <div className="text-[12px] font-medium text-slate-500 font-mono">
                   {activeTab === "html"

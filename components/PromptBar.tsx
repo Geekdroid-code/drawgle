@@ -1,15 +1,14 @@
-import Image from "next/image";
-import { useRef, useState } from "react";
-import { Image as ImageIcon, Loader2, Palette, Pencil, Send, X } from "lucide-react";
+import { useState } from "react";
+import { Loader2, Palette, Pencil, Send, X } from "lucide-react";
 
 import { AgentThinkingIndicator } from "@/components/AgentBall";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import type { ImageReferenceMode, ProjectData, PromptImagePayload, ScreenData } from "@/lib/types";
+import type { ProjectData, ScreenData } from "@/lib/types";
 
 export type AgentComposerProps = {
-  onSubmit?: (options: { prompt: string; image?: PromptImagePayload | null; imageReferenceMode?: ImageReferenceMode }) => Promise<boolean>;
+  onSubmit?: (options: { prompt: string }) => Promise<boolean>;
   project?: ProjectData;
   disabled?: boolean;
   submitStatusText?: string;
@@ -52,10 +51,6 @@ export function AgentComposer({
   const [prompt, setPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [agentStatus, setAgentStatus] = useState("");
-  const [image, setImage] = useState<PromptImagePayload | null>(null);
-  const [imageReferenceMode, setImageReferenceMode] = useState<ImageReferenceMode>("recreate");
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const activeImage = selectedScreen ? null : image;
   const hasSelectedElement = Boolean(
     selectedElementPreview ||
     selectedElementTargetLabel ||
@@ -63,28 +58,13 @@ export function AgentComposer({
     selectedElementCanEditDesign,
   );
   const activeTargetLabel = selectedElementTargetLabel || selectedScreen?.name || null;
-  const isActiveComposer = Boolean(prompt.trim() || activeImage || selectedScreen || hasSelectedElement || selectionMode);
+  const isActiveComposer = Boolean(prompt.trim() || selectedScreen || hasSelectedElement || selectionMode);
   const elementTagLabel = (selectedElementPreview || "element").replace(/[<>]/g, "").trim().toUpperCase();
-
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64String = reader.result as string;
-      const base64Data = base64String.split(",")[1];
-      setImage({ data: base64Data, mimeType: file.type });
-      event.target.value = "";
-    };
-    reader.readAsDataURL(file);
-  };
 
   const handleGenerate = async () => {
     const nextPrompt = prompt.trim();
-    const imageToSubmit = activeImage;
 
-    if ((!nextPrompt && !imageToSubmit) || disabled || isGenerating || !onSubmit) {
+    if (!nextPrompt || disabled || isGenerating || !onSubmit) {
       return;
     }
 
@@ -94,16 +74,10 @@ export function AgentComposer({
     try {
       const didSubmit = await onSubmit({
         prompt: nextPrompt,
-        image: imageToSubmit,
-        imageReferenceMode: imageToSubmit ? imageReferenceMode : "recreate",
       });
 
       if (didSubmit) {
         setPrompt("");
-        if (imageToSubmit) {
-          setImage(null);
-          setImageReferenceMode("recreate");
-        }
       }
     } catch (error) {
       console.error("Pipeline error:", error);
@@ -206,47 +180,6 @@ export function AgentComposer({
         </div>
       ) : null}
 
-      {activeImage ? (
-        <div className="relative inline-block px-3 pt-2">
-          <div className="relative h-16 w-16 overflow-hidden rounded-[16px] border border-slate-950/[0.08] bg-white">
-            <Image
-              src={`data:${activeImage.mimeType};base64,${activeImage.data}`}
-              alt="Upload"
-              width={64}
-              height={64}
-              unoptimized
-              className="w-full h-full object-cover"
-            />
-            <button
-              onClick={() => {
-                setImage(null);
-                setImageReferenceMode("recreate");
-              }}
-              className="absolute right-1 top-1 rounded-full bg-black/60 p-0.5 text-white hover:bg-black/80"
-              type="button"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          </div>
-          <div className="mt-2 inline-flex rounded-full border border-slate-950/[0.08] bg-white p-0.5 text-[11px] font-semibold text-slate-500 shadow-sm">
-            {([
-              ["recreate", "Image to UI"],
-              ["style", "Style Ref"],
-            ] as const).map(([mode, label]) => (
-              <button
-                key={mode}
-                type="button"
-                className={`h-7 cursor-pointer rounded-full px-2.5 transition ${imageReferenceMode === mode ? "bg-slate-950 text-white" : "hover:bg-slate-100"}`}
-                onClick={() => setImageReferenceMode(mode)}
-                disabled={disabled || isGenerating}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
       <Textarea
         placeholder={
           hasSelectedElement
@@ -269,34 +202,6 @@ export function AgentComposer({
         disabled={disabled || isGenerating}
       />
 
-      <input
-        type="file"
-        accept="image/*"
-        className="hidden"
-        ref={fileInputRef}
-        onChange={handleImageUpload}
-      />
-
-      {!selectedScreen ? (
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute bottom-3 left-3 h-9 w-9 rounded-full bg-white/72 text-slate-500 shadow-[0_6px_18px_rgba(15,23,42,0.08)] ring-1 ring-black/[0.06] backdrop-blur-md hover:bg-white hover:text-slate-950"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={disabled || isGenerating}
-                aria-label="Attach image"
-              >
-                <ImageIcon className="w-4 h-4" />
-              </Button>
-            }
-          />
-          <TooltipContent>Attach image</TooltipContent>
-        </Tooltip>
-      ) : null}
-
       {variant === "panel" && isGenerating ? (
         <div className="pointer-events-none absolute bottom-4 left-4 max-w-[calc(100%-5rem)]">
           <AgentThinkingIndicator label={agentStatus || submitStatusText} className="text-slate-600" />
@@ -308,9 +213,9 @@ export function AgentComposer({
           render={
             <Button
               size="icon"
-              className="absolute bottom-3 right-3 h-10 w-10 rounded-full bg-slate-950 text-white shadow-[0_12px_28px_rgba(15,23,42,0.28)] hover:bg-slate-800"
+              className="absolute bottom-3 right-3 h-10 w-10 rounded-full dg-button-primary text-white shadow-[0_12px_28px_rgba(15,23,42,0.28)] hover:dg-button-primary"
               onClick={() => void handleGenerate()}
-              disabled={disabled || isGenerating || (!prompt.trim() && !activeImage)}
+              disabled={disabled || isGenerating || !prompt.trim()}
               aria-label="Send"
             >
               {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}

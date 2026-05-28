@@ -12,6 +12,7 @@ import { ChatPanel } from "@/components/ChatPanel";
 import { ColorPickerButton } from "@/components/DesignSystemEditor";
 import type { ElementSelectionLostReason, SelectedElementInfo } from "@/components/ScreenNode";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCredits } from "@/hooks/useCredits";
 import { PricingDialog } from "@/components/PricingDialog";
 import { PremiumDropdown } from "@/components/ui/premium-dropdown";
@@ -981,7 +982,7 @@ function SelectedElementInspectorSidebar({
           </div>
           <div className="flex justify-end gap-2 border-t border-slate-950/[0.06] bg-white/95 px-4 py-3">
             <Button variant="outline" className="h-10 rounded-full px-4" onClick={() => onModeChange("selected")}>Back</Button>
-            <Button className="h-10 rounded-full bg-slate-950 px-4 text-white hover:bg-slate-800 gap-2" disabled={disabled || isSaving} onClick={() => void saveDesign()}>
+            <Button className="h-10 rounded-full dg-button-primary hover:dg-button-primary px-4 text-white gap-2" disabled={disabled || isSaving} onClick={() => void saveDesign()}>
               {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
               Apply Changes
             </Button>
@@ -1806,11 +1807,20 @@ export function ProjectShell({
         <div className="absolute right-4 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-50 flex items-center gap-1.5 sm:gap-3">
           {/* Group 1 (Utilities): Sun/Moon theme toggle + Help contact dropdown */}
           <div className="flex h-8 shrink-0 items-center rounded-full dg-panel px-1.5 backdrop-blur-xl gap-0.5">
-            <AnimatedThemeToggle
-              size="icon"
-              variant="circle"
-              className="h-6 w-6 rounded-full text-neutral-600 hover:bg-[#f7f7f8] focus-visible:bg-[#f7f7f8] dark:text-neutral-300 dark:hover:bg-white/10 dark:focus-visible:bg-white/10 [&_svg]:size-3.5"
-            />
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span className="inline-flex">
+                    <AnimatedThemeToggle
+                      size="icon"
+                      variant="circle"
+                      className="h-6 w-6 rounded-full text-neutral-600 hover:bg-[#f7f7f8] focus-visible:bg-[#f7f7f8] dark:text-neutral-300 dark:hover:bg-white/10 dark:focus-visible:bg-white/10 [&_svg]:size-3.5"
+                    />
+                  </span>
+                }
+              />
+              <TooltipContent>Toggle theme</TooltipContent>
+            </Tooltip>
             
             <PremiumDropdown
               align="start"
@@ -1819,7 +1829,7 @@ export function ProjectShell({
                 <button
                   type="button"
                   className="flex h-6 w-6 items-center justify-center rounded-full text-neutral-600 dark:text-neutral-300 hover:bg-[#f7f7f8] dark:hover:bg-white/10 focus:outline-none transition-colors cursor-pointer"
-                  title="Help"
+                  aria-label="Help"
                 >
                   <HelpCircle className="h-3.5 w-3.5" />
                 </button>
@@ -1850,17 +1860,27 @@ export function ProjectShell({
 
           {/* Group 2 (Actions): Preview, Share, Export */}
           <div className="flex h-8 shrink-0 items-center rounded-full dg-panel px-1.5 backdrop-blur-xl gap-0.5 shadow-sm">
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label="Share project"
+                    className="h-6 gap-1 rounded-full px-2 text-[10px] font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300 hover:bg-[#f7f7f8] dark:hover:bg-white/10 flex items-center justify-center"
+                  >
+                    <Share2 className="h-3 w-3 text-neutral-700 dark:text-neutral-300" />
+                    <span className="hidden sm:inline">Share</span>
+                  </Button>
+                }
+              />
+              <TooltipContent className="max-w-[250px] text-center leading-4">
+                Sharing launches soon. You'll be able to share a read-only project link with others.
+              </TooltipContent>
+            </Tooltip>
             <Button
-              variant="ghost"
               size="sm"
-              className="h-6 gap-1 rounded-full px-2 text-[10px] font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300 hover:bg-[#f7f7f8] dark:hover:bg-white/10 flex items-center justify-center"
-            >
-              <Share2 className="h-3 w-3 text-neutral-700 dark:text-neutral-300" />
-              <span className="hidden sm:inline">Share</span>
-            </Button>
-            <Button
-              size="sm"
-              className="h-6 rounded-full bg-[#1b7fcccc] hover:bg-[#1b7fcccc]/90 px-2 sm:px-3 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm transition-all flex items-center justify-center gap-1"
+              className="h-6 rounded-full dg-button-primary hover:dg-button-primary px-2 sm:px-3 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm transition-all flex items-center justify-center gap-1"
               onClick={() => {
                 setExportDrawerOpen(true);
               }}
@@ -1886,7 +1906,7 @@ export function ProjectShell({
                 setIsPricingOpen(true);
               }}
               size="sm"
-              className="h-6 rounded-full bg-[#1b7fcccc] hover:bg-[#1b7fcccc]/90 px-2 sm:px-3 text-[10px] font-bold uppercase tracking-wider text-white shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1"
+              className="h-6 rounded-full dg-button-primary hover:dg-button-primary px-2 sm:px-3 text-[10px] font-bold uppercase tracking-wider text-white shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1"
             >
               <CreditCard className="h-3 w-3 sm:hidden" />
               <span className="hidden sm:inline">Upgrade</span>
@@ -1911,14 +1931,7 @@ export function ProjectShell({
               <div className="text-left">
                 <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500 mb-0.5">Account</div>
                 <div className="truncate text-xs font-semibold text-slate-900 dark:text-slate-100">{user.email || "user@drawgle.com"}</div>
-                <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-[#1b7fcccc]/50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#1b7fcccc]">
-                  {loadingCredits ? "..." : (
-                    <>
-                      <CircleDollarSign className="h-3 w-3 stroke-[2.5]" />
-                      {balance}
-                    </>
-                  )}
-                </div>
+                
               </div>
             }
             items={[

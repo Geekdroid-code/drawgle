@@ -1,8 +1,10 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   Check,
   CreditCard,
@@ -16,15 +18,10 @@ import {
   Trash2,
 } from "lucide-react";
 
+import { AgentBall } from "@/components/AgentBall";
 import { NavSecondary } from "@/components/dashboard/nav-secondary";
 import { NavUser } from "@/components/dashboard/nav-user";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Sidebar,
   SidebarContent,
@@ -34,7 +31,6 @@ import {
   SidebarHeader,
   SidebarInput,
   SidebarMenu,
-  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
@@ -105,7 +101,7 @@ function CreditsCard({ userId }: { userId: string }) {
       <Link
         href="/billing"
         prefetch={false}
-        className="mt-3 flex h-8 items-center justify-center rounded-md bg-sidebar-primary px-3 text-xs font-medium text-sidebar-primary-foreground transition hover:opacity-90"
+        className="mt-3 flex h-8 items-center justify-center rounded-md dg-button-primary hover:dg-button-primary px-3 text-xs font-medium text-sidebar-primary-foreground transition hover:opacity-90"
       >
         Upgrade plan
       </Link>
@@ -172,7 +168,9 @@ function ProjectGroups({
 
       <SidebarGroup className="group-data-[collapsible=icon]:hidden">
         <div className="relative px-2 pb-2">
-          <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-sidebar-foreground/45" />
+          <div className="pointer-events-none absolute inset-y-0 left-4 flex items-center pb-2">
+            <Search className="size-4 text-sidebar-foreground/45" />
+          </div>
           <SidebarInput
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -237,6 +235,56 @@ function ProjectMenuItem({
 }) {
   const [copied, setCopied] = React.useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
+  const [isActionsOpen, setIsActionsOpen] = React.useState(false);
+  const [hoveredAction, setHoveredAction] = React.useState<string | null>(null);
+  const [menuPosition, setMenuPosition] = React.useState<{ left: number; top: number } | null>(null);
+  const actionButtonRef = React.useRef<HTMLButtonElement | null>(null);
+  const actionMenuRef = React.useRef<HTMLDivElement | null>(null);
+
+  const updateActionMenuPosition = React.useCallback(() => {
+    const button = actionButtonRef.current;
+    if (!button) return;
+
+    const rect = button.getBoundingClientRect();
+    const menuWidth = 172;
+    const menuHeight = 92;
+    const gap = 8;
+    const viewportPadding = 8;
+    const opensRight = rect.right + gap + menuWidth <= window.innerWidth - viewportPadding;
+    const left = opensRight ? rect.right + gap : Math.max(viewportPadding, rect.left - menuWidth - gap);
+    const top = Math.min(
+      Math.max(viewportPadding, rect.top - 8),
+      window.innerHeight - menuHeight - viewportPadding,
+    );
+
+    setMenuPosition({ left, top });
+  }, []);
+
+  React.useEffect(() => {
+    if (!isActionsOpen) return;
+
+    updateActionMenuPosition();
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (
+        !actionButtonRef.current?.contains(target)
+        && !actionMenuRef.current?.contains(target)
+      ) {
+        setIsActionsOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("resize", updateActionMenuPosition);
+    window.addEventListener("scroll", updateActionMenuPosition, true);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("resize", updateActionMenuPosition);
+      window.removeEventListener("scroll", updateActionMenuPosition, true);
+    };
+  }, [isActionsOpen, updateActionMenuPosition]);
 
   const handleShare = async () => {
     try {
@@ -247,6 +295,100 @@ function ProjectMenuItem({
       console.error("Failed to copy project link", error);
     }
   };
+
+  const openActions = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsActionsOpen((open) => {
+      const nextOpen = !open;
+      if (nextOpen) {
+        requestAnimationFrame(updateActionMenuPosition);
+      }
+      return nextOpen;
+    });
+  };
+
+  const actionMenu = (
+    <AnimatePresence>
+      {isActionsOpen && menuPosition ? (
+        <motion.div
+          ref={actionMenuRef}
+          initial={{ opacity: 0, scale: 0.92, y: -4 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.94, y: -3 }}
+          transition={{ type: "spring", damping: 32, stiffness: 420, mass: 0.75 }}
+          style={{ left: menuPosition.left, top: menuPosition.top, width: 172 }}
+          className="fixed z-[9999] overflow-hidden rounded-[14px] border border-slate-950/[0.08] bg-white p-1.5 shadow-[0_20px_70px_rgba(15,23,42,0.15)] dark:border-white/[0.08] dark:bg-[#1b1b1b] dark:shadow-[0_20px_70px_rgba(0,0,0,0.55)]"
+        >
+          {[
+            {
+              id: "share",
+              label: copied ? "Copied!" : "Share project",
+              icon: copied ? Check : Share2,
+              onClick: handleShare,
+              destructive: false,
+            },
+            {
+              id: "delete",
+              label: "Delete project",
+              icon: Trash2,
+              onClick: () => setIsDeleteDialogOpen(true),
+              destructive: true,
+            },
+          ].map((item, index) => {
+            const Icon = item.icon;
+            const active = hoveredAction === item.id;
+
+            return (
+              <motion.button
+                key={item.id}
+                type="button"
+                initial={{ opacity: 0, x: 8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.04 + index * 0.02, duration: 0.14 }}
+                onMouseEnter={() => setHoveredAction(item.id)}
+                onMouseLeave={() => setHoveredAction(null)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  item.onClick();
+                  setIsActionsOpen(false);
+                }}
+                className={cn(
+                  "relative flex h-9 w-full items-center gap-2.5 rounded-lg px-3 text-left text-[13px] font-semibold transition-colors",
+                  item.destructive
+                    ? "text-rose-600/85 hover:text-rose-600 dark:text-rose-400/85 dark:hover:text-rose-400"
+                    : "text-slate-600 hover:text-slate-950 dark:text-slate-300 dark:hover:text-white",
+                )}
+              >
+                {active ? (
+                  <motion.span
+                    layoutId="project-action-hover"
+                    className={cn(
+                      "absolute inset-0 -z-10 rounded-lg",
+                      item.destructive ? "bg-rose-50 dark:bg-rose-950/20" : "bg-slate-50 dark:bg-white/5",
+                    )}
+                    transition={{ type: "spring", damping: 30, stiffness: 520, mass: 0.8 }}
+                  />
+                ) : null}
+                {active ? (
+                  <motion.span
+                    layoutId="project-action-bar"
+                    className={cn(
+                      "absolute bottom-0 left-0 top-0 my-auto h-5 w-[3px] rounded-full",
+                      item.destructive ? "bg-rose-500" : "bg-slate-900 dark:bg-slate-100",
+                    )}
+                    transition={{ type: "spring", damping: 30, stiffness: 520, mass: 0.8 }}
+                  />
+                ) : null}
+                <Icon className="relative z-10 size-4 shrink-0" />
+                <span className="relative z-10 whitespace-nowrap">{item.label}</span>
+              </motion.button>
+            );
+          })}
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
+  );
 
   return (
     <SidebarMenuItem>
@@ -260,39 +402,23 @@ function ProjectMenuItem({
         }
         isActive={active}
         tooltip={project.name}
-        className={cn("h-9 pr-14", active && "font-medium")}
+        className={cn("h-9 pr-11 md:pr-14", active && "font-medium")}
       >
         <span className="size-2 shrink-0 rounded-full bg-sidebar-foreground/35" />
         <span className="min-w-0 flex-1 truncate">{project.name}</span>
       </SidebarMenuButton>
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <SidebarMenuAction
-              showOnHover
-              aria-label="Project actions"
-              className="right-1.5 top-1.5 size-6 bg-sidebar-accent shadow-sm"
-            />
-          }
-        >
-          <MoreVertical />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" side="right" className="w-40">
-          <DropdownMenuItem onClick={handleShare} className="cursor-pointer">
-            {copied ? <Check /> : <Share2 />}
-            {copied ? "Copied!" : "Share project"}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => setIsDeleteDialogOpen(true)}
-            variant="destructive"
-            className="cursor-pointer"
-          >
-            <Trash2 />
-            Delete project
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] tabular-nums text-sidebar-foreground/40 transition-opacity group-hover/menu-item:opacity-0 group-focus-within/menu-item:opacity-0 group-data-[collapsible=icon]:hidden">
+      <button
+        ref={actionButtonRef}
+        type="button"
+        onClick={openActions}
+        aria-label="Project actions"
+        aria-expanded={isActionsOpen}
+        className="absolute right-1.5 top-1.5 z-20 flex size-6 items-center justify-center rounded-md bg-sidebar-accent text-sidebar-foreground opacity-100 border-1 ring-sidebar-ring transition-[opacity,background-color,color] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 md:opacity-0 md:group-hover/menu-item:opacity-100 md:group-focus-within/menu-item:opacity-100"
+      >
+        <MoreVertical className="size-4" />
+      </button>
+      {typeof document !== "undefined" ? createPortal(actionMenu, document.body) : null}
+      <div className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 text-[10px] tabular-nums text-sidebar-foreground/40 transition-opacity group-hover/menu-item:opacity-0 group-focus-within/menu-item:opacity-0 group-data-[collapsible=icon]:hidden md:block">
         {formatCompactTime(project.updatedAt)}
       </div>
       <ConfirmationDialog
@@ -334,8 +460,8 @@ export function AppSidebar({
               render={<Link href="/project/new" prefetch={false} />}
               tooltip="Drawgle"
             >
-              <span className="flex aspect-square size-8 items-center justify-center rounded-md bg-sidebar-primary text-xs font-bold tracking-wider text-sidebar-primary-foreground">
-                DG
+              <span className="flex aspect-square size-9 items-center justify-center rounded-md bg-[var(--dg-surface-muted)] ring-1 ring-[var(--dg-border)] group-data-[collapsible=icon]:size-8 [&_svg]:!size-6 group-data-[collapsible=icon]:[&_svg]:!size-5">
+                <AgentBall className="h-6 w-6" />
               </span>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">Drawgle</span>
@@ -347,7 +473,7 @@ export function AppSidebar({
         <Link
           href="/project/new"
           prefetch={false}
-          className="mx-2 flex h-9 items-center justify-center gap-2 rounded-lg bg-sidebar-primary px-3 text-sm font-medium text-sidebar-primary-foreground transition hover:opacity-90 group-data-[collapsible=icon]:mx-0 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:px-0"
+          className="mx-2 flex h-9 items-center justify-center gap-2 rounded-lg dg-button-primary hover:dg-button-primary px-3 text-sm font-medium text-sidebar-primary-foreground transition hover:opacity-90 group-data-[collapsible=icon]:mx-0 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:px-0"
         >
           <FolderPlus className="size-4" />
           <span className="group-data-[collapsible=icon]:hidden">New project</span>

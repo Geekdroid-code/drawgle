@@ -343,7 +343,7 @@ export function DesignSystemEditor({
         </div> : null
       ) : null}
 
-      {!isPanel ? <div className="flex shrink-0 flex-col gap-3 rounded-[16px] border border-slate-950/[0.1] bg-white/92 px-4 py-3 backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
+      {!isPanel ? <div className="flex shrink-0 flex-col gap-3 rounded-xl border border-slate-950/[0.1] bg-white/92 px-4 py-3 backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           
           <h2 className="mt-1 truncate text-xl font-semibold tracking-[-0.03em] text-slate-950">{title}</h2>
@@ -608,7 +608,7 @@ export function DesignSystemEditor({
         </section>
 
         {shouldShowPreview ? (
-        <section className={`${mobileView === "preview" ? "flex" : "hidden"} min-h-0 items-center justify-center overflow-hidden rounded-[16px] border border-slate-950/[0.1] bg-[#eaedf1] p-3 sm:p-4 lg:flex`}>
+        <section className={`${mobileView === "preview" ? "flex" : "hidden"} min-h-0 items-center justify-center overflow-hidden rounded-xl border border-slate-950/[0.1] bg-[#eaedf1] p-3 sm:p-4 lg:flex`}>
           <PhonePreview
             primaryBg={primaryBg}
             secondaryBg={secondaryBg}
@@ -631,7 +631,7 @@ export function DesignSystemEditor({
         ) : null}
       </div>
 
-      <div className={`${isPanel ? "hidden" : "mt-4 flex"} shrink-0 flex-col gap-2 rounded-[16px] border border-slate-950/[0.1] bg-white/94 p-3 backdrop-blur lg:flex-row lg:items-center lg:justify-between`}>
+      <div className={`${isPanel ? "hidden" : "mt-4 flex"} shrink-0 flex-col gap-2 rounded-xl border border-slate-950/[0.1] bg-white/94 p-3 backdrop-blur lg:flex-row lg:items-center lg:justify-between`}>
         <div className="hidden items-center gap-2 text-xs text-slate-500 lg:flex">
           <Eye className="h-3.5 w-3.5" />
           Preview stays live while tokens change.
@@ -1572,7 +1572,7 @@ function ShadowField({
   }
 
   return (
-    <div className="col-span-full grid gap-3 rounded-[16px] border border-slate-950/[0.06] bg-white p-3">
+    <div className="col-span-full grid gap-3 rounded-xl border border-slate-950/[0.06] bg-white p-3">
       <div className="min-w-0 space-y-3">
         <div className="grid gap-2">
           <div className="min-w-0">

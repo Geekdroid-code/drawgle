@@ -7,7 +7,7 @@ import type React from "react"
 import { useState } from "react"
 import { Menu, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { FolioLogo } from "@/components/icons/FolioLogo"
+import { AgentBall } from "@/components/AgentBall"
 
 interface NavbarProps {
   children: React.ReactNode
@@ -53,11 +53,13 @@ export const NavBody = ({ children, className }: NavBodyProps) => {
   return (
     <motion.div
       className={cn(
-        "relative z-[60] mx-auto max-w-4xl flex-row items-center justify-between self-start rounded-lg bg-white/95 border border-gray-200 px-3 py-2 hidden backdrop-blur-lg lg:flex",
+        "relative z-[60] mx-auto hidden max-w-4xl flex-row items-center justify-between self-start overflow-hidden rounded-xl border border-white/10 bg-[linear-gradient(135deg,rgba(7,10,16,0.94)_0%,rgba(16,19,27,0.88)_52%,rgba(5,8,13,0.95)_100%)] px-3 py-2 text-white shadow-[0_18px_55px_-38px_rgba(0,0,0,0.85)] backdrop-blur-xl before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(circle_at_18%_0%,rgba(116,184,212,0.20),transparent_32%),linear-gradient(110deg,transparent_0%,rgba(255,255,255,0.10)_42%,transparent_58%)] before:opacity-70 after:pointer-events-none after:absolute after:inset-x-4 after:top-0 after:h-px after:bg-gradient-to-r after:from-transparent after:via-white/45 after:to-transparent lg:flex",
         className,
       )}
     >
-      {children}
+      <div className="relative z-10 flex w-full items-center justify-between">
+        {children}
+      </div>
     </motion.div>
   )
 }
@@ -71,7 +73,7 @@ export const NavItems = ({ items, className, onItemClick }: NavItemsProps) => {
     <motion.div
       onMouseLeave={() => setHovered(null)}
       className={cn(
-        "flex flex-1 flex-row items-center justify-center space-x-1 text-sm font-medium text-gray-600 transition duration-200",
+        "flex flex-1 flex-row items-center justify-center space-x-1 text-sm font-medium text-white/68 transition duration-200",
         className,
       )}
     >
@@ -79,12 +81,12 @@ export const NavItems = ({ items, className, onItemClick }: NavItemsProps) => {
         <a
           onMouseEnter={() => setHovered(idx)}
           onClick={onItemClick}
-          className="relative px-3 py-2 font-semibold transition-colors cursor-pointer"
+          className="relative px-3 py-2 font-semibold transition-colors cursor-pointer hover:text-white"
           key={`link-${idx}`}
           href={item.link}
         >
           {hovered === idx && (
-            <motion.div layoutId="hovered" className="absolute inset-0 h-full w-full rounded-md bg-gray-100" />
+            <motion.div layoutId="hovered" className="absolute inset-0 h-full w-full rounded-md bg-white/[0.08] ring-1 ring-white/[0.06]" />
           )}
           <span className="relative z-20">{item.name}</span>
         </a>
@@ -97,11 +99,13 @@ export const MobileNav = ({ children, className }: MobileNavProps) => {
   return (
     <motion.div
       className={cn(
-        "relative z-50 mx-auto flex w-[95%] max-w-[calc(100vw-1rem)] flex-col items-center justify-between bg-white/95 border border-gray-200 rounded-lg backdrop-blur-lg py-3 px-4 lg:hidden",
+        "relative z-50 mx-auto flex w-[95%] max-w-[calc(100vw-1rem)] flex-col items-center justify-between overflow-hidden rounded-xl border border-white/10 bg-[linear-gradient(135deg,rgba(7,10,16,0.94)_0%,rgba(16,19,27,0.88)_52%,rgba(5,8,13,0.95)_100%)] px-4 py-3 text-white shadow-[0_18px_55px_-38px_rgba(0,0,0,0.85)] backdrop-blur-xl before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(circle_at_18%_0%,rgba(116,184,212,0.18),transparent_36%),linear-gradient(110deg,transparent_0%,rgba(255,255,255,0.10)_42%,transparent_58%)] before:opacity-70 lg:hidden",
         className,
       )}
     >
-      {children}
+      <div className="relative z-10 flex w-full flex-col items-center justify-between">
+        {children}
+      </div>
     </motion.div>
   )
 }
@@ -119,7 +123,7 @@ export const MobileNavMenu = ({ children, className, isOpen, onClose }: MobileNa
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
           className={cn(
-            "absolute inset-x-0 top-16 z-50 flex w-full text-black font-semibold flex-col justify-start gap-2 rounded-lg bg-white border border-gray-200 px-4 py-6",
+            "absolute inset-x-0 top-16 z-50 flex w-full flex-col justify-start gap-2 rounded-xl border border-white/10 bg-[linear-gradient(135deg,rgba(7,10,16,0.96),rgba(16,19,27,0.94))] px-4 py-6 font-semibold text-white shadow-[0_18px_55px_-38px_rgba(0,0,0,0.85)] backdrop-blur-xl",
             className,
           )}
         >
@@ -138,8 +142,8 @@ export const MobileNavToggle = ({
   onClick: () => void
 }) => {
   return (
-    <Button onClick={onClick} className="text-sm py-1 group overflow-hidden bg-white hover:bg-gray-50">
-      {isOpen ? <X className="h-8 w-8 text-black" /> : <Menu className="h-8 w-8 text-black" />}
+    <Button onClick={onClick} className="group h-9 w-9 overflow-hidden rounded-lg border border-white/10 bg-white/[0.08] p-0 text-sm text-white hover:bg-white/[0.14]">
+      {isOpen ? <X className="h-5 w-5 text-white" /> : <Menu className="h-5 w-5 text-white" />}
     </Button>
   )
 }
@@ -150,18 +154,30 @@ function Header() {
   const navItems = [
     { name: "Features", link: "/#features" },
     { name: "How it works", link: "/#how-it-works" },
-    { name: "Shoot Packs", link: "/#style-packs" },
+    { name: "Style Packs", link: "/#style-packs" },
     { name: "Blog", link: "/blog" },
   ]
+
+  const BrandLogo = ({ compact = false }: { compact?: boolean }) => (
+    <Link href="/" className="flex items-center cursor-pointer">
+      <span className={cn(
+        "flex items-center justify-center rounded-md ",
+        compact ? "size-8 [&_svg]:!size-5" : "size-9 [&_svg]:!size-6",
+      )}>
+        <AgentBall className={compact ? "h-5 w-5" : "h-6 w-6"} />
+      </span>
+      <span className="text-base font-semibold tracking-tight text-white">
+        Drawgle
+      </span>
+    </Link>
+  )
 
   return (
     <Navbar>
       <NavBody>
         {/* Logo */}
         <div className="flex items-center">
-          <a href="/" className="flex items-center gap-2 cursor-pointer">
-            <FolioLogo className="w-32 h-8" />
-          </a>
+          <BrandLogo />
         </div>
 
         {/* Navigation Items */}
@@ -171,10 +187,10 @@ function Header() {
         <div className="flex items-center gap-3">
           <Link href="/login">
             <Button
-              className="text-sm py-5 group relative bg-[#1b7fcccc] text-white rounded-md overflow-hidden cursor-pointer pr-10"
+              className="group relative overflow-hidden rounded-lg dg-button-primary hover:dg-button-primary py-5 pr-10 text-sm text-white cursor-pointer"
             >
-              Start Your Photoshoot
-              <div className="bg-white rounded-sm p-[10px] absolute right-1 top-1/2 -translate-y-1/2">
+              Start designing
+              <div className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md bg-white p-[10px]">
               <img
                 src="/arrow.svg"
                 alt="arrow-right"
@@ -189,9 +205,7 @@ function Header() {
       <MobileNav>
         <MobileNavHeader>
           <div className="flex items-center">
-            <a href="/" className="flex items-center gap-2">
-              <FolioLogo className="w-24 h-7" />
-            </a>
+            <BrandLogo compact />
           </div>
           <MobileNavToggle isOpen={isOpen} onClick={() => setIsOpen(!isOpen)} />
         </MobileNavHeader>
@@ -202,7 +216,7 @@ function Header() {
               <a
                 key={idx}
                 href={item.link}
-                className="w-full px-2 py-2 text-gray-600 hover:text-black transition-colors cursor-pointer text-center"
+                className="w-full rounded-lg px-2 py-2 text-center text-white/70 transition-colors cursor-pointer hover:bg-white/[0.08] hover:text-white"
                 onClick={() => setIsOpen(false)}
               >
                 {item.name}
@@ -211,10 +225,10 @@ function Header() {
             <div className="flex flex-col gap-2 mt-4 w-full items-center">
               <Link href="/login">
                 <Button
-                  className="text-md py-6 group relative bg-[#1b7fcccc] text-white rounded-md overflow-hidden cursor-pointer pr-12"
+                  className="text-md group relative overflow-hidden rounded-lg dg-button-primary hover:dg-button-primary py-6 pr-12 text-white cursor-pointer"
                 >
-                  Start Your Photoshoot
-                  <div className="bg-white rounded-sm p-3 absolute right-1 top-1/2 -translate-y-1/2">
+                  Start designing
+                  <div className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md bg-white p-3">
                     <img
                       src="/arrow.svg"
                       alt="arrow-right"

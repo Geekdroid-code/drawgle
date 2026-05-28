@@ -410,7 +410,7 @@ function AuthField({
       <span className="text-sm font-medium text-gray-700">{label}</span>
       <Input
         autoComplete={autoComplete}
-        className="h-12 rounded-[16px] border-slate-950/[0.08] bg-[#f7f7f8] px-4 shadow-none focus-visible:ring-[#002fa7]/15"
+        className="h-12 rounded-xl border-slate-950/[0.08] bg-[#f7f7f8] px-4 shadow-none focus-visible:ring-[#002fa7]/15"
         disabled={disabled}
         minLength={minLength}
         onChange={(event) => onChange(event.target.value)}

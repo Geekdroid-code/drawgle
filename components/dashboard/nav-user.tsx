@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   BadgeCheck,
@@ -16,15 +15,7 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "@/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { PremiumDropdown } from "@/components/ui/premium-dropdown";
 import {
   SidebarMenu,
   SidebarMenuButton,
@@ -69,15 +60,15 @@ export function NavUser({
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <SidebarMenuButton
-                size="lg"
-                className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center"
-              />
-            }
-          >
+        <PremiumDropdown
+          align="end"
+          side={isMobile ? "bottom" : "right"}
+          width={248}
+          trigger={
+            <SidebarMenuButton
+              size="lg"
+              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center"
+            >
             <Avatar className="h-8 w-8 rounded-lg">
               <AvatarImage src={user.avatar} alt={user.name} />
               <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
@@ -87,62 +78,63 @@ export function NavUser({
               <span className="truncate text-xs">{user.email}</span>
             </div>
             <ChevronsUpDown className="ml-auto size-4 group-data-[collapsible=icon]:hidden" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
-            side={isMobile ? "bottom" : "right"}
-            align="end"
-            sideOffset={4}
-          >
-            <DropdownMenuLabel className="p-0 font-normal">
-              <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src={user.avatar} alt={user.name} />
-                  <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
-                </Avatar>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">{user.name}</span>
-                  <span className="truncate text-xs">{user.email}</span>
-                </div>
+            </SidebarMenuButton>
+          }
+          header={
+            <div className="flex items-center gap-2 text-left">
+              <Avatar className="h-8 w-8 rounded-lg">
+                <AvatarImage src={user.avatar} alt={user.name} />
+                <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
+              </Avatar>
+              <div className="grid flex-1 text-left text-sm leading-tight">
+                <span className="truncate font-medium text-slate-900 dark:text-white">{user.name}</span>
+                <span className="truncate text-xs text-slate-500 dark:text-slate-400">{user.email}</span>
               </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem
-                onClick={() => {
-                  setOpenMobile(false);
-                  router.push("/project/new");
-                }}
-                className="cursor-pointer"
-              >
-                <FolderSync className="mr-2 h-4 w-4" />
-                Workspace
-              </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer">
-                <BadgeCheck className="mr-2 h-4 w-4" />
-                <Link href="/account" prefetch={false} onClick={() => setOpenMobile(false)}>
-                  Account
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer">
-                <CreditCard className="mr-2 h-4 w-4" />
-                <Link href="/billing" prefetch={false} onClick={() => setOpenMobile(false)}>
-                  Billing
-                </Link>
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={handleSignOut}
-              disabled={isSigningOut}
-              variant="destructive"
-              className="cursor-pointer"
-            >
-              <LogOut className="mr-2 h-4 w-4" />
-              {isSigningOut ? "Signing out..." : "Log out"}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+            </div>
+          }
+          items={[
+            {
+              id: "workspace",
+              label: "Workspace",
+              icon: FolderSync,
+              onClick: () => {
+                setOpenMobile(false);
+                router.push("/project/new");
+              },
+            },
+            {
+              id: "account",
+              label: "Account",
+              icon: BadgeCheck,
+              onClick: () => {
+                setOpenMobile(false);
+                router.push("/account");
+              },
+            },
+            {
+              id: "billing",
+              label: "Billing",
+              icon: CreditCard,
+              onClick: () => {
+                setOpenMobile(false);
+                router.push("/billing");
+              },
+            },
+            {
+              id: "divider",
+              label: "",
+            },
+            {
+              id: "sign-out",
+              label: isSigningOut ? "Signing out..." : "Log out",
+              icon: LogOut,
+              variant: "destructive",
+              onClick: isSigningOut
+                ? undefined
+                : handleSignOut,
+            },
+          ]}
+        />
       </SidebarMenuItem>
     </SidebarMenu>
   );

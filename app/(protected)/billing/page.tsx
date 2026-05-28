@@ -123,7 +123,7 @@ export default async function SubscribePage() {
     const isActive = subscriptionSummary?.status === 'active'
 
     return (
-        <main className="min-h-screen font-sans text-slate-900 dark:text-slate-100 flex flex-col items-center py-10">
+        <main className="flex min-h-screen flex-col items-center py-10 font-sans text-[var(--dg-text)]">
             {/* Live updates for webhook-driven lifecycle changes */}
             <RealtimeSubscriptionSync userId={user?.id} />
 

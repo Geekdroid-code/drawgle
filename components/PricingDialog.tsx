@@ -150,7 +150,7 @@ export function PricingDialog({
                   <div
                     key={plan.id}
                     className={cn(
-                      "group relative flex flex-col rounded-[16px] lg:rounded-[24px] bg-white p-5 lg:p-7 transition-all duration-300",
+                      "group relative flex flex-col rounded-xl lg:rounded-[24px] bg-white p-5 lg:p-7 transition-all duration-300",
                       isPopular 
                         ? "ring-1 lg:ring-2 ring-slate-900 shadow-[0_4px_16px_rgb(0,0,0,0.06)] lg:shadow-[0_8px_30px_rgb(0,0,0,0.08)] z-10" 
                         : "border border-slate-200 shadow-sm lg:hover:shadow-md"

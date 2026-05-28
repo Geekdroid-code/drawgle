@@ -91,9 +91,24 @@ const briefStyles: Array<{
   },
 ];
 
-const imageReferenceModes: Array<{ id: ImageReferenceMode; label: string; compactLabel: string }> = [
-  { id: "recreate", label: "Image to UI", compactLabel: "Image to UI" },
-  { id: "style", label: "Style reference", compactLabel: "Style Ref" },
+const imageReferenceModes: Array<{
+  id: ImageReferenceMode;
+  label: string;
+  compactLabel: string;
+  description: string;
+}> = [
+  {
+    id: "recreate",
+    label: "Image to UI",
+    compactLabel: "Image to UI",
+    description: "Use the uploaded image as the layout and structure to recreate into a UI.",
+  },
+  {
+    id: "style",
+    label: "Style reference",
+    compactLabel: "Style Ref",
+    description: "Use the uploaded image for mood, color, and visual treatment while designing a new layout.",
+  },
 ];
 
 const readApiError = (payload: ApiErrorPayload | null | undefined, fallback: string) => {
@@ -203,6 +218,8 @@ export function ProjectLobby({
 
   const isBriefReady = Boolean(prompt.trim() || image);
   const selectedBriefStyleLabel = briefStyles.find((style) => style.id === selectedBriefStyle)?.label ?? "Auto";
+  const activeImageModeDescription =
+    imageReferenceModes.find((mode) => mode.id === imageReferenceMode)?.description ?? "";
 
   const handleImageUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -341,7 +358,7 @@ export function ProjectLobby({
   };
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#f8f9fb] text-neutral-900 select-none dark:bg-[#121212] dark:text-neutral-100 dg-dashed-grid-bg">
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[var(--dg-bg)] text-[var(--dg-text)] select-none dg-dashed-grid-bg">
       <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
         {error ? (
           <div className="m-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 shadow-sm">
@@ -364,36 +381,50 @@ export function ProjectLobby({
                   </h1>
 
                   {image ? (
-                    <div className="mb-3 flex w-full justify-center">
+                    <div className="mb-3 flex w-full flex-col items-center">
                       <div className="grid grid-cols-2 gap-1 rounded-lg border border-black/10 bg-white/80 p-1 shadow-[0_10px_28px_-24px_rgba(15,23,42,0.7)] dark:border-white/[0.08] dark:bg-white/[0.04]">
                         {imageReferenceModes.map((mode) => (
-                          <button
-                            key={mode.id}
-                            type="button"
-                            onClick={() => setImageReferenceMode(mode.id)}
-                            className={cn(
-                              "h-8 rounded-md px-3 text-[11px] font-bold transition duration-200",
-                              imageReferenceMode === mode.id
-                                ? "bg-neutral-950 text-white shadow-sm dark:bg-white dark:text-neutral-950"
-                                : "text-neutral-500 hover:bg-black/5 dark:text-neutral-400 dark:hover:bg-white/10"
-                            )}
-                            disabled={isGeneratingDesign}
-                            aria-pressed={imageReferenceMode === mode.id}
-                          >
-                            {mode.label}
-                          </button>
+                          <Tooltip key={mode.id}>
+                            <TooltipTrigger
+                              render={
+                                <button
+                                  type="button"
+                                  onClick={() => setImageReferenceMode(mode.id)}
+                                  className={cn(
+                                    "h-8 rounded-md px-3 text-[11px] font-bold transition duration-200",
+                                    imageReferenceMode === mode.id
+                                      ? "dg-button-primary text-white shadow-sm hover:opacity-100"
+                                      : "text-neutral-500 hover:bg-black/5 dark:text-neutral-400 dark:hover:bg-white/10"
+                                  )}
+                                  disabled={isGeneratingDesign}
+                                  aria-pressed={imageReferenceMode === mode.id}
+                                />
+                              }
+                            >
+                              {mode.label}
+                            </TooltipTrigger>
+                            <TooltipContent
+                              side="top"
+                              className="hidden max-w-[260px] p-2 text-center text-[12px] font-medium leading-relaxed sm:block"
+                            >
+                              {mode.description}
+                            </TooltipContent>
+                          </Tooltip>
                         ))}
                       </div>
+                      <p className="mt-2 max-w-[22rem] px-2 text-center text-[11px] font-medium leading-5 text-neutral-500 dark:text-neutral-400 sm:hidden">
+                        {activeImageModeDescription}
+                      </p>
                     </div>
                   ) : null}
 
                   {/* Redesigned Prompt Box inside outer gradient border */}
                   <div
-                    className={`relative w-full rounded-[30px] bg-[linear-gradient(110deg,#ff9a9e_0%,#fecfef_20%,#e0c3fc_40%,#8ec5fc_60%,#a8edea_80%,#d4fc79_100%)] p-[1.5px] transition-all duration-300 sm:rounded-[38px] sm:p-[2px] ${isGeneratingDesign ? "dg-brief-generating-shell animate-pulse" : ""}`}
+                    className={`relative w-full rounded-xl bg-[linear-gradient(110deg,#ff9a9e_0%,#fecfef_20%,#e0c3fc_40%,#8ec5fc_60%,#a8edea_80%,#d4fc79_100%)] p-[1.5px] transition-[filter,opacity] duration-150 sm:rounded-xl sm:p-[2px] ${isGeneratingDesign ? "dg-brief-generating-shell animate-pulse" : ""}`}
                   >
-                    <div className="relative z-20 min-h-[220px] rounded-[28.5px] bg-white/95 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] dark:bg-[#1f1f1f] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:min-h-[230px] sm:rounded-[36px] sm:p-5">
+                    <div className="relative z-20 min-h-[212px] rounded-xl bg-white/95 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] dark:bg-[#1f1f1f] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:min-h-[222px] sm:rounded-xl sm:p-5">
                       {image ? (
-                        <div className="absolute -left-1 -top-5 z-40 rotate-[-5deg] sm:-left-2 sm:-top-12">
+                        <div className="absolute -left-1 -top-10 z-40 rotate-[-5deg] sm:-left-2 sm:-top-12">
                           <div className="group relative h-16 w-16 overflow-hidden rounded-lg border border-white/80 bg-neutral-100 shadow-[0_14px_34px_-24px_rgba(15,23,42,0.9)] transition-all hover:rotate-[2deg] hover:shadow-[0_18px_38px_-24px_rgba(15,23,42,0.95)] dark:border-white/15 dark:bg-neutral-900 sm:h-[72px] sm:w-[72px]">
                             <span className="relative block h-full w-full">
                               <Image
@@ -416,7 +447,7 @@ export function ProjectLobby({
                         </div>
                       ) : null}
 
-                      <div className="relative min-h-[188px] sm:min-h-[190px]">
+                      <div className="relative min-h-[180px] sm:min-h-[182px]">
                         <Textarea
                           value={prompt}
                           onChange={(event) => setPrompt(event.target.value)}
@@ -444,11 +475,11 @@ export function ProjectLobby({
                             }
                           }}
                           placeholder="Describe the app UI you want to design... e.g., A minimalist dashboard for a fintech app with dark mode."
-                          className="relative z-10 h-[188px] min-h-[188px] resize-none rounded-none border-0 bg-transparent px-0 pb-20 pt-0 text-[17px] leading-relaxed text-neutral-800 shadow-none [field-sizing:fixed] [scrollbar-width:none] placeholder:text-neutral-400 focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-transparent dark:text-neutral-100 dark:placeholder:text-neutral-600 sm:h-[190px] sm:min-h-[190px] sm:pb-20 [&::-webkit-scrollbar]:hidden"
+                          className="relative z-10 h-[180px] min-h-[180px] resize-none rounded-none border-0 bg-transparent px-0 pb-28 pt-0 text-[17px] leading-relaxed text-neutral-800 shadow-none [field-sizing:fixed] [scroll-padding-bottom:5.5rem] [scrollbar-width:none] placeholder:text-neutral-400 focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-transparent dark:text-neutral-100 dark:placeholder:text-neutral-600 sm:h-[182px] sm:min-h-[182px] sm:pb-24 sm:[scroll-padding-bottom:5rem] [&::-webkit-scrollbar]:hidden"
                         />
 
                         {/* Bottom controls sit inside the text field surface. */}
-                        <div className="absolute bottom-0 left-0 right-0 z-30 flex items-center justify-between gap-3">
+                        <div className="absolute inset-x-0 bottom-0 z-30 flex items-center justify-between gap-3 bg-gradient-to-t from-white/95 via-white/92 to-transparent pt-4 dark:from-[#1f1f1f] dark:via-[#1f1f1f]/92 dark:to-transparent">
                           
                           <TooltipProvider>
                             <div className="pointer-events-auto relative flex items-center gap-1">
@@ -589,11 +620,7 @@ export function ProjectLobby({
                             type="button"
                             onClick={() => void handleGenerateDesign()}
                             disabled={!isBriefReady || isGeneratingDesign}
-                            className={`pointer-events-auto flex h-[42px] items-center justify-center rounded-[16px] px-5 text-[14px] font-semibold text-white shadow-[0_4px_14px_rgba(0,0,0,0.12),inset_0_1px_0_rgba(255,255,255,0.1)] transition-all active:scale-95 focus:outline-none ${
-                              isBriefReady 
-                                ? "bg-gradient-to-b from-[#2a2a2a] to-[#111111] border border-black hover:from-[#333] hover:to-[#1a1a1a]" 
-                                : "bg-neutral-200 dark:bg-white/10 border-neutral-300 dark:border-white/10 text-neutral-400 dark:text-neutral-600 cursor-not-allowed shadow-none"
-                            }`}
+                            className="dg-button-primary pointer-events-auto flex h-[42px] items-center justify-center rounded-lg px-5 text-[14px] font-semibold active:scale-95 focus:outline-none disabled:cursor-not-allowed disabled:opacity-45 disabled:saturate-50 disabled:shadow-none disabled:active:scale-100"
                           >
                             {isGeneratingDesign ? (
                               <TextShimmerWave
@@ -642,24 +669,24 @@ export function ProjectLobby({
             {stage === "plan" && plan ? (
               <section className="min-h-0 flex-1 overflow-y-auto">
                 <div className="mx-auto flex min-h-full w-full max-w-7xl flex-col gap-4 pb-3">
-                  <div className="rounded-[18px] border border-slate-950/[0.1] bg-white px-4 py-4 shadow-[0_18px_44px_-38px_rgba(15,23,42,0.72)] backdrop-blur-xl sm:px-5">
+                  <div className="rounded-[18px] border border-[var(--dg-border)] bg-[var(--dg-surface)] px-4 py-4 text-[var(--dg-text)] shadow-[var(--dg-shadow-soft)] backdrop-blur-xl sm:px-5">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div className="min-w-0">
-                        <div className="inline-flex items-center gap-2 rounded-full bg-neutral-100 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-neutral-600">
+                        <div className="inline-flex items-center gap-2 rounded-full bg-[var(--dg-surface-muted)] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--dg-text-muted)]">
                           <CheckCircle2 className="h-3.5 w-3.5" />
                           Step 3 of 3
                         </div>
-                        <h1 className="mt-3 text-3xl font-semibold tracking-[-0.045em] text-neutral-950 sm:text-4xl">Review, then build.</h1>
-                        <p className="mt-2 max-w-2xl text-sm leading-6 text-neutral-600">
+                        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[var(--dg-text)] sm:text-4xl">Review, then build.</h1>
+                        <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--dg-text-muted)]">
                           Confirm the planned screens and project memory before the generation run starts.
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2 lg:justify-end">
-                        <span className="inline-flex items-center gap-2 rounded-full bg-neutral-100 px-3 py-2 text-xs font-bold uppercase tracking-[0.15em] text-neutral-600">
+                        <span className="inline-flex items-center gap-2 rounded-full bg-[var(--dg-surface-muted)] px-3 py-2 text-xs font-bold uppercase tracking-[0.15em] text-[var(--dg-text-muted)]">
                           <LayoutTemplate className="h-3.5 w-3.5" />
                           {describeNavigationArchitecture(plan.navigationArchitecture)}
                         </span>
-                        <span className="inline-flex items-center rounded-full bg-neutral-100 px-3 py-2 text-xs font-bold text-neutral-700">
+                        <span className="inline-flex items-center rounded-full bg-[var(--dg-surface-muted)] px-3 py-2 text-xs font-bold text-[var(--dg-text)]">
                           {plan.screens.length} {plan.screens.length === 1 ? "screen" : "screens"} queued
                         </span>
                       </div>
@@ -674,75 +701,75 @@ export function ProjectLobby({
 
                     <div className="mt-4 flex flex-wrap gap-2">
                       {plan.charter.keyFeatures.map((feature) => (
-                        <span key={feature} className="rounded-full bg-neutral-100 px-3 py-1.5 text-xs font-semibold text-neutral-600">
+                        <span key={feature} className="rounded-full bg-[var(--dg-surface-muted)] px-3 py-1.5 text-xs font-semibold text-[var(--dg-text-muted)]">
                           {feature}
                         </span>
                       ))}
                       {designTokens?.meta?.recommendedFonts?.map((font) => (
-                        <span key={font} className="rounded-full bg-neutral-950 px-3 py-1.5 text-xs font-bold text-white">
+                        <span key={font} className="rounded-full bg-[var(--dg-accent)] px-3 py-1.5 text-xs font-bold text-white">
                           {font}
                         </span>
                       ))}
                     </div>
                   </div>
 
-                  <section className="rounded-[18px] border border-slate-950/[0.1] bg-white">
-                    <div className="border-b border-slate-950/[0.08] px-4 py-4 sm:px-5">
-                      <div className="text-sm font-semibold text-neutral-950">Initial screen plan</div>
-                      <div className="mt-1 text-sm text-neutral-500">This is the exact screen set Trigger.dev will build from.</div>
+                  <section className="rounded-[18px] border border-[var(--dg-border)] bg-[var(--dg-surface)] text-[var(--dg-text)]">
+                    <div className="border-b border-[var(--dg-border)] px-4 py-4 sm:px-5">
+                      <div className="text-sm font-semibold text-[var(--dg-text)]">Initial screen plan</div>
+                      <div className="mt-1 text-sm text-[var(--dg-text-muted)]">This is the exact screen set Trigger.dev will build from.</div>
                     </div>
 
                     <div className="grid gap-3 p-3 sm:p-4 md:grid-cols-2 xl:grid-cols-3">
                       {plan.screens.map((screen, index) => (
-                        <article key={`${screen.name}-${index}`} className="rounded-[16px] border border-slate-950/[0.08] bg-[#fbfbfc] px-4 py-4">
+                        <article key={`${screen.name}-${index}`} className="rounded-xl border border-[var(--dg-border)] bg-[var(--dg-surface-muted)] px-4 py-4">
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">{screen.type}</div>
-                              <h2 className="mt-2 text-xl font-semibold tracking-tight text-neutral-950">{screen.name}</h2>
+                              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--dg-text-muted)]">{screen.type}</div>
+                              <h2 className="mt-2 text-xl font-semibold tracking-tight text-[var(--dg-text)]">{screen.name}</h2>
                             </div>
-                            <div className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-neutral-950 text-xs font-bold text-white">
+                            <div className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--dg-accent)] text-xs font-bold text-white">
                               {index + 1}
                             </div>
                           </div>
                           <div className="mt-4 flex flex-wrap gap-2">
-                            <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+                            <span className="rounded-full bg-[var(--dg-surface)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--dg-text-muted)]">
                               {screen.chromePolicy?.chrome ?? screen.type}
                             </span>
                             {screen.navigationItemId ? (
-                              <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+                              <span className="rounded-full bg-[var(--dg-surface)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--dg-text-muted)]">
                                 {screen.navigationItemId}
                               </span>
                             ) : null}
                           </div>
-                          <p className="mt-4 whitespace-pre-line text-sm leading-6 text-neutral-600">{screen.description}</p>
+                          <p className="mt-4 whitespace-pre-line text-sm leading-6 text-[var(--dg-text-muted)]">{screen.description}</p>
                         </article>
                       ))}
                     </div>
                   </section>
 
-                  <details className="rounded-[18px] border border-slate-950/[0.1] bg-white lg:hidden">
-                    <summary className="cursor-pointer list-none px-4 py-4 text-sm font-semibold text-neutral-950">
+                  <details className="rounded-[18px] border border-[var(--dg-border)] bg-[var(--dg-surface)] lg:hidden">
+                    <summary className="cursor-pointer list-none px-4 py-4 text-sm font-semibold text-[var(--dg-text)]">
                       Project memory
-                      <span className="ml-2 text-xs font-medium text-neutral-500">Tap to review full context</span>
+                      <span className="ml-2 text-xs font-medium text-[var(--dg-text-muted)]">Tap to review full context</span>
                     </summary>
-                    <div className="border-t border-slate-950/[0.08] bg-[#f7f7f8] px-4 py-4">
+                    <div className="border-t border-[var(--dg-border)] bg-[var(--dg-surface-muted)] px-4 py-4">
                       <ProjectMemory plan={plan} />
                     </div>
                   </details>
 
-                  <section className="hidden rounded-[18px] border border-slate-950/[0.1] bg-white lg:block">
-                    <div className="border-b border-slate-950/[0.08] px-5 py-4">
-                      <div className="text-sm font-semibold text-neutral-950">Project memory</div>
-                      <div className="mt-1 text-sm text-neutral-500">The context used to keep future screens, edits, navigation, and visual direction coherent.</div>
+                  <section className="hidden rounded-[18px] border border-[var(--dg-border)] bg-[var(--dg-surface)] lg:block">
+                    <div className="border-b border-[var(--dg-border)] px-5 py-4">
+                      <div className="text-sm font-semibold text-[var(--dg-text)]">Project memory</div>
+                      <div className="mt-1 text-sm text-[var(--dg-text-muted)]">The context used to keep future screens, edits, navigation, and visual direction coherent.</div>
                     </div>
-                    <div className="bg-[#f7f7f8] px-5 py-5">
+                    <div className="bg-[var(--dg-surface-muted)] px-5 py-5">
                       <ProjectMemory plan={plan} columns />
                     </div>
                   </section>
 
-                  <div className="sticky bottom-0 z-20 -mx-4 mt-auto border-t border-slate-950/[0.08] bg-white px-4 py-3 shadow-[0_-18px_44px_-34px_rgba(15,23,42,0.8)] backdrop-blur-xl sm:-mx-5 sm:px-5 lg:mx-0 lg:rounded-[18px] lg:border lg:border-slate-950/[0.1]">
+                  <div className="sticky bottom-0 z-20 -mx-4 mt-auto border-t border-[var(--dg-border)] bg-[var(--dg-surface)] px-4 py-3 shadow-[0_-18px_44px_-34px_rgba(15,23,42,0.45)] backdrop-blur-xl sm:-mx-5 sm:px-5 lg:mx-0 lg:rounded-[18px] lg:border">
                     <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 sm:flex-row-reverse sm:items-center">
-                      <Button className="h-12 flex-1 rounded-full bg-neutral-950 text-white hover:bg-neutral-800 text-sm font-medium" onClick={() => void handleBuildProject()} disabled={isBuilding}>
+                      <Button className="dg-button-primary h-12 flex-1 rounded-full text-sm font-medium" onClick={() => void handleBuildProject()} disabled={isBuilding}>
                         {isBuilding ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -777,9 +804,9 @@ export function ProjectLobby({
 
 function DigestTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-[14px] border border-slate-950/[0.08] bg-[#fbfbfc] px-3 py-3">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-400">{label}</div>
-      <div className="mt-1 line-clamp-2 text-sm font-medium leading-5 text-neutral-900">{value}</div>
+    <div className="min-w-0 rounded-[14px] border border-[var(--dg-border)] bg-[var(--dg-surface-muted)] px-3 py-3">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--dg-text-faint)]">{label}</div>
+      <div className="mt-1 line-clamp-2 text-sm font-medium leading-5 text-[var(--dg-text)]">{value}</div>
     </div>
   );
 }
@@ -787,9 +814,9 @@ function DigestTile({ label, value }: { label: string; value: string }) {
 function ProjectMemory({ plan, columns = false }: { plan: PlannedUiFlow; columns?: boolean }) {
   return (
     <div className={columns ? "grid gap-4 xl:grid-cols-2" : "space-y-4"}>
-      <div className="rounded-[14px] border border-slate-950/[0.08] bg-white p-3">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-500">Project charter</div>
-        <p className="mt-2 text-sm leading-6 text-neutral-700">
+      <div className="rounded-[14px] border border-[var(--dg-border)] bg-[var(--dg-surface)] p-3">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--dg-text-muted)]">Project charter</div>
+        <p className="mt-2 text-sm leading-6 text-[var(--dg-text-muted)]">
           This is the app memory used to keep new screens, edits, navigation, and visual direction coherent.
         </p>
       </div>
@@ -833,8 +860,8 @@ function MetadataBlock({
 }) {
   return (
     <div>
-      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-500">{label}</div>
-      <div className={`mt-1 text-sm ${multiline ? "whitespace-pre-line leading-6 text-neutral-700" : "font-medium text-neutral-900"}`}>
+      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--dg-text-muted)]">{label}</div>
+      <div className={`mt-1 text-sm ${multiline ? "whitespace-pre-line leading-6 text-[var(--dg-text-muted)]" : "font-medium text-[var(--dg-text)]"}`}>
         {value}
       </div>
     </div>

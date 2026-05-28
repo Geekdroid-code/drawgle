@@ -41,7 +41,7 @@ function DockButton({ label, active, disabled, onClick, children }: DockButtonPr
             onClick={onClick}
             className={`h-9 w-9 rounded-full transition md:h-10 md:w-10 ${
               active
-                ? "bg-[var(--dg-text)] text-[var(--dg-bg)] hover:bg-[var(--dg-text)] hover:text-[var(--dg-bg)]"
+                ? "dg-button-primary text-white hover:dg-button-primary"
                 : "text-[var(--dg-text-muted)] hover:bg-[var(--dg-surface-muted)] hover:text-[var(--dg-text)]"
             }`}
           >

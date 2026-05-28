@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState, type MouseEvent } from "react";
 import { flushSync } from "react-dom";
 import { Moon, Sun } from "lucide-react";
 
@@ -125,10 +125,15 @@ export function AnimatedThemeToggle({
   ...props
 }: AnimatedThemeToggleProps) {
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const [transitioning, setTransitioning] = useState(false);
   const { resolvedTheme, setTheme } = useAppTheme();
   const isDark = resolvedTheme === "dark";
 
-  const toggleTheme = useCallback(() => {
+  const toggleTheme = useCallback((event?: MouseEvent<HTMLButtonElement>) => {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (transitioning) return;
+
     const button = buttonRef.current;
     const nextTheme = isDark ? "light" : "dark";
 
@@ -150,6 +155,7 @@ export function AnimatedThemeToggle({
     const clipPath = getThemeTransitionClipPaths(variant, x, y, maxRadius, viewportWidth, viewportHeight);
 
     const root = document.documentElement;
+    setTransitioning(true);
     root.dataset.drawgleThemeVt = "active";
     root.style.setProperty("--dg-theme-toggle-vt-duration", `${duration}ms`);
     root.style.setProperty("--dg-theme-vt-clip-from", clipPath[0]);
@@ -160,35 +166,44 @@ export function AnimatedThemeToggle({
       root.style.removeProperty("--dg-theme-vt-clip-from");
     };
 
-    const transition = document.startViewTransition(() => {
-      flushSync(applyTheme);
-    });
+    try {
+      const transition = document.startViewTransition(() => {
+        flushSync(applyTheme);
+      });
 
-    transition.finished.finally(cleanup);
-    transition.ready.then(() => {
-      document.documentElement.animate(
-        { clipPath },
-        {
-          duration,
-          easing: variant === "star" ? "linear" : "ease-in-out",
-          fill: "forwards",
-          pseudoElement: "::view-transition-new(root)",
-        },
-      );
-    });
-  }, [duration, fromCenter, isDark, setTheme, variant]);
+      transition.finished.finally(() => {
+        cleanup();
+        setTransitioning(false);
+      });
+      transition.ready.then(() => {
+        document.documentElement.animate(
+          { clipPath },
+          {
+            duration,
+            easing: variant === "star" ? "linear" : "ease-in-out",
+            fill: "forwards",
+            pseudoElement: "::view-transition-new(root)",
+          },
+        );
+      }).catch(() => undefined);
+    } catch (error) {
+      cleanup();
+      setTransitioning(false);
+      applyTheme();
+    }
+  }, [duration, fromCenter, isDark, setTheme, transitioning, variant]);
 
   return (
     <Button
+      {...props}
       type="button"
       ref={buttonRef}
       variant={buttonVariant}
       size={size}
       onClick={toggleTheme}
       aria-label="Toggle theme"
-      title="Toggle theme"
+      aria-busy={transitioning}
       className={cn("rounded-full", className)}
-      {...props}
     >
       {isDark ? <Sun /> : <Moon />}
       <span className="sr-only">Toggle theme</span>
