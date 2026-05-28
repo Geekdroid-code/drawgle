@@ -6,6 +6,7 @@ import { ArrowLeft, Sparkles, Check, ChevronDown, ImageIcon, Loader2, Palette, R
 
 import { AnimatedThemeToggle } from "@/components/AnimatedThemeToggle";
 import { CanvasArea } from "@/components/CanvasArea";
+import { ProjectCanvasLoading } from "@/components/ProjectCanvasLoading";
 import { MobileExportDrawer } from "@/components/MobileExportDrawer";
 import { CanvasToolDock } from "@/components/CanvasToolDock";
 import { ChatPanel } from "@/components/ChatPanel";
@@ -1781,11 +1782,7 @@ export function ProjectShell({
   };
 
   if (isProjectLoading || !project) {
-    return (
-      <div className="flex h-full min-h-0 items-center justify-center bg-[#f7f7f8]">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-      </div>
-    );
+    return <ProjectCanvasLoading />;
   }
 
   return (

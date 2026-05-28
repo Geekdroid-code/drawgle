@@ -93,7 +93,7 @@ export function PremiumSegmentedTabs<T extends string>({
                 <motion.span
                   layoutId={activeLayoutId}
                   initial={false}
-                  className="absolute inset-0 -z-10 rounded-[inherit] border border-transparent bg-[var(--dg-accent)] shadow-[inset_0_1.5px_1px_rgba(255,255,255,0.26),inset_0_-2px_7px_rgba(0,0,0,0.18),0_12px_24px_-18px_rgba(0,47,167,0.72)] will-change-transform"
+                  className="dg-segmented-primary absolute inset-0 -z-10 rounded-[inherit] will-change-transform"
                   transition={reduceMotion ? { duration: 0 } : activeTabSpring}
                 />
               ) : null}

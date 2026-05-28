@@ -107,6 +107,16 @@
       0 8px 18px -16px rgba(0, 47, 167, 0.7);
   }
 
+  .dg-segmented-primary {
+    background: #1b7fcc;
+    color: #ffffff;
+    border: 1px solid transparent;
+    box-shadow:
+      inset 0 1.5px 1px rgba(255, 255, 255, 0.32),
+      inset 0 -2px 7px rgba(0, 0, 0, 0.24),
+      0 14px 28px -18px rgba(0, 47, 167, 0.72);
+  }
+
   .dg-gradient-ring {
     position: relative;
     background:
@@ -549,11 +559,93 @@ html[data-drawgle-theme-vt="active"]::view-transition-old(root) {
   transform-origin: center;
 }
 
+.dg-canvas-loader-mark {
+  position: relative;
+  display: flex;
+  width: 68px;
+  height: 68px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid var(--dg-border);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 30% 18%, rgba(255, 255, 255, 0.18), transparent 40%),
+    color-mix(in oklab, var(--dg-surface) 88%, transparent);
+  box-shadow: var(--dg-shadow-soft);
+  backdrop-filter: blur(18px);
+}
+
+.dg-canvas-loader-mark::before {
+  content: "";
+  position: absolute;
+  inset: -35%;
+  background: linear-gradient(
+    115deg,
+    transparent 32%,
+    color-mix(in oklab, var(--dg-accent) 24%, transparent) 50%,
+    transparent 68%
+  );
+  animation: dg-canvas-loader-sheen 1.6s ease-in-out infinite;
+}
+
+.dg-canvas-loader-line {
+  position: relative;
+  width: 128px;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--dg-text) 9%, transparent);
+}
+
+.dg-canvas-loader-line::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 42%;
+  border-radius: inherit;
+  background: var(--dg-accent);
+  animation: dg-canvas-loader-slide 1.15s ease-in-out infinite;
+}
+
+@keyframes dg-canvas-loader-sheen {
+  0%,
+  28% {
+    transform: translateX(-44%) rotate(8deg);
+    opacity: 0;
+  }
+
+  44% {
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateX(44%) rotate(8deg);
+    opacity: 0;
+  }
+}
+
+@keyframes dg-canvas-loader-slide {
+  0% {
+    transform: translateX(-110%);
+  }
+
+  52% {
+    transform: translateX(70%);
+  }
+
+  100% {
+    transform: translateX(250%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .dg-brief-title-active,
   .dg-brief-prompt-shimmer::before,
   .dg-agent-ball-active,
-  .dg-shimmer-char {
+  .dg-shimmer-char,
+  .dg-canvas-loader-mark::before,
+  .dg-canvas-loader-line::before {
     animation: none;
   }
 

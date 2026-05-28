@@ -1,353 +1,433 @@
-"use client"
+"use client";
+import React, { useState, useEffect } from 'react';
+import { Settings, ArrowRight, Check, Activity, Flame, ChevronRight, MapPin, Trophy, ChevronLeft, ShoppingBag, Home, Search, Heart, Code, Play, Loader } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
-import Image from "next/image"
-import { UploadCloud, Play } from "lucide-react"
-import Carousal from "@/components/Carousal"
+const SvgDivider = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 48 18" className="h-[18px] w-12 shrink-0 hidden md:block">
+    <path stroke="#E0E0E0" d="M0 8.5h48"></path>
+    <g clipPath="url(#rapid-dev-top-divider_svg__a)">
+      <rect width="16" height="16" x="16" y="1" fill="#F7F7F7" rx="8"></rect>
+      <path fill="#B8B8B8" fillRule="evenodd" d="M20.813 5.98a.5.5 0 0 1 .707 0l2.195 2.195a1.167 1.167 0 0 1 0 1.65L21.52 12.02a.5.5 0 1 1-.707-.707l2.195-2.195a.167.167 0 0 0 0-.236l-2.195-2.195a.5.5 0 0 1 0-.707m4.667 0a.5.5 0 0 1 .707 0l2.195 2.195a1.167 1.167 0 0 1 0 1.65l-2.195 2.195a.5.5 0 1 1-.707-.707l2.195-2.195a.167.167 0 0 0 0-.236L25.48 6.687a.5.5 0 0 1 0-.707" clipRule="evenodd"></path>
+    </g>
+    <rect width="17" height="17" x="15.5" y="0.5" stroke="#E0E0E0" rx="8.5"></rect>
+    <defs>
+      <clipPath id="rapid-dev-top-divider_svg__a">
+        <rect width="16" height="16" x="16" y="1" fill="#fff" rx="8"></rect>
+      </clipPath>
+    </defs>
+  </svg>
+);
 
-// Using your specific image requests
-const womanInputImages = ["/images/demo1.jpg", "/images/demo2.jpg", "/images/demo3.jpg", "/images/demo4.jpg", "/images/demo9.jpg", "/images/demo10.jpg"];
-const manInputImages = ["/images/demo7.jpg", "/images/demo5.jpg", "/images/demo11.jpg", "/images/demo12.jpg", "/images/demo13.jpg", "/images/demo14.jpg"];
-const womanOutputImages = ["/images/aimodel1.jpg", "/images/aimodel2.jpg", "/images/aimodel3.jpg", "/images/aimodel4.jpg"];
-const manOutputImages = ["/images/aimodel5.jpg", "/images/aimodel6.jpg", "/images/aimodel7.jpg", "/images/aimodel8.jpg"];
+const BracketDown = () => (
+  <div className="flex justify-center w-full my-3 md:my-5 opacity-60">
+    <svg width="240" height="30" viewBox="0 0 240 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0.5 1C0.5 1 119.5 1 119.5 15C119.5 29 119.5 29 119.5 29" stroke="#E0E0E0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M239.5 1C239.5 1 120.5 1 120.5 15C120.5 29 120.5 29 120.5 29" stroke="#E0E0E0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="120" cy="28" r="2" fill="#B8B8B8"/>
+    </svg>
+  </div>
+);
 
-// Create arrays for carousel - combining both woman and man output images
-const humans = [...womanOutputImages, ...manOutputImages];
-const humans2 = [...manOutputImages, ...womanOutputImages]; // Different order for second carousel
+export default function DescribeToDesign() {
+  const [currentStep, setCurrentStep] = useState(0);
 
-export default function HowItWorksShowcase() {
+  useEffect(() => {
+    let mounted = true;
+    
+    const runSequence = async () => {
+      if (!mounted) return;
+      setCurrentStep(0);
+      await new Promise(r => setTimeout(r, 800));
+      
+      if (!mounted) return;
+      setCurrentStep(1);
+      await new Promise(r => setTimeout(r, 2500));
+      
+      if (!mounted) return;
+      setCurrentStep(2);
+      await new Promise(r => setTimeout(r, 2500));
+      
+      if (!mounted) return;
+      setCurrentStep(3);
+      await new Promise(r => setTimeout(r, 5000));
+      
+      if (!mounted) return;
+      runSequence();
+    };
+
+    runSequence();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const codeBlocks = [
+    {
+      step: 1,
+      lines: [
+        { text: '<!-- Storefront Header -->' },
+        { tag: 'div', attrs: 'class="flex justify-between px-6 py-4"', indent: 0 },
+        { tag: 'button', attrs: 'class="btn-back"', content: '<ChevronLeft />', indent: 1 },
+        { tag: 'h1', attrs: 'class="font-black text-xl"', content: 'JMDF', indent: 1 },
+        { tag: 'button', attrs: 'class="btn-cart"', content: '<ShoppingBag />', indent: 1 },
+        { closeTag: 'div', indent: 0 },
+        { text: '' },
+        { text: '<!-- Hero Product -->' },
+        { tag: 'div', attrs: 'class="hero-card bg-gray-100 rounded-3xl p-4"', indent: 0 },
+        { tag: 'h2', attrs: 'class="text-2xl font-bold"', content: 'JMDA Max Lift', indent: 1 },
+        { tag: 'button', attrs: 'class="bg-black text-white px-6"', content: 'Shop now', indent: 1 },
+        { tag: 'img', attrs: 'src="/shoes/max-lift.png"', content: null, indent: 1 },
+        { closeTag: 'div', indent: 0 },
+      ]
+    },
+    {
+      step: 2,
+      lines: [
+        { text: '' },
+        { text: '<!-- Categories -->' },
+        { tag: 'div', attrs: 'class="flex overflow-x-auto gap-6 px-6 mt-8"', indent: 0 },
+        { tag: 'div', attrs: 'class="category active"', content: 'Running', indent: 1 },
+        { tag: 'div', attrs: 'class="category opacity-30"', content: 'Lifestyle', indent: 1 },
+        { tag: 'div', attrs: 'class="category opacity-30"', content: 'Gym', indent: 1 },
+        { closeTag: 'div', indent: 0 },
+      ]
+    },
+    {
+      step: 3,
+      lines: [
+        { text: '' },
+        { text: '<!-- Floating Navigation -->' },
+        { tag: 'nav', attrs: 'class="fixed bottom-6 flex items-center bg-white shadow-xl"', indent: 0 },
+        { tag: 'a', attrs: 'href="/" class="nav-item"', content: '<Home />', indent: 1 },
+        { tag: 'button', attrs: 'class="nav-search bg-black text-white"', content: '<Search />', indent: 1 },
+        { tag: 'a', attrs: 'href="/likes" class="nav-item"', content: '<Heart />', indent: 1 },
+        { closeTag: 'nav', indent: 0 },
+      ]
+    }
+  ];
+
+  const renderCodeLine = (line: any) => {
+    return (
+      <div style={{ marginLeft: `${(line.indent || 0) * 16}px` }}>
+        {line.text && <span className="text-[#8C999E]">{line.text}</span>}
+        {line.tag && (
+          <>
+            <span className="text-[#8C999E]">&lt;</span>
+            <span className="text-[#E06C75]">{line.tag}</span>
+            {line.attrs && (
+              <span className="text-[#D19A66]">
+                {' '}
+                <span className="text-[#D19A66]">{line.attrs.split('=')[0]}</span>
+                <span className="text-[#8C999E]">=</span>
+                <span className="text-[#98C379]">{line.attrs.split('=')[1]}</span>
+              </span>
+            )}
+            {line.content === null ? (
+              <span className="text-[#8C999E]"> /&gt;</span>
+            ) : (
+              <span className="text-[#8C999E]">&gt;</span>
+            )}
+            {line.content && <span className="text-[#ABB2BF]">{line.content}</span>}
+            {line.content !== null && (
+              <>
+                <span className="text-[#8C999E]">&lt;/</span>
+                <span className="text-[#E06C75]">{line.tag}</span>
+                <span className="text-[#8C999E]">&gt;</span>
+              </>
+            )}
+          </>
+        )}
+        {line.closeTag && !line.tag && (
+          <>
+            <span className="text-[#8C999E]">&lt;/</span>
+            <span className="text-[#E06C75]">{line.closeTag}</span>
+            <span className="text-[#8C999E]">&gt;</span>
+          </>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <section id="how-it-works" className="relative mx-auto py-16 sm:py-24 overflow-hidden bg-[#F7F5F3]">
-      <div className="px-4 max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-16 sm:mb-20">
-          <h2 className="text-4xl sm:text-5xl md:text-6xl max-w-4xl mx-auto font-bold leading-none mb-4 font-[var(--font-inter-tight)] text-gray-900">
-            Your Professional Photoshoot in <span className="text-[#1b7fcccc]">3 Simple Steps.</span>
-          </h2>
-          <p className="text-lg md:text-xl text-gray-600 max-w-3xl mx-auto">
-            Our process is designed to be effortless, transparent, and deliver stunning results every time.
-          </p>
-        </div>
+    <section className="relative w-full max-w-[1200px] mx-auto px-4 md:px-6 py-16 md:py-24 z-10 bg-[#FAFAFA] font-sans">
+      
+      <div className="flex flex-col items-center text-center">
+        <h2 className="text-[28px] md:text-[36px] font-medium text-[#4A4A4A] leading-[1.2] mb-3">
+          Rapidly build <span className="font-bold text-black">unique designs</span> with our <span className="font-bold text-black">adaptable</span> UI generator.
+        </h2>
+      </div>
 
-        {/* The Linear, Step-by-Step Flow */}
-        <div className="flex flex-col justify-center items-center">
-
-          {/* --- STEP 1: UPLOAD --- */}
-          <div className="relative flex flex-col items-center">
-            {/* Circle with gradient and number */}
-            <div className="bg-gradient-to-l from-[#1b7fcccc] to-orange-400 text-white rounded-full h-12 w-12 flex items-center justify-center font-bold z-10">
-              1
-            </div>
-            {/* Gradient stroke line with fade out at the end */}
-            <div className="w-1 h-10 rounded-lg bg-gradient-to-b from-[#1b7fcccc] to-transparent mt-[-2px]"></div>
+      {/* Prompts/Steps Strip (AlignUI Style) */}
+      <div className="flex flex-col items-center justify-center mt-12 w-full relative">
+        <div className="flex items-center justify-center gap-2 md:gap-3 w-full overflow-x-auto px-4 pb-2 no-scrollbar snap-x">
+          
+          {/* Pill 1 */}
+          <div className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors snap-center ${currentStep >= 1 ? 'border-green-200 bg-green-50/50 text-gray-800' : 'border-gray-200 bg-white text-gray-400'}`}>
+            {currentStep >= 1 ? (
+              <div className="w-4 h-4 rounded-full bg-green-500 text-white flex items-center justify-center"><Check size={10} strokeWidth={3}/></div>
+            ) : (
+              <div className="w-4 h-4 rounded-full border-2 border-gray-200"></div>
+            )}
+            Minimal storefront
           </div>
 
-          {/* Text element */}
-          <h3 className="text-4xl sm:text-5xl md:text-6xl font-bold text-center mt-2 mb-4">
-            Upload your selfies
-          </h3>
-          <p className="text-center text-lg md:text-xl text-gray-600 max-w-3xl mx-auto">
-Start by providing 5+ clear photos. Our AI learns from a diverse set of your images to ensure an authentic result.
-          </p>
+          <SvgDivider />
 
-          {/* Graphic element */}
-          <div className="px-2 min-w-fit flex justify-center items-center mt-8">
-            <div className="flex flex-row items-center">
-              {/* Row with images on left, center, and right */}
-              <div className="flex justify-between w-full max-w-7xl">
-                {/* Left side - Woman images */}
-                 <div className="flex flex-col items-center justify-center">
-                   <div className="hidden lg:flex gap-6 mb-1">
-                     {/* Three images up */}
-                     <div className="w-[105px] h-[140px] rounded-2xl shadow-custom-shadow overflow-hidden">
-                       <Image 
-                         src={womanInputImages[0]} 
-                         width={105} 
-                         height={140} 
-                         className="w-full h-full object-cover"
-                         alt="woman image 1" 
-                       />
-                     </div>
-                     <div className="w-[105px] h-[140px] rounded-2xl shadow-custom-shadow overflow-hidden">
-                       <Image 
-                         src={womanInputImages[1]} 
-                         width={105} 
-                         height={140} 
-                         className="w-full h-full object-cover"
-                         alt="woman image 2" 
-                       />
-                     </div>
-                     <div className="w-[105px] h-[140px] rounded-2xl shadow-custom-shadow overflow-hidden">
-                       <Image 
-                         src={womanInputImages[2]} 
-                         width={105} 
-                         height={140} 
-                         className="w-full h-full object-cover"
-                         alt="woman image 3" 
-                       />
-                     </div>
-                   </div>
-                   <div className="hidden lg:flex gap-6 mt-6">
-                     {/* Three images down */}
-                     <div className="w-[105px] h-[140px] rounded-2xl shadow-custom-shadow overflow-hidden">
-                       <Image 
-                         src={womanInputImages[3]} 
-                         width={105} 
-                         height={140} 
-                         className="w-full h-full object-cover"
-                         alt="woman image 4" 
-                       />
-                     </div>
-                     <div className="w-[105px] h-[140px] rounded-2xl shadow-custom-shadow overflow-hidden">
-                       <Image 
-                         src={womanInputImages[4]} 
-                         width={105} 
-                         height={140} 
-                         className="w-full h-full object-cover"
-                         alt="woman image 5" 
-                       />
-                     </div>
-                     <div className="w-[105px] h-[140px] rounded-2xl shadow-custom-shadow overflow-hidden">
-                       <Image 
-                         src={womanInputImages[5]} 
-                         width={105} 
-                         height={140} 
-                         className="w-full h-full object-cover"
-                         alt="woman image 6" 
-                       />
-                     </div>
-                   </div>
-                 </div>
+          {/* Pill 2 */}
+          <div className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors snap-center ${currentStep >= 2 ? 'border-green-200 bg-green-50/50 text-gray-800' : currentStep === 1 ? 'border-orange-200 bg-white text-gray-800' : 'border-gray-200 bg-white text-gray-400'}`}>
+            {currentStep >= 2 ? (
+              <div className="w-4 h-4 rounded-full bg-green-500 text-white flex items-center justify-center"><Check size={10} strokeWidth={3}/></div>
+            ) : currentStep === 1 ? (
+              <div className="text-orange-500 flex items-center justify-center"><Loader size={14} className="animate-spin"/></div>
+            ) : (
+              <div className="w-4 h-4 rounded-full border-2 border-gray-200"></div>
+            )}
+            Product sections
+          </div>
 
-                 {/* Center image - Phone mockup */}
-                <div className="relative mx-8 w-[250px] h-[480px]">
-                  {/* Phone frame */}
-                  <div className="w-full h-full bg-gray-900 rounded-[3rem] p-2 shadow-2xl">
-                    <div className="w-full h-full bg-white rounded-[2.5rem] overflow-hidden relative">
-                      {/* Upload interface mockup */}
-                      <div className="absolute inset-0 flex flex-col p-4 bg-white">
-                        {/* Header */}
-                          <h3 className="text-lg font-semibold text-gray-900 mb-1 mt-4">Training Images</h3>
+          <SvgDivider />
 
-                        
-                        {/* Upload area - smaller since we have file list */}
-                        <div className="border border-dashed border-[#1b7fcccc]/50 rounded-lg p-3 mb-4 bg-gray-50/50">
-                          <div className="flex flex-col items-center text-center">
-                            <div className="w-8 h-8 bg-[#1b7fcccc]/30 rounded-full flex items-center justify-center mb-2">
-                              <UploadCloud className="w-4 h-4 text-gray-500" />
-                            </div>
-                            <p className="text-xs font-medium text-gray-700 mb-1">Drop your images here</p>
-                            <p className="text-xs text-gray-500">PNG, JPG or JPEG</p>
-                          </div>
-                        </div>
-                        
-                        {/* File list - realistic display like TrainModelZone */}
-                        <div className="space-y-2 flex-1 overflow-y-auto">
-                          {womanInputImages.slice(0, 4).map((src, i) => (
-                            <div key={i} className="bg-white flex items-center justify-between gap-2 rounded-lg border border-gray-200 p-2">
-                              <div className="flex items-center gap-2 overflow-hidden">
-                                <div className="bg-gray-100 aspect-square shrink-0 rounded w-8 h-8">
-                                  <Image 
-                                    src={src} 
-                                    alt={`Upload ${i + 1}`} 
-                                    width={32} 
-                                    height={32} 
-                                    className="w-full h-full rounded object-cover" 
-                                  />
-                                </div>
-                                <div className="flex min-w-0 flex-col">
-                                  <p className="truncate text-xs font-medium text-gray-900">
-                                    IMG_000{i + 1}.jpg
-                                  </p>
-                                  <p className="text-xs text-gray-500">
-                                    2.{i + 1}MB
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="w-4 h-4 text-gray-400">
-                                <svg className="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </div>
-                            </div>
+          {/* Pill 3 */}
+          <div className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors snap-center ${currentStep >= 3 ? 'border-green-200 bg-green-50/50 text-gray-800' : currentStep === 2 ? 'border-orange-200 bg-white text-gray-800' : 'border-gray-200 bg-white text-gray-400'}`}>
+            {currentStep >= 3 ? (
+              <div className="w-4 h-4 rounded-full bg-green-500 text-white flex items-center justify-center"><Check size={10} strokeWidth={3}/></div>
+            ) : currentStep === 2 ? (
+              <div className="text-orange-500 flex items-center justify-center"><Loader size={14} className="animate-spin"/></div>
+            ) : (
+              <div className="w-4 h-4 rounded-full border-2 border-gray-200"></div>
+            )}
+            Floating navigation
+          </div>
+        </div>
+
+        <BracketDown />
+      </div>
+
+      {/* Main Split Panel (AlignUI Style Unified Card) */}
+      <div className="w-full max-w-[1000px] mx-auto bg-white rounded-[24px] border border-gray-200/80 shadow-[0_4px_24px_rgba(0,0,0,0.03)] overflow-hidden flex flex-col mb-16 relative z-20">
+        
+        {/* Top Bar */}
+        <div className="h-[48px] border-b border-gray-100 flex items-center px-4 bg-white select-none">
+          {/* Left - File Tab */}
+          <div className="flex items-center gap-2 text-gray-600 h-full">
+            <div className="w-4 h-4 text-orange-500 flex items-center justify-center">
+              <Code size={14} strokeWidth={2.5} />
+            </div>
+            <span className="text-[13px] font-mono font-bold tracking-tight text-gray-700">index.html</span>
+            <div className="w-1.5 h-1.5 rounded-full bg-gray-300 ml-1"></div>
+          </div>
+          
+          <div className="flex-1"></div>
+          
+          {/* Right - Preview Tab */}
+          <div className="flex items-center gap-2 border-l border-gray-100 pl-4 h-full text-gray-400">
+            <Play size={12} className="fill-current" />
+            <span className="text-[13px] font-bold tracking-wide">preview</span>
+          </div>
+        </div>
+
+        {/* Split Body */}
+        <div className="flex flex-col lg:flex-row h-auto min-h-[580px]">
+          
+          {/* LEFT: Code Panel */}
+          <div className="flex-1 p-6 overflow-x-auto bg-white font-mono text-[12px] md:text-[13px] leading-[1.8]">
+            <div className="flex min-w-[400px]">
+               <div className="w-8 text-right pr-4 text-[#D5D5D5] select-none flex flex-col font-medium opacity-60">
+                  {Array.from({length: 25}).map((_, i) => <div key={i}>{i+1}</div>)}
+               </div>
+               <div className="flex-1 text-[#2C3132]">
+                  {codeBlocks.map((block) => (
+                    <AnimatePresence key={block.step}>
+                      {currentStep >= block.step && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          transition={{ duration: 0.4 }}
+                          className="overflow-hidden"
+                        >
+                          {block.lines.map((line, idx) => (
+                            <motion.div 
+                              key={idx}
+                              initial={{ opacity: 0, x: -5 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: idx * 0.05 + 0.1 }}
+                              className="whitespace-pre flex"
+                            >
+                              {renderCodeLine(line)}
+                            </motion.div>
                           ))}
-                        </div>
-                        
-                        {/* Footer info */}
-                        <div className="mt-3 pt-2 border-t border-gray-100">
-                          <p className="text-xs text-gray-500 text-center">
-                            4 of 10 images selected
-                          </p>
-                        </div>
-                      </div>
-                    </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  ))}
+
+                  {/* Blinking Cursor */}
+                  {currentStep > 0 && currentStep < 3 && (
+                    <motion.div 
+                      animate={{ opacity: [1, 0] }}
+                      transition={{ duration: 0.8, repeat: Infinity }}
+                      className="w-2 h-[15px] bg-orange-400 mt-1 inline-block"
+                    />
+                  )}
+               </div>
+            </div>
+          </div>
+
+          {/* RIGHT: UI Preview Panel */}
+          <div className="w-full lg:w-[460px] bg-[#FAFAFA] border-t lg:border-t-0 lg:border-l border-gray-100 flex items-center justify-center p-8 relative overflow-hidden">
+             
+             {/* The Premium Hardware Phone Frame */}
+             <div className="w-[300px] h-[600px] bg-[#E8E8E8] rounded-[48px] p-[6px] shadow-[0_12px_32px_rgba(0,0,0,0.06),inset_0_1px_2px_rgba(255,255,255,0.8)] relative z-10 flex flex-col box-border border border-gray-200 shrink-0">
+                
+                {/* Inner Bezel Screen */}
+                <div className="w-full h-full bg-white rounded-[42px] relative overflow-hidden flex flex-col shadow-sm">
+                  
+                  {/* Dynamic Island */}
+                  <div className="absolute top-2.5 left-1/2 -translate-x-1/2 w-[90px] h-[26px] bg-black rounded-full z-[60] flex items-center justify-between px-2.5 shadow-[inset_0_-1px_1px_rgba(255,255,255,0.1)]">
+                     <div className="w-2 h-2 rounded-full bg-[#111] border border-white/5"></div>
+                     <div className="w-2 h-2 rounded-full bg-indigo-500/10 flex items-center justify-center">
+                        <div className="w-1 h-1 rounded-full bg-indigo-400 blur-[1px]"></div>
+                     </div>
                   </div>
+
+                  {/* UI Render Area (Sneakers Store) */}
+                  <div className="flex-1 relative z-10 font-sans text-black w-full h-full flex flex-col bg-white overflow-x-hidden overflow-y-auto no-scrollbar">
+                    
+                    {/* Placeholder Base */}
+                    <AnimatePresence>
+                      {currentStep === 0 && (
+                        <motion.div 
+                          exit={{ opacity: 0 }} 
+                          className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                        >
+                           <div className="text-gray-300">
+                             <Settings size={28} className="animate-[spin_4s_linear_infinite]" />
+                           </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Step 1: Header + Hero */}
+                    <AnimatePresence>
+                      {currentStep >= 1 && (
+                        <motion.div 
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.4, type: 'spring' }}
+                          className="flex flex-col w-full pt-10 shrink-0"
+                        >
+                          <div className="flex items-center justify-between px-5 h-14">
+                            <button className="w-9 h-9 flex items-center justify-center border border-gray-100 rounded-[10px] bg-white">
+                              <ChevronLeft size={18} />
+                            </button>
+                            <div className="font-black text-[18px] tracking-tighter text-black">JMDF</div>
+                            <button className="w-9 h-9 flex items-center justify-center border border-gray-100 rounded-[10px] bg-white relative">
+                              <ShoppingBag size={18} />
+                              <div className="absolute top-2 right-2 w-1.5 h-1.5 bg-black rounded-full border-2 border-white"></div>
+                            </button>
+                          </div>
+
+                          <div className="px-5 mt-1">
+                            <div className="text-[22px] font-[800] leading-tight text-black m-0">New Collection</div>
+                            <div className="text-[12px] font-[400] text-[#666666] mt-0.5">JMDA Original 2025</div>
+                          </div>
+
+                          <div className="px-5 mt-4 relative">
+                            <div className="w-full h-[160px] bg-[#F5F5F5] rounded-[24px] p-[16px] flex flex-col justify-center relative overflow-visible">
+                              <div className="z-10 w-[60%]">
+                                <div className="text-[18px] font-[700] leading-tight text-black m-0">JMDA Max Lift</div>
+                                <div className="text-[11px] font-[400] text-[#666666] mb-3 mt-1">Men&apos;s shoes</div>
+                                <button className="h-[32px] px-5 bg-black text-white rounded-full text-[13px] font-[600] flex items-center justify-center">
+                                  Shop now
+                                </button>
+                              </div>
+                              <div className="absolute -right-[10%] top-[5%] w-[180px] h-[140px] pointer-events-none z-20">
+                                <img src="https://static.vecteezy.com/system/resources/previews/058/272/032/non_2x/sleek-and-minimalist-running-shoe-with-transparent-design-free-png.png" alt="Running Shoe" className="w-full h-full object-contain drop-shadow-xl" />
+                              </div>
+                              <div className="absolute bottom-[16px] left-[50%] -translate-x-1/2 flex gap-1 z-30">
+                                <div className="w-1.5 h-1.5 rounded-full bg-black"></div>
+                                <div className="w-1.5 h-1.5 rounded-full bg-[#E0E0E0]"></div>
+                                <div className="w-1.5 h-1.5 rounded-full bg-[#E0E0E0]"></div>
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Step 2: Categories */}
+                    <AnimatePresence>
+                      {currentStep >= 2 && (
+                         <motion.div 
+                           initial={{ opacity: 0, x: 10 }}
+                           animate={{ opacity: 1, x: 0 }}
+                           transition={{ duration: 0.4, delay: 0.1 }}
+                           className="w-full mt-6 shrink-0"
+                         >
+                            <div className="flex overflow-x-hidden px-5 gap-5 items-end">
+                              <div className="flex flex-col flex-shrink-0">
+                                <span className="text-[18px] font-[700] text-black">Running</span>
+                                <span className="text-[11px] text-[#666666]">4 items</span>
+                              </div>
+                              <div className="flex flex-col flex-shrink-0 opacity-30">
+                                <span className="text-[18px] font-[700] text-black">Lifestyle</span>
+                                <span className="text-[11px] text-[#666666]">9 items</span>
+                              </div>
+                              <div className="flex flex-col flex-shrink-0 opacity-30">
+                                <span className="text-[18px] font-[700] text-black">Gym</span>
+                                <span className="text-[11px] text-[#666666]">5 items</span>
+                              </div>
+                            </div>
+                         </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Step 3: Bottom Nav (We skip product grid for brevity so the nav is easily visible) */}
+                    <AnimatePresence>
+                      {currentStep >= 3 && (
+                        <motion.div 
+                          initial={{ y: 50, opacity: 0 }}
+                          animate={{ y: 0, opacity: 1 }}
+                          transition={{ delay: 0.4, type: 'spring' }}
+                          className="absolute bottom-6 left-1/2 -translate-x-1/2 flex justify-center items-end z-[90]"
+                        >
+                          <div className="flex items-center justify-between w-[200px] h-[56px] px-3 bg-white rounded-full shadow-[0_12px_40px_rgba(0,0,0,0.12)] border border-[#EEEEEE]">
+                            <button className="flex flex-col items-center justify-center w-10 h-10 rounded-full text-black relative">
+                                <Home size={20} strokeWidth={2.5} />
+                                <span className="absolute -bottom-1 w-1 h-1 rounded-full bg-black"></span>
+                            </button>
+                            <div className="relative -top-4">
+                              <button className="flex items-center justify-center w-[50px] h-[50px] bg-black rounded-full shadow-[0_8px_16px_rgba(0,0,0,0.2)]">
+                                <Search size={20} className="text-white" />
+                              </button>
+                            </div>
+                            <button className="flex flex-col items-center justify-center w-10 h-10 rounded-full text-[#BDBDBD]">
+                                <Heart size={20} />
+                            </button>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Fake content to allow scroll */}
+                    {currentStep >= 3 && <div className="h-[200px]"></div>}
+
+                  </div>
+
+                  {/* Gradient to cover overscroll/overlap at bottom */}
+                  <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white to-transparent pointer-events-none z-[80]"></div>
+
+                  {/* Home indicator pill */}
+                  <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-[35%] h-[4px] bg-[#000000]/30 rounded-full z-[100]"></div>
                 </div>
-                {/* Right side - Man images */}
-                 <div className="flex flex-col items-center justify-center">
-                   <div className="hidden lg:flex gap-6 mb-1">
-                     {/* Three images up */}
-                     <div className="w-[105px] h-[140px] rounded-2xl shadow-custom-shadow overflow-hidden">
-                       <Image 
-                         src={manInputImages[0]} 
-                         width={105} 
-                         height={140} 
-                         className="w-full h-full object-cover"
-                         alt="man image 1" 
-                       />
-                     </div>
-                     <div className="w-[105px] h-[140px] rounded-2xl shadow-custom-shadow overflow-hidden">
-                       <Image 
-                         src={manInputImages[1]} 
-                         width={105} 
-                         height={140} 
-                         className="w-full h-full object-cover"
-                         alt="man image 2" 
-                       />
-                     </div>
-                     <div className="w-[105px] h-[140px] rounded-2xl shadow-custom-shadow overflow-hidden">
-                       <Image 
-                         src={manInputImages[2]} 
-                         width={105} 
-                         height={140} 
-                         className="w-full h-full object-cover"
-                         alt="man image 3" 
-                       />
-                     </div>
-                   </div>
-                   <div className="hidden lg:flex gap-6 mt-6">
-                     {/* Three images down */}
-                     <div className="w-[105px] h-[140px] rounded-2xl shadow-custom-shadow overflow-hidden">
-                       <Image 
-                         src={manInputImages[3]} 
-                         width={105} 
-                         height={140} 
-                         className="w-full h-full object-cover"
-                         alt="man image 4" 
-                       />
-                     </div>
-                     <div className="w-[105px] h-[140px] rounded-2xl shadow-custom-shadow overflow-hidden">
-                       <Image 
-                         src={manInputImages[4]} 
-                         width={105} 
-                         height={140} 
-                         className="w-full h-full object-cover"
-                         alt="man image 5" 
-                       />
-                     </div>
-                     <div className="w-[105px] h-[140px] rounded-2xl shadow-custom-shadow overflow-hidden">
-                       <Image 
-                         src={manInputImages[5]} 
-                         width={105} 
-                         height={140} 
-                         className="w-full h-full object-cover"
-                         alt="man image 6" 
-                       />
-                     </div>
-                   </div>
-                 </div>
-              </div>
-            </div>
+             </div>
           </div>
 
-          {/* --- STEP 2: AI MAGIC --- */}
-          {/* Circle element */}
-          <div className="relative flex flex-col items-center mt-8">
-            {/* Circle with gradient and number */}
-            <div className="bg-gradient-to-l from-slate-700 to-[#1b7fcccc] text-white rounded-full h-12 w-12 flex items-center justify-center font-bold z-10">
-              2
-            </div>
-            {/* Gradient stroke line with fade out at the end */}
-            <div className="mt-[-75px] w-1 h-28 rounded-lg bg-gradient-to-b from-transparent via-[#1b7fcccc] to-transparent bg-[length:100%_100%]"></div>
-          </div>
-
-          {/* Text element */}
-          <h3 className="text-4xl sm:text-5xl md:text-6xl font-bold text-center mt-2 mb-4">
-            Our AI gets to work
-          </h3>
-          <p className="text-center text-lg md:text-xl text-gray-600 max-w-3xl mx-auto">
-This isn't a filter - it's a generative engine. Our system analyzes your features to create a hyper-realistic model trained exclusively on you.
-          </p>
-
-          {/* AI Visual element */}
-          <div className="flex justify-center items-center mt-8">
-            <div 
-              className="relative w-[95%] xl:w-[1050px] border-[#1b7fcccc] border-4 h-[200px] sm:h-[350px] md:h-[400px] lg:h-[500px] xl:h-[600px] rounded-2xl overflow-hidden shadow-2xl group cursor-pointer"
-              onClick={() => {
-                const iframe = document.getElementById('video-iframe') as HTMLIFrameElement;
-                const thumbnail = document.getElementById('video-thumbnail') as HTMLElement;
-                if (iframe && thumbnail) {
-                  iframe.classList.remove('opacity-0', 'pointer-events-none');
-                  iframe.classList.add('opacity-100');
-                  thumbnail.classList.add('opacity-0', 'pointer-events-none');
-                }
-              }}
-            >
-              {/* Custom Thumbnail Background */}
-              <div id="video-thumbnail" className="absolute inset-0 transition-opacity duration-300">
-                <div className="absolute inset-0 bg-gradient-to-br from-[#1b7fcccc]/20 via-orange-100/50 to-[#1b7fcccc]/30">
-                  <div className="w-full h-full bg-[url('/images/howtothumbnail.webp')] bg-cover bg-center opacity-80"></div>
-                </div>
-                
-                {/* Overlay gradient */}
-                <div className="absolute inset-0 bg-black/20"></div>
-                
-               <div className="absolute inset-0 flex items-center justify-center group-hover:scale-100 scale-[0.9] transition-all duration-200 ease-out rounded-2xl">
-          <div className="bg-[#1b7fcccc]/10 flex items-center justify-center rounded-full backdrop-blur-md size-28">
-            <div
-              className={`flex items-center justify-center bg-gradient-to-b from-primary/30 to-primary shadow-md rounded-full size-20 transition-all ease-out duration-200 relative group-hover:scale-[1.2] scale-100`}
-            >
-              <Play
-                className="size-8 text-white fill-white group-hover:scale-105 scale-100 transition-transform duration-200 ease-out"
-                style={{
-                  filter:
-                    "drop-shadow(0 4px 3px rgb(0 0 0 / 0.07)) drop-shadow(0 2px 2px rgb(0 0 0 / 0.06))",
-                }}
-              />
-            </div>
-          </div>
-        </div>
-              </div>
-              
-              {/* Hidden iframe that will be shown on click */}
-              <iframe
-                className="w-full h-full opacity-0 pointer-events-none transition-opacity duration-300"
-                src="https://www.youtube.com/embed/UL357H91Gc0?rel=0"
-                title="AI Processing Video"
-                frameBorder="0"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                allowFullScreen
-                id="video-iframe"
-              ></iframe>
-            </div>
-          </div>
-
-          {/* --- STEP 3: GET RESULTS --- */}
-          {/* Circle element */}
-          <div className="relative flex flex-col items-center mt-16">
-            {/* Circle with gradient and number */}
-            <div className="bg-gradient-to-l from-black to-slate-100 text-white rounded-full h-12 w-12 flex items-center justify-center font-bold z-10">
-              3
-            </div>
-            {/* Gradient stroke line with fade out at the end */}
-            <div className="mt-[-90px] w-1 h-14 rounded-lg bg-gradient-to-b from-transparent to-black"></div>
-          </div>
-
-          {/* Text element */}
-          <h3 className="text-4xl sm:text-5xl md:text-6xl font-bold text-center mt-10 mb-4">
-            Get amazing photoshoots
-          </h3>
-          <p className="text-center text-lg md:text-xl text-gray-600 max-w-3xl mx-auto">
-Get a diverse portfolio of studio-quality images in minutes, ready for any platform, from the boardroom to the bar.
-          </p>
-          <div className="animate-fadeIn container mx-auto pt-10">
-            <Carousal images={humans} />
-            <Carousal images={humans2} reverse={true} />
-          </div>
-          <div className="text-center justify-center flex text-sm font-md px-10 uppercase tracking-wider text-slate-400">
-            Results from unrealshot ai photoshoot generator.
-          </div>
         </div>
       </div>
     </section>
-  )
+  );
 }
+      
