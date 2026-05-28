@@ -1365,7 +1365,7 @@ export function ChatPanel({
         dg-chat-shell dg-clickable-scope backdrop-blur-xl
       `}
     >
-      <header className="relative shrink-0 px-3 pb-2 pt-2">
+      <header className="relative shrink-0 px-3 pb-2 pt-2 dg-chat-body">
         <div className="flex h-10 items-center justify-between gap-3 px-2">
           <h1 className="min-w-0 max-w-[260px] truncate text-[15px] font-semibold text-slate-950">
             {project.name}

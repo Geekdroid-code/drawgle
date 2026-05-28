@@ -42,7 +42,7 @@
 
   :is(.dark *) .dg-panel,
   .dark .dg-panel {
-    background: rgba(28, 31, 38, 0.92);
+    background: #1b1b1b;
   }
 
   .dg-panel-flat {
