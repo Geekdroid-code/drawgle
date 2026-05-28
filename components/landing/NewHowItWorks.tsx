@@ -1,10 +1,10 @@
 "use client";
-import React, { useState, useEffect } from 'react';
-import { Settings, ArrowRight, Check, Activity, Flame, ChevronRight, MapPin, Trophy, ChevronLeft, ShoppingBag, Home, Search, Heart, Code, Play, Loader } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Settings, ArrowRight, Check, Activity, Flame, ChevronRight, MapPin, Trophy, ChevronLeft, ShoppingBag, Home, Search, Heart, Code, Play, Loader, Smartphone, User, Menu } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 const SvgDivider = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 48 18" className="h-[18px] w-12 shrink-0 hidden md:block">
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 48 18" className="h-[18px] w-12 shrink-0 hidden md:block opacity-60">
     <path stroke="#E0E0E0" d="M0 8.5h48"></path>
     <g clipPath="url(#rapid-dev-top-divider_svg__a)">
       <rect width="16" height="16" x="16" y="1" fill="#F7F7F7" rx="8"></rect>
@@ -31,6 +31,7 @@ const BracketDown = () => (
 
 export default function DescribeToDesign() {
   const [currentStep, setCurrentStep] = useState(0);
+  const codeContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -38,190 +39,217 @@ export default function DescribeToDesign() {
     const runSequence = async () => {
       if (!mounted) return;
       setCurrentStep(0);
-      await new Promise(r => setTimeout(r, 800));
+      await new Promise(r => setTimeout(r, 2000));
       
       if (!mounted) return;
-      setCurrentStep(1);
+      setCurrentStep(1); // Hero Diff
       await new Promise(r => setTimeout(r, 2500));
       
       if (!mounted) return;
-      setCurrentStep(2);
+      setCurrentStep(2); // Hero Applied
       await new Promise(r => setTimeout(r, 2500));
       
       if (!mounted) return;
-      setCurrentStep(3);
-      await new Promise(r => setTimeout(r, 5000));
+      setCurrentStep(3); // Nav Diff
+      await new Promise(r => setTimeout(r, 2500));
+      
+      if (!mounted) return;
+      setCurrentStep(4); // Nav Applied
+      await new Promise(r => setTimeout(r, 2500));
+
+      if (!mounted) return;
+      setCurrentStep(5); // Export Diff
+      await new Promise(r => setTimeout(r, 2500));
+      
+      if (!mounted) return;
+      setCurrentStep(6); // Export Applied
+      await new Promise(r => setTimeout(r, 4500));
       
       if (!mounted) return;
       runSequence();
     };
 
     runSequence();
-
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, []);
 
-  const codeBlocks = [
-    {
-      step: 1,
-      lines: [
-        { text: '<!-- Storefront Header -->' },
-        { tag: 'div', attrs: 'class="flex justify-between px-6 py-4"', indent: 0 },
-        { tag: 'button', attrs: 'class="btn-back"', content: '<ChevronLeft />', indent: 1 },
-        { tag: 'h1', attrs: 'class="font-black text-xl"', content: 'JMDF', indent: 1 },
-        { tag: 'button', attrs: 'class="btn-cart"', content: '<ShoppingBag />', indent: 1 },
-        { closeTag: 'div', indent: 0 },
-        { text: '' },
-        { text: '<!-- Hero Product -->' },
-        { tag: 'div', attrs: 'class="hero-card bg-gray-100 rounded-3xl p-4"', indent: 0 },
-        { tag: 'h2', attrs: 'class="text-2xl font-bold"', content: 'JMDA Max Lift', indent: 1 },
-        { tag: 'button', attrs: 'class="bg-black text-white px-6"', content: 'Shop now', indent: 1 },
-        { tag: 'img', attrs: 'src="/shoes/max-lift.png"', content: null, indent: 1 },
-        { closeTag: 'div', indent: 0 },
-      ]
-    },
-    {
-      step: 2,
-      lines: [
-        { text: '' },
-        { text: '<!-- Categories -->' },
-        { tag: 'div', attrs: 'class="flex overflow-x-auto gap-6 px-6 mt-8"', indent: 0 },
-        { tag: 'div', attrs: 'class="category active"', content: 'Running', indent: 1 },
-        { tag: 'div', attrs: 'class="category opacity-30"', content: 'Lifestyle', indent: 1 },
-        { tag: 'div', attrs: 'class="category opacity-30"', content: 'Gym', indent: 1 },
-        { closeTag: 'div', indent: 0 },
-      ]
-    },
-    {
-      step: 3,
-      lines: [
-        { text: '' },
-        { text: '<!-- Floating Navigation -->' },
-        { tag: 'nav', attrs: 'class="fixed bottom-6 flex items-center bg-white shadow-xl"', indent: 0 },
-        { tag: 'a', attrs: 'href="/" class="nav-item"', content: '<Home />', indent: 1 },
-        { tag: 'button', attrs: 'class="nav-search bg-black text-white"', content: '<Search />', indent: 1 },
-        { tag: 'a', attrs: 'href="/likes" class="nav-item"', content: '<Heart />', indent: 1 },
-        { closeTag: 'nav', indent: 0 },
-      ]
+  // Auto-scroll logic to follow the diffs
+  useEffect(() => {
+    if (codeContainerRef.current) {
+      let scrollTo = 0;
+      if (currentStep === 1 || currentStep === 2) scrollTo = 150;
+      if (currentStep === 3 || currentStep === 4) scrollTo = 600;
+      if (currentStep === 5 || currentStep === 6) scrollTo = 0;
+      
+      codeContainerRef.current.scrollTo({
+        top: scrollTo,
+        behavior: 'smooth'
+      });
     }
+  }, [currentStep]);
+
+  const codeLines = [
+    { id: 'rn1', text: 'import { View, Text, Image, ScrollView, TouchableOpacity } from "react-native";', type: 'add', step: 5 },
+    { id: 'rn2', text: 'export default function SneakerStore() {', type: 'add', step: 5 },
+    { id: 'rn3', text: '  return (', type: 'add', step: 5 },
+    { id: 'rn4', text: '    <SafeAreaView style={{ flex: 1, backgroundColor: "white" }}>', type: 'add', step: 5 },
+    { id: 'html1', text: '<div class="app-container w-full h-full bg-white overflow-hidden">', type: 'delete', step: 5 },
+    
+    { id: 1, text: '  <header class="flex justify-between items-center px-6 pt-6">', type: 'normal' },
+    { id: 2, text: '    <button class="p-2.5 border border-gray-100 rounded-xl"><Menu size={18} /></button>', type: 'normal' },
+    { id: 3, text: '    <h1 class="text-xl font-black tracking-tighter">JMDF</h1>', type: 'normal' },
+    { id: 4, text: '    <button class="p-2.5 border border-gray-100 rounded-xl"><ShoppingBag size={18} /></button>', type: 'normal' },
+    { id: 5, text: '  </header>', type: 'normal' },
+    { id: 6, text: '', type: 'normal' },
+    { id: 7, text: '  <main class="px-6 mt-6 pb-32 h-full overflow-y-auto">', type: 'normal' },
+    
+    // Step 1: Polish Hero
+    { id: 8, text: '    <!-- Hero Section -->', type: 'normal' },
+    { id: 9, text: '    <div class="hero-section mb-8">', type: 'normal' },
+    
+    { id: 10, text: '      <div class="bg-gray-100 rounded-2xl p-5 relative">', type: 'delete', step: 1 },
+    { id: 11, text: '        <h2 class="text-lg font-bold">New Arrivals</h2>', type: 'delete', step: 1 },
+    { id: 12, text: '        <p class="text-sm text-gray-500 mt-1">Explore the latest collection</p>', type: 'delete', step: 1 },
+    { id: 13, text: '        <img src="/shoes/basic-runner.png" class="w-full h-32 object-contain mt-4" />', type: 'delete', step: 1 },
+    { id: 14, text: '        <button class="w-full bg-black text-white py-3 rounded-lg mt-4 font-medium">View Product</button>', type: 'delete', step: 1 },
+    { id: 15, text: '      </div>', type: 'delete', step: 1 },
+    
+    { id: 16, text: '      <div class="bg-[#F5F5F5] rounded-[32px] p-[24px] relative overflow-hidden">', type: 'add', step: 1 },
+    { id: 17, text: '        <h2 class="text-[22px] font-bold leading-tight text-black w-[60%]">JMDA Max Lift</h2>', type: 'add', step: 1 },
+    { id: 18, text: '        <p class="text-[12px] font-medium text-[#666666] mt-2 mb-4">Men\'s running</p>', type: 'add', step: 1 },
+    { id: 19, text: '        <button class="bg-black text-white px-6 py-2.5 rounded-full text-[13px] font-semibold">Shop now</button>', type: 'add', step: 1 },
+    { id: 20, text: '        <img src="/shoes/max-lift.png" class="absolute -right-12 top-6 w-[240px] drop-shadow-2xl pointer-events-none" />', type: 'add', step: 1 },
+    { id: 21, text: '      </div>', type: 'add', step: 1 },
+    
+    { id: 22, text: '    </div>', type: 'normal' },
+    { id: 23, text: '', type: 'normal' },
+    
+    { id: 24, text: '    <!-- Categories -->', type: 'normal' },
+    { id: 25, text: '    <div class="flex gap-6 mb-6">', type: 'normal' },
+    { id: 26, text: '      <div class="flex flex-col"><span class="font-bold text-[18px]">Running</span><span class="text-[12px] text-gray-500">4 items</span></div>', type: 'normal' },
+    { id: 27, text: '      <div class="flex flex-col opacity-40"><span class="font-bold text-[18px]">Lifestyle</span><span class="text-[12px] text-gray-500">9 items</span></div>', type: 'normal' },
+    { id: 28, text: '    </div>', type: 'normal' },
+    { id: 29, text: '', type: 'normal' },
+
+    { id: 30, text: '    <!-- Product Grid -->', type: 'normal' },
+    { id: 31, text: '    <div class="grid grid-cols-2 gap-4">', type: 'normal' },
+    { id: 32, text: '      <div class="bg-[#FAFAFA] rounded-2xl p-4 border border-gray-100">', type: 'normal' },
+    { id: 33, text: '        <img src="/shoes/shoe1.png" class="w-full h-24 object-contain mix-blend-multiply" />', type: 'normal' },
+    { id: 34, text: '        <div class="mt-3 font-semibold text-[14px]">Aero Glide</div>', type: 'normal' },
+    { id: 35, text: '        <div class="font-bold text-[14px] mt-1">$120</div>', type: 'normal' },
+    { id: 36, text: '      </div>', type: 'normal' },
+    { id: 37, text: '      <div class="bg-[#FAFAFA] rounded-2xl p-4 border border-gray-100">', type: 'normal' },
+    { id: 38, text: '        <img src="/shoes/shoe2.png" class="w-full h-24 object-contain mix-blend-multiply" />', type: 'normal' },
+    { id: 39, text: '        <div class="mt-3 font-semibold text-[14px]">Stratus X</div>', type: 'normal' },
+    { id: 40, text: '        <div class="font-bold text-[14px] mt-1">$145</div>', type: 'normal' },
+    { id: 41, text: '      </div>', type: 'normal' },
+    { id: 42, text: '    </div>', type: 'normal' },
+    { id: 43, text: '  </main>', type: 'normal' },
+    { id: 44, text: '', type: 'normal' },
+    
+    // Step 3: Iterate with natural language (Add Glass Nav)
+    { id: 45, text: '  <!-- Bottom Navigation -->', type: 'normal' },
+    { id: 46, text: '  <nav class="fixed bottom-0 w-full bg-white border-t border-gray-100 px-6 py-4 flex justify-between items-center pb-8">', type: 'delete', step: 3 },
+    { id: 47, text: '    <button class="text-black flex flex-col items-center"><Home size={22} /><span class="text-[10px] mt-1">Home</span></button>', type: 'delete', step: 3 },
+    { id: 48, text: '    <button class="text-gray-400 flex flex-col items-center"><Search size={22} /><span class="text-[10px] mt-1">Search</span></button>', type: 'delete', step: 3 },
+    { id: 49, text: '    <button class="text-gray-400 flex flex-col items-center"><Heart size={22} /><span class="text-[10px] mt-1">Saved</span></button>', type: 'delete', step: 3 },
+    { id: 50, text: '    <button class="text-gray-400 flex flex-col items-center"><User size={22} /><span class="text-[10px] mt-1">Profile</span></button>', type: 'delete', step: 3 },
+    { id: 51, text: '  </nav>', type: 'delete', step: 3 },
+    
+    { id: 52, text: '  <nav class="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center justify-between w-[220px] bg-white/90 backdrop-blur-md rounded-full shadow-[0_20px_40px_rgba(0,0,0,0.15)] border border-white p-1.5">', type: 'add', step: 3 },
+    { id: 53, text: '    <button class="w-11 h-11 flex items-center justify-center rounded-full text-black"><Home size={20} /></button>', type: 'add', step: 3 },
+    { id: 54, text: '    <div class="relative -top-5">', type: 'add', step: 3 },
+    { id: 55, text: '      <button class="w-[52px] h-[52px] bg-black text-white rounded-full flex items-center justify-center shadow-xl"><Search size={20} /></button>', type: 'add', step: 3 },
+    { id: 56, text: '    </div>', type: 'add', step: 3 },
+    { id: 57, text: '    <button class="w-11 h-11 flex items-center justify-center rounded-full text-gray-400"><Heart size={20} /></button>', type: 'add', step: 3 },
+    { id: 58, text: '  </nav>', type: 'add', step: 3 },
+    
+    { id: 59, text: '</div>', type: 'delete', step: 5 },
+    { id: 'rn5', text: '    </SafeAreaView>', type: 'add', step: 5 },
+    { id: 'rn6', text: '  );', type: 'add', step: 5 },
+    { id: 'rn7', text: '}', type: 'add', step: 5 },
   ];
 
-  const renderCodeLine = (line: any) => {
-    return (
-      <div style={{ marginLeft: `${(line.indent || 0) * 16}px` }}>
-        {line.text && <span className="text-[#8C999E]">{line.text}</span>}
-        {line.tag && (
-          <>
-            <span className="text-[#8C999E]">&lt;</span>
-            <span className="text-[#E06C75]">{line.tag}</span>
-            {line.attrs && (
-              <span className="text-[#D19A66]">
-                {' '}
-                <span className="text-[#D19A66]">{line.attrs.split('=')[0]}</span>
-                <span className="text-[#8C999E]">=</span>
-                <span className="text-[#98C379]">{line.attrs.split('=')[1]}</span>
-              </span>
-            )}
-            {line.content === null ? (
-              <span className="text-[#8C999E]"> /&gt;</span>
-            ) : (
-              <span className="text-[#8C999E]">&gt;</span>
-            )}
-            {line.content && <span className="text-[#ABB2BF]">{line.content}</span>}
-            {line.content !== null && (
-              <>
-                <span className="text-[#8C999E]">&lt;/</span>
-                <span className="text-[#E06C75]">{line.tag}</span>
-                <span className="text-[#8C999E]">&gt;</span>
-              </>
-            )}
-          </>
-        )}
-        {line.closeTag && !line.tag && (
-          <>
-            <span className="text-[#8C999E]">&lt;/</span>
-            <span className="text-[#E06C75]">{line.closeTag}</span>
-            <span className="text-[#8C999E]">&gt;</span>
-          </>
-        )}
-      </div>
-    );
-  };
+  const visibleLines = codeLines.filter(line => {
+    if (line.type === 'normal') return true;
+    if (currentStep < line.step!) return line.type === 'delete';
+    if (currentStep === line.step!) return true; 
+    if (currentStep > line.step!) return line.type === 'add';
+    return true;
+  });
 
   return (
-    <section className="relative w-full max-w-[1200px] mx-auto px-4 md:px-6 py-16 md:py-24 z-10 bg-[#FAFAFA] font-sans">
+    <section className="relative w-full max-w-[1200px] mx-auto px-4 md:px-6 py-16 md:py-24 mb-16 z-10 bg-[#FAFAFA] font-sans">
       
       <div className="flex flex-col items-center text-center">
         <h2 className="text-[28px] md:text-[36px] font-medium text-[#4A4A4A] leading-[1.2] mb-3">
-          Rapidly build <span className="font-bold text-black">unique designs</span> with our <span className="font-bold text-black">adaptable</span> UI generator.
+          Rapidly build <span className="font-bold text-black">unique designs</span> with our <span className="font-bold text-black">adaptable</span> AI generator.
         </h2>
       </div>
 
-      {/* Prompts/Steps Strip (AlignUI Style) */}
       <div className="flex flex-col items-center justify-center mt-12 w-full relative">
-        <div className="flex items-center justify-center gap-2 md:gap-3 w-full overflow-x-auto px-4 pb-2 no-scrollbar snap-x">
+        <div className="flex items-center justify-center w-full overflow-x-auto px-4 pb-2 no-scrollbar snap-x">
           
           {/* Pill 1 */}
-          <div className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors snap-center ${currentStep >= 1 ? 'border-green-200 bg-green-50/50 text-gray-800' : 'border-gray-200 bg-white text-gray-400'}`}>
-            {currentStep >= 1 ? (
-              <div className="w-4 h-4 rounded-full bg-green-500 text-white flex items-center justify-center"><Check size={10} strokeWidth={3}/></div>
-            ) : (
-              <div className="w-4 h-4 rounded-full border-2 border-gray-200"></div>
-            )}
-            Minimal storefront
-          </div>
-
-          <SvgDivider />
-
-          {/* Pill 2 */}
-          <div className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors snap-center ${currentStep >= 2 ? 'border-green-200 bg-green-50/50 text-gray-800' : currentStep === 1 ? 'border-orange-200 bg-white text-gray-800' : 'border-gray-200 bg-white text-gray-400'}`}>
+          <div className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors snap-center ${currentStep >= 2 ? 'border-gray-200 bg-white text-gray-800 shadow-sm' : currentStep === 1 ? 'border-gray-200 bg-white text-gray-800 shadow-sm' : 'border-gray-200 bg-white text-gray-400'}`}>
             {currentStep >= 2 ? (
               <div className="w-4 h-4 rounded-full bg-green-500 text-white flex items-center justify-center"><Check size={10} strokeWidth={3}/></div>
             ) : currentStep === 1 ? (
               <div className="text-orange-500 flex items-center justify-center"><Loader size={14} className="animate-spin"/></div>
             ) : (
-              <div className="w-4 h-4 rounded-full border-2 border-gray-200"></div>
+              <div className="w-4 h-4 rounded-full border-2 border-gray-100 bg-gray-50"></div>
             )}
-            Product sections
+            Iterate specific sections
+          </div>
+
+          <SvgDivider />
+
+          {/* Pill 2 */}
+          <div className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors snap-center ${currentStep >= 4 ? 'border-gray-200 bg-white text-gray-800 shadow-sm' : currentStep === 3 ? 'border-gray-200 bg-white text-gray-800 shadow-sm' : 'border-gray-200 bg-white text-gray-400'}`}>
+            {currentStep >= 4 ? (
+              <div className="w-4 h-4 rounded-full bg-green-500 text-white flex items-center justify-center"><Check size={10} strokeWidth={3}/></div>
+            ) : currentStep === 3 ? (
+              <div className="text-orange-500 flex items-center justify-center"><Loader size={14} className="animate-spin"/></div>
+            ) : (
+              <div className="w-4 h-4 rounded-full border-2 border-gray-100 bg-gray-50"></div>
+            )}
+            Refine with premium components
           </div>
 
           <SvgDivider />
 
           {/* Pill 3 */}
-          <div className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors snap-center ${currentStep >= 3 ? 'border-green-200 bg-green-50/50 text-gray-800' : currentStep === 2 ? 'border-orange-200 bg-white text-gray-800' : 'border-gray-200 bg-white text-gray-400'}`}>
-            {currentStep >= 3 ? (
+          <div className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors snap-center ${currentStep >= 6 ? 'border-gray-200 bg-white text-gray-800 shadow-sm' : currentStep === 5 ? 'border-gray-200 bg-white text-gray-800 shadow-sm' : 'border-gray-200 bg-white text-gray-400'}`}>
+            {currentStep >= 6 ? (
               <div className="w-4 h-4 rounded-full bg-green-500 text-white flex items-center justify-center"><Check size={10} strokeWidth={3}/></div>
-            ) : currentStep === 2 ? (
+            ) : currentStep === 5 ? (
               <div className="text-orange-500 flex items-center justify-center"><Loader size={14} className="animate-spin"/></div>
             ) : (
-              <div className="w-4 h-4 rounded-full border-2 border-gray-200"></div>
+              <div className="w-4 h-4 rounded-full border-2 border-gray-100 bg-gray-50"></div>
             )}
-            Floating navigation
+            Export native code
           </div>
         </div>
 
         <BracketDown />
       </div>
 
-      {/* Main Split Panel (AlignUI Style Unified Card) */}
-      <div className="w-full max-w-[1000px] mx-auto bg-white rounded-[24px] border border-gray-200/80 shadow-[0_4px_24px_rgba(0,0,0,0.03)] overflow-hidden flex flex-col mb-16 relative z-20">
+      <div className="w-full max-w-[1060px] mx-auto bg-white rounded-[24px] border border-gray-200/80 shadow-[0_4px_24px_rgba(0,0,0,0.03)] overflow-hidden flex flex-col mb-16 relative z-20">
         
-        {/* Top Bar */}
+        {/* Editor Top Bar */}
         <div className="h-[48px] border-b border-gray-100 flex items-center px-4 bg-white select-none">
-          {/* Left - File Tab */}
           <div className="flex items-center gap-2 text-gray-600 h-full">
             <div className="w-4 h-4 text-orange-500 flex items-center justify-center">
               <Code size={14} strokeWidth={2.5} />
             </div>
-            <span className="text-[13px] font-mono font-bold tracking-tight text-gray-700">index.html</span>
+            <span className="text-[13px] font-mono font-bold tracking-tight text-gray-700">
+              {currentStep >= 6 ? 'SneakerStore.tsx' : 'index.html'}
+            </span>
             <div className="w-1.5 h-1.5 rounded-full bg-gray-300 ml-1"></div>
           </div>
           
           <div className="flex-1"></div>
           
-          {/* Right - Preview Tab */}
           <div className="flex items-center gap-2 border-l border-gray-100 pl-4 h-full text-gray-400">
             <Play size={12} className="fill-current" />
             <span className="text-[13px] font-bold tracking-wide">preview</span>
@@ -229,59 +257,70 @@ export default function DescribeToDesign() {
         </div>
 
         {/* Split Body */}
-        <div className="flex flex-col lg:flex-row h-auto min-h-[580px]">
+        <div className="flex flex-col lg:flex-row h-auto lg:h-[620px]">
           
-          {/* LEFT: Code Panel */}
-          <div className="flex-1 p-6 overflow-x-auto bg-white font-mono text-[12px] md:text-[13px] leading-[1.8]">
-            <div className="flex min-w-[400px]">
+          {/* Left: Code Pane */}
+          <div 
+            ref={codeContainerRef}
+            className="flex-1 p-4 md:p-6 overflow-x-auto overflow-y-auto bg-white font-mono text-[12px] md:text-[13px] leading-[1.8] min-w-0 custom-scrollbar"
+            style={{ scrollBehavior: 'smooth' }}
+          >
+            <div className="flex min-w-max pb-12">
                <div className="w-8 text-right pr-4 text-[#D5D5D5] select-none flex flex-col font-medium opacity-60">
-                  {Array.from({length: 25}).map((_, i) => <div key={i}>{i+1}</div>)}
+                  {visibleLines.map((_, i) => <div key={i} className="h-[23.4px]">{i+1}</div>)}
                </div>
-               <div className="flex-1 text-[#2C3132]">
-                  {codeBlocks.map((block) => (
-                    <AnimatePresence key={block.step}>
-                      {currentStep >= block.step && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: 'auto' }}
-                          transition={{ duration: 0.4 }}
-                          className="overflow-hidden"
-                        >
-                          {block.lines.map((line, idx) => (
-                            <motion.div 
-                              key={idx}
-                              initial={{ opacity: 0, x: -5 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{ delay: idx * 0.05 + 0.1 }}
-                              className="whitespace-pre flex"
-                            >
-                              {renderCodeLine(line)}
-                            </motion.div>
-                          ))}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  ))}
+               <div className="flex-1 text-[#4A5568]">
+                  <AnimatePresence initial={false}>
+                    {visibleLines.map((line) => {
+                      const isDiffing = currentStep === line.step;
+                      const isAdding = isDiffing && line.type === 'add';
+                      const isDeleting = isDiffing && line.type === 'delete';
+                      
+                      let rowClass = 'px-2 rounded-md whitespace-pre transition-colors duration-300 flex items-center h-[23.4px] ';
+                      let prefix = '  ';
+                      
+                      if (isAdding) {
+                        rowClass += 'bg-green-500/10 text-green-700 font-medium';
+                        prefix = '+ ';
+                      } else if (isDeleting) {
+                        rowClass += 'bg-red-500/10 text-red-600 line-through opacity-60';
+                        prefix = '- ';
+                      } else {
+                        rowClass += 'text-gray-600';
+                      }
 
-                  {/* Blinking Cursor */}
-                  {currentStep > 0 && currentStep < 3 && (
-                    <motion.div 
-                      animate={{ opacity: [1, 0] }}
-                      transition={{ duration: 0.8, repeat: Infinity }}
-                      className="w-2 h-[15px] bg-orange-400 mt-1 inline-block"
-                    />
-                  )}
+                      return (
+                        <motion.div 
+                          key={line.id}
+                          layout="position"
+                          initial={isAdding ? { opacity: 0, x: -10 } : false}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.3 }}
+                          className={rowClass}
+                        >
+                          <span className="opacity-50 mr-2 select-none shrink-0 w-[14px]">{prefix}</span>
+                          <span className="truncate">
+                            {line.text.split(/(<[^>]+>)/g).map((part, i) => {
+                              if (part.startsWith('<')) return <span key={i} className={isAdding || isDeleting ? "" : "text-indigo-500"}>{part}</span>;
+                              return <span key={i}>{part}</span>;
+                            })}
+                          </span>
+                        </motion.div>
+                      );
+                    })}
+                  </AnimatePresence>
                </div>
             </div>
           </div>
 
-          {/* RIGHT: UI Preview Panel */}
-          <div className="w-full lg:w-[460px] bg-[#FAFAFA] border-t lg:border-t-0 lg:border-l border-gray-100 flex items-center justify-center p-8 relative overflow-hidden">
+          {/* Right: Phone Preview */}
+          <div className="w-full lg:w-[460px] bg-[#FAFAFA] border-t lg:border-t-0 lg:border-l border-gray-100 flex items-center justify-center py-8 px-4 relative overflow-hidden shrink-0">
              
-             {/* The Premium Hardware Phone Frame */}
+             {/* Hardware Frame */}
              <div className="w-[300px] h-[600px] bg-[#E8E8E8] rounded-[48px] p-[6px] shadow-[0_12px_32px_rgba(0,0,0,0.06),inset_0_1px_2px_rgba(255,255,255,0.8)] relative z-10 flex flex-col box-border border border-gray-200 shrink-0">
                 
-                {/* Inner Bezel Screen */}
+                {/* Screen */}
                 <div className="w-full h-full bg-white rounded-[42px] relative overflow-hidden flex flex-col shadow-sm">
                   
                   {/* Dynamic Island */}
@@ -292,134 +331,143 @@ export default function DescribeToDesign() {
                      </div>
                   </div>
 
-                  {/* UI Render Area (Sneakers Store) */}
-                  <div className="flex-1 relative z-10 font-sans text-black w-full h-full flex flex-col bg-white overflow-x-hidden overflow-y-auto no-scrollbar">
+                  {/* Scrollable Content Area */}
+                  <div className="flex-1 relative z-10 font-sans text-black w-full h-full flex flex-col bg-white overflow-x-hidden overflow-y-auto no-scrollbar pt-10 pb-24">
                     
-                    {/* Placeholder Base */}
-                    <AnimatePresence>
-                      {currentStep === 0 && (
-                        <motion.div 
-                          exit={{ opacity: 0 }} 
-                          className="absolute inset-0 flex items-center justify-center pointer-events-none"
-                        >
-                           <div className="text-gray-300">
-                             <Settings size={28} className="animate-[spin_4s_linear_infinite]" />
-                           </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-5 h-14 shrink-0">
+                      <button className="w-10 h-10 flex items-center justify-center border border-gray-100 rounded-[12px] bg-white">
+                        <Menu size={20} />
+                      </button>
+                      <div className="font-black text-[18px] tracking-tighter text-black">JMDF</div>
+                      <button className="w-10 h-10 flex items-center justify-center border border-gray-100 rounded-[12px] bg-white relative">
+                        <ShoppingBag size={20} />
+                      </button>
+                    </div>
 
-                    {/* Step 1: Header + Hero */}
-                    <AnimatePresence>
-                      {currentStep >= 1 && (
-                        <motion.div 
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.4, type: 'spring' }}
-                          className="flex flex-col w-full pt-10 shrink-0"
-                        >
-                          <div className="flex items-center justify-between px-5 h-14">
-                            <button className="w-9 h-9 flex items-center justify-center border border-gray-100 rounded-[10px] bg-white">
-                              <ChevronLeft size={18} />
+                    {/* Diff 1: Hero Update */}
+                    <div className="px-5 mt-4 relative shrink-0">
+                      <AnimatePresence mode="wait">
+                        {currentStep < 2 ? (
+                          <motion.div 
+                            key="v1-hero"
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="bg-gray-100 h-[200px] rounded-2xl p-5 flex flex-col items-center justify-center text-center"
+                          >
+                            <div className="text-[18px] font-bold text-gray-800">New Arrivals</div>
+                            <div className="text-[12px] text-gray-500 mt-1 mb-3">Explore the latest collection</div>
+                            <button className="w-full bg-black text-white py-3 rounded-xl text-[14px] font-medium mt-auto">
+                              View Product
                             </button>
-                            <div className="font-black text-[18px] tracking-tighter text-black">JMDF</div>
-                            <button className="w-9 h-9 flex items-center justify-center border border-gray-100 rounded-[10px] bg-white relative">
-                              <ShoppingBag size={18} />
-                              <div className="absolute top-2 right-2 w-1.5 h-1.5 bg-black rounded-full border-2 border-white"></div>
-                            </button>
-                          </div>
-
-                          <div className="px-5 mt-1">
-                            <div className="text-[22px] font-[800] leading-tight text-black m-0">New Collection</div>
-                            <div className="text-[12px] font-[400] text-[#666666] mt-0.5">JMDA Original 2025</div>
-                          </div>
-
-                          <div className="px-5 mt-4 relative">
-                            <div className="w-full h-[160px] bg-[#F5F5F5] rounded-[24px] p-[16px] flex flex-col justify-center relative overflow-visible">
-                              <div className="z-10 w-[60%]">
-                                <div className="text-[18px] font-[700] leading-tight text-black m-0">JMDA Max Lift</div>
-                                <div className="text-[11px] font-[400] text-[#666666] mb-3 mt-1">Men&apos;s shoes</div>
-                                <button className="h-[32px] px-5 bg-black text-white rounded-full text-[13px] font-[600] flex items-center justify-center">
-                                  Shop now
-                                </button>
-                              </div>
-                              <div className="absolute -right-[10%] top-[5%] w-[180px] h-[140px] pointer-events-none z-20">
-                                <img src="https://static.vecteezy.com/system/resources/previews/058/272/032/non_2x/sleek-and-minimalist-running-shoe-with-transparent-design-free-png.png" alt="Running Shoe" className="w-full h-full object-contain drop-shadow-xl" />
-                              </div>
-                              <div className="absolute bottom-[16px] left-[50%] -translate-x-1/2 flex gap-1 z-30">
-                                <div className="w-1.5 h-1.5 rounded-full bg-black"></div>
-                                <div className="w-1.5 h-1.5 rounded-full bg-[#E0E0E0]"></div>
-                                <div className="w-1.5 h-1.5 rounded-full bg-[#E0E0E0]"></div>
-                              </div>
-                            </div>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-
-                    {/* Step 2: Categories */}
-                    <AnimatePresence>
-                      {currentStep >= 2 && (
-                         <motion.div 
-                           initial={{ opacity: 0, x: 10 }}
-                           animate={{ opacity: 1, x: 0 }}
-                           transition={{ duration: 0.4, delay: 0.1 }}
-                           className="w-full mt-6 shrink-0"
-                         >
-                            <div className="flex overflow-x-hidden px-5 gap-5 items-end">
-                              <div className="flex flex-col flex-shrink-0">
-                                <span className="text-[18px] font-[700] text-black">Running</span>
-                                <span className="text-[11px] text-[#666666]">4 items</span>
-                              </div>
-                              <div className="flex flex-col flex-shrink-0 opacity-30">
-                                <span className="text-[18px] font-[700] text-black">Lifestyle</span>
-                                <span className="text-[11px] text-[#666666]">9 items</span>
-                              </div>
-                              <div className="flex flex-col flex-shrink-0 opacity-30">
-                                <span className="text-[18px] font-[700] text-black">Gym</span>
-                                <span className="text-[11px] text-[#666666]">5 items</span>
-                              </div>
-                            </div>
-                         </motion.div>
-                      )}
-                    </AnimatePresence>
-
-                    {/* Step 3: Bottom Nav (We skip product grid for brevity so the nav is easily visible) */}
-                    <AnimatePresence>
-                      {currentStep >= 3 && (
-                        <motion.div 
-                          initial={{ y: 50, opacity: 0 }}
-                          animate={{ y: 0, opacity: 1 }}
-                          transition={{ delay: 0.4, type: 'spring' }}
-                          className="absolute bottom-6 left-1/2 -translate-x-1/2 flex justify-center items-end z-[90]"
-                        >
-                          <div className="flex items-center justify-between w-[200px] h-[56px] px-3 bg-white rounded-full shadow-[0_12px_40px_rgba(0,0,0,0.12)] border border-[#EEEEEE]">
-                            <button className="flex flex-col items-center justify-center w-10 h-10 rounded-full text-black relative">
-                                <Home size={20} strokeWidth={2.5} />
-                                <span className="absolute -bottom-1 w-1 h-1 rounded-full bg-black"></span>
-                            </button>
-                            <div className="relative -top-4">
-                              <button className="flex items-center justify-center w-[50px] h-[50px] bg-black rounded-full shadow-[0_8px_16px_rgba(0,0,0,0.2)]">
-                                <Search size={20} className="text-white" />
+                          </motion.div>
+                        ) : (
+                          <motion.div 
+                            key="v2-hero"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="w-full h-[180px] bg-[#F5F5F5] rounded-[32px] p-[24px] flex flex-col justify-center relative overflow-visible"
+                          >
+                            <div className="z-10 w-[60%]">
+                              <div className="text-[22px] font-[800] leading-tight text-black m-0">JMDA Max Lift</div>
+                              <div className="text-[12px] font-[500] text-[#666666] mb-4 mt-2">Men&apos;s running</div>
+                              <button className="h-[36px] px-6 bg-black text-white rounded-full text-[13px] font-[600] flex items-center justify-center">
+                                Shop now
                               </button>
                             </div>
-                            <button className="flex flex-col items-center justify-center w-10 h-10 rounded-full text-[#BDBDBD]">
-                                <Heart size={20} />
-                            </button>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                            <div className="absolute -right-[15%] top-[15%] w-[200px] h-[150px] pointer-events-none z-20">
+                              <img src="https://static.vecteezy.com/system/resources/previews/058/272/032/non_2x/sleek-and-minimalist-running-shoe-with-transparent-design-free-png.png" alt="Running Shoe" className="w-full h-full object-contain drop-shadow-xl" />
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
 
-                    {/* Fake content to allow scroll */}
-                    {currentStep >= 3 && <div className="h-[200px]"></div>}
+                    {/* Categories */}
+                    <div className="flex gap-6 px-5 mt-8 items-end shrink-0">
+                      <div className="flex flex-col"><span className="text-[18px] font-[700] text-black">Running</span><span className="text-[12px] text-gray-500 font-medium">4 items</span></div>
+                      <div className="flex flex-col opacity-40"><span className="text-[18px] font-[700] text-black">Lifestyle</span><span className="text-[12px] text-gray-500 font-medium">9 items</span></div>
+                    </div>
+
+                    {/* Product Grid (Fills the empty space) */}
+                    <div className="grid grid-cols-2 gap-4 px-5 mt-5 shrink-0">
+                       <div className="bg-[#FAFAFA] border border-gray-100 rounded-2xl p-4 flex flex-col items-center text-center">
+                          <img src="https://static.vecteezy.com/system/resources/previews/016/542/379/non_2x/black-and-red-running-shoe-free-png.png" className="w-[100px] h-[80px] object-contain mb-2" />
+                          <div className="text-[14px] font-semibold text-black">Aero Glide</div>
+                          <div className="text-[14px] font-bold text-gray-500 mt-1">$120</div>
+                       </div>
+                       <div className="bg-[#FAFAFA] border border-gray-100 rounded-2xl p-4 flex flex-col items-center text-center">
+                          <img src="https://static.vecteezy.com/system/resources/previews/010/893/781/non_2x/white-and-red-running-shoe-free-png.png" className="w-[100px] h-[80px] object-contain mb-2" />
+                          <div className="text-[14px] font-semibold text-black">Stratus X</div>
+                          <div className="text-[14px] font-bold text-gray-500 mt-1">$145</div>
+                       </div>
+                    </div>
 
                   </div>
 
-                  {/* Gradient to cover overscroll/overlap at bottom */}
-                  <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white to-transparent pointer-events-none z-[80]"></div>
+                  {/* Diff 2: Navigation Update */}
+                  <AnimatePresence mode="wait">
+                    {currentStep < 4 ? (
+                      <motion.div 
+                        key="v1-footer"
+                        exit={{ opacity: 0, y: 20 }}
+                        className="absolute bottom-0 w-full z-40 bg-white border-t border-gray-100 pb-6 pt-3 px-6 flex justify-between items-center"
+                      >
+                        <button className="flex flex-col items-center text-black"><Home size={22} /><span className="text-[10px] font-medium mt-1">Home</span></button>
+                        <button className="flex flex-col items-center text-gray-400"><Search size={22} /><span className="text-[10px] font-medium mt-1">Search</span></button>
+                        <button className="flex flex-col items-center text-gray-400"><Heart size={22} /><span className="text-[10px] font-medium mt-1">Saved</span></button>
+                        <button className="flex flex-col items-center text-gray-400"><User size={22} /><span className="text-[10px] font-medium mt-1">Profile</span></button>
+                      </motion.div>
+                    ) : (
+                      <motion.div 
+                        key="v2-nav"
+                        initial={{ opacity: 0, y: 40 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ type: 'spring', bounce: 0.4 }}
+                        className="absolute bottom-8 left-1/2 -translate-x-1/2 flex justify-center items-end z-[90]"
+                      >
+                        <div className="flex items-center justify-between w-[220px] h-[60px] px-3 bg-white/95 backdrop-blur-md rounded-full shadow-[0_20px_40px_rgba(0,0,0,0.15)] border border-white/60">
+                          <button className="flex flex-col items-center justify-center w-11 h-11 rounded-full text-black relative">
+                              <Home size={20} strokeWidth={2.5} />
+                              <span className="absolute -bottom-1 w-1 h-1 rounded-full bg-black"></span>
+                          </button>
+                          <div className="relative -top-5">
+                            <button className="flex items-center justify-center w-[52px] h-[52px] bg-black rounded-full shadow-[0_8px_16px_rgba(0,0,0,0.3)] border-[3px] border-white">
+                              <Search size={20} className="text-white" />
+                            </button>
+                          </div>
+                          <button className="flex flex-col items-center justify-center w-11 h-11 rounded-full text-[#BDBDBD]">
+                              <Heart size={20} />
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
-                  {/* Home indicator pill */}
+                  {/* Diff 3: Export Success Overlay */}
+                  <AnimatePresence>
+                    {currentStep >= 6 && (
+                      <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="absolute inset-0 z-[100] bg-black/40 backdrop-blur-[2px] flex items-center justify-center"
+                      >
+                        <motion.div 
+                          initial={{ scale: 0.9, y: 10 }}
+                          animate={{ scale: 1, y: 0 }}
+                          className="bg-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-2"
+                        >
+                          <div className="w-6 h-6 bg-green-100 text-green-600 rounded-full flex items-center justify-center">
+                            <Smartphone size={14} strokeWidth={3} />
+                          </div>
+                          <span className="font-bold text-[13px]">React Native Exported</span>
+                        </motion.div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Fade out for list scrolling */}
+                  <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-white to-transparent pointer-events-none z-[80]"></div>
+                  {/* iOS Home Indicator */}
                   <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-[35%] h-[4px] bg-[#000000]/30 rounded-full z-[100]"></div>
                 </div>
              </div>
@@ -427,7 +475,24 @@ export default function DescribeToDesign() {
 
         </div>
       </div>
+      
+      {/* CSS for custom scrollbar in the code editor to make it sleek */}
+      <style dangerouslySetInnerHTML={{__html: `
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+          height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background-color: #E2E8F0;
+          border-radius: 20px;
+        }
+        .custom-scrollbar:hover::-webkit-scrollbar-thumb {
+          background-color: #CBD5E1;
+        }
+      `}} />
     </section>
   );
 }
-      
