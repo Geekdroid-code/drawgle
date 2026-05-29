@@ -33,7 +33,7 @@ const VerticalRuler = ({ side }: { side: 'left' | 'right' }) => {
   const ticks = Array.from({ length: 30 }).map((_, i) => i * 50);
   
   return (
-    <div className={`absolute top-0 bottom-0 w-8 pointer-events-none hidden xl:block opacity-60
+    <div className={`absolute top-0 bottom-0 w-8 pointer-events-none hidden xl:block opacity-60 overflow-hidden
       ${side === 'left' ? 'left-0 border-r border-gray-200' : 'right-0 border-l border-gray-200'}`}
     >
       {ticks.map(tick => (
@@ -119,12 +119,6 @@ export default function DescribeToDesign() {
   }, [currentStep]);
 
   const codeLines = [
-    { id: 'rn1', text: 'import { View, Text, Image, ScrollView, TouchableOpacity } from "react-native";', type: 'add', step: 5 },
-    { id: 'rn2', text: 'export default function SneakerStore() {', type: 'add', step: 5 },
-    { id: 'rn3', text: '  return (', type: 'add', step: 5 },
-    { id: 'rn4', text: '    <SafeAreaView style={{ flex: 1, backgroundColor: "white" }}>', type: 'add', step: 5 },
-    { id: 'html1', text: '<div class="app-container w-full h-full bg-white overflow-hidden">', type: 'delete', step: 5 },
-    
     { id: 1, text: '  <header class="flex justify-between items-center px-6 pt-6">', type: 'normal' },
     { id: 2, text: '    <button class="p-2.5 border border-gray-100 rounded-xl"><Menu size={18} /></button>', type: 'normal' },
     { id: 3, text: '    <h1 class="text-xl font-black tracking-tighter">JMDF</h1>', type: 'normal' },
@@ -155,49 +149,55 @@ export default function DescribeToDesign() {
     { id: 23, text: '', type: 'normal' },
     
     { id: 24, text: '    <!-- Categories -->', type: 'normal' },
-    { id: 25, text: '    <div class="flex gap-6 mb-6">', type: 'normal' },
-    { id: 26, text: '      <div class="flex flex-col"><span class="font-bold text-[18px]">Running</span><span class="text-[12px] text-gray-500">4 items</span></div>', type: 'normal' },
-    { id: 27, text: '      <div class="flex flex-col opacity-40"><span class="font-bold text-[18px]">Lifestyle</span><span class="text-[12px] text-gray-500">9 items</span></div>', type: 'normal' },
-    { id: 28, text: '    </div>', type: 'normal' },
+    
+    { id: 25, text: '    <div class="flex gap-6 mb-6">', type: 'delete', step: 5 },
+    { id: 26, text: '      <div class="flex flex-col"><span class="font-bold text-[18px]">Running</span><span class="text-[12px] text-gray-500">4 items</span></div>', type: 'delete', step: 5 },
+    { id: 27, text: '      <div class="flex flex-col opacity-40"><span class="font-bold text-[18px]">Lifestyle</span><span class="text-[12px] text-gray-500">9 items</span></div>', type: 'delete', step: 5 },
+    { id: 28, text: '    </div>', type: 'delete', step: 5 },
+    
+    { id: 'c1', text: '    <div class="flex gap-3 mb-6">', type: 'add', step: 5 },
+    { id: 'c2', text: '      <div class="bg-black text-white px-4 py-2.5 rounded-full text-sm font-semibold">Running</div>', type: 'add', step: 5 },
+    { id: 'c3', text: '      <div class="bg-gray-100 text-gray-600 px-4 py-2.5 rounded-full text-sm font-semibold">Lifestyle</div>', type: 'add', step: 5 },
+    { id: 'c4', text: '      <div class="bg-gray-100 text-gray-600 px-4 py-2.5 rounded-full text-sm font-semibold">Basketball</div>', type: 'add', step: 5 },
+    { id: 'c5', text: '    </div>', type: 'add', step: 5 },
+    
     { id: 29, text: '', type: 'normal' },
 
     { id: 30, text: '    <!-- Product Grid -->', type: 'normal' },
-    { id: 31, text: '    <div class="grid grid-cols-2 gap-4">', type: 'normal' },
-    { id: 32, text: '      <div class="bg-[#FAFAFA] rounded-2xl p-4 border border-gray-100">', type: 'normal' },
-    { id: 33, text: '        <img src="/shoes/shoe1.png" class="w-full h-24 object-contain mix-blend-multiply" />', type: 'normal' },
-    { id: 34, text: '        <div class="mt-3 font-semibold text-[14px]">Aero Glide</div>', type: 'normal' },
-    { id: 35, text: '        <div class="font-bold text-[14px] mt-1">$120</div>', type: 'normal' },
-    { id: 36, text: '      </div>', type: 'normal' },
-    { id: 37, text: '      <div class="bg-[#FAFAFA] rounded-2xl p-4 border border-gray-100">', type: 'normal' },
-    { id: 38, text: '        <img src="/shoes/shoe2.png" class="w-full h-24 object-contain mix-blend-multiply" />', type: 'normal' },
-    { id: 39, text: '        <div class="mt-3 font-semibold text-[14px]">Stratus X</div>', type: 'normal' },
-    { id: 40, text: '        <div class="font-bold text-[14px] mt-1">$145</div>', type: 'normal' },
-    { id: 41, text: '      </div>', type: 'normal' },
-    { id: 42, text: '    </div>', type: 'normal' },
+    
+    { id: 31, text: '    <div class="grid grid-cols-2 gap-4">', type: 'delete', step: 3 },
+    { id: 32, text: '      <div class="bg-[#FAFAFA] rounded-2xl p-4 border border-gray-100 text-center">', type: 'delete', step: 3 },
+    { id: 33, text: '        <img src="/shoes/shoe1.png" class="w-full h-24 object-contain mix-blend-multiply" />', type: 'delete', step: 3 },
+    { id: 34, text: '        <div class="mt-3 font-semibold text-[14px]">Aero Glide</div>', type: 'delete', step: 3 },
+    { id: 35, text: '        <div class="font-bold text-[14px] mt-1 text-gray-500">$120</div>', type: 'delete', step: 3 },
+    { id: 36, text: '      </div>', type: 'delete', step: 3 },
+    { id: 37, text: '    </div>', type: 'delete', step: 3 },
+    
+    { id: 'p1', text: '    <div class="grid grid-cols-2 gap-4">', type: 'add', step: 3 },
+    { id: 'p2', text: '      <div class="bg-white rounded-3xl p-4 shadow-sm border border-gray-100">', type: 'add', step: 3 },
+    { id: 'p3', text: '        <div class="flex justify-between items-start mb-2">', type: 'add', step: 3 },
+    { id: 'p4', text: '           <span class="bg-black text-white text-[9px] px-2 py-1 rounded-md font-bold">NEW</span>', type: 'add', step: 3 },
+    { id: 'p5', text: '           <button class="text-gray-300"><Heart size={14} /></button>', type: 'add', step: 3 },
+    { id: 'p6', text: '        </div>', type: 'add', step: 3 },
+    { id: 'p7', text: '        <img src="/shoes/shoe1.png" class="w-full h-20 object-contain mx-auto" />', type: 'add', step: 3 },
+    { id: 'p8', text: '        <div class="mt-2 font-bold text-[14px] text-black">Aero Glide</div>', type: 'add', step: 3 },
+    { id: 'p9', text: '        <div class="text-[11px] text-gray-400 font-medium">Road Running</div>', type: 'add', step: 3 },
+    { id: 'p10', text: '        <div class="font-black text-[15px] mt-2">$120</div>', type: 'add', step: 3 },
+    { id: 'p11', text: '      </div>', type: 'add', step: 3 },
+    { id: 'p12', text: '    </div>', type: 'add', step: 3 },
+    
     { id: 43, text: '  </main>', type: 'normal' },
     { id: 44, text: '', type: 'normal' },
     
-    // Step 3: Iterate with natural language (Add Glass Nav)
-    { id: 45, text: '  <!-- Bottom Navigation -->', type: 'normal' },
-    { id: 46, text: '  <nav class="fixed bottom-0 w-full bg-white border-t border-gray-100 px-6 py-4 flex justify-between items-center pb-8">', type: 'delete', step: 3 },
-    { id: 47, text: '    <button class="text-black flex flex-col items-center"><Home size={22} /><span class="text-[10px] mt-1">Home</span></button>', type: 'delete', step: 3 },
-    { id: 48, text: '    <button class="text-gray-400 flex flex-col items-center"><Search size={22} /><span class="text-[10px] mt-1">Search</span></button>', type: 'delete', step: 3 },
-    { id: 49, text: '    <button class="text-gray-400 flex flex-col items-center"><Heart size={22} /><span class="text-[10px] mt-1">Saved</span></button>', type: 'delete', step: 3 },
-    { id: 50, text: '    <button class="text-gray-400 flex flex-col items-center"><User size={22} /><span class="text-[10px] mt-1">Profile</span></button>', type: 'delete', step: 3 },
-    { id: 51, text: '  </nav>', type: 'delete', step: 3 },
+    { id: 45, text: '  <!-- Premium Navigation -->', type: 'normal' },
+    { id: 46, text: '  <nav class="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center justify-between w-[240px] bg-black/90 backdrop-blur-xl rounded-full shadow-[0_20px_40px_rgba(0,0,0,0.2)] border border-white/10 px-2 py-2">', type: 'normal' },
+    { id: 47, text: '    <button class="w-11 h-11 flex items-center justify-center rounded-full text-white"><Home size={22} /></button>', type: 'normal' },
+    { id: 48, text: '    <button class="w-11 h-11 flex items-center justify-center rounded-full text-gray-400"><Search size={22} /></button>', type: 'normal' },
+    { id: 49, text: '    <button class="w-11 h-11 flex items-center justify-center rounded-full text-gray-400"><ShoppingBag size={22} /></button>', type: 'normal' },
+    { id: 50, text: '    <button class="w-11 h-11 flex items-center justify-center rounded-full text-gray-400"><User size={22} /></button>', type: 'normal' },
+    { id: 51, text: '  </nav>', type: 'normal' },
     
-    { id: 52, text: '  <nav class="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center justify-between w-[220px] bg-white/90 backdrop-blur-md rounded-full shadow-[0_20px_40px_rgba(0,0,0,0.15)] border border-white p-1.5">', type: 'add', step: 3 },
-    { id: 53, text: '    <button class="w-11 h-11 flex items-center justify-center rounded-full text-black"><Home size={20} /></button>', type: 'add', step: 3 },
-    { id: 54, text: '    <div class="relative -top-5">', type: 'add', step: 3 },
-    { id: 55, text: '      <button class="w-[52px] h-[52px] bg-black text-white rounded-full flex items-center justify-center shadow-xl"><Search size={20} /></button>', type: 'add', step: 3 },
-    { id: 56, text: '    </div>', type: 'add', step: 3 },
-    { id: 57, text: '    <button class="w-11 h-11 flex items-center justify-center rounded-full text-gray-400"><Heart size={20} /></button>', type: 'add', step: 3 },
-    { id: 58, text: '  </nav>', type: 'add', step: 3 },
-    
-    { id: 59, text: '</div>', type: 'delete', step: 5 },
-    { id: 'rn5', text: '    </SafeAreaView>', type: 'add', step: 5 },
-    { id: 'rn6', text: '  );', type: 'add', step: 5 },
-    { id: 'rn7', text: '}', type: 'add', step: 5 },
+    { id: 59, text: '</div>', type: 'normal' },
   ];
 
   const visibleLines = codeLines.filter(line => {
@@ -209,21 +209,29 @@ export default function DescribeToDesign() {
   });
 
   return (
-    <section className="relative w-full max-w-[1200px] mx-auto px-4 md:px-6 py-16 md:py-24 mb-16 z-10 bg-[#FAFAFA] font-sans">
+    <section className="relative w-full max-w-[1200px] mx-auto px-4 md:px-6 py-16 md:py-24 z-10 bg-[#FAFAFA] font-sans">
       <VerticalRuler side="left" />
       <VerticalRuler side="right" />
       
-      <div className="flex flex-col items-center text-center">
-        <h2 className="text-[28px] md:text-[36px] font-medium text-[#4A4A4A] leading-[1.2] mb-3">
-          Rapidly build <span className="font-bold text-black">unique designs</span> with our <span className="font-bold text-black">adaptable</span> AI generator.
+      <div className="flex flex-col items-center text-center mb-6 px-4">
+        <h2 className="text-[32px] sm:text-6xl tracking-tight max-w-4xl mx-auto font-semibold leading-[1.1] font-[var(--font-inter-tight)]">
+          <span className="text-black">
+            Iterate and refine UIs
+          </span> <br className="hidden sm:block" />
+          <span className="text-[#1b7fcc]">
+            without opening Figma
+          </span>
         </h2>
+        <p className="text-md sm:text-lg text-gray-500 max-w-2xl mx-auto mt-6 mb-2">
+          Stop settling for generic templates. Drawgle acts as your personal design engineer—simply click any component, describe what you want, and watch it perfect your UI line by line.
+        </p>
       </div>
 
       <div className="flex flex-col items-center justify-center mt-12 w-full relative">
-        <div className="flex items-center justify-center w-full overflow-x-auto px-4 pb-2 no-scrollbar snap-x">
+        <div className="flex flex-wrap items-center justify-center gap-3 md:gap-0 w-full px-4 pb-4">
           
           {/* Pill 1 */}
-          <div className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors snap-center ${currentStep >= 2 ? 'border-gray-200 bg-white text-gray-800 shadow-sm' : currentStep === 1 ? 'border-gray-200 bg-white text-gray-800 shadow-sm' : 'border-gray-200 bg-white text-gray-400'}`}>
+          <div className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors ${currentStep >= 2 ? 'border-gray-200 bg-white text-gray-800' : currentStep === 1 ? 'border-orange-200 bg-white text-gray-800' : 'border-gray-200 bg-white text-gray-400'}`}>
             {currentStep >= 2 ? (
               <div className="w-4 h-4 rounded-full bg-green-500 text-white flex items-center justify-center"><Check size={10} strokeWidth={3}/></div>
             ) : currentStep === 1 ? (
@@ -237,7 +245,7 @@ export default function DescribeToDesign() {
           <SvgDivider />
 
           {/* Pill 2 */}
-          <div className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors snap-center ${currentStep >= 4 ? 'border-gray-200 bg-white text-gray-800 shadow-sm' : currentStep === 3 ? 'border-gray-200 bg-white text-gray-800 shadow-sm' : 'border-gray-200 bg-white text-gray-400'}`}>
+          <div className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors ${currentStep >= 4 ? 'border-gray-200 bg-white text-gray-800' : currentStep === 3 ? 'border-orange-200 bg-white text-gray-800' : 'border-gray-200 bg-white text-gray-400'}`}>
             {currentStep >= 4 ? (
               <div className="w-4 h-4 rounded-full bg-green-500 text-white flex items-center justify-center"><Check size={10} strokeWidth={3}/></div>
             ) : currentStep === 3 ? (
@@ -251,7 +259,7 @@ export default function DescribeToDesign() {
           <SvgDivider />
 
           {/* Pill 3 */}
-          <div className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors snap-center ${currentStep >= 6 ? 'border-gray-200 bg-white text-gray-800 shadow-sm' : currentStep === 5 ? 'border-gray-200 bg-white text-gray-800 shadow-sm' : 'border-gray-200 bg-white text-gray-400'}`}>
+          <div className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors ${currentStep >= 6 ? 'border-gray-200 bg-white text-gray-800' : currentStep === 5 ? 'border-orange-200 bg-white text-gray-800' : 'border-gray-200 bg-white text-gray-400'}`}>
             {currentStep >= 6 ? (
               <div className="w-4 h-4 rounded-full bg-green-500 text-white flex items-center justify-center"><Check size={10} strokeWidth={3}/></div>
             ) : currentStep === 5 ? (
@@ -259,7 +267,7 @@ export default function DescribeToDesign() {
             ) : (
               <div className="w-4 h-4 rounded-full border-2 border-gray-100 bg-gray-50"></div>
             )}
-            Export native code
+            Perfect the details
           </div>
         </div>
 
@@ -295,7 +303,7 @@ export default function DescribeToDesign() {
           {/* Left: Code Pane */}
           <div 
             ref={codeContainerRef}
-            className="flex-1 p-4 md:p-6 overflow-x-auto overflow-y-auto bg-white font-mono text-[12px] md:text-[13px] leading-[1.8] min-w-0 custom-scrollbar"
+            className="flex-none h-[320px] lg:flex-1 lg:h-auto p-4 md:p-6 overflow-x-auto overflow-y-auto bg-white font-mono text-[12px] md:text-[13px] leading-[1.8] min-w-0 custom-scrollbar shrink-0 border-b lg:border-b-0 border-gray-100"
             style={{ scrollBehavior: 'smooth' }}
           >
             <div className="flex min-w-max pb-12">
@@ -334,9 +342,9 @@ export default function DescribeToDesign() {
                         >
                           <span className="opacity-50 mr-2 select-none shrink-0 w-[14px]">{prefix}</span>
                           <span className="truncate">
-                            {line.text.split(/(<[^>]+>)/g).map((part, i) => {
-                              if (part.startsWith('<')) return <span key={i} className={isAdding || isDeleting ? "" : "text-indigo-500"}>{part}</span>;
-                              return <span key={i}>{part}</span>;
+                            {line.text.split(/("[^"]*")/g).map((part, i) => {
+                              if (part.startsWith('"')) return <span key={i} className={isAdding || isDeleting ? "" : "text-blue-500"}>{part}</span>;
+                              return <span key={i} className={isAdding || isDeleting ? "" : "text-gray-600 font-medium"}>{part}</span>;
                             })}
                           </span>
                         </motion.div>
@@ -351,7 +359,7 @@ export default function DescribeToDesign() {
           <div className="w-full lg:w-[460px] bg-[#FAFAFA] border-t lg:border-t-0 lg:border-l border-gray-100 flex items-center justify-center py-8 px-4 relative overflow-hidden shrink-0">
              
              {/* Hardware Frame */}
-             <div className="w-[300px] h-[600px] bg-[#E8E8E8] rounded-[48px] p-[6px] shadow-[0_12px_32px_rgba(0,0,0,0.06),inset_0_1px_2px_rgba(255,255,255,0.8)] relative z-10 flex flex-col box-border border border-gray-200 shrink-0">
+             <div className="w-[320px] h-[620px] bg-[#E8E8E8] rounded-[48px] p-[6px] shadow-[0_12px_32px_rgba(0,0,0,0.06),inset_0_1px_2px_rgba(255,255,255,0.8)] relative z-10 flex flex-col box-border border border-gray-200 shrink-0">
                 
                 {/* Screen */}
                 <div className="w-full h-full bg-white rounded-[42px] relative overflow-hidden flex flex-col shadow-sm">
@@ -365,10 +373,10 @@ export default function DescribeToDesign() {
                   </div>
 
                   {/* Scrollable Content Area */}
-                  <div className="flex-1 relative z-10 font-sans text-black w-full h-full flex flex-col bg-white overflow-x-hidden overflow-y-auto no-scrollbar pt-10 pb-24">
+                  <div className="flex-1 relative z-10 font-sans text-black w-full h-full flex flex-col bg-white overflow-x-hidden overflow-y-auto no-scrollbar pt-5 pb-24">
                     
                     {/* Header */}
-                    <div className="flex items-center justify-between px-5 h-14 shrink-0">
+                    <div className="flex items-center justify-between px-4 h-14 shrink-0">
                       <button className="w-10 h-10 flex items-center justify-center border border-gray-100 rounded-[12px] bg-white">
                         <Menu size={20} />
                       </button>
@@ -379,7 +387,7 @@ export default function DescribeToDesign() {
                     </div>
 
                     {/* Diff 1: Hero Update */}
-                    <div className="px-5 mt-4 relative shrink-0">
+                    <div className="px-4 mt-4 relative shrink-0">
                       <AnimatePresence mode="wait">
                         {currentStep < 2 ? (
                           <motion.div 
@@ -416,87 +424,105 @@ export default function DescribeToDesign() {
                     </div>
 
                     {/* Categories */}
-                    <div className="flex gap-6 px-5 mt-8 items-end shrink-0">
-                      <div className="flex flex-col"><span className="text-[18px] font-[700] text-black">Running</span><span className="text-[12px] text-gray-500 font-medium">4 items</span></div>
-                      <div className="flex flex-col opacity-40"><span className="text-[18px] font-[700] text-black">Lifestyle</span><span className="text-[12px] text-gray-500 font-medium">9 items</span></div>
+                    <div className="px-4 mt-8 shrink-0 relative h-[50px]">
+                      <AnimatePresence mode="wait">
+                        {currentStep < 6 ? (
+                          <motion.div 
+                            key="v1-cat"
+                            exit={{ opacity: 0, y: 10 }}
+                            className="flex gap-6 items-end absolute top-0 left-5"
+                          >
+                            <div className="flex flex-col"><span className="text-[18px] font-[700] text-black">Running</span><span className="text-[12px] text-gray-500 font-medium">4 items</span></div>
+                            <div className="flex flex-col opacity-40"><span className="text-[18px] font-[700] text-black">Lifestyle</span><span className="text-[12px] text-gray-500 font-medium">9 items</span></div>
+                          </motion.div>
+                        ) : (
+                          <motion.div 
+                            key="v2-cat"
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="flex gap-3 absolute top-0 left-5"
+                          >
+                            <div className="bg-black text-white px-4 py-2.5 rounded-full text-[13px] font-semibold">Running</div>
+                            <div className="bg-gray-100 text-gray-600 px-4 py-2.5 rounded-full text-[13px] font-semibold">Lifestyle</div>
+                            <div className="bg-gray-100 text-gray-600 px-4 py-2.5 rounded-full text-[13px] font-semibold">Basketball</div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
 
-                    {/* Product Grid (Fills the empty space) */}
-                    <div className="grid grid-cols-2 gap-4 px-5 mt-5 shrink-0">
-                       <div className="bg-[#FAFAFA] border border-gray-100 rounded-2xl p-4 flex flex-col items-center text-center">
-                          <img src="https://static.vecteezy.com/system/resources/previews/016/542/379/non_2x/black-and-red-running-shoe-free-png.png" className="w-[100px] h-[80px] object-contain mb-2" />
-                          <div className="text-[14px] font-semibold text-black">Aero Glide</div>
-                          <div className="text-[14px] font-bold text-gray-500 mt-1">$120</div>
-                       </div>
-                       <div className="bg-[#FAFAFA] border border-gray-100 rounded-2xl p-4 flex flex-col items-center text-center">
-                          <img src="https://static.vecteezy.com/system/resources/previews/010/893/781/non_2x/white-and-red-running-shoe-free-png.png" className="w-[100px] h-[80px] object-contain mb-2" />
-                          <div className="text-[14px] font-semibold text-black">Stratus X</div>
-                          <div className="text-[14px] font-bold text-gray-500 mt-1">$145</div>
-                       </div>
+                    {/* Diff 2: Product Grid Update */}
+                    <div className="px-5 mt-5 shrink-0 relative h-[180px]">
+                      <AnimatePresence mode="wait">
+                        {currentStep < 4 ? (
+                          <motion.div 
+                            key="v1-grid"
+                            exit={{ opacity: 0, y: 10 }}
+                            className="grid grid-cols-2 gap-4 absolute top-0 w-[calc(100%-40px)]"
+                          >
+                             <div className="bg-[#FAFAFA] border border-gray-100 rounded-2xl p-4 flex flex-col items-center text-center">
+                                <img src="https://static.vecteezy.com/system/resources/previews/016/542/379/non_2x/black-and-red-running-shoe-free-png.png" className="w-[100px] h-[80px] object-contain mb-2" />
+                                <div className="text-[14px] font-semibold text-black">Aero Glide</div>
+                                <div className="text-[14px] font-bold text-gray-500 mt-1">$120</div>
+                             </div>
+                             <div className="bg-[#FAFAFA] border border-gray-100 rounded-2xl p-4 flex flex-col items-center text-center">
+                                <img src="https://static.vecteezy.com/system/resources/previews/010/893/781/non_2x/white-and-red-running-shoe-free-png.png" className="w-[100px] h-[80px] object-contain mb-2" />
+                                <div className="text-[14px] font-semibold text-black">Stratus X</div>
+                                <div className="text-[14px] font-bold text-gray-500 mt-1">$145</div>
+                             </div>
+                          </motion.div>
+                        ) : (
+                          <motion.div 
+                            key="v2-grid"
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="grid grid-cols-2 gap-4 absolute top-0 w-[calc(100%-40px)]"
+                          >
+                             <div className="bg-white border border-gray-100/60 shadow-[0_8px_24px_rgba(0,0,0,0.06)] rounded-3xl p-4 flex flex-col text-left relative overflow-hidden">
+                                <div className="flex justify-between items-start w-full mb-1">
+                                  <span className="bg-black text-white text-[9px] px-2 py-1 rounded-md font-bold">NEW</span>
+                                  <Heart size={14} className="text-gray-300" />
+                                </div>
+                                <img src="https://static.vecteezy.com/system/resources/previews/016/542/379/non_2x/black-and-red-running-shoe-free-png.png" className="w-[100px] h-[70px] object-contain mx-auto my-1" />
+                                <div className="text-[14px] font-bold text-black leading-tight mt-1">Aero Glide</div>
+                                <div className="text-[11px] font-medium text-gray-400 mt-0.5">Road Running</div>
+                                <div className="text-[15px] font-black text-black mt-1">$120</div>
+                             </div>
+                             <div className="bg-white border border-gray-100/60 shadow-[0_8px_24px_rgba(0,0,0,0.06)] rounded-3xl p-4 flex flex-col text-left relative overflow-hidden">
+                                <div className="flex justify-between items-start w-full mb-1">
+                                  <span className="bg-black text-white text-[9px] px-2 py-1 rounded-md font-bold opacity-0">NEW</span>
+                                  <Heart size={14} className="text-gray-300" />
+                                </div>
+                                <img src="https://static.vecteezy.com/system/resources/previews/010/893/781/non_2x/white-and-red-running-shoe-free-png.png" className="w-[100px] h-[70px] object-contain mx-auto my-1" />
+                                <div className="text-[14px] font-bold text-black leading-tight mt-1">Stratus X</div>
+                                <div className="text-[11px] font-medium text-gray-400 mt-0.5">Trail Running</div>
+                                <div className="text-[15px] font-black text-black mt-1">$145</div>
+                             </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
 
                   </div>
 
-                  {/* Diff 2: Navigation Update */}
-                  <AnimatePresence mode="wait">
-                    {currentStep < 4 ? (
-                      <motion.div 
-                        key="v1-footer"
-                        exit={{ opacity: 0, y: 20 }}
-                        className="absolute bottom-0 w-full z-40 bg-white border-t border-gray-100 pb-6 pt-3 px-6 flex justify-between items-center"
-                      >
-                        <button className="flex flex-col items-center text-black"><Home size={22} /><span className="text-[10px] font-medium mt-1">Home</span></button>
-                        <button className="flex flex-col items-center text-gray-400"><Search size={22} /><span className="text-[10px] font-medium mt-1">Search</span></button>
-                        <button className="flex flex-col items-center text-gray-400"><Heart size={22} /><span className="text-[10px] font-medium mt-1">Saved</span></button>
-                        <button className="flex flex-col items-center text-gray-400"><User size={22} /><span className="text-[10px] font-medium mt-1">Profile</span></button>
-                      </motion.div>
-                    ) : (
-                      <motion.div 
-                        key="v2-nav"
-                        initial={{ opacity: 0, y: 40 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ type: 'spring', bounce: 0.4 }}
-                        className="absolute bottom-8 left-1/2 -translate-x-1/2 flex justify-center items-end z-[90]"
-                      >
-                        <div className="flex items-center justify-between w-[220px] h-[60px] px-3 bg-white/95 backdrop-blur-md rounded-full shadow-[0_20px_40px_rgba(0,0,0,0.15)] border border-white/60">
-                          <button className="flex flex-col items-center justify-center w-11 h-11 rounded-full text-black relative">
-                              <Home size={20} strokeWidth={2.5} />
-                              <span className="absolute -bottom-1 w-1 h-1 rounded-full bg-black"></span>
-                          </button>
-                          <div className="relative -top-5">
-                            <button className="flex items-center justify-center w-[52px] h-[52px] bg-black rounded-full shadow-[0_8px_16px_rgba(0,0,0,0.3)] border-[3px] border-white">
-                              <Search size={20} className="text-white" />
-                            </button>
-                          </div>
-                          <button className="flex flex-col items-center justify-center w-11 h-11 rounded-full text-[#BDBDBD]">
-                              <Heart size={20} />
-                          </button>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                  {/* Static Premium Nav */}
+                  <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[90]">
+                    <div className="flex items-center justify-between w-[240px] h-[56px] px-2 bg-black/90 backdrop-blur-xl rounded-full shadow-[0_20px_40px_rgba(0,0,0,0.2)] border border-white/10">
+                      <button className="flex flex-col items-center justify-center w-12 h-12 rounded-full text-white relative">
+                          <Home size={22} strokeWidth={2.5} />
+                      </button>
+                      <button className="flex items-center justify-center w-12 h-12 rounded-full text-gray-400 hover:text-white transition-colors">
+                          <Search size={22} strokeWidth={2} />
+                      </button>
+                      <button className="flex items-center justify-center w-12 h-12 rounded-full text-gray-400 hover:text-white transition-colors">
+                          <ShoppingBag size={22} strokeWidth={2} />
+                      </button>
+                      <button className="flex flex-col items-center justify-center w-12 h-12 rounded-full text-gray-400 hover:text-white transition-colors">
+                          <User size={22} strokeWidth={2} />
+                      </button>
+                    </div>
+                  </div>
 
-                  {/* Diff 3: Export Success Overlay */}
-                  <AnimatePresence>
-                    {currentStep >= 6 && (
-                      <motion.div 
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="absolute inset-0 z-[100] bg-black/40 backdrop-blur-[2px] flex items-center justify-center"
-                      >
-                        <motion.div 
-                          initial={{ scale: 0.9, y: 10 }}
-                          animate={{ scale: 1, y: 0 }}
-                          className="bg-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-2"
-                        >
-                          <div className="w-6 h-6 bg-green-100 text-green-600 rounded-full flex items-center justify-center">
-                            <Smartphone size={14} strokeWidth={3} />
-                          </div>
-                          <span className="font-bold text-[13px]">React Native Exported</span>
-                        </motion.div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                  {/* Removed Export Overlay */}
 
                   {/* Fade out for list scrolling */}
                   <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-white to-transparent pointer-events-none z-[80]"></div>
