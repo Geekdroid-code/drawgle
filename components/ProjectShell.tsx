@@ -1872,7 +1872,7 @@ export function ProjectShell({
                 }
               />
               <TooltipContent className="max-w-[250px] text-center leading-4">
-                Sharing launches soon. You'll be able to share a read-only project link with others.
+                Sharing launches soon. You&apos;ll be able to share a read-only project link with others.
               </TooltipContent>
             </Tooltip>
             <Button
