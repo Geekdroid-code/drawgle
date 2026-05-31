@@ -702,6 +702,9 @@ Builder Variant: ${mode === "recreate" ? "recreate reference fidelity" : "style/
 Screen Name: ${screenPlan.name}
 Screen Type: ${screenPlan.type}
 Screen Description: ${screenPlan.description}
+${mode === "recreate" && screenPlan.referenceScreenIndex && screenPlan.referenceScreenCount && screenPlan.referenceScreenCount > 1
+  ? `Reference Target: Build visible reference screen ${screenPlan.referenceScreenIndex} of ${screenPlan.referenceScreenCount}, mapped left-to-right unless the screen brief says otherwise.`
+  : ""}
 
 ${chartBuildInstruction}
 ${modeInstruction}

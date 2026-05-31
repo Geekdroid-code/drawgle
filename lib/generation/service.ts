@@ -23,11 +23,14 @@ import {
   designInstruction,
   plannerBlueprintStepInstruction,
   plannerScreenBriefStepInstruction,
-  referenceAnalysisRecreateInstruction,
-  referenceAnalysisStyleInstruction,
 } from "@/lib/generation/prompts";
 import { appendRequiredAnchors, DRAWGLE_GENERATION_COMPLETE_SENTINEL, extractRequiredAnchors, stripGenerationCompleteSentinel, validateSourceCompletion } from "@/lib/generation/screen-quality";
 import { buildRepairSurroundingContext, type RepairTarget } from "@/lib/generation/screen-repair";
+import {
+  analyzeReferenceImageForScope,
+  preflightGenerationScope,
+  resolveGenerationScopeContract,
+} from "@/lib/generation/scope-contract";
 import { buildTokenPromptContext } from "@/lib/token-runtime";
 import type {
   BuildScreenInput,
@@ -41,12 +44,15 @@ import type {
   JsonValue,
   Message,
   GenerationIntentContract,
+  GenerationScopeContract,
   NavigationArchitecture,
   NavigationPlan,
   PlanningMode,
   PlannedUiFlow,
   PromptImagePayload,
   ProjectCharter,
+  ReferenceAnalysis,
+  ReferenceAnalysisResult,
   ReferenceMode,
   ScreenCountContract,
   ScreenCountEnforcement,
@@ -312,33 +318,6 @@ const ScreenBriefsSchema = z.object({
   screens: z.array(ScreenPlanSchema).min(1).max(12),
 });
 
-const ReferenceScreenSchema = z.object({
-  index: z.number().int().min(1).max(12),
-  suggestedRole: z.string().trim().min(1).max(200),
-  layoutSummary: z.string().trim().min(1).max(2500),
-  visualHierarchy: z.string().trim().min(1).max(2500),
-  components: z.array(z.string().trim().min(1).max(400)).min(1).max(20),
-  stylingCues: z.array(z.string().trim().min(1).max(400)).min(1).max(20),
-  interactionCues: z.array(z.string().trim().min(1).max(400)).max(20).default([]),
-  copyPatterns: z.array(z.string().trim().min(1).max(400)).max(20).default([]),
-  implementationNotes: z.array(z.string().trim().min(1).max(400)).max(20).default([]),
-});
-
-const ReferenceAnalysisSchema = z.object({
-  overallVisualStyle: z.string().trim().min(1).max(3000),
-  screenCountEstimate: z.number().int().min(1).max(12),
-  screenReferences: z.array(ReferenceScreenSchema).min(1).max(12),
-  designSystemSignals: z.object({
-    palette: z.string().trim().min(1).max(1200),
-    typography: z.string().trim().min(1).max(1200),
-    surfaces: z.string().trim().min(1).max(1200),
-    iconography: z.string().trim().min(1).max(1200),
-    density: z.string().trim().min(1).max(1200),
-    motionTone: z.string().trim().min(1).max(1200),
-  }),
-});
-
-type ReferenceAnalysis = z.infer<typeof ReferenceAnalysisSchema>;
 type ParsedCreativeDirection = z.infer<typeof CreativeDirectionSchema>;
 
 const StringRecordSchema = z.record(z.string(), z.string());
@@ -676,6 +655,7 @@ const compileGenerationIntentContract = ({
   referenceAnalysis,
   explicitScreenSections,
   requestedScreenCount,
+  scopeContract,
 }: {
   prompt: string;
   planningMode: PlanningMode;
@@ -683,13 +663,17 @@ const compileGenerationIntentContract = ({
   referenceAnalysis: ReferenceAnalysis | null;
   explicitScreenSections: ExplicitScreenSection[];
   requestedScreenCount: number | null;
+  scopeContract?: GenerationScopeContract | null;
 }): GenerationIntentContract => {
   const explicitCount = clampScreenCount(requestedScreenCount) ?? (
     explicitScreenSections.length > 0 ? clampScreenCount(explicitScreenSections.length) : null
   );
-  const referenceScreenCount = clampScreenCount(referenceAnalysis?.screenCountEstimate);
+  const scopeExactCount = clampScreenCount(scopeContract?.finalScreenCount);
+  const referenceScreenCount = clampScreenCount(scopeContract?.imageScreenCount) ?? clampScreenCount(referenceAnalysis?.screenCountEstimate);
   const explicitMultiScreen = Boolean(explicitCount && explicitCount > 1);
-  const fullAppRequested = hasFullAppIntent(prompt) || explicitMultiScreen;
+  const fullAppRequested = referenceMode === "user_recreate" && (scopeContract?.countSource === "reference_image" || scopeContract?.countSource === "default_single")
+    ? explicitMultiScreen
+    : hasFullAppIntent(prompt) || explicitMultiScreen;
 
   if (planningMode === "single-screen") {
     return {
@@ -706,15 +690,15 @@ const compileGenerationIntentContract = ({
   }
 
   if (referenceMode === "user_recreate" && !fullAppRequested) {
-    const exactScreenCount = explicitCount ?? referenceScreenCount ?? 1;
+    const exactScreenCount = scopeExactCount ?? explicitCount ?? referenceScreenCount ?? 1;
     return {
       kind: "exact_recreate",
       source: explicitCount ? "prompt" : "reference_image",
-      reason: explicitCount
+      reason: scopeContract?.reason ?? (explicitCount
         ? `The user explicitly requested ${explicitCount} screen${explicitCount === 1 ? "" : "s"} while recreating the uploaded reference.`
         : referenceScreenCount
           ? `The uploaded reference appears to contain ${referenceScreenCount} visible screen${referenceScreenCount === 1 ? "" : "s"}.`
-          : "The user asked to recreate the uploaded reference, so uncertain reference count defaults to one visible screen.",
+          : "The user asked to recreate the uploaded reference, so uncertain reference count defaults to one visible screen."),
       exactScreenCount,
       maxInitialScreens: exactScreenCount,
       explicitScreenCount: explicitCount,
@@ -728,10 +712,10 @@ const compileGenerationIntentContract = ({
     return {
       kind: "full_app",
       source: explicitCount ? "prompt" : "prompt",
-      reason: explicitCount
+      reason: scopeContract?.reason ?? (explicitCount
         ? `The user requested a multi-screen app with ${explicitCount} screen${explicitCount === 1 ? "" : "s"}.`
-        : `The user asked for a full app/product experience; initial generation is capped at ${INITIAL_PROJECT_SCREEN_LIMIT} screens.`,
-      exactScreenCount: explicitCount ? Math.min(explicitCount, INITIAL_PROJECT_SCREEN_LIMIT) : null,
+        : `The user asked for a full app/product experience; initial generation is capped at ${INITIAL_PROJECT_SCREEN_LIMIT} screens.`),
+      exactScreenCount: scopeExactCount ?? (explicitCount ? Math.min(explicitCount, INITIAL_PROJECT_SCREEN_LIMIT) : null),
       maxInitialScreens: INITIAL_PROJECT_SCREEN_LIMIT,
       explicitScreenCount: explicitCount,
       referenceScreenCount,
@@ -744,7 +728,7 @@ const compileGenerationIntentContract = ({
     kind: "style_reference_app",
     source: referenceMode === "user_style" || referenceMode === "curated_style" ? "image_reference_mode" : "prompt",
     reason: `No exact recreate contract was detected; initial app planning is capped at ${INITIAL_PROJECT_SCREEN_LIMIT} screens.`,
-    exactScreenCount: explicitCount,
+    exactScreenCount: scopeExactCount ?? explicitCount,
     maxInitialScreens: INITIAL_PROJECT_SCREEN_LIMIT,
     explicitScreenCount: explicitCount,
     referenceScreenCount,
@@ -923,6 +907,28 @@ const normalizeScreenBriefsWithFamilyContract = ({
     description: `${screen.description}\n\n${familyAppendix}`.slice(0, 9000),
   };
 });
+
+const attachReferenceScreenTargets = ({
+  screens,
+  referenceMode,
+  scopeContract,
+}: {
+  screens: ScreenPlan[];
+  referenceMode: ReferenceMode;
+  scopeContract?: GenerationScopeContract | null;
+}) => {
+  if (referenceMode !== "user_recreate") {
+    return screens;
+  }
+
+  const referenceScreenCount = scopeContract?.finalScreenCount ?? scopeContract?.imageScreenCount ?? screens.length;
+
+  return screens.map((screen, index) => ({
+    ...screen,
+    referenceScreenIndex: screen.referenceScreenIndex ?? index + 1,
+    referenceScreenCount: screen.referenceScreenCount ?? referenceScreenCount,
+  }));
+};
 
 const screenPlanFromReferenceScreen = ({
   referenceScreen,
@@ -1747,59 +1753,6 @@ const formatCreativeDirection = (creativeDirection: CreativeDirection) => [
   `Avoid: ${creativeDirection.avoid.join("; ")}`,
 ].join("\n");
 
-async function analyzeReferenceImage({
-  prompt,
-  image,
-  referenceMode,
-}: {
-  prompt: string;
-  image?: PromptImagePayload | null;
-  referenceMode?: ReferenceMode | null;
-}) {
-  const inlineImage = toInlineImage(image);
-  if (!inlineImage) {
-    return null;
-  }
-
-  try {
-    const ai = createGeminiClient();
-    const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
-    const policy = geminiPolicyForTask("project_planning", {
-      systemInstruction: isStyleReferenceMode(resolvedReferenceMode)
-        ? referenceAnalysisStyleInstruction
-        : referenceAnalysisRecreateInstruction,
-      responseMimeType: "application/json",
-      temperature: 0.1,
-    });
-    const parts: Array<Record<string, unknown>> = [inlineImage];
-
-    if (isStyleReferenceMode(resolvedReferenceMode)) {
-      parts.push({
-        text: `${styleReferenceInstruction} Extract reusable visual DNA and component/material construction cues. Do not treat this as the user's requested app layout.`,
-      });
-    }
-
-    parts.push({
-      text: prompt.trim()
-        ? `User/Product Intent: "${prompt}"`
-        : "Analyze the mobile UI reference image and describe the visible screen anatomy.",
-    });
-
-    const response = await ai.models.generateContent({
-      model: policy.model,
-      contents: { parts },
-      config: policy.config,
-    });
-
-    const rawAnalysis = parseJsonResponse<unknown>(response.text || "{}");
-    const parsed = ReferenceAnalysisSchema.safeParse(rawAnalysis);
-
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null;
-  }
-}
-
 async function generateCreativeDirection({
   prompt,
   image,
@@ -1883,6 +1836,8 @@ export async function planUiFlow({
   referenceId,
   designStyle,
   designTokens,
+  scopeContract,
+  referenceAnalysis: providedReferenceAnalysis,
   projectContext,
   existingCharter,
   existingNavigationPlan,
@@ -1895,6 +1850,8 @@ export async function planUiFlow({
   referenceId?: string | null;
   designStyle?: DesignStylePack | null;
   designTokens?: DesignTokens | null;
+  scopeContract?: GenerationScopeContract | null;
+  referenceAnalysis?: ReferenceAnalysis | null;
   projectContext?: string | null;
   existingCharter?: ProjectCharter | null;
   existingNavigationPlan?: NavigationPlan | null;
@@ -1906,9 +1863,36 @@ export async function planUiFlow({
   const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
   const resolvedDesignStyle = designStyle ?? getDesignStylePack(existingCharter?.designStyle?.id) ?? null;
   const designStyleContract = formatDesignStyleContract(resolvedDesignStyle);
-  const referenceAnalysis = await analyzeReferenceImage({ prompt, image, referenceMode: resolvedReferenceMode });
+  const referencePreflight = !scopeContract && providedReferenceAnalysis === undefined
+    ? await preflightGenerationScope({
+        prompt,
+        image,
+        referenceMode: resolvedReferenceMode,
+        planningMode,
+        llmLog,
+      })
+    : null;
+  const referenceAnalysis = providedReferenceAnalysis ?? referencePreflight?.referenceAnalysis ?? null;
+  const referenceAnalysisResult: ReferenceAnalysisResult | null = referencePreflight?.referenceAnalysisResult
+    ?? (referenceAnalysis
+      ? {
+          analysis: referenceAnalysis,
+          screenCountEstimate: referenceAnalysis.screenCountEstimate,
+          screenReferenceCount: referenceAnalysis.screenReferences.length,
+          confidence: "medium",
+          source: "salvaged_analysis",
+          diagnostics: ["Reference analysis was provided by caller."],
+        }
+      : null);
+  const resolvedScopeContract = scopeContract ?? resolveGenerationScopeContract({
+    prompt,
+    image,
+    referenceMode: resolvedReferenceMode,
+    planningMode,
+    referenceAnalysisResult,
+  });
   const explicitScreenSections = parseExplicitScreenSections(prompt);
-  const requestedScreenCount = parseRequestedScreenCount(prompt);
+  const requestedScreenCount = resolvedScopeContract.promptScreenCount ?? parseRequestedScreenCount(prompt);
   const intentContract = compileGenerationIntentContract({
     prompt,
     planningMode,
@@ -1916,6 +1900,7 @@ export async function planUiFlow({
     referenceAnalysis,
     explicitScreenSections,
     requestedScreenCount,
+    scopeContract: resolvedScopeContract,
   });
   const screenCountContract = buildScreenCountContract({
     intentContract,
@@ -2024,6 +2009,7 @@ export async function planUiFlow({
       referenceMode: resolvedReferenceMode,
       referenceId: referenceId ?? null,
       intentContract: intentContractJson(intentContract),
+      scopeContract: resolvedScopeContract,
       screenCountContract: screenCountContractJson(screenCountContract),
       systemInstructionLength: si.length,
       systemInstruction: si,
@@ -2068,6 +2054,7 @@ export async function planUiFlow({
         referenceMode: resolvedReferenceMode,
         referenceId: referenceId ?? null,
         intentContract,
+        scopeContract: resolvedScopeContract,
         screenCountContract,
         systemInstructionLength: si.length,
         systemInstruction: si,
@@ -2193,6 +2180,7 @@ export async function planUiFlow({
       rawPlanKeys,
       rawScreenCount,
       recoveredScreens: plannedScreens.length,
+      scopeContract: resolvedScopeContract as unknown as JsonValue,
       screenCountContract: screenCountContractJson(adjustedContract),
       intentContract: intentContractJson(intentContract),
       screenFamilyContract: screenFamilyContract as unknown as JsonValue,
@@ -2219,7 +2207,12 @@ export async function planUiFlow({
         existingCharter,
         diagnostics: planningDiagnostics,
       }),
-      screens: plannedScreens,
+      screens: attachReferenceScreenTargets({
+        screens: plannedScreens,
+        referenceMode: resolvedReferenceMode,
+        scopeContract: resolvedScopeContract,
+      }),
+      scopeContract: resolvedScopeContract,
       screenCountContract: adjustedContract,
       screenCountEnforcement: enforced.enforcement,
       intentContract,
@@ -2267,6 +2260,7 @@ export async function planUiFlow({
       rawPlanKeys: isRecord(rawPlan) ? Object.keys(rawPlan) : [],
       rawScreenCount: parsed.data.screens.length,
       recoveredScreens: parsed.data.screens.length,
+      scopeContract: resolvedScopeContract as unknown as JsonValue,
       screenCountContract: screenCountContractJson(adjustedContract),
       intentContract: intentContractJson(intentContract),
       screenFamilyContract: screenFamilyContract as unknown as JsonValue,
@@ -2333,7 +2327,11 @@ export async function planUiFlow({
     requiresBottomNav: deriveRequiresBottomNav(navigationArchitecture),
     strictScreenLinks: planningMode !== "single-screen",
   });
-  const plannedScreens = applyNavigationPlanToScreens(screens, navigationPlan);
+  const plannedScreens = attachReferenceScreenTargets({
+    screens: applyNavigationPlanToScreens(screens, navigationPlan),
+    referenceMode: resolvedReferenceMode,
+    scopeContract: resolvedScopeContract,
+  });
 
   return {
     requiresBottomNav: deriveRequiresBottomNav(navigationArchitecture),
@@ -2341,6 +2339,7 @@ export async function planUiFlow({
     navigationPlan,
     charter,
     screens: plannedScreens,
+    scopeContract: resolvedScopeContract,
     screenCountContract: adjustedContract,
     screenCountEnforcement: enforced.enforcement,
     intentContract,
@@ -2354,6 +2353,7 @@ export async function generateDesignTokens({
   referenceMode,
   referenceId,
   designStyle,
+  referenceAnalysis: providedReferenceAnalysis,
   llmLog,
 }: {
   prompt: string;
@@ -2361,6 +2361,7 @@ export async function generateDesignTokens({
   referenceMode?: ReferenceMode | null;
   referenceId?: string | null;
   designStyle?: DesignStylePack | null;
+  referenceAnalysis?: ReferenceAnalysis | null;
   llmLog?: LlmLogFn;
 }) {
   try {
@@ -2373,7 +2374,14 @@ export async function generateDesignTokens({
     const parts: Array<Record<string, unknown>> = [];
     const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
     const designStyleContract = formatDesignStyleContract(designStyle);
-    const referenceAnalysis = await analyzeReferenceImage({ prompt, image, referenceMode: resolvedReferenceMode });
+    const referenceAnalysis = providedReferenceAnalysis !== undefined
+      ? providedReferenceAnalysis
+      : (await analyzeReferenceImageForScope({
+          prompt,
+          image,
+          referenceMode: resolvedReferenceMode,
+          llmLog,
+        })).analysis;
     const creativeDirection = (await generateCreativeDirection({
       prompt,
       image,
@@ -2461,6 +2469,8 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
   const ai = createGeminiClient();
   const parts: Array<Record<string, unknown>> = [];
   const resolvedReferenceMode = normalizeReferenceMode(input.referenceMode);
+  const referenceScreenIndex = input.referenceScreenIndex ?? input.screenPlan.referenceScreenIndex ?? null;
+  const referenceScreenCount = input.referenceScreenCount ?? input.screenPlan.referenceScreenCount ?? null;
 
   const inlineImage = toInlineImage(input.image);
   if (inlineImage) {
@@ -2468,7 +2478,12 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
     parts.push({
       text: isStyleReferenceMode(resolvedReferenceMode)
         ? `${styleReferenceInstruction} Reference id: ${input.referenceId ?? "user-upload"}.`
-        : userRecreateReferenceInstruction,
+        : [
+            userRecreateReferenceInstruction,
+            referenceScreenIndex && referenceScreenCount && referenceScreenCount > 1
+              ? `Target Reference Screen: Build visible screen ${referenceScreenIndex} of ${referenceScreenCount} from the uploaded image. Map visible screens left-to-right unless the prompt or screen brief says otherwise. Do not merge the other visible screens into this output.`
+              : null,
+          ].filter(Boolean).join(" "),
     });
   }
 
@@ -2518,6 +2533,8 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
       referenceMode: resolvedReferenceMode,
       referenceSource: input.referenceSource ?? null,
       referenceId: input.referenceId ?? null,
+      referenceScreenIndex,
+      referenceScreenCount,
     };
     input.onLlmInput(snapshot);
   }

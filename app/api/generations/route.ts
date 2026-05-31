@@ -13,6 +13,7 @@ import {
   ACTIVE_GENERATION_STATUSES,
   type DesignTokens,
   type GenerationStatus,
+  type GenerationScopeContract,
   type ImageReferenceMode,
   type NavigationArchitecture,
   type NavigationPlan,
@@ -72,6 +73,8 @@ const requestSchema = z.object({
           showsBackButton: z.boolean(),
         }).nullable().optional(),
         navigationItemId: z.string().trim().min(1).max(80).nullable().optional(),
+        referenceScreenIndex: z.number().int().min(1).max(12).nullable().optional(),
+        referenceScreenCount: z.number().int().min(1).max(12).nullable().optional(),
       }),
     )
     .min(1)
@@ -140,6 +143,7 @@ const requestSchema = z.object({
     })
     .optional(),
   designTokens: z.unknown().nullable().optional(),
+  scopeContract: z.unknown().nullable().optional(),
 }).superRefine((value, ctx) => {
   if (!value.prompt.trim() && !value.image) {
     ctx.addIssue({
@@ -227,6 +231,7 @@ export async function POST(request: Request) {
       ? normalizeDesignTokens(payload.designTokens as DesignTokens)
       : null;
     const plannedScreens = (payload.plannedScreens ?? null) as ScreenPlan[] | null;
+    const scopeContract = (payload.scopeContract ?? null) as GenerationScopeContract | null;
     const projectCharter = payload.projectCharter
       ? ({
           ...(payload.projectCharter as ProjectCharter),
@@ -345,6 +350,7 @@ export async function POST(request: Request) {
         owner_id: ownerId,
         prompt: payload.prompt,
         image_path: imagePath,
+        requested_screen_count: scopeContract?.finalScreenCount ?? null,
         status: "queued",
         metadata: {
           requestedFrom: payload.sourceGenerationRunId ? "retry" : "nextjs-route",
@@ -352,6 +358,7 @@ export async function POST(request: Request) {
           requestedImageReferenceMode: payload.imageReferenceMode,
           requestedDesignStyleId: designStyle?.id ?? null,
           designStyle: summarizeDesignStyle(designStyle),
+          scopeContract,
           navigationArchitecture,
           navigationPlan,
         } as never,
@@ -379,6 +386,7 @@ export async function POST(request: Request) {
         designStyleId: designStyle?.id ?? null,
         designTokens,
         plannedScreens,
+        scopeContract,
         requiresBottomNav: payload.requiresBottomNav,
         navigationArchitecture,
         navigationPlan,

@@ -5,6 +5,7 @@ import { assembleProjectContext } from "@/lib/generation/context";
 import { loadCuratedStyleReferenceImage, matchCuratedStyleReference } from "@/lib/generation/curated-style-references";
 import { getDesignStylePack, isDesignStyleId } from "@/lib/generation/design-styles";
 import { planUiFlow } from "@/lib/generation/service";
+import { preflightGenerationScope } from "@/lib/generation/scope-contract";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -126,6 +127,13 @@ export async function POST(req: Request) {
       referenceId = match.reference.id;
     }
 
+    const scopePreflight = await preflightGenerationScope({
+      prompt: payload.prompt,
+      image: referenceImage,
+      referenceMode,
+      planningMode: payload.planningMode as PlanningMode,
+    });
+
     const plan = await planUiFlow({
       prompt: payload.prompt,
       image: referenceImage,
@@ -133,6 +141,8 @@ export async function POST(req: Request) {
       referenceId,
       designStyle,
       designTokens: (payload.designTokens ?? null) as DesignTokens | null,
+      scopeContract: scopePreflight.scopeContract,
+      referenceAnalysis: scopePreflight.referenceAnalysis,
       projectContext,
       existingCharter,
       existingNavigationPlan,

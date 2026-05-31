@@ -404,7 +404,6 @@ function ProjectMenuItem({
         tooltip={project.name}
         className={cn("h-9 pr-11 md:pr-14", active && "font-medium")}
       >
-        <span className="size-2 shrink-0 rounded-full bg-sidebar-foreground/35" />
         <span className="min-w-0 flex-1 truncate">{project.name}</span>
       </SidebarMenuButton>
       <button

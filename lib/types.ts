@@ -477,6 +477,76 @@ export interface ScreenPlan {
   chromePolicy?: ScreenChromePolicy | null;
   navigationItemId?: string | null;
   assetNeeds?: AssetRequirement[];
+  referenceScreenIndex?: number | null;
+  referenceScreenCount?: number | null;
+}
+
+export interface ReferenceScreenAnalysis {
+  index: number;
+  suggestedRole: string;
+  layoutSummary: string;
+  visualHierarchy: string;
+  components: string[];
+  stylingCues: string[];
+  interactionCues: string[];
+  copyPatterns: string[];
+  implementationNotes: string[];
+}
+
+export interface ReferenceDesignSystemSignals {
+  palette: string;
+  typography: string;
+  surfaces: string;
+  iconography: string;
+  density: string;
+  motionTone: string;
+  [key: string]: JsonValue | undefined;
+}
+
+export interface ReferenceAnalysis {
+  overallVisualStyle: string;
+  screenCountEstimate: number;
+  screenReferences: ReferenceScreenAnalysis[];
+  designSystemSignals: ReferenceDesignSystemSignals;
+}
+
+export interface ReferenceAnalysisResult {
+  analysis: ReferenceAnalysis | null;
+  screenCountEstimate: number | null;
+  screenReferenceCount: number | null;
+  confidence: "high" | "medium" | "low";
+  source: "full_analysis" | "salvaged_analysis" | "count_only" | "none";
+  diagnostics: string[];
+  validationIssues?: string[];
+}
+
+export type GenerationScopeCountSource =
+  | "planning_mode"
+  | "prompt_count"
+  | "named_screens"
+  | "reference_image"
+  | "default_single"
+  | "open_project";
+
+export interface GenerationScopeContract {
+  version: 1;
+  referenceMode: ReferenceMode;
+  promptScreenCount: number | null;
+  namedScreenCount: number | null;
+  imageScreenCount: number | null;
+  finalScreenCount: number | null;
+  countSource: GenerationScopeCountSource;
+  confidence: "high" | "medium" | "low";
+  conflictResolution: {
+    policy: "user_wins";
+    promptScreenCount: number | null;
+    imageScreenCount: number | null;
+    resolvedCount: number | null;
+    reason: string;
+  } | null;
+  allScreensRequested: boolean;
+  reason: string;
+  diagnostics: string[];
 }
 
 export type GenerationIntentKind =
@@ -526,6 +596,7 @@ export interface PlannedUiFlow {
   navigationPlan: NavigationPlan;
   screens: ScreenPlan[];
   charter: ProjectCharter;
+  scopeContract?: GenerationScopeContract;
   screenCountContract?: ScreenCountContract;
   screenCountEnforcement?: ScreenCountEnforcement;
   intentContract?: GenerationIntentContract;
@@ -709,6 +780,8 @@ export interface LlmInputSnapshot {
   referenceMode?: ReferenceMode;
   referenceSource?: ReferenceSource | null;
   referenceId?: string | null;
+  referenceScreenIndex?: number | null;
+  referenceScreenCount?: number | null;
 }
 
 export interface BuildScreenInput {
@@ -719,6 +792,8 @@ export interface BuildScreenInput {
   referenceMode?: ReferenceMode;
   referenceSource?: ReferenceSource | null;
   referenceId?: string | null;
+  referenceScreenIndex?: number | null;
+  referenceScreenCount?: number | null;
   designStyle?: DesignStylePack | null;
   requiresBottomNav: boolean;
   navigationArchitecture?: NavigationArchitecture | null;

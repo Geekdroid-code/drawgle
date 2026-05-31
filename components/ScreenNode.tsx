@@ -908,6 +908,7 @@ ${cleanScreenCode}
 
           function setStyleRuntimePending() {
             if (tailwindRuntimeDegraded) return;
+            if (document.documentElement.hasAttribute('data-drawgle-style-ready')) return;
             document.documentElement.removeAttribute('data-drawgle-style-ready');
           }
 
@@ -1229,12 +1230,17 @@ ${cleanScreenCode}
 
           function applyRenderPayload(payload) {
             var revision = ++renderRevision;
+            var wasStyleReady = document.documentElement.hasAttribute('data-drawgle-style-ready');
             setStyleRuntimePending();
             applyGoogleFontHref(payload.googleFontHref || '');
             applyDesignTokenCss(payload.tokenCss || '');
             renderScreenContent(payload.code || '');
             renderNavigation(payload.navigationCode || '', payload.activeNavigationItemId || '');
-            waitForRenderedStylesReady(revision);
+            if (wasStyleReady || tailwindRuntimeDegraded) {
+              markStyleRuntimeReady(tailwindRuntimeDegraded ? 'degraded' : 'ready');
+            } else {
+              waitForRenderedStylesReady(revision);
+            }
             if (interactionModeActive) focusScreenContentHost();
           }
 

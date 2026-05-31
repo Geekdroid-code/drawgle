@@ -22,6 +22,7 @@ import {
   validateStaticDrawgleHtml,
 } from "@/lib/generation/screen-quality";
 import { buildNavigationShellCode, buildScreenStream, extractCode, fallbackProjectCharter, generateDesignTokens, planUiFlow } from "@/lib/generation/service";
+import { preflightGenerationScope } from "@/lib/generation/scope-contract";
 import { planVisualAssets, resolveProjectAssets } from "@/lib/generation/visual-assets";
 import { createNavigationArchitecture, deriveRequiresBottomNav } from "@/lib/navigation";
 import {
@@ -34,7 +35,7 @@ import { tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { adminCreditService } from "@/lib/credits";
 import type { Database } from "@/lib/supabase/database.types";
-import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, ImageReferenceMode, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, PromptImagePayload, ProjectCharter, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenPlan } from "@/lib/types";
+import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationScopeContract, ImageReferenceMode, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenPlan } from "@/lib/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -52,6 +53,7 @@ type GenerateUiFlowPayload = {
   navigationArchitecture?: NavigationArchitecture | null;
   navigationPlan?: NavigationPlan | null;
   projectCharter?: ProjectCharter | null;
+  scopeContract?: GenerationScopeContract | null;
   planningMode?: PlanningMode;
 };
 
@@ -66,6 +68,8 @@ type BuildScreenTaskPayload = {
   referenceMode?: ReferenceMode;
   referenceSource?: ReferenceSource | null;
   referenceId?: string | null;
+  referenceScreenIndex?: number | null;
+  referenceScreenCount?: number | null;
   designStyleId?: string | null;
   designStyle?: DesignStylePack | null;
   requiresBottomNav: boolean;
@@ -490,6 +494,8 @@ async function collectScreenBuild(input: BuildScreenTaskPayload, screenPlan: Scr
       referenceMode: input.referenceMode,
       referenceSource: input.referenceSource,
       referenceId: input.referenceId,
+      referenceScreenIndex: input.referenceScreenIndex ?? screenPlan.referenceScreenIndex ?? null,
+      referenceScreenCount: input.referenceScreenCount ?? screenPlan.referenceScreenCount ?? null,
       requiresBottomNav: input.requiresBottomNav,
       navigationArchitecture: input.navigationArchitecture,
       navigationPlan: input.navigationPlan,
@@ -506,6 +512,8 @@ async function collectScreenBuild(input: BuildScreenTaskPayload, screenPlan: Scr
           referenceMode: snapshot.referenceMode,
           referenceSource: snapshot.referenceSource,
           referenceId: snapshot.referenceId,
+          referenceScreenIndex: snapshot.referenceScreenIndex ?? null,
+          referenceScreenCount: snapshot.referenceScreenCount ?? null,
           systemInstructionLength: snapshot.systemInstruction.length,
           systemInstruction: snapshot.systemInstruction,
           userPartCount: snapshot.userParts.length,
@@ -541,6 +549,8 @@ async function collectNonStreamingScreenBuild(input: BuildScreenTaskPayload, scr
     referenceMode: input.referenceMode,
     referenceSource: input.referenceSource,
     referenceId: input.referenceId,
+    referenceScreenIndex: input.referenceScreenIndex ?? screenPlan.referenceScreenIndex ?? null,
+    referenceScreenCount: input.referenceScreenCount ?? screenPlan.referenceScreenCount ?? null,
     requiresBottomNav: input.requiresBottomNav,
     navigationArchitecture: input.navigationArchitecture,
     navigationPlan: input.navigationPlan,
@@ -557,6 +567,8 @@ async function collectNonStreamingScreenBuild(input: BuildScreenTaskPayload, scr
         referenceMode: snapshot.referenceMode,
         referenceSource: snapshot.referenceSource,
         referenceId: snapshot.referenceId,
+        referenceScreenIndex: snapshot.referenceScreenIndex ?? null,
+        referenceScreenCount: snapshot.referenceScreenCount ?? null,
         systemInstructionLength: snapshot.systemInstruction.length,
         systemInstruction: snapshot.systemInstruction,
         userPartCount: snapshot.userParts.length,
@@ -1182,6 +1194,26 @@ export const generateUiFlowTask = task({
     );
     await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
+    const scopePreflight = payload.scopeContract
+      ? {
+          scopeContract: payload.scopeContract,
+          referenceAnalysis: null as ReferenceAnalysis | null,
+          referenceAnalysisResult: null,
+        }
+      : await preflightGenerationScope({
+          prompt: payload.prompt,
+          image: promptImage,
+          referenceMode,
+          planningMode: payload.planningMode ?? "project",
+          llmLog: (label, data) => logger.info(label, data),
+        });
+    const scopeContract = scopePreflight.scopeContract;
+    const referenceAnalysis = scopePreflight.referenceAnalysis;
+
+    await updateGenerationRun(admin, payload.generationRunId, {
+      requested_screen_count: scopeContract.finalScreenCount ?? null,
+    });
+
     await mergeGenerationRunMetadata(admin, payload.generationRunId, {
       requestedImageReferenceMode: payload.imageReferenceMode ?? "recreate",
       requestedDesignStyleId: payload.designStyleId ?? null,
@@ -1189,6 +1221,17 @@ export const generateUiFlowTask = task({
       referenceSource,
       referenceId,
       designStyle: summarizeDesignStyle(designStyle),
+      scopeContract,
+      referenceAnalysisDiagnostics: scopePreflight.referenceAnalysisResult
+        ? {
+            source: scopePreflight.referenceAnalysisResult.source,
+            confidence: scopePreflight.referenceAnalysisResult.confidence,
+            screenCountEstimate: scopePreflight.referenceAnalysisResult.screenCountEstimate,
+            screenReferenceCount: scopePreflight.referenceAnalysisResult.screenReferenceCount,
+            diagnostics: scopePreflight.referenceAnalysisResult.diagnostics,
+            validationIssues: scopePreflight.referenceAnalysisResult.validationIssues ?? [],
+          }
+        : null,
     });
 
     if (!designTokens) {
@@ -1213,6 +1256,7 @@ export const generateUiFlowTask = task({
         referenceMode,
         referenceId,
         designStyle,
+        referenceAnalysis,
         llmLog: (label, data) => logger.info(label, data),
       });
 
@@ -1248,6 +1292,8 @@ export const generateUiFlowTask = task({
         ? fallbackProjectCharter({
             prompt: payload.prompt,
             image: referenceMode === "user_recreate" ? promptImage : null,
+            referenceMode,
+            referenceAnalysis,
             designStyle,
             navigationArchitecture: requestedNavigationArchitecture,
             existingCharter,
@@ -1279,6 +1325,7 @@ export const generateUiFlowTask = task({
           }),
           charter: requestedCharter!,
           screens: payload.plannedScreens,
+          scopeContract,
           screenCountContract: null,
           screenCountEnforcement: "none" as const,
           intentContract: null,
@@ -1291,6 +1338,8 @@ export const generateUiFlowTask = task({
           referenceId,
           designStyle,
           designTokens,
+          scopeContract,
+          referenceAnalysis,
           projectContext: planningContext,
           existingCharter: requestedCharter,
           existingNavigationPlan: payload.navigationPlan ?? null,
@@ -1356,6 +1405,7 @@ export const generateUiFlowTask = task({
       navigationArchitecture: plan.navigationArchitecture,
       navigationPlan: plan.navigationPlan,
       charter: plan.charter,
+      scopeContract: plan.scopeContract ?? scopeContract,
       designStyle: summarizeDesignStyle(designStyle),
       designTokenSnapshot: designTokens ?? null,
       plannedScreens: plan.screens.map((screenPlan) => ({
@@ -1453,11 +1503,19 @@ export const generateUiFlowTask = task({
     const shouldSendBuildContext = Boolean(payload.plannedScreens?.length) || (payload.planningMode ?? "project") === "single-screen";
     const buildContext = shouldSendBuildContext ? compactBuildContext(planningContext) : null;
 
-    const screenPlans: ScreenPlan[] = plan.screens.length > 0 ? plan.screens : [{
+    const baseScreenPlans: ScreenPlan[] = plan.screens.length > 0 ? plan.screens : [{
       name: "New Screen",
       type: "root",
       description: payload.prompt,
     }];
+    const referenceTargetCount = plan.scopeContract?.finalScreenCount ?? plan.scopeContract?.imageScreenCount ?? baseScreenPlans.length;
+    const screenPlans: ScreenPlan[] = referenceMode === "user_recreate"
+      ? baseScreenPlans.map((screenPlan, index) => ({
+          ...screenPlan,
+          referenceScreenIndex: screenPlan.referenceScreenIndex ?? index + 1,
+          referenceScreenCount: screenPlan.referenceScreenCount ?? referenceTargetCount,
+        }))
+      : baseScreenPlans;
 
     await postStatusMessage(
       admin,
@@ -1509,7 +1567,7 @@ export const generateUiFlowTask = task({
     await updateGenerationRun(admin, payload.generationRunId, {
       status: "building",
       requires_bottom_nav: plan.requiresBottomNav,
-      requested_screen_count: plan.screenCountContract?.exactCount ?? null,
+      requested_screen_count: plan.scopeContract?.finalScreenCount ?? plan.screenCountContract?.exactCount ?? null,
     });
     generationJournal.status = "building";
     setJournalPhase(generationJournal, "build", "active", `Building ${screenPlans.length} screen${screenPlans.length === 1 ? "" : "s"} on the canvas.`);
@@ -1529,7 +1587,7 @@ export const generateUiFlowTask = task({
       let rowInserted = false;
 
       try {
-        const shouldAttachReferenceImage = referenceMode === "user_recreate" && index === 0;
+        const shouldAttachReferenceImage = referenceMode === "user_recreate";
         generationJournal.screens = generationJournal.screens?.map((screen) =>
           screen.name === screenPlan.name ? { ...screen, status: "building" } : screen,
         );
@@ -1547,6 +1605,8 @@ export const generateUiFlowTask = task({
             referenceMode,
             referenceSource,
             referenceId,
+            referenceScreenIndex: screenPlan.referenceScreenIndex ?? index + 1,
+            referenceScreenCount: screenPlan.referenceScreenCount ?? referenceTargetCount,
             designStyleId: designStyle?.id ?? null,
             designStyle,
             requiresBottomNav: plan.requiresBottomNav,

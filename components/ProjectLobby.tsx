@@ -381,6 +381,7 @@ export function ProjectLobby({
           navigationArchitecture: plan.navigationArchitecture,
           navigationPlan: plan.navigationPlan,
           projectCharter: plan.charter,
+          scopeContract: plan.scopeContract,
         }),
       });
 
