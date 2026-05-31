@@ -582,14 +582,22 @@ function buildConversationItems({
           const currentPrec = statusPrecedence[currentStep.status] || 0;
           const nextPrec = statusPrecedence[nextStep.status] || 0;
 
+          const isNextGeneric = nextStep.title.toLowerCase().startsWith("done - ") || nextStep.title.toLowerCase().includes("what do you think");
+          const isCurrentGeneric = currentStep.title.toLowerCase().startsWith("done - ") || currentStep.title.toLowerCase().includes("what do you think");
+
           let mergedStatus = currentStep.status;
           let mergedTitle = currentStep.title;
-          let mergedDetail = nextStep.detail || currentStep.detail;
+          let mergedDetail = currentStep.detail || nextStep.detail;
 
           if (nextPrec >= currentPrec) {
             mergedStatus = nextStep.status;
-            mergedTitle = nextStep.title;
+            if (!isNextGeneric || isCurrentGeneric) {
+              mergedTitle = nextStep.title;
+              mergedDetail = nextStep.detail || mergedDetail;
+            }
           }
+
+          const mergedStyleDiff = (nextStep as any).styleDiff || (currentStep as any).styleDiff || null;
 
           const mergedProcessLines = Array.from(new Set([
             ...(currentStep.processLines || []),
@@ -603,7 +611,8 @@ function buildConversationItems({
             detail: mergedDetail,
             processLines: mergedProcessLines,
             targetLabel: nextStep.targetLabel || currentStep.targetLabel || null,
-          };
+            styleDiff: mergedStyleDiff,
+          } as any;
 
           if (screenPlanProposal) {
             existing.proposal = screenPlanProposal;
