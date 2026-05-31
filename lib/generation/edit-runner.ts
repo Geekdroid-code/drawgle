@@ -34,6 +34,7 @@ import type { AgentStepMetadata } from "@/lib/agent/message-metadata";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchProjectMessages, insertProjectMessage } from "@/lib/supabase/queries";
 import { tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
+import { createGeminiClient } from "@/lib/ai/gemini";
 import type {
   DesignTokens,
   LlmLogFn,
@@ -74,6 +75,49 @@ export type ModifyScreenPayload = {
   recoveryContext?: Record<string, unknown> | null;
   routerDecision?: Record<string, unknown> | null;
 };
+
+async function generateDesignSummaryLLM(prompt: string, targetName: string) {
+  try {
+    const ai = createGeminiClient();
+    const systemInstruction = 
+      "You are an elite visual UI designer and creative art director. The user gave a design/edit request on a specific target screen.\n" +
+      "Write:\n" +
+      "1. A highly premium completed title matching the intent (e.g. 'Redesigned GoalsList card layout', 'Infused colorful icon highlights across navigation'). Do not use generic 'Applied changes' boilerplates.\n" +
+      "2. A short, elegant, single-sentence design summary detailing your visual decisions.\n" +
+      "3. An extremely short visual style diff summarizing the visual changes (use + for additions, - for deletions).\n\n" +
+      "Return strictly a JSON object matching this schema:\n" +
+      "{\n" +
+      "  \"title\": \"Premium dynamic completed title\",\n" +
+      "  \"summary\": \"One-sentence visual design log\",\n" +
+      "  \"styleDiff\": \"e.g., '+ backdrop-blur-md glassmorphism\\n- Solid grey backgrounds'\"\n" +
+      "}\n" +
+      "Keep output extremely short and direct to save tokens. Total JSON output must be under 35 words.";
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: `User Prompt: "${prompt}"\nTarget Screen Element: "${targetName}"`,
+      config: {
+        systemInstruction,
+        responseMimeType: "application/json",
+        temperature: 0.2,
+      },
+    });
+
+    const parsed = JSON.parse(response.text || "{}");
+    return {
+      title: typeof parsed.title === "string" && parsed.title.trim() ? parsed.title.trim() : `Applied changes to ${targetName}`,
+      summary: typeof parsed.summary === "string" && parsed.summary.trim() ? parsed.summary.trim() : `Successfully completed visual modifications on ${targetName}.`,
+      styleDiff: typeof parsed.styleDiff === "string" && parsed.styleDiff.trim() ? parsed.styleDiff.trim() : null,
+    };
+  } catch (error) {
+    console.error("Failed to generate design summary via LLM:", error);
+    return {
+      title: `Applied changes to ${targetName}`,
+      summary: `Successfully completed visual modifications on ${targetName}.`,
+      styleDiff: null,
+    };
+  }
+}
 
 const now = () => new Date().toISOString();
 
@@ -367,11 +411,17 @@ async function upsertActivityMessage(
   activityKey: string,
   input: ProjectMessageInput,
 ) {
-  const metadata = {
+  const metadata: any = {
     ...(input.metadata ?? {}),
     activityKey,
   };
   const agentStep = inferAgentStep(input.content, metadata);
+  if (agentStep && metadata.designSummary) {
+    const summary = metadata.designSummary as any;
+    agentStep.title = summary.title || agentStep.title;
+    agentStep.detail = summary.summary || agentStep.detail;
+    (agentStep as any).styleDiff = summary.styleDiff || null;
+  }
   const metadataWithUi = {
     ...metadata,
     ...(agentStep ? {
@@ -729,6 +779,11 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
         }
       }
 
+      let designSummary: any = null;
+      if (editChanged) {
+        designSummary = await generateDesignSummaryLLM(prompt, "Selected Navigation Element");
+      }
+
       const fullResponse = !editChanged
         ? "No material code changes were applied to the selected navigation element."
         : "Updated selected navigation element.";
@@ -750,6 +805,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
           selectedElementDiagnostics,
           editJob: { status: "completed", targetType: "navigation", drawgleId: selectedElementDrawgleId },
           routerDecision: payload.routerDecision ?? null,
+          designSummary,
         },
       });
 
@@ -802,7 +858,13 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
       }
     }
 
-    const fullResponse = nextCode === navigationCode
+    const isChanged = nextCode !== navigationCode;
+    let designSummary: any = null;
+    if (isChanged) {
+      designSummary = await generateDesignSummaryLLM(prompt, "Navigation");
+    }
+
+    const fullResponse = !isChanged
       ? "No material code changes were applied to Navigation."
       : "Updated shared project navigation.";
     const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
@@ -811,14 +873,15 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
       screenId: null,
       role: "model",
       content: fullResponse,
-      messageType: nextCode === navigationCode ? "chat" : "edit_applied",
+      messageType: !isChanged ? "chat" : "edit_applied",
       metadata: {
-        action: nextCode === navigationCode ? "edit_noop" : "edit_applied",
+        action: !isChanged ? "edit_noop" : "edit_applied",
         target: "project_navigation",
         screenName: "Navigation",
         userMessageId: payload.userMessageId,
         editJob: { status: "completed", targetType: "navigation" },
         routerDecision: payload.routerDecision ?? null,
+        designSummary,
       },
     });
 
@@ -1265,6 +1328,11 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
       }
     }
 
+    let designSummary: any = null;
+    if (editChanged) {
+      designSummary = await generateDesignSummaryLLM(prompt, targetNames === "full screen" ? screen.name : `${targetNames} in ${screen.name}`);
+    }
+
     const fullResponse = !editChanged
       ? `No material code changes were applied to ${screen.name}.`
       : buildAppliedEditMessage(screen.name, targetNames);
@@ -1288,6 +1356,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
         nextHealth,
         selectedElementDiagnostics,
         selectedRegionStaticHealth,
+        designSummary,
         recoveryContext: !editChanged ? {
           kind: "failed_edit_recovery",
           instruction: prompt,

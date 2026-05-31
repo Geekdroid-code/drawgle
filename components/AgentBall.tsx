@@ -8,6 +8,7 @@ type AgentBallProps = {
 type AgentThinkingIndicatorProps = {
   label?: string;
   className?: string;
+  hideBall?: boolean;
 };
 
 const ballCircles = [
@@ -68,13 +69,13 @@ export function AgentBall({ className = "h-4 w-4", active = false }: AgentBallPr
   );
 }
 
-export function AgentThinkingIndicator({ label = "Dreaming...", className = "" }: AgentThinkingIndicatorProps) {
+export function AgentThinkingIndicator({ label = "Dreaming...", className = "", hideBall = false }: AgentThinkingIndicatorProps) {
   const chars = Array.from(label);
   const step = chars.length > 0 ? 4 / chars.length : 0;
 
   return (
     <div className={`flex min-w-0 items-center ${className}`}>
-      <AgentBall className="mr-2 h-4 w-4" active />
+      {!hideBall && <AgentBall className="mr-2 h-4 w-4" active />}
       <span role="img" aria-label={label} className="truncate pt-0.5 text-xs italic text-current transition-opacity duration-500 ease-in-out">
         {chars.map((char, index) => {
           const style: CSSProperties = {

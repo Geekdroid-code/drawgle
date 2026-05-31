@@ -374,6 +374,29 @@ export async function POST(request: Request) {
 
     generationRunId = generationRun.id;
 
+    if (!payload.projectId) {
+      // Only insert the initial user message for a newly created project
+      const userMessageInsert = await admin
+        .from("project_messages")
+        .insert({
+          project_id: projectId,
+          owner_id: ownerId,
+          screen_id: null,
+          role: "user",
+          content: payload.prompt || "[image]",
+          message_type: "chat",
+          metadata: {
+            action: "agent_turn_user",
+            clientTurnId: crypto.randomUUID(),
+            image: payload.image ?? null,
+          },
+          created_at: now(),
+        });
+      if (userMessageInsert.error) {
+        console.error("Failed to insert initial user message:", userMessageInsert.error);
+      }
+    }
+
     const handle = await tasks.trigger<typeof generateUiFlowTask>(
       "generate-ui-flow",
       {

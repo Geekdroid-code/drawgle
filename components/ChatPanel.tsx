@@ -440,7 +440,21 @@ function buildConversationItems({
     terminalEditMessageIds.add(message.id);
   }
 
+  const actionByTurnId = new Map<string, typeof items[number] & { kind: "action" }>();
+  let latestUserMessageId = "";
+
   for (const message of messages) {
+    const action = getMetadataString(message.metadata, "action");
+    const cleanContent = message.content.trim().toLowerCase();
+    if (
+      action === "pre_action_response" ||
+      cleanContent.includes("applying a precise edit") ||
+      cleanContent.includes("shaping that into a screen plan") ||
+      cleanContent.includes("shaping this into a screen plan")
+    ) {
+      continue;
+    }
+
     const ui = readAgentUi(message.metadata);
     const thinkingSummary = readThinkingSummary(message.metadata);
     const screenPlanProposal = readScreenPlanProposal(message.metadata);
@@ -452,11 +466,14 @@ function buildConversationItems({
     const run = generationRunId ? generationRunById.get(generationRunId) : null;
 
     if (message.role === "user") {
+      latestUserMessageId = message.id;
+      const persistedImage = message.metadata.image as PromptImagePayload | null;
       items.push({
         id: `user-${message.id}`,
         kind: "user",
         content: message.content,
         timestamp: message.timestamp,
+        image: persistedImage ?? null,
       });
       continue;
     }
@@ -553,15 +570,68 @@ function buildConversationItems({
       ) {
         continue;
       }
-      items.push({
+
+      const turnId = getMetadataString(message.metadata, "userMessageId") || getMetadataString(message.metadata, "clientTurnId") || latestUserMessageId;
+      if (turnId) {
+        const existing = actionByTurnId.get(turnId);
+        if (existing) {
+          const currentStep = existing.step;
+          const nextStep = normalizedStep;
+
+          const statusPrecedence = { queued: 1, thinking: 2, editing: 3, completed: 4, failed: 4 };
+          const currentPrec = statusPrecedence[currentStep.status] || 0;
+          const nextPrec = statusPrecedence[nextStep.status] || 0;
+
+          let mergedStatus = currentStep.status;
+          let mergedTitle = currentStep.title;
+          let mergedDetail = nextStep.detail || currentStep.detail;
+
+          if (nextPrec >= currentPrec) {
+            mergedStatus = nextStep.status;
+            mergedTitle = nextStep.title;
+          }
+
+          const mergedProcessLines = Array.from(new Set([
+            ...(currentStep.processLines || []),
+            ...(nextStep.processLines || [])
+          ]));
+
+          existing.step = {
+            ...currentStep,
+            status: mergedStatus,
+            title: mergedTitle,
+            detail: mergedDetail,
+            processLines: mergedProcessLines,
+            targetLabel: nextStep.targetLabel || currentStep.targetLabel || null,
+          };
+
+          if (screenPlanProposal) {
+            existing.proposal = screenPlanProposal;
+            existing.proposalMessageId = message.id;
+          }
+          continue;
+        }
+      }
+
+      const latestRetryRun = [...generationRuns]
+        .filter((run) => run.status === "failed" || run.status === "canceled")
+        .sort((left, right) => new Date(right.completedAt ?? right.updatedAt).getTime() - new Date(left.completedAt ?? left.updatedAt).getTime())[0] ?? null;
+
+      const newActionItem: typeof items[number] & { kind: "action" } = {
         id: `action-${message.id}`,
         kind: "action",
         step: normalizedStep,
         sourceContent: message.content,
+        retryRun: latestRetryRun ?? undefined,
         proposal: screenPlanProposal,
         proposalMessageId: screenPlanProposal ? message.id : null,
         timestamp: message.timestamp,
-      });
+      };
+
+      if (turnId) {
+        actionByTurnId.set(turnId, newActionItem);
+      }
+      items.push(newActionItem);
       continue;
     }
 
@@ -576,29 +646,13 @@ function buildConversationItems({
     }
   }
 
-  if (pendingTurn && (!hasPersistedPending || (!hasPersistedPendingProgress && !hasPersistedPendingResponse))) {
-    if (!hasPersistedPending) {
-      items.push({
-        id: `pending-user-${pendingTurn.id}`,
-        kind: "user",
-        content: pendingTurn.prompt || "[image]",
-        image: pendingTurn.image,
-      });
-    }
-
-    if (!hasPersistedPendingProgress && !hasPersistedPendingResponse && Date.now() - pendingTurn.startedAt > 450) {
-      items.push({
-        id: `pending-thinking-${pendingTurn.id}`,
-        kind: "thinking",
-        live: true,
-        summary: {
-          label: "Thinking",
-          text: "Reading your message.",
-          durationMs: Date.now() - pendingTurn.startedAt,
-          expandedByDefault: false,
-        },
-      });
-    }
+  if (pendingTurn && !hasPersistedPending) {
+    items.push({
+      id: `pending-user-${pendingTurn.id}`,
+      kind: "user",
+      content: pendingTurn.prompt || "[image]",
+      image: pendingTurn.image,
+    });
   }
 
   if (queueError) {
@@ -723,6 +777,7 @@ function ThinkingRow({ summary, id, live = false }: { summary: ThinkingSummaryMe
           <AgentThinkingIndicator
             label={`${summary.label}...`}
             className="text-black/40"
+            hideBall={true}
           />
           {seconds ? (
             <span className="text-[11px] font-normal italic text-black/30">{seconds}</span>
@@ -753,7 +808,7 @@ function ThinkingRow({ summary, id, live = false }: { summary: ThinkingSummaryMe
         {summary.text}
       </div>
       {isLive ? (
-        <AgentThinkingIndicator label="Thinking..." className="mt-2 pl-3 text-slate-500" />
+        <AgentThinkingIndicator label="Thinking..." className="mt-2 pl-3 text-slate-500" hideBall={true} />
       ) : null}
     </div>
   );
@@ -830,75 +885,158 @@ function ActionCard({
   onRetryGeneration?: (run: GenerationRunData) => void;
   onApproveScreenPlan?: (proposalMessageId: string) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
   const busy = step.status === "queued" || step.status === "thinking" || step.status === "editing";
   const failed = step.status === "failed";
   const pendingProposal = isProposalPending(proposal);
-  const processLines = step.processLines?.length ? step.processLines : step.detail ? [step.detail] : [];
+  const styleDiff = (step as any).styleDiff as string | undefined;
+  
+  const rawProcessLines = step.processLines?.length ? step.processLines : step.detail ? [step.detail] : [];
+  const processLines = rawProcessLines.filter((line) => {
+    const cleanLine = line.trim().toLowerCase();
+    return (
+      cleanLine !== step.title.trim().toLowerCase() &&
+      cleanLine !== statusCopy(step.status).toLowerCase()
+    );
+  });
+
+  const hasDistinctDetail = Boolean(
+    step.detail &&
+    step.detail.trim().toLowerCase() !== step.title.trim().toLowerCase() &&
+    step.detail.trim().toLowerCase() !== statusCopy(step.status).toLowerCase()
+  );
+
+  const fallbackDetail = !hasDistinctDetail && busy
+    ? (step.targetLabel ? `Working on ${step.targetLabel}.` : statusCopy(step.status))
+    : null;
 
   return (
-    <div className="px-3 py-2">
-      <div className="rounded-xl border border-slate-950/[0.1] bg-[#f4f4f5] p-4 text-slate-800">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <AgentBall className="h-4 w-4" active={busy} />
-              <h3 className="truncate text-[13px] font-semibold text-slate-950">{step.title}</h3>
-            </div>
-            <div className="mt-2 line-clamp-2 text-[12px] leading-5 text-slate-600">
-              {step.detail || (step.targetLabel ? `Working on ${step.targetLabel}.` : statusCopy(step.status))}
+    <div className="px-5 py-3 w-full min-w-0 overflow-hidden">
+      <div className="flex flex-col font-ui leading-normal min-w-0 w-full">
+        {/* Header timeline node */}
+        <div className="flex flex-row items-center transition-colors rounded-lg duration-150 min-w-0 w-full">
+          <div className="w-[20px] flex justify-center shrink-0">
+            <div className="pt-0.5">
+              {failed ? (
+                <AlertCircle className="h-4 w-4 text-rose-500 shrink-0" />
+              ) : busy ? (
+                <AgentBall className="h-4 w-4 shrink-0" active />
+              ) : (
+                <Check className="h-4 w-4 text-emerald-500 shrink-0" />
+              )}
             </div>
           </div>
-          <div className="flex h-5 w-5 shrink-0 items-center justify-center">
-            <AgentMark busy={busy} failed={failed} />
+          <div className="flex-1 min-w-0 pl-2.5">
+            <div className="flex items-center gap-2 py-0.5 text-sm text-left text-slate-800 font-semibold w-full min-w-0">
+              <span className="min-w-0 flex-1 break-words whitespace-normal leading-tight">{step.title}</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-100/80 px-1.5 py-0.5 rounded shrink-0">
+                {statusCopy(step.status)}
+              </span>
+            </div>
           </div>
         </div>
 
-        <button
-          type="button"
-          className="mt-3 text-left text-[12px] font-medium underline text-slate-600 hover:text-slate-950"
-          onClick={() => setExpanded((value) => !value)}
-        >
-          {expanded ? "Hide process" : "Show process"}
-        </button>
-
-        {expanded ? (
-          <div className="mt-3 space-y-2 border-l border-slate-950/[0.12] pl-3">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{statusCopy(step.status)}</div>
-            {processLines.map((line, index) => (
-              <div key={`${line}-${index}`} className="text-[12px] leading-5 text-slate-600">
-                {line}
-              </div>
-            ))}
+        {/* Detailed timeline path */}
+        <div className="flex flex-row min-w-0 w-full">
+          <div className="w-[20px] flex justify-center shrink-0">
+            <div className={`w-[1px] h-full duration-150 bg-slate-200 ${(busy && processLines.length > 0) || styleDiff || hasDistinctDetail || fallbackDetail ? "min-h-[20px]" : "min-h-[8px]"}`} />
           </div>
-        ) : null}
+          <div className="flex-1 min-w-0 pl-2.5">
+            {hasDistinctDetail ? (
+              <div className="text-[12px] text-slate-500 leading-relaxed pt-1 pr-4 break-words whitespace-normal font-medium">
+                {step.detail}
+              </div>
+            ) : fallbackDetail ? (
+              <div className="text-[12px] text-slate-500 leading-relaxed pt-1 pr-4 break-words whitespace-normal">
+                {fallbackDetail}
+              </div>
+            ) : null}
 
-        {pendingProposal && proposalMessageId && onApproveScreenPlan ? (
-          <Button
-            type="button"
-            className="mt-4 h-9 rounded-full px-4 text-xs font-semibold"
-            onClick={() => onApproveScreenPlan(proposalMessageId)}
-            disabled={retryDisabled}
-          >
-            Build screen
-          </Button>
-        ) : null}
+            {/* Style Diff Block */}
+            {styleDiff ? (
+              <div className="mt-3 rounded-xl border border-slate-200/80 bg-slate-900 px-3.5 py-3 font-mono text-[11px] leading-relaxed text-slate-300 shadow-sm overflow-hidden select-text">
+                <div className="text-[10px] font-sans font-bold uppercase tracking-wider text-slate-500 mb-2">Style Adjustments</div>
+                <div className="space-y-1">
+                  {styleDiff.split('\n').map((line, idx) => {
+                    if (line.startsWith('+')) {
+                      return (
+                        <div key={idx} className="text-emerald-400 font-medium flex items-start gap-1">
+                          <span className="shrink-0 select-none text-emerald-600 font-bold">+</span>
+                          <span>{line.substring(1).trim()}</span>
+                        </div>
+                      );
+                    } else if (line.startsWith('-')) {
+                      return (
+                        <div key={idx} className="text-rose-400 line-through flex items-start gap-1">
+                          <span className="shrink-0 select-none text-rose-600 font-bold">-</span>
+                          <span>{line.substring(1).trim()}</span>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div key={idx} className="text-slate-400 flex items-start gap-1">
+                        <span>{line}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
 
-        {proposal?.status === "approved" ? (
-          <div className="mt-4 text-[12px] font-medium text-slate-500">Approved for build</div>
-        ) : null}
+            {/* Execution / Technical Logs */}
+            {busy && processLines.length > 0 ? (
+              <div className="mt-3 space-y-2.5 pl-1.5 min-w-0 w-full animate-pulse">
+                {processLines.map((line, index) => (
+                  <div key={`${line}-${index}`} className="flex items-start gap-2 text-[11px] leading-relaxed text-slate-600 min-w-0 w-full">
+                    <div className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500 animate-ping" />
+                    <span className="min-w-0 flex-1 break-words whitespace-normal">{line}</span>
+                  </div>
+                ))}
+              </div>
+            ) : !busy && processLines.length > 0 ? (
+              <details className="mt-3 group/details">
+                <summary className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 hover:text-slate-800 cursor-pointer select-none outline-none">
+                  <ChevronDown className="h-3.5 w-3.5 transition-transform duration-200 group-open/details:rotate-180 text-slate-400 group-hover/details:text-slate-600" />
+                  <span>Show execution steps</span>
+                </summary>
+                <div className="mt-2 space-y-2 pl-1.5 min-w-0 w-full">
+                  {processLines.map((line, index) => (
+                    <div key={`${line}-${index}`} className="flex items-start gap-2 text-[11px] leading-relaxed text-slate-500 min-w-0 w-full">
+                      <div className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-slate-300" />
+                      <span className="min-w-0 flex-1 break-words whitespace-normal">{line}</span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            ) : null}
 
-        {retryRun && onRetryGeneration ? (
-          <Button
-            type="button"
-            variant="outline"
-            className="mt-4 h-8 rounded-full bg-white px-3 text-xs"
-            disabled={retryDisabled}
-            onClick={() => onRetryGeneration(retryRun)}
-          >
-            Retry
-          </Button>
-        ) : null}
+            {pendingProposal && proposalMessageId && onApproveScreenPlan ? (
+              <Button
+                type="button"
+                className="mt-3 h-8 rounded-full px-3 text-[11px] font-semibold"
+                onClick={() => onApproveScreenPlan(proposalMessageId)}
+                disabled={retryDisabled}
+              >
+                Build screen
+              </Button>
+            ) : null}
+
+            {proposal?.status === "approved" ? (
+              <div className="mt-3 text-[11px] font-semibold text-emerald-600">Approved for build</div>
+            ) : null}
+
+            {retryRun && onRetryGeneration ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-3 h-7 rounded-full bg-white px-2.5 text-[10px]"
+                disabled={retryDisabled}
+                onClick={() => onRetryGeneration(retryRun)}
+              >
+                Retry
+              </Button>
+            ) : null}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -924,7 +1062,11 @@ function JournalPhaseMark({ status }: { status: GenerationJournalMetadata["phase
   }
 
   if (status === "active") {
-    return <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-700" />;
+    return (
+      <div className="flex h-3.5 w-3.5 items-center justify-center">
+        <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-500" />
+      </div>
+    );
   }
 
   if (status === "completed") {
@@ -936,6 +1078,7 @@ function JournalPhaseMark({ status }: { status: GenerationJournalMetadata["phase
 
 function GenerationJournalCard({ journal }: { journal: GenerationJournalMetadata }) {
   const [expanded, setExpanded] = useState(journal.status !== "completed");
+  const [expandedScreens, setExpandedScreens] = useState<Record<number, boolean>>({});
   const busy = journal.status === "queued" || journal.status === "planning" || journal.status === "building";
   const failed = journal.status === "failed";
   const activePhase = journal.phases.find((phase) => phase.status === "active") ?? null;
@@ -1006,34 +1149,44 @@ function GenerationJournalCard({ journal }: { journal: GenerationJournalMetadata
             {journal.screens?.length ? (
               <div className="mt-4 space-y-2">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Screen Briefs</div>
-                {journal.screens.map((screen, index) => (
-                  <div key={`${screen.name}-${index}`} className="rounded-[12px] border border-slate-950/[0.08] bg-white px-3 py-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="truncate text-[12px] font-semibold text-slate-950">{screen.name}</div>
-                        <div className="mt-0.5 text-[11px] text-slate-500">
-                          {[screen.type, screen.chrome ? `${screen.chrome} chrome` : null, screen.assetNeedCount ? `${screen.assetNeedCount} asset need${screen.assetNeedCount === 1 ? "" : "s"}` : null]
-                            .filter(Boolean)
-                            .join(" · ")}
+                {journal.screens.map((screen, index) => {
+                  const isScreenExpanded = Boolean(expandedScreens[index]);
+                  return (
+                    <div
+                      key={`${screen.name}-${index}`}
+                      onClick={() => setExpandedScreens(prev => ({ ...prev, [index]: !prev[index] }))}
+                      className="rounded-[12px] border border-slate-950/[0.08] bg-white px-3 py-2 cursor-pointer transition hover:bg-slate-50"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="truncate text-[12px] font-semibold text-slate-950">{screen.name}</div>
+                          <div className="mt-0.5 text-[11px] text-slate-500">
+                            {[screen.type, screen.chrome ? `${screen.chrome} chrome` : null, screen.assetNeedCount ? `${screen.assetNeedCount} asset need${screen.assetNeedCount === 1 ? "" : "s"}` : null]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </div>
                         </div>
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                          screen.status === "failed"
+                            ? "bg-rose-50 text-rose-700"
+                            : screen.status === "ready"
+                              ? "bg-emerald-50 text-emerald-700"
+                              : screen.status === "building"
+                                ? "bg-slate-950 text-white"
+                                : "bg-slate-950/[0.06] text-slate-600"
+                        }`}>
+                          {journalScreenStatusCopy(screen.status)}
+                        </span>
                       </div>
-                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                        screen.status === "failed"
-                          ? "bg-rose-50 text-rose-700"
-                          : screen.status === "ready"
-                            ? "bg-emerald-50 text-emerald-700"
-                            : screen.status === "building"
-                              ? "bg-slate-950 text-white"
-                              : "bg-slate-950/[0.06] text-slate-600"
-                      }`}>
-                        {journalScreenStatusCopy(screen.status)}
-                      </span>
+                      <div className={`mt-2 text-[11px] leading-5 text-slate-600 transition-all ${isScreenExpanded ? "" : "line-clamp-2"}`}>
+                        {screen.description || "Builder-ready screen brief prepared."}
+                      </div>
+                      <div className="mt-1 flex justify-end text-[9px] font-semibold text-slate-400 hover:text-slate-600 select-none">
+                        {isScreenExpanded ? "Click to collapse" : "Click to see full plan"}
+                      </div>
                     </div>
-                    <div className="mt-2 line-clamp-2 text-[11px] leading-5 text-slate-600">
-                      {compactJournalDescription(screen.description)}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : null}
 
@@ -1334,6 +1487,26 @@ export function ChatPanel({
     return () => window.clearInterval(interval);
   }, [pendingTurn]);
 
+  const lastItemStateKey = conversationItems.length > 0
+    ? JSON.stringify({
+        id: conversationItems[conversationItems.length - 1].id,
+        kind: conversationItems[conversationItems.length - 1].kind,
+        status: conversationItems[conversationItems.length - 1].kind === "action"
+          ? (conversationItems[conversationItems.length - 1] as any).step?.status
+          : conversationItems[conversationItems.length - 1].kind === "generation_journal"
+          ? (conversationItems[conversationItems.length - 1] as any).journal?.status
+          : null,
+        processCount: conversationItems[conversationItems.length - 1].kind === "action"
+          ? ((conversationItems[conversationItems.length - 1] as any).step?.processLines?.length ?? 0)
+          : conversationItems[conversationItems.length - 1].kind === "generation_journal"
+          ? ((conversationItems[conversationItems.length - 1] as any).journal?.phases?.length ?? 0)
+          : null,
+        detail: conversationItems[conversationItems.length - 1].kind === "action"
+          ? ((conversationItems[conversationItems.length - 1] as any).step?.detail ?? "")
+          : null,
+      })
+    : "";
+
   useEffect(() => {
     if (isCollapsed) return;
 
@@ -1342,7 +1515,15 @@ export function ChatPanel({
     }, 90);
 
     return () => window.clearTimeout(timeout);
-  }, [conversationItems.length, generationRun?.id, generationRun?.status, isCollapsed, reduceMotion]);
+  }, [
+    conversationItems.length,
+    generationRun?.id,
+    generationRun?.status,
+    isCollapsed,
+    reduceMotion,
+    isBusy,
+    lastItemStateKey,
+  ]);
 
   if (isCollapsed) {
     return (
@@ -1401,7 +1582,7 @@ export function ChatPanel({
                   conversationItems.map((item) => {
                     if (item.kind === "user") {
                       return (
-                        <motion.div key={item.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+                        <motion.div key={item.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
                           <UserBubble content={item.content} image={item.image} />
                         </motion.div>
                       );
@@ -1409,7 +1590,7 @@ export function ChatPanel({
 
                     if (item.kind === "thinking") {
                       return (
-                        <motion.div key={item.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+                        <motion.div key={item.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
                           <ThinkingRow summary={item.summary} id={item.id} live={item.live} />
                         </motion.div>
                       );
@@ -1417,7 +1598,7 @@ export function ChatPanel({
 
                     if (item.kind === "generation_journal") {
                       return (
-                        <motion.div key={item.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+                        <motion.div key={item.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
                           <GenerationJournalCard journal={item.journal} />
                         </motion.div>
                       );
@@ -1425,7 +1606,7 @@ export function ChatPanel({
 
                     if (item.kind === "action") {
                       return (
-                        <motion.div key={item.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+                        <motion.div key={item.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
                           <ActionCard
                             step={item.step}
                             retryRun={item.retryRun}
@@ -1440,13 +1621,46 @@ export function ChatPanel({
                     }
 
                     return (
-                      <motion.div key={item.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+                      <motion.div key={item.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
                         <AssistantMessage content={item.content} isError={item.isError} />
                       </motion.div>
                     );
                   })
                 )}
               </AnimatePresence>
+              {isBusy && (
+                <div className="mx-5 my-3 rounded-2xl border border-slate-950/[0.04] bg-[#f8f9fa] p-4 shadow-[0_2px_8px_rgba(15,23,42,0.02)] transition-all animate-pulse">
+                  <div className="flex items-center gap-3">
+                    <AgentBall className="h-5 w-5 shrink-0" active />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">
+                        Drawgle is active
+                      </div>
+                      <div className="mt-1">
+                        <AgentThinkingIndicator
+                          label={
+                            pendingTurn
+                              ? "Reading your prompt and selected context..."
+                              : screenPlan?.status === "planning"
+                              ? "Drafting focused screen structures..."
+                              : isGenerationActive && generationRun
+                              ? `Building: ${
+                                  generationRun.status === "planning"
+                                    ? "Planning screens"
+                                    : "Rendering mobile UI on canvas"
+                                }...`
+                              : isQueueing
+                              ? "Queueing generation job to Trigger.dev..."
+                              : "Polishing style rules and visual details..."
+                          }
+                          className="text-slate-600 font-semibold"
+                          hideBall={true}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div ref={messagesEndRef} />
             </div>
             <div className="dg-chat-footer shrink-0 px-2 py-2">

@@ -1075,6 +1075,7 @@ export async function POST(request: Request) {
       metadata: {
         ...turnBaseMetadata,
         action: "agent_turn_user",
+        image: payload.image ?? null,
       },
     });
     let progressStep: AgentStepMetadata | null = null;
