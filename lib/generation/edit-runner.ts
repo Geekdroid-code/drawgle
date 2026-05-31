@@ -527,12 +527,26 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
   const designTokens = (project.design_tokens as DesignTokens | null) ?? null;
   const projectCharter = (project.project_charter as ProjectCharter | null) ?? null;
   const navigationArchitecture = (projectCharter?.navigationArchitecture ?? null) as NavigationArchitecture | null;
-  const requestedNavigationEdit =
+  let requestedNavigationEdit =
     payload.requestTargetsNavigation ||
     selectedElementTarget === "navigation" ||
-    isNavigationElementHtml(selectedElementHtml) ||
-    isNavigationEditPrompt(prompt);
-  const selectedNavigationElement = selectedElementTarget === "navigation" || isNavigationElementHtml(selectedElementHtml);
+    isNavigationElementHtml(selectedElementHtml);
+
+  if (requestedNavigationEdit) {
+    const { data: navData, error: navError } = await admin
+      .from("project_navigation")
+      .select("id, shell_code")
+      .eq("project_id", payload.projectId)
+      .maybeSingle();
+
+    if (navError || !navData?.shell_code) {
+      if (payload.screenId) {
+        requestedNavigationEdit = false;
+      }
+    }
+  }
+
+  const selectedNavigationElement = requestedNavigationEdit && (selectedElementTarget === "navigation" || isNavigationElementHtml(selectedElementHtml));
 
   if (requestedNavigationEdit) {
     const { data: projectNavigation, error: navigationError } = await admin

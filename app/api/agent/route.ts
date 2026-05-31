@@ -637,7 +637,8 @@ const classifyDeterministicTokenStyleIntent = ({
   prompt: string;
   designTokens?: DesignTokens | null;
 }): DeterministicTokenStyleIntent | null => {
-  if (!designTokens?.tokens || complexStyleRequestPattern.test(prompt)) {
+  const wordCount = prompt.trim().split(/\s+/).filter(Boolean).length;
+  if (!designTokens?.tokens || wordCount > 5 || complexStyleRequestPattern.test(prompt)) {
     return null;
   }
 
@@ -2171,6 +2172,7 @@ export async function POST(request: Request) {
       ? activeSelection.outerHTML ?? null
       : null;
 
+
     if (shouldUseSelectedElement) {
       const verification = await verifySelectedElementSource({
         admin,
@@ -2277,16 +2279,18 @@ export async function POST(request: Request) {
           ? "Updated selected navigation element with project tokens."
           : "No material token style changes were applied to Navigation.";
 
-        await admin
-          .from("project_navigation")
-          .update({
-            shell_code: nextCode,
-            block_index: indexScreenCode(nextCode) as never,
-            status: "ready",
-            error: null,
-            updated_at: now(),
-          })
-          .eq("id", navigation.id);
+        if (changed) {
+          await admin
+            .from("project_navigation")
+            .update({
+              shell_code: nextCode,
+              block_index: indexScreenCode(nextCode) as never,
+              status: "ready",
+              error: null,
+              updated_at: now(),
+            })
+            .eq("id", navigation.id);
+        }
       } else {
         if (!targetScreenId) {
           throw new Error("No screen target was provided for the token style edit.");
@@ -2316,123 +2320,138 @@ export async function POST(request: Request) {
           ? `Updated selected element in ${screen.name} with project tokens.`
           : `No material token style changes were applied to ${screen.name}.`;
 
-        await admin
-          .from("screens")
-          .update({
-            code: nextCode,
-            block_index: indexScreenCode(nextCode) as never,
-            status: "ready",
-            error: null,
-            updated_at: now(),
-          })
-          .eq("id", screen.id);
+        if (changed) {
+          await admin
+            .from("screens")
+            .update({
+              code: nextCode,
+              block_index: indexScreenCode(nextCode) as never,
+              status: "ready",
+              error: null,
+              updated_at: now(),
+            })
+            .eq("id", screen.id);
+        }
       }
-
-      const lastKnownTarget: AgentStateTarget = {
-        targetType: requestTargetsNavigation ? "navigation" : "selected_element",
-        scope: requestTargetsNavigation ? "navigation" : "selected_element",
-        screenId: targetScreenId,
-        screenName,
-        selectedElementDrawgleId: activeSelectionDrawgleId,
-      };
-      await updateAgentProgress({
-        step: buildAgentProgressStep({
-          status: changed ? "completed" : "failed",
-          title: changed ? "Edit applied" : "No change needed",
-          detail: modelContent,
-          targetLabel: deterministicTargetLabel,
-          processLines: [
-            ...progressLines(),
-            changed ? "Saved the updated target." : "The target already matched the requested token change.",
-          ],
-        }),
-        metadata: executionRouterMetadata,
-        messageType: changed ? "chat" : "error",
-      });
-      const modelMessage = await insertProjectMessage(admin, {
-        projectId: payload.projectId,
-        ownerId: user.id,
-        screenId: targetScreenId,
-        role: "model",
-        content: modelContent,
-        messageType: changed ? "edit_applied" : "chat",
-        metadata: {
-          ...executionRouterMetadata,
-          ui: { variant: "action_card" },
-          action: changed ? "deterministic_token_style_applied" : "deterministic_token_style_noop",
-          screenName: requestTargetsNavigation ? "Navigation" : screenName,
-          userMessageId: userMessage.id,
-          deterministicStyleEdit: {
-            kind: deterministicStyleIntent.kind,
-            tokenPaths: deterministicStyleIntent.tokenPaths,
-            operationCount: deterministicStyleIntent.operations.length,
-            reason: deterministicStyleIntent.reason,
-          },
-          editJob: {
+      if (changed) {
+        const lastKnownTarget: AgentStateTarget = {
+          targetType: requestTargetsNavigation ? "navigation" : "selected_element",
+          scope: requestTargetsNavigation ? "navigation" : "selected_element",
+          screenId: targetScreenId,
+          screenName,
+          selectedElementDrawgleId: activeSelectionDrawgleId,
+        };
+        await updateAgentProgress({
+          step: buildAgentProgressStep({
             status: "completed",
-            targetType: requestTargetsNavigation ? "navigation" : "screen",
-            screenId: targetScreenId,
-            drawgleId: activeSelectionDrawgleId,
-          },
-          agentStep: buildQueuedAgentStep({
-            kind: requestTargetsNavigation ? "navigation" : "edit",
-            status: changed ? "completed" : "failed",
-            title: changed ? `Updated ${deterministicTargetLabel}` : `No material style change for ${deterministicTargetLabel}`,
+            title: "Edit applied",
             detail: modelContent,
             targetLabel: deterministicTargetLabel,
             processLines: [
-              "Matched your request to deterministic project-token edits.",
-              changed ? "Saved the updated target." : "The target already matched the requested token change.",
+              ...progressLines(),
+              "Saved the updated target.",
             ],
           }),
-          agentState: makeAgentState({
-            kind: "last_actionable_request",
-            instruction: resolvedInstruction,
-            missingFields: null,
-            targetCandidates: null,
-            lastKnownTarget,
-            message: null,
-          }),
-        },
-      });
+          metadata: executionRouterMetadata,
+          messageType: "chat",
+        });
+        const modelMessage = await insertProjectMessage(admin, {
+          projectId: payload.projectId,
+          ownerId: user.id,
+          screenId: targetScreenId,
+          role: "model",
+          content: modelContent,
+          messageType: "edit_applied",
+          metadata: {
+            ...executionRouterMetadata,
+            ui: { variant: "action_card" },
+            action: "deterministic_token_style_applied",
+            screenName: requestTargetsNavigation ? "Navigation" : screenName,
+            userMessageId: userMessage.id,
+            deterministicStyleEdit: {
+              kind: deterministicStyleIntent.kind,
+              tokenPaths: deterministicStyleIntent.tokenPaths,
+              operationCount: deterministicStyleIntent.operations.length,
+              reason: deterministicStyleIntent.reason,
+            },
+            editJob: {
+              status: "completed",
+              targetType: requestTargetsNavigation ? "navigation" : "screen",
+              screenId: targetScreenId,
+              drawgleId: activeSelectionDrawgleId,
+            },
+            agentStep: buildQueuedAgentStep({
+              kind: requestTargetsNavigation ? "navigation" : "edit",
+              status: "completed",
+              title: `Updated ${deterministicTargetLabel}`,
+              detail: modelContent,
+              targetLabel: deterministicTargetLabel,
+              processLines: [
+                "Matched your request to deterministic project-token edits.",
+                "Saved the updated target.",
+              ],
+            }),
+            agentState: makeAgentState({
+              kind: "last_actionable_request",
+              instruction: resolvedInstruction,
+              missingFields: null,
+              targetCandidates: null,
+              lastKnownTarget,
+              message: null,
+            }),
+          },
+        });
 
-      const completionContent = changed
-        ? `Done - I updated ${deterministicTargetLabel}. What do you think?`
-        : `I checked ${deterministicTargetLabel}, but there was no material style change to save.`;
-      const completionMessage = await insertProjectMessage(admin, {
-        projectId: payload.projectId,
-        ownerId: user.id,
-        screenId: targetScreenId,
-        role: "model",
-        content: completionContent,
-        messageType: changed ? "chat" : "error",
-        metadata: {
-          ...executionRouterMetadata,
-          ui: { variant: changed ? "chat" : "error" },
-          action: "edit_completion",
+        const completionContent = `Done - I updated ${deterministicTargetLabel}. What do you think?`;
+        const completionMessage = await insertProjectMessage(admin, {
+          projectId: payload.projectId,
+          ownerId: user.id,
+          screenId: targetScreenId,
+          role: "model",
+          content: completionContent,
+          messageType: "chat",
+          metadata: {
+            ...executionRouterMetadata,
+            ui: { variant: "chat" },
+            action: "edit_completion",
+            userMessageId: userMessage.id,
+            completionForMessageId: modelMessage.id,
+            screenName: requestTargetsNavigation ? "Navigation" : screenName,
+          },
+        });
+
+        await persistProjectMessageMemoryPair({
+          admin,
           userMessageId: userMessage.id,
-          completionForMessageId: modelMessage.id,
-          screenName: requestTargetsNavigation ? "Navigation" : screenName,
-        },
-      });
+          userContent: prompt || "[image]",
+          modelMessageId: preActionMessage?.id ?? completionMessage.id,
+          modelContent: preActionMessage?.content ?? completionContent,
+        }).catch((error) => {
+          console.error("Failed to persist deterministic token edit memory", error);
+        });
 
-      await persistProjectMessageMemoryPair({
-        admin,
-        userMessageId: userMessage.id,
-        userContent: prompt || "[image]",
-        modelMessageId: preActionMessage?.id ?? completionMessage.id,
-        modelContent: preActionMessage?.content ?? completionContent,
-      }).catch((error) => {
-        console.error("Failed to persist deterministic token edit memory", error);
-      });
-
-      return NextResponse.json({
-        intent: "modify_screen",
-        deterministic: true,
-        targetType: requestTargetsNavigation ? "navigation" : "screen",
-        screenId: targetScreenId,
-        routerDecision: executionRouterDecision,
-      });
+        return NextResponse.json({
+          intent: "modify_screen",
+          deterministic: true,
+          targetType: requestTargetsNavigation ? "navigation" : "screen",
+          screenId: targetScreenId,
+          routerDecision: executionRouterDecision,
+        });
+      } else {
+        await updateAgentProgress({
+          step: buildAgentProgressStep({
+            title: "Transitioning to AI Editor",
+            detail: `Direct style edits matched no tokens on ${deterministicTargetLabel}. Falling back to deep AI generation.`,
+            targetLabel: deterministicTargetLabel,
+            processLines: [
+              ...progressLines(),
+              "Deterministic style rules did not result in a state change.",
+              "Transitioning style change to creative AI generation...",
+            ],
+          }),
+          metadata: executionRouterMetadata,
+        });
+      }
     }
 
     const activityKey = `edit:${userMessage.id}`;
