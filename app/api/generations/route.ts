@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { normalizeDesignTokens } from "@/lib/design-tokens";
+import { getDesignStylePack, isDesignStyleId, summarizeDesignStyle } from "@/lib/generation/design-styles";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
@@ -36,6 +37,7 @@ const requestSchema = z.object({
     .nullable()
     .optional(),
   imageReferenceMode: z.enum(["recreate", "style"]).optional().default("recreate"),
+  designStyleId: z.string().nullable().optional(),
   plannedScreens: z
     .array(
       z.object({
@@ -130,6 +132,11 @@ const requestSchema = z.object({
         motionTone: z.string().trim().min(1).max(2400),
         avoid: z.array(z.string().trim().min(1).max(600)).min(1).max(12),
       }).nullable().optional(),
+      designStyle: z.object({
+        id: z.string(),
+        label: z.string(),
+        version: z.number(),
+      }).nullable().optional(),
     })
     .optional(),
   designTokens: z.unknown().nullable().optional(),
@@ -212,12 +219,20 @@ export async function POST(request: Request) {
     }
 
     const payload = requestSchema.parse(await request.json());
+    const designStyle = isDesignStyleId(payload.designStyleId) && !payload.image
+      ? getDesignStylePack(payload.designStyleId)
+      : null;
     const ownerId = authData.user.id;
     const requestedDesignTokens = payload.designTokens
       ? normalizeDesignTokens(payload.designTokens as DesignTokens)
       : null;
     const plannedScreens = (payload.plannedScreens ?? null) as ScreenPlan[] | null;
-    const projectCharter = (payload.projectCharter ?? null) as ProjectCharter | null;
+    const projectCharter = payload.projectCharter
+      ? ({
+          ...(payload.projectCharter as ProjectCharter),
+          designStyle: (payload.projectCharter as ProjectCharter).designStyle ?? summarizeDesignStyle(designStyle),
+        } satisfies ProjectCharter)
+      : null;
     const navigationArchitecture = (payload.navigationArchitecture ?? projectCharter?.navigationArchitecture ?? null) as NavigationArchitecture | null;
     const navigationPlan = (payload.navigationPlan ?? null) as NavigationPlan | null;
     let designTokens = requestedDesignTokens;
@@ -335,6 +350,8 @@ export async function POST(request: Request) {
           requestedFrom: payload.sourceGenerationRunId ? "retry" : "nextjs-route",
           sourceGenerationRunId: payload.sourceGenerationRunId ?? null,
           requestedImageReferenceMode: payload.imageReferenceMode,
+          requestedDesignStyleId: designStyle?.id ?? null,
+          designStyle: summarizeDesignStyle(designStyle),
           navigationArchitecture,
           navigationPlan,
         } as never,
@@ -359,6 +376,7 @@ export async function POST(request: Request) {
         prompt: payload.prompt,
         imagePath,
         imageReferenceMode: payload.imageReferenceMode as ImageReferenceMode,
+        designStyleId: designStyle?.id ?? null,
         designTokens,
         plannedScreens,
         requiresBottomNav: payload.requiresBottomNav,

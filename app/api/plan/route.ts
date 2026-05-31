@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { assembleProjectContext } from "@/lib/generation/context";
 import { loadCuratedStyleReferenceImage, matchCuratedStyleReference } from "@/lib/generation/curated-style-references";
+import { getDesignStylePack, isDesignStyleId } from "@/lib/generation/design-styles";
 import { planUiFlow } from "@/lib/generation/service";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -22,6 +23,7 @@ const requestSchema = z.object({
     .nullable()
     .optional(),
   imageReferenceMode: z.enum(["recreate", "style"]).optional().default("recreate"),
+  designStyleId: z.string().nullable().optional(),
   designTokens: z.unknown().nullable().optional(),
   planningMode: z.enum(["project", "single-screen"]).optional().default("project"),
 }).superRefine((value, ctx) => {
@@ -48,6 +50,7 @@ export async function POST(req: Request) {
     }
 
     const payload = requestSchema.parse(await req.json());
+    const designStyle = isDesignStyleId(payload.designStyleId) ? getDesignStylePack(payload.designStyleId) : null;
 
     let projectContext: string | null = null;
     let existingCharter: ProjectCharter | null = null;
@@ -97,7 +100,10 @@ export async function POST(req: Request) {
       ),
     );
 
-    if (!referenceImage && hasExistingProjectVisualMemory) {
+    if (!referenceImage && designStyle) {
+      referenceMode = "curated_style";
+      referenceId = designStyle.id;
+    } else if (!referenceImage && hasExistingProjectVisualMemory) {
       referenceMode = "user_style";
     } else if (!referenceImage) {
       const match = matchCuratedStyleReference({
@@ -125,6 +131,7 @@ export async function POST(req: Request) {
       image: referenceImage,
       referenceMode,
       referenceId,
+      designStyle,
       designTokens: (payload.designTokens ?? null) as DesignTokens | null,
       projectContext,
       existingCharter,

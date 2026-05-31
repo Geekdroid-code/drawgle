@@ -324,6 +324,47 @@ export interface DesignTokens {
   [key: string]: JsonValue | undefined;
 }
 
+export type DesignStyleId =
+  | "modern-light"
+  | "modern-dark"
+  | "editorial-minimal"
+  | "soft-clay"
+  | "neo-brutal"
+  | "luxury-quiet"
+  | "cyberpunk-command"
+  | "glass-utility"
+  | "playful-whimsical"
+  | "data-command";
+
+export type DesignStyleReferenceRole = "visual_dna" | "component_craft" | "navigation" | "layout";
+
+export interface DesignStylePack {
+  id: DesignStyleId;
+  label: string;
+  version: number;
+  premiumIntent: string;
+  bestFor: string[];
+  avoidFor?: string[];
+  tokenSeed: Partial<DesignTokens>;
+  creativeDirectionSeed: Partial<CreativeDirection>;
+  layoutGrammar: string[];
+  componentRecipes: string[];
+  navigationRecipes: string[];
+  assetAndImageryRules: string[];
+  densityRules: string[];
+  antiPatterns: string[];
+  referenceImages?: Array<{
+    imageUrl: string;
+    role: DesignStyleReferenceRole;
+  }>;
+}
+
+export interface ProjectDesignStyleSummary {
+  id: DesignStyleId;
+  label: string;
+  version: number;
+}
+
 export interface CreativeDirection {
   conceptName: string;
   styleEssence: string;
@@ -422,6 +463,7 @@ export interface ProjectCharter {
   keyFeatures: string[];
   designRationale: string;
   creativeDirection?: CreativeDirection | null;
+  designStyle?: ProjectDesignStyleSummary | null;
   referenceScreens?: ProjectCharterReferenceScreen[];
   designSystemSignals?: ProjectCharterDesignSystemSignals | null;
   planningDiagnostics?: ProjectCharterPlanningDiagnostics | null;
@@ -677,6 +719,7 @@ export interface BuildScreenInput {
   referenceMode?: ReferenceMode;
   referenceSource?: ReferenceSource | null;
   referenceId?: string | null;
+  designStyle?: DesignStylePack | null;
   requiresBottomNav: boolean;
   navigationArchitecture?: NavigationArchitecture | null;
   navigationPlan?: NavigationPlan | null;

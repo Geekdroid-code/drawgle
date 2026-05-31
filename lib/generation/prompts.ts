@@ -1,5 +1,6 @@
 import { createNavigationArchitecture, resolveScreenChromePolicy } from "@/lib/navigation";
 import { normalizeDesignTokens } from "@/lib/design-tokens";
+import { formatDesignStyleContract } from "@/lib/generation/design-styles";
 import { DRAWGLE_GENERATION_COMPLETE_SENTINEL } from "@/lib/generation/screen-quality";
 import { buildTokenPromptContext } from "@/lib/token-runtime";
 import type { BuildScreenInput, DesignTokens, NavigationArchitecture, ScreenAssetManifest, ScreenPlan } from "@/lib/types";
@@ -644,13 +645,14 @@ const hasChartBuildIntent = ({
 
 const buildScreenInstruction = ({
   designTokens,
+  designStyle,
   screenPlan,
   prompt,
   requiresBottomNav,
   navigationArchitecture,
   navigationPlan,
   assetManifest,
-}: Pick<BuildScreenInput, "designTokens" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }, mode: "recreate" | "style") => {
+}: Pick<BuildScreenInput, "designTokens" | "designStyle" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }, mode: "recreate" | "style") => {
   const fontFamily = resolveToken(designTokens, "typography.font_family", "sans-serif");
   const safeTop = resolveToken(designTokens, "mobile_layout.safe_area_top", "16px");
   const safeBottom = resolveToken(designTokens, "mobile_layout.safe_area_bottom", "16px");
@@ -658,6 +660,7 @@ const buildScreenInstruction = ({
   const textHigh = resolveToken(designTokens, "color.text.high_emphasis", "#000000");
   const resolvedNavigationArchitecture = createNavigationArchitecture({ navigationArchitecture, requiresBottomNav });
   const hasAssetEntries = Boolean(assetManifest?.length);
+  const designStyleContract = formatDesignStyleContract(designStyle);
   const chartBuildInstruction = hasChartBuildIntent({ screenPlan, prompt }) ? `${CHART_BUILD_RULE}\n` : "";
   const screenChrome = resolveScreenChromePolicy({
     screenPlan,
@@ -736,6 +739,8 @@ Do NOT invent additional radius tiers, border widths, or shadow strengths. Use o
 STRICT DESIGN CONTRACT:
 ${buildStrictDesignContract(designTokens)}
 
+${designStyleContract ? `STYLE CONTRACT:\n${designStyleContract}\n` : ""}
+
 NAVIGATION ARCHITECTURE CONTRACT:
 ${buildNavigationArchitectureContract({
   navigationArchitecture: resolvedNavigationArchitecture,
@@ -769,10 +774,10 @@ OUTPUT RULES:
 - End with sentinel on its own final line: ${DRAWGLE_GENERATION_COMPLETE_SENTINEL}`;
 };
 
-export const buildRecreateScreenInstruction = (input: Pick<BuildScreenInput, "designTokens" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }) =>
+export const buildRecreateScreenInstruction = (input: Pick<BuildScreenInput, "designTokens" | "designStyle" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }) =>
   buildScreenInstruction(input, "recreate");
 
-export const buildStyleScreenInstruction = (input: Pick<BuildScreenInput, "designTokens" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }) =>
+export const buildStyleScreenInstruction = (input: Pick<BuildScreenInput, "designTokens" | "designStyle" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }) =>
   buildScreenInstruction(input, "style");
 
 export const buildSystemInstruction = buildRecreateScreenInstruction;

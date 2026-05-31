@@ -36,6 +36,7 @@ export interface PlanRow {
     credits?: number | null
     currency?: string | null
     dodo_product_id: string
+    metadata?: any
 }
 
 interface ManageSubscriptionProps {
@@ -98,29 +99,34 @@ export default function ManageSubscription({ subscription, plans, userEmail }: M
 
     // Map pricing plans to BillingSDK Plan type
     const billingPlans = useMemo<BSDKPlan[]>(() => {
-        const getPlanFeatures = (name: string, credits: number) => {
+        const getPlanFeatures = (name: string, credits: number, metadata?: any) => {
+            if (metadata && Array.isArray(metadata.features)) {
+                return metadata.features.map((f: string) => ({ name: f, icon: 'check' }))
+            }
             const lower = name.toLowerCase()
-            if (lower === 'lite') {
+            const screens = Math.floor(credits / 20)
+            if (lower === 'starter') {
                 return [
-                    { name: `${credits} AI generation credits/mo`, icon: 'check' },
-                    { name: 'Build ~20 screens per month', icon: 'check' },
+                    { name: `${credits.toLocaleString()} AI generation credits/mo`, icon: 'check' },
+                    { name: `Build ~${screens} screens per month`, icon: 'check' },
                     { name: 'Free blueprint brief planner', icon: 'check' },
                     { name: 'Tailwind CSS component exports', icon: 'check' },
                     { name: 'Figma design system matching', icon: 'check' },
                 ]
             }
-            if (lower === 'starter') {
+            if (lower === 'pro') {
                 return [
-                    { name: `${credits} AI generation credits/mo`, icon: 'check' },
-                    { name: 'Build ~50 screens per month', icon: 'check' },
+                    { name: `${credits.toLocaleString()} AI generation credits/mo`, icon: 'check' },
+                    { name: `Build ~${screens} screens per month`, icon: 'check' },
                     { name: 'Style reference image matching', icon: 'check' },
                     { name: 'Priority AI generation speed', icon: 'check' },
-                    { name: 'All Lite features included', icon: 'check' },
+                    { name: 'All Starter features included', icon: 'check' },
                 ]
             }
+            // Studio / Pro Agency fallback
             return [
-                { name: `${credits} AI generation credits/mo`, icon: 'check' },
-                { name: 'Build ~333 screens per month', icon: 'check' },
+                { name: `${credits.toLocaleString()} AI generation credits/mo`, icon: 'check' },
+                { name: `Build ~${screens} screens per month`, icon: 'check' },
                 { name: 'Multi-screen system planning', icon: 'check' },
                 { name: 'Unlimited Figma exports', icon: 'check' },
                 { name: 'Priority developer support', icon: 'check' },
@@ -136,7 +142,7 @@ export default function ManageSubscription({ subscription, plans, userEmail }: M
             yearlyPrice: String((p.price ?? 0) * 12),
             buttonText: 'Select',
             credits: p.credits ?? 0,
-            features: getPlanFeatures(p.name, p.credits ?? 0),
+            features: getPlanFeatures(p.name, p.credits ?? 0, p.metadata),
         }))
     }, [plans])
 

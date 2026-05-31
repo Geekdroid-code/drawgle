@@ -17,6 +17,7 @@ export interface PlanRow {
   credits: number | null
   currency: string | null
   dodo_product_id: string
+  metadata?: any
 }
 
 interface PlanGridProps {
@@ -78,30 +79,36 @@ export default function PlanGrid({ plans, subscription, isAuthenticated }: PlanG
   }
 
   // Define tailored features for each tier to display in the grid
-  const getFeatures = (planName: string) => {
-    const name = planName.toLowerCase()
-    if (name === 'lite') {
+  const getFeatures = (plan: PlanRow) => {
+    if (plan.metadata && Array.isArray(plan.metadata.features)) {
+      return plan.metadata.features
+    }
+    const name = plan.name.toLowerCase()
+    const credits = plan.credits ?? 0
+    const screens = Math.floor(credits / 20)
+
+    if (name === 'starter') {
       return [
-        '600 AI generation credits/mo',
-        'Build ~20 screens per month',
+        `${credits.toLocaleString()} AI generation credits/mo`,
+        `Build ~${screens} screens per month`,
         'Free blueprint brief planner',
         'Tailwind CSS component exports',
         'Figma design system matching',
       ]
     }
-    if (name === 'starter') {
+    if (name === 'pro') {
       return [
-        '1,500 AI generation credits/mo',
-        'Build ~50 screens per month',
+        `${credits.toLocaleString()} AI generation credits/mo`,
+        `Build ~${screens} screens per month`,
         'Style reference image matching',
         'Priority AI generation speed',
-        'All Lite features included',
+        'All Starter features included',
       ]
     }
-    // Pro
+    // Studio / Pro Agency fallback
     return [
-      '10,000 AI generation credits/mo',
-      'Build ~333 screens per month',
+      `${credits.toLocaleString()} AI generation credits/mo`,
+      `Build ~${screens} screens per month`,
       'Multi-screen system planning',
       'Unlimited Figma exports',
       'Priority developer support',
@@ -128,8 +135,8 @@ export default function PlanGrid({ plans, subscription, isAuthenticated }: PlanG
       <div className="grid md:grid-cols-3 gap-6 items-stretch">
         {plans.map((p) => {
           const isActive = activePlanName?.toLowerCase() === p.name.toLowerCase()
-          const features = getFeatures(p.name)
-          const isStarter = p.name.toLowerCase() === 'starter'
+          const features = getFeatures(p)
+          const isPro = p.name.toLowerCase() === 'pro'
 
           return (
             <Card
@@ -137,7 +144,7 @@ export default function PlanGrid({ plans, subscription, isAuthenticated }: PlanG
               className={`relative flex flex-col overflow-hidden bg-[var(--dg-surface)] transition-all duration-200 border ${
                 isActive
                   ? 'ring-2 ring-[#1b7fcc] border-transparent shadow-[0_8px_30px_rgba(27,127,204,0.12)]'
-                  : isStarter
+                  : isPro
                   ? 'border-[#1b7fcc]/40 dark:border-[#1b7fcc]/20 shadow-[0_4px_20px_rgba(0,0,0,0.02)]'
                   : 'border-[var(--dg-border)] hover:border-[var(--dg-border-strong)]'
               }`}
@@ -148,8 +155,8 @@ export default function PlanGrid({ plans, subscription, isAuthenticated }: PlanG
                   Active
                 </div>
               )}
-              {!isActive && isStarter && (
-                <div className="absolute top-0 right-0 bg-[#1b7fcccc]/20 text-[#1b7fcc] dark:text-[#38bdf8] text-[9px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-bl-lg">
+              {!isActive && isPro && (
+                <div className="absolute top-0 right-0 bg-[#1b7fcc]/20 text-[#1b7fcc] dark:text-[#38bdf8] text-[9px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-bl-lg">
                   Most Popular
                 </div>
               )}

@@ -5,6 +5,7 @@ import { logger, runs, streams, task } from "@trigger.dev/sdk";
 import { ensureDrawgleIds } from "@/lib/drawgle-dom";
 import { geminiPolicyForTask } from "@/lib/ai/model-policy";
 import { loadCuratedStyleReferenceImage, matchCuratedStyleReference } from "@/lib/generation/curated-style-references";
+import { getDesignStylePack, isDesignStyleId, summarizeDesignStyle } from "@/lib/generation/design-styles";
 import { indexScreenCode } from "@/lib/generation/block-index";
 import { assembleProjectContext } from "@/lib/generation/context";
 import { generateEmbedding, generateScreenSummary } from "@/lib/generation/embeddings";
@@ -33,7 +34,7 @@ import { tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { adminCreditService } from "@/lib/credits";
 import type { Database } from "@/lib/supabase/database.types";
-import type { DesignTokens, GenerationJournalMetadata, ImageReferenceMode, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, PromptImagePayload, ProjectCharter, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenPlan } from "@/lib/types";
+import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, ImageReferenceMode, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, PromptImagePayload, ProjectCharter, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenPlan } from "@/lib/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -45,6 +46,7 @@ type GenerateUiFlowPayload = {
   designTokens?: DesignTokens | null;
   imagePath?: string | null;
   imageReferenceMode?: ImageReferenceMode;
+  designStyleId?: string | null;
   plannedScreens?: ScreenPlan[] | null;
   requiresBottomNav?: boolean;
   navigationArchitecture?: NavigationArchitecture | null;
@@ -64,6 +66,8 @@ type BuildScreenTaskPayload = {
   referenceMode?: ReferenceMode;
   referenceSource?: ReferenceSource | null;
   referenceId?: string | null;
+  designStyleId?: string | null;
+  designStyle?: DesignStylePack | null;
   requiresBottomNav: boolean;
   navigationArchitecture?: NavigationArchitecture | null;
   navigationPlan?: NavigationPlan | null;
@@ -480,6 +484,7 @@ async function collectScreenBuild(input: BuildScreenTaskPayload, screenPlan: Scr
     buildScreenStream({
       screenPlan,
       designTokens: input.designTokens,
+      designStyle: input.designStyle,
       prompt: input.prompt,
       image: input.image,
       referenceMode: input.referenceMode,
@@ -530,6 +535,7 @@ async function collectNonStreamingScreenBuild(input: BuildScreenTaskPayload, scr
   for await (const chunk of buildScreenStream({
     screenPlan,
     designTokens: input.designTokens,
+    designStyle: input.designStyle,
     prompt: input.prompt,
     image: input.image,
     referenceMode: input.referenceMode,
@@ -1120,6 +1126,13 @@ export const generateUiFlowTask = task({
         userPrompt: payload.prompt,
       }),
     ]);
+    const designStyle = !uploadedPromptImage
+      ? getDesignStylePack(
+          isDesignStyleId(payload.designStyleId)
+            ? payload.designStyleId
+            : payload.projectCharter?.designStyle?.id ?? existingCharter?.designStyle?.id ?? null,
+        )
+      : null;
     let promptImage = uploadedPromptImage;
     let referenceMode: ReferenceMode = uploadedPromptImage && payload.imageReferenceMode === "style"
       ? "user_style"
@@ -1127,7 +1140,11 @@ export const generateUiFlowTask = task({
     let referenceSource: ReferenceSource | null = uploadedPromptImage ? "user_upload" : null;
     let referenceId: string | null = null;
 
-    if (!uploadedPromptImage) {
+    if (!uploadedPromptImage && designStyle) {
+      referenceMode = "curated_style";
+      referenceSource = "curated";
+      referenceId = designStyle.id;
+    } else if (!uploadedPromptImage) {
       const match = matchCuratedStyleReference({
         prompt: payload.prompt,
         planningMode: payload.planningMode ?? "project",
@@ -1167,9 +1184,11 @@ export const generateUiFlowTask = task({
 
     await mergeGenerationRunMetadata(admin, payload.generationRunId, {
       requestedImageReferenceMode: payload.imageReferenceMode ?? "recreate",
+      requestedDesignStyleId: payload.designStyleId ?? null,
       referenceMode,
       referenceSource,
       referenceId,
+      designStyle: summarizeDesignStyle(designStyle),
     });
 
     if (!designTokens) {
@@ -1193,6 +1212,7 @@ export const generateUiFlowTask = task({
         image: promptImage,
         referenceMode,
         referenceId,
+        designStyle,
         llmLog: (label, data) => logger.info(label, data),
       });
 
@@ -1228,6 +1248,7 @@ export const generateUiFlowTask = task({
         ? fallbackProjectCharter({
             prompt: payload.prompt,
             image: referenceMode === "user_recreate" ? promptImage : null,
+            designStyle,
             navigationArchitecture: requestedNavigationArchitecture,
             existingCharter,
           })
@@ -1268,6 +1289,7 @@ export const generateUiFlowTask = task({
           image: promptImage,
           referenceMode,
           referenceId,
+          designStyle,
           designTokens,
           projectContext: planningContext,
           existingCharter: requestedCharter,
@@ -1301,6 +1323,7 @@ export const generateUiFlowTask = task({
       image: referenceMode === "user_recreate" ? promptImage : null,
       referenceMode,
       referenceId,
+      designStyle,
       projectCharter: plan.charter,
       llmLog: (label, data) => logger.info(label, data),
     });
@@ -1333,6 +1356,7 @@ export const generateUiFlowTask = task({
       navigationArchitecture: plan.navigationArchitecture,
       navigationPlan: plan.navigationPlan,
       charter: plan.charter,
+      designStyle: summarizeDesignStyle(designStyle),
       designTokenSnapshot: designTokens ?? null,
       plannedScreens: plan.screens.map((screenPlan) => ({
         name: screenPlan.name,
@@ -1523,6 +1547,8 @@ export const generateUiFlowTask = task({
             referenceMode,
             referenceSource,
             referenceId,
+            designStyleId: designStyle?.id ?? null,
+            designStyle,
             requiresBottomNav: plan.requiresBottomNav,
             navigationArchitecture: plan.navigationArchitecture,
             navigationPlan: plan.navigationPlan,

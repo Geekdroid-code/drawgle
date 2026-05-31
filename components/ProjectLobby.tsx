@@ -23,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCredits } from "@/hooks/useCredits";
 import { PricingDialog } from "@/components/PricingDialog";
+import { DESIGN_STYLE_AUTO_ID, DESIGN_STYLE_OPTIONS, type DesignStyleOptionId } from "@/lib/generation/design-styles";
 import { describeNavigationArchitecture } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import type {
@@ -36,7 +37,6 @@ import type {
 
 type LobbyStage = "brief" | "design" | "plan";
 type ApiErrorPayload = { error?: unknown; details?: unknown };
-type BriefStyleId = "auto" | "neo-brutalism" | "glassmorphism" | "playful-whimsical";
 type TextShimmerWaveProps = {
   children: string;
   className?: string;
@@ -54,42 +54,78 @@ type TextShimmerWaveProps = {
 };
 
 const briefStyles: Array<{
-  id: BriefStyleId;
+  id: DesignStyleOptionId;
   label: string;
   previewClassName: string;
   previewContent: ReactNode;
-}> = [
-  {
-    id: "auto",
-    label: "Auto",
+}> = DESIGN_STYLE_OPTIONS.map((style) => {
+  const previews: Record<DesignStyleOptionId, { previewClassName: string; previewContent: ReactNode }> = {
+    auto: {
     previewClassName: "border-neutral-200 bg-[#f4f3ed]",
     previewContent: <Sparkles className="h-5 w-5 text-neutral-400" />,
-  },
-  {
-    id: "neo-brutalism",
-    label: "Neo-Brutalism",
+    },
+    "modern-light": {
+      previewClassName: "border-neutral-200 bg-[#f8fafc]",
+      previewContent: <span className="rounded-full bg-[#111827] px-3 py-1 text-[17px] font-black tracking-normal text-white">Aa</span>,
+    },
+    "modern-dark": {
+      previewClassName: "border-neutral-800 bg-[#090b10]",
+      previewContent: <span className="text-[18px] font-extrabold tracking-normal text-[#8ab4ff]">Aa</span>,
+    },
+    "editorial-minimal": {
+      previewClassName: "border-[#e5ded4] bg-[#fbfaf7]",
+      previewContent: <span className="font-serif text-[19px] font-semibold tracking-normal text-[#151412]">Aa</span>,
+    },
+    "soft-clay": {
+      previewClassName: "border-[#ead8c8] bg-[#fff4e7] shadow-[inset_4px_4px_10px_rgba(121,87,56,0.12)]",
+      previewContent: <span className="text-[18px] font-black tracking-normal text-[#f59a5f]">Aa</span>,
+    },
+    "neo-brutal": {
     previewClassName: "border-neutral-200 bg-black",
     previewContent: <span className="text-[18px] font-black tracking-normal text-[#ccff00]">Aa</span>,
-  },
-  {
-    id: "glassmorphism",
-    label: "Glassmorphism",
-    previewClassName: "border-neutral-200 bg-gradient-to-br from-indigo-900 via-purple-800 to-fuchsia-900",
-    previewContent: <span className="font-serif text-[18px] font-medium italic tracking-normal text-white/90">Aa</span>,
-  },
-  {
-    id: "playful-whimsical",
-    label: "Playful Whimsical",
-    previewClassName: "border-neutral-200 bg-[#ffff80]",
-    previewContent: (
-      <>
-        <span className="absolute -left-1.5 -top-1.5 h-6 w-6 rounded-full bg-pink-400" />
-        <span className="absolute bottom-1 right-2 h-2.5 w-2.5 rounded-full bg-cyan-400" />
-        <span className="relative z-10 text-[18px] font-bold tracking-normal text-pink-600">Aa</span>
-      </>
-    ),
-  },
-];
+    },
+    "luxury-quiet": {
+      previewClassName: "border-[#373127] bg-[#10100f]",
+      previewContent: <span className="font-serif text-[20px] font-semibold tracking-normal text-[#d6b56d]">Aa</span>,
+    },
+    "cyberpunk-command": {
+      previewClassName: "border-[#16313b] bg-[#030608] shadow-[inset_0_0_18px_rgba(32,247,255,0.18)]",
+      previewContent: <span className="text-[18px] font-black tracking-normal text-[#20f7ff]">AA</span>,
+    },
+    "glass-utility": {
+      previewClassName: "border-white/80 bg-gradient-to-br from-[#eef5ff] via-[#dfeaff] to-[#c5d7ff]",
+      previewContent: <span className="rounded-full border border-white/80 bg-white/60 px-3 py-1 text-[17px] font-bold tracking-normal text-[#4f46e5] shadow-sm">Aa</span>,
+    },
+    "playful-whimsical": {
+      previewClassName: "border-neutral-200 bg-[#ffff80]",
+      previewContent: (
+        <>
+          <span className="absolute -left-1.5 -top-1.5 h-6 w-6 rounded-full bg-pink-400" />
+          <span className="absolute bottom-1 right-2 h-2.5 w-2.5 rounded-full bg-cyan-400" />
+          <span className="relative z-10 text-[18px] font-bold tracking-normal text-pink-600">Aa</span>
+        </>
+      ),
+    },
+    "data-command": {
+      previewClassName: "border-[#dfe5ee] bg-[#ffffff]",
+      previewContent: (
+        <>
+          <span className="absolute left-2 top-2 h-2 w-8 rounded-full bg-[#155eef]" />
+          <span className="absolute bottom-2 left-2 h-5 w-2 rounded-sm bg-[#12b76a]" />
+          <span className="absolute bottom-2 left-5 h-8 w-2 rounded-sm bg-[#155eef]" />
+          <span className="absolute bottom-2 left-8 h-4 w-2 rounded-sm bg-[#8d98a8]" />
+          <span className="relative z-10 ml-auto mr-3 text-[17px] font-black tracking-normal text-[#111827]">Aa</span>
+        </>
+      ),
+    },
+  };
+
+  return {
+    id: style.id,
+    label: style.label,
+    ...previews[style.id],
+  };
+});
 
 const imageReferenceModes: Array<{
   id: ImageReferenceMode;
@@ -202,7 +238,7 @@ export function ProjectLobby({
   const [prompt, setPrompt] = useState(initialPrompt);
   const [image, setImage] = useState<PromptImagePayload | null>(null);
   const [imageReferenceMode, setImageReferenceMode] = useState<ImageReferenceMode>("recreate");
-  const [selectedBriefStyle, setSelectedBriefStyle] = useState<BriefStyleId>("auto");
+  const [selectedBriefStyle, setSelectedBriefStyle] = useState<DesignStyleOptionId>(DESIGN_STYLE_AUTO_ID);
   const [isThemePickerOpen, setIsThemePickerOpen] = useState(false);
   const [designTokens, setDesignTokens] = useState<DesignTokens | null>(null);
   const [plan, setPlan] = useState<PlannedUiFlow | null>(null);
@@ -218,6 +254,7 @@ export function ProjectLobby({
 
   const isBriefReady = Boolean(prompt.trim() || image);
   const selectedBriefStyleLabel = briefStyles.find((style) => style.id === selectedBriefStyle)?.label ?? "Auto";
+  const selectedDesignStyleId = !image && selectedBriefStyle !== DESIGN_STYLE_AUTO_ID ? selectedBriefStyle : null;
   const activeImageModeDescription =
     imageReferenceModes.find((mode) => mode.id === imageReferenceMode)?.description ?? "";
 
@@ -232,7 +269,7 @@ export function ProjectLobby({
       const base64String = reader.result as string;
       const base64Data = base64String.split(",")[1];
       setImage({ data: base64Data, mimeType: file.type });
-      setSelectedBriefStyle("auto");
+      setSelectedBriefStyle(DESIGN_STYLE_AUTO_ID);
       setIsThemePickerOpen(false);
     };
     reader.readAsDataURL(file);
@@ -268,6 +305,7 @@ export function ProjectLobby({
           prompt: prompt.trim(),
           image,
           imageReferenceMode,
+          designStyleId: selectedDesignStyleId,
         }),
       });
 
@@ -300,6 +338,7 @@ export function ProjectLobby({
           prompt: prompt.trim(),
           image,
           imageReferenceMode,
+          designStyleId: selectedDesignStyleId,
           designTokens,
         }),
       });
@@ -335,6 +374,7 @@ export function ProjectLobby({
           prompt: prompt.trim(),
           image,
           imageReferenceMode,
+          designStyleId: selectedDesignStyleId,
           designTokens,
           plannedScreens: plan.screens,
           requiresBottomNav: plan.requiresBottomNav,

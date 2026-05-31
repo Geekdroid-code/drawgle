@@ -13,13 +13,14 @@ type PlanRow = {
     credits: number | null
     currency: string | null
     dodo_product_id: string
+    metadata: any
 }
 
 async function getPlans(): Promise<PlanRow[]> {
     const supabase = await createClient()
     const { data, error } = await supabase
         .from('dodo_pricing_plans')
-        .select('id, name, description, price, credits, currency, dodo_product_id')
+        .select('id, name, description, price, credits, currency, dodo_product_id, metadata')
         .eq('is_active', true)
         .order('price', { ascending: true })
     if (error) return []

@@ -7,6 +7,7 @@ import { geminiPolicyForTask } from "@/lib/ai/model-policy";
 import { hasApprovedDesignTokens, normalizeDesignTokens } from "@/lib/design-tokens";
 import { applyEdits } from "@/lib/diff-engine";
 import { buildScopedEditContext } from "@/lib/generation/block-index";
+import { formatDesignStyleContract, getDesignStylePack, summarizeDesignStyle } from "@/lib/generation/design-styles";
 import { createNavigationArchitecture, deriveRequiresBottomNav, resolveScreenChromePolicy } from "@/lib/navigation";
 import {
   applyNavigationPlanToScreens,
@@ -33,6 +34,7 @@ import type {
   LlmInputSnapshot,
   LlmLogFn,
   CreativeDirection,
+  DesignStylePack,
   DesignTokenMetadata,
   DesignTokenValues,
   DesignTokens,
@@ -834,29 +836,41 @@ const buildScreenFamilyContract = ({
   referenceAnalysis,
   creativeDirection,
   designTokens,
+  designStyle,
   intentContract,
 }: {
   referenceAnalysis: ReferenceAnalysis | null;
   creativeDirection?: CreativeDirection | null;
   designTokens?: DesignTokens | null;
+  designStyle?: DesignStylePack | null;
   intentContract: GenerationIntentContract;
 }): ScreenFamilyContract => {
   const tokenColor = designTokens?.tokens?.color;
   const tokenRadius = designTokens?.tokens?.radii;
   const signals = referenceAnalysis?.designSystemSignals;
+  const styleRules = designStyle
+    ? [
+        ...designStyle.layoutGrammar.slice(0, 3),
+        ...designStyle.componentRecipes.slice(0, 3),
+        ...designStyle.densityRules.slice(0, 2),
+      ]
+    : [];
   return {
-    summary: creativeDirection?.styleEssence ?? referenceAnalysis?.overallVisualStyle ?? "Maintain one coherent mobile product visual system across all generated screens.",
-    surfaces: signals?.surfaces ?? [
+    summary: designStyle
+      ? `${designStyle.label}: ${designStyle.premiumIntent}`
+      : creativeDirection?.styleEssence ?? referenceAnalysis?.overallVisualStyle ?? "Maintain one coherent mobile product visual system across all generated screens.",
+    surfaces: signals?.surfaces ?? designStyle?.creativeDirectionSeed.surfaceLanguage ?? [
       tokenColor?.surface?.card ? `Use card surfaces from approved tokens such as ${tokenColor.surface.card}.` : "Use one shared card/surface language.",
       tokenRadius?.app ? `Preserve the approved app radius ${tokenRadius.app}.` : "Keep radius, shadow, border, and elevation consistent across screens.",
     ].join(" "),
-    typography: signals?.typography ?? "Use the same type scale, weight rhythm, label casing, and hierarchy across every screen.",
-    spacing: signals?.density ?? "Keep screen-edge padding, card padding, vertical rhythm, and grid gaps consistent with the reference/design tokens.",
+    typography: signals?.typography ?? designStyle?.creativeDirectionSeed.typographyMood ?? "Use the same type scale, weight rhythm, label casing, and hierarchy across every screen.",
+    spacing: signals?.density ?? designStyle?.densityRules.join(" ") ?? "Keep screen-edge padding, card padding, vertical rhythm, and grid gaps consistent with the reference/design tokens.",
     navigation: intentContract.visibleNavigationHandling === "inline_static_chrome"
       ? "Visible navigation from a one-screen recreate reference is static visual chrome inside that screen, not shared project navigation."
-      : "Shared navigation, when present, is derived from the approved screen slate and must not create additional screens.",
-    imagery: "Use bitmap imagery only when it is visible in the reference, explicitly requested, or truly required by the screen purpose; otherwise use CSS, icons, charts, and text structure.",
+      : designStyle?.navigationRecipes.join(" ") ?? "Shared navigation, when present, is derived from the approved screen slate and must not create additional screens.",
+    imagery: designStyle?.assetAndImageryRules.join(" ") ?? "Use bitmap imagery only when it is visible in the reference, explicitly requested, or truly required by the screen purpose; otherwise use CSS, icons, charts, and text structure.",
     consistencyRules: [
+      ...styleRules,
       ...(creativeDirection?.compositionPrinciples ?? []).slice(0, 4),
       ...(referenceAnalysis?.screenReferences[0]?.stylingCues ?? []).slice(0, 3),
       "Every planned screen must look like it belongs to the same product family while keeping a screen-specific composition.",
@@ -1107,6 +1121,7 @@ export const fallbackProjectCharter = ({
   referenceMode,
   referenceAnalysis,
   creativeDirection,
+  designStyle,
   navigationArchitecture,
   existingCharter,
 }: {
@@ -1115,6 +1130,7 @@ export const fallbackProjectCharter = ({
   referenceMode?: ReferenceMode | null;
   referenceAnalysis?: ReferenceAnalysis | null;
   creativeDirection?: CreativeDirection | null;
+  designStyle?: DesignStylePack | null;
   navigationArchitecture: NavigationArchitecture;
   existingCharter?: ProjectCharter | null;
 }): ProjectCharter => ({
@@ -1136,10 +1152,13 @@ export const fallbackProjectCharter = ({
   keyFeatures: existingCharter?.keyFeatures?.length ? existingCharter.keyFeatures : ["Primary workflow", "Supporting detail views"],
   designRationale: referenceAnalysis
     ? `Prioritize clarity, mobile ergonomics, and a coherent design system that preserves this visual DNA: ${referenceAnalysis.designSystemSignals.palette} ${referenceAnalysis.designSystemSignals.surfaces} ${referenceAnalysis.designSystemSignals.typography}`
+    : designStyle
+      ? `Prioritize clarity, mobile ergonomics, and the selected ${designStyle.label} style contract: ${designStyle.premiumIntent}`
     : existingCharter?.designRationale ?? "Prioritize clarity, mobile ergonomics, and a coherent design system that can scale across future screens.",
   creativeDirection: creativeDirection === undefined
     ? existingCharter?.creativeDirection ?? fallbackCreativeDirection({ prompt, referenceAnalysis })
     : creativeDirection,
+  designStyle: summarizeDesignStyle(designStyle) ?? existingCharter?.designStyle ?? null,
 });
 
 const truncateText = (value: string, maxLength: number) =>
@@ -1233,6 +1252,7 @@ const enrichProjectCharter = ({
   source,
   referenceAnalysis,
   referenceMode,
+  designStyle,
   navigationArchitecture,
   diagnostics,
 }: {
@@ -1240,6 +1260,7 @@ const enrichProjectCharter = ({
   source: NonNullable<ProjectCharter["charterSource"]>;
   referenceAnalysis?: ReferenceAnalysis | null;
   referenceMode?: ReferenceMode | null;
+  designStyle?: DesignStylePack | null;
   navigationArchitecture: NavigationArchitecture;
   diagnostics?: ProjectCharter["planningDiagnostics"] | null;
 }): ProjectCharter => ({
@@ -1251,6 +1272,7 @@ const enrichProjectCharter = ({
         : `Use the uploaded reference as a structural and stylistic blueprint. ${referenceAnalysis.overallVisualStyle}`
       : null),
   navigationArchitecture,
+  designStyle: summarizeDesignStyle(designStyle) ?? base.designStyle ?? null,
   referenceScreens: base.referenceScreens?.length ? base.referenceScreens : referenceScreensForCharter(referenceAnalysis),
   designSystemSignals: base.designSystemSignals ?? referenceAnalysis?.designSystemSignals ?? null,
   planningDiagnostics: diagnostics ?? base.planningDiagnostics ?? { source },
@@ -1264,6 +1286,7 @@ const salvageProjectCharterFromRawPlan = ({
   referenceMode,
   referenceAnalysis,
   creativeDirection,
+  designStyle,
   navigationArchitecture,
   existingCharter,
   diagnostics,
@@ -1274,6 +1297,7 @@ const salvageProjectCharterFromRawPlan = ({
   referenceMode?: ReferenceMode | null;
   referenceAnalysis?: ReferenceAnalysis | null;
   creativeDirection?: CreativeDirection | null;
+  designStyle?: DesignStylePack | null;
   navigationArchitecture: NavigationArchitecture;
   existingCharter?: ProjectCharter | null;
   diagnostics: NonNullable<ProjectCharter["planningDiagnostics"]>;
@@ -1284,6 +1308,7 @@ const salvageProjectCharterFromRawPlan = ({
     referenceMode,
     referenceAnalysis,
     creativeDirection,
+    designStyle,
     navigationArchitecture,
     existingCharter,
   });
@@ -1294,6 +1319,7 @@ const salvageProjectCharterFromRawPlan = ({
       source: "reference_fallback",
       referenceAnalysis,
       referenceMode,
+      designStyle,
       navigationArchitecture,
       diagnostics: { ...diagnostics, source: "reference_fallback" },
     });
@@ -1321,10 +1347,12 @@ const salvageProjectCharterFromRawPlan = ({
       keyFeatures: readTextArray({ value: rawCharter.keyFeatures ?? rawCharter.key_features, fallback: fallback.keyFeatures, maxItems: 20, maxLength: 400 }),
       designRationale: readTextField({ record: rawCharter, keys: ["designRationale", "design_rationale"], fallback: fallback.designRationale, maxLength: 8000 }),
       creativeDirection: rawCreativeDirection,
+      designStyle: summarizeDesignStyle(designStyle) ?? fallback.designStyle ?? null,
     },
     source: "partial_planner",
     referenceAnalysis,
     referenceMode,
+    designStyle,
     navigationArchitecture,
     diagnostics: { ...diagnostics, source: "partial_planner" },
   });
@@ -1777,11 +1805,13 @@ async function generateCreativeDirection({
   image,
   referenceMode,
   referenceAnalysis,
+  designStyle,
 }: {
   prompt: string;
   image?: PromptImagePayload | null;
   referenceMode?: ReferenceMode | null;
   referenceAnalysis?: ReferenceAnalysis | null;
+  designStyle?: DesignStylePack | null;
 }): Promise<ParsedCreativeDirection | null> {
   try {
     const ai = createGeminiClient();
@@ -1793,6 +1823,13 @@ async function generateCreativeDirection({
     const parts: Array<Record<string, unknown>> = [];
     const inlineImage = toInlineImage(image);
     const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
+    const designStyleContract = formatDesignStyleContract(designStyle);
+
+    if (designStyleContract) {
+      parts.push({
+        text: `${designStyleContract}\nArt direction rule: merge this style with the product domain and audience. Keep the style's structural grammar and anti-patterns visible in the final creative direction.`,
+      });
+    }
 
     if (inlineImage) {
       parts.push(inlineImage);
@@ -1844,6 +1881,7 @@ export async function planUiFlow({
   image,
   referenceMode,
   referenceId,
+  designStyle,
   designTokens,
   projectContext,
   existingCharter,
@@ -1855,6 +1893,7 @@ export async function planUiFlow({
   image?: PromptImagePayload | null;
   referenceMode?: ReferenceMode | null;
   referenceId?: string | null;
+  designStyle?: DesignStylePack | null;
   designTokens?: DesignTokens | null;
   projectContext?: string | null;
   existingCharter?: ProjectCharter | null;
@@ -1865,6 +1904,8 @@ export async function planUiFlow({
   const ai = createGeminiClient();
   const parts: Array<Record<string, unknown>> = [];
   const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
+  const resolvedDesignStyle = designStyle ?? getDesignStylePack(existingCharter?.designStyle?.id) ?? null;
+  const designStyleContract = formatDesignStyleContract(resolvedDesignStyle);
   const referenceAnalysis = await analyzeReferenceImage({ prompt, image, referenceMode: resolvedReferenceMode });
   const explicitScreenSections = parseExplicitScreenSections(prompt);
   const requestedScreenCount = parseRequestedScreenCount(prompt);
@@ -1893,6 +1934,7 @@ export async function planUiFlow({
         image,
         referenceMode: resolvedReferenceMode,
         referenceAnalysis,
+        designStyle: resolvedDesignStyle,
       });
   const resolvedCreativeDirection = projectContext?.trim()
     ? null
@@ -1901,6 +1943,7 @@ export async function planUiFlow({
     referenceAnalysis,
     creativeDirection: resolvedCreativeDirection,
     designTokens,
+    designStyle: resolvedDesignStyle,
     intentContract,
   });
 
@@ -1924,6 +1967,12 @@ export async function planUiFlow({
   parts.push({
     text: formatScreenFamilyContract(screenFamilyContract),
   });
+
+  if (designStyleContract) {
+    parts.push({
+      text: `${designStyleContract}\nPlanner rule: every screen brief must translate this style into app-specific layout anatomy, components, navigation, and anti-pattern avoidance. Do not merely restyle generic cards.`,
+    });
+  }
 
   if (forceFiniteFlowWithoutPersistentNav) {
     parts.push({
@@ -2165,6 +2214,7 @@ export async function planUiFlow({
         referenceMode: resolvedReferenceMode,
         referenceAnalysis,
         creativeDirection: resolvedCreativeDirection,
+        designStyle: resolvedDesignStyle,
         navigationArchitecture,
         existingCharter,
         diagnostics: planningDiagnostics,
@@ -2204,11 +2254,13 @@ export async function planUiFlow({
     base: {
       ...parsed.data.charter,
       creativeDirection: parsed.data.charter.creativeDirection ?? resolvedCreativeDirection,
+      designStyle: summarizeDesignStyle(resolvedDesignStyle) ?? existingCharter?.designStyle ?? null,
       navigationArchitecture,
     },
     source: "planner",
     referenceAnalysis,
     referenceMode: resolvedReferenceMode,
+    designStyle: resolvedDesignStyle,
     navigationArchitecture,
     diagnostics: {
       source: "planner",
@@ -2301,12 +2353,14 @@ export async function generateDesignTokens({
   image,
   referenceMode,
   referenceId,
+  designStyle,
   llmLog,
 }: {
   prompt: string;
   image?: PromptImagePayload | null;
   referenceMode?: ReferenceMode | null;
   referenceId?: string | null;
+  designStyle?: DesignStylePack | null;
   llmLog?: LlmLogFn;
 }) {
   try {
@@ -2318,15 +2372,23 @@ export async function generateDesignTokens({
     });
     const parts: Array<Record<string, unknown>> = [];
     const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
+    const designStyleContract = formatDesignStyleContract(designStyle);
     const referenceAnalysis = await analyzeReferenceImage({ prompt, image, referenceMode: resolvedReferenceMode });
     const creativeDirection = (await generateCreativeDirection({
       prompt,
       image,
       referenceAnalysis,
       referenceMode: resolvedReferenceMode,
+      designStyle,
     })) ?? fallbackCreativeDirection({ prompt, referenceAnalysis });
 
     const inlineImage = toInlineImage(image);
+    if (designStyleContract) {
+      parts.push({
+        text: `${designStyleContract}\nToken rule: adapt the token seed to this product domain and audience. Preserve the style's geometry, density, typography mood, and component intent. Do not blindly copy seed colors when the product domain requires a more suitable accent.`,
+      });
+    }
+
     if (inlineImage) {
       parts.push(inlineImage);
       if (isStyleReferenceMode(resolvedReferenceMode)) {
@@ -2430,6 +2492,7 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
     : buildStyleScreenInstruction;
   const systemInstruction = buildInstruction({
     designTokens: input.designTokens,
+    designStyle: input.designStyle,
     screenPlan: input.screenPlan,
     prompt: input.prompt,
     requiresBottomNav: input.requiresBottomNav,
@@ -2937,6 +3000,7 @@ async function refineNavigationShellCode({
   candidateShellCode,
   navigationPlan,
   designTokens,
+  designStyle,
   projectCharter,
   llmLog,
 }: {
@@ -2944,6 +3008,7 @@ async function refineNavigationShellCode({
   candidateShellCode: string;
   navigationPlan: NavigationPlan;
   designTokens?: DesignTokens | null;
+  designStyle?: DesignStylePack | null;
   projectCharter?: ProjectCharter | null;
   llmLog?: LlmLogFn;
 }) {
@@ -2964,6 +3029,7 @@ async function refineNavigationShellCode({
     `User navigation request: ${prompt}`,
     projectCharter ? `Project charter: ${JSON.stringify(projectCharter, null, 2)}` : null,
     projectCharter?.creativeDirection ? `Creative direction: ${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
+    formatDesignStyleContract(designStyle),
     `Navigation plan: ${JSON.stringify(navigationPlan, null, 2)}`,
     `Token context: ${buildTokenPromptContext(designTokens, "compact_visual")}`,
     [
@@ -3008,6 +3074,7 @@ export async function editNavigationShellCode({
   currentShellCode,
   navigationPlan,
   designTokens,
+  designStyle,
   projectCharter,
   selectedElementHtml,
   llmLog,
@@ -3016,6 +3083,7 @@ export async function editNavigationShellCode({
   currentShellCode: string;
   navigationPlan: NavigationPlan;
   designTokens?: DesignTokens | null;
+  designStyle?: DesignStylePack | null;
   projectCharter?: ProjectCharter | null;
   selectedElementHtml?: string | null;
   llmLog?: LlmLogFn;
@@ -3044,6 +3112,7 @@ export async function editNavigationShellCode({
     `User navigation edit request: ${prompt}`,
     projectCharter ? `Project charter: ${JSON.stringify(projectCharter, null, 2)}` : null,
     projectCharter?.creativeDirection ? `Creative direction: ${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
+    formatDesignStyleContract(designStyle),
     `Navigation plan: ${JSON.stringify(navigationPlan, null, 2)}`,
     `Token context: ${buildTokenPromptContext(designTokens, "compact_visual")}`,
     selectedElementHtml ? [
@@ -3096,6 +3165,7 @@ export async function editNavigationShellCode({
     candidateShellCode: nextCode,
     navigationPlan,
     designTokens,
+    designStyle,
     projectCharter,
     llmLog,
   });
@@ -3108,6 +3178,7 @@ export async function buildNavigationShellCode({
   image: _image,
   referenceMode: _referenceMode,
   referenceId: _referenceId,
+  designStyle,
   projectCharter,
   llmLog,
 }: {
@@ -3117,6 +3188,7 @@ export async function buildNavigationShellCode({
   image?: PromptImagePayload | null;
   referenceMode?: ReferenceMode | null;
   referenceId?: string | null;
+  designStyle?: DesignStylePack | null;
   projectCharter?: ProjectCharter | null;
   llmLog?: LlmLogFn;
 }) {
@@ -3138,6 +3210,7 @@ export async function buildNavigationShellCode({
       candidateShellCode: deterministicShellCode,
       navigationPlan,
       designTokens,
+      designStyle,
       projectCharter,
       llmLog,
     });
