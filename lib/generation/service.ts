@@ -167,10 +167,53 @@ const AssetNeedSourcePreferenceSchema = z.preprocess((value) => {
   return value;
 }, z.enum(["user_upload", "internal_library", "stock"]));
 
+const normalizeAssetType = (value: unknown) => {
+  if (typeof value !== "string") return value;
+  const v = value.toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
+  if (/(transparent|cutout|png|alpha)/.test(v)) return "transparent_png";
+  if (/(photo|photograph|image|jpeg|jpg)/.test(v)) return "photo";
+  if (/(illustr|drawing|artwork|vector)/.test(v)) return "illustration";
+  if (/(icon|glyph|symbol|badge)/.test(v)) return "icon_like";
+  return value;
+};
+
+const normalizeAssetPriority = (value: unknown) => {
+  if (typeof value !== "string") return value;
+  const v = value.toLowerCase().trim();
+  if (/(critical|high|must|essential|required)/.test(v)) return "critical";
+  if (/(support|medium|secondary|normal|default)/.test(v)) return "supporting";
+  if (/(optional|low|nice|bonus)/.test(v)) return "optional";
+  return value;
+};
+
+const normalizeAssetRole = (value: unknown) => {
+  if (typeof value !== "string") return value;
+  const v = value.toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
+  if (/(hero|hero_cutout)/.test(v)) return "hero_cutout";
+  if (/(product_cutout|product_png)/.test(v)) return "product_cutout";
+  if (/(avatar|profile_photo|profile_pic)/.test(v)) return "avatar";
+  if (/(section_photo|section_image)/.test(v)) return "section_photo";
+  if (/(background_photo|bg_photo|background_image)/.test(v)) return "background_photo";
+  if (/(product_photo|product_image)/.test(v)) return "product_photo";
+  if (/(decorative_object|decoration)/.test(v)) return "decorative_object";
+  if (/(map|map_texture)/.test(v)) return "map_texture";
+  return value;
+};
+
+const normalizeAspectRatio = (value: unknown) => {
+  if (typeof value !== "string") return value;
+  const v = value.toLowerCase().trim().replace(/\s+/g, "");
+  if (v === "1:1" || v === "square") return "1:1";
+  if (v === "4:5" || v === "portrait") return "4:5";
+  if (v === "5:4") return "5:4";
+  if (v === "16:9" || v === "widescreen" || v === "landscape") return "16:9";
+  return "free";
+};
+
 const AssetNeedSchema = z.object({
   id: z.string().trim().min(1).max(80),
   screenName: z.string().trim().min(1).max(100).optional(),
-  role: z.enum([
+  role: z.preprocess(normalizeAssetRole, z.enum([
     "hero_cutout",
     "product_cutout",
     "avatar",
@@ -179,14 +222,14 @@ const AssetNeedSchema = z.object({
     "product_photo",
     "decorative_object",
     "map_texture",
-  ]),
+  ])),
   subject: z.string().trim().min(3).max(260),
-  assetType: z.enum(["transparent_png", "photo", "illustration", "icon_like"]),
+  assetType: z.preprocess(normalizeAssetType, z.enum(["transparent_png", "photo", "illustration", "icon_like"])),
   sourcePreference: AssetNeedSourcePreferenceSchema,
-  desiredAspectRatio: z.enum(["1:1", "4:5", "5:4", "16:9", "free"]),
+  desiredAspectRatio: z.preprocess(normalizeAspectRatio, z.enum(["1:1", "4:5", "5:4", "16:9", "free"])),
   transparentBackground: z.boolean(),
   placementHint: z.string().trim().min(1).max(500),
-  priority: z.enum(["critical", "supporting", "optional"]),
+  priority: z.preprocess(normalizeAssetPriority, z.enum(["critical", "supporting", "optional"])),
   reuseKey: z.string().trim().min(1).max(160).optional(),
   origin: z.enum(["reference_visible", "user_explicit", "planner_inferred", "heuristic_inferred"]).optional(),
 });
@@ -501,12 +544,12 @@ const normalizeScreenName = (value: string) =>
   value.toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\b(screen|page|view|the)\b/g, " ").replace(/\s+/g, " ").trim();
 
 const parseRequestedScreenCount = (prompt: string) => {
-  const numeric = prompt.match(/\b(?:generate|create|build|make|design)?\s*(\d{1,2})[-\s]*(?:screen|screens|page|pages)\b/i);
+  const numeric = prompt.match(/\b(?:generate|create|build|make|design)?\s*(?:these\s+|all\s+|the\s+)*(\d{1,2})\b(?:\s+\w+){0,8}\s+(?:screen|screens|page|pages)\b/i);
   if (numeric) {
     return Number(numeric[1]);
   }
 
-  const word = prompt.match(/\b(one|two|three|four|five|six|seven|eight)[-\s]*(?:screen|screens|page|pages)\b/i);
+  const word = prompt.match(/\b(one|two|three|four|five|six|seven|eight)\b(?:\s+\w+){0,8}\s+(?:screen|screens|page|pages)\b/i);
   if (word) {
     return NUMBER_WORDS[word[1].toLowerCase()] ?? null;
   }
@@ -2054,9 +2097,22 @@ export async function planUiFlow({
       screens: rawScreens,
       planningMode,
     }).map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture }));
+    const adjustedContract = { ...screenCountContract };
+    if (
+      adjustedContract.exactCount === 1 &&
+      adjustedContract.source === "reference_image" &&
+      rawScreenCount > 1
+    ) {
+      // The contract defaulted to 1 because no explicit count was detected,
+      // but the LLM actually planned more screens. Trust the LLM's plan.
+      adjustedContract.exactCount = Math.min(rawScreenCount, adjustedContract.maxScreens ?? INITIAL_PROJECT_SCREEN_LIMIT);
+      adjustedContract.source = "open_project";
+      adjustedContract.reason = `Overridden: raw plan contained ${rawScreenCount} screens but the screen count contract defaulted to 1.`;
+    }
+
     const enforced = enforceScreenCountContract({
       screens: reconciledScreens,
-      contract: screenCountContract,
+      contract: adjustedContract,
       prompt,
       referenceAnalysis,
     });
@@ -2069,7 +2125,7 @@ export async function planUiFlow({
       }),
     });
     const navigationPlan = normalizeNavigationPlan({
-      navigationPlan: screenCountContract.disableSharedNavigation || forceFiniteFlowWithoutPersistentNav ? null : salvaged.navigationPlan ?? (planningMode === "single-screen" ? existingNavigationPlan : null),
+      navigationPlan: adjustedContract.disableSharedNavigation || forceFiniteFlowWithoutPersistentNav ? null : salvaged.navigationPlan ?? (planningMode === "single-screen" ? existingNavigationPlan : null),
       screens,
       navigationArchitecture,
       requiresBottomNav: deriveRequiresBottomNav(navigationArchitecture),
@@ -2088,7 +2144,7 @@ export async function planUiFlow({
       rawPlanKeys,
       rawScreenCount,
       recoveredScreens: plannedScreens.length,
-      screenCountContract: screenCountContractJson(screenCountContract),
+      screenCountContract: screenCountContractJson(adjustedContract),
       intentContract: intentContractJson(intentContract),
       screenFamilyContract: screenFamilyContract as unknown as JsonValue,
       screenCountEnforcement: enforced.enforcement,
@@ -2114,14 +2170,28 @@ export async function planUiFlow({
         diagnostics: planningDiagnostics,
       }),
       screens: plannedScreens,
-      screenCountContract,
+      screenCountContract: adjustedContract,
       screenCountEnforcement: enforced.enforcement,
       intentContract,
       screenFamilyContract,
     };
   }
 
-  const navigationArchitecture = screenCountContract.disableSharedNavigation || forceFiniteFlowWithoutPersistentNav
+  const adjustedContract = { ...screenCountContract };
+  const rawScreenCount = parsed.data.screens.length;
+  if (
+    adjustedContract.exactCount === 1 &&
+    adjustedContract.source === "reference_image" &&
+    rawScreenCount > 1
+  ) {
+    // The contract defaulted to 1 because no explicit count was detected,
+    // but the LLM actually planned more screens. Trust the LLM's plan.
+    adjustedContract.exactCount = Math.min(rawScreenCount, adjustedContract.maxScreens ?? INITIAL_PROJECT_SCREEN_LIMIT);
+    adjustedContract.source = "open_project";
+    adjustedContract.reason = `Overridden: raw plan contained ${rawScreenCount} screens but the screen count contract defaulted to 1.`;
+  }
+
+  const navigationArchitecture = adjustedContract.disableSharedNavigation || forceFiniteFlowWithoutPersistentNav
     ? createNavigationArchitecture({ requiresBottomNav: false })
     : coerceNavigationArchitecture({
         parsedNavigationArchitecture: parsed.data.navigation_architecture ?? null,
@@ -2145,7 +2215,7 @@ export async function planUiFlow({
       rawPlanKeys: isRecord(rawPlan) ? Object.keys(rawPlan) : [],
       rawScreenCount: parsed.data.screens.length,
       recoveredScreens: parsed.data.screens.length,
-      screenCountContract: screenCountContractJson(screenCountContract),
+      screenCountContract: screenCountContractJson(adjustedContract),
       intentContract: intentContractJson(intentContract),
       screenFamilyContract: screenFamilyContract as unknown as JsonValue,
     },
@@ -2183,7 +2253,7 @@ export async function planUiFlow({
   }));
   const enforced = enforceScreenCountContract({
     screens: reconciledScreens,
-    contract: screenCountContract,
+    contract: adjustedContract,
     prompt,
     referenceAnalysis,
   });
@@ -2205,7 +2275,7 @@ export async function planUiFlow({
     }),
   });
   const navigationPlan = normalizeNavigationPlan({
-    navigationPlan: screenCountContract.disableSharedNavigation || forceFiniteFlowWithoutPersistentNav ? null : toNavigationPlan(parsed.data.navigation_plan) ?? (planningMode === "single-screen" ? existingNavigationPlan : null),
+    navigationPlan: adjustedContract.disableSharedNavigation || forceFiniteFlowWithoutPersistentNav ? null : toNavigationPlan(parsed.data.navigation_plan) ?? (planningMode === "single-screen" ? existingNavigationPlan : null),
     screens,
     navigationArchitecture,
     requiresBottomNav: deriveRequiresBottomNav(navigationArchitecture),
@@ -2219,7 +2289,7 @@ export async function planUiFlow({
     navigationPlan,
     charter,
     screens: plannedScreens,
-    screenCountContract,
+    screenCountContract: adjustedContract,
     screenCountEnforcement: enforced.enforcement,
     intentContract,
     screenFamilyContract,
