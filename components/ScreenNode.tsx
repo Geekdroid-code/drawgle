@@ -901,14 +901,75 @@ ${cleanScreenCode}
           var initialTokenCss = ${serializeForInlineScript(initialTokenCss)};
           var initialGoogleFontHref = ${serializeForInlineScript(initialGoogleFontHref)};
           var styleRuntimeReady = false;
+          var tailwindRuntimeDegraded = false;
+          var renderRevision = 0;
           var queuedRenderPayload = null;
           var pendingSelectedDrawgleId = null;
+
+          function setStyleRuntimePending() {
+            if (tailwindRuntimeDegraded) return;
+            document.documentElement.removeAttribute('data-drawgle-style-ready');
+          }
 
           function markStyleRuntimeReady(mode) {
             styleRuntimeReady = true;
             window.requestAnimationFrame(function() {
               document.documentElement.setAttribute('data-drawgle-style-ready', mode || 'ready');
             });
+          }
+
+          function ensureTailwindProbe() {
+            var probe = document.getElementById('drawgle-tailwind-style-probe');
+            if (probe) return probe;
+            probe = document.createElement('div');
+            probe.id = 'drawgle-tailwind-style-probe';
+            probe.setAttribute('aria-hidden', 'true');
+            probe.className = 'pointer-events-none fixed -left-[9999px] top-0 flex h-[13px] w-[17px] rounded-[9px] bg-[#123456] p-[7px] opacity-0';
+            document.body.appendChild(probe);
+            return probe;
+          }
+
+          function isTailwindCssApplied() {
+            var probe = ensureTailwindProbe();
+            var style = window.getComputedStyle(probe);
+            var background = (style.backgroundColor || '').replace(/\\s+/g, '');
+            return style.display === 'flex'
+              && Math.round(parseFloat(style.width || '0')) === 17
+              && Math.round(parseFloat(style.paddingLeft || '0')) === 7
+              && Math.round(parseFloat(style.borderRadius || '0')) === 9
+              && background.indexOf('18,52,86') !== -1;
+          }
+
+          function waitForRenderedStylesReady(revision) {
+            if (tailwindRuntimeDegraded) {
+              markStyleRuntimeReady('degraded');
+              return;
+            }
+
+            var attempts = 0;
+            function check() {
+              if (revision !== renderRevision) return;
+
+              if (isTailwindCssApplied()) {
+                window.requestAnimationFrame(function() {
+                  window.requestAnimationFrame(function() {
+                    if (revision === renderRevision) {
+                      markStyleRuntimeReady('ready');
+                    }
+                  });
+                });
+                return;
+              }
+
+              attempts += 1;
+              if (attempts < 80) {
+                window.setTimeout(check, 50);
+                return;
+              }
+
+              markStyleRuntimeReady('degraded');
+            }
+            check();
           }
 
           function loadScriptOnce(id, src, onLoad, onError) {
@@ -939,7 +1000,8 @@ ${cleanScreenCode}
             function check() {
               if (window.tailwind && !window.__drawgleTailwindLoadFailed) {
                 window.setTimeout(function() {
-                  markStyleRuntimeReady('ready');
+                  styleRuntimeReady = true;
+                  tailwindRuntimeDegraded = false;
                   callback();
                 }, 0);
                 return;
@@ -953,7 +1015,8 @@ ${cleanScreenCode}
                   'https://cdn.tailwindcss.com',
                   function() {
                     window.setTimeout(function() {
-                      markStyleRuntimeReady('ready');
+                      styleRuntimeReady = true;
+                      tailwindRuntimeDegraded = false;
                       callback();
                     }, 0);
                   },
@@ -969,7 +1032,8 @@ ${cleanScreenCode}
                 return;
               }
 
-              markStyleRuntimeReady('degraded');
+              styleRuntimeReady = true;
+              tailwindRuntimeDegraded = true;
               callback();
             }
             check();
@@ -1164,10 +1228,13 @@ ${cleanScreenCode}
           document.addEventListener('touchmove', handleInteractTouchMove, { capture: true, passive: false });
 
           function applyRenderPayload(payload) {
+            var revision = ++renderRevision;
+            setStyleRuntimePending();
             applyGoogleFontHref(payload.googleFontHref || '');
             applyDesignTokenCss(payload.tokenCss || '');
             renderScreenContent(payload.code || '');
             renderNavigation(payload.navigationCode || '', payload.activeNavigationItemId || '');
+            waitForRenderedStylesReady(revision);
             if (interactionModeActive) focusScreenContentHost();
           }
 

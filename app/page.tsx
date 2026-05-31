@@ -3,7 +3,7 @@ import PublicHeader from '@/components/landing/Header'
 import { HeroSection } from '@/components/landing/HeroSection'
 import NewHowItWorks from '@/components/landing/NewHowItWorks'
 import { FeaturesSection } from '@/components/landing/FeaturesSection'
-import PremiumComparison from "@/components/landing/Comparison";
+import MethodComparison from "@/components/landing/MethodComparison";
 import StylePacks from '@/components/landing/StylePacks';
 import PricingCards from '@/components/landing/pricing-cards'
 import FAQSection from '@/components/landing/FAQSection'
@@ -23,7 +23,7 @@ export default function Home() {
         <HeroSection />
         <NewHowItWorks />
         <StylePacks />
-        <PremiumComparison />
+        <MethodComparison />
         <TestimonialSection />
         <PrivacySection />
         <FeaturesSection />
