@@ -191,6 +191,20 @@ export const MobileNavToggle = ({
   )
 }
 
+const BrandLogo = ({ compact = false }: { compact?: boolean }) => (
+  <Link href="/" className="flex items-center cursor-pointer">
+    <span className={cn(
+      "flex items-center justify-center rounded-md ",
+      compact ? "size-8 [&_svg]:!size-5" : "size-9 [&_svg]:!size-6",
+    )}>
+      <AgentBall className={compact ? "h-5 w-5" : "h-6 w-6"} />
+    </span>
+    <span className="text-base font-semibold tracking-tight text-white">
+      Drawgle
+    </span>
+  </Link>
+)
+
 function Header() {
   const [isOpen, setIsOpen] = useState(false)
 
@@ -200,20 +214,6 @@ function Header() {
     { name: "Style Packs", link: "/#style-packs" },
     { name: "Blog", link: "/blog" },
   ]
-
-  const BrandLogo = ({ compact = false }: { compact?: boolean }) => (
-    <Link href="/" className="flex items-center cursor-pointer">
-      <span className={cn(
-        "flex items-center justify-center rounded-md ",
-        compact ? "size-8 [&_svg]:!size-5" : "size-9 [&_svg]:!size-6",
-      )}>
-        <AgentBall className={compact ? "h-5 w-5" : "h-6 w-6"} />
-      </span>
-      <span className="text-base font-semibold tracking-tight text-white">
-        Drawgle
-      </span>
-    </Link>
-  )
 
   return (
     <Navbar>

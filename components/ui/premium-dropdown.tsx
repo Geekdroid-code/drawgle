@@ -82,6 +82,7 @@ export function PremiumDropdown({
   }, [isOpen]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPortalReady(true);
   }, []);
 
