@@ -581,7 +581,7 @@ const looksLikeFiniteFlowWithoutPersistentNav = (prompt: string, sections: Expli
   }
 
   const combined = `${prompt} ${sections.map((section) => section.name).join(" ")}`;
-  return /\b(onboarding|splash|welcome|login|sign\s*up|checkout|tracking|map|detail|modal|flow)\b/i.test(combined);
+  return /\b(onboarding|splash|welcome|login|sign\s*up|checkout|tracking|map|detail|modal|(?:user|screen|onboarding|login|checkout|signup|step|linear)\s*flow)\b/i.test(combined);
 };
 
 const explicitSectionChromePolicy = (section: ExplicitScreenSection, index: number, forceNoPersistentNav: boolean): ScreenPlan["chromePolicy"] => {

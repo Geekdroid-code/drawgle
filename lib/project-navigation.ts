@@ -144,7 +144,21 @@ export function normalizeNavigationPlan({
   strictScreenLinks?: boolean;
 }): NavigationPlan {
   const fallback = createFallbackNavigationPlan({ screens, navigationArchitecture, requiresBottomNav });
-  const requestedEnabled = navigationPlan?.enabled ?? fallback.enabled;
+  
+  // Dynamic architectural hardening:
+  // If multiple screens are present and bottom tabs are requested or fall back to enabled,
+  // we force shared navigation to be enabled to prevent separate, local bottom bars.
+  const isBottomTabsArchitecture =
+    requiresBottomNav ||
+    fallback.enabled ||
+    navigationArchitecture?.primaryNavigation === "bottom-tabs" ||
+    navigationPlan?.kind === "bottom-tabs";
+    
+  let requestedEnabled = navigationPlan?.enabled ?? fallback.enabled;
+  if (screens.length > 1 && isBottomTabsArchitecture) {
+    requestedEnabled = true;
+  }
+
   const screenNameSet = new Set(screens.map((screen) => screen.name.toLowerCase()));
   const seen = new Set<string>();
   const rawItems = requestedEnabled
@@ -158,20 +172,50 @@ export function normalizeNavigationPlan({
             id = `${baseId}-${suffix++}`;
           }
           seen.add(id);
+
+          const rawLinkedName = (item.linkedScreenName || fallback.items[index]?.linkedScreenName || screens[index]?.name || "").trim();
+
+          // Fuzzy screen matching:
+          // Lowercase and strip common screen suffixes (screen, page, tab, view, dashboard) & non-alphanumeric chars
+          const cleanStr = (s: string) =>
+            s
+              .toLowerCase()
+              .replace(/\b(screen|page|tab|view|dashboard)\b/g, "")
+              .replace(/[^a-z0-9]/g, "");
+
+          const cleanL = cleanStr(rawLinkedName);
+
+          const matchedScreen = cleanL
+            ? screens.find((s) => {
+                const cleanS = cleanStr(s.name);
+                return cleanL === cleanS || cleanS.includes(cleanL) || cleanL.includes(cleanS);
+              })
+            : null;
+
+          const linkedScreenName = matchedScreen ? matchedScreen.name : rawLinkedName;
+
           return {
             id,
             label: (item.label || item.linkedScreenName || `Tab ${index + 1}`).trim().slice(0, 18),
             icon: slugify(item.icon || FALLBACK_ICONS[index] || "circle", "circle"),
             role: (item.role || "Primary app destination").trim().slice(0, 160),
-            linkedScreenName: (item.linkedScreenName || fallback.items[index]?.linkedScreenName || screens[index]?.name || "").trim(),
+            linkedScreenName,
           };
         })
         .filter((item) => item.label.length > 0 && item.id.length > 0)
         .filter((item) => !strictScreenLinks || screenNameSet.has(item.linkedScreenName.toLowerCase()))
     : [];
-  const enabled = requestedEnabled && rawItems.length > 0 && (!strictScreenLinks || screens.length > 1);
+
+  // If rawItems mapping resulted in empty list but bottom tabs are structurally needed,
+  // auto-recover items from root screens to guarantee identical shared navigation.
+  let finalItems = rawItems;
+  if (requestedEnabled && rawItems.length === 0 && screens.length > 1 && isBottomTabsArchitecture) {
+    finalItems = fallback.items;
+  }
+
+  const enabled = requestedEnabled && finalItems.length > 0 && (!strictScreenLinks || screens.length > 1);
   const kind = enabled ? "bottom-tabs" : "none";
-  const items = enabled ? rawItems : [];
+  const items = enabled ? finalItems : [];
   const rootScreens = screens.filter((screen) => screen.type === "root");
   const firstRootScreenName = rootScreens[0]?.name ?? screens[0]?.name ?? null;
   const firstItem = items[0] ?? null;
