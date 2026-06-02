@@ -1738,9 +1738,26 @@ export async function resolveProjectAssets({
           manifest = manifestFromAsset(lookup.saved.asset, requirement, lookup.saved.displayVariant);
         }
       }
-
       if (!manifest && shouldSearchStock && isStockEligible(requirement)) {
         manifest = await resolveStockAsset(requirement);
+      }
+
+      if (!manifest) {
+        // Fallback: If curated lookup failed or was not found, try stock photos
+        // as a smart fallback rather than returning a blank/grey placeholder SVG
+        const canFallbackToStock =
+          requirement.assetType === "photo" ||
+          requirement.assetType === "transparent_png" ||
+          ["hero_cutout", "product_cutout", "section_photo", "background_photo", "product_photo", "avatar"].includes(requirement.role);
+
+        if (canFallbackToStock) {
+          const stockFallbackReq = {
+            ...requirement,
+            transparentBackground: false, // We'd rather have a real background image than a filthy placeholder SVG
+            assetType: "photo" as const,
+          };
+          manifest = await resolveStockAsset(stockFallbackReq);
+        }
       }
 
       if (!manifest) {

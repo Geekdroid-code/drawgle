@@ -169,47 +169,49 @@ const BooleanishSchema = z.preprocess((value) => {
 }, z.boolean());
 
 const AssetNeedSourcePreferenceSchema = z.preprocess((value) => {
-  if (value === "ai_generated") {
-    return "internal_library";
-  }
-  return value;
+  if (typeof value !== "string") return "internal_library";
+  const v = value.toLowerCase().trim();
+  if (/(curated|library|internal|ai_generated)/.test(v)) return "internal_library";
+  if (/(stock|pexels|pixabay)/.test(v)) return "stock";
+  if (/(user|upload|private)/.test(v)) return "user_upload";
+  return "internal_library";
 }, z.enum(["user_upload", "internal_library", "stock"]));
 
 const normalizeAssetType = (value: unknown) => {
-  if (typeof value !== "string") return value;
+  if (typeof value !== "string") return "photo";
   const v = value.toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
   if (/(transparent|cutout|png|alpha)/.test(v)) return "transparent_png";
-  if (/(photo|photograph|image|jpeg|jpg)/.test(v)) return "photo";
+  if (/(photo|photograph|image|jpeg|jpg|video|stream|live)/.test(v)) return "photo";
   if (/(illustr|drawing|artwork|vector)/.test(v)) return "illustration";
-  if (/(icon|glyph|symbol|badge)/.test(v)) return "icon_like";
-  return value;
+  if (/(icon|glyph|symbol|badge|logo|crest|shield)/.test(v)) return "icon_like";
+  return "photo";
 };
 
 const normalizeAssetPriority = (value: unknown) => {
-  if (typeof value !== "string") return value;
+  if (typeof value !== "string") return "supporting";
   const v = value.toLowerCase().trim();
   if (/(critical|high|must|essential|required)/.test(v)) return "critical";
   if (/(support|medium|secondary|normal|default)/.test(v)) return "supporting";
   if (/(optional|low|nice|bonus)/.test(v)) return "optional";
-  return value;
+  return "supporting";
 };
 
 const normalizeAssetRole = (value: unknown) => {
-  if (typeof value !== "string") return value;
+  if (typeof value !== "string") return "section_photo";
   const v = value.toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
-  if (/(hero|hero_cutout)/.test(v)) return "hero_cutout";
+  if (/(hero|hero_cutout|video|stream|live|player)/.test(v)) return "hero_cutout";
   if (/(product_cutout|product_png)/.test(v)) return "product_cutout";
   if (/(avatar|profile_photo|profile_pic)/.test(v)) return "avatar";
   if (/(section_photo|section_image)/.test(v)) return "section_photo";
-  if (/(background_photo|bg_photo|background_image)/.test(v)) return "background_photo";
+  if (/(background_photo|bg_photo|background_image|background_video|bg_image)/.test(v)) return "background_photo";
   if (/(product_photo|product_image)/.test(v)) return "product_photo";
-  if (/(decorative_object|decoration)/.test(v)) return "decorative_object";
+  if (/(decorative_object|decoration|crest|logo|badge|shield)/.test(v)) return "decorative_object";
   if (/(map|map_texture)/.test(v)) return "map_texture";
-  return value;
+  return "section_photo";
 };
 
 const normalizeAspectRatio = (value: unknown) => {
-  if (typeof value !== "string") return value;
+  if (typeof value !== "string") return "free";
   const v = value.toLowerCase().trim().replace(/\s+/g, "");
   if (v === "1:1" || v === "square") return "1:1";
   if (v === "4:5" || v === "portrait") return "4:5";
@@ -217,6 +219,7 @@ const normalizeAspectRatio = (value: unknown) => {
   if (v === "16:9" || v === "widescreen" || v === "landscape") return "16:9";
   return "free";
 };
+
 
 const AssetNeedSchema = z.object({
   id: z.string().trim().min(1).max(80),
