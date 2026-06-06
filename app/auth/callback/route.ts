@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { getSafeAuthRedirect } from "@/lib/auth-redirect";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
-  const next = requestUrl.searchParams.get("next") ?? "/project/new";
+  const next = getSafeAuthRedirect(requestUrl.searchParams.get("next"));
 
   if (!code) {
-    return NextResponse.redirect(new URL("/login?error=missing_oauth_code", requestUrl.origin));
+    const loginUrl = new URL("/login", requestUrl.origin);
+    loginUrl.searchParams.set("error", "missing_oauth_code");
+    loginUrl.searchParams.set("next", next);
+    return NextResponse.redirect(loginUrl);
   }
 
   const supabase = await createClient();
@@ -16,7 +20,10 @@ export async function GET(request: NextRequest) {
 
   if (error) {
     console.error("Supabase OAuth callback error", error);
-    return NextResponse.redirect(new URL("/login?error=oauth_exchange_failed", requestUrl.origin));
+    const loginUrl = new URL("/login", requestUrl.origin);
+    loginUrl.searchParams.set("error", "oauth_exchange_failed");
+    loginUrl.searchParams.set("next", next);
+    return NextResponse.redirect(loginUrl);
   }
 
   return NextResponse.redirect(new URL(next, requestUrl.origin));

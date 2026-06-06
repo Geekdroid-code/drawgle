@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link id="drawgle-google-font" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;500;600;700&amp;display=swap">
+    <style>
+:root {
+  --dg-color-text-low-emphasis: #999999;
+  --dg-color-text-high-emphasis: #000000;
+  --dg-color-text-medium-emphasis: #666666;
+  --dg-color-accent-income: #E55B5B;
+  --dg-color-accent-texture-stripe: #E0E0E0;
+  --dg-color-action-primary: #4ADE80;
+  --dg-color-action-disabled: #E0E0E0;
+  --dg-color-action-secondary: #000000;
+  --dg-color-action-on-primary-text: #000000;
+  --dg-color-border-divider: #EEEEEE;
+  --dg-color-border-focused: #4ADE80;
+  --dg-color-surface-card: #FFFFFF;
+  --dg-color-surface-modal: #1A1A1A;
+  --dg-color-surface-bottom-sheet: #FFFFFF;
+  --dg-color-background-primary: #000000;
+  --dg-color-background-secondary: #F5F5F5;
+  --dg-radii-app: 32px;
+  --dg-radii-pill: 9999px;
+  --dg-sizing-icon-small: 18px;
+  --dg-sizing-icon-standard: 24px;
+  --dg-sizing-min-touch-target: 48px;
+  --dg-sizing-bottom-nav-height: 84px;
+  --dg-sizing-standard-input-height: 52px;
+  --dg-sizing-standard-button-height: 56px;
+  --dg-shadows-none: none;
+  --dg-shadows-overlay: 0px 20px 40px rgba(0, 0, 0, 0.15);
+  --dg-shadows-surface: 0px 10px 30px rgba(0, 0, 0, 0.05);
+  --dg-spacing-none: 0px;
+  --dg-spacing-lg: 24px;
+  --dg-spacing-md: 16px;
+  --dg-spacing-sm: 12px;
+  --dg-spacing-xl: 32px;
+  --dg-spacing-xs: 8px;
+  --dg-spacing-xxl: 48px;
+  --dg-spacing-xxs: 4px;
+  --dg-z-index-base: 0;
+  --dg-z-index-bottom-nav: 20;
+  --dg-z-index-bottom-sheet: 30;
+  --dg-z-index-modal-dialog: 40;
+  --dg-z-index-sticky-header: 10;
+  --dg-z-index-toast-snackbar: 50;
+  --dg-opacities-opaque: 1;
+  --dg-opacities-pressed: 0.12;
+  --dg-opacities-disabled: 0.38;
+  --dg-opacities-transparent: 0;
+  --dg-opacities-scrim-overlay: 0.50;
+  --dg-typography-font-family: SF Pro Display, Inter, system-ui, sans-serif;
+  --dg-type-nav-title-size: 17px;
+  --dg-type-nav-title-weight: 600;
+  --dg-type-nav-title-line-height: 22px;
+  --dg-type-screen-title-size: 34px;
+  --dg-type-screen-title-weight: 700;
+  --dg-type-screen-title-line-height: 41px;
+  --dg-type-hero-title-size: 48px;
+  --dg-type-hero-title-weight: 700;
+  --dg-type-hero-title-line-height: 52px;
+  --dg-type-section-title-size: 20px;
+  --dg-type-section-title-weight: 600;
+  --dg-type-section-title-line-height: 24px;
+  --dg-type-metric-value-size: 42px;
+  --dg-type-metric-value-weight: 700;
+  --dg-type-metric-value-line-height: 48px;
+  --dg-type-body-size: 16px;
+  --dg-type-body-weight: 400;
+  --dg-type-body-line-height: 24px;
+  --dg-type-supporting-size: 14px;
+  --dg-type-supporting-weight: 500;
+  --dg-type-supporting-line-height: 20px;
+  --dg-type-caption-size: 12px;
+  --dg-type-caption-weight: 400;
+  --dg-type-caption-line-height: 16px;
+  --dg-type-button-label-size: 16px;
+  --dg-type-button-label-weight: 600;
+  --dg-type-button-label-line-height: 20px;
+  --dg-border-widths-standard: 1px;
+  --dg-mobile-layout-element-gap: 12px;
+  --dg-mobile-layout-section-gap: 32px;
+  --dg-mobile-layout-safe-area-top: 16px;
+  --dg-mobile-layout-screen-margin: 20px;
+  --dg-mobile-layout-safe-area-bottom: 16px;
+}
+
+#root {
+  --dg-preview-background: var(--dg-color-background-primary, #ffffff);
+  background: var(--dg-preview-background);
+}
+
+.dg-bg-primary { background-color: var(--dg-color-background-primary); }
+.dg-bg-secondary { background-color: var(--dg-color-background-secondary); }
+.dg-surface-card { background-color: var(--dg-color-surface-card); }
+.dg-surface-bottom-sheet { background-color: var(--dg-color-surface-bottom-sheet); }
+.dg-surface-modal { background-color: var(--dg-color-surface-modal); }
+.dg-text-high { color: var(--dg-color-text-high-emphasis); }
+.dg-text-medium { color: var(--dg-color-text-medium-emphasis); }
+.dg-text-low { color: var(--dg-color-text-low-emphasis); }
+.dg-action-primary {
+  background-color: var(--dg-color-action-primary);
+  color: var(--dg-color-action-on-primary-text);
+}
+.dg-action-secondary { background-color: var(--dg-color-action-secondary); }
+.dg-border-divider { border-color: var(--dg-color-border-divider); }
+.dg-border-focused { border-color: var(--dg-color-border-focused); }
+.dg-radius-app { border-radius: var(--dg-radii-app); }
+.dg-radius-pill { border-radius: var(--dg-radii-pill); }
+.dg-shadow-surface { box-shadow: var(--dg-shadows-surface); }
+.dg-shadow-overlay { box-shadow: var(--dg-shadows-overlay); }
+.dg-screen-padding { padding-left: var(--dg-mobile-layout-screen-margin); padding-right: var(--dg-mobile-layout-screen-margin); }
+.dg-section-gap { gap: var(--dg-mobile-layout-section-gap); }
+.dg-element-gap { gap: var(--dg-mobile-layout-element-gap); }
+
+.dg-type-nav-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-nav-title-size);
+  font-weight: var(--dg-type-nav-title-weight);
+  line-height: var(--dg-type-nav-title-line-height);
+}
+
+.dg-type-screen-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-screen-title-size);
+  font-weight: var(--dg-type-screen-title-weight);
+  line-height: var(--dg-type-screen-title-line-height);
+}
+
+.dg-type-hero-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-hero-title-size);
+  font-weight: var(--dg-type-hero-title-weight);
+  line-height: var(--dg-type-hero-title-line-height);
+}
+
+.dg-type-section-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-section-title-size);
+  font-weight: var(--dg-type-section-title-weight);
+  line-height: var(--dg-type-section-title-line-height);
+}
+
+.dg-type-metric-value {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-metric-value-size);
+  font-weight: var(--dg-type-metric-value-weight);
+  line-height: var(--dg-type-metric-value-line-height);
+}
+
+.dg-type-body {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-body-size);
+  font-weight: var(--dg-type-body-weight);
+  line-height: var(--dg-type-body-line-height);
+}
+
+.dg-type-supporting {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-supporting-size);
+  font-weight: var(--dg-type-supporting-weight);
+  line-height: var(--dg-type-supporting-line-height);
+}
+
+.dg-type-caption {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-caption-size);
+  font-weight: var(--dg-type-caption-weight);
+  line-height: var(--dg-type-caption-line-height);
+}
+
+.dg-type-button-label {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-button-label-size);
+  font-weight: var(--dg-type-button-label-weight);
+  line-height: var(--dg-type-button-label-line-height);
+}
+      html, body { margin: 0; min-height: 100%; }
+      body {
+        font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+        background: var(--dg-color-background-primary, #ffffff);
+        color: var(--dg-color-text-high-emphasis, #111827);
+      }
+      #drawgle-export-root {
+        position: relative;
+        min-height: 100vh;
+        overflow-x: hidden;
+        background: var(--dg-color-background-primary, #ffffff);
+      }
+      #drawgle-export-navigation { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; pointer-events: none; }
+      #drawgle-export-navigation [data-drawgle-primary-nav] { pointer-events: auto; }
+    </style>
+  </head>
+  <body>
+    <div id="drawgle-export-root">
+<div class="w-full min-h-screen bg-[var(--dg-color-background-secondary)] dg-text-high flex flex-col relative overflow-x-hidden" style="font-family: var(--dg-typography-font-family, SF Pro Display, Inter, system-ui, sans-serif)">
+  
+  <!-- Header Section -->
+  <header class="flex items-center justify-between px-[var(--dg-mobile-layout-screen-margin)] pt-[var(--dg-mobile-layout-safe-area-top)] pb-[var(--dg-spacing-md)]">
+    <div class="bg-white px-5 py-2.5 rounded-[var(--dg-radii-pill)] shadow-[var(--dg-shadows-surface)]">
+      <span class="text-[var(--dg-color-text-high-emphasis)] font-semibold text-[14px]">November</span>
+    </div>
+    <div class="flex items-center gap-[var(--dg-spacing-xs)]">
+      <div class="w-11 h-11 bg-white rounded-full flex items-center justify-center shadow-[var(--dg-shadows-surface)]">
+        <i data-lucide="bell" class="w-5 h-5 text-black"></i>
+      </div>
+      <div class="w-11 h-11 bg-white rounded-full p-0.5 shadow-[var(--dg-shadows-surface)]">
+        <div class="w-full h-full rounded-full bg-[var(--dg-color-action-disabled)] overflow-hidden flex items-center justify-center">
+          <!-- Avatar Placeholder -->
+          <svg viewBox="0 0 24 24" class="w-8 h-8 text-gray-400" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"></path></svg>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Balance Section -->
+  <section class="px-[var(--dg-mobile-layout-screen-margin)] mb-[var(--dg-mobile-layout-section-gap)]">
+    <div class="flex justify-between items-end mb-2">
+      <div class="flex items-baseline gap-1">
+        <span class="text-[var(--dg-type-metric-value-size)] font-bold leading-none">$ 420</span>
+        <span class="text-[24px] font-bold text-[var(--dg-color-text-medium-emphasis)]">.50</span>
+      </div>
+      <span class="text-[var(--dg-color-text-high-emphasis)] font-semibold text-[15px] mb-1">Left balance</span>
+    </div>
+    
+    <!-- Progress Bar -->
+    <div class="w-full h-2 bg-[var(--dg-color-action-disabled)] rounded-full overflow-hidden mb-3">
+      <div class="h-full bg-black w-[45%] rounded-full"></div>
+    </div>
+    
+    <div class="flex justify-between items-center">
+      <div class="text-[var(--dg-color-text-low-emphasis)] text-[14px]">
+        <span class="font-bold text-black">$ 424</span> of $920 spent
+      </div>
+      <div class="bg-[var(--dg-color-action-primary)] px-3 py-1 rounded-full flex items-center gap-1">
+        <div class="w-1.5 h-1.5 bg-black rounded-full"></div>
+        <span class="text-[12px] font-bold text-black">15% less than month</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Buddy Planner Card -->
+  <section class="px-[var(--dg-mobile-layout-screen-margin)] mb-[var(--dg-mobile-layout-section-gap)]">
+    <div class="bg-white rounded-[var(--dg-radii-app)] p-6 shadow-[var(--dg-shadows-surface)] relative overflow-hidden">
+      <div class="flex justify-between items-center mb-8">
+        <div class="flex items-center gap-3">
+          <!-- Avatar Stack -->
+          <div class="flex -space-x-3">
+            <div class="w-10 h-10 rounded-full border-2 border-white bg-gray-200 overflow-hidden">
+              <svg viewBox="0 0 24 24" class="w-full h-full text-gray-400" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"></path></svg>
+            </div>
+            <div class="w-10 h-10 rounded-full border-2 border-white bg-gray-300 overflow-hidden">
+              <svg viewBox="0 0 24 24" class="w-full h-full text-gray-500" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"></path></svg>
+            </div>
+          </div>
+          <span class="font-bold text-[18px]">Buddy Planner</span>
+        </div>
+        <button class="w-10 h-10 bg-[var(--dg-color-background-secondary)] rounded-full flex items-center justify-center">
+          <i data-lucide="more-horizontal" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Gauge Chart -->
+      <div class="relative flex justify-center items-center mb-8 h-[160px]">
+        <svg viewBox="0 0 200 120" class="w-full max-w-[240px]">
+          <!-- Background Track -->
+          <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#EEEEEE" stroke-width="24" stroke-linecap="round"></path>
+          
+          <!-- Segment 1: Grey -->
+          <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#D1D1D1" stroke-width="24" stroke-linecap="round" stroke-dasharray="75 176.3"></path>
+          
+          <!-- Segment 2: Mint Green -->
+          <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#4ADE80" stroke-width="24" stroke-linecap="round" stroke-dasharray="100 151.3" stroke-dashoffset="-75"></path>
+          
+          <!-- Segment 3: Striped Texture -->
+          <defs>
+            <pattern id="stripes" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+              <line x1="0" y1="0" x2="0" y2="8" stroke="#D1D1D1" stroke-width="4"></line>
+            </pattern>
+          </defs>
+          <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="url(#stripes)" stroke-width="24" stroke-linecap="round" stroke-dasharray="76.3 175" stroke-dashoffset="-175"></path>
+        </svg>
+        
+        <div class="absolute bottom-0 flex flex-col items-center">
+          <span class="text-[var(--dg-color-text-low-emphasis)] text-[12px] font-medium">Total Expenses</span>
+          <span class="text-[32px] font-bold">$ 1240</span>
+        </div>
+      </div>
+
+      <!-- Action Pill -->
+      <div class="bg-black rounded-full h-[64px] flex items-center justify-between px-2">
+        <div class="w-12 h-12 flex items-center justify-center">
+          <i data-lucide="chevron-left" class="text-white w-5 h-5"></i>
+        </div>
+        <span class="text-white font-semibold text-[16px]">Bills &amp; Utilities</span>
+        <div class="w-12 h-12 bg-[var(--dg-color-action-primary)] rounded-full flex items-center justify-center">
+          <i data-lucide="arrow-right" class="text-black w-5 h-5"></i>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Statistics Section -->
+  <section class="mb-[var(--dg-mobile-layout-section-gap)]">
+    <div class="px-[var(--dg-mobile-layout-screen-margin)] flex justify-between items-center mb-4">
+      <h2 class="text-[20px] font-bold">Statistics</h2>
+      <div class="flex gap-2">
+        <button class="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm">
+          <i data-lucide="share-2" class="w-4 h-4"></i>
+        </button>
+        <button class="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm">
+          <i data-lucide="more-horizontal" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Horizontal Scroll Cards -->
+    <div class="flex overflow-x-auto gap-4 px-[var(--dg-mobile-layout-screen-margin)] no-scrollbar pb-4">
+      <!-- Limit Configurator Card -->
+      <div class="min-w-[280px] bg-white rounded-[24px] p-5 shadow-[var(--dg-shadows-surface)]">
+        <div class="flex justify-between items-start mb-4">
+          <span class="text-[16px] font-bold">Set your limit</span>
+          <div class="flex items-center gap-1 text-[14px] font-semibold">
+            <span>Edit</span>
+            <div class="w-8 h-8 bg-black rounded-full flex items-center justify-center">
+              <i data-lucide="pencil" class="w-3.5 h-3.5 text-white"></i>
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 bg-[var(--dg-color-background-secondary)] rounded-2xl flex items-center justify-center">
+            <span class="text-[20px] font-bold">$</span>
+          </div>
+          <div>
+            <div class="flex items-baseline gap-0.5">
+              <span class="text-[18px] font-bold">1200</span>
+              <span class="text-[12px] font-bold text-gray-400">.00</span>
+            </div>
+            <p class="text-[12px] text-[var(--dg-color-text-low-emphasis)]">Monthly spending limit</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Secondary Card (Partial) -->
+      <div class="min-w-[140px] bg-black rounded-[24px] p-5 flex flex-col justify-between">
+        <span class="text-white text-[14px] font-medium">Exp:</span>
+        <div class="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center">
+          <span class="text-white font-bold">$</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Bottom Spacer for Nav -->
+  <div class="h-[var(--dg-sizing-bottom-nav-height)]"></div>
+
+</div>
+      
+    </div>
+    <script>
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+      document.querySelectorAll('[data-nav-item-id]').forEach(function(item) {
+        var active = item.getAttribute('data-nav-item-id') === "home";
+        item.setAttribute('data-active', active ? 'true' : 'false');
+        item.setAttribute('aria-current', active ? 'page' : 'false');
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link id="drawgle-google-font" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap">
+    <style>
+:root {
+  --dg-color-text-low-emphasis: #A0A0B8;
+  --dg-color-text-high-emphasis: #121212;
+  --dg-color-text-medium-emphasis: #6B6B80;
+  --dg-color-accent-ochre: #FFD28D;
+  --dg-color-accent-violet: #8E8FFA;
+  --dg-color-action-primary: #121212;
+  --dg-color-action-disabled: #D1D1E0;
+  --dg-color-action-secondary: #8E8FFA;
+  --dg-color-action-on-primary-text: #FFFFFF;
+  --dg-color-border-divider: #E8E8F5;
+  --dg-color-border-focused: #8E8FFA;
+  --dg-color-surface-card: #FFFFFF;
+  --dg-color-surface-modal: #121212;
+  --dg-color-surface-bottom-sheet: #FFFFFF;
+  --dg-color-background-primary: #F8F8FF;
+  --dg-color-background-secondary: #E0E0FF;
+  --dg-radii-app: 32px;
+  --dg-radii-pill: 9999px;
+  --dg-sizing-icon-small: 18px;
+  --dg-sizing-icon-standard: 24px;
+  --dg-sizing-min-touch-target: 48px;
+  --dg-sizing-bottom-nav-height: 72px;
+  --dg-sizing-standard-input-height: 52px;
+  --dg-sizing-standard-button-height: 56px;
+  --dg-shadows-none: none;
+  --dg-shadows-overlay: 0px 16px 48px rgba(0, 0, 0, 0.12);
+  --dg-shadows-surface: 0px 8px 24px rgba(142, 143, 250, 0.08);
+  --dg-spacing-none: 0px;
+  --dg-spacing-lg: 24px;
+  --dg-spacing-md: 16px;
+  --dg-spacing-sm: 12px;
+  --dg-spacing-xl: 32px;
+  --dg-spacing-xs: 8px;
+  --dg-spacing-xxl: 48px;
+  --dg-spacing-xxs: 4px;
+  --dg-z-index-base: 0;
+  --dg-z-index-bottom-nav: 20;
+  --dg-z-index-bottom-sheet: 30;
+  --dg-z-index-modal-dialog: 40;
+  --dg-z-index-sticky-header: 10;
+  --dg-z-index-toast-snackbar: 50;
+  --dg-opacities-opaque: 1;
+  --dg-opacities-pressed: 0.12;
+  --dg-opacities-disabled: 0.38;
+  --dg-opacities-transparent: 0;
+  --dg-opacities-scrim-overlay: 0.50;
+  --dg-typography-font-family: 'Plus Jakarta Sans', sans-serif;
+  --dg-type-nav-title-size: 20px;
+  --dg-type-nav-title-weight: 700;
+  --dg-type-nav-title-line-height: 28px;
+  --dg-type-screen-title-size: 20px;
+  --dg-type-screen-title-weight: 700;
+  --dg-type-screen-title-line-height: 28px;
+  --dg-type-hero-title-size: 32px;
+  --dg-type-hero-title-weight: 800;
+  --dg-type-hero-title-line-height: 40px;
+  --dg-type-section-title-size: 20px;
+  --dg-type-section-title-weight: 700;
+  --dg-type-section-title-line-height: 28px;
+  --dg-type-metric-value-size: 32px;
+  --dg-type-metric-value-weight: 800;
+  --dg-type-metric-value-line-height: 40px;
+  --dg-type-body-size: 16px;
+  --dg-type-body-weight: 500;
+  --dg-type-body-line-height: 24px;
+  --dg-type-supporting-size: 14px;
+  --dg-type-supporting-weight: 400;
+  --dg-type-supporting-line-height: 20px;
+  --dg-type-caption-size: 12px;
+  --dg-type-caption-weight: 600;
+  --dg-type-caption-line-height: 16px;
+  --dg-type-button-label-size: 15px;
+  --dg-type-button-label-weight: 700;
+  --dg-type-button-label-line-height: 20px;
+  --dg-border-widths-standard: 1px;
+  --dg-mobile-layout-element-gap: 12px;
+  --dg-mobile-layout-section-gap: 24px;
+  --dg-mobile-layout-safe-area-top: 16px;
+  --dg-mobile-layout-screen-margin: 24px;
+  --dg-mobile-layout-safe-area-bottom: 16px;
+}
+
+#root {
+  --dg-preview-background: var(--dg-color-background-primary, #ffffff);
+  background: var(--dg-preview-background);
+}
+
+.dg-bg-primary { background-color: var(--dg-color-background-primary); }
+.dg-bg-secondary { background-color: var(--dg-color-background-secondary); }
+.dg-surface-card { background-color: var(--dg-color-surface-card); }
+.dg-surface-bottom-sheet { background-color: var(--dg-color-surface-bottom-sheet); }
+.dg-surface-modal { background-color: var(--dg-color-surface-modal); }
+.dg-text-high { color: var(--dg-color-text-high-emphasis); }
+.dg-text-medium { color: var(--dg-color-text-medium-emphasis); }
+.dg-text-low { color: var(--dg-color-text-low-emphasis); }
+.dg-action-primary {
+  background-color: var(--dg-color-action-primary);
+  color: var(--dg-color-action-on-primary-text);
+}
+.dg-action-secondary { background-color: var(--dg-color-action-secondary); }
+.dg-border-divider { border-color: var(--dg-color-border-divider); }
+.dg-border-focused { border-color: var(--dg-color-border-focused); }
+.dg-radius-app { border-radius: var(--dg-radii-app); }
+.dg-radius-pill { border-radius: var(--dg-radii-pill); }
+.dg-shadow-surface { box-shadow: var(--dg-shadows-surface); }
+.dg-shadow-overlay { box-shadow: var(--dg-shadows-overlay); }
+.dg-screen-padding { padding-left: var(--dg-mobile-layout-screen-margin); padding-right: var(--dg-mobile-layout-screen-margin); }
+.dg-section-gap { gap: var(--dg-mobile-layout-section-gap); }
+.dg-element-gap { gap: var(--dg-mobile-layout-element-gap); }
+
+.dg-type-nav-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-nav-title-size);
+  font-weight: var(--dg-type-nav-title-weight);
+  line-height: var(--dg-type-nav-title-line-height);
+}
+
+.dg-type-screen-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-screen-title-size);
+  font-weight: var(--dg-type-screen-title-weight);
+  line-height: var(--dg-type-screen-title-line-height);
+}
+
+.dg-type-hero-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-hero-title-size);
+  font-weight: var(--dg-type-hero-title-weight);
+  line-height: var(--dg-type-hero-title-line-height);
+}
+
+.dg-type-section-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-section-title-size);
+  font-weight: var(--dg-type-section-title-weight);
+  line-height: var(--dg-type-section-title-line-height);
+}
+
+.dg-type-metric-value {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-metric-value-size);
+  font-weight: var(--dg-type-metric-value-weight);
+  line-height: var(--dg-type-metric-value-line-height);
+}
+
+.dg-type-body {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-body-size);
+  font-weight: var(--dg-type-body-weight);
+  line-height: var(--dg-type-body-line-height);
+}
+
+.dg-type-supporting {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-supporting-size);
+  font-weight: var(--dg-type-supporting-weight);
+  line-height: var(--dg-type-supporting-line-height);
+}
+
+.dg-type-caption {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-caption-size);
+  font-weight: var(--dg-type-caption-weight);
+  line-height: var(--dg-type-caption-line-height);
+}
+
+.dg-type-button-label {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-button-label-size);
+  font-weight: var(--dg-type-button-label-weight);
+  line-height: var(--dg-type-button-label-line-height);
+}
+      html, body { margin: 0; min-height: 100%; }
+      body {
+        font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+        background: var(--dg-color-background-primary, #ffffff);
+        color: var(--dg-color-text-high-emphasis, #111827);
+      }
+      #drawgle-export-root {
+        position: relative;
+        min-height: 100vh;
+        overflow-x: hidden;
+        background: var(--dg-color-background-primary, #ffffff);
+      }
+      #drawgle-export-navigation { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; pointer-events: none; }
+      #drawgle-export-navigation [data-drawgle-primary-nav] { pointer-events: auto; }
+    </style>
+  </head>
+  <body>
+    <div id="drawgle-export-root">
+<div class="w-full min-h-screen bg-[#F8F8FF] flex flex-col relative overflow-hidden" style="font-family: 'Plus Jakarta Sans', sans-serif">
+  <!-- Header -->
+  <header class="pt-[16px] px-[24px] flex items-center justify-between w-full z-[10]">
+    <div class="w-[48px] h-[48px] flex items-center justify-start">
+      <!-- Back button omitted as per root tab destination rules -->
+    </div>
+    <h1 class="text-[20px] font-[700] leading-[28px] text-[#121212]">Transactions</h1>
+    <button class="w-[48px] h-[48px] flex items-center justify-end text-[#121212]">
+      <i data-lucide="more-horizontal" class="w-[24px] h-[24px]"></i>
+    </button>
+  </header>
+
+  <!-- Content Scroll Area -->
+  <div class="flex-1 overflow-y-auto px-[24px] pb-[100px]">
+    <!-- Segmented Control -->
+    <div class="mt-[24px] flex justify-center">
+      <div class="bg-[#E0E0FF] p-[4px] rounded-full flex items-center w-full max-w-[280px]">
+        <button class="flex-1 h-[44px] rounded-full text-[15px] font-[700] text-[#6B6B80]">Income</button>
+        <button class="flex-1 h-[44px] rounded-full bg-[#FFFFFF] shadow-sm text-[15px] font-[700] text-[#121212]">Expense</button>
+      </div>
+    </div>
+
+    <!-- Total Balance -->
+    <div class="mt-[32px] text-center">
+      <p class="text-[14px] font-[400] text-[#6B6B80] mb-[4px]">Total Balance</p>
+      <h2 class="text-[32px] font-[800] leading-[40px] text-[#121212]">$8,182.80</h2>
+    </div>
+
+    <!-- Expense Chart Card -->
+    <div class="mt-[32px] relative bg-[#FFFFFF] rounded-[32px] p-[24px] pt-[40px] shadow-[0px_8px_24px_rgba(142,143,250,0.08)]">
+      <!-- Concave Notch -->
+      <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[64px] h-[20px] bg-[#F8F8FF] rounded-b-[24px]"></div>
+      
+      <div class="flex items-center justify-between mb-[32px]">
+        <h3 class="text-[16px] font-[700] text-[#121212]">Expense Chart</h3>
+        <button class="text-[14px] font-[600] text-[#8E8FFA] flex items-center gap-1">
+          Weekly <i data-lucide="chevron-down" class="w-[16px] h-[16px]"></i>
+        </button>
+      </div>
+
+      <!-- Bar Chart -->
+      <div class="relative h-[180px] flex items-end justify-between gap-[8px] px-[4px]">
+        <!-- Tooltip for Friday -->
+        <div class="absolute bottom-[145px] left-[calc(57.14%-35px)] bg-[#FFD28D] px-[12px] py-[6px] rounded-full shadow-lg z-[5]">
+          <span class="text-[12px] font-[800] text-[#121212]">$2,135</span>
+          <!-- Tooltip Arrow -->
+          <div class="absolute -bottom-[4px] left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-[#FFD28D]"></div>
+        </div>
+
+        <!-- Bars -->
+        <div class="flex-1 flex flex-col items-center gap-[8px]">
+          <div class="w-full bg-[#E0E0FF] rounded-full h-[60px]"></div>
+          <span class="text-[12px] font-[600] text-[#A0A0B8]">M</span>
+        </div>
+        <div class="flex-1 flex flex-col items-center gap-[8px]">
+          <div class="w-full bg-[#E0E0FF] rounded-full h-[90px]"></div>
+          <span class="text-[12px] font-[600] text-[#A0A0B8]">T</span>
+        </div>
+        <div class="flex-1 flex flex-col items-center gap-[8px]">
+          <div class="w-full bg-[#E0E0FF] rounded-full h-[40px]"></div>
+          <span class="text-[12px] font-[600] text-[#A0A0B8]">W</span>
+        </div>
+        <div class="flex-1 flex flex-col items-center gap-[8px]">
+          <div class="w-full bg-[#E0E0FF] rounded-full h-[110px]"></div>
+          <span class="text-[12px] font-[600] text-[#A0A0B8]">T</span>
+        </div>
+        <!-- Friday Highlighted -->
+        <div class="flex-1 flex flex-col items-center gap-[8px]">
+          <div class="w-full bg-[#121212] rounded-full h-[130px]"></div>
+          <span class="text-[12px] font-[800] text-[#121212]">F</span>
+        </div>
+        <div class="flex-1 flex flex-col items-center gap-[8px]">
+          <div class="w-full bg-[#E0E0FF] rounded-full h-[70px]"></div>
+          <span class="text-[12px] font-[600] text-[#A0A0B8]">S</span>
+        </div>
+        <div class="flex-1 flex flex-col items-center gap-[8px]">
+          <div class="w-full bg-[#E0E0FF] rounded-full h-[50px]"></div>
+          <span class="text-[12px] font-[600] text-[#A0A0B8]">S</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Transfer Card -->
+    <div class="mt-[24px] relative bg-[#FFFFFF] rounded-[32px] p-[24px] pt-[40px] shadow-[0px_8px_24px_rgba(142,143,250,0.08)]">
+      <!-- Concave Notch -->
+      <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[64px] h-[20px] bg-[#F8F8FF] rounded-b-[24px]"></div>
+      
+      <h3 class="text-[16px] font-[700] text-[#121212] mb-[20px]">Transfer</h3>
+
+      <!-- Recipient Row -->
+      <div class="flex items-center justify-between p-[12px] bg-[#F8F8FF] rounded-[24px] mb-[16px]">
+        <div class="flex items-center gap-[12px]">
+          <div class="w-[44px] h-[44px] rounded-full bg-[#E0E0FF] flex items-center justify-center overflow-hidden">
+            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Amilina" alt="Amilina Josef" class="w-full h-full object-cover" />
+          </div>
+          <div>
+            <p class="text-[14px] font-[700] text-[#121212]">Amilina Josef</p>
+            <p class="text-[12px] font-[400] text-[#6B6B80]">Recipient</p>
+          </div>
+        </div>
+        <button class="px-[16px] h-[36px] rounded-full bg-[#FFFFFF] border border-[#E8E8F5] text-[13px] font-[700] text-[#121212]">Change</button>
+      </div>
+
+      <!-- Transfer Amount Input -->
+      <div class="relative mb-[16px]">
+        <div class="w-full h-[80px] bg-[#F8F8FF] rounded-[24px] flex flex-col items-center justify-center">
+          <p class="text-[12px] font-[600] text-[#A0A0B8] uppercase tracking-wider">Transfer Amount</p>
+          <div class="flex items-center gap-2">
+            <span class="text-[24px] font-[800] text-[#121212]">$180.00</span>
+            <button class="w-[24px] h-[24px] flex items-center justify-center text-[#8E8FFA]">
+              <i data-lucide="edit-3" class="w-[16px] h-[16px]"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add Notes Field -->
+      <div class="relative">
+        <div class="w-full h-[52px] bg-[#F8F8FF] rounded-[16px] px-[16px] flex items-center justify-between">
+          <input type="text" placeholder="Add notes" class="bg-transparent border-none outline-none text-[14px] font-[500] text-[#121212] placeholder-[#A0A0B8] flex-1" />
+          <div class="flex items-center gap-[12px] text-[#6B6B80]">
+            <button class="w-[24px] h-[24px] flex items-center justify-center">
+              <i data-lucide="smile" class="w-[18px] h-[18px]"></i>
+            </button>
+            <button class="w-[24px] h-[24px] flex items-center justify-center">
+              <i data-lucide="paperclip" class="w-[18px] h-[18px]"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Send Button -->
+      <button class="mt-[24px] w-full h-[56px] bg-[#121212] rounded-full text-[#FFFFFF] text-[15px] font-[700] flex items-center justify-center gap-2">
+        Send Money
+        <i data-lucide="arrow-right"
+      <div id="drawgle-export-navigation"><nav data-drawgle-primary-nav class="dg-nav-shell" aria-label="Primary navigation">
+  <style>
+    [data-drawgle-primary-nav].dg-nav-shell {
+      position: fixed;
+      bottom: var(--dg-mobile-layout-safe-area-bottom);
+      left: 50%;
+      transform: translateX(-50%);
+      width: calc(100% - (var(--dg-mobile-layout-screen-margin) * 2));
+      max-width: 342px;
+      height: 76px;
+      background: var(--dg-color-surface-modal); /* Midnight Onyx */
+      border-radius: var(--dg-radii-app); /* 32pt Super-ellipse */
+      box-shadow: var(--dg-shadows-overlay);
+      padding: 8px;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      box-sizing: border-box;
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-item {
+      position: relative;
+      flex: 1;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      background: transparent;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-icon-container {
+      width: 44px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--dg-radii-pill);
+      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      color: var(--dg-color-text-low-emphasis);
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-item[] .dg-nav-icon-container {
+      background: var(--dg-color-action-secondary); /* Electric Violet */
+      color: var(--dg-color-action-on-primary-text);
+      transform: translateY(-4px);
+      box-shadow: 0 8px 16px rgba(142, 143, 250, 0.3);
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-icon-container i {
+      width: var(--dg-sizing-icon-standard);
+      height: var(--dg-sizing-icon-standard);
+      stroke-width: 2px;
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-label {
+      font-family: inherit;
+      font-size: var(--dg-type-caption-size);
+      font-weight: var(--dg-type-caption-weight);
+      line-height: var(--dg-type-caption-line-height);
+      color: var(--dg-color-text-low-emphasis);
+      transition: color 0.2s ease;
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-item[] .dg-nav-label {
+      color: var(--dg-color-action-on-primary-text);
+    }
+
+    /* Active indicator dot */
+    [data-drawgle-primary-nav] .dg-nav-item[]::after {
+      content: '';
+      position: absolute;
+      bottom: 2px;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--dg-color-action-secondary);
+    }
+  </style>
+
+  <button type="button" class="dg-nav-item" data-nav-item-id="dashboard" aria-label="Dashboard">
+    <span class="dg-nav-icon-container">
+      <i data-lucide="layout-dashboard"></i>
+    </span>
+    <span class="dg-nav-label">Dashboard</span>
+  </button>
+
+  <button type="button" class="dg-nav-item" data-nav-item-id="transactions" aria-label="Transactions">
+    <span class="dg-nav-icon-container">
+      <i data-lucide="arrow-up-down"></i>
+    </span>
+    <span class="dg-nav-label">Activity</span>
+  </button>
+
+  <button type="button" class="dg-nav-item" data-nav-item-id="analytics" aria-label="Analytics">
+    <span class="dg-nav-icon-container">
+      <i data-lucide="pie-chart"></i>
+    </span>
+    <span class="dg-nav-label">Insights</span>
+  </button>
+</nav></div>
+    </div>
+    <script>
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+      document.querySelectorAll('[data-nav-item-id]').forEach(function(item) {
+        var active = item.getAttribute('data-nav-item-id') === "home";
+        item.setAttribute('data-active', active ? 'true' : 'false');
+        item.setAttribute('aria-current', active ? 'page' : 'false');
+      });
+    </script>
+  </body>
+</html>

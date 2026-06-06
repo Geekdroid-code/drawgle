@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link id="drawgle-google-font" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;500;600&amp;display=swap">
+    <style>
+:root {
+  --dg-color-text-low-emphasis: #999999;
+  --dg-color-text-high-emphasis: #1A1A1A;
+  --dg-color-text-medium-emphasis: #666666;
+  --dg-color-action-primary: #E86B41;
+  --dg-color-action-disabled: #D1D1D1;
+  --dg-color-action-secondary: #1A1A1A;
+  --dg-color-action-on-primary-text: #FFFFFF;
+  --dg-color-border-divider: #E5E5E5;
+  --dg-color-border-focused: #E86B41;
+  --dg-color-surface-card: #FFFFFF;
+  --dg-color-surface-modal: #FFFFFF;
+  --dg-color-surface-bottom-sheet: #FFFFFF;
+  --dg-color-background-primary: #F4F4F4;
+  --dg-color-background-secondary: #FFFFFF;
+  --dg-radii-lg: 24px;
+  --dg-radii-md: 16px;
+  --dg-radii-sm: 8px;
+  --dg-radii-xl: 32px;
+  --dg-radii-pill: 9999px;
+  --dg-radii-sharp: 0px;
+  --dg-radii-app: 24px;
+  --dg-sizing-icon-small: 20px;
+  --dg-sizing-icon-standard: 24px;
+  --dg-sizing-min-touch-target: 48px;
+  --dg-sizing-bottom-nav-height: 84px;
+  --dg-sizing-standard-input-height: 48px;
+  --dg-sizing-standard-button-height: 48px;
+  --dg-shadows-lg: 0 12px 24px rgba(0,0,0,0.12);
+  --dg-shadows-md: 0 4px 12px rgba(0,0,0,0.08);
+  --dg-shadows-sm: 0 2px 4px rgba(0,0,0,0.05);
+  --dg-shadows-none: none;
+  --dg-shadows-upward: 0 -4px 16px rgba(0,0,0,0.06);
+  --dg-shadows-surface: 0 4px 12px rgba(0,0,0,0.08);
+  --dg-shadows-overlay: 0 -4px 16px rgba(0,0,0,0.06);
+  --dg-spacing-none: 0px;
+  --dg-spacing-lg: 16px;
+  --dg-spacing-md: 12px;
+  --dg-spacing-sm: 8px;
+  --dg-spacing-xl: 24px;
+  --dg-spacing-xs: 4px;
+  --dg-spacing-xxl: 32px;
+  --dg-spacing-xxs: 2px;
+  --dg-z-index-base: 0;
+  --dg-z-index-bottom-nav: 20;
+  --dg-z-index-bottom-sheet: 30;
+  --dg-z-index-modal-dialog: 40;
+  --dg-z-index-sticky-header: 10;
+  --dg-z-index-toast-snackbar: 50;
+  --dg-opacities-opaque: 1;
+  --dg-opacities-pressed: 0.12;
+  --dg-opacities-disabled: 0.38;
+  --dg-opacities-transparent: 0;
+  --dg-opacities-scrim-overlay: 0.50;
+  --dg-typography-font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+  --dg-type-nav-title-size: 22px;
+  --dg-type-nav-title-weight: 600;
+  --dg-type-nav-title-line-height: 28px;
+  --dg-type-screen-title-size: 22px;
+  --dg-type-screen-title-weight: 600;
+  --dg-type-screen-title-line-height: 28px;
+  --dg-type-hero-title-size: 34px;
+  --dg-type-hero-title-weight: 600;
+  --dg-type-hero-title-line-height: 42px;
+  --dg-type-section-title-size: 22px;
+  --dg-type-section-title-weight: 600;
+  --dg-type-section-title-line-height: 28px;
+  --dg-type-metric-value-size: 34px;
+  --dg-type-metric-value-weight: 600;
+  --dg-type-metric-value-line-height: 42px;
+  --dg-type-body-size: 16px;
+  --dg-type-body-weight: 400;
+  --dg-type-body-line-height: 24px;
+  --dg-type-supporting-size: 14px;
+  --dg-type-supporting-weight: 400;
+  --dg-type-supporting-line-height: 20px;
+  --dg-type-caption-size: 12px;
+  --dg-type-caption-weight: 500;
+  --dg-type-caption-line-height: 16px;
+  --dg-type-button-label-size: 16px;
+  --dg-type-button-label-weight: 600;
+  --dg-type-button-label-line-height: 20px;
+  --dg-border-widths-none: 0px;
+  --dg-border-widths-thin: 2px;
+  --dg-border-widths-thick: 4px;
+  --dg-border-widths-hairline: 1px;
+  --dg-border-widths-standard: 2px;
+  --dg-mobile-layout-element-gap: 12px;
+  --dg-mobile-layout-section-gap: 16px;
+  --dg-mobile-layout-safe-area-top: 16px;
+  --dg-mobile-layout-screen-margin: 12px;
+  --dg-mobile-layout-safe-area-bottom: 16px;
+}
+
+#root {
+  --dg-preview-background: var(--dg-color-background-primary, #ffffff);
+  background: var(--dg-preview-background);
+}
+
+.dg-bg-primary { background-color: var(--dg-color-background-primary); }
+.dg-bg-secondary { background-color: var(--dg-color-background-secondary); }
+.dg-surface-card { background-color: var(--dg-color-surface-card); }
+.dg-surface-bottom-sheet { background-color: var(--dg-color-surface-bottom-sheet); }
+.dg-surface-modal { background-color: var(--dg-color-surface-modal); }
+.dg-text-high { color: var(--dg-color-text-high-emphasis); }
+.dg-text-medium { color: var(--dg-color-text-medium-emphasis); }
+.dg-text-low { color: var(--dg-color-text-low-emphasis); }
+.dg-action-primary {
+  background-color: var(--dg-color-action-primary);
+  color: var(--dg-color-action-on-primary-text);
+}
+.dg-action-secondary { background-color: var(--dg-color-action-secondary); }
+.dg-border-divider { border-color: var(--dg-color-border-divider); }
+.dg-border-focused { border-color: var(--dg-color-border-focused); }
+.dg-radius-app { border-radius: var(--dg-radii-app); }
+.dg-radius-pill { border-radius: var(--dg-radii-pill); }
+.dg-shadow-surface { box-shadow: var(--dg-shadows-surface); }
+.dg-shadow-overlay { box-shadow: var(--dg-shadows-overlay); }
+.dg-screen-padding { padding-left: var(--dg-mobile-layout-screen-margin); padding-right: var(--dg-mobile-layout-screen-margin); }
+.dg-section-gap { gap: var(--dg-mobile-layout-section-gap); }
+.dg-element-gap { gap: var(--dg-mobile-layout-element-gap); }
+
+.dg-type-nav-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-nav-title-size);
+  font-weight: var(--dg-type-nav-title-weight);
+  line-height: var(--dg-type-nav-title-line-height);
+}
+
+.dg-type-screen-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-screen-title-size);
+  font-weight: var(--dg-type-screen-title-weight);
+  line-height: var(--dg-type-screen-title-line-height);
+}
+
+.dg-type-hero-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-hero-title-size);
+  font-weight: var(--dg-type-hero-title-weight);
+  line-height: var(--dg-type-hero-title-line-height);
+}
+
+.dg-type-section-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-section-title-size);
+  font-weight: var(--dg-type-section-title-weight);
+  line-height: var(--dg-type-section-title-line-height);
+}
+
+.dg-type-metric-value {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-metric-value-size);
+  font-weight: var(--dg-type-metric-value-weight);
+  line-height: var(--dg-type-metric-value-line-height);
+}
+
+.dg-type-body {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-body-size);
+  font-weight: var(--dg-type-body-weight);
+  line-height: var(--dg-type-body-line-height);
+}
+
+.dg-type-supporting {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-supporting-size);
+  font-weight: var(--dg-type-supporting-weight);
+  line-height: var(--dg-type-supporting-line-height);
+}
+
+.dg-type-caption {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-caption-size);
+  font-weight: var(--dg-type-caption-weight);
+  line-height: var(--dg-type-caption-line-height);
+}
+
+.dg-type-button-label {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-button-label-size);
+  font-weight: var(--dg-type-button-label-weight);
+  line-height: var(--dg-type-button-label-line-height);
+}
+      html, body { margin: 0; min-height: 100%; }
+      body {
+        font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+        background: var(--dg-color-background-primary, #ffffff);
+        color: var(--dg-color-text-high-emphasis, #111827);
+      }
+      #drawgle-export-root {
+        position: relative;
+        min-height: 100vh;
+        overflow-x: hidden;
+        background: var(--dg-color-background-primary, #ffffff);
+      }
+      #drawgle-export-navigation { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; pointer-events: none; }
+      #drawgle-export-navigation [data-drawgle-primary-nav] { pointer-events: auto; }
+    </style>
+  </head>
+  <body>
+    <div id="drawgle-export-root">
+<div class="w-full min-h-screen bg-[#F4F4F4] flex flex-col relative overflow-hidden" style="font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Inter', sans-serif">
+  
+  <!-- Header Section -->
+  <header class="pt-[44px] px-[12px] flex items-center justify-between bg-[#F4F4F4] z-[10]">
+    <div class="flex items-center gap-[12px]">
+      <div class="w-[48px] h-[48px] rounded-full overflow-hidden border-[2px] border-white shadow-sm">
+        <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=100&h=100" alt="User Avatar" class="w-full h-full object-cover" />
+      </div>
+      <div class="flex flex-col">
+        <span class="text-[14px] font-[400] text-[#666666] leading-[20px]">Good Morning</span>
+        <h1 class="text-[22px] font-[600] text-[#1A1A1A] leading-[28px]">Hi John</h1>
+      </div>
+    </div>
+    <button class="w-[48px] h-[48px] flex items-center justify-center bg-white rounded-full shadow-sm active:scale-95 transition-transform">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1A1A1A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>
+    </button>
+  </header>
+
+  <!-- Main Content Scrollable Area -->
+  <main class="flex-1 overflow-y-auto px-[12px] pt-[16px] pb-[34px] space-y-[16px]">
+    
+    <!-- New Challenge Card -->
+    <section class="bg-[#1A1A1A] rounded-[24px] p-[20px] flex items-center justify-between shadow-lg">
+      <div class="flex flex-col gap-[4px]">
+        <h2 class="text-white text-[18px] font-[600]">New Challenge!</h2>
+        <p class="text-[#999999] text-[14px]">Complete 10km in 3 days</p>
+      </div>
+      <button class="bg-[#E86B41] text-white px-[24px] py-[12px] rounded-full text-[16px] font-[600] min-h-[48px] active:opacity-80 transition-opacity">
+        START
+      </button>
+    </section>
+
+    <!-- Weekly Calendar -->
+    <section class="flex justify-between items-center py-[8px]">
+      <div class="flex flex-col items-center gap-[8px] w-[44px]">
+        <span class="text-[12px] font-[500] text-[#999999]">Mon</span>
+        <span class="text-[16px] font-[600] text-[#1A1A1A]">12</span>
+      </div>
+      <div class="flex flex-col items-center gap-[8px] w-[44px]">
+        <span class="text-[12px] font-[500] text-[#999999]">Tue</span>
+        <span class="text-[16px] font-[600] text-[#1A1A1A]">13</span>
+      </div>
+      <!-- Wednesday Highlighted -->
+      <div class="flex flex-col items-center gap-[8px] w-[44px] bg-[#1A1A1A] py-[10px] rounded-[16px] shadow-md">
+        <span class="text-[12px] font-[500] text-white/60">Wed</span>
+        <span class="text-[16px] font-[600] text-white">14</span>
+      </div>
+      <div class="flex flex-col items-center gap-[8px] w-[44px]">
+        <span class="text-[12px] font-[500] text-[#999999]">Thu</span>
+        <span class="text-[16px] font-[600] text-[#1A1A1A]">15</span>
+      </div>
+      <div class="flex flex-col items-center gap-[8px] w-[44px]">
+        <span class="text-[12px] font-[500] text-[#999999]">Fri</span>
+        <span class="text-[16px] font-[600] text-[#1A1A1A]">16</span>
+      </div>
+      <div class="flex flex-col items-center gap-[8px] w-[44px]">
+        <span class="text-[12px] font-[500] text-[#999999]">Sat</span>
+        <span class="text-[16px] font-[600] text-[#1A1A1A]">17</span>
+      </div>
+      <div class="flex flex-col items-center gap-[8px] w-[44px]">
+        <span class="text-[12px] font-[500] text-[#999999]">Sun</span>
+        <span class="text-[16px] font-[600] text-[#1A1A1A]">18</span>
+      </div>
+    </section>
+
+    <!-- Steps Card -->
+    <section class="bg-[#E86B41] rounded-[32px] p-[24px] text-white shadow-lg">
+      <div class="flex justify-between items-start mb-[24px]">
+        <div class="flex flex-col">
+          <span class="text-[16px] font-[400] opacity-80">Steps</span>
+          <span class="text-[34px] font-[600] leading-[42px]">9,420</span>
+        </div>
+        <div class="bg-white/20 p-[8px] rounded-[12px]">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4 4 4"></path><path d="m4 14 4-4 4 4"></path></svg>
+        </div>
+      </div>
+      
+      <!-- Bar Chart -->
+      <div class="flex items-end justify-between h-[100px] gap-[8px]">
+        <div class="flex-1 bg-white/30 rounded-t-[4px] h-[40%]"></div>
+        <div class="flex-1 bg-white/30 rounded-t-[4px] h-[65%]"></div>
+        <div class="flex-1 bg-white rounded-t-[4px] h-[90%] relative">
+          <div class="absolute -top-[24px] left-1/2 -translate-x-1/2 text-[10px] font-[600]">Today</div>
+        </div>
+        <div class="flex-1 bg-white/30 rounded-t-[4px] h-[55%]"></div>
+        <div class="flex-1 bg-white/30 rounded-t-[4px] h-[75%]"></div>
+        <div class="flex-1 bg-white/30 rounded-t-[4px] h-[45%]"></div>
+        <div class="flex-1 bg-white/30 rounded-t-[4px] h-[60%]"></div>
+      </div>
+      <div class="flex justify-between mt-[8px] text-[10px] font-[500] opacity-60">
+        <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+      </div>
+    </section>
+
+    <!-- Metrics Section -->
+    <div class="grid grid-cols-1 gap-[12px]">
+      
+      <!-- Duration Card -->
+      <div class="bg-white rounded-[24px] p-[16px] flex items-center justify-between shadow-sm">
+        <div class="flex items-center gap-[16px]">
+          <div class="w-[48px] h-[48px] bg-[#F4F4F4] rounded-full flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#E86B41" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+          </div>
+          <div class="flex flex-col">
+            <span class="text-[16px] font-[600] text-[#1A1A1A]">Duration</span>
+            <span class="text-[14px] font-[400] text-[#666666]">1h 20m</span>
+          </div>
+        </div>
+        <div class="relative w-[48px] h-[48px]">
+          <svg class="w-full h-full transform -rotate-90">
+            <circle cx="24" cy="24" r="18" stroke="#E5E5E5" stroke-width="4" fill="transparent" />
+            <circle cx="24" cy="24" r="18" stroke="#E86B41" stroke-width="4" fill="transparent" stroke-dasharray="113" stroke-dashoffset="22.6" stroke-linecap="round" />
+          </svg>
+          <span class="absolute inset-0 flex items-center justify-center text-[10px] font-[700] text-[#1A1A1A]">80%</span>
+        </div>
+      </div>
+
+      <!-- Calories Card -->
+      <div class="bg-white rounded-[24px] p-[16px] flex items-center justify-between shadow-sm">
+        <div class="flex items-center gap-[16px]">
+          <div class="w-[48px] h-[48px] bg-[#F4F4F4] rounded-full flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#E86B41" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path></svg>
+          </div>
+          <div class="flex flex-col">
+            <span class="text-[16px] font-[600] text-[#1A1A1A]">Calories burned</span>
+            <span class="text-[14px] font-[400] text-[#666666]">450 kcal</span>
+          </div>
+        </div>
+        <div class="relative w-[48px] h-[48px]">
+          <svg class="w-full h-full transform -rotate-90">
+            <circle cx="24" cy="24" r="18" stroke="#E5E5E5" stroke-width="4" fill="transparent" />
+            <circle cx="24" cy="24" r="18" stroke="#1A1A1A" stroke-width="4" fill="transparent" stroke-dasharray="113" stroke-dashoffset="56.5" stroke-linecap="round" />
+          </svg>
+          <span class="absolute inset-0 flex items-center justify-center text-[10px] font-[700] text-[#1A1A1A]">50%</span>
+        </div>
+      </div>
+
+      <!-- Water Intake Card -->
+      <div class="bg-white rounded-[24px] p-[16px] flex items-center justify-between shadow-sm">
+        <div class="flex items-center gap-[16px]">
+          <div class="w-[48px] h-[48px] bg-[#F4F4F4] rounded-full flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#E86B41" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>
+          </div>
+          <div class="flex flex-col">
+            <span class="text-[16px] font-[600] text-[#1A1A1A]">Water intake</span>
+            <span class="text-[14px] font-[400] text-[#666666]">1.2 L</span>
+          </div>
+        </div>
+        <div class="relative w-[48px] h-[48px]">
+          <svg class="w-full h-full transform -rotate-90">
+            <circle cx="24" cy="24" r="18" stroke="#E5E5E5" stroke-width="4" fill="transparent" />
+            <circle cx="24" cy="24" r="18" stroke="#E86B41" stroke-width="4" fill="transparent" stroke-dasharray="113" stroke-dashoffset="67.8" stroke-linecap="round" />
+          </svg>
+          <span class="absolute inset-0 flex items-center justify-center text-[10px] font-[700] text-[#1A1A1A]">40%</span>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+</div>
+      
+    </div>
+    <script>
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+      document.querySelectorAll('[data-nav-item-id]').forEach(function(item) {
+        var active = item.getAttribute('data-nav-item-id') === "home";
+        item.setAttribute('data-active', active ? 'true' : 'false');
+        item.setAttribute('aria-current', active ? 'page' : 'false');
+      });
+    </script>
+  </body>
+</html>

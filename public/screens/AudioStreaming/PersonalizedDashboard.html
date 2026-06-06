@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link id="drawgle-google-font" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;600;700;800&amp;display=swap">
+    <style>
+:root {
+  --dg-color-text-low-emphasis: #666666;
+  --dg-color-text-high-emphasis: #FFFFFF;
+  --dg-color-text-medium-emphasis: #A1A1A1;
+  --dg-color-action-primary: #FFFFFF;
+  --dg-color-action-disabled: rgba(255, 255, 255, 0.20);
+  --dg-color-action-secondary: rgba(255, 255, 255, 0.12);
+  --dg-color-action-on-primary-text: #000000;
+  --dg-color-border-divider: rgba(255, 255, 255, 0.10);
+  --dg-color-border-focused: #FFFFFF;
+  --dg-color-surface-card: rgba(255, 255, 255, 0.08);
+  --dg-color-surface-modal: rgba(28, 28, 28, 0.98);
+  --dg-color-surface-bottom-sheet: rgba(18, 18, 18, 0.94);
+  --dg-color-background-primary: #000000;
+  --dg-color-background-secondary: #0A0A0A;
+  --dg-radii-lg: 24px;
+  --dg-radii-md: 16px;
+  --dg-radii-sm: 8px;
+  --dg-radii-xl: 32px;
+  --dg-radii-pill: 9999px;
+  --dg-radii-sharp: 0px;
+  --dg-radii-app: 24px;
+  --dg-sizing-icon-small: 18px;
+  --dg-sizing-icon-standard: 24px;
+  --dg-sizing-min-touch-target: 48px;
+  --dg-sizing-bottom-nav-height: 84px;
+  --dg-sizing-standard-input-height: 52px;
+  --dg-sizing-standard-button-height: 44px;
+  --dg-shadows-lg: 0 12px 48px rgba(0,0,0,0.8);
+  --dg-shadows-md: 0 8px 24px rgba(0,0,0,0.7);
+  --dg-shadows-sm: 0 4px 12px rgba(0,0,0,0.5);
+  --dg-shadows-none: none;
+  --dg-shadows-upward: 0 -4px 20px rgba(0,0,0,0.4);
+  --dg-shadows-surface: 0 8px 24px rgba(0,0,0,0.7);
+  --dg-shadows-overlay: 0 -4px 20px rgba(0,0,0,0.4);
+  --dg-spacing-none: 0px;
+  --dg-spacing-lg: 24px;
+  --dg-spacing-md: 16px;
+  --dg-spacing-sm: 12px;
+  --dg-spacing-xl: 32px;
+  --dg-spacing-xs: 8px;
+  --dg-spacing-xxl: 48px;
+  --dg-spacing-xxs: 4px;
+  --dg-z-index-base: 0;
+  --dg-z-index-bottom-nav: 20;
+  --dg-z-index-bottom-sheet: 30;
+  --dg-z-index-modal-dialog: 40;
+  --dg-z-index-sticky-header: 10;
+  --dg-z-index-toast-snackbar: 50;
+  --dg-opacities-opaque: 1;
+  --dg-opacities-pressed: 0.15;
+  --dg-opacities-disabled: 0.38;
+  --dg-opacities-transparent: 0;
+  --dg-opacities-scrim-overlay: 0.60;
+  --dg-typography-font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --dg-type-nav-title-size: 22px;
+  --dg-type-nav-title-weight: 700;
+  --dg-type-nav-title-line-height: 28px;
+  --dg-type-screen-title-size: 22px;
+  --dg-type-screen-title-weight: 700;
+  --dg-type-screen-title-line-height: 28px;
+  --dg-type-hero-title-size: 34px;
+  --dg-type-hero-title-weight: 800;
+  --dg-type-hero-title-line-height: 41px;
+  --dg-type-section-title-size: 22px;
+  --dg-type-section-title-weight: 700;
+  --dg-type-section-title-line-height: 28px;
+  --dg-type-metric-value-size: 34px;
+  --dg-type-metric-value-weight: 800;
+  --dg-type-metric-value-line-height: 41px;
+  --dg-type-body-size: 16px;
+  --dg-type-body-weight: 400;
+  --dg-type-body-line-height: 24px;
+  --dg-type-supporting-size: 14px;
+  --dg-type-supporting-weight: 400;
+  --dg-type-supporting-line-height: 20px;
+  --dg-type-caption-size: 12px;
+  --dg-type-caption-weight: 300;
+  --dg-type-caption-line-height: 16px;
+  --dg-type-button-label-size: 14px;
+  --dg-type-button-label-weight: 600;
+  --dg-type-button-label-line-height: 14px;
+  --dg-border-widths-none: 0px;
+  --dg-border-widths-thin: 1px;
+  --dg-border-widths-thick: 2px;
+  --dg-border-widths-hairline: 0.5px;
+  --dg-border-widths-standard: 1px;
+  --dg-mobile-layout-element-gap: 16px;
+  --dg-mobile-layout-section-gap: 32px;
+  --dg-mobile-layout-safe-area-top: 16px;
+  --dg-mobile-layout-screen-margin: 20px;
+  --dg-mobile-layout-safe-area-bottom: 16px;
+}
+
+#root {
+  --dg-preview-background: var(--dg-color-background-primary, #ffffff);
+  background: var(--dg-preview-background);
+}
+
+.dg-bg-primary { background-color: var(--dg-color-background-primary); }
+.dg-bg-secondary { background-color: var(--dg-color-background-secondary); }
+.dg-surface-card { background-color: var(--dg-color-surface-card); }
+.dg-surface-bottom-sheet { background-color: var(--dg-color-surface-bottom-sheet); }
+.dg-surface-modal { background-color: var(--dg-color-surface-modal); }
+.dg-text-high { color: var(--dg-color-text-high-emphasis); }
+.dg-text-medium { color: var(--dg-color-text-medium-emphasis); }
+.dg-text-low { color: var(--dg-color-text-low-emphasis); }
+.dg-action-primary {
+  background-color: var(--dg-color-action-primary);
+  color: var(--dg-color-action-on-primary-text);
+}
+.dg-action-secondary { background-color: var(--dg-color-action-secondary); }
+.dg-border-divider { border-color: var(--dg-color-border-divider); }
+.dg-border-focused { border-color: var(--dg-color-border-focused); }
+.dg-radius-app { border-radius: var(--dg-radii-app); }
+.dg-radius-pill { border-radius: var(--dg-radii-pill); }
+.dg-shadow-surface { box-shadow: var(--dg-shadows-surface); }
+.dg-shadow-overlay { box-shadow: var(--dg-shadows-overlay); }
+.dg-screen-padding { padding-left: var(--dg-mobile-layout-screen-margin); padding-right: var(--dg-mobile-layout-screen-margin); }
+.dg-section-gap { gap: var(--dg-mobile-layout-section-gap); }
+.dg-element-gap { gap: var(--dg-mobile-layout-element-gap); }
+
+.dg-type-nav-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-nav-title-size);
+  font-weight: var(--dg-type-nav-title-weight);
+  line-height: var(--dg-type-nav-title-line-height);
+}
+
+.dg-type-screen-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-screen-title-size);
+  font-weight: var(--dg-type-screen-title-weight);
+  line-height: var(--dg-type-screen-title-line-height);
+}
+
+.dg-type-hero-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-hero-title-size);
+  font-weight: var(--dg-type-hero-title-weight);
+  line-height: var(--dg-type-hero-title-line-height);
+}
+
+.dg-type-section-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-section-title-size);
+  font-weight: var(--dg-type-section-title-weight);
+  line-height: var(--dg-type-section-title-line-height);
+}
+
+.dg-type-metric-value {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-metric-value-size);
+  font-weight: var(--dg-type-metric-value-weight);
+  line-height: var(--dg-type-metric-value-line-height);
+}
+
+.dg-type-body {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-body-size);
+  font-weight: var(--dg-type-body-weight);
+  line-height: var(--dg-type-body-line-height);
+}
+
+.dg-type-supporting {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-supporting-size);
+  font-weight: var(--dg-type-supporting-weight);
+  line-height: var(--dg-type-supporting-line-height);
+}
+
+.dg-type-caption {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-caption-size);
+  font-weight: var(--dg-type-caption-weight);
+  line-height: var(--dg-type-caption-line-height);
+}
+
+.dg-type-button-label {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-button-label-size);
+  font-weight: var(--dg-type-button-label-weight);
+  line-height: var(--dg-type-button-label-line-height);
+}
+      html, body { margin: 0; min-height: 100%; }
+      body {
+        font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+        background: var(--dg-color-background-primary, #ffffff);
+        color: var(--dg-color-text-high-emphasis, #111827);
+      }
+      #drawgle-export-root {
+        position: relative;
+        min-height: 100vh;
+        overflow-x: hidden;
+        background: var(--dg-color-background-primary, #ffffff);
+      }
+      #drawgle-export-navigation { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; pointer-events: none; }
+      #drawgle-export-navigation [data-drawgle-primary-nav] { pointer-events: auto; }
+    </style>
+  </head>
+  <body>
+    <div id="drawgle-export-root">
+<div class="w-full min-h-screen bg-[#000000] flex flex-col relative overflow-hidden" style="font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif">
+  
+  <!-- Top Header Area -->
+  <header class="pt-[16px] px-[20px] mb-[32px]">
+    <div class="flex justify-between items-center mb-[8px]">
+      <button class="w-[48px] h-[48px] flex items-center justify-start text-[#FFFFFF]">
+        <i data-lucide="chevron-left" class="w-[24px] h-[24px]"></i>
+      </button>
+      <button class="w-[48px] h-[48px] flex items-center justify-end text-[#FFFFFF]">
+        <i data-lucide="settings" class="w-[24px] h-[24px]"></i>
+      </button>
+    </div>
+    <h1 class="text-[34px] font-[800] leading-[41px] text-[#FFFFFF]">Good Morning 🌟</h1>
+  </header>
+
+  <!-- Main Content Scroll Area -->
+  <main class="flex-1 overflow-y-auto pb-[100px]">
+    
+    <!-- Section 1: Followed Artist -->
+    <section class="mb-[32px]">
+      <h2 class="px-[20px] text-[22px] font-[700] leading-[28px] text-[#FFFFFF] mb-[16px]">Followed Artist</h2>
+      <div class="flex overflow-x-auto gap-[16px] px-[20px] no-scrollbar">
+        <!-- Artist 1 -->
+        <div class="flex flex-col items-center gap-[8px] min-w-[70px]">
+          <div class="w-[60px] h-[60px] rounded-full overflow-hidden border-[1px] border-[rgba(255,255,255,0.10)]">
+            <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&h=120" alt="Artist" class="w-full h-full object-cover">
+          </div>
+          <span class="text-[12px] font-[300] leading-[16px] text-[#A1A1A1] text-center truncate w-full">Amelie</span>
+        </div>
+        <!-- Artist 2 -->
+        <div class="flex flex-col items-center gap-[8px] min-w-[70px]">
+          <div class="w-[60px] h-[60px] rounded-full overflow-hidden border-[1px] border-[rgba(255,255,255,0.10)]">
+            <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&h=120" alt="Artist" class="w-full h-full object-cover">
+          </div>
+          <span class="text-[12px] font-[300] leading-[16px] text-[#A1A1A1] text-center truncate w-full">Marcus</span>
+        </div>
+        <!-- Artist 3 -->
+        <div class="flex flex-col items-center gap-[8px] min-w-[70px]">
+          <div class="w-[60px] h-[60px] rounded-full overflow-hidden border-[1px] border-[rgba(255,255,255,0.10)]">
+            <img src="https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=120&h=120" alt="Artist" class="w-full h-full object-cover">
+          </div>
+          <span class="text-[12px] font-[300] leading-[16px] text-[#A1A1A1] text-center truncate w-full">Julian</span>
+        </div>
+        <!-- Artist 4 -->
+        <div class="flex flex-col items-center gap-[8px] min-w-[70px]">
+          <div class="w-[60px] h-[60px] rounded-full overflow-hidden border-[1px] border-[rgba(255,255,255,0.10)]">
+            <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&h=120" alt="Artist" class="w-full h-full object-cover">
+          </div>
+          <span class="text-[12px] font-[300] leading-[16px] text-[#A1A1A1] text-center truncate w-full">Sasha</span>
+        </div>
+        <!-- Artist 5 -->
+        <div class="flex flex-col items-center gap-[8px] min-w-[70px]">
+          <div class="w-[60px] h-[60px] rounded-full overflow-hidden border-[1px] border-[rgba(255,255,255,0.10)]">
+            <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=120&h=120" alt="Artist" class="w-full h-full object-cover">
+          </div>
+          <span class="text-[12px] font-[300] leading-[16px] text-[#A1A1A1] text-center truncate w-full">Elias</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 2: Recently Played -->
+    <section class="mb-[32px] px-[20px]">
+      <h2 class="text-[22px] font-[700] leading-[28px] text-[#FFFFFF] mb-[16px]">Recently Played</h2>
+      <div class="grid grid-cols-2 gap-[16px]">
+        <!-- Card 1 -->
+        <div class="flex flex-col gap-[12px]">
+          <div class="aspect-square w-full rounded-[16px] overflow-hidden bg-[rgba(255,255,255,0.08)]">
+            <img src="https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?auto=format&fit=crop&w=300&h=300" alt="Podcast Art" class="w-full h-full object-cover">
+          </div>
+          <div>
+            <h3 class="text-[16px] font-[700] leading-[20px] text-[#FFFFFF] truncate">Vox Journal</h3>
+            <p class="text-[14px] font-[400] leading-[20px] text-[#A1A1A1] truncate">Ezra Klein</p>
+          </div>
+        </div>
+        <!-- Card 2 -->
+        <div class="flex flex-col gap-[12px]">
+          <div class="aspect-square w-full rounded-[16px] overflow-hidden bg-[rgba(255,255,255,0.08)]">
+            <img src="https://images.unsplash.com/photo-1557683316-973673baf926?auto=format&fit=crop&w=300&h=300" alt="Podcast Art" class="w-full h-full object-cover">
+          </div>
+          <div>
+            <h3 class="text-[16px] font-[700] leading-[20px] text-[#FFFFFF] truncate">Deep Work</h3>
+            <p class="text-[14px] font-[400] leading-[20px] text-[#A1A1A1] truncate">Cal Newport</p>
+          </div>
+        </div>
+        <!-- Card 3 -->
+        <div class="flex flex-col gap-[12px]">
+          <div class="aspect-square w-full rounded-[16px] overflow-hidden bg-[rgba(255,255,255,0.08)]">
+            <img src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=300&h=300" alt="Podcast Art" class="w-full h-full object-cover">
+          </div>
+          <div>
+            <h3 class="text-[16px] font-[700] leading-[20px] text-[#FFFFFF] truncate">The Daily</h3>
+            <p class="text-[14px] font-[400] leading-[20px] text-[#A1A1A1] truncate">NY Times</p>
+          </div>
+        </div>
+        <!-- Card 4 -->
+        <div class="flex flex-col gap-[12px]">
+          <div class="aspect-square w-full rounded-[16px] overflow-hidden bg-[rgba(255,255,255,0.08)]">
+            <img src="https://images.unsplash.com/photo-1459749411177-042180ce673c?auto=format&fit=crop&w=300&h=300" alt="Podcast Art" class="w-full h-full object-cover">
+          </div>
+          <div>
+            <h3 class="text-[16px] font-[700] leading-[20px] text-[#FFFFFF] truncate">Modern Wisdom</h3>
+            <p class="text-[14px] font-[400] leading-[20px] text-[#A1A1A1] truncate">Chris Williamson</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: Top Daily Playlist -->
+    <section class="px-[20px]">
+      <h2 class="text-[22px] font-[700] leading-[28px] text-[#FFFFFF] mb-[16px]">Top Daily Playlist</h2>
+      <div class="flex flex-col gap-[16px]">
+        <!-- Row 1 -->
+        <div class="flex items-center gap-[16px] py-[8px]">
+          <div class="w-[48px] h-[48px] rounded-[8px] overflow-hidden flex-shrink-0">
+            <img src="https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=100&h=100" alt="Cover" class="w-full h-full object-cover">
+          </div>
+          <div class="flex-1 min-w-0">
+            <h4 class="text-[16px] font-[400] leading-[24px] text-[#FFFFFF] truncate">Morning Focus</h4>
+            <p class="text-[14px] font-[400] leading-[20px] text-[#666666] truncate">Ambient beats for deep work</p>
+          </div>
+          <button class="w-[48px] h-[48px] flex items-center justify-center text-[#FFFFFF]">
+            <i data-lucide="download" class="w-[20px] h-[20px]"></i>
+          </button>
+        </div>
+        <!-- Row 2 -->
+        <div class="flex items-center gap-[16px] py-[8px]">
+          <div class="w-[48px] h-[48px] rounded-[8px] overflow-hidden flex-shrink-0">
+            <img src="https://images.unsplash.com/photo-1493225255756-d9584f8606e9?auto=format&fit=crop&w=100&h=100" alt="Cover" class="w-full h-full object-cover">
+          </div>
+          <div class="flex-1 min-w-0">
+            <h4 class="text-[16px] font-[400] leading-[24px] text-[#FFFFFF] truncate">The Founder's Mix</h4>
+            <p class="text-[14px] font-[400] leading-[20px] text-[#666666] truncate">Curated by top entrepreneurs</p>
+          </div>
+          <button class="w-[48px] h-[48px] flex items-center justify-center text-[#FFFFFF]">
+            <i data-lucide="download" class="w-[20px] h-[20px]"></i>
+          </button>
+        </div>
+        <!-- Row 3 -->
+        <div class="flex items-center gap-[16px] py-[8px]">
+          <div class="w-[48px] h-[48px] rounded-[8px] overflow-hidden flex-shrink-0">
+            <img src="https://images.unsplash.com/photo-1514525253361-bee871871771?auto=format&fit=crop&w=100&h=100" alt="Cover" class="w-full h-full object-cover">
+          </div>
+          <div class="flex-1 min-w-0">
+            <h4 class="text-[16px] font-[400] leading-[24px] text-[#FFFFFF] truncate">Late Night Jazz</h4>
+            <p class="text-[14px] font-[400] leading-[20px] text-[#666666] truncate">Smooth transitions for evening</p>
+          </div>
+          <button class="w-[48px] h-[48px] flex items-center justify-center text-[#FFFFFF]">
+            <i data-lucide="download" class="w-[20px] h-[20px]"></i>
+          </button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Bottom Navigation Bar (Glassmorphism Lite) -->
+  <nav class="fixed bottom-0 left-0 right-0 h-[84px] bg-[rgba(255,255,255,0.08)] backdrop-blur-[20px] border-t border-[rgba(255,255,255,0.10)] flex items-center justify-around px-[20px] pb-[16px] z-[20]">
+    <button class="flex flex-col items-center justify-center gap-[4px] min-w-[48px] text-[#FFFFFF]">
+      <i data-lucide="home" class="w-[24px] h-[24px]"></i>
+      <span class="text-[10px] font-[600]">Home</span>
+    </button>
+    <button class="flex flex-col items-center justify-center gap-[4px] min-w-[48px] text-[#A1A1A1]">
+      <i data-lucide="compass" class="w-[24px] h-[24px]"></i>
+      <span class="text-[10px] font-[400]">Explore</span>
+    </button>
+    <button class="flex flex-col items-center justify-center gap-[4px] min-w-[48px] text-[#A1A1A1]">
+      <i data-lucide="library" class="w-[24px] h-[24px]"></i>
+      <span class="text-[10px] font-[400]">Library</span>
+    </button>
+    <button class="flex flex-col items-center justify-center gap-[4px] min-w-[48px] text-[#A1A1A1]">
+      <i data-lucide="user" class="w-[24px] h-[24px]"></i>
+      <span class="text-[10px] font-[400]">Profile</span>
+    </button>
+  </nav>
+
+  <style>
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    lucide.createIcons();
+  </script>
+</div>
+      
+    </div>
+    <script>
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+      document.querySelectorAll('[data-nav-item-id]').forEach(function(item) {
+        var active = item.getAttribute('data-nav-item-id') === "home";
+        item.setAttribute('data-active', active ? 'true' : 'false');
+        item.setAttribute('aria-current', active ? 'page' : 'false');
+      });
+    </script>
+  </body>
+</html>

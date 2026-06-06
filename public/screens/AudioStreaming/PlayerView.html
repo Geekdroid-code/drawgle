@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link id="drawgle-google-font" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;600;700;800&amp;display=swap">
+    <style>
+:root {
+  --dg-color-text-low-emphasis: #666666;
+  --dg-color-text-high-emphasis: #FFFFFF;
+  --dg-color-text-medium-emphasis: #A1A1A1;
+  --dg-color-action-primary: #FFFFFF;
+  --dg-color-action-disabled: rgba(255, 255, 255, 0.20);
+  --dg-color-action-secondary: rgba(255, 255, 255, 0.12);
+  --dg-color-action-on-primary-text: #000000;
+  --dg-color-border-divider: rgba(255, 255, 255, 0.10);
+  --dg-color-border-focused: #FFFFFF;
+  --dg-color-surface-card: rgba(255, 255, 255, 0.08);
+  --dg-color-surface-modal: rgba(28, 28, 28, 0.98);
+  --dg-color-surface-bottom-sheet: rgba(18, 18, 18, 0.94);
+  --dg-color-background-primary: #000000;
+  --dg-color-background-secondary: #0A0A0A;
+  --dg-radii-lg: 24px;
+  --dg-radii-md: 16px;
+  --dg-radii-sm: 8px;
+  --dg-radii-xl: 32px;
+  --dg-radii-pill: 9999px;
+  --dg-radii-sharp: 0px;
+  --dg-radii-app: 24px;
+  --dg-sizing-icon-small: 18px;
+  --dg-sizing-icon-standard: 24px;
+  --dg-sizing-min-touch-target: 48px;
+  --dg-sizing-bottom-nav-height: 84px;
+  --dg-sizing-standard-input-height: 52px;
+  --dg-sizing-standard-button-height: 44px;
+  --dg-shadows-lg: 0 12px 48px rgba(0,0,0,0.8);
+  --dg-shadows-md: 0 8px 24px rgba(0,0,0,0.7);
+  --dg-shadows-sm: 0 4px 12px rgba(0,0,0,0.5);
+  --dg-shadows-none: none;
+  --dg-shadows-upward: 0 -4px 20px rgba(0,0,0,0.4);
+  --dg-shadows-surface: 0 8px 24px rgba(0,0,0,0.7);
+  --dg-shadows-overlay: 0 -4px 20px rgba(0,0,0,0.4);
+  --dg-spacing-none: 0px;
+  --dg-spacing-lg: 24px;
+  --dg-spacing-md: 16px;
+  --dg-spacing-sm: 12px;
+  --dg-spacing-xl: 32px;
+  --dg-spacing-xs: 8px;
+  --dg-spacing-xxl: 48px;
+  --dg-spacing-xxs: 4px;
+  --dg-z-index-base: 0;
+  --dg-z-index-bottom-nav: 20;
+  --dg-z-index-bottom-sheet: 30;
+  --dg-z-index-modal-dialog: 40;
+  --dg-z-index-sticky-header: 10;
+  --dg-z-index-toast-snackbar: 50;
+  --dg-opacities-opaque: 1;
+  --dg-opacities-pressed: 0.15;
+  --dg-opacities-disabled: 0.38;
+  --dg-opacities-transparent: 0;
+  --dg-opacities-scrim-overlay: 0.60;
+  --dg-typography-font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --dg-type-nav-title-size: 22px;
+  --dg-type-nav-title-weight: 700;
+  --dg-type-nav-title-line-height: 28px;
+  --dg-type-screen-title-size: 22px;
+  --dg-type-screen-title-weight: 700;
+  --dg-type-screen-title-line-height: 28px;
+  --dg-type-hero-title-size: 34px;
+  --dg-type-hero-title-weight: 800;
+  --dg-type-hero-title-line-height: 41px;
+  --dg-type-section-title-size: 22px;
+  --dg-type-section-title-weight: 700;
+  --dg-type-section-title-line-height: 28px;
+  --dg-type-metric-value-size: 34px;
+  --dg-type-metric-value-weight: 800;
+  --dg-type-metric-value-line-height: 41px;
+  --dg-type-body-size: 16px;
+  --dg-type-body-weight: 400;
+  --dg-type-body-line-height: 24px;
+  --dg-type-supporting-size: 14px;
+  --dg-type-supporting-weight: 400;
+  --dg-type-supporting-line-height: 20px;
+  --dg-type-caption-size: 12px;
+  --dg-type-caption-weight: 300;
+  --dg-type-caption-line-height: 16px;
+  --dg-type-button-label-size: 14px;
+  --dg-type-button-label-weight: 600;
+  --dg-type-button-label-line-height: 14px;
+  --dg-border-widths-none: 0px;
+  --dg-border-widths-thin: 1px;
+  --dg-border-widths-thick: 2px;
+  --dg-border-widths-hairline: 0.5px;
+  --dg-border-widths-standard: 1px;
+  --dg-mobile-layout-element-gap: 16px;
+  --dg-mobile-layout-section-gap: 32px;
+  --dg-mobile-layout-safe-area-top: 16px;
+  --dg-mobile-layout-screen-margin: 20px;
+  --dg-mobile-layout-safe-area-bottom: 16px;
+}
+
+#root {
+  --dg-preview-background: var(--dg-color-background-primary, #ffffff);
+  background: var(--dg-preview-background);
+}
+
+.dg-bg-primary { background-color: var(--dg-color-background-primary); }
+.dg-bg-secondary { background-color: var(--dg-color-background-secondary); }
+.dg-surface-card { background-color: var(--dg-color-surface-card); }
+.dg-surface-bottom-sheet { background-color: var(--dg-color-surface-bottom-sheet); }
+.dg-surface-modal { background-color: var(--dg-color-surface-modal); }
+.dg-text-high { color: var(--dg-color-text-high-emphasis); }
+.dg-text-medium { color: var(--dg-color-text-medium-emphasis); }
+.dg-text-low { color: var(--dg-color-text-low-emphasis); }
+.dg-action-primary {
+  background-color: var(--dg-color-action-primary);
+  color: var(--dg-color-action-on-primary-text);
+}
+.dg-action-secondary { background-color: var(--dg-color-action-secondary); }
+.dg-border-divider { border-color: var(--dg-color-border-divider); }
+.dg-border-focused { border-color: var(--dg-color-border-focused); }
+.dg-radius-app { border-radius: var(--dg-radii-app); }
+.dg-radius-pill { border-radius: var(--dg-radii-pill); }
+.dg-shadow-surface { box-shadow: var(--dg-shadows-surface); }
+.dg-shadow-overlay { box-shadow: var(--dg-shadows-overlay); }
+.dg-screen-padding { padding-left: var(--dg-mobile-layout-screen-margin); padding-right: var(--dg-mobile-layout-screen-margin); }
+.dg-section-gap { gap: var(--dg-mobile-layout-section-gap); }
+.dg-element-gap { gap: var(--dg-mobile-layout-element-gap); }
+
+.dg-type-nav-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-nav-title-size);
+  font-weight: var(--dg-type-nav-title-weight);
+  line-height: var(--dg-type-nav-title-line-height);
+}
+
+.dg-type-screen-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-screen-title-size);
+  font-weight: var(--dg-type-screen-title-weight);
+  line-height: var(--dg-type-screen-title-line-height);
+}
+
+.dg-type-hero-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-hero-title-size);
+  font-weight: var(--dg-type-hero-title-weight);
+  line-height: var(--dg-type-hero-title-line-height);
+}
+
+.dg-type-section-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-section-title-size);
+  font-weight: var(--dg-type-section-title-weight);
+  line-height: var(--dg-type-section-title-line-height);
+}
+
+.dg-type-metric-value {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-metric-value-size);
+  font-weight: var(--dg-type-metric-value-weight);
+  line-height: var(--dg-type-metric-value-line-height);
+}
+
+.dg-type-body {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-body-size);
+  font-weight: var(--dg-type-body-weight);
+  line-height: var(--dg-type-body-line-height);
+}
+
+.dg-type-supporting {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-supporting-size);
+  font-weight: var(--dg-type-supporting-weight);
+  line-height: var(--dg-type-supporting-line-height);
+}
+
+.dg-type-caption {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-caption-size);
+  font-weight: var(--dg-type-caption-weight);
+  line-height: var(--dg-type-caption-line-height);
+}
+
+.dg-type-button-label {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-button-label-size);
+  font-weight: var(--dg-type-button-label-weight);
+  line-height: var(--dg-type-button-label-line-height);
+}
+      html, body { margin: 0; min-height: 100%; }
+      body {
+        font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+        background: var(--dg-color-background-primary, #ffffff);
+        color: var(--dg-color-text-high-emphasis, #111827);
+      }
+      #drawgle-export-root {
+        position: relative;
+        min-height: 100vh;
+        overflow-x: hidden;
+        background: var(--dg-color-background-primary, #ffffff);
+      }
+      #drawgle-export-navigation { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; pointer-events: none; }
+      #drawgle-export-navigation [data-drawgle-primary-nav] { pointer-events: auto; }
+    </style>
+  </head>
+  <body>
+    <div id="drawgle-export-root">
+<div class="w-full min-h-screen bg-[#000000] flex flex-col relative overflow-hidden" style="font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif">
+  
+  <!-- Header -->
+  <header class="flex items-center justify-between px-[20px] pt-[16px] h-[64px] z-[10]">
+    <button class="w-[48px] h-[48px] flex items-center justify-start text-[#FFFFFF] active:opacity-50 transition-opacity">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+    </button>
+    
+    <h1 class="text-[#FFFFFF] text-[22px] font-[700] leading-[28px]">Founder's Picks</h1>
+    
+    <button class="w-[48px] h-[48px] flex items-center justify-end text-[#FFFFFF] active:opacity-50 transition-opacity">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+    </button>
+  </header>
+
+  <!-- Hero Section: Circular Artwork -->
+  <main class="flex-1 flex flex-col items-center justify-center px-[20px] space-y-[32px]">
+    
+    <!-- Massive Circular Artwork Container -->
+    <div class="relative w-[280px] h-[280px] flex items-center justify-center">
+      <!-- Vinyl Groove Texture Layers -->
+      <div class="absolute inset-0 rounded-full border-[0.5px] border-[rgba(255,255,255,0.05)] scale-[1.02]"></div>
+      <div class="absolute inset-0 rounded-full border-[0.5px] border-[rgba(255,255,255,0.08)] scale-[1.05]"></div>
+      <div class="absolute inset-0 rounded-full border-[0.5px] border-[rgba(255,255,255,0.03)] scale-[1.08]"></div>
+      
+      <!-- Main Artwork Circle -->
+      <div class="w-full h-full rounded-full overflow-hidden bg-gradient-to-br from-[#1A1A1A] to-[#050505] border-[1px] border-[rgba(255,255,255,0.15)] flex flex-col items-center justify-center relative shadow-[0_12px_48px_rgba(0,0,0,0.8)]">
+        
+        <!-- Background Pattern (Subtle concentric circles) -->
+        <div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(circle, transparent 40%, rgba(255,255,255,0.1) 41%, transparent 42%); background-size: 12px 12px;"></div>
+        
+        <!-- Vintage TV Illustration & Typography -->
+        <div class="z-[1] flex flex-col items-center text-center px-[40px]">
+          <div class="mb-[12px] text-[#FFFFFF] opacity-90">
+            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="15" x="2" y="7" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>
+          </div>
+          <span class="text-[10px] tracking-[0.3em] uppercase font-[800] text-[#FFFFFF] mb-[4px]">The New Era</span>
+          <h2 class="text-[24px] font-[900] leading-[26px] text-[#FFFFFF] tracking-tight">VISION<br/>& EXECUTION</h2>
+          <div class="mt-[8px] w-[20px] h-[1px] bg-[#FFFFFF] opacity-40"></div>
+        </div>
+
+        <!-- Inner Vinyl Hole Effect -->
+        <div class="absolute w-[8px] h-[8px] bg-[#000000] rounded-full border-[0.5px] border-[rgba(255,255,255,0.2)]"></div>
+      </div>
+    </div>
+
+    <!-- Metadata -->
+    <div class="text-center space-y-[8px]">
+      <h3 class="text-[#FFFFFF] text-[34px] font-[800] leading-[41px] tracking-tight">Vision & Execution</h3>
+      <p class="text-[#A1A1A1] text-[16px] font-[400] leading-[24px]">Rayan C.</p>
+    </div>
+
+    <!-- Waveform Visualizer -->
+    <div class="w-full max-w-[320px] h-[64px] flex items-center justify-center gap-[3px]">
+      <!-- Symmetrical bars with varying heights -->
+      <div class="w-[3px] bg-[#FFFFFF] opacity-20 rounded-full h-[12px]"></div>
+      <div class="w-[3px] bg-[#FFFFFF] opacity-30 rounded-full h-[24px]"></div>
+      <div class="w-[3px] bg-[#FFFFFF] opacity-40 rounded-full h-[18px]"></div>
+      <div class="w-[3px] bg-[#FFFFFF] opacity-60 rounded-full h-[32px]"></div>
+      <div class="w-[3px] bg-[#FFFFFF] opacity-80 rounded-full h-[48px] animate-[pulse_1.2s_infinite]"></div>
+      <div class="w-[3px] bg-[#FFFFFF] opacity-100 rounded-full h-[56px] animate-[pulse_1.5s_infinite]"></div>
+      <div class="w-[3px] bg-[#FFFFFF] opacity-100 rounded-full h-[40px] animate-[pulse_1.8s_infinite]"></div>
+      <div class="w-[3px] bg-[#FFFFFF] opacity-100 rounded-full h-[64px] animate-[pulse_1.1s_infinite]"></div>
+      <div class="w-[3px] bg-[#FFFFFF] opacity-100 rounded-full h-[36px] animate-[pulse_1.4s_infinite]"></div>
+      <div class="w-[3px] bg-[#FFFFFF] opacity-100 rounded-full h-[52px] animate-[pulse_1.6s_infinite]"></div>
+      <div class="w-[3px] bg-[#FFFFFF] opacity-100 rounded-full h-[44px] animate-[pulse_1.3s_infinite]"></div>
+      <div class="w-[3px] bg-[#FFFFFF] opacity-80 rounded-full h-[48px] animate-[pulse_1.2s_infinite]"></div>
+      <div class="w-[3px] bg-[#FFFFFF] opacity-60 rounded-full h-[32px]"></div>
+      <div class="w-[3px] bg-[#FFFFFF] opacity-40 rounded-full h-[18px]"></div>
+      <div class="w-[3px] bg-[#FFFFFF] opacity-30 rounded-full h-[24px]"></div>
+      <div class="w-[3px] bg-[#FFFFFF] opacity-20 rounded-full h-[12px]"></div>
+    </div>
+
+    <!-- Time Markers -->
+    <div class="w-full max-w-[320px] flex justify-between px-[4px]">
+      <span class="text-[#666666] text-[12px] font-[300]">12:45</span>
+      <span class="text-[#666666] text-[12px] font-[300]">-24:10</span>
+    </div>
+
+  </main>
+
+  <!-- Playback Controls -->
+  <footer class="px-[20px] pb-[48px] pt-[16px]">
+    <div class="flex items-center justify-between max-w-[340px] mx-auto">
+      
+      <!-- List Icon -->
+      <button class="w-[48px] h-[48px] flex items-center justify-center text-[#A1A1A1] active:text-[#FFFFFF] transition-colors">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>
+      </button>
+
+      <!-- Skip Back -->
+      <button class="w-[48px] h-[48px] flex items-center justify-center text-[#FFFFFF] active:opacity-60 transition-opacity">
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" x2="5" y1="19" y2="5"/></svg>
+      </button>
+
+      <!-- Play Button -->
+      <button class="w-[84px] h-[84px] rounded-full bg-[#FFFFFF] flex items-center justify-center text-[#000000] shadow-[0_8px_24px_rgba(255,255,255,0.2)] active:scale-95 transition-transform">
+        <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      </button>
+
+      <!-- Skip Forward -->
+      <button class="w-[48px] h-[48px] flex items-center justify-center text-[#FFFFFF] active:opacity-60 transition-opacity">
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" x2="19" y1="5" y2="19"/></svg>
+      </button>
+
+      <!-- Repeat Icon -->
+      <button class="w-[48px] h-[48px] flex items-center justify-center text-[#A1A1A1] active:text-[#FFFFFF] transition-colors">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+      </button>
+
+    </div>
+  </footer>
+
+  <!-- Subtle Bottom Indicator (iOS Style) -->
+  <div class="absolute bottom-[8px] left-1/2 -translate-x-1/2 w-[134px] h-[5px] bg-[#FFFFFF] opacity-20 rounded-full"></div>
+
+  <style>
+    @keyframes pulse {
+      0%, 100% { transform: scaleY(1); }
+      50% { transform: scaleY(0.6); }
+    }
+  </style>
+</div>
+      
+    </div>
+    <script>
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+      document.querySelectorAll('[data-nav-item-id]').forEach(function(item) {
+        var active = item.getAttribute('data-nav-item-id') === "home";
+        item.setAttribute('data-active', active ? 'true' : 'false');
+        item.setAttribute('aria-current', active ? 'page' : 'false');
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link id="drawgle-google-font" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;500;600&amp;display=swap">
+    <style>
+:root {
+  --dg-color-text-low-emphasis: #999999;
+  --dg-color-text-high-emphasis: #1A1A1A;
+  --dg-color-text-medium-emphasis: #666666;
+  --dg-color-action-primary: #3B82F6;
+  --dg-color-action-disabled: #E5E5E5;
+  --dg-color-action-secondary: #1A1A1A;
+  --dg-color-action-on-primary-text: #FFFFFF;
+  --dg-color-border-divider: transparent;
+  --dg-color-border-focused: #3B82F6;
+  --dg-color-surface-card: #F5F5F5;
+  --dg-color-surface-modal: #FFFFFF;
+  --dg-color-surface-bottom-sheet: #FFFFFF;
+  --dg-color-background-primary: #FFFFFF;
+  --dg-color-background-secondary: #F9F9F9;
+  --dg-radii-app: 24px;
+  --dg-radii-pill: 9999px;
+  --dg-sizing-icon-small: 18px;
+  --dg-sizing-icon-standard: 24px;
+  --dg-sizing-min-touch-target: 48px;
+  --dg-sizing-bottom-nav-height: 84px;
+  --dg-sizing-standard-input-height: 52px;
+  --dg-sizing-standard-button-height: 56px;
+  --dg-shadows-none: none;
+  --dg-shadows-overlay: 0 10px 40px rgba(0,0,0,0.08);
+  --dg-shadows-surface: 0 4px 20px rgba(0,0,0,0.02);
+  --dg-spacing-none: 0px;
+  --dg-spacing-lg: 24px;
+  --dg-spacing-md: 16px;
+  --dg-spacing-sm: 12px;
+  --dg-spacing-xl: 32px;
+  --dg-spacing-xs: 8px;
+  --dg-spacing-xxl: 48px;
+  --dg-spacing-xxs: 4px;
+  --dg-z-index-base: 0;
+  --dg-z-index-bottom-nav: 20;
+  --dg-z-index-bottom-sheet: 30;
+  --dg-z-index-modal-dialog: 40;
+  --dg-z-index-sticky-header: 10;
+  --dg-z-index-toast-snackbar: 50;
+  --dg-opacities-opaque: 1;
+  --dg-opacities-pressed: 0.10;
+  --dg-opacities-disabled: 0.38;
+  --dg-opacities-transparent: 0;
+  --dg-opacities-scrim-overlay: 0.40;
+  --dg-typography-font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+  --dg-type-nav-title-size: 17px;
+  --dg-type-nav-title-weight: 600;
+  --dg-type-nav-title-line-height: 22px;
+  --dg-type-screen-title-size: 20px;
+  --dg-type-screen-title-weight: 600;
+  --dg-type-screen-title-line-height: 24px;
+  --dg-type-hero-title-size: 32px;
+  --dg-type-hero-title-weight: 500;
+  --dg-type-hero-title-line-height: 38px;
+  --dg-type-section-title-size: 16px;
+  --dg-type-section-title-weight: 600;
+  --dg-type-section-title-line-height: 20px;
+  --dg-type-metric-value-size: 28px;
+  --dg-type-metric-value-weight: 600;
+  --dg-type-metric-value-line-height: 34px;
+  --dg-type-body-size: 15px;
+  --dg-type-body-weight: 400;
+  --dg-type-body-line-height: 20px;
+  --dg-type-supporting-size: 13px;
+  --dg-type-supporting-weight: 500;
+  --dg-type-supporting-line-height: 16px;
+  --dg-type-caption-size: 12px;
+  --dg-type-caption-weight: 400;
+  --dg-type-caption-line-height: 14px;
+  --dg-type-button-label-size: 16px;
+  --dg-type-button-label-weight: 600;
+  --dg-type-button-label-line-height: 20px;
+  --dg-border-widths-standard: 0px;
+  --dg-mobile-layout-element-gap: 12px;
+  --dg-mobile-layout-section-gap: 32px;
+  --dg-mobile-layout-safe-area-top: 16px;
+  --dg-mobile-layout-screen-margin: 24px;
+  --dg-mobile-layout-safe-area-bottom: 16px;
+}
+
+#root {
+  --dg-preview-background: var(--dg-color-background-primary, #ffffff);
+  background: var(--dg-preview-background);
+}
+
+.dg-bg-primary { background-color: var(--dg-color-background-primary); }
+.dg-bg-secondary { background-color: var(--dg-color-background-secondary); }
+.dg-surface-card { background-color: var(--dg-color-surface-card); }
+.dg-surface-bottom-sheet { background-color: var(--dg-color-surface-bottom-sheet); }
+.dg-surface-modal { background-color: var(--dg-color-surface-modal); }
+.dg-text-high { color: var(--dg-color-text-high-emphasis); }
+.dg-text-medium { color: var(--dg-color-text-medium-emphasis); }
+.dg-text-low { color: var(--dg-color-text-low-emphasis); }
+.dg-action-primary {
+  background-color: var(--dg-color-action-primary);
+  color: var(--dg-color-action-on-primary-text);
+}
+.dg-action-secondary { background-color: var(--dg-color-action-secondary); }
+.dg-border-divider { border-color: var(--dg-color-border-divider); }
+.dg-border-focused { border-color: var(--dg-color-border-focused); }
+.dg-radius-app { border-radius: var(--dg-radii-app); }
+.dg-radius-pill { border-radius: var(--dg-radii-pill); }
+.dg-shadow-surface { box-shadow: var(--dg-shadows-surface); }
+.dg-shadow-overlay { box-shadow: var(--dg-shadows-overlay); }
+.dg-screen-padding { padding-left: var(--dg-mobile-layout-screen-margin); padding-right: var(--dg-mobile-layout-screen-margin); }
+.dg-section-gap { gap: var(--dg-mobile-layout-section-gap); }
+.dg-element-gap { gap: var(--dg-mobile-layout-element-gap); }
+
+.dg-type-nav-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-nav-title-size);
+  font-weight: var(--dg-type-nav-title-weight);
+  line-height: var(--dg-type-nav-title-line-height);
+}
+
+.dg-type-screen-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-screen-title-size);
+  font-weight: var(--dg-type-screen-title-weight);
+  line-height: var(--dg-type-screen-title-line-height);
+}
+
+.dg-type-hero-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-hero-title-size);
+  font-weight: var(--dg-type-hero-title-weight);
+  line-height: var(--dg-type-hero-title-line-height);
+}
+
+.dg-type-section-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-section-title-size);
+  font-weight: var(--dg-type-section-title-weight);
+  line-height: var(--dg-type-section-title-line-height);
+}
+
+.dg-type-metric-value {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-metric-value-size);
+  font-weight: var(--dg-type-metric-value-weight);
+  line-height: var(--dg-type-metric-value-line-height);
+}
+
+.dg-type-body {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-body-size);
+  font-weight: var(--dg-type-body-weight);
+  line-height: var(--dg-type-body-line-height);
+}
+
+.dg-type-supporting {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-supporting-size);
+  font-weight: var(--dg-type-supporting-weight);
+  line-height: var(--dg-type-supporting-line-height);
+}
+
+.dg-type-caption {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-caption-size);
+  font-weight: var(--dg-type-caption-weight);
+  line-height: var(--dg-type-caption-line-height);
+}
+
+.dg-type-button-label {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-button-label-size);
+  font-weight: var(--dg-type-button-label-weight);
+  line-height: var(--dg-type-button-label-line-height);
+}
+      html, body { margin: 0; min-height: 100%; }
+      body {
+        font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+        background: var(--dg-color-background-primary, #ffffff);
+        color: var(--dg-color-text-high-emphasis, #111827);
+      }
+      #drawgle-export-root {
+        position: relative;
+        min-height: 100vh;
+        overflow-x: hidden;
+        background: var(--dg-color-background-primary, #ffffff);
+      }
+      #drawgle-export-navigation { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; pointer-events: none; }
+      #drawgle-export-navigation [data-drawgle-primary-nav] { pointer-events: auto; }
+    </style>
+  </head>
+  <body>
+    <div id="drawgle-export-root">
+<div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden" style="font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Inter', sans-serif">
+  <!-- Header Section -->
+  <header class="pt-[var(--dg-mobile-layout-safe-area-top)] px-[var(--dg-mobile-layout-screen-margin)] mb-[var(--dg-mobile-layout-element-gap)]">
+    <h1 class="dg-type-screen-title py-4">History</h1>
+  </header>
+
+  <!-- Week Strip: Horizontal Scroller -->
+  <div class="w-full overflow-x-auto no-scrollbar mb-[var(--dg-mobile-layout-section-gap)]">
+    <div class="flex px-[var(--dg-mobile-layout-screen-margin)] gap-4">
+      <!-- Day Item: Inactive -->
+      <div class="flex flex-col items-center min-w-[48px] py-2">
+        <span class="dg-type-caption dg-text-low mb-2">Mon</span>
+        <div class="w-10 h-10 flex items-center justify-center rounded-full">
+          <span class="dg-type-body dg-text-low">12</span>
+        </div>
+      </div>
+      <!-- Day Item: Inactive -->
+      <div class="flex flex-col items-center min-w-[48px] py-2">
+        <span class="dg-type-caption dg-text-low mb-2">Tue</span>
+        <div class="w-10 h-10 flex items-center justify-center rounded-full">
+          <span class="dg-type-body dg-text-low">13</span>
+        </div>
+      </div>
+      <!-- Day Item: Inactive -->
+      <div class="flex flex-col items-center min-w-[48px] py-2">
+        <span class="dg-type-caption dg-text-low mb-2">Wed</span>
+        <div class="w-10 h-10 flex items-center justify-center rounded-full">
+          <span class="dg-type-body dg-text-low">14</span>
+        </div>
+      </div>
+      <!-- Day Item: Active -->
+      <div class="flex flex-col items-center min-w-[48px] py-2">
+        <span class="dg-type-caption dg-text-high font-semibold mb-2">Thu</span>
+        <div class="w-10 h-10 flex items-center justify-center rounded-full dg-bg-secondary bg-[var(--dg-color-action-secondary)]">
+          <span class="dg-type-body text-white font-semibold">15</span>
+        </div>
+      </div>
+      <!-- Day Item: Inactive -->
+      <div class="flex flex-col items-center min-w-[48px] py-2">
+        <span class="dg-type-caption dg-text-low mb-2">Fri</span>
+        <div class="w-10 h-10 flex items-center justify-center rounded-full">
+          <span class="dg-type-body dg-text-low">16</span>
+        </div>
+      </div>
+      <!-- Day Item: Inactive -->
+      <div class="flex flex-col items-center min-w-[48px] py-2">
+        <span class="dg-type-caption dg-text-low mb-2">Sat</span>
+        <div class="w-10 h-10 flex items-center justify-center rounded-full">
+          <span class="dg-type-body dg-text-low">17</span>
+        </div>
+      </div>
+      <!-- Day Item: Inactive -->
+      <div class="flex flex-col items-center min-w-[48px] py-2">
+        <span class="dg-type-caption dg-text-low mb-2">Sun</span>
+        <div class="w-10 h-10 flex items-center justify-center rounded-full">
+          <span class="dg-type-body dg-text-low">18</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Timeline Section -->
+  <main class="flex-1 px-[var(--dg-mobile-layout-screen-margin)] pb-[120px]">
+    <div class="flex flex-col gap-[var(--dg-mobile-layout-element-gap)]">
+      
+      <!-- Timeline Item 1 -->
+      <div class="dg-surface-card p-[var(--dg-spacing-md)] rounded-[var(--dg-radii-app)] flex items-center justify-between shadow-[var(--dg-shadows-surface)]">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-[var(--dg-color-action-primary)]"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          </div>
+          <div class="flex flex-col">
+            <span class="dg-type-section-title">Morning Meditation</span>
+            <span class="dg-type-caption dg-text-low">15 minutes • Mindfulness</span>
+          </div>
+        </div>
+        <div class="text-right">
+          <span class="dg-type-supporting dg-text-medium">07:30 AM</span>
+        </div>
+      </div>
+
+      <!-- Timeline Item 2 -->
+      <div class="dg-surface-card p-[var(--dg-spacing-md)] rounded-[var(--dg-radii-app)] flex items-center justify-between shadow-[var(--dg-shadows-surface)]">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 rounded-full bg-green-50 flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-green-600"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          </div>
+          <div class="flex flex-col">
+            <span class="dg-type-section-title">Hydration Goal</span>
+            <span class="dg-type-caption dg-text-low">2.5L reached • Health</span>
+          </div>
+        </div>
+        <div class="text-right">
+          <span class="dg-type-supporting dg-text-medium">11:45 AM</span>
+        </div>
+      </div>
+
+      <!-- Timeline Item 3 -->
+      <div class="dg-surface-card p-[var(--dg-spacing-md)] rounded-[var(--dg-radii-app)] flex items-center justify-between shadow-[var(--dg-shadows-surface)]">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 rounded-full bg-orange-50 flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-orange-500"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          </div>
+          <div class="flex flex-col">
+            <span class="dg-type-section-title">Deep Work Session</span>
+            <span class="dg-type-caption dg-text-low">90 minutes • Productivity</span>
+          </div>
+        </div>
+        <div class="text-right">
+          <span class="dg-type-supporting dg-text-medium">02:15 PM</span>
+        </div>
+      </div>
+
+      <!-- Timeline Item 4 -->
+      <div class="dg-surface-card p-[var(--dg-spacing-md)] rounded-[var(--dg-radii-app)] flex items-center justify-between shadow-[var(--dg-shadows-surface)]">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 rounded-full bg-purple-50 flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-purple-600"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          </div>
+          <div class="flex flex-col">
+            <span class="dg-type-section-title">Evening Reading</span>
+            <span class="dg-type-caption dg-text-low">20 pages • Growth</span>
+          </div>
+        </div>
+        <div class="text-right">
+          <span class="dg-type-supporting dg-text-medium">09:40 PM</span>
+        </div>
+      </div>
+
+      <!-- Empty State / End of Day Indicator -->
+      <div class="flex flex-col items-center justify-center py-8 opacity-40">
+        <div class="w-1 h-8 bg-[var(--dg-color-border-divider)] rounded-full mb-4"></div>
+        <span class="dg-type-caption">End of day</span>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Bottom Spacer for Floating Nav Dock -->
+  <div class="h-[var(--dg-sizing-bottom-nav-height)]"></div>
+</div>
+
+<style>
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+</style>
+      <div id="drawgle-export-navigation"><nav data-drawgle-primary-nav class="fixed bottom-[var(--dg-mobile-layout-safe-area-bottom)] left-1/2 -translate-x-1/2 z-50 flex items-center p-1.5 bg-white/70 backdrop-blur-2xl rounded-[var(--dg-radii-pill)] shadow-[var(--dg-shadows-overlay)] border border-white/40">
+  <style>
+    [data-drawgle-primary-nav] .nav-pill-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    [data-drawgle-primary-nav] button {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 44px;
+      min-width: 44px;
+      padding: 0 16px;
+      border-radius: var(--dg-radii-pill);
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.1);
+      color: var(--dg-color-text-medium-emphasis);
+      background: var(--dg-color-surface-card);
+      border: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Active State: Dark Pill */
+    [data-drawgle-primary-nav] button[] {
+      background-color: var(--dg-color-action-secondary);
+      color: var(--dg-color-action-on-primary-text);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      flex-grow: 1;
+    }
+
+    /* Inactive State: Subtle Glassy Grey */
+    [data-drawgle-primary-nav] button[] {
+      background-color: rgba(0, 0, 0, 0.03);
+      color: var(--dg-color-text-low-emphasis);
+    }
+
+    /* Label logic: Only show label when active for that "tri-pill" signature look */
+    [data-drawgle-primary-nav] button .nav-label {
+      font-size: var(--dg-type-supporting-size);
+      font-weight: var(--dg-type-supporting-weight);
+      margin-left: 0;
+      max-width: 0;
+      opacity: 0;
+      overflow: hidden;
+      transition: all 0.3s ease;
+      white-space: nowrap;
+    }
+
+    [data-drawgle-primary-nav] button[] .nav-label {
+      margin-left: 8px;
+      max-width: 80px;
+      opacity: 1;
+    }
+
+    [data-drawgle-primary-nav] button:active {
+      transform: scale(0.94);
+    }
+
+    /* Icon sizing consistency */
+    [data-drawgle-primary-nav] svg {
+      width: var(--dg-sizing-icon-standard);
+      height: var(--dg-sizing-icon-standard);
+      stroke-width: 2.25px;
+    }
+  </style>
+
+  <div class="nav-pill-wrapper">
+    <button 
+      data-nav-item-id="home"
+      aria-label="Home">
+      <i data-lucide="home"></i>
+      <span class="nav-label">Home</span>
+    </button>
+
+    <button 
+      data-nav-item-id="stats"
+      aria-label="Stats">
+      <i data-lucide="bar-chart-2"></i>
+      <span class="nav-label">Stats</span>
+    </button>
+
+    <button 
+      data-nav-item-id="calendar"
+      aria-label="Calendar">
+      <i data-lucide="calendar"></i>
+      <span class="nav-label">History</span>
+    </button>
+  </div>
+</nav></div>
+    </div>
+    <script>
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+      document.querySelectorAll('[data-nav-item-id]').forEach(function(item) {
+        var active = item.getAttribute('data-nav-item-id') === "home";
+        item.setAttribute('data-active', active ? 'true' : 'false');
+        item.setAttribute('aria-current', active ? 'page' : 'false');
+      });
+    </script>
+  </body>
+</html>

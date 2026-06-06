@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link id="drawgle-google-font" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;500;600;700&amp;display=swap">
+    <style>
+:root {
+  --dg-color-text-low-emphasis: #555555;
+  --dg-color-text-high-emphasis: #FFFFFF;
+  --dg-color-text-medium-emphasis: #999999;
+  --dg-color-action-primary: #A5D6B7;
+  --dg-color-action-disabled: #333333;
+  --dg-color-action-secondary: #E8B4B8;
+  --dg-color-action-accent-sand: #E9D3A3;
+  --dg-color-action-on-primary-text: #000000;
+  --dg-color-border-divider: #262626;
+  --dg-color-border-focused: #FFFFFF;
+  --dg-color-surface-card: #1A1A1A;
+  --dg-color-surface-modal: #2C2C2E;
+  --dg-color-surface-bottom-sheet: #1C1C1E;
+  --dg-color-background-primary: #000000;
+  --dg-color-background-secondary: #121212;
+  --dg-radii-lg: 24px;
+  --dg-radii-md: 16px;
+  --dg-radii-sm: 8px;
+  --dg-radii-xl: 32px;
+  --dg-radii-app: 24px;
+  --dg-radii-pill: 9999px;
+  --dg-radii-sharp: 0px;
+  --dg-sizing-icon-small: 18px;
+  --dg-sizing-icon-standard: 24px;
+  --dg-sizing-min-touch-target: 48px;
+  --dg-sizing-bottom-nav-height: 84px;
+  --dg-sizing-standard-input-height: 52px;
+  --dg-sizing-standard-button-height: 56px;
+  --dg-shadows-lg: 0 12px 24px rgba(0,0,0,0.6);
+  --dg-shadows-md: 0 4px 12px rgba(0,0,0,0.5);
+  --dg-shadows-sm: 0 2px 4px rgba(0,0,0,0.3);
+  --dg-shadows-none: none;
+  --dg-shadows-upward: 0 -4px 16px rgba(0,0,0,0.4);
+  --dg-shadows-overlay: 0 -4px 16px rgba(0,0,0,0.4);
+  --dg-shadows-surface: 0 4px 12px rgba(0,0,0,0.5);
+  --dg-spacing-none: 0px;
+  --dg-spacing-lg: 24px;
+  --dg-spacing-md: 16px;
+  --dg-spacing-sm: 12px;
+  --dg-spacing-xl: 32px;
+  --dg-spacing-xs: 8px;
+  --dg-spacing-xxl: 48px;
+  --dg-spacing-xxs: 4px;
+  --dg-z-index-base: 0;
+  --dg-z-index-bottom-nav: 20;
+  --dg-z-index-bottom-sheet: 30;
+  --dg-z-index-modal-dialog: 40;
+  --dg-z-index-sticky-header: 10;
+  --dg-z-index-toast-snackbar: 50;
+  --dg-opacities-opaque: 1;
+  --dg-opacities-pressed: 0.12;
+  --dg-opacities-disabled: 0.38;
+  --dg-opacities-transparent: 0;
+  --dg-opacities-scrim-overlay: 0.50;
+  --dg-typography-font-family: SF Pro Display, Inter, system-ui, sans-serif;
+  --dg-type-nav-title-size: 24px;
+  --dg-type-nav-title-weight: 700;
+  --dg-type-nav-title-line-height: 28px;
+  --dg-type-screen-title-size: 24px;
+  --dg-type-screen-title-weight: 700;
+  --dg-type-screen-title-line-height: 28px;
+  --dg-type-hero-title-size: 32px;
+  --dg-type-hero-title-weight: 700;
+  --dg-type-hero-title-line-height: 38px;
+  --dg-type-section-title-size: 24px;
+  --dg-type-section-title-weight: 700;
+  --dg-type-section-title-line-height: 28px;
+  --dg-type-metric-value-size: 32px;
+  --dg-type-metric-value-weight: 700;
+  --dg-type-metric-value-line-height: 38px;
+  --dg-type-body-size: 16px;
+  --dg-type-body-weight: 500;
+  --dg-type-body-line-height: 22px;
+  --dg-type-supporting-size: 14px;
+  --dg-type-supporting-weight: 400;
+  --dg-type-supporting-line-height: 20px;
+  --dg-type-caption-size: 12px;
+  --dg-type-caption-weight: 500;
+  --dg-type-caption-line-height: 16px;
+  --dg-type-button-label-size: 15px;
+  --dg-type-button-label-weight: 600;
+  --dg-type-button-label-line-height: 20px;
+  --dg-border-widths-none: 0px;
+  --dg-border-widths-thin: 1px;
+  --dg-border-widths-thick: 2px;
+  --dg-border-widths-hairline: 0.5px;
+  --dg-border-widths-standard: 1px;
+  --dg-mobile-layout-element-gap: 12px;
+  --dg-mobile-layout-section-gap: 32px;
+  --dg-mobile-layout-safe-area-top: 16px;
+  --dg-mobile-layout-screen-margin: 24px;
+  --dg-mobile-layout-safe-area-bottom: 16px;
+}
+
+#root {
+  --dg-preview-background: var(--dg-color-background-primary, #ffffff);
+  background: var(--dg-preview-background);
+}
+
+.dg-bg-primary { background-color: var(--dg-color-background-primary); }
+.dg-bg-secondary { background-color: var(--dg-color-background-secondary); }
+.dg-surface-card { background-color: var(--dg-color-surface-card); }
+.dg-surface-bottom-sheet { background-color: var(--dg-color-surface-bottom-sheet); }
+.dg-surface-modal { background-color: var(--dg-color-surface-modal); }
+.dg-text-high { color: var(--dg-color-text-high-emphasis); }
+.dg-text-medium { color: var(--dg-color-text-medium-emphasis); }
+.dg-text-low { color: var(--dg-color-text-low-emphasis); }
+.dg-action-primary {
+  background-color: var(--dg-color-action-primary);
+  color: var(--dg-color-action-on-primary-text);
+}
+.dg-action-secondary { background-color: var(--dg-color-action-secondary); }
+.dg-border-divider { border-color: var(--dg-color-border-divider); }
+.dg-border-focused { border-color: var(--dg-color-border-focused); }
+.dg-radius-app { border-radius: var(--dg-radii-app); }
+.dg-radius-pill { border-radius: var(--dg-radii-pill); }
+.dg-shadow-surface { box-shadow: var(--dg-shadows-surface); }
+.dg-shadow-overlay { box-shadow: var(--dg-shadows-overlay); }
+.dg-screen-padding { padding-left: var(--dg-mobile-layout-screen-margin); padding-right: var(--dg-mobile-layout-screen-margin); }
+.dg-section-gap { gap: var(--dg-mobile-layout-section-gap); }
+.dg-element-gap { gap: var(--dg-mobile-layout-element-gap); }
+
+.dg-type-nav-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-nav-title-size);
+  font-weight: var(--dg-type-nav-title-weight);
+  line-height: var(--dg-type-nav-title-line-height);
+}
+
+.dg-type-screen-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-screen-title-size);
+  font-weight: var(--dg-type-screen-title-weight);
+  line-height: var(--dg-type-screen-title-line-height);
+}
+
+.dg-type-hero-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-hero-title-size);
+  font-weight: var(--dg-type-hero-title-weight);
+  line-height: var(--dg-type-hero-title-line-height);
+}
+
+.dg-type-section-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-section-title-size);
+  font-weight: var(--dg-type-section-title-weight);
+  line-height: var(--dg-type-section-title-line-height);
+}
+
+.dg-type-metric-value {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-metric-value-size);
+  font-weight: var(--dg-type-metric-value-weight);
+  line-height: var(--dg-type-metric-value-line-height);
+}
+
+.dg-type-body {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-body-size);
+  font-weight: var(--dg-type-body-weight);
+  line-height: var(--dg-type-body-line-height);
+}
+
+.dg-type-supporting {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-supporting-size);
+  font-weight: var(--dg-type-supporting-weight);
+  line-height: var(--dg-type-supporting-line-height);
+}
+
+.dg-type-caption {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-caption-size);
+  font-weight: var(--dg-type-caption-weight);
+  line-height: var(--dg-type-caption-line-height);
+}
+
+.dg-type-button-label {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-button-label-size);
+  font-weight: var(--dg-type-button-label-weight);
+  line-height: var(--dg-type-button-label-line-height);
+}
+      html, body { margin: 0; min-height: 100%; }
+      body {
+        font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+        background: var(--dg-color-background-primary, #ffffff);
+        color: var(--dg-color-text-high-emphasis, #111827);
+      }
+      #drawgle-export-root {
+        position: relative;
+        min-height: 100vh;
+        overflow-x: hidden;
+        background: var(--dg-color-background-primary, #ffffff);
+      }
+      #drawgle-export-navigation { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; pointer-events: none; }
+      #drawgle-export-navigation [data-drawgle-primary-nav] { pointer-events: auto; }
+    </style>
+  </head>
+  <body>
+    <div id="drawgle-export-root">
+<div class="w-full min-h-screen bg-[#000000] flex flex-col relative overflow-hidden" style="font-family: SF Pro Display, Inter, system-ui, sans-serif">
+  
+  <!-- Top Section: Profile Card & Action Stack -->
+  <div class="flex flex-row px-[24px] pt-[16px] gap-[12px] w-full">
+    
+    <!-- Profile Card (Left) -->
+    <div class="flex-1 bg-[#B8C6D9] rounded-[32px] p-[24px] flex flex-col justify-between min-h-[192px] shadow-md">
+      <div class="flex flex-col">
+        <span class="text-[#000000] text-[18px] font-[700] leading-tight">Jameson Cole</span>
+        <span class="text-[#000000]/60 text-[12px] font-[500] uppercase tracking-wider mt-[4px]">Platinum Member</span>
+      </div>
+      <div class="flex flex-col gap-[4px]">
+        <div class="flex justify-between items-end">
+          <span class="text-[#000000] text-[16px] font-[600] tracking-[2px]">**** 8812</span>
+          <span class="text-[#000000]/80 text-[12px] font-[600]">12/26</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Action Stack (Right) -->
+    <div class="flex flex-col gap-[12px]">
+      <!-- Add Button -->
+      <button class="w-[56px] h-[56px] bg-[#000000] border border-[#262626] rounded-[20px] flex items-center justify-center transition-transform active:scale-95">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+      </button>
+      <!-- Wallet Button -->
+      <button class="w-[56px] h-[56px] bg-[#A5D6B7] rounded-[20px] flex items-center justify-center transition-transform active:scale-95">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path></svg>
+      </button>
+      <!-- Card Button -->
+      <button class="w-[56px] h-[56px] bg-[#E9D3A3] rounded-[20px] flex items-center justify-center transition-transform active:scale-95">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Balance Card Section -->
+  <div class="px-[24px] mt-[32px]">
+    <div class="bg-gradient-to-br from-[#2C2C2E] to-[#121212] rounded-[32px] p-[24px] flex flex-col gap-[8px] relative overflow-hidden border border-[#FFFFFF]/5">
+      <!-- Subtle Background Glow -->
+      <div class="absolute -top-10 -right-10 w-32 h-32 bg-[#A5D6B7]/10 blur-[40px] rounded-full"></div>
+      
+      <span class="text-[#999999] text-[14px] font-[500] uppercase tracking-widest">Total Balance</span>
+      <div class="flex items-baseline gap-[12px]">
+        <span class="text-[#FFFFFF] text-[40px] font-[700] leading-none tracking-tight">$62,745</span>
+        <div class="bg-[#A5D6B7]/20 px-[10px] py-[4px] rounded-full flex items-center gap-[4px]">
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#A5D6B7" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
+          <span class="text-[#A5D6B7] text-[12px] font-[700]">+11.05%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Transactions List Section -->
+  <div class="flex-1 px-[24px] mt-[32px] overflow-y-auto pb-[100px]">
+    <div class="flex justify-between items-center mb-[16px]">
+      <h2 class="text-[#FFFFFF] text-[20px] font-[700]">Transactions</h2>
+      <button class="text-[#999999] text-[14px] font-[600]">See All</button>
+    </div>
+
+    
+     <div class="flex flex-col gap-[12px]">
+      
+      <!-- Transaction Item: Youtube Music -->
+      <div class="flex items-center justify-between p-[16px] bg-[#121212] rounded-[24px] border border-[#262626]/50">
+        <div class="flex items-center gap-[16px]">
+          <div class="w-[48px] h-[48px] bg-[#E8B4B8]/20 rounded-[16px] flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#E8B4B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+          </div>
+          <div class="flex flex-col">
+            <span class="text-[#FFFFFF] text-[16px] font-[600]">Youtube Music</span>
+            <span class="text-[#555555] text-[13px]">12 Oct, 2023</span>
+          </div>
+        </div>
+        <span class="text-[#E8B4B8] text-[16px] font-[700]">-$14.99</span>
+      </div>
+
+      <!-- Transaction Item: Bogdan Nikitin -->
+      <div class="flex items-center justify-between p-[16px] bg-[#121212] rounded-[24px] border border-[#262626]/50">
+        <div class="flex items-center gap-[16px]">
+          <div class="w-[48px] h-[48px] rounded-[16px] overflow-hidden border border-[#262626]">
+            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Bogdan" alt="Avatar" class="w-full h-full object-cover" />
+          </div>
+          <div class="flex flex-col">
+            <span class="text-[#FFFFFF] text-[16px] font-[600]">Bogdan Nikitin</span>
+            <span class="text-[#555555] text-[13px]">11 Oct, 2023</span>
+          </div>
+        </div>
+        <span class="text-[#A5D6B7] text-[16px] font-[700]">+$2,400.00</span>
+      </div>
+
+      <!-- Transaction Item: iTunes -->
+      <div class="flex items-center justify-between p-[16px] bg-[#121212] rounded-[24px] border border-[#262626]/50">
+        <div class="flex items-center gap-[16px]">
+          <div class="w-[48px] h-[48px] bg-[#A5D6B7]/20 rounded-[16px] flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#A5D6B7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.94c1.5 0 2.75 1.06 4 1.06 3 0 6-8 6-12.22A4.91 4.91 0 0 0 17 5c-2.22 0-4 1.44-5 1.44S8.22 5 6 5a4.91 4.91 0 0 0-5 4.78c0 4.22 3 12.22 6 12.22 1.25 0 2.5-1.06 4-1.06Z"></path><path d="M10 2c1 .5 2 2 2 5"></path></svg>
+          </div>
+          <div class="flex flex-col">
+            <span class="text-[#FFFFFF] text-[16px] font-[600]">iTunes</span>
+            <span class="text-[#555555] text-[13px]">10 Oct, 2023</span>
+          </div>
+        </div>
+        <span class="text-[#E8B4B8] text-[16px] font-[700]">-$9.99</span>
+      </div>
+
+      <!-- Transaction Item: Figma -->
+      <div class="flex items-center justify-between p-[16px] bg-[#121212] rounded-[24px] border border-[#262626]/50">
+        <div class="flex items-center gap-[16px]">
+          <div class="w-[48px] h-[48px] bg-[#E9D3A3]/20 rounded-[16px] flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#E9D3A3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5.5A3.5 3.5 0 0 1 8.5 2H12v7H8.5A3.5 3.5 0 0 1 5 5.5z"></path><path d="M12 2h3.5a3.5 3.5 0 1 1 0 7H12V2z"></path><path d="M12 12.5a3.5 3.5 0 1 1 7 0 3.5 3.5 0 1 1-7 0z"></path><path d="M5 19.5A3.5 3.5 0 0 1 8.5 16H12v3.5a3.5 3.5 0 1 1-7 0z"></path><path d="M5 12.5A3.5 3.5 0 0 1 8.5 9H12v7H8.5A3.5 3.5 0 0 1 5 12.5z"></path></svg>
+          </div>
+          <div class="flex flex-col">
+            <span class="text-[#FFFFFF] text-[16px] font-[600]">Figma</span>
+            <span class="text-[#555555] text-[13px]">09 Oct, 2023</span>
+          </div>
+        </div>
+        <span class="text-[#E8B4B8] text-[16px] font-[700]">-$45.00</span>
+      </div>
+
+      <!-- Transaction Item: Sofia Marchetti -->
+      <div class="flex items-center justify-between p-[16px] bg-[#121212] rounded-[24px] border border-[#262626]/50">
+        <div class="flex items-center gap-[16px]">
+          <div class="w-[48px] h-[48px] rounded-[16px] overflow-hidden border border-[#262626]">
+            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Sofia" alt="Avatar" class="w-full h-full object-cover" />
+          </div>
+          <div class="flex flex-col">
+            <span class="text-[#FFFFFF] text-[16px] font-[600]">Sofia Marchetti</span>
+            <span class="text-[#555555] text-[13px]">08 Oct, 2023</span>
+          </div>
+        </div>
+        <span class="text-[#A5D6B7] text-[16px] font-[700]">+$780.00</span>
+      </div>
+
+      <!-- Transaction Item: Netflix -->
+      <div class="flex items-center justify-between p-[16px] bg-[#121212] rounded-[24px] border border-[#262626]/50">
+        <div class="flex items-center gap-[16px]">
+          <div class="w-[48px] h-[48px] bg-[#E8B4B8]/20 rounded-[16px] flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#E8B4B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M7 8v8l5-4 5 4V8"></path></svg>
+          </div>
+          <div class="flex flex-col">
+            <span class="text-[#FFFFFF] text-[16px] font-[600]">Netflix</span>
+            <span class="text-[#555555] text-[13px]">07 Oct, 2023</span>
+          </div>
+        </div>
+        <span class="text-[#E8B4B8] text-[16px] font-[700]">-$17.99</span>
+      </div>
+
+      <!-- Transaction Item: Leon Bauer -->
+      <div class="flex items-center justify-between p-[16px] bg-[#121212] rounded-[24px] border border-[#262626]/50">
+        <div class="flex items-center gap-[16px]">
+          <div class="w-[48px] h-[48px] rounded-[16px] overflow-hidden border border-[#262626]">
+            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Leon" alt="Avatar" class="w-full h-full object-cover" />
+          </div>
+          <div class="flex flex-col">
+            <span class="text-[#FFFFFF] text-[16px] font-[600]">Leon Bauer</span>
+            <span class="text-[#555555] text-[13px]">06 Oct, 2023</span>
+          </div>
+        </div>
+        <span class="text-[#A5D6B7] text-[16px] font-[700]">+$1,200.00</span>
+      </div>
+
+      <!-- Transaction Item: Notion -->
+      <div class="flex items-center justify-between p-[16px] bg-[#121212] rounded-[24px] border border-[#262626]/50">
+        <div class="flex items-center gap-[16px]">
+          <div class="w-[48px] h-[48px] bg-[#B8C6D9]/20 rounded-[16px] flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#B8C6D9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h14a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v4"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path><path d="M2 15h10"></path><path d="m9 18 3-3-3-3"></path></svg>
+          </div>
+          <div class="flex flex-col">
+            <span class="text-[#FFFFFF] text-[16px] font-[600]">Notion</span>
+            <span class="text-[#555555] text-[13px]">05 Oct, 2023</span>
+          </div>
+        </div>
+        <span class="text-[#E8B4B8] text-[16px] font-[700]">-$16.00</span>
+      </div>
+
+    </div>
+      
+    </div>
+    <script>
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+      document.querySelectorAll('[data-nav-item-id]').forEach(function(item) {
+        var active = item.getAttribute('data-nav-item-id') === "home";
+        item.setAttribute('data-active', active ? 'true' : 'false');
+        item.setAttribute('aria-current', active ? 'page' : 'false');
+      });
+    </script>
+  </body>
+</html>

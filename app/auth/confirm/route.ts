@@ -1,24 +1,17 @@
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
+import { getSafeAuthRedirect } from "@/lib/auth-redirect";
 import { createClient } from "@/lib/supabase/server";
 
 const supportedOtpTypes = new Set(["signup", "invite", "magiclink", "recovery", "email", "email_change"]);
-
-function getSafeNextPath(next: string | null) {
-  if (!next || !next.startsWith("/")) {
-    return "/project/new";
-  }
-
-  return next;
-}
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
   const tokenHash = requestUrl.searchParams.get("token_hash");
   const type = requestUrl.searchParams.get("type");
-  const next = getSafeNextPath(requestUrl.searchParams.get("next"));
+  const next = getSafeAuthRedirect(requestUrl.searchParams.get("next"));
 
   const supabase = await createClient();
 
@@ -27,14 +20,20 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error("Supabase email confirmation code exchange error", error);
-      return NextResponse.redirect(new URL("/login?error=email_confirmation_failed", requestUrl.origin));
+      const loginUrl = new URL("/login", requestUrl.origin);
+      loginUrl.searchParams.set("error", "email_confirmation_failed");
+      loginUrl.searchParams.set("next", next);
+      return NextResponse.redirect(loginUrl);
     }
 
     return NextResponse.redirect(new URL(next, requestUrl.origin));
   }
 
   if (!tokenHash || !type || !supportedOtpTypes.has(type)) {
-    return NextResponse.redirect(new URL("/login?error=missing_email_confirmation_token", requestUrl.origin));
+    const loginUrl = new URL("/login", requestUrl.origin);
+    loginUrl.searchParams.set("error", "missing_email_confirmation_token");
+    loginUrl.searchParams.set("next", next);
+    return NextResponse.redirect(loginUrl);
   }
 
   const { error } = await supabase.auth.verifyOtp({
@@ -44,7 +43,10 @@ export async function GET(request: NextRequest) {
 
   if (error) {
     console.error("Supabase email confirmation error", error);
-    return NextResponse.redirect(new URL("/login?error=email_confirmation_failed", requestUrl.origin));
+    const loginUrl = new URL("/login", requestUrl.origin);
+    loginUrl.searchParams.set("error", "email_confirmation_failed");
+    loginUrl.searchParams.set("next", next);
+    return NextResponse.redirect(loginUrl);
   }
 
   return NextResponse.redirect(new URL(next, requestUrl.origin));

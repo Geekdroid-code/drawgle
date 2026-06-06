@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link id="drawgle-google-font" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap">
+    <style>
+:root {
+  --dg-color-text-low-emphasis: #444444;
+  --dg-color-text-high-emphasis: #FFFFFF;
+  --dg-color-text-medium-emphasis: #888888;
+  --dg-color-action-primary: #FFFFFF;
+  --dg-color-action-disabled: #222222;
+  --dg-color-action-secondary: #1A1A1A;
+  --dg-color-action-on-primary-text: #0A0A0A;
+  --dg-color-border-divider: #262626;
+  --dg-color-border-focused: #FFFFFF;
+  --dg-color-surface-card: #1A1A1A;
+  --dg-color-surface-modal: #1A1A1A;
+  --dg-color-surface-bottom-sheet: #121212;
+  --dg-color-background-primary: #0A0A0A;
+  --dg-color-background-secondary: #000000;
+  --dg-radii-app: 12px;
+  --dg-radii-pill: 9999px;
+  --dg-sizing-icon-small: 18px;
+  --dg-sizing-icon-standard: 24px;
+  --dg-sizing-min-touch-target: 48px;
+  --dg-sizing-bottom-nav-height: 84px;
+  --dg-sizing-standard-input-height: 56px;
+  --dg-sizing-standard-button-height: 56px;
+  --dg-shadows-none: none;
+  --dg-shadows-overlay: 0 12px 32px rgba(0,0,0,0.8);
+  --dg-shadows-surface: 0 4px 12px rgba(0,0,0,0.5);
+  --dg-spacing-none: 0px;
+  --dg-spacing-lg: 24px;
+  --dg-spacing-md: 16px;
+  --dg-spacing-sm: 12px;
+  --dg-spacing-xl: 32px;
+  --dg-spacing-xs: 8px;
+  --dg-spacing-xxl: 48px;
+  --dg-spacing-xxs: 4px;
+  --dg-z-index-base: 0;
+  --dg-z-index-bottom-nav: 20;
+  --dg-z-index-bottom-sheet: 30;
+  --dg-z-index-modal-dialog: 40;
+  --dg-z-index-sticky-header: 10;
+  --dg-z-index-toast-snackbar: 50;
+  --dg-opacities-opaque: 1;
+  --dg-opacities-pressed: 0.12;
+  --dg-opacities-disabled: 0.38;
+  --dg-opacities-transparent: 0;
+  --dg-opacities-scrim-overlay: 0.70;
+  --dg-typography-font-family: 'Inter', -apple-system, sans-serif;
+  --dg-type-nav-title-size: 17px;
+  --dg-type-nav-title-weight: 600;
+  --dg-type-nav-title-line-height: 22px;
+  --dg-type-screen-title-size: 28px;
+  --dg-type-screen-title-weight: 700;
+  --dg-type-screen-title-line-height: 34px;
+  --dg-type-hero-title-size: 32px;
+  --dg-type-hero-title-weight: 700;
+  --dg-type-hero-title-line-height: 40px;
+  --dg-type-section-title-size: 12px;
+  --dg-type-section-title-weight: 600;
+  --dg-type-section-title-line-height: 16px;
+  --dg-type-metric-value-size: 36px;
+  --dg-type-metric-value-weight: 500;
+  --dg-type-metric-value-line-height: 44px;
+  --dg-type-body-size: 16px;
+  --dg-type-body-weight: 400;
+  --dg-type-body-line-height: 24px;
+  --dg-type-supporting-size: 14px;
+  --dg-type-supporting-weight: 400;
+  --dg-type-supporting-line-height: 20px;
+  --dg-type-caption-size: 11px;
+  --dg-type-caption-weight: 500;
+  --dg-type-caption-line-height: 14px;
+  --dg-type-button-label-size: 15px;
+  --dg-type-button-label-weight: 600;
+  --dg-type-button-label-line-height: 20px;
+  --dg-border-widths-standard: 1px;
+  --dg-mobile-layout-element-gap: 12px;
+  --dg-mobile-layout-section-gap: 32px;
+  --dg-mobile-layout-safe-area-top: 16px;
+  --dg-mobile-layout-screen-margin: 24px;
+  --dg-mobile-layout-safe-area-bottom: 16px;
+}
+
+#root {
+  --dg-preview-background: var(--dg-color-background-primary, #ffffff);
+  background: var(--dg-preview-background);
+}
+
+.dg-bg-primary { background-color: var(--dg-color-background-primary); }
+.dg-bg-secondary { background-color: var(--dg-color-background-secondary); }
+.dg-surface-card { background-color: var(--dg-color-surface-card); }
+.dg-surface-bottom-sheet { background-color: var(--dg-color-surface-bottom-sheet); }
+.dg-surface-modal { background-color: var(--dg-color-surface-modal); }
+.dg-text-high { color: var(--dg-color-text-high-emphasis); }
+.dg-text-medium { color: var(--dg-color-text-medium-emphasis); }
+.dg-text-low { color: var(--dg-color-text-low-emphasis); }
+.dg-action-primary {
+  background-color: var(--dg-color-action-primary);
+  color: var(--dg-color-action-on-primary-text);
+}
+.dg-action-secondary { background-color: var(--dg-color-action-secondary); }
+.dg-border-divider { border-color: var(--dg-color-border-divider); }
+.dg-border-focused { border-color: var(--dg-color-border-focused); }
+.dg-radius-app { border-radius: var(--dg-radii-app); }
+.dg-radius-pill { border-radius: var(--dg-radii-pill); }
+.dg-shadow-surface { box-shadow: var(--dg-shadows-surface); }
+.dg-shadow-overlay { box-shadow: var(--dg-shadows-overlay); }
+.dg-screen-padding { padding-left: var(--dg-mobile-layout-screen-margin); padding-right: var(--dg-mobile-layout-screen-margin); }
+.dg-section-gap { gap: var(--dg-mobile-layout-section-gap); }
+.dg-element-gap { gap: var(--dg-mobile-layout-element-gap); }
+
+.dg-type-nav-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-nav-title-size);
+  font-weight: var(--dg-type-nav-title-weight);
+  line-height: var(--dg-type-nav-title-line-height);
+}
+
+.dg-type-screen-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-screen-title-size);
+  font-weight: var(--dg-type-screen-title-weight);
+  line-height: var(--dg-type-screen-title-line-height);
+}
+
+.dg-type-hero-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-hero-title-size);
+  font-weight: var(--dg-type-hero-title-weight);
+  line-height: var(--dg-type-hero-title-line-height);
+}
+
+.dg-type-section-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-section-title-size);
+  font-weight: var(--dg-type-section-title-weight);
+  line-height: var(--dg-type-section-title-line-height);
+}
+
+.dg-type-metric-value {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-metric-value-size);
+  font-weight: var(--dg-type-metric-value-weight);
+  line-height: var(--dg-type-metric-value-line-height);
+}
+
+.dg-type-body {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-body-size);
+  font-weight: var(--dg-type-body-weight);
+  line-height: var(--dg-type-body-line-height);
+}
+
+.dg-type-supporting {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-supporting-size);
+  font-weight: var(--dg-type-supporting-weight);
+  line-height: var(--dg-type-supporting-line-height);
+}
+
+.dg-type-caption {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-caption-size);
+  font-weight: var(--dg-type-caption-weight);
+  line-height: var(--dg-type-caption-line-height);
+}
+
+.dg-type-button-label {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-button-label-size);
+  font-weight: var(--dg-type-button-label-weight);
+  line-height: var(--dg-type-button-label-line-height);
+}
+      html, body { margin: 0; min-height: 100%; }
+      body {
+        font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+        background: var(--dg-color-background-primary, #ffffff);
+        color: var(--dg-color-text-high-emphasis, #111827);
+      }
+      #drawgle-export-root {
+        position: relative;
+        min-height: 100vh;
+        overflow-x: hidden;
+        background: var(--dg-color-background-primary, #ffffff);
+      }
+      #drawgle-export-navigation { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; pointer-events: none; }
+      #drawgle-export-navigation [data-drawgle-primary-nav] { pointer-events: auto; }
+    </style>
+  </head>
+  <body>
+    <div id="drawgle-export-root">
+<div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden" style="font-family: 'Inter', -apple-system, sans-serif">
+  <!-- Top Safe Area & Brand Mark -->
+  <div class="pt-[var(--dg-mobile-layout-safe-area-top)] px-[var(--dg-mobile-layout-screen-margin)] flex justify-start items-center h-[64px]">
+    <div class="w-8 h-8 flex items-center justify-center bg-white rounded-[8px]">
+      <div class="w-4 h-4 bg-black rounded-full"></div>
+    </div>
+  </div>
+
+  <!-- Main Content Scrollable Area -->
+  <div class="flex-1 flex flex-col px-[var(--dg-mobile-layout-screen-margin)]">
+    
+    <!-- Hero Header -->
+    <div class="mt-[var(--dg-spacing-xl)] mb-[var(--dg-mobile-layout-section-gap)] transition-transform duration-300 ease-out">
+      <h1 class="dg-type-screen-title text-white">Welcome back</h1>
+      <p class="dg-type-body text-[var(--dg-color-text-medium-emphasis)] mt-2">Enter your details to access your account.</p>
+    </div>
+
+    <!-- Login Form Cluster -->
+    <div class="flex flex-col gap-[var(--dg-mobile-layout-element-gap)]">
+      <!-- Email Input -->
+      <div class="flex flex-col gap-2" style="color: var(--dg-color-text-high-emphasis)">
+        <label class="dg-type-section-title text-[var(--dg-color-text-medium-emphasis)] uppercase tracking-wider">Email Address</label>
+        <div class="relative group">
+          <input 
+            type="email" 
+            placeholder="name@company.com" 
+            class="w-full h-[var(--dg-sizing-standard-input-height)] bg-[var(--dg-color-surface-card)] border border-[var(--dg-color-border-divider)] rounded-[var(--dg-radii-app)] px-[var(--dg-spacing-md)] dg-type-body text-white placeholder:text-[#555555] focus:outline-none focus:border-[var(--dg-color-border-focused)] transition-all" />
+        </div>
+      </div>
+
+      <!-- Password Input -->
+      <div class="flex flex-col gap-2">
+        <div class="flex justify-between items-center">
+          <label class="dg-type-section-title text-[var(--dg-color-text-medium-emphasis)] uppercase tracking-wider">Password</label>
+          <button class="dg-type-caption text-[var(--dg-color-text-medium-emphasis)] hover:text-white transition-colors">Forgot?</button>
+        </div>
+        <div class="relative group">
+          <input 
+            type="password" 
+            placeholder="••••••••" 
+            class="w-full h-[var(--dg-sizing-standard-input-height)] bg-[var(--dg-color-surface-card)] border border-[var(--dg-color-border-divider)] rounded-[var(--dg-radii-app)] px-[var(--dg-spacing-md)] dg-type-body text-white placeholder:text-[#555555] focus:outline-none focus:border-[var(--dg-color-border-focused)] transition-all" />
+        </div>
+      </div>
+
+      <!-- Primary CTA -->
+      <button class="mt-4 w-full h-[var(--dg-sizing-standard-button-height)] bg-[var(--dg-color-action-primary)] text-[var(--dg-color-action-on-primary-text)] rounded-[var(--dg-radii-app)] dg-type-button-label active:scale-[0.98] transition-transform flex items-center justify-center">
+        Sign In
+      </button>
+    </div>
+
+    <!-- Divider -->
+    <div class="flex items-center gap-4 my-[var(--dg-mobile-layout-section-gap)]">
+      <div class="flex-1 h-[1px] bg-[var(--dg-color-border-divider)]"></div>
+      <span class="dg-type-caption text-[var(--dg-color-text-low-emphasis)] uppercase tracking-widest">or</span>
+      <div class="flex-1 h-[1px] bg-[var(--dg-color-border-divider)]"></div>
+    </div>
+
+    <!-- Social Login Group -->
+    <div class="flex flex-col gap-[var(--dg-mobile-layout-element-gap)]">
+      <button class="w-full h-[var(--dg-sizing-standard-button-height)] bg-[var(--dg-color-action-secondary)] border border-[var(--dg-color-border-divider)] rounded-[var(--dg-radii-app)] flex items-center justify-center gap-3 active:bg-[var(--dg-color-action-disabled)] transition-colors">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 12-4.53z" fill="#EA4335"/>
+        </svg>
+        <span class="dg-type-button-label text-white">Continue with Google</span>
+      </button>
+
+      <button class="w-full h-[var(--dg-sizing-standard-button-height)] bg-[var(--dg-color-action-secondary)] border border-[var(--dg-color-border-divider)] rounded-[var(--dg-radii-app)] flex items-center justify-center gap-3 active:bg-[var(--dg-color-action-disabled)] transition-colors">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+          <path d="M17.05 20.28c-.96.01-1.76-.63-2.89-.63-1.15 0-2.02.61-2.91.63-1.03.02-1.88-.97-2.81-2.32-1.9-2.76-3.34-7.8-1.39-11.19.97-1.68 2.69-2.74 4.56-2.77 1.43-.02 2.78.97 3.65.97.85 0 2.49-1.18 4.22-1 1.73.03 3.04.66 3.98 2.04-3.48 2.1-2.92 6.64.6 8.06-.83 2.06-1.91 4.11-3.41 6.21-.86 1.21-1.74 2.01-2.6 2zM15.48 4.66c-.78.94-2.1 1.56-3.39 1.46-.16-1.28.45-2.64 1.25-3.58.8-.95 2.21-1.64 3.41-1.54.18 1.34-.49 2.72-1.27 3.66z"/>
+        </svg>
+        <span class="dg-type-button-label text-white">Continue with Apple</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Bottom Footer Link -->
+  <div class="pb-[calc(var(--dg-mobile-layout-safe-area-bottom)+18px)] px-[var(--dg-mobile-layout-screen-margin)] text-center">
+    <p class="dg-type-supporting text-[var(--dg-color-text-medium-emphasis)]">
+      Don't have an account? 
+      <button class="text-white font-semibold ml-1">Sign Up</button>
+    </p>
+  </div>
+
+  <!-- iOS Home Indicator Reserve -->
+  <div class="h-[34px] w-full"></div>
+</div>
+      <div id="drawgle-export-navigation"><nav data-drawgle-primary-nav class="fixed bottom-0 left-0 right-0 flex justify-center items-end pb-[var(--dg-mobile-layout-safe-area-bottom)] pointer-events-none z-[100]">
+  <div class="pointer-events-auto flex items-center justify-around w-[calc(100%-48px)] max-w-[342px] h-[68px] mb-[var(--dg-mobile-layout-safe-area-bottom)] px-2 bg-[var(--dg-color-surface-bottom-sheet)] border border-[var(--dg-color-border-divider)] rounded-[var(--dg-radii-pill)] shadow-[var(--dg-shadows-overlay)] backdrop-blur-2xl">
+    
+    <!-- Home / Dashboard -->
+    <button data-nav-item-id="dashboard" class="group relative flex flex-col items-center justify-center min-w-[64px] h-full transition-all duration-300 ease-out active:scale-90">
+      <div class="flex flex-col items-center gap-1">
+        <i data-lucide="layout-dashboard" class="w-[22px] h-[22px] stroke-[1.5px] text-[var(--dg-color-text-low-emphasis)] group-data-[active=true]:text-[var(--dg-color-text-high-emphasis)] transition-colors duration-300"></i>
+        <span class="text-[10px] uppercase tracking-wider font-[var(--dg-type-caption-weight)] leading-[var(--dg-type-caption-line-height)] text-[var(--dg-color-text-low-emphasis)] group-data-[active=true]:text-[var(--dg-color-text-high-emphasis)] transition-colors duration-300">Home</span>
+      </div>
+      <div class="absolute bottom-1.5 w-1 h-1 rounded-full bg-[var(--dg-color-text-high-emphasis)] scale-0 opacity-0 group-data-[active=true]:scale-100 group-data-[active=true]:opacity-100 transition-all duration-300 ease-out"></div>
+    </button>
+
+    <!-- Portfolio -->
+    <button data-nav-item-id="portfolio" class="group relative flex flex-col items-center justify-center min-w-[64px] h-full transition-all duration-300 ease-out active:scale-90">
+      <div class="flex flex-col items-center gap-1">
+        <i data-lucide="pie-chart" class="w-[22px] h-[22px] stroke-[1.5px] text-[var(--dg-color-text-low-emphasis)] group-data-[active=true]:text-[var(--dg-color-text-high-emphasis)] transition-colors duration-300"></i>
+        <span class="text-[10px] uppercase tracking-wider font-[var(--dg-type-caption-weight)] leading-[var(--dg-type-caption-line-height)] text-[var(--dg-color-text-low-emphasis)] group-data-[active=true]:text-[var(--dg-color-text-high-emphasis)] transition-colors duration-300">Assets</span>
+      </div>
+      <div class="absolute bottom-1.5 w-1 h-1 rounded-full bg-[var(--dg-color-text-high-emphasis)] scale-0 opacity-0 group-data-[active=true]:scale-100 group-data-[active=true]:opacity-100 transition-all duration-300 ease-out"></div>
+    </button>
+
+    <!-- Activity -->
+    <button data-nav-item-id="activity" class="group relative flex flex-col items-center justify-center min-w-[64px] h-full transition-all duration-300 ease-out active:scale-90">
+      <div class="flex flex-col items-center gap-1">
+        <i data-lucide="arrow-up-right" class="w-[22px] h-[22px] stroke-[1.5px] text-[var(--dg-color-text-low-emphasis)] group-data-[active=true]:text-[var(--dg-color-text-high-emphasis)] transition-colors duration-300"></i>
+        <span class="text-[10px] uppercase tracking-wider font-[var(--dg-type-caption-weight)] leading-[var(--dg-type-caption-line-height)] text-[var(--dg-color-text-low-emphasis)] group-data-[active=true]:text-[var(--dg-color-text-high-emphasis)] transition-colors duration-300">History</span>
+      </div>
+      <div class="absolute bottom-1.5 w-1 h-1 rounded-full bg-[var(--dg-color-text-high-emphasis)] scale-0 opacity-0 group-data-[active=true]:scale-100 group-data-[active=true]:opacity-100 transition-all duration-300 ease-out"></div>
+    </button>
+
+    <!-- Settings -->
+    <button data-nav-item-id="settings" class="group relative flex flex-col items-center justify-center min-w-[64px] h-full transition-all duration-300 ease-out active:scale-90">
+      <div class="flex flex-col items-center gap-1">
+        <i data-lucide="settings" class="w-[22px] h-[22px] stroke-[1.5px] text-[var(--dg-color-text-low-emphasis)] group-data-[active=true]:text-[var(--dg-color-text-high-emphasis)] transition-colors duration-300"></i>
+        <span class="text-[10px] uppercase tracking-wider font-[var(--dg-type-caption-weight)] leading-[var(--dg-type-caption-line-height)] text-[var(--dg-color-text-low-emphasis)] group-data-[active=true]:text-[var(--dg-color-text-high-emphasis)] transition-colors duration-300">Config</span>
+      </div>
+      <div class="absolute bottom-1.5 w-1 h-1 rounded-full bg-[var(--dg-color-text-high-emphasis)] scale-0 opacity-0 group-data-[active=true]:scale-100 group-data-[active=true]:opacity-100 transition-all duration-300 ease-out"></div>
+    </button>
+
+  </div>
+</nav>
+
+<style>
+  [data-drawgle-primary-nav] button[] {
+    pointer-events: none;
+  }
+  /* Ensure icons and text respond to the data-active attribute set by the renderer */
+  [data-drawgle-primary-nav] button[] i {
+    color: var(--dg-color-text-high-emphasis) !important;
+    transform: translateY(-2px);
+  }
+  [data-drawgle-primary-nav] button[] span {
+    color: var(--dg-color-text-high-emphasis) !important;
+    opacity: 1;
+  }
+  [data-drawgle-primary-nav] button[] .absolute {
+    opacity: 1 !important;
+    transform: scale(1) !important;
+  }
+</style></div>
+    </div>
+    <script>
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+      document.querySelectorAll('[data-nav-item-id]').forEach(function(item) {
+        var active = item.getAttribute('data-nav-item-id') === "home";
+        item.setAttribute('data-active', active ? 'true' : 'false');
+        item.setAttribute('aria-current', active ? 'page' : 'false');
+      });
+    </script>
+  </body>
+</html>

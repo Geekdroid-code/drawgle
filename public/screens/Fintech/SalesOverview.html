@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link id="drawgle-google-font" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;500;600;700&amp;display=swap">
+    <style>
+:root {
+  --dg-color-text-low-emphasis: #555555;
+  --dg-color-text-high-emphasis: #FFFFFF;
+  --dg-color-text-medium-emphasis: #999999;
+  --dg-color-action-primary: #A5D6B7;
+  --dg-color-action-disabled: #333333;
+  --dg-color-action-secondary: #E8B4B8;
+  --dg-color-action-accent-sand: #E9D3A3;
+  --dg-color-action-on-primary-text: #000000;
+  --dg-color-border-divider: #262626;
+  --dg-color-border-focused: #FFFFFF;
+  --dg-color-surface-card: #1A1A1A;
+  --dg-color-surface-modal: #2C2C2E;
+  --dg-color-surface-bottom-sheet: #1C1C1E;
+  --dg-color-background-primary: #000000;
+  --dg-color-background-secondary: #121212;
+  --dg-radii-lg: 24px;
+  --dg-radii-md: 16px;
+  --dg-radii-sm: 8px;
+  --dg-radii-xl: 32px;
+  --dg-radii-app: 24px;
+  --dg-radii-pill: 9999px;
+  --dg-radii-sharp: 0px;
+  --dg-sizing-icon-small: 18px;
+  --dg-sizing-icon-standard: 24px;
+  --dg-sizing-min-touch-target: 48px;
+  --dg-sizing-bottom-nav-height: 84px;
+  --dg-sizing-standard-input-height: 52px;
+  --dg-sizing-standard-button-height: 56px;
+  --dg-shadows-lg: 0 12px 24px rgba(0,0,0,0.6);
+  --dg-shadows-md: 0 4px 12px rgba(0,0,0,0.5);
+  --dg-shadows-sm: 0 2px 4px rgba(0,0,0,0.3);
+  --dg-shadows-none: none;
+  --dg-shadows-upward: 0 -4px 16px rgba(0,0,0,0.4);
+  --dg-shadows-overlay: 0 -4px 16px rgba(0,0,0,0.4);
+  --dg-shadows-surface: 0 4px 12px rgba(0,0,0,0.5);
+  --dg-spacing-none: 0px;
+  --dg-spacing-lg: 24px;
+  --dg-spacing-md: 16px;
+  --dg-spacing-sm: 12px;
+  --dg-spacing-xl: 32px;
+  --dg-spacing-xs: 8px;
+  --dg-spacing-xxl: 48px;
+  --dg-spacing-xxs: 4px;
+  --dg-z-index-base: 0;
+  --dg-z-index-bottom-nav: 20;
+  --dg-z-index-bottom-sheet: 30;
+  --dg-z-index-modal-dialog: 40;
+  --dg-z-index-sticky-header: 10;
+  --dg-z-index-toast-snackbar: 50;
+  --dg-opacities-opaque: 1;
+  --dg-opacities-pressed: 0.12;
+  --dg-opacities-disabled: 0.38;
+  --dg-opacities-transparent: 0;
+  --dg-opacities-scrim-overlay: 0.50;
+  --dg-typography-font-family: SF Pro Display, Inter, system-ui, sans-serif;
+  --dg-type-nav-title-size: 24px;
+  --dg-type-nav-title-weight: 700;
+  --dg-type-nav-title-line-height: 28px;
+  --dg-type-screen-title-size: 24px;
+  --dg-type-screen-title-weight: 700;
+  --dg-type-screen-title-line-height: 28px;
+  --dg-type-hero-title-size: 32px;
+  --dg-type-hero-title-weight: 700;
+  --dg-type-hero-title-line-height: 38px;
+  --dg-type-section-title-size: 24px;
+  --dg-type-section-title-weight: 700;
+  --dg-type-section-title-line-height: 28px;
+  --dg-type-metric-value-size: 32px;
+  --dg-type-metric-value-weight: 700;
+  --dg-type-metric-value-line-height: 38px;
+  --dg-type-body-size: 16px;
+  --dg-type-body-weight: 500;
+  --dg-type-body-line-height: 22px;
+  --dg-type-supporting-size: 14px;
+  --dg-type-supporting-weight: 400;
+  --dg-type-supporting-line-height: 20px;
+  --dg-type-caption-size: 12px;
+  --dg-type-caption-weight: 500;
+  --dg-type-caption-line-height: 16px;
+  --dg-type-button-label-size: 15px;
+  --dg-type-button-label-weight: 600;
+  --dg-type-button-label-line-height: 20px;
+  --dg-border-widths-none: 0px;
+  --dg-border-widths-thin: 1px;
+  --dg-border-widths-thick: 2px;
+  --dg-border-widths-hairline: 0.5px;
+  --dg-border-widths-standard: 1px;
+  --dg-mobile-layout-element-gap: 12px;
+  --dg-mobile-layout-section-gap: 32px;
+  --dg-mobile-layout-safe-area-top: 16px;
+  --dg-mobile-layout-screen-margin: 24px;
+  --dg-mobile-layout-safe-area-bottom: 16px;
+}
+
+#root {
+  --dg-preview-background: var(--dg-color-background-primary, #ffffff);
+  background: var(--dg-preview-background);
+}
+
+.dg-bg-primary { background-color: var(--dg-color-background-primary); }
+.dg-bg-secondary { background-color: var(--dg-color-background-secondary); }
+.dg-surface-card { background-color: var(--dg-color-surface-card); }
+.dg-surface-bottom-sheet { background-color: var(--dg-color-surface-bottom-sheet); }
+.dg-surface-modal { background-color: var(--dg-color-surface-modal); }
+.dg-text-high { color: var(--dg-color-text-high-emphasis); }
+.dg-text-medium { color: var(--dg-color-text-medium-emphasis); }
+.dg-text-low { color: var(--dg-color-text-low-emphasis); }
+.dg-action-primary {
+  background-color: var(--dg-color-action-primary);
+  color: var(--dg-color-action-on-primary-text);
+}
+.dg-action-secondary { background-color: var(--dg-color-action-secondary); }
+.dg-border-divider { border-color: var(--dg-color-border-divider); }
+.dg-border-focused { border-color: var(--dg-color-border-focused); }
+.dg-radius-app { border-radius: var(--dg-radii-app); }
+.dg-radius-pill { border-radius: var(--dg-radii-pill); }
+.dg-shadow-surface { box-shadow: var(--dg-shadows-surface); }
+.dg-shadow-overlay { box-shadow: var(--dg-shadows-overlay); }
+.dg-screen-padding { padding-left: var(--dg-mobile-layout-screen-margin); padding-right: var(--dg-mobile-layout-screen-margin); }
+.dg-section-gap { gap: var(--dg-mobile-layout-section-gap); }
+.dg-element-gap { gap: var(--dg-mobile-layout-element-gap); }
+
+.dg-type-nav-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-nav-title-size);
+  font-weight: var(--dg-type-nav-title-weight);
+  line-height: var(--dg-type-nav-title-line-height);
+}
+
+.dg-type-screen-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-screen-title-size);
+  font-weight: var(--dg-type-screen-title-weight);
+  line-height: var(--dg-type-screen-title-line-height);
+}
+
+.dg-type-hero-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-hero-title-size);
+  font-weight: var(--dg-type-hero-title-weight);
+  line-height: var(--dg-type-hero-title-line-height);
+}
+
+.dg-type-section-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-section-title-size);
+  font-weight: var(--dg-type-section-title-weight);
+  line-height: var(--dg-type-section-title-line-height);
+}
+
+.dg-type-metric-value {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-metric-value-size);
+  font-weight: var(--dg-type-metric-value-weight);
+  line-height: var(--dg-type-metric-value-line-height);
+}
+
+.dg-type-body {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-body-size);
+  font-weight: var(--dg-type-body-weight);
+  line-height: var(--dg-type-body-line-height);
+}
+
+.dg-type-supporting {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-supporting-size);
+  font-weight: var(--dg-type-supporting-weight);
+  line-height: var(--dg-type-supporting-line-height);
+}
+
+.dg-type-caption {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-caption-size);
+  font-weight: var(--dg-type-caption-weight);
+  line-height: var(--dg-type-caption-line-height);
+}
+
+.dg-type-button-label {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-button-label-size);
+  font-weight: var(--dg-type-button-label-weight);
+  line-height: var(--dg-type-button-label-line-height);
+}
+      html, body { margin: 0; min-height: 100%; }
+      body {
+        font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+        background: var(--dg-color-background-primary, #ffffff);
+        color: var(--dg-color-text-high-emphasis, #111827);
+      }
+      #drawgle-export-root {
+        position: relative;
+        min-height: 100vh;
+        overflow-x: hidden;
+        background: var(--dg-color-background-primary, #ffffff);
+      }
+      #drawgle-export-navigation { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; pointer-events: none; }
+      #drawgle-export-navigation [data-drawgle-primary-nav] { pointer-events: auto; }
+    </style>
+  </head>
+  <body>
+    <div id="drawgle-export-root">
+<div class="w-full min-h-screen bg-[#000000] flex flex-col relative overflow-hidden" style="font-family: SF Pro Display, Inter, system-ui, sans-serif">
+  
+  <!-- Main Content Scroll Area -->
+  <div class="flex-1 overflow-y-auto pt-[16px] pb-[24px] px-[24px]">
+    
+    <!-- Hero Card Module -->
+    <div class="w-full bg-[#B2D8C1] rounded-[32px] p-[24px] flex flex-col relative overflow-hidden shadow-lg">
+      <div class="flex justify-between items-center mb-[12px]">
+        <div class="flex items-center gap-[8px]">
+          <div class="w-[32px] h-[32px] bg-[#000000] rounded-[10px] flex items-center justify-center">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#B2D8C1" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+          </div>
+          <span class="text-[#000000] text-[14px] font-[600]">Sales</span>
+        </div>
+        <div class="bg-[#000000]/10 px-[10px] py-[4px] rounded-full">
+          <span class="text-[#000000] text-[12px] font-[700]">+23%</span>
+        </div>
+      </div>
+      
+      <div class="mb-[24px]">
+        <h1 class="text-[#000000] text-[40px] font-[700] tracking-tight">$ 24,575</h1>
+      </div>
+
+      <!-- Sparkline SVG — Premium smooth bezier with glow + gradient fill -->
+      <div class="w-full h-[56px] mt-auto">
+        <svg class="w-full h-full" viewBox="0 0 300 56" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="fillGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#000000" stop-opacity="0.15"/>
+              <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+            </linearGradient>
+            <filter id="lineGlow" x="-20%" y="-80%" width="140%" height="260%">
+              <feGaussianBlur stdDeviation="2" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+          <!-- Area fill -->
+          <path d="M0 44 C30 42,50 46,75 40 C100 34,115 38,140 32 C165 26,185 34,210 22 C230 14,255 26,275 14 C285 9,293 8,300 6 L300 56 L0 56 Z" fill="url(#fillGrad)"/>
+          <!-- Glow shadow -->
+          <path d="M0 44 C30 42,50 46,75 40 C100 34,115 38,140 32 C165 26,185 34,210 22 C230 14,255 26,275 14 C285 9,293 8,300 6" fill="none" stroke="#000000" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.1"/>
+          <!-- Main line -->
+          <path d="M0 44 C30 42,50 46,75 40 C100 34,115 38,140 32 C165 26,185 34,210 22 C230 14,255 26,275 14 C285 9,293 8,300 6" fill="none" stroke="#000000" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" filter="url(#lineGlow)"/>
+          <!-- End dot -->
+          <circle cx="300" cy="6" r="7" fill="#000000" opacity="0.1"/>
+          <circle cx="300" cy="6" r="3.5" fill="#000000"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Growth Section Module -->
+    <div class="mt-[32px]">
+      <div class="flex justify-between items-end mb-[16px]">
+        <div>
+          <p class="text-[#999999] text-[14px] font-[500] mb-[4px]">User in The Last Week</p>
+          <h2 class="text-[#FFFFFF] text-[32px] font-[700] tracking-tight">+ 2,1%</h2>
+        </div>
+        <button class="text-[#999999] text-[12px] font-[600] uppercase tracking-wider mb-[8px]">See all</button>
+      </div>
+
+      <!-- Bar Chart Container -->
+      <div class="relative flex items-end justify-between h-[160px] pt-[40px] gap-[8px]">
+        <!-- Tooltip for Wednesday -->
+        <div class="absolute top-0 left-[28%] -translate-x-1/2 bg-[#1A1A1A] border border-[#262626] px-[12px] py-[6px] rounded-[12px] shadow-lg z-10">
+          <span class="text-[#FFFFFF] text-[12px] font-[700]">$ 37,847</span>
+          <div class="absolute -bottom-[4px] left-1/2 -translate-x-1/2 w-[8px] h-[8px] bg-[#1A1A1A] rotate-45 border-r border-b border-[#262626]"></div>
+        </div>
+
+        <!-- Bars -->
+        <div class="flex flex-col items-center flex-1 gap-[8px]">
+          <div class="w-full bg-[#1A1A1A] rounded-full h-[80px] relative overflow-hidden">
+            <div class="absolute bottom-0 w-full bg-[#B2D8C1]/40 h-[40px]"></div>
+          </div>
+          <span class="text-[#555555] text-[10px] font-[600]">Mon</span>
+        </div>
+        <div class="flex flex-col items-center flex-1 gap-[8px]">
+          <div class="w-full bg-[#1A1A1A] rounded-full h-[100px] relative overflow-hidden">
+            <div class="absolute bottom-0 w-full bg-[#B2D8C1]/40 h-[60px]"></div>
+          </div>
+          <span class="text-[#555555] text-[10px] font-[600]">Tue</span>
+        </div>
+        <!-- Highlighted Wednesday -->
+        <div class="flex flex-col items-center flex-1 gap-[8px]">
+          <div class="w-full bg-[#F4C2C2] rounded-full h-[120px] relative overflow-hidden shadow-[0_0_20px_rgba(244,194,194,0.3)]">
+            <div class="absolute bottom-0 w-full bg-[#000000]/10 h-[80px]"></div>
+          </div>
+          <span class="text-[#FFFFFF] text-[10px] font-[700]">Wed</span>
+        </div>
+        <div class="flex flex-col items-center flex-1 gap-[8px]">
+          <div class="w-full bg-[#1A1A1A] rounded-full h-[90px] relative overflow-hidden">
+            <div class="absolute bottom-0 w-full bg-[#B2D8C1]/40 h-[50px]"></div>
+          </div>
+          <span class="text-[#555555] text-[10px] font-[600]">Thu</span>
+        </div>
+        <div class="flex flex-col items-center flex-1 gap-[8px]">
+          <div class="w-full bg-[#1A1A1A] rounded-full h-[110px] relative overflow-hidden">
+            <div class="absolute bottom-0 w-full bg-[#B2D8C1]/40 h-[70px]"></div>
+          </div>
+          <span class="text-[#555555] text-[10px] font-[600]">Fri</span>
+        </div>
+        <div class="flex flex-col items-center flex-1 gap-[8px]">
+          <div class="w-full bg-[#1A1A1A] rounded-full h-[85px] relative overflow-hidden">
+            <div class="absolute bottom-0 w-full bg-[#B2D8C1]/40 h-[45px]"></div>
+          </div>
+          <span class="text-[#555555] text-[10px] font-[600]">Sat</span>
+        </div>
+        <div class="flex flex-col items-center flex-1 gap-[8px]">
+          <div class="w-full bg-[#1A1A1A] rounded-full h-[95px] relative overflow-hidden">
+            <div class="absolute bottom-0 w-full bg-[#B2D8C1]/40 h-[55px]"></div>
+          </div>
+          <span class="text-[#555555] text-[10px] font-[600]">Sun</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Last Orders Module -->
+    <div class="mt-[32px]">
+      <div class="flex justify-between items-center mb-[16px]">
+        <h3 class="text-[#FFFFFF] text-[18px] font-[700]">Last Orders</h3>
+        <div class="flex items-center gap-[4px] bg-[#1A1A1A] px-[12px] py-[6px] rounded-full border border-[#262626]">
+          <span class="text-[#999999] text-[12px] font-[600]">Every 2 Hours</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#999999" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+      </div>
+
+      <div class="space-y-[12px]">
+
+        <!-- Transaction Item 1 -->
+        <div class="bg-[#1A1A1A] p-[16px] rounded-[24px] flex items-center justify-between border border-[#262626]/50">
+          <div class="flex items-center gap-[12px]">
+            <div class="w-[44px] h-[44px] rounded-full overflow-hidden border border-[#262626]">
+              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Yulia" alt="Avatar" class="w-full h-full object-cover" />
+            </div>
+            <div>
+              <p class="text-[#FFFFFF] text-[15px] font-[600]">Yulia Polishchuk</p>
+              <p class="text-[#555555] text-[12px]">21 Oct 2024</p>
+            </div>
+          </div>
+          <span class="text-[#B2D8C1] text-[15px] font-[700]">+$ 4,825</span>
+        </div>
+
+        <!-- Transaction Item 2 -->
+        <div class="bg-[#1A1A1A] p-[16px] rounded-[24px] flex items-center justify-between border border-[#262626]/50">
+          <div class="flex items-center gap-[12px]">
+            <div class="w-[44px] h-[44px] rounded-full overflow-hidden border border-[#262626]">
+              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Anatoly" alt="Avatar" class="w-full h-full object-cover" />
+            </div>
+            <div>
+              <p class="text-[#FFFFFF] text-[15px] font-[600]">Anatoly Kravets</p>
+              <p class="text-[#555555] text-[12px]">21 Oct 2024</p>
+            </div>
+          </div>
+          <span class="text-[#B2D8C1] text-[15px] font-[700]">+$ 2,340</span>
+        </div>
+
+        <!-- Transaction Item 3 -->
+        <div class="bg-[#1A1A1A] p-[16px] rounded-[24px] flex items-center justify-between border border-[#262626]/50">
+          <div class="flex items-center gap-[12px]">
+            <div class="w-[44px] h-[44px] rounded-full overflow-hidden border border-[#262626]">
+              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Sofia" alt="Avatar" class="w-full h-full object-cover" />
+            </div>
+            <div>
+              <p class="text-[#FFFFFF] text-[15px] font-[600]">Sofia Marchetti</p>
+              <p class="text-[#555555] text-[12px]">20 Oct 2024</p>
+            </div>
+          </div>
+          <span class="text-[#B2D8C1] text-[15px] font-[700]">+$ 1,190</span>
+        </div>
+
+        <!-- Transaction Item 4 — refund in pink accent -->
+        <div class="bg-[#1A1A1A] p-[16px] rounded-[24px] flex items-center justify-between border border-[#262626]/50">
+          <div class="flex items-center gap-[12px]">
+            <div class="w-[44px] h-[44px] rounded-full overflow-hidden border border-[#262626]">
+              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Marcus" alt="Avatar" class="w-full h-full object-cover" />
+            </div>
+            <div>
+              <p class="text-[#FFFFFF] text-[15px] font-[600]">Marcus Holloway</p>
+              <p class="text-[#555555] text-[12px]">20 Oct 2024</p>
+            </div>
+          </div>
+          <span class="text-[#F4C2C2] text-[15px] font-[700]">−$ 680</span>
+        </div>
+
+        <!-- Transaction Item 5 -->
+        <div class="bg-[#1A1A1A] p-[16px] rounded-[24px] flex items-center justify-between border border-[#262626]/50">
+          <div class="flex items-center gap-[12px]">
+            <div class="w-[44px] h-[44px] rounded-full overflow-hidden border border-[#262626]">
+              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Priya" alt="Avatar" class="w-full h-full object-cover" />
+            </div>
+            <div>
+              <p class="text-[#FFFFFF] text-[15px] font-[600]">Priya Nair</p>
+              <p class="text-[#555555] text-[12px]">19 Oct 2024</p>
+            </div>
+          </div>
+          <span class="text-[#B2D8C1] text-[15px] font-[700]">+$ 3,510</span>
+        </div>
+
+        <!-- Transaction Item 6 -->
+        <div class="bg-[#1A1A1A] p-[16px] rounded-[24px] flex items-center justify-between border border-[#262626]/50">
+          <div class="flex items-center gap-[12px]">
+            <div class="w-[44px] h-[44px] rounded-full overflow-hidden border border-[#262626]">
+              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Leon" alt="Avatar" class="w-full h-full object-cover" />
+            </div>
+            <div>
+              <p class="text-[#FFFFFF] text-[15px] font-[600]">Leon Bauer</p>
+              <p class="text-[#555555] text-[12px]">19 Oct 2024</p>
+            </div>
+          </div>
+          <span class="text-[#B2D8C1] text-[15px] font-[700]">+$ 990</span>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+      
+    </div>
+    <script>
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+      document.querySelectorAll('[data-nav-item-id]').forEach(function(item) {
+        var active = item.getAttribute('data-nav-item-id') === "home";
+        item.setAttribute('data-active', active ? 'true' : 'false');
+        item.setAttribute('aria-current', active ? 'page' : 'false');
+      });
+    </script>
+  </body>
+</html>

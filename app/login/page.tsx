@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getSafeAuthRedirect } from "@/lib/auth-redirect";
 import { createClient } from "@/lib/supabase/client";
 
 type AuthMode = "sign-in" | "sign-up";
@@ -42,6 +43,7 @@ function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryStateKey = searchParams.toString();
+  const nextPath = useMemo(() => getSafeAuthRedirect(searchParams.get("next")), [searchParams]);
   const [mode, setMode] = useState<AuthMode>("sign-in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -89,7 +91,7 @@ function LoginPageContent() {
   };
 
   const finishSignedInFlow = () => {
-    router.replace("/project/new");
+    router.replace(nextPath);
     router.refresh();
   };
 
@@ -99,7 +101,7 @@ function LoginPageContent() {
 
     try {
       const supabase = createClient();
-      const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent("/project/new")}`;
+      const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
@@ -166,7 +168,7 @@ function LoginPageContent() {
 
     try {
       const supabase = createClient();
-      const emailRedirectTo = `${window.location.origin}/auth/confirm?next=${encodeURIComponent("/project/new")}`;
+      const emailRedirectTo = `${window.location.origin}/auth/confirm?next=${encodeURIComponent(nextPath)}`;
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
