@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { Check, Code2, Layers3, Route } from "lucide-react";
+import { ArrowRight, Check } from "lucide-react";
 
 type ShowcaseScreen = {
   label: string;
@@ -126,121 +126,109 @@ const productFlows: ProductFlow[] = [
       },
     ],
   },
+  {
+    id: "midnight-precision",
+    index: "05",
+    name: "Midnight Precision",
+    description: "A disciplined monochrome product journey from first impression to daily use.",
+    prompt:
+      "Create a precise monochrome productivity app with a premium welcome screen, focused account access, and a highly structured dark dashboard.",
+    palette: ["#0A0A0A", "#1A1A1A", "#FFFFFF", "#444444"],
+    screens: [
+      {
+        label: "Welcome",
+        role: "Introduction",
+        src: "/screens/MidnightPrecision/Welcome.html",
+      },
+      {
+        label: "Sign in",
+        role: "Access",
+        src: "/screens/MidnightPrecision/Login.html",
+      },
+      {
+        label: "Dashboard",
+        role: "Workspace",
+        src: "/screens/MidnightPrecision/Dashboard.html",
+      },
+    ],
+  },
+  {
+    id: "neo-mint",
+    index: "06",
+    name: "Neo Mint",
+    description: "A high-contrast finance system with sharp hierarchy and restrained mint energy.",
+    prompt:
+      "Design a high-contrast finance app with a black and mint visual system, a clear dashboard, calendar analytics, and a focused expense detail screen.",
+    palette: ["#000000", "#FFFFFF", "#4ADE80", "#E55B5B"],
+    screens: [
+      {
+        label: "Dashboard",
+        role: "Overview",
+        src: "/screens/NeoMintPremium/Dashboard.html",
+      },
+      {
+        label: "Calendar",
+        role: "Patterns",
+        src: "/screens/NeoMintPremium/CalendarAnalytics.html",
+      },
+      {
+        label: "Expense",
+        role: "Detail",
+        src: "/screens/NeoMintPremium/ExpenseDetail.html",
+      },
+    ],
+  },
 ];
-
-const proofItems = [
-  { icon: Route, value: "3 connected screens", detail: "One continuous product flow" },
-  { icon: Layers3, value: "1 shared visual system", detail: "Tokens stay consistent" },
-  { icon: Check, value: "Native navigation", detail: "Real mobile structure" },
-  { icon: Code2, value: "Editable code", detail: "Ready to refine and ship" },
-];
-
-const TechnicalField = () => (
-  <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-    <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.055)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.055)_1px,transparent_1px)] [background-size:28px_28px] [mask-image:linear-gradient(to_bottom,black,black_82%,transparent)]" />
-    <div className="absolute inset-x-0 top-[42px] border-t border-black/[0.08]" />
-    <div className="absolute bottom-[14%] left-0 right-0 border-t border-dashed border-black/[0.08]" />
-    <div className="absolute bottom-0 left-[8%] top-0 border-l border-black/[0.07]" />
-    <div className="absolute bottom-0 right-[8%] top-0 border-l border-black/[0.07]" />
-  </div>
-);
-
-const DarkGrid = () => (
-  <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-    <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.045)_1px,transparent_1px)] [background-size:48px_48px] [mask-image:radial-gradient(ellipse_at_50%_20%,black,transparent_72%)]" />
-    <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-  </div>
-);
 
 const ScreenPreview = ({
   screen,
   position,
-  selected,
-  onSelect,
 }: {
   screen: ShowcaseScreen;
   position: number;
-  selected: boolean;
-  onSelect: () => void;
 }) => (
-  <article className="relative z-10 w-[76vw] max-w-[300px] shrink-0 snap-center sm:w-[270px] lg:w-full lg:max-w-[300px] lg:justify-self-center xl:max-w-[320px]">
-    <button
-      type="button"
-      aria-pressed={selected}
-      onClick={onSelect}
-      className="group block w-full text-left focus-visible:outline-none"
-    >
-      <div className="mb-3 flex items-end justify-between gap-3 px-1">
-        <div>
-          <div className="font-mono text-[8px] uppercase tracking-[0.18em] text-black/45">
-            {String(position + 1).padStart(2, "0")} / {screen.role}
-          </div>
-          <h3 className="mt-1 text-[13px] font-semibold tracking-tight text-black">
-            {screen.label}
-          </h3>
-        </div>
-        <span
-          className={`mb-1 h-1.5 w-1.5 rounded-full transition-colors ${
-            selected ? "bg-[#1b7fcc]" : "bg-black/20 group-hover:bg-black/40"
-          }`}
+  <article className="w-[76vw] max-w-[300px] shrink-0 snap-center sm:w-[270px] lg:w-full lg:max-w-[292px] lg:justify-self-center xl:max-w-[310px]">
+    <div className="relative aspect-[390/844] overflow-hidden rounded-[34px] border border-black/[0.16] bg-[#d8d8d4] p-[5px] shadow-[0_24px_55px_-42px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.8)]">
+      <div className="relative h-full w-full overflow-hidden rounded-[28px] bg-white">
+        <iframe
+          src={screen.src}
+          title={`${screen.label} generated mobile screen`}
+          loading="lazy"
+          scrolling="no"
+          tabIndex={-1}
+          className="pointer-events-none h-full w-full border-0"
         />
+        <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-black/[0.045]" />
       </div>
+    </div>
 
-      <div
-        className={`relative aspect-[390/844] overflow-hidden rounded-[26px] border bg-white p-[4px] transition-colors duration-300 ${
-          selected
-            ? "border-[#1b7fcc] ring-1 ring-[#1b7fcc]/25"
-            : "border-black/20 group-hover:border-black/40"
-        }`}
-      >
-        <div className="relative h-full w-full overflow-hidden rounded-[21px] bg-white">
-          <iframe
-            src={screen.src}
-            title={`${screen.label} generated mobile screen`}
-            loading="lazy"
-            scrolling="no"
-            tabIndex={-1}
-            className="pointer-events-none h-full w-full border-0"
-          />
-          <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-black/[0.04]" />
-        </div>
-
-        {selected && (
-          <>
-            <span className="absolute -left-[3px] -top-[3px] h-1.5 w-1.5 bg-white ring-1 ring-[#1b7fcc]" />
-            <span className="absolute -right-[3px] -top-[3px] h-1.5 w-1.5 bg-white ring-1 ring-[#1b7fcc]" />
-            <span className="absolute -bottom-[3px] -left-[3px] h-1.5 w-1.5 bg-white ring-1 ring-[#1b7fcc]" />
-            <span className="absolute -bottom-[3px] -right-[3px] h-1.5 w-1.5 bg-white ring-1 ring-[#1b7fcc]" />
-          </>
-        )}
+    <div className="mt-4 flex items-center justify-center gap-2 text-center">
+      <span className="flex h-5 w-5 items-center justify-center rounded-full border border-black/10 bg-white/80 text-[9px] font-semibold text-black/45">
+        {position + 1}
+      </span>
+      <div className="text-[12px] font-semibold tracking-tight text-black/75">
+        {screen.label}
+        <span className="ml-1.5 font-normal text-black/35">{screen.role}</span>
       </div>
-    </button>
+    </div>
   </article>
 );
 
 export default function AppShowcase() {
   const [activeFlowIndex, setActiveFlowIndex] = useState(0);
-  const [selectedScreenIndex, setSelectedScreenIndex] = useState(0);
   const reducedMotion = useReducedMotion();
   const activeFlow = productFlows[activeFlowIndex];
-  const selectedScreen = activeFlow.screens[selectedScreenIndex] ?? activeFlow.screens[0];
   const projectHref = `/project/new?prompt=${encodeURIComponent(activeFlow.prompt)}`;
 
-  const selectFlow = (index: number) => {
-    setActiveFlowIndex(index);
-    setSelectedScreenIndex(0);
-  };
-
   return (
-    <section id="showcase" className="relative overflow-hidden bg-[#f3f3f0] pb-20 sm:pb-28">
-      <div className="relative bg-black pb-32 pt-20 text-white sm:pb-40 sm:pt-28">
-        <DarkGrid />
-
+    <section id="showcase" className="relative overflow-hidden bg-[#FAFAFA] pb-8 sm:pb-14">
+      <div className="relative overflow-hidden bg-[radial-gradient(circle_at_50%_-20%,#222_0%,#080808_48%,#000_76%)] pb-36 pt-20 text-white sm:pb-44 sm:pt-28">
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-b from-transparent to-black/50" />
         <div className="relative mx-auto max-w-[1200px] px-4 sm:px-6">
           <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-end">
             <div>
-              <div className="mb-5 flex items-center gap-2 font-mono text-[9px] font-semibold uppercase tracking-[0.2em] text-[#75b9ed]">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#1b7fcc]" />
+              <div className="mb-5 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#75b9ed]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#1b7fcc] shadow-[0_0_12px_rgba(27,127,204,0.8)]" />
                 Generated product flows
               </div>
               <h2 className="max-w-[880px] font-pixel-square text-[36px] font-semibold leading-[1.03] tracking-tight sm:text-5xl md:text-[54px] xl:text-[60px]">
@@ -251,160 +239,127 @@ export default function AppShowcase() {
             </div>
 
             <p className="max-w-md text-sm leading-6 text-white/55 sm:text-base">
-              Explore complete mobile flows generated with one coherent visual language,
-              consistent navigation, and production-ready structure.
+              Browse 18 screens across six complete mobile flows, each generated with one
+              coherent visual language, consistent navigation, and production-ready structure.
             </p>
           </div>
 
-          <div
-            role="tablist"
-            aria-label="Generated product flows"
-            className="mt-12 flex snap-x gap-0 overflow-x-auto border-y border-white/10 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-4"
-          >
-            {productFlows.map((flow, index) => {
-              const active = index === activeFlowIndex;
+          <div className="mt-12 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div
+              role="tablist"
+              aria-label="Generated product flows"
+              className="mx-auto flex w-max min-w-full items-center gap-1 rounded-[16px] border border-white/10 bg-white/[0.045] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur sm:min-w-0"
+            >
+              {productFlows.map((flow, index) => {
+                const active = index === activeFlowIndex;
 
-              return (
-                <button
-                  key={flow.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  aria-controls="active-product-flow"
-                  tabIndex={active ? 0 : -1}
-                  onClick={() => selectFlow(index)}
-                  className={`relative min-w-[230px] snap-start border-r border-white/10 px-4 py-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[#1b7fcc] lg:min-w-0 ${
-                    active ? "bg-white/[0.06]" : "hover:bg-white/[0.035]"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-4">
-                    <span className={`font-mono text-[8px] tracking-[0.18em] ${active ? "text-[#75b9ed]" : "text-white/30"}`}>
-                      {flow.index}
+                return (
+                  <button
+                    key={flow.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    aria-controls="active-product-flow"
+                    tabIndex={active ? 0 : -1}
+                    onClick={() => setActiveFlowIndex(index)}
+                    className={`relative min-w-[180px] rounded-[11px] px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#75b9ed] sm:min-w-0 sm:flex-1 ${
+                      active ? "text-black" : "text-white/45 hover:text-white/75"
+                    }`}
+                  >
+                    {active && (
+                      <motion.span
+                        layoutId="active-flow-surface"
+                        className="absolute inset-0 rounded-[11px] border border-white/70 bg-white shadow-[inset_0_-1px_2px_rgba(0,0,0,0.08)]"
+                        transition={{ duration: reducedMotion ? 0 : 0.3, ease: [0.22, 1, 0.36, 1] }}
+                      />
+                    )}
+                    <span className="relative flex items-center justify-between gap-3">
+                      <span className="whitespace-nowrap text-[12px] font-semibold">{flow.name}</span>
+                      <span className="flex -space-x-0.5">
+                        {flow.palette.slice(1).map((color) => (
+                          <span
+                            key={color}
+                            className="h-2 w-2 rounded-full border border-black/20"
+                            style={{ backgroundColor: color }}
+                          />
+                        ))}
+                      </span>
                     </span>
-                    <div className="flex -space-x-0.5">
-                      {flow.palette.map((color) => (
-                        <span
-                          key={color}
-                          className="h-2 w-2 rounded-full border border-black/40"
-                          style={{ backgroundColor: color }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  <div className={`mt-3 text-[13px] font-semibold ${active ? "text-white" : "text-white/45"}`}>
-                    {flow.name}
-                  </div>
-                  {active && (
-                    <motion.span
-                      layoutId="active-flow-line"
-                      className="absolute inset-x-0 bottom-0 h-px bg-[#1b7fcc]"
-                      transition={{ duration: reducedMotion ? 0 : 0.3 }}
-                    />
-                  )}
-                </button>
-              );
-            })}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="relative z-10 -mt-24 sm:-mt-28">
+      <div className="relative z-10 -mt-24 px-3 sm:-mt-28 sm:px-5">
         <div
           id="active-product-flow"
           role="tabpanel"
-          className="relative mx-auto max-w-[1360px] border-y border-black/15 bg-[#e9e9e5] sm:border-x"
+          className="relative mx-auto max-w-[1260px] overflow-hidden rounded-[26px] border border-black/[0.08] bg-[#F2F2EF] p-1.5 shadow-[0_28px_75px_-60px_rgba(0,0,0,0.45)] sm:rounded-[32px] sm:p-2"
         >
-          <TechnicalField />
-
-          <div className="relative flex h-[43px] items-center justify-between border-b border-black/10 px-4 sm:px-6">
-            <div className="flex min-w-0 items-center gap-3">
-              <span className="hidden font-mono text-[8px] uppercase tracking-[0.18em] text-black/35 sm:inline">
-                Drawgle / flow board
-              </span>
-              <span className="hidden h-3 border-l border-black/15 sm:inline" />
-              <span className="truncate text-[11px] font-semibold text-black/70">
-                {activeFlow.name}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 font-mono text-[8px] uppercase tracking-[0.12em] text-black/40">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              3 screens connected
-            </div>
-          </div>
-
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.div
-              key={activeFlow.id}
-              initial={reducedMotion ? false : { opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={reducedMotion ? undefined : { opacity: 0, y: -6 }}
-              transition={{ duration: reducedMotion ? 0 : 0.3, ease: [0.22, 1, 0.36, 1] }}
-              className="relative"
-            >
-              <div className="pointer-events-none absolute left-[13%] right-[13%] top-[48%] hidden border-t border-dashed border-black/20 lg:block" />
-              <div className="pointer-events-none absolute left-[33.1%] top-[48%] hidden h-2 w-2 -translate-x-1/2 -translate-y-1/2 rotate-45 border border-black/25 bg-[#e9e9e5] lg:block" />
-              <div className="pointer-events-none absolute left-[66.6%] top-[48%] hidden h-2 w-2 -translate-x-1/2 -translate-y-1/2 rotate-45 border border-black/25 bg-[#e9e9e5] lg:block" />
-
-              <div className="flex snap-x snap-mandatory gap-5 overflow-x-auto px-[12vw] py-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:px-10 sm:py-10 lg:grid lg:grid-cols-3 lg:gap-9 lg:overflow-visible lg:px-14 lg:py-12 xl:px-20">
-                {activeFlow.screens.map((screen, index) => (
-                  <ScreenPreview
-                    key={screen.src}
-                    screen={screen}
-                    position={index}
-                    selected={index === selectedScreenIndex}
-                    onSelect={() => setSelectedScreenIndex(index)}
-                  />
-                ))}
+          <div
+            className="relative overflow-hidden rounded-[20px] border border-white/80 bg-[#F7F7F4] sm:rounded-[25px]"
+            style={{
+              backgroundImage: `radial-gradient(circle at 12% 12%, ${activeFlow.palette[3]}2b, transparent 30%), radial-gradient(circle at 88% 82%, ${activeFlow.palette[2]}0d, transparent 34%)`,
+            }}
+          >
+            <div className="relative flex flex-col gap-3 px-5 pb-2 pt-6 sm:flex-row sm:items-end sm:justify-between sm:px-8 sm:pt-8">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#1b7fcc]">
+                  Complete mobile flow
+                </div>
+                <h3 className="mt-1 text-xl font-semibold tracking-tight text-black sm:text-2xl">
+                  {activeFlow.name}
+                </h3>
               </div>
-            </motion.div>
-          </AnimatePresence>
-
-          <div className="relative grid border-t border-black/10 bg-[#f1f1ee]/90 md:grid-cols-[1fr_auto]">
-            <div className="px-4 py-5 sm:px-6">
-              <div className="font-mono text-[8px] uppercase tracking-[0.18em] text-black/35">
-                Selected screen / {selectedScreen.role}
-              </div>
-              <p className="mt-1 max-w-2xl text-sm font-medium text-black/75">
-                {activeFlow.description} Selected: {selectedScreen.label}.
+              <p className="max-w-md text-xs leading-5 text-black/45 sm:text-right sm:text-sm">
+                {activeFlow.description}
               </p>
             </div>
 
-            <Link
-              href={projectHref}
-              className="group flex min-h-16 items-center justify-between gap-8 border-t border-black/10 px-4 text-sm font-semibold text-black transition-colors hover:bg-white/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[#1b7fcc] sm:px-6 md:min-w-[270px] md:border-l md:border-t-0"
-            >
-              Build a flow like this
-              <span className="relative flex h-5 w-9 items-center">
-                <span className="absolute left-0 right-1 top-1/2 border-t border-black/45 transition-[right] duration-300 group-hover:right-0" />
-                <span className="absolute right-0 h-2 w-2 rotate-45 border-r border-t border-black/65" />
-              </span>
-            </Link>
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={activeFlow.id}
+                initial={reducedMotion ? false : { opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={reducedMotion ? undefined : { opacity: 0, y: -6 }}
+                transition={{ duration: reducedMotion ? 0 : 0.35, ease: [0.22, 1, 0.36, 1] }}
+                className="relative"
+              >
+                <div className="flex snap-x snap-mandatory gap-6 overflow-x-auto px-[11vw] pb-9 pt-7 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:px-10 sm:pb-12 sm:pt-9 lg:grid lg:grid-cols-3 lg:gap-9 lg:overflow-visible lg:px-12 xl:px-16">
+                  {activeFlow.screens.map((screen, index) => (
+                    <ScreenPreview key={screen.src} screen={screen} position={index} />
+                  ))}
+                </div>
+              </motion.div>
+            </AnimatePresence>
+
+            <div className="relative flex flex-col gap-5 border-t border-black/[0.07] bg-white/60 px-5 py-5 backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:px-8">
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px] font-medium text-black/50 sm:text-xs">
+                {["Three connected screens", "One consistent system", "Editable output"].map((item) => (
+                  <span key={item} className="flex items-center gap-1.5">
+                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600">
+                      <Check className="h-2.5 w-2.5" strokeWidth={2.5} />
+                    </span>
+                    {item}
+                  </span>
+                ))}
+              </div>
+
+              <Link
+                href={projectHref}
+                className="group flex min-h-11 shrink-0 items-center justify-center gap-3 rounded-[9px] border border-[#5ba8e2]/35 bg-[#1b7fcc] px-5 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-2px_3px_rgba(0,0,0,0.24)] transition-colors hover:bg-[#1975bd] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b7fcc]/30"
+              >
+                Build a flow like this
+                <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+              </Link>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="mx-auto grid max-w-[1200px] grid-cols-2 border-b border-black/10 px-4 sm:px-6 md:grid-cols-4">
-        {proofItems.map((item, index) => {
-          const Icon = item.icon;
-
-          return (
-            <div
-              key={item.value}
-              className={`flex min-h-[92px] items-start gap-3 border-black/10 py-5 ${
-                index % 2 === 0 ? "pr-3" : "border-l pl-3"
-              } ${index > 1 ? "border-t md:border-t-0" : ""} ${
-                index > 0 ? "md:border-l md:pl-5 md:pr-5" : "md:pr-5"
-              }`}
-            >
-              <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#1b7fcc]" strokeWidth={1.7} />
-              <div>
-                <div className="text-[11px] font-semibold text-black/75">{item.value}</div>
-                <div className="mt-1 text-[10px] leading-4 text-black/40">{item.detail}</div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
     </section>
   );
 }
