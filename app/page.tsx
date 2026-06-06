@@ -1,10 +1,9 @@
-
 import PublicHeader from '@/components/landing/Header'
 import { HeroSection } from '@/components/landing/HeroSection'
 import NewHowItWorks from '@/components/landing/NewHowItWorks'
 import { FeaturesSection } from '@/components/landing/FeaturesSection'
 import MethodComparison from "@/components/landing/MethodComparison";
-import StylePacks from '@/components/landing/StylePacks';
+import AppShowcase from '@/components/landing/AppShowcase';
 import PricingCards from '@/components/landing/pricing-cards'
 import FAQSection from '@/components/landing/FAQSection'
 import { CTASection } from '@/components/landing/CTASection'
@@ -22,7 +21,7 @@ export default function Home() {
       <main>
         <HeroSection />
         <NewHowItWorks />
-        <StylePacks />
+        <AppShowcase />
         <MethodComparison />
         <TestimonialSection />
         <PrivacySection />
