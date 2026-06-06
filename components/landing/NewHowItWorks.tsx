@@ -3,29 +3,42 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Settings, ArrowRight, Check, Activity, Flame, ChevronRight, MapPin, Trophy, ChevronLeft, ShoppingBag, Home, Search, Heart, Code, Play, Loader, Smartphone, User, Menu } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
-const SvgDivider = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 48 18" className="h-[18px] w-12 shrink-0 hidden md:block opacity-60">
-    <path stroke="#E0E0E0" d="M0 8.5h48"></path>
-    <g clipPath="url(#rapid-dev-top-divider_svg__a)">
-      <rect width="16" height="16" x="16" y="1" fill="#F7F7F7" rx="8"></rect>
-      <path fill="#B8B8B8" fillRule="evenodd" d="M20.813 5.98a.5.5 0 0 1 .707 0l2.195 2.195a1.167 1.167 0 0 1 0 1.65L21.52 12.02a.5.5 0 1 1-.707-.707l2.195-2.195a.167.167 0 0 0 0-.236l-2.195-2.195a.5.5 0 0 1 0-.707m4.667 0a.5.5 0 0 1 .707 0l2.195 2.195a1.167 1.167 0 0 1 0 1.65l-2.195 2.195a.5.5 0 1 1-.707-.707l2.195-2.195a.167.167 0 0 0 0-.236L25.48 6.687a.5.5 0 0 1 0-.707" clipRule="evenodd"></path>
-    </g>
-    <rect width="17" height="17" x="15.5" y="0.5" stroke="#E0E0E0" rx="8.5"></rect>
-    <defs>
-      <clipPath id="rapid-dev-top-divider_svg__a">
-        <rect width="16" height="16" x="16" y="1" fill="#fff" rx="8"></rect>
-      </clipPath>
-    </defs>
-  </svg>
+const SvgDivider = ({ complete }: { complete: boolean }) => (
+  <div className="relative z-0 flex h-10 w-[18px] shrink-0 items-center justify-center md:h-[18px] md:w-12">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 48 18" className="absolute h-[18px] w-12 rotate-90 md:rotate-0">
+      <path stroke="#E0E0E0" d="M0 8.5h48" />
+      <motion.path
+        stroke="#F97316"
+        strokeWidth="1.5"
+        d="M0 8.5h48"
+        initial={false}
+        animate={{ pathLength: complete ? 1 : 0, opacity: complete ? 1 : 0 }}
+        transition={{ duration: 0.7, ease: "easeInOut" }}
+      />
+      <rect width="16" height="16" x="16" y="1" fill="#FAFAFA" rx="8" />
+      <path
+        fill={complete ? "#F97316" : "#B8B8B8"}
+        fillRule="evenodd"
+        d="M20.813 5.98a.5.5 0 0 1 .707 0l2.195 2.195a1.167 1.167 0 0 1 0 1.65L21.52 12.02a.5.5 0 1 1-.707-.707l2.195-2.195a.167.167 0 0 0 0-.236l-2.195-2.195a.5.5 0 0 1 0-.707m4.667 0a.5.5 0 0 1 .707 0l2.195 2.195a1.167 1.167 0 0 1 0 1.65L26.187 12.02a.5.5 0 1 1-.707-.707l2.195-2.195a.167.167 0 0 0 0-.236L25.48 6.687a.5.5 0 0 1 0-.707"
+        clipRule="evenodd"
+        className="transition-colors duration-500"
+      />
+      <rect width="17" height="17" x="15.5" y="0.5" stroke={complete ? "#FDBA74" : "#E0E0E0"} rx="8.5" className="transition-colors duration-500" />
+    </svg>
+  </div>
 );
 
 const BracketDown = () => (
-  <div className="flex justify-center w-full my-3 md:my-5 opacity-60">
-    <svg width="240" height="30" viewBox="0 0 240 30" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M0.5 1C0.5 1 119.5 1 119.5 15C119.5 29 119.5 29 119.5 29" stroke="#E0E0E0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M239.5 1C239.5 1 120.5 1 120.5 15C120.5 29 120.5 29 120.5 29" stroke="#E0E0E0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-      <circle cx="120" cy="28" r="2" fill="#B8B8B8"/>
-    </svg>
+  <div className="hidden md:flex justify-center w-full my-2 md:my-3 opacity-60">
+   <svg className="w-[280px] md:w-[480px] h-[30px]" viewBox="0 0 480 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M1 2C1 10 6 14 16 14L224 14C234 14 239 20 240 28" stroke="#E0E0E0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  
+  <path d="M479 2C479 10 474 14 464 14L256 14C246 14 241 20 240 28" stroke="#E0E0E0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  
+  <circle cx="240" cy="28" r="2" fill="#B8B8B8"/>
+</svg>
+
+
   </div>
 );
 
@@ -227,11 +240,11 @@ export default function DescribeToDesign() {
         </p>
       </div>
 
-      <div className="flex flex-col items-center justify-center mt-12 w-full relative">
-        <div className="flex flex-wrap items-center justify-center gap-3 md:gap-0 w-full px-4 pb-4">
+      <div className="flex flex-col items-center justify-center mt-4 mb-8 sm:mb-4 w-full relative">
+        <div className="flex flex-col md:flex-row md:flex-wrap items-center justify-center gap-0 w-full px-4">
           
           {/* Pill 1 */}
-          <div className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors ${currentStep >= 2 ? 'border-gray-200 bg-white text-gray-800' : currentStep === 1 ? 'border-orange-200 bg-white text-gray-800' : 'border-gray-200 bg-white text-gray-400'}`}>
+          <div className={`relative z-10 flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors ${currentStep >= 2 ? 'border-gray-200 bg-white text-gray-800' : currentStep === 1 ? 'border-orange-200 bg-white text-gray-800' : 'border-gray-200 bg-white text-gray-400'}`}>
             {currentStep >= 2 ? (
               <div className="w-4 h-4 rounded-full bg-green-500 text-white flex items-center justify-center"><Check size={10} strokeWidth={3}/></div>
             ) : currentStep === 1 ? (
@@ -242,10 +255,10 @@ export default function DescribeToDesign() {
             Iterate specific sections
           </div>
 
-          <SvgDivider />
+          <SvgDivider complete={currentStep >= 2} />
 
           {/* Pill 2 */}
-          <div className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors ${currentStep >= 4 ? 'border-gray-200 bg-white text-gray-800' : currentStep === 3 ? 'border-orange-200 bg-white text-gray-800' : 'border-gray-200 bg-white text-gray-400'}`}>
+          <div className={`relative z-10 flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors ${currentStep >= 4 ? 'border-gray-200 bg-white text-gray-800' : currentStep === 3 ? 'border-orange-200 bg-white text-gray-800' : 'border-gray-200 bg-white text-gray-400'}`}>
             {currentStep >= 4 ? (
               <div className="w-4 h-4 rounded-full bg-green-500 text-white flex items-center justify-center"><Check size={10} strokeWidth={3}/></div>
             ) : currentStep === 3 ? (
@@ -256,10 +269,10 @@ export default function DescribeToDesign() {
             Refine with premium components
           </div>
 
-          <SvgDivider />
+          <SvgDivider complete={currentStep >= 4} />
 
           {/* Pill 3 */}
-          <div className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors ${currentStep >= 6 ? 'border-gray-200 bg-white text-gray-800' : currentStep === 5 ? 'border-orange-200 bg-white text-gray-800' : 'border-gray-200 bg-white text-gray-400'}`}>
+          <div className={`relative z-10 flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors ${currentStep >= 6 ? 'border-gray-200 bg-white text-gray-800' : currentStep === 5 ? 'border-orange-200 bg-white text-gray-800' : 'border-gray-200 bg-white text-gray-400'}`}>
             {currentStep >= 6 ? (
               <div className="w-4 h-4 rounded-full bg-green-500 text-white flex items-center justify-center"><Check size={10} strokeWidth={3}/></div>
             ) : currentStep === 5 ? (
@@ -303,7 +316,7 @@ export default function DescribeToDesign() {
           {/* Left: Code Pane */}
           <div 
             ref={codeContainerRef}
-            className="flex-none h-[320px] lg:flex-1 lg:h-auto p-4 md:p-6 overflow-x-auto overflow-y-auto bg-white font-mono text-[12px] md:text-[13px] leading-[1.8] min-w-0 custom-scrollbar shrink-0 border-b lg:border-b-0 border-gray-100"
+            className="flex-none h-[380px] lg:flex-1 lg:h-auto p-4 md:p-6 overflow-x-auto overflow-y-auto bg-white font-mono text-[12px] md:text-[13px] leading-[1.8] min-w-0 custom-scrollbar shrink-0 border-b lg:border-b-0 border-gray-100"
             style={{ scrollBehavior: 'smooth' }}
           >
             <div className="flex min-w-max pb-12">
@@ -546,11 +559,18 @@ export default function DescribeToDesign() {
           background: transparent;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background-color: #E2E8F0;
+          background-color: transparent;
           border-radius: 20px;
+          transition: background-color 200ms ease;
         }
         .custom-scrollbar:hover::-webkit-scrollbar-thumb {
           background-color: #CBD5E1;
+        }
+        .custom-scrollbar {
+          scrollbar-color: transparent transparent;
+        }
+        .custom-scrollbar:hover {
+          scrollbar-color: #CBD5E1 transparent;
         }
       `}} />
     </section>
