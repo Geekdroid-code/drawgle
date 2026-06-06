@@ -214,7 +214,7 @@ export default function DescribeToDesign() {
       <VerticalRuler side="right" />
       
       <div className="flex flex-col items-center text-center mb-6 px-4">
-        <h2 className="text-[32px] sm:text-6xl tracking-tight max-w-4xl mx-auto font-semibold leading-[1.1] font-[var(--font-inter-tight)]">
+        <h2 className="text-[32px] sm:text-6xl tracking-tight max-w-4xl mx-auto font-semibold leading-[1.1] font-pixel-square">
           <span className="text-black">
             Iterate and refine UIs
           </span> <br className="hidden sm:block" />

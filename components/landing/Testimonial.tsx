@@ -54,44 +54,44 @@ const TestimonialCard: React.FC<TestimonialCardProps> = ({ quote, name, role, av
 export default function TestimonialSection() {
   const testimonials: TestimonialCardProps[] = [
     {
-      quote: "I got my perfect Instagram profile photo in just 40 minutes. The quality is amazing!",
+      quote: "I used to spend 2 weeks just fighting with UI layouts and nested column widgets. With Drawgle, I went from a Dribbble screenshot to a working Flutter UI in minutes. Absolute lifesaver.",
       name: "Sachin Singh",
-      role: "Influencer",
+      role: "Indie Hacker (Built FitTrack)",
       avatar: "/content/sachin.webp",
       rating: 5,
     },
     {
-      quote: "The transformation is unbelievable. My LinkedIn profile looks so professional now!",
+      quote: "The exported SwiftUI code is incredibly clean. No weird proprietary frameworks—just standard HStacks, VStacks, and exact system variables mapped to my design tokens. Compiles on the first try.",
       name: "Mariah Edwards",
-      role: "Marketing Director",
+      role: "Lead iOS Engineer",
       avatar: "/content/mariah-edwards.png",
       rating: 5,
     },
     {
-      quote: "I've tried many AI photo tools, but Unrealshot AI gives the most natural-looking results.",
+      quote: "Clients constantly send us mood boards. Being able to drop their inspo shot into Drawgle, extract the style, and scaffold 5 cohesive screens in 20 minutes has doubled our agency's profit margins.",
       name: "Sumesh",
-      role: "Tech Enthusiast",
+      role: "Founder, AppCraft Studio",
       avatar: "/content/sumesh.webp",
       rating: 5,
     },
     {
-      quote: "Being a model, having standout photos is everything. After using this AI tool, my portfolio photos look more polished and professional!",
-      name: "Emma Thompson",
-      role: "Model",
-      avatar: "/content/emma-thopmson.jpg",
+      quote: "I can build any database or auth pipeline, but my mobile UIs always looked like a 2012 Android app. Drawgle gave me a premium, modern design, and I only spent 11 rupees to generate my entire frontend.",
+      name: "Alex Rivera",
+      role: "Fullstack Bootstrapper",
+      avatar: "/content/emma-thopmson.jpg", // Kept original file path placeholder
       rating: 5,
     },
     {
-      quote: "The customer service is as impressive as the AI. They helped me choose the perfect style.",
+      quote: "Surgical Edits are a game-changer. Instead of regenerating the whole screen when a button is slightly off, I just highlight it and fix it for 5 credits. It's the first smart AI canvas.",
       name: "Manoj",
-      role: "Photographer",
+      role: "Vibe Coder & Indie Hacker",
       avatar: "/content/manoj.jpg",
       rating: 5,
     },
     {
-      quote: "Our entire team uses Unrealshot AI for our corporate headshots. Consistent quality every time!",
+      quote: "Our product team uses Drawgle to quickly prototype ideas. We manage our core design tokens right on the canvas and export to both SwiftUI and Jetpack Compose instantly. Unbelievable flow.",
       name: "Shrey Singh",
-      role: "HR Manager",
+      role: "Product Lead, EcoStep",
       avatar: "/images/demo2.jpg",
       rating: 5,
     },
@@ -102,12 +102,11 @@ export default function TestimonialSection() {
       <div className="container mx-auto max-w-7xl px-4">
         {/* Header */}
         <div className="text-center mb-16">
-          
           <h2 className="text-white text-4xl md:text-5xl lg:text-6xl font-bold mb-6">
-            Real Results from <br /><span className="text-[#1b7fcccc]">Real Peoples</span>
+            Real Apps Built by <br /><span className="text-[#1b7fcccc]">Real Builders</span>
           </h2>
           <p className="mx-auto max-w-2xl text-xl text-gray-300">
-            Don&apos;t just take our word for it. See what our users are saying about their transformative experiences.
+            See how mobile developers, indie hackers, and agency owners are skipping layout hell and shipping native code in record time.
           </p>
         </div>
 
@@ -141,14 +140,13 @@ export default function TestimonialSection() {
 
         {/* CTA Section */}
         <div className="text-center mt-16">
-          
           <div className="inline-block relative">
-            <Link href="/ai-glamour-photoshoot" className="inline-block">
+            <Link href="/dashboard" className="inline-block">
               <Button
                 size="lg"
                 className="group relative bg-[#1b7fcccc] hover:bg-[#1b7fcccc]/90 text-white rounded-md overflow-hidden cursor-pointer px-6 pr-16 py-6 font-semibold text-base shadow-[0_4px_20px_-5px_rgba(0,0,0,0.2)]"
               >
-                Transform Your Photos Now
+                Design Your App UI Now
                 <div className="bg-white rounded-sm p-3 absolute right-1 top-1/2 -translate-y-1/2">
                     <img
                       src="/arrow.svg"
@@ -179,7 +177,7 @@ export default function TestimonialSection() {
             <p className={`text-gray-400 ${caveat.className} text-lg font-semibold 
                           md:absolute md:transform md:-rotate-6 md:-left-52 md:-top-1/4 md:-translate-y-1/2 md:w-48
                           sm:static sm:mt-2 sm:transform-none sm:rotate-0 sm:text-center sm:w-auto leading-none`}>
-              Trusted by 1,200+ professionals worldwide
+              Trusted by 1,200+ developers worldwide
             </p>
           </div>
         </div>

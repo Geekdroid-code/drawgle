@@ -92,14 +92,88 @@ export function HeroSection() {
               </div>
             </div>
             
-            <h1 className="text-[32px] sm:text-6xl tracking-tight max-w-4xl mx-auto font-semibold leading-[1.1] mb-4 font-[var(--font-inter-tight)]">
-              <span className="text-white">
-                Ship beautiful App UIs
-              </span><br />
-              <span className="text-[#1b7fcc]">
-                at the speed of thought
-              </span>
-            </h1>
+<h1 className="text-[32px] sm:text-6xl max-w-4xl mx-auto font-semibold leading-none mb-4 font-pixel-square">  <span className="text-white">
+    Ship beautiful App UIs
+  </span><br />
+  
+  {/* The Tearing Text Container */}
+  <span className="relative inline-block mt-2 group">
+    
+    <style jsx>{`
+      /* The High-Speed Projectile */
+      @keyframes sliceShoot {
+        0%, 10% { transform: translate(-100%, -50%); opacity: 0; }
+        11% { opacity: 1; }
+        14% { transform: translate(100%, -50%); opacity: 1; }
+        15%, 100% { transform: translate(100%, -50%); opacity: 0; }
+      }
+
+      /* Top Half lifts up from the left */
+      @keyframes tearTop {
+        0%, 12% { transform: translateY(0) rotate(0); }
+        15% { transform: translateY(-8px) rotate(-2deg); filter: drop-shadow(0 5px 5px rgba(27,127,204,0.4)); }
+        22% { transform: translateY(0) rotate(0); }
+        100% { transform: translateY(0) rotate(0); }
+      }
+
+      /* Bottom Half drops down from the left */
+      @keyframes tearBottom {
+        0%, 12% { transform: translateY(0) rotate(0); }
+        15% { transform: translateY(8px) rotate(2deg); filter: drop-shadow(0 -5px 5px rgba(27,127,204,0.4)); }
+        22% { transform: translateY(0) rotate(0); }
+        100% { transform: translateY(0) rotate(0); }
+      }
+
+      /* The bright plasma glow revealed inside the tear */
+      @keyframes innerTearGlow {
+        0%, 12% { opacity: 0; transform: scaleX(0); }
+        14% { opacity: 1; transform: scaleX(1); }
+        20%, 100% { opacity: 0; transform: scaleX(1); }
+      }
+    `}</style>
+
+    {/* Invisible baseline text (Keeps the layout from collapsing and allows copy/pasting) */}
+    <span className="text-transparent selection:text-white/30">
+      at the speed of thought
+    </span>
+
+    {/* The internal glowing light that leaks out when torn */}
+    <div 
+      className="absolute top-1/2 left-0 right-0 h-[2px] bg-white shadow-[0_0_15px_#fff,0_0_30px_#1b7fcc,0_0_50px_#1b7fcc] -translate-y-1/2 origin-left z-0"
+      style={{ animation: 'innerTearGlow 4s cubic-bezier(0.16, 1, 0.3, 1) infinite' }}
+    />
+
+    {/* TOP HALF OF THE TEXT */}
+    <span 
+      aria-hidden="true"
+      className="absolute top-0 left-0 w-full text-[#1b7fcc] z-10 origin-right"
+      style={{ 
+        clipPath: 'inset(0 0 50% 0)', // Cuts off the bottom half
+        animation: 'tearTop 4s cubic-bezier(0.16, 1, 0.3, 1) infinite' 
+      }}
+    >
+      at the speed of thought
+    </span>
+
+    {/* BOTTOM HALF OF THE TEXT */}
+    <span 
+      aria-hidden="true"
+      className="absolute top-0 left-0 w-full text-[#1b7fcc] z-10 origin-right"
+      style={{ 
+        clipPath: 'inset(50% 0 0 0)', // Cuts off the top half
+        animation: 'tearBottom 4s cubic-bezier(0.16, 1, 0.3, 1) infinite' 
+      }}
+    >
+      at the speed of thought
+    </span>
+
+    {/* The Laser Blade / Projectile */}
+    <div 
+      className="absolute top-1/2 left-0 w-[80%] h-[3px] bg-white rounded-full shadow-[0_0_10px_#fff,0_0_20px_#1b7fcc] z-20 pointer-events-none"
+      style={{ animation: 'sliceShoot 4s ease-in-out infinite' }}
+    />
+  </span>
+</h1>
 
             <p className="text-md sm:text-lg text-gray-300 max-w-3xl mx-auto mb-8">
 Drawgle uses advanced AI to generate production-ready SwiftUI, Compose, Flutter, and React screens from simple text prompts. Go from idea to native code in seconds.            </p>

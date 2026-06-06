@@ -2,7 +2,16 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+@layer base {
+  :root {
+    --font-pixel-square: var(--font-geist-pixel-square);
+  }
+}
+
 @layer utilities {
+  .font-pixel-square {
+    font-family: var(--font-geist-pixel-square);
+  }
   .dot-pattern {
     background-image: radial-gradient(#d1d5db 1px, transparent 1px);
     background-size: 24px 24px;
