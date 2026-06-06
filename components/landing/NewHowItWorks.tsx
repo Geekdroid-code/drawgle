@@ -72,9 +72,35 @@ const VerticalRuler = ({ side }: { side: 'left' | 'right' }) => {
   );
 };
 
+const PrecisionFrame = ({ label, detail }: { label: string; detail: string }) => (
+  <motion.div
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    exit={{ opacity: 0 }}
+    transition={{ duration: 0.25 }}
+    className="pointer-events-none absolute -inset-[5px] z-50 rounded-[inherit] border border-[#1b7fcc]/70"
+  >
+    <span className="absolute -left-1 -top-1 h-2 w-2 border border-[#1b7fcc] bg-white" />
+    <span className="absolute -right-1 -top-1 h-2 w-2 border border-[#1b7fcc] bg-white" />
+    <span className="absolute -bottom-1 -left-1 h-2 w-2 border border-[#1b7fcc] bg-white" />
+    <span className="absolute -bottom-1 -right-1 h-2 w-2 border border-[#1b7fcc] bg-white" />
+    <span className="absolute -top-[23px] left-1 flex items-center gap-1.5 whitespace-nowrap rounded-md border border-gray-200 bg-white px-1.5 py-0.5 font-mono text-[8px] text-gray-500 shadow-sm">
+      <span className="h-1.5 w-1.5 rounded-full bg-[#1b7fcc]" />
+      {label}
+      <span className="text-[#1b7fcc]">{detail}</span>
+    </span>
+  </motion.div>
+);
+
 export default function DescribeToDesign() {
   const [currentStep, setCurrentStep] = useState(0);
   const codeContainerRef = useRef<HTMLDivElement>(null);
+
+  const activeToken = currentStep <= 2
+    ? { name: '--dg-radius-hero', value: '32px', affected: 'hero card' }
+    : currentStep <= 4
+      ? { name: '--dg-radius-card', value: '24px', affected: '2 product cards' }
+      : { name: '--dg-radius-pill', value: '9999px', affected: '4 components' };
 
   useEffect(() => {
     let mounted = true;
@@ -151,10 +177,10 @@ export default function DescribeToDesign() {
     { id: 14, text: '        <button class="w-full bg-black text-white py-3 rounded-lg mt-4 font-medium">View Product</button>', type: 'delete', step: 1 },
     { id: 15, text: '      </div>', type: 'delete', step: 1 },
     
-    { id: 16, text: '      <div class="bg-[#F5F5F5] rounded-[32px] p-[24px] relative overflow-hidden">', type: 'add', step: 1 },
+    { id: 16, text: '      <div class="bg-[var(--dg-surface-muted)] rounded-[var(--dg-radius-hero)] p-[var(--dg-space-lg)] relative">', type: 'add', step: 1 },
     { id: 17, text: '        <h2 class="text-[22px] font-bold leading-tight text-black w-[60%]">JMDA Max Lift</h2>', type: 'add', step: 1 },
     { id: 18, text: '        <p class="text-[12px] font-medium text-[#666666] mt-2 mb-4">Men\'s running</p>', type: 'add', step: 1 },
-    { id: 19, text: '        <button class="bg-black text-white px-6 py-2.5 rounded-full text-[13px] font-semibold">Shop now</button>', type: 'add', step: 1 },
+    { id: 19, text: '        <button class="bg-[var(--dg-action-primary)] text-white px-6 py-2.5 rounded-[var(--dg-radius-pill)]">Shop now</button>', type: 'add', step: 1 },
     { id: 20, text: '        <img src="/shoes/max-lift.png" class="absolute -right-12 top-6 w-[240px] drop-shadow-2xl pointer-events-none" />', type: 'add', step: 1 },
     { id: 21, text: '      </div>', type: 'add', step: 1 },
     
@@ -168,10 +194,10 @@ export default function DescribeToDesign() {
     { id: 27, text: '      <div class="flex flex-col opacity-40"><span class="font-bold text-[18px]">Lifestyle</span><span class="text-[12px] text-gray-500">9 items</span></div>', type: 'delete', step: 5 },
     { id: 28, text: '    </div>', type: 'delete', step: 5 },
     
-    { id: 'c1', text: '    <div class="flex gap-3 mb-6">', type: 'add', step: 5 },
-    { id: 'c2', text: '      <div class="bg-black text-white px-4 py-2.5 rounded-full text-sm font-semibold">Running</div>', type: 'add', step: 5 },
-    { id: 'c3', text: '      <div class="bg-gray-100 text-gray-600 px-4 py-2.5 rounded-full text-sm font-semibold">Lifestyle</div>', type: 'add', step: 5 },
-    { id: 'c4', text: '      <div class="bg-gray-100 text-gray-600 px-4 py-2.5 rounded-full text-sm font-semibold">Basketball</div>', type: 'add', step: 5 },
+    { id: 'c1', text: '    <div class="flex gap-[var(--dg-space-sm)] mb-6">', type: 'add', step: 5 },
+    { id: 'c2', text: '      <div class="bg-[var(--dg-action-primary)] text-white px-4 py-2.5 rounded-[var(--dg-radius-pill)]">Running</div>', type: 'add', step: 5 },
+    { id: 'c3', text: '      <div class="bg-gray-100 text-gray-600 px-4 py-2.5 rounded-[var(--dg-radius-pill)]">Lifestyle</div>', type: 'add', step: 5 },
+    { id: 'c4', text: '      <div class="bg-gray-100 text-gray-600 px-4 py-2.5 rounded-[var(--dg-radius-pill)]">Basketball</div>', type: 'add', step: 5 },
     { id: 'c5', text: '    </div>', type: 'add', step: 5 },
     
     { id: 29, text: '', type: 'normal' },
@@ -186,8 +212,8 @@ export default function DescribeToDesign() {
     { id: 36, text: '      </div>', type: 'delete', step: 3 },
     { id: 37, text: '    </div>', type: 'delete', step: 3 },
     
-    { id: 'p1', text: '    <div class="grid grid-cols-2 gap-4">', type: 'add', step: 3 },
-    { id: 'p2', text: '      <div class="bg-white rounded-3xl p-4 shadow-sm border border-gray-100">', type: 'add', step: 3 },
+    { id: 'p1', text: '    <div class="grid grid-cols-2 gap-[var(--dg-space-md)]">', type: 'add', step: 3 },
+    { id: 'p2', text: '      <div class="bg-white rounded-[var(--dg-radius-card)] p-4 shadow-[var(--dg-shadow-surface)]">', type: 'add', step: 3 },
     { id: 'p3', text: '        <div class="flex justify-between items-start mb-2">', type: 'add', step: 3 },
     { id: 'p4', text: '           <span class="bg-black text-white text-[9px] px-2 py-1 rounded-md font-bold">NEW</span>', type: 'add', step: 3 },
     { id: 'p5', text: '           <button class="text-gray-300"><Heart size={14} /></button>', type: 'add', step: 3 },
@@ -252,7 +278,7 @@ export default function DescribeToDesign() {
             ) : (
               <div className="w-4 h-4 rounded-full border-2 border-gray-100 bg-gray-50"></div>
             )}
-            Iterate specific sections
+            Select any UI detail
           </div>
 
           <SvgDivider complete={currentStep >= 2} />
@@ -266,7 +292,7 @@ export default function DescribeToDesign() {
             ) : (
               <div className="w-4 h-4 rounded-full border-2 border-gray-100 bg-gray-50"></div>
             )}
-            Refine with premium components
+            Refine with system tokens
           </div>
 
           <SvgDivider complete={currentStep >= 4} />
@@ -280,7 +306,7 @@ export default function DescribeToDesign() {
             ) : (
               <div className="w-4 h-4 rounded-full border-2 border-gray-100 bg-gray-50"></div>
             )}
-            Perfect the details
+            Apply consistently everywhere
           </div>
         </div>
 
@@ -288,7 +314,7 @@ export default function DescribeToDesign() {
       </div>
 
       <div className="w-full max-w-[1060px] mx-auto relative mb-16 z-20">
-        <div className="bg-white rounded-[24px] border border-gray-200/80 shadow-[0_4px_24px_rgba(0,0,0,0.03)] overflow-hidden flex flex-col">
+        <div className="bg-white rounded-[24px] border border-gray-200/80 overflow-hidden flex flex-col">
         
         {/* Editor Top Bar */}
         <div className="h-[48px] border-b border-gray-100 flex items-center px-4 bg-white select-none">
@@ -303,6 +329,30 @@ export default function DescribeToDesign() {
           </div>
           
           <div className="flex-1"></div>
+
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentStep >= 6 ? 'preserved' : activeToken.name}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              className={`mr-3 hidden items-center gap-2 rounded-md border px-2.5 py-1 font-mono text-[10px] md:flex ${
+                currentStep >= 6
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                  : 'border-blue-100 bg-blue-50/70 text-gray-500'
+              }`}
+            >
+              <span className={`h-1.5 w-1.5 rounded-full ${currentStep >= 6 ? 'bg-emerald-500' : 'bg-[#1b7fcc]'}`} />
+              {currentStep >= 6 ? (
+                <span>design system preserved</span>
+              ) : (
+                <>
+                  <span>{activeToken.name}</span>
+                  <span className="text-[#1b7fcc]">{activeToken.value}</span>
+                </>
+              )}
+            </motion.div>
+          </AnimatePresence>
           
           <div className="flex items-center gap-2 border-l border-gray-100 pl-4 h-full text-gray-400">
             <Play size={12} className="fill-current" />
@@ -316,7 +366,7 @@ export default function DescribeToDesign() {
           {/* Left: Code Pane */}
           <div 
             ref={codeContainerRef}
-            className="flex-none h-[380px] lg:flex-1 lg:h-auto p-4 md:p-6 overflow-x-auto overflow-y-auto bg-white font-mono text-[12px] md:text-[13px] leading-[1.8] min-w-0 custom-scrollbar shrink-0 border-b lg:border-b-0 border-gray-100"
+            className="flex-none h-[380px] lg:flex-1 lg:h-auto p-4  overflow-x-auto overflow-y-auto bg-white font-mono text-[12px] md:text-[13px] leading-[1.8] min-w-0 custom-scrollbar shrink-0 border-b lg:border-b-0 border-gray-100"
             style={{ scrollBehavior: 'smooth' }}
           >
             <div className="flex min-w-max pb-12">
@@ -371,6 +421,7 @@ export default function DescribeToDesign() {
           {/* Right: Phone Preview */}
           <div className="w-full lg:w-[460px] bg-[#FAFAFA] border-t lg:border-t-0 lg:border-l border-gray-100 flex items-center justify-center py-8 px-4 relative overflow-hidden shrink-0">
              
+             
              {/* Hardware Frame */}
              <div className="w-[320px] h-[620px] bg-[#E8E8E8] rounded-[48px] p-[6px] shadow-[0_12px_32px_rgba(0,0,0,0.06),inset_0_1px_2px_rgba(255,255,255,0.8)] relative z-10 flex flex-col box-border border border-gray-200 shrink-0">
                 
@@ -406,8 +457,9 @@ export default function DescribeToDesign() {
                           <motion.div 
                             key="v1-hero"
                             exit={{ opacity: 0, scale: 0.95 }}
-                            className="bg-gray-100 h-[200px] rounded-2xl p-5 flex flex-col items-center justify-center text-center"
+                            className="relative bg-gray-100 h-[200px] rounded-2xl p-5 flex flex-col items-center justify-center text-center"
                           >
+                            {currentStep === 1 && <PrecisionFrame label="selected.component" detail="hero" />}
                             <div className="text-[18px] font-bold text-gray-800">New Arrivals</div>
                             <div className="text-[12px] text-gray-500 mt-1 mb-3">Explore the latest collection</div>
                             <button className="w-full bg-black text-white py-3 rounded-xl text-[14px] font-medium mt-auto">
@@ -421,6 +473,7 @@ export default function DescribeToDesign() {
                             animate={{ opacity: 1, scale: 1 }}
                             className="w-full h-[180px] bg-[#F5F5F5] rounded-[32px] p-[24px] flex flex-col justify-center relative overflow-visible"
                           >
+                            {currentStep === 2 && <PrecisionFrame label="--dg-radius-hero" detail="32px" />}
                             <div className="z-10 w-[60%]">
                               <div className="text-[22px] font-[800] leading-tight text-black m-0">JMDA Max Lift</div>
                               <div className="text-[12px] font-[500] text-[#666666] mb-4 mt-2">Men&apos;s running</div>
@@ -445,6 +498,7 @@ export default function DescribeToDesign() {
                             exit={{ opacity: 0, y: 10 }}
                             className="flex gap-6 items-end absolute top-0 left-5"
                           >
+                            {currentStep === 5 && <PrecisionFrame label="selected.component" detail="filters" />}
                             <div className="flex flex-col"><span className="text-[18px] font-[700] text-black">Running</span><span className="text-[12px] text-gray-500 font-medium">4 items</span></div>
                             <div className="flex flex-col opacity-40"><span className="text-[18px] font-[700] text-black">Lifestyle</span><span className="text-[12px] text-gray-500 font-medium">9 items</span></div>
                           </motion.div>
@@ -455,6 +509,7 @@ export default function DescribeToDesign() {
                             animate={{ opacity: 1, y: 0 }}
                             className="flex gap-3 absolute top-0 left-5"
                           >
+                            {currentStep === 6 && <PrecisionFrame label="--dg-radius-pill" detail="4 synced" />}
                             <div className="bg-black text-white px-4 py-2.5 rounded-full text-[13px] font-semibold">Running</div>
                             <div className="bg-gray-100 text-gray-600 px-4 py-2.5 rounded-full text-[13px] font-semibold">Lifestyle</div>
                             <div className="bg-gray-100 text-gray-600 px-4 py-2.5 rounded-full text-[13px] font-semibold">Basketball</div>
@@ -472,6 +527,7 @@ export default function DescribeToDesign() {
                             exit={{ opacity: 0, y: 10 }}
                             className="grid grid-cols-2 gap-4 absolute top-0 w-[calc(100%-40px)]"
                           >
+                             {currentStep === 3 && <PrecisionFrame label="selected.component" detail="product grid" />}
                              <div className="bg-[#FAFAFA] border border-gray-100 rounded-2xl p-4 flex flex-col items-center text-center">
                                 <img src="https://static.vecteezy.com/system/resources/previews/016/542/379/non_2x/black-and-red-running-shoe-free-png.png" className="w-[100px] h-[80px] object-contain mb-2" />
                                 <div className="text-[14px] font-semibold text-black">Aero Glide</div>
@@ -490,6 +546,7 @@ export default function DescribeToDesign() {
                             animate={{ opacity: 1, y: 0 }}
                             className="grid grid-cols-2 gap-4 absolute top-0 w-[calc(100%-40px)]"
                           >
+                             {currentStep === 4 && <PrecisionFrame label="--dg-radius-card" detail="24px" />}
                              <div className="bg-white border border-gray-100/60 shadow-[0_8px_24px_rgba(0,0,0,0.06)] rounded-3xl p-4 flex flex-col text-left relative overflow-hidden">
                                 <div className="flex justify-between items-start w-full mb-1">
                                   <span className="bg-black text-white text-[9px] px-2 py-1 rounded-md font-bold">NEW</span>
@@ -545,6 +602,27 @@ export default function DescribeToDesign() {
              </div>
           </div>
 
+        </div>
+        <div className="flex min-h-9 items-center justify-between gap-3 border-t border-gray-100 bg-white px-4 py-2 font-mono text-[9px] text-gray-400 sm:text-[10px]">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className={`h-1.5 w-1.5 shrink-0 rounded-full transition-colors duration-500 ${currentStep >= 6 ? 'bg-emerald-500' : 'bg-orange-400'}`} />
+            <AnimatePresence mode="wait">
+              <motion.span
+                key={currentStep >= 6 ? 'ready' : activeToken.name}
+                initial={{ opacity: 0, x: -4 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 4 }}
+                className="truncate"
+              >
+                {currentStep >= 6 ? 'Production-ready React · design system preserved' : `Applying ${activeToken.name} across ${activeToken.affected}`}
+              </motion.span>
+            </AnimatePresence>
+          </div>
+          <div className="hidden items-center gap-3 sm:flex">
+            <span>semantic tokens</span>
+            <span className="text-gray-300">·</span>
+            <span>no style drift</span>
+          </div>
         </div>
       </div>
       </div>
