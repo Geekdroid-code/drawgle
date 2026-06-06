@@ -1,7 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Check, Play, Sparkles, ImagePlus, Palette, AudioLines } from "lucide-react"
+import { Play, Sparkles, ImagePlus, Palette, AudioLines } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect } from "react"
 import Image from "next/image"
@@ -23,17 +23,6 @@ const placeholderPhrases = [
 
 export function HeroSection() {
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
-  const [isCopied, setIsCopied] = useState(false)
-  const couponCode = "DRAWGLE24"
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(couponCode)
-    setIsCopied(true)
-    setTimeout(() => {
-      setIsCopied(false)
-    }, 2000) // Revert back to the original text after 2 seconds
-  }
-  
   return (
     <section className="relative mx-auto pb-12 overflow-hidden min-h-screen bg-black">
       {/* Paper Texture */}
@@ -56,39 +45,14 @@ export function HeroSection() {
       <div className="px-4 pt-[150px] max-w-6xl mx-auto text-center flex flex-col justify-center">
         <div className="relative z-10 space-y-6">
           <div className="space-y-6">
-            <div className="inline-flex p-[3px] rounded-full bg-gradient-to-r from-[#1b7fcc] via-blue-400 to-[#1b7fcc] shadow-[0_0_15px_rgba(27,127,204,0.3)] animate-pulse-subtle">
-              <div className="flex items-center bg-black rounded-full p-[2px]">
-
-                {/* Left Side: The Hook (High Contrast Blue) */}
-                <div className="bg-[#1b7fcc] text-white text-[11px] font-bold px-3 py-1 rounded-full flex items-center gap-1.5">
-                  <Sparkles size={12} className="text-white" />
-                  <span className="tracking-wide uppercase">New Release</span>
-                </div>
-
-                {/* --- The NEW Interactive Right Side --- */}
-                <div
-                  className="flex items-center px-3 cursor-pointer"
-                  onClick={handleCopy}
-                  title="Click to copy coupon code"
-                >
-                  <span className="text-gray-300 text-xs font-medium mr-1 transition-all duration-300">
-                    {isCopied ? (
-                      <span className="text-green-400 font-bold">Code Copied!</span>
-                    ) : (
-                      <>
-                        Get <span className="text-white font-bold">Early Access</span>
-                      </>
-                    )}
-                  </span>
-
-                  {/* The icon now changes based on the state */}
-                  {isCopied ? (
-                    <Check size={14} className="text-green-400" />
-                  ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-[#1b7fcc] opacity-80"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
-                  )}
-                </div>
-
+            <div className="inline-flex rounded-lg border border-white/15 bg-[#080808] p-[2px] shadow-[inset_0_1px_2px_rgba(0,0,0,0.9),inset_0_-1px_0_rgba(255,255,255,0.05)]">
+              <div className="flex items-center gap-1.5 rounded-md border border-[#1b7fcc]/20 bg-[#1b7fcc]/10 px-2.5 py-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.07),inset_0_-1px_1px_rgba(0,0,0,0.45)]">
+                <span className="flex h-3.5 w-3.5 items-center justify-center rounded-md bg-[#1b7fcc]/15">
+                  <Sparkles size={8} className="text-[#75b9ed]" />
+                </span>
+                <span className="text-[10px] font-semibold tracking-[0.04em] text-gray-200">
+                  Native mobile UI, ready to ship
+                </span>
               </div>
             </div>
             
@@ -211,12 +175,13 @@ Drawgle uses advanced AI to generate production-ready SwiftUI, Compose, Flutter,
 
           <div className="flex  sm:flex-row gap-2 justify-center items-center w-full relative">
 
+            <div className="relative">
             <Link href="/project/new">
               <Button
-                className="text-sm sm:text-md font-semibold py-5 sm:py-6 group relative bg-[#1b7fcc] hover:bg-[#1b7fcc]/90 text-white rounded-md overflow-hidden cursor-pointer pr-12"
+                className="text-sm sm:text-md font-semibold py-5 sm:py-6 group relative bg-[#1b7fcc] hover:bg-[#1975bd] text-white rounded-md overflow-hidden cursor-pointer pr-12 border border-[#5ba8e2]/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-2px_3px_rgba(0,0,0,0.28)]"
               >
                 <span className="sm:px-2">Design Your UI</span>
-                <div className="bg-white rounded-sm p-2 sm:p-3 absolute right-1 top-1/2 -translate-y-1/2">
+                <div className="bg-white rounded-sm p-2 sm:p-3 absolute right-1 top-1/2 -translate-y-1/2 shadow-[inset_0_-1px_2px_rgba(0,0,0,0.12)]">
                   <img
                     src="/arrow.svg"
                     alt="arrow-right"
@@ -225,20 +190,35 @@ Drawgle uses advanced AI to generate production-ready SwiftUI, Compose, Flutter,
                 </div>
               </Button>
             </Link>
+              <div aria-hidden="true" className="pointer-events-none absolute -bottom-8 left-1/2 hidden -translate-x-1/2 md:block">
+                <span className="mx-auto block h-3 w-px border-l border-dashed border-blue-400/60" />
+                <span className="block whitespace-nowrap rounded-md border border-white/10 bg-[#171717] px-2 py-1 font-mono text-[9px] text-blue-200 shadow-xl">
+                  primary · #1b7fcc
+                </span>
+              </div>
+            </div>
+            <div className="relative">
             <Link href="#">
               <Button
-                className="text-sm sm:text-md py-5 sm:py-6 group relative bg-white hover:bg-white/90 text-black rounded-md overflow-hidden cursor-pointer pr-12"
+                className="text-sm sm:text-md py-5 sm:py-6 group relative bg-[#F5F5F5] hover:bg-white text-black rounded-md overflow-hidden cursor-pointer pr-12 border border-white/50 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),inset_0_-2px_3px_rgba(0,0,0,0.16)]"
                 onClick={(e) => {
                   e.preventDefault();
                   setIsVideoModalOpen(true);
                 }}
               >
                 <span className="sm:px-2">Watch Demo</span>
-                <div className="bg-[#1b7fcc] text-white rounded-sm p-2 sm:p-3 absolute right-1 top-1/2 -translate-y-1/2">
+                <div className="bg-[#1b7fcc] text-white rounded-sm p-2 sm:p-3 absolute right-1 top-1/2 -translate-y-1/2 shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-1px_2px_rgba(0,0,0,0.28)]">
                   <Play className="w-6 h-6 transition-transform duration-200 group-hover:translate-x-1" />
                 </div>
               </Button>
             </Link>
+              <div aria-hidden="true" className="pointer-events-none absolute -top-8 left-1/2 hidden -translate-x-1/2 md:block">
+                <span className="block whitespace-nowrap rounded-md border border-white/10 bg-[#171717] px-2 py-1 font-mono text-[9px] text-gray-300 shadow-xl">
+                  secondary · radius 6
+                </span>
+                <span className="mx-auto block h-3 w-px border-l border-dashed border-gray-500" />
+              </div>
+            </div>
 
             {/* Whirl Arrow pointing to floating text */}
             <div className="hidden md:block absolute right-82 top-16 mt-4 -translate-y-1/2 w-16 h-20 pointer-events-none">

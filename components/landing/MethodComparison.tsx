@@ -1,206 +1,204 @@
 "use client";
 
-import { useState } from "react";
-import { motion, AnimatePresence } from "motion/react";
-import { XCircle, CheckCircle2, Rocket } from "lucide-react";
+import { motion } from "motion/react";
+import {
+  Check,
+  Code2,
+  Figma,
+  Layers3,
+  RefreshCw,
+  Sparkles,
+  X,
+} from "lucide-react";
 
-export default function MethodComparison() {
-  const [method, setMethod] = useState<"generic" | "drawgle">("generic");
+const stages = [
+  { label: "Prompt", icon: Sparkles },
+  { label: "Refine", icon: RefreshCw },
+  { label: "Systemize", icon: Layers3 },
+  { label: "Ship", icon: Code2 },
+];
 
-  const genericSteps = [
-    { label: "GENERATE", text: "Outputs a generic, unpolished draft" },
-    { label: "DRIFT", text: "Loses the design theme on the next screen" },
-    { label: "MESSY CSS", text: "Spits out messy, inline-styled code" },
-    { label: "REJECTION", text: "Developer refuses to use the garbage code" },
-    { label: "MANUAL", text: "You end up rewriting it manually anyway", isFinal: true },
-  ];
+const drawgleJourney = [
+  { title: "Clear direction", detail: "Your intent stays intact", mood: "happy" },
+  { title: "Polished UI", detail: "Refine any selected section", mood: "calm" },
+  { title: "One system", detail: "Tokens keep every screen aligned", mood: "spark" },
+  { title: "Ready to ship", detail: "Clean React, built for production", mood: "done" },
+];
 
-  const drawgleSteps = [
-    { label: "TOKENS", text: "AI maps out a strict Design Token system" },
-    { label: "POLISH", text: "Generates hyper-polished, premium screens" },
-    { label: "SYSTEM", text: "Guarantees 100% consistency across all views" },
-    { label: "EXPORT", text: "Exports modular, production-ready React code" },
-    { label: "LAUNCH", text: "Ship directly to production in minutes", isFinal: true },
-  ];
+const genericJourney = [
+  { title: "Vague output", detail: "A generic first draft", mood: "blank" },
+  { title: "Design drift", detail: "Every revision changes the style", mood: "sad" },
+  { title: "Manual cleanup", detail: "Patch components and messy CSS", mood: "lost" },
+  { title: "Rewrite again", detail: "Developers rebuild it anyway", mood: "flat" },
+];
 
-  const steps = method === "generic" ? genericSteps : drawgleSteps;
+function Face({ mood, active }: { mood: string; active: boolean }) {
+  const eyeClass = active ? "bg-current" : "bg-gray-500";
+  const mouthClass =
+    mood === "sad" || mood === "lost"
+      ? "top-[27px] rounded-t-full border-t-2"
+      : mood === "flat" || mood === "blank"
+        ? "top-[29px] border-t-2"
+        : "top-[25px] rounded-b-full border-b-2";
 
   return (
-    <section className="py-24 bg-[#F7F5F3] relative overflow-hidden">
-      <div className="mx-auto max-w-6xl px-4 relative z-10">
-        
-        {/* Header */}
-        <div className="text-center mb-16">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold mb-6 bg-white border border-gray-200 text-gray-600 shadow-sm">
-            <Rocket className="w-4 h-4 text-orange-500" />
-            Stop fixing AI garbage
+    <div className="relative h-full w-full">
+      {mood === "spark" && (
+        <>
+          <span className="absolute left-[12px] top-[16px] h-2 w-2 rotate-45 rounded-[2px] border border-current" />
+          <span className="absolute right-[12px] top-[16px] h-2 w-2 rotate-45 rounded-[2px] border border-current" />
+        </>
+      )}
+      {mood === "done" && (
+        <>
+          <span className="absolute left-[12px] top-[18px] h-[2px] w-2 rotate-[20deg] rounded-full bg-current" />
+          <span className="absolute right-[12px] top-[18px] h-[2px] w-2 -rotate-[20deg] rounded-full bg-current" />
+        </>
+      )}
+      {mood !== "spark" && mood !== "done" && (
+        <>
+          <span className={`absolute left-[13px] top-[17px] h-1.5 w-1.5 rounded-full ${eyeClass}`} />
+          <span className={`absolute right-[13px] top-[17px] h-1.5 w-1.5 rounded-full ${eyeClass}`} />
+        </>
+      )}
+      <span className={`absolute left-1/2 h-2.5 w-4 -translate-x-1/2 border-current ${mouthClass}`} />
+    </div>
+  );
+}
+
+function JourneyRow({
+  variant,
+}: {
+  variant: "drawgle" | "generic";
+}) {
+  const isDrawgle = variant === "drawgle";
+  const journey = isDrawgle ? drawgleJourney : genericJourney;
+
+  return (
+    <div
+      className={`relative grid grid-cols-4 overflow-hidden rounded-[22px] border ${
+        isDrawgle
+          ? "border-[#1b7fcc]/45 bg-[linear-gradient(135deg,rgba(27,127,204,0.08),rgba(255,255,255,0.85),rgba(249,115,22,0.06))] shadow-[0_18px_50px_rgba(27,127,204,0.08)]"
+          : "border-gray-200 bg-gray-100/65"
+      }`}
+    >
+      <svg
+        className="pointer-events-none absolute inset-x-[9%] top-[35px] z-0 h-12 w-[82%] overflow-visible md:top-[43px]"
+        viewBox="0 0 800 48"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        <path
+          d={isDrawgle ? "M0 38 C180 38 250 25 400 24 C565 23 630 8 800 8" : "M0 12 C180 12 250 32 400 24 C565 15 630 40 800 38"}
+          fill="none"
+          stroke={isDrawgle ? "#93C5FD" : "#B7BBC3"}
+          strokeDasharray="2 7"
+          strokeLinecap="round"
+          strokeWidth="2"
+        />
+        {isDrawgle && (
+          <motion.path
+            d="M0 38 C180 38 250 25 400 24 C565 23 630 8 800 8"
+            fill="none"
+            stroke="url(#drawgle-flow)"
+            strokeLinecap="round"
+            strokeWidth="2.5"
+            initial={{ pathLength: 0, opacity: 0 }}
+            whileInView={{ pathLength: 1, opacity: 1 }}
+            viewport={{ once: true, amount: 0.6 }}
+            transition={{ duration: 1.6, ease: "easeInOut" }}
+          />
+        )}
+        <defs>
+          <linearGradient id="drawgle-flow" x1="0" x2="800">
+            <stop stopColor="#1B7FCC" />
+            <stop offset="1" stopColor="#F97316" />
+          </linearGradient>
+        </defs>
+      </svg>
+
+      {journey.map((item, index) => (
+        <div
+          key={item.title}
+          className={`relative flex min-w-0 flex-col items-center px-2 py-5 text-center md:px-5 md:py-7 ${
+            index > 0 ? "border-l border-gray-200/70" : ""
+          }`}
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: index * 0.12, duration: 0.35 }}
+            className={`relative z-10 flex h-11 w-11 items-center justify-center rounded-full border bg-white shadow-sm md:h-14 md:w-14 ${
+              isDrawgle
+                ? index === journey.length - 1
+                  ? "border-orange-300 text-orange-500"
+                  : "border-blue-300 text-[#1b7fcc]"
+                : "border-gray-300 text-gray-500"
+            }`}
+          >
+            <Face mood={item.mood} active={isDrawgle} />
+          </motion.div>
+          <p className={`relative z-10 mt-5 px-1 text-[11px] font-bold leading-tight md:text-sm ${isDrawgle ? "text-gray-900" : "text-gray-600"}`}>
+            {item.title}
+          </p>
+          <p className="mt-1 hidden max-w-[150px] text-[11px] leading-snug text-gray-500 sm:block md:text-xs">
+            {item.detail}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default function MethodComparison() {
+  return (
+    <section className="relative overflow-hidden bg-[#FAFAFA] px-4 py-20 md:px-6 md:py-28">
+      <div className="mx-auto max-w-[1060px]">
+        <div className="mx-auto mb-12 max-w-3xl text-center md:mb-16">
+          <div className="mb-5 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#1b7fcc]">
+            <Figma className="h-3.5 w-3.5" />
+            The Drawgle difference
           </div>
-          <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-8 text-gray-900 font-[var(--font-inter-tight)] tracking-tight">
-            The Drawgle Difference
+          <h2 className="font-pixel-square text-[34px] font-semibold leading-[1.08] tracking-tight text-black sm:text-5xl md:text-6xl">
+            Keep the design momentum
+            <span className="block text-[#1b7fcc]">all the way to production</span>
           </h2>
-          
-          {/* Toggle */}
-          <div className="inline-flex bg-gray-200/60 border border-gray-300/50 p-1.5 rounded-full shadow-inner relative">
-             <div 
-               className="absolute top-1.5 bottom-1.5 w-[calc(50%-0.375rem)] bg-white rounded-full shadow-sm transition-all duration-300 ease-out z-0"
-               style={{ left: method === "generic" ? "0.375rem" : "calc(50% + 0.375rem)" }}
-             />
-             <button
-                onClick={() => setMethod("generic")}
-                className={`relative z-10 px-6 py-2.5 rounded-full text-sm font-semibold transition-colors duration-300 w-40 sm:w-48 ${method === "generic" ? "text-gray-900" : "text-gray-500 hover:text-gray-800"}`}
-             >
-                Generic AI Builders
-             </button>
-             <button
-                onClick={() => setMethod("drawgle")}
-                className={`relative z-10 px-6 py-2.5 rounded-full text-sm font-semibold transition-colors duration-300 w-40 sm:w-48 ${method === "drawgle" ? "text-gray-900" : "text-gray-500 hover:text-gray-800"}`}
-             >
-                The Drawgle Method
-             </button>
-          </div>
+          <p className="mx-auto mt-6 max-w-2xl text-sm leading-relaxed text-gray-500 sm:text-base md:text-lg">
+            Generic AI gets less useful with every revision. Drawgle turns each refinement into a stronger, more consistent product.
+          </p>
         </div>
 
-        {/* Content Layout */}
-        <div className="grid lg:grid-cols-2 gap-16 lg:gap-8 items-center max-w-5xl mx-auto">
-          
-          {/* Left Column: Timeline */}
-          <div className="relative">
-             {/* Vertical Line */}
-             <div className="absolute left-[1.35rem] top-4 bottom-4 w-px border-l-2 border-dashed border-gray-300" />
-             
-             <div className="space-y-12 relative z-10">
-               <AnimatePresence mode="wait">
-                 <motion.div
-                   key={method}
-                   initial={{ opacity: 0, y: 10 }}
-                   animate={{ opacity: 1, y: 0 }}
-                   exit={{ opacity: 0, y: -10 }}
-                   transition={{ duration: 0.3 }}
-                   className="space-y-10"
-                 >
-                   {steps.map((step, idx) => (
-                     <motion.div 
-                       key={`${method}-${idx}`}
-                       initial={{ opacity: 0, x: -10 }}
-                       animate={{ opacity: 1, x: 0 }}
-                       transition={{ delay: idx * 0.1, duration: 0.3 }}
-                       className="flex items-center gap-6"
-                     >
-                        <div className="relative shrink-0 flex items-center justify-center bg-[#F7F5F3] py-2">
-                           {method === "generic" ? (
-                             <XCircle className="w-11 h-11 text-red-500 bg-[#F7F5F3]" strokeWidth={1.5} />
-                           ) : (
-                             <CheckCircle2 className="w-11 h-11 text-[#1b7fcc] bg-[#F7F5F3]" strokeWidth={1.5} />
-                           )}
-                        </div>
-                        
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 flex-1">
-                          <div className={`px-3 py-1.5 rounded-md text-xs font-bold tracking-wider shrink-0 w-32 text-center border ${
-                            method === "generic" 
-                              ? "bg-red-50 text-red-500 border-red-200" 
-                              : "bg-[#1b7fcc]/10 text-[#1b7fcc] border-[#1b7fcc]/20"
-                          }`}>
-                            {step.label}
-                          </div>
-                          <span className={`text-base ${step.isFinal ? "text-gray-900 font-bold" : "text-gray-600 font-medium"}`}>
-                            {step.text}
-                          </span>
-                        </div>
-                     </motion.div>
-                   ))}
-                 </motion.div>
-               </AnimatePresence>
-             </div>
+        <div className="mx-auto max-w-[920px]">
+          <div className="mb-3 flex items-center justify-between px-1">
+            <div className="flex items-center gap-2 text-sm font-bold text-[#1b7fcc] md:text-base">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#1b7fcc] text-white">
+                <Check className="h-3 w-3" strokeWidth={3} />
+              </span>
+              Building with Drawgle
+            </div>
+            <span className="hidden text-xs font-bold text-orange-500 sm:block">More refined at every step</span>
           </div>
 
-          {/* Right Column: Illustration */}
-          <div className="flex justify-center items-center h-[400px] relative">
-             <AnimatePresence mode="wait">
-               {method === "generic" ? (
-                  <motion.div
-                    key="illustration-generic"
-                    initial={{ opacity: 0, scale: 0.9, rotate: -5 }}
-                    animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                    exit={{ opacity: 0, scale: 0.9, rotate: 5 }}
-                    transition={{ type: "spring", duration: 0.5 }}
-                    className="relative w-64 h-64 bg-red-500 rounded-full flex flex-col items-center justify-center shadow-[0_0_80px_rgba(239,68,68,0.15)] border-4 border-red-400"
-                  >
-                    {/* Angry Eyes */}
-                    <div className="absolute top-[25%] flex gap-6">
-                      <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center overflow-hidden">
-                        <div className="w-4 h-4 bg-red-900 rounded-full absolute top-2 right-2" />
-                      </div>
-                      <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center overflow-hidden">
-                        <div className="w-4 h-4 bg-red-900 rounded-full absolute top-2 left-2" />
-                      </div>
-                    </div>
-                    {/* Angry Eyebrows */}
-                    <div className="absolute top-[22%] w-full flex justify-center gap-1 -mt-2">
-                      <div className="w-14 h-3.5 bg-red-900 rotate-12 rounded" />
-                      <div className="w-14 h-3.5 bg-red-900 -rotate-12 rounded" />
-                    </div>
-                    {/* Angry Mouth */}
-                    <div className="absolute bottom-[35%] w-20 h-10 border-t-[6px] border-red-900 rounded-t-full" />
-                    
-                    {/* Tech Debt Label */}
-                    <div className="absolute -bottom-6 bg-white px-8 py-3 rounded-xl shadow-xl transform -rotate-3 border border-red-100 z-20">
-                      <span className="text-red-500 font-black text-2xl tracking-wider">TECH DEBT</span>
-                    </div>
+          <JourneyRow variant="drawgle" />
 
-                    {/* Surrounding floating bad elements */}
-                    <div className="absolute -left-12 -top-12 opacity-40 text-red-400 blur-[1px]">
-                       <XCircle className="w-12 h-12" />
-                    </div>
-                    <div className="absolute -right-16 top-10 opacity-30 text-red-400 blur-[2px]">
-                       <div className="text-4xl font-bold">!div</div>
-                    </div>
-                    <div className="absolute -left-16 bottom-10 opacity-40 text-red-400 blur-[1px]">
-                       <div className="text-3xl font-bold">{"{...}"}</div>
-                    </div>
-                  </motion.div>
-               ) : (
-                  <motion.div
-                    key="illustration-drawgle"
-                    initial={{ opacity: 0, scale: 0.9, rotate: 5 }}
-                    animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                    exit={{ opacity: 0, scale: 0.9, rotate: -5 }}
-                    transition={{ type: "spring", duration: 0.5 }}
-                    className="relative w-64 h-64 bg-[#1b7fcc] rounded-full flex flex-col items-center justify-center shadow-[0_0_80px_rgba(27,127,204,0.15)] border-4 border-[#1b7fcc]/80"
-                  >
-                    {/* Cool Sunglasses */}
-                    <div className="absolute top-[30%] flex gap-2">
-                      <div className="w-16 h-12 bg-gray-900 rounded-b-2xl rounded-t-md relative overflow-hidden">
-                         <div className="absolute top-0 right-0 w-8 h-12 bg-white/20 skew-x-12 translate-x-4" />
-                      </div>
-                      <div className="w-16 h-12 bg-gray-900 rounded-b-2xl rounded-t-md relative overflow-hidden">
-                         <div className="absolute top-0 right-0 w-8 h-12 bg-white/20 skew-x-12 translate-x-4" />
-                      </div>
-                      {/* Bridge */}
-                      <div className="absolute top-[25%] left-[3.5rem] w-6 h-1.5 bg-gray-900" />
-                    </div>
-                    {/* Cool Smile */}
-                    <div className="absolute bottom-[35%] w-16 h-8 border-b-[5px] border-white rounded-b-full" />
-                    
-                    {/* Production Ready Label */}
-                    <div className="absolute -bottom-6 bg-white px-8 py-3 rounded-xl shadow-xl transform rotate-3 border border-blue-100 z-20">
-                      <span className="text-[#1b7fcc] font-black text-2xl tracking-wider">PRODUCTION</span>
-                    </div>
-
-                    {/* Surrounding floating good elements */}
-                    <div className="absolute -left-12 -top-12 opacity-80 text-blue-400">
-                       <CheckCircle2 className="w-12 h-12" />
-                    </div>
-                    <div className="absolute -right-16 top-10 opacity-70 text-blue-400">
-                       <div className="text-4xl font-bold">&lt;/&gt;</div>
-                    </div>
-                    <div className="absolute -left-16 bottom-10 opacity-80 text-blue-400">
-                       <Rocket className="w-10 h-10" />
-                    </div>
-                  </motion.div>
-               )}
-             </AnimatePresence>
+          <div className="grid grid-cols-4 px-1 py-3">
+            {stages.map(({ label, icon: Icon }) => (
+              <div key={label} className="flex items-center justify-center gap-1.5 text-[10px] font-semibold text-gray-500 sm:text-xs md:text-sm">
+                <Icon className="h-3.5 w-3.5" />
+                {label}
+              </div>
+            ))}
           </div>
 
+          <JourneyRow variant="generic" />
+
+          <div className="mt-3 flex items-center gap-2 px-1 text-sm font-bold text-gray-500 md:text-base">
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-gray-300 text-white">
+              <X className="h-3 w-3" strokeWidth={3} />
+            </span>
+            Building with generic AI
+          </div>
         </div>
       </div>
     </section>

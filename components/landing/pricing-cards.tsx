@@ -120,6 +120,16 @@ export default function PricingCards() {
 
           {/* Pro Plan - Dark Card */}
           <div className="bg-gray-900 rounded-3xl p-2 shadow-[0_2px_40px_rgba(27,127,204,0.15)] md:-translate-y-4 border-2 border-[#1b7fcccc] flex flex-col h-full relative z-10">
+            <div aria-hidden="true" className="pointer-events-none absolute -inset-[7px] hidden md:block">
+              <span className="absolute left-0 top-0 h-2 w-2 border-l border-t border-[#5ba8e2] bg-[#F7F5F3]" />
+              <span className="absolute right-0 top-0 h-2 w-2 border-r border-t border-[#5ba8e2] bg-[#F7F5F3]" />
+              <span className="absolute bottom-0 left-0 h-2 w-2 border-b border-l border-[#5ba8e2] bg-[#F7F5F3]" />
+              <span className="absolute bottom-0 right-0 h-2 w-2 border-b border-r border-[#5ba8e2] bg-[#F7F5F3]" />
+              <span className="absolute -top-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md border border-gray-200 bg-white px-2 py-1 font-mono text-[10px] text-gray-500 shadow-sm">
+                recommended.plan
+              </span>
+              <span className="absolute -top-4 left-1/2 h-3 -translate-x-1/2 border-l border-dashed border-gray-400" />
+            </div>
             <div className="bg-gray-800 rounded-2xl p-8 mb-2 flex-shrink-0">
               <div className="flex items-center gap-2 mb-3">
                 <h3 className="text-3xl font-bold text-white tracking-tight">Pro</h3>

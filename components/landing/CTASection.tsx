@@ -8,7 +8,14 @@ export function CTASection() {
       <div className="max-w-7xl mx-auto px-4">
         <div className="max-w-6xl mx-auto">
           {/* The "Final Offer" Card */}
-          <div className="bg-white rounded-2xl border border-gray-200/80 shadow-2xl shadow-gray-200/60 p-8 sm:p-12 text-center">
+          <div className="relative bg-white rounded-2xl border border-gray-200/80 shadow-2xl shadow-gray-200/60 p-8 sm:p-12 text-center">
+            <div aria-hidden="true" className="pointer-events-none absolute -top-3 left-8 hidden items-center md:flex">
+              <span className="rounded-md border border-gray-200 bg-white px-2 py-1 font-mono text-[10px] text-gray-500 shadow-sm">
+                conversion.ready
+              </span>
+              <span className="w-5 border-t border-dashed border-gray-400" />
+              <span className="h-1.5 w-1.5 rounded-full border border-gray-400 bg-white" />
+            </div>
 
             {/* The Headline */}
             <h2 className="text-4xl sm:text-5xl max-w-4xl mx-auto font-bold leading-tight mb-4 font-[var(--font-inter-tight)] text-gray-900">
@@ -21,6 +28,7 @@ export function CTASection() {
             </p>
 
             {/* The Primary Call to Action Button */}
+        <div className="relative mx-auto w-fit">
         <Link href="/login">
               <Button
                 className="text-md py-6 group relative bg-[#1b7fcccc] hover:bg-[#1b7fcccc]/90 text-white rounded-md overflow-hidden cursor-pointer pr-12"
@@ -35,6 +43,13 @@ export function CTASection() {
                 </div>
               </Button>
             </Link>
+            <div aria-hidden="true" className="pointer-events-none absolute left-full top-1/2 ml-3 hidden -translate-y-1/2 items-center md:flex">
+              <span className="w-5 border-t border-dashed border-gray-400" />
+              <span className="rounded-md border border-gray-200 bg-white px-2 py-1 font-mono text-[10px] text-gray-500 shadow-sm">
+                primary.action
+              </span>
+            </div>
+        </div>
 
             {/* The Risk Reversal / Guarantee */}
             <div className="flex justify-center items-center gap-2 mt-8 text-sm text-gray-500">
