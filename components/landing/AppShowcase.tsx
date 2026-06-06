@@ -187,18 +187,20 @@ const ScreenPreview = ({
   screen: ShowcaseScreen;
   position: number;
 }) => (
-  <article className="w-[76vw] max-w-[300px] shrink-0 snap-center sm:w-[270px] lg:w-full lg:max-w-[292px] lg:justify-self-center xl:max-w-[310px]">
-    <div className="relative aspect-[390/844] overflow-hidden rounded-[34px] border border-black/[0.16] bg-[#d8d8d4] p-[5px] shadow-[0_24px_55px_-42px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.8)]">
-      <div className="relative h-full w-full overflow-hidden rounded-[28px] bg-white">
-        <iframe
-          src={screen.src}
-          title={`${screen.label} generated mobile screen`}
-          loading="lazy"
-          scrolling="no"
-          tabIndex={-1}
-          className="pointer-events-none h-full w-full border-0"
-        />
-        <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-black/[0.045]" />
+  <article className="w-[248px] shrink-0 snap-center sm:w-[270px] lg:w-[286px] xl:w-[300px] [@media(max-height:760px)]:w-[220px]">
+    <div className="relative h-[537px] w-[248px] sm:h-[584px] sm:w-[270px] lg:h-[619px] lg:w-[286px] xl:h-[649px] xl:w-[300px] [@media(max-height:760px)]:h-[476px] [@media(max-height:760px)]:w-[220px]">
+      <div className="absolute left-0 top-0 h-[844px] w-[390px] origin-top-left scale-[0.6359] overflow-hidden rounded-[34px] border border-black/[0.16] bg-[#d8d8d4] p-[5px] shadow-[0_24px_55px_-42px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.8)] sm:scale-[0.6923] lg:scale-[0.7333] xl:scale-[0.7692] [@media(max-height:760px)]:scale-[0.5641]">
+        <div className="relative h-full w-full overflow-hidden rounded-[28px] bg-white">
+          <iframe
+            src={screen.src}
+            title={`${screen.label} generated mobile screen`}
+            loading="lazy"
+            scrolling="no"
+            tabIndex={-1}
+            className="pointer-events-none h-full w-full border-0"
+          />
+          <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-black/[0.045]" />
+        </div>
       </div>
     </div>
 
@@ -328,7 +330,7 @@ export default function AppShowcase() {
                 transition={{ duration: reducedMotion ? 0 : 0.35, ease: [0.22, 1, 0.36, 1] }}
                 className="relative"
               >
-                <div className="flex snap-x snap-mandatory gap-6 overflow-x-auto px-[11vw] pb-9 pt-7 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:px-10 sm:pb-12 sm:pt-9 lg:grid lg:grid-cols-3 lg:gap-9 lg:overflow-visible lg:px-12 xl:px-16">
+                <div className="flex snap-x snap-mandatory gap-5 overflow-x-auto px-[calc(50%_-_124px)] pb-9 pt-7 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-7 sm:px-[calc(50%_-_135px)] sm:pb-12 sm:pt-9 lg:grid lg:grid-cols-3 lg:justify-items-center lg:gap-8 lg:overflow-visible lg:px-8 xl:gap-10 xl:px-12 [@media(max-height:760px)_and_(max-width:1023px)]:px-[calc(50%_-_110px)]">
                   {activeFlow.screens.map((screen, index) => (
                     <ScreenPreview key={screen.src} screen={screen} position={index} />
                   ))}
