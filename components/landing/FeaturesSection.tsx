@@ -2,7 +2,6 @@
 
 import { useId, useMemo, type ReactNode } from "react";
 import {
-  ArrowRight,
   Check,
   Code2,
   Compass,
@@ -44,6 +43,88 @@ const TechnicalGrid = ({ className = "" }: { className?: string }) => (
     <div className="absolute bottom-[14%] right-[34%] h-6 w-6 border border-orange-400/15 bg-orange-400/[0.035]" />
   </div>
 );
+
+const WorkspaceField = () => {
+  const horizontalTicks = Array.from({ length: 13 }, (_, index) => index);
+  const verticalTicks = Array.from({ length: 9 }, (_, index) => index);
+
+  return (
+    <>
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.055)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.055)_1px,transparent_1px)] [background-size:48px_48px] [mask-image:linear-gradient(to_bottom,transparent,black_8%,black_92%,transparent)]" />
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+        <div className="absolute bottom-0 left-[8%] top-0 w-px bg-gradient-to-b from-transparent via-white/[0.12] to-transparent" />
+        <div className="absolute bottom-0 right-[8%] top-0 w-px bg-gradient-to-b from-transparent via-white/[0.12] to-transparent" />
+      </div>
+
+      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-5 hidden h-5 xl:block">
+        <div className="absolute inset-x-0 top-0 border-t border-white/[0.16]" />
+        {horizontalTicks.map((tick) => (
+          <div
+            key={`top-${tick}`}
+            className="absolute top-0 -translate-x-1/2"
+            style={{ left: `${(tick / (horizontalTicks.length - 1)) * 100}%` }}
+          >
+            <span className={`block border-l border-white/30 ${tick % 3 === 0 ? "h-3" : "h-1.5"}`} />
+            {tick % 3 === 0 && (
+              <span className="mt-1 block -translate-x-1/2 font-mono text-[7px] text-white/40">
+                {String(tick * 8).padStart(3, "0")}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div aria-hidden="true" className="pointer-events-none absolute bottom-5 left-0 right-0 hidden h-5 xl:block">
+        <div className="absolute inset-x-0 bottom-0 border-b border-white/[0.16]" />
+        {horizontalTicks.map((tick) => (
+          <div
+            key={`bottom-${tick}`}
+            className="absolute bottom-0 -translate-x-1/2"
+            style={{ left: `${(tick / (horizontalTicks.length - 1)) * 100}%` }}
+          >
+            <span className={`block border-l border-white/30 ${tick % 3 === 0 ? "h-3" : "h-1.5"}`} />
+          </div>
+        ))}
+      </div>
+
+      <div aria-hidden="true" className="pointer-events-none absolute bottom-0 left-5 top-0 hidden w-5 xl:block">
+        <div className="absolute bottom-0 right-0 top-0 border-r border-white/[0.16]" />
+        {verticalTicks.map((tick) => (
+          <div
+            key={`left-${tick}`}
+            className="absolute right-0 -translate-y-1/2"
+            style={{ top: `${(tick / (verticalTicks.length - 1)) * 100}%` }}
+          >
+            <span className={`block h-px bg-white/30 ${tick % 2 === 0 ? "w-3" : "w-1.5"}`} />
+          </div>
+        ))}
+      </div>
+
+      <div aria-hidden="true" className="pointer-events-none absolute bottom-0 right-5 top-0 hidden w-5 xl:block">
+        <div className="absolute bottom-0 left-0 top-0 border-l border-white/[0.16]" />
+        {verticalTicks.map((tick) => (
+          <div
+            key={`right-${tick}`}
+            className="absolute left-0 -translate-y-1/2"
+            style={{ top: `${(tick / (verticalTicks.length - 1)) * 100}%` }}
+          >
+            <span className={`block h-px bg-white/30 ${tick % 2 === 0 ? "w-3" : "w-1.5"}`} />
+          </div>
+        ))}
+      </div>
+
+      <div aria-hidden="true" className="pointer-events-none absolute left-10 top-10 hidden items-center gap-2 font-mono text-[7px] tracking-[0.16em] text-white/40 xl:flex">
+        <span className="h-1.5 w-1.5 rounded-full border border-[#5ba8e2]/50" />
+        DRAWGLE / CAPABILITY FIELD
+      </div>
+      <div aria-hidden="true" className="pointer-events-none absolute bottom-10 right-10 hidden font-mono text-[7px] tracking-[0.16em] text-white/40 xl:block">
+        SYSTEM MAP · 06 MODULES
+      </div>
+    </>
+  );
+};
 
 const MockupGridPattern = () => {
   const patternId = useId();
@@ -98,6 +179,7 @@ const CardShell = ({
   children,
   className = "",
   visualClassName = "",
+  edgeClassName = "",
 }: {
   eyebrow: string;
   title: string;
@@ -106,14 +188,14 @@ const CardShell = ({
   children: ReactNode;
   className?: string;
   visualClassName?: string;
+  edgeClassName?: string;
 }) => (
   <article
-    className={`group relative overflow-hidden border border-white/[0.09] bg-[#151515] transition-colors duration-300 hover:border-white/[0.16] ${className}`}
+    className={`group relative overflow-hidden bg-[#151515] transition-colors duration-300 ${edgeClassName} ${className}`}
   >
     <div
       className={`relative min-h-[246px] overflow-hidden border-b border-white/[0.08] bg-[#101010] p-5 ${visualClassName}`}
     >
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
       <MockupGridPattern />
       <div className="relative z-10 flex min-h-[206px] items-center justify-center">{children}</div>
     </div>
@@ -132,10 +214,27 @@ const CardShell = ({
 
 export function FeaturesSection() {
   return (
-    <section id="features" className="relative overflow-hidden bg-[#111111] px-4 py-20 md:px-6 md:py-28">
+    <section id="features" className="relative overflow-hidden bg-[#111111] px-4 py-24 md:px-6 md:py-32">
+      <WorkspaceField />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/10" />
-      <div className="mx-auto max-w-[1120px]">
-        <div className="mb-12 grid gap-6 md:grid-cols-[1fr_0.7fr] md:items-end">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0 left-1/2 z-20 w-[calc(100%_-_2rem)] max-w-[1120px] -translate-x-1/2 border-x border-white/[0.16] md:w-[calc(100%_-_3rem)]"
+      />
+
+      <div className="relative z-10 mx-auto max-w-[1120px] bg-[#111111]/35">
+        <div aria-hidden="true" className="pointer-events-none absolute left-1/2 top-0 z-20 w-screen -translate-x-1/2 border-t border-white/[0.16]" />
+        <div aria-hidden="true" className="pointer-events-none absolute bottom-0 left-1/2 z-20 w-screen -translate-x-1/2 border-b border-white/[0.16]" />
+        <span aria-hidden="true" className="pointer-events-none absolute -left-1 -top-1 z-30 h-2 w-2 border border-white/30 bg-[#111111]" />
+        <span aria-hidden="true" className="pointer-events-none absolute -right-1 -top-1 z-30 h-2 w-2 border border-white/30 bg-[#111111]" />
+        <span aria-hidden="true" className="pointer-events-none absolute -bottom-1 -left-1 z-30 h-2 w-2 border border-white/30 bg-[#111111]" />
+        <span aria-hidden="true" className="pointer-events-none absolute -bottom-1 -right-1 z-30 h-2 w-2 border border-white/30 bg-[#111111]" />
+
+        <div className="relative grid gap-8 px-6 py-14 md:grid-cols-[1fr_0.7fr] md:items-end md:px-10 md:py-16 lg:px-12">
+          <div aria-hidden="true" className="pointer-events-none absolute bottom-0 left-1/2 z-20 w-screen -translate-x-1/2 border-b border-white/[0.16]" />
+          <span aria-hidden="true" className="pointer-events-none absolute -bottom-1 -left-1 z-30 h-2 w-2 border border-white/30 bg-[#111111]" />
+          <span aria-hidden="true" className="pointer-events-none absolute -bottom-1 -right-1 z-30 h-2 w-2 border border-white/30 bg-[#111111]" />
+
           <div>
             <div className="mb-4 flex items-center gap-2 font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-orange-400">
               <Sparkles className="h-3.5 w-3.5" />
@@ -151,13 +250,14 @@ export function FeaturesSection() {
           </p>
         </div>
 
-        <div className="grid overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.03] sm:grid-cols-2 lg:grid-cols-6">
+        <div className="grid bg-[#111111]/65 sm:grid-cols-2 lg:grid-cols-6">
           <CardShell
             eyebrow="Live design system"
             title="Change one token. Update the entire app."
             description="Tune colors, typography, spacing, radii, shadows, and opacity while every screen updates live. No regeneration required."
             icon={SlidersHorizontal}
             className="sm:col-span-2 lg:col-span-4"
+            edgeClassName="border-b border-white/[0.09] lg:border-r"
             visualClassName="bg-[radial-gradient(circle_at_72%_35%,rgba(27,127,204,0.12),transparent_42%),#101010]"
           >
             <TokenVisual />
@@ -169,6 +269,7 @@ export function FeaturesSection() {
             description="Click any component and prompt a surgical change without rebuilding or losing the rest of the screen."
             icon={MousePointer2}
             className="sm:col-span-2 lg:col-span-2"
+            edgeClassName="border-b border-white/[0.09]"
             visualClassName="bg-[radial-gradient(circle_at_50%_55%,rgba(27,127,204,0.1),transparent_48%),#101010]"
           >
             <SelectiveEditVisual />
@@ -180,7 +281,8 @@ export function FeaturesSection() {
             description="Use a screenshot for layout or extract its visual direction to re-theme existing and future screens."
             icon={ImageIcon}
             className="sm:col-span-1 lg:col-span-2"
-            visualClassName="bg-[radial-gradient(circle_at_50%_45%,rgba(124,58,237,0.13),transparent_55%),#101010]"
+            edgeClassName="border-b border-white/[0.09] sm:border-r"
+            visualClassName="bg-[radial-gradient(circle_at_50%_45%,rgba(166,184,128,0.1),transparent_55%),#101010]"
           >
             <ReferenceVisual />
           </CardShell>
@@ -191,6 +293,7 @@ export function FeaturesSection() {
             description="Goals, audience, features, and visual direction remain editable and continue guiding every generated screen."
             icon={Compass}
             className="sm:col-span-1 lg:col-span-2"
+            edgeClassName="border-b border-white/[0.09] lg:border-r"
           >
             <CharterVisual />
           </CardShell>
@@ -200,7 +303,8 @@ export function FeaturesSection() {
             title="Navigation stays connected."
             description="Design multi-screen apps with persistent tabs, bottom navigation, and flows that update together."
             icon={Route}
-            className="sm:col-span-1 lg:col-span-2"
+            className="sm:col-span-2 lg:col-span-2"
+            edgeClassName="border-b border-white/[0.09]"
             visualClassName="bg-[radial-gradient(circle_at_50%_60%,rgba(249,115,22,0.09),transparent_55%),#101010]"
           >
             <NavigationVisual />
@@ -237,10 +341,38 @@ function TokenVisual() {
         <TokenControl name="space.section" value="32px" />
       </div>
 
-      <div className="relative flex flex-1 items-end justify-center gap-2.5">
-        <MiniProductScreen compact />
-        <MiniProductScreen />
-        <Annotation className="-right-1 -top-7 text-[#75b9ed]">2 screens synced</Annotation>
+      <div className="relative flex flex-1 items-center justify-center">
+        <div className="w-full rounded-[16px] border border-white/10 bg-[#161616] p-3">
+          <div className="mb-3 flex items-center justify-between border-b border-white/[0.06] pb-2">
+            <span className="font-mono text-[8px] text-gray-500">component states</span>
+            <span className="flex items-center gap-1 font-mono text-[7px] text-emerald-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              synced
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="col-span-2 rounded-[12px] bg-[#1b7fcc] p-3">
+              <div className="h-2 w-14 rounded-full bg-white/90" />
+              <div className="mt-2 h-1.5 w-20 rounded-full bg-white/30" />
+            </div>
+            <div className="rounded-[12px] border border-white/10 bg-white/[0.035] p-2">
+              <div className="h-full rounded-[8px] border border-[#1b7fcc]/30 bg-[#1b7fcc]/10" />
+            </div>
+            <div className="rounded-[10px] border border-white/10 bg-white/[0.035] p-2">
+              <div className="h-2 w-8 rounded-full bg-white/50" />
+              <div className="mt-2 h-5 rounded-md bg-[#1b7fcc]/20" />
+            </div>
+            <div className="rounded-[10px] border border-white/10 bg-white/[0.035] p-2">
+              <div className="flex h-full items-center gap-1.5">
+                <span className="h-4 w-4 rounded-full bg-[#1b7fcc]" />
+                <span className="h-1.5 flex-1 rounded-full bg-white/25" />
+              </div>
+            </div>
+            <div className="rounded-[10px] border border-white/10 bg-white/[0.035] p-2">
+              <div className="h-full rounded-full bg-[#1b7fcc]" />
+            </div>
+          </div>
+        </div>
       </div>
       <div className="absolute left-[40%] top-1/2 w-[9%] border-t border-dashed border-[#5ba8e2]/60" />
     </div>
@@ -261,27 +393,6 @@ function TokenControl({ name, value, color = false }: { name: string; value: str
           <span className="absolute left-[60%] top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full border border-white/30 bg-[#5ba8e2]" />
         </div>
       </div>
-    </div>
-  );
-}
-
-function MiniProductScreen({ compact = false }: { compact?: boolean }) {
-  return (
-    <div className={`rounded-[18px] border border-white/15 bg-[#F7F7F7] p-1.5 ${compact ? "mb-2 w-[42%] opacity-70" : "w-[48%]"}`}>
-      <div className="flex items-center justify-between px-1 py-1">
-        <div className="h-1.5 w-8 rounded-full bg-gray-300" />
-        <div className="h-3 w-3 rounded-full bg-[#1b7fcc]/20" />
-      </div>
-      <div className="rounded-[11px] bg-[#1b7fcc] p-2">
-        <div className="h-1.5 w-10 rounded-full bg-white/90" />
-        <div className="mt-1.5 h-1 w-14 rounded-full bg-white/30" />
-        <div className="mt-2 h-3 w-8 rounded-full bg-white/90" />
-      </div>
-      <div className="mt-1.5 grid grid-cols-2 gap-1">
-        <div className="h-8 rounded-[7px] border border-gray-100 bg-white" />
-        <div className="h-8 rounded-[7px] border border-gray-100 bg-white" />
-      </div>
-      <div className="mx-auto mt-1.5 h-2 w-[70%] rounded-full bg-gray-900" />
     </div>
   );
 }
@@ -326,33 +437,83 @@ function SelectionHandles() {
 
 function ReferenceVisual() {
   return (
-    <div className="relative mx-auto h-[190px] w-[240px]">
-      <div className="absolute left-0 top-8 -rotate-6 rounded-[15px] border border-white/15 bg-white p-2 shadow-xl">
-        <div className="relative h-[104px] w-[86px] overflow-hidden rounded-[10px] bg-[linear-gradient(145deg,#09090b_5%,#312e81_52%,#f97316_130%)] p-2">
-          <div className="absolute -right-5 -top-4 h-16 w-16 rounded-full bg-purple-400/35 blur-xl" />
-          <div className="relative h-3 w-9 rounded-full bg-white/90" />
-          <div className="relative mt-8 h-7 rounded-lg border border-white/15 bg-white/10" />
-          <div className="relative mt-2 h-2 w-12 rounded-full bg-orange-300" />
+    <div className="relative mx-auto h-[190px] w-[250px]">
+      <div className="absolute left-0 top-7 w-[108px] rounded-[14px] border border-white/[0.13] bg-[#171815] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+        <div className="mb-2 flex items-center justify-between font-mono text-[6px] uppercase tracking-[0.12em] text-white/35">
+          Reference
+          <span className="h-1.5 w-1.5 border border-[#d59268]/70 bg-[#d59268]/20" />
+        </div>
+        <div className="relative h-[92px] overflow-hidden rounded-[9px] border border-black/10 bg-[#e9e6de]">
+          <div className="absolute inset-x-2 top-2 flex items-center justify-between">
+            <span className="h-1.5 w-7 rounded-full bg-[#24251f]/75" />
+            <span className="h-2.5 w-2.5 rounded-full border border-[#24251f]/10 bg-[#a6b880]" />
+          </div>
+          <div className="absolute inset-x-2 top-7 h-[34px] rounded-[7px] bg-[#24251f]">
+            <span className="absolute left-2 top-2 h-1.5 w-7 rounded-full bg-[#f1eee5]/85" />
+            <span className="absolute bottom-2 left-2 h-1 w-10 rounded-full bg-[#d59268]" />
+            <span className="absolute bottom-2 right-2 h-3 w-3 border border-[#a6b880]/40 bg-[#a6b880]/15" />
+          </div>
+          <div className="absolute bottom-2 left-2 right-2 grid h-5 grid-cols-[1fr_0.65fr] gap-1">
+            <span className="rounded-[5px] bg-[#cbd3b5]" />
+            <span className="rounded-[5px] bg-[#d9c5ae]" />
+          </div>
+        </div>
+        <div className="mt-2 flex items-center gap-1">
+          {["#24251f", "#a6b880", "#d59268", "#e9e6de"].map((color) => (
+            <span key={color} className="h-2 flex-1 border border-white/10" style={{ backgroundColor: color }} />
+          ))}
         </div>
       </div>
 
-      <div className="absolute right-0 top-3 rotate-3 rounded-[17px] border border-purple-400/25 bg-[#17131f] p-2 shadow-xl">
-        <div className="h-[122px] w-[96px] rounded-[11px] border border-white/10 bg-[#21192f] p-2">
-          <div className="flex items-center justify-between">
-            <div className="h-2 w-9 rounded-full bg-white/80" />
-            <div className="h-4 w-4 rounded-full bg-orange-400" />
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 38 34"
+        className="pointer-events-none absolute left-[106px] top-[78px] h-[34px] w-[38px] overflow-visible"
+      >
+        <path d="M0 17H13M25 17H38" fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth="1" />
+        <path d="m19 11 6 6-6 6-6-6 6-6Z" fill="#111111" stroke="#a6b880" strokeWidth="1" />
+        <path d="M17 17h4" stroke="#a6b880" strokeWidth="1" />
+      </svg>
+
+      <div className="absolute right-0 top-3 w-[110px] rounded-[14px] border border-[#a6b880]/20 bg-[#181a16] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+        <div className="mb-2.5 flex items-center justify-between border-b border-white/[0.07] pb-2">
+          <span className="font-mono text-[6px] uppercase tracking-[0.12em] text-white/35">Extracted system</span>
+          <span className="h-1.5 w-1.5 bg-[#a6b880]" />
+        </div>
+        <div className="space-y-2">
+          <div>
+            <div className="mb-1 flex justify-between font-mono text-[6px] text-white/35">
+              <span>palette</span>
+              <span>04</span>
+            </div>
+            <div className="grid grid-cols-4 gap-1">
+              {["#24251f", "#a6b880", "#d59268", "#e9e6de"].map((color) => (
+                <span key={color} className="h-4 rounded-[3px] border border-white/10" style={{ backgroundColor: color }} />
+              ))}
+            </div>
           </div>
-          <div className="mt-3 h-12 rounded-[9px] bg-[linear-gradient(135deg,#7c3aed,#f97316)]" />
-          <div className="mt-2 grid grid-cols-2 gap-1">
-            <div className="h-6 rounded-md bg-white/10" />
-            <div className="h-6 rounded-md bg-white/10" />
+
+          <div className="border-t border-white/[0.07] pt-2">
+            <div className="mb-1 flex justify-between font-mono text-[6px] text-white/35">
+              <span>radius</span>
+              <span className="text-[#cbd3b5]">12px</span>
+            </div>
+            <div className="h-5 rounded-[6px] border border-[#a6b880]/20 bg-[#a6b880]/10" />
+          </div>
+
+          <div className="border-t border-white/[0.07] pt-2">
+            <div className="mb-1 flex justify-between font-mono text-[6px] text-white/35">
+              <span>spacing</span>
+              <span className="text-[#d59268]">8 / 16 / 24</span>
+            </div>
+            <div className="flex items-end gap-1">
+              <span className="h-1 w-3 bg-white/15" />
+              <span className="h-1 w-5 bg-white/25" />
+              <span className="h-1 w-8 bg-white/35" />
+            </div>
           </div>
         </div>
       </div>
-      <div className="absolute left-[43%] top-[46%] z-20 flex h-7 w-7 items-center justify-center rounded-full border border-white/15 bg-[#181818]">
-        <ArrowRight className="h-3.5 w-3.5 text-purple-300" />
-      </div>
-      <Annotation className="bottom-1 left-1/2 -translate-x-1/2">style.reference applied</Annotation>
     </div>
   );
 }
@@ -385,80 +546,125 @@ function CharterVisual() {
           </div>
         </div>
       ))}
-      <Annotation className="-right-5 top-[86px] text-orange-300">context retained</Annotation>
     </div>
   );
 }
 
 function NavigationVisual() {
   const screens = [
-    { label: "Home", accent: "bg-[#1b7fcc]" },
-    { label: "Build", accent: "bg-orange-400" },
-    { label: "Review", accent: "bg-purple-500" },
+    { label: "Home", accent: "bg-[#1b7fcc]", active: 0 },
+    { label: "Create", accent: "bg-orange-400", active: 1 },
+    { label: "Review", accent: "bg-purple-500", active: 2 },
   ];
 
   return (
-    <div className="relative mx-auto flex w-[246px] items-center justify-center gap-2">
+    <div className="relative mx-auto flex w-[250px] items-end justify-center gap-2">
       {screens.map((screen, index) => (
         <div
           key={screen.label}
-          className={`relative flex h-[142px] w-[70px] flex-col rounded-[17px] border border-white/15 bg-[#F7F7F7] p-1.5 shadow-lg ${
+          className={`relative flex h-[154px] w-[74px] flex-col rounded-[12px] border border-white/15 bg-[#F7F7F7] p-1.5 transition-transform ${
             index === 1 ? "-translate-y-2" : "translate-y-1"
           }`}
         >
-          <div className={`h-10 rounded-[9px] ${screen.accent} ${index === 1 ? "opacity-100" : "opacity-20"}`} />
-          <div className="mt-1.5 grid flex-1 grid-cols-2 gap-1">
-            <div className="rounded-md bg-gray-200" />
-            <div className="rounded-md bg-gray-200" />
+          <div className="mb-1.5 flex items-center justify-between px-0.5">
+            <div className="h-1.5 w-6 rounded-full bg-gray-300" />
+            <div className={`h-3 w-3 rounded-full ${screen.accent} opacity-30`} />
           </div>
-          <div className="mt-1.5 flex h-5 items-center justify-around rounded-full bg-gray-900 px-1">
-            {[0, 1, 2].map((dot) => (
-              <span key={dot} className={`h-1.5 w-1.5 rounded-full ${dot === index ? screen.accent : "bg-white/30"}`} />
+          {index === 0 ? (
+            <>
+              <div className={`h-10 rounded-[9px] ${screen.accent} p-1.5`}>
+                <div className="h-1.5 w-7 rounded-full bg-white/80" />
+                <div className="mt-1.5 h-1 w-9 rounded-full bg-white/30" />
+              </div>
+              <div className="mt-1.5 grid flex-1 grid-cols-2 gap-1">
+                <div className="rounded-md bg-gray-200" />
+                <div className="rounded-md bg-gray-200" />
+              </div>
+            </>
+          ) : index === 1 ? (
+            <>
+              <div className="flex flex-1 flex-col gap-1">
+                <div className="h-6 rounded-[7px] bg-gray-200" />
+                <div className={`flex-1 rounded-[9px] ${screen.accent} opacity-80`} />
+                <div className="h-5 rounded-[7px] bg-gray-200" />
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex flex-1 flex-col gap-1.5">
+                <div className="flex h-7 items-center gap-1 rounded-[7px] bg-gray-200 p-1">
+                  <div className={`h-4 w-4 rounded ${screen.accent}`} />
+                  <div className="h-1.5 flex-1 rounded-full bg-gray-300" />
+                </div>
+                <div className="flex h-7 items-center gap-1 rounded-[7px] bg-gray-200 p-1">
+                  <div className="h-4 w-4 rounded bg-gray-300" />
+                  <div className="h-1.5 flex-1 rounded-full bg-gray-300" />
+                </div>
+                <div className="flex h-7 items-center gap-1 rounded-[7px] bg-gray-200 p-1">
+                  <div className="h-4 w-4 rounded bg-gray-300" />
+                  <div className="h-1.5 flex-1 rounded-full bg-gray-300" />
+                </div>
+              </div>
+            </>
+          )}
+          <div className="mt-1.5 flex h-[21px] items-center justify-around rounded-full bg-gray-900 px-1">
+            {[0, 1, 2].map((navIndex) => (
+              <span
+                key={navIndex}
+                className={`h-2 w-2 rounded-full transition-colors ${
+                  navIndex === screen.active ? screen.accent : "bg-white/25"
+                }`}
+              />
             ))}
           </div>
-          {index < 2 && <span className="absolute left-full top-[62%] w-2 border-t border-dashed border-[#5ba8e2]/60" />}
+          {index < 2 && (
+            <span className="absolute left-full top-[58%] z-20 w-2 border-t border-dashed border-[#5ba8e2]/60" />
+          )}
         </div>
       ))}
-      <Annotation className="-bottom-6 left-1/2 -translate-x-1/2 text-[#75b9ed]">persistent.navigation</Annotation>
+      <div className="absolute -bottom-6 left-1/2 flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap font-mono text-[7px] text-gray-500">
+        <Route className="h-2.5 w-2.5 text-[#5ba8e2]" />
+        shared navigation / active state follows screen
+      </div>
     </div>
   );
 }
 
 function ExportVisual() {
   const frameworks = [
-    { name: "SwiftUI", type: "swift" as const },
-    { name: "Jetpack Compose", type: "compose" as const },
-    { name: "React Native", type: "react" as const },
-    { name: "Flutter", type: "flutter" as const },
+    { name: "SwiftUI", type: "swift" as const, output: "Views + tokens", entry: "App.swift", files: "18 files" },
+    { name: "Jetpack Compose", type: "compose" as const, output: "Composables + theme", entry: "App.kt", files: "21 files" },
+    { name: "React Native", type: "react" as const, output: "Components + styles", entry: "App.tsx", files: "24 files" },
+    { name: "Flutter", type: "flutter" as const, output: "Widgets + theme", entry: "main.dart", files: "20 files" },
   ];
 
   return (
     <div className="relative -m-5 flex min-h-[246px] w-[calc(100%_+_2.5rem)] items-center justify-center overflow-hidden p-5">
       <TechnicalGrid />
       <div className="relative z-10 mx-auto grid w-full max-w-[900px] items-center gap-8 sm:grid-cols-[220px_1fr]">
-        <div className="relative rounded-[20px] border border-white/[0.12] bg-[#141414]/95 p-3 backdrop-blur">
-          <div className="rounded-[16px] border border-white/[0.08] bg-[#f5f5f5] p-2">
-            <div className="flex items-center justify-between px-1 py-1">
-              <div className="h-1.5 w-10 rounded-full bg-gray-300" />
-              <div className="h-4 w-4 rounded-full bg-[#1b7fcc]/15" />
+        <div className="relative rounded-[12px] border border-white/[0.12] bg-[#141414]/95 p-4 backdrop-blur">
+          <div className="mb-4 flex items-center gap-2 border-b border-white/[0.07] pb-3">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 bg-white/[0.035]">
+              <Layers3 className="h-3.5 w-3.5 text-gray-300" />
+            </span>
+            <div>
+              <div className="text-[10px] font-semibold text-white">Drawgle project</div>
+              <div className="font-mono text-[7px] text-gray-600">universal bundle</div>
             </div>
-            <div className="mt-1.5 rounded-[11px] bg-[#1b7fcc] p-2.5">
-              <div className="h-1.5 w-12 rounded-full bg-white/90" />
-              <div className="mt-2 h-1 w-16 rounded-full bg-white/30" />
-              <div className="mt-3 h-4 w-10 rounded-full bg-white/90" />
-            </div>
-            <div className="mt-2 grid grid-cols-2 gap-1.5">
-              <div className="h-9 rounded-[8px] border border-gray-100 bg-white" />
-              <div className="h-9 rounded-[8px] border border-gray-100 bg-white" />
-            </div>
-            <div className="mx-auto mt-2 h-3 w-[75%] rounded-full bg-gray-900" />
           </div>
-          <div className="mt-2.5 flex items-center justify-between px-1">
-            <div className="flex items-center gap-1.5">
-              <Layers3 className="h-3 w-3 text-gray-500" />
-              <span className="font-mono text-[7px] text-gray-500">system attached</span>
-            </div>
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+          <div className="space-y-2">
+            {[
+              ["UI tree", "12"],
+              ["Design tokens", "48"],
+              ["Navigation", "4"],
+              ["Assets", "18"],
+            ].map(([label, count]) => (
+              <div key={label} className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.025] px-2.5 py-2">
+                <span className="h-2 w-2 rounded-sm border border-white/10 bg-white/[0.06]" />
+                <span className="flex-1 text-[8px] text-gray-400">{label}</span>
+                <span className="font-mono text-[7px] text-gray-600">{count}</span>
+              </div>
+            ))}
           </div>
           <div className="absolute left-full top-1/2 hidden h-px w-8 bg-white/15 sm:block" />
         </div>
@@ -468,15 +674,31 @@ function ExportVisual() {
           {frameworks.map((framework) => (
             <div
               key={framework.name}
-              className="relative z-10 flex min-h-[78px] items-center gap-3 rounded-[16px] border border-white/[0.11] bg-[#151515]/95 px-4 py-3 backdrop-blur transition-colors hover:border-white/[0.2]"
+              className="group relative z-10 min-h-[104px] rounded-[12px] border border-white/[0.11] bg-[#151515]/95 p-3.5 backdrop-blur transition-colors hover:border-white/[0.2]"
             >
-              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-              <FrameworkMark type={framework.type} />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[11px] font-semibold text-white">{framework.name}</div>
-                <div className="mt-1 h-px w-8 bg-white/10" />
+              <div className="flex items-start gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[9px] border border-white/[0.08] bg-white/[0.025] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                  <FrameworkMark type={framework.type} />
+                </span>
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="truncate text-[11px] font-semibold text-white">{framework.name}</div>
+                    <span className="flex shrink-0 items-center gap-1 font-mono text-[6px] uppercase tracking-[0.08em] text-emerald-400/75">
+                      <Check className="h-2.5 w-2.5" />
+                      Ready
+                    </span>
+                  </div>
+                  <div className="mt-1 truncate font-mono text-[7px] text-white/35">{framework.output}</div>
+                </div>
               </div>
-              <span className="h-1.5 w-1.5 rounded-full border border-emerald-400/50 bg-emerald-400/15" />
+
+              <div className="mt-3 flex items-center gap-2 border-t border-white/[0.07] pt-2.5 font-mono text-[7px]">
+                <span className="flex min-w-0 flex-1 items-center gap-1.5 text-white/50">
+                  <span className="grid h-3 w-3 shrink-0 place-items-center border border-white/10 text-[6px] text-white/30">{"<>"}</span>
+                  <span className="truncate">{framework.entry}</span>
+                </span>
+                <span className="text-white/25">{framework.files}</span>
+              </div>
             </div>
           ))}
         </div>
