@@ -29,7 +29,7 @@ const SvgDivider = ({ complete }: { complete: boolean }) => (
 );
 
 const BracketDown = () => (
-  <div className="hidden md:flex justify-center w-full my-2 md:my-3 opacity-60">
+  <div className="hidden md:flex justify-center w-full my-2 md:my-3 ">
    <svg className="w-[280px] md:w-[480px] h-[30px]" viewBox="0 0 480 30" fill="none" xmlns="http://www.w3.org/2000/svg">
   <path d="M1 2C1 10 6 14 16 14L224 14C234 14 239 20 240 28" stroke="#343434" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
   
@@ -46,7 +46,7 @@ const VerticalRuler = ({ side }: { side: 'left' | 'right' }) => {
   const ticks = Array.from({ length: 30 }).map((_, i) => i * 50);
   
   return (
-    <div className={`absolute top-0 bottom-0 w-8 pointer-events-none hidden xl:block opacity-60 overflow-hidden
+    <div className={`absolute top-0 bottom-0 w-8 pointer-events-none hidden xl:block  overflow-hidden
       ${side === 'left' ? 'left-0 border-r border-white/10' : 'right-0 border-l border-white/10'}`}
     >
       {ticks.map(tick => (
@@ -271,7 +271,7 @@ export default function DescribeToDesign() {
         <div className="isolate flex w-full flex-col items-center justify-center gap-0 px-4 md:flex-row md:flex-wrap">
           
           {/* Pill 1 */}
-          <div className={`relative z-20 flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors ${currentStep >= 2 ? 'border-white/15 bg-[#141414] text-white' : currentStep === 1 ? 'border-orange-500/50 bg-[#16120f] text-white' : 'border-white/10 bg-[#101010] text-white/35'}`}>
+          <div className={`relative z-20 flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors ${currentStep >= 2 ? 'border-white/15 bg-[#141414] text-white' : currentStep === 1 ? 'border-orange-500/50 bg-[#16120f] text-white' : 'border-white/10 bg-[#101010] text-white/50'}`}>
             {currentStep >= 2 ? (
               <div className="w-4 h-4 rounded-full bg-green-500 text-white flex items-center justify-center"><Check size={10} strokeWidth={3}/></div>
             ) : currentStep === 1 ? (
@@ -285,7 +285,7 @@ export default function DescribeToDesign() {
           <SvgDivider complete={currentStep >= 2} />
 
           {/* Pill 2 */}
-          <div className={`relative z-20 flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors ${currentStep >= 4 ? 'border-white/15 bg-[#141414] text-white' : currentStep === 3 ? 'border-orange-500/50 bg-[#16120f] text-white' : 'border-white/10 bg-[#101010] text-white/35'}`}>
+          <div className={`relative z-20 flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors ${currentStep >= 4 ? 'border-white/15 bg-[#141414] text-white' : currentStep === 3 ? 'border-orange-500/50 bg-[#16120f] text-white' : 'border-white/10 bg-[#101010] text-white/50'}`}>
             {currentStep >= 4 ? (
               <div className="w-4 h-4 rounded-full bg-green-500 text-white flex items-center justify-center"><Check size={10} strokeWidth={3}/></div>
             ) : currentStep === 3 ? (
@@ -299,7 +299,7 @@ export default function DescribeToDesign() {
           <SvgDivider complete={currentStep >= 4} />
 
           {/* Pill 3 */}
-          <div className={`relative z-20 flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors ${currentStep >= 6 ? 'border-white/15 bg-[#141414] text-white' : currentStep === 5 ? 'border-orange-500/50 bg-[#16120f] text-white' : 'border-white/10 bg-[#101010] text-white/35'}`}>
+          <div className={`relative z-20 flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors ${currentStep >= 6 ? 'border-white/15 bg-[#141414] text-white' : currentStep === 5 ? 'border-orange-500/50 bg-[#16120f] text-white' : 'border-white/10 bg-[#101010] text-white/50'}`}>
             {currentStep >= 6 ? (
               <div className="w-4 h-4 rounded-full bg-green-500 text-white flex items-center justify-center"><Check size={10} strokeWidth={3}/></div>
             ) : currentStep === 5 ? (
@@ -356,7 +356,7 @@ export default function DescribeToDesign() {
             </motion.div>
           </AnimatePresence>
           
-          <div className="flex h-full items-center gap-2 border-l border-white/10 pl-4 text-white/35">
+          <div className="flex h-full items-center gap-2 border-l border-white/10 pl-4 text-white/50">
             <Play size={12} className="fill-current" />
             <span className="text-[13px] font-bold tracking-wide">preview</span>
           </div>
@@ -389,7 +389,7 @@ export default function DescribeToDesign() {
                         rowClass += 'bg-emerald-500/10 text-emerald-400 font-medium';
                         prefix = '+ ';
                       } else if (isDeleting) {
-                        rowClass += 'bg-red-500/10 text-red-400 line-through opacity-60';
+                        rowClass += 'bg-red-500/10 text-red-400 line-through ';
                         prefix = '- ';
                       } else {
                         rowClass += 'text-white/55';
@@ -605,7 +605,7 @@ export default function DescribeToDesign() {
           </div>
 
         </div>
-        <div className="flex min-h-10 items-center justify-between gap-3 px-4 py-2 font-mono text-[9px] text-white/35 sm:px-5 sm:text-[10px]">
+        <div className="flex min-h-10 items-center justify-between gap-3 px-4 py-2 font-mono text-[9px] text-white/50 sm:px-5 sm:text-[10px]">
           <div className="flex min-w-0 items-center gap-2">
             <span className={`h-1.5 w-1.5 shrink-0 rounded-full transition-colors duration-500 ${currentStep >= 6 ? 'bg-emerald-500' : 'bg-orange-400'}`} />
             <AnimatePresence mode="wait">
