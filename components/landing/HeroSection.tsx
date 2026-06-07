@@ -110,7 +110,7 @@ export function HeroSection() {
     {/* TOP HALF OF THE TEXT */}
     <span 
       aria-hidden="true"
-      className="absolute top-0 left-0 w-full text-[#1b7fcc] z-10 origin-right"
+      className="absolute top-0 left-0 w-full text-white/45 z-10 origin-right"
       style={{ 
         clipPath: 'inset(0 0 50% 0)', // Cuts off the bottom half
         animation: 'tearTop 4s cubic-bezier(0.16, 1, 0.3, 1) infinite' 
@@ -122,7 +122,7 @@ export function HeroSection() {
     {/* BOTTOM HALF OF THE TEXT */}
     <span 
       aria-hidden="true"
-      className="absolute top-0 left-0 w-full text-[#1b7fcc] z-10 origin-right"
+      className="absolute top-0 left-0 w-full text-white/45 z-10 origin-right"
       style={{ 
         clipPath: 'inset(50% 0 0 0)', // Cuts off the top half
         animation: 'tearBottom 4s cubic-bezier(0.16, 1, 0.3, 1) infinite' 

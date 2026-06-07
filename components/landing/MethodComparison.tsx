@@ -169,7 +169,7 @@ export default function MethodComparison() {
           </p>
         </div>
 
-        <div className="mx-auto max-w-[920px]">
+        <div className="mx-auto">
           <div className="mb-3 flex items-center justify-between px-1">
             <div className="flex items-center gap-2 text-sm font-bold text-[#1b7fcc] md:text-base">
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#1b7fcc] text-white">

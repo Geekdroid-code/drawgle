@@ -11,18 +11,15 @@ import  Footer  from '@/components/landing/MainFooter'
 import TestimonialSection from "@/components/landing/Testimonial";
 import PrivacySection from "@/components/landing/PrivacySection";
 
-
-
-
 export default function Home() {
   return (
     <div className="min-h-screen bg-white">
       <PublicHeader />
       <main>
         <HeroSection />
-        <NewHowItWorks />
-        <AppShowcase />
         <MethodComparison />
+        <AppShowcase />
+        <NewHowItWorks />
         <TestimonialSection />
         <PrivacySection />
         <FeaturesSection />

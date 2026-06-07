@@ -5,8 +5,8 @@ import { motion, AnimatePresence } from 'motion/react';
 
 const SvgDivider = ({ complete }: { complete: boolean }) => (
   <div className="relative z-0 flex h-10 w-[18px] shrink-0 items-center justify-center md:h-[18px] md:w-12">
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 48 18" className="absolute h-[18px] w-12 rotate-90 md:rotate-0">
-      <path stroke="#E0E0E0" d="M0 8.5h48" />
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 48 18" className="absolute -z-10 h-[18px] w-12 rotate-90 md:rotate-0">
+      <path stroke="#343434" d="M0 8.5h48" />
       <motion.path
         stroke="#F97316"
         strokeWidth="1.5"
@@ -15,15 +15,15 @@ const SvgDivider = ({ complete }: { complete: boolean }) => (
         animate={{ pathLength: complete ? 1 : 0, opacity: complete ? 1 : 0 }}
         transition={{ duration: 0.7, ease: "easeInOut" }}
       />
-      <rect width="16" height="16" x="16" y="1" fill="#FAFAFA" rx="8" />
+      <rect width="16" height="16" x="16" y="1" fill="#0B0B0B" rx="8" />
       <path
-        fill={complete ? "#F97316" : "#B8B8B8"}
+        fill={complete ? "#F97316" : "#626262"}
         fillRule="evenodd"
         d="M20.813 5.98a.5.5 0 0 1 .707 0l2.195 2.195a1.167 1.167 0 0 1 0 1.65L21.52 12.02a.5.5 0 1 1-.707-.707l2.195-2.195a.167.167 0 0 0 0-.236l-2.195-2.195a.5.5 0 0 1 0-.707m4.667 0a.5.5 0 0 1 .707 0l2.195 2.195a1.167 1.167 0 0 1 0 1.65L26.187 12.02a.5.5 0 1 1-.707-.707l2.195-2.195a.167.167 0 0 0 0-.236L25.48 6.687a.5.5 0 0 1 0-.707"
         clipRule="evenodd"
         className="transition-colors duration-500"
       />
-      <rect width="17" height="17" x="15.5" y="0.5" stroke={complete ? "#FDBA74" : "#E0E0E0"} rx="8.5" className="transition-colors duration-500" />
+      <rect width="17" height="17" x="15.5" y="0.5" stroke={complete ? "#F97316" : "#343434"} rx="8.5" className="transition-colors duration-500" />
     </svg>
   </div>
 );
@@ -31,11 +31,11 @@ const SvgDivider = ({ complete }: { complete: boolean }) => (
 const BracketDown = () => (
   <div className="hidden md:flex justify-center w-full my-2 md:my-3 opacity-60">
    <svg className="w-[280px] md:w-[480px] h-[30px]" viewBox="0 0 480 30" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M1 2C1 10 6 14 16 14L224 14C234 14 239 20 240 28" stroke="#E0E0E0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  <path d="M1 2C1 10 6 14 16 14L224 14C234 14 239 20 240 28" stroke="#343434" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
   
-  <path d="M479 2C479 10 474 14 464 14L256 14C246 14 241 20 240 28" stroke="#E0E0E0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  <path d="M479 2C479 10 474 14 464 14L256 14C246 14 241 20 240 28" stroke="#343434" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
   
-  <circle cx="240" cy="28" r="2" fill="#B8B8B8"/>
+  <circle cx="240" cy="28" r="2" fill="#626262"/>
 </svg>
 
 
@@ -47,21 +47,21 @@ const VerticalRuler = ({ side }: { side: 'left' | 'right' }) => {
   
   return (
     <div className={`absolute top-0 bottom-0 w-8 pointer-events-none hidden xl:block opacity-60 overflow-hidden
-      ${side === 'left' ? 'left-0 border-r border-gray-200' : 'right-0 border-l border-gray-200'}`}
+      ${side === 'left' ? 'left-0 border-r border-white/10' : 'right-0 border-l border-white/10'}`}
     >
       {ticks.map(tick => (
         <div key={tick} className={`absolute w-full flex items-center h-[1px] ${side === 'left' ? 'justify-end' : 'justify-start'}`} style={{ top: `${tick}px` }}>
            {side === 'left' ? (
              <>
-               <span className="text-[10px] font-mono text-[#BDBDBD] -rotate-90 origin-right mr-1.5 -translate-y-1/2 select-none tracking-widest">
+               <span className="text-[10px] font-mono text-white/25 -rotate-90 origin-right mr-1.5 -translate-y-1/2 select-none tracking-widest">
                  {tick === 0 ? '0' : tick}
                </span>
-               <div className="w-1.5 h-[1px] bg-gray-300"></div>
+               <div className="w-1.5 h-[1px] bg-white/20"></div>
              </>
            ) : (
              <>
-               <div className="w-1.5 h-[1px] bg-gray-300"></div>
-               <span className="text-[10px] font-mono text-[#BDBDBD] -rotate-90 origin-left ml-1.5 -translate-y-1/2 select-none tracking-widest">
+               <div className="w-1.5 h-[1px] bg-white/20"></div>
+               <span className="text-[10px] font-mono text-white/25 -rotate-90 origin-left ml-1.5 -translate-y-1/2 select-none tracking-widest">
                  {tick === 0 ? '0' : tick}
                </span>
              </>
@@ -80,11 +80,11 @@ const PrecisionFrame = ({ label, detail }: { label: string; detail: string }) =>
     transition={{ duration: 0.25 }}
     className="pointer-events-none absolute -inset-[5px] z-50 rounded-[inherit] border border-[#1b7fcc]/70"
   >
-    <span className="absolute -left-1 -top-1 h-2 w-2 border border-[#1b7fcc] bg-white" />
-    <span className="absolute -right-1 -top-1 h-2 w-2 border border-[#1b7fcc] bg-white" />
-    <span className="absolute -bottom-1 -left-1 h-2 w-2 border border-[#1b7fcc] bg-white" />
-    <span className="absolute -bottom-1 -right-1 h-2 w-2 border border-[#1b7fcc] bg-white" />
-    <span className="absolute -top-[23px] left-1 flex items-center gap-1.5 whitespace-nowrap rounded-md border border-gray-200 bg-white px-1.5 py-0.5 font-mono text-[8px] text-gray-500 shadow-sm">
+    <span className="absolute -left-1 -top-1 h-2 w-2 border border-[#55a9e8] bg-[#101010]" />
+    <span className="absolute -right-1 -top-1 h-2 w-2 border border-[#55a9e8] bg-[#101010]" />
+    <span className="absolute -bottom-1 -left-1 h-2 w-2 border border-[#55a9e8] bg-[#101010]" />
+    <span className="absolute -bottom-1 -right-1 h-2 w-2 border border-[#55a9e8] bg-[#101010]" />
+    <span className="absolute -top-[23px] left-1 flex items-center gap-1.5 whitespace-nowrap rounded-md border border-white/10 bg-[#161616] px-1.5 py-0.5 font-mono text-[8px] text-white/50">
       <span className="h-1.5 w-1.5 rounded-full bg-[#1b7fcc]" />
       {label}
       <span className="text-[#1b7fcc]">{detail}</span>
@@ -248,35 +248,36 @@ export default function DescribeToDesign() {
   });
 
   return (
-    <section className="relative w-full max-w-[1200px] mx-auto px-4 md:px-6 py-16 md:py-24 z-10 bg-[#FAFAFA] font-sans">
+    <section className="relative z-10 w-full overflow-hidden bg-[#080808] px-4 py-16 font-sans text-white md:px-6 md:py-24">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.055),transparent_38%)]" />
       <VerticalRuler side="left" />
       <VerticalRuler side="right" />
       
-      <div className="flex flex-col items-center text-center mb-6 px-4">
+      <div className="relative flex flex-col items-center text-center mb-6 px-4">
         <h2 className="text-[32px] sm:text-6xl tracking-tight max-w-4xl mx-auto font-semibold leading-[1.1] font-pixel-square">
-          <span className="text-black">
+          <span className="text-white">
             Iterate and refine UIs
           </span> <br className="hidden sm:block" />
-          <span className="text-[#1b7fcc]">
+          <span className="text-[#55a9e8]">
             without opening Figma
           </span>
         </h2>
-        <p className="text-md sm:text-lg text-gray-500 max-w-2xl mx-auto mt-6 mb-2">
+        <p className="text-md sm:text-lg text-white/45 max-w-2xl mx-auto mt-6 mb-2">
           Stop settling for generic templates. Drawgle acts as your personal design engineer—simply click any component, describe what you want, and watch it perfect your UI line by line.
         </p>
       </div>
 
       <div className="flex flex-col items-center justify-center mt-4 mb-8 sm:mb-4 w-full relative">
-        <div className="flex flex-col md:flex-row md:flex-wrap items-center justify-center gap-0 w-full px-4">
+        <div className="isolate flex w-full flex-col items-center justify-center gap-0 px-4 md:flex-row md:flex-wrap">
           
           {/* Pill 1 */}
-          <div className={`relative z-10 flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors ${currentStep >= 2 ? 'border-gray-200 bg-white text-gray-800' : currentStep === 1 ? 'border-orange-200 bg-white text-gray-800' : 'border-gray-200 bg-white text-gray-400'}`}>
+          <div className={`relative z-20 flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors ${currentStep >= 2 ? 'border-white/15 bg-[#141414] text-white' : currentStep === 1 ? 'border-orange-500/50 bg-[#16120f] text-white' : 'border-white/10 bg-[#101010] text-white/35'}`}>
             {currentStep >= 2 ? (
               <div className="w-4 h-4 rounded-full bg-green-500 text-white flex items-center justify-center"><Check size={10} strokeWidth={3}/></div>
             ) : currentStep === 1 ? (
               <div className="text-orange-500 flex items-center justify-center"><Loader size={14} className="animate-spin"/></div>
             ) : (
-              <div className="w-4 h-4 rounded-full border-2 border-gray-100 bg-gray-50"></div>
+              <div className="w-4 h-4 rounded-full border border-white/15 bg-white/[0.04]"></div>
             )}
             Select any UI detail
           </div>
@@ -284,13 +285,13 @@ export default function DescribeToDesign() {
           <SvgDivider complete={currentStep >= 2} />
 
           {/* Pill 2 */}
-          <div className={`relative z-10 flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors ${currentStep >= 4 ? 'border-gray-200 bg-white text-gray-800' : currentStep === 3 ? 'border-orange-200 bg-white text-gray-800' : 'border-gray-200 bg-white text-gray-400'}`}>
+          <div className={`relative z-20 flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors ${currentStep >= 4 ? 'border-white/15 bg-[#141414] text-white' : currentStep === 3 ? 'border-orange-500/50 bg-[#16120f] text-white' : 'border-white/10 bg-[#101010] text-white/35'}`}>
             {currentStep >= 4 ? (
               <div className="w-4 h-4 rounded-full bg-green-500 text-white flex items-center justify-center"><Check size={10} strokeWidth={3}/></div>
             ) : currentStep === 3 ? (
               <div className="text-orange-500 flex items-center justify-center"><Loader size={14} className="animate-spin"/></div>
             ) : (
-              <div className="w-4 h-4 rounded-full border-2 border-gray-100 bg-gray-50"></div>
+              <div className="w-4 h-4 rounded-full border border-white/15 bg-white/[0.04]"></div>
             )}
             Refine with system tokens
           </div>
@@ -298,13 +299,13 @@ export default function DescribeToDesign() {
           <SvgDivider complete={currentStep >= 4} />
 
           {/* Pill 3 */}
-          <div className={`relative z-10 flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors ${currentStep >= 6 ? 'border-gray-200 bg-white text-gray-800' : currentStep === 5 ? 'border-orange-200 bg-white text-gray-800' : 'border-gray-200 bg-white text-gray-400'}`}>
+          <div className={`relative z-20 flex items-center gap-2 px-4 py-2 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors ${currentStep >= 6 ? 'border-white/15 bg-[#141414] text-white' : currentStep === 5 ? 'border-orange-500/50 bg-[#16120f] text-white' : 'border-white/10 bg-[#101010] text-white/35'}`}>
             {currentStep >= 6 ? (
               <div className="w-4 h-4 rounded-full bg-green-500 text-white flex items-center justify-center"><Check size={10} strokeWidth={3}/></div>
             ) : currentStep === 5 ? (
               <div className="text-orange-500 flex items-center justify-center"><Loader size={14} className="animate-spin"/></div>
             ) : (
-              <div className="w-4 h-4 rounded-full border-2 border-gray-100 bg-gray-50"></div>
+              <div className="w-4 h-4 rounded-full border border-white/15 bg-white/[0.04]"></div>
             )}
             Apply consistently everywhere
           </div>
@@ -313,19 +314,20 @@ export default function DescribeToDesign() {
         <BracketDown />
       </div>
 
-      <div className="w-full max-w-[1060px] mx-auto relative mb-16 z-20">
-        <div className="bg-white rounded-[24px] border border-gray-200/80 overflow-hidden flex flex-col">
+      <div className="relative z-20 mx-auto mb-16 w-full max-w-6xl rounded-[30px] border border-white/[0.11] bg-[#181818] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.055),0_28px_70px_-52px_rgba(0,0,0,0.9)] sm:p-2.5">
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+        <div className="flex flex-col">
         
         {/* Editor Top Bar */}
-        <div className="h-[48px] border-b border-gray-100 flex items-center px-4 bg-white select-none">
-          <div className="flex items-center gap-2 text-gray-600 h-full">
+        <div className="flex h-[50px] items-center px-4 select-none sm:px-5">
+          <div className="flex items-center gap-2 text-white/55 h-full">
             <div className="w-4 h-4 text-orange-500 flex items-center justify-center">
               <Code size={14} strokeWidth={2.5} />
             </div>
-            <span className="text-[13px] font-mono font-bold tracking-tight text-gray-700">
+            <span className="text-[13px] font-mono font-bold tracking-tight text-white/75">
               {currentStep >= 6 ? 'SneakerStore.tsx' : 'index.html'}
             </span>
-            <div className="w-1.5 h-1.5 rounded-full bg-gray-300 ml-1"></div>
+            <div className="w-1.5 h-1.5 rounded-full bg-white/20 ml-1"></div>
           </div>
           
           <div className="flex-1"></div>
@@ -338,8 +340,8 @@ export default function DescribeToDesign() {
               exit={{ opacity: 0, y: -4 }}
               className={`mr-3 hidden items-center gap-2 rounded-md border px-2.5 py-1 font-mono text-[10px] md:flex ${
                 currentStep >= 6
-                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                  : 'border-blue-100 bg-blue-50/70 text-gray-500'
+                  ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-400'
+                  : 'border-white/10 bg-white/[0.04] text-white/45'
               }`}
             >
               <span className={`h-1.5 w-1.5 rounded-full ${currentStep >= 6 ? 'bg-emerald-500' : 'bg-[#1b7fcc]'}`} />
@@ -354,26 +356,26 @@ export default function DescribeToDesign() {
             </motion.div>
           </AnimatePresence>
           
-          <div className="flex items-center gap-2 border-l border-gray-100 pl-4 h-full text-gray-400">
+          <div className="flex h-full items-center gap-2 border-l border-white/10 pl-4 text-white/35">
             <Play size={12} className="fill-current" />
             <span className="text-[13px] font-bold tracking-wide">preview</span>
           </div>
         </div>
 
         {/* Split Body */}
-        <div className="flex flex-col lg:flex-row h-auto lg:h-[620px]">
+        <div className="mx-0.5 flex h-auto flex-col overflow-hidden rounded-[20px] border border-black/80 bg-[#0B0B0B] shadow-[0_1px_0_rgba(255,255,255,0.055),0_10px_28px_-18px_rgba(0,0,0,0.95),inset_0_1px_0_rgba(255,255,255,0.025)] lg:h-[700px] lg:flex-row">
           
           {/* Left: Code Pane */}
           <div 
             ref={codeContainerRef}
-            className="flex-none h-[380px] lg:flex-1 lg:h-auto p-4  overflow-x-auto overflow-y-auto bg-white font-mono text-[12px] md:text-[13px] leading-[1.8] min-w-0 custom-scrollbar shrink-0 border-b lg:border-b-0 border-gray-100"
+            className="flex-none h-[380px] lg:flex-1 lg:h-auto p-4 overflow-x-auto overflow-y-auto bg-[#0D0D0D] font-mono text-[12px] md:text-[13px] leading-[1.8] min-w-0 custom-scrollbar shrink-0 border-b lg:border-b-0 border-white/10"
             style={{ scrollBehavior: 'smooth' }}
           >
             <div className="flex min-w-max pb-12">
-               <div className="w-8 text-right pr-4 text-[#D5D5D5] select-none flex flex-col font-medium opacity-60">
+               <div className="w-8 text-right pr-4 text-white/20 select-none flex flex-col font-medium">
                   {visibleLines.map((_, i) => <div key={i} className="h-[23.4px]">{i+1}</div>)}
                </div>
-               <div className="flex-1 text-[#4A5568]">
+               <div className="flex-1 text-white/55">
                   <AnimatePresence initial={false}>
                     {visibleLines.map((line) => {
                       const isDiffing = currentStep === line.step;
@@ -384,13 +386,13 @@ export default function DescribeToDesign() {
                       let prefix = '  ';
                       
                       if (isAdding) {
-                        rowClass += 'bg-green-500/10 text-green-700 font-medium';
+                        rowClass += 'bg-emerald-500/10 text-emerald-400 font-medium';
                         prefix = '+ ';
                       } else if (isDeleting) {
-                        rowClass += 'bg-red-500/10 text-red-600 line-through opacity-60';
+                        rowClass += 'bg-red-500/10 text-red-400 line-through opacity-60';
                         prefix = '- ';
                       } else {
-                        rowClass += 'text-gray-600';
+                        rowClass += 'text-white/55';
                       }
 
                       return (
@@ -406,8 +408,8 @@ export default function DescribeToDesign() {
                           <span className="opacity-50 mr-2 select-none shrink-0 w-[14px]">{prefix}</span>
                           <span className="truncate">
                             {line.text.split(/("[^"]*")/g).map((part, i) => {
-                              if (part.startsWith('"')) return <span key={i} className={isAdding || isDeleting ? "" : "text-blue-500"}>{part}</span>;
-                              return <span key={i} className={isAdding || isDeleting ? "" : "text-gray-600 font-medium"}>{part}</span>;
+                              if (part.startsWith('"')) return <span key={i} className={isAdding || isDeleting ? "" : "text-[#55a9e8]"}>{part}</span>;
+                              return <span key={i} className={isAdding || isDeleting ? "" : "text-white/55 font-medium"}>{part}</span>;
                             })}
                           </span>
                         </motion.div>
@@ -419,11 +421,11 @@ export default function DescribeToDesign() {
           </div>
 
           {/* Right: Phone Preview */}
-          <div className="w-full lg:w-[460px] bg-[#FAFAFA] border-t lg:border-t-0 lg:border-l border-gray-100 flex items-center justify-center py-8 px-4 relative overflow-hidden shrink-0">
+          <div className="w-full lg:w-[460px] bg-[#151515] border-t lg:border-t-0 lg:border-l border-white/10 flex items-center justify-center py-10 lg:py-7 px-4 relative overflow-hidden shrink-0">
              
              
              {/* Hardware Frame */}
-             <div className="w-[320px] h-[620px] bg-[#E8E8E8] rounded-[48px] p-[6px] shadow-[0_12px_32px_rgba(0,0,0,0.06),inset_0_1px_2px_rgba(255,255,255,0.8)] relative z-10 flex flex-col box-border border border-gray-200 shrink-0">
+             <div className="w-[320px] h-[646px] bg-[#E8E8E8] rounded-[48px] p-[6px] shadow-[0_12px_32px_rgba(0,0,0,0.06),inset_0_1px_2px_rgba(255,255,255,0.8)] relative z-10 flex flex-col box-border border border-gray-200 shrink-0">
                 
                 {/* Screen */}
                 <div className="w-full h-full bg-white rounded-[42px] relative overflow-hidden flex flex-col shadow-sm">
@@ -603,7 +605,7 @@ export default function DescribeToDesign() {
           </div>
 
         </div>
-        <div className="flex min-h-9 items-center justify-between gap-3 border-t border-gray-100 bg-white px-4 py-2 font-mono text-[9px] text-gray-400 sm:text-[10px]">
+        <div className="flex min-h-10 items-center justify-between gap-3 px-4 py-2 font-mono text-[9px] text-white/35 sm:px-5 sm:text-[10px]">
           <div className="flex min-w-0 items-center gap-2">
             <span className={`h-1.5 w-1.5 shrink-0 rounded-full transition-colors duration-500 ${currentStep >= 6 ? 'bg-emerald-500' : 'bg-orange-400'}`} />
             <AnimatePresence mode="wait">
@@ -620,7 +622,7 @@ export default function DescribeToDesign() {
           </div>
           <div className="hidden items-center gap-3 sm:flex">
             <span>semantic tokens</span>
-            <span className="text-gray-300">·</span>
+            <span className="text-white/15">·</span>
             <span>no style drift</span>
           </div>
         </div>
@@ -642,13 +644,13 @@ export default function DescribeToDesign() {
           transition: background-color 200ms ease;
         }
         .custom-scrollbar:hover::-webkit-scrollbar-thumb {
-          background-color: #CBD5E1;
+          background-color: rgba(255,255,255,0.18);
         }
         .custom-scrollbar {
           scrollbar-color: transparent transparent;
         }
         .custom-scrollbar:hover {
-          scrollbar-color: #CBD5E1 transparent;
+          scrollbar-color: rgba(255,255,255,0.18) transparent;
         }
       `}} />
     </section>
