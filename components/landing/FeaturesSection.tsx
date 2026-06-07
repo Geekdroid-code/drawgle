@@ -189,12 +189,12 @@ const CardShell = ({
   visualClassName?: string;
 }) => (
   <article
-    className={`group relative overflow-hidden rounded-[26px] border border-white/[0.09] bg-[#151515] shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] transition-colors duration-300 hover:border-white/[0.15] ${className}`}
+    className={`group relative overflow-hidden bg-[#151515] transition-colors duration-300 hover:bg-[#171717] ${className}`}
   >
     <div
       className={`relative min-h-[246px] overflow-hidden border-b border-white/[0.07] bg-[#101010] p-5 ${visualClassName}`}
     >
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(255,255,255,0.04),transparent_58%)]" />
+      <MockupGridPattern />
       <div className="relative z-10 flex min-h-[206px] items-center justify-center">{children}</div>
     </div>
     <div className="relative p-6">
@@ -212,7 +212,7 @@ const CardShell = ({
 
 export function FeaturesSection() {
   return (
-    <section id="features" className="relative overflow-hidden bg-[#111111] px-4 py-24 md:px-6 md:py-32">
+    <section id="features" className="landing-dark-noise relative overflow-hidden bg-[#111111] px-4 py-24 md:px-6 md:py-32">
       <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[520px] bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.045),transparent_65%)]" />
       <div className="relative z-10 mx-auto max-w-[1160px]">
         <div className="grid gap-8 px-2 pb-14 md:grid-cols-[1fr_0.7fr] md:items-end md:px-4 md:pb-16">
@@ -231,7 +231,8 @@ export function FeaturesSection() {
           </p>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6 lg:gap-4">
+        <div className="overflow-hidden rounded-[30px] border border-white/[0.11] bg-white/[0.09] p-px shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]">
+        <div className="grid gap-px bg-white/[0.09] sm:grid-cols-2 lg:grid-cols-6">
           <CardShell
             eyebrow="Live design system"
             title="Change one token. Update the entire app."
@@ -296,6 +297,7 @@ export function FeaturesSection() {
           >
             <ExportVisual />
           </CardShell>
+        </div>
         </div>
       </div>
     </section>

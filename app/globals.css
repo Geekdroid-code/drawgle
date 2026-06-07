@@ -12,6 +12,12 @@
   .font-pixel-square {
     font-family: var(--font-geist-pixel-square);
   }
+
+  .landing-dark-noise {
+    background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='2.5' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.15'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+  }
+
   .dot-pattern {
     background-image: radial-gradient(#d1d5db 1px, transparent 1px);
     background-size: 24px 24px;

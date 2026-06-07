@@ -98,7 +98,7 @@ export default function TestimonialSection() {
   ]
 
   return (
-    <section className="relative py-20 bg-[#111111]">
+    <section className="landing-dark-noise relative py-20 bg-[#111111]">
       <div className="container mx-auto max-w-7xl px-4">
         {/* Header */}
         <div className="text-center mb-16">

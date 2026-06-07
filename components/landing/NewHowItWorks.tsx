@@ -248,7 +248,7 @@ export default function DescribeToDesign() {
   });
 
   return (
-    <section className="relative z-10 w-full overflow-hidden bg-[#080808] px-4 py-16 font-sans text-white md:px-6 md:py-24">
+    <section className="landing-dark-noise relative z-10 w-full overflow-hidden bg-[#080808] px-4 py-16 font-sans text-white md:px-6 md:py-24">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.055),transparent_38%)]" />
       <VerticalRuler side="left" />
       <VerticalRuler side="right" />
