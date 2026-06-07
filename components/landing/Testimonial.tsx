@@ -1,187 +1,231 @@
-"use client"
+"use client";
 
-import type React from "react"
-import { Star } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import Link from "next/link"
-import { Caveat } from 'next/font/google';
+import Image from "next/image";
+import Link from "next/link";
+import { Quote, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
-// Configure the Caveat font
-const caveat = Caveat({
-  subsets: ['latin'],
-  weight: '500',
-});
+type Testimonial = {
+  quote: string;
+  name: string;
+  role: string;
+  avatar: string;
+  signal: string;
+};
 
-interface TestimonialCardProps {
-  quote: string
-  name: string
-  role: string
-  avatar: string
-  rating: number
+const testimonials: Testimonial[] = [
+  {
+    quote:
+      "I went from a Dribbble screenshot to a working Flutter UI in minutes instead of spending two weeks fighting nested layouts.",
+    name: "Sachin Singh",
+    role: "Indie hacker, FitTrack",
+    avatar: "/content/sachin.webp",
+    signal: "Reference to Flutter",
+  },
+  {
+    quote:
+      "The exported SwiftUI code is clean: standard stacks, sensible structure, and design tokens mapped exactly where I expect them.",
+    name: "Mariah Edwards",
+    role: "Lead iOS engineer",
+    avatar: "/content/vishnu.webp",
+    signal: "Tokens preserved",
+  },
+  {
+    quote:
+      "We turn a client mood board into a coherent visual direction and several polished screens before the first review call.",
+    name: "Sumesh",
+    role: "Founder, AppCraft Studio",
+    avatar: "/content/sumesh.webp",
+    signal: "Faster client reviews",
+  },
+  {
+    quote:
+      "I can build the backend, but visual polish slowed me down. Drawgle gives me a considered UI I can still edit and own.",
+    name: "Alex Rivera",
+    role: "Full-stack bootstrapper",
+    avatar: "/content/emma-thopmson.jpg",
+    signal: "Editable output",
+  },
+  {
+    quote:
+      "Surgical edits changed the workflow. I select the one element that feels off and improve it without losing the screen.",
+    name: "Manoj",
+    role: "Indie app builder",
+    avatar: "/content/manoj.jpg",
+    signal: "Focused refinement",
+  },
+  {
+    quote:
+      "Our product team keeps the design language consistent while exploring ideas, then exports the direction into native frameworks.",
+    name: "Shrey Singh",
+    role: "Product lead, EcoStep",
+    avatar: "/content/sachin.webp",
+    signal: "One shared system",
+  },
+];
+
+const scaleTicks = Array.from({ length: 9 }, (_, index) => index * 100);
+
+function SignalRuler({ side }: { side: "left" | "right" }) {
+  return (
+    <div
+      aria-hidden="true"
+      className={`pointer-events-none absolute bottom-0 top-0 hidden w-12 xl:block ${
+        side === "left" ? "-left-16" : "-right-16"
+      }`}
+    >
+      <div
+        className={`absolute bottom-0 top-0 w-px ${
+          side === "left" ? "right-0" : "left-0"
+        } bg-[linear-gradient(180deg,transparent,rgba(255,255,255,0.11)_18%,rgba(255,255,255,0.11)_82%,transparent)]`}
+      />
+      {scaleTicks.map((tick, index) => (
+        <div
+          key={tick}
+          className={`absolute flex -translate-y-1/2 items-center gap-2 ${
+            side === "left" ? "right-0" : "left-0 flex-row-reverse"
+          }`}
+          style={{ top: `${10 + index * 10}%` }}
+        >
+          <span className={`h-px bg-white/15 ${index % 2 === 0 ? "w-2.5" : "w-1.5"}`} />
+          {index % 2 === 0 && (
+            <span className="[writing-mode:vertical-rl] font-mono text-[8px] text-white/20">
+              {tick}
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
 }
 
-const TestimonialCard: React.FC<TestimonialCardProps> = ({ quote, name, role, avatar, rating }) => {
+function Builder({ testimonial }: { testimonial: Testimonial }) {
   return (
-    <div className="bg-[#1a1a1a] rounded-xl p-6 shadow-sm border border-[rgba(255,255,255,0.1)] hover:shadow-lg hover:border-[rgba(255,255,255,0.2)] transition-all duration-300">
-      <div className="flex items-center mb-4">
-        {[...Array(5)].map((_, i) => (
-          <Star
-            key={i}
-            className={`h-4 w-4 ${
-              i < rating ? "text-yellow-400 fill-current" : "text-gray-600"
-            }`}
-          />
-        ))}
+    <div className="flex items-center gap-3">
+      <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full border border-white/10 bg-white/[0.04]">
+        <Image src={testimonial.avatar} alt="" fill sizes="36px" className="object-cover" />
       </div>
-      <blockquote className="text-gray-300 mb-4 text-sm leading-relaxed">
-        &ldquo;{quote}&rdquo;
-      </blockquote>
-      <div className="flex items-center">
-        <img
-          src={avatar || "/placeholder.svg"}
-          alt={name}
-          className="h-10 w-10 rounded-full object-cover mr-3"
-        />
-        <div>
-          <h4 className="font-semibold text-white text-sm">{name}</h4>
-          <p className="text-gray-400 text-xs">{role}</p>
-        </div>
+      <div className="min-w-0">
+        <div className="truncate text-sm font-semibold text-white">{testimonial.name}</div>
+        <div className="truncate text-xs text-white/35">{testimonial.role}</div>
       </div>
     </div>
-  )
+  );
 }
 
 export default function TestimonialSection() {
-  const testimonials: TestimonialCardProps[] = [
-    {
-      quote: "I used to spend 2 weeks just fighting with UI layouts and nested column widgets. With Drawgle, I went from a Dribbble screenshot to a working Flutter UI in minutes. Absolute lifesaver.",
-      name: "Sachin Singh",
-      role: "Indie Hacker (Built FitTrack)",
-      avatar: "/content/sachin.webp",
-      rating: 5,
-    },
-    {
-      quote: "The exported SwiftUI code is incredibly clean. No weird proprietary frameworks—just standard HStacks, VStacks, and exact system variables mapped to my design tokens. Compiles on the first try.",
-      name: "Mariah Edwards",
-      role: "Lead iOS Engineer",
-      avatar: "/content/mariah-edwards.png",
-      rating: 5,
-    },
-    {
-      quote: "Clients constantly send us mood boards. Being able to drop their inspo shot into Drawgle, extract the style, and scaffold 5 cohesive screens in 20 minutes has doubled our agency's profit margins.",
-      name: "Sumesh",
-      role: "Founder, AppCraft Studio",
-      avatar: "/content/sumesh.webp",
-      rating: 5,
-    },
-    {
-      quote: "I can build any database or auth pipeline, but my mobile UIs always looked like a 2012 Android app. Drawgle gave me a premium, modern design, and I only spent 11 rupees to generate my entire frontend.",
-      name: "Alex Rivera",
-      role: "Fullstack Bootstrapper",
-      avatar: "/content/emma-thopmson.jpg", // Kept original file path placeholder
-      rating: 5,
-    },
-    {
-      quote: "Surgical Edits are a game-changer. Instead of regenerating the whole screen when a button is slightly off, I just highlight it and fix it for 5 credits. It's the first smart AI canvas.",
-      name: "Manoj",
-      role: "Vibe Coder & Indie Hacker",
-      avatar: "/content/manoj.jpg",
-      rating: 5,
-    },
-    {
-      quote: "Our product team uses Drawgle to quickly prototype ideas. We manage our core design tokens right on the canvas and export to both SwiftUI and Jetpack Compose instantly. Unbelievable flow.",
-      name: "Shrey Singh",
-      role: "Product Lead, EcoStep",
-      avatar: "/images/demo2.jpg",
-      rating: 5,
-    },
-  ]
+  const [featured, ...supporting] = testimonials;
 
   return (
-    <section className="landing-dark-noise relative py-20 bg-[#111111]">
-      <div className="container mx-auto max-w-7xl px-4">
-        {/* Header */}
-        <div className="text-center mb-16">
-          <h2 className="text-white text-4xl md:text-5xl lg:text-6xl font-bold mb-6">
-            Real Apps Built by <br /><span className="text-[#1b7fcccc]">Real Builders</span>
+    <section className="relative overflow-hidden bg-[#111111] px-4 pb-16 pt-24 md:px-6 md:py-32">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.12),transparent)]"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-1/2 top-0 h-[520px] w-[900px] -translate-x-1/2 bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.045),transparent_66%)]"
+      />
+
+      <div className="relative mx-auto max-w-6xl">
+        <SignalRuler side="left" />
+        <SignalRuler side="right" />
+
+        <div className="relative mb-12 flex items-center gap-4 md:mb-16">
+          <div className="hidden h-px flex-1 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.12))] md:block" />
+          <div className="flex h-8 items-center gap-2 rounded-[9px] border border-white/[0.08] bg-white/[0.025] px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45 shadow-[inset_0_1px_1px_rgba(255,255,255,0.07)]">
+            <Sparkles className="h-3.5 w-3.5 text-[#1b7fcc]" />
+            Builder signals
+          </div>
+          <div className="hidden h-px flex-1 bg-[linear-gradient(90deg,rgba(255,255,255,0.12),transparent)] md:block" />
+        </div>
+
+        <div className="mx-auto mb-14 max-w-3xl text-left sm:text-center md:mb-20">
+          <h2 className="font-pixel-square text-[36px] font-semibold leading-[1.05] tracking-tight text-white sm:text-5xl md:text-6xl">
+            Built for people who care
+            <span className="block text-[#1b7fcc]">how the product actually feels.</span>
           </h2>
-          <p className="mx-auto max-w-2xl text-xl text-gray-300">
-            See how mobile developers, indie hackers, and agency owners are skipping layout hell and shipping native code in record time.
+          <p className="mx-auto mt-6 max-w-2xl text-sm leading-6 text-white/45 sm:text-base">
+            Designers and builders use Drawgle to move faster without surrendering control of the
+            system behind their interface.
           </p>
         </div>
 
-        {/* Testimonials Grid with Blur Overlay */}
-        <div className="relative">
-          {/* Blur overlay gradients */}
-          <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-[#111111] to-transparent z-10 pointer-events-none"></div>
-          <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-[#111111] to-transparent z-10 pointer-events-none"></div>
-          <div className="absolute top-0 left-0 right-0 h-16 bg-gradient-to-b from-[#111111] to-transparent z-10 pointer-events-none"></div>
-          <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-[#111111] to-transparent z-10 pointer-events-none"></div>
-          
-          {/* Testimonials Container */}
-          <div className="overflow-hidden">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 px-8">
-              {/* First Row */}
-              <div className="space-y-6">
-                <TestimonialCard {...testimonials[0]} />
-                <TestimonialCard {...testimonials[1]} />
+        <div className="relative border-y border-white/[0.08]">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute bottom-0 left-[38%] top-0 hidden w-px bg-[linear-gradient(180deg,transparent,rgba(255,255,255,0.1)_12%,rgba(255,255,255,0.1)_88%,transparent)] lg:block"
+          />
+
+          <div className="grid lg:grid-cols-[0.62fr_1fr]">
+            <article className="relative flex min-h-[360px] flex-col justify-between border-b border-white/[0.08] py-8 lg:min-h-[610px] lg:border-b-0 lg:py-12 lg:pr-12">
+              <div>
+                <Quote className="h-7 w-7 text-white/28" strokeWidth={1.5} />
+                <blockquote className="mt-8 text-balance text-2xl font-medium leading-[1.35] tracking-tight text-white sm:text-3xl lg:text-[34px]">
+                  “{featured.quote}”
+                </blockquote>
               </div>
-              <div className="space-y-6">
-                <TestimonialCard {...testimonials[2]} />
-                <TestimonialCard {...testimonials[3]} />
+              <div className="mt-10 flex items-end justify-between gap-5">
+                <Builder testimonial={featured} />
+                <span className="hidden font-mono text-[9px] uppercase tracking-[0.14em] text-white/25 sm:block">
+                  Signal / 01
+                </span>
               </div>
-              <div className="space-y-6">
-                <TestimonialCard {...testimonials[4]} />
-                <TestimonialCard {...testimonials[5]} />
-              </div>
+            </article>
+
+            <div className="lg:pl-12">
+              {supporting.map((testimonial, index) => (
+                <article
+                  key={testimonial.name}
+                  className={`group grid gap-5 py-7 sm:grid-cols-[150px_1fr] sm:items-start ${
+                    index < supporting.length - 1 ? "border-b border-white/[0.075]" : ""
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-4 sm:block">
+                    <Builder testimonial={testimonial} />
+                    <div className="mt-4 hidden items-center gap-2 font-mono text-[8px] uppercase tracking-[0.12em] text-white/24 sm:flex">
+                      <span className="h-1 w-1 bg-white/35" />
+                      {testimonial.signal}
+                    </div>
+                  </div>
+                  <blockquote className="text-sm leading-6 text-white/48 transition-colors group-hover:text-white/65 sm:text-[15px]">
+                    “{testimonial.quote}”
+                  </blockquote>
+                </article>
+              ))}
             </div>
           </div>
         </div>
 
-        {/* CTA Section */}
-        <div className="text-center mt-16">
-          <div className="inline-block relative">
-            <Link href="/dashboard" className="inline-block">
-              <Button
-                size="lg"
-                className="group relative bg-[#1b7fcccc] hover:bg-[#1b7fcccc]/90 text-white rounded-md overflow-hidden cursor-pointer px-6 pr-16 py-6 font-semibold text-base shadow-[0_4px_20px_-5px_rgba(0,0,0,0.2)]"
-              >
-                Design Your App UI Now
-                <div className="bg-white rounded-sm p-3 absolute right-1 top-1/2 -translate-y-1/2">
-                    <img
-                      src="/arrow.svg"
-                      alt="arrow-right"
-                      className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1"
-                    />
-                  </div>
-              </Button>
-            </Link>
-            
-             {/* Whirl Arrow pointing to floating text */}
-              <div className="hidden md:block absolute right-75 top-4 mt-4 -translate-y-1/2 w-16 h-20 pointer-events-none">
-              <svg 
-                viewBox="0 0 59 42" 
-                fill="none" 
-                xmlns="http://www.w3.org/2000/svg" 
-                className="w-full h-full text-orange-500 opacity-70 transform rotate-20"
-              >
-                <path 
-                  d="M7.66614 22.083C8.61245 23.967 9.50382 25.809 10.5502 27.8855C9.46822 27.9516 8.62906 27.273 8.11869 26.4189C6.58755 23.8566 5.08123 21.2357 3.75924 18.5229C2.99812 16.9739 3.65927 15.9282 5.04612 16.172C7.36079 16.5421 9.68076 17.0712 12.0256 17.5417C12.1602 17.5669 12.3348 17.5838 12.4048 17.6759C12.7097 17.9858 12.9498 18.3626 13.2298 18.7311C12.9958 18.9402 12.8221 19.3502 12.5678 19.35C11.6851 19.3744 10.8123 19.29 9.95444 19.2559C9.48565 19.2471 9.04169 19.1798 8.47894 19.5644C9.09834 20.0754 9.7328 20.6367 10.3522 21.1477C23.4279 31.1179 38.4176 30.6525 47.7967 20.0973C48.9958 18.7256 50.015 17.178 51.1441 15.7141C51.5421 15.2039 51.955 14.7439 52.353 14.2337C52.5027 14.3091 52.6277 14.4431 52.7774 14.5186C52.7934 14.9956 52.9342 15.6067 52.7454 15.9665C52.1844 17.2048 51.6234 18.443 50.8975 19.5556C43.7187 30.665 30.0661 33.8934 16.8279 27.4803C14.2971 26.248 11.87 24.5135 9.42336 22.9967C8.90409 22.6783 8.44951 22.2929 7.95505 21.9159C7.86023 21.8823 7.75566 21.9576 7.66614 22.083Z" 
-                  fill="currentColor"
-                  stroke="currentColor"
-                  strokeWidth="0.5"
-                />
-              </svg>
-            </div>
-            
-            <p className={`text-gray-400 ${caveat.className} text-lg font-semibold 
-                          md:absolute md:transform md:-rotate-6 md:-left-52 md:-top-1/4 md:-translate-y-1/2 md:w-48
-                          sm:static sm:mt-2 sm:transform-none sm:rotate-0 sm:text-center sm:w-auto leading-none`}>
-              Trusted by 1,200+ developers worldwide
-            </p>
+        <div className="flex flex-col items-center gap-6 border-b border-white/[0.08] py-7 sm:flex-row sm:justify-between">
+          <div className="grid w-full grid-cols-1 gap-2.5 text-[11px] text-white/32 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-x-6 sm:gap-y-2">
+            <span className="flex items-center justify-center gap-2 sm:justify-start">
+              <span className="h-1 w-1 bg-white/35" />
+              Editable design output
+            </span>
+            <span className="flex items-center justify-center gap-2 sm:justify-start">
+              <span className="h-1 w-1 bg-white/35" />
+              Native framework export
+            </span>
+            <span className="flex items-center justify-center gap-2 sm:justify-start">
+              <span className="h-1 w-1 bg-white/35" />
+              System-level control
+            </span>
           </div>
+          <Link href="/project/new" className="mx-auto shrink-0 sm:mx-0">
+            <Button className="group relative cursor-pointer overflow-hidden rounded-md border border-[#1b7fcc]/40 bg-[#1b7fcc] py-5 pr-12 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-2px_3px_rgba(0,0,0,0.28)] hover:bg-[#1975bd] sm:py-6">
+              <span className="sm:px-2">Design Your UI</span>
+              <span className="absolute right-1 top-1/2 -translate-y-1/2 rounded-sm bg-white p-2 shadow-[inset_0_-1px_2px_rgba(0,0,0,0.12)] sm:p-3">
+                <img
+                  src="/arrow.svg"
+                  alt=""
+                  className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1"
+                />
+              </span>
+            </Button>
+          </Link>
         </div>
       </div>
     </section>
-  )
+  );
 }

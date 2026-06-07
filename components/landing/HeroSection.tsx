@@ -24,7 +24,7 @@ const placeholderPhrases = [
 export function HeroSection() {
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   return (
-    <section className="landing-dark-noise relative mx-auto pb-12 overflow-hidden min-h-screen bg-black">
+    <section className="relative mx-auto pb-12 overflow-hidden min-h-screen bg-black">
       {/* Paper Texture */}
       <div
         className="absolute inset-0 z-2 -pt-8"

@@ -20,10 +20,10 @@ export default function Home() {
         <MethodComparison />
         <AppShowcase />
         <NewHowItWorks />
-        <TestimonialSection />
         <PrivacySection />
-        <FeaturesSection />
+        <TestimonialSection />
         <PricingCards />
+        <FeaturesSection />
         <FAQSection />
         <CTASection />
       </main>
