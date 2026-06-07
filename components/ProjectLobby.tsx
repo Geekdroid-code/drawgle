@@ -227,8 +227,10 @@ function TextShimmerWave({
 
 export function ProjectLobby({
   initialPrompt = "",
+  initialStylePreset = null,
 }: {
   initialPrompt?: string;
+  initialStylePreset?: { slug: string; version: number; title: string; description: string } | null;
   user: AuthenticatedUser;
   initialProjects: ProjectData[];
 }) {
@@ -239,6 +241,7 @@ export function ProjectLobby({
   const [image, setImage] = useState<PromptImagePayload | null>(null);
   const [imageReferenceMode, setImageReferenceMode] = useState<ImageReferenceMode>("recreate");
   const [selectedBriefStyle, setSelectedBriefStyle] = useState<DesignStyleOptionId>(DESIGN_STYLE_AUTO_ID);
+  const [selectedStylePreset, setSelectedStylePreset] = useState(initialStylePreset);
   const [isThemePickerOpen, setIsThemePickerOpen] = useState(false);
   const [designTokens, setDesignTokens] = useState<DesignTokens | null>(null);
   const [plan, setPlan] = useState<PlannedUiFlow | null>(null);
@@ -253,8 +256,9 @@ export function ProjectLobby({
   const [pricingReason, setPricingReason] = useState<"upgrade" | "insufficient_credits">("upgrade");
 
   const isBriefReady = Boolean(prompt.trim() || image);
-  const selectedBriefStyleLabel = briefStyles.find((style) => style.id === selectedBriefStyle)?.label ?? "Auto";
-  const selectedDesignStyleId = !image && selectedBriefStyle !== DESIGN_STYLE_AUTO_ID ? selectedBriefStyle : null;
+  const selectedBriefStyleLabel = selectedStylePreset?.title ?? briefStyles.find((style) => style.id === selectedBriefStyle)?.label ?? "Auto";
+  const selectedDesignStyleId = !image && !selectedStylePreset && selectedBriefStyle !== DESIGN_STYLE_AUTO_ID ? selectedBriefStyle : null;
+  const stylePresetSlug = !image ? selectedStylePreset?.slug ?? null : null;
   const activeImageModeDescription =
     imageReferenceModes.find((mode) => mode.id === imageReferenceMode)?.description ?? "";
 
@@ -270,6 +274,7 @@ export function ProjectLobby({
       const base64Data = base64String.split(",")[1];
       setImage({ data: base64Data, mimeType: file.type });
       setSelectedBriefStyle(DESIGN_STYLE_AUTO_ID);
+      setSelectedStylePreset(null);
       setIsThemePickerOpen(false);
     };
     reader.readAsDataURL(file);
@@ -306,6 +311,7 @@ export function ProjectLobby({
           image,
           imageReferenceMode,
           designStyleId: selectedDesignStyleId,
+          stylePresetSlug,
         }),
       });
 
@@ -339,6 +345,7 @@ export function ProjectLobby({
           image,
           imageReferenceMode,
           designStyleId: selectedDesignStyleId,
+          stylePresetSlug,
           designTokens,
         }),
       });
@@ -375,6 +382,7 @@ export function ProjectLobby({
           image,
           imageReferenceMode,
           designStyleId: selectedDesignStyleId,
+          stylePresetSlug,
           designTokens,
           plannedScreens: plan.screens,
           requiresBottomNav: plan.requiresBottomNav,
@@ -456,6 +464,19 @@ export function ProjectLobby({
                       <p className="mt-2 max-w-[22rem] px-2 text-center text-[11px] font-medium leading-5 text-neutral-500 dark:text-neutral-400 sm:hidden">
                         {activeImageModeDescription}
                       </p>
+                    </div>
+                  ) : null}
+
+                  {selectedStylePreset && !image ? (
+                    <div className="mb-3 flex w-full items-center justify-between gap-3 rounded-xl border border-[#1b7fcc]/20 bg-[#1b7fcc]/[0.045] px-3.5 py-3 text-left">
+                      <div className="min-w-0">
+                        <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#1b7fcc]">Curated visual style</div>
+                        <div className="mt-0.5 truncate text-sm font-semibold text-neutral-800 dark:text-neutral-100">{selectedStylePreset.title}</div>
+                        <div className="mt-0.5 line-clamp-1 text-[11px] text-neutral-500 dark:text-neutral-400">{selectedStylePreset.description}</div>
+                      </div>
+                      <button type="button" onClick={() => setSelectedStylePreset(null)} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-black/10 text-neutral-500 hover:text-neutral-900 dark:border-white/10 dark:hover:text-white" aria-label="Remove curated style">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
                     </div>
                   ) : null}
 
@@ -618,6 +639,7 @@ export function ProjectLobby({
                                           }}
                                           onClick={() => {
                                             setSelectedBriefStyle(style.id);
+                                            setSelectedStylePreset(null);
                                             setTimeout(() => {
                                               setIsThemePickerOpen(false);
                                             }, 100);
@@ -652,8 +674,13 @@ export function ProjectLobby({
                         </TooltipProvider>
 
                           {/* Selected Style Text label */}
-                          <div className="pointer-events-none mr-auto hidden min-w-0 items-center text-xs font-semibold text-neutral-400 dark:text-neutral-500 sm:flex">
+                          <div className="mr-auto hidden min-w-0 items-center text-xs font-semibold text-neutral-400 dark:text-neutral-500 sm:flex">
                             Style: <span className="ml-1.5 truncate font-bold text-neutral-700 dark:text-neutral-300">{selectedBriefStyleLabel}</span>
+                            {selectedStylePreset ? (
+                              <button type="button" onClick={() => setSelectedStylePreset(null)} className="ml-1.5 rounded-full p-0.5 hover:bg-black/5" aria-label="Remove curated style">
+                                <X className="h-3 w-3" />
+                              </button>
+                            ) : null}
                           </div>
 
                           {/* Right: Submit Button capsule */}

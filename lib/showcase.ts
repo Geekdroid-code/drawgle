@@ -12,6 +12,8 @@ export type ShowcaseCollection = {
   name: string;
   description: string;
   prompt: string;
+  templateSlug?: string;
+  stylePresetSlug?: string;
   palette: string[];
   landingFeatured?: boolean;
   screens: ShowcaseScreen[];
@@ -251,6 +253,9 @@ export const landingShowcaseCollections = landingCollectionOrder.map((id) => {
   if (!collection) throw new Error(`Missing featured showcase collection: ${id}`);
   return collection;
 });
+
+export const getTemplateSlug = (collection: ShowcaseCollection) => collection.templateSlug ?? collection.id;
+export const getStylePresetSlug = (collection: ShowcaseCollection) => collection.stylePresetSlug ?? collection.id;
 
 export const curatedShowcaseScreenCount = showcaseCollections.reduce(
   (total, collection) => total + collection.screens.length,

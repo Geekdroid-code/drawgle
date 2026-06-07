@@ -8,6 +8,7 @@ import { planUiFlow } from "@/lib/generation/service";
 import { preflightGenerationScope } from "@/lib/generation/scope-contract";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
 
 import type { DesignTokens, NavigationPlan, PlanningMode, ProjectCharter, PromptImagePayload, ReferenceMode } from "@/lib/types";
 
@@ -25,6 +26,7 @@ const requestSchema = z.object({
     .optional(),
   imageReferenceMode: z.enum(["recreate", "style"]).optional().default("recreate"),
   designStyleId: z.string().nullable().optional(),
+  stylePresetSlug: z.string().trim().min(1).max(120).nullable().optional(),
   designTokens: z.unknown().nullable().optional(),
   planningMode: z.enum(["project", "single-screen"]).optional().default("project"),
 }).superRefine((value, ctx) => {
@@ -51,7 +53,8 @@ export async function POST(req: Request) {
     }
 
     const payload = requestSchema.parse(await req.json());
-    const designStyle = isDesignStyleId(payload.designStyleId) ? getDesignStylePack(payload.designStyleId) : null;
+    const stylePreset = await resolvePublishedStylePreset(payload.stylePresetSlug);
+    const designStyle = stylePreset?.stylePack ?? (isDesignStyleId(payload.designStyleId) ? getDesignStylePack(payload.designStyleId) : null);
 
     let projectContext: string | null = null;
     let existingCharter: ProjectCharter | null = null;
@@ -140,7 +143,7 @@ export async function POST(req: Request) {
       referenceMode,
       referenceId,
       designStyle,
-      designTokens: (payload.designTokens ?? null) as DesignTokens | null,
+      designTokens: (payload.designTokens ?? stylePreset?.tokenSeed ?? null) as DesignTokens | null,
       scopeContract: scopePreflight.scopeContract,
       referenceAnalysis: scopePreflight.referenceAnalysis,
       projectContext,

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { showcaseCollections } from "@/lib/showcase";
+import { getStylePresetSlug, getTemplateSlug, showcaseCollections } from "@/lib/showcase";
 import { VirtualizedScreen } from "./VirtualizedScreen";
 
 export function ShowcaseGallery() {
@@ -38,13 +38,15 @@ export function ShowcaseGallery() {
               </div>
               <div>
                 <p className="text-sm leading-6 text-black/45 sm:text-base">{collection.description}</p>
-                <Link
-                  href={`/project/new?prompt=${encodeURIComponent(collection.prompt)}`}
-                  className="group mt-4 inline-flex items-center gap-2 text-sm font-semibold text-[#1b7fcc]"
-                >
-                  Start with this direction
-                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                </Link>
+                <div className="mt-4 flex flex-wrap items-center gap-4">
+                  <Link href={`/templates/${getTemplateSlug(collection)}/start`} className="group inline-flex items-center gap-2 text-sm font-semibold text-[#1b7fcc]">
+                    Start from this design
+                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                  </Link>
+                  <Link href={`/project/new?style=${getStylePresetSlug(collection)}`} className="text-sm font-semibold text-black/45 hover:text-black">
+                    Use this style
+                  </Link>
+                </div>
               </div>
             </div>
 

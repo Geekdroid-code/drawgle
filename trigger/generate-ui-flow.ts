@@ -33,6 +33,7 @@ import {
 } from "@/lib/project-navigation";
 import { tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
 import { adminCreditService } from "@/lib/credits";
 import type { Database } from "@/lib/supabase/database.types";
 import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationScopeContract, ImageReferenceMode, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenPlan } from "@/lib/types";
@@ -48,6 +49,7 @@ type GenerateUiFlowPayload = {
   imagePath?: string | null;
   imageReferenceMode?: ImageReferenceMode;
   designStyleId?: string | null;
+  stylePresetSlug?: string | null;
   plannedScreens?: ScreenPlan[] | null;
   requiresBottomNav?: boolean;
   navigationArchitecture?: NavigationArchitecture | null;
@@ -1138,13 +1140,16 @@ export const generateUiFlowTask = task({
         userPrompt: payload.prompt,
       }),
     ]);
-    const designStyle = !uploadedPromptImage
+    const publishedStylePreset = !uploadedPromptImage
+      ? await resolvePublishedStylePreset(payload.stylePresetSlug)
+      : null;
+    const designStyle = publishedStylePreset?.stylePack ?? (!uploadedPromptImage
       ? getDesignStylePack(
           isDesignStyleId(payload.designStyleId)
             ? payload.designStyleId
             : payload.projectCharter?.designStyle?.id ?? existingCharter?.designStyle?.id ?? null,
         )
-      : null;
+      : null);
     let promptImage = uploadedPromptImage;
     let referenceMode: ReferenceMode = uploadedPromptImage && payload.imageReferenceMode === "style"
       ? "user_style"
@@ -1217,6 +1222,8 @@ export const generateUiFlowTask = task({
     await mergeGenerationRunMetadata(admin, payload.generationRunId, {
       requestedImageReferenceMode: payload.imageReferenceMode ?? "recreate",
       requestedDesignStyleId: payload.designStyleId ?? null,
+      requestedStylePresetSlug: publishedStylePreset?.slug ?? null,
+      requestedStylePresetVersion: publishedStylePreset?.version ?? null,
       referenceMode,
       referenceSource,
       referenceId,

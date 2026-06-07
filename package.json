@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "check": "pnpm run lint && pnpm run typecheck",
     "showcase:screenshots": "tsx scripts/generate-showcase-screenshots.ts",
+    "showcase:publish": "tsx scripts/publish-showcase-templates.ts",
     "trigger:dev": "npx trigger.dev@latest dev",
     "trigger:deploy": "npx trigger.dev@latest deploy",
     "clean": "next clean"
@@ -47,6 +48,7 @@
     "react-markdown": "^10.1.0",
     "react-use-measure": "^2.1.7",
     "react-zoom-pan-pinch": "^4.0.3",
+    "server-only": "^0.0.1",
     "shadcn": "^4.2.0",
     "sharp": "^0.34.5",
     "standardwebhooks": "^1.0.0",

@@ -8,6 +8,7 @@ import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { getDesignStylePack, isDesignStyleId, summarizeDesignStyle } from "@/lib/generation/design-styles";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
 import type { Database } from "@/lib/supabase/database.types";
 import {
   ACTIVE_GENERATION_STATUSES,
@@ -39,6 +40,7 @@ const requestSchema = z.object({
     .optional(),
   imageReferenceMode: z.enum(["recreate", "style"]).optional().default("recreate"),
   designStyleId: z.string().nullable().optional(),
+  stylePresetSlug: z.string().trim().min(1).max(120).nullable().optional(),
   plannedScreens: z
     .array(
       z.object({
@@ -223,9 +225,10 @@ export async function POST(request: Request) {
     }
 
     const payload = requestSchema.parse(await request.json());
-    const designStyle = isDesignStyleId(payload.designStyleId) && !payload.image
+    const stylePreset = !payload.image ? await resolvePublishedStylePreset(payload.stylePresetSlug) : null;
+    const designStyle = stylePreset?.stylePack ?? (isDesignStyleId(payload.designStyleId) && !payload.image
       ? getDesignStylePack(payload.designStyleId)
-      : null;
+      : null);
     const ownerId = authData.user.id;
     const requestedDesignTokens = payload.designTokens
       ? normalizeDesignTokens(payload.designTokens as DesignTokens)
@@ -240,7 +243,7 @@ export async function POST(request: Request) {
       : null;
     const navigationArchitecture = (payload.navigationArchitecture ?? projectCharter?.navigationArchitecture ?? null) as NavigationArchitecture | null;
     const navigationPlan = (payload.navigationPlan ?? null) as NavigationPlan | null;
-    let designTokens = requestedDesignTokens;
+    let designTokens = requestedDesignTokens ?? (stylePreset?.tokenSeed ? normalizeDesignTokens(stylePreset.tokenSeed as DesignTokens) : null);
 
     projectId = payload.projectId;
 
@@ -357,6 +360,8 @@ export async function POST(request: Request) {
           sourceGenerationRunId: payload.sourceGenerationRunId ?? null,
           requestedImageReferenceMode: payload.imageReferenceMode,
           requestedDesignStyleId: designStyle?.id ?? null,
+          requestedStylePresetSlug: stylePreset?.slug ?? null,
+          requestedStylePresetVersion: stylePreset?.version ?? null,
           designStyle: summarizeDesignStyle(designStyle),
           scopeContract,
           navigationArchitecture,
@@ -407,6 +412,7 @@ export async function POST(request: Request) {
         imagePath,
         imageReferenceMode: payload.imageReferenceMode as ImageReferenceMode,
         designStyleId: designStyle?.id ?? null,
+        stylePresetSlug: stylePreset?.slug ?? null,
         designTokens,
         plannedScreens,
         scopeContract,

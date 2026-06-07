@@ -3,6 +3,8 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import {
   curatedShowcaseScreenCount,
+  getStylePresetSlug,
+  getTemplateSlug,
   landingShowcaseCollections,
 } from "@/lib/showcase";
 
@@ -92,15 +94,17 @@ export default function AppShowcase() {
                   ))}
                 </div>
 
-                <div className="mt-5 flex items-center justify-between border-t border-black/[0.07] pt-4">
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-black/[0.07] pt-4">
                   <span className="text-[10px] text-black/40">Three original mobile screens</span>
-                  <Link
-                    href={`/project/new?prompt=${encodeURIComponent(collection.prompt)}`}
-                    className="group inline-flex items-center gap-1.5 text-[10px] font-semibold text-[#1b7fcc] sm:text-[11px]"
-                  >
-                    Design like this
-                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-                  </Link>
+                  <div className="flex items-center gap-3">
+                    <Link href={`/project/new?style=${getStylePresetSlug(collection)}`} className="text-[10px] font-semibold text-black/50 hover:text-black sm:text-[11px]">
+                      Use this style
+                    </Link>
+                    <Link href={`/templates/${getTemplateSlug(collection)}/start`} className="group inline-flex items-center gap-1.5 text-[10px] font-semibold text-[#1b7fcc] sm:text-[11px]">
+                      Start from this design
+                      <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+                    </Link>
+                  </div>
                 </div>
               </article>
             ))}

@@ -339,7 +339,7 @@ export type DesignStyleId =
 export type DesignStyleReferenceRole = "visual_dna" | "component_craft" | "navigation" | "layout";
 
 export interface DesignStylePack {
-  id: DesignStyleId;
+  id: string;
   label: string;
   version: number;
   premiumIntent: string;
@@ -360,7 +360,7 @@ export interface DesignStylePack {
 }
 
 export interface ProjectDesignStyleSummary {
-  id: DesignStyleId;
+  id: string;
   label: string;
   version: number;
 }
