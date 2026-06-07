@@ -110,7 +110,7 @@ export function HeroSection() {
     {/* TOP HALF OF THE TEXT */}
     <span 
       aria-hidden="true"
-      className="absolute top-0 left-0 w-full text-white/45 z-10 origin-right"
+      className="absolute top-0 left-0 w-full text-[#1b7fcc] z-10 origin-right"
       style={{ 
         clipPath: 'inset(0 0 50% 0)', // Cuts off the bottom half
         animation: 'tearTop 4s cubic-bezier(0.16, 1, 0.3, 1) infinite' 
@@ -122,7 +122,7 @@ export function HeroSection() {
     {/* BOTTOM HALF OF THE TEXT */}
     <span 
       aria-hidden="true"
-      className="absolute top-0 left-0 w-full text-white/45 z-10 origin-right"
+      className="absolute top-0 left-0 w-full text-[#1b7fcc] z-10 origin-right"
       style={{ 
         clipPath: 'inset(50% 0 0 0)', // Cuts off the top half
         animation: 'tearBottom 4s cubic-bezier(0.16, 1, 0.3, 1) infinite' 
@@ -190,12 +190,7 @@ Drawgle uses advanced AI to generate production-ready SwiftUI, Compose, Flutter,
                 </div>
               </Button>
             </Link>
-              <div aria-hidden="true" className="pointer-events-none absolute -bottom-8 left-1/2 hidden -translate-x-1/2 md:block">
-                <span className="mx-auto block h-3 w-px border-l border-dashed border-blue-400/60" />
-                <span className="block whitespace-nowrap rounded-md border border-white/10 bg-[#171717] px-2 py-1 font-mono text-[9px] text-blue-200 shadow-xl">
-                  primary · #1b7fcc
-                </span>
-              </div>
+             
             </div>
             <div className="relative">
             <Link href="#">
@@ -212,12 +207,7 @@ Drawgle uses advanced AI to generate production-ready SwiftUI, Compose, Flutter,
                 </div>
               </Button>
             </Link>
-              <div aria-hidden="true" className="pointer-events-none absolute -top-8 left-1/2 hidden -translate-x-1/2 md:block">
-                <span className="block whitespace-nowrap rounded-md border border-white/10 bg-[#171717] px-2 py-1 font-mono text-[9px] text-gray-300 shadow-xl">
-                  secondary · radius 6
-                </span>
-                <span className="mx-auto block h-3 w-px border-l border-dashed border-gray-500" />
-              </div>
+         
             </div>
 
             {/* Whirl Arrow pointing to floating text */}

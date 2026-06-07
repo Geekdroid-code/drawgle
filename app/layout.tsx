@@ -8,8 +8,19 @@ const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 const geistPixelSquare = GeistPixelSquare;
 
 export const metadata: Metadata = {
-  title: 'Drawgle',
-  description: 'AI UI generation on a production-grade Supabase and Trigger.dev architecture.',
+  title: {
+    default: 'Drawgle — AI Mobile UI Design Tool',
+    template: '%s | Drawgle',
+  },
+  description:
+    'Design premium mobile app interfaces from a prompt, visual reference, or curated design direction, then refine and export production-ready UI.',
+  keywords: [
+    'AI mobile UI design',
+    'app UI generator',
+    'image to UI',
+    'mobile app design',
+    'production-ready UI',
+  ],
 };
 
 export default function RootLayout({children}: {children: React.ReactNode}) {

@@ -68,7 +68,7 @@ export default function FAQSection() {
   ]
 
   return (
-    <section className="landing-dark-noise px-4 py-24 bg-[#111111]">
+    <section className="px-4 py-24 bg-[#111111]">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="text-center mb-16">

@@ -166,7 +166,7 @@ export function FeaturesSection() {
   return (
     <section
       id="features"
-      className="landing-dark-noise relative overflow-hidden bg-[#111111] px-4 py-24 md:px-6 md:py-32"
+      className="relative overflow-hidden bg-[#111111] px-4 py-24 md:px-6 md:py-32"
     >
       <div
         aria-hidden="true"
