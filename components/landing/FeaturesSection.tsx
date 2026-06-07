@@ -179,7 +179,6 @@ const CardShell = ({
   children,
   className = "",
   visualClassName = "",
-  edgeClassName = "",
 }: {
   eyebrow: string;
   title: string;
@@ -188,20 +187,19 @@ const CardShell = ({
   children: ReactNode;
   className?: string;
   visualClassName?: string;
-  edgeClassName?: string;
 }) => (
   <article
-    className={`group relative overflow-hidden bg-[#151515] transition-colors duration-300 ${edgeClassName} ${className}`}
+    className={`group relative overflow-hidden rounded-[26px] border border-white/[0.09] bg-[#151515] shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] transition-colors duration-300 hover:border-white/[0.15] ${className}`}
   >
     <div
-      className={`relative min-h-[246px] overflow-hidden border-b border-white/[0.08] bg-[#101010] p-5 ${visualClassName}`}
+      className={`relative min-h-[246px] overflow-hidden border-b border-white/[0.07] bg-[#101010] p-5 ${visualClassName}`}
     >
-      <MockupGridPattern />
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(255,255,255,0.04),transparent_58%)]" />
       <div className="relative z-10 flex min-h-[206px] items-center justify-center">{children}</div>
     </div>
     <div className="relative p-6">
-      <div className="mb-4 flex items-center gap-2 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-[#5ba8e2]">
-        <span className="flex h-6 w-6 items-center justify-center rounded-md border border-[#1b7fcc]/20 bg-[#1b7fcc]/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+      <div className="mb-4 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#75b9ed]">
+        <span className="flex h-6 w-6 items-center justify-center rounded-full border border-[#1b7fcc]/20 bg-[#1b7fcc]/10">
           <Icon className="h-3.5 w-3.5" />
         </span>
         {eyebrow}
@@ -215,28 +213,11 @@ const CardShell = ({
 export function FeaturesSection() {
   return (
     <section id="features" className="relative overflow-hidden bg-[#111111] px-4 py-24 md:px-6 md:py-32">
-      <WorkspaceField />
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/10" />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-y-0 left-1/2 z-20 w-[calc(100%_-_2rem)] max-w-[1120px] -translate-x-1/2 border-x border-white/[0.16] md:w-[calc(100%_-_3rem)]"
-      />
-
-      <div className="relative z-10 mx-auto max-w-[1120px] bg-[#111111]/35">
-        <div aria-hidden="true" className="pointer-events-none absolute left-1/2 top-0 z-20 w-screen -translate-x-1/2 border-t border-white/[0.16]" />
-        <div aria-hidden="true" className="pointer-events-none absolute bottom-0 left-1/2 z-20 w-screen -translate-x-1/2 border-b border-white/[0.16]" />
-        <span aria-hidden="true" className="pointer-events-none absolute -left-1 -top-1 z-30 h-2 w-2 border border-white/30 bg-[#111111]" />
-        <span aria-hidden="true" className="pointer-events-none absolute -right-1 -top-1 z-30 h-2 w-2 border border-white/30 bg-[#111111]" />
-        <span aria-hidden="true" className="pointer-events-none absolute -bottom-1 -left-1 z-30 h-2 w-2 border border-white/30 bg-[#111111]" />
-        <span aria-hidden="true" className="pointer-events-none absolute -bottom-1 -right-1 z-30 h-2 w-2 border border-white/30 bg-[#111111]" />
-
-        <div className="relative grid gap-8 px-6 py-14 md:grid-cols-[1fr_0.7fr] md:items-end md:px-10 md:py-16 lg:px-12">
-          <div aria-hidden="true" className="pointer-events-none absolute bottom-0 left-1/2 z-20 w-screen -translate-x-1/2 border-b border-white/[0.16]" />
-          <span aria-hidden="true" className="pointer-events-none absolute -bottom-1 -left-1 z-30 h-2 w-2 border border-white/30 bg-[#111111]" />
-          <span aria-hidden="true" className="pointer-events-none absolute -bottom-1 -right-1 z-30 h-2 w-2 border border-white/30 bg-[#111111]" />
-
+      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[520px] bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.045),transparent_65%)]" />
+      <div className="relative z-10 mx-auto max-w-[1160px]">
+        <div className="grid gap-8 px-2 pb-14 md:grid-cols-[1fr_0.7fr] md:items-end md:px-4 md:pb-16">
           <div>
-            <div className="mb-4 flex items-center gap-2 font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-orange-400">
+            <div className="mb-4 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-orange-400">
               <Sparkles className="h-3.5 w-3.5" />
               More than a generator
             </div>
@@ -250,14 +231,13 @@ export function FeaturesSection() {
           </p>
         </div>
 
-        <div className="grid bg-[#111111]/65 sm:grid-cols-2 lg:grid-cols-6">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6 lg:gap-4">
           <CardShell
             eyebrow="Live design system"
             title="Change one token. Update the entire app."
             description="Tune colors, typography, spacing, radii, shadows, and opacity while every screen updates live. No regeneration required."
             icon={SlidersHorizontal}
             className="sm:col-span-2 lg:col-span-4"
-            edgeClassName="border-b border-white/[0.09] lg:border-r"
             visualClassName="bg-[radial-gradient(circle_at_72%_35%,rgba(27,127,204,0.12),transparent_42%),#101010]"
           >
             <TokenVisual />
@@ -269,7 +249,6 @@ export function FeaturesSection() {
             description="Click any component and prompt a surgical change without rebuilding or losing the rest of the screen."
             icon={MousePointer2}
             className="sm:col-span-2 lg:col-span-2"
-            edgeClassName="border-b border-white/[0.09]"
             visualClassName="bg-[radial-gradient(circle_at_50%_55%,rgba(27,127,204,0.1),transparent_48%),#101010]"
           >
             <SelectiveEditVisual />
@@ -281,7 +260,6 @@ export function FeaturesSection() {
             description="Use a screenshot for layout or extract its visual direction to re-theme existing and future screens."
             icon={ImageIcon}
             className="sm:col-span-1 lg:col-span-2"
-            edgeClassName="border-b border-white/[0.09] sm:border-r"
             visualClassName="bg-[radial-gradient(circle_at_50%_45%,rgba(166,184,128,0.1),transparent_55%),#101010]"
           >
             <ReferenceVisual />
@@ -293,7 +271,6 @@ export function FeaturesSection() {
             description="Goals, audience, features, and visual direction remain editable and continue guiding every generated screen."
             icon={Compass}
             className="sm:col-span-1 lg:col-span-2"
-            edgeClassName="border-b border-white/[0.09] lg:border-r"
           >
             <CharterVisual />
           </CardShell>
@@ -304,7 +281,6 @@ export function FeaturesSection() {
             description="Design multi-screen apps with persistent tabs, bottom navigation, and flows that update together."
             icon={Route}
             className="sm:col-span-2 lg:col-span-2"
-            edgeClassName="border-b border-white/[0.09]"
             visualClassName="bg-[radial-gradient(circle_at_50%_60%,rgba(249,115,22,0.09),transparent_55%),#101010]"
           >
             <NavigationVisual />
@@ -374,7 +350,6 @@ function TokenVisual() {
           </div>
         </div>
       </div>
-      <div className="absolute left-[40%] top-1/2 w-[9%] border-t border-dashed border-[#5ba8e2]/60" />
     </div>
   );
 }
@@ -418,7 +393,6 @@ function SelectiveEditVisual() {
           <Send className="h-3 w-3 text-white" />
         </span>
       </div>
-      <Annotation className="-right-10 top-12 text-[#75b9ed]">selected.card</Annotation>
       <MousePointer2 className="absolute -right-3 top-[92px] h-5 w-5 fill-white text-black" />
     </div>
   );
@@ -464,16 +438,6 @@ function ReferenceVisual() {
           ))}
         </div>
       </div>
-
-      <svg
-        aria-hidden="true"
-        viewBox="0 0 38 34"
-        className="pointer-events-none absolute left-[106px] top-[78px] h-[34px] w-[38px] overflow-visible"
-      >
-        <path d="M0 17H13M25 17H38" fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth="1" />
-        <path d="m19 11 6 6-6 6-6-6 6-6Z" fill="#111111" stroke="#a6b880" strokeWidth="1" />
-        <path d="M17 17h4" stroke="#a6b880" strokeWidth="1" />
-      </svg>
 
       <div className="absolute right-0 top-3 w-[110px] rounded-[14px] border border-[#a6b880]/20 bg-[#181a16] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
         <div className="mb-2.5 flex items-center justify-between border-b border-white/[0.07] pb-2">
@@ -554,7 +518,7 @@ function NavigationVisual() {
   const screens = [
     { label: "Home", accent: "bg-[#1b7fcc]", active: 0 },
     { label: "Create", accent: "bg-orange-400", active: 1 },
-    { label: "Review", accent: "bg-purple-500", active: 2 },
+    { label: "Review", accent: "bg-emerald-500", active: 2 },
   ];
 
   return (
@@ -617,15 +581,8 @@ function NavigationVisual() {
               />
             ))}
           </div>
-          {index < 2 && (
-            <span className="absolute left-full top-[58%] z-20 w-2 border-t border-dashed border-[#5ba8e2]/60" />
-          )}
         </div>
       ))}
-      <div className="absolute -bottom-6 left-1/2 flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap font-mono text-[7px] text-gray-500">
-        <Route className="h-2.5 w-2.5 text-[#5ba8e2]" />
-        shared navigation / active state follows screen
-      </div>
     </div>
   );
 }
@@ -640,7 +597,6 @@ function ExportVisual() {
 
   return (
     <div className="relative -m-5 flex min-h-[246px] w-[calc(100%_+_2.5rem)] items-center justify-center overflow-hidden p-5">
-      <TechnicalGrid />
       <div className="relative z-10 mx-auto grid w-full max-w-[900px] items-center gap-8 sm:grid-cols-[220px_1fr]">
         <div className="relative rounded-[12px] border border-white/[0.12] bg-[#141414]/95 p-4 backdrop-blur">
           <div className="mb-4 flex items-center gap-2 border-b border-white/[0.07] pb-3">
@@ -666,11 +622,9 @@ function ExportVisual() {
               </div>
             ))}
           </div>
-          <div className="absolute left-full top-1/2 hidden h-px w-8 bg-white/15 sm:block" />
         </div>
 
         <div className="relative grid grid-cols-2 gap-3">
-          <ExportBranches />
           {frameworks.map((framework) => (
             <div
               key={framework.name}
