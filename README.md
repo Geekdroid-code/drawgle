@@ -16,7 +16,6 @@ The live app path now runs through Supabase-backed data, Trigger.dev generation 
 
 **Prerequisites:**  Node.js
 
-
 1. Install dependencies:
    `npm install`
 2. Configure [.env.local](.env.local):
