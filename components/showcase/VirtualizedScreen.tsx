@@ -15,6 +15,7 @@ export function VirtualizedScreen({
   const [nearViewport, setNearViewport] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [scale, setScale] = useState(0);
+  const [screenDocument, setScreenDocument] = useState<string | null>(null);
 
   useEffect(() => {
     const node = observerRef.current;
@@ -33,6 +34,46 @@ export function VirtualizedScreen({
   }, []);
 
   useEffect(() => {
+    if (!nearViewport || screenDocument) return;
+
+    const controller = new AbortController();
+    void fetch(screen.src, { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Unable to load showcase screen: ${screen.src}`);
+        return response.text();
+      })
+      .then((html) => {
+        const showcaseStyle = `
+          <base href="/">
+          <style data-drawgle-showcase-scrollbars>
+            html, body, * {
+              scrollbar-width: none !important;
+              -ms-overflow-style: none !important;
+            }
+            html::-webkit-scrollbar,
+            body::-webkit-scrollbar,
+            *::-webkit-scrollbar {
+              width: 0 !important;
+              height: 0 !important;
+              display: none !important;
+            }
+          </style>
+        `;
+        setScreenDocument(
+          html.includes("</head>")
+            ? html.replace("</head>", `${showcaseStyle}</head>`)
+            : `${showcaseStyle}${html}`,
+        );
+      })
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        console.error(error);
+      });
+
+    return () => controller.abort();
+  }, [nearViewport, screen.src, screenDocument]);
+
+  useEffect(() => {
     const preview = previewRef.current;
     if (!preview) return;
 
@@ -48,7 +89,7 @@ export function VirtualizedScreen({
     <article ref={observerRef} className="min-w-0">
       <div
         ref={previewRef}
-        className="relative aspect-[390/844] w-full overflow-hidden rounded-[clamp(16px,2vw,30px)] border border-black/[0.12] bg-[#ececea] shadow-[0_24px_60px_-48px_rgba(0,0,0,0.55)]"
+        className="relative aspect-[390/844] w-full overflow-hidden rounded-[clamp(10px,1.4vw,18px)] border border-black/[0.12] bg-[#ececea] shadow-[0_18px_42px_-36px_rgba(0,0,0,0.6)]"
       >
         {!loaded && (
           <div className="absolute inset-0 animate-pulse bg-[#eeeeeb] p-[8%]">
@@ -62,9 +103,9 @@ export function VirtualizedScreen({
           </div>
         )}
 
-        {nearViewport && scale > 0 && (
+        {nearViewport && screenDocument && scale > 0 && (
           <iframe
-            src={screen.src}
+            srcDoc={screenDocument}
             title={`${collectionName} ${screen.label} interactive mobile UI`}
             sandbox="allow-scripts"
             loading="lazy"
@@ -76,9 +117,9 @@ export function VirtualizedScreen({
           />
         )}
       </div>
-      <div className="mt-3 text-center">
-        <div className="text-sm font-semibold tracking-tight text-black">{screen.label}</div>
-        <div className="mt-0.5 text-xs text-black/40">{screen.role}</div>
+      <div className="mt-2 text-center">
+        <div className="truncate text-[10px] font-semibold tracking-tight text-black sm:text-xs">{screen.label}</div>
+        <div className="mt-0.5 hidden truncate text-[10px] text-black/40 sm:block">{screen.role}</div>
       </div>
     </article>
   );

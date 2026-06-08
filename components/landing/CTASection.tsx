@@ -1,67 +1,50 @@
-import { Button } from "@/components/ui/button"
-import Link from "next/link"
-import { ShieldCheck, Star } from "lucide-react"
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 
 export function CTASection() {
   return (
-    <section className="bg-[#F7F5F3] py-16 sm:py-24">
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="max-w-6xl mx-auto">
-          {/* The "Final Offer" Card */}
-          <div className="relative bg-white rounded-2xl border border-gray-200/80 shadow-2xl shadow-gray-200/60 p-8 sm:p-12 text-center">
-            <div aria-hidden="true" className="pointer-events-none absolute -top-3 left-8 hidden items-center md:flex">
-              <span className="rounded-md border border-gray-200 bg-white px-2 py-1 font-mono text-[10px] text-gray-500 shadow-sm">
-                conversion.ready
-              </span>
-              <span className="w-5 border-t border-dashed border-gray-400" />
-              <span className="h-1.5 w-1.5 rounded-full border border-gray-400 bg-white" />
+    <section className="relative overflow-hidden border-y border-white/[0.08] bg-[#080808] text-white">
+    
+
+      <div className="relative mx-auto max-w-[1320px] border-x border-white/[0.08]">
+        <div className="relative px-5 py-20 text-center sm:px-8 sm:py-28">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#1b7fcc] to-transparent opacity-90"
+          />
+
+          <div className="mx-auto max-w-4xl">
+            <div className="mb-6 flex items-center justify-center gap-2 text-[9px] font-semibold uppercase tracking-[0.2em] text-white/45">
+              <span className="h-1.5 w-1.5 bg-[#1b7fcc]" />
+              Your idea already did the hard part
             </div>
 
-            {/* The Headline */}
-            <h2 className="text-4xl sm:text-5xl max-w-4xl mx-auto font-bold leading-tight mb-4 font-[var(--font-inter-tight)] text-gray-900">
-              Your professional photoshoot is <span className="text-[#1b7fcccc]">one click away.</span>
+            <h2 className="font-pixel-square text-[40px] font-semibold leading-[1.02] tracking-tight text-white sm:text-5xl md:text-[64px]">
+              Stop explaining the app.
+              <span className="block text-[#1b7fcc]">Start showing it.</span>
             </h2>
-            
-            {/* The Sub-headline */}
-            <p className="text-lg text-gray-600 max-w-xl mx-auto mb-8">
-              Stop scrolling through a thousand bad photos. In the next 20 minutes, you could have an entire portfolio of stunning, authentic images ready for any platform.
+
+            <p className="mx-auto mt-6 max-w-2xl text-sm leading-6 text-white/50 sm:text-base sm:leading-7">
+              Give Drawgle the rough idea. Get polished, editable mobile UI that is ready to refine,
+              share, and build on.
             </p>
 
-            {/* The Primary Call to Action Button */}
-        <div className="relative mx-auto w-fit">
-        <Link href="/login">
-              <Button
-                className="text-md py-6 group relative bg-[#1b7fcccc] hover:bg-[#1b7fcccc]/90 text-white rounded-md overflow-hidden cursor-pointer pr-12"
-              >
-                Start Your Photoshoot
-                <div className="bg-white rounded-sm p-3 absolute right-1 top-1/2 -translate-y-1/2">
-                  <img
-                    src="/arrow.svg"
-                    alt="arrow-right"
-                    className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1"
-                  />
-                </div>
-              </Button>
-            </Link>
-            <div aria-hidden="true" className="pointer-events-none absolute left-full top-1/2 ml-3 hidden -translate-y-1/2 items-center md:flex">
-              <span className="w-5 border-t border-dashed border-gray-400" />
-              <span className="rounded-md border border-gray-200 bg-white px-2 py-1 font-mono text-[10px] text-gray-500 shadow-sm">
-                primary.action
+            <Link
+              href="/project/new"
+              className="group relative mt-9 inline-flex min-h-12 items-center justify-center overflow-hidden rounded-md border border-[#5ba8e2]/40 bg-[#1b7fcc] py-3 pl-6 pr-16 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-2px_3px_rgba(0,0,0,0.28)] transition-colors hover:bg-[#1975bd]"
+            >
+              Design your first screen
+              <span className="absolute right-1 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-sm bg-white text-[#1b7fcc] shadow-[inset_0_-1px_2px_rgba(0,0,0,0.1)]">
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </span>
-            </div>
-        </div>
+            </Link>
 
-            {/* The Risk Reversal / Guarantee */}
-            <div className="flex justify-center items-center gap-2 mt-8 text-sm text-gray-500">
-               <p className="text-gray-600 font-medium">
-                    Rated <strong>4.9/5</strong> by over <strong>1,200+</strong> happy professionals.
-                </p>
-            </div>
-            
-            
+            <p className="mt-5 text-[11px] font-medium tracking-wide text-white/30">
+              No perfect prompt required. Keep refining after generation.
+            </p>
           </div>
         </div>
       </div>
     </section>
-  )
+  );
 }

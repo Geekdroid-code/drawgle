@@ -870,3 +870,23 @@ html[data-drawgle-theme-vt="active"]::view-transition-old(root) {
   background: linear-gradient(180deg, rgba(100, 116, 139, 0.72), rgba(71, 85, 105, 0.5));
   background-clip: padding-box;
 }
+@supports selector(details::details-content) {
+  .faq-disclosure {
+    interpolate-size: allow-keywords;
+  }
+
+  .faq-disclosure::details-content {
+    block-size: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition:
+      block-size 300ms ease,
+      opacity 220ms ease,
+      content-visibility 300ms allow-discrete;
+  }
+
+  .faq-disclosure[open]::details-content {
+    block-size: auto;
+    opacity: 1;
+  }
+}

@@ -211,7 +211,6 @@ function Header() {
   const navItems = [
     { name: "Features", link: "/#features" },
     { name: "How it works", link: "/#how-it-works" },
-    { name: "Style Packs", link: "/#style-packs" },
     { name: "Blog", link: "/blog" },
   ]
 

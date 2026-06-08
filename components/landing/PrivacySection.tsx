@@ -52,7 +52,7 @@ export default function PrivacySection() {
           </div>
           <h2 className="font-pixel-square text-[34px] font-semibold leading-[1.08] tracking-tight text-black sm:text-5xl md:text-6xl">
             Bring whatever you have.
-            <span className="block text-[#1b7fcc]">Leave with a UI worth building.</span>
+            <span className="block text-[#1b7fcc]">Leave with a UI worth shipping.</span>
           </h2>
           <p className="mx-auto mt-6 max-w-2xl text-sm leading-relaxed text-gray-500 sm:text-base md:text-lg">
             You do not need design expertise or a perfect brief. Drawgle helps you find the right
@@ -70,7 +70,7 @@ export default function PrivacySection() {
                 <div className="mb-7 flex h-11 w-11 items-center justify-center rounded-[12px] border border-[#1b7fcc]/15 bg-[#1b7fcc]/[0.06] text-[#1b7fcc] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
                   <Icon className="h-5 w-5" strokeWidth={1.7} />
                 </div>
-                <h3 className="max-w-md text-xl font-bold leading-tight tracking-tight text-gray-900 sm:text-2xl">
+                <h3 className="font-pixel-square max-w-md text-xl font-semibold leading-tight tracking-normal text-gray-900 sm:text-2xl">
                   {title}
                 </h3>
                 <p className="mt-4 max-w-md text-sm leading-6 text-gray-500 sm:text-[15px]">

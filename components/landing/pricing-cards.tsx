@@ -79,7 +79,7 @@ export default function PricingCards() {
           <div className="bg-[#F7F5F3] rounded-3xl p-2 shadow-[0_12px_50px_-15px_rgba(0,0,0,0.1)] border border-gray-200/60 flex flex-col h-full">
             <div className="bg-white rounded-2xl p-8 mb-2 flex-shrink-0">
               <div className="flex items-center gap-2 mb-3">
-                <h3 className="text-3xl font-bold text-gray-900 tracking-tight">Starter</h3>
+                <h3 className="font-pixel-square text-3xl font-bold text-gray-900 tracking-tight">Starter</h3>
                 <span className="bg-gray-100 text-gray-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">Friction Killer</span>
               </div>
               <p className="text-gray-600 text-sm leading-relaxed min-h-[60px] mb-6">
@@ -132,7 +132,7 @@ export default function PricingCards() {
             </div>
             <div className="bg-gray-800 rounded-2xl p-8 mb-2 flex-shrink-0">
               <div className="flex items-center gap-2 mb-3">
-                <h3 className="text-3xl font-bold text-white tracking-tight">Pro</h3>
+                <h3 className="font-pixel-square text-3xl font-bold text-white tracking-tight">Pro</h3>
                 <span className="bg-[#1b7fcccc] text-white text-xs font-semibold px-2.5 py-0.5 rounded-full">Most Popular</span>
               </div>
               <p className="text-gray-300 text-sm leading-relaxed min-h-[60px] mb-6">
@@ -153,7 +153,7 @@ export default function PricingCards() {
                 </div>
               </Link>
             </div>
-            <div className="bg-gray-900 flex-grow flex flex-col justify-between px-6 pb-6 pt-4">
+            <div className="flex-grow flex flex-col justify-between px-6 pb-6 pt-4">
               <div className="grid grid-cols-1 gap-y-3 mb-6">
                 {proFeatures.map((feature) => (
                   <div key={feature} className="flex items-center gap-3">
@@ -164,11 +164,11 @@ export default function PricingCards() {
               </div>
               <div className="pt-4 border-t border-gray-700 mt-auto">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-400">Generates:</span>
+                  <span className="text-gray-300">Generates:</span>
                   <span className="font-semibold text-white">~120 full screens/mo</span>
                 </div>
                 <div className="flex items-center justify-between text-sm mt-2">
-                  <span className="text-gray-400">Value Multiplier:</span>
+                  <span className="text-gray-300">Value Multiplier:</span>
                   <span className="font-semibold text-[#1b7fcccc]">4x screens for 3x price</span>
                 </div>
               </div>
@@ -179,7 +179,7 @@ export default function PricingCards() {
           <div className="bg-[#F7F5F3] rounded-3xl p-2 shadow-[0_12px_50px_-15px_rgba(0,0,0,0.1)] border border-gray-200/60 flex flex-col h-full">
             <div className="bg-white rounded-2xl p-8 mb-2 flex-shrink-0">
               <div className="flex items-center gap-2 mb-3">
-                <h3 className="text-3xl font-bold text-gray-900 tracking-tight">Studio</h3>
+                <h3 className="font-pixel-square text-3xl font-bold text-gray-900 tracking-tight">Studio</h3>
                 <span className="bg-gray-100 text-gray-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">For Teams</span>
               </div>
               <p className="text-gray-600 text-sm leading-relaxed min-h-[60px] mb-6">

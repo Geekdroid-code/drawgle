@@ -17,10 +17,10 @@ export default function Home() {
       <PublicHeader />
       <main>
         <HeroSection />
-        <MethodComparison />
+        <PrivacySection />
         <AppShowcase />
         <NewHowItWorks />
-        <PrivacySection />
+        <MethodComparison />
         <TestimonialSection />
         <PricingCards />
         <FeaturesSection />

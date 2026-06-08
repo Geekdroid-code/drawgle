@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, GitFork, Shuffle } from "lucide-react";
 import {
   curatedShowcaseScreenCount,
   getStylePresetSlug,
@@ -59,22 +59,8 @@ export default function AppShowcase() {
                   backgroundImage: `radial-gradient(circle at 15% 10%, ${collection.palette[3]}22, transparent 34%)`,
                 }}
               >
-                <div className="mb-5 flex items-end justify-between gap-4">
-                  <div>
-                    <div className="text-[9px] font-semibold uppercase tracking-[0.14em] text-[#1b7fcc]">
-                      Direction {String(collectionIndex + 1).padStart(2, "0")}
-                    </div>
-                    <h3 className="mt-1 text-lg font-semibold tracking-tight text-black sm:text-xl">
-                      {collection.name}
-                    </h3>
-                  </div>
-                  <p className="hidden max-w-[230px] text-right text-[11px] leading-4 text-black/40 sm:block">
-                    {collection.description}
-                  </p>
-                </div>
-
                 <div className="grid grid-cols-3 items-start gap-[clamp(5px,1.4vw,18px)]">
-                  {collection.screens.map((screen, screenIndex) => (
+                  {collection.screens.map((screen) => (
                     <div key={screen.src} className="min-w-0">
                       <div className="relative aspect-[390/844] overflow-hidden rounded-[clamp(9px,1.7vw,22px)] border border-black/[0.12] bg-white shadow-[0_20px_45px_-38px_rgba(0,0,0,0.55)]">
                         <Image
@@ -86,23 +72,33 @@ export default function AppShowcase() {
                           className="object-cover"
                         />
                       </div>
-                      <div className="mt-2 truncate text-center text-[8px] font-semibold text-black/65 sm:text-[10px]">
-                        {screen.label}
-                        <span className="ml-1 hidden font-normal text-black/35 sm:inline">{screen.role}</span>
-                      </div>
                     </div>
                   ))}
                 </div>
 
-                <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-black/[0.07] pt-4">
-                  <span className="text-[10px] text-black/40">Three original mobile screens</span>
-                  <div className="flex items-center gap-3">
-                    <Link href={`/project/new?style=${getStylePresetSlug(collection)}`} className="text-[10px] font-semibold text-black/50 hover:text-black sm:text-[11px]">
-                      Use this style
+                <div className="mt-5 flex items-end justify-between gap-3 border-t border-black/[0.07] pt-4">
+                  <div className="min-w-0">
+                    <div className="text-[8px] font-semibold uppercase tracking-[0.16em] text-[#1b7fcc]">
+                      Direction {String(collectionIndex + 1).padStart(2, "0")}
+                    </div>
+                    <h3 className="mt-1 truncate font-pixel-square text-sm font-semibold tracking-normal text-black sm:text-base">
+                      {collection.name}
+                    </h3>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Link
+                      href={`/templates/${getTemplateSlug(collection)}/start`}
+                      className="group inline-flex h-8 items-center gap-1.5 rounded-full border border-black/[0.1] bg-white/70 px-3 text-[10px] font-semibold text-black/60 transition-colors hover:border-black/20 hover:text-black sm:text-[11px]"
+                    >
+                      <GitFork className="h-3 w-3" />
+                      Fork
                     </Link>
-                    <Link href={`/templates/${getTemplateSlug(collection)}/start`} className="group inline-flex items-center gap-1.5 text-[10px] font-semibold text-[#1b7fcc] sm:text-[11px]">
-                      Start from this design
-                      <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+                    <Link
+                      href={`/project/new?style=${getStylePresetSlug(collection)}`}
+                      className="group inline-flex h-8 items-center gap-1.5 rounded-full border border-[#1b7fcc]/20 bg-[#1b7fcc]/[0.055] px-3 text-[10px] font-semibold text-[#1b7fcc] transition-colors hover:border-[#1b7fcc]/40 hover:bg-[#1b7fcc]/[0.09] sm:text-[11px]"
+                    >
+                      <Shuffle className="h-3 w-3" />
+                      Remix
                     </Link>
                   </div>
                 </div>

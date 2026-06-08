@@ -1,13 +1,13 @@
 "use client";
 
 import { type FormEvent, Suspense, useEffect, useMemo, useState } from "react";
-import { Code, Loader2 } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getSafeAuthRedirect } from "@/lib/auth-redirect";
 import { createClient } from "@/lib/supabase/client";
 
@@ -205,160 +205,202 @@ function LoginPageContent() {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center dg-dashed-grid-bg px-4 py-8">
-      <div className="w-full max-w-md rounded-[28px] dg-panel bg-white p-8">
-        <div className="mb-8 space-y-4 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-[18px] dg-button-primary text-white">
-            <Code className="h-7 w-7" />
+    <main className="min-h-dvh bg-white text-black lg:h-dvh lg:overflow-hidden">
+      <div className="grid min-h-dvh w-full lg:h-dvh lg:grid-cols-2">
+        <section className="flex min-h-dvh flex-col border-black/[0.09] px-5 py-5 sm:px-10 lg:h-dvh lg:min-h-0 lg:border-r lg:px-14">
+          <div className="flex items-center justify-between">
+            <Link href="/" className="flex items-center gap-2.5" aria-label="Drawgle home">
+              <span className="flex h-7 w-7 items-center justify-center border border-[#1b7fcc]/25 bg-[#1b7fcc]/[0.07]">
+                <span className="h-2 w-2 bg-[#1b7fcc]" />
+              </span>
+              <span className="text-sm font-semibold tracking-tight">Drawgle</span>
+            </Link>
+            <Link href="/" className="text-xs font-medium text-black/40 transition-colors hover:text-black">
+              Back home
+            </Link>
           </div>
-          <div className="space-y-2">
-            <h1 className="text-3xl font-semibold tracking-tight text-gray-950">Drawgle</h1>
-            <p className="text-sm text-gray-500">
-              Sign in with email and password now, and keep Google sign-in available for when the provider is configured.
+
+          <div className="mx-auto flex w-full max-w-[410px] flex-1 flex-col justify-center py-5 sm:py-7 lg:min-h-0">
+            <div className="mb-5">
+              <div className="mb-2.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-[#1b7fcc]">
+                Your design workspace
+              </div>
+              <h1 className="font-pixel-square text-[32px] font-semibold leading-[1.06] tracking-tight sm:text-[38px]">
+                {mode === "sign-in" ? "Welcome back." : "Build something worth opening."}
+              </h1>
+              <p className="mt-2 max-w-sm text-[13px] leading-5 text-black/48">
+                {mode === "sign-in"
+                  ? "Sign in to continue refining your screens, systems, and ideas."
+                  : "Create your workspace and turn the first rough thought into editable mobile UI."}
+              </p>
+            </div>
+
+            {activeFeedback ? (
+              <div
+                className={[
+                  "mb-4 border px-3.5 py-2.5 text-xs leading-5",
+                  activeFeedback.tone === "error"
+                    ? "border-red-200 bg-red-50 text-red-700"
+                    : "border-[#1b7fcc]/20 bg-[#1b7fcc]/[0.05] text-[#145f99]",
+                ].join(" ")}
+              >
+                {activeFeedback.message}
+              </div>
+            ) : null}
+
+            <Button
+              className="h-10 w-full rounded-md border border-black/[0.12] bg-white text-xs font-semibold text-black shadow-none hover:bg-black/[0.025]"
+              disabled={isBusy}
+              onClick={handleGoogleSignIn}
+              type="button"
+              variant="outline"
+            >
+              {pendingAction === "google" ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <GoogleMark />
+              )}
+              Continue with Google
+            </Button>
+
+            <div className="my-4 flex items-center gap-3">
+              <span className="h-px flex-1 bg-black/[0.09]" />
+              <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-black/30">
+                or use email
+              </span>
+              <span className="h-px flex-1 bg-black/[0.09]" />
+            </div>
+
+            <div className="mb-4 grid grid-cols-2 border-b border-black/[0.1]">
+              <button
+                type="button"
+                onClick={() => {
+                  clearFormFeedback();
+                  setMode("sign-in");
+                }}
+                className={`h-9 border-b-2 text-xs font-semibold transition-colors ${
+                  mode === "sign-in"
+                    ? "border-[#1b7fcc] text-black"
+                    : "border-transparent text-black/35 hover:text-black/60"
+                }`}
+              >
+                Sign in
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  clearFormFeedback();
+                  setMode("sign-up");
+                }}
+                className={`h-9 border-b-2 text-xs font-semibold transition-colors ${
+                  mode === "sign-up"
+                    ? "border-[#1b7fcc] text-black"
+                    : "border-transparent text-black/35 hover:text-black/60"
+                }`}
+              >
+                Create account
+              </button>
+            </div>
+
+            {mode === "sign-in" ? (
+              <form className="space-y-3" onSubmit={handlePasswordSignIn}>
+                <AuthField
+                  autoComplete="email"
+                  disabled={isBusy}
+                  label="Email address"
+                  onChange={(value) => {
+                    clearFormFeedback();
+                    setEmail(value);
+                  }}
+                  placeholder="you@example.com"
+                  type="email"
+                  value={email}
+                />
+                <AuthField
+                  autoComplete="current-password"
+                  disabled={isBusy}
+                  label="Password"
+                  minLength={6}
+                  onChange={(value) => {
+                    clearFormFeedback();
+                    setPassword(value);
+                  }}
+                  placeholder="Enter your password"
+                  type="password"
+                  value={password}
+                />
+
+                <AuthSubmitButton busy={pendingAction === "sign-in"} disabled={isBusy}>
+                  Continue to Drawgle
+                </AuthSubmitButton>
+              </form>
+            ) : (
+              <form className="space-y-3" onSubmit={handlePasswordSignUp}>
+                <AuthField
+                  autoComplete="email"
+                  disabled={isBusy}
+                  label="Email address"
+                  onChange={(value) => {
+                    clearFormFeedback();
+                    setEmail(value);
+                  }}
+                  placeholder="you@example.com"
+                  type="email"
+                  value={email}
+                />
+                <AuthField
+                  autoComplete="new-password"
+                  disabled={isBusy}
+                  label="Password"
+                  minLength={6}
+                  onChange={(value) => {
+                    clearFormFeedback();
+                    setPassword(value);
+                  }}
+                  placeholder="Create a password"
+                  type="password"
+                  value={password}
+                />
+                <AuthField
+                  autoComplete="new-password"
+                  disabled={isBusy}
+                  label="Confirm password"
+                  minLength={6}
+                  onChange={(value) => {
+                    clearFormFeedback();
+                    setConfirmPassword(value);
+                  }}
+                  placeholder="Repeat your password"
+                  type="password"
+                  value={confirmPassword}
+                />
+
+                <AuthSubmitButton busy={pendingAction === "sign-up"} disabled={isBusy}>
+                  Create your workspace
+                </AuthSubmitButton>
+              </form>
+            )}
+
+            <p className="mt-4 text-center text-[10px] leading-4 text-black/35">
+              By continuing, you agree to Drawgle&apos;s{" "}
+              <Link href="/terms" className="font-medium text-black/55 hover:text-black">
+                Terms
+              </Link>{" "}
+              and{" "}
+              <Link href="/privacy-policy" className="font-medium text-black/55 hover:text-black">
+                Privacy Policy
+              </Link>
+              .
             </p>
           </div>
-        </div>
 
-        {activeFeedback ? (
-          <div
-            className={[
-              "mb-5 rounded-2xl px-4 py-3 text-sm",
-              activeFeedback.tone === "error"
-                ? "border border-red-200 bg-red-50 text-red-700"
-                : "border border-emerald-200 bg-emerald-50 text-emerald-700",
-            ].join(" ")}
-          >
-            {activeFeedback.message}
+          <div className="flex items-center justify-between border-t border-black/[0.08] pt-4 text-[9px] text-black/30">
+            <span>AI mobile UI design workspace</span>
+            <span className="font-mono uppercase tracking-[0.12em]">Secure sign in</span>
           </div>
-        ) : null}
+        </section>
 
-        <Tabs
-          className="space-y-6"
-          value={mode}
-          onValueChange={(value) => {
-            clearFormFeedback();
-            setMode(value as AuthMode);
-          }}
-        >
-          <TabsList className="grid w-full grid-cols-2 rounded-full dg-control-muted p-1" variant="default">
-            <TabsTrigger className="rounded-full" value="sign-in">
-              Sign in
-            </TabsTrigger>
-            <TabsTrigger className="rounded-full" value="sign-up">
-              Create account
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="sign-in">
-            <form className="space-y-4" onSubmit={handlePasswordSignIn}>
-              <AuthField
-                autoComplete="email"
-                disabled={isBusy}
-                label="Email"
-                onChange={(value) => {
-                  clearFormFeedback();
-                  setEmail(value);
-                }}
-                placeholder="you@example.com"
-                type="email"
-                value={email}
-              />
-              <AuthField
-                autoComplete="current-password"
-                disabled={isBusy}
-                label="Password"
-                minLength={6}
-                onChange={(value) => {
-                  clearFormFeedback();
-                  setPassword(value);
-                }}
-                placeholder="Enter your password"
-                type="password"
-                value={password}
-              />
-
-              <Button className="h-12 w-full rounded-full dg-button-primary text-sm font-medium" disabled={isBusy} type="submit">
-                {pendingAction === "sign-in" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Continue with email
-              </Button>
-            </form>
-          </TabsContent>
-
-          <TabsContent value="sign-up">
-            <form className="space-y-4" onSubmit={handlePasswordSignUp}>
-              <AuthField
-                autoComplete="email"
-                disabled={isBusy}
-                label="Email"
-                onChange={(value) => {
-                  clearFormFeedback();
-                  setEmail(value);
-                }}
-                placeholder="you@example.com"
-                type="email"
-                value={email}
-              />
-              <AuthField
-                autoComplete="new-password"
-                disabled={isBusy}
-                label="Password"
-                minLength={6}
-                onChange={(value) => {
-                  clearFormFeedback();
-                  setPassword(value);
-                }}
-                placeholder="Create a password"
-                type="password"
-                value={password}
-              />
-              <AuthField
-                autoComplete="new-password"
-                disabled={isBusy}
-                label="Confirm password"
-                minLength={6}
-                onChange={(value) => {
-                  clearFormFeedback();
-                  setConfirmPassword(value);
-                }}
-                placeholder="Repeat your password"
-                type="password"
-                value={confirmPassword}
-              />
-
-              <p className="text-xs leading-5 text-gray-500">
-                If email confirmation is enabled in Supabase Auth, Drawgle will send a verification link before first sign-in.
-              </p>
-
-              <Button className="h-12 w-full rounded-full dg-button-primary text-sm font-medium" disabled={isBusy} type="submit">
-                {pendingAction === "sign-up" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Create account
-              </Button>
-            </form>
-          </TabsContent>
-        </Tabs>
-
-        <div className="mt-6 space-y-4">
-          <div className="flex items-center gap-3 text-[11px] font-medium tracking-[0.22em] text-gray-400 uppercase">
-            <Separator className="flex-1" />
-            <span>or</span>
-            <Separator className="flex-1" />
-          </div>
-
-          <Button
-            className="h-12 w-full rounded-full dg-control text-sm font-medium"
-            disabled={isBusy}
-            onClick={handleGoogleSignIn}
-            type="button"
-            variant="outline"
-          >
-            {pendingAction === "google" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Continue with Google
-          </Button>
-
-          <p className="text-center text-xs leading-5 text-gray-500">
-            Email and password works immediately. Google sign-in remains here for once the Google provider is configured in your Supabase project.
-          </p>
-        </div>
+        <ShowcasePanel />
       </div>
     </main>
   );
@@ -366,23 +408,17 @@ function LoginPageContent() {
 
 function LoginPageFallback() {
   return (
-    <main className="flex min-h-screen items-center justify-center dg-dashed-grid-bg px-4 py-8">
-      <div className="w-full max-w-md rounded-[28px] dg-panel bg-white p-8">
-        <div className="mb-8 space-y-4 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-[18px] dg-button-primary text-white">
-            <Code className="h-7 w-7" />
-          </div>
-          <div className="space-y-2">
-            <h1 className="text-3xl font-semibold tracking-tight text-gray-950">Drawgle</h1>
-            <p className="text-sm text-gray-500">Loading authentication options...</p>
+    <main className="min-h-dvh bg-white lg:h-dvh lg:overflow-hidden">
+      <div className="grid min-h-dvh w-full lg:h-dvh lg:grid-cols-2">
+        <div className="flex items-center justify-center border-r border-black/[0.09] p-8">
+          <div className="w-full max-w-[430px] space-y-4">
+            <div className="h-10 w-56 bg-black/[0.05]" />
+            <div className="h-12 w-full bg-black/[0.04]" />
+            <div className="h-12 w-full bg-black/[0.04]" />
+            <div className="h-12 w-full bg-[#1b7fcc]/10" />
           </div>
         </div>
-
-        <div className="space-y-3">
-          <div className="h-12 rounded-full bg-gray-100" />
-          <div className="h-12 rounded-full bg-gray-100" />
-          <div className="h-12 rounded-full bg-gray-100" />
-        </div>
+        <div className="hidden bg-[#f0f0ec] lg:block" />
       </div>
     </main>
   );
@@ -408,11 +444,11 @@ function AuthField({
   value: string;
 }) {
   return (
-    <label className="block space-y-2">
-      <span className="text-sm font-medium text-gray-700">{label}</span>
+    <label className="block space-y-1.5">
+      <span className="text-[11px] font-semibold text-black/65">{label}</span>
       <Input
         autoComplete={autoComplete}
-        className="h-12 rounded-xl border-slate-950/[0.08] bg-[#f7f7f8] px-4 shadow-none focus-visible:ring-[#002fa7]/15"
+        className="h-10 rounded-md border-black/[0.12] bg-[#fafaf8] px-3.5 text-xs shadow-none placeholder:text-black/25 focus-visible:border-[#1b7fcc]/50 focus-visible:ring-2 focus-visible:ring-[#1b7fcc]/10"
         disabled={disabled}
         minLength={minLength}
         onChange={(event) => onChange(event.target.value)}
@@ -422,6 +458,105 @@ function AuthField({
         value={value}
       />
     </label>
+  );
+}
+
+function AuthSubmitButton({
+  busy,
+  children,
+  disabled,
+}: {
+  busy: boolean;
+  children: string;
+  disabled: boolean;
+}) {
+  return (
+    <Button
+      className="group relative h-10 w-full overflow-hidden rounded-md border border-[#1b7fcc]/50 bg-[#1b7fcc] pl-5 pr-12 text-xs font-semibold text-white shadow-none hover:bg-[#1975bd]"
+      disabled={disabled}
+      type="submit"
+    >
+      {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+      {children}
+      <span className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-sm bg-white text-[#1b7fcc]">
+        <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+      </span>
+    </Button>
+  );
+}
+
+function GoogleMark() {
+  return (
+    <svg aria-hidden="true" className="mr-2 h-4 w-4" viewBox="0 0 24 24">
+      <path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.4-.18-2.07H12v3.91h5.38a4.6 4.6 0 0 1-1.99 3.02v2.54h3.23c1.89-1.74 2.98-4.31 2.98-7.4Z" />
+      <path fill="#34A853" d="M12 22c2.7 0 4.96-.9 6.62-2.42l-3.23-2.54c-.9.6-2.04.96-3.39.96-2.6 0-4.8-1.76-5.59-4.12H3.08v2.62A10 10 0 0 0 12 22Z" />
+      <path fill="#FBBC05" d="M6.41 13.88A6 6 0 0 1 6.1 12c0-.65.11-1.29.31-1.88V7.5H3.08A10 10 0 0 0 2 12c0 1.61.38 3.14 1.08 4.5l3.33-2.62Z" />
+      <path fill="#EA4335" d="M12 6c1.47 0 2.79.51 3.83 1.5l2.87-2.87A9.61 9.61 0 0 0 12 2a10 10 0 0 0-8.92 5.5l3.33 2.62C7.2 7.76 9.4 6 12 6Z" />
+    </svg>
+  );
+}
+
+function ShowcasePanel() {
+  const screens = [
+    {
+      src: "/showcase-screenshots/minimal-habit-premium/habits.webp",
+      alt: "Quiet Habit mobile dashboard designed with Drawgle",
+      className: "translate-y-10",
+    },
+    {
+      src: "/showcase-screenshots/neo-mint/calendar.webp",
+      alt: "Neo Mint finance calendar designed with Drawgle",
+      className: "-translate-y-4",
+    },
+    {
+      src: "/showcase-screenshots/food-delivery/home.webp",
+      alt: "Food delivery discovery screen designed with Drawgle",
+      className: "translate-y-16",
+    },
+  ];
+
+  return (
+    <aside className="relative hidden min-h-screen overflow-hidden border-l border-black/[0.09] bg-[#f3f3ef] lg:flex lg:flex-col">
+      <div className="relative z-10 px-10 pb-5 pt-10 xl:px-14 xl:pt-12">
+        <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#1b7fcc]">
+          Designed with Drawgle
+        </div>
+        <h2 className="mt-3 max-w-xl font-pixel-square text-[34px] font-semibold leading-[1.06] tracking-tight text-black xl:text-[42px]">
+          One workspace. Distinct visual directions.
+        </h2>
+        <p className="mt-3 max-w-lg text-sm leading-6 text-black/45">
+          Generate polished mobile UI, then keep refining every screen after the first result.
+        </p>
+      </div>
+
+      <div className="relative flex flex-1 items-center justify-center overflow-hidden px-8 pb-8 xl:px-12">
+        <div className="grid w-full max-w-[760px] grid-cols-3 items-center gap-4 xl:gap-6">
+          {screens.map((screen) => (
+            <div
+              key={screen.src}
+              className={`relative aspect-[390/844] overflow-hidden rounded-[22px] border border-black/[0.13] bg-white ${screen.className}`}
+            >
+              <Image
+                src={screen.src}
+                alt={screen.alt}
+                fill
+                priority
+                sizes="(max-width: 1023px) 0px, 18vw"
+                className="object-cover"
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="relative z-10 flex items-center justify-between border-t border-black/[0.09] px-10 py-5 text-[10px] font-medium text-black/38 xl:px-14">
+        <span>Original screens generated by Drawgle</span>
+        <Link href="/showcase" className="flex items-center gap-2 text-black/55 transition-colors hover:text-black">
+          Explore showcase
+          <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
+      </div>
+    </aside>
   );
 }
 

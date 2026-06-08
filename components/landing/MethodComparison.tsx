@@ -171,7 +171,7 @@ export default function MethodComparison() {
 
         <div className="mx-auto">
           <div className="mb-3 flex items-center justify-between px-1">
-            <div className="flex items-center gap-2 text-sm font-bold text-[#1b7fcc] md:text-base">
+            <div className="font-pixel-square flex items-center gap-2 text-sm font-semibold text-[#1b7fcc] md:text-base">
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#1b7fcc] text-white">
                 <Check className="h-3 w-3" strokeWidth={3} />
               </span>
@@ -184,7 +184,7 @@ export default function MethodComparison() {
 
           <div className="grid grid-cols-4 px-1 py-3">
             {stages.map(({ label, icon: Icon }) => (
-              <div key={label} className="flex items-center justify-center gap-1.5 text-[10px] font-semibold text-gray-500 sm:text-xs md:text-sm">
+              <div key={label} className="font-pixel-square flex items-center justify-center gap-1.5 text-[10px] font-semibold text-gray-500 sm:text-xs md:text-sm">
                 <Icon className="h-3.5 w-3.5" />
                 {label}
               </div>
@@ -193,7 +193,7 @@ export default function MethodComparison() {
 
           <JourneyRow variant="generic" />
 
-          <div className="mt-3 flex items-center gap-2 px-1 text-sm font-bold text-gray-500 md:text-base">
+          <div className="font-pixel-square mt-3 flex items-center gap-2 px-1 text-sm font-semibold text-gray-500 md:text-base">
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-gray-300 text-white">
               <X className="h-3 w-3" strokeWidth={3} />
             </span>
