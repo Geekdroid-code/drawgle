@@ -3,7 +3,7 @@ import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { formatDesignStyleContract } from "@/lib/generation/design-styles";
 import { DRAWGLE_GENERATION_COMPLETE_SENTINEL } from "@/lib/generation/screen-quality";
 import { buildTokenPromptContext } from "@/lib/token-runtime";
-import type { BuildScreenInput, DesignTokens, NavigationArchitecture, ScreenAssetManifest, ScreenPlan } from "@/lib/types";
+import type { BuildScreenInput, DesignTokens, NavigationArchitecture, ScreenAssetManifest, ScreenPlan, NavigationPlan } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // PLANNER — UX Architect
@@ -503,7 +503,7 @@ const buildAssetManifestContract = (assetManifest?: ScreenAssetManifest[] | null
   ].filter(Boolean).join("\n");
 };
 
-const buildNavigationArchitectureContract = ({
+export const buildNavigationArchitectureContract = ({
   navigationArchitecture,
   screenPlan,
   requiresBottomNav,
@@ -542,7 +542,7 @@ const buildNavigationArchitectureContract = ({
   return lines.join("\n");
 };
 
-const buildSharedNavigationContract = ({
+export const buildSharedNavigationContract = ({
   navigationInstruction,
   navigationPlan,
   screenPlan,
@@ -594,10 +594,44 @@ Rules:
 export const buildEditSystemInstruction = ({
   designTokens,
   navigationArchitecture,
+  screenPlan,
+  navigationPlan,
+  requiresBottomNav,
 }: {
   designTokens?: DesignTokens | null;
   navigationArchitecture?: NavigationArchitecture | null;
-}) => `${editInstruction}
+  screenPlan?: ScreenPlan | null;
+  navigationPlan?: NavigationPlan | null;
+  requiresBottomNav?: boolean;
+}) => {
+  const resolvedNavigationArchitecture = createNavigationArchitecture({ navigationArchitecture, requiresBottomNav });
+  const screenChrome = screenPlan ? resolveScreenChromePolicy({
+    screenPlan,
+    navigationArchitecture: resolvedNavigationArchitecture,
+  }) : null;
+
+  const navigationInstruction = screenChrome ? (() => {
+    switch (screenChrome.chrome) {
+      case "bottom-tabs":
+        return navigationPlan?.enabled
+          ? "This screen is a root tab destination, but Drawgle injects the shared project navigation shell separately. You are forbidden from adding bottom-tab, tab-bar, footer-nav, or primary navigation markup inside this screen. Build only the screen content above the shared shell."
+          : "This screen is a root shell with primary bottom-tab navigation. You MUST include the primary app navigation here and make the active destination visually explicit.";
+      case "top-bar-back":
+        return "This screen is a deeper detail screen. You MUST include a top app bar with a clear back affordance and you are forbidden from adding the primary bottom-tab shell.";
+      case "modal-sheet":
+        return "This screen should read like a presented sheet or overlay surface. Include a clear dismiss affordance and do not add the primary bottom-tab shell.";
+      case "immersive":
+        return "This screen should stay visually immersive with minimal chrome. Do not add a default app bar or bottom-tab shell unless the brief explicitly requires one.";
+      default:
+        return "This screen should use a standard top-bar or anchored header treatment. Do not add the primary bottom-tab shell unless the screen chrome contract says so.";
+    }
+  })() : "";
+
+  const sharedNavContract = navigationPlan && screenPlan
+    ? `SHARED NAVIGATION CONTRACT:\n${buildSharedNavigationContract({ navigationInstruction, navigationPlan, screenPlan })}`
+    : "";
+
+  return `${editInstruction}
 
 STRICT DESIGN CONTRACT:
 ${buildStrictDesignContract(designTokens)}
@@ -606,10 +640,12 @@ TOKEN CONTEXT:
 ${buildTokenPromptContext(designTokens, "compact_visual")}
 
 NAVIGATION ARCHITECTURE CONTRACT:
-${buildNavigationArchitectureContract({ navigationArchitecture })}
+${buildNavigationArchitectureContract({ navigationArchitecture, screenPlan, requiresBottomNav })}
 
 TYPOGRAPHY ROLE CONTRACT:
 ${buildTypographyRoleContract()}
+
+${sharedNavContract}
 
 Additional rules:
 1. Prefer Drawgle token utility classes and CSS variables for canonical styling. Do not freeze token values as raw hex/pixels when a project token variable exists.
@@ -621,6 +657,7 @@ Additional rules:
 7. If the current code already violates the contract, move it toward the approved values while completing the requested edit instead of drifting further away.
 8. Do not add a primary bottom-tab shell to a detail screen, and do not remove it from a root shell, unless the user explicitly asks to change navigation architecture.
 9. Replacement code must stay static HTML. Do not introduce JSX, React, JavaScript expressions, arrays, .map(...), arrow functions, template literals, className, class={...}, style={{...}}, data attributes with {...}, or scripts. Manually expand repeated UI items.`;
+};
 
 // ---------------------------------------------------------------------------
 // BUILD — Screen Code Generator

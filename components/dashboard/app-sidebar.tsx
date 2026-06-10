@@ -456,7 +456,7 @@ export function AppSidebar({
           <SidebarMenuItem>
             <SidebarMenuButton
               size="lg"
-              render={<Link href="/project/new" prefetch={false} />}
+              render={<Link href="/" prefetch={false} />}
               tooltip="Drawgle"
             >
               <span className="flex aspect-square size-9 items-center justify-center rounded-md bg-[var(--dg-surface-muted)] ring-1 ring-[var(--dg-border)] group-data-[collapsible=icon]:size-8 [&_svg]:!size-6 group-data-[collapsible=icon]:[&_svg]:!size-5">

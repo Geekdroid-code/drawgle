@@ -76,12 +76,10 @@ const sections: LegalSection[] = [
       <>
         <p>We share information only as needed with service providers that help operate Drawgle, including:</p>
         <LegalList>
-          <li><strong>Supabase</strong> for authentication, database, storage, and realtime infrastructure;</li>
-          <li><strong>Google Gemini</strong> and other disclosed AI providers for generation and analysis;</li>
-          <li><strong>Trigger.dev</strong> for background job orchestration;</li>
-          <li><strong>Cloudflare R2</strong> for visual asset storage and delivery;</li>
-          <li><strong>Dodo Payments</strong> for checkout, subscriptions, taxes, invoices, and payment processing;</li>
-          <li>security, analytics, support, and professional advisers where reasonably necessary.</li>
+          <li>hosting, authentication, database, storage, and content-delivery providers;</li>
+          <li>AI service providers used to generate, analyze, or refine content you request;</li>
+          <li>payment providers used for checkout, subscriptions, taxes, invoices, and payment processing;</li>
+          <li>security, analytics, customer-support, and professional service providers where reasonably necessary.</li>
         </LegalList>
         <p>
           We may also disclose information when required by law, to protect safety or rights, or as

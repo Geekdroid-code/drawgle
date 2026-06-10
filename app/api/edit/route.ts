@@ -1,10 +1,11 @@
 import { detectTargetBlocks, indexScreenCode } from "@/lib/generation/block-index";
 import { editScreenStream } from "@/lib/generation/service";
 import { createClient } from "@/lib/supabase/server";
+import { deriveRequiresBottomNav } from "@/lib/navigation";
 
 import { NextResponse } from "next/server";
 
-import type { DesignTokens, NavigationArchitecture, ProjectCharter } from "@/lib/types";
+import type { DesignTokens, NavigationArchitecture, ProjectCharter, ScreenPlan, NavigationPlan } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -28,7 +29,7 @@ export async function POST(req: Request) {
 
     const { data: screen, error: screenError } = await supabase
       .from("screens")
-      .select("id, owner_id, code, block_index, project_id")
+      .select("id, owner_id, code, block_index, project_id, name, chrome_policy, navigation_item_id, prompt")
       .eq("id", screenId)
       .eq("owner_id", user.id)
       .maybeSingle();
@@ -51,6 +52,39 @@ export async function POST(req: Request) {
     const designTokens = (project?.design_tokens as DesignTokens | null) ?? null;
     const navigationArchitecture = ((project?.project_charter as ProjectCharter | null)?.navigationArchitecture ?? null) as NavigationArchitecture | null;
 
+    const { data: projectNavigation } = await supabase
+      .from("project_navigation")
+      .select("plan")
+      .eq("project_id", screen.project_id)
+      .maybeSingle();
+
+    const projectNavigationPlan = (projectNavigation?.plan as unknown as NavigationPlan | null) ?? null;
+
+    // Resolve chromePolicy and navigationItemId dynamically
+    const resolvedRequiresBottomNav = deriveRequiresBottomNav(navigationArchitecture);
+    const resolvedScreenChrome = projectNavigationPlan?.screenChrome?.find(
+      (entry) => entry.screenName.toLowerCase() === (screen.name || "").toLowerCase()
+    );
+    const resolvedNavigationItemId = screen.navigation_item_id ?? resolvedScreenChrome?.navigationItemId ?? null;
+    const resolvedIsRoot = resolvedScreenChrome?.chrome === "bottom-tabs" ||
+                           (screen.chrome_policy as ScreenPlan["chromePolicy"])?.chrome === "bottom-tabs" ||
+                           Boolean(resolvedNavigationItemId) ||
+                           (projectNavigationPlan?.items?.some(item => item.linkedScreenName.toLowerCase() === (screen.name || "").toLowerCase()) ?? false);
+
+    const resolvedChromePolicy = (screen.chrome_policy as ScreenPlan["chromePolicy"]) || {
+      chrome: resolvedScreenChrome?.chrome ?? (resolvedIsRoot ? (projectNavigationPlan?.enabled ? "bottom-tabs" : "top-bar") : "top-bar-back"),
+      showPrimaryNavigation: Boolean(resolvedScreenChrome?.navigationItemId),
+      showsBackButton: !resolvedIsRoot && resolvedScreenChrome?.chrome !== "modal-sheet",
+    };
+
+    const screenPlanForSave: ScreenPlan = {
+      name: screen.name || "Screen",
+      type: resolvedIsRoot ? "root" : "detail",
+      description: screen.prompt || "",
+      chromePolicy: resolvedChromePolicy,
+      navigationItemId: resolvedNavigationItemId,
+    };
+
     const stream = new ReadableStream({
       async start(controller) {
         try {
@@ -61,6 +95,9 @@ export async function POST(req: Request) {
             targetBlockIds,
             designTokens,
             navigationArchitecture,
+            screenPlan: screenPlanForSave,
+            navigationPlan: projectNavigationPlan,
+            requiresBottomNav: resolvedRequiresBottomNav,
           })) {
             controller.enqueue(new TextEncoder().encode(chunk));
           }

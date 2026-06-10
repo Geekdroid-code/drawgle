@@ -23,6 +23,8 @@ import {
   designInstruction,
   plannerBlueprintStepInstruction,
   plannerScreenBriefStepInstruction,
+  buildNavigationArchitectureContract,
+  buildSharedNavigationContract,
 } from "@/lib/generation/prompts";
 import { appendRequiredAnchors, DRAWGLE_GENERATION_COMPLETE_SENTINEL, extractRequiredAnchors, stripGenerationCompleteSentinel, validateSourceCompletion } from "@/lib/generation/screen-quality";
 import { buildRepairSurroundingContext, type RepairTarget } from "@/lib/generation/screen-repair";
@@ -2578,6 +2580,9 @@ export async function* editScreenStream({
   navigationArchitecture,
   selectedElementHtml,
   selectedElementDrawgleId,
+  screenPlan,
+  navigationPlan,
+  requiresBottomNav,
   llmLog,
   onResponseChunk,
 }: {
@@ -2591,6 +2596,9 @@ export async function* editScreenStream({
   selectedElementHtml?: string | null;
   /** Stable data-drawgle-id of the selected element when available. */
   selectedElementDrawgleId?: string | null;
+  screenPlan?: ScreenPlan | null;
+  navigationPlan?: NavigationPlan | null;
+  requiresBottomNav?: boolean;
   llmLog?: LlmLogFn;
   onResponseChunk?: (chunk: unknown) => void;
 }) {
@@ -2601,7 +2609,13 @@ export async function* editScreenStream({
   }));
 
   const policy = geminiPolicyForTask("selected_region_edit", {
-    systemInstruction: buildEditSystemInstruction({ designTokens, navigationArchitecture }),
+    systemInstruction: buildEditSystemInstruction({
+      designTokens,
+      navigationArchitecture,
+      screenPlan,
+      navigationPlan,
+      requiresBottomNav,
+    }),
     temperature: 0.7,
   });
 
@@ -2825,6 +2839,9 @@ export async function buildSourceRegionReplacementCode({
   designTokens,
   projectCharter,
   navigationArchitecture,
+  screenPlan,
+  navigationPlan,
+  requiresBottomNav,
   llmLog,
   onRawResponse,
 }: {
@@ -2838,11 +2855,47 @@ export async function buildSourceRegionReplacementCode({
   designTokens?: DesignTokens | null;
   projectCharter?: ProjectCharter | null;
   navigationArchitecture?: NavigationArchitecture | null;
+  screenPlan?: ScreenPlan | null;
+  navigationPlan?: NavigationPlan | null;
+  requiresBottomNav?: boolean;
   llmLog?: LlmLogFn;
   onRawResponse?: (rawText: string) => void;
 }) {
   const ai = createGeminiClient();
   const surrounding = buildRepairSurroundingContext(currentCode, repairTarget);
+
+  const resolvedNavigationArchitecture = createNavigationArchitecture({ navigationArchitecture, requiresBottomNav });
+  const screenChrome = screenPlan ? resolveScreenChromePolicy({
+    screenPlan,
+    navigationArchitecture: resolvedNavigationArchitecture,
+  }) : null;
+
+  const navigationInstruction = screenChrome ? (() => {
+    switch (screenChrome.chrome) {
+      case "bottom-tabs":
+        return navigationPlan?.enabled
+          ? "This screen is a root tab destination, but Drawgle injects the shared project navigation shell separately. You are forbidden from adding bottom-tab, tab-bar, footer-nav, or primary navigation markup inside this screen. Build only the screen content above the shared shell."
+          : "This screen is a root shell with primary bottom-tab navigation. You MUST include the primary app navigation here and make the active destination visually explicit.";
+      case "top-bar-back":
+        return "This screen is a deeper detail screen. You MUST include a top app bar with a clear back affordance and you are forbidden from adding the primary bottom-tab shell.";
+      case "modal-sheet":
+        return "This screen should read like a presented sheet or overlay surface. Include a clear dismiss affordance and do not add the primary bottom-tab shell.";
+      case "immersive":
+        return "This screen should stay visually immersive with minimal chrome. Do not add a default app bar or bottom-tab shell unless the brief explicitly requires one.";
+      default:
+        return "This screen should use a standard top-bar or anchored header treatment. Do not add the primary bottom-tab shell unless the screen chrome contract says so.";
+    }
+  })() : "";
+
+  const navArchContract = buildNavigationArchitectureContract({
+    navigationArchitecture: resolvedNavigationArchitecture,
+    screenPlan,
+    requiresBottomNav,
+  });
+  const sharedNavContract = navigationPlan && screenPlan
+    ? buildSharedNavigationContract({ navigationInstruction, navigationPlan, screenPlan })
+    : null;
+
   const policy = geminiPolicyForTask("selected_region_edit", {
     temperature: 0.26,
     systemInstruction: [
@@ -2861,6 +2914,8 @@ export async function buildSourceRegionReplacementCode({
       repairTarget.reason === "screen_root_region"
         ? `Because the selected region is the screen root, return one complete screen root. The outermost element must be a <div> with w-full, min-h-screen, dg-bg-primary, dg-text-high, flex, flex-col, relative, and overflow-x-hidden classes. End the full screen with ${DRAWGLE_GENERATION_COMPLETE_SENTINEL}. Do not return only an inner section.`
         : null,
+      `NAVIGATION ARCHITECTURE CONTRACT:\n${navArchContract}`,
+      sharedNavContract ? `SHARED NAVIGATION CONTRACT:\n${sharedNavContract}` : null,
       ...staticHtmlOutputRules,
     ].filter(Boolean).join("\n"),
   });

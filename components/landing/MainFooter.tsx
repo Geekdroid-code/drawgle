@@ -1,8 +1,21 @@
 import Link from 'next/link';
-import Image from 'next/image';
 import { AgentBall } from "@/components/AgentBall"
 import { cn } from "@/lib/utils"
 
+function BrandLogo({ compact = false }: { compact?: boolean }) {
+  return (
+    <span className="flex items-center">
+      <span
+        className={cn(
+          "flex items-center justify-center rounded-md",
+          compact ? "size-8 [&_svg]:!size-5" : "size-9 [&_svg]:!size-6",
+        )}
+      >
+        <AgentBall className={compact ? "h-5 w-5" : "h-6 w-6"} />
+      </span>
+    </span>
+  );
+}
 
 export default function Footer() {
   const footerLinks = {
@@ -26,21 +39,6 @@ export default function Footer() {
       { href: '/refunds-policy', label: 'Refunds Policy' },
     ],
   };
-
-
-
-
-  const BrandLogo = ({ compact = false }: { compact?: boolean }) => (
-  <Link href="/" className="flex items-center cursor-pointer">
-    <span className={cn(
-      "flex items-center justify-center rounded-md ",
-      compact ? "size-8 [&_svg]:!size-5" : "size-9 [&_svg]:!size-6",
-    )}>
-      <AgentBall className={compact ? "h-5 w-5" : "h-6 w-6"} />
-    </span>
-
-  </Link>
-)
 
   return (
     <footer className="w-full py-12 px-6 mt-auto bg-white border-t border-gray-100">

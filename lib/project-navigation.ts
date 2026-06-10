@@ -252,16 +252,19 @@ export function normalizeNavigationPlan({
 export function applyNavigationPlanToScreens(screens: ScreenPlan[], navigationPlan: NavigationPlan): ScreenPlan[] {
   return screens.map((screen) => {
     const screenChrome = navigationPlan.screenChrome.find((entry) => entry.screenName.toLowerCase() === screen.name.toLowerCase());
+    const existingPolicy = screen.chromePolicy ?? {
+      chrome: screenChrome?.chrome ?? (screen.type === "root" ? (navigationPlan.enabled ? "bottom-tabs" : "top-bar") : "top-bar-back"),
+      showPrimaryNavigation: Boolean(screenChrome?.navigationItemId),
+      showsBackButton: screen.type === "detail" && screenChrome?.chrome !== "modal-sheet",
+    };
     return {
       ...screen,
       navigationItemId: screenChrome?.navigationItemId ?? screen.navigationItemId ?? null,
-      chromePolicy: screen.chromePolicy
-        ? {
-            ...screen.chromePolicy,
-            chrome: screenChrome?.chrome ?? screen.chromePolicy.chrome,
-            showPrimaryNavigation: Boolean(screenChrome?.navigationItemId),
-          }
-        : screen.chromePolicy,
+      chromePolicy: {
+        ...existingPolicy,
+        chrome: screenChrome?.chrome ?? existingPolicy.chrome,
+        showPrimaryNavigation: Boolean(screenChrome?.navigationItemId),
+      },
     };
   });
 }

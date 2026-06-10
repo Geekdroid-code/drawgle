@@ -30,6 +30,7 @@ import {
 } from "@/lib/generation/screen-quality";
 import { findRepairTarget, replaceSourceRegion, type RepairTarget } from "@/lib/generation/screen-repair";
 import { sanitizeScreenCodeForSharedNavigation, validateNavigationShell } from "@/lib/project-navigation";
+import { deriveRequiresBottomNav } from "@/lib/navigation";
 import type { AgentStepMetadata } from "@/lib/agent/message-metadata";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchProjectMessages, insertProjectMessage } from "@/lib/supabase/queries";
@@ -911,6 +912,31 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
     .maybeSingle();
 
   const projectNavigationPlan = (projectNavigation?.plan as unknown as NavigationPlan | null) ?? null;
+
+  // Resolve chromePolicy and navigationItemId dynamically
+  const resolvedRequiresBottomNav = deriveRequiresBottomNav(navigationArchitecture);
+  const resolvedScreenChrome = projectNavigationPlan?.screenChrome?.find(
+    (entry) => entry.screenName.toLowerCase() === (screen.name || "").toLowerCase()
+  );
+  const resolvedNavigationItemId = screen.navigation_item_id ?? resolvedScreenChrome?.navigationItemId ?? null;
+  const resolvedIsRoot = resolvedScreenChrome?.chrome === "bottom-tabs" ||
+                         (screen.chrome_policy as ScreenPlan["chromePolicy"])?.chrome === "bottom-tabs" ||
+                         Boolean(resolvedNavigationItemId) ||
+                         (projectNavigationPlan?.items?.some(item => item.linkedScreenName.toLowerCase() === (screen.name || "").toLowerCase()) ?? false);
+
+  const resolvedChromePolicy = (screen.chrome_policy as ScreenPlan["chromePolicy"]) || {
+    chrome: resolvedScreenChrome?.chrome ?? (resolvedIsRoot ? (projectNavigationPlan?.enabled ? "bottom-tabs" : "top-bar") : "top-bar-back"),
+    showPrimaryNavigation: Boolean(resolvedScreenChrome?.navigationItemId),
+    showsBackButton: !resolvedIsRoot && resolvedScreenChrome?.chrome !== "modal-sheet",
+  };
+
+  const screenPlanForSave: ScreenPlan = {
+    name: screen.name,
+    type: resolvedIsRoot ? "root" : "detail",
+    description: screen.prompt || "",
+    chromePolicy: resolvedChromePolicy,
+    navigationItemId: resolvedNavigationItemId,
+  };
   const screenCode = ensureDrawgleIds(typeof screen.code === "string" && screen.code.length > 0 ? screen.code : "").code;
   const candidateBlockIndex = screen.block_index as ScreenBlockIndex | null;
   const blockIndex = isScreenBlockIndexUsable(screenCode, candidateBlockIndex)
@@ -972,13 +998,6 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
       ? targetBlockIds.map((id) => blockIndex.blocks.find((block) => block.id === id)?.name ?? id).join(", ")
       : "full screen";
   const screenPrompt = typeof screen.prompt === "string" ? screen.prompt : "";
-  const screenPlanForSave: ScreenPlan = {
-    name: screen.name,
-    type: "root",
-    description: screenPrompt,
-    chromePolicy: (screen.chrome_policy as ScreenChromePolicy | null) ?? null,
-    navigationItemId: typeof screen.navigation_item_id === "string" ? screen.navigation_item_id : null,
-  };
   const normalizeScreenCodeForSave = (code: string) =>
     ensureDrawgleIds(tokenizeStaticDrawgleHtml(sanitizeScreenCodeForSharedNavigation(stripGenerationCompleteSentinel(code), screenPlanForSave), designTokens).code).code;
   const health = detectScreenHealth({ code: screenCode, screenPrompt });
@@ -1129,6 +1148,9 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
       designTokens,
       projectCharter,
       navigationArchitecture,
+      screenPlan: screenPlanForSave,
+      navigationPlan: projectNavigationPlan,
+      requiresBottomNav: resolvedRequiresBottomNav,
       llmLog,
       onRawResponse: (rawText) => {
         rawReplacement = rawText;
@@ -1642,6 +1664,9 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
     navigationArchitecture,
     selectedElementHtml: selectedSourceElementHtml,
     selectedElementDrawgleId,
+    screenPlan: screenPlanForSave,
+    navigationPlan: projectNavigationPlan,
+    requiresBottomNav: resolvedRequiresBottomNav,
   }, llmLog);
   let nextCode = normalizeEditedCode(responseToApply);
 
@@ -1664,6 +1689,9 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
       navigationArchitecture,
       selectedElementHtml: selectedSourceElementHtml,
       selectedElementDrawgleId,
+      screenPlan: screenPlanForSave,
+      navigationPlan: projectNavigationPlan,
+      requiresBottomNav: resolvedRequiresBottomNav,
     }, llmLog);
 
     if (retryResponse.trim()) {
@@ -1696,6 +1724,9 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
         designTokens,
         projectCharter,
         navigationArchitecture,
+        screenPlan: screenPlanForSave,
+        navigationPlan: projectNavigationPlan,
+        requiresBottomNav: resolvedRequiresBottomNav,
         llmLog,
       });
 
