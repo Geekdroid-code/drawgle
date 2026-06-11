@@ -1,0 +1,9 @@
+node_modules/
+.next/
+coverage/
+.DS_Store
+*.log
+.trigger/
+.trigger-build/
+.env*
+!.env.example

@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link id="drawgle-google-font" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap">
+    <style>
+:root {
+  --dg-color-text-low-emphasis: #A0A0B8;
+  --dg-color-text-high-emphasis: #121212;
+  --dg-color-text-medium-emphasis: #6B6B80;
+  --dg-color-accent-ochre: #FFD28D;
+  --dg-color-accent-violet: #8E8FFA;
+  --dg-color-action-primary: #121212;
+  --dg-color-action-disabled: #D1D1E0;
+  --dg-color-action-secondary: #8E8FFA;
+  --dg-color-action-on-primary-text: #FFFFFF;
+  --dg-color-border-divider: #E8E8F5;
+  --dg-color-border-focused: #8E8FFA;
+  --dg-color-surface-card: #FFFFFF;
+  --dg-color-surface-modal: #121212;
+  --dg-color-surface-bottom-sheet: #FFFFFF;
+  --dg-color-background-primary: #F8F8FF;
+  --dg-color-background-secondary: #E0E0FF;
+  --dg-radii-app: 32px;
+  --dg-radii-pill: 9999px;
+  --dg-sizing-icon-small: 18px;
+  --dg-sizing-icon-standard: 24px;
+  --dg-sizing-min-touch-target: 48px;
+  --dg-sizing-bottom-nav-height: 72px;
+  --dg-sizing-standard-input-height: 52px;
+  --dg-sizing-standard-button-height: 56px;
+  --dg-shadows-none: none;
+  --dg-shadows-overlay: 0px 16px 48px rgba(0, 0, 0, 0.12);
+  --dg-shadows-surface: 0px 8px 24px rgba(142, 143, 250, 0.08);
+  --dg-spacing-none: 0px;
+  --dg-spacing-lg: 24px;
+  --dg-spacing-md: 16px;
+  --dg-spacing-sm: 12px;
+  --dg-spacing-xl: 32px;
+  --dg-spacing-xs: 8px;
+  --dg-spacing-xxl: 48px;
+  --dg-spacing-xxs: 4px;
+  --dg-z-index-base: 0;
+  --dg-z-index-bottom-nav: 20;
+  --dg-z-index-bottom-sheet: 30;
+  --dg-z-index-modal-dialog: 40;
+  --dg-z-index-sticky-header: 10;
+  --dg-z-index-toast-snackbar: 50;
+  --dg-opacities-opaque: 1;
+  --dg-opacities-pressed: 0.12;
+  --dg-opacities-disabled: 0.38;
+  --dg-opacities-transparent: 0;
+  --dg-opacities-scrim-overlay: 0.50;
+  --dg-typography-font-family: 'Plus Jakarta Sans', sans-serif;
+  --dg-type-nav-title-size: 20px;
+  --dg-type-nav-title-weight: 700;
+  --dg-type-nav-title-line-height: 28px;
+  --dg-type-screen-title-size: 20px;
+  --dg-type-screen-title-weight: 700;
+  --dg-type-screen-title-line-height: 28px;
+  --dg-type-hero-title-size: 32px;
+  --dg-type-hero-title-weight: 800;
+  --dg-type-hero-title-line-height: 40px;
+  --dg-type-section-title-size: 20px;
+  --dg-type-section-title-weight: 700;
+  --dg-type-section-title-line-height: 28px;
+  --dg-type-metric-value-size: 32px;
+  --dg-type-metric-value-weight: 800;
+  --dg-type-metric-value-line-height: 40px;
+  --dg-type-body-size: 16px;
+  --dg-type-body-weight: 500;
+  --dg-type-body-line-height: 24px;
+  --dg-type-supporting-size: 14px;
+  --dg-type-supporting-weight: 400;
+  --dg-type-supporting-line-height: 20px;
+  --dg-type-caption-size: 12px;
+  --dg-type-caption-weight: 600;
+  --dg-type-caption-line-height: 16px;
+  --dg-type-button-label-size: 15px;
+  --dg-type-button-label-weight: 700;
+  --dg-type-button-label-line-height: 20px;
+  --dg-border-widths-standard: 1px;
+  --dg-mobile-layout-element-gap: 12px;
+  --dg-mobile-layout-section-gap: 24px;
+  --dg-mobile-layout-safe-area-top: 16px;
+  --dg-mobile-layout-screen-margin: 24px;
+  --dg-mobile-layout-safe-area-bottom: 16px;
+}
+
+#root {
+  --dg-preview-background: var(--dg-color-background-primary, #ffffff);
+  background: var(--dg-preview-background);
+}
+
+.dg-bg-primary { background-color: var(--dg-color-background-primary); }
+.dg-bg-secondary { background-color: var(--dg-color-background-secondary); }
+.dg-surface-card { background-color: var(--dg-color-surface-card); }
+.dg-surface-bottom-sheet { background-color: var(--dg-color-surface-bottom-sheet); }
+.dg-surface-modal { background-color: var(--dg-color-surface-modal); }
+.dg-text-high { color: var(--dg-color-text-high-emphasis); }
+.dg-text-medium { color: var(--dg-color-text-medium-emphasis); }
+.dg-text-low { color: var(--dg-color-text-low-emphasis); }
+.dg-action-primary {
+  background-color: var(--dg-color-action-primary);
+  color: var(--dg-color-action-on-primary-text);
+}
+.dg-action-secondary { background-color: var(--dg-color-action-secondary); }
+.dg-border-divider { border-color: var(--dg-color-border-divider); }
+.dg-border-focused { border-color: var(--dg-color-border-focused); }
+.dg-radius-app { border-radius: var(--dg-radii-app); }
+.dg-radius-pill { border-radius: var(--dg-radii-pill); }
+.dg-shadow-surface { box-shadow: var(--dg-shadows-surface); }
+.dg-shadow-overlay { box-shadow: var(--dg-shadows-overlay); }
+.dg-screen-padding { padding-left: var(--dg-mobile-layout-screen-margin); padding-right: var(--dg-mobile-layout-screen-margin); }
+.dg-section-gap { gap: var(--dg-mobile-layout-section-gap); }
+.dg-element-gap { gap: var(--dg-mobile-layout-element-gap); }
+
+.dg-type-nav-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-nav-title-size);
+  font-weight: var(--dg-type-nav-title-weight);
+  line-height: var(--dg-type-nav-title-line-height);
+}
+
+.dg-type-screen-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-screen-title-size);
+  font-weight: var(--dg-type-screen-title-weight);
+  line-height: var(--dg-type-screen-title-line-height);
+}
+
+.dg-type-hero-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-hero-title-size);
+  font-weight: var(--dg-type-hero-title-weight);
+  line-height: var(--dg-type-hero-title-line-height);
+}
+
+.dg-type-section-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-section-title-size);
+  font-weight: var(--dg-type-section-title-weight);
+  line-height: var(--dg-type-section-title-line-height);
+}
+
+.dg-type-metric-value {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-metric-value-size);
+  font-weight: var(--dg-type-metric-value-weight);
+  line-height: var(--dg-type-metric-value-line-height);
+}
+
+.dg-type-body {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-body-size);
+  font-weight: var(--dg-type-body-weight);
+  line-height: var(--dg-type-body-line-height);
+}
+
+.dg-type-supporting {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-supporting-size);
+  font-weight: var(--dg-type-supporting-weight);
+  line-height: var(--dg-type-supporting-line-height);
+}
+
+.dg-type-caption {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-caption-size);
+  font-weight: var(--dg-type-caption-weight);
+  line-height: var(--dg-type-caption-line-height);
+}
+
+.dg-type-button-label {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-button-label-size);
+  font-weight: var(--dg-type-button-label-weight);
+  line-height: var(--dg-type-button-label-line-height);
+}
+      html, body { margin: 0; min-height: 100%; }
+      body {
+        font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+        background: var(--dg-color-background-primary, #ffffff);
+        color: var(--dg-color-text-high-emphasis, #111827);
+      }
+      #drawgle-export-root {
+        position: relative;
+        min-height: 100vh;
+        overflow-x: hidden;
+        background: var(--dg-color-background-primary, #ffffff);
+      }
+      #drawgle-export-navigation { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; pointer-events: none; }
+      #drawgle-export-navigation [data-drawgle-primary-nav] { pointer-events: auto; }
+    </style>
+  </head>
+  <body>
+    <div id="drawgle-export-root">
+<div class="w-full min-h-screen bg-[#F8F8FF] flex flex-col relative overflow-hidden" style="font-family: 'Plus Jakarta Sans', sans-serif">
+  
+  <!-- Top Navigation Bar -->
+  <header class="w-full px-[24px] pt-[16px] flex items-center justify-between h-[64px] z-[10]">
+    <div class="w-[48px] h-[48px] flex items-center justify-start">
+      <!-- Back button omitted per Navigation Architecture Contract for root screens -->
+    </div>
+    <h1 class="text-[#121212] text-[20px] font-[700] leading-[28px]">Analytics</h1>
+    <button class="w-[48px] h-[48px] flex items-center justify-end text-[#121212]">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+    </button>
+  </header>
+
+  <!-- Main Content Scroll Area -->
+  <main class="flex-1 overflow-y-auto px-[24px] pb-[100px] space-y-[24px]">
+    
+    <!-- Choose Account Card -->
+    <section class="w-full bg-white rounded-[32px] p-[16px] shadow-[0px_8px_24px_rgba(142,143,250,0.08)] flex items-center justify-between border border-[#E8E8F5]">
+      <div class="flex items-center gap-[12px]">
+        <div class="w-[48px] h-[48px] bg-[#F8F8FF] rounded-full flex items-center justify-center">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path d="M17.05 20.28c-.96.01-1.76-.56-2.62-.56-.85 0-1.75.57-2.63.56-2.01-.02-4.14-1.37-4.14-4.58 0-2.48 1.51-3.8 2.98-3.8 1.01 0 1.7.54 2.34.54.63 0 1.44-.54 2.41-.54 1.1 0 2.22.48 2.88 1.44-2.31 1.11-1.94 4.18.38 5.24-.51 1.28-1.2 2.49-2.6 2.7zm-2.47-11.32c.54-.68.89-1.61.89-2.54 0-.13-.02-.26-.04-.38-.88.04-1.94.61-2.57 1.37-.51.6-.94 1.55-.94 2.48 0 .14.02.28.05.38.97-.03 1.99-.61 2.61-1.31z"/>
+          </svg>
+        </div>
+        <div>
+          <p class="text-[#121212] text-[16px] font-[600] leading-[20px]">Apple Card</p>
+          <p class="text-[#A0A0B8] text-[12px] font-[500]">**** 1234</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-[8px]">
+        <p class="text-[#121212] text-[16px] font-[700]">$12,450.00</p>
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6B6B80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+    </section>
+
+    <!-- Analytics Card (Midnight Onyx) -->
+    <section class="w-full bg-[#121212] rounded-[32px] p-[24px] flex items-center gap-[24px] shadow-overlay">
+      <!-- Donut Chart -->
+      <div class="relative w-[120px] h-[120px] flex-shrink-0">
+        <svg class="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+          <!-- Background Circle -->
+          <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="#2A2A2A" stroke-width="4"></circle>
+          <!-- Savings Segment (Lavender) -->
+          <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="#E0E0FF" stroke-width="4" stroke-dasharray="100 100" stroke-dashoffset="0"></circle>
+          <!-- Available Segment (Teal) -->
+          <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="#4FD1C5" stroke-width="4" stroke-dasharray="90 100" stroke-dashoffset="0"></circle>
+          <!-- Spent Segment (Amber) -->
+          <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="#FFD28D" stroke-width="4" stroke-dasharray="70 100" stroke-dashoffset="0"></circle>
+          <!-- Earned Segment (Violet) -->
+          <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="#8E8FFA" stroke-width="4" stroke-dasharray="45 100" stroke-dashoffset="0"></circle>
+        </svg>
+        <div class="absolute inset-0 flex flex-col items-center justify-center">
+          <span class="text-white text-[12px] font-[700]">Total</span>
+          <span class="text-white text-[10px] opacity-60">March</span>
+        </div>
+      </div>
+
+      <!-- Legend -->
+      <div class="flex flex-col gap-[12px] flex-1">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-[8px]">
+            <div class="w-[8px] h-[8px] rounded-full bg-[#8E8FFA]"></div>
+            <span class="text-white text-[14px] font-[500]">Earned</span>
+          </div>
+          <span class="text-white text-[14px] font-[600]">45%</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-[8px]">
+            <div class="w-[8px] h-[8px] rounded-full bg-[#FFD28D]"></div>
+            <span class="text-white text-[14px] font-[500]">Spent</span>
+          </div>
+          <span class="text-white text-[14px] font-[600]">25%</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-[8px]">
+            <div class="w-[8px] h-[8px] rounded-full bg-[#4FD1C5]"></div>
+            <span class="text-white text-[14px] font-[500]">Available</span>
+          </div>
+          <span class="text-white text-[14px] font-[600]">20%</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-[8px]">
+            <div class="w-[8px] h-[8px] rounded-full bg-[#E0E0FF]"></div>
+            <span class="text-white text-[14px] font-[500]">Savings</span>
+          </div>
+          <span class="text-white text-[14px] font-[600]">10%</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Budget for March Section -->
+    <section class="w-full space-y-[12px]">
+      <div class="flex items-center justify-between">
+        <h2 class="text-[#121212] text-[18px] font-[700]">Budget for March</h2>
+        <button class="w-[40px] h-[40px] bg-white rounded-full flex items-center justify-center shadow-surface border border-[#E8E8F5]">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#121212" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+        </button>
+      </div>
+      
+      <div class="w-full h-[12px] bg-[#E0E0FF] rounded-full overflow-hidden">
+        <div class="h-full bg-[#8E8FFA] rounded-full" style="width: 72%"></div>
+      </div>
+      
+      <div class="flex items-center justify-between">
+        <p class="text-[#6B6B80] text-[14px] font-[500]">Amount: <span class="text-[#121212] font-[700]">$20,256</span></p>
+        <p class="text-[#8E8FFA] text-[14px] font-[700]">72% used</p>
+      </div>
+    </section>
+
+    <!-- Category Grid -->
+    <section class="grid grid-cols-2 gap-[16px]">
+      <!-- Bills Card -->
+      <div class="bg-white p-[20px] rounded-[32px] shadow-surface border border-[#E8E8F5] flex flex-col gap-[12px]">
+        <div class="flex items-center justify-between">
+          <div class="w-[40px] h-[40px] bg-[#F8F8FF] rounded-full flex items-center justify-center text-[#8E8FFA]">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1-2-1Z"/><path d="M16 8h-6"/><path d="M16 12h-9"/><path d="M10 16h-3"/></svg>
+          </div>
+          <span class="text-[#A0A0B8] text-[12px] font-[600]">12 items</span>
+        </div>
+        <div>
+          <p class="text-[#6B6B80] text-[14px] font-[500]">Bills</p>
+          <p class="text-[#121212] text-[18px] font-[800]">$1,240.00</p>
+        </div>
+      </div>
+
+      <!-- Food Card -->
+      <div class="bg-white p-[20px] rounded-[32px] shadow-surface border border-[#E8E8F5] flex flex-col gap-[12px]">
+        <div class="flex items-center justify-between">
+          <div class="w-[40px] h-[40px] bg-[#F8F8FF] rounded-full flex items-center justify-center text-[#FFD28D]">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8c.3 0 .6.1.8.4l1.4 1.6c.7.8.7 2 .1 2.7L13 19c-.6.6-1.5.6-2.1 0L4.7 12.7c-.6-.7-.6-1.9.1-2.7l1.4-1.6c.2-.3.5-.4.8-.4H17Z"/><path d="M8 8V4c0-1.1.9-2 2-2h4c1.1 0 2 .9 2 2v4"/><path d="M11 13h2"/><path d="M12 12v3"/></svg>
+          </div>
+          <span class="text-[#A0A0B8] text-[12px] font-[600]">24 items</span>
+        </div>
+        <div>
+          <p class="text-[#6B6B80] text-[14px] font-[500]">Food</p>
+          <p class="text-[#121212] text-[18px] font-[800]">$850.00</p>
+        </div>
+      </div>
+
+      <!-- Shopping Card -->
+      <div class="bg-white p-[20px] rounded-[32px] shadow-surface border border-[#E8E8F5] flex flex-col gap-[12px]">
+        <div class="flex items-center justify-between">
+          <div class="w-[40px] h-[40px] bg-[#F8F8FF] rounded-full flex items-center justify-center text-[#8E8FFA]">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+          </div>
+          <span class="text-[#A0A0B8] text-[12px] font-[600]">18 items</span>
+        </div>
+        <div>
+          <p class="text-[#6B6B80] text-[14px] font-[500]">Shopping</p>
+          <p class="text-[#121212] text-[18px] font-[800]">$2,100.00</p>
+        </div>
+      </div>
+
+      <!-- Transport Card -->
+      <div class="bg-white p-[20px] rounded-[32px] shadow-surface border border-[#E8E8F5] flex flex-col gap-[12px]">
+        <div class="flex items-center justify-between">
+          <div class="w-[40px] h-[40px] bg-[#F8F8FF] rounded-full flex items-center justify-center text-[#4FD1C5]">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-1.1 0-2 .9-2 2v7c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>
+          </div>
+          <span class="text-[#A0A0B8] text-[12px] font-[600]">8 items</span>
+        </div>
+        <div>
+          <p class="text-[#6B6B80] text-[14px] font-[500]">Transport</p>
+          <p class="text-[#121212] text-[18px] font-[800]">$320.00</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Bottom space for shared navigation dock -->
+  <div class="h-[88px] w-full"></div>
+</div>
+      <div id="drawgle-export-navigation"><nav data-drawgle-primary-nav class="dg-nav-shell" aria-label="Primary navigation">
+  <style>
+    [data-drawgle-primary-nav].dg-nav-shell {
+      position: fixed;
+      bottom: var(--dg-mobile-layout-safe-area-bottom);
+      left: 50%;
+      transform: translateX(-50%);
+      width: calc(100% - (var(--dg-mobile-layout-screen-margin) * 2));
+      max-width: 342px;
+      height: 76px;
+      background: var(--dg-color-surface-modal); /* Midnight Onyx */
+      border-radius: var(--dg-radii-app); /* 32pt Super-ellipse */
+      box-shadow: var(--dg-shadows-overlay);
+      padding: 8px;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      box-sizing: border-box;
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-item {
+      position: relative;
+      flex: 1;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      background: transparent;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-icon-container {
+      width: 44px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--dg-radii-pill);
+      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      color: var(--dg-color-text-low-emphasis);
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-item[] .dg-nav-icon-container {
+      background: var(--dg-color-action-secondary); /* Electric Violet */
+      color: var(--dg-color-action-on-primary-text);
+      transform: translateY(-4px);
+      box-shadow: 0 8px 16px rgba(142, 143, 250, 0.3);
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-icon-container i {
+      width: var(--dg-sizing-icon-standard);
+      height: var(--dg-sizing-icon-standard);
+      stroke-width: 2px;
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-label {
+      font-family: inherit;
+      font-size: var(--dg-type-caption-size);
+      font-weight: var(--dg-type-caption-weight);
+      line-height: var(--dg-type-caption-line-height);
+      color: var(--dg-color-text-low-emphasis);
+      transition: color 0.2s ease;
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-item[] .dg-nav-label {
+      color: var(--dg-color-action-on-primary-text);
+    }
+
+    /* Active indicator dot */
+    [data-drawgle-primary-nav] .dg-nav-item[]::after {
+      content: '';
+      position: absolute;
+      bottom: 2px;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--dg-color-action-secondary);
+    }
+  </style>
+
+  <button type="button" class="dg-nav-item" data-nav-item-id="dashboard" aria-label="Dashboard">
+    <span class="dg-nav-icon-container">
+      <i data-lucide="layout-dashboard"></i>
+    </span>
+    <span class="dg-nav-label">Dashboard</span>
+  </button>
+
+  <button type="button" class="dg-nav-item" data-nav-item-id="transactions" aria-label="Transactions">
+    <span class="dg-nav-icon-container">
+      <i data-lucide="arrow-up-down"></i>
+    </span>
+    <span class="dg-nav-label">Activity</span>
+  </button>
+
+  <button type="button" class="dg-nav-item" data-nav-item-id="analytics" aria-label="Analytics">
+    <span class="dg-nav-icon-container">
+      <i data-lucide="pie-chart"></i>
+    </span>
+    <span class="dg-nav-label">Insights</span>
+  </button>
+</nav></div>
+    </div>
+    <script>
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+      document.querySelectorAll('[data-nav-item-id]').forEach(function(item) {
+        var active = item.getAttribute('data-nav-item-id') === "home";
+        item.setAttribute('data-active', active ? 'true' : 'false');
+        item.setAttribute('aria-current', active ? 'page' : 'false');
+      });
+    </script>
+  </body>
+</html>

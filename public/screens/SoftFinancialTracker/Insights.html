@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link id="drawgle-google-font" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;500;600;700&amp;display=swap">
+    <style>
+:root {
+  --dg-color-text-low-emphasis: #999999;
+  --dg-color-text-high-emphasis: #000000;
+  --dg-color-text-medium-emphasis: #666666;
+  --dg-color-action-error: #FF3B30;
+  --dg-color-action-primary: #000000;
+  --dg-color-action-success: #2ECC71;
+  --dg-color-action-disabled: #D1D1D1;
+  --dg-color-action-secondary: #E8E8E8;
+  --dg-color-action-accent-blue: #4A90E2;
+  --dg-color-action-on-primary-text: #FFFFFF;
+  --dg-color-border-divider: #EEEEEE;
+  --dg-color-border-focused: #000000;
+  --dg-color-surface-card: #FFFFFF;
+  --dg-color-surface-modal: #FFFFFF;
+  --dg-color-surface-bottom-sheet: #FFFFFF;
+  --dg-color-background-primary: #FFFFFF;
+  --dg-color-background-secondary: #F8F8F8;
+  --dg-radii-app: 28px;
+  --dg-radii-pill: 9999px;
+  --dg-sizing-icon-small: 18px;
+  --dg-sizing-icon-standard: 24px;
+  --dg-sizing-min-touch-target: 48px;
+  --dg-sizing-bottom-nav-height: 84px;
+  --dg-sizing-standard-input-height: 52px;
+  --dg-sizing-standard-button-height: 56px;
+  --dg-shadows-none: none;
+  --dg-shadows-overlay: 0px 10px 40px rgba(0, 0, 0, 0.12);
+  --dg-shadows-surface: 0px 4px 20px rgba(0, 0, 0, 0.06);
+  --dg-spacing-none: 0px;
+  --dg-spacing-lg: 24px;
+  --dg-spacing-md: 16px;
+  --dg-spacing-sm: 12px;
+  --dg-spacing-xl: 32px;
+  --dg-spacing-xs: 8px;
+  --dg-spacing-xxl: 48px;
+  --dg-spacing-xxs: 4px;
+  --dg-z-index-base: 0;
+  --dg-z-index-bottom-nav: 20;
+  --dg-z-index-bottom-sheet: 30;
+  --dg-z-index-modal-dialog: 40;
+  --dg-z-index-sticky-header: 10;
+  --dg-z-index-toast-snackbar: 50;
+  --dg-opacities-opaque: 1;
+  --dg-opacities-pressed: 0.12;
+  --dg-opacities-disabled: 0.38;
+  --dg-opacities-transparent: 0;
+  --dg-opacities-scrim-overlay: 0.50;
+  --dg-typography-font-family: 'SF Pro Display', 'Inter', sans-serif;
+  --dg-type-nav-title-size: 17px;
+  --dg-type-nav-title-weight: 600;
+  --dg-type-nav-title-line-height: 22px;
+  --dg-type-screen-title-size: 24px;
+  --dg-type-screen-title-weight: 700;
+  --dg-type-screen-title-line-height: 30px;
+  --dg-type-hero-title-size: 34px;
+  --dg-type-hero-title-weight: 700;
+  --dg-type-hero-title-line-height: 41px;
+  --dg-type-section-title-size: 18px;
+  --dg-type-section-title-weight: 600;
+  --dg-type-section-title-line-height: 24px;
+  --dg-type-metric-value-size: 32px;
+  --dg-type-metric-value-weight: 700;
+  --dg-type-metric-value-line-height: 38px;
+  --dg-type-body-size: 16px;
+  --dg-type-body-weight: 400;
+  --dg-type-body-line-height: 24px;
+  --dg-type-supporting-size: 14px;
+  --dg-type-supporting-weight: 500;
+  --dg-type-supporting-line-height: 20px;
+  --dg-type-caption-size: 12px;
+  --dg-type-caption-weight: 400;
+  --dg-type-caption-line-height: 16px;
+  --dg-type-button-label-size: 15px;
+  --dg-type-button-label-weight: 600;
+  --dg-type-button-label-line-height: 20px;
+  --dg-border-widths-standard: 0px;
+  --dg-mobile-layout-element-gap: 12px;
+  --dg-mobile-layout-section-gap: 32px;
+  --dg-mobile-layout-safe-area-top: 16px;
+  --dg-mobile-layout-screen-margin: 20px;
+  --dg-mobile-layout-safe-area-bottom: 16px;
+}
+
+#root {
+  --dg-preview-background: var(--dg-color-background-primary, #ffffff);
+  background: var(--dg-preview-background);
+}
+
+.dg-bg-primary { background-color: var(--dg-color-background-primary); }
+.dg-bg-secondary { background-color: var(--dg-color-background-secondary); }
+.dg-surface-card { background-color: var(--dg-color-surface-card); }
+.dg-surface-bottom-sheet { background-color: var(--dg-color-surface-bottom-sheet); }
+.dg-surface-modal { background-color: var(--dg-color-surface-modal); }
+.dg-text-high { color: var(--dg-color-text-high-emphasis); }
+.dg-text-medium { color: var(--dg-color-text-medium-emphasis); }
+.dg-text-low { color: var(--dg-color-text-low-emphasis); }
+.dg-action-primary {
+  background-color: var(--dg-color-action-primary);
+  color: var(--dg-color-action-on-primary-text);
+}
+.dg-action-secondary { background-color: var(--dg-color-action-secondary); }
+.dg-border-divider { border-color: var(--dg-color-border-divider); }
+.dg-border-focused { border-color: var(--dg-color-border-focused); }
+.dg-radius-app { border-radius: var(--dg-radii-app); }
+.dg-radius-pill { border-radius: var(--dg-radii-pill); }
+.dg-shadow-surface { box-shadow: var(--dg-shadows-surface); }
+.dg-shadow-overlay { box-shadow: var(--dg-shadows-overlay); }
+.dg-screen-padding { padding-left: var(--dg-mobile-layout-screen-margin); padding-right: var(--dg-mobile-layout-screen-margin); }
+.dg-section-gap { gap: var(--dg-mobile-layout-section-gap); }
+.dg-element-gap { gap: var(--dg-mobile-layout-element-gap); }
+
+.dg-type-nav-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-nav-title-size);
+  font-weight: var(--dg-type-nav-title-weight);
+  line-height: var(--dg-type-nav-title-line-height);
+}
+
+.dg-type-screen-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-screen-title-size);
+  font-weight: var(--dg-type-screen-title-weight);
+  line-height: var(--dg-type-screen-title-line-height);
+}
+
+.dg-type-hero-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-hero-title-size);
+  font-weight: var(--dg-type-hero-title-weight);
+  line-height: var(--dg-type-hero-title-line-height);
+}
+
+.dg-type-section-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-section-title-size);
+  font-weight: var(--dg-type-section-title-weight);
+  line-height: var(--dg-type-section-title-line-height);
+}
+
+.dg-type-metric-value {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-metric-value-size);
+  font-weight: var(--dg-type-metric-value-weight);
+  line-height: var(--dg-type-metric-value-line-height);
+}
+
+.dg-type-body {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-body-size);
+  font-weight: var(--dg-type-body-weight);
+  line-height: var(--dg-type-body-line-height);
+}
+
+.dg-type-supporting {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-supporting-size);
+  font-weight: var(--dg-type-supporting-weight);
+  line-height: var(--dg-type-supporting-line-height);
+}
+
+.dg-type-caption {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-caption-size);
+  font-weight: var(--dg-type-caption-weight);
+  line-height: var(--dg-type-caption-line-height);
+}
+
+.dg-type-button-label {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-button-label-size);
+  font-weight: var(--dg-type-button-label-weight);
+  line-height: var(--dg-type-button-label-line-height);
+}
+      html, body { margin: 0; min-height: 100%; }
+      body {
+        font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+        background: var(--dg-color-background-primary, #ffffff);
+        color: var(--dg-color-text-high-emphasis, #111827);
+      }
+      #drawgle-export-root {
+        position: relative;
+        min-height: 100vh;
+        overflow-x: hidden;
+        background: var(--dg-color-background-primary, #ffffff);
+      }
+      #drawgle-export-navigation { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; pointer-events: none; }
+      #drawgle-export-navigation [data-drawgle-primary-nav] { pointer-events: auto; }
+    </style>
+  </head>
+  <body>
+    <div id="drawgle-export-root">
+<div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden" style="font-family: var(--dg-typography-font-family, 'SF Pro Display', 'Inter', sans-serif)">
+  
+  <!-- Header -->
+  <header class="flex items-center justify-between px-[var(--dg-mobile-layout-screen-margin)] pt-[var(--dg-mobile-layout-safe-area-top)] pb-[var(--dg-spacing-md)]">
+    <div class="w-[44px] h-[44px] flex items-center justify-center bg-[var(--dg-color-action-secondary)] rounded-full">
+      <i data-lucide="user" class="w-[20px] h-[20px]"></i>
+    </div>
+    <h1 class="dg-type-nav-title">Insights</h1>
+    <button class="w-[44px] h-[44px] flex items-center justify-center bg-[var(--dg-color-action-secondary)] rounded-full">
+      <i data-lucide="sliders-horizontal" class="w-[20px] h-[20px]"></i>
+    </button>
+  </header>
+
+  <!-- Main Content Scroll Area -->
+  <main class="flex-1 overflow-y-auto px-[var(--dg-mobile-layout-screen-margin)] pb-[calc(var(--dg-sizing-bottom-nav-height)+32px)]">
+    
+    <!-- Budget Status Card -->
+    <section class="dg-surface-card rounded-[var(--dg-radii-app)] p-[var(--dg-spacing-md)] shadow-[var(--dg-shadows-surface)] mb-[var(--dg-mobile-layout-section-gap)]" style="background-color: var(--dg-color-background-secondary)">
+      <div class="flex justify-between items-center mb-[var(--dg-spacing-xs)]">
+        <span class="dg-type-supporting text-[var(--dg-color-text-medium-emphasis)]">Monthly Dining Out Budget</span>
+      </div>
+      <span class="dg-type-section-title">$120 left of $500</span>
+      <div class="w-full h-[8px] bg-[#E0E0E0] rounded-full mt-[var(--dg-spacing-md)] overflow-hidden">
+        <div class="h-full bg-[var(--dg-color-action-error)] rounded-full shadow-[0_0_8px_rgba(255,59,48,0.4)]" style="width: 76%"></div>
+      </div>
+    </section>
+
+    <!-- Primary Analytics Card -->
+    <section class="dg-surface-card rounded-[var(--dg-radii-app)] p-[var(--dg-spacing-xl)] shadow-[var(--dg-shadows-surface)] mb-[var(--dg-mobile-layout-section-gap)]" style="background-color: var(--dg-color-background-secondary)">
+      <div class="flex justify-between items-start mb-[var(--dg-spacing-md)]">
+        <div class="flex flex-col">
+          <span class="dg-type-supporting text-[var(--dg-color-text-medium-emphasis)]">Total spent</span>
+          <span class="dg-type-metric-value mt-[var(--dg-spacing-xxs)]">$109,520.00</span>
+        </div>
+        <div class="flex items-center gap-[var(--dg-spacing-xxs)] px-[var(--dg-spacing-xs)] py-[var(--dg-spacing-xxs)] bg-[#E8F8F0] rounded-[var(--dg-radii-pill)]">
+          <i data-lucide="arrow-up-right" class="w-[12px] h-[12px] text-[var(--dg-color-action-success)]"></i>
+          <span class="dg-type-caption font-bold text-[var(--dg-color-action-success)]">+3.5%</span>
+        </div>
+      </div>
+
+      <!-- Bar Chart Area -->
+      <div class="h-[180px] flex items-end justify-between gap-[var(--dg-spacing-xs)] mt-[var(--dg-spacing-xl)]">
+        <!-- Mon -->
+        <div class="flex-1 flex flex-col items-center gap-[var(--dg-spacing-xs)]">
+          <div class="w-full h-[140px] bg-[#F0F0F0] rounded-[12px] relative overflow-hidden">
+            <div class="absolute bottom-0 left-0 right-0 h-[60%] rounded-[12px] bg-gradient-to-t from-[var(--dg-color-action-accent-blue)] to-[#8ECAFF] shadow-[inset_0_0_12px_rgba(255,255,255,0.4)]"></div>
+          </div>
+          <span class="dg-type-caption text-[var(--dg-color-text-low-emphasis)]">Mon</span>
+        </div>
+        <!-- Tue -->
+        <div class="flex-1 flex flex-col items-center gap-[var(--dg-spacing-xs)]">
+          <div class="w-full h-[140px] bg-[#F0F0F0] rounded-[12px] relative overflow-hidden">
+            <div class="absolute bottom-0 left-0 right-0 h-[85%] rounded-[12px] bg-gradient-to-t from-[var(--dg-color-action-accent-blue)] to-[#8ECAFF] shadow-[inset_0_0_12px_rgba(255,255,255,0.4)]"></div>
+          </div>
+          <span class="dg-type-caption text-[var(--dg-color-text-low-emphasis)]">Tue</span>
+        </div>
+        <!-- Wed -->
+        <div class="flex-1 flex flex-col items-center gap-[var(--dg-spacing-xs)]">
+          <div class="w-full h-[140px] bg-[#F0F0F0] rounded-[12px] relative overflow-hidden">
+            <div class="absolute bottom-0 left-0 right-0 h-[45%] rounded-[12px] bg-gradient-to-t from-[var(--dg-color-action-accent-blue)] to-[#8ECAFF] shadow-[inset_0_0_12px_rgba(255,255,255,0.4)]"></div>
+          </div>
+          <span class="dg-type-caption text-[var(--dg-color-text-low-emphasis)]">Wed</span>
+        </div>
+        <!-- Thu -->
+        <div class="flex-1 flex flex-col items-center gap-[var(--dg-spacing-xs)]">
+          <div class="w-full h-[140px] bg-[#F0F0F0] rounded-[12px] relative overflow-hidden">
+            <div class="absolute bottom-0 left-0 right-0 h-[70%] rounded-[12px] bg-gradient-to-t from-[var(--dg-color-action-accent-blue)] to-[#8ECAFF] shadow-[inset_0_0_12px_rgba(255,255,255,0.4)]"></div>
+          </div>
+          <span class="dg-type-caption text-[var(--dg-color-text-low-emphasis)]">Thu</span>
+        </div>
+        <!-- Fri -->
+        <div class="flex-1 flex flex-col items-center gap-[var(--dg-spacing-xs)]">
+          <div class="w-full h-[140px] bg-[#F0F0F0] rounded-[12px] relative overflow-hidden">
+            <div class="absolute bottom-0 left-0 right-0 h-[30%] rounded-[12px] bg-gradient-to-t from-[var(--dg-color-action-accent-blue)] to-[#8ECAFF] shadow-[inset_0_0_12px_rgba(255,255,255,0.4)]"></div>
+          </div>
+          <span class="dg-type-caption text-[var(--dg-color-text-low-emphasis)]">Fri</span>
+        </div>
+        <!-- Sat -->
+        <div class="flex-1 flex flex-col items-center gap-[var(--dg-spacing-xs)]">
+          <div class="w-full h-[140px] bg-[#F0F0F0] rounded-[12px] relative overflow-hidden">
+            <div class="absolute bottom-0 left-0 right-0 h-[65%] rounded-[12px] bg-gradient-to-t from-[var(--dg-color-action-accent-blue)] to-[#8ECAFF] shadow-[inset_0_0_12px_rgba(255,255,255,0.4)]"></div>
+          </div>
+          <span class="dg-type-caption text-[var(--dg-color-text-low-emphasis)]">Sat</span>
+        </div>
+        <!-- Sun -->
+        <div class="flex-1 flex flex-col items-center gap-[var(--dg-spacing-xs)]">
+          <div class="w-full h-[140px] bg-[#F0F0F0] rounded-[12px] relative overflow-hidden">
+            <div class="absolute bottom-0 left-0 right-0 h-[50%] rounded-[12px] bg-gradient-to-t from-[var(--dg-color-action-accent-blue)] to-[#8ECAFF] shadow-[inset_0_0_12px_rgba(255,255,255,0.4)]"></div>
+          </div>
+          <span class="dg-type-caption text-[var(--dg-color-text-low-emphasis)]">Sun</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Summary Grid -->
+    <div class="grid grid-cols-2 gap-[var(--dg-mobile-layout-element-gap)]">
+      <!-- Daily Average Card -->
+      <div class="dg-surface-card rounded-[var(--dg-radii-app)] p-[var(--dg-spacing-md)] shadow-[var(--dg-shadows-surface)] flex flex-col items-center justify-center text-center aspect-square" style="background-color: var(--dg-color-background-secondary)">
+        <div class="w-[48px] h-[48px] rounded-full flex items-center justify-center mb-[var(--dg-spacing-md)]" style="background: radial-gradient(circle at 30% 30%, #FFFFFF, #E3F2FD)">
+          <i data-lucide="calendar" class="w-[20px] h-[20px] text-[var(--dg-color-action-accent-blue)]"></i>
+        </div>
+        <span class="dg-type-supporting text-[var(--dg-color-text-medium-emphasis)]">Daily average</span>
+        <span class="dg-type-section-title mt-[var(--dg-spacing-xxs)]">$1,726.00</span>
+      </div>
+
+      <!-- Highest Spend Card -->
+      <div class="dg-surface-card rounded-[var(--dg-radii-app)] p-[var(--dg-spacing-md)] shadow-[var(--dg-shadows-surface)] flex flex-col items-center justify-center text-center aspect-square" style="background-color: var(--dg-color-background-secondary)">
+        <div class="w-[48px] h-[48px] rounded-full flex items-center justify-center mb-[var(--dg-spacing-md)]" style="background: radial-gradient(circle at 30% 30%, #FFFFFF, #FFE5E5)">
+          <i data-lucide="coins" class="w-[20px] h-[20px] text-[var(--dg-color-action-error)]"></i>
+        </div>
+        <span class="dg-type-supporting text-[var(--dg-color-text-medium-emphasis)]">Highest spend</span>
+        <span class="dg-type-section-title mt-[var(--dg-spacing-xxs)]">Shopping</span>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Bottom Navigation -->
+  <nav class="fixed bottom-0 left-0 right-0 h-[var(--dg-sizing-bottom-nav-height)] bg-white/80 backdrop-blur-xl border-t border-[var(--dg-color-border-divider)] flex items-center justify-around px-[var(--dg-spacing-md)] pb-[var(--dg-mobile-layout-safe-area-bottom)] z-50">
+    <button class="flex flex-col items-center gap-[var(--dg-spacing-xxs)] opacity-40">
+      <i data-lucide="home" class="w-[24px] h-[24px]"></i>
+    </button>
+    <button class="flex flex-col items-center gap-[var(--dg-spacing-xxs)] text-[var(--dg-color-text-high-emphasis)]">
+      <i data-lucide="bar-chart-2" class="w-[24px] h-[24px]"></i>
+      <div class="w-[4px] h-[4px] bg-black rounded-full"></div>
+    </button>
+    <button class="flex flex-col items-center gap-[var(--dg-spacing-xxs)] opacity-40">
+      <i data-lucide="credit-card" class="w-[24px] h-[24px]"></i>
+    </button>
+    <button class="flex flex-col items-center gap-[var(--dg-spacing-xxs)] opacity-40">
+      <i data-lucide="settings" class="w-[24px] h-[24px]"></i>
+    </button>
+  </nav>
+
+</div>
+      <div id="drawgle-export-navigation"><nav data-drawgle-primary-nav class="dg-nav-shell" aria-label="Primary navigation">
+<style>
+[data-drawgle-primary-nav].dg-nav-shell {
+  position: fixed;
+  bottom: 24px;
+  left: 20px;
+  right: 20px;
+  height: 72px;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 8px;
+  box-shadow: 0px 10px 30px -5px rgba(0,0,0,0.1), inset 0px 0px 0px 1px rgba(255,255,255,0.5);
+  pointer-events: auto;
+}
+[data-drawgle-primary-nav] .dg-nav-shell-inner {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-around;
+}
+[data-drawgle-primary-nav] .dg-nav-item {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--dg-color-text-low-emphasis, #94a3b8);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.18s ease;
+}
+[data-drawgle-primary-nav] .dg-nav-item[] {
+  color: var(--dg-color-text-high-emphasis, #111827);
+  font-weight: 700;
+}
+[data-drawgle-primary-nav] .dg-nav-icon {
+  display: flex;
+  height: 24px;
+  width: 24px;
+  align-items: center;
+  justify-content: center;
+}
+[data-drawgle-primary-nav] .dg-nav-icon svg, [data-drawgle-primary-nav] .dg-nav-icon i {
+  height: 24px;
+  width: 24px;
+}
+</style>
+<div class="dg-nav-shell-inner">
+  <button type="button" class="dg-nav-item" data-nav-item-id="tab-home">
+    <span class="dg-nav-icon"><i data-lucide="home"></i></span>
+    <span class="dg-nav-label">Home</span>
+  </button>
+  <button type="button" class="dg-nav-item" data-nav-item-id="tab-insights">
+    <span class="dg-nav-icon"><i data-lucide="pie-chart"></i></span>
+    <span class="dg-nav-label">Insights</span>
+  </button>
+  <button type="button" class="dg-nav-item" data-nav-item-id="tab-wallet">
+    <span class="dg-nav-icon"><i data-lucide="credit-card"></i></span>
+    <span class="dg-nav-label">Wallet</span>
+  </button>
+  <button type="button" class="dg-nav-item" data-nav-item-id="tab-settings">
+    <span class="dg-nav-icon"><i data-lucide="settings"></i></span>
+    <span class="dg-nav-label">Settings</span>
+  </button>
+</div>
+</nav></div>
+    </div>
+    <script>
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+      document.querySelectorAll('[data-nav-item-id]').forEach(function(item) {
+        var active = item.getAttribute('data-nav-item-id') === "home";
+        item.setAttribute('data-active', active ? 'true' : 'false');
+        item.setAttribute('aria-current', active ? 'page' : 'false');
+      });
+    </script>
+  </body>
+</html>

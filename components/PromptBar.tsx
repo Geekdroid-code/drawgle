@@ -1,0 +1,233 @@
+import { useState } from "react";
+import { Loader2, Palette, Pencil, Send, X } from "lucide-react";
+
+import { AgentThinkingIndicator } from "@/components/AgentBall";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import type { ProjectData, ScreenData } from "@/lib/types";
+
+export type AgentComposerProps = {
+  onSubmit?: (options: { prompt: string }) => Promise<boolean>;
+  project?: ProjectData;
+  disabled?: boolean;
+  submitStatusText?: string;
+  selectedScreen?: ScreenData | null;
+  onClearSelectedScreen?: () => void;
+  onDeleteSelectedScreen?: () => void | Promise<void>;
+  mobileTopAccessory?: React.ReactNode;
+  selectionMode?: boolean;
+  onToggleSelectionMode?: () => void;
+  selectedElementPreview?: string | null;
+  selectedElementTargetLabel?: string | null;
+  selectedElementCanEditText?: boolean;
+  selectedElementCanEditDesign?: boolean;
+  onEditSelectedText?: () => void;
+  onEditSelectedDesign?: () => void;
+  onClearSelectedElement?: () => void;
+  variant?: "floating" | "panel";
+};
+
+export function AgentComposer({
+  onSubmit,
+  project,
+  disabled = false,
+  submitStatusText = "Thinking...",
+  selectedScreen = null,
+  onClearSelectedScreen,
+  onDeleteSelectedScreen: _onDeleteSelectedScreen,
+  mobileTopAccessory,
+  selectionMode = false,
+  onToggleSelectionMode: _onToggleSelectionMode,
+  selectedElementPreview,
+  selectedElementTargetLabel,
+  selectedElementCanEditText = false,
+  selectedElementCanEditDesign = false,
+  onEditSelectedText,
+  onEditSelectedDesign,
+  onClearSelectedElement,
+  variant = "floating",
+}: AgentComposerProps) {
+  const [prompt, setPrompt] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [agentStatus, setAgentStatus] = useState("");
+  const hasSelectedElement = Boolean(
+    selectedElementPreview ||
+    selectedElementTargetLabel ||
+    selectedElementCanEditText ||
+    selectedElementCanEditDesign,
+  );
+  const activeTargetLabel = selectedElementTargetLabel || selectedScreen?.name || null;
+  const isActiveComposer = Boolean(prompt.trim() || selectedScreen || hasSelectedElement || selectionMode);
+  const elementTagLabel = (selectedElementPreview || "element").replace(/[<>]/g, "").trim().toUpperCase();
+
+  const handleGenerate = async () => {
+    const nextPrompt = prompt.trim();
+
+    if (!nextPrompt || disabled || isGenerating || !onSubmit) {
+      return;
+    }
+
+    setIsGenerating(true);
+    setAgentStatus(submitStatusText);
+
+    try {
+      const didSubmit = await onSubmit({
+        prompt: nextPrompt,
+      });
+
+      if (didSubmit) {
+        setPrompt("");
+      }
+    } catch (error) {
+      console.error("Pipeline error:", error);
+    } finally {
+      setIsGenerating(false);
+      setAgentStatus("");
+    }
+  };
+
+  void _onToggleSelectionMode;
+  void _onDeleteSelectedScreen;
+
+  const shellClass = variant === "panel"
+    ? "relative flex flex-col overflow-hidden rounded-[22px] border border-[var(--dg-border)] bg-[var(--dg-surface)] px-2 pb-2 pt-2 text-[var(--dg-text)]"
+    : `relative flex flex-col overflow-hidden rounded-[24px] px-2 pb-2 pt-2 backdrop-blur-xl ${isActiveComposer ? "dg-prompt-composer-active" : "dg-prompt-composer"}`;
+
+  return (
+    <div className={shellClass}>
+      {mobileTopAccessory ? (
+        <div className="absolute left-3 top-0 z-10 -translate-y-[38%] md:hidden">
+          {mobileTopAccessory}
+        </div>
+      ) : null}
+
+      {selectedScreen || hasSelectedElement ? (
+        <div className="mb-1 flex min-h-8 items-center gap-1.5 overflow-x-auto px-0.5 pt-0.5">
+          {(selectedScreen?.name || activeTargetLabel) ? (
+            <span className="dg-prompt-target-pill inline-flex h-8 max-w-[62%] shrink-0 items-center gap-1.5 rounded-full border border-[var(--dg-border)] bg-[var(--dg-surface-muted)] px-2.5 text-xs font-medium text-[var(--dg-text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] dark:border-white/[0.10] dark:bg-[#2a2a2a] dark:text-[#e8eaf0]">
+              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[var(--dg-surface)] text-[var(--dg-text-muted)] dark:bg-[#1b1b1b] dark:text-[#aeb5c2]">
+                <Pencil className="h-2.5 w-2.5" />
+              </span>
+              <span className="truncate">{selectedScreen?.name ?? activeTargetLabel}</span>
+              {onClearSelectedScreen ? (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        type="button"
+                        className="rounded-full p-0.5 text-[var(--dg-text-muted)] hover:bg-[var(--dg-surface)] hover:text-[var(--dg-text)] dark:text-[#aeb5c2] dark:hover:bg-white/10 dark:hover:text-white"
+                        onClick={onClearSelectedScreen}
+                        disabled={disabled || isGenerating}
+                        aria-label="Clear selected screen"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    }
+                  />
+                  <TooltipContent>Clear selected screen</TooltipContent>
+                </Tooltip>
+              ) : null}
+            </span>
+          ) : null}
+
+          {hasSelectedElement ? (
+            <span className="dg-prompt-target-pill inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-[var(--dg-border)] bg-[var(--dg-surface-muted)] px-2.5 text-xs font-semibold text-[var(--dg-text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] dark:border-white/[0.10] dark:bg-[#2a2a2a] dark:text-[#e8eaf0]">
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button
+                      type="button"
+                      className="inline-flex min-w-0 items-center gap-1.5"
+                      onClick={onEditSelectedDesign ?? onEditSelectedText}
+                      disabled={disabled || isGenerating || (!selectedElementCanEditDesign && !selectedElementCanEditText)}
+                      aria-label="Open visual editor"
+                    >
+                      <Palette className="h-3.5 w-3.5 text-[var(--dg-text-muted)] dark:text-[#aeb5c2]" />
+                      <span className="max-w-20 truncate tracking-[0.02em]">{elementTagLabel}</span>
+                    </button>
+                  }
+                />
+                <TooltipContent>Open visual editor</TooltipContent>
+              </Tooltip>
+              {onClearSelectedElement ? (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        type="button"
+                        className="rounded-full p-0.5 text-[var(--dg-text-muted)] hover:bg-[var(--dg-surface)] hover:text-[var(--dg-text)] dark:text-[#aeb5c2] dark:hover:bg-white/10 dark:hover:text-white"
+                        onClick={onClearSelectedElement}
+                        disabled={disabled || isGenerating}
+                        aria-label="Clear selected element"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    }
+                  />
+                  <TooltipContent>Clear selected element</TooltipContent>
+                </Tooltip>
+              ) : null}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
+      {variant === "floating" && isGenerating && agentStatus ? (
+        <div className="absolute -top-10 left-1/2 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-full dg-button-primary px-3.5 py-1.5 text-xs font-medium text-white">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          {agentStatus}
+        </div>
+      ) : null}
+
+      <Textarea
+        placeholder={
+          hasSelectedElement
+            ? "Ask AI to edit selected element..."
+            : selectedScreen
+              ? `Ask AI to modify ${selectedScreen.name}...`
+              : project
+                ? "What do you want to do?"
+                : "What mobile app shall we design?"
+        }
+        className={`${variant === "panel" ? "h-[104px] text-[15px]" : "h-[116px] text-base"} [field-sizing:fixed] resize-none overflow-y-auto border-none bg-transparent px-3 pb-12 pt-3 leading-6 text-[var(--dg-text)] shadow-none placeholder:text-[var(--dg-text-muted)] focus-visible:ring-0`}
+        value={prompt}
+        onChange={(event) => setPrompt(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            void handleGenerate();
+          }
+        }}
+        disabled={disabled || isGenerating}
+      />
+
+      {variant === "panel" && isGenerating ? (
+        <div className="pointer-events-none absolute bottom-4 left-4 max-w-[calc(100%-5rem)]">
+          <AgentThinkingIndicator label={agentStatus || submitStatusText} className="text-slate-600" />
+        </div>
+      ) : null}
+
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              size="icon"
+              className="absolute bottom-3 right-3 h-10 w-10 rounded-full dg-button-primary text-white shadow-[0_12px_28px_rgba(15,23,42,0.28)] hover:dg-button-primary"
+              onClick={() => void handleGenerate()}
+              disabled={disabled || isGenerating || !prompt.trim()}
+              aria-label="Send"
+            >
+              {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            </Button>
+          }
+        />
+        <TooltipContent>Send</TooltipContent>
+      </Tooltip>
+    </div>
+  );
+}
+
+export function PromptBar(props: AgentComposerProps) {
+  return <AgentComposer {...props} variant={props.variant ?? "floating"} />;
+}

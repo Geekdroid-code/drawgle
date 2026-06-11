@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link id="drawgle-google-font" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap">
+    <style>
+:root {
+  --dg-color-text-low-emphasis: #BDBDBD;
+  --dg-color-text-high-emphasis: #000000;
+  --dg-color-text-medium-emphasis: #666666;
+  --dg-color-action-primary: #000000;
+  --dg-color-action-disabled: #E0E0E0;
+  --dg-color-action-secondary: #F5F5F5;
+  --dg-color-action-on-primary-text: #FFFFFF;
+  --dg-color-border-divider: #EEEEEE;
+  --dg-color-border-focused: #000000;
+  --dg-color-surface-card: #FFFFFF;
+  --dg-color-surface-modal: #FFFFFF;
+  --dg-color-surface-bottom-sheet: #FFFFFF;
+  --dg-color-background-primary: #FFFFFF;
+  --dg-color-background-secondary: #F5F5F5;
+  --dg-radii-app: 28px;
+  --dg-radii-pill: 9999px;
+  --dg-sizing-icon-small: 18px;
+  --dg-sizing-icon-standard: 24px;
+  --dg-sizing-min-touch-target: 48px;
+  --dg-sizing-bottom-nav-height: 84px;
+  --dg-sizing-standard-input-height: 52px;
+  --dg-sizing-standard-button-height: 56px;
+  --dg-shadows-none: none;
+  --dg-shadows-overlay: 0px 20px 60px rgba(0, 0, 0, 0.12);
+  --dg-shadows-surface: 0px 10px 30px rgba(0, 0, 0, 0.05);
+  --dg-spacing-none: 0px;
+  --dg-spacing-lg: 24px;
+  --dg-spacing-md: 16px;
+  --dg-spacing-sm: 12px;
+  --dg-spacing-xl: 32px;
+  --dg-spacing-xs: 8px;
+  --dg-spacing-xxl: 48px;
+  --dg-spacing-xxs: 4px;
+  --dg-z-index-base: 0;
+  --dg-z-index-bottom-nav: 20;
+  --dg-z-index-bottom-sheet: 30;
+  --dg-z-index-modal-dialog: 40;
+  --dg-z-index-sticky-header: 10;
+  --dg-z-index-toast-snackbar: 50;
+  --dg-opacities-opaque: 1;
+  --dg-opacities-pressed: 0.12;
+  --dg-opacities-disabled: 0.38;
+  --dg-opacities-transparent: 0;
+  --dg-opacities-scrim-overlay: 0.50;
+  --dg-typography-font-family: 'Inter', sans-serif;
+  --dg-type-nav-title-size: 18px;
+  --dg-type-nav-title-weight: 700;
+  --dg-type-nav-title-line-height: 22px;
+  --dg-type-screen-title-size: 24px;
+  --dg-type-screen-title-weight: 800;
+  --dg-type-screen-title-line-height: 28px;
+  --dg-type-hero-title-size: 32px;
+  --dg-type-hero-title-weight: 900;
+  --dg-type-hero-title-line-height: 36px;
+  --dg-type-section-title-size: 20px;
+  --dg-type-section-title-weight: 700;
+  --dg-type-section-title-line-height: 24px;
+  --dg-type-metric-value-size: 22px;
+  --dg-type-metric-value-weight: 700;
+  --dg-type-metric-value-line-height: 26px;
+  --dg-type-body-size: 16px;
+  --dg-type-body-weight: 400;
+  --dg-type-body-line-height: 24px;
+  --dg-type-supporting-size: 14px;
+  --dg-type-supporting-weight: 500;
+  --dg-type-supporting-line-height: 18px;
+  --dg-type-caption-size: 12px;
+  --dg-type-caption-weight: 400;
+  --dg-type-caption-line-height: 16px;
+  --dg-type-button-label-size: 14px;
+  --dg-type-button-label-weight: 600;
+  --dg-type-button-label-line-height: 14px;
+  --dg-border-widths-standard: 1px;
+  --dg-mobile-layout-element-gap: 12px;
+  --dg-mobile-layout-section-gap: 40px;
+  --dg-mobile-layout-safe-area-top: 16px;
+  --dg-mobile-layout-screen-margin: 24px;
+  --dg-mobile-layout-safe-area-bottom: 16px;
+}
+
+#root {
+  --dg-preview-background: var(--dg-color-background-primary, #ffffff);
+  background: var(--dg-preview-background);
+}
+
+.dg-bg-primary { background-color: var(--dg-color-background-primary); }
+.dg-bg-secondary { background-color: var(--dg-color-background-secondary); }
+.dg-surface-card { background-color: var(--dg-color-surface-card); }
+.dg-surface-bottom-sheet { background-color: var(--dg-color-surface-bottom-sheet); }
+.dg-surface-modal { background-color: var(--dg-color-surface-modal); }
+.dg-text-high { color: var(--dg-color-text-high-emphasis); }
+.dg-text-medium { color: var(--dg-color-text-medium-emphasis); }
+.dg-text-low { color: var(--dg-color-text-low-emphasis); }
+.dg-action-primary {
+  background-color: var(--dg-color-action-primary);
+  color: var(--dg-color-action-on-primary-text);
+}
+.dg-action-secondary { background-color: var(--dg-color-action-secondary); }
+.dg-border-divider { border-color: var(--dg-color-border-divider); }
+.dg-border-focused { border-color: var(--dg-color-border-focused); }
+.dg-radius-app { border-radius: var(--dg-radii-app); }
+.dg-radius-pill { border-radius: var(--dg-radii-pill); }
+.dg-shadow-surface { box-shadow: var(--dg-shadows-surface); }
+.dg-shadow-overlay { box-shadow: var(--dg-shadows-overlay); }
+.dg-screen-padding { padding-left: var(--dg-mobile-layout-screen-margin); padding-right: var(--dg-mobile-layout-screen-margin); }
+.dg-section-gap { gap: var(--dg-mobile-layout-section-gap); }
+.dg-element-gap { gap: var(--dg-mobile-layout-element-gap); }
+
+.dg-type-nav-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-nav-title-size);
+  font-weight: var(--dg-type-nav-title-weight);
+  line-height: var(--dg-type-nav-title-line-height);
+}
+
+.dg-type-screen-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-screen-title-size);
+  font-weight: var(--dg-type-screen-title-weight);
+  line-height: var(--dg-type-screen-title-line-height);
+}
+
+.dg-type-hero-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-hero-title-size);
+  font-weight: var(--dg-type-hero-title-weight);
+  line-height: var(--dg-type-hero-title-line-height);
+}
+
+.dg-type-section-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-section-title-size);
+  font-weight: var(--dg-type-section-title-weight);
+  line-height: var(--dg-type-section-title-line-height);
+}
+
+.dg-type-metric-value {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-metric-value-size);
+  font-weight: var(--dg-type-metric-value-weight);
+  line-height: var(--dg-type-metric-value-line-height);
+}
+
+.dg-type-body {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-body-size);
+  font-weight: var(--dg-type-body-weight);
+  line-height: var(--dg-type-body-line-height);
+}
+
+.dg-type-supporting {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-supporting-size);
+  font-weight: var(--dg-type-supporting-weight);
+  line-height: var(--dg-type-supporting-line-height);
+}
+
+.dg-type-caption {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-caption-size);
+  font-weight: var(--dg-type-caption-weight);
+  line-height: var(--dg-type-caption-line-height);
+}
+
+.dg-type-button-label {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-button-label-size);
+  font-weight: var(--dg-type-button-label-weight);
+  line-height: var(--dg-type-button-label-line-height);
+}
+      html, body { margin: 0; min-height: 100%; }
+      body {
+        font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+        background: var(--dg-color-background-primary, #ffffff);
+        color: var(--dg-color-text-high-emphasis, #111827);
+      }
+      #drawgle-export-root {
+        position: relative;
+        min-height: 100vh;
+        overflow-x: hidden;
+        background: var(--dg-color-background-primary, #ffffff);
+      }
+      #drawgle-export-navigation { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; pointer-events: none; }
+      #drawgle-export-navigation [data-drawgle-primary-nav] { pointer-events: auto; }
+    </style>
+  </head>
+  <body>
+    <div id="drawgle-export-root">
+<div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden" style="font-family: 'Inter', sans-serif">
+  <!-- Top Bar -->
+  <header class="flex items-center justify-between px-[var(--dg-mobile-layout-screen-margin)] pt-[var(--dg-mobile-layout-safe-area-top)] h-[64px] z-50">
+    <button class="w-[48px] h-[48px] flex items-center justify-start" aria-label="Go back">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg>
+    </button>
+    <div class="flex items-center gap-[var(--dg-spacing-md)]">
+      <button class="w-[48px] h-[48px] flex items-center justify-center" aria-label="Favorite">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"></path></svg>
+      </button>
+      <button class="w-[48px] h-[48px] flex items-center justify-end relative" aria-label="Cart">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"></circle><circle cx="19" cy="21" r="1"></circle><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"></path></svg>
+        <span class="absolute top-2 right-0 w-2 h-2 bg-black rounded-full border-2 border-white"></span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content Area -->
+  <main class="flex-1 relative flex items-center justify-center">
+    <!-- Background Watermark -->
+    <div class="absolute inset-0 flex items-center justify-center pointer-events-none select-none overflow-hidden">
+      <span class="text-[180px] font-black dg-text-low opacity-[0.05] rotate-[-90deg] tracking-tighter">JMDF</span>
+    </div>
+
+    <!-- Vertical Size Rail (Left) -->
+    <div class="absolute left-[var(--dg-mobile-layout-screen-margin)] top-1/2 -translate-y-1/2 flex flex-col gap-[var(--dg-spacing-md)] z-20">
+      <span class="dg-type-caption uppercase tracking-widest dg-text-low mb-2 rotate-[-90deg] origin-center h-4 flex items-center justify-center">Size</span>
+      <button class="w-[44px] h-[64px] rounded-[var(--dg-radii-pill)] border-[var(--dg-border-widths-standard)] dg-border-divider flex items-center justify-center dg-type-button-label">US 8</button>
+      <button class="w-[44px] h-[64px] rounded-[var(--dg-radii-pill)] border-[var(--dg-border-widths-standard)] dg-action-primary text-white flex items-center justify-center dg-type-button-label">US 9</button>
+      <button class="w-[44px] h-[64px] rounded-[var(--dg-radii-pill)] border-[var(--dg-border-widths-standard)] dg-border-divider flex items-center justify-center dg-type-button-label">US 10</button>
+      <button class="w-[44px] h-[64px] rounded-[var(--dg-radii-pill)] border-[var(--dg-border-widths-standard)] dg-border-divider flex items-center justify-center dg-type-button-label">US 11</button>
+    </div>
+
+    <!-- Central Sneaker Showcase -->
+    <div class="relative w-full max-w-[320px] aspect-square flex items-center justify-center z-10">
+      <!-- Shadow -->
+      <div class="absolute bottom-4 w-[80%] h-8 bg-black/10 blur-2xl rounded-[100%] rotate-[-5deg]"></div>
+      <!-- Sneaker Cutout (CSS Construction) -->
+      <div class="relative w-full h-full rotate-[-25deg] drop-shadow-2xl">
+        <div class="absolute inset-0 flex items-center justify-center">
+          <!-- Placeholder for large sneaker silhouette -->
+          <img src="https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/user-image-assets/3a503767-6092-4e8e-973e-7f39ebf7e270/6c7626ba-5250-4c24-981d-59197a989684/2ad9cdf9-f808-4bee-82c2-bbb53ea56960-shoes-1-.png.png" alt="Air Jordan 1 Retro" class="w-full h-full object-contain drop-shadow-2xl">
+        </div>
+      </div>
+    </div>
+
+    <!-- Vertical Color Rail (Right) -->
+    <div class="absolute right-[var(--dg-mobile-layout-screen-margin)] top-1/2 -translate-y-1/2 flex flex-col gap-[var(--dg-spacing-md)] z-20">
+      <span class="dg-type-caption uppercase tracking-widest dg-text-low mb-2 rotate-[90deg] origin-center h-4 flex items-center justify-center">Color</span>
+      <button class="w-10 h-10 rounded-full bg-black ring-2 ring-offset-2 ring-black" aria-label="Black color"></button>
+      <button class="w-10 h-10 rounded-full bg-[#E5E5E5] border border-black/5" aria-label="Grey color"></button>
+      <button class="w-10 h-10 rounded-full bg-[#D4AF37]" aria-label="Gold color"></button>
+      <button class="w-10 h-10 rounded-full bg-[#8B0000]" aria-label="Maroon color"></button>
+    </div>
+  </main>
+
+  <!-- Product Info & Action Bar -->
+  <footer class="px-[var(--dg-mobile-layout-screen-margin)] pb-[calc(var(--dg-mobile-layout-safe-area-bottom)+96px)] flex flex-col gap-[var(--dg-spacing-xl)]">
+    <div class="flex flex-col gap-[var(--dg-spacing-xxs)]">
+      <h1 class="dg-type-screen-title uppercase tracking-tight">Air Jordan 1 Retro</h1>
+      <p class="dg-type-body dg-text-medium">High OG 'Lost &amp; Found'</p>
+    </div>
+
+    <div class="flex items-center justify-between gap-[var(--dg-spacing-md)]">
+      <div class="flex flex-col">
+        <span class="dg-type-caption dg-text-low uppercase tracking-widest">Price</span>
+        <span class="dg-type-metric-value">$180.00</span>
+      </div>
+
+      <!-- Swipe to Buy Button -->
+      <div class="flex-1 h-[var(--dg-sizing-standard-button-height)] dg-action-primary rounded-[var(--dg-radii-pill)] relative flex items-center p-1 overflow-hidden">
+        <div class="absolute left-1 w-[48px] h-[48px] bg-white rounded-full flex items-center justify-center shadow-lg z-10">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="text-black"><path d="m9 18 6-6-6-6"></path></svg>
+        </div>
+        <div class="w-full flex items-center justify-center">
+          <span class="dg-type-button-label text-white uppercase tracking-[0.2em] ml-8">Swipe to Buy</span>
+        </div>
+        <!-- Chevron Track -->
+        <div class="absolute right-6 flex gap-1 opacity-30">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
+        </div>
+      </div>
+    </div>
+  </footer>
+</div>
+      <div id="drawgle-export-navigation"><nav data-drawgle-primary-nav class="fixed bottom-0 left-0 right-0 flex justify-center items-end pb-[var(--dg-mobile-layout-safe-area-bottom)] pointer-events-none z-[100]">
+  <div class="flex items-center justify-between w-[280px] h-[72px] px-[var(--dg-spacing-md)] mb-[var(--dg-spacing-md)] bg-[var(--dg-color-background-primary)] rounded-[var(--dg-radii-pill)] shadow-[var(--dg-shadows-overlay)] pointer-events-auto border border-[var(--dg-color-border-divider)]">
+    
+    <!-- Home Item -->
+    <button 
+      data-nav-item-id="home" 
+      class="group relative flex flex-col items-center justify-center w-[56px] h-[56px] rounded-[var(--dg-radii-pill)] transition-all duration-300 active:scale-90">
+      <div class="relative flex items-center justify-center">
+        <i 
+          data-lucide="home" 
+          class="w-[var(--dg-sizing-icon-standard)] h-[var(--dg-sizing-icon-standard)] text-[var(--dg-color-text-low-emphasis)] transition-colors duration-300 group-data-[active=true]:text-[var(--dg-color-text-high-emphasis)]"
+        ></i>
+        <!-- Active Indicator Dot -->
+        <span class="absolute -bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[var(--dg-color-text-high-emphasis)] scale-0 transition-transform duration-300 group-data-[active=true]:scale-100"></span>
+      </div>
+    </button>
+
+    <!-- Search Item (Signature Moment: Elevated Floating Action) -->
+    <div class="relative -top-6">
+      <button 
+        data-nav-item-id="search" 
+        class="group flex items-center justify-center w-[64px] h-[64px] bg-[var(--dg-color-action-primary)] rounded-full shadow-[var(--dg-shadows-overlay)] transition-all duration-300 active:scale-95 hover:shadow-[0_15px_35px_rgba(0,0,0,0.2)]">
+        <i 
+          data-lucide="search" 
+          class="w-[28px] h-[28px] text-[var(--dg-color-action-on-primary-text)] transition-transform duration-300 group-data-[active=true]:scale-110"
+        ></i>
+      </button>
+    </div>
+
+    <!-- Favorites Item -->
+    <button 
+      data-nav-item-id="favorites" 
+      class="group relative flex flex-col items-center justify-center w-[56px] h-[56px] rounded-[var(--dg-radii-pill)] transition-all duration-300 active:scale-90">
+      <div class="relative flex items-center justify-center">
+        <i 
+          data-lucide="heart" 
+          class="w-[var(--dg-sizing-icon-standard)] h-[var(--dg-sizing-icon-standard)] text-[var(--dg-color-text-low-emphasis)] transition-colors duration-300 group-data-[active=true]:text-[var(--dg-color-text-high-emphasis)]"
+        ></i>
+        <!-- Active Indicator Dot -->
+        <span class="absolute -bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[var(--dg-color-text-high-emphasis)] scale-0 transition-transform duration-300 group-data-[active=true]:scale-100"></span>
+      </div>
+    </button>
+
+  </div>
+</nav>
+
+<style>
+  /* Custom interaction for the JMDF Tech-Luxe aesthetic */
+  [data-drawgle-primary-nav] button {
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
+  }
+
+  /* Active state icon fill for minimalist line icons */
+  [data-drawgle-primary-nav] button[] i {
+    stroke-width: 2.5px;
+  }
+
+  /* Search button specific active state */
+  [data-drawgle-primary-nav] button[data-nav-item-id="search"][] {
+    background-color: var(--dg-color-action-primary);
+    transform: scale(1.05);
+  }
+
+  /* Ensure the floating dock maintains its editorial breathing room */
+  @media (max-height: 700px) {
+    [data-drawgle-primary-nav] {
+      padding-bottom: 8px;
+    }
+    [data-drawgle-primary-nav] > div {
+      margin-bottom: 8px;
+    }
+  }
+</style></div>
+    </div>
+    <script>
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+      document.querySelectorAll('[data-nav-item-id]').forEach(function(item) {
+        var active = item.getAttribute('data-nav-item-id') === "home";
+        item.setAttribute('data-active', active ? 'true' : 'false');
+        item.setAttribute('aria-current', active ? 'page' : 'false');
+      });
+    </script>
+  </body>
+</html>

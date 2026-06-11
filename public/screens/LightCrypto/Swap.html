@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link id="drawgle-google-font" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap">
+    <style>
+:root {
+  --dg-color-text-low-emphasis: #999999;
+  --dg-color-text-high-emphasis: #121212;
+  --dg-color-text-medium-emphasis: #666666;
+  --dg-color-accent-info: #E0D7F0;
+  --dg-color-accent-success: #D1E8E2;
+  --dg-color-accent-warning: #E6C994;
+  --dg-color-action-primary: #D1E8E2;
+  --dg-color-action-disabled: #D1D1CB;
+  --dg-color-action-secondary: #E0D7F0;
+  --dg-color-action-on-primary-text: #121212;
+  --dg-color-border-divider: #E0E0DA;
+  --dg-color-border-focused: #121212;
+  --dg-color-surface-card: #121212;
+  --dg-color-surface-modal: #121212;
+  --dg-color-surface-bottom-sheet: #E7E7E7;
+  --dg-color-background-primary: #F9F9F9;
+  --dg-color-background-secondary: #E7E7E7;
+  --dg-radii-app: 28px;
+  --dg-radii-pill: 9999px;
+  --dg-sizing-icon-small: 18px;
+  --dg-sizing-icon-standard: 24px;
+  --dg-sizing-min-touch-target: 48px;
+  --dg-sizing-bottom-nav-height: 84px;
+  --dg-sizing-standard-input-height: 60px;
+  --dg-sizing-standard-button-height: 56px;
+  --dg-shadows-none: none;
+  --dg-shadows-overlay: 0 20px 40px rgba(0,0,0,0.12);
+  --dg-shadows-surface: inset 0 0 0 1px rgba(0,0,0,0.05);
+  --dg-spacing-none: 0px;
+  --dg-spacing-lg: 24px;
+  --dg-spacing-md: 16px;
+  --dg-spacing-sm: 12px;
+  --dg-spacing-xl: 32px;
+  --dg-spacing-xs: 8px;
+  --dg-spacing-xxl: 48px;
+  --dg-spacing-xxs: 4px;
+  --dg-z-index-base: 0;
+  --dg-z-index-bottom-nav: 20;
+  --dg-z-index-bottom-sheet: 30;
+  --dg-z-index-modal-dialog: 40;
+  --dg-z-index-sticky-header: 10;
+  --dg-z-index-toast-snackbar: 50;
+  --dg-opacities-opaque: 1;
+  --dg-opacities-pressed: 0.12;
+  --dg-opacities-disabled: 0.38;
+  --dg-opacities-transparent: 0;
+  --dg-opacities-scrim-overlay: 0.50;
+  --dg-typography-font-family: 'Inter', 'JetBrains Mono', sans-serif;
+  --dg-type-nav-title-size: 18px;
+  --dg-type-nav-title-weight: 600;
+  --dg-type-nav-title-line-height: 24px;
+  --dg-type-screen-title-size: 24px;
+  --dg-type-screen-title-weight: 700;
+  --dg-type-screen-title-line-height: 32px;
+  --dg-type-hero-title-size: 40px;
+  --dg-type-hero-title-weight: 700;
+  --dg-type-hero-title-line-height: 48px;
+  --dg-type-section-title-size: 14px;
+  --dg-type-section-title-weight: 600;
+  --dg-type-section-title-line-height: 20px;
+  --dg-type-metric-value-size: 32px;
+  --dg-type-metric-value-weight: 700;
+  --dg-type-metric-value-line-height: 40px;
+  --dg-type-body-size: 16px;
+  --dg-type-body-weight: 400;
+  --dg-type-body-line-height: 24px;
+  --dg-type-supporting-size: 13px;
+  --dg-type-supporting-weight: 500;
+  --dg-type-supporting-line-height: 18px;
+  --dg-type-caption-size: 11px;
+  --dg-type-caption-weight: 500;
+  --dg-type-caption-line-height: 14px;
+  --dg-type-button-label-size: 15px;
+  --dg-type-button-label-weight: 600;
+  --dg-type-button-label-line-height: 20px;
+  --dg-border-widths-standard: 1px;
+  --dg-mobile-layout-element-gap: 12px;
+  --dg-mobile-layout-section-gap: 32px;
+  --dg-mobile-layout-safe-area-top: 16px;
+  --dg-mobile-layout-screen-margin: 20px;
+  --dg-mobile-layout-safe-area-bottom: 16px;
+}
+
+#root {
+  --dg-preview-background: var(--dg-color-background-primary, #ffffff);
+  background: var(--dg-preview-background);
+}
+
+.dg-bg-primary { background-color: var(--dg-color-background-primary); }
+.dg-bg-secondary { background-color: var(--dg-color-background-secondary); }
+.dg-surface-card { background-color: var(--dg-color-surface-card); }
+.dg-surface-bottom-sheet { background-color: var(--dg-color-surface-bottom-sheet); }
+.dg-surface-modal { background-color: var(--dg-color-surface-modal); }
+.dg-text-high { color: var(--dg-color-text-high-emphasis); }
+.dg-text-medium { color: var(--dg-color-text-medium-emphasis); }
+.dg-text-low { color: var(--dg-color-text-low-emphasis); }
+.dg-action-primary {
+  background-color: var(--dg-color-action-primary);
+  color: var(--dg-color-action-on-primary-text);
+}
+.dg-action-secondary { background-color: var(--dg-color-action-secondary); }
+.dg-border-divider { border-color: var(--dg-color-border-divider); }
+.dg-border-focused { border-color: var(--dg-color-border-focused); }
+.dg-radius-app { border-radius: var(--dg-radii-app); }
+.dg-radius-pill { border-radius: var(--dg-radii-pill); }
+.dg-shadow-surface { box-shadow: var(--dg-shadows-surface); }
+.dg-shadow-overlay { box-shadow: var(--dg-shadows-overlay); }
+.dg-screen-padding { padding-left: var(--dg-mobile-layout-screen-margin); padding-right: var(--dg-mobile-layout-screen-margin); }
+.dg-section-gap { gap: var(--dg-mobile-layout-section-gap); }
+.dg-element-gap { gap: var(--dg-mobile-layout-element-gap); }
+
+.dg-type-nav-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-nav-title-size);
+  font-weight: var(--dg-type-nav-title-weight);
+  line-height: var(--dg-type-nav-title-line-height);
+}
+
+.dg-type-screen-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-screen-title-size);
+  font-weight: var(--dg-type-screen-title-weight);
+  line-height: var(--dg-type-screen-title-line-height);
+}
+
+.dg-type-hero-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-hero-title-size);
+  font-weight: var(--dg-type-hero-title-weight);
+  line-height: var(--dg-type-hero-title-line-height);
+}
+
+.dg-type-section-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-section-title-size);
+  font-weight: var(--dg-type-section-title-weight);
+  line-height: var(--dg-type-section-title-line-height);
+}
+
+.dg-type-metric-value {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-metric-value-size);
+  font-weight: var(--dg-type-metric-value-weight);
+  line-height: var(--dg-type-metric-value-line-height);
+}
+
+.dg-type-body {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-body-size);
+  font-weight: var(--dg-type-body-weight);
+  line-height: var(--dg-type-body-line-height);
+}
+
+.dg-type-supporting {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-supporting-size);
+  font-weight: var(--dg-type-supporting-weight);
+  line-height: var(--dg-type-supporting-line-height);
+}
+
+.dg-type-caption {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-caption-size);
+  font-weight: var(--dg-type-caption-weight);
+  line-height: var(--dg-type-caption-line-height);
+}
+
+.dg-type-button-label {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-button-label-size);
+  font-weight: var(--dg-type-button-label-weight);
+  line-height: var(--dg-type-button-label-line-height);
+}
+      html, body { margin: 0; min-height: 100%; }
+      body {
+        font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+        background: var(--dg-color-background-primary, #ffffff);
+        color: var(--dg-color-text-high-emphasis, #111827);
+      }
+      #drawgle-export-root {
+        position: relative;
+        min-height: 100vh;
+        overflow-x: hidden;
+        background: var(--dg-color-background-primary, #ffffff);
+      }
+      #drawgle-export-navigation { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; pointer-events: none; }
+      #drawgle-export-navigation [data-drawgle-primary-nav] { pointer-events: auto; }
+    </style>
+  </head>
+  <body>
+    <div id="drawgle-export-root">
+<div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden" style="font-family: var(--dg-typography-font-family, 'Inter', 'JetBrains Mono', sans-serif)">
+  <!-- Header -->
+  <header class="pt-[var(--dg-mobile-layout-safe-area-top)] px-[var(--dg-mobile-layout-screen-margin)] flex justify-between items-center h-[64px]">
+    <h1 class="dg-type-screen-title">Swap</h1>
+    <button class="w-[40px] h-[40px] flex items-center justify-center rounded-full border border-[var(--dg-color-border-divider)]">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+    </button>
+  </header>
+
+  <!-- Main Interlocking Swap Interface -->
+  <main class="flex-1 px-[var(--dg-mobile-layout-screen-margin)] flex flex-col pt-4">
+    
+    <!-- Interlocking Assembly -->
+    <div class="relative w-full flex flex-col">
+      
+      <!-- Top Module: You Pay -->
+      <div class="dg-action-primary rounded-t-[var(--dg-radii-app)] p-[var(--dg-spacing-xl)] pb-[60px] relative z-10">
+        <div class="flex justify-between items-start mb-4">
+          <span class="dg-type-section-title opacity-60 uppercase tracking-wider">You Pay</span>
+          <div class="flex items-center gap-2 bg-white/30 px-3 py-1.5 rounded-full">
+            <div class="w-2 h-2 rounded-full bg-green-500"></div>
+            <span class="dg-type-caption text-black">Balance: 1.24 ETH</span>
+          </div>
+        </div>
+        
+        <div class="flex items-center justify-between">
+          <div class="flex flex-col">
+            <span class="dg-type-metric-value text-black">0.45</span>
+            <span class="dg-type-supporting text-black/50 mt-1">≈ $1,124.50</span>
+          </div>
+          
+          <!-- Currency Selector Cutout -->
+          <button class="bg-white rounded-full p-1 pr-4 flex items-center gap-3 shadow-sm min-h-[56px]">
+            <div class="w-10 h-10 rounded-full bg-black flex items-center justify-center text-white">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+            </div>
+            <span class="font-bold text-black">ETH</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-black/30"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Central Swap Connector (Boolean Subtraction Visual) -->
+      <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30">
+        <div class="relative">
+          <!-- The "Carved" Circle -->
+          <div class="w-[72px] h-[72px] rounded-full bg-[var(--dg-color-background-primary)] flex items-center justify-center p-1.5">
+            <button class="w-full h-full rounded-full bg-black flex items-center justify-center border border-white/10 active:scale-95 transition-transform">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Module: You Get -->
+      <div class="dg-surface-card rounded-b-[var(--dg-radii-app)] p-[var(--dg-spacing-xl)] pt-[60px] -mt-[var(--dg-spacing-xl)] relative z-20">
+        <div class="flex justify-between items-start mb-4">
+          <span class="dg-type-section-title text-white/40 uppercase tracking-wider">You Get</span>
+        </div>
+        
+        <div class="flex items-center justify-between">
+          <div class="flex flex-col">
+            <span class="dg-type-metric-value text-white">1,842.10</span>
+            <span class="dg-type-supporting text-white/40 mt-1">≈ $1,122.90</span>
+          </div>
+          
+          <!-- Currency Selector -->
+          <button class="bg-white/10 rounded-full p-1 pr-4 flex items-center gap-3 border border-white/5 min-h-[56px]">
+            <div class="w-10 h-10 rounded-full bg-[#2775CA] flex items-center justify-center text-white">
+              <span class="font-bold text-xs">USDC</span>
+            </div>
+            <span class="font-bold text-white">USDC</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-white/30"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Technical Data Panel -->
+    <div class="mt-[var(--dg-mobile-layout-section-gap)] bg-white rounded-[var(--dg-radii-app)] p-[var(--dg-spacing-md)] border border-[var(--dg-color-border-divider)]" style="font-size: var(--dg-type-supporting-size)">
+      <div class="flex flex-col gap-4">
+        <div class="flex justify-between items-center">
+          <span class="dg-type-caption dg-text-medium">Exchange Rate</span>
+          <span class="dg-type-caption dg-text-high font-mono">1 ETH = 4,093.55 USDC</span>
+        </div>
+        <div class="h-[1px] w-full bg-[var(--dg-color-border-divider)]"></div>
+        <div class="flex justify-between items-center">
+          <span class="dg-type-caption dg-text-medium">Network Fee</span>
+          <div class="flex items-center gap-1.5">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-orange-500"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            <span class="dg-type-caption dg-text-high">$4.20</span>
+          </div>
+        </div>
+        <div class="flex justify-between items-center" style="font-size: var(--dg-type-body-size)">
+          <span class="dg-type-caption dg-text-medium">Price Impact</span>
+          <span class="dg-type-caption text-green-600">&lt; 0.01%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slippage Control -->
+    <div class="mt-6 flex items-center justify-between px-2">
+      <span class="dg-type-supporting dg-text-medium">Max Slippage</span>
+      <div class="flex gap-2">
+        <button class="px-3 py-1 rounded-full bg-white border border-[var(--dg-color-border-divider)] dg-type-caption">0.5%</button>
+        <button class="px-3 py-1 rounded-full bg-black text-white dg-type-caption">1.0%</button>
+        <button class="px-3 py-1 rounded-full bg-white border border-[var(--dg-color-border-divider)] dg-type-caption">Auto</button>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Bottom Action Area -->
+  <div class="mt-auto px-[var(--dg-mobile-layout-screen-margin)] pb-[calc(var(--dg-mobile-layout-safe-area-bottom)+96px)]">
+    <button class="w-full h-[var(--dg-sizing-standard-button-height)] bg-black text-white rounded-full flex items-center justify-center gap-3 active:scale-[0.98] transition-transform shadow-lg">
+      <span class="dg-type-button-label">Confirm Swap</span>
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+    </button>
+  </div>
+
+  <!-- Concave Docking Visual (Simulated for the shared nav intersection) -->
+  <div class="fixed bottom-0 left-0 w-full pointer-events-none">
+    <div class="relative h-[120px] w-full flex justify-center">
+      <!-- This SVG creates the concave cutout that the shared nav's central button will dock into -->
+      <svg class="absolute bottom-[84px] w-full h-[40px]" preserveAspectRatio="none" viewBox="0 0 400 40">
+        <path d="M0 40 L140 40 C160 40 165 0 200 0 C235 0 240 40 260 40 L400 40 L400 40 L0 40 Z" fill="var(--dg-color-background-primary)" />
+      </svg>
+    </div>
+  </div>
+</div>
+      <div id="drawgle-export-navigation"><nav data-drawgle-primary-nav class="relative w-full bg-[var(--dg-color-background-primary)] border-t border-[var(--dg-color-border-divider)] flex items-stretch justify-between px-[var(--dg-mobile-layout-screen-margin)] pb-[var(--dg-mobile-layout-safe-area-bottom)] h-[var(--dg-sizing-bottom-nav-height)] overflow-visible" style="font-weight: var(--dg-type-supporting-weight); background-color: var(--dg-color-background-primary)">
+  <style>
+    [data-drawgle-primary-nav] {
+      contain: layout;
+      background-color: var(--dg-color-background-primary);
+    }
+    [data-drawgle-primary-nav] button {
+      -webkit-tap-highlight-color: transparent;
+      outline: none;
+    }
+    /* The Concave Dock: Boolean Subtraction Geometry */
+    .nav-concave-mask {
+      position: absolute;
+      top: -1px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 110px;
+      height: 44px;
+      background: var(--dg-color-background-primary);
+      pointer-events: none;
+      mask-image: radial-gradient(circle at 50% 0%, transparent 42px, black 43px);
+      -webkit-mask-image: radial-gradient(circle at 50% 0%, transparent 42px, black 43px);
+      border-top: 1px solid var(--dg-color-border-divider);
+      z-index: 1;
+    }
+    /* Active State: Industrial Mint Indicator */
+    .nav-indicator {
+      position: absolute;
+      top: 12px;
+      width: 32px;
+      height: 2px;
+      background: var(--dg-color-action-primary);
+      border-radius: var(--dg-radii-pill);
+      opacity: 0;
+      transform: translateY(4px);
+      transition: all 0.3s cubic-bezier(0.19, 1, 0.22, 1);
+    }
+    [] .nav-indicator {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    [] i {
+      color: var(--dg-color-text-high-emphasis);
+      stroke-width: 1.5px !important;
+    }
+    [] span {
+      color: var(--dg-color-text-high-emphasis);
+    }
+    /* Machined Hub Button */
+    .hub-button {
+      box-shadow: 0 0 0 6px var(--dg-color-background-primary);
+      background: var(--dg-color-surface-card);
+    }
+  </style>
+
+  <!-- Left Rail -->
+  <div class="flex flex-1 items-center justify-between pr-4 z-10">
+    <button data-nav-item-id="dashboard" class="relative flex flex-col items-center justify-center flex-1 h-full group">
+      <div class="nav-indicator"></div>
+      <i data-lucide="layout-grid" class="w-[var(--dg-sizing-icon-standard)] h-[var(--dg-sizing-icon-standard)] stroke-[1px] text-[var(--dg-color-text-medium-emphasis)] transition-colors"></i>
+      <span class="mt-1.5 text-[var(--dg-type-caption-size)] leading-none font-medium tracking-tight text-[var(--dg-color-text-low-emphasis)] transition-colors">Home</span>
+    </button>
+
+    <button data-nav-item-id="market" class="relative flex flex-col items-center justify-center flex-1 h-full group">
+      <div class="nav-indicator"></div>
+      <i data-lucide="line-chart" class="w-[var(--dg-sizing-icon-standard)] h-[var(--dg-sizing-icon-standard)] stroke-[1px] text-[var(--dg-color-text-medium-emphasis)] transition-colors"></i>
+      <span class="mt-1.5 text-[var(--dg-type-caption-size)] leading-none font-medium tracking-tight text-[var(--dg-color-text-low-emphasis)] transition-colors">Market</span>
+    </button>
+  </div>
+
+  <!-- Central Geometric Hub -->
+  <div class="relative w-20 flex flex-col items-center z-20">
+    <div class="nav-concave-mask"></div>
+    <div class="absolute -top-7 flex flex-col items-center">
+      <button data-nav-item-id="swap" class="hub-button w-[64px] h-[64px] rounded-full flex items-center justify-center border border-[var(--dg-color-border-divider)] active:scale-95 transition-transform duration-200">
+        <i data-lucide="repeat" class="w-6 h-6 stroke-[1.25px] text-[var(--dg-color-action-primary)]"></i>
+      </button>
+      <span class="mt-2.5 text-[var(--dg-type-caption-size)] leading-none font-bold tracking-widest text-[var(--dg-color-text-high-emphasis)]"></span>
+    </div>
+  </div>
+
+  <!-- Right Rail -->
+  <div class="flex flex-1 items-center justify-between pl-4 z-10">
+    <button data-nav-item-id="vaults" class="relative flex flex-col items-center justify-center flex-1 h-full group">
+      <div class="nav-indicator"></div>
+      <i data-lucide="shield-check" class="w-[var(--dg-sizing-icon-standard)] h-[var(--dg-sizing-icon-standard)] stroke-[1px] text-[var(--dg-color-text-medium-emphasis)] transition-colors"></i>
+      <span class="mt-1.5 text-[var(--dg-type-caption-size)] leading-none font-medium tracking-tight text-[var(--dg-color-text-low-emphasis)] transition-colors">Vaults</span>
+    </button>
+
+    <button class="relative flex flex-col items-center justify-center flex-1 h-full opacity-[var(--dg-opacities-disabled)]">
+      <i data-lucide="fingerprint" class="w-[var(--dg-sizing-icon-standard)] h-[var(--dg-sizing-icon-standard)] stroke-[1px] text-[var(--dg-color-text-medium-emphasis)]"></i>
+      <span class="mt-1.5 text-[var(--dg-type-caption-size)] leading-none font-medium tracking-tight text-[var(--dg-color-text-low-emphasis)]">Secure</span>
+    </button>
+  </div>
+</nav></div>
+    </div>
+    <script>
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+      document.querySelectorAll('[data-nav-item-id]').forEach(function(item) {
+        var active = item.getAttribute('data-nav-item-id') === "home";
+        item.setAttribute('data-active', active ? 'true' : 'false');
+        item.setAttribute('aria-current', active ? 'page' : 'false');
+      });
+    </script>
+  </body>
+</html>

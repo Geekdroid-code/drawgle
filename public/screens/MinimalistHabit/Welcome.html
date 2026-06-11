@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link id="drawgle-google-font" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap">
+    <style>
+:root {
+  --dg-color-text-low-emphasis: #A1A1A1;
+  --dg-color-text-high-emphasis: #000000;
+  --dg-color-text-medium-emphasis: #666666;
+  --dg-color-action-primary: #000000;
+  --dg-color-action-disabled: #D1D1D6;
+  --dg-color-action-secondary: #E5E5EA;
+  --dg-color-action-on-primary-text: #FFFFFF;
+  --dg-color-border-divider: #F2F2F7;
+  --dg-color-border-focused: #000000;
+  --dg-color-surface-card: #FFFFFF;
+  --dg-color-surface-modal: #FFFFFF;
+  --dg-color-surface-bottom-sheet: #FFFFFF;
+  --dg-color-background-primary: #FFFFFF;
+  --dg-color-background-secondary: #F9F9F9;
+  --dg-radii-app: 16px;
+  --dg-radii-pill: 9999px;
+  --dg-sizing-icon-small: 20px;
+  --dg-sizing-icon-standard: 24px;
+  --dg-sizing-min-touch-target: 48px;
+  --dg-sizing-bottom-nav-height: 72px;
+  --dg-sizing-standard-input-height: 52px;
+  --dg-sizing-standard-button-height: 56px;
+  --dg-shadows-none: none;
+  --dg-shadows-overlay: 0px 10px 30px rgba(0, 0, 0, 0.08);
+  --dg-shadows-surface: 0px 4px 20px rgba(0, 0, 0, 0.04);
+  --dg-spacing-none: 0px;
+  --dg-spacing-lg: 24px;
+  --dg-spacing-md: 16px;
+  --dg-spacing-sm: 12px;
+  --dg-spacing-xl: 32px;
+  --dg-spacing-xs: 8px;
+  --dg-spacing-xxl: 48px;
+  --dg-spacing-xxs: 4px;
+  --dg-z-index-base: 0;
+  --dg-z-index-bottom-nav: 20;
+  --dg-z-index-bottom-sheet: 30;
+  --dg-z-index-modal-dialog: 40;
+  --dg-z-index-sticky-header: 10;
+  --dg-z-index-toast-snackbar: 50;
+  --dg-opacities-opaque: 1;
+  --dg-opacities-pressed: 0.12;
+  --dg-opacities-disabled: 0.38;
+  --dg-opacities-transparent: 0;
+  --dg-opacities-scrim-overlay: 0.50;
+  --dg-typography-font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --dg-type-nav-title-size: 17px;
+  --dg-type-nav-title-weight: 600;
+  --dg-type-nav-title-line-height: 22px;
+  --dg-type-screen-title-size: 28px;
+  --dg-type-screen-title-weight: 700;
+  --dg-type-screen-title-line-height: 34px;
+  --dg-type-hero-title-size: 34px;
+  --dg-type-hero-title-weight: 800;
+  --dg-type-hero-title-line-height: 41px;
+  --dg-type-section-title-size: 18px;
+  --dg-type-section-title-weight: 600;
+  --dg-type-section-title-line-height: 24px;
+  --dg-type-metric-value-size: 24px;
+  --dg-type-metric-value-weight: 700;
+  --dg-type-metric-value-line-height: 30px;
+  --dg-type-body-size: 16px;
+  --dg-type-body-weight: 400;
+  --dg-type-body-line-height: 24px;
+  --dg-type-supporting-size: 14px;
+  --dg-type-supporting-weight: 400;
+  --dg-type-supporting-line-height: 20px;
+  --dg-type-caption-size: 12px;
+  --dg-type-caption-weight: 500;
+  --dg-type-caption-line-height: 16px;
+  --dg-type-button-label-size: 16px;
+  --dg-type-button-label-weight: 600;
+  --dg-type-button-label-line-height: 20px;
+  --dg-border-widths-standard: 1px;
+  --dg-mobile-layout-element-gap: 16px;
+  --dg-mobile-layout-section-gap: 40px;
+  --dg-mobile-layout-safe-area-top: 16px;
+  --dg-mobile-layout-screen-margin: 24px;
+  --dg-mobile-layout-safe-area-bottom: 16px;
+}
+
+#root {
+  --dg-preview-background: var(--dg-color-background-primary, #ffffff);
+  background: var(--dg-preview-background);
+}
+
+.dg-bg-primary { background-color: var(--dg-color-background-primary); }
+.dg-bg-secondary { background-color: var(--dg-color-background-secondary); }
+.dg-surface-card { background-color: var(--dg-color-surface-card); }
+.dg-surface-bottom-sheet { background-color: var(--dg-color-surface-bottom-sheet); }
+.dg-surface-modal { background-color: var(--dg-color-surface-modal); }
+.dg-text-high { color: var(--dg-color-text-high-emphasis); }
+.dg-text-medium { color: var(--dg-color-text-medium-emphasis); }
+.dg-text-low { color: var(--dg-color-text-low-emphasis); }
+.dg-action-primary {
+  background-color: var(--dg-color-action-primary);
+  color: var(--dg-color-action-on-primary-text);
+}
+.dg-action-secondary { background-color: var(--dg-color-action-secondary); }
+.dg-border-divider { border-color: var(--dg-color-border-divider); }
+.dg-border-focused { border-color: var(--dg-color-border-focused); }
+.dg-radius-app { border-radius: var(--dg-radii-app); }
+.dg-radius-pill { border-radius: var(--dg-radii-pill); }
+.dg-shadow-surface { box-shadow: var(--dg-shadows-surface); }
+.dg-shadow-overlay { box-shadow: var(--dg-shadows-overlay); }
+.dg-screen-padding { padding-left: var(--dg-mobile-layout-screen-margin); padding-right: var(--dg-mobile-layout-screen-margin); }
+.dg-section-gap { gap: var(--dg-mobile-layout-section-gap); }
+.dg-element-gap { gap: var(--dg-mobile-layout-element-gap); }
+
+.dg-type-nav-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-nav-title-size);
+  font-weight: var(--dg-type-nav-title-weight);
+  line-height: var(--dg-type-nav-title-line-height);
+}
+
+.dg-type-screen-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-screen-title-size);
+  font-weight: var(--dg-type-screen-title-weight);
+  line-height: var(--dg-type-screen-title-line-height);
+}
+
+.dg-type-hero-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-hero-title-size);
+  font-weight: var(--dg-type-hero-title-weight);
+  line-height: var(--dg-type-hero-title-line-height);
+}
+
+.dg-type-section-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-section-title-size);
+  font-weight: var(--dg-type-section-title-weight);
+  line-height: var(--dg-type-section-title-line-height);
+}
+
+.dg-type-metric-value {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-metric-value-size);
+  font-weight: var(--dg-type-metric-value-weight);
+  line-height: var(--dg-type-metric-value-line-height);
+}
+
+.dg-type-body {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-body-size);
+  font-weight: var(--dg-type-body-weight);
+  line-height: var(--dg-type-body-line-height);
+}
+
+.dg-type-supporting {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-supporting-size);
+  font-weight: var(--dg-type-supporting-weight);
+  line-height: var(--dg-type-supporting-line-height);
+}
+
+.dg-type-caption {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-caption-size);
+  font-weight: var(--dg-type-caption-weight);
+  line-height: var(--dg-type-caption-line-height);
+}
+
+.dg-type-button-label {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-button-label-size);
+  font-weight: var(--dg-type-button-label-weight);
+  line-height: var(--dg-type-button-label-line-height);
+}
+      html, body { margin: 0; min-height: 100%; }
+      body {
+        font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+        background: var(--dg-color-background-primary, #ffffff);
+        color: var(--dg-color-text-high-emphasis, #111827);
+      }
+      #drawgle-export-root {
+        position: relative;
+        min-height: 100vh;
+        overflow-x: hidden;
+        background: var(--dg-color-background-primary, #ffffff);
+      }
+      #drawgle-export-navigation { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; pointer-events: none; }
+      #drawgle-export-navigation [data-drawgle-primary-nav] { pointer-events: auto; }
+    </style>
+  </head>
+  <body>
+    <div id="drawgle-export-root">
+<div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden" style="font-family: var(--dg-typography-font-family, Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif)">
+  <div class="pt-[var(--dg-mobile-layout-safe-area-top)] px-[var(--dg-mobile-layout-screen-margin)] flex flex-col h-full flex-1">
+    
+    <!-- Header Section -->
+    <header class="mt-[var(--dg-spacing-xl)]">
+      <h1 class="dg-type-screen-title text-[var(--dg-color-text-high-emphasis)]">Welcome Abdul</h1>
+      <p class="dg-type-body dg-text-medium mt-[var(--dg-spacing-xxs)]">Let's build your first habit</p>
+    </header>
+
+    <!-- Hero Section -->
+    <div class="flex-1 flex flex-col items-center justify-center text-center">
+      
+      <!-- Stylized Plant Illustration -->
+      <div class="mb-[var(--dg-spacing-xl)]">
+        <svg width="120" height="160" viewBox="0 0 120 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Pot -->
+          <path d="M45 140H75L80 110H40L45 140Z" fill="black"/>
+          <!-- Stem -->
+          <rect x="59" y="40" width="2" height="70" fill="black"/>
+          <!-- Top Leaf (Orange) -->
+          <path d="M60 20C60 20 70 35 60 45C50 35 60 20 60 20Z" fill="#F2994A"/>
+          <!-- Middle Leaves (Red) -->
+          <path d="M58 50C58 50 35 55 35 70C50 70 58 50 58 50Z" fill="#EB5757"/>
+          <path d="M62 50C62 50 85 55 85 70C70 70 62 50 62 50Z" fill="#EB5757"/>
+          <!-- Bottom Leaves (Orange) -->
+          <path d="M58 80C58 80 30 85 30 100C48 100 58 80 58 80Z" fill="#F2994A"/>
+          <path d="M62 80C62 80 90 85 90 100C72 100 62 80 62 80Z" fill="#F2994A"/>
+        </svg>
+      </div>
+
+      <!-- Empty State Text -->
+      <h2 class="dg-type-section-title text-[var(--dg-color-text-high-emphasis)]">Start your first habit</h2>
+      <p class="dg-type-supporting dg-text-medium mt-[var(--dg-spacing-xs)] max-w-[240px]">Small steps today, big change tomorrow</p>
+
+      <!-- Primary CTA Button -->
+      <button class="mt-[var(--dg-spacing-xl)] min-h-[var(--dg-sizing-standard-button-height)] px-[var(--dg-spacing-lg)] dg-radius-pill border border-[var(--dg-color-text-high-emphasis)] flex items-center justify-center gap-[var(--dg-spacing-xs)] bg-white active:opacity-70 transition-opacity">
+        <i data-lucide="plus" class="w-[var(--dg-sizing-icon-small)] h-[var(--dg-sizing-icon-small)] text-[var(--dg-color-text-high-emphasis)]"></i>
+        <span class="dg-type-button-label text-[var(--dg-color-text-high-emphasis)]">Start your first habit</span>
+      </button>
+    </div>
+
+    <!-- Bottom Spacer for Floating Dock -->
+    <div class="h-[120px] pb-[var(--dg-mobile-layout-safe-area-bottom)]"></div>
+  </div>
+</div>
+      <div id="drawgle-export-navigation"><nav data-drawgle-primary-nav class="fixed bottom-0 left-0 right-0 flex items-center justify-center pointer-events-none z-[var(--dg-z-index-bottom-nav)] px-[var(--dg-mobile-layout-screen-margin)] pb-[var(--dg-mobile-layout-safe-area-bottom)]">
+  <div class="flex items-center gap-[var(--dg-spacing-sm)] pointer-events-auto mb-[var(--dg-spacing-md)]">
+    
+    <!-- Primary Navigation Pill -->
+    <div class="flex items-center bg-[var(--dg-color-action-secondary)] rounded-[var(--dg-radii-pill)] p-[var(--dg-spacing-xs)] shadow-[var(--dg-shadows-surface)]">
+      
+      <!-- Home Tab -->
+      <button 
+        data-nav-item-id="home" 
+        class="group flex items-center justify-center gap-[var(--dg-spacing-xs)] h-[48px] px-[var(--dg-spacing-md)] rounded-[var(--dg-radii-pill)] transition-all duration-300 ease-out text-[var(--dg-color-text-medium-emphasis)] data-[active=true]:bg-[var(--dg-color-action-primary)] data-[active=true]:text-[var(--dg-color-action-on-primary-text)] active:scale-95">
+        <i data-lucide="home" class="w-[var(--dg-sizing-icon-small)] h-[var(--dg-sizing-icon-small)] stroke-[1.5]"></i>
+        <span class="hidden data-[active=true]:inline-block dg-type-caption font-semibold">Home</span>
+      </button>
+
+      <!-- History Tab -->
+      <button 
+        data-nav-item-id="history" 
+        class="group flex items-center justify-center gap-[var(--dg-spacing-xs)] h-[48px] px-[var(--dg-spacing-md)] rounded-[var(--dg-radii-pill)] transition-all duration-300 ease-out text-[var(--dg-color-text-medium-emphasis)] data-[active=true]:bg-[var(--dg-color-action-primary)] data-[active=true]:text-[var(--dg-color-action-on-primary-text)] active:scale-95">
+        <i data-lucide="clock" class="w-[var(--dg-sizing-icon-small)] h-[var(--dg-sizing-icon-small)] stroke-[1.5]"></i>
+        <span class="hidden data-[active=true]:inline-block dg-type-caption font-semibold">History</span>
+      </button>
+
+      <!-- Settings Tab -->
+      <button 
+        data-nav-item-id="settings" 
+        class="group flex items-center justify-center gap-[var(--dg-spacing-xs)] h-[48px] px-[var(--dg-spacing-md)] rounded-[var(--dg-radii-pill)] transition-all duration-300 ease-out text-[var(--dg-color-text-medium-emphasis)] data-[active=true]:bg-[var(--dg-color-action-primary)] data-[active=true]:text-[var(--dg-color-action-on-primary-text)] active:scale-95">
+        <i data-lucide="settings" class="w-[var(--dg-sizing-icon-small)] h-[var(--dg-sizing-icon-small)] stroke-[1.5]"></i>
+        <span class="hidden data-[active=true]:inline-block dg-type-caption font-semibold">Settings</span>
+      </button>
+      
+    </div>
+
+    <!-- Quick Entry Action -->
+    <button 
+      aria-label="Add Habit"
+      class="flex items-center justify-center w-[56px] h-[56px] bg-[var(--dg-color-action-primary)] text-[var(--dg-color-action-on-primary-text)] rounded-full shadow-[var(--dg-shadows-surface)] active:scale-90 transition-transform duration-200 ease-in-out">
+      <i data-lucide="plus" class="w-[var(--dg-sizing-icon-standard)] h-[var(--dg-sizing-icon-standard)] stroke-[2.5]"></i>
+    </button>
+
+  </div>
+</nav>
+
+<style>
+  /* Ensure labels only show when their parent button is active */
+  [data-nav-item-id] span {
+    display: none;
+  }
+  [data-nav-item-id][] span {
+    display: inline-block;
+  }
+  
+  /* Subtle interaction for inactive items */
+  [data-nav-item-id][]:active {
+    background-color: rgba(0, 0, 0, 0.05);
+  }
+
+  /* Monolith Minimal: Ensure Inter is applied and text is crisp */
+  [data-drawgle-primary-nav] {
+    font-family: var(--dg-typography-font-family);
+    -webkit-font-smoothing: antialiased;
+  }
+</style></div>
+    </div>
+    <script>
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+      document.querySelectorAll('[data-nav-item-id]').forEach(function(item) {
+        var active = item.getAttribute('data-nav-item-id') === "home";
+        item.setAttribute('data-active', active ? 'true' : 'false');
+        item.setAttribute('aria-current', active ? 'page' : 'false');
+      });
+    </script>
+  </body>
+</html>

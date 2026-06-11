@@ -1,0 +1,1933 @@
+"use client";
+
+import { useLayoutEffect, useRef, useState, type ComponentType, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import {
+  ArrowRight,
+  Check,
+  ChevronDown,
+  Eye,
+  Layers,
+  Loader2,
+  Minus,
+  Palette,
+  Plus,
+  Ruler,
+  Shapes,
+  Type,
+} from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { PremiumSegmentedTabs, PremiumTabPanel } from "@/components/ui/premium-segmented-tabs";
+import {
+  getFontRecommendations,
+  normalizeDesignTokens,
+} from "@/lib/design-tokens";
+import type { DesignTokens } from "@/lib/types";
+
+const TYPOGRAPHY_STYLES = [
+  { key: "nav_title", label: "Nav Title", sample: "Transaction Detail", fallback: 17 },
+  { key: "screen_title", label: "Screen Title", sample: "Daily Planner", fallback: 24 },
+  { key: "hero_title", label: "Hero Title", sample: "Your Path to Freedom", fallback: 32 },
+  { key: "section_title", label: "Section Title", sample: "Weekly activity", fallback: 18 },
+  { key: "metric_value", label: "Metric Value", sample: "$500,000", fallback: 32 },
+  { key: "body", label: "Body", sample: "Premium mobile rhythm", fallback: 16 },
+  { key: "supporting", label: "Supporting", sample: "Token changes land here", fallback: 14 },
+  { key: "caption", label: "Caption", sample: "Updated just now", fallback: 12 },
+  { key: "button_label", label: "Button Label", sample: "Continue", fallback: 15 },
+] as const;
+
+const SPACING_KEYS = ["xxs", "xs", "sm", "md", "lg", "xl", "xxl"] as const;
+const LAYOUT_KEYS = ["screen_margin", "section_gap", "element_gap"] as const;
+const SIZE_KEYS = ["standard_button_height", "standard_input_height", "icon_small", "icon_standard", "bottom_nav_height"] as const;
+const OPACITY_KEYS = [
+  { key: "disabled", label: "Disabled", fallback: "0.38" },
+  { key: "pressed", label: "Pressed", fallback: "0.12" },
+  { key: "scrim_overlay", label: "Scrim overlay", fallback: "0.50" },
+] as const;
+
+type EditorTab = "colors" | "type" | "spacing" | "shape";
+type MobileView = "tokens" | "preview";
+type EditorLayout = "full" | "panel";
+
+type DesignSystemEditorProps = {
+  value: DesignTokens;
+  onChange: (tokens: DesignTokens) => void;
+  onSubmit: () => void | Promise<void>;
+  title?: string;
+  description?: string;
+  submitLabel?: string;
+  isSubmitting?: boolean;
+  submitStatus?: string;
+  layout?: EditorLayout;
+  showPreview?: boolean;
+};
+
+const EDITOR_TABS: Array<{ id: EditorTab; label: string; icon: ComponentType<{ className?: string }> }> = [
+  { id: "colors", label: "Colors", icon: Palette },
+  { id: "type", label: "Type", icon: Type },
+  { id: "spacing", label: "Spacing", icon: Ruler },
+  { id: "shape", label: "Shape", icon: Shapes },
+];
+
+const FONT_WEIGHT_OPTIONS = [
+  { value: "300", label: "Light" },
+  { value: "400", label: "Regular" },
+  { value: "500", label: "Medium" },
+  { value: "600", label: "Semi" },
+  { value: "700", label: "Bold" },
+  { value: "800", label: "Heavy" },
+] as const;
+
+const GENERIC_FONT_FAMILIES = new Set(["system-ui", "sans-serif", "serif", "monospace", "ui-sans-serif", "ui-serif", "ui-monospace"]);
+
+const parsePixelToken = (value: string, fallback: number) => {
+  const parsed = Number.parseFloat(value.replace("px", "").trim());
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const clampNumber = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+const serializePixelToken = (value: number, min: number, max: number) => `${clampNumber(Math.round(value), min, max)}px`;
+
+const parseOpacityToken = (value: string, fallback: number) => {
+  const parsed = Number.parseFloat(value.trim());
+  return Number.isFinite(parsed) ? clampNumber(parsed, 0, 1) : fallback;
+};
+
+const serializeOpacityToken = (value: number) => clampNumber(value, 0, 1).toFixed(2);
+
+type RgbColor = { r: number; g: number; b: number };
+type HsvColor = { h: number; s: number; v: number };
+
+const normalizeHex = (value: string) => {
+  const stripped = value.trim().replace(/^#/, "");
+  const expanded = stripped.length === 3
+    ? stripped.split("").map((character) => `${character}${character}`).join("")
+    : stripped;
+
+  if (!/^[0-9a-fA-F]{6}$/.test(expanded)) {
+    return null;
+  }
+
+  return `#${expanded.toUpperCase()}`;
+};
+
+const hexToRgb = (value: string): RgbColor | null => {
+  const normalized = normalizeHex(value);
+  if (!normalized) {
+    return null;
+  }
+
+  return {
+    r: Number.parseInt(normalized.slice(1, 3), 16),
+    g: Number.parseInt(normalized.slice(3, 5), 16),
+    b: Number.parseInt(normalized.slice(5, 7), 16),
+  };
+};
+
+const rgbToHex = ({ r, g, b }: RgbColor) => `#${[r, g, b]
+  .map((channel) => clampNumber(Math.round(channel), 0, 255).toString(16).padStart(2, "0"))
+  .join("")
+  .toUpperCase()}`;
+
+const rgbToHsv = ({ r, g, b }: RgbColor): HsvColor => {
+  const red = r / 255;
+  const green = g / 255;
+  const blue = b / 255;
+  const max = Math.max(red, green, blue);
+  const min = Math.min(red, green, blue);
+  const delta = max - min;
+
+  let hue = 0;
+  if (delta !== 0) {
+    if (max === red) {
+      hue = 60 * (((green - blue) / delta) % 6);
+    } else if (max === green) {
+      hue = 60 * ((blue - red) / delta + 2);
+    } else {
+      hue = 60 * ((red - green) / delta + 4);
+    }
+  }
+
+  return {
+    h: hue < 0 ? hue + 360 : hue,
+    s: max === 0 ? 0 : delta / max,
+    v: max,
+  };
+};
+
+const hsvToRgb = ({ h, s, v }: HsvColor): RgbColor => {
+  const chroma = v * s;
+  const x = chroma * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = v - chroma;
+  const [red, green, blue] = h < 60
+    ? [chroma, x, 0]
+    : h < 120
+      ? [x, chroma, 0]
+      : h < 180
+        ? [0, chroma, x]
+        : h < 240
+          ? [0, x, chroma]
+          : h < 300
+            ? [x, 0, chroma]
+            : [chroma, 0, x];
+
+  return {
+    r: (red + m) * 255,
+    g: (green + m) * 255,
+    b: (blue + m) * 255,
+  };
+};
+
+const getRgbFallback = (value: string) => hexToRgb(value) ?? { r: 0, g: 0, b: 0 };
+
+const tokenPathToCssVar = (path: string[]) =>
+  `--dg-${path.map((part) => part.replace(/_/g, "-")).join("-")}`;
+
+type ShadowParts = {
+  x: number;
+  y: number;
+  blur: number;
+  spread: number;
+  color: string;
+  opacity: number;
+  enabled: boolean;
+};
+
+const DEFAULT_SHADOW_PARTS: ShadowParts = {
+  x: 0,
+  y: 12,
+  blur: 32,
+  spread: 0,
+  color: "#0F172A",
+  opacity: 0.14,
+  enabled: true,
+};
+
+const SHADOW_PRESETS: Array<{ label: string; value: ShadowParts }> = [
+  { label: "Soft", value: { x: 0, y: 8, blur: 24, spread: -10, color: "#0F172A", opacity: 0.12, enabled: true } },
+  { label: "Float", value: { x: 0, y: 18, blur: 48, spread: -18, color: "#0F172A", opacity: 0.18, enabled: true } },
+  { label: "Overlay", value: { x: 0, y: -6, blur: 28, spread: 0, color: "#0F172A", opacity: 0.16, enabled: true } },
+];
+
+const parseCssShadow = (value: string): ShadowParts => {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.toLowerCase() === "none") {
+    return { ...DEFAULT_SHADOW_PARTS, enabled: false, opacity: 0 };
+  }
+
+  const colorMatch = trimmed.match(/rgba?\([^)]+\)|#[0-9a-fA-F]{3,8}/);
+  const colorValue = colorMatch?.[0] ?? `rgba(15, 23, 42, ${DEFAULT_SHADOW_PARTS.opacity})`;
+  const prefix = colorMatch ? trimmed.slice(0, colorMatch.index) : trimmed;
+  const numericValues = Array.from(prefix.matchAll(/-?\d*\.?\d+(?=px|\s|$)/g))
+    .map((match) => Number.parseFloat(match[0]))
+    .filter(Number.isFinite);
+
+  let color = DEFAULT_SHADOW_PARTS.color;
+  let opacity = DEFAULT_SHADOW_PARTS.opacity;
+  if (colorValue.startsWith("#")) {
+    const rgb = hexToRgb(colorValue);
+    if (rgb) {
+      color = rgbToHex(rgb);
+      opacity = 1;
+    }
+  } else {
+    const channels = colorValue.match(/rgba?\(([^)]+)\)/)?.[1]
+      ?.split(",")
+      .map((part) => Number.parseFloat(part.trim()));
+    if (channels && channels.length >= 3 && channels.slice(0, 3).every(Number.isFinite)) {
+      color = rgbToHex({ r: channels[0], g: channels[1], b: channels[2] });
+      opacity = Number.isFinite(channels[3]) ? clampNumber(channels[3], 0, 1) : 1;
+    }
+  }
+
+  return {
+    x: numericValues[0] ?? DEFAULT_SHADOW_PARTS.x,
+    y: numericValues[1] ?? DEFAULT_SHADOW_PARTS.y,
+    blur: Math.max(0, numericValues[2] ?? DEFAULT_SHADOW_PARTS.blur),
+    spread: numericValues[3] ?? DEFAULT_SHADOW_PARTS.spread,
+    color,
+    opacity,
+    enabled: true,
+  };
+};
+
+const serializeCssShadow = (parts: ShadowParts) => {
+  if (!parts.enabled || parts.opacity <= 0) {
+    return "none";
+  }
+
+  const rgb = hexToRgb(parts.color) ?? hexToRgb(DEFAULT_SHADOW_PARTS.color)!;
+  const opacity = clampNumber(Number(parts.opacity.toFixed(2)), 0, 1);
+  return `${Math.round(parts.x)}px ${Math.round(parts.y)}px ${Math.round(parts.blur)}px ${Math.round(parts.spread)}px rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${opacity})`;
+};
+
+export function DesignSystemEditor({
+  value,
+  onChange,
+  onSubmit,
+  title = "Design System",
+  description = "Tune the visual system before building.",
+  submitLabel = "Continue",
+  isSubmitting = false,
+  submitStatus,
+  layout = "full",
+  showPreview = true,
+}: DesignSystemEditorProps) {
+  const [activeTab, setActiveTab] = useState<EditorTab>("colors");
+  const [mobileView, setMobileView] = useState<MobileView>("tokens");
+  const isPanel = layout === "panel";
+  const shouldShowPreview = showPreview;
+  const normalizedValue = normalizeDesignTokens(value);
+
+  if (!normalizedValue.tokens) {
+    return null;
+  }
+
+  const tokens = normalizedValue.tokens;
+  const recommendedFonts = getFontRecommendations(normalizedValue).slice(0, 6);
+
+  const primaryBg = tokens.color?.background?.primary || "#ffffff";
+  const secondaryBg = tokens.color?.background?.secondary || "#f9fafb";
+  const primaryText = tokens.color?.text?.high_emphasis || "#111827";
+  const mediumText = tokens.color?.text?.medium_emphasis || "#6b7280";
+  const lowText = tokens.color?.text?.low_emphasis || "#9ca3af";
+  const actionPrimary = tokens.color?.action?.primary || "#000000";
+  const actionSecondary = tokens.color?.action?.secondary || "#333333";
+  const actionText = tokens.color?.action?.on_primary_text || "#ffffff";
+  const raisedBg = tokens.color?.background?.surface_elevated || secondaryBg;
+  const actionLabel = tokens.color?.text?.action_label || actionPrimary;
+  const actionGradientStart = tokens.color?.action?.primary_gradient_start || actionPrimary;
+  const actionGradientEnd = tokens.color?.action?.primary_gradient_end || actionSecondary;
+  const actionOnSurface = tokens.color?.action?.on_surface_white_bg || actionPrimary;
+  const cardBg = tokens.color?.surface?.card || "#ffffff";
+  const borderDivider = tokens.color?.border?.divider || "#e5e7eb";
+  const radius = tokens.radii?.app || "18px";
+  const radiusPill = tokens.radii?.pill || "9999px";
+  const shadowSurface = tokens.shadows?.surface || "0 12px 32px rgba(15, 23, 42, 0.14)";
+  const borderStandard = tokens.border_widths?.standard || "1px";
+  const fontFamily = tokens.typography?.font_family?.trim() || undefined;
+
+  const deepUpdate = (mutator: (draft: DesignTokens) => void) => {
+    const draft = normalizeDesignTokens(value);
+    mutator(draft);
+    onChange(draft);
+  };
+
+  const handleUpdateToken = (path: string[], nextValue: string) => {
+    deepUpdate((draft) => {
+      let current = draft.tokens as Record<string, unknown>;
+      for (let index = 0; index < path.length - 1; index += 1) {
+        const existing = current[path[index]];
+        if (!existing || typeof existing !== "object" || Array.isArray(existing)) {
+          current[path[index]] = {};
+        }
+        current = current[path[index]] as Record<string, unknown>;
+      }
+
+      current[path[path.length - 1]] = nextValue;
+    });
+  };
+
+  return (
+    <div className={`${isPanel ? "relative flex min-h-0 flex-col overflow-visible" : "relative flex min-h-[680px] flex-1 flex-col overflow-hidden lg:h-[calc(100dvh-6.25rem)] lg:min-h-[620px]"}`}>
+      {isSubmitting && submitStatus ? (
+        !isPanel ? <div className="absolute inset-0 z-30 flex items-center justify-center bg-white/72 backdrop-blur-sm">
+          <div className="rounded-[14px] border border-slate-950/[0.08] bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-[0_18px_50px_-36px_rgba(15,23,42,0.6)]">
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              {submitStatus}
+            </div>
+          </div>
+        </div> : null
+      ) : null}
+
+      {!isPanel ? <div className="flex shrink-0 flex-col gap-3 rounded-xl border border-slate-950/[0.1] bg-white/92 px-4 py-3 backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          
+          <h2 className="mt-1 truncate text-xl font-semibold tracking-[-0.03em] text-slate-950">{title}</h2>
+          <p className="mt-0.5 line-clamp-1 text-sm text-slate-500">{description}</p>
+        </div>
+
+        {shouldShowPreview ? (
+        <PremiumSegmentedTabs<MobileView>
+          items={[
+            { id: "tokens", label: "Tokens" },
+            { id: "preview", label: "Preview" },
+          ]}
+          value={mobileView}
+          onValueChange={setMobileView}
+          size="sm"
+          layoutId="design-mobile-view-tab"
+          className="text-xs font-medium lg:hidden"
+        />
+        ) : null}
+
+        <div className="hidden items-center gap-2 lg:flex">
+          <span className="inline-flex h-9 items-center gap-2 rounded-[10px] border border-slate-950/[0.08] bg-[#f7f7f8] px-3 text-xs font-medium text-slate-600">
+            <Eye className="h-3.5 w-3.5" />
+            {isPanel ? "Live on canvas" : "Live preview"}
+          </span>
+          <span className="inline-flex h-9 items-center rounded-[10px] border border-slate-950/[0.08] bg-white px-3 text-xs font-medium text-slate-600">
+            {recommendedFonts.length || 0} font candidates
+          </span>
+        </div>
+      </div> : null}
+
+      <div className={shouldShowPreview ? `grid min-h-0 flex-1 gap-4 ${isPanel ? "" : "pt-4"} lg:grid-cols-[minmax(0,1fr)_340px]` : `min-h-0 flex-1 ${isPanel ? "" : "pt-4"}`}>
+        <section className={`${!shouldShowPreview || mobileView === "tokens" ? "flex" : "hidden"} min-h-0 flex-col  ${isPanel ? "overflow-visible" : "overflow-hidden"} ${shouldShowPreview ? "lg:flex" : ""}`}>
+          <PremiumSegmentedTabs
+            items={EDITOR_TABS}
+            value={activeTab}
+            onValueChange={setActiveTab}
+            size="md"
+            layoutId="design-system-editor-tab"
+            hideLabelsOnMobile
+          />
+
+          <div className={`${isPanel ? "overflow-visible" : "overflow-y-auto"} min-h-0 flex-1 py-4`}>
+            <PremiumTabPanel panelKey={activeTab}>
+            {activeTab === "colors" ? (
+              <div className={`grid gap-4 ${isPanel ? "" : "xl:grid-cols-2"}`}>
+                <TokenGroup label="Foundation" panel={isPanel}>
+                  <ColorField label="Primary" value={primaryBg} tokenPath={["color", "background", "primary"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "background", "primary"], nextValue)} />
+                  <ColorField label="Secondary" value={secondaryBg} tokenPath={["color", "background", "secondary"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "background", "secondary"], nextValue)} />
+                  <ColorField label="Raised" value={raisedBg} tokenPath={["color", "background", "surface_elevated"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "background", "surface_elevated"], nextValue)} />
+                </TokenGroup>
+                <TokenGroup label="Surfaces" panel={isPanel}>
+                  <ColorField label="Card" value={cardBg} tokenPath={["color", "surface", "card"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "surface", "card"], nextValue)} />
+                  <ColorField label="Sheet" value={tokens.color?.surface?.bottom_sheet || "#ffffff"} tokenPath={["color", "surface", "bottom_sheet"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "surface", "bottom_sheet"], nextValue)} />
+                  <ColorField label="Modal" value={tokens.color?.surface?.modal || "#ffffff"} tokenPath={["color", "surface", "modal"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "surface", "modal"], nextValue)} />
+                </TokenGroup>
+                <TokenGroup label="Text" panel={isPanel}>
+                  <ColorField label="Primary text" value={primaryText} tokenPath={["color", "text", "high_emphasis"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "text", "high_emphasis"], nextValue)} />
+                  <ColorField label="Muted text" value={mediumText} tokenPath={["color", "text", "medium_emphasis"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "text", "medium_emphasis"], nextValue)} />
+                  <ColorField label="Subtle text" value={lowText} tokenPath={["color", "text", "low_emphasis"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "text", "low_emphasis"], nextValue)} />
+                  <ColorField label="Action label" value={actionLabel} tokenPath={["color", "text", "action_label"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "text", "action_label"], nextValue)} />
+                </TokenGroup>
+                <TokenGroup label="Actions" panel={isPanel}>
+                  <ColorField label="Primary" value={actionPrimary} tokenPath={["color", "action", "primary"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "action", "primary"], nextValue)} />
+                  <ColorField label="Secondary" value={actionSecondary} tokenPath={["color", "action", "secondary"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "action", "secondary"], nextValue)} />
+                  <ColorField label="Foreground" value={actionText} tokenPath={["color", "action", "on_primary_text"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "action", "on_primary_text"], nextValue)} />
+                  <ColorField label="Surface action" value={actionOnSurface} tokenPath={["color", "action", "on_surface_white_bg"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "action", "on_surface_white_bg"], nextValue)} />
+                  <ColorField label="Gradient start" value={actionGradientStart} tokenPath={["color", "action", "primary_gradient_start"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "action", "primary_gradient_start"], nextValue)} />
+                  <ColorField label="Gradient end" value={actionGradientEnd} tokenPath={["color", "action", "primary_gradient_end"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "action", "primary_gradient_end"], nextValue)} />
+                  <ColorField label="Disabled" value={tokens.color?.action?.disabled || "#e5e7eb"} tokenPath={["color", "action", "disabled"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "action", "disabled"], nextValue)} />
+                </TokenGroup>
+                <TokenGroup label="Borders" panel={isPanel}>
+                  <ColorField label="Divider" value={borderDivider} tokenPath={["color", "border", "divider"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "border", "divider"], nextValue)} />
+                  <ColorField label="Focused" value={tokens.color?.border?.focused || "#111827"} tokenPath={["color", "border", "focused"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "border", "focused"], nextValue)} />
+                  <ShapeMetricRow
+                    label="Border width"
+                    value={tokens.border_widths?.standard || ""}
+                    min={0}
+                    max={8}
+                    preview="border"
+                    panel={isPanel}
+                    onChange={(nextValue) => handleUpdateToken(["border_widths", "standard"], nextValue)}
+                  />
+                </TokenGroup>
+                <TokenGroup label="States" panel={isPanel}>
+                  {OPACITY_KEYS.map(({ key, label, fallback }) => (
+                    <OpacityMetricRow
+                      key={key}
+                      label={label}
+                      value={tokens.opacities?.[key] || fallback}
+                      fallback={Number.parseFloat(fallback)}
+                      panel={isPanel}
+                      onChange={(nextValue) => handleUpdateToken(["opacities", key], nextValue)}
+                    />
+                  ))}
+                </TokenGroup>
+              </div>
+            ) : null}
+
+            {activeTab === "type" ? (
+              <div className="grid gap-4">
+                <TokenGroup label="Font Stack" panel={isPanel}>
+                  <FontFamilyField
+                    value={tokens.typography?.font_family || ""}
+                    recommendations={recommendedFonts}
+                    onChange={(nextValue) => handleUpdateToken(["typography", "font_family"], nextValue)}
+                    panel={isPanel}
+                  />
+                </TokenGroup>
+                {isPanel ? (
+                  <TokenGroup label="Type Scale" panel>
+                    {TYPOGRAPHY_STYLES.map((style) => (
+                      <TypographyRow
+                        key={style.key}
+                        label={style.label}
+                        size={tokens.typography?.[style.key]?.size || ""}
+                        weight={String(tokens.typography?.[style.key]?.weight ?? "")}
+                        lineHeight={tokens.typography?.[style.key]?.line_height || ""}
+                        onSizeChange={(nextValue) => handleUpdateToken(["typography", style.key, "size"], nextValue)}
+                        onWeightChange={(nextValue) => handleUpdateToken(["typography", style.key, "weight"], nextValue)}
+                        onLineHeightChange={(nextValue) => handleUpdateToken(["typography", style.key, "line_height"], nextValue)}
+                        sample={style.sample}
+                        fallbackSize={style.fallback}
+                        panel
+                      />
+                    ))}
+                  </TokenGroup>
+                ) : (
+                  <div className="overflow-x-auto overflow-y-hidden rounded-[14px] border border-slate-950/[0.08]">
+                    <div className="grid min-w-[920px] grid-cols-[1.05fr_154px_178px_154px_1fr] gap-3 border-b border-slate-950/[0.08] bg-[#f7f7f8] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                      <span>Style</span>
+                      <span>Size</span>
+                      <span>Weight</span>
+                      <span>Line</span>
+                      <span>Sample</span>
+                    </div>
+                  {TYPOGRAPHY_STYLES.map((style) => (
+                    <TypographyRow
+                      key={style.key}
+                      label={style.label}
+                      size={tokens.typography?.[style.key]?.size || ""}
+                      weight={String(tokens.typography?.[style.key]?.weight ?? "")}
+                      lineHeight={tokens.typography?.[style.key]?.line_height || ""}
+                      onSizeChange={(nextValue) => handleUpdateToken(["typography", style.key, "size"], nextValue)}
+                      onWeightChange={(nextValue) => handleUpdateToken(["typography", style.key, "weight"], nextValue)}
+                      onLineHeightChange={(nextValue) => handleUpdateToken(["typography", style.key, "line_height"], nextValue)}
+                      sample={style.sample}
+                      fallbackSize={style.fallback}
+                      panel={isPanel}
+                    />
+                  ))}
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            {activeTab === "spacing" ? (
+              <div className={`grid gap-4 ${isPanel ? "" : "xl:grid-cols-2"}`}>
+                <TokenGroup label="Spacing Scale" panel={isPanel}>
+                  {SPACING_KEYS.map((key) => (
+                    <SpacingMetricRow
+                      key={key}
+                      label={key.toUpperCase()}
+                      value={tokens.spacing?.[key] || ""}
+                      min={0}
+                      max={96}
+                      panel={isPanel}
+                      onChange={(nextValue) => handleUpdateToken(["spacing", key], nextValue)}
+                    />
+                  ))}
+                </TokenGroup>
+                <TokenGroup label="Layout Rhythm" panel={isPanel}>
+                  {LAYOUT_KEYS.map((key) => (
+                    <SpacingMetricRow
+                      key={key}
+                      label={key.replace(/_/g, " ")}
+                      value={tokens.mobile_layout?.[key] || ""}
+                      min={0}
+                      max={120}
+                      preview="layout"
+                      panel={isPanel}
+                      onChange={(nextValue) => handleUpdateToken(["mobile_layout", key], nextValue)}
+                    />
+                  ))}
+                </TokenGroup>
+                <TokenGroup label="Component Sizing" panel={isPanel}>
+                  {SIZE_KEYS.map((key) => (
+                    <SpacingMetricRow
+                      key={key}
+                      label={key.replace(/_/g, " ")}
+                      value={tokens.sizing?.[key] || ""}
+                      min={8}
+                      max={140}
+                      preview="component"
+                      panel={isPanel}
+                      onChange={(nextValue) => handleUpdateToken(["sizing", key], nextValue)}
+                    />
+                  ))}
+                </TokenGroup>
+
+
+                {/*
+                // Platform constraints are important for mobile designs, but often not editable in the design tool since they are determined by the OS. Not useful for users to edit if they are not actually going to affect the output of the design tool, and can be a source of confusion if changed without understanding their impact.
+                
+              <TokenGroup label="Platform Constraints" panel={isPanel}>
+                  <ReadOnlyMetric label="Safe area top" value={tokens.mobile_layout?.safe_area_top || "16px"} />
+                  <ReadOnlyMetric label="Safe area bottom" value={tokens.mobile_layout?.safe_area_bottom || "34px"} />
+                  <ReadOnlyMetric label="Min touch" value={tokens.sizing?.min_touch_target || "48px"} />
+                </TokenGroup>
+                */}
+              </div>
+            ) : null}
+
+            {activeTab === "shape" ? (
+              <div className={`grid gap-4 ${isPanel ? "" : "xl:grid-cols-2"}`}>
+                <TokenGroup label="Corner Geometry" panel={isPanel}>
+                  <ShapeMetricRow
+                    label="App radius"
+                    value={tokens.radii?.app || ""}
+                    min={0}
+                    max={48}
+                    preview="radius"
+                    panel={isPanel}
+                    onChange={(nextValue) => handleUpdateToken(["radii", "app"], nextValue)}
+                  />
+                  <ShapeMetricRow
+                    label="Pill radius"
+                    value={tokens.radii?.pill || ""}
+                    min={0}
+                    max={9999}
+                    preview="pill"
+                    panel={isPanel}
+                    onChange={(nextValue) => handleUpdateToken(["radii", "pill"], nextValue)}
+                  />
+                </TokenGroup>
+                <TokenGroup label="Elevation" panel={isPanel}>
+                  <ShadowField
+                    label="Surface shadow"
+                    value={tokens.shadows?.surface || ""}
+                    previewRadius={radius}
+                    panel={isPanel}
+                    onChange={(nextValue) => handleUpdateToken(["shadows", "surface"], nextValue)}
+                  />
+                  <ShadowField
+                    label="Overlay shadow"
+                    value={tokens.shadows?.overlay || ""}
+                    previewRadius={radius}
+                    panel={isPanel}
+                    onChange={(nextValue) => handleUpdateToken(["shadows", "overlay"], nextValue)}
+                  />
+                  <StaticTokenRow
+                    label="Flat shadow"
+                    value={tokens.shadows?.none || "none"}
+                    description="The no-elevation state used when a surface should stay flat."
+                    panel={isPanel}
+                  />
+                </TokenGroup>
+              </div>
+            ) : null}
+            </PremiumTabPanel>
+          </div>
+        </section>
+
+        {shouldShowPreview ? (
+        <section className={`${mobileView === "preview" ? "flex" : "hidden"} min-h-0 items-center justify-center overflow-hidden rounded-xl border border-slate-950/[0.1] bg-[#eaedf1] p-3 sm:p-4 lg:flex`}>
+          <PhonePreview
+            primaryBg={primaryBg}
+            secondaryBg={secondaryBg}
+            primaryText={primaryText}
+            mediumText={mediumText}
+            lowText={lowText}
+            actionPrimary={actionPrimary}
+            actionSecondary={actionSecondary}
+            actionText={actionText}
+            cardBg={cardBg}
+            borderDivider={borderDivider}
+            radius={radius}
+            radiusPill={radiusPill}
+            shadowSurface={shadowSurface}
+            borderStandard={borderStandard}
+            fontFamily={fontFamily}
+            tokens={tokens}
+          />
+        </section>
+        ) : null}
+      </div>
+
+      <div className={`${isPanel ? "hidden" : "mt-4 flex"} shrink-0 flex-col gap-2 rounded-xl border border-slate-950/[0.1] bg-white/94 p-3 backdrop-blur lg:flex-row lg:items-center lg:justify-between`}>
+        <div className="hidden items-center gap-2 text-xs text-slate-500 lg:flex">
+          <Eye className="h-3.5 w-3.5" />
+          Preview stays live while tokens change.
+        </div>
+        <Button className="h-10 rounded-[12px] dg-button-primary px-4 text-sm font-medium lg:min-w-[250px]" onClick={() => void onSubmit()} disabled={isSubmitting}>
+          {submitLabel}
+          <ArrowRight className="ml-1.5 h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function TokenGroup({ label, children, panel = false }: { label: string; children: ReactNode; panel?: boolean }) {
+  return (
+    <div className={`${panel ? "overflow-hidden rounded-[14px]" : "rounded-[14px] p-3"} border border-slate-950/[0.08] bg-[#fbfbfc] dark:border-white/[0.10] dark:bg-[#1b1e25]`}>
+      <div className={`${panel ? "border-b border-slate-950/[0.06] bg-white/65 px-3 py-2 dark:border-white/[0.08] dark:bg-[#222630]" : "mb-3"} flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-[#8f98aa]`}>
+        <Layers className="h-3.5 w-3.5" />
+        {label}
+      </div>
+      <div className={`${panel ? "divide-y divide-slate-950/[0.06] dark:divide-white/[0.07]" : "grid gap-2 grid-cols-2 sm:grid-cols-3"}`}>{children}</div>
+    </div>
+  );
+}
+
+export function ColorPickerButton({
+  label,
+  value,
+  onChange,
+  className = "",
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  className?: string;
+}) {
+  const normalizedValue = normalizeHex(value) ?? "#000000";
+  const [isOpen, setIsOpen] = useState(false);
+  const [hexDraftState, setHexDraftState] = useState({ source: normalizedValue, value: normalizedValue });
+  const fieldRef = useRef<HTMLDivElement>(null);
+  const [pickerStyle, setPickerStyle] = useState({ left: 12, top: 12, width: 304, maxHeight: 360 });
+  const hexDraft = hexDraftState.source === normalizedValue ? hexDraftState.value : normalizedValue;
+  const rgb = getRgbFallback(normalizedValue);
+  const hsv = rgbToHsv(rgb);
+  const isHexValid = Boolean(normalizeHex(hexDraft));
+
+  useLayoutEffect(() => {
+    if (!isOpen || !fieldRef.current) {
+      return;
+    }
+
+    const updatePickerPosition = () => {
+      const rect = fieldRef.current?.getBoundingClientRect();
+      if (!rect) {
+        return;
+      }
+
+      const gutter = 12;
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const width = Math.min(304, Math.max(260, viewportWidth - gutter * 2));
+      const preferredLeft = rect.right > viewportWidth - width / 2
+        ? rect.right - width
+        : rect.left;
+      const left = clampNumber(preferredLeft, gutter, viewportWidth - width - gutter);
+      const estimatedHeight = 282;
+      const preferredTop = rect.bottom + 8;
+      const top = preferredTop + estimatedHeight > viewportHeight - gutter
+        ? Math.max(gutter, rect.top - estimatedHeight - 8)
+        : preferredTop;
+      const maxHeight = Math.max(280, viewportHeight - top - gutter);
+
+      setPickerStyle({ left, top, width, maxHeight });
+    };
+
+    updatePickerPosition();
+    window.addEventListener("resize", updatePickerPosition);
+    window.addEventListener("scroll", updatePickerPosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePickerPosition);
+      window.removeEventListener("scroll", updatePickerPosition, true);
+    };
+  }, [isOpen]);
+
+  const commitHex = (nextValue: string) => {
+    const normalized = normalizeHex(nextValue);
+    setHexDraftState({ source: normalized ?? normalizedValue, value: nextValue.toUpperCase() });
+    if (normalized) {
+      onChange(normalized);
+    }
+  };
+
+  const commitRgb = (nextRgb: RgbColor) => {
+    const nextHex = rgbToHex(nextRgb);
+    setHexDraftState({ source: nextHex, value: nextHex });
+    onChange(nextHex);
+  };
+
+  const commitHsv = (nextHsv: HsvColor) => {
+    commitRgb(hsvToRgb(nextHsv));
+  };
+
+  const handleCanvasPointer = (event: PointerEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = clampNumber(event.clientX - rect.left, 0, rect.width);
+    const y = clampNumber(event.clientY - rect.top, 0, rect.height);
+    commitHsv({
+      h: hsv.h,
+      s: rect.width === 0 ? hsv.s : x / rect.width,
+      v: rect.height === 0 ? hsv.v : 1 - y / rect.height,
+    });
+  };
+
+  return (
+    <div ref={fieldRef} className="relative shrink-0">
+      <button
+        type="button"
+        aria-label={`Open ${label} color picker`}
+        className={className || "h-7 w-7 rounded-[8px] border border-slate-950/[0.1] shadow-inner"}
+        style={{ backgroundColor: normalizedValue }}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setIsOpen((current) => !current);
+        }}
+      />
+
+      {isOpen && typeof document !== "undefined" ? createPortal(
+        <div
+          className="dg-token-popover fixed z-[110] overflow-y-auto rounded-[18px] border border-slate-950/[0.1] bg-white p-3 shadow-[0_28px_80px_-42px_rgba(15,23,42,0.9)] dark:border-white/[0.10] dark:bg-[#1b1e25] dark:shadow-[0_28px_90px_-42px_rgba(0,0,0,0.95)]"
+          style={{
+            left: pickerStyle.left,
+            top: pickerStyle.top,
+            width: pickerStyle.width,
+            maxHeight: pickerStyle.maxHeight,
+          }}
+        >
+          <div
+            role="slider"
+            aria-label={`${label} saturation and brightness`}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(hsv.s * 100)}
+            tabIndex={0}
+            className="relative h-28 cursor-crosshair overflow-hidden rounded-[14px] border border-slate-950/[0.08] dark:border-white/[0.10]"
+            style={{
+              backgroundColor: rgbToHex(hsvToRgb({ h: hsv.h, s: 1, v: 1 })),
+              backgroundImage: "linear-gradient(90deg, #FFFFFF, rgba(255,255,255,0)), linear-gradient(0deg, #000000, rgba(0,0,0,0))",
+            }}
+            onPointerDown={(event) => {
+              event.currentTarget.setPointerCapture(event.pointerId);
+              handleCanvasPointer(event);
+            }}
+            onPointerMove={(event) => {
+              if (event.buttons === 1) {
+                handleCanvasPointer(event);
+              }
+            }}
+          >
+            <span
+              className="absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-[0_0_0_1px_rgba(15,23,42,0.3)]"
+              style={{ left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%`, backgroundColor: normalizedValue }}
+            />
+          </div>
+
+          <div className="mt-3 grid grid-cols-[36px_minmax(0,1fr)] items-center gap-3">
+            <div className="h-9 w-9 rounded-[12px] border border-slate-950/[0.1] shadow-inner dark:border-white/[0.12]" style={{ backgroundColor: normalizedValue }} />
+            <input
+              type="range"
+              min={0}
+              max={360}
+              value={Math.round(hsv.h)}
+              onChange={(event) => commitHsv({ ...hsv, h: Number(event.target.value) })}
+              className="h-3 w-full appearance-none rounded-full bg-[linear-gradient(90deg,#ff0000,#ffff00,#00ff00,#00ffff,#0000ff,#ff00ff,#ff0000)] outline-none"
+            />
+          </div>
+
+          <div className="mt-3 grid grid-cols-[minmax(0,1fr)_76px] items-end gap-2">
+            <label className="space-y-1">
+              <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-[#8f98aa]">Hex</span>
+              <input
+                type="text"
+                value={hexDraft}
+                onChange={(event) => commitHex(event.target.value)}
+                className={`h-9 w-full rounded-[10px] border bg-[#fbfbfc] px-2 font-mono text-xs uppercase outline-none transition focus:bg-white dark:bg-[#252a34] dark:text-[#e7ebf3] dark:focus:bg-[#2b303b] ${isHexValid ? "border-slate-950/[0.08] focus:border-[#002fa7]/40 dark:border-white/[0.10] dark:focus:border-[#7c8cff]/45" : "border-rose-300 text-rose-600 dark:border-rose-400/40 dark:text-rose-200"}`}
+              />
+            </label>
+            <button
+              type="button"
+              className="h-9 rounded-[11px] border border-slate-950/[0.08] bg-slate-950 px-3 text-xs font-semibold text-white transition hover:bg-slate-800 dark:border-white/[0.10] dark:bg-[#e7ebf3] dark:text-[#111827] dark:hover:bg-white"
+              onClick={() => setIsOpen(false)}
+            >
+              Done
+            </button>
+          </div>
+        </div>,
+        document.body,
+      ) : null}
+    </div>
+  );
+}
+
+function ColorField({
+  label,
+  value,
+  onChange,
+  tokenPath,
+  panel = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  tokenPath?: string[];
+  panel?: boolean;
+}) {
+  const normalizedValue = normalizeHex(value) ?? "#000000";
+  const [hexDraftState, setHexDraftState] = useState({ source: normalizedValue, value: normalizedValue });
+  const hexDraft = hexDraftState.source === normalizedValue ? hexDraftState.value : normalizedValue;
+  const isHexValid = Boolean(normalizeHex(hexDraft));
+  const tokenPathLabel = tokenPath?.join(".");
+  const cssVariableName = tokenPath ? tokenPathToCssVar(tokenPath) : null;
+
+  const commitHex = (nextValue: string) => {
+    const normalized = normalizeHex(nextValue);
+    setHexDraftState({ source: normalized ?? normalizedValue, value: nextValue.toUpperCase() });
+    if (normalized) {
+      onChange(normalized);
+    }
+  };
+
+  const commitPickerColor = (nextHex: string) => {
+    setHexDraftState({ source: nextHex, value: nextHex });
+    onChange(nextHex);
+  };
+
+  if (panel) {
+    return (
+      <div className="relative" title={tokenPathLabel ? `${tokenPathLabel}${cssVariableName ? ` / ${cssVariableName}` : ""}` : undefined}>
+        <div className={`group flex min-h-[50px] items-center gap-3 bg-white px-3 py-2 transition hover:bg-[#f8fafc] dark:bg-[#1b1e25] dark:hover:bg-[#222630] ${isHexValid ? "" : "bg-rose-50 dark:bg-rose-950/25"}`}>
+          <ColorPickerButton
+            label={label}
+            value={normalizedValue}
+            onChange={commitPickerColor}
+            className="h-8 w-8 shrink-0 rounded-full border border-slate-950/[0.1] shadow-inner ring-2 ring-white dark:border-white/[0.12] dark:ring-[#2a2f39]"
+          />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[13px] font-semibold text-slate-900 dark:text-[#e7ebf3]">{label}</div>
+            <div className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-[#8f98aa]">Tap swatch to edit</div>
+          </div>
+          <input
+            type="text"
+            value={hexDraft}
+            aria-label={`${label} hex value`}
+            onChange={(event) => commitHex(event.target.value)}
+            className="h-8 w-[92px] shrink-0 rounded-[9px] border border-transparent bg-transparent px-2 text-right font-mono text-[11px] uppercase text-slate-500 outline-none transition focus:border-slate-950/[0.1] focus:bg-white focus:text-slate-950 dark:text-[#aab3c2] dark:focus:border-white/[0.12] dark:focus:bg-[#252a34] dark:focus:text-[#f4f7fb]"
+          />
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 -rotate-90 text-slate-300 transition group-hover:text-slate-500 dark:text-[#5f6878] dark:group-hover:text-[#aab3c2]" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <div className={`group flex gap-3 rounded-[12px] border bg-white transition hover:border-slate-950/[0.18] ${panel ? "items-center px-3 py-3" : "items-center px-2 py-2"} ${isHexValid ? "border-slate-950/[0.08]" : "border-rose-300"}`}>
+        <ColorPickerButton
+          label={label}
+          value={normalizedValue}
+          onChange={commitPickerColor}
+          className={`${panel ? "h-10 w-10 rounded-[12px]" : "h-7 w-7 rounded-[8px]"} shrink-0 border border-slate-950/[0.1] shadow-inner`}
+        />
+        <label className={`min-w-0 flex-1 ${panel ? "grid gap-1" : ""}`}>
+          <span className="min-w-0">
+            <span className="block truncate text-xs font-semibold text-slate-800">{label}</span>
+            {panel && tokenPathLabel ? (
+              <span className="mt-0.5 block truncate font-mono text-[11px] text-slate-400">
+                {tokenPathLabel}
+                {cssVariableName ? ` · ${cssVariableName}` : ""}
+              </span>
+            ) : null}
+          </span>
+          <input
+            type="text"
+            value={hexDraft}
+            onChange={(event) => commitHex(event.target.value)}
+            className={`${panel ? "h-9 rounded-[10px] border border-slate-950/[0.08] bg-[#fbfbfc] px-2 text-right text-xs focus:bg-white" : "bg-transparent text-[11px]"} block w-full font-mono uppercase text-slate-500 outline-none`}
+          />
+        </label>
+      </div>
+    </div>
+  );
+}
+
+function TextField({
+  label,
+  value,
+  onChange,
+  panel = false,
+  wide = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  panel?: boolean;
+  wide?: boolean;
+}) {
+  if (panel) {
+    return (
+      <label className="grid min-h-[58px] w-full gap-2 bg-white px-3 py-2.5 dark:bg-[#1b1e25] sm:grid-cols-[minmax(0,0.52fr)_minmax(0,1fr)] sm:items-center">
+        <span className="truncate text-[13px] font-semibold capitalize text-slate-900 dark:text-[#e7ebf3]">{label}</span>
+        <input
+          type="text"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className="h-9 min-w-0 rounded-[10px] border border-slate-950/[0.08] bg-[#fbfbfc] px-2.5 font-mono text-xs text-slate-900 outline-none transition focus:border-[#002fa7]/40 focus:bg-white dark:border-white/[0.10] dark:bg-[#252a34] dark:text-[#e7ebf3] dark:focus:border-[#7c8cff]/45 dark:focus:bg-[#2b303b]"
+        />
+      </label>
+    );
+  }
+
+  return (
+    <label className={wide ? "col-span-full space-y-1" : "space-y-1"}>
+      <span className="block truncate text-[11px] font-medium capitalize text-slate-500">{label}</span>
+      <input
+        type="text"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-9 w-full rounded-[10px] border border-slate-950/[0.08] bg-white px-2.5 font-mono text-xs text-slate-900 outline-none transition focus:border-[#002fa7]/40"
+      />
+    </label>
+  );
+}
+
+const normalizeFontFamilyInput = (value: string) => {
+  const cleaned = value.replace(/[;{}<>]/g, "").trim();
+  if (!cleaned) {
+    return "";
+  }
+
+  if (cleaned.includes(",") || /^['"].*['"]$/.test(cleaned) || GENERIC_FONT_FAMILIES.has(cleaned.toLowerCase())) {
+    return cleaned;
+  }
+
+  return `"${cleaned.replace(/["']/g, "")}", sans-serif`;
+};
+
+function FontFamilyField({
+  value,
+  recommendations,
+  panel = false,
+  onChange,
+}: {
+  value: string;
+  recommendations: string[];
+  panel?: boolean;
+  onChange: (value: string) => void;
+}) {
+  const options = recommendations.slice(0, 3);
+  const [isEditing, setIsEditing] = useState(false);
+  const [draftValue, setDraftValue] = useState(value);
+  const displayValue = isEditing ? draftValue : value;
+  const stopTextEntryShortcutPropagation = (event: KeyboardEvent<HTMLInputElement>) => {
+    event.stopPropagation();
+  };
+  const updateDraft = (nextValue: string) => {
+    setDraftValue(nextValue);
+    onChange(nextValue);
+  };
+  const commitFont = (nextValue: string) => {
+    const normalized = normalizeFontFamilyInput(nextValue);
+    setDraftValue(normalized);
+    onChange(normalized);
+  };
+
+  if (panel) {
+    return (
+      <div className="grid gap-2 bg-white px-3 py-2.5 dark:bg-[#1b1e25]">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="truncate text-[13px] font-semibold text-slate-900 dark:text-[#e7ebf3]">Primary font</div>
+            <div className="mt-0.5 text-[11px] text-slate-500 dark:text-[#8f98aa]">Accepts a font name or CSS font stack</div>
+          </div>
+        </div>
+        <input
+          type="text"
+          value={displayValue}
+          placeholder={`"Inter", sans-serif`}
+          onChange={(event) => updateDraft(event.target.value)}
+          onFocus={() => {
+            setIsEditing(true);
+            setDraftValue(value);
+          }}
+          onBlur={(event) => {
+            commitFont(event.target.value);
+            setIsEditing(false);
+          }}
+          onKeyDown={stopTextEntryShortcutPropagation}
+          onKeyUp={stopTextEntryShortcutPropagation}
+          className="h-9 min-w-0 rounded-[10px] border border-slate-950/[0.08] bg-[#fbfbfc] px-2.5 font-mono text-xs text-slate-900 outline-none transition focus:border-[#002fa7]/40 focus:bg-white dark:border-white/[0.10] dark:bg-[#252a34] dark:text-[#e7ebf3] dark:placeholder:text-[#606a7a] dark:focus:border-[#7c8cff]/45 dark:focus:bg-[#2b303b]"
+        />
+        {options.length ? (
+          <div className="flex min-w-0 flex-wrap gap-1.5">
+            {options.map((font) => (
+              <button
+                key={font}
+                type="button"
+                className="max-w-full truncate rounded-full border border-slate-950/[0.08] bg-[#fbfbfc] px-2.5 py-1 text-[11px] font-medium text-slate-600 transition hover:border-slate-950/[0.16] hover:bg-white hover:text-slate-950 dark:border-white/[0.10] dark:bg-[#252a34] dark:text-[#c6cedb] dark:hover:border-white/[0.16] dark:hover:bg-[#2b303b] dark:hover:text-white"
+                onClick={() => commitFont(font)}
+              >
+                {font}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <label className="col-span-full space-y-1">
+      <span className="block truncate text-[11px] font-medium capitalize text-slate-500">Font family</span>
+      <input
+        type="text"
+        value={displayValue}
+        placeholder={`"Inter", sans-serif`}
+        onChange={(event) => updateDraft(event.target.value)}
+        onFocus={() => {
+          setIsEditing(true);
+          setDraftValue(value);
+        }}
+        onBlur={(event) => {
+          commitFont(event.target.value);
+          setIsEditing(false);
+        }}
+        onKeyDown={stopTextEntryShortcutPropagation}
+        onKeyUp={stopTextEntryShortcutPropagation}
+        className="h-9 w-full rounded-[10px] border border-slate-950/[0.08] bg-white px-2.5 font-mono text-xs text-slate-900 outline-none transition focus:border-[#002fa7]/40"
+      />
+    </label>
+  );
+}
+
+function TypographyRow({
+  label,
+  size,
+  weight,
+  lineHeight,
+  onSizeChange,
+  onWeightChange,
+  onLineHeightChange,
+  sample,
+  fallbackSize,
+  panel = false,
+}: {
+  label: string;
+  size: string;
+  weight: string;
+  lineHeight: string;
+  onSizeChange: (value: string) => void;
+  onWeightChange: (value: string) => void;
+  onLineHeightChange: (value: string) => void;
+  sample: string;
+  fallbackSize: number;
+  panel?: boolean;
+}) {
+  const sizeNumber = parsePixelToken(size, fallbackSize);
+  const lineNumber = parsePixelToken(lineHeight, Math.round(sizeNumber * 1.35));
+  const resolvedWeight = weight || "400";
+  const [expanded, setExpanded] = useState(false);
+
+  if (panel) {
+    return (
+      <div className="bg-white dark:bg-[#1b1e25]">
+        <button
+          type="button"
+          className="flex min-h-[54px] w-full items-center justify-between gap-3 px-3 py-2 text-left transition hover:bg-[#f8fafc] dark:hover:bg-[#222630]"
+          onClick={() => setExpanded((current) => !current)}
+        >
+          <div className="min-w-0">
+            <div className="truncate text-[13px] font-semibold text-slate-900 dark:text-[#e7ebf3]">{label}</div>
+            <div className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-[#8f98aa]">
+              Size {sizeNumber}px · Line {lineNumber}px · Weight {resolvedWeight}
+            </div>
+          </div>
+          <div className="flex min-w-0 shrink-0 items-center gap-2">
+            <div
+              className="max-w-[148px] truncate rounded-[10px] bg-[#f4f6f8] px-2.5 py-1.5 text-slate-950 dark:border dark:border-white/[0.08] dark:bg-[#252a34] dark:text-[#eef2f8]"
+              style={{
+                fontSize: `${Math.min(sizeNumber, 30)}px`,
+                fontWeight: Number(resolvedWeight),
+                lineHeight: `${Math.min(lineNumber, 36)}px`,
+              }}
+            >
+              {sample}
+            </div>
+            <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition dark:text-[#6f7888] ${expanded ? "rotate-180" : ""}`} />
+          </div>
+        </button>
+        {expanded ? (
+          <div className="grid gap-2 border-t border-slate-950/[0.06] bg-[#fbfbfc] px-3 py-2.5 dark:border-white/[0.08] dark:bg-[#151820]">
+            <PanelControl label="Size">
+              <TokenMetricField
+                label={`${label} size`}
+                value={size}
+                min={8}
+                max={72}
+                onChange={onSizeChange}
+              />
+            </PanelControl>
+            <PanelControl label="Weight">
+              <FontWeightControl value={resolvedWeight} onChange={onWeightChange} />
+            </PanelControl>
+            <PanelControl label="Line">
+              <TokenMetricField
+                label={`${label} line height`}
+                value={lineHeight}
+                min={10}
+                max={96}
+                onChange={onLineHeightChange}
+              />
+            </PanelControl>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid min-w-[920px] grid-cols-[1.05fr_154px_178px_154px_1fr] items-center gap-3 border-b border-slate-950/[0.06] px-3 py-2.5 last:border-b-0">
+      <div className="min-w-0">
+        <div className="truncate text-sm font-medium text-slate-900">{label}</div>
+        <div className="mt-0.5 font-mono text-[11px] text-slate-400">{sizeNumber}px / {lineNumber}px</div>
+      </div>
+      <TokenMetricField
+        label={`${label} size`}
+        value={size}
+        min={8}
+        max={72}
+        onChange={onSizeChange}
+      />
+      <FontWeightControl value={resolvedWeight} onChange={onWeightChange} />
+      <TokenMetricField
+        label={`${label} line height`}
+        value={lineHeight}
+        min={10}
+        max={96}
+        onChange={onLineHeightChange}
+      />
+      <div
+        className="min-w-0 truncate rounded-[10px] border border-slate-950/[0.06] bg-[#fbfbfc] px-3 py-2 text-slate-950"
+        style={{
+          fontSize: `${sizeNumber}px`,
+          fontWeight: Number(resolvedWeight),
+          lineHeight: `${lineNumber}px`,
+        }}
+      >
+        {sample}
+      </div>
+    </div>
+  );
+}
+
+function SpacingMetricRow({
+  label,
+  value,
+  min,
+  max,
+  preview = "spacing",
+  panel = false,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  min: number;
+  max: number;
+  preview?: "spacing" | "layout" | "component";
+  panel?: boolean;
+  onChange: (value: string) => void;
+}) {
+  const numericValue = parsePixelToken(value, min);
+  const [expanded, setExpanded] = useState(false);
+
+  if (panel) {
+    return (
+      <div className="bg-white dark:bg-[#1b1e25]">
+        <button
+          type="button"
+          className="flex min-h-[52px] w-full items-center gap-3 px-3 py-2 text-left transition hover:bg-[#f8fafc] dark:hover:bg-[#222630]"
+          onClick={() => setExpanded((current) => !current)}
+        >
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[13px] font-semibold capitalize text-slate-900 dark:text-[#e7ebf3]">{label}</div>
+            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[#e9edf2] dark:bg-[#2a303a]">
+              <div
+                className="h-full rounded-full bg-slate-950 transition-all dark:bg-[#d7ddea]"
+                style={{ width: `${clampNumber((numericValue / max) * 100, 4, 100)}%` }}
+              />
+            </div>
+          </div>
+          <span className="shrink-0 rounded-full bg-[#f1f3f6] px-2 py-1 font-mono text-[11px] text-slate-600 dark:bg-[#252a34] dark:text-[#c6cedb]">{serializePixelToken(numericValue, min, max)}</span>
+          <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition dark:text-[#6f7888] ${expanded ? "rotate-180" : ""}`} />
+        </button>
+        {expanded ? (
+          <div className="grid gap-2 border-t border-slate-950/[0.06] bg-[#fbfbfc] px-3 py-3 dark:border-white/[0.08] dark:bg-[#151820]">
+            <TokenMetricField label={label} value={value} min={min} max={max} onChange={onChange} />
+            <SpacingPreview value={numericValue} variant={preview} />
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="col-span-full grid gap-2 rounded-[12px] border border-slate-950/[0.06] bg-white p-2 sm:grid-cols-[minmax(0,1fr)_154px_120px] sm:items-center">
+      <div className="min-w-0">
+        <div className="truncate text-xs font-medium capitalize text-slate-800">{label}</div>
+        <div className="mt-1 h-2 overflow-hidden rounded-full bg-[#eef1f5]">
+          <div
+            className="h-full rounded-full bg-slate-950 transition-all"
+            style={{ width: `${clampNumber((numericValue / max) * 100, 4, 100)}%` }}
+          />
+        </div>
+      </div>
+      <TokenMetricField label={label} value={value} min={min} max={max} onChange={onChange} />
+      <SpacingPreview value={numericValue} variant={preview} />
+    </div>
+  );
+}
+
+function SpacingPreview({ value, variant }: { value: number; variant: "spacing" | "layout" | "component" }) {
+  if (variant === "layout") {
+    return (
+      <div className="flex h-12 items-center justify-center rounded-[10px] border border-slate-950/[0.06] bg-[#fbfbfc] p-1.5 dark:border-white/[0.08] dark:bg-[#252a34]">
+        <div className="h-full w-16 rounded-[8px] border border-slate-300 bg-white p-1 dark:border-white/[0.12] dark:bg-[#171a21]" style={{ padding: clampNumber(value / 4, 2, 12) }}>
+          <div className="h-full rounded-[5px] bg-slate-950/[0.12] dark:bg-white/[0.14]" />
+        </div>
+      </div>
+    );
+  }
+
+  if (variant === "component") {
+    return (
+      <div className="flex h-12 items-center justify-center rounded-[10px] border border-slate-950/[0.06] bg-[#fbfbfc] dark:border-white/[0.08] dark:bg-[#252a34]">
+        <div className="rounded-full bg-slate-950 dark:bg-[#d7ddea]" style={{ width: clampNumber(value * 1.25, 20, 92), height: clampNumber(value / 3, 8, 28) }} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-12 items-center justify-center gap-1 rounded-[10px] border border-slate-950/[0.06] bg-[#fbfbfc] dark:border-white/[0.08] dark:bg-[#252a34]">
+      <span className="h-5 w-5 rounded-[6px] bg-slate-950/[0.14] dark:bg-white/[0.14]" />
+      <span className="h-px bg-slate-950 dark:bg-[#d7ddea]" style={{ width: clampNumber(value, 4, 72) }} />
+      <span className="h-5 w-5 rounded-[6px] bg-slate-950/[0.14] dark:bg-white/[0.14]" />
+    </div>
+  );
+}
+
+function PanelControl({ label, description, children }: { label: string; description?: string; children: ReactNode }) {
+  return (
+    <div className="grid grid-cols-[58px_minmax(0,1fr)] items-center gap-2 rounded-[11px] border border-slate-950/[0.06] bg-white px-2.5 py-2 dark:border-white/[0.08] dark:bg-[#1b1e25]">
+      <div className="min-w-0 text-xs font-semibold text-slate-600 dark:text-[#c6cedb]">
+        <span className="block truncate">{label}</span>
+        {description ? <span className="mt-0.5 block text-[11px] font-normal text-slate-500 dark:text-[#8f98aa]">{description}</span> : null}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function StaticTokenRow({
+  label,
+  value,
+  description,
+  panel = false,
+}: {
+  label: string;
+  value: string;
+  description: string;
+  panel?: boolean;
+}) {
+  if (panel) {
+    return (
+      <div className="flex min-h-[58px] items-center gap-3 bg-white px-3 py-2.5 dark:bg-[#1b1e25]">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[13px] font-semibold text-slate-900 dark:text-[#e7ebf3]">{label}</div>
+          <div className="mt-0.5 text-[11px] text-slate-500 dark:text-[#8f98aa]">{description}</div>
+        </div>
+        <span className="shrink-0 rounded-full bg-[#f1f3f6] px-2.5 py-1 font-mono text-[11px] text-slate-600 dark:bg-[#252a34] dark:text-[#c6cedb]">{value}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="col-span-full rounded-[12px] border border-slate-950/[0.08] bg-white px-2.5 py-2">
+      <div className="truncate text-[11px] font-medium uppercase tracking-[0.08em] text-slate-400">{label}</div>
+      <div className="mt-1 font-mono text-xs text-slate-900">{value}</div>
+      <div className="mt-1 text-[11px] text-slate-500">{description}</div>
+    </div>
+  );
+}
+
+function OpacityMetricRow({
+  label,
+  value,
+  fallback,
+  panel = false,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  fallback: number;
+  panel?: boolean;
+  onChange: (value: string) => void;
+}) {
+  const numericValue = parseOpacityToken(value, fallback);
+  const percentValue = Math.round(numericValue * 100);
+  const [expanded, setExpanded] = useState(false);
+  const updateValue = (nextPercent: number) => onChange(serializeOpacityToken(nextPercent / 100));
+
+  if (panel) {
+    return (
+      <div className="bg-white dark:bg-[#1b1e25]">
+        <button
+          type="button"
+          className="flex min-h-[52px] w-full items-center gap-3 px-3 py-2 text-left transition hover:bg-[#f8fafc] dark:hover:bg-[#222630]"
+          onClick={() => setExpanded((current) => !current)}
+        >
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[13px] font-semibold capitalize text-slate-900 dark:text-[#e7ebf3]">{label}</div>
+            <div className="mt-0.5 font-mono text-[11px] text-slate-500 dark:text-[#8f98aa]">{percentValue}% opacity</div>
+          </div>
+          <OpacityPreview value={numericValue} compact />
+          <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition dark:text-[#6f7888] ${expanded ? "rotate-180" : ""}`} />
+        </button>
+        {expanded ? (
+          <div className="border-t border-slate-950/[0.06] bg-[#fbfbfc] px-3 py-3 dark:border-white/[0.08] dark:bg-[#151820]">
+            <ShadowSlider
+              label={label}
+              value={percentValue}
+              min={0}
+              max={100}
+              suffix="%"
+              panel
+              onChange={updateValue}
+            />
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="col-span-full grid gap-2 rounded-[12px] border border-slate-950/[0.06] bg-white p-2 sm:grid-cols-[minmax(0,1fr)_154px_120px] sm:items-center">
+      <div className="min-w-0">
+        <div className="truncate text-xs font-medium capitalize text-slate-800">{label}</div>
+        <div className="mt-0.5 font-mono text-[11px] text-slate-400">{percentValue}% opacity</div>
+      </div>
+      <ShadowSlider
+        label={label}
+        value={percentValue}
+        min={0}
+        max={100}
+        suffix="%"
+        onChange={updateValue}
+      />
+      <OpacityPreview value={numericValue} />
+    </div>
+  );
+}
+
+function OpacityPreview({ value, compact = false }: { value: number; compact?: boolean }) {
+  return (
+    <div className={`${compact ? "h-11 w-20" : "h-12"} flex shrink-0 items-center justify-center rounded-[10px] bg-[linear-gradient(45deg,#e5e7eb_25%,transparent_25%),linear-gradient(-45deg,#e5e7eb_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#e5e7eb_75%),linear-gradient(-45deg,transparent_75%,#e5e7eb_75%)] bg-[length:12px_12px] bg-[position:0_0,0_6px,6px_-6px,-6px_0] dark:bg-[linear-gradient(45deg,#343a46_25%,transparent_25%),linear-gradient(-45deg,#343a46_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#343a46_75%),linear-gradient(-45deg,transparent_75%,#343a46_75%)]`}>
+      <div
+        className={`${compact ? "h-7 w-14" : "h-8 w-16"} rounded-[10px] bg-slate-950 dark:bg-[#d7ddea]`}
+        style={{ opacity: clampNumber(value, 0, 1) }}
+      />
+    </div>
+  );
+}
+
+function ShapeMetricRow({
+  label,
+  value,
+  min,
+  max,
+  preview,
+  panel = false,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  min: number;
+  max: number;
+  preview: "radius" | "pill" | "border";
+  panel?: boolean;
+  onChange: (value: string) => void;
+}) {
+  const numericValue = parsePixelToken(value, min);
+  const [expanded, setExpanded] = useState(false);
+
+  if (panel) {
+    return (
+      <div className="bg-white dark:bg-[#1b1e25]">
+        <button
+          type="button"
+          className="flex min-h-[52px] w-full items-center gap-3 px-3 py-2 text-left transition hover:bg-[#f8fafc] dark:hover:bg-[#222630]"
+          onClick={() => setExpanded((current) => !current)}
+        >
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[13px] font-semibold capitalize text-slate-900 dark:text-[#e7ebf3]">{label}</div>
+            <div className="mt-0.5 font-mono text-[11px] text-slate-500 dark:text-[#8f98aa]">{serializePixelToken(numericValue, min, max)}</div>
+          </div>
+          <ShapePreview value={numericValue} variant={preview} compact />
+          <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition dark:text-[#6f7888] ${expanded ? "rotate-180" : ""}`} />
+        </button>
+        {expanded ? (
+          <div className="border-t border-slate-950/[0.06] bg-[#fbfbfc] px-3 py-3 dark:border-white/[0.08] dark:bg-[#151820]">
+            <TokenMetricField label={label} value={value} min={min} max={max} onChange={onChange} />
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="col-span-full grid gap-2 rounded-[12px] border border-slate-950/[0.06] bg-white p-2 sm:grid-cols-[minmax(0,1fr)_154px_120px] sm:items-center">
+      <div className="min-w-0">
+        <div className="truncate text-xs font-medium capitalize text-slate-800">{label}</div>
+        <div className="mt-0.5 font-mono text-[11px] text-slate-400">{serializePixelToken(numericValue, min, max)}</div>
+      </div>
+      <TokenMetricField label={label} value={value} min={min} max={max} onChange={onChange} />
+      <ShapePreview value={numericValue} variant={preview} />
+    </div>
+  );
+}
+
+function ShapePreview({ value, variant, compact = false }: { value: number; variant: "radius" | "pill" | "border"; compact?: boolean }) {
+  if (variant === "border") {
+    return (
+      <div className={`${compact ? "h-11 w-20" : "h-12"} flex shrink-0 items-center justify-center rounded-[10px] bg-[#fbfbfc] dark:bg-[#252a34]`}>
+        <div className={`${compact ? "h-7 w-14" : "h-8 w-16"} rounded-[10px] bg-white dark:bg-[#e7ebf3]`} style={{ border: `${clampNumber(value, 0, 8)}px solid #111827` }} />
+      </div>
+    );
+  }
+
+  return (
+    <div className={`${compact ? "h-11 w-20" : "h-12"} flex shrink-0 items-center justify-center rounded-[10px] border border-slate-950/[0.06] bg-[#fbfbfc] dark:border-white/[0.08] dark:bg-[#252a34]`}>
+      <div
+        className={`${compact ? "h-7 w-14" : "h-8 w-16"} border border-slate-950/[0.08] bg-white shadow-[0_10px_28px_-22px_rgba(15,23,42,0.7)] dark:border-white/[0.10] dark:bg-[#171a21]`}
+        style={{ borderRadius: variant === "pill" ? 9999 : clampNumber(value, 0, 48) }}
+      />
+    </div>
+  );
+}
+
+function ShadowField({
+  label,
+  value,
+  previewRadius,
+  panel = false,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  previewRadius: string;
+  panel?: boolean;
+  onChange: (value: string) => void;
+}) {
+  const shadowParts = parseCssShadow(value);
+  const [expanded, setExpanded] = useState(false);
+  const updateShadow = (partial: Partial<ShadowParts>) => {
+    onChange(serializeCssShadow({ ...shadowParts, ...partial }));
+  };
+
+  if (panel) {
+    return (
+      <div className="bg-white dark:bg-[#1b1e25]">
+        <button
+          type="button"
+          className="flex min-h-[58px] w-full items-center gap-3 px-3 py-2 text-left transition hover:bg-[#f8fafc] dark:hover:bg-[#222630]"
+          onClick={() => setExpanded((current) => !current)}
+        >
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[13px] font-semibold capitalize text-slate-900 dark:text-[#e7ebf3]">{label}</div>
+            <div className="mt-0.5 truncate font-mono text-[11px] text-slate-500 dark:text-[#8f98aa]">{serializeCssShadow(shadowParts)}</div>
+          </div>
+          <div className="flex h-10 w-16 shrink-0 items-center justify-center rounded-[10px] bg-[#f1f3f6] dark:bg-[#252a34]">
+            <div
+              className="h-6 w-10 border border-slate-950/[0.08] bg-white dark:border-white/[0.10] dark:bg-[#171a21]"
+              style={{ borderRadius: previewRadius, boxShadow: serializeCssShadow(shadowParts) }}
+            />
+          </div>
+          <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition dark:text-[#6f7888] ${expanded ? "rotate-180" : ""}`} />
+        </button>
+        {expanded ? (
+          <div className="grid gap-3 border-t border-slate-950/[0.06] bg-[#fbfbfc] px-3 py-3 dark:border-white/[0.08] dark:bg-[#151820]">
+            <div className="flex flex-wrap gap-1.5">
+              {SHADOW_PRESETS.map((preset) => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  className="rounded-full border border-slate-950/[0.08] bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 transition hover:border-slate-950/[0.16] hover:text-slate-950 dark:border-white/[0.10] dark:bg-[#252a34] dark:text-[#c6cedb] dark:hover:border-white/[0.16] dark:hover:bg-[#2b303b] dark:hover:text-white"
+                  onClick={() => onChange(serializeCssShadow(preset.value))}
+                >
+                  {preset.label}
+                </button>
+              ))}
+              <button
+                type="button"
+                className="rounded-full border border-slate-950/[0.08] bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 transition hover:border-slate-950/[0.16] hover:text-slate-950 dark:border-white/[0.10] dark:bg-[#252a34] dark:text-[#c6cedb] dark:hover:border-white/[0.16] dark:hover:bg-[#2b303b] dark:hover:text-white"
+                onClick={() => onChange("none")}
+              >
+                None
+              </button>
+            </div>
+            <ShadowSlider label="Y" min={-40} max={40} value={shadowParts.y} panel={panel} onChange={(nextValue) => updateShadow({ y: nextValue, enabled: true })} />
+            <ShadowSlider label="Blur" min={0} max={96} value={shadowParts.blur} panel={panel} onChange={(nextValue) => updateShadow({ blur: nextValue, enabled: true })} />
+            <ShadowSlider
+              label="Opacity"
+              min={0}
+              max={60}
+              value={Math.round(shadowParts.opacity * 100)}
+              suffix="%"
+              panel={panel}
+              onChange={(nextValue) => updateShadow({ opacity: nextValue / 100, enabled: nextValue > 0 })}
+            />
+            <ColorField
+              label="Color"
+              value={shadowParts.color}
+              panel
+              onChange={(nextColor) => updateShadow({ color: nextColor, enabled: true })}
+            />
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="col-span-full grid gap-3 rounded-xl border border-slate-950/[0.06] bg-white p-3">
+      <div className="min-w-0 space-y-3">
+        <div className="grid gap-2">
+          <div className="min-w-0">
+            <div className="text-xs font-semibold capitalize text-slate-800">{label}</div>
+            <div className="mt-0.5 break-words font-mono text-[11px] leading-5 text-slate-400">{serializeCssShadow(shadowParts)}</div>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {SHADOW_PRESETS.map((preset) => (
+              <button
+                key={preset.label}
+                type="button"
+                className="rounded-full border border-slate-950/[0.08] bg-[#fbfbfc] px-2.5 py-1 text-[11px] font-medium text-slate-600 transition hover:border-slate-950/[0.16] hover:bg-white hover:text-slate-950"
+                onClick={() => onChange(serializeCssShadow(preset.value))}
+              >
+                {preset.label}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="rounded-full border border-slate-950/[0.08] bg-[#fbfbfc] px-2.5 py-1 text-[11px] font-medium text-slate-600 transition hover:border-slate-950/[0.16] hover:bg-white hover:text-slate-950"
+              onClick={() => onChange("none")}
+            >
+              None
+            </button>
+          </div>
+        </div>
+
+        <div className={`grid gap-2.5 ${panel ? "" : "sm:grid-cols-2"}`}>
+          <ShadowSlider label="X" min={-40} max={40} value={shadowParts.x} panel={panel} onChange={(nextValue) => updateShadow({ x: nextValue, enabled: true })} />
+          <ShadowSlider label="Y" min={-40} max={40} value={shadowParts.y} panel={panel} onChange={(nextValue) => updateShadow({ y: nextValue, enabled: true })} />
+          <ShadowSlider label="Blur" min={0} max={96} value={shadowParts.blur} panel={panel} onChange={(nextValue) => updateShadow({ blur: nextValue, enabled: true })} />
+          <ShadowSlider label="Spread" min={-40} max={40} value={shadowParts.spread} panel={panel} onChange={(nextValue) => updateShadow({ spread: nextValue, enabled: true })} />
+          <ShadowSlider
+            label="Opacity"
+            min={0}
+            max={60}
+            value={Math.round(shadowParts.opacity * 100)}
+            suffix="%"
+            panel={panel}
+            onChange={(nextValue) => updateShadow({ opacity: nextValue / 100, enabled: nextValue > 0 })}
+          />
+          <ColorField
+            label="Color"
+            value={shadowParts.color}
+            panel
+            onChange={(nextColor) => updateShadow({ color: nextColor, enabled: true })}
+          />
+        </div>
+      </div>
+
+      <div className={`${panel ? "min-h-20" : "min-h-24"} flex items-center justify-center rounded-[14px] bg-[#f1f3f6] p-4`}>
+        <div
+          className={`${panel ? "h-14 w-20" : "h-16 w-24"} border border-slate-950/[0.08] bg-white transition-[box-shadow,transform] duration-150`}
+          style={{
+            borderRadius: previewRadius,
+            boxShadow: serializeCssShadow(shadowParts),
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ShadowSlider({
+  label,
+  value,
+  min,
+  max,
+  suffix = "px",
+  panel = false,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  suffix?: string;
+  panel?: boolean;
+  onChange: (value: number) => void;
+}) {
+  const roundedValue = Math.round(value);
+
+  return (
+    <label className={`${panel ? "grid-cols-[48px_minmax(0,1fr)_50px] gap-2 px-2.5 py-2.5" : "grid-cols-[74px_minmax(0,1fr)_62px] gap-3 px-3 py-3"} grid items-center rounded-[14px] border border-slate-950/[0.07] bg-[#fbfbfc] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] dark:border-white/[0.08] dark:bg-[#1b1e25] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]`}>
+      <span className="text-xs font-semibold text-slate-600 dark:text-[#c6cedb]">{label}</span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        value={roundedValue}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="h-3 min-w-0 cursor-pointer appearance-none rounded-full bg-slate-200 outline-none dark:bg-[#303642] [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-slate-950 [&::-moz-range-thumb]:shadow-[0_4px_14px_rgba(15,23,42,0.28)] dark:[&::-moz-range-thumb]:border-[#151820] dark:[&::-moz-range-thumb]:bg-[#e7ebf3] [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-slate-950 [&::-webkit-slider-thumb]:shadow-[0_4px_14px_rgba(15,23,42,0.28)] dark:[&::-webkit-slider-thumb]:border-[#151820] dark:[&::-webkit-slider-thumb]:bg-[#e7ebf3]"
+      />
+      <span className="rounded-[9px] border border-slate-950/[0.06] bg-white px-1.5 py-1 text-right font-mono text-[11px] text-slate-600 dark:border-white/[0.08] dark:bg-[#252a34] dark:text-[#c6cedb]">
+        {roundedValue}{suffix}
+      </span>
+    </label>
+  );
+}
+
+function TokenMetricField({
+  label,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  min: number;
+  max: number;
+  onChange: (value: string) => void;
+}) {
+  const numericValue = parsePixelToken(value, min);
+  const updateValue = (nextValue: number) => onChange(serializePixelToken(nextValue, min, max));
+
+  return (
+    <div className="grid h-9 grid-cols-[30px_minmax(0,1fr)_30px] overflow-hidden rounded-[10px] border border-slate-950/[0.08] bg-white dark:border-white/[0.10] dark:bg-[#252a34]">
+      <button
+        type="button"
+        aria-label={`Decrease ${label}`}
+        className="flex items-center justify-center border-r border-slate-950/[0.06] text-slate-500 transition hover:bg-[#f7f7f8] hover:text-slate-900 dark:border-white/[0.08] dark:text-[#8f98aa] dark:hover:bg-[#2b303b] dark:hover:text-white"
+        onClick={() => updateValue(numericValue - 1)}
+      >
+        <Minus className="h-3.5 w-3.5" />
+      </button>
+      <label className="flex min-w-0 items-center bg-[#fbfbfc] px-2 focus-within:bg-white dark:bg-[#1b1e25] dark:focus-within:bg-[#20242d]">
+        <input
+          type="number"
+          min={min}
+          max={max}
+          value={numericValue}
+          onChange={(event) => {
+            const nextValue = Number.parseFloat(event.target.value);
+            if (Number.isFinite(nextValue)) {
+              updateValue(nextValue);
+            }
+          }}
+          onBlur={(event) => {
+            const nextValue = Number.parseFloat(event.target.value);
+            updateValue(Number.isFinite(nextValue) ? nextValue : numericValue);
+          }}
+          className="h-full min-w-0 flex-1 bg-transparent font-mono text-xs text-slate-900 outline-none dark:text-[#e7ebf3]"
+        />
+        <span className="shrink-0 font-mono text-[11px] text-slate-400 dark:text-[#8f98aa]">px</span>
+      </label>
+      <button
+        type="button"
+        aria-label={`Increase ${label}`}
+        className="flex items-center justify-center border-l border-slate-950/[0.06] text-slate-500 transition hover:bg-[#f7f7f8] hover:text-slate-900 dark:border-white/[0.08] dark:text-[#8f98aa] dark:hover:bg-[#2b303b] dark:hover:text-white"
+        onClick={() => updateValue(numericValue + 1)}
+      >
+        <Plus className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
+function FontWeightControl({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const hasPresetValue = FONT_WEIGHT_OPTIONS.some((option) => option.value === value);
+  const selectedOption = FONT_WEIGHT_OPTIONS.find((option) => option.value === value);
+  const selectedLabel = selectedOption ? `${selectedOption.label} ${selectedOption.value}` : `Custom ${value}`;
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        className="flex h-9 w-full items-center justify-between gap-2 rounded-[10px] border border-slate-950/[0.08] bg-white px-2.5 text-left text-xs font-medium text-slate-800 outline-none transition hover:border-slate-950/[0.16] focus:border-[#002fa7]/40 dark:border-white/[0.10] dark:bg-[#252a34] dark:text-[#e7ebf3] dark:hover:border-white/[0.16] dark:focus:border-[#7c8cff]/45"
+        onClick={() => setIsOpen((current) => !current)}
+      >
+        <span className="truncate">{selectedLabel}</span>
+        <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition dark:text-[#8f98aa] ${isOpen ? "rotate-180" : ""}`} />
+      </button>
+
+      {isOpen ? (
+        <div className="absolute left-0 top-[calc(100%+6px)] z-30 w-full min-w-[178px] overflow-hidden rounded-[12px] border border-slate-950/[0.1] bg-white p-1 shadow-[0_18px_60px_-34px_rgba(15,23,42,0.75)] dark:border-white/[0.10] dark:bg-[#1b1e25] dark:shadow-[0_18px_70px_-34px_rgba(0,0,0,0.9)]">
+          {!hasPresetValue ? (
+            <div className="flex h-8 items-center justify-between rounded-[9px] bg-[#f7f7f8] px-2 text-xs font-medium text-slate-500 dark:bg-[#252a34] dark:text-[#c6cedb]">
+              <span>Custom {value}</span>
+              <Check className="h-3.5 w-3.5" />
+            </div>
+          ) : null}
+          {FONT_WEIGHT_OPTIONS.map((option) => {
+            const selected = option.value === value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                className={`flex h-8 w-full items-center justify-between rounded-[9px] px-2 text-left text-xs font-medium transition ${
+                  selected ? "bg-slate-950 text-white dark:bg-[#e7ebf3] dark:text-[#111827]" : "text-slate-700 hover:bg-[#f7f7f8] dark:text-[#c6cedb] dark:hover:bg-[#252a34] dark:hover:text-white"
+                }`}
+                onClick={() => {
+                  onChange(option.value);
+                  setIsOpen(false);
+                }}
+              >
+                <span>{option.label} {option.value}</span>
+                {selected ? <Check className="h-3.5 w-3.5" /> : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ReadOnlyMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[12px] border border-slate-950/[0.08] bg-white px-2.5 py-2 dark:border-white/[0.08] dark:bg-[#1b1e25]">
+      <div className="truncate text-[11px] font-medium uppercase tracking-[0.08em] text-slate-400 dark:text-[#8f98aa]">{label}</div>
+      <div className="mt-1 font-mono text-xs text-slate-900 dark:text-[#e7ebf3]">{value}</div>
+    </div>
+  );
+}
+
+function PhonePreview({
+  primaryBg,
+  secondaryBg,
+  primaryText,
+  mediumText,
+  lowText,
+  actionPrimary,
+  actionSecondary,
+  actionText,
+  cardBg,
+  borderDivider,
+  radius,
+  radiusPill,
+  shadowSurface,
+  borderStandard,
+  fontFamily,
+  tokens,
+}: {
+  primaryBg: string;
+  secondaryBg: string;
+  primaryText: string;
+  mediumText: string;
+  lowText: string;
+  actionPrimary: string;
+  actionSecondary: string;
+  actionText: string;
+  cardBg: string;
+  borderDivider: string;
+  radius: string;
+  radiusPill: string;
+  shadowSurface: string;
+  borderStandard: string;
+  fontFamily?: string;
+  tokens: NonNullable<DesignTokens["tokens"]>;
+}) {
+  return (
+    <div
+      className="relative flex aspect-[9/18] h-[min(100%,clamp(360px,68dvh,560px))] max-h-full w-auto max-w-[min(78vw,280px)] flex-col overflow-hidden rounded-[clamp(22px,7vw,30px)] border border-slate-950/[0.12] bg-white shadow-[0_24px_60px_-42px_rgba(15,23,42,0.75)]"
+      style={{ backgroundColor: primaryBg, color: primaryText, fontFamily }}
+    >
+      <div className="flex items-center justify-between px-[7%] pt-[7%]">
+        <div className="h-[clamp(20px,6vw,28px)] w-[clamp(20px,6vw,28px)] rounded-full" style={{ backgroundColor: secondaryBg, border: `${borderStandard} solid ${borderDivider}` }} />
+        <div className="h-[clamp(20px,6vw,28px)] w-[28%] rounded-full" style={{ backgroundColor: actionPrimary, opacity: 0.12, borderRadius: radiusPill }} />
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col px-[7%] pb-[7%] pt-[5%]">
+        <h3
+          className="tracking-tight"
+          style={{
+            color: primaryText,
+            fontSize: `clamp(18px, 5.4vw, ${tokens.typography?.screen_title?.size || "24px"})`,
+            fontWeight: Number(tokens.typography?.screen_title?.weight ?? 800),
+            lineHeight: "1.12",
+          }}
+        >
+          Preview
+        </h3>
+        <p className="mt-1 line-clamp-2" style={{ color: mediumText, fontSize: `clamp(12px, 3.2vw, ${tokens.typography?.supporting?.size || "14px"})`, lineHeight: "1.45" }}>
+          Live token response across surfaces, type, spacing, and action states.
+        </p>
+
+        <div className="mt-[7%]" style={{ borderBottom: `${borderStandard} solid ${borderDivider}` }} />
+
+        <div
+          className="mt-[7%] p-[7%]"
+          style={{
+            backgroundColor: cardBg,
+            borderRadius: radius,
+            boxShadow: shadowSurface,
+            border: `${borderStandard} solid ${borderDivider}`,
+          }}
+        >
+          <div style={{ fontSize: `clamp(13px, 3.8vw, ${tokens.typography?.body?.size || "16px"})`, lineHeight: "1.35", color: primaryText }}>
+            Weekly activity
+          </div>
+          <div className="mt-1 line-clamp-1" style={{ fontSize: `clamp(10px, 3vw, ${tokens.typography?.caption?.size || "12px"})`, color: lowText }}>
+            Token changes land here immediately.
+          </div>
+          <div className="mt-[7%] grid grid-cols-4 gap-[5%]">
+            {[36, 54, 42, 64].map((height, index) => (
+              <div key={`${height}-${index}`} className="flex items-end">
+                <div
+                  className="w-full rounded-full"
+                  style={{
+                    height: `clamp(24px, ${height / 5}vw, ${height}px)`,
+                    background: index % 2 === 0 ? actionPrimary : actionSecondary,
+                    opacity: index % 2 === 0 ? 1 : 0.34,
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div
+          className="mt-[6%] flex items-center gap-[5%] p-[6%]"
+          style={{
+            backgroundColor: cardBg,
+            borderRadius: radius,
+            boxShadow: shadowSurface,
+            border: `${borderStandard} solid ${borderDivider}`,
+          }}
+        >
+          <div className="h-[clamp(30px,9vw,40px)] w-[clamp(30px,9vw,40px)] shrink-0 rounded-full" style={{ backgroundColor: actionPrimary, opacity: 0.14 }} />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[clamp(12px,3.4vw,14px)] font-semibold" style={{ color: primaryText }}>Reusable row</div>
+            <div className="truncate text-[clamp(10px,3vw,12px)]" style={{ color: mediumText }}>Surface plus text rhythm</div>
+          </div>
+        </div>
+
+        <div
+          className="mt-[6%] flex items-center px-[6%]"
+          style={{
+            backgroundColor: secondaryBg,
+            borderRadius: radius,
+            border: `${borderStandard} solid ${borderDivider}`,
+            height: `clamp(40px, 10vw, ${tokens.sizing?.standard_input_height || "48px"})`,
+          }}
+        >
+          <span className="truncate" style={{ fontSize: `clamp(12px, 3.2vw, ${tokens.typography?.supporting?.size || "14px"})`, color: lowText }}>Search interactions</span>
+        </div>
+
+        <div className="flex-1" />
+
+        <button
+          type="button"
+          className="mt-[6%] flex h-[clamp(42px,11vw,52px)] w-full items-center justify-center gap-2 transition active:scale-[0.99]"
+          style={{
+            backgroundColor: actionPrimary,
+            color: actionText,
+            borderRadius: radius,
+            fontSize: `clamp(13px, 3.6vw, ${tokens.typography?.button_label?.size || "16px"})`,
+            fontWeight: Number(tokens.typography?.button_label?.weight ?? 600),
+          }}
+        >
+          Continue
+        </button>
+      </div>
+    </div>
+  );
+}

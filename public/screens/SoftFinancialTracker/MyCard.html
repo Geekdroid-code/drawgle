@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link id="drawgle-google-font" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;500;600;700&amp;display=swap">
+    <style>
+:root {
+  --dg-color-text-low-emphasis: #999999;
+  --dg-color-text-high-emphasis: #000000;
+  --dg-color-text-medium-emphasis: #666666;
+  --dg-color-action-error: #FF3B30;
+  --dg-color-action-primary: #000000;
+  --dg-color-action-success: #2ECC71;
+  --dg-color-action-disabled: #D1D1D1;
+  --dg-color-action-secondary: #E8E8E8;
+  --dg-color-action-accent-blue: #4A90E2;
+  --dg-color-action-on-primary-text: #FFFFFF;
+  --dg-color-border-divider: #EEEEEE;
+  --dg-color-border-focused: #000000;
+  --dg-color-surface-card: #FFFFFF;
+  --dg-color-surface-modal: #FFFFFF;
+  --dg-color-surface-bottom-sheet: #FFFFFF;
+  --dg-color-background-primary: #FFFFFF;
+  --dg-color-background-secondary: #F8F8F8;
+  --dg-radii-app: 28px;
+  --dg-radii-pill: 9999px;
+  --dg-sizing-icon-small: 18px;
+  --dg-sizing-icon-standard: 24px;
+  --dg-sizing-min-touch-target: 48px;
+  --dg-sizing-bottom-nav-height: 84px;
+  --dg-sizing-standard-input-height: 52px;
+  --dg-sizing-standard-button-height: 56px;
+  --dg-shadows-none: none;
+  --dg-shadows-overlay: 0px 10px 40px rgba(0, 0, 0, 0.12);
+  --dg-shadows-surface: 0px 4px 20px rgba(0, 0, 0, 0.06);
+  --dg-spacing-none: 0px;
+  --dg-spacing-lg: 24px;
+  --dg-spacing-md: 16px;
+  --dg-spacing-sm: 12px;
+  --dg-spacing-xl: 32px;
+  --dg-spacing-xs: 8px;
+  --dg-spacing-xxl: 48px;
+  --dg-spacing-xxs: 4px;
+  --dg-z-index-base: 0;
+  --dg-z-index-bottom-nav: 20;
+  --dg-z-index-bottom-sheet: 30;
+  --dg-z-index-modal-dialog: 40;
+  --dg-z-index-sticky-header: 10;
+  --dg-z-index-toast-snackbar: 50;
+  --dg-opacities-opaque: 1;
+  --dg-opacities-pressed: 0.12;
+  --dg-opacities-disabled: 0.38;
+  --dg-opacities-transparent: 0;
+  --dg-opacities-scrim-overlay: 0.50;
+  --dg-typography-font-family: 'SF Pro Display', 'Inter', sans-serif;
+  --dg-type-nav-title-size: 17px;
+  --dg-type-nav-title-weight: 600;
+  --dg-type-nav-title-line-height: 22px;
+  --dg-type-screen-title-size: 24px;
+  --dg-type-screen-title-weight: 700;
+  --dg-type-screen-title-line-height: 30px;
+  --dg-type-hero-title-size: 34px;
+  --dg-type-hero-title-weight: 700;
+  --dg-type-hero-title-line-height: 41px;
+  --dg-type-section-title-size: 18px;
+  --dg-type-section-title-weight: 600;
+  --dg-type-section-title-line-height: 24px;
+  --dg-type-metric-value-size: 32px;
+  --dg-type-metric-value-weight: 700;
+  --dg-type-metric-value-line-height: 38px;
+  --dg-type-body-size: 16px;
+  --dg-type-body-weight: 400;
+  --dg-type-body-line-height: 24px;
+  --dg-type-supporting-size: 14px;
+  --dg-type-supporting-weight: 500;
+  --dg-type-supporting-line-height: 20px;
+  --dg-type-caption-size: 12px;
+  --dg-type-caption-weight: 400;
+  --dg-type-caption-line-height: 16px;
+  --dg-type-button-label-size: 15px;
+  --dg-type-button-label-weight: 600;
+  --dg-type-button-label-line-height: 20px;
+  --dg-border-widths-standard: 0px;
+  --dg-mobile-layout-element-gap: 12px;
+  --dg-mobile-layout-section-gap: 32px;
+  --dg-mobile-layout-safe-area-top: 16px;
+  --dg-mobile-layout-screen-margin: 20px;
+  --dg-mobile-layout-safe-area-bottom: 16px;
+}
+
+#root {
+  --dg-preview-background: var(--dg-color-background-primary, #ffffff);
+  background: var(--dg-preview-background);
+}
+
+.dg-bg-primary { background-color: var(--dg-color-background-primary); }
+.dg-bg-secondary { background-color: var(--dg-color-background-secondary); }
+.dg-surface-card { background-color: var(--dg-color-surface-card); }
+.dg-surface-bottom-sheet { background-color: var(--dg-color-surface-bottom-sheet); }
+.dg-surface-modal { background-color: var(--dg-color-surface-modal); }
+.dg-text-high { color: var(--dg-color-text-high-emphasis); }
+.dg-text-medium { color: var(--dg-color-text-medium-emphasis); }
+.dg-text-low { color: var(--dg-color-text-low-emphasis); }
+.dg-action-primary {
+  background-color: var(--dg-color-action-primary);
+  color: var(--dg-color-action-on-primary-text);
+}
+.dg-action-secondary { background-color: var(--dg-color-action-secondary); }
+.dg-border-divider { border-color: var(--dg-color-border-divider); }
+.dg-border-focused { border-color: var(--dg-color-border-focused); }
+.dg-radius-app { border-radius: var(--dg-radii-app); }
+.dg-radius-pill { border-radius: var(--dg-radii-pill); }
+.dg-shadow-surface { box-shadow: var(--dg-shadows-surface); }
+.dg-shadow-overlay { box-shadow: var(--dg-shadows-overlay); }
+.dg-screen-padding { padding-left: var(--dg-mobile-layout-screen-margin); padding-right: var(--dg-mobile-layout-screen-margin); }
+.dg-section-gap { gap: var(--dg-mobile-layout-section-gap); }
+.dg-element-gap { gap: var(--dg-mobile-layout-element-gap); }
+
+.dg-type-nav-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-nav-title-size);
+  font-weight: var(--dg-type-nav-title-weight);
+  line-height: var(--dg-type-nav-title-line-height);
+}
+
+.dg-type-screen-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-screen-title-size);
+  font-weight: var(--dg-type-screen-title-weight);
+  line-height: var(--dg-type-screen-title-line-height);
+}
+
+.dg-type-hero-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-hero-title-size);
+  font-weight: var(--dg-type-hero-title-weight);
+  line-height: var(--dg-type-hero-title-line-height);
+}
+
+.dg-type-section-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-section-title-size);
+  font-weight: var(--dg-type-section-title-weight);
+  line-height: var(--dg-type-section-title-line-height);
+}
+
+.dg-type-metric-value {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-metric-value-size);
+  font-weight: var(--dg-type-metric-value-weight);
+  line-height: var(--dg-type-metric-value-line-height);
+}
+
+.dg-type-body {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-body-size);
+  font-weight: var(--dg-type-body-weight);
+  line-height: var(--dg-type-body-line-height);
+}
+
+.dg-type-supporting {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-supporting-size);
+  font-weight: var(--dg-type-supporting-weight);
+  line-height: var(--dg-type-supporting-line-height);
+}
+
+.dg-type-caption {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-caption-size);
+  font-weight: var(--dg-type-caption-weight);
+  line-height: var(--dg-type-caption-line-height);
+}
+
+.dg-type-button-label {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-button-label-size);
+  font-weight: var(--dg-type-button-label-weight);
+  line-height: var(--dg-type-button-label-line-height);
+}
+      html, body { margin: 0; min-height: 100%; }
+      body {
+        font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+        background: var(--dg-color-background-primary, #ffffff);
+        color: var(--dg-color-text-high-emphasis, #111827);
+      }
+      #drawgle-export-root {
+        position: relative;
+        min-height: 100vh;
+        overflow-x: hidden;
+        background: var(--dg-color-background-primary, #ffffff);
+      }
+      #drawgle-export-navigation { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; pointer-events: none; }
+      #drawgle-export-navigation [data-drawgle-primary-nav] { pointer-events: auto; }
+    </style>
+  </head>
+  <body>
+    <div id="drawgle-export-root">
+<div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden" style="font-family: var(--dg-typography-font-family, 'SF Pro Display', 'Inter', sans-serif)">
+  <!-- Header -->
+  <header class="flex items-center justify-between px-[var(--dg-mobile-layout-screen-margin)] pt-[var(--dg-mobile-layout-safe-area-top)] pb-[var(--dg-spacing-md)]">
+    <div class="w-10 h-10 rounded-full dg-bg-secondary flex items-center justify-center shadow-[var(--dg-shadows-surface)]" style="background-color: var(--dg-color-action-secondary)">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    </div>
+    <h1 class="dg-type-nav-title">My card</h1>
+    <div class="w-10 h-10"></div> <!-- Spacer for alignment -->
+  </header>
+
+  <!-- Main Content Scroll Area -->
+  <main class="flex-1 overflow-y-auto pb-[calc(var(--dg-sizing-bottom-nav-height)+40px)]">
+    
+    <!-- Card Selector Rail -->
+    <div class="flex items-center gap-[var(--dg-mobile-layout-element-gap)] px-[var(--dg-mobile-layout-screen-margin)] py-[var(--dg-spacing-md)] overflow-x-hidden no-scrollbar">
+      <!-- Inactive Card -->
+      <div class="flex-shrink-0 w-[64px] h-[44px] rounded-[12px] bg-gradient-to-br from-[#D1E4FF] to-[#A3C9FF] border border-white/40 shadow-sm flex items-center justify-center">
+        <div class="w-6 h-4 bg-white/30 rounded-sm"></div>
+      </div>
+      
+      <!-- Active Card (Pink Visa) -->
+      <div class="flex-shrink-0 flex items-center gap-3 px-4 py-2 rounded-[16px] bg-white shadow-[var(--dg-shadows-surface)] border border-[#FFD1DC]">
+        <div class="w-[40px] h-[28px] rounded-[6px] bg-gradient-to-br from-[#FF6B95] to-[#FF3B70] flex items-center justify-center">
+          <div class="w-4 h-3 bg-white/20 rounded-sm"></div>
+        </div>
+        <div class="flex flex-col">
+          <span class="text-[10px] font-bold text-[#FF3B70] leading-none">VISA</span>
+          <span class="text-[12px] font-medium tracking-wider">**** 7482</span>
+        </div>
+      </div>
+
+      <!-- Add Card Button -->
+      <div class="flex-shrink-0 w-[44px] h-[44px] rounded-full dg-bg-secondary flex items-center justify-center shadow-[var(--dg-shadows-surface)]">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+      </div>
+    </div>
+
+    <!-- Balance Display -->
+    <section class="px-[var(--dg-mobile-layout-screen-margin)] mt-4 flex flex-col items-center text-center">
+      <span class="dg-type-supporting text-[var(--dg-color-text-low-emphasis)] mb-1">Total Balance</span>
+      <div class="dg-type-metric-value text-[40px] leading-tight">$2,746.08</div>
+      <div class="mt-2 px-3 py-1 rounded-full bg-[#E8F8F0] flex items-center gap-1">
+        <span class="text-[var(--dg-color-action-success)] text-[13px] font-bold">+9.67%</span>
+        <span class="text-[var(--dg-color-text-low-emphasis)] text-[13px]">vs last month</span>
+      </div>
+    </section>
+
+    <!-- Action Rail -->
+    <section class="grid grid-cols-4 gap-2 px-[var(--dg-mobile-layout-screen-margin)] mt-[var(--dg-mobile-layout-section-gap)]">
+      <div class="flex flex-col items-center gap-2">
+        <button class="w-full aspect-square rounded-[24px] dg-bg-secondary shadow-[var(--dg-shadows-surface)] flex items-center justify-center">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        </button>
+        <span class="dg-type-caption font-semibold">Top up</span>
+      </div>
+      <div class="flex flex-col items-center gap-2">
+        <button class="w-full aspect-square rounded-[24px] dg-bg-secondary shadow-[var(--dg-shadows-surface)] flex items-center justify-center">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        </button>
+        <span class="dg-type-caption font-semibold">Freeze</span>
+      </div>
+      <div class="flex flex-col items-center gap-2">
+        <button class="w-full aspect-square rounded-[24px] dg-bg-secondary shadow-[var(--dg-shadows-surface)] flex items-center justify-center">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="8" x2="17" y2="8"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="7" y1="16" x2="13" y2="16"/></svg>
+        </button>
+        <span class="dg-type-caption font-semibold">Details</span>
+      </div>
+      <div class="flex flex-col items-center gap-2">
+        <button class="w-full aspect-square rounded-[24px] dg-bg-secondary shadow-[var(--dg-shadows-surface)] flex items-center justify-center">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+        <span class="dg-type-caption font-semibold">Settings</span>
+      </div>
+    </section>
+
+    <!-- Settings List -->
+    <section class="mt-[var(--dg-mobile-layout-section-gap)] px-[var(--dg-mobile-layout-screen-margin)] flex flex-col gap-4">
+      
+      <!-- Setting Row 1 -->
+      <div class="dg-surface-card rounded-[var(--dg-radii-app)] p-4 flex items-center justify-between shadow-[var(--dg-shadows-surface)]" style="background-color: var(--dg-color-background-secondary)">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 rounded-full dg-bg-secondary flex items-center justify-center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-[var(--dg-color-text-medium-emphasis)]"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          </div>
+          <div class="flex flex-col">
+            <span class="dg-type-body font-semibold">Online Payments</span>
+            <span class="dg-type-caption text-[var(--dg-color-text-low-emphasis)]">Pay on websites and apps</span>
+          </div>
+        </div>
+        <!-- Toggle Switch ON -->
+        <div class="w-[52px] h-[32px] rounded-full bg-[var(--dg-color-action-error)] relative p-1 flex items-center justify-end">
+          <div class="w-6 h-6 rounded-full bg-white shadow-sm"></div>
+        </div>
+      </div>
+
+      <!-- Setting Row 2 -->
+      <div class="dg-surface-card rounded-[var(--dg-radii-app)] p-4 flex items-center justify-between shadow-[var(--dg-shadows-surface)]" style="background-color: var(--dg-color-background-secondary)">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 rounded-full dg-bg-secondary flex items-center justify-center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-[var(--dg-color-text-medium-emphasis)]"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 15h0M2 9.5h20"/></svg>
+          </div>
+          <div class="flex flex-col">
+            <span class="dg-type-body font-semibold">Contactless</span>
+            <span class="dg-type-caption text-[var(--dg-color-text-low-emphasis)]">Tap to pay in stores</span>
+          </div>
+        </div>
+        <!-- Toggle Switch OFF -->
+        <div class="w-[52px] h-[32px] rounded-full bg-[var(--dg-color-action-secondary)] relative p-1 flex items-center justify-start">
+          <div class="w-6 h-6 rounded-full bg-white shadow-sm"></div>
+        </div>
+      </div>
+
+      <!-- Setting Row 3 -->
+      <div class="dg-surface-card rounded-[var(--dg-radii-app)] p-4 flex items-center justify-between shadow-[var(--dg-shadows-surface)]" style="background-color: var(--dg-color-background-secondary)">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 rounded-full dg-bg-secondary flex items-center justify-center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-[var(--dg-color-text-medium-emphasis)]"><rect x="1" y="3" width="22" height="18" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+          </div>
+          <div class="flex flex-col">
+            <span class="dg-type-body font-semibold">ATM Withdrawals</span>
+            <span class="dg-type-caption text-[var(--dg-color-text-low-emphasis)]">Withdraw cash from ATMs</span>
+          </div>
+        </div>
+        <!-- Toggle Switch ON -->
+        <div class="w-[52px] h-[32px] rounded-full bg-[var(--dg-color-action-error)] relative p-1 flex items-center justify-end">
+          <div class="w-6 h-6 rounded-full bg-white shadow-sm"></div>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <!-- Bottom Navigation -->
+  <nav class="fixed bottom-0 left-0 right-0 h-[var(--dg-sizing-bottom-nav-height)] bg-white/80 backdrop-blur-xl border-t border-[var(--dg-color-border-divider)] flex items-center justify-around px-6 pb-[var(--dg-mobile-layout-safe-area-bottom)]">
+    <div class="flex flex-col items-center gap-1 opacity-40">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    </div>
+    <div class="flex flex-col items-center gap-1 opacity-40">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+    </div>
+    <div class="flex flex-col items-center gap-1">
+      <div class="relative">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-black"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+        <div class="absolute -bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-black"></div>
+      </div>
+    </div>
+    <div class="flex flex-col items-center gap-1 opacity-40">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </div>
+  </nav>
+</div>
+      <div id="drawgle-export-navigation"><nav data-drawgle-primary-nav class="dg-nav-shell" aria-label="Primary navigation">
+<style>
+[data-drawgle-primary-nav].dg-nav-shell {
+  position: fixed;
+  bottom: 24px;
+  left: 20px;
+  right: 20px;
+  height: 72px;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 8px;
+  box-shadow: 0px 10px 30px -5px rgba(0,0,0,0.1), inset 0px 0px 0px 1px rgba(255,255,255,0.5);
+  pointer-events: auto;
+}
+[data-drawgle-primary-nav] .dg-nav-shell-inner {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-around;
+}
+[data-drawgle-primary-nav] .dg-nav-item {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--dg-color-text-low-emphasis, #94a3b8);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.18s ease;
+}
+[data-drawgle-primary-nav] .dg-nav-item[] {
+  color: var(--dg-color-text-high-emphasis, #111827);
+  font-weight: 700;
+}
+[data-drawgle-primary-nav] .dg-nav-icon {
+  display: flex;
+  height: 24px;
+  width: 24px;
+  align-items: center;
+  justify-content: center;
+}
+[data-drawgle-primary-nav] .dg-nav-icon svg, [data-drawgle-primary-nav] .dg-nav-icon i {
+  height: 24px;
+  width: 24px;
+}
+</style>
+<div class="dg-nav-shell-inner">
+  <button type="button" class="dg-nav-item" data-nav-item-id="tab-home">
+    <span class="dg-nav-icon"><i data-lucide="home"></i></span>
+    <span class="dg-nav-label">Home</span>
+  </button>
+  <button type="button" class="dg-nav-item" data-nav-item-id="tab-insights">
+    <span class="dg-nav-icon"><i data-lucide="pie-chart"></i></span>
+    <span class="dg-nav-label">Insights</span>
+  </button>
+  <button type="button" class="dg-nav-item" data-nav-item-id="tab-wallet">
+    <span class="dg-nav-icon"><i data-lucide="credit-card"></i></span>
+    <span class="dg-nav-label">Wallet</span>
+  </button>
+  <button type="button" class="dg-nav-item" data-nav-item-id="tab-settings">
+    <span class="dg-nav-icon"><i data-lucide="settings"></i></span>
+    <span class="dg-nav-label">Settings</span>
+  </button>
+</div>
+</nav></div>
+    </div>
+    <script>
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+      document.querySelectorAll('[data-nav-item-id]').forEach(function(item) {
+        var active = item.getAttribute('data-nav-item-id') === "home";
+        item.setAttribute('data-active', active ? 'true' : 'false');
+        item.setAttribute('aria-current', active ? 'page' : 'false');
+      });
+    </script>
+  </body>
+</html>

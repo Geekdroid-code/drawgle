@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link id="drawgle-google-font" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&amp;display=swap">
+    <style>
+:root {
+  --dg-color-text-low-emphasis: #A0A4AB;
+  --dg-color-text-high-emphasis: #1A1C1E;
+  --dg-color-text-medium-emphasis: #60646C;
+  --dg-color-action-primary: #FFD93D;
+  --dg-color-action-disabled: #E0E0E0;
+  --dg-color-action-secondary: #6BCBFF;
+  --dg-color-action-on-primary-text: #1A1C1E;
+  --dg-color-border-divider: #F0F0F0;
+  --dg-color-border-focused: #FF6B6B;
+  --dg-color-surface-card: #FFFFFF;
+  --dg-color-surface-modal: #FFFFFF;
+  --dg-color-surface-bottom-sheet: #FFFFFF;
+  --dg-color-background-primary: #FDFCF8;
+  --dg-color-background-secondary: #F5F7FA;
+  --dg-radii-app: 28px;
+  --dg-radii-pill: 9999px;
+  --dg-sizing-icon-small: 20px;
+  --dg-sizing-icon-standard: 24px;
+  --dg-sizing-min-touch-target: 48px;
+  --dg-sizing-bottom-nav-height: 72px;
+  --dg-sizing-standard-input-height: 52px;
+  --dg-sizing-standard-button-height: 56px;
+  --dg-shadows-none: none;
+  --dg-shadows-overlay: 0px 20px 40px rgba(0, 0, 0, 0.08);
+  --dg-shadows-surface: 0px 10px 30px rgba(0, 0, 0, 0.04);
+  --dg-spacing-none: 0px;
+  --dg-spacing-lg: 24px;
+  --dg-spacing-md: 16px;
+  --dg-spacing-sm: 12px;
+  --dg-spacing-xl: 32px;
+  --dg-spacing-xs: 8px;
+  --dg-spacing-xxl: 48px;
+  --dg-spacing-xxs: 4px;
+  --dg-z-index-base: 0;
+  --dg-z-index-bottom-nav: 20;
+  --dg-z-index-bottom-sheet: 30;
+  --dg-z-index-modal-dialog: 40;
+  --dg-z-index-sticky-header: 10;
+  --dg-z-index-toast-snackbar: 50;
+  --dg-opacities-opaque: 1;
+  --dg-opacities-pressed: 0.12;
+  --dg-opacities-disabled: 0.38;
+  --dg-opacities-transparent: 0;
+  --dg-opacities-scrim-overlay: 0.50;
+  --dg-typography-font-family: 'Quicksand', 'Comfortaa', sans-serif;
+  --dg-type-nav-title-size: 18px;
+  --dg-type-nav-title-weight: 700;
+  --dg-type-nav-title-line-height: 24px;
+  --dg-type-screen-title-size: 24px;
+  --dg-type-screen-title-weight: 700;
+  --dg-type-screen-title-line-height: 32px;
+  --dg-type-hero-title-size: 32px;
+  --dg-type-hero-title-weight: 700;
+  --dg-type-hero-title-line-height: 40px;
+  --dg-type-section-title-size: 16px;
+  --dg-type-section-title-weight: 600;
+  --dg-type-section-title-line-height: 22px;
+  --dg-type-metric-value-size: 28px;
+  --dg-type-metric-value-weight: 700;
+  --dg-type-metric-value-line-height: 34px;
+  --dg-type-body-size: 16px;
+  --dg-type-body-weight: 500;
+  --dg-type-body-line-height: 24px;
+  --dg-type-supporting-size: 14px;
+  --dg-type-supporting-weight: 500;
+  --dg-type-supporting-line-height: 20px;
+  --dg-type-caption-size: 12px;
+  --dg-type-caption-weight: 500;
+  --dg-type-caption-line-height: 16px;
+  --dg-type-button-label-size: 16px;
+  --dg-type-button-label-weight: 700;
+  --dg-type-button-label-line-height: 20px;
+  --dg-border-widths-standard: 2px;
+  --dg-mobile-layout-element-gap: 12px;
+  --dg-mobile-layout-section-gap: 28px;
+  --dg-mobile-layout-safe-area-top: 16px;
+  --dg-mobile-layout-screen-margin: 20px;
+  --dg-mobile-layout-safe-area-bottom: 16px;
+}
+
+#root {
+  --dg-preview-background: var(--dg-color-background-primary, #ffffff);
+  background: var(--dg-preview-background);
+}
+
+.dg-bg-primary { background-color: var(--dg-color-background-primary); }
+.dg-bg-secondary { background-color: var(--dg-color-background-secondary); }
+.dg-surface-card { background-color: var(--dg-color-surface-card); }
+.dg-surface-bottom-sheet { background-color: var(--dg-color-surface-bottom-sheet); }
+.dg-surface-modal { background-color: var(--dg-color-surface-modal); }
+.dg-text-high { color: var(--dg-color-text-high-emphasis); }
+.dg-text-medium { color: var(--dg-color-text-medium-emphasis); }
+.dg-text-low { color: var(--dg-color-text-low-emphasis); }
+.dg-action-primary {
+  background-color: var(--dg-color-action-primary);
+  color: var(--dg-color-action-on-primary-text);
+}
+.dg-action-secondary { background-color: var(--dg-color-action-secondary); }
+.dg-border-divider { border-color: var(--dg-color-border-divider); }
+.dg-border-focused { border-color: var(--dg-color-border-focused); }
+.dg-radius-app { border-radius: var(--dg-radii-app); }
+.dg-radius-pill { border-radius: var(--dg-radii-pill); }
+.dg-shadow-surface { box-shadow: var(--dg-shadows-surface); }
+.dg-shadow-overlay { box-shadow: var(--dg-shadows-overlay); }
+.dg-screen-padding { padding-left: var(--dg-mobile-layout-screen-margin); padding-right: var(--dg-mobile-layout-screen-margin); }
+.dg-section-gap { gap: var(--dg-mobile-layout-section-gap); }
+.dg-element-gap { gap: var(--dg-mobile-layout-element-gap); }
+
+.dg-type-nav-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-nav-title-size);
+  font-weight: var(--dg-type-nav-title-weight);
+  line-height: var(--dg-type-nav-title-line-height);
+}
+
+.dg-type-screen-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-screen-title-size);
+  font-weight: var(--dg-type-screen-title-weight);
+  line-height: var(--dg-type-screen-title-line-height);
+}
+
+.dg-type-hero-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-hero-title-size);
+  font-weight: var(--dg-type-hero-title-weight);
+  line-height: var(--dg-type-hero-title-line-height);
+}
+
+.dg-type-section-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-section-title-size);
+  font-weight: var(--dg-type-section-title-weight);
+  line-height: var(--dg-type-section-title-line-height);
+}
+
+.dg-type-metric-value {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-metric-value-size);
+  font-weight: var(--dg-type-metric-value-weight);
+  line-height: var(--dg-type-metric-value-line-height);
+}
+
+.dg-type-body {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-body-size);
+  font-weight: var(--dg-type-body-weight);
+  line-height: var(--dg-type-body-line-height);
+}
+
+.dg-type-supporting {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-supporting-size);
+  font-weight: var(--dg-type-supporting-weight);
+  line-height: var(--dg-type-supporting-line-height);
+}
+
+.dg-type-caption {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-caption-size);
+  font-weight: var(--dg-type-caption-weight);
+  line-height: var(--dg-type-caption-line-height);
+}
+
+.dg-type-button-label {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-button-label-size);
+  font-weight: var(--dg-type-button-label-weight);
+  line-height: var(--dg-type-button-label-line-height);
+}
+      html, body { margin: 0; min-height: 100%; }
+      body {
+        font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+        background: var(--dg-color-background-primary, #ffffff);
+        color: var(--dg-color-text-high-emphasis, #111827);
+      }
+      #drawgle-export-root {
+        position: relative;
+        min-height: 100vh;
+        overflow-x: hidden;
+        background: var(--dg-color-background-primary, #ffffff);
+      }
+      #drawgle-export-navigation { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; pointer-events: none; }
+      #drawgle-export-navigation [data-drawgle-primary-nav] { pointer-events: auto; }
+    </style>
+  </head>
+  <body>
+    <div id="drawgle-export-root">
+<div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden" style="font-family: 'Quicksand', 'Comfortaa', sans-serif">
+  <!-- Background Pattern Layer -->
+  <div class="absolute inset-0 pointer-events-none opacity-5" style="background-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBzdHJva2U9IiMxQTFDMUUiIHN0cm9rZS13aWR0aD0iMiI+PHBhdGggZD0iTTMwIDEwdjIwTTIwIDIwaDIwIi8+PHBhdGggZD0iTTUwIDQ1YTUgNSAwIDEgMS0xMCAwIDUgNSAwIDAgMSAxMCAweiIvPjwvZz48L3N2Zz4='); background-size: 120px 120px;"></div>
+
+  <!-- Header Section -->
+  <header class="relative pt-[var(--dg-mobile-layout-safe-area-top)] px-[var(--dg-mobile-layout-screen-margin)] flex flex-col gap-[var(--dg-spacing-xs)]">
+    <div class="flex justify-between items-center">
+      <h1 class="dg-type-screen-title text-[var(--dg-color-text-high-emphasis)]">Health Log</h1>
+      <div class="w-12 h-12 rounded-[var(--dg-radii-app)] border-2 border-[var(--dg-color-text-high-emphasis)] bg-[var(--dg-color-action-primary)] flex items-center justify-center shadow-[var(--dg-shadows-surface)]">
+        <i data-lucide="plus" class="w-6 h-6"></i>
+      </div>
+    </div>
+    <p class="dg-type-body text-[var(--dg-color-text-medium-emphasis)]">Keep track of your furry friend's wellness!</p>
+  </header>
+
+  <!-- Main Content Scroll Area -->
+  <main class="flex-1 overflow-y-auto pt-[var(--dg-mobile-layout-section-gap)] pb-[calc(var(--dg-mobile-layout-safe-area-bottom)+116px)]">
+    
+    <!-- Upcoming Appointments Section -->
+    <section class="px-[var(--dg-mobile-layout-screen-margin)] mb-[var(--dg-mobile-layout-section-gap)]">
+      <h2 class="dg-type-section-title mb-[var(--dg-mobile-layout-element-gap)]">Upcoming Visits</h2>
+      
+      <!-- Masonry-style Paw Grid -->
+      <div class="grid grid-cols-2 gap-6">
+        
+        <!-- Paw Card 1 (Sky Blue) -->
+        <div class="relative group cursor-pointer">
+          <!-- Paw Toes -->
+          <div class="absolute -top-3 left-4 w-8 h-10 bg-[var(--dg-color-action-secondary)] rounded-full border-2 border-[var(--dg-color-text-high-emphasis)] rotate-[-15deg]"></div>
+          <div class="absolute -top-5 left-1/2 -translate-x-1/2 w-9 h-11 bg-[var(--dg-color-action-secondary)] rounded-full border-2 border-[var(--dg-color-text-high-emphasis)]"></div>
+          <div class="absolute -top-3 right-4 w-8 h-10 bg-[var(--dg-color-action-secondary)] rounded-full border-2 border-[var(--dg-color-text-high-emphasis)] rotate-[15deg]"></div>
+          
+          <!-- Main Pad -->
+          <div class="relative z-10 bg-[var(--dg-color-action-secondary)] border-2 border-[var(--dg-color-text-high-emphasis)] rounded-[40px_40px_60px_60px] p-5 aspect-square flex flex-col items-center justify-center text-center shadow-[4px_4px_0px_#1A1C1E]">
+            <div class="mb-2">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 2px 0px rgba(0,0,0,0.1));">
+                <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" style="stroke-dasharray: 100; stroke-dashoffset: 0; animation: wobbly 2s infinite ease-in-out;" />
+              </svg>
+            </div>
+            <span class="dg-type-button-label text-white block">Oct 12</span>
+            <span class="dg-type-caption text-white/90 uppercase tracking-wider font-bold">Dr. Barkly</span>
+          </div>
+        </div>
+
+        <!-- Paw Card 2 (Candy Pink) -->
+        <div class="relative group cursor-pointer mt-8">
+          <!-- Paw Toes -->
+          <div class="absolute -top-3 left-4 w-8 h-10 bg-[var(--dg-color-border-focused)] rounded-full border-2 border-[var(--dg-color-text-high-emphasis)] rotate-[-15deg]"></div>
+          <div class="absolute -top-5 left-1/2 -translate-x-1/2 w-9 h-11 bg-[var(--dg-color-border-focused)] rounded-full border-2 border-[var(--dg-color-text-high-emphasis)]"></div>
+          <div class="absolute -top-3 right-4 w-8 h-10 bg-[var(--dg-color-border-focused)] rounded-full border-2 border-[var(--dg-color-text-high-emphasis)] rotate-[15deg]"></div>
+          
+          <!-- Main Pad -->
+          <div class="relative z-10 bg-[var(--dg-color-border-focused)] border-2 border-[var(--dg-color-text-high-emphasis)] rounded-[40px_40px_60px_60px] p-5 aspect-square flex flex-col items-center justify-center text-center shadow-[4px_4px_0px_#1A1C1E]">
+            <div class="mb-2">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+              </svg>
+            </div>
+            <span class="dg-type-button-label text-white block">Nov 05</span>
+            <span class="dg-type-caption text-white/90 uppercase tracking-wider font-bold">Vaccines</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Medical Badges Horizontal Scroll -->
+    <section class="mb-[var(--dg-mobile-layout-section-gap)]">
+      <div class="px-[var(--dg-mobile-layout-screen-margin)] flex justify-between items-end mb-[var(--dg-mobile-layout-element-gap)]">
+        <h2 class="dg-type-section-title">Medical Badges</h2>
+        <span class="dg-type-caption text-[var(--dg-color-action-secondary)] font-bold">View All</span>
+      </div>
+      
+      <div class="flex overflow-x-hidden hide-scrollbar gap-4 px-[var(--dg-mobile-layout-screen-margin)]">
+        <!-- Badge 1: Weight -->
+        <div class="flex-shrink-0 w-32 h-40 bg-white border-2 border-[var(--dg-color-text-high-emphasis)] rounded-[var(--dg-radii-app)] p-4 flex flex-col items-center justify-between shadow-[var(--dg-shadows-surface)]">
+          <div class="w-12 h-12 rounded-full bg-[var(--dg-color-action-primary)] border-2 border-[var(--dg-color-text-high-emphasis)] flex items-center justify-center">
+            <i data-lucide="scale" class="w-6 h-6"></i>
+          </div>
+          <div class="text-center">
+            <div class="dg-type-section-title leading-none">12.4</div>
+            <div class="dg-type-caption text-[var(--dg-color-text-medium-emphasis)]">lbs</div>
+          </div>
+          <div class="dg-type-caption font-bold uppercase text-[var(--dg-color-text-low-emphasis)]">Weight</div>
+        </div>
+
+        <!-- Badge 2: Rabies -->
+        <div class="flex-shrink-0 w-32 h-40 bg-white border-2 border-[var(--dg-color-text-high-emphasis)] rounded-[var(--dg-radii-app)] p-4 flex flex-col items-center justify-between shadow-[var(--dg-shadows-surface)]">
+          <div class="w-12 h-12 rounded-full bg-[var(--dg-color-action-secondary)] border-2 border-[var(--dg-color-text-high-emphasis)] flex items-center justify-center">
+            <i data-lucide="shield-check" class="w-6 h-6"></i>
+          </div>
+          <div class="text-center">
+            <div class="dg-type-section-title leading-none">Active</div>
+            <div class="dg-type-caption text-[var(--dg-color-text-medium-emphasis)]">2024</div>
+          </div>
+          <div class="dg-type-caption font-bold uppercase text-[var(--dg-color-text-low-emphasis)]">Rabies</div>
+        </div>
+
+        <!-- Badge 3: Heartworm -->
+        <div class="flex-shrink-0 w-32 h-40 bg-white border-2 border-[var(--dg-color-text-high-emphasis)] rounded-[var(--dg-radii-app)] p-4 flex flex-col items-center justify-between shadow-[var(--dg-shadows-surface)]">
+          <div class="w-12 h-12 rounded-full bg-[var(--dg-color-border-focused)] border-2 border-[var(--dg-color-text-high-emphasis)] flex items-center justify-center">
+            <i data-lucide="pill" class="w-6 h-6"></i>
+          </div>
+          <div class="text-center">
+            <div class="dg-type-section-title leading-none">Due</div>
+            <div class="dg-type-caption text-[var(--dg-color-text-medium-emphasis)]">In 4d</div>
+          </div>
+          <div class="dg-type-caption font-bold uppercase text-[var(--dg-color-text-low-emphasis)]">Meds</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Recent Activity List -->
+    <section class="px-[var(--dg-mobile-layout-screen-margin)]">
+      <h2 class="dg-type-section-title mb-[var(--dg-mobile-layout-element-gap)]">Recent Activity</h2>
+      <div class="flex flex-col gap-3">
+        
+        <!-- Activity Item 1 -->
+        <div class="dg-surface-card border-2 border-[var(--dg-color-text-high-emphasis)] rounded-[var(--dg-radii-app)] p-4 flex items-center gap-4 shadow-[var(--dg-shadows-surface)]">
+          <div class="w-12 h-12 rounded-2xl bg-[var(--dg-color-background-secondary)] border-2 border-dashed border-[var(--dg-color-text-low-emphasis)] flex items-center justify-center">
+            <i data-lucide="file-text" class="text-[var(--dg-color-text-medium-emphasis)]"></i>
+          </div>
+          <div class="flex-1">
+            <h4 class="dg-type-button-label">Annual Checkup Report</h4>
+            <p class="dg-type-caption text-[var(--dg-color-text-medium-emphasis)]">Uploaded by Dr. Barkly • 2 days ago</p>
+          </div>
+          <i data-lucide="chevron-right" class="text-[var(--dg-color-text-low-emphasis)]"></i>
+        </div>
+
+        <!-- Activity Item 2 -->
+        <div class="dg-surface-card border-2 border-[var(--dg-color-text-high-emphasis)] rounded-[var(--dg-radii-app)] p-4 flex items-center gap-4 shadow-[var(--dg-shadows-surface)]">
+          <div class="w-12 h-12 rounded-2xl bg-[var(--dg-color-background-secondary)] border-2 border-dashed border-[var(--dg-color-text-low-emphasis)] flex items-center justify-center">
+            <i data-lucide="activity" class="text-[var(--dg-color-text-medium-emphasis)]"></i>
+          </div>
+          <div class="flex-1">
+            <h4 class="dg-type-button-label">Weight Logged</h4>
+            <p class="dg-type-caption text-[var(--dg-color-text-medium-emphasis)]">12.4 lbs • 1 week ago</p>
+          </div>
+          <i data-lucide="chevron-right" class="text-[var(--dg-color-text-low-emphasis)]"></i>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Floating Action Button (Local) -->
+  <div class="fixed bottom-[calc(var(--dg-mobile-layout-safe-area-bottom)+100px)] right-[var(--dg-mobile-layout-screen-margin)] z-20">
+    <button class="w-16 h-16 bg-[var(--dg-color-action-primary)] border-2 border-[var(--dg-color-text-high-emphasis)] rounded-full shadow-[4px_4px_0px_#1A1C1E] flex items-center justify-center active:translate-y-1 active:shadow-none transition-all">
+      <i data-lucide="stethoscope" class="w-8 h-8"></i>
+    </button>
+  </div>
+
+  <style>
+    @keyframes wobbly {
+      0%, 100% { transform: scale(1) rotate(0deg); }
+      25% { transform: scale(1.05) rotate(-2deg); }
+      75% { transform: scale(0.95) rotate(2deg); }
+    }
+    .hide-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .hide-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</div>
+      <div id="drawgle-export-navigation"><nav data-drawgle-primary-nav class="fixed bottom-[var(--dg-mobile-layout-safe-area-bottom)] left-1/2 -translate-x-1/2 w-[calc(100%-40px)] max-w-[350px] z-[100]" aria-label="Primary navigation">
+  <style>
+    [data-drawgle-primary-nav] .paws-shell {
+      background: var(--dg-color-surface-card);
+      border: 2px solid var(--dg-color-text-high-emphasis);
+      border-radius: var(--dg-radii-app);
+      box-shadow: 4px 6px 0px rgba(26, 28, 30, 0.1);
+      padding: 8px 12px;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      height: var(--dg-sizing-bottom-nav-height);
+      /* Wobbly border effect */
+      clip-path: polygon(2% 0%, 98% 1%, 100% 4%, 99% 95%, 97% 100%, 3% 99%, 0% 96%, 1% 5%);
+    }
+
+    [data-drawgle-primary-nav] .nav-item {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      gap: 4px;
+      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    [data-drawgle-primary-nav] .nav-item:active {
+      transform: scale(0.9);
+    }
+
+    [data-drawgle-primary-nav] .icon-blob {
+      position: absolute;
+      top: -4px;
+      width: 44px;
+      height: 38px;
+      background: #FF6B6B; /* Candy Pink */
+      border: 2px solid var(--dg-color-text-high-emphasis);
+      border-radius: 45% 55% 60% 40% / 40% 50% 50% 60%;
+      z-index: 0;
+      opacity: 0;
+      transform: scale(0.5) rotate(-10deg);
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    [data-drawgle-primary-nav] .nav-item[] .icon-blob {
+      opacity: 1;
+      transform: scale(1) rotate(0deg);
+    }
+
+    [data-drawgle-primary-nav] .nav-icon {
+      position: relative;
+      z-index: 1;
+      color: var(--dg-color-text-high-emphasis);
+      transition: color 0.2s ease;
+    }
+
+    [data-drawgle-primary-nav] .nav-item[] .nav-icon {
+      color: #FFFFFF;
+    }
+
+    [data-drawgle-primary-nav] .nav-label {
+      font-family: var(--dg-type-button-label-font-family, "Comic Sans MS", "Bubblegum Sans", sans-serif);
+      font-size: var(--dg-type-caption-size);
+      font-weight: 800;
+      color: var(--dg-color-text-medium-emphasis);
+      z-index: 1;
+    }
+
+    [data-drawgle-primary-nav] .nav-item[] .nav-label {
+      color: var(--dg-color-text-high-emphasis);
+    }
+
+    /* Hand-drawn stroke simulation */
+    [data-drawgle-primary-nav] svg {
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-width: 2.5px;
+    }
+  </style>
+
+  <div class="paws-shell">
+    <button type="button" class="nav-item" data-nav-item-id="dashboard">
+      <div class="icon-blob"></div>
+      <span class="nav-icon"><i data-lucide="home" width="24" height="24"></i></span>
+      <span class="nav-label">Home</span>
+    </button>
+
+    <button type="button" class="nav-item" data-nav-item-id="tasks">
+      <div class="icon-blob"></div>
+      <span class="nav-icon"><i data-lucide="check-circle" width="24" height="24"></i></span>
+      <span class="nav-label">Care</span>
+    </button>
+
+    <button type="button" class="nav-item" data-nav-item-id="health">
+      <div class="icon-blob"></div>
+      <span class="nav-icon"><i data-lucide="heart" width="24" height="24"></i></span>
+      <span class="nav-label">Health</span>
+    </button>
+
+    <button type="button" class="nav-item" data-nav-item-id="profile">
+      <div class="icon-blob"></div>
+      <span class="nav-icon"><i data-lucide="user" width="24" height="24"></i></span>
+      <span class="nav-label">Profile</span>
+    </button>
+  </div>
+</nav></div>
+    </div>
+    <script>
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+      document.querySelectorAll('[data-nav-item-id]').forEach(function(item) {
+        var active = item.getAttribute('data-nav-item-id') === "home";
+        item.setAttribute('data-active', active ? 'true' : 'false');
+        item.setAttribute('aria-current', active ? 'page' : 'false');
+      });
+    </script>
+  </body>
+</html>

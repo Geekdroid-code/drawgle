@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link id="drawgle-google-font" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;500;600;700;800&amp;display=swap">
+    <style>
+:root {
+  --dg-color-text-low-emphasis: #48484A;
+  --dg-color-text-high-emphasis: #FFFFFF;
+  --dg-color-text-medium-emphasis: #8E8E93;
+  --dg-color-action-primary: #32D74B;
+  --dg-color-action-disabled: #2C2C2E;
+  --dg-color-action-secondary: #FF453A;
+  --dg-color-action-on-primary-text: #000000;
+  --dg-color-border-divider: rgba(255, 255, 255, 0.08);
+  --dg-color-border-focused: rgba(255, 255, 255, 0.20);
+  --dg-color-surface-card: #121212;
+  --dg-color-surface-modal: #1C1C1E;
+  --dg-color-surface-bottom-sheet: #161616;
+  --dg-color-background-primary: #000000;
+  --dg-color-background-secondary: #0A0A0A;
+  --dg-radii-app: 22px;
+  --dg-radii-pill: 9999px;
+  --dg-sizing-icon-small: 18px;
+  --dg-sizing-icon-standard: 24px;
+  --dg-sizing-min-touch-target: 48px;
+  --dg-sizing-bottom-nav-height: 84px;
+  --dg-sizing-standard-input-height: 44px;
+  --dg-sizing-standard-button-height: 52px;
+  --dg-shadows-none: none;
+  --dg-shadows-overlay: 0 12px 32px rgba(0,0,0,0.8);
+  --dg-shadows-surface: 0 4px 12px rgba(0,0,0,0.5), inset 0 0.5px 0 rgba(255,255,255,0.1);
+  --dg-spacing-none: 0px;
+  --dg-spacing-lg: 24px;
+  --dg-spacing-md: 16px;
+  --dg-spacing-sm: 12px;
+  --dg-spacing-xl: 32px;
+  --dg-spacing-xs: 8px;
+  --dg-spacing-xxl: 48px;
+  --dg-spacing-xxs: 4px;
+  --dg-z-index-base: 0;
+  --dg-z-index-bottom-nav: 20;
+  --dg-z-index-bottom-sheet: 30;
+  --dg-z-index-modal-dialog: 40;
+  --dg-z-index-sticky-header: 10;
+  --dg-z-index-toast-snackbar: 50;
+  --dg-opacities-opaque: 1;
+  --dg-opacities-pressed: 0.15;
+  --dg-opacities-disabled: 0.38;
+  --dg-opacities-transparent: 0;
+  --dg-opacities-scrim-overlay: 0.70;
+  --dg-typography-font-family: SF Pro Display, -apple-system, BlinkMacSystemFont, sans-serif;
+  --dg-type-nav-title-size: 17px;
+  --dg-type-nav-title-weight: 600;
+  --dg-type-nav-title-line-height: 22px;
+  --dg-type-screen-title-size: 34px;
+  --dg-type-screen-title-weight: 700;
+  --dg-type-screen-title-line-height: 41px;
+  --dg-type-hero-title-size: 28px;
+  --dg-type-hero-title-weight: 800;
+  --dg-type-hero-title-line-height: 34px;
+  --dg-type-section-title-size: 13px;
+  --dg-type-section-title-weight: 600;
+  --dg-type-section-title-line-height: 18px;
+  --dg-type-metric-value-size: 24px;
+  --dg-type-metric-value-weight: 700;
+  --dg-type-metric-value-line-height: 28px;
+  --dg-type-body-size: 16px;
+  --dg-type-body-weight: 400;
+  --dg-type-body-line-height: 21px;
+  --dg-type-supporting-size: 14px;
+  --dg-type-supporting-weight: 400;
+  --dg-type-supporting-line-height: 18px;
+  --dg-type-caption-size: 12px;
+  --dg-type-caption-weight: 500;
+  --dg-type-caption-line-height: 16px;
+  --dg-type-button-label-size: 15px;
+  --dg-type-button-label-weight: 600;
+  --dg-type-button-label-line-height: 20px;
+  --dg-border-widths-standard: 1px;
+  --dg-mobile-layout-element-gap: 12px;
+  --dg-mobile-layout-section-gap: 32px;
+  --dg-mobile-layout-safe-area-top: 16px;
+  --dg-mobile-layout-screen-margin: 20px;
+  --dg-mobile-layout-safe-area-bottom: 16px;
+}
+
+#root {
+  --dg-preview-background: var(--dg-color-background-primary, #ffffff);
+  background: var(--dg-preview-background);
+}
+
+.dg-bg-primary { background-color: var(--dg-color-background-primary); }
+.dg-bg-secondary { background-color: var(--dg-color-background-secondary); }
+.dg-surface-card { background-color: var(--dg-color-surface-card); }
+.dg-surface-bottom-sheet { background-color: var(--dg-color-surface-bottom-sheet); }
+.dg-surface-modal { background-color: var(--dg-color-surface-modal); }
+.dg-text-high { color: var(--dg-color-text-high-emphasis); }
+.dg-text-medium { color: var(--dg-color-text-medium-emphasis); }
+.dg-text-low { color: var(--dg-color-text-low-emphasis); }
+.dg-action-primary {
+  background-color: var(--dg-color-action-primary);
+  color: var(--dg-color-action-on-primary-text);
+}
+.dg-action-secondary { background-color: var(--dg-color-action-secondary); }
+.dg-border-divider { border-color: var(--dg-color-border-divider); }
+.dg-border-focused { border-color: var(--dg-color-border-focused); }
+.dg-radius-app { border-radius: var(--dg-radii-app); }
+.dg-radius-pill { border-radius: var(--dg-radii-pill); }
+.dg-shadow-surface { box-shadow: var(--dg-shadows-surface); }
+.dg-shadow-overlay { box-shadow: var(--dg-shadows-overlay); }
+.dg-screen-padding { padding-left: var(--dg-mobile-layout-screen-margin); padding-right: var(--dg-mobile-layout-screen-margin); }
+.dg-section-gap { gap: var(--dg-mobile-layout-section-gap); }
+.dg-element-gap { gap: var(--dg-mobile-layout-element-gap); }
+
+.dg-type-nav-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-nav-title-size);
+  font-weight: var(--dg-type-nav-title-weight);
+  line-height: var(--dg-type-nav-title-line-height);
+}
+
+.dg-type-screen-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-screen-title-size);
+  font-weight: var(--dg-type-screen-title-weight);
+  line-height: var(--dg-type-screen-title-line-height);
+}
+
+.dg-type-hero-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-hero-title-size);
+  font-weight: var(--dg-type-hero-title-weight);
+  line-height: var(--dg-type-hero-title-line-height);
+}
+
+.dg-type-section-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-section-title-size);
+  font-weight: var(--dg-type-section-title-weight);
+  line-height: var(--dg-type-section-title-line-height);
+}
+
+.dg-type-metric-value {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-metric-value-size);
+  font-weight: var(--dg-type-metric-value-weight);
+  line-height: var(--dg-type-metric-value-line-height);
+}
+
+.dg-type-body {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-body-size);
+  font-weight: var(--dg-type-body-weight);
+  line-height: var(--dg-type-body-line-height);
+}
+
+.dg-type-supporting {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-supporting-size);
+  font-weight: var(--dg-type-supporting-weight);
+  line-height: var(--dg-type-supporting-line-height);
+}
+
+.dg-type-caption {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-caption-size);
+  font-weight: var(--dg-type-caption-weight);
+  line-height: var(--dg-type-caption-line-height);
+}
+
+.dg-type-button-label {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-button-label-size);
+  font-weight: var(--dg-type-button-label-weight);
+  line-height: var(--dg-type-button-label-line-height);
+}
+      html, body { margin: 0; min-height: 100%; }
+      body {
+        font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+        background: var(--dg-color-background-primary, #ffffff);
+        color: var(--dg-color-text-high-emphasis, #111827);
+      }
+      #drawgle-export-root {
+        position: relative;
+        min-height: 100vh;
+        overflow-x: hidden;
+        background: var(--dg-color-background-primary, #ffffff);
+      }
+      #drawgle-export-navigation { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; pointer-events: none; }
+      #drawgle-export-navigation [data-drawgle-primary-nav] { pointer-events: auto; }
+    </style>
+  </head>
+  <body>
+    <div id="drawgle-export-root">
+<div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden" style="font-family: var(--dg-typography-font-family, SF Pro Display, -apple-system, BlinkMacSystemFont, sans-serif)">
+  <!-- Header Section -->
+  <header class="pt-[var(--dg-mobile-layout-safe-area-top)] px-[var(--dg-mobile-layout-screen-margin)] flex flex-col relative">
+    <div class="flex justify-between items-start pt-8">
+      <div class="flex-1 pr-4">
+        <h1 class="dg-type-screen-title text-[var(--dg-color-text-high-emphasis)]">Peito e bíceps</h1>
+        <p class="dg-type-body text-[var(--dg-color-text-medium-emphasis)] mt-1">Segunda-feira, 12 de Junho</p>
+      </div>
+      <div class="w-[120px] h-[120px] relative -mt-4 -mr-2">
+        <img src="https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/b8041495-1552-4079-9c20-80bd656e240f/display_1024.png" alt="dot matrix style human torso showing chest and biceps muscles" class="w-full h-full object-contain opacity-90" />
+      </div>
+    </div>
+
+    <!-- Day Progress Bar -->
+    <div class="mt-6 flex justify-between items-center bg-[var(--dg-color-surface-card)] p-4 rounded-[var(--dg-radii-app)] shadow-[var(--dg-shadows-surface)]">
+      <div class="flex flex-col items-center gap-2">
+        <span class="dg-type-caption text-[var(--dg-color-text-low-emphasis)]">S</span>
+        <div class="w-8 h-8 rounded-full border-2 border-[var(--dg-color-action-primary)] flex items-center justify-center">
+          <div class="w-5 h-5 bg-[var(--dg-color-action-primary)] rounded-full"></div>
+        </div>
+      </div>
+      <div class="flex flex-col items-center gap-2">
+        <span class="dg-type-caption text-[var(--dg-color-text-low-emphasis)]">T</span>
+        <div class="w-8 h-8 rounded-full border-2 border-[var(--dg-color-border-divider)] flex items-center justify-center">
+          <span class="dg-type-caption text-[var(--dg-color-text-medium-emphasis)]">13</span>
+        </div>
+      </div>
+      <div class="flex flex-col items-center gap-2">
+        <span class="dg-type-caption text-[var(--dg-color-text-low-emphasis)]">Q</span>
+        <div class="w-8 h-8 rounded-full border-2 border-[var(--dg-color-border-divider)] flex items-center justify-center">
+          <span class="dg-type-caption text-[var(--dg-color-text-medium-emphasis)]">14</span>
+        </div>
+      </div>
+      <div class="flex flex-col items-center gap-2">
+        <span class="dg-type-caption text-[var(--dg-color-text-low-emphasis)]">Q</span>
+        <div class="w-8 h-8 rounded-full border-2 border-[var(--dg-color-border-divider)] flex items-center justify-center">
+          <span class="dg-type-caption text-[var(--dg-color-text-medium-emphasis)]">15</span>
+        </div>
+      </div>
+      <div class="flex flex-col items-center gap-2">
+        <span class="dg-type-caption text-[var(--dg-color-text-low-emphasis)]">S</span>
+        <div class="w-8 h-8 rounded-full border-2 border-[var(--dg-color-border-divider)] flex items-center justify-center">
+          <span class="dg-type-caption text-[var(--dg-color-text-medium-emphasis)]">16</span>
+        </div>
+      </div>
+      <div class="flex flex-col items-center gap-2">
+        <span class="dg-type-caption text-[var(--dg-color-text-low-emphasis)]">S</span>
+        <div class="w-8 h-8 rounded-full border-2 border-[var(--dg-color-border-divider)] flex items-center justify-center">
+          <span class="dg-type-caption text-[var(--dg-color-text-medium-emphasis)]">17</span>
+        </div>
+      </div>
+      <div class="flex flex-col items-center gap-2">
+        <span class="dg-type-caption text-[var(--dg-color-text-low-emphasis)]">D</span>
+        <div class="w-8 h-8 rounded-full border-2 border-[var(--dg-color-border-divider)] flex items-center justify-center">
+          <span class="dg-type-caption text-[var(--dg-color-text-medium-emphasis)]">18</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="flex-1 px-[var(--dg-mobile-layout-screen-margin)] mt-[var(--dg-mobile-layout-section-gap)] pb-[120px]">
+    
+    <!-- Section: Alongamento -->
+    <section class="mb-[var(--dg-mobile-layout-section-gap)]">
+      <h2 class="dg-type-section-title text-[var(--dg-color-text-low-emphasis)] uppercase tracking-wider mb-4">Alongamento</h2>
+      <div class="flex flex-col gap-[var(--dg-mobile-layout-element-gap)]">
+        <!-- Card 1 -->
+        <div class="dg-surface-card p-[var(--dg-spacing-md)] rounded-[var(--dg-radii-app)] shadow-[var(--dg-shadows-surface)] flex items-center justify-between border border-[var(--dg-color-border-divider)]">
+          <div class="flex items-center gap-4">
+            <div class="w-12 h-12 bg-[var(--dg-color-action-disabled)] rounded-xl flex items-center justify-center">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-[var(--dg-color-text-medium-emphasis)]"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </div>
+            <div>
+              <h3 class="dg-type-body font-semibold text-[var(--dg-color-text-high-emphasis)]">Mobilidade de ombro</h3>
+              <p class="dg-type-supporting text-[var(--dg-color-text-medium-emphasis)]">2 séries x 30 seg</p>
+            </div>
+          </div>
+          <div class="w-7 h-7 rounded-full border-2 border-[var(--dg-color-action-primary)] flex items-center justify-center bg-[var(--dg-color-action-primary)]">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section: Musculação -->
+    <section class="mb-[var(--dg-mobile-layout-section-gap)]">
+      <h2 class="dg-type-section-title text-[var(--dg-color-text-low-emphasis)] uppercase tracking-wider mb-4">Musculação</h2>
+      <div class="flex flex-col gap-[var(--dg-mobile-layout-element-gap)]">
+        <!-- Card 2 -->
+        <div class="dg-surface-card p-[var(--dg-spacing-md)] rounded-[var(--dg-radii-app)] shadow-[var(--dg-shadows-surface)] flex items-center justify-between border border-[var(--dg-color-border-divider)]">
+          <div class="flex items-center gap-4">
+            <div class="w-12 h-12 bg-[var(--dg-color-action-disabled)] rounded-xl flex items-center justify-center">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-[var(--dg-color-text-medium-emphasis)]"><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>
+            </div>
+            <div>
+              <h3 class="dg-type-body font-semibold text-[var(--dg-color-text-high-emphasis)]">Supino Reto (Barra)</h3>
+              <p class="dg-type-supporting text-[var(--dg-color-text-medium-emphasis)]">4 séries x 10 reps</p>
+            </div>
+          </div>
+          <div class="w-7 h-7 rounded-full border-2 border-[var(--dg-color-border-divider)]"></div>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="dg-surface-card p-[var(--dg-spacing-md)] rounded-[var(--dg-radii-app)] shadow-[var(--dg-shadows-surface)] flex items-center justify-between border border-[var(--dg-color-border-divider)]">
+          <div class="flex items-center gap-4">
+            <div class="w-12 h-12 bg-[var(--dg-color-action-disabled)] rounded-xl flex items-center justify-center">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-[var(--dg-color-text-medium-emphasis)]"><path d="M6 18h12"/><path d="M12 22V2"/><path d="m9 12 3-3 3 3"/></svg>
+            </div>
+            <div>
+              <h3 class="dg-type-body font-semibold text-[var(--dg-color-text-high-emphasis)]">Crucifixo Inclinado</h3>
+              <p class="dg-type-supporting text-[var(--dg-color-text-medium-emphasis)]">3 séries x 12 reps</p>
+            </div>
+          </div>
+          <div class="w-7 h-7 rounded-full border-2 border-[var(--dg-color-border-divider)]"></div>
+        </div>
+
+        <!-- Card 4 -->
+        <div class="dg-surface-card p-[var(--dg-spacing-md)] rounded-[var(--dg-radii-app)] shadow-[var(--dg-shadows-surface)] flex items-center justify-between border border-[var(--dg-color-border-divider)]">
+          <div class="flex items-center gap-4">
+            <div class="w-12 h-12 bg-[var(--dg-color-action-disabled)] rounded-xl flex items-center justify-center">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-[var(--dg-color-text-medium-emphasis)]"><path d="M14.5 17.5 3 6V3h3l11.5 11.5"/><path d="m10 19 2 2 2-2"/><path d="m14 19 2 2 2-2"/></svg>
+            </div>
+            <div>
+              <h3 class="dg-type-body font-semibold text-[var(--dg-color-text-high-emphasis)]">Rosca Direta (W)</h3>
+              <p class="dg-type-supporting text-[var(--dg-color-text-medium-emphasis)]">4 séries x 10 reps</p>
+            </div>
+          </div>
+          <div class="w-7 h-7 rounded-full border-2 border-[var(--dg-color-border-divider)]"></div>
+        </div>
+
+        <!-- Card 5 -->
+        <div class="dg-surface-card p-[var(--dg-spacing-md)] rounded-[var(--dg-radii-app)] shadow-[var(--dg-shadows-surface)] flex items-center justify-between border border-[var(--dg-color-border-divider)]">
+          <div class="flex items-center gap-4">
+            <div class="w-12 h-12 bg-[var(--dg-color-action-disabled)] rounded-xl flex items-center justify-center">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-[var(--dg-color-text-medium-emphasis)]"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+            </div>
+            <div>
+              <h3 class="dg-type-body font-semibold text-[var(--dg-color-text-high-emphasis)]">Rosca Martelo</h3>
+              <p class="dg-type-supporting text-[var(--dg-color-text-medium-emphasis)]">3 séries x 12 reps</p>
+            </div>
+          </div>
+          <div class="w-7 h-7 rounded-full border-2 border-[var(--dg-color-border-divider)]"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section: Cardio -->
+    <section class="mb-[var(--dg-mobile-layout-section-gap)]">
+      <h2 class="dg-type-section-title text-[var(--dg-color-text-low-emphasis)] uppercase tracking-wider mb-4">Cardio</h2>
+      <div class="flex flex-col gap-[var(--dg-mobile-layout-element-gap)]">
+        <!-- Card 6 -->
+        <div class="dg-surface-card p-[var(--dg-spacing-md)] rounded-[var(--dg-radii-app)] shadow-[var(--dg-shadows-surface)] flex items-center justify-between border border-[var(--dg-color-border-divider)]">
+          <div class="flex items-center gap-4">
+            <div class="w-12 h-12 bg-[var(--dg-color-action-disabled)] rounded-xl flex items-center justify-center">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-[var(--dg-color-text-medium-emphasis)]"><path d="M13 4v16"/><path d="M17 4v16"/><path d="M19 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Z"/><path d="M7 4v16"/><path d="M11 4v16"/></svg>
+            </div>
+            <div>
+              <h3 class="dg-type-body font-semibold text-[var(--dg-color-text-high-emphasis)]">Esteira (Moderado)</h3>
+              <p class="dg-type-supporting text-[var(--dg-color-text-medium-emphasis)]">15 minutos</p>
+            </div>
+          </div>
+          <div class="w-7 h-7 rounded-full border-2 border-[var(--dg-color-border-divider)]"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+      <div id="drawgle-export-navigation"><nav data-drawgle-primary-nav class="dg-nav-shell" aria-label="Primary navigation">
+  <style>
+    [data-drawgle-primary-nav].dg-nav-shell {
+      position: fixed;
+      bottom: var(--dg-mobile-layout-safe-area-bottom, 16px);
+      left: 50%;
+      transform: translateX(-50%);
+      width: calc(100% - (var(--dg-mobile-layout-screen-margin, 20px) * 2));
+      max-width: 350px;
+      height: 72px;
+      background: rgba(18, 18, 18, 0.8);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border-radius: var(--dg-radii-pill, 9999px);
+      border: 1px solid var(--dg-color-border-divider, rgba(255, 255, 255, 0.08));
+      box-shadow: var(--dg-shadows-overlay);
+      padding: 6px;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      box-sizing: border-box;
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-shell-inner {
+      display: flex;
+      width: 100%;
+      height: 100%;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-item {
+      flex: 1;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      background: transparent;
+      border: none;
+      padding: 0;
+      margin: 0;
+      color: var(--dg-color-text-medium-emphasis, #8E8E93);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-icon {
+      width: var(--dg-sizing-icon-standard, 24px);
+      height: var(--dg-sizing-icon-standard, 24px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-icon svg {
+      width: 22px;
+      height: 22px;
+      stroke-width: 1.5px;
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-label {
+      font-size: var(--dg-type-caption-size, 11px);
+      font-weight: var(--dg-type-caption-weight, 500);
+      line-height: var(--dg-type-caption-line-height, 1);
+      letter-spacing: 0.02em;
+    }
+
+    /* Active State for Standard Tabs */
+    [data-drawgle-primary-nav] .dg-nav-item[]:not([data-nav-item-id="active-session"]) {
+      color: var(--dg-color-text-high-emphasis, #FFFFFF);
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-item[]:not([data-nav-item-id="active-session"])::after {
+      content: '';
+      position: absolute;
+      bottom: 4px;
+      width: 4px;
+      height: 4px;
+      background: var(--dg-color-action-primary, #32D74B);
+      border-radius: 50%;
+    }
+
+    /* Specialized Play Button Treatment */
+    [data-drawgle-primary-nav] .dg-nav-item[data-nav-item-id="active-session"] {
+      flex: 0 0 60px;
+      height: 60px;
+      background: var(--dg-color-action-primary, #32D74B);
+      color: var(--dg-color-action-on-primary-text, #000000);
+      border-radius: 50%;
+      margin-left: 4px;
+      box-shadow: 0 4px 12px rgba(50, 215, 75, 0.3);
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-item[data-nav-item-id="active-session"] .dg-nav-label {
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 10px;
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-item[data-nav-item-id="active-session"] .dg-nav-icon svg {
+      fill: currentColor;
+      stroke-width: 0;
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-item:active {
+      opacity: 0.7;
+      transform: scale(0.96);
+    }
+  </style>
+
+  <div class="dg-nav-shell-inner">
+    <button type="button" class="dg-nav-item" data-nav-item-id="home" aria-label="Home">
+      <span class="dg-nav-icon"><i data-lucide="home"></i></span>
+      <span class="dg-nav-label">Home</span>
+    </button>
+
+    <button type="button" class="dg-nav-item" data-nav-item-id="routine" aria-label="Rotina">
+      <span class="dg-nav-icon"><i data-lucide="calendar"></i></span>
+      <span class="dg-nav-label">Rotina</span>
+    </button>
+
+    <button type="button" class="dg-nav-item" data-nav-item-id="settings" aria-label="Ajustes">
+      <span class="dg-nav-icon"><i data-lucide="settings"></i></span>
+      <span class="dg-nav-label">Ajustes</span>
+    </button>
+
+    <button type="button" class="dg-nav-item" data-nav-item-id="active-session" aria-label="Play Workout">
+      <span class="dg-nav-icon"><i data-lucide="play"></i></span>
+      <span class="dg-nav-label">Play</span>
+    </button>
+  </div>
+</nav></div>
+    </div>
+    <script>
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+      document.querySelectorAll('[data-nav-item-id]').forEach(function(item) {
+        var active = item.getAttribute('data-nav-item-id') === "home";
+        item.setAttribute('data-active', active ? 'true' : 'false');
+        item.setAttribute('aria-current', active ? 'page' : 'false');
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,825 @@
+import type { DesignStyleId, DesignStylePack } from "@/lib/types";
+
+export const DESIGN_STYLE_AUTO_ID = "auto";
+
+export type DesignStyleOptionId = typeof DESIGN_STYLE_AUTO_ID | DesignStyleId;
+
+const baseOpacities = {
+  transparent: "0",
+  disabled: "0.38",
+  scrim_overlay: "0.50",
+  pressed: "0.12",
+  opaque: "1",
+};
+
+const baseZIndex = {
+  base: "0",
+  sticky_header: "10",
+  bottom_nav: "20",
+  bottom_sheet: "30",
+  modal_dialog: "40",
+  toast_snackbar: "50",
+};
+
+export const DESIGN_STYLE_PACKS: DesignStylePack[] = [
+  {
+    id: "modern-light",
+    label: "Modern Light",
+    version: 1,
+    premiumIntent: "Airy iOS utility with confident hierarchy, white surfaces, subtle cool neutrals, and practical elegance.",
+    bestFor: ["finance", "productivity", "health", "booking", "consumer utilities", "marketplaces"],
+    tokenSeed: {
+      system_schema: "mobile_universal_core",
+      meta: { recommendedFonts: ["Inter", "SF Pro Display"] },
+      tokens: {
+        color: {
+          background: { primary: "#f7f8fb", secondary: "#eef2f7", surface_elevated: "#ffffff" },
+          surface: { card: "#ffffff", bottom_sheet: "#ffffff", modal: "#ffffff" },
+          text: { high_emphasis: "#121417", medium_emphasis: "#68707d", low_emphasis: "#9aa3af", action_label: "#2563eb" },
+          action: { primary: "#2563eb", secondary: "#0f172a", disabled: "#d8dee8", on_primary_text: "#ffffff" },
+          border: { divider: "#e5e9f0", focused: "#2563eb" },
+        },
+        typography: {
+          font_family: "Inter, system-ui, sans-serif",
+          nav_title: { size: "17px", weight: 750, line_height: "22px" },
+          screen_title: { size: "26px", weight: 800, line_height: "32px" },
+          hero_title: { size: "34px", weight: 820, line_height: "40px" },
+          section_title: { size: "18px", weight: 760, line_height: "24px" },
+          metric_value: { size: "34px", weight: 820, line_height: "38px" },
+          body: { size: "16px", weight: 500, line_height: "24px" },
+          supporting: { size: "14px", weight: 450, line_height: "20px" },
+          caption: { size: "12px", weight: 650, line_height: "16px" },
+          button_label: { size: "15px", weight: 750, line_height: "20px" },
+        },
+        spacing: { none: "0px", xxs: "4px", xs: "8px", sm: "12px", md: "16px", lg: "22px", xl: "28px", xxl: "36px" },
+        mobile_layout: { screen_margin: "20px", safe_area_top: "16px", safe_area_bottom: "16px", section_gap: "24px", element_gap: "14px" },
+        sizing: { min_touch_target: "48px", standard_button_height: "52px", standard_input_height: "48px", icon_small: "18px", icon_standard: "22px", bottom_nav_height: "72px" },
+        radii: { app: "22px", pill: "9999px" },
+        border_widths: { standard: "1px" },
+        shadows: { none: "none", surface: "0 18px 45px rgba(15, 23, 42, 0.10)", overlay: "0 -18px 50px rgba(15, 23, 42, 0.16)" },
+        opacities: baseOpacities,
+        z_index: baseZIndex,
+      },
+    },
+    creativeDirectionSeed: {
+      conceptName: "Airy Utility",
+      styleEssence: "Polished mobile utility with light surfaces, clear content rails, and calm focal hierarchy.",
+      colorStory: "Mostly white and cool neutral with one precise accent used for action, progress, and active states.",
+      typographyMood: "Crisp, highly legible sans with bold screen titles and restrained metadata.",
+      surfaceLanguage: "White raised cards, soft separators, shallow elevation, and roomy rounded modules.",
+      iconographyStyle: "Clean outline icons in rounded wells with subtle active fills.",
+      motionTone: "Quick, clean, and confidence-building.",
+    },
+    layoutGrammar: [
+      "Use one centered content rail with generous screen margins and visible breathing room.",
+      "Lead with a compact header plus one strong hero module, then group secondary content into 1-2 clear sections.",
+      "Prefer asymmetry through scale and spacing, not random decorative shapes.",
+    ],
+    componentRecipes: [
+      "Hero metric cards with oversized number, concise context, and one action cluster.",
+      "List rows use icon well, two-line text group, metadata pill, and chevron only when navigation is real.",
+      "Forms use quiet filled fields and a single dominant full-width CTA near the next natural action.",
+    ],
+    navigationRecipes: [
+      "Floating white dock or compact tab surface with blue active pill and soft shadow.",
+      "Top bars should feel native: short title, icon buttons, and no heavy divider unless content scrolls.",
+    ],
+    assetAndImageryRules: [
+      "Use imagery only when product-specific; otherwise express polish through typography, charts, icons, and surfaces.",
+      "Photos sit in softly rounded media wells with minimal overlays.",
+    ],
+    densityRules: [
+      "Default to medium-airy density: 20px screen margin, 24px section gaps, 14-16px card internals.",
+      "Never make all cards equal visual weight; one primary surface must lead.",
+    ],
+    antiPatterns: [
+      "Do not produce a generic gray dashboard of identical cards.",
+      "Do not use heavy gradients, neon, or oversized decorative blobs.",
+    ],
+  },
+  {
+    id: "modern-dark",
+    label: "Modern Dark",
+    version: 1,
+    premiumIntent: "Graphite command UI with luminous text, contained depth, and focused workflows.",
+    bestFor: ["crypto", "security", "developer tools", "analytics", "media", "night-mode utilities"],
+    tokenSeed: {
+      system_schema: "mobile_universal_core",
+      meta: { recommendedFonts: ["Inter", "Satoshi"] },
+      tokens: {
+        color: {
+          background: { primary: "#090b10", secondary: "#11141b", surface_elevated: "#171b24" },
+          surface: { card: "#141821", bottom_sheet: "#171b24", modal: "#1d2230" },
+          text: { high_emphasis: "#f6f8fb", medium_emphasis: "#a4adba", low_emphasis: "#667085", action_label: "#8ab4ff" },
+          action: { primary: "#8ab4ff", secondary: "#c8f55f", disabled: "#2c3340", on_primary_text: "#07101f" },
+          border: { divider: "#252b36", focused: "#8ab4ff" },
+        },
+        typography: {
+          font_family: "Inter, system-ui, sans-serif",
+          nav_title: { size: "17px", weight: 760, line_height: "22px" },
+          screen_title: { size: "25px", weight: 820, line_height: "31px" },
+          hero_title: { size: "33px", weight: 850, line_height: "39px" },
+          section_title: { size: "17px", weight: 760, line_height: "23px" },
+          metric_value: { size: "33px", weight: 850, line_height: "38px" },
+          body: { size: "16px", weight: 500, line_height: "24px" },
+          supporting: { size: "14px", weight: 450, line_height: "20px" },
+          caption: { size: "12px", weight: 650, line_height: "16px" },
+          button_label: { size: "15px", weight: 780, line_height: "20px" },
+        },
+        spacing: { none: "0px", xxs: "4px", xs: "8px", sm: "12px", md: "16px", lg: "20px", xl: "26px", xxl: "34px" },
+        mobile_layout: { screen_margin: "18px", safe_area_top: "16px", safe_area_bottom: "16px", section_gap: "22px", element_gap: "12px" },
+        sizing: { min_touch_target: "48px", standard_button_height: "52px", standard_input_height: "48px", icon_small: "18px", icon_standard: "22px", bottom_nav_height: "74px" },
+        radii: { app: "20px", pill: "9999px" },
+        border_widths: { standard: "1px" },
+        shadows: { none: "none", surface: "0 20px 50px rgba(0, 0, 0, 0.36)", overlay: "0 -20px 60px rgba(0, 0, 0, 0.44)" },
+        opacities: baseOpacities,
+        z_index: baseZIndex,
+      },
+    },
+    creativeDirectionSeed: {
+      conceptName: "Graphite Command",
+      styleEssence: "Dark premium command surface with glowing hierarchy, compact controls, and serious product focus.",
+      colorStory: "Graphite layers with sparse electric accent and occasional acidic success highlights.",
+      typographyMood: "Sharp sans-serif, strong numeric moments, compact metadata.",
+      surfaceLanguage: "Stacked dark panels, hairline borders, inner highlights, and controlled elevation.",
+      iconographyStyle: "Thin line icons, restrained glow on active states, no cartoon fills.",
+      motionTone: "Precise, fast, and deliberate.",
+    },
+    layoutGrammar: [
+      "Use dark layered surfaces with clear z-depth: background, elevated modules, active controls.",
+      "Give the main command or metric a strong top-third focal zone.",
+      "Use compact grids and rows, but protect text from collisions with min widths and truncation.",
+    ],
+    componentRecipes: [
+      "Command cards use hairline borders, top-left labels, right-side status chips, and luminous values.",
+      "Charts and data panels use definite-height geometry with subtle grid lines and bright active marks.",
+      "Primary CTAs are bright filled pills against dark surfaces, never low-contrast gray.",
+    ],
+    navigationRecipes: [
+      "Floating graphite dock with active icon glow or filled capsule.",
+      "Top action buttons use bordered dark wells with slight inner highlight.",
+    ],
+    assetAndImageryRules: [
+      "Prefer constructed charts, maps, code/data surfaces, and icon systems over decorative photos.",
+      "Images should be cropped dramatically into dark rounded panels when needed.",
+    ],
+    densityRules: [
+      "Use medium-compact density with 18px screen margin and tight metadata rows.",
+      "Avoid cramming chart labels; every data visual needs fixed height and breathing room.",
+    ],
+    antiPatterns: [
+      "Do not use flat black backgrounds with white cards.",
+      "Do not flood the interface with neon; one accent path should lead.",
+    ],
+  },
+  {
+    id: "editorial-minimal",
+    label: "Editorial Minimal",
+    version: 1,
+    premiumIntent: "Magazine-like product UI with sparse cards, confident typography, and deliberate asymmetry.",
+    bestFor: ["wellness", "content", "portfolio", "travel", "fashion", "premium services"],
+    tokenSeed: {
+      system_schema: "mobile_universal_core",
+      meta: { recommendedFonts: ["Newsreader", "Inter"] },
+      tokens: {
+        color: {
+          background: { primary: "#fbfaf7", secondary: "#f0eee8", surface_elevated: "#ffffff" },
+          surface: { card: "#ffffff", bottom_sheet: "#fcfbf8", modal: "#ffffff" },
+          text: { high_emphasis: "#151412", medium_emphasis: "#67615a", low_emphasis: "#a49d94", action_label: "#8f3d24" },
+          action: { primary: "#151412", secondary: "#8f3d24", disabled: "#ded8ce", on_primary_text: "#ffffff" },
+          border: { divider: "#e5ded4", focused: "#151412" },
+        },
+        typography: {
+          font_family: "Newsreader, Georgia, serif",
+          nav_title: { size: "17px", weight: 650, line_height: "22px" },
+          screen_title: { size: "30px", weight: 700, line_height: "35px" },
+          hero_title: { size: "42px", weight: 720, line_height: "46px" },
+          section_title: { size: "20px", weight: 650, line_height: "25px" },
+          metric_value: { size: "38px", weight: 700, line_height: "42px" },
+          body: { size: "16px", weight: 450, line_height: "25px" },
+          supporting: { size: "14px", weight: 430, line_height: "21px" },
+          caption: { size: "12px", weight: 650, line_height: "16px" },
+          button_label: { size: "14px", weight: 700, line_height: "19px" },
+        },
+        spacing: { none: "0px", xxs: "4px", xs: "8px", sm: "13px", md: "18px", lg: "26px", xl: "34px", xxl: "46px" },
+        mobile_layout: { screen_margin: "22px", safe_area_top: "16px", safe_area_bottom: "16px", section_gap: "30px", element_gap: "16px" },
+        sizing: { min_touch_target: "48px", standard_button_height: "50px", standard_input_height: "48px", icon_small: "17px", icon_standard: "21px", bottom_nav_height: "70px" },
+        radii: { app: "14px", pill: "9999px" },
+        border_widths: { standard: "1px" },
+        shadows: { none: "none", surface: "0 18px 38px rgba(58, 45, 31, 0.09)", overlay: "0 -18px 45px rgba(58, 45, 31, 0.14)" },
+        opacities: baseOpacities,
+        z_index: baseZIndex,
+      },
+    },
+    creativeDirectionSeed: {
+      conceptName: "Quiet Editorial",
+      styleEssence: "Elegant app screens with magazine hierarchy, negative space, and restrained modularity.",
+      colorStory: "Warm off-white canvas, ink-black text, and one earthy editorial accent.",
+      typographyMood: "Expressive serif headlines balanced by calm supporting text.",
+      surfaceLanguage: "Few surfaces, subtle paper-like panels, thin rules, and intentional whitespace.",
+      iconographyStyle: "Minimal line icons, small and secondary to type.",
+      motionTone: "Gentle, paced, and refined.",
+    },
+    layoutGrammar: [
+      "Use oversized type as structure; do not rely on many cards to create hierarchy.",
+      "Allow one asymmetrical hero or media area to break the grid while maintaining a clean content rail.",
+      "Prefer dividers, whitespace, and typographic contrast over heavy boxes.",
+    ],
+    componentRecipes: [
+      "Editorial hero with large headline, small eyebrow, and a single grounded CTA.",
+      "Content modules use thin rules, staggered metadata, and image/media wells only when meaningful.",
+      "Lists should feel curated: fewer rows, stronger labels, and spacious touch targets.",
+    ],
+    navigationRecipes: [
+      "Navigation is quiet: text-led tabs, minimal floating rail, or slim top bar.",
+      "Active states use underline, subtle fill, or typography weight instead of loud pills.",
+    ],
+    assetAndImageryRules: [
+      "When imagery appears, use real-feeling crops with generous whitespace and editorial captions.",
+      "Avoid generic abstract illustrations.",
+    ],
+    densityRules: [
+      "Use airy density and fewer modules per viewport.",
+      "One screen should have a memorable reading path, not a dashboard grid.",
+    ],
+    antiPatterns: [
+      "Do not turn this into beige card spam.",
+      "Do not use tiny serif body text that harms legibility.",
+    ],
+  },
+  {
+    id: "soft-clay",
+    label: "Soft Clay",
+    version: 1,
+    premiumIntent: "Warm tactile UI with clay-like surfaces, soft inset depth, and approachable premium comfort.",
+    bestFor: ["wellness", "food", "home", "education", "family", "creative tools"],
+    tokenSeed: {
+      system_schema: "mobile_universal_core",
+      meta: { recommendedFonts: ["Nunito Sans", "Inter"] },
+      tokens: {
+        color: {
+          background: { primary: "#f7efe5", secondary: "#eadfce", surface_elevated: "#fff7ed" },
+          surface: { card: "#fff4e7", bottom_sheet: "#fff8ef", modal: "#fff8ef" },
+          text: { high_emphasis: "#2f261f", medium_emphasis: "#7b6959", low_emphasis: "#aa9786", action_label: "#c16836" },
+          action: { primary: "#f59a5f", secondary: "#88b891", disabled: "#decdbd", on_primary_text: "#2f1609" },
+          border: { divider: "#ead8c8", focused: "#c16836" },
+        },
+        typography: {
+          font_family: "Nunito Sans, Inter, system-ui, sans-serif",
+          nav_title: { size: "17px", weight: 800, line_height: "22px" },
+          screen_title: { size: "27px", weight: 850, line_height: "33px" },
+          hero_title: { size: "36px", weight: 850, line_height: "42px" },
+          section_title: { size: "18px", weight: 800, line_height: "24px" },
+          metric_value: { size: "34px", weight: 850, line_height: "39px" },
+          body: { size: "16px", weight: 550, line_height: "24px" },
+          supporting: { size: "14px", weight: 500, line_height: "20px" },
+          caption: { size: "12px", weight: 750, line_height: "16px" },
+          button_label: { size: "15px", weight: 850, line_height: "20px" },
+        },
+        spacing: { none: "0px", xxs: "5px", xs: "9px", sm: "13px", md: "18px", lg: "24px", xl: "32px", xxl: "42px" },
+        mobile_layout: { screen_margin: "20px", safe_area_top: "16px", safe_area_bottom: "16px", section_gap: "26px", element_gap: "15px" },
+        sizing: { min_touch_target: "48px", standard_button_height: "54px", standard_input_height: "50px", icon_small: "18px", icon_standard: "23px", bottom_nav_height: "76px" },
+        radii: { app: "28px", pill: "9999px" },
+        border_widths: { standard: "1px" },
+        shadows: { none: "none", surface: "8px 10px 24px rgba(121, 87, 56, 0.16), -4px -4px 18px rgba(255, 255, 255, 0.62)", overlay: "0 -18px 46px rgba(121, 87, 56, 0.20)" },
+        opacities: baseOpacities,
+        z_index: baseZIndex,
+      },
+    },
+    creativeDirectionSeed: {
+      conceptName: "Soft Clay",
+      styleEssence: "Warm tactile product surfaces with rounded modules, gentle depth, and friendly confidence.",
+      colorStory: "Cream and clay neutrals with fruit-like accent colors used sparingly.",
+      typographyMood: "Rounded, friendly, substantial weights with calm line-height.",
+      surfaceLanguage: "Pillowy cards, soft inset wells, low-contrast borders, and warm shadows.",
+      iconographyStyle: "Rounded icons in tactile wells, sometimes filled with soft accent chips.",
+      motionTone: "Soft press, gentle lift, and cozy transitions.",
+    },
+    layoutGrammar: [
+      "Use large rounded surfaces that feel held in the hand, with clear nested containment.",
+      "Hero areas can use overlapping tactile chips or object wells, but text must stay unobstructed.",
+      "Keep one warm background layer and avoid excessive color patches.",
+    ],
+    componentRecipes: [
+      "Tactile cards with soft shadow, inner highlight, rounded icon well, and warm status chip.",
+      "Segmented controls look pressed into the surface rather than floating above it.",
+      "Primary CTA is a thick rounded clay button with clear contrast.",
+    ],
+    navigationRecipes: [
+      "Rounded floating dock with soft raised clay surface and filled active well.",
+      "Avoid sharp tab dividers; use soft separation and pressed states.",
+    ],
+    assetAndImageryRules: [
+      "Use friendly cutouts or rounded photos only when they support the product domain.",
+      "Charts should use rounded bars, bubbles, or soft progress rings.",
+    ],
+    densityRules: [
+      "Medium-airy density with chunkier modules and fewer rows per viewport.",
+      "Every tactile object needs enough padding to show its softness.",
+    ],
+    antiPatterns: [
+      "Do not overuse beige until the UI loses contrast.",
+      "Do not make every element pill-shaped; reserve pills for controls and chips.",
+    ],
+  },
+  {
+    id: "neo-brutal",
+    label: "Neo-Brutal",
+    version: 1,
+    premiumIntent: "Bold, graphic, high-contrast app UI with intentional borders, offset blocks, and energetic hierarchy.",
+    bestFor: ["creator tools", "events", "education", "social", "gaming", "youth brands"],
+    avoidFor: ["serious banking", "medical compliance", "quiet enterprise"],
+    tokenSeed: {
+      system_schema: "mobile_universal_core",
+      meta: { recommendedFonts: ["Space Grotesk", "Inter"] },
+      tokens: {
+        color: {
+          background: { primary: "#fffdf2", secondary: "#f2efdf", surface_elevated: "#ffffff" },
+          surface: { card: "#ffffff", bottom_sheet: "#fffdf2", modal: "#ffffff" },
+          text: { high_emphasis: "#111111", medium_emphasis: "#474747", low_emphasis: "#777777", action_label: "#111111" },
+          action: { primary: "#ccff00", secondary: "#ff4d2e", disabled: "#d7d7d7", on_primary_text: "#111111" },
+          border: { divider: "#111111", focused: "#111111" },
+        },
+        typography: {
+          font_family: "Space Grotesk, Inter, system-ui, sans-serif",
+          nav_title: { size: "17px", weight: 800, line_height: "22px" },
+          screen_title: { size: "29px", weight: 900, line_height: "34px" },
+          hero_title: { size: "40px", weight: 900, line_height: "43px" },
+          section_title: { size: "19px", weight: 850, line_height: "24px" },
+          metric_value: { size: "38px", weight: 900, line_height: "40px" },
+          body: { size: "16px", weight: 600, line_height: "23px" },
+          supporting: { size: "14px", weight: 550, line_height: "20px" },
+          caption: { size: "12px", weight: 800, line_height: "16px" },
+          button_label: { size: "15px", weight: 900, line_height: "20px" },
+        },
+        spacing: { none: "0px", xxs: "4px", xs: "8px", sm: "12px", md: "16px", lg: "22px", xl: "30px", xxl: "40px" },
+        mobile_layout: { screen_margin: "18px", safe_area_top: "16px", safe_area_bottom: "16px", section_gap: "22px", element_gap: "12px" },
+        sizing: { min_touch_target: "48px", standard_button_height: "52px", standard_input_height: "48px", icon_small: "18px", icon_standard: "22px", bottom_nav_height: "74px" },
+        radii: { app: "14px", pill: "9999px" },
+        border_widths: { standard: "2px" },
+        shadows: { none: "none", surface: "5px 5px 0 rgba(17, 17, 17, 1)", overlay: "7px 7px 0 rgba(17, 17, 17, 1)" },
+        opacities: baseOpacities,
+        z_index: baseZIndex,
+      },
+    },
+    creativeDirectionSeed: {
+      conceptName: "Graphic Brutal",
+      styleEssence: "Premium brutalist mobile UI with bold outlines, offset depth, and purposeful graphic tension.",
+      colorStory: "Cream base, black structure, acid accent, and one hot secondary accent.",
+      typographyMood: "Heavy geometric sans, assertive labels, punchy metrics.",
+      surfaceLanguage: "Outlined blocks, hard offset shadows, controlled radius, and sticker-like badges.",
+      iconographyStyle: "Bold outline icons in bordered squares or punched circles.",
+      motionTone: "Snappy, physical, and playful.",
+    },
+    layoutGrammar: [
+      "Use offset block composition: one dominant block, supporting stacked slabs, and visible black structure.",
+      "Let components overlap slightly only when the layer order is obvious.",
+      "Keep the grid disciplined; brutal does not mean messy.",
+    ],
+    componentRecipes: [
+      "Cards use 2px black border and hard offset shadow.",
+      "Badges are high-contrast stickers with all-caps or heavy labels.",
+      "Inputs and CTAs use thick borders, strong fill states, and obvious pressed affordances.",
+    ],
+    navigationRecipes: [
+      "Dock uses bordered slab or individual punched tab buttons with hard active state.",
+      "Avoid default thin iOS tab bars.",
+    ],
+    assetAndImageryRules: [
+      "Use cutout objects or graphic placeholders only when they can be framed by bold borders.",
+      "Charts should use thick bars, labels, and visible axis/grid structure.",
+    ],
+    densityRules: [
+      "Medium density with big labels; avoid long paragraphs.",
+      "Keep enough whitespace around offset shadows so they are not clipped.",
+    ],
+    antiPatterns: [
+      "Do not soften into pastel clay or generic card UI.",
+      "Do not use random rotations everywhere; one or two graphic disruptions are enough.",
+    ],
+  },
+  {
+    id: "luxury-quiet",
+    label: "Luxury Quiet",
+    version: 1,
+    premiumIntent: "Restrained luxury product UI with quiet contrast, fine dividers, elegant type, and polished restraint.",
+    bestFor: ["premium commerce", "finance", "hospitality", "fashion", "real estate", "concierge"],
+    tokenSeed: {
+      system_schema: "mobile_universal_core",
+      meta: { recommendedFonts: ["Cormorant Garamond", "Inter"] },
+      tokens: {
+        color: {
+          background: { primary: "#10100f", secondary: "#191815", surface_elevated: "#211f1a" },
+          surface: { card: "#1d1b17", bottom_sheet: "#23211c", modal: "#27241f" },
+          text: { high_emphasis: "#f6f1e6", medium_emphasis: "#b8ad9b", low_emphasis: "#766d60", action_label: "#d6b56d" },
+          action: { primary: "#d6b56d", secondary: "#f6f1e6", disabled: "#3a352c", on_primary_text: "#15120d" },
+          border: { divider: "#373127", focused: "#d6b56d" },
+        },
+        typography: {
+          font_family: "Cormorant Garamond, Georgia, serif",
+          nav_title: { size: "18px", weight: 650, line_height: "23px" },
+          screen_title: { size: "31px", weight: 700, line_height: "36px" },
+          hero_title: { size: "44px", weight: 700, line_height: "47px" },
+          section_title: { size: "20px", weight: 650, line_height: "25px" },
+          metric_value: { size: "40px", weight: 700, line_height: "43px" },
+          body: { size: "16px", weight: 450, line_height: "25px" },
+          supporting: { size: "14px", weight: 430, line_height: "21px" },
+          caption: { size: "12px", weight: 650, line_height: "16px" },
+          button_label: { size: "14px", weight: 750, line_height: "19px" },
+        },
+        spacing: { none: "0px", xxs: "4px", xs: "8px", sm: "12px", md: "18px", lg: "26px", xl: "34px", xxl: "46px" },
+        mobile_layout: { screen_margin: "22px", safe_area_top: "16px", safe_area_bottom: "16px", section_gap: "30px", element_gap: "14px" },
+        sizing: { min_touch_target: "48px", standard_button_height: "52px", standard_input_height: "48px", icon_small: "17px", icon_standard: "21px", bottom_nav_height: "72px" },
+        radii: { app: "18px", pill: "9999px" },
+        border_widths: { standard: "1px" },
+        shadows: { none: "none", surface: "0 24px 60px rgba(0, 0, 0, 0.34)", overlay: "0 -24px 70px rgba(0, 0, 0, 0.44)" },
+        opacities: baseOpacities,
+        z_index: baseZIndex,
+      },
+    },
+    creativeDirectionSeed: {
+      conceptName: "Quiet Luxury",
+      styleEssence: "Refined product interface with restrained contrast, elegant type, and precise material control.",
+      colorStory: "Deep neutral base with champagne accent used as a signal, never decoration.",
+      typographyMood: "Elegant display type for hero moments balanced by readable supporting text.",
+      surfaceLanguage: "Dark satin panels, fine dividers, subtle bevel highlights, and measured depth.",
+      iconographyStyle: "Thin precise icons, small framed controls, elegant active states.",
+      motionTone: "Slow, smooth, and premium.",
+    },
+    layoutGrammar: [
+      "Use fewer, more intentional modules with strong vertical rhythm and premium whitespace.",
+      "Create focal hierarchy through scale, contrast, and fine separators rather than loud fills.",
+      "Avoid clutter; each screen should feel curated and expensive.",
+    ],
+    componentRecipes: [
+      "Feature cards use satin dark surface, fine border, subtle top highlight, and elegant label/value pairs.",
+      "CTAs can be champagne filled or outlined; never use many competing action colors.",
+      "Lists use fine dividers, generous row height, and small metadata.",
+    ],
+    navigationRecipes: [
+      "Navigation should be a low-profile floating rail with thin dividers or subtle active underline.",
+      "Top bars use minimal icon buttons and elegant text balance.",
+    ],
+    assetAndImageryRules: [
+      "Use high-quality product/place imagery only when it reinforces premium context.",
+      "Avoid generic stock-feeling imagery; cropped detail shots are better than wide bland scenes.",
+    ],
+    densityRules: [
+      "Airy density with strong vertical rhythm; do not fill every viewport inch.",
+      "Short copy wins; long content should be grouped behind elegant rows.",
+    ],
+    antiPatterns: [
+      "Do not make every surface gold or glossy.",
+      "Do not mix luxury serif headings with childish icons or random gradients.",
+    ],
+  },
+  {
+    id: "cyberpunk-command",
+    label: "Cyberpunk Command",
+    version: 1,
+    premiumIntent: "Futuristic command UI with black surfaces, cyan/magenta energy, HUD-like panels, and sharp visual states.",
+    bestFor: ["AI tools", "security", "gaming", "crypto", "mobility", "analytics"],
+    avoidFor: ["calm wellness", "traditional banking", "family apps"],
+    tokenSeed: {
+      system_schema: "mobile_universal_core",
+      meta: { recommendedFonts: ["Space Grotesk", "Inter"] },
+      tokens: {
+        color: {
+          background: { primary: "#030608", secondary: "#081015", surface_elevated: "#0d1720" },
+          surface: { card: "#09131a", bottom_sheet: "#0e1822", modal: "#101c27" },
+          text: { high_emphasis: "#e9fbff", medium_emphasis: "#8baab4", low_emphasis: "#4f6a73", action_label: "#20f7ff" },
+          action: { primary: "#20f7ff", secondary: "#ff2bd6", disabled: "#24343c", on_primary_text: "#001214" },
+          border: { divider: "#16313b", focused: "#20f7ff" },
+        },
+        typography: {
+          font_family: "Space Grotesk, Inter, system-ui, sans-serif",
+          nav_title: { size: "17px", weight: 800, line_height: "22px" },
+          screen_title: { size: "27px", weight: 850, line_height: "32px" },
+          hero_title: { size: "36px", weight: 900, line_height: "41px" },
+          section_title: { size: "18px", weight: 800, line_height: "23px" },
+          metric_value: { size: "36px", weight: 900, line_height: "39px" },
+          body: { size: "16px", weight: 550, line_height: "23px" },
+          supporting: { size: "14px", weight: 500, line_height: "20px" },
+          caption: { size: "12px", weight: 800, line_height: "16px" },
+          button_label: { size: "15px", weight: 900, line_height: "20px" },
+        },
+        spacing: { none: "0px", xxs: "4px", xs: "8px", sm: "12px", md: "16px", lg: "20px", xl: "26px", xxl: "34px" },
+        mobile_layout: { screen_margin: "18px", safe_area_top: "16px", safe_area_bottom: "16px", section_gap: "22px", element_gap: "12px" },
+        sizing: { min_touch_target: "48px", standard_button_height: "52px", standard_input_height: "48px", icon_small: "18px", icon_standard: "22px", bottom_nav_height: "74px" },
+        radii: { app: "12px", pill: "9999px" },
+        border_widths: { standard: "1px" },
+        shadows: { none: "none", surface: "0 0 0 1px rgba(32, 247, 255, 0.10), 0 20px 50px rgba(0, 0, 0, 0.46)", overlay: "0 0 36px rgba(32, 247, 255, 0.18), 0 -24px 70px rgba(0, 0, 0, 0.52)" },
+        opacities: baseOpacities,
+        z_index: baseZIndex,
+      },
+    },
+    creativeDirectionSeed: {
+      conceptName: "Neon Command",
+      styleEssence: "Futuristic command interface with HUD panels, sharp states, and disciplined neon energy.",
+      colorStory: "Near-black canvas, cyan primary signal, magenta secondary alerts, and desaturated blue-gray structure.",
+      typographyMood: "Geometric, technical, high-weight labels with compact telemetry.",
+      surfaceLanguage: "Sharp dark panels, thin luminous borders, scanline-like dividers, and controlled glow.",
+      iconographyStyle: "Technical line icons, framed glyphs, and active neon halos.",
+      motionTone: "Fast, electric, and precise.",
+    },
+    layoutGrammar: [
+      "Use HUD-like panels and rails, but keep app usability above sci-fi decoration.",
+      "Create focal moments with luminous data, progress rings, maps, or command controls.",
+      "Use angular or clipped-feeling composition through borders and internal lines, not unsupported CSS gimmicks.",
+    ],
+    componentRecipes: [
+      "Telemetry cards include label, live value, micro trend, and luminous edge.",
+      "Control rows use framed icon buttons, compact labels, and strong active state.",
+      "Charts/maps use visible neon geometry inside dark definite-height panels.",
+    ],
+    navigationRecipes: [
+      "Floating command dock with cyan active marker and dark translucent shell.",
+      "Avoid standard full-width tab bars unless heavily restyled as a command rail.",
+    ],
+    assetAndImageryRules: [
+      "Prefer generated geometry, maps, charts, and technical visual panels over stock photos.",
+      "Use neon accents only on active geometry, not every border.",
+    ],
+    densityRules: [
+      "Compact but readable density; metadata can be dense, primary actions cannot.",
+      "Every luminous effect needs surrounding dark space.",
+    ],
+    antiPatterns: [
+      "Do not make illegible low-contrast neon soup.",
+      "Do not clone a game HUD when the app needs normal workflows.",
+    ],
+  },
+  {
+    id: "glass-utility",
+    label: "Glass Utility",
+    version: 1,
+    premiumIntent: "Layered frosted utility UI with translucent sheets, floating controls, and clear content depth.",
+    bestFor: ["travel", "weather", "finance", "wellness", "smart home", "maps"],
+    tokenSeed: {
+      system_schema: "mobile_universal_core",
+      meta: { recommendedFonts: ["Inter", "SF Pro Display"] },
+      tokens: {
+        color: {
+          background: { primary: "#eef5ff", secondary: "#dfeaf7", surface_elevated: "#ffffff" },
+          surface: { card: "#ffffffcc", bottom_sheet: "#fffffff0", modal: "#fffffff2" },
+          text: { high_emphasis: "#111827", medium_emphasis: "#5f6b7a", low_emphasis: "#91a0b2", action_label: "#4f46e5" },
+          action: { primary: "#4f46e5", secondary: "#06b6d4", disabled: "#d8e0ec", on_primary_text: "#ffffff" },
+          border: { divider: "#ffffff99", focused: "#4f46e5" },
+        },
+        typography: {
+          font_family: "Inter, system-ui, sans-serif",
+          nav_title: { size: "17px", weight: 750, line_height: "22px" },
+          screen_title: { size: "26px", weight: 800, line_height: "32px" },
+          hero_title: { size: "35px", weight: 820, line_height: "41px" },
+          section_title: { size: "18px", weight: 760, line_height: "24px" },
+          metric_value: { size: "35px", weight: 820, line_height: "39px" },
+          body: { size: "16px", weight: 500, line_height: "24px" },
+          supporting: { size: "14px", weight: 450, line_height: "20px" },
+          caption: { size: "12px", weight: 650, line_height: "16px" },
+          button_label: { size: "15px", weight: 780, line_height: "20px" },
+        },
+        spacing: { none: "0px", xxs: "4px", xs: "8px", sm: "12px", md: "16px", lg: "22px", xl: "30px", xxl: "40px" },
+        mobile_layout: { screen_margin: "18px", safe_area_top: "16px", safe_area_bottom: "16px", section_gap: "24px", element_gap: "14px" },
+        sizing: { min_touch_target: "48px", standard_button_height: "52px", standard_input_height: "48px", icon_small: "18px", icon_standard: "22px", bottom_nav_height: "76px" },
+        radii: { app: "24px", pill: "9999px" },
+        border_widths: { standard: "1px" },
+        shadows: { none: "none", surface: "0 18px 50px rgba(72, 91, 125, 0.18)", overlay: "0 -18px 60px rgba(72, 91, 125, 0.22)" },
+        opacities: baseOpacities,
+        z_index: baseZIndex,
+      },
+    },
+    creativeDirectionSeed: {
+      conceptName: "Frosted Utility",
+      styleEssence: "Layered translucent app interface with floating sheets, soft background depth, and crisp controls.",
+      colorStory: "Cool luminous base, white glass surfaces, and precise blue-violet action accents.",
+      typographyMood: "Clean modern sans with strong titles and highly readable labels.",
+      surfaceLanguage: "Frosted cards, translucent sheets, highlight borders, blur-like depth, and floating controls.",
+      iconographyStyle: "Line icons in glass wells with active fill or glow.",
+      motionTone: "Smooth sheet movement and gentle floating transitions.",
+    },
+    layoutGrammar: [
+      "Use clear layer stack: atmospheric background, frosted content sheets, and floating controls.",
+      "Do not rely on blur alone; use borders, contrast, and shadows to keep content legible.",
+      "Large map/weather/media surfaces can sit behind glass panels when domain-appropriate.",
+    ],
+    componentRecipes: [
+      "Glass cards use translucent fill, white highlight border, and soft shadow.",
+      "Bottom sheets use rounded top corners, visible grabber, and layered content groups.",
+      "Controls use floating capsules with strong active state.",
+    ],
+    navigationRecipes: [
+      "Frosted floating dock with translucent fill and active capsule.",
+      "Top controls can float above media/map regions in glass icon wells.",
+    ],
+    assetAndImageryRules: [
+      "Background imagery or maps must stay muted enough for glass panels to read.",
+      "Charts use translucent plot areas and crisp visible marks.",
+    ],
+    densityRules: [
+      "Medium density; translucent UI needs more separation than solid UI.",
+      "Avoid stacking too many glass panes in one viewport.",
+    ],
+    antiPatterns: [
+      "Do not make low-contrast white-on-glass text.",
+      "Do not create decorative blur blobs with no product purpose.",
+    ],
+  },
+  {
+    id: "playful-whimsical",
+    label: "Playful Whimsical",
+    version: 1,
+    premiumIntent: "Expressive, friendly mobile UI with candy accents, sticker moments, and confident product structure.",
+    bestFor: ["kids", "learning", "creator tools", "social", "food", "habit apps"],
+    avoidFor: ["serious enterprise", "high-risk finance", "medical compliance"],
+    tokenSeed: {
+      system_schema: "mobile_universal_core",
+      meta: { recommendedFonts: ["Nunito Sans", "Baloo 2"] },
+      tokens: {
+        color: {
+          background: { primary: "#fffbe8", secondary: "#f5f0ff", surface_elevated: "#ffffff" },
+          surface: { card: "#ffffff", bottom_sheet: "#fffdf4", modal: "#ffffff" },
+          text: { high_emphasis: "#24212a", medium_emphasis: "#716a7d", low_emphasis: "#aaa1b8", action_label: "#f02d8f" },
+          action: { primary: "#ffde59", secondary: "#f02d8f", disabled: "#ded8e8", on_primary_text: "#24212a" },
+          border: { divider: "#eee5c9", focused: "#f02d8f" },
+        },
+        typography: {
+          font_family: "Nunito Sans, Inter, system-ui, sans-serif",
+          nav_title: { size: "17px", weight: 850, line_height: "22px" },
+          screen_title: { size: "28px", weight: 900, line_height: "33px" },
+          hero_title: { size: "38px", weight: 900, line_height: "42px" },
+          section_title: { size: "19px", weight: 850, line_height: "24px" },
+          metric_value: { size: "36px", weight: 900, line_height: "39px" },
+          body: { size: "16px", weight: 600, line_height: "24px" },
+          supporting: { size: "14px", weight: 550, line_height: "20px" },
+          caption: { size: "12px", weight: 800, line_height: "16px" },
+          button_label: { size: "15px", weight: 900, line_height: "20px" },
+        },
+        spacing: { none: "0px", xxs: "4px", xs: "8px", sm: "13px", md: "18px", lg: "24px", xl: "32px", xxl: "42px" },
+        mobile_layout: { screen_margin: "20px", safe_area_top: "16px", safe_area_bottom: "16px", section_gap: "25px", element_gap: "14px" },
+        sizing: { min_touch_target: "48px", standard_button_height: "54px", standard_input_height: "50px", icon_small: "18px", icon_standard: "23px", bottom_nav_height: "78px" },
+        radii: { app: "26px", pill: "9999px" },
+        border_widths: { standard: "1px" },
+        shadows: { none: "none", surface: "0 16px 38px rgba(86, 58, 123, 0.15)", overlay: "0 -18px 48px rgba(86, 58, 123, 0.20)" },
+        opacities: baseOpacities,
+        z_index: baseZIndex,
+      },
+    },
+    creativeDirectionSeed: {
+      conceptName: "Bright Whimsy",
+      styleEssence: "Playful product UI with expressive accents, friendly rounded structure, and polished restraint.",
+      colorStory: "Warm light canvas with candy yellow, pink, cyan, and violet as controlled highlights.",
+      typographyMood: "Rounded, bold, and optimistic without becoming childish.",
+      surfaceLanguage: "White cards, sticker chips, soft shadows, rounded containers, and tiny playful marks.",
+      iconographyStyle: "Rounded icons with filled badges and expressive active states.",
+      motionTone: "Bouncy but purposeful.",
+    },
+    layoutGrammar: [
+      "Use a strong product structure first, then add 1-2 playful sticker or accent moments.",
+      "Hero sections can be expressive with overlapping chips, progress rings, or mascot/object wells.",
+      "Keep content groups readable and avoid scattering decorations near text.",
+    ],
+    componentRecipes: [
+      "Cards use rounded white surfaces, colored header chips, and friendly icon badges.",
+      "Progress/achievement UI can use rings, stickers, confetti-like micro accents, or level badges.",
+      "Buttons are chunky, high-contrast, and clearly tappable.",
+    ],
+    navigationRecipes: [
+      "Floating rounded dock with playful active blob or badge, but labels remain readable.",
+      "Use expressive icon wells instead of tiny generic tabs.",
+    ],
+    assetAndImageryRules: [
+      "Use illustrated/cutout assets when they support learning, food, habit, or creator context.",
+      "Do not request bitmap assets for tiny decorations that CSS can handle.",
+    ],
+    densityRules: [
+      "Medium-airy density; playful UI needs room for accents.",
+      "Avoid long paragraphs; break into friendly cards and chips.",
+    ],
+    antiPatterns: [
+      "Do not make it childish unless the user asks for kids.",
+      "Do not use random color on every card; establish a color hierarchy.",
+    ],
+  },
+  {
+    id: "data-command",
+    label: "Data Command",
+    version: 1,
+    premiumIntent: "Dense professional mobile command center with compact rows, real charts, segmented controls, and scan-friendly hierarchy.",
+    bestFor: ["analytics", "operations", "CRM", "logistics", "finance", "admin tools", "SaaS dashboards"],
+    tokenSeed: {
+      system_schema: "mobile_universal_core",
+      meta: { recommendedFonts: ["IBM Plex Sans", "Inter"] },
+      tokens: {
+        color: {
+          background: { primary: "#f3f5f8", secondary: "#e8edf3", surface_elevated: "#ffffff" },
+          surface: { card: "#ffffff", bottom_sheet: "#ffffff", modal: "#ffffff" },
+          text: { high_emphasis: "#111827", medium_emphasis: "#5b6573", low_emphasis: "#8d98a8", action_label: "#155eef" },
+          action: { primary: "#155eef", secondary: "#12b76a", disabled: "#d7dde6", on_primary_text: "#ffffff" },
+          border: { divider: "#dfe5ee", focused: "#155eef" },
+        },
+        typography: {
+          font_family: "IBM Plex Sans, Inter, system-ui, sans-serif",
+          nav_title: { size: "16px", weight: 750, line_height: "21px" },
+          screen_title: { size: "24px", weight: 800, line_height: "30px" },
+          hero_title: { size: "32px", weight: 820, line_height: "38px" },
+          section_title: { size: "17px", weight: 760, line_height: "22px" },
+          metric_value: { size: "32px", weight: 820, line_height: "36px" },
+          body: { size: "15px", weight: 500, line_height: "22px" },
+          supporting: { size: "13px", weight: 500, line_height: "19px" },
+          caption: { size: "11px", weight: 700, line_height: "15px" },
+          button_label: { size: "14px", weight: 780, line_height: "19px" },
+        },
+        spacing: { none: "0px", xxs: "3px", xs: "6px", sm: "10px", md: "14px", lg: "18px", xl: "24px", xxl: "32px" },
+        mobile_layout: { screen_margin: "16px", safe_area_top: "16px", safe_area_bottom: "16px", section_gap: "18px", element_gap: "10px" },
+        sizing: { min_touch_target: "48px", standard_button_height: "48px", standard_input_height: "46px", icon_small: "17px", icon_standard: "21px", bottom_nav_height: "72px" },
+        radii: { app: "16px", pill: "9999px" },
+        border_widths: { standard: "1px" },
+        shadows: { none: "none", surface: "0 12px 30px rgba(15, 23, 42, 0.10)", overlay: "0 -16px 45px rgba(15, 23, 42, 0.16)" },
+        opacities: baseOpacities,
+        z_index: baseZIndex,
+      },
+    },
+    creativeDirectionSeed: {
+      conceptName: "Ops Command",
+      styleEssence: "Professional mobile command center with dense but readable data, decisive controls, and operational clarity.",
+      colorStory: "Cool gray base, white data surfaces, blue command accent, green success states, and reserved warnings.",
+      typographyMood: "Compact technical sans with strong numeric hierarchy and clear labels.",
+      surfaceLanguage: "Structured cards, segmented controls, tables/rows, chart panels, and fine dividers.",
+      iconographyStyle: "Functional line icons in compact square wells.",
+      motionTone: "Efficient, fast, and work-focused.",
+    },
+    layoutGrammar: [
+      "Use compact content rail with clear section headers, controls, and data panels.",
+      "Prioritize scan paths: filters/segments, primary metrics, chart, then actionable rows.",
+      "Every chart panel must have fixed height and visible plotted geometry.",
+    ],
+    componentRecipes: [
+      "Metric cards use label, value, delta chip, and optional micro chart.",
+      "Rows use compact icon/status, primary label, secondary metadata, and right-aligned value/action.",
+      "Segmented controls and filters are first-class, not afterthought chips.",
+    ],
+    navigationRecipes: [
+      "Navigation should be compact, predictable, and scan-friendly with clear active state.",
+      "Avoid decorative nav; work tools need repeated-use ergonomics.",
+    ],
+    assetAndImageryRules: [
+      "Avoid decorative photos; use charts, maps, avatars, logos, and product-specific media only when useful.",
+      "Use stock avatars only for people-centric CRM/team views.",
+    ],
+    densityRules: [
+      "Compact density is allowed, but touch targets must remain 48px.",
+      "Use dividers and rows to reduce card spam.",
+    ],
+    antiPatterns: [
+      "Do not create empty charts or percentage-height bars in auto wrappers.",
+      "Do not make operational tools look like marketing landing pages.",
+    ],
+  },
+];
+
+export const DESIGN_STYLE_OPTIONS: Array<{ id: DesignStyleOptionId; label: string }> = [
+  { id: DESIGN_STYLE_AUTO_ID, label: "Auto" },
+  ...DESIGN_STYLE_PACKS.map((style) => ({ id: style.id, label: style.label })),
+] as Array<{ id: DesignStyleOptionId; label: string }>;
+
+export const DESIGN_STYLE_IDS = DESIGN_STYLE_PACKS.map((style) => style.id) as DesignStyleId[];
+
+export const isDesignStyleId = (value: unknown): value is DesignStyleId =>
+  typeof value === "string" && DESIGN_STYLE_IDS.includes(value as DesignStyleId);
+
+export const getDesignStylePack = (id?: string | null): DesignStylePack | null => {
+  if (!isDesignStyleId(id)) {
+    return null;
+  }
+
+  return DESIGN_STYLE_PACKS.find((style) => style.id === id) ?? null;
+};
+
+export const summarizeDesignStyle = (style?: DesignStylePack | null) =>
+  style ? { id: style.id, label: style.label, version: style.version } : null;
+
+const formatSeed = (value: unknown) => JSON.stringify(value, null, 2);
+
+export const formatDesignStyleContract = (style?: DesignStylePack | null) => {
+  if (!style) {
+    return null;
+  }
+
+  return [
+    `Design Style Contract: ${style.label} (${style.id}, v${style.version})`,
+    `Premium intent: ${style.premiumIntent}`,
+    `Best for: ${style.bestFor.join(", ")}`,
+    style.avoidFor?.length ? `Avoid for: ${style.avoidFor.join(", ")}` : null,
+    "Token seed to adapt, not blindly copy:",
+    formatSeed(style.tokenSeed),
+    "Creative direction seed:",
+    formatSeed(style.creativeDirectionSeed),
+    `Layout grammar: ${style.layoutGrammar.join(" | ")}`,
+    `Component recipes: ${style.componentRecipes.join(" | ")}`,
+    `Navigation recipes: ${style.navigationRecipes.join(" | ")}`,
+    `Asset and imagery rules: ${style.assetAndImageryRules.join(" | ")}`,
+    `Density rules: ${style.densityRules.join(" | ")}`,
+    `Anti-patterns: ${style.antiPatterns.join(" | ")}`,
+    "Adapt this style to the user's app type and audience. Preserve the style's structural grammar, not just its colors.",
+  ].filter(Boolean).join("\n");
+};

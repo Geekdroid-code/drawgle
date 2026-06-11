@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link id="drawgle-google-font" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&amp;display=swap">
+    <style>
+:root {
+  --dg-color-text-low-emphasis: #666666;
+  --dg-color-text-high-emphasis: #FFFFFF;
+  --dg-color-text-medium-emphasis: #A1A1A1;
+  --dg-color-action-primary: #D4FF5E;
+  --dg-color-action-disabled: #2A2A2A;
+  --dg-color-action-secondary: #C8B6FF;
+  --dg-color-action-on-primary-text: #000000;
+  --dg-color-border-divider: #262626;
+  --dg-color-border-focused: #D4FF5E;
+  --dg-color-surface-card: #161616;
+  --dg-color-surface-modal: #1E1E1E;
+  --dg-color-surface-bottom-sheet: #121212;
+  --dg-color-background-primary: #0F0F0F;
+  --dg-color-background-secondary: #1A1A1A;
+  --dg-radii-app: 24px;
+  --dg-radii-pill: 9999px;
+  --dg-sizing-icon-small: 20px;
+  --dg-sizing-icon-standard: 24px;
+  --dg-sizing-min-touch-target: 48px;
+  --dg-sizing-bottom-nav-height: 80px;
+  --dg-sizing-standard-input-height: 52px;
+  --dg-sizing-standard-button-height: 56px;
+  --dg-shadows-none: none;
+  --dg-shadows-overlay: 0px 12px 40px rgba(0, 0, 0, 0.8);
+  --dg-shadows-surface: 0px 4px 20px rgba(0, 0, 0, 0.5);
+  --dg-spacing-none: 0px;
+  --dg-spacing-lg: 24px;
+  --dg-spacing-md: 16px;
+  --dg-spacing-sm: 12px;
+  --dg-spacing-xl: 32px;
+  --dg-spacing-xs: 8px;
+  --dg-spacing-xxl: 48px;
+  --dg-spacing-xxs: 4px;
+  --dg-z-index-base: 0;
+  --dg-z-index-bottom-nav: 20;
+  --dg-z-index-bottom-sheet: 30;
+  --dg-z-index-modal-dialog: 40;
+  --dg-z-index-sticky-header: 10;
+  --dg-z-index-toast-snackbar: 50;
+  --dg-opacities-opaque: 1;
+  --dg-opacities-pressed: 0.15;
+  --dg-opacities-disabled: 0.38;
+  --dg-opacities-transparent: 0;
+  --dg-opacities-scrim-overlay: 0.70;
+  --dg-typography-font-family: 'Space Grotesk', 'JetBrains Mono', sans-serif;
+  --dg-type-nav-title-size: 18px;
+  --dg-type-nav-title-weight: 700;
+  --dg-type-nav-title-line-height: 24px;
+  --dg-type-screen-title-size: 28px;
+  --dg-type-screen-title-weight: 800;
+  --dg-type-screen-title-line-height: 32px;
+  --dg-type-hero-title-size: 34px;
+  --dg-type-hero-title-weight: 800;
+  --dg-type-hero-title-line-height: 40px;
+  --dg-type-section-title-size: 14px;
+  --dg-type-section-title-weight: 600;
+  --dg-type-section-title-line-height: 20px;
+  --dg-type-metric-value-size: 24px;
+  --dg-type-metric-value-weight: 700;
+  --dg-type-metric-value-line-height: 28px;
+  --dg-type-body-size: 16px;
+  --dg-type-body-weight: 400;
+  --dg-type-body-line-height: 24px;
+  --dg-type-supporting-size: 14px;
+  --dg-type-supporting-weight: 500;
+  --dg-type-supporting-line-height: 20px;
+  --dg-type-caption-size: 12px;
+  --dg-type-caption-weight: 400;
+  --dg-type-caption-line-height: 16px;
+  --dg-type-button-label-size: 16px;
+  --dg-type-button-label-weight: 700;
+  --dg-type-button-label-line-height: 20px;
+  --dg-border-widths-standard: 1.5px;
+  --dg-mobile-layout-element-gap: 12px;
+  --dg-mobile-layout-section-gap: 32px;
+  --dg-mobile-layout-safe-area-top: 16px;
+  --dg-mobile-layout-screen-margin: 20px;
+  --dg-mobile-layout-safe-area-bottom: 16px;
+}
+
+#root {
+  --dg-preview-background: var(--dg-color-background-primary, #ffffff);
+  background: var(--dg-preview-background);
+}
+
+.dg-bg-primary { background-color: var(--dg-color-background-primary); }
+.dg-bg-secondary { background-color: var(--dg-color-background-secondary); }
+.dg-surface-card { background-color: var(--dg-color-surface-card); }
+.dg-surface-bottom-sheet { background-color: var(--dg-color-surface-bottom-sheet); }
+.dg-surface-modal { background-color: var(--dg-color-surface-modal); }
+.dg-text-high { color: var(--dg-color-text-high-emphasis); }
+.dg-text-medium { color: var(--dg-color-text-medium-emphasis); }
+.dg-text-low { color: var(--dg-color-text-low-emphasis); }
+.dg-action-primary {
+  background-color: var(--dg-color-action-primary);
+  color: var(--dg-color-action-on-primary-text);
+}
+.dg-action-secondary { background-color: var(--dg-color-action-secondary); }
+.dg-border-divider { border-color: var(--dg-color-border-divider); }
+.dg-border-focused { border-color: var(--dg-color-border-focused); }
+.dg-radius-app { border-radius: var(--dg-radii-app); }
+.dg-radius-pill { border-radius: var(--dg-radii-pill); }
+.dg-shadow-surface { box-shadow: var(--dg-shadows-surface); }
+.dg-shadow-overlay { box-shadow: var(--dg-shadows-overlay); }
+.dg-screen-padding { padding-left: var(--dg-mobile-layout-screen-margin); padding-right: var(--dg-mobile-layout-screen-margin); }
+.dg-section-gap { gap: var(--dg-mobile-layout-section-gap); }
+.dg-element-gap { gap: var(--dg-mobile-layout-element-gap); }
+
+.dg-type-nav-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-nav-title-size);
+  font-weight: var(--dg-type-nav-title-weight);
+  line-height: var(--dg-type-nav-title-line-height);
+}
+
+.dg-type-screen-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-screen-title-size);
+  font-weight: var(--dg-type-screen-title-weight);
+  line-height: var(--dg-type-screen-title-line-height);
+}
+
+.dg-type-hero-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-hero-title-size);
+  font-weight: var(--dg-type-hero-title-weight);
+  line-height: var(--dg-type-hero-title-line-height);
+}
+
+.dg-type-section-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-section-title-size);
+  font-weight: var(--dg-type-section-title-weight);
+  line-height: var(--dg-type-section-title-line-height);
+}
+
+.dg-type-metric-value {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-metric-value-size);
+  font-weight: var(--dg-type-metric-value-weight);
+  line-height: var(--dg-type-metric-value-line-height);
+}
+
+.dg-type-body {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-body-size);
+  font-weight: var(--dg-type-body-weight);
+  line-height: var(--dg-type-body-line-height);
+}
+
+.dg-type-supporting {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-supporting-size);
+  font-weight: var(--dg-type-supporting-weight);
+  line-height: var(--dg-type-supporting-line-height);
+}
+
+.dg-type-caption {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-caption-size);
+  font-weight: var(--dg-type-caption-weight);
+  line-height: var(--dg-type-caption-line-height);
+}
+
+.dg-type-button-label {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-button-label-size);
+  font-weight: var(--dg-type-button-label-weight);
+  line-height: var(--dg-type-button-label-line-height);
+}
+      html, body { margin: 0; min-height: 100%; }
+      body {
+        font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+        background: var(--dg-color-background-primary, #ffffff);
+        color: var(--dg-color-text-high-emphasis, #111827);
+      }
+      #drawgle-export-root {
+        position: relative;
+        min-height: 100vh;
+        overflow-x: hidden;
+        background: var(--dg-color-background-primary, #ffffff);
+      }
+      #drawgle-export-navigation { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; pointer-events: none; }
+      #drawgle-export-navigation [data-drawgle-primary-nav] { pointer-events: auto; }
+    </style>
+  </head>
+  <body>
+    <div id="drawgle-export-root">
+<div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden" style="font-family: 'Space Grotesk', 'JetBrains Mono', sans-serif">
+  <!-- Header Section -->
+  <header class="flex items-center justify-between px-[var(--dg-mobile-layout-screen-margin)] pt-[var(--dg-mobile-layout-safe-area-top)] mt-4">
+    <div class="flex flex-col">
+      <span class="text-[var(--dg-color-text-medium-emphasis)] dg-type-supporting">Welcome back,</span>
+      <h1 class="dg-type-screen-title">Alex Rivera</h1>
+    </div>
+    <div class="w-12 h-12 rounded-full border-[1.5px] border-[var(--dg-color-border-divider)] overflow-hidden">
+      <img src="https://images.pexels.com/photos/27663571/pexels-photo-27663571.jpeg?auto=compress&amp;cs=tinysrgb&amp;dpr=2&amp;h=650&amp;w=940" alt="Profile" class="w-full h-full object-cover">
+    </div>
+  </header>
+
+  <!-- Main Content Scrollable Rail -->
+  <main class="flex-1 flex flex-col gap-[var(--dg-mobile-layout-section-gap)] pt-8 pb-[calc(var(--dg-mobile-layout-safe-area-bottom)+112px)]">
+    
+    <!-- Hero Progress Section -->
+    <section class="px-[var(--dg-mobile-layout-screen-margin)] flex flex-col items-center">
+      <div class="relative w-64 h-64 flex items-center justify-center">
+        <!-- Progress Ring Background -->
+        <svg class="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="44" stroke="var(--dg-color-background-secondary)" stroke-width="8" fill="transparent"></circle>
+          <!-- Progress Ring Foreground (Lime #D4FF5E) -->
+          <circle cx="50" cy="50" r="44" stroke="#D4FF5E" stroke-width="8" fill="transparent" stroke-dasharray="276.46" stroke-dashoffset="110.58" stroke-linecap="round"></circle>
+        </svg>
+        <!-- Metric Value Center -->
+        <div class="flex flex-col items-center text-center z-10">
+          <span class="text-[48px] font-extrabold leading-none text-[var(--dg-color-action-primary)]">3/5</span>
+          <span class="dg-type-section-title uppercase tracking-widest text-[var(--dg-color-text-medium-emphasis)]">Tasks Done</span>
+        </div>
+      </div>
+      
+      <!-- Quick Stats Row -->
+      <div class="grid grid-cols-3 gap-[var(--dg-mobile-layout-element-gap)] w-full mt-8">
+        <div class="dg-surface-card rounded-[var(--dg-radii-app)] border-[1.5px] border-[var(--dg-color-border-divider)] p-[var(--dg-spacing-md)] flex flex-col items-center">
+          <i data-lucide="zap" class="text-[var(--dg-color-action-primary)] mb-1" width="20" height="20"></i>
+          <span class="dg-type-metric-value">12</span>
+          <span class="dg-type-caption text-[var(--dg-color-text-medium-emphasis)]">Day Streak</span>
+        </div>
+        <div class="dg-surface-card rounded-[var(--dg-radii-app)] border-[1.5px] border-[var(--dg-color-border-divider)] p-[var(--dg-spacing-md)] flex flex-col items-center">
+          <i data-lucide="leaf" class="text-[var(--dg-color-action-secondary)] mb-1" width="20" height="20"></i>
+          <span class="dg-type-metric-value">4.2</span>
+          <span class="dg-type-caption text-[var(--dg-color-text-medium-emphasis)]">CO2 Saved</span>
+        </div>
+        <div class="dg-surface-card rounded-[var(--dg-radii-app)] border-[1.5px] border-[var(--dg-color-border-divider)] p-[var(--dg-spacing-md)] flex flex-col items-center">
+          <i data-lucide="award" class="text-white mb-1" width="20" height="20"></i>
+          <span class="dg-type-metric-value">850</span>
+          <span class="dg-type-caption text-[var(--dg-color-text-medium-emphasis)]">Points</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Streak Badges Horizontal Scroll -->
+    <section class="flex flex-col gap-[var(--dg-mobile-layout-element-gap)]">
+      <div class="px-[var(--dg-mobile-layout-screen-margin)] flex justify-between items-end">
+        <h2 class="dg-type-section-title uppercase tracking-wider text-[var(--dg-color-text-medium-emphasis)]">Achievements</h2>
+        <span class="dg-type-caption text-[var(--dg-color-action-primary)]">View All</span>
+      </div>
+      <div class="flex overflow-x-hidden no-scrollbar gap-4 px-[var(--dg-mobile-layout-screen-margin)] py-2">
+        <div class="flex-shrink-0 w-20 h-24 dg-surface-card rounded-[var(--dg-radii-app)] border-[1.5px] border-[var(--dg-color-action-primary)] flex flex-col items-center justify-center gap-2">
+          <div class="w-10 h-10 rounded-full bg-[var(--dg-color-action-primary)] flex items-center justify-center">
+            <i data-lucide="flame" class="text-black" width="20" height="20"></i>
+          </div>
+          <span class="dg-type-caption font-bold">7 Day</span>
+        </div>
+        <div class="flex-shrink-0 w-20 h-24 dg-surface-card rounded-[var(--dg-radii-app)] border-[1.5px] border-[var(--dg-color-border-divider)] flex flex-col items-center justify-center gap-2">
+          <div class="w-10 h-10 rounded-full bg-[var(--dg-color-background-secondary)] flex items-center justify-center">
+            <i data-lucide="droplets" class="text-[var(--dg-color-text-medium-emphasis)]" width="20" height="20"></i>
+          </div>
+          <span class="dg-type-caption text-[var(--dg-color-text-medium-emphasis)]">Water</span>
+        </div>
+        <div class="flex-shrink-0 w-20 h-24 dg-surface-card rounded-[var(--dg-radii-app)] border-[1.5px] border-[var(--dg-color-border-divider)] flex flex-col items-center justify-center gap-2">
+          <div class="w-10 h-10 rounded-full bg-[var(--dg-color-background-secondary)] flex items-center justify-center">
+            <i data-lucide="wind" class="text-[var(--dg-color-text-medium-emphasis)]" width="20" height="20"></i>
+          </div>
+          <span class="dg-type-caption text-[var(--dg-color-text-medium-emphasis)]">Air</span>
+        </div>
+        <div class="flex-shrink-0 w-20 h-24 dg-surface-card rounded-[var(--dg-radii-app)] border-[1.5px] border-[var(--dg-color-border-divider)] flex flex-col items-center justify-center gap-2">
+          <div class="w-10 h-10 rounded-full bg-[var(--dg-color-background-secondary)] flex items-center justify-center">
+            <i data-lucide="recycle" class="text-[var(--dg-color-text-medium-emphasis)]" width="20" height="20"></i>
+          </div>
+          <span class="dg-type-caption text-[var(--dg-color-text-medium-emphasis)]">Waste</span>
+        </div>
+        <div class="flex-shrink-0 w-20 h-24 dg-surface-card rounded-[var(--dg-radii-app)] border-[1.5px] border-[var(--dg-color-border-divider)] flex flex-col items-center justify-center gap-2">
+          <div class="w-10 h-10 rounded-full bg-[var(--dg-color-background-secondary)] flex items-center justify-center">
+            <i data-lucide="sun" class="text-[var(--dg-color-text-medium-emphasis)]" width="20" height="20"></i>
+          </div>
+          <span class="dg-type-caption text-[var(--dg-color-text-medium-emphasis)]">Solar</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Daily Tasks List -->
+    <section class="px-[var(--dg-mobile-layout-screen-margin)] flex flex-col gap-[var(--dg-mobile-layout-element-gap)]">
+      <h2 class="dg-type-section-title uppercase tracking-wider text-[var(--dg-color-text-medium-emphasis)]">Daily Tasks</h2>
+      
+      <!-- Task Card 1 (Completed) -->
+      <div class="dg-surface-card rounded-[var(--dg-radii-app)] border-[1.5px] border-[var(--dg-color-border-divider)] p-[var(--dg-spacing-md)] flex items-center justify-between opacity-60">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 rounded-2xl bg-[var(--dg-color-background-secondary)] flex items-center justify-center">
+            <i data-lucide="bike" class="text-[var(--dg-color-action-primary)]"></i>
+          </div>
+          <div class="flex flex-col">
+            <span class="dg-type-body font-bold line-through">Cycle to Work</span>
+            <span class="dg-type-caption text-[var(--dg-color-text-medium-emphasis)]">+50 Points</span>
+          </div>
+        </div>
+        <div class="w-8 h-8 rounded-full bg-[var(--dg-color-action-primary)] flex items-center justify-center">
+          <i data-lucide="check" class="text-black" width="18" height="18"></i>
+        </div>
+      </div>
+
+      <!-- Task Card 2 (Active) -->
+      <div class="dg-surface-card rounded-[var(--dg-radii-app)] border-[1.5px] border-[var(--dg-color-action-primary)] p-[var(--dg-spacing-md)] flex items-center justify-between shadow-[var(--dg-shadows-surface)]">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 rounded-2xl bg-[var(--dg-color-action-primary)] flex items-center justify-center">
+            <i data-lucide="shopping-bag" class="text-black"></i>
+          </div>
+          <div class="flex flex-col">
+            <span class="dg-type-body font-bold">No Plastic Bags</span>
+            <span class="dg-type-caption text-[var(--dg-color-text-medium-emphasis)]">+30 Points</span>
+          </div>
+        </div>
+        <div class="w-8 h-8 rounded-full border-2 border-[var(--dg-color-action-primary)] flex items-center justify-center">
+          <!-- Empty Checkbox -->
+        </div>
+      </div>
+
+      <!-- Task Card 3 (Active) -->
+      <div class="dg-surface-card rounded-[var(--dg-radii-app)] border-[1.5px] border-[var(--dg-color-border-divider)] p-[var(--dg-spacing-md)] flex items-center justify-between">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 rounded-2xl bg-[var(--dg-color-background-secondary)] flex items-center justify-center">
+            <i data-lucide="timer" class="text-white"></i>
+          </div>
+          <div class="flex flex-col">
+            <span class="dg-type-body font-bold">5-Min Shower</span>
+            <span class="dg-type-caption text-[var(--dg-color-text-medium-emphasis)]">+20 Points</span>
+          </div>
+        </div>
+        <div class="w-8 h-8 rounded-full border-2 border-[var(--dg-color-border-divider)] flex items-center justify-center">
+          <!-- Empty Checkbox -->
+        </div>
+      </div>
+    </section>
+
+    <!-- Weekly Impact Chart -->
+    <section class="px-[var(--dg-mobile-layout-screen-margin)] flex flex-col gap-[var(--dg-mobile-layout-element-gap)]">
+      <h2 class="dg-type-section-title uppercase tracking-wider text-[var(--dg-color-text-medium-emphasis)]">Weekly Impact</h2>
+      <div class="dg-surface-card rounded-[var(--dg-radii-app)] border-[1.5px] border-[var(--dg-color-border-divider)] p-[var(--dg-spacing-md)] h-48 flex flex-col justify-between">
+        <div class="flex items-end justify-between h-32 px-2">
+          <!-- Mon -->
+          <div class="flex flex-col items-center gap-2 w-full">
+            <div class="w-3 bg-[var(--dg-color-action-secondary)] rounded-t-full" style="height: 40%"></div>
+            <span class="dg-type-caption text-[var(--dg-color-text-low-emphasis)]">M</span>
+          </div>
+          <!-- Tue -->
+          <div class="flex flex-col items-center gap-2 w-full">
+            <div class="w-3 bg-[var(--dg-color-action-secondary)] rounded-t-full" style="height: 65%"></div>
+            <span class="dg-type-caption text-[var(--dg-color-text-low-emphasis)]">T</span>
+          </div>
+          <!-- Wed -->
+          <div class="flex flex-col items-center gap-2 w-full">
+            <div class="w-3 bg-[var(--dg-color-action-secondary)] rounded-t-full" style="height: 50%"></div>
+            <span class="dg-type-caption text-[var(--dg-color-text-low-emphasis)]">W</span>
+          </div>
+          <!-- Thu -->
+          <div class="flex flex-col items-center gap-2 w-full">
+            <div class="w-3 bg-[var(--dg-color-action-primary)] rounded-t-full shadow-[0_0_10px_rgba(212,255,94,0.4)]" style="height: 90%"></div>
+            <span class="dg-type-caption text-[var(--dg-color-text-high-emphasis)] font-bold">T</span>
+          </div>
+          <!-- Fri -->
+          <div class="flex flex-col items-center gap-2 w-full">
+            <div class="w-3 bg-[var(--dg-color-action-disabled)] rounded-t-full" style="height: 10%"></div>
+            <span class="dg-type-caption text-[var(--dg-color-text-low-emphasis)]">F</span>
+          </div>
+          <!-- Sat -->
+          <div class="flex flex-col items-center gap-2 w-full">
+            <div class="w-3 bg-[var(--dg-color-action-disabled)] rounded-t-full" style="height: 10%"></div>
+            <span class="dg-type-caption text-[var(--dg-color-text-low-emphasis)]">S</span>
+          </div>
+          <!-- Sun -->
+          <div class="flex flex-col items-center gap-2 w-full">
+            <div class="w-3 bg-[var(--dg-color-action-disabled)] rounded-t-full" style="height: 10%"></div>
+            <span class="dg-type-caption text-[var(--dg-color-text-low-emphasis)]">S</span>
+          </div>
+        </div>
+        <div class="flex justify-between items-center pt-2 border-t border-[var(--dg-color-border-divider)]">
+          <span class="dg-type-supporting text-[var(--dg-color-text-medium-emphasis)]">Best Day: Thursday</span>
+          <span class="dg-type-supporting font-bold text-[var(--dg-color-action-primary)]">120kg CO2</span>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+      <div id="drawgle-export-navigation"><nav data-drawgle-primary-nav class="dg-nav-shell" aria-label="Primary navigation">
+  <style>
+    [data-drawgle-primary-nav].dg-nav-shell {
+      position: fixed;
+      bottom: var(--dg-mobile-layout-safe-area-bottom, 16px);
+      left: 50%;
+      transform: translateX(-50%);
+      width: calc(100% - (var(--dg-mobile-layout-screen-margin, 20px) * 2));
+      max-width: 350px;
+      height: var(--dg-sizing-bottom-nav-height, 80px);
+      background: rgba(18, 18, 18, 0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: var(--dg-border-widths-standard, 1.5px) solid var(--dg-color-border-divider, #262626);
+      border-radius: var(--dg-radii-app, 24px);
+      box-shadow: var(--dg-shadows-overlay);
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      padding: 0 8px;
+      z-index: 1000;
+      box-sizing: border-box;
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-item {
+      position: relative;
+      flex: 1;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      padding: 0;
+      gap: 6px;
+      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-item:active {
+      transform: scale(0.92);
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-icon-wrapper {
+      position: relative;
+      width: 44px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--dg-radii-pill, 9999px);
+      transition: background-color 0.2s ease, color 0.2s ease;
+      color: var(--dg-color-text-low-emphasis, #666666);
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-icon-wrapper i {
+      width: var(--dg-sizing-icon-standard, 24px);
+      height: var(--dg-sizing-icon-standard, 24px);
+      stroke-width: 2px;
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-label {
+      font-family: inherit;
+      font-size: var(--dg-type-caption-size, 12px);
+      font-weight: var(--dg-type-caption-weight, 400);
+      line-height: var(--dg-type-caption-line-height, 16px);
+      color: var(--dg-color-text-low-emphasis, #666666);
+      transition: color 0.2s ease, font-weight 0.2s ease;
+    }
+
+    /* Active State: Neon Earth Style */
+    [data-drawgle-primary-nav] .dg-nav-item[] .dg-nav-icon-wrapper {
+      color: var(--dg-color-action-primary, #D4FF5E);
+    }
+
+    [data-drawgle-primary-nav] .dg-nav-item[] .dg-nav-label {
+      color: var(--dg-color-action-primary, #D4FF5E);
+      font-weight: 700;
+    }
+
+    /* Active Indicator Glow */
+    [data-drawgle-primary-nav] .dg-nav-item[]::after {
+      content: '';
+      position: absolute;
+      top: 12px;
+      width: 4px;
+      height: 4px;
+      background: var(--dg-color-action-primary, #D4FF5E);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--dg-color-action-primary, #D4FF5E);
+    }
+  </style>
+
+  <button type="button" class="dg-nav-item" data-nav-item-id="home" aria-label="Today">
+    <span class="dg-nav-icon-wrapper">
+      <i data-lucide="leaf"></i>
+    </span>
+    <span class="dg-nav-label">Today</span>
+  </button>
+
+  <button type="button" class="dg-nav-item" data-nav-item-id="challenges" aria-label="Challenges">
+    <span class="dg-nav-icon-wrapper">
+      <i data-lucide="target"></i>
+    </span>
+    <span class="dg-nav-label">Challenges</span>
+  </button>
+
+  <button type="button" class="dg-nav-item" data-nav-item-id="leaderboard" aria-label="Community">
+    <span class="dg-nav-icon-wrapper">
+      <i data-lucide="trophy"></i>
+    </span>
+    <span class="dg-nav-label">Community</span>
+  </button>
+
+  <button type="button" class="dg-nav-item" data-nav-item-id="profile" aria-label="Impact">
+    <span class="dg-nav-icon-wrapper">
+      <i data-lucide="user"></i>
+    </span>
+    <span class="dg-nav-label">Impact</span>
+  </button>
+</nav></div>
+    </div>
+    <script>
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+      document.querySelectorAll('[data-nav-item-id]').forEach(function(item) {
+        var active = item.getAttribute('data-nav-item-id') === "home";
+        item.setAttribute('data-active', active ? 'true' : 'false');
+        item.setAttribute('aria-current', active ? 'page' : 'false');
+      });
+    </script>
+  </body>
+</html>

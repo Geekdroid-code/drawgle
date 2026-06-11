@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link id="drawgle-google-font" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap">
+    <style>
+:root {
+  --dg-color-text-low-emphasis: #A0A0A0;
+  --dg-color-text-high-emphasis: #1A1A1A;
+  --dg-color-text-medium-emphasis: #6B6B6B;
+  --dg-color-action-primary: #121212;
+  --dg-color-action-disabled: #E0E0E0;
+  --dg-color-action-secondary: #8B80F9;
+  --dg-color-action-on-primary-text: #FFFFFF;
+  --dg-color-border-divider: #F0F0F0;
+  --dg-color-border-focused: #8B80F9;
+  --dg-color-accents-sage: #A8D5BA;
+  --dg-color-accents-apricot: #FFB36D;
+  --dg-color-accents-periwinkle: #8B80F9;
+  --dg-color-surface-card: #FFFFFF;
+  --dg-color-surface-modal: #FFFFFF;
+  --dg-color-surface-bottom-sheet: #FFFFFF;
+  --dg-color-background-primary: #F4F4F9;
+  --dg-color-background-secondary: #E8E8F2;
+  --dg-radii-app: 32px;
+  --dg-radii-pill: 9999px;
+  --dg-sizing-icon-small: 18px;
+  --dg-sizing-icon-standard: 24px;
+  --dg-sizing-min-touch-target: 48px;
+  --dg-sizing-bottom-nav-height: 72px;
+  --dg-sizing-standard-input-height: 52px;
+  --dg-sizing-standard-button-height: 56px;
+  --dg-shadows-none: none;
+  --dg-shadows-overlay: 0px 20px 50px rgba(0, 0, 0, 0.12);
+  --dg-shadows-surface: 0px 10px 30px rgba(0, 0, 0, 0.04);
+  --dg-spacing-none: 0px;
+  --dg-spacing-lg: 24px;
+  --dg-spacing-md: 16px;
+  --dg-spacing-sm: 12px;
+  --dg-spacing-xl: 32px;
+  --dg-spacing-xs: 8px;
+  --dg-spacing-xxl: 48px;
+  --dg-spacing-xxs: 4px;
+  --dg-z-index-base: 0;
+  --dg-z-index-bottom-nav: 20;
+  --dg-z-index-bottom-sheet: 30;
+  --dg-z-index-modal-dialog: 40;
+  --dg-z-index-sticky-header: 10;
+  --dg-z-index-toast-snackbar: 50;
+  --dg-opacities-opaque: 1;
+  --dg-opacities-pressed: 0.12;
+  --dg-opacities-disabled: 0.38;
+  --dg-opacities-transparent: 0;
+  --dg-opacities-scrim-overlay: 0.50;
+  --dg-typography-font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+  --dg-type-nav-title-size: 18px;
+  --dg-type-nav-title-weight: 700;
+  --dg-type-nav-title-line-height: 24px;
+  --dg-type-screen-title-size: 28px;
+  --dg-type-screen-title-weight: 700;
+  --dg-type-screen-title-line-height: 34px;
+  --dg-type-hero-title-size: 32px;
+  --dg-type-hero-title-weight: 800;
+  --dg-type-hero-title-line-height: 40px;
+  --dg-type-section-title-size: 16px;
+  --dg-type-section-title-weight: 600;
+  --dg-type-section-title-line-height: 22px;
+  --dg-type-metric-value-size: 36px;
+  --dg-type-metric-value-weight: 700;
+  --dg-type-metric-value-line-height: 44px;
+  --dg-type-body-size: 15px;
+  --dg-type-body-weight: 400;
+  --dg-type-body-line-height: 22px;
+  --dg-type-supporting-size: 13px;
+  --dg-type-supporting-weight: 500;
+  --dg-type-supporting-line-height: 18px;
+  --dg-type-caption-size: 11px;
+  --dg-type-caption-weight: 600;
+  --dg-type-caption-line-height: 14px;
+  --dg-type-button-label-size: 14px;
+  --dg-type-button-label-weight: 700;
+  --dg-type-button-label-line-height: 20px;
+  --dg-border-widths-standard: 1px;
+  --dg-mobile-layout-element-gap: 12px;
+  --dg-mobile-layout-section-gap: 32px;
+  --dg-mobile-layout-safe-area-top: 16px;
+  --dg-mobile-layout-screen-margin: 20px;
+  --dg-mobile-layout-safe-area-bottom: 16px;
+}
+
+#root {
+  --dg-preview-background: var(--dg-color-background-primary, #ffffff);
+  background: var(--dg-preview-background);
+}
+
+.dg-bg-primary { background-color: var(--dg-color-background-primary); }
+.dg-bg-secondary { background-color: var(--dg-color-background-secondary); }
+.dg-surface-card { background-color: var(--dg-color-surface-card); }
+.dg-surface-bottom-sheet { background-color: var(--dg-color-surface-bottom-sheet); }
+.dg-surface-modal { background-color: var(--dg-color-surface-modal); }
+.dg-text-high { color: var(--dg-color-text-high-emphasis); }
+.dg-text-medium { color: var(--dg-color-text-medium-emphasis); }
+.dg-text-low { color: var(--dg-color-text-low-emphasis); }
+.dg-action-primary {
+  background-color: var(--dg-color-action-primary);
+  color: var(--dg-color-action-on-primary-text);
+}
+.dg-action-secondary { background-color: var(--dg-color-action-secondary); }
+.dg-border-divider { border-color: var(--dg-color-border-divider); }
+.dg-border-focused { border-color: var(--dg-color-border-focused); }
+.dg-radius-app { border-radius: var(--dg-radii-app); }
+.dg-radius-pill { border-radius: var(--dg-radii-pill); }
+.dg-shadow-surface { box-shadow: var(--dg-shadows-surface); }
+.dg-shadow-overlay { box-shadow: var(--dg-shadows-overlay); }
+.dg-screen-padding { padding-left: var(--dg-mobile-layout-screen-margin); padding-right: var(--dg-mobile-layout-screen-margin); }
+.dg-section-gap { gap: var(--dg-mobile-layout-section-gap); }
+.dg-element-gap { gap: var(--dg-mobile-layout-element-gap); }
+
+.dg-type-nav-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-nav-title-size);
+  font-weight: var(--dg-type-nav-title-weight);
+  line-height: var(--dg-type-nav-title-line-height);
+}
+
+.dg-type-screen-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-screen-title-size);
+  font-weight: var(--dg-type-screen-title-weight);
+  line-height: var(--dg-type-screen-title-line-height);
+}
+
+.dg-type-hero-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-hero-title-size);
+  font-weight: var(--dg-type-hero-title-weight);
+  line-height: var(--dg-type-hero-title-line-height);
+}
+
+.dg-type-section-title {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-section-title-size);
+  font-weight: var(--dg-type-section-title-weight);
+  line-height: var(--dg-type-section-title-line-height);
+}
+
+.dg-type-metric-value {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-metric-value-size);
+  font-weight: var(--dg-type-metric-value-weight);
+  line-height: var(--dg-type-metric-value-line-height);
+}
+
+.dg-type-body {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-body-size);
+  font-weight: var(--dg-type-body-weight);
+  line-height: var(--dg-type-body-line-height);
+}
+
+.dg-type-supporting {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-supporting-size);
+  font-weight: var(--dg-type-supporting-weight);
+  line-height: var(--dg-type-supporting-line-height);
+}
+
+.dg-type-caption {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-caption-size);
+  font-weight: var(--dg-type-caption-weight);
+  line-height: var(--dg-type-caption-line-height);
+}
+
+.dg-type-button-label {
+  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-button-label-size);
+  font-weight: var(--dg-type-button-label-weight);
+  line-height: var(--dg-type-button-label-line-height);
+}
+      html, body { margin: 0; min-height: 100%; }
+      body {
+        font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+        background: var(--dg-color-background-primary, #ffffff);
+        color: var(--dg-color-text-high-emphasis, #111827);
+      }
+      #drawgle-export-root {
+        position: relative;
+        min-height: 100vh;
+        overflow-x: hidden;
+        background: var(--dg-color-background-primary, #ffffff);
+      }
+      #drawgle-export-navigation { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; pointer-events: none; }
+      #drawgle-export-navigation [data-drawgle-primary-nav] { pointer-events: auto; }
+    </style>
+  </head>
+  <body>
+    <div id="drawgle-export-root">
+<div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden" style="font-family: 'Plus Jakarta Sans', -apple-system, sans-serif">
+  <!-- Header with Account Selector -->
+  <header class="pt-[var(--dg-mobile-layout-safe-area-top)] px-[var(--dg-mobile-layout-screen-margin)] flex flex-col gap-[var(--dg-mobile-layout-element-gap)]">
+    <div class="flex items-center justify-between">
+      <h1 class="dg-type-screen-title">Analytics</h1>
+      <button class="w-[44px] h-[44px] flex items-center justify-center dg-bg-secondary rounded-full">
+        <i data-lucide="calendar" class="w-[20px] h-[20px]"></i>
+      </button>
+    </div>
+
+    <!-- Account Selector Card -->
+    <button class="w-full h-[var(--dg-sizing-standard-input-height)] px-[var(--dg-spacing-md)] dg-surface-card dg-radius-app flex items-center justify-between shadow-[var(--dg-shadows-surface)] border border-[var(--dg-color-border-divider)]">
+      <div class="flex items-center gap-[var(--dg-spacing-md)]">
+        <div class="w-[32px] h-[32px] bg-[var(--dg-color-text-high-emphasis)] rounded-lg flex items-center justify-center">
+          <i data-lucide="credit-card" class="w-[16px] h-[16px] text-white"></i>
+        </div>
+        <span class="dg-type-section-title">Main Bank Account</span>
+      </div>
+      <i data-lucide="chevron-down" class="w-[20px] h-[20px] dg-text-medium"></i>
+    </button>
+  </header>
+
+  <!-- Main Content Scroll Area -->
+  <main class="flex-1 px-[var(--dg-mobile-layout-screen-margin)] py-[var(--dg-mobile-layout-section-gap)] flex flex-col gap-[var(--dg-mobile-layout-section-gap)]">
+    
+    <!-- Analytics Card (Dark) -->
+    <section class="dg-action-primary dg-radius-app p-[var(--dg-spacing-xl)] flex flex-col gap-[var(--dg-mobile-layout-section-gap)] shadow-[var(--dg-shadows-overlay)]">
+      <div class="flex items-center gap-[var(--dg-spacing-xl)]">
+        <!-- Donut Chart Visualization -->
+        <div class="relative w-[120px] h-[120px] flex items-center justify-center">
+          <svg class="w-full h-full -rotate-90" viewBox="0 0 36 36">
+            <!-- Background Circle -->
+            <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="rgba(255,255,255,0.1)" stroke-width="3.5"></circle>
+            <!-- Segment 1: Spent (Purple) -->
+            <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="#8B80F9" stroke-width="3.5" stroke-dasharray="45 100" stroke-dashoffset="0"></circle>
+            <!-- Segment 2: Savings (Mint) -->
+            <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="#4ADE80" stroke-width="3.5" stroke-dasharray="25 100" stroke-dashoffset="-45"></circle>
+            <!-- Segment 3: Available (Yellow) -->
+            <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="#FACC15" stroke-width="3.5" stroke-dasharray="15 100" stroke-dashoffset="-70"></circle>
+          </svg>
+          <div class="absolute flex flex-col items-center">
+            <span class="text-[10px] text-white/60 font-bold uppercase tracking-wider">Total</span>
+            <span class="text-[16px] text-white font-bold">$4.2k</span>
+          </div>
+        </div>
+
+        <!-- Legend with Metrics -->
+        <div class="flex-1 flex flex-col gap-[var(--dg-spacing-md)]">
+          <div class="flex flex-col">
+            <div class="flex items-center gap-[var(--dg-spacing-xs)]">
+              <div class="w-[8px] h-[8px] rounded-full bg-white"></div>
+              <span class="dg-type-caption text-white/60">Earned</span>
+            </div>
+            <span class="text-[18px] font-bold text-white">$6,450.00</span>
+          </div>
+          <div class="flex flex-col">
+            <div class="flex items-center gap-[var(--dg-spacing-xs)]">
+              <div class="w-[8px] h-[8px] rounded-full bg-[var(--dg-color-action-secondary)]"></div>
+              <span class="dg-type-caption text-white/60">Spent</span>
+            </div>
+            <span class="text-[18px] font-bold text-white">$3,120.50</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Secondary Legend Row -->
+      <div class="grid grid-cols-2 gap-[var(--dg-spacing-md)] pt-[var(--dg-spacing-md)] border-t border-white/10">
+        <div class="flex flex-col">
+          <div class="flex items-center gap-[var(--dg-spacing-xs)]">
+            <div class="w-[8px] h-[8px] rounded-full bg-[#FACC15]"></div>
+            <span class="dg-type-caption text-white/60">Available</span>
+          </div>
+          <span class="text-[14px] font-semibold text-white">$1,240.00</span>
+        </div>
+        <div class="flex flex-col">
+          <div class="flex items-center gap-[var(--dg-spacing-xs)]">
+            <div class="w-[8px] h-[8px] rounded-full bg-[#4ADE80]"></div>
+            <span class="dg-type-caption text-white/60">Savings</span>
+          </div>
+          <span class="text-[14px] font-semibold text-white">$2,089.50</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Budget Section -->
+    <section class="flex flex-col gap-[var(--dg-mobile-layout-element-gap)]">
+      <div class="flex items-center justify-between">
+        <h2 class="dg-type-section-title">Budget for March</h2>
+        <button class="flex items-center gap-[var(--dg-spacing-xs)] text-[var(--dg-color-action-secondary)]">
+          <i data-lucide="edit-3" class="w-[14px] h-[14px]"></i>
+          <span class="dg-type-button-label">Edit</span>
+        </button>
+      </div>
+      <div class="dg-surface-card dg-radius-app p-[var(--dg-spacing-md)] shadow-[var(--dg-shadows-surface)]">
+        <div class="flex justify-between mb-[var(--dg-spacing-xs)]">
+          <span class="dg-type-body dg-text-medium">Spent $2,450 of $3,000</span>
+          <span class="dg-type-body font-bold">82%</span>
+        </div>
+        <div class="w-full h-[8px] bg-[var(--dg-color-background-secondary)] rounded-full overflow-hidden">
+          <div class="h-full bg-[var(--dg-color-action-secondary)] rounded-full" style="width: 82%"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Category Grid -->
+    <section class="flex flex-col gap-[var(--dg-mobile-layout-element-gap)]">
+      <div class="flex items-center justify-between">
+        <h2 class="dg-type-section-title">Top Categories</h2>
+        <button class="dg-type-button-label dg-text-medium">View All</button>
+      </div>
+      
+      <div class="grid grid-cols-2 gap-[var(--dg-mobile-layout-element-gap)]">
+        <!-- Category Card 1 -->
+        <button class="dg-surface-card dg-radius-app p-[var(--dg-spacing-md)] flex flex-col gap-[var(--dg-spacing-md)] items-start text-left shadow-[var(--dg-shadows-surface)] border border-[var(--dg-color-border-divider)] min-h-[140px]">
+          <div class="w-[40px] h-[40px] rounded-2xl bg-blue-50 flex items-center justify-center text-blue-600">
+            <i data-lucide="zap" class="w-[20px] h-[20px]"></i>
+          </div>
+          <div>
+            <p class="dg-type-section-title">Bills</p>
+            <p class="dg-type-caption dg-text-low">12 items</p>
+          </div>
+          <p class="text-[18px] font-bold mt-auto">$840.00</p>
+        </button>
+
+        <!-- Category Card 2 -->
+        <button class="dg-surface-card dg-radius-app p-[var(--dg-spacing-md)] flex flex-col gap-[var(--dg-spacing-md)] items-start text-left shadow-[var(--dg-shadows-surface)] border border-[var(--dg-color-border-divider)] min-h-[140px]">
+          <div class="w-[40px] h-[40px] rounded-2xl bg-orange-50 flex items-center justify-center text-orange-600">
+            <i data-lucide="utensils" class="w-[20px] h-[20px]"></i>
+          </div>
+          <div>
+            <p class="dg-type-section-title">Food</p>
+            <p class="dg-type-caption dg-text-low">24 items</p>
+          </div>
+          <p class="text-[18px] font-bold mt-auto">$620.50</p>
+        </button>
+
+        <!-- Category Card 3 -->
+        <button class="dg-surface-card dg-radius-app p-[var(--dg-spacing-md)] flex flex-col gap-[var(--dg-spacing-md)] items-start text-left shadow-[var(--dg-shadows-surface)] border border-[var(--dg-color-border-divider)] min-h-[140px]">
+          <div class="w-[40px] h-[40px] rounded-2xl bg-purple-50 flex items-center justify-center text-purple-600">
+            <i data-lucide="shopping-bag" class="w-[20px] h-[20px]"></i>
+          </div>
+          <div>
+            <p class="dg-type-section-title">Shopping</p>
+            <p class="dg-type-caption dg-text-low">8 items</p>
+          </div>
+          <p class="text-[18px] font-bold mt-auto">$450.00</p>
+        </button>
+
+        <!-- Category Card 4 -->
+        <button class="dg-surface-card dg-radius-app p-[var(--dg-spacing-md)] flex flex-col gap-[var(--dg-spacing-md)] items-start text-left shadow-[var(--dg-shadows-surface)] border border-[var(--dg-color-border-divider)] min-h-[140px]">
+          <div class="w-[40px] h-[40px] rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+            <i data-lucide="car" class="w-[20px] h-[20px]"></i>
+          </div>
+          <div>
+            <p class="dg-type-section-title">Transport</p>
+            <p class="dg-type-caption dg-text-low">15 items</p>
+          </div>
+          <p class="text-[18px] font-bold mt-auto">$310.20</p>
+        </button>
+      </div>
+    </section>
+
+    <!-- Spacer for Bottom Nav -->
+    <div class="h-[var(--dg-sizing-bottom-nav-height)]"></div>
+  </main>
+</div>
+      <div id="drawgle-export-navigation"><nav data-drawgle-primary-nav class="fixed bottom-[var(--dg-mobile-layout-safe-area-bottom)] left-1/2 -translate-x-1/2 z-[100] w-[calc(100%-40px)] max-w-[420px]">
+  <style>
+    [data-drawgle-primary-nav] .nav-container {
+      background-color: var(--dg-color-action-primary);
+      height: var(--dg-sizing-bottom-nav-height);
+      border-radius: var(--dg-radii-pill);
+      box-shadow: var(--dg-shadows-overlay);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 8px;
+      position: relative;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+
+    [data-drawgle-primary-nav] .nav-item {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      flex: 1;
+      height: 48px;
+      margin: 0 4px;
+      color: var(--dg-color-text-low-emphasis);
+      transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      position: relative;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      border-radius: var(--dg-radii-pill);
+      overflow: hidden;
+    }
+
+    [data-drawgle-primary-nav] .nav-item[] {
+      color: var(--dg-color-action-on-primary-text);
+      flex: 1.8;
+      background: rgba(255, 255, 255, 0.1);
+      gap: var(--dg-spacing-xs);
+    }
+
+    [data-drawgle-primary-nav] .nav-item i {
+      width: var(--dg-sizing-icon-standard);
+      height: var(--dg-sizing-icon-standard);
+      flex-shrink: 0;
+      transition: transform 0.3s ease;
+    }
+
+    [data-drawgle-primary-nav] .nav-item[] i {
+      color: var(--dg-color-action-secondary);
+    }
+
+    [data-drawgle-primary-nav] .nav-label {
+      font-family: inherit;
+      font-size: var(--dg-type-button-label-size);
+      font-weight: var(--dg-type-button-label-weight);
+      line-height: 1;
+      white-space: nowrap;
+      display: none;
+      opacity: 0;
+      transform: translateX(-4px);
+      transition: all 0.3s ease;
+    }
+
+    [data-drawgle-primary-nav] .nav-item[] .nav-label {
+      display: block;
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    /* Subtle Lavender Glow for Active State */
+    [data-drawgle-primary-nav] .nav-item[]::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at center, rgba(139, 128, 249, 0.15) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* Tap Target Comfort */
+    [data-drawgle-primary-nav] .nav-item:active {
+      opacity: 0.7;
+      transform: scale(0.95);
+    }
+  </style>
+
+  <div class="nav-container">
+    <button class="nav-item" data-nav-item-id="home">
+      <i data-lucide="home"></i>
+      <span class="nav-label">Home</span>
+    </button>
+
+    <button class="nav-item" data-nav-item-id="wallet">
+      <i data-lucide="wallet"></i>
+      <span class="nav-label">Wallet</span>
+    </button>
+
+    <button class="nav-item" data-nav-item-id="stats">
+      <i data-lucide="bar-chart-2"></i>
+      <span class="nav-label">Stats</span>
+    </button>
+
+    <button class="nav-item" data-nav-item-id="profile">
+      <i data-lucide="user"></i>
+      <span class="nav-label">Profile</span>
+    </button>
+  </div>
+</nav></div>
+    </div>
+    <script>
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+      document.querySelectorAll('[data-nav-item-id]').forEach(function(item) {
+        var active = item.getAttribute('data-nav-item-id') === "home";
+        item.setAttribute('data-active', active ? 'true' : 'false');
+        item.setAttribute('aria-current', active ? 'page' : 'false');
+      });
+    </script>
+  </body>
+</html>
