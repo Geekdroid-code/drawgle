@@ -53,25 +53,25 @@ import type {
 
 export type ScreenPlanState =
   | {
-      status: "planning";
-      prompt: string;
-      image: PromptImagePayload | null;
-    }
+    status: "planning";
+    prompt: string;
+    image: PromptImagePayload | null;
+  }
   | {
-      status: "ready";
-      prompt: string;
-      image: PromptImagePayload | null;
-      screenPlan: ScreenPlan;
-      requiresBottomNav: boolean;
-      navigationArchitecture: NavigationArchitecture;
-      navigationPlan: NavigationPlan;
-    }
+    status: "ready";
+    prompt: string;
+    image: PromptImagePayload | null;
+    screenPlan: ScreenPlan;
+    requiresBottomNav: boolean;
+    navigationArchitecture: NavigationArchitecture;
+    navigationPlan: NavigationPlan;
+  }
   | {
-      status: "error";
-      prompt: string;
-      image: PromptImagePayload | null;
-      error: string;
-    };
+    status: "error";
+    prompt: string;
+    image: PromptImagePayload | null;
+    error: string;
+  };
 
 type PendingTurn = {
   id: string;
@@ -174,35 +174,35 @@ const readGenerationJournal = (metadata: Record<string, unknown>): GenerationJou
 
   const screens: GenerationJournalMetadata["screens"] = Array.isArray(journal.screens)
     ? journal.screens.flatMap((screenValue) => {
-        const screen = metadataRecord(screenValue);
-        const name = typeof screen.name === "string" ? screen.name : null;
-        if (!name) return [];
-        const type: NonNullable<GenerationJournalMetadata["screens"]>[number]["type"] =
-          screen.type === "root" || screen.type === "detail" ? screen.type : null;
-        const chrome: NonNullable<GenerationJournalMetadata["screens"]>[number]["chrome"] =
-          typeof screen.chrome === "string" ? screen.chrome as NonNullable<GenerationJournalMetadata["screens"]>[number]["chrome"] : null;
-        const status = typeof screen.status === "string" && JOURNAL_SCREEN_STATUSES.has(screen.status)
-          ? screen.status as NonNullable<GenerationJournalMetadata["screens"]>[number]["status"]
-          : "planned";
-        return [{
-          name,
-          type,
-          description: typeof screen.description === "string" ? screen.description : null,
-          chrome,
-          navigationItemId: typeof screen.navigationItemId === "string" ? screen.navigationItemId : null,
-          assetNeedCount: typeof screen.assetNeedCount === "number" && Number.isFinite(screen.assetNeedCount) ? screen.assetNeedCount : 0,
-          status,
-        }];
-      })
+      const screen = metadataRecord(screenValue);
+      const name = typeof screen.name === "string" ? screen.name : null;
+      if (!name) return [];
+      const type: NonNullable<GenerationJournalMetadata["screens"]>[number]["type"] =
+        screen.type === "root" || screen.type === "detail" ? screen.type : null;
+      const chrome: NonNullable<GenerationJournalMetadata["screens"]>[number]["chrome"] =
+        typeof screen.chrome === "string" ? screen.chrome as NonNullable<GenerationJournalMetadata["screens"]>[number]["chrome"] : null;
+      const status = typeof screen.status === "string" && JOURNAL_SCREEN_STATUSES.has(screen.status)
+        ? screen.status as NonNullable<GenerationJournalMetadata["screens"]>[number]["status"]
+        : "planned";
+      return [{
+        name,
+        type,
+        description: typeof screen.description === "string" ? screen.description : null,
+        chrome,
+        navigationItemId: typeof screen.navigationItemId === "string" ? screen.navigationItemId : null,
+        assetNeedCount: typeof screen.assetNeedCount === "number" && Number.isFinite(screen.assetNeedCount) ? screen.assetNeedCount : 0,
+        status,
+      }];
+    })
     : [];
 
   const assetSummaryRecord = metadataRecord(journal.assetSummary);
   const assetSummary = typeof assetSummaryRecord.requested === "number"
     ? {
-        requested: assetSummaryRecord.requested,
-        resolved: typeof assetSummaryRecord.resolved === "number" ? assetSummaryRecord.resolved : 0,
-        placeholders: typeof assetSummaryRecord.placeholders === "number" ? assetSummaryRecord.placeholders : 0,
-      }
+      requested: assetSummaryRecord.requested,
+      resolved: typeof assetSummaryRecord.resolved === "number" ? assetSummaryRecord.resolved : 0,
+      placeholders: typeof assetSummaryRecord.placeholders === "number" ? assetSummaryRecord.placeholders : 0,
+    }
     : null;
 
   return {
@@ -554,10 +554,10 @@ function buildConversationItems({
         isTerminalGenerationRun(run) &&
         (step.status === "queued" || step.status === "editing" || step.status === "thinking")
         ? {
-            ...step,
-            status: run?.status === "failed" || run?.status === "canceled" ? "failed" as const : "completed" as const,
-            detail: run?.error ?? step.detail,
-          }
+          ...step,
+          status: run?.status === "failed" || run?.status === "canceled" ? "failed" as const : "completed" as const,
+          detail: run?.error ?? step.detail,
+        }
         : step;
       const normalizedStep = reconcileStaleEditStep({
         step: generationNormalizedStep,
@@ -849,7 +849,7 @@ function AssistantMessage({ content, isError }: { content: string; isError?: boo
           <button type="button" title="Copy message" onClick={handleCopy} className="hover:text-slate-700">
             {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
           </button>
-          
+
         </div>
       </div>
     </div>
@@ -898,7 +898,7 @@ function ActionCard({
   const failed = step.status === "failed";
   const pendingProposal = isProposalPending(proposal);
   const styleDiff = (step as any).styleDiff as string | undefined;
-  
+
   const rawProcessLines = step.processLines?.length ? step.processLines : step.detail ? [step.detail] : [];
   const processLines = rawProcessLines.filter((line) => {
     const cleanLine = line.trim().toLowerCase();
@@ -1117,15 +1117,14 @@ function GenerationJournalCard({ journal }: { journal: GenerationJournalMetadata
               <div
                 key={phase.id}
                 title={`${phase.label}${phase.detail ? ` - ${phase.detail}` : ""}`}
-                className={`h-1.5 rounded-full ${
-                  phase.status === "failed"
-                    ? "bg-rose-500"
-                    : phase.status === "completed"
-                      ? "bg-slate-950"
-                      : phase.status === "active"
-                        ? "bg-slate-500"
-                        : "bg-slate-950/[0.1]"
-                }`}
+                className={`h-1.5 rounded-full ${phase.status === "failed"
+                  ? "bg-rose-500"
+                  : phase.status === "completed"
+                    ? "bg-slate-950"
+                    : phase.status === "active"
+                      ? "bg-slate-500"
+                      : "bg-slate-950/[0.1]"
+                  }`}
               />
             ))}
           </div>
@@ -1175,15 +1174,14 @@ function GenerationJournalCard({ journal }: { journal: GenerationJournalMetadata
                               .join(" · ")}
                           </div>
                         </div>
-                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                          screen.status === "failed"
-                            ? "bg-rose-50 text-rose-700"
-                            : screen.status === "ready"
-                              ? "bg-emerald-50 text-emerald-700"
-                              : screen.status === "building"
-                                ? "bg-slate-950 text-white"
-                                : "bg-slate-950/[0.06] text-slate-600"
-                        }`}>
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${screen.status === "failed"
+                          ? "bg-rose-50 text-rose-700"
+                          : screen.status === "ready"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : screen.status === "building"
+                              ? "bg-slate-950 text-white"
+                              : "bg-slate-950/[0.06] text-slate-600"
+                          }`}>
                           {journalScreenStatusCopy(screen.status)}
                         </span>
                       </div>
@@ -1498,22 +1496,22 @@ export function ChatPanel({
 
   const lastItemStateKey = conversationItems.length > 0
     ? JSON.stringify({
-        id: conversationItems[conversationItems.length - 1].id,
-        kind: conversationItems[conversationItems.length - 1].kind,
-        status: conversationItems[conversationItems.length - 1].kind === "action"
-          ? (conversationItems[conversationItems.length - 1] as any).step?.status
-          : conversationItems[conversationItems.length - 1].kind === "generation_journal"
+      id: conversationItems[conversationItems.length - 1].id,
+      kind: conversationItems[conversationItems.length - 1].kind,
+      status: conversationItems[conversationItems.length - 1].kind === "action"
+        ? (conversationItems[conversationItems.length - 1] as any).step?.status
+        : conversationItems[conversationItems.length - 1].kind === "generation_journal"
           ? (conversationItems[conversationItems.length - 1] as any).journal?.status
           : null,
-        processCount: conversationItems[conversationItems.length - 1].kind === "action"
-          ? ((conversationItems[conversationItems.length - 1] as any).step?.processLines?.length ?? 0)
-          : conversationItems[conversationItems.length - 1].kind === "generation_journal"
+      processCount: conversationItems[conversationItems.length - 1].kind === "action"
+        ? ((conversationItems[conversationItems.length - 1] as any).step?.processLines?.length ?? 0)
+        : conversationItems[conversationItems.length - 1].kind === "generation_journal"
           ? ((conversationItems[conversationItems.length - 1] as any).journal?.phases?.length ?? 0)
           : null,
-        detail: conversationItems[conversationItems.length - 1].kind === "action"
-          ? ((conversationItems[conversationItems.length - 1] as any).step?.detail ?? "")
-          : null,
-      })
+      detail: conversationItems[conversationItems.length - 1].kind === "action"
+        ? ((conversationItems[conversationItems.length - 1] as any).step?.detail ?? "")
+        : null,
+    })
     : "";
 
   useEffect(() => {
@@ -1638,7 +1636,7 @@ export function ChatPanel({
                 )}
               </AnimatePresence>
               {isBusy && (
-                <div className="mx-5 my-3 rounded-2xl border border-slate-950/[0.04] bg-[#f8f9fa] p-4 shadow-[0_2px_8px_rgba(15,23,42,0.02)] transition-all animate-pulse">
+                <div className="mx-1 px-4 transition-all animate-pulse">
                   <div className="flex items-center gap-3">
                     <AgentBall className="h-5 w-5 shrink-0" active />
                     <div className="min-w-0 flex-1">
@@ -1651,16 +1649,15 @@ export function ChatPanel({
                             pendingTurn
                               ? "Reading your prompt and selected context..."
                               : screenPlan?.status === "planning"
-                              ? "Drafting focused screen structures..."
-                              : isGenerationActive && generationRun
-                              ? `Building: ${
-                                  generationRun.status === "planning"
+                                ? "Drafting focused screen structures..."
+                                : isGenerationActive && generationRun
+                                  ? `Building: ${generationRun.status === "planning"
                                     ? "Planning screens"
                                     : "Rendering mobile UI on canvas"
-                                }...`
-                              : isQueueing
-                              ? "Queueing generation job to Trigger.dev..."
-                              : "Polishing style rules and visual details..."
+                                  }...`
+                                  : isQueueing
+                                    ? "Queueing generation job to Trigger.dev..."
+                                    : "Polishing style rules and visual details..."
                           }
                           className="text-slate-600 font-semibold"
                           hideBall={true}
