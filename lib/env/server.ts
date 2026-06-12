@@ -52,3 +52,8 @@ export const getOpenRouterProviders = () =>
 export const getOpenRouterAllowFallbacks = () =>
   process.env.DRAWGLE_OPENROUTER_ALLOW_FALLBACKS === "true";
 
+export const getOpenRouterTimeoutMs = () => {
+  const value = Number.parseInt(process.env.DRAWGLE_OPENROUTER_TIMEOUT_MS ?? "60000", 10);
+  return Number.isFinite(value) && value > 0 ? value : 60000;
+};
+

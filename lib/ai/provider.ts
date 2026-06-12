@@ -10,6 +10,7 @@ import {
   getOpenRouterSort,
   getOpenRouterProviders,
   getOpenRouterAllowFallbacks,
+  getOpenRouterTimeoutMs,
 } from "@/lib/env/server";
 import { geminiPolicyForTask, type GeminiTaskType } from "./model-policy";
 import type { GenerateContentConfig } from "@google/genai";
@@ -138,6 +139,8 @@ export async function* generateScreenBuilderContentStream({
         },
         stream: true,
       },
+    }, {
+      timeoutMs: getOpenRouterTimeoutMs(),
     });
 
     for await (const chunk of stream) {
