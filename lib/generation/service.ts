@@ -710,7 +710,7 @@ const compileGenerationIntentContract = ({
       maxInitialScreens: exactScreenCount,
       explicitScreenCount: explicitCount,
       referenceScreenCount,
-      allowSharedNavigation: exactScreenCount > 1 && hasExplicitNavigationRequest(prompt),
+      allowSharedNavigation: exactScreenCount > 1,
       visibleNavigationHandling: "inline_static_chrome",
     };
   }

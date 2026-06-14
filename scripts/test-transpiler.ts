@@ -1,5 +1,5 @@
 import * as cheerio from "cheerio";
-import { buildTranspileTree, transpileToSwiftUI, transpileToCompose, transpileToReactNative, transpileToFlutter } from "../lib/mobile-transpiler";
+import { buildTranspileTree, cascadeInheritedStyles, postProcessAST, transpileToSwiftUI, transpileToCompose, transpileToReactNative, transpileToFlutter } from "../lib/mobile-transpiler";
 import type { DesignTokens } from "../lib/types";
 
 // Custom DOM parser using cheerio to generate mock DOM elements compatible with browser native Element / HTMLElement
@@ -57,13 +57,25 @@ function cheerioToMockDom(htmlString: string): any {
 }
 
 const mockHtml = `
-<div class="flex flex-col items-center justify-between p-6 bg-slate-100 rounded-lg w-full gap-4">
-  <h1 class="text-2xl font-bold text-gray-900">Welcome Screen</h1>
-  <p class="text-sm text-gray-500 text-center">Design and export high fidelity layouts</p>
-  <button class="w-full py-3 px-6 bg-blue-500 text-white rounded-xl font-semibold flex items-center justify-center gap-2">
-    <span data-lucide="arrow-left" class="text-white text-xs"></span>
-    Get Started
-  </button>
+<div class="dg-bg-primary p-6 rounded-lg w-full gap-4">
+  <!-- Dark mode container to test Contrast Scoping -->
+  <div style="background-color: #0F0F0F; color: var(--dg-color-text-high-emphasis);" class="p-4 rounded-xl">
+    <!-- Un-explicit colored text should automatically become light/white due to contrast scoping -->
+    <h2 class="text-[28px] font-[700]">Dark Mode Card Title</h2>
+    <p class="text-sm">This text has no explicit color, it should inherit or adjust to light color.</p>
+    <div class="h-px bg-[var(--dg-color-border-divider)] my-2"></div>
+    <div style="filter: hue-rotate(45deg) brightness(110%);" class="w-16 h-16 bg-blue-500 rounded-full"></div>
+  </div>
+  
+  <!-- Grid containing flexible cell container with spacers -->
+  <div class="grid grid-cols-2 gap-4">
+    <div class="flex flex-row justify-between items-center bg-white p-3 rounded-lg">
+      <span class="font-medium">Portfolio Balance</span>
+      <!-- Flex Spacer acting as Spacer() -->
+      <div class="w-full flex-1"></div>
+      <span class="text-lg font-bold">$24,500.00</span>
+    </div>
+  </div>
 </div>
 `;
 
@@ -120,6 +132,12 @@ function runTest() {
     process.exit(1);
   }
   console.log("PASS: AST parsed successfully");
+
+  cascadeInheritedStyles(ast);
+  console.log("PASS: AST cascaded successfully");
+
+  postProcessAST(ast);
+  console.log("PASS: AST post-processed successfully");
 
   const swift = transpileToSwiftUI(ast);
   console.log("\n--- SwiftUI Output ---");

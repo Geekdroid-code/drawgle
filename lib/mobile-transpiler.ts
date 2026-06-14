@@ -19,15 +19,15 @@ export interface ParsedStyles {
   height: string | number; // e.g. "100%", "auto", or a number in pixels
 
   backgroundColor: string; // Hex color e.g. "#FFFFFF" or "transparent"
-  textColor: string; // Hex color e.g. "#111827" or "transparent"
+  textColor?: string; // Hex color e.g. "#111827" or "transparent"
 
   borderRadius: number;
   borderWidth: number;
   borderColor: string;
 
-  fontSize: number;
-  fontWeight: "normal" | "medium" | "semibold" | "bold";
-  textAlign: "left" | "center" | "right";
+  fontSize?: number;
+  fontWeight?: "normal" | "medium" | "semibold" | "bold";
+  textAlign?: "left" | "center" | "right";
 
   shadow: string | null; // e.g. "surface", "overlay", or null
 
@@ -45,7 +45,7 @@ export interface ParsedStyles {
   minHeight: string | number;
 
   // Gradient
-  gradient: { direction: string; fromColor: string; toColor: string } | null;
+  gradient: { direction: string; fromColor: string; toColor: string; isRepeating?: boolean } | null;
 
   // Raw SVG flag (no icon mapping available)
   isRawSvg: boolean;
@@ -81,6 +81,16 @@ export interface ParsedStyles {
   marginRightToken?: string;
   marginTopToken?: string;
   marginBottomToken?: string;
+
+  explicitTextColor?: boolean;
+  backdropFilterBlur?: number;
+  filter?: {
+    hueRotate?: number;
+    brightness?: number;
+    saturate?: number;
+    contrast?: number;
+    blur?: number;
+  };
 }
 
 export interface TranspileNode {
@@ -149,9 +159,71 @@ function toComposeIconName(lucideName: string): string {
   return `Icons.Default.${pascal}`;
 }
 
+const LUCIDE_TO_SF_SYMBOL: Record<string, string> = {
+  "utensils": "fork.knife",
+  "salad": "leaf",
+  "cookie": "circle.hexagongrid",
+  "flame": "flame",
+  "glass-water": "drop",
+  "coffee": "cup.and.saucer",
+  "search": "magnifyingglass",
+  "home": "house",
+  "user": "person",
+  "settings": "gearshape",
+  "chevron-left": "chevron.left",
+  "chevron-right": "chevron.right",
+  "chevron-up": "chevron.up",
+  "chevron-down": "chevron.down",
+  "arrow-left": "arrow.left",
+  "arrow-right": "arrow.right",
+  "arrow-up": "arrow.up",
+  "arrow-down": "arrow.down",
+  "check": "checkmark",
+  "x": "xmark",
+  "plus": "plus",
+  "minus": "minus",
+  "more-horizontal": "ellipsis",
+  "more-vertical": "ellipsis.vertical",
+  "menu": "line.3.horizontal",
+  "clock": "clock",
+  "calendar": "calendar",
+  "bell": "bell",
+  "camera": "camera",
+  "trash": "trash",
+  "edit": "pencil",
+  "info": "info.circle",
+  "help-circle": "questionmark.circle",
+  "alert-triangle": "exclamationmark.triangle",
+  "pie-chart": "chart.pie",
+  "trending-up": "chart.line.uptrend.xyaxis",
+  "book-open": "book.pages",
+  "award": "trophy",
+  "target": "target",
+  "heart": "heart",
+  "activity": "waveform.path.ecg",
+  "dumbbell": "dumbbell"
+};
+
 function toSwiftSFSymbol(lucideName: string): string {
+  const normalized = lucideName.trim().toLowerCase();
+  if (LUCIDE_TO_SF_SYMBOL[normalized]) {
+    return LUCIDE_TO_SF_SYMBOL[normalized];
+  }
   // SF Symbols use dot-separated names; best-effort conversion from Lucide kebab-case
   return lucideName.replace(/-/g, '.');
+}
+
+function toSwiftCamelCase(lucideName: string): string {
+  const normalized = lucideName.trim();
+  const parts = normalized.split(/[-_]+/);
+  if (parts.length === 0) return "";
+  let result = parts[0].toLowerCase();
+  for (let i = 1; i < parts.length; i++) {
+    const part = parts[i];
+    if (!part) continue;
+    result += part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+  }
+  return result;
 }
 
 function toRNIconName(lucideName: string): string {
@@ -164,9 +236,184 @@ function parsePixel(value: string | undefined): number {
   return isNaN(num) ? 0 : num;
 }
 
-function resolveCssVariable(varName: string, varMap: Map<string, string>): string {
+export interface CssRule {
+  selector: string;
+  declarations: Map<string, string>;
+}
+
+export function parseCssStylesheet(htmlDoc: Document): CssRule[] {
+  const rules: CssRule[] = [];
+  const styleTags = htmlDoc.getElementsByTagName("style");
+  for (let i = 0; i < styleTags.length; i++) {
+    const text = styleTags[i].textContent || "";
+    const matches = text.matchAll(/([^{}\n]+)\s*\{([^}]+)\}/g);
+    for (const match of matches) {
+      const selector = match[1].trim();
+      const declText = match[2].trim();
+      const declarations = new Map<string, string>();
+      declText.split(";").forEach(decl => {
+        const colonIdx = decl.indexOf(":");
+        if (colonIdx !== -1) {
+          const key = decl.substring(0, colonIdx).trim().toLowerCase();
+          const val = decl.substring(colonIdx + 1).trim();
+          if (key && val) {
+            declarations.set(key, val);
+          }
+        }
+      });
+      rules.push({ selector, declarations });
+    }
+  }
+  return rules;
+}
+
+function matchSingleSelector(singleSel: string, element: HTMLElement): boolean {
+  let sel = singleSel.trim();
+  if (!sel || sel === "*") return true;
+
+  // Match tag name if it starts with an alphanumeric word
+  const tagMatch = sel.match(/^([a-zA-Z0-9_-]+)/);
+  if (tagMatch) {
+    const tagName = tagMatch[1];
+    if (element.tagName.toLowerCase() !== tagName.toLowerCase()) {
+      return false;
+    }
+    sel = sel.substring(tagName.length);
+  }
+
+  // Parse classes, attributes, and pseudo-classes
+  while (sel.length > 0) {
+    if (sel.startsWith(".")) {
+      const classMatch = sel.match(/^\.([a-zA-Z0-9_-]+)/);
+      if (!classMatch) return false;
+      const className = classMatch[1];
+      const classes = Array.from(element.classList || []);
+      if (!classes.includes(className)) {
+        return false;
+      }
+      sel = sel.substring(classMatch[0].length);
+    } else if (sel.startsWith("[")) {
+      const attrMatch = sel.match(/^\[([a-zA-Z0-9_-]+)(?:=([^\]]+))?\]/);
+      if (!attrMatch) return false;
+      const attrName = attrMatch[1];
+      let expectedVal = attrMatch[2];
+      if (expectedVal) {
+        if ((expectedVal.startsWith('"') && expectedVal.endsWith('"')) || 
+            (expectedVal.startsWith("'") && expectedVal.endsWith("'"))) {
+          expectedVal = expectedVal.slice(1, -1);
+        }
+      }
+      if (!element.hasAttribute(attrName)) {
+        return false;
+      }
+      if (expectedVal && element.getAttribute(attrName) !== expectedVal) {
+        return false;
+      }
+      sel = sel.substring(attrMatch[0].length);
+    } else if (sel.startsWith(":")) {
+      const pseudoMatch = sel.match(/^:[a-zA-Z0-9_-]+/);
+      if (!pseudoMatch) return false;
+      sel = sel.substring(pseudoMatch[0].length);
+    } else {
+      break;
+    }
+  }
+
+  return true;
+}
+
+export function selectorMatchesElement(selector: string, element: HTMLElement): boolean {
+  const sel = selector.trim();
+  if (!sel || sel === "*") return true;
+  
+  const parts = sel.split(/\s+/).filter(Boolean);
+  if (parts.length > 1) {
+    if (!matchSingleSelector(parts[parts.length - 1], element)) {
+      return false;
+    }
+    let currentElement = element.parentElement || (element as any).parentElement;
+    for (let i = parts.length - 2; i >= 0; i--) {
+      const part = parts[i];
+      let matched = false;
+      while (currentElement) {
+        if (matchSingleSelector(part, currentElement)) {
+          matched = true;
+          break;
+        }
+        currentElement = currentElement.parentElement || (currentElement as any).parentElement;
+      }
+      if (!matched) return false;
+      currentElement = currentElement.parentElement || (currentElement as any).parentElement;
+    }
+    return true;
+  }
+  
+  return matchSingleSelector(sel, element);
+}
+
+const DEFAULT_TYPOGRAPHY = {
+  nav_title: { size: "17px", weight: "700", line_height: "22px" },
+  screen_title: { size: "24px", weight: "800", line_height: "30px" },
+  hero_title: { size: "32px", weight: "800", line_height: "40px" },
+  section_title: { size: "18px", weight: "700", line_height: "24px" },
+  metric_value: { size: "32px", weight: "800", line_height: "38px" },
+  body: { size: "16px", weight: "500", line_height: "24px" },
+  supporting: { size: "14px", weight: "400", line_height: "20px" },
+  caption: { size: "12px", weight: "600", line_height: "16px" },
+  button_label: { size: "15px", weight: "700", line_height: "20px" },
+} as const;
+
+function resolveCssVariable(varName: string, varMap?: Map<string, string>): string {
   const cleanVar = varName.trim().replace(/^var\(/, "").replace(/\)$/, "").trim();
-  return varMap.get(cleanVar) || varName;
+  const parts = cleanVar.split(",");
+  const varKey = parts[0].trim();
+  const fallback = parts[1] ? parts[1].trim() : undefined;
+  
+  let val = varMap?.get(varKey);
+  if (val !== undefined) return val;
+
+  // Fallback to standard design system typography values if not found in varMap
+  if (varKey.startsWith("--dg-type-")) {
+    const subKey = varKey.replace("--dg-type-", ""); // e.g. "screen-title-size" or "body-weight"
+    const typKey = subKey.replace(/-/g, "_"); // e.g. "screen_title_size"
+    
+    const roles = ["nav_title", "screen_title", "hero_title", "section_title", "metric_value", "body", "supporting", "caption", "button_label"];
+    for (const r of roles) {
+      if (typKey.startsWith(r + "_")) {
+        const prop = typKey.substring(r.length + 1); // "size", "weight", "line_height"
+        const defaultRoleVal = DEFAULT_TYPOGRAPHY[r as keyof typeof DEFAULT_TYPOGRAPHY];
+        if (defaultRoleVal) {
+          if (prop === "size") return defaultRoleVal.size;
+          if (prop === "weight") return defaultRoleVal.weight;
+          if (prop === "line_height" || prop === "line-height") return defaultRoleVal.line_height;
+        }
+      }
+    }
+  }
+
+  // Spacing and radii standard fallbacks
+  if (varKey === "--dg-mobile-layout-screen-margin") return "24px";
+  if (varKey === "--dg-mobile-layout-section-gap") return "24px";
+  if (varKey === "--dg-mobile-layout-element-gap") return "16px";
+  if (varKey === "--dg-radii-app") return "18px";
+  if (varKey === "--dg-radii-pill") return "9999px";
+  if (varKey === "--dg-sizing-bottom-nav-height") return "80px";
+  if (varKey === "--dg-mobile-layout-safe-area-top") return "16px";
+  if (varKey === "--dg-mobile-layout-safe-area-bottom") return "16px";
+
+  // Color standard fallbacks
+  if (varKey === "--dg-color-background-primary") return "#F5F5FA";
+  if (varKey === "--dg-color-background-secondary") return "#FFFFFF";
+  if (varKey === "--dg-color-surface-card") return "#FFFFFF";
+  if (varKey === "--dg-color-action-primary") return "#3B82F6";
+  if (varKey === "--dg-color-action-on-primary-text") return "#FFFFFF";
+  if (varKey === "--dg-color-text-high-emphasis") return "#111827";
+  if (varKey === "--dg-color-text-medium-emphasis") return "#4B5563";
+  if (varKey === "--dg-color-text-low-emphasis") return "#9CA3AF";
+  if (varKey === "--dg-color-border-divider") return "rgba(0, 0, 0, 0.05)";
+
+  if (fallback !== undefined) return fallback;
+  return varName;
 }
 
 // Resolves compound values like calc(var(--x) + 8px), plain 120px, var(--x), etc.
@@ -252,9 +499,272 @@ function getStyleTokenKey(varName: string): string | undefined {
   }
 }
 
-export function parseStyles(element: HTMLElement, varMap: Map<string, string>): ParsedStyles {
+function parseRgbRgba(val: string): { color: string; opacity?: number } | null {
+  const match = val.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d\.]+)\s*)?\)/);
+  if (match) {
+    const r = parseInt(match[1]);
+    const g = parseInt(match[2]);
+    const b = parseInt(match[3]);
+    const a = match[4] !== undefined ? parseFloat(match[4]) : 1.0;
+    const hex = "#" + [r, g, b].map(x => {
+      const hexStr = x.toString(16);
+      return hexStr.length === 1 ? "0" + hexStr : hexStr;
+    }).join("").toUpperCase();
+    return { color: hex, opacity: a };
+  }
+  return null;
+}
+
+function parseCssColor(colorStr: string, varMap?: Map<string, string>): { color: string; opacity?: number } {
+  let val = colorStr.trim();
+  
+  // Resolve CSS variables recursively
+  while (val.includes("var(")) {
+    const newVal = val.replace(/var\(([^)]+)\)/g, (match) => {
+      return resolveCssVariable(match, varMap);
+    });
+    if (newVal === val) break;
+    val = newVal;
+  }
+  
+  if (val.startsWith("color-mix")) {
+    const percentMatch = val.match(/([\d\.]+)%/);
+    const opacity = percentMatch ? parseFloat(percentMatch[1]) / 100 : 1.0;
+    const hexMatch = val.match(/#[0-9a-fA-F]{3,8}/);
+    if (hexMatch) {
+      return { color: hexMatch[0], opacity };
+    }
+    const rgbMatch = val.match(/rgba?\(.*?\)/);
+    if (rgbMatch) {
+      const parsedRgb = parseRgbRgba(rgbMatch[0]);
+      if (parsedRgb) {
+        return { color: parsedRgb.color, opacity: (parsedRgb.opacity ?? 1.0) * opacity };
+      }
+    }
+    return { color: "#FFFFFF", opacity };
+  }
+
+  const parsedRgb = parseRgbRgba(val);
+  if (parsedRgb) {
+    return parsedRgb;
+  }
+
+  return { color: val };
+}
+
+function parseColorString(colorStr: string | undefined): { r: number; g: number; b: number; a: number; isRgba: boolean; hex: string } {
+  if (!colorStr) {
+    return { r: 255, g: 255, b: 255, a: 1, isRgba: false, hex: "FFFFFF" };
+  }
+  const str = colorStr.trim();
+  if (str === "transparent") {
+    return { r: 0, g: 0, b: 0, a: 0, isRgba: true, hex: "000000" };
+  }
+  
+  const rgbaMatch = str.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d\.]+)\s*\)/i);
+  if (rgbaMatch) {
+    return {
+      r: parseInt(rgbaMatch[1]),
+      g: parseInt(rgbaMatch[2]),
+      b: parseInt(rgbaMatch[3]),
+      a: parseFloat(rgbaMatch[4]),
+      isRgba: true,
+      hex: ""
+    };
+  }
+  
+  const rgbMatch = str.match(/rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/i);
+  if (rgbMatch) {
+    return {
+      r: parseInt(rgbMatch[1]),
+      g: parseInt(rgbMatch[2]),
+      b: parseInt(rgbMatch[3]),
+      a: 1.0,
+      isRgba: false,
+      hex: ""
+    };
+  }
+  
+  if (str.startsWith("#")) {
+    let clean = str.substring(1);
+    if (clean.length === 3) {
+      clean = clean[0] + clean[0] + clean[1] + clean[1] + clean[2] + clean[2];
+    } else if (clean.length === 8) {
+      const r = parseInt(clean.substring(0, 2), 16);
+      const g = parseInt(clean.substring(2, 4), 16);
+      const b = parseInt(clean.substring(4, 6), 16);
+      const a = parseInt(clean.substring(6, 8), 16) / 255.0;
+      return { r, g, b, a, isRgba: true, hex: clean.substring(0, 6).toUpperCase() };
+    }
+    const r = parseInt(clean.substring(0, 2), 16) || 0;
+    const g = parseInt(clean.substring(2, 4), 16) || 0;
+    const b = parseInt(clean.substring(4, 6), 16) || 0;
+    return { r, g, b, a: 1.0, isRgba: false, hex: clean.toUpperCase() };
+  }
+  
+  return { r: 255, g: 255, b: 255, a: 1, isRgba: false, hex: "FFFFFF" };
+}
+
+function resolveColorToStandard(colorStr: string, varMap?: Map<string, string>): string {
+  const parsed = parseCssColor(colorStr, varMap);
+  if (parsed.opacity !== undefined) {
+    const parsedBase = parseColorString(parsed.color);
+    return `rgba(${parsedBase.r}, ${parsedBase.g}, ${parsedBase.b}, ${parsed.opacity})`;
+  }
+  return parsed.color;
+}
+
+function toSwiftColor(colorStr: string | undefined): string {
+  if (!colorStr) return "Color.clear";
+  if (colorStr === "transparent") return "Color.clear";
+  const { r, g, b, a, isRgba, hex } = parseColorString(colorStr);
+  if (isRgba) {
+    return `Color(red: ${r}/255.0, green: ${g}/255.0, blue: ${b}/255.0).opacity(${a})`;
+  }
+  if (hex) {
+    return `Color(hex: "#${hex}")`;
+  }
+  return `Color(red: ${r}/255.0, green: ${g}/255.0, blue: ${b}/255.0)`;
+}
+
+function toSwiftBackgroundGradient(styles: ParsedStyles, indent: string, baseColor: string = "Color.clear"): string {
+  if (!styles.gradient || !styles.gradient.fromColor || !styles.gradient.toColor) return "";
+  
+  let canvasBg = toSwiftColor(styles.gradient.fromColor);
+  if (canvasBg === "Color.clear" && baseColor !== "Color.clear") {
+    canvasBg = baseColor;
+  }
+  
+  if (styles.gradient.isRepeating) {
+    return `${indent}.background(\n` +
+           `${indent}    Canvas { context, size in\n` +
+           `${indent}        let stripeWidth: CGFloat = 6\n` +
+           `${indent}        let totalWidth = size.width + size.height\n` +
+           `${indent}        var x: CGFloat = 0\n` +
+           `${indent}        while x < totalWidth {\n` +
+           `${indent}            var path = Path()\n` +
+           `${indent}            path.move(to: CGPoint(x: x, y: 0))\n` +
+           `${indent}            path.addLine(to: CGPoint(x: x + stripeWidth, y: 0))\n` +
+           `${indent}            path.addLine(to: CGPoint(x: x - size.height + stripeWidth, y: size.height))\n` +
+           `${indent}            path.addLine(to: CGPoint(x: x - size.height, y: size.height))\n` +
+           `${indent}            path.closeSubpath()\n` +
+           `${indent}            context.fill(path, with: .color(${toSwiftColor(styles.gradient.toColor)}))\n` +
+           `${indent}            x += stripeWidth * 2\n` +
+           `${indent}        }\n` +
+           `${indent}    }\n` +
+           `${indent}    .background(${canvasBg})\n` +
+           `${indent})\n`;
+  }
+  
+  const { start, end } = gradientDirectionToSwift(styles.gradient.direction);
+  return `${indent}.background(LinearGradient(gradient: Gradient(colors: [${toSwiftColor(styles.gradient.fromColor)}, ${toSwiftColor(styles.gradient.toColor)}]), startPoint: ${start}, endPoint: ${end}))\n`;
+}
+
+function toComposeColor(colorStr: string | undefined): string {
+  if (!colorStr) return "Color.Transparent";
+  if (colorStr === "transparent") return "Color.Transparent";
+  const { r, g, b, a, isRgba, hex } = parseColorString(colorStr);
+  if (isRgba) {
+    return `Color(red = ${r}/255f, green = ${g}/255f, blue = ${b}/255f, alpha = ${a}f)`;
+  }
+  if (hex) {
+    return `Color(0xFF${hex})`;
+  }
+  return `Color(red = ${r}/255f, green = ${g}/255f, blue = ${b}/255f)`;
+}
+
+function toFlutterColor(colorStr: string | undefined): string {
+  if (!colorStr) return "Colors.transparent";
+  if (colorStr === "transparent") return "Colors.transparent";
+  const { r, g, b, a, isRgba, hex } = parseColorString(colorStr);
+  if (isRgba) {
+    return `Color.fromRGBO(${r}, ${g}, ${b}, ${a})`;
+  }
+  if (hex) {
+    return `Color(0xFF${hex})`;
+  }
+  return `Color.fromRGBO(${r}, ${g}, ${b}, 1.0)`;
+}
+
+function toRNColor(colorStr: string | undefined): string {
+  if (!colorStr) return "'transparent'";
+  if (colorStr === "transparent") return "'transparent'";
+  const { r, g, b, a, isRgba, hex } = parseColorString(colorStr);
+  if (isRgba) {
+    return `'rgba(${r}, ${g}, ${b}, ${a})'`;
+  }
+  if (hex) {
+    return `'#${hex}'`;
+  }
+  return `'rgb(${r}, ${g}, ${b})'`;
+}
+
+function extractParenthesesContent(str: string, functionName: string): string | null {
+  const idx = str.toLowerCase().indexOf(functionName.toLowerCase() + "(");
+  if (idx === -1) return null;
+  let depth = 0;
+  let contentStart = idx + functionName.length + 1;
+  for (let i = contentStart; i < str.length; i++) {
+    if (str[i] === "(") depth++;
+    else if (str[i] === ")") {
+      if (depth === 0) {
+        return str.substring(contentStart, i);
+      }
+      depth--;
+    }
+  }
+  return null;
+}
+
+function splitByCommasIgnoringParentheses(str: string): string[] {
+  const parts: string[] = [];
+  let current = "";
+  let depth = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str[i];
+    if (char === "(") depth++;
+    else if (char === ")") depth--;
+    
+    if (char === "," && depth === 0) {
+      parts.push(current.trim());
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  if (current) {
+    parts.push(current.trim());
+  }
+  return parts;
+}
+
+export function parseStyles(element: HTMLElement, varMap: Map<string, string>, cssRules?: CssRule[]): ParsedStyles {
   const classes = Array.from(element.classList);
   
+  // 1. Gather all declarations from matching stylesheet rules
+  const declarations = new Map<string, string>();
+  if (cssRules) {
+    for (const rule of cssRules) {
+      if (selectorMatchesElement(rule.selector, element)) {
+        for (const [key, val] of rule.declarations) {
+          declarations.set(key, val);
+        }
+      }
+    }
+  }
+  const inlineStyle = element.getAttribute("style");
+  if (inlineStyle) {
+    inlineStyle.split(";").forEach(rule => {
+      const parts = rule.split(":");
+      if (parts.length < 2) return;
+      const key = parts[0].trim().toLowerCase();
+      const val = parts.slice(1).join(":").trim();
+      if (key && val) {
+        declarations.set(key, val);
+      }
+    });
+  }
+
   // Default values
   let isFlex = classes.includes("flex") || 
                classes.some(c => c.startsWith("flex-") || c.startsWith("justify-") || c.startsWith("items-") || c.startsWith("gap-")) ||
@@ -271,15 +781,15 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>): 
   let height: string | number = "auto";
 
   let backgroundColor = "transparent";
-  let textColor = "#111827";
+  let textColor: string | undefined = undefined;
 
   let borderRadius = 0;
   let borderWidth = 0;
   let borderColor = "transparent";
 
-  let fontSize = 14;
-  let fontWeight: "normal" | "medium" | "semibold" | "bold" = "normal";
-  let textAlign: "left" | "center" | "right" = "left";
+  let fontSize: number | undefined = undefined;
+  let fontWeight: "normal" | "medium" | "semibold" | "bold" | undefined = undefined;
+  let textAlign: "left" | "center" | "right" | undefined = undefined;
 
   let shadow: string | null = null;
 
@@ -299,7 +809,7 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>): 
   let minHeight: string | number = "auto";
 
   // Gradient
-  let gradient: { direction: string; fromColor: string; toColor: string } | null = null;
+  let gradient: ParsedStyles["gradient"] = null;
 
   // Flex-1
   let hasFlex1 = false;
@@ -324,8 +834,86 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>): 
   let marginTopToken: string | undefined;
   let marginBottomToken: string | undefined;
 
+  let explicitTextColor = false;
+  let backdropFilterBlur = 0;
+  let filter: ParsedStyles["filter"] = undefined;
+
   // Resolve Drawgle Token classes first
   classes.forEach(c => {
+    // Text Color Scoping Flag
+    if (c.startsWith("text-") && !c.startsWith("text-[") && !/text-(xs|sm|base|lg|xl|2xl|3xl|left|center|right|justify)/.test(c)) {
+      explicitTextColor = true;
+    }
+    if (c.startsWith("dg-text-") || c === "dg-action-primary") {
+      explicitTextColor = true;
+    }
+
+    // Arbitrary Text Size Match
+    const textSizeMatch = c.match(/^text-\[(.+)\]$/);
+    if (textSizeMatch) {
+      const val = textSizeMatch[1];
+      const size = resolveArbitraryValue(val, varMap);
+      if (size > 0) {
+        fontSize = size;
+      }
+    }
+
+    // Arbitrary Font Weight Match
+    const fontWeightMatch = c.match(/^font-\[(.+)\]$/);
+    if (fontWeightMatch) {
+      const val = fontWeightMatch[1].trim();
+      const resolvedVal = val.startsWith("var(") ? resolveCssVariable(val, varMap) : val;
+      const num = parseInt(resolvedVal, 10);
+      if (!isNaN(num)) {
+        if (num >= 700) fontWeight = "bold";
+        else if (num >= 600) fontWeight = "semibold";
+        else if (num >= 500) fontWeight = "medium";
+        else fontWeight = "normal";
+      } else {
+        const cleanVal = resolvedVal.toLowerCase().replace(/['" ]/g, "");
+        if (cleanVal === "bold" || cleanVal === "700" || cleanVal === "800" || cleanVal === "900") fontWeight = "bold";
+        else if (cleanVal === "semibold" || cleanVal === "600") fontWeight = "semibold";
+        else if (cleanVal === "medium" || cleanVal === "500") fontWeight = "medium";
+        else if (cleanVal === "normal" || cleanVal === "400") fontWeight = "normal";
+      }
+    }
+
+    // Filter Tailwind Classes
+    const hueRotateMatch = c.match(/^(?:-)?hue-rotate-([0-9\.]+)$/);
+    if (hueRotateMatch) {
+      if (!filter) filter = {};
+      const isNegative = c.startsWith("-");
+      const deg = parseFloat(hueRotateMatch[1]);
+      filter.hueRotate = isNegative ? -deg : deg;
+    }
+    const brgMatch = c.match(/^brightness-([0-9\.]+)$/);
+    if (brgMatch) {
+      if (!filter) filter = {};
+      filter.brightness = parseFloat(brgMatch[1]) / 100;
+    }
+    const satMatch = c.match(/^saturate-([0-9\.]+)$/);
+    if (satMatch) {
+      if (!filter) filter = {};
+      filter.saturate = parseFloat(satMatch[1]) / 100;
+    }
+    const cntMatch = c.match(/^contrast-([0-9\.]+)$/);
+    if (cntMatch) {
+      if (!filter) filter = {};
+      filter.contrast = parseFloat(cntMatch[1]) / 100;
+    }
+    const blrMatch = c.match(/^blur(?:-([a-z0-9\.]+))?$/);
+    if (blrMatch) {
+      if (!filter) filter = {};
+      if (blrMatch[1] === "sm") filter.blur = 4;
+      else if (blrMatch[1] === "md") filter.blur = 8;
+      else if (blrMatch[1] === "lg") filter.blur = 12;
+      else if (blrMatch[1] === "xl") filter.blur = 16;
+      else if (blrMatch[1] === "2xl") filter.blur = 24;
+      else if (blrMatch[1] === "3xl") filter.blur = 40;
+      else if (blrMatch[1]) filter.blur = parseFloat(blrMatch[1]) || 8;
+      else filter.blur = 8;
+    }
+
     // Layout
     if (c === "flex-col") flexDirection = "column";
     if (c === "flex-row") flexDirection = "row";
@@ -556,8 +1144,10 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>): 
         textColor = TAILWIND_COLOR_MAP[col];
       } else if (col.startsWith("[var(")) {
         const varPart = col.substring(1, col.length - 1);
-        textColor = resolveCssVariable(varPart, varMap);
-        textColorToken = getStyleTokenKey(varPart);
+        if (!varPart.includes("-size") && !varPart.includes("-weight") && !varPart.includes("-line-height")) {
+          textColor = resolveCssVariable(varPart, varMap);
+          textColorToken = getStyleTokenKey(varPart);
+        }
       } else if (col.startsWith("[#")) {
         textColor = col.substring(1, col.length - 1);
       }
@@ -780,51 +1370,310 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>): 
   // Post-loop: Merge fixed position flags
   isFixedBottom = _hasFixedClass || element.tagName === "NAV" || element.tagName === "nav" || classes.includes("fixed");
 
-  // Parse inline style declarations as overriding attributes
-  const inlineStyle = element.getAttribute("style");
-  if (inlineStyle) {
-    const rules = inlineStyle.split(";");
-    rules.forEach(rule => {
-      const parts = rule.split(":");
-      if (parts.length < 2) return;
-      const key = parts[0].trim().toLowerCase();
-      const val = parts.slice(1).join(":").trim();
-
-      if (key === "flex" || key === "flex-grow") {
-        if (val.trim() === "1" || val.includes("1") || val === "grow") {
-          hasFlex1 = true;
+  // Parse gathered stylesheet + inline style declarations
+  declarations.forEach((val, key) => {
+    if (key === "display") {
+      const cleanVal = val.trim().toLowerCase();
+      if (cleanVal === "flex") {
+        isFlex = true;
+      } else if (cleanVal === "grid") {
+        isGrid = true;
+      }
+    }
+    if (key === "flex-direction") {
+      const cleanVal = val.trim().toLowerCase();
+      if (cleanVal === "row" || cleanVal === "row-reverse") {
+        flexDirection = "row";
+      } else if (cleanVal === "column" || cleanVal === "column-reverse") {
+        flexDirection = "column";
+      }
+    }
+    if (key === "grid-template-columns") {
+      const cleanVal = val.trim().toLowerCase();
+      isGrid = true;
+      const repeatMatch = cleanVal.match(/repeat\(\s*(\d+)\s*,/i);
+      if (repeatMatch) {
+        gridCols = parseInt(repeatMatch[1]);
+      } else {
+        const parts = cleanVal.split(/\s+/).filter(p => p !== "");
+        if (parts.length > 0) {
+          gridCols = parts.length;
         }
       }
-      if (key === "position") {
-        if (val === "fixed") _hasFixedClass = true;
-        else if (val === "absolute") isAbsolute = true;
+    }
+    if (key === "justify-content") {
+      const cleanVal = val.trim().toLowerCase();
+      if (cleanVal === "center") justifyContent = "center";
+      else if (cleanVal === "flex-end" || cleanVal === "end") justifyContent = "end";
+      else if (cleanVal === "space-between" || cleanVal === "between") justifyContent = "between";
+      else if (cleanVal === "space-around" || cleanVal === "around") justifyContent = "around";
+      else if (cleanVal === "flex-start" || cleanVal === "start") justifyContent = "start";
+    }
+    if (key === "align-items") {
+      const cleanVal = val.trim().toLowerCase();
+      if (cleanVal === "center") alignItems = "center";
+      else if (cleanVal === "flex-start" || cleanVal === "start") alignItems = "start";
+      else if (cleanVal === "flex-end" || cleanVal === "end") alignItems = "end";
+      else if (cleanVal === "stretch") alignItems = "stretch";
+    }
+    if (key === "flex" || key === "flex-grow") {
+      if (val === "1" || val.includes("1") || val === "grow") {
+        hasFlex1 = true;
       }
-      if (key === "bottom" && (val === "0" || val === "0px" || val === "0.0")) {
+    }
+    if (key === "position") {
+      if (val === "fixed") _hasFixedClass = true;
+      else if (val === "absolute") isAbsolute = true;
+    }
+    if (key === "bottom") {
+      if (val === "0" || val === "0px" || val === "0.0") {
         _hasBottom0 = true;
       }
-      if (key === "background-color" || key === "background") {
-        if (val.startsWith("#")) backgroundColor = val;
-        else if (val.startsWith("var(")) backgroundColor = resolveCssVariable(val, varMap);
+      if (!absolutePosition) absolutePosition = {};
+      absolutePosition.bottom = resolveArbitraryValue(val, varMap);
+      absolutePosition.bottomToken = getStyleTokenKey(val);
+    }
+    if (key === "top") {
+      if (!absolutePosition) absolutePosition = {};
+      absolutePosition.top = resolveArbitraryValue(val, varMap);
+      absolutePosition.topToken = getStyleTokenKey(val);
+    }
+    if (key === "left") {
+      if (!absolutePosition) absolutePosition = {};
+      absolutePosition.left = resolveArbitraryValue(val, varMap);
+      absolutePosition.leftToken = getStyleTokenKey(val);
+    }
+    if (key === "right") {
+      if (!absolutePosition) absolutePosition = {};
+      absolutePosition.right = resolveArbitraryValue(val, varMap);
+      absolutePosition.rightToken = getStyleTokenKey(val);
+    }
+    if (key === "background" || key === "background-image" || key === "background-color") {
+      const cleanVal = val.trim();
+      if (cleanVal.includes("gradient")) {
+        const isRepeating = cleanVal.toLowerCase().includes("repeating-");
+        const functionName = isRepeating ? "repeating-linear-gradient" : "linear-gradient";
+        const innerContent = extractParenthesesContent(cleanVal, functionName);
+        if (innerContent) {
+          const parts = splitByCommasIgnoringParentheses(innerContent);
+          let direction = "b";
+          let fromColor = "#FFFFFF";
+          let toColor = "#FFFFFF";
+          
+          const firstPart = parts[0].trim();
+          let colorStartIndex = 1;
+          if (firstPart.includes("deg") || firstPart.includes("to ")) {
+            if (firstPart.includes("45deg") || firstPart.includes("to top right") || firstPart.includes("to right top")) {
+              direction = "tr";
+            } else if (firstPart.includes("90deg") || firstPart.includes("to right")) {
+              direction = "r";
+            } else if (firstPart.includes("135deg") || firstPart.includes("to bottom right") || firstPart.includes("to right bottom")) {
+              direction = "br";
+            } else if (firstPart.includes("180deg") || firstPart.includes("to bottom")) {
+              direction = "b";
+            } else if (firstPart.includes("225deg") || firstPart.includes("to bottom left") || Math.abs(parseFloat(firstPart) - 225) < 5 || firstPart.includes("to left bottom")) {
+              direction = "bl";
+            } else if (firstPart.includes("270deg") || firstPart.includes("to left")) {
+              direction = "l";
+            } else if (firstPart.includes("315deg") || firstPart.includes("to top left") || firstPart.includes("to left top")) {
+              direction = "tl";
+            } else if (firstPart.includes("0deg") || firstPart.includes("to top")) {
+              direction = "t";
+            }
+          } else {
+            colorStartIndex = 0;
+          }
+          
+          const colorsList: string[] = [];
+          for (let j = colorStartIndex; j < parts.length; j++) {
+            const part = parts[j].trim();
+            const colMatch = part.match(/(#[0-9a-fA-F]{3,8}|rgba?\(.*?\)|var\([^)]+\)|transparent)/i);
+            if (colMatch) {
+              colorsList.push(colMatch[1]);
+            }
+          }
+          
+          if (colorsList.length >= 2) {
+            fromColor = resolveColorToStandard(colorsList[0], varMap);
+            toColor = resolveColorToStandard(colorsList[colorsList.length - 1], varMap);
+            gradient = { direction, fromColor, toColor, isRepeating };
+          }
+        }
+      } else if (cleanVal.startsWith("#")) {
+        backgroundColor = cleanVal;
+      } else if (cleanVal.startsWith("var(")) {
+        backgroundColor = resolveColorToStandard(cleanVal, varMap);
+        backgroundColorToken = getStyleTokenKey(cleanVal);
+      } else if (cleanVal.startsWith("rgba") || cleanVal.startsWith("rgb") || cleanVal.startsWith("color-mix")) {
+        backgroundColor = resolveColorToStandard(cleanVal, varMap);
+      } else {
+        backgroundColor = cleanVal;
       }
-      if (key === "color") {
-        if (val.startsWith("#")) textColor = val;
-        else if (val.startsWith("var(")) textColor = resolveCssVariable(val, varMap);
+    }
+    if (key === "color") {
+      explicitTextColor = true;
+      if (val.startsWith("#")) textColor = val;
+      else if (val.startsWith("var(")) {
+        textColor = resolveColorToStandard(val, varMap);
+        textColorToken = getStyleTokenKey(val);
+      } else if (val.startsWith("rgba") || val.startsWith("rgb") || val.startsWith("color-mix")) {
+        textColor = resolveColorToStandard(val, varMap);
+      } else {
+        textColor = val;
       }
-      if (key === "font-size") {
-        fontSize = parsePixel(val.endsWith("px") ? val : resolveCssVariable(val, varMap));
+    }
+    if (key === "font-size") {
+      const parsedSize = parsePixel(val.endsWith("px") ? val : resolveCssVariable(val, varMap));
+      if (parsedSize > 0) {
+        fontSize = parsedSize;
       }
-      if (key === "border-radius") {
-        borderRadius = parsePixel(val.endsWith("px") ? val : resolveCssVariable(val, varMap));
+    }
+    if (key === "font-weight") {
+      const cleanVal = val.trim().toLowerCase();
+      if (cleanVal === "bold" || cleanVal === "700" || cleanVal === "800" || cleanVal === "900") fontWeight = "bold";
+      else if (cleanVal === "semibold" || cleanVal === "600") fontWeight = "semibold";
+      else if (cleanVal === "medium" || cleanVal === "500") fontWeight = "medium";
+      else fontWeight = "normal";
+    }
+    if (key === "text-align") {
+      const cleanVal = val.trim().toLowerCase();
+      if (cleanVal === "center") textAlign = "center";
+      else if (cleanVal === "right") textAlign = "right";
+      else if (cleanVal === "left") textAlign = "left";
+    }
+    if (key === "border-radius") {
+      borderRadius = parsePixel(val.endsWith("px") ? val : resolveCssVariable(val, varMap));
+      if (val.startsWith("var(")) {
+        borderRadiusToken = getStyleTokenKey(val);
       }
-      if (key === "padding") {
-        const valPx = parsePixel(val);
-        padding.top = padding.right = padding.bottom = padding.left = valPx;
+    }
+    if (key === "padding") {
+      const parts = val.split(/\s+/).map(p => parsePixel(p));
+      if (parts.length === 1) {
+        padding.top = padding.right = padding.bottom = padding.left = parts[0];
+      } else if (parts.length === 2) {
+        padding.top = padding.bottom = parts[0];
+        padding.left = padding.right = parts[1];
+      } else if (parts.length === 4) {
+        padding.top = parts[0];
+        padding.right = parts[1];
+        padding.bottom = parts[2];
+        padding.left = parts[3];
       }
-      if (key === "gap") {
-        gap = parsePixel(val);
+    }
+    if (key === "padding-left") padding.left = parsePixel(val);
+    if (key === "padding-right") padding.right = parsePixel(val);
+    if (key === "padding-top") padding.top = parsePixel(val);
+    if (key === "padding-bottom") padding.bottom = parsePixel(val);
+
+    if (key === "margin") {
+      const parts = val.split(/\s+/).map(p => parsePixel(p));
+      if (parts.length === 1) {
+        margin.top = margin.right = margin.bottom = margin.left = parts[0];
+      } else if (parts.length === 2) {
+        margin.top = margin.bottom = parts[0];
+        margin.left = margin.right = parts[1];
+      } else if (parts.length === 4) {
+        margin.top = parts[0];
+        margin.right = parts[1];
+        margin.bottom = parts[2];
+        margin.left = parts[3];
       }
-    });
-  }
+    }
+    if (key === "margin-left") margin.left = parsePixel(val);
+    if (key === "margin-right") margin.right = parsePixel(val);
+    if (key === "margin-top") margin.top = parsePixel(val);
+    if (key === "margin-bottom") margin.bottom = parsePixel(val);
+
+    if (key === "gap") {
+      gap = parsePixel(val);
+      if (val.startsWith("var(")) {
+        gapToken = getStyleTokenKey(val);
+      }
+    }
+    if (key === "border") {
+      const borderMatch = val.match(/(\d+)px/);
+      if (borderMatch) borderWidth = parseFloat(borderMatch[1]);
+      const colorMatch = val.match(/(#[0-9a-fA-F]{3,8}|rgba?\(.*?\)|var\([^)]+\))/);
+      if (colorMatch) {
+        if (colorMatch[1].startsWith("var(")) {
+          borderColor = resolveColorToStandard(colorMatch[1], varMap);
+          borderColorToken = getStyleTokenKey(colorMatch[1]);
+        } else {
+          borderColor = resolveColorToStandard(colorMatch[1], varMap);
+        }
+      }
+    }
+    if (key === "border-width") {
+      borderWidth = parsePixel(val);
+    }
+    if (key === "border-color") {
+      borderColor = resolveColorToStandard(val, varMap);
+      if (val.startsWith("var(")) {
+        borderColorToken = getStyleTokenKey(val);
+      }
+    }
+    if (key === "width") {
+      const cleanVal = val.trim();
+      if (cleanVal === "100%" || cleanVal === "auto" || cleanVal === "fit-content") {
+        width = cleanVal;
+      } else {
+        width = resolveArbitraryValue(cleanVal, varMap) || cleanVal;
+      }
+    }
+    if (key === "height") {
+      const cleanVal = val.trim();
+      if (cleanVal === "100%" || cleanVal === "auto" || cleanVal === "fit-content") {
+        height = cleanVal;
+      } else {
+        height = resolveArbitraryValue(cleanVal, varMap) || cleanVal;
+      }
+    }
+    if (key === "min-height") {
+      const cleanVal = val.trim();
+      if (cleanVal.endsWith("%")) {
+        minHeight = cleanVal;
+      } else {
+        minHeight = resolveArbitraryValue(cleanVal, varMap);
+      }
+    }
+    if (key === "backdrop-filter" || key === "-webkit-backdrop-filter") {
+      const blurMatch = val.match(/blur\(([\d\.]+)(?:px)?\)/i);
+      if (blurMatch) {
+        backdropFilterBlur = parseFloat(blurMatch[1]);
+      }
+    }
+    if (key === "filter") {
+      const hueMatch = val.match(/hue-rotate\(([-\d\.]+)deg\)/i);
+      if (hueMatch) {
+        if (!filter) filter = {};
+        filter.hueRotate = parseFloat(hueMatch[1]);
+      }
+      const brightnessMatch = val.match(/brightness\(([\d\.]+)%?\)/i);
+      if (brightnessMatch) {
+        if (!filter) filter = {};
+        const rawVal = parseFloat(brightnessMatch[1]);
+        filter.brightness = val.includes("%") || rawVal > 10 ? rawVal / 100 : rawVal;
+      }
+      const saturateMatch = val.match(/saturate\(([\d\.]+)%?\)/i);
+      if (saturateMatch) {
+        if (!filter) filter = {};
+        const rawVal = parseFloat(saturateMatch[1]);
+        filter.saturate = val.includes("%") || rawVal > 10 ? rawVal / 100 : rawVal;
+      }
+      const contrastMatch = val.match(/contrast\(([\d\.]+)%?\)/i);
+      if (contrastMatch) {
+        if (!filter) filter = {};
+        const rawVal = parseFloat(contrastMatch[1]);
+        filter.contrast = val.includes("%") || rawVal > 10 ? rawVal / 100 : rawVal;
+      }
+      const blurMatch = val.match(/blur\(([\d\.]+)(?:px)?\)/i);
+      if (blurMatch) {
+        if (!filter) filter = {};
+        filter.blur = parseFloat(blurMatch[1]);
+      }
+    }
+  });
 
   if (isAbsolute) {
     const hasZIndex0OrNeg = classes.some(c => c === "z-0" || c === "z-[-1]" || c.startsWith("z-[-"));
@@ -833,6 +1682,14 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>): 
     if (hasZIndex0OrNeg || hasInset0 || isImg) {
       isBackgroundAbsolute = true;
     }
+  }
+
+  // Post-declarations validation: If display is flex or grid, and no column direction is explicitly set
+  // either by Tailwind classes or CSS declarations, default to row layout.
+  const hasExplicitCol = classes.includes("flex-col") || 
+                         (declarations.get("flex-direction")?.trim().toLowerCase().includes("column") ?? false);
+  if ((isFlex || isGrid) && !hasExplicitCol) {
+    flexDirection = "row";
   }
 
   return {
@@ -878,6 +1735,9 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>): 
     marginRightToken,
     marginTopToken,
     marginBottomToken,
+    explicitTextColor,
+    backdropFilterBlur,
+    filter,
   };
 }
 
@@ -919,7 +1779,7 @@ function getIconNameFromSvg(htmlElement: HTMLElement): string {
 }
 
 // Recursively builds the TranspileNode tree starting from an element
-export function buildTranspileTree(element: Element, varMap: Map<string, string>): TranspileNode | null {
+export function buildTranspileTree(element: Element, varMap: Map<string, string>, cssRules?: CssRule[]): TranspileNode | null {
   if (element.nodeType !== 1) return null; // Element node only
   const htmlElement = element as HTMLElement;
   const tagName = htmlElement.tagName.toLowerCase();
@@ -943,11 +1803,34 @@ export function buildTranspileTree(element: Element, varMap: Map<string, string>
     }
     // If no icon attribute exists, this is a raw/inline SVG — don't hallucinate an icon
 
-    const styles = parseStyles(htmlElement, varMap);
+    const styles = parseStyles(htmlElement, varMap, cssRules);
 
     // Mark raw SVGs (those without icon mappings) so transpilers emit placeholders
     if (!existingIcon) {
       styles.isRawSvg = true;
+    }
+
+    // Crawl child circle elements if any
+    const children: TranspileNode[] = [];
+    if (typeof htmlElement.getElementsByTagName === "function") {
+      const circles = htmlElement.getElementsByTagName("circle");
+      for (let i = 0; i < circles.length; i++) {
+        const circleNode = circles[i];
+        const circleStyles = parseStyles(circleNode as unknown as HTMLElement, varMap, cssRules);
+        const circleAttrs: Record<string, string> = {};
+        Array.from(circleNode.attributes).forEach(attr => {
+          circleAttrs[attr.name] = attr.value;
+        });
+        children.push({
+          tagName: "circle",
+          classes: Array.from(circleNode.classList),
+          id: circleNode.id || "",
+          styleText: circleNode.getAttribute("style") || "",
+          styles: circleStyles,
+          attributes: circleAttrs,
+          children: []
+        });
+      }
     }
 
     return {
@@ -957,7 +1840,7 @@ export function buildTranspileTree(element: Element, varMap: Map<string, string>
       styleText: htmlElement.getAttribute("style") || "",
       styles,
       attributes,
-      children: [], // leaf node, do not crawl SVG children
+      children,
     };
   }
 
@@ -974,7 +1857,7 @@ export function buildTranspileTree(element: Element, varMap: Map<string, string>
       const text = child.textContent?.trim();
       if (text) children.push(text);
     } else if (child.nodeType === 1) {
-      const parsedChild = buildTranspileTree(child as Element, varMap);
+      const parsedChild = buildTranspileTree(child as Element, varMap, cssRules);
       if (parsedChild) children.push(parsedChild);
     }
   });
@@ -1000,7 +1883,7 @@ export function buildTranspileTree(element: Element, varMap: Map<string, string>
     classes: Array.from(htmlElement.classList),
     id: htmlElement.id || "",
     styleText: htmlElement.getAttribute("style") || "",
-    styles: parseStyles(htmlElement, varMap),
+    styles: parseStyles(htmlElement, varMap, cssRules),
     attributes,
     children: prunedChildren,
   };
@@ -1023,7 +1906,24 @@ export function parseScreenHtml(htmlString: string, designTokens?: DesignTokens 
     varMap.set(v.name, v.value);
   });
 
-  return buildTranspileTree(root, varMap);
+  // Extract variables from style tags
+  const styleTags = doc.getElementsByTagName("style");
+  for (let i = 0; i < styleTags.length; i++) {
+    const text = styleTags[i].textContent || "";
+    const varMatches = text.matchAll(/(--[a-zA-Z0-9_-]+)\s*:\s*([^;}\n]+)/g);
+    for (const match of varMatches) {
+      varMap.set(match[1].trim(), match[2].trim());
+    }
+  }
+
+  const cssRules = parseCssStylesheet(doc);
+
+  const tree = buildTranspileTree(root, varMap, cssRules);
+  if (tree) {
+    cascadeInheritedStyles(tree);
+    postProcessAST(tree);
+  }
+  return tree;
 }
 
 // ---------------------------------------------------------------------------
@@ -1127,7 +2027,7 @@ function isRedundantWrapper(node: TranspileNode): boolean {
 // ---------------------------------------------------------------------------
 // TO-HEX CONVERTOR HELPER FOR NATIVE DEFS
 // ---------------------------------------------------------------------------
-function cleanHexColor(hex: string): string {
+function cleanHexColor(hex: string | undefined): string {
   if (!hex || hex === "transparent") return "FFFFFF"; // fallback without '#'
   if (hex.startsWith("var(--") || hex.includes("var(")) {
     if (hex.includes("border")) return "E5E7EB";
@@ -1198,6 +2098,123 @@ export function generateTokenHeaderComment(designTokens?: DesignTokens | null): 
 // ---------------------------------------------------------------------------
 // SWIFTUI TRANSPILER
 // ---------------------------------------------------------------------------
+function isColorDark(hex: string): boolean {
+  const clean = cleanHexColor(hex);
+  if (clean.length !== 6) return false;
+  const r = parseInt(clean.substring(0, 2), 16);
+  const g = parseInt(clean.substring(2, 4), 16);
+  const b = parseInt(clean.substring(4, 6), 16);
+  const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
+  return brightness < 130;
+}
+
+function getCssVarNameFromToken(token: string): string | undefined {
+  switch (token) {
+    case "bgPrimary": return "--dg-color-background-primary";
+    case "bgSecondary": return "--dg-color-background-secondary";
+    case "surfaceCard": return "--dg-color-surface-card";
+    case "actionPrimary": return "--dg-color-action-primary";
+    case "actionOnPrimary": return "--dg-color-action-on-primary-text";
+    case "textHigh": return "--dg-color-text-high-emphasis";
+    case "textMedium": return "--dg-color-text-medium-emphasis";
+    case "textLow": return "--dg-color-text-low-emphasis";
+    case "borderDivider": return "--dg-color-border-divider";
+    default: return undefined;
+  }
+}
+
+export function cascadeInheritedStyles(
+  node: TranspileNode,
+  inheritedTextColor?: string,
+  inheritedTextColorToken?: string,
+  inheritedFontSize?: number,
+  inheritedFontWeight?: "normal" | "medium" | "semibold" | "bold",
+  inheritedTextAlign?: "left" | "center" | "right"
+): void {
+  // 1. Inherit Text Color
+  if (node.styles.textColor === undefined && node.styles.textColorToken === undefined) {
+    if (inheritedTextColor !== undefined || inheritedTextColorToken !== undefined) {
+      node.styles.textColor = inheritedTextColor;
+      node.styles.textColorToken = inheritedTextColorToken;
+    }
+  }
+
+  // 2. Inherit Font Size
+  if (node.styles.fontSize === undefined && inheritedFontSize !== undefined) {
+    node.styles.fontSize = inheritedFontSize;
+  }
+
+  // 3. Inherit Font Weight
+  if (node.styles.fontWeight === undefined && inheritedFontWeight !== undefined) {
+    node.styles.fontWeight = inheritedFontWeight;
+  }
+
+  // 4. Inherit Text Align
+  if (node.styles.textAlign === undefined && inheritedTextAlign !== undefined) {
+    node.styles.textAlign = inheritedTextAlign;
+  }
+
+  // Resolve current effective values to cascade down
+  const currentTextColor = node.styles.textColor ?? inheritedTextColor;
+  const currentTextColorToken = node.styles.textColorToken ?? inheritedTextColorToken;
+  const currentFontSize = node.styles.fontSize ?? inheritedFontSize;
+  const currentFontWeight = node.styles.fontWeight ?? inheritedFontWeight;
+  const currentTextAlign = node.styles.textAlign ?? inheritedTextAlign;
+
+  node.children.forEach(child => {
+    if (typeof child !== "string") {
+      cascadeInheritedStyles(
+        child,
+        currentTextColor,
+        currentTextColorToken,
+        currentFontSize,
+        currentFontWeight,
+        currentTextAlign
+      );
+    }
+  });
+}
+
+export function postProcessAST(
+  node: TranspileNode,
+  parentIsGrid: boolean = false
+): void {
+  if (parentIsGrid) {
+    node.styles.hasFlex1 = true;
+    node.styles.width = "100%";
+  }
+
+  const isGrid = node.styles.isGrid && node.styles.gridCols > 0;
+  node.children.forEach(child => {
+    if (typeof child !== "string") {
+      postProcessAST(child, isGrid);
+    }
+  });
+}
+
+function generateSwiftUIFilters(styles: ParsedStyles, indent: string): string {
+  let out = "";
+  if (styles.filter) {
+    const { hueRotate, brightness, saturate, contrast, blur } = styles.filter;
+    if (hueRotate !== undefined) {
+      out += `${indent}.hueRotation(.degrees(${hueRotate}))\n`;
+    }
+    if (brightness !== undefined) {
+      out += `${indent}.brightness(${brightness - 1.0})\n`;
+    }
+    if (saturate !== undefined) {
+      out += `${indent}.saturation(${saturate})\n`;
+    }
+    if (contrast !== undefined) {
+      out += `${indent}.contrast(${contrast})\n`;
+    }
+    if (blur !== undefined) {
+      out += `${indent}.blur(radius: ${blur})\n`;
+    }
+  }
+  return out;
+}
+
 // Spacing/Color theme-aware helpers for Swift
 function toSwiftThemeToken(token: string | undefined, fallbackVal: string): string {
   if (!token) return fallbackVal;
@@ -1217,13 +2234,13 @@ export function transpileToSwiftUI(root: TranspileNode): string {
     return outCode;
   }
 
-  function walk(node: TranspileNode | string): string {
+  function walk(node: TranspileNode | string, parentStyles?: ParsedStyles): string {
     if (typeof node === "string") {
       return `${getIndent()}Text("${node.replace(/"/g, '\\"')}")\n`;
     }
 
     if (typeof node !== "string" && isRedundantWrapper(node)) {
-      return walk(node.children[0]);
+      return walk(node.children[0], parentStyles);
     }
 
     const { styles } = node;
@@ -1235,13 +2252,20 @@ export function transpileToSwiftUI(root: TranspileNode): string {
     
     // Lucide Icon — dynamic name conversion (works for ANY icon)
     if (lucide) {
-      out += `${getIndent()}Image(systemName: "${toSwiftSFSymbol(lucide)}") // Lucide: ${lucide}\n`;
-      out += `${getIndent()}    .font(.system(size: ${styles.fontSize || 20}))\n`;
-      if (styles.textColorToken) {
-        out += `${getIndent()}    .foregroundColor(${toSwiftThemeToken(styles.textColorToken, "")})\n`;
-      } else if (styles.textColor !== "transparent") {
-        out += `${getIndent()}    .foregroundColor(Color(hex: "#${cleanHexColor(styles.textColor)}"))\n`;
+      out += `${getIndent()}LucideView(icon: .${toSwiftCamelCase(lucide)}) // Lucide: ${lucide}\n`;
+      out += `${getIndent()}    .frame(width: ${styles.fontSize || 20}, height: ${styles.fontSize || 20})\n`;
+      
+      const hasDiffColor = !parentStyles || 
+                           parentStyles.textColor !== styles.textColor || 
+                           parentStyles.textColorToken !== styles.textColorToken;
+      if (styles.explicitTextColor && hasDiffColor) {
+        if (styles.textColorToken) {
+          out += `${getIndent()}    .foregroundColor(${toSwiftThemeToken(styles.textColorToken, "")})\n`;
+        } else if (styles.textColor && styles.textColor !== "transparent") {
+          out += `${getIndent()}    .foregroundColor(${toSwiftColor(styles.textColor)})\n`;
+        }
       }
+      out += generateSwiftUIFilters(styles, getIndent() + "    ");
       return wrapFlexIfNeeded(node, out, getIndent());
     }
 
@@ -1249,7 +2273,61 @@ export function transpileToSwiftUI(root: TranspileNode): string {
     if (styles.isRawSvg) {
       const svgW = typeof styles.width === 'number' ? styles.width : 48;
       const svgH = typeof styles.height === 'number' ? styles.height : 48;
+      
+      const circleChildren = node.children.filter(c => typeof c !== "string" && c.tagName === "circle") as TranspileNode[];
+      if (circleChildren.length > 0) {
+        let rotationDeg = 0;
+        const svgClasses = node.classes;
+        if (svgClasses.includes("-rotate-90")) {
+          rotationDeg = -90;
+        } else if (svgClasses.includes("rotate-90")) {
+          rotationDeg = 90;
+        }
+        
+        let svgOut = `${getIndent()}ZStack {\n`;
+        indentLevel++;
+        circleChildren.forEach(circle => {
+          const strokeWidth = parseFloat(circle.attributes["stroke-width"]) || 1;
+          const strokeColorStr = circle.attributes["stroke"] || "black";
+          const tokenKey = strokeColorStr.startsWith("var(") ? getStyleTokenKey(strokeColorStr) : undefined;
+          const strokeColor = tokenKey 
+            ? toSwiftThemeToken(tokenKey, "") 
+            : toSwiftColor(resolveColorToStandard(strokeColorStr));
+            
+          const strokeLinecap = circle.attributes["stroke-linecap"] === "round" ? ".round" : ".butt";
+          const dashArray = parseFloat(circle.attributes["stroke-dasharray"]) || 0;
+          const dashOffset = parseFloat(circle.attributes["stroke-dashoffset"]) || 0;
+          
+          let trimCode = "";
+          if (dashArray > 0 && dashOffset > 0) {
+            const progress = 1.0 - (dashOffset / dashArray);
+            const clampedProgress = Math.max(0, Math.min(1, progress));
+            trimCode = `.trim(from: 0, to: ${clampedProgress.toFixed(2)})`;
+          }
+          
+          svgOut += `${getIndent()}Circle()\n`;
+          if (trimCode) {
+            svgOut += `${getIndent()}    ${trimCode}\n`;
+          }
+          
+          if (strokeLinecap === ".round") {
+            svgOut += `${getIndent()}    .stroke(${strokeColor}, style: StrokeStyle(lineWidth: ${strokeWidth}, lineCap: .round))\n`;
+          } else {
+            svgOut += `${getIndent()}    .stroke(${strokeColor}, lineWidth: ${strokeWidth})\n`;
+          }
+          
+          if (rotationDeg !== 0) {
+            svgOut += `${getIndent()}    .rotationEffect(.degrees(${rotationDeg}))\n`;
+          }
+        });
+        indentLevel--;
+        svgOut += `${getIndent()}}\n`;
+        svgOut += `${getIndent()}.frame(width: ${svgW}, height: ${svgH})\n`;
+        return wrapFlexIfNeeded(node, svgOut, getIndent());
+      }
+      
       out += `${getIndent()}Color.clear.frame(width: ${svgW}, height: ${svgH}) // TODO: Add custom SVG/Asset here\n`;
+      out += generateSwiftUIFilters(styles, getIndent());
       return wrapFlexIfNeeded(node, out, getIndent());
     }
 
@@ -1276,6 +2354,7 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       } else if (styles.borderRadius > 0) {
         out += `${getIndent()}.cornerRadius(${styles.borderRadius})\n`;
       }
+      out += generateSwiftUIFilters(styles, getIndent());
       return wrapFlexIfNeeded(node, out, getIndent());
     }
 
@@ -1291,7 +2370,7 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       out += `${getIndent()}HStack(${stackCombo}) {\n`;
       indentLevel++;
       node.children.forEach(c => {
-        out += walk(c);
+        out += walk(c, styles);
       });
       indentLevel--;
       out += `${getIndent()}}\n`;
@@ -1302,10 +2381,19 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       out += `${getIndent()}.padding(.vertical, ${paddingY})\n`;
       out += `${getIndent()}.padding(.horizontal, ${paddingX})\n`;
       
-      if (styles.backgroundColorToken) {
-        out += `${getIndent()}.background(${toSwiftThemeToken(styles.backgroundColorToken, "")})\n`;
-      } else if (styles.backgroundColor !== "transparent") {
-        out += `${getIndent()}.background(Color(hex: "#${cleanHexColor(styles.backgroundColor)}"))\n`;
+      if (styles.backdropFilterBlur && styles.backdropFilterBlur > 0) {
+        if (styles.backgroundColorToken) {
+          out += `${getIndent()}.background(${toSwiftThemeToken(styles.backgroundColorToken, "")})\n`;
+        } else if (styles.backgroundColor !== "transparent") {
+          out += `${getIndent()}.background(${toSwiftColor(styles.backgroundColor)})\n`;
+        }
+        out += `${getIndent()}.background(.ultraThinMaterial)\n`;
+      } else {
+        if (styles.backgroundColorToken) {
+          out += `${getIndent()}.background(${toSwiftThemeToken(styles.backgroundColorToken, "")})\n`;
+        } else if (styles.backgroundColor !== "transparent") {
+          out += `${getIndent()}.background(${toSwiftColor(styles.backgroundColor)})\n`;
+        }
       }
       if (styles.borderRadiusToken) {
         out += `${getIndent()}.cornerRadius(${toSwiftThemeToken(styles.borderRadiusToken, "")})\n`;
@@ -1314,9 +2402,10 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       }
       if (styles.textColorToken) {
         out += `${getIndent()}.foregroundColor(${toSwiftThemeToken(styles.textColorToken, "")})\n`;
-      } else if (styles.textColor !== "transparent") {
-        out += `${getIndent()}.foregroundColor(Color(hex: "#${cleanHexColor(styles.textColor)}"))\n`;
+      } else if (styles.textColor && styles.textColor !== "transparent") {
+        out += `${getIndent()}.foregroundColor(${toSwiftColor(styles.textColor)})\n`;
       }
+      out += generateSwiftUIFilters(styles, getIndent());
       indentLevel--;
       out += `${getIndent()}}\n`;
       return wrapFlexIfNeeded(node, out, getIndent());
@@ -1329,19 +2418,39 @@ export function transpileToSwiftUI(root: TranspileNode): string {
     if (isTextLeaf) {
       const textVal = node.children[0] as string;
       out += `${getIndent()}Text("${textVal.replace(/"/g, '\\"')}")\n`;
-      if (styles.fontSize > 0) {
+      if (styles.fontSize !== undefined) {
         out += `${getIndent()}    .font(.system(size: ${styles.fontSize}))\n`;
       }
-      if (styles.fontWeight === "bold" || styles.fontWeight === "semibold") {
-        out += `${getIndent()}    .fontWeight(.semibold)\n`;
+      if (styles.fontWeight !== undefined) {
+        if (styles.fontWeight === "bold") {
+          out += `${getIndent()}    .fontWeight(.bold)\n`;
+        } else if (styles.fontWeight === "semibold") {
+          out += `${getIndent()}    .fontWeight(.semibold)\n`;
+        } else if (styles.fontWeight === "medium") {
+          out += `${getIndent()}    .fontWeight(.medium)\n`;
+        } else if (styles.fontWeight === "normal") {
+          out += `${getIndent()}    .fontWeight(.regular)\n`;
+        }
       }
-      if (styles.textColorToken) {
-        out += `${getIndent()}    .foregroundColor(${toSwiftThemeToken(styles.textColorToken, "")})\n`;
-      } else if (styles.textColor !== "transparent") {
-        out += `${getIndent()}    .foregroundColor(Color(hex: "#${cleanHexColor(styles.textColor)}"))\n`;
+      
+      const hasDiffColor = !parentStyles || 
+                           parentStyles.textColor !== styles.textColor || 
+                           parentStyles.textColorToken !== styles.textColorToken;
+      if (styles.explicitTextColor && hasDiffColor) {
+        if (styles.textColorToken) {
+          out += `${getIndent()}    .foregroundColor(${toSwiftThemeToken(styles.textColorToken, "")})\n`;
+        } else if (styles.textColor && styles.textColor !== "transparent") {
+          out += `${getIndent()}    .foregroundColor(${toSwiftColor(styles.textColor)})\n`;
+        }
       }
-      if (styles.textAlign === "center") {
-        out += `${getIndent()}    .multilineTextAlignment(.center)\n`;
+      if (styles.textAlign !== undefined) {
+        if (styles.textAlign === "center") {
+          out += `${getIndent()}    .multilineTextAlignment(.center)\n`;
+        } else if (styles.textAlign === "right") {
+          out += `${getIndent()}    .multilineTextAlignment(.trailing)\n`;
+        } else if (styles.textAlign === "left") {
+          out += `${getIndent()}    .multilineTextAlignment(.leading)\n`;
+        }
       }
       
       // Handle margin
@@ -1349,6 +2458,7 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       const mb = styles.marginBottomToken ? toSwiftThemeToken(styles.marginBottomToken, "") : String(styles.margin.bottom);
       if (styles.margin.top > 0 || styles.marginTopToken) out += `${getIndent()}    .padding(.top, ${mt})\n`;
       if (styles.margin.bottom > 0 || styles.marginBottomToken) out += `${getIndent()}    .padding(.bottom, ${mb})\n`;
+      out += generateSwiftUIFilters(styles, getIndent() + "    ");
       return wrapFlexIfNeeded(node, out, getIndent());
     }
 
@@ -1358,12 +2468,25 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       if (styles.backgroundColorToken) {
         baseColor = toSwiftThemeToken(styles.backgroundColorToken, "");
       } else if (styles.backgroundColor !== "transparent") {
-        baseColor = `Color(hex: "#${cleanHexColor(styles.backgroundColor)}")`;
+        baseColor = toSwiftColor(styles.backgroundColor);
       }
       
-      out += `${getIndent()}${baseColor}\n`;
+      const fillCol = styles.gradient ? "Color.clear" : baseColor;
+      
+      if (fillCol === "Color.clear") {
+        if (styles.gradient || styles.isAbsolute) {
+          out += `${getIndent()}Rectangle().fill(Color.clear)\n`;
+        } else if (styles.hasFlex1 || styles.width === "100%") {
+          out += `${getIndent()}Spacer()\n`;
+          return out;
+        } else {
+          out += `${getIndent()}Color.clear\n`;
+        }
+      } else {
+        out += `${getIndent()}Rectangle().fill(${fillCol})\n`;
+      }
 
-      // Apply modifiers directly to the Color view
+      // Apply modifiers directly to the view
       const pt = styles.paddingTopToken ? toSwiftThemeToken(styles.paddingTopToken, "") : String(styles.padding.top);
       const pb = styles.paddingBottomToken ? toSwiftThemeToken(styles.paddingBottomToken, "") : String(styles.padding.bottom);
       const pl = styles.paddingLeftToken ? toSwiftThemeToken(styles.paddingLeftToken, "") : String(styles.padding.left);
@@ -1380,9 +2503,17 @@ export function transpileToSwiftUI(root: TranspileNode): string {
         if (styles.padding.right > 0 || styles.paddingRightToken) out += `${getIndent()}.padding(.trailing, ${pr})\n`;
       }
 
-      if (styles.gradient && styles.gradient.fromColor && styles.gradient.toColor) {
-        const { start, end } = gradientDirectionToSwift(styles.gradient.direction);
-        out += `${getIndent()}.background(LinearGradient(gradient: Gradient(colors: [Color(hex: "#${cleanHexColor(styles.gradient.fromColor)}"), Color(hex: "#${cleanHexColor(styles.gradient.toColor)}")]), startPoint: ${start}, endPoint: ${end}))\n`;
+      if (styles.backdropFilterBlur && styles.backdropFilterBlur > 0) {
+        if (styles.backgroundColorToken) {
+          out += `${getIndent()}.background(${toSwiftThemeToken(styles.backgroundColorToken, "")})\n`;
+        } else if (styles.backgroundColor !== "transparent") {
+          out += `${getIndent()}.background(${toSwiftColor(styles.backgroundColor)})\n`;
+        }
+        out += `${getIndent()}.background(.ultraThinMaterial)\n`;
+      } else {
+        if (styles.gradient && styles.gradient.fromColor && styles.gradient.toColor) {
+          out += toSwiftBackgroundGradient(styles, getIndent(), baseColor);
+        }
       }
 
       if (styles.borderRadiusToken) {
@@ -1392,7 +2523,7 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       }
 
       if (styles.borderWidth > 0 && styles.borderColor !== 'transparent') {
-        const borderCol = styles.borderColorToken ? toSwiftThemeToken(styles.borderColorToken, '') : `Color(hex: "#${cleanHexColor(styles.borderColor)}")`;
+        const borderCol = styles.borderColorToken ? toSwiftThemeToken(styles.borderColorToken, '') : toSwiftColor(styles.borderColor);
         if (styles.borderRadiusToken || styles.borderRadius > 0) {
           const radius = styles.borderRadiusToken ? toSwiftThemeToken(styles.borderRadiusToken, '') : String(styles.borderRadius);
           out += `${getIndent()}.overlay(RoundedRectangle(cornerRadius: ${radius}).stroke(${borderCol}, lineWidth: ${styles.borderWidth}))\n`;
@@ -1428,6 +2559,7 @@ export function transpileToSwiftUI(root: TranspileNode): string {
         }
       }
 
+      out += generateSwiftUIFilters(styles, getIndent());
       return out;
     }
 
@@ -1436,23 +2568,40 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       const spacing = styles.gapToken ? toSwiftThemeToken(styles.gapToken, '') : String(styles.gap);
       out += `${getIndent()}LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: ${spacing}), count: ${styles.gridCols}), spacing: ${spacing}) {\n`;
       indentLevel++;
-      node.children.forEach(c => { out += walk(c); });
+      node.children.forEach(c => { out += walk(c, styles); });
       indentLevel--;
       out += `${getIndent()}}\n`;
       // Grid modifiers
-      if (styles.gradient && styles.gradient.fromColor && styles.gradient.toColor) {
-        const { start, end } = gradientDirectionToSwift(styles.gradient.direction);
-        out += `${getIndent()}.background(LinearGradient(gradient: Gradient(colors: [Color(hex: "#${cleanHexColor(styles.gradient.fromColor)}"), Color(hex: "#${cleanHexColor(styles.gradient.toColor)}")]), startPoint: ${start}, endPoint: ${end}))\n`;
-      } else if (styles.backgroundColorToken) {
-        out += `${getIndent()}.background(${toSwiftThemeToken(styles.backgroundColorToken, '')})\n`;
-      } else if (styles.backgroundColor !== 'transparent') {
-        out += `${getIndent()}.background(Color(hex: "#${cleanHexColor(styles.backgroundColor)}"))\n`;
+      if (styles.backdropFilterBlur && styles.backdropFilterBlur > 0) {
+        if (styles.backgroundColorToken) {
+          out += `${getIndent()}.background(${toSwiftThemeToken(styles.backgroundColorToken, "")})\n`;
+        } else if (styles.backgroundColor !== "transparent") {
+          out += `${getIndent()}.background(${toSwiftColor(styles.backgroundColor)})\n`;
+        }
+        out += `${getIndent()}.background(.ultraThinMaterial)\n`;
+      } else {
+        if (styles.gradient && styles.gradient.fromColor && styles.gradient.toColor) {
+          const baseCol = styles.backgroundColorToken ? toSwiftThemeToken(styles.backgroundColorToken, "") : (styles.backgroundColor !== "transparent" ? toSwiftColor(styles.backgroundColor) : "Color.clear");
+          out += toSwiftBackgroundGradient(styles, getIndent(), baseCol);
+        } else if (styles.backgroundColorToken) {
+          out += `${getIndent()}.background(${toSwiftThemeToken(styles.backgroundColorToken, '')})\n`;
+        } else if (styles.backgroundColor !== 'transparent') {
+          out += `${getIndent()}.background(${toSwiftColor(styles.backgroundColor)})\n`;
+        }
       }
       if (styles.borderRadiusToken) {
         out += `${getIndent()}.cornerRadius(${toSwiftThemeToken(styles.borderRadiusToken, '')})\n`;
       } else if (styles.borderRadius > 0) {
         out += `${getIndent()}.cornerRadius(${styles.borderRadius})\n`;
       }
+      if (styles.explicitTextColor) {
+        if (styles.textColorToken) {
+          out += `${getIndent()}.foregroundColor(${toSwiftThemeToken(styles.textColorToken, "")})\n`;
+        } else if (styles.textColor && styles.textColor !== "transparent") {
+          out += `${getIndent()}.foregroundColor(${toSwiftColor(styles.textColor)})\n`;
+        }
+      }
+      out += generateSwiftUIFilters(styles, getIndent());
       return wrapFlexIfNeeded(node, out, getIndent());
     }
 
@@ -1460,7 +2609,7 @@ export function transpileToSwiftUI(root: TranspileNode): string {
     const isCol = styles.flexDirection === "column";
     const stackName = isCol ? "VStack" : "HStack";
     const alignStr = isCol 
-      ? (styles.alignItems === "start" ? "alignment: .leading" : styles.alignItems === "end" ? "alignment: .trailing" : "")
+      ? (styles.alignItems === "center" ? "alignment: .center" : styles.alignItems === "end" ? "alignment: .trailing" : "alignment: .leading")
       : (styles.alignItems === "start" ? "alignment: .top" : styles.alignItems === "end" ? "alignment: .bottom" : "");
     const spacingStr = styles.gapToken
       ? `spacing: ${toSwiftThemeToken(styles.gapToken, "")}`
@@ -1480,14 +2629,14 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       
       // 1. Paint background absolute children FIRST (bottom of ZStack painting hierarchy)
       bgAbsoluteChildren.forEach(c => {
-        out += walk(c);
+        out += walk(c, styles);
       });
 
       // 2. Paint normal children inside stack
       out += `${getIndent()}${stackName}(${combo}) {\n`;
       indentLevel++;
       normalChildren.forEach((c, idx) => {
-        out += walk(c);
+        out += walk(c, styles);
         if (styles.justifyContent === "between" && idx < normalChildren.length - 1) {
           out += `${getIndent()}Spacer()\n`;
         }
@@ -1497,7 +2646,7 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       
       // 3. Paint foreground absolute children LAST (top of ZStack painting hierarchy)
       fgAbsoluteChildren.forEach(c => {
-        out += walk(c);
+        out += walk(c, styles);
       });
       
       indentLevel--;
@@ -1506,7 +2655,7 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       out += `${getIndent()}${stackName}(${combo}) {\n`;
       indentLevel++;
       normalChildren.forEach((c, idx) => {
-        out += walk(c);
+        out += walk(c, styles);
         if (styles.justifyContent === "between" && idx < normalChildren.length - 1) {
           out += `${getIndent()}Spacer()\n`;
         }
@@ -1533,13 +2682,22 @@ export function transpileToSwiftUI(root: TranspileNode): string {
     }
 
     // Background — with gradient support
-    if (styles.gradient && styles.gradient.fromColor && styles.gradient.toColor) {
-      const { start, end } = gradientDirectionToSwift(styles.gradient.direction);
-      out += `${getIndent()}.background(LinearGradient(gradient: Gradient(colors: [Color(hex: "#${cleanHexColor(styles.gradient.fromColor)}"), Color(hex: "#${cleanHexColor(styles.gradient.toColor)}")]), startPoint: ${start}, endPoint: ${end}))\n`;
-    } else if (styles.backgroundColorToken) {
-      out += `${getIndent()}.background(${toSwiftThemeToken(styles.backgroundColorToken, "")})\n`;
-    } else if (styles.backgroundColor !== "transparent") {
-      out += `${getIndent()}.background(Color(hex: "#${cleanHexColor(styles.backgroundColor)}"))\n`;
+    if (styles.backdropFilterBlur && styles.backdropFilterBlur > 0) {
+      if (styles.backgroundColorToken) {
+        out += `${getIndent()}.background(${toSwiftThemeToken(styles.backgroundColorToken, "")})\n`;
+      } else if (styles.backgroundColor !== "transparent") {
+        out += `${getIndent()}.background(${toSwiftColor(styles.backgroundColor)})\n`;
+      }
+      out += `${getIndent()}.background(.ultraThinMaterial)\n`;
+    } else {
+      if (styles.gradient && styles.gradient.fromColor && styles.gradient.toColor) {
+        const baseCol = styles.backgroundColorToken ? toSwiftThemeToken(styles.backgroundColorToken, "") : (styles.backgroundColor !== "transparent" ? toSwiftColor(styles.backgroundColor) : "Color.clear");
+        out += toSwiftBackgroundGradient(styles, getIndent(), baseCol);
+      } else if (styles.backgroundColorToken) {
+        out += `${getIndent()}.background(${toSwiftThemeToken(styles.backgroundColorToken, "")})\n`;
+      } else if (styles.backgroundColor !== "transparent") {
+        out += `${getIndent()}.background(${toSwiftColor(styles.backgroundColor)})\n`;
+      }
     }
     if (styles.borderRadiusToken) {
       out += `${getIndent()}.cornerRadius(${toSwiftThemeToken(styles.borderRadiusToken, "")})\n`;
@@ -1549,7 +2707,7 @@ export function transpileToSwiftUI(root: TranspileNode): string {
 
     // Border overlay
     if (styles.borderWidth > 0 && styles.borderColor !== 'transparent') {
-      const borderCol = styles.borderColorToken ? toSwiftThemeToken(styles.borderColorToken, '') : `Color(hex: "#${cleanHexColor(styles.borderColor)}")`;
+      const borderCol = styles.borderColorToken ? toSwiftThemeToken(styles.borderColorToken, '') : toSwiftColor(styles.borderColor);
       if (styles.borderRadiusToken || styles.borderRadius > 0) {
         const radius = styles.borderRadiusToken ? toSwiftThemeToken(styles.borderRadiusToken, '') : String(styles.borderRadius);
         out += `${getIndent()}.overlay(RoundedRectangle(cornerRadius: ${radius}).stroke(${borderCol}, lineWidth: ${styles.borderWidth}))\n`;
@@ -1573,6 +2731,14 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       out += `${getIndent()}.frame(${frameParts.join(", ")})\n`;
     }
 
+    if (styles.explicitTextColor) {
+      if (styles.textColorToken) {
+        out += `${getIndent()}.foregroundColor(${toSwiftThemeToken(styles.textColorToken, "")})\n`;
+      } else if (styles.textColor && styles.textColor !== "transparent") {
+        out += `${getIndent()}.foregroundColor(${toSwiftColor(styles.textColor)})\n`;
+      }
+    }
+
     // Absolute position modifier
     if (styles.isAbsolute && styles.absolutePosition) {
       const { top, right, bottom, left, topToken, rightToken, bottomToken, leftToken } = styles.absolutePosition;
@@ -1587,6 +2753,7 @@ export function transpileToSwiftUI(root: TranspileNode): string {
         out += `${getIndent()}.offset(${offsetPart})\n`;
       }
     }
+    out += generateSwiftUIFilters(styles, getIndent());
 
     return out;
   }
@@ -1627,7 +2794,7 @@ export function transpileToCompose(root: TranspileNode): string {
     let out = "";
 
     if (lucide) {
-      const tintColor = styles.textColorToken ? toComposeThemeToken(styles.textColorToken, "") : `Color(0xFF${cleanHexColor(styles.textColor)})`;
+      const tintColor = styles.textColorToken ? toComposeThemeToken(styles.textColorToken, "") : toComposeColor(styles.textColor);
       out += `${getIndent()}Icon(\n`;
       out += `${getIndent()}    imageVector = ${toComposeIconName(lucide)}, // Lucide: ${lucide}\n`;
       out += `${getIndent()}    contentDescription = null,\n`;
@@ -1639,8 +2806,51 @@ export function transpileToCompose(root: TranspileNode): string {
 
     // Raw SVG placeholder
     if (styles.isRawSvg) {
-      const svgSize = typeof styles.width === 'number' ? styles.width : 48;
-      out += `${getIndent()}Box(modifier = Modifier.size(${svgSize}.dp)${styles.hasFlex1 ? '.weight(1f)' : ''}) { /* TODO: Add custom SVG/Asset */ }\n`;
+      const svgW = typeof styles.width === 'number' ? styles.width : 48;
+      const svgH = typeof styles.height === 'number' ? styles.height : 48;
+      
+      const circleChildren = node.children.filter(c => typeof c !== "string" && c.tagName === "circle") as TranspileNode[];
+      if (circleChildren.length > 0) {
+        let svgOut = `${getIndent()}Box(\n`;
+        svgOut += `${getIndent()}    contentAlignment = Alignment.Center,\n`;
+        svgOut += `${getIndent()}    modifier = Modifier.size(${svgW}.dp)\n`;
+        svgOut += `${getIndent()}) {\n`;
+        indentLevel++;
+        circleChildren.forEach(circle => {
+          const strokeWidth = parseFloat(circle.attributes["stroke-width"]) || 1;
+          const strokeColorStr = circle.attributes["stroke"] || "black";
+          const tokenKey = strokeColorStr.startsWith("var(") ? getStyleTokenKey(strokeColorStr) : undefined;
+          const strokeColor = tokenKey 
+            ? toComposeThemeToken(tokenKey, "") 
+            : toComposeColor(resolveColorToStandard(strokeColorStr));
+            
+          const strokeLinecap = circle.attributes["stroke-linecap"] === "round" ? "StrokeCap.Round" : "StrokeCap.Butt";
+          const dashArray = parseFloat(circle.attributes["stroke-dasharray"]) || 0;
+          const dashOffset = parseFloat(circle.attributes["stroke-dashoffset"]) || 0;
+          
+          let progress = 1.0;
+          if (dashArray > 0) {
+            progress = 1.0 - (dashOffset / dashArray);
+            if (progress < 0) progress = 0;
+            if (progress > 1) progress = 1;
+          }
+          
+          svgOut += `${getIndent()}CircularProgressIndicator(\n`;
+          svgOut += `${getIndent()}    progress = ${progress.toFixed(2)}f,\n`;
+          svgOut += `${getIndent()}    color = ${strokeColor},\n`;
+          svgOut += `${getIndent()}    strokeWidth = ${strokeWidth}.dp,\n`;
+          if (strokeLinecap === "StrokeCap.Round") {
+            svgOut += `${getIndent()}    strokeCap = StrokeCap.Round,\n`;
+          }
+          svgOut += `${getIndent()}    modifier = Modifier.fillMaxSize()\n`;
+          svgOut += `${getIndent()})\n`;
+        });
+        indentLevel--;
+        svgOut += `${getIndent()}}\n`;
+        return svgOut;
+      }
+      
+      out += `${getIndent()}Box(modifier = Modifier.size(${svgW}.dp)${styles.hasFlex1 ? '.weight(1f)' : ''}) { /* TODO: Add custom SVG/Asset */ }\n`;
       return out;
     }
 
@@ -1707,16 +2917,32 @@ export function transpileToCompose(root: TranspileNode): string {
 
     if (isTextLeaf) {
       const textVal = node.children[0] as string;
-      const textTint = styles.textColorToken ? toComposeThemeToken(styles.textColorToken, "") : `Color(0xFF${cleanHexColor(styles.textColor)})`;
       out += `${getIndent()}Text(\n`;
       out += `${getIndent()}    text = "${textVal.replace(/"/g, '\\"')}",\n`;
-      out += `${getIndent()}    fontSize = ${styles.fontSize}.sp,\n`;
-      out += `${getIndent()}    color = ${textTint},\n`;
-      if (styles.fontWeight === "bold" || styles.fontWeight === "semibold") {
-        out += `${getIndent()}    fontWeight = FontWeight.Bold,\n`;
+      if (styles.fontSize !== undefined) {
+        out += `${getIndent()}    fontSize = ${styles.fontSize}.sp,\n`;
       }
-      if (styles.textAlign === "center") {
-        out += `${getIndent()}    textAlign = TextAlign.Center,\n`;
+      if (styles.textColorToken || (styles.textColor && styles.textColor !== "transparent")) {
+        const textTint = styles.textColorToken ? toComposeThemeToken(styles.textColorToken, "") : toComposeColor(styles.textColor);
+        out += `${getIndent()}    color = ${textTint},\n`;
+      }
+      if (styles.fontWeight !== undefined) {
+        if (styles.fontWeight === "bold" || styles.fontWeight === "semibold") {
+          out += `${getIndent()}    fontWeight = FontWeight.Bold,\n`;
+        } else if (styles.fontWeight === "medium") {
+          out += `${getIndent()}    fontWeight = FontWeight.Medium,\n`;
+        } else {
+          out += `${getIndent()}    fontWeight = FontWeight.Normal,\n`;
+        }
+      }
+      if (styles.textAlign !== undefined) {
+        if (styles.textAlign === "center") {
+          out += `${getIndent()}    textAlign = TextAlign.Center,\n`;
+        } else if (styles.textAlign === "right") {
+          out += `${getIndent()}    textAlign = TextAlign.Right,\n`;
+        } else if (styles.textAlign === "left") {
+          out += `${getIndent()}    textAlign = TextAlign.Left,\n`;
+        }
       }
       
       // Modifier spacing
@@ -1785,16 +3011,16 @@ export function transpileToCompose(root: TranspileNode): string {
     // Background — with gradient support
     if (styles.gradient && styles.gradient.fromColor && styles.gradient.toColor) {
       const { start, end } = gradientDirectionToCompose(styles.gradient.direction);
-      stackModifier += `\n        .background(Brush.linearGradient(colors = listOf(Color(0xFF${cleanHexColor(styles.gradient.fromColor)}), Color(0xFF${cleanHexColor(styles.gradient.toColor)})), start = ${start}, end = ${end}))`;
+      stackModifier += `\n        .background(Brush.linearGradient(colors = listOf(${toComposeColor(styles.gradient.fromColor)}, ${toComposeColor(styles.gradient.toColor)}), start = ${start}, end = ${end}))`;
     } else if (styles.backgroundColorToken) {
       stackModifier += `\n        .background(${toComposeThemeToken(styles.backgroundColorToken, "")})`;
     } else if (styles.backgroundColor !== "transparent") {
-      stackModifier += `\n        .background(Color(0xFF${cleanHexColor(styles.backgroundColor)}))`;
+      stackModifier += `\n        .background(${toComposeColor(styles.backgroundColor)})`;
     }
 
     // Border overlay
     if (styles.borderWidth > 0 && styles.borderColor !== 'transparent') {
-      const borderCol = styles.borderColorToken ? toComposeThemeToken(styles.borderColorToken, '') : `Color(0xFF${cleanHexColor(styles.borderColor)})`;
+      const borderCol = styles.borderColorToken ? toComposeThemeToken(styles.borderColorToken, '') : toComposeColor(styles.borderColor);
       if (styles.borderRadiusToken || styles.borderRadius > 0) {
         const radius = styles.borderRadiusToken ? toComposeThemeToken(styles.borderRadiusToken, '') : `${styles.borderRadius}.dp`;
         stackModifier += `\n        .border(${styles.borderWidth}.dp, ${borderCol}, RoundedCornerShape(${radius}))`;
@@ -2109,7 +3335,6 @@ export function transpileToReactNative(root: TranspileNode): string {
 
     if (isTextLeaf) {
       const textVal = node.children[0] as string;
-      const textTint = styles.textColorToken ? toRNThemeToken(styles.textColorToken, "") : `'${styles.textColor}'`;
       out += `${getIndent()}<Text style={{\n`;
       if (isGridChildOfCols && isGridChildOfCols > 0) {
         out += `${getIndent()}  width: '${widthPercent}',\n`;
@@ -2124,13 +3349,30 @@ export function transpileToReactNative(root: TranspileNode): string {
           if (left !== undefined || leftToken) out += `${getIndent()}  left: ${leftToken ? toRNThemeToken(leftToken, "") : left},\n`;
         }
       }
-      out += `${getIndent()}  fontSize: ${styles.fontSize},\n`;
-      out += `${getIndent()}  color: ${textTint},\n`;
-      if (styles.fontWeight === "bold" || styles.fontWeight === "semibold") {
-        out += `${getIndent()}  fontWeight: 'bold',\n`;
+      if (styles.fontSize !== undefined) {
+        out += `${getIndent()}  fontSize: ${styles.fontSize},\n`;
       }
-      if (styles.textAlign === "center") {
-        out += `${getIndent()}  textAlign: 'center',\n`;
+      if (styles.textColorToken || (styles.textColor && styles.textColor !== "transparent")) {
+        const textTint = styles.textColorToken ? toRNThemeToken(styles.textColorToken, "") : `'${styles.textColor}'`;
+        out += `${getIndent()}  color: ${textTint},\n`;
+      }
+      if (styles.fontWeight !== undefined) {
+        if (styles.fontWeight === "bold" || styles.fontWeight === "semibold") {
+          out += `${getIndent()}  fontWeight: 'bold',\n`;
+        } else if (styles.fontWeight === "medium") {
+          out += `${getIndent()}  fontWeight: '500',\n`;
+        } else {
+          out += `${getIndent()}  fontWeight: 'normal',\n`;
+        }
+      }
+      if (styles.textAlign !== undefined) {
+        if (styles.textAlign === "center") {
+          out += `${getIndent()}  textAlign: 'center',\n`;
+        } else if (styles.textAlign === "right") {
+          out += `${getIndent()}  textAlign: 'right',\n`;
+        } else if (styles.textAlign === "left") {
+          out += `${getIndent()}  textAlign: 'left',\n`;
+        }
       }
       
       const mt = styles.marginTopToken ? toRNThemeToken(styles.marginTopToken, "") : String(styles.margin.top);
@@ -2158,13 +3400,12 @@ export function transpileToReactNative(root: TranspileNode): string {
     // View component in React Native
     const hasGradient = styles.gradient && styles.gradient.fromColor && styles.gradient.toColor;
     const tag = hasGradient ? "LinearGradient" : "View";
-
     if (hasGradient) {
       const { start, end } = gradientDirectionToRN(styles.gradient!.direction);
-      const color1 = `#${cleanHexColor(styles.gradient!.fromColor)}`;
-      const color2 = `#${cleanHexColor(styles.gradient!.toColor)}`;
+      const color1 = toRNColor(styles.gradient!.fromColor);
+      const color2 = toRNColor(styles.gradient!.toColor);
       out += `${getIndent()}<LinearGradient\n`;
-      out += `${getIndent()}  colors={['${color1}', '${color2}']}\n`;
+      out += `${getIndent()}  colors={[${color1}, ${color2}]}\n`;
       out += `${getIndent()}  start={{ x: ${start.x}, y: ${start.y} }}\n`;
       out += `${getIndent()}  end={{ x: ${end.x}, y: ${end.y} }}\n`;
       out += `${getIndent()}  style={{\n`;
@@ -2337,15 +3578,61 @@ export function transpileToFlutter(root: TranspileNode): string {
     let out = "";
 
     if (lucide) {
-      const tintColor = styles.textColorToken ? toFlutterThemeToken(styles.textColorToken, "") : `Color(0xFF${cleanHexColor(styles.textColor)})`;
+      const tintColor = styles.textColorToken ? toFlutterThemeToken(styles.textColorToken, "") : toFlutterColor(styles.textColor);
       out += `${getIndent()}Icon(${toFlutterIconName(lucide)}, size: ${styles.fontSize || 24}.0, color: ${tintColor})\n`;
       return wrapExpandedIfNeeded(node, out, getIndent());
     }
 
     // Raw SVG placeholder
     if (styles.isRawSvg) {
-      const svgSize = typeof styles.width === 'number' ? styles.width : 48;
-      out += `${getIndent()}SizedBox(width: ${svgSize}.0, height: ${svgSize}.0) // TODO: Add custom SVG/Asset\n`;
+      const svgW = typeof styles.width === 'number' ? styles.width : 48;
+      const svgH = typeof styles.height === 'number' ? styles.height : 48;
+      
+      const circleChildren = node.children.filter(c => typeof c !== "string" && c.tagName === "circle") as TranspileNode[];
+      if (circleChildren.length > 0) {
+        let svgOut = `${getIndent()}Stack(\n`;
+        svgOut += `${getIndent()}  alignment: Alignment.center,\n`;
+        svgOut += `${getIndent()}  children: [\n`;
+        indentLevel++;
+        circleChildren.forEach(circle => {
+          const strokeWidth = parseFloat(circle.attributes["stroke-width"]) || 1;
+          const strokeColorStr = circle.attributes["stroke"] || "black";
+          const tokenKey = strokeColorStr.startsWith("var(") ? getStyleTokenKey(strokeColorStr) : undefined;
+          const strokeColor = tokenKey 
+            ? toFlutterThemeToken(tokenKey, "") 
+            : toFlutterColor(resolveColorToStandard(strokeColorStr));
+            
+          const strokeLinecap = circle.attributes["stroke-linecap"] === "round" ? "StrokeCap.round" : "StrokeCap.square";
+          const dashArray = parseFloat(circle.attributes["stroke-dasharray"]) || 0;
+          const dashOffset = parseFloat(circle.attributes["stroke-dashoffset"]) || 0;
+          
+          let progress = 1.0;
+          if (dashArray > 0) {
+            progress = 1.0 - (dashOffset / dashArray);
+            if (progress < 0) progress = 0;
+            if (progress > 1) progress = 1;
+          }
+          
+          svgOut += `${getIndent()}  SizedBox(\n`;
+          svgOut += `${getIndent()}    width: ${svgW}.0,\n`;
+          svgOut += `${getIndent()}    height: ${svgH}.0,\n`;
+          svgOut += `${getIndent()}    child: CircularProgressIndicator(\n`;
+          svgOut += `${getIndent()}      value: ${progress.toFixed(2)},\n`;
+          svgOut += `${getIndent()}      valueColor: AlwaysStoppedAnimation<Color>(${strokeColor}),\n`;
+          svgOut += `${getIndent()}      strokeWidth: ${strokeWidth}.0,\n`;
+          if (strokeLinecap === "StrokeCap.round") {
+            svgOut += `${getIndent()}      strokeCap: StrokeCap.round,\n`;
+          }
+          svgOut += `${getIndent()}    ),\n`;
+          svgOut += `${getIndent()}  ),\n`;
+        });
+        indentLevel--;
+        svgOut += `${getIndent()}  ],\n`;
+        svgOut += `${getIndent()})\n`;
+        return wrapExpandedIfNeeded(node, svgOut, getIndent());
+      }
+      
+      out += `${getIndent()}SizedBox(width: ${svgW}.0, height: ${svgH}.0) // TODO: Add custom SVG/Asset\n`;
       return wrapExpandedIfNeeded(node, out, getIndent());
     }
 
@@ -2365,7 +3652,7 @@ export function transpileToFlutter(root: TranspileNode): string {
     }
 
     if (isButton) {
-      const containerColor = styles.backgroundColorToken ? toFlutterThemeToken(styles.backgroundColorToken, "") : `Color(0xFF${cleanHexColor(styles.backgroundColor)})`;
+      const containerColor = styles.backgroundColorToken ? toFlutterThemeToken(styles.backgroundColorToken, "") : toFlutterColor(styles.backgroundColor);
       const btnRadius = styles.borderRadiusToken ? toFlutterThemeToken(styles.borderRadiusToken, "") : `${(styles.borderRadius || 12)}.0`;
       const paddingX = styles.paddingLeftToken ? toFlutterThemeToken(styles.paddingLeftToken, "") : `${(styles.padding.left || 16)}.0`;
       const paddingY = styles.paddingTopToken ? toFlutterThemeToken(styles.paddingTopToken, "") : `${(styles.padding.top || 12)}.0`;
@@ -2403,18 +3690,41 @@ export function transpileToFlutter(root: TranspileNode): string {
 
     if (isTextLeaf) {
       const textVal = node.children[0] as string;
-      const textTint = styles.textColorToken ? toFlutterThemeToken(styles.textColorToken, "") : `Color(0xFF${cleanHexColor(styles.textColor)})`;
       out += `${getIndent()}Text(\n`;
       out += `${getIndent()}  '${textVal.replace(/'/g, "\\'")}',\n`;
-      out += `${getIndent()}  style: TextStyle(\n`;
-      out += `${getIndent()}    fontSize: ${styles.fontSize}.0,\n`;
-      out += `${getIndent()}    color: ${textTint},\n`;
-      if (styles.fontWeight === "bold" || styles.fontWeight === "semibold") {
-        out += `${getIndent()}    fontWeight: FontWeight.bold,\n`;
+      
+      let hasStyle = (styles.fontSize !== undefined) || 
+                     (styles.textColorToken !== undefined || (styles.textColor && styles.textColor !== "transparent")) ||
+                     (styles.fontWeight !== undefined);
+
+      if (hasStyle) {
+        out += `${getIndent()}  style: TextStyle(\n`;
+        if (styles.fontSize !== undefined) {
+          out += `${getIndent()}    fontSize: ${styles.fontSize}.0,\n`;
+        }
+        if (styles.textColorToken || (styles.textColor && styles.textColor !== "transparent")) {
+          const textTint = styles.textColorToken ? toFlutterThemeToken(styles.textColorToken, "") : toFlutterColor(styles.textColor);
+          out += `${getIndent()}    color: ${textTint},\n`;
+        }
+        if (styles.fontWeight !== undefined) {
+          if (styles.fontWeight === "bold" || styles.fontWeight === "semibold") {
+            out += `${getIndent()}    fontWeight: FontWeight.bold,\n`;
+          } else if (styles.fontWeight === "medium") {
+            out += `${getIndent()}    fontWeight: FontWeight.w500,\n`;
+          } else {
+            out += `${getIndent()}    fontWeight: FontWeight.normal,\n`;
+          }
+        }
+        out += `${getIndent()}  ),\n`;
       }
-      out += `${getIndent()}  ),\n`;
-      if (styles.textAlign === "center") {
-        out += `${getIndent()}  textAlign: TextAlign.center,\n`;
+      if (styles.textAlign !== undefined) {
+        if (styles.textAlign === "center") {
+          out += `${getIndent()}  textAlign: TextAlign.center,\n`;
+        } else if (styles.textAlign === "right") {
+          out += `${getIndent()}  textAlign: TextAlign.right,\n`;
+        } else if (styles.textAlign === "left") {
+          out += `${getIndent()}  textAlign: TextAlign.left,\n`;
+        }
       }
       out += `${getIndent()})\n`;
       
@@ -2492,12 +3802,12 @@ export function transpileToFlutter(root: TranspileNode): string {
         decoration += `      gradient: LinearGradient(\n`;
         decoration += `        begin: ${begin},\n`;
         decoration += `        end: ${end},\n`;
-        decoration += `        colors: [Color(0xFF${cleanHexColor(styles.gradient.fromColor)}), Color(0xFF${cleanHexColor(styles.gradient.toColor)})],\n`;
+        decoration += `        colors: [${toFlutterColor(styles.gradient.fromColor)}, ${toFlutterColor(styles.gradient.toColor)}],\n`;
         decoration += `      ),\n`;
       } else if (styles.backgroundColorToken) {
         decoration += `      color: ${toFlutterThemeToken(styles.backgroundColorToken, "")},\n`;
       } else if (styles.backgroundColor !== "transparent") {
-        decoration += `      color: Color(0xFF${cleanHexColor(styles.backgroundColor)}),\n`;
+        decoration += `      color: ${toFlutterColor(styles.backgroundColor)},\n`;
       }
       
       if (styles.borderRadiusToken) {
@@ -2507,7 +3817,7 @@ export function transpileToFlutter(root: TranspileNode): string {
       }
       
       if (styles.borderColorToken || styles.borderWidth > 0) {
-        const borderCol = styles.borderColorToken ? toFlutterThemeToken(styles.borderColorToken, "") : `Color(0xFF${cleanHexColor(styles.borderColor)})`;
+        const borderCol = styles.borderColorToken ? toFlutterThemeToken(styles.borderColorToken, "") : toFlutterColor(styles.borderColor);
         decoration += `      border: Border.all(color: ${borderCol}, width: ${styles.borderWidth || 1}.0),\n`;
       }
       decoration += `    ),\n`;

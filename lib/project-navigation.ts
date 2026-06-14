@@ -152,7 +152,9 @@ export function normalizeNavigationPlan({
     requiresBottomNav ||
     fallback.enabled ||
     navigationArchitecture?.primaryNavigation === "bottom-tabs" ||
-    navigationPlan?.kind === "bottom-tabs";
+    navigationPlan?.kind === "bottom-tabs" ||
+    screens.some((s) => s.chromePolicy?.chrome === "bottom-tabs") ||
+    navigationPlan?.screenChrome?.some((sc) => sc.chrome === "bottom-tabs");
     
   let requestedEnabled = navigationPlan?.enabled ?? fallback.enabled;
   if (screens.length > 1 && isBottomTabsArchitecture) {
@@ -289,7 +291,55 @@ export function sanitizeScreenCodeForSharedNavigation(code: string, screenPlan: 
     return code;
   }
 
-  return code
+  // Tag-matching helper to safely remove the local fixed bottom bar div:
+  const commentRegex = /<!--\s*(?:(?!-->)[\s\S])*(?:floating\s+dock|bottom\s+nav|navigation|nav\s+bar|dock\s+navigation|tab\s+bar|dock)(?:(?!-->)[\s\S])*-->/gi;
+  let match;
+  let sanitizedCode = code;
+  while ((match = commentRegex.exec(sanitizedCode)) !== null) {
+    const commentStart = match.index;
+    const commentEnd = commentStart + match[0].length;
+    
+    // Find the next '<div' after the comment
+    const divStart = sanitizedCode.indexOf("<div", commentEnd);
+    if (divStart === -1) continue;
+    
+    // Check if it's a fixed bottom div
+    const firstTagEnd = sanitizedCode.indexOf(">", divStart);
+    if (firstTagEnd === -1) continue;
+    const tagOpening = sanitizedCode.slice(divStart, firstTagEnd + 1);
+    if (!/fixed\s+bottom|fixed\s+top|bottom-0|bottom-4/i.test(tagOpening)) {
+      continue;
+    }
+    
+    // Find the matching closing </div>
+    let depth = 1;
+    let pos = divStart + 4;
+    while (depth > 0 && pos < sanitizedCode.length) {
+      const nextOpen = sanitizedCode.indexOf("<div", pos);
+      const nextClose = sanitizedCode.indexOf("</div>", pos);
+      
+      if (nextClose === -1) break;
+      
+      if (nextOpen !== -1 && nextOpen < nextClose) {
+        depth++;
+        pos = nextOpen + 4;
+      } else {
+        depth--;
+        pos = nextClose + 6;
+      }
+    }
+    
+    if (depth === 0) {
+      // Successfully found the matching closing tag!
+      const prefix = sanitizedCode.slice(0, commentStart);
+      const suffix = sanitizedCode.slice(pos);
+      sanitizedCode = prefix.trim() + "\n" + suffix.trim();
+      // Reset regex index since we modified the string
+      commentRegex.lastIndex = 0;
+    }
+  }
+
+  return sanitizedCode
     .replace(/<!--\s*(?:floating\s+dock|bottom\s+nav|navigation)[\s\S]*?placeholder[\s\S]*?-->\s*<div\b[^>]*(?:h-\[[^\]]*(?:8[0-9]|9[0-9]|1[0-9]{2})px\]|height\s*:\s*(?:8[0-9]|9[0-9]|1[0-9]{2})px)[^>]*>\s*<\/div>/gi, "")
     .replace(/<nav\b[\s\S]*?<\/nav>/gi, (match) =>
       /bottom|tab|navigation|nav|data-drawgle-primary-nav/i.test(match) ? "" : match,
