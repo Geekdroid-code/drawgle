@@ -19,9 +19,9 @@ INSERT INTO public.dodo_pricing_plans (
   9.00,
   600,
   'USD',
-  'pdt_starter_placeholder', -- Replaceable in Dodo Dashboard
+  'pdt_0NfVsOAPfZoweqsMUTDRV', -- Replaceable in Dodo Dashboard
   true,
-  '{"features": ["600 AI credits per month", "Generate ~30 full screens/mo", "Standard build speeds", "AI-powered element edits", "Figma integration & export", "Tailwind CSS components"]}'
+  '{"features": ["600 AI credits per month", "Generate ~30 full screens/mo", "Standard build speeds", "AI-powered element edits", "Agent-ready HTML & design context", "Project Agent Packs"]}'
 ),
 
 (
@@ -30,7 +30,7 @@ INSERT INTO public.dodo_pricing_plans (
   29.00,
   2400,
   'USD',
-  'pdt_pro_placeholder', -- Replaceable in Dodo Dashboard
+  'pdt_0NfVsaqDDfwFUMDiaUMrY', -- Replaceable in Dodo Dashboard
   true,
   '{"features": ["2,400 AI credits per month", "Generate ~120 full screens/mo", "Priority generation speed", "Advanced screen layout options", "Full commercial license", "Premium customer support"]}'
 ),
@@ -41,7 +41,7 @@ INSERT INTO public.dodo_pricing_plans (
   79.00,
   8000,
   'USD',
-  'pdt_studio_placeholder', -- Replaceable in Dodo Dashboard
+  'pdt_0NfVsiGMq1HWz9VuGcTxR', -- Replaceable in Dodo Dashboard
   true,
   '{"features": ["8,000 AI credits per month", "Generate ~400 full screens/mo", "Ultra-priority processing", "Agency & team collaboration", "Custom design system presets", "Dedicated account manager"]}'
 );

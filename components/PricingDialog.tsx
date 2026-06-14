@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Check, Loader2, Sparkles, Zap, X, Info } from "lucide-react";
+import { Check, Loader2, Zap, X, Info } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -11,8 +11,8 @@ import { cn } from "@/lib/utils";
 
 const FEATURE_TOOLTIPS: Record<string, string> = {
   "Unlimited Projects": "Create and manage an infinite number of design projects within your workspace.",
-  "Unlimited Code Exports": "Generate and download production-ready code as many times as you need without limits.",
-  "Export to 5 Frameworks": "Export your UI into Production ready React Native, SwiftUI, Compose, Flutter, or raw HTML/Tailwind.",
+  "Unlimited Code Exports": "Copy agent-ready handoffs and download high-fidelity HTML or Beta Scaffolds without limits.",
+  "Export to 5 Frameworks": "Export HTML/Tailwind as the visual source of truth, with React Native, SwiftUI, Compose, and Flutter structural Scaffolds (Beta).",
   "Export Design.md Specs": "Automatically generate a comprehensive Markdown design specification for your team.",
   "Live Design Tokens Sync": "Extract and sync precise color, typography, and spacing tokens dynamically.",
   "AI-powered Screen Editing": "Prompt the AI to modify, iterate, or fix specific parts of your screen instantly.",

@@ -805,7 +805,7 @@ function SelectedElementInspectorSidebar({
                       <Textarea
                         value={textDrafts[node.drawgleId] ?? ""}
                         onChange={(event) => setTextDrafts((current) => ({ ...current, [node.drawgleId]: event.target.value }))}
-                        className="min-h-24 resize-y rounded-[14px] border-slate-950/[0.08] bg-slate-50/80 px-3 py-2 text-sm focus-visible:bg-white"
+                        className="resize-y rounded-[14px] border-slate-950/[0.08] bg-slate-50/80 px-3 py-2 text-xs focus-visible:bg-white"
                       />
                     </label>
                   ))}
@@ -1069,7 +1069,6 @@ export function ProjectShell({
   const [tokenSaving, setTokenSaving] = useState(false);
   const tokenDirtyRef = useRef(tokenDirty);
   const [exportDrawerOpen, setExportDrawerOpen] = useState(false);
-  const [exportActiveNavItemId, setExportActiveNavItemId] = useState<string | null>(null);
 
   const handleSignOut = async () => {
     try {
@@ -1915,12 +1914,12 @@ export function ProjectShell({
             onEditSelectedText={() => setEditSessionMode("design")}
             onEditSelectedDesign={() => setEditSessionMode("design")}
             onClearSelectedElement={clearEditSession}
-            onExportCode={(cleanScreenCode, cleanNavigationCode, screenName, tokenCss, googleFontAssetLinks, activeNavigationItemId) => {
+            onExportCode={(...exportArgs) => {
+              const screenName = exportArgs[2];
               const matchedScreen = screens.find((s) => s.name === screenName);
               if (matchedScreen) {
                 setSelectedScreen(matchedScreen);
               }
-              setExportActiveNavItemId(activeNavigationItemId);
               setExportDrawerOpen(true);
             }}
           />
@@ -2031,13 +2030,13 @@ export function ProjectShell({
           <MobileExportDrawer
             open={exportDrawerOpen}
             onClose={() => setExportDrawerOpen(false)}
+            project={project}
             screens={screens}
             initialScreenId={selectedScreen?.id || null}
-            navigationCode={projectNavigation?.shellCode || ""}
+            projectNavigation={projectNavigation}
             designTokens={effectiveDesignTokens}
             tokenCss={exportTokenCss}
             googleFontAssetLinks={exportGoogleFontLinks}
-            activeNavigationItemId={exportActiveNavItemId}
           />
         </div>
       </main>

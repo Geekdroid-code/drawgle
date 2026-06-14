@@ -140,7 +140,7 @@ export function HeroSection() {
 </h1>
 
             <p className="text-md sm:text-lg text-gray-300 max-w-3xl mx-auto mb-8">
-Drawgle uses advanced AI to generate production-ready SwiftUI, Compose, Flutter, and React screens from simple text prompts. Go from idea to native code in seconds.            </p>
+Drawgle turns prompts into premium mobile UI, then hands agent-ready HTML, design tokens, and implementation context to the coding tools already inside your repository.            </p>
           </div>
 
           {/* Premium Prompt Box */}

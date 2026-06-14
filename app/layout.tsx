@@ -13,13 +13,14 @@ export const metadata: Metadata = {
     template: '%s | Drawgle',
   },
   description:
-    'Design premium mobile app interfaces from a prompt, visual reference, or curated design direction, then refine and export production-ready UI.',
+    'Design premium mobile app interfaces, then export agent-ready HTML, design tokens, and implementation context for your coding workflow.',
   keywords: [
     'AI mobile UI design',
     'app UI generator',
     'image to UI',
     'mobile app design',
-    'production-ready UI',
+    'agent-ready UI handoff',
+    'HTML Tailwind export',
   ],
 };
 

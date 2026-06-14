@@ -1,459 +1,435 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { Copy, Check, Download, Loader2, ChevronDown, Smartphone, Search, X } from "lucide-react";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { useMemo, useState } from "react";
+import {
+  AlertTriangle,
+  Bot,
+  Boxes,
+  Check,
+  CheckCircle2,
+  Clipboard,
+  Code2,
+  Download,
+  FileDown,
+  FolderArchive,
+  PackageOpen,
+  Sparkles,
+} from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { PremiumSegmentedTabs, PremiumTabPanel } from "@/components/ui/premium-segmented-tabs";
-import { PremiumDropdown } from "@/components/ui/premium-dropdown";
-import type { DesignTokens, ScreenData } from "@/lib/types";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
-  parseScreenHtml,
-  generateTokenHeaderComment,
-  transpileToSwiftUI,
-  transpileToCompose,
-  transpileToReactNative,
-  transpileToFlutter,
-  extractFixedBottomNodes
-} from "@/lib/mobile-transpiler";
-import { buildDrawgleTokenCss } from "@/lib/token-runtime";
+  buildAgentHandoffPrompt,
+  buildAgentPackZip,
+  buildNativeScaffold,
+  buildStandaloneHtmlExport,
+  cleanExportName,
+  resolveScreenNavigationCode,
+  slugifyExportName,
+  type AgentTarget,
+  type ExportProjectContext,
+  type NativeScaffoldTarget,
+} from "@/lib/export-pipeline";
+import type { DesignTokens, ProjectData, ProjectNavigationData, ScreenData } from "@/lib/types";
 
-interface MobileExportDrawerProps {
-  open: boolean;
-  onClose: () => void;
-  screens: ScreenData[];
-  initialScreenId?: string | null;
-  navigationCode: string;
-  designTokens?: DesignTokens | null;
-  tokenCss?: string;
-  googleFontAssetLinks?: string;
-  activeNavigationItemId?: string | null;
-}
+type ExportMode = "agent" | "html" | "scaffolds";
 
-type MobileFramework = "html" | "swiftui" | "compose" | "reactnative" | "flutter";
-
-const FRAMEWORK_TABS: Array<{ id: MobileFramework; label: string; compactLabel: string }> = [
-  { id: "html", label: "HTML", compactLabel: "HTML" },
-  { id: "swiftui", label: "SwiftUI", compactLabel: "Swift" },
-  { id: "compose", label: "Compose", compactLabel: "Kotlin" },
-  { id: "reactnative", label: "React Native", compactLabel: "RN" },
-  { id: "flutter", label: "Flutter", compactLabel: "Flutter" },
+const MODE_TABS = [
+  { id: "agent" as const, label: "Agent Handoff", compactLabel: "Agent", icon: Bot },
+  { id: "html" as const, label: "HTML / Tailwind", compactLabel: "HTML", icon: Code2 },
+  { id: "scaffolds" as const, label: "Scaffolds (Beta)", compactLabel: "Beta", icon: Boxes },
 ];
 
-const FILE_SEPARATOR = "// ════════════════════════════════════════════════════════════";
+const TARGET_OPTIONS: Array<{ id: AgentTarget; label: string }> = [
+  { id: "auto", label: "Auto-detect from repository" },
+  { id: "html", label: "HTML / Tailwind" },
+  { id: "reactnative", label: "React Native" },
+  { id: "swiftui", label: "SwiftUI" },
+  { id: "compose", label: "Jetpack Compose" },
+  { id: "flutter", label: "Flutter" },
+];
 
-function sanitizeHtmlForExport(html: string): string {
-  if (!html) return "";
-  return html
-    // Strip internal editor-specific attributes
-    .replace(/\s*data-drawgle-id="[^"]*"/g, "")
-    .replace(/\s*data-drawgle-theme="[^"]*"/g, "")
-    .replace(/\s*data-drawgle-icon="[^"]*"/g, "")
-    .replace(/\s*data-drawgle-font-preconnect="[^"]*"/g, "")
-    .replace(/\s*data-component-type="[^"]*"/g, "")
-    .replace(/\s*aria-current="[^"]*"/g, "")
-    .replace(/\s*data-active="[^"]*"/g, "")
-    .trim();
+const SCAFFOLD_OPTIONS: Array<{ id: NativeScaffoldTarget; label: string; extension: string }> = [
+  { id: "reactnative", label: "React Native", extension: "tsx" },
+  { id: "swiftui", label: "SwiftUI", extension: "swift" },
+  { id: "compose", label: "Jetpack Compose", extension: "kt" },
+  { id: "flutter", label: "Flutter", extension: "dart" },
+];
+
+const CONTEXT_ITEMS = [
+  "Selected screen HTML and screen intent",
+  "Project Design.md and universal tokens",
+  "Shared navigation plan and visual shell",
+  "Repository-first implementation workflow",
+  "Build, test, and self-correction checklist",
+];
+
+function downloadBlob(contents: BlobPart[], type: string, filename: string) {
+  const blob = new Blob(contents, { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function ExportSelect<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: Array<{ id: T; label: string }>;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <label className="flex min-w-0 flex-col gap-1.5">
+      <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value as T)}
+        className="h-10 min-w-0 rounded-[12px] border border-slate-950/[0.1] bg-white px-3 text-xs font-semibold text-slate-800 outline-none transition hover:border-slate-950/20 focus:border-slate-950/30 focus:ring-2 focus:ring-slate-950/[0.08]"
+      >
+        {options.map((option) => (
+          <option key={option.id} value={option.id}>{option.label}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function CodePreview({
+  value,
+  emptyMessage,
+}: {
+  value?: string | null;
+  emptyMessage?: string;
+}) {
+  return (
+    <div className="min-h-0 flex-1 overflow-hidden rounded-[16px] border border-slate-950/[0.08] bg-[#07090c] shadow-sm">
+      {value ? (
+        <pre className="h-full overflow-auto p-4 font-mono text-[11px] leading-5 text-slate-200 scrollbar-thin scrollbar-thumb-white/15 scrollbar-track-transparent">
+          <code>{value}</code>
+        </pre>
+      ) : (
+        <div className="flex h-full min-h-48 items-center justify-center px-6 text-center text-xs font-medium text-slate-400">
+          {emptyMessage || "No export content is available."}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function MobileExportDrawer({
   open,
   onClose,
+  project,
   screens,
   initialScreenId,
-  navigationCode,
+  projectNavigation,
   designTokens,
   tokenCss,
   googleFontAssetLinks,
-  activeNavigationItemId
-}: MobileExportDrawerProps) {
-  const [activeTab, setActiveTab] = useState<MobileFramework>("html");
-  const [copied, setCopied] = useState(false);
+}: {
+  open: boolean;
+  onClose: () => void;
+  project: ProjectData;
+  screens: ScreenData[];
+  initialScreenId?: string | null;
+  projectNavigation?: ProjectNavigationData | null;
+  designTokens?: DesignTokens | null;
+  tokenCss?: string;
+  googleFontAssetLinks?: string;
+}) {
+  const [mode, setMode] = useState<ExportMode>("agent");
+  const [target, setTarget] = useState<AgentTarget>("auto");
+  const [scaffoldTarget, setScaffoldTarget] = useState<NativeScaffoldTarget>("reactnative");
+  const [copiedAction, setCopiedAction] = useState<string | null>(null);
+  const [packInstructionVisible, setPackInstructionVisible] = useState(false);
   const [prevOpen, setPrevOpen] = useState(open);
   const [prevInitialScreenId, setPrevInitialScreenId] = useState<string | null | undefined>(initialScreenId);
-  const [activeScreenId, setActiveScreenId] = useState<string>(() => initialScreenId || screens[0]?.id || "");
+  const [activeScreenId, setActiveScreenId] = useState(initialScreenId || screens[0]?.id || "");
 
   if (open !== prevOpen || initialScreenId !== prevInitialScreenId) {
     setPrevOpen(open);
     setPrevInitialScreenId(initialScreenId);
     if (open) {
       setActiveScreenId(initialScreenId || screens[0]?.id || "");
+      setMode("agent");
+      setPackInstructionVisible(false);
     }
   }
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const activeScreen = screens.find((screen) => screen.id === activeScreenId) || screens[0] || null;
+  const context = useMemo<ExportProjectContext>(() => ({
+    project,
+    screens,
+    projectNavigation,
+    designTokens,
+    tokenCss,
+    googleFontAssetLinks,
+  }), [designTokens, googleFontAssetLinks, project, projectNavigation, screens, tokenCss]);
 
-  const filteredScreens = useMemo(() => {
-    if (!searchQuery.trim()) return screens;
-    const query = searchQuery.toLowerCase();
-    return screens.filter((screen) => screen.name.toLowerCase().includes(query));
-  }, [screens, searchQuery]);
+  const navigationCode = activeScreen
+    ? resolveScreenNavigationCode(activeScreen, projectNavigation)
+    : "";
+  const agentPrompt = useMemo(
+    () => activeScreen ? buildAgentHandoffPrompt({ context, screen: activeScreen, target }) : "",
+    [activeScreen, context, target],
+  );
+  const htmlExport = useMemo(
+    () => activeScreen ? buildStandaloneHtmlExport({
+      screen: activeScreen,
+      navigationCode,
+      activeNavigationItemId: activeScreen.navigationItemId,
+      designTokens,
+      tokenCss,
+      googleFontAssetLinks,
+    }) : "",
+    [activeScreen, designTokens, googleFontAssetLinks, navigationCode, tokenCss],
+  );
+  const scaffoldResult = useMemo(
+    () => mode === "scaffolds" && activeScreen
+      ? buildNativeScaffold({
+        screen: activeScreen,
+        target: scaffoldTarget,
+        navigationCode,
+        designTokens,
+        tokenCss,
+      })
+      : null,
+    [activeScreen, designTokens, mode, navigationCode, scaffoldTarget, tokenCss],
+  );
 
-  const activeScreen = useMemo(() => {
-    return screens.find((s) => s.id === activeScreenId) || screens[0] || null;
-  }, [screens, activeScreenId]);
-
-  const screenName = activeScreen?.name || "Screen";
-  const screenCode = activeScreen?.code || "";
-
-  // Clean screen and file names
-  const cleanScreenName = useMemo(() => {
-    return screenName.replace(/[^a-zA-Z0-9]/g, "");
-  }, [screenName]);
-
-  const fileExtensions: Record<MobileFramework, string> = {
-    html: "html",
-    swiftui: "swift",
-    compose: "kt",
-    reactnative: "tsx",
-    flutter: "dart"
-  };
-  // Compile the transpiled AST and frameworks once screenCode changes
-  const compiledCodes = useMemo(() => {
-    if (!open || !screenCode) return null;
-
-    try {
-      // ── Sanitize HTML Code for Export (Removes AI/Editor metadata) ──
-      const cleanScreen = sanitizeHtmlForExport(screenCode);
-      const cleanNav = sanitizeHtmlForExport(navigationCode);
-      const exportTokenCss = tokenCss?.trim() ? tokenCss : buildDrawgleTokenCss(designTokens);
-      const cleanGoogleFont = (googleFontAssetLinks || "").replace(/\s*data-drawgle-font-preconnect="[^"]*"/g, "");
-
-      // ── HTML Export (standalone file — uses raw HTML + Tailwind CDN) ──
-      const htmlExport = `<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script src="https://cdn.tailwindcss.com"><\/script>
-    <script src="https://unpkg.com/lucide@latest"><\/script>
-    ${cleanGoogleFont}
-    <style>
-${exportTokenCss}
-      html, body { margin: 0; min-height: 100%; }
-      body {
-        font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
-        background: var(--dg-color-background-primary, #ffffff);
-        color: var(--dg-color-text-high-emphasis, #111827);
-      }
-      #drawgle-export-root {
-        position: relative;
-        min-height: 100vh;
-        overflow-x: hidden;
-        background: var(--dg-color-background-primary, #ffffff);
-      }
-      #drawgle-export-navigation { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; pointer-events: none; }
-      #drawgle-export-navigation [data-drawgle-primary-nav] { pointer-events: auto; }
-    </style>
-  </head>
-  <body>
-    <div id="drawgle-export-root">
-${cleanScreen}
-      ${cleanNav ? `<div id="drawgle-export-navigation">${cleanNav}</div>` : ""}
-    </div>
-    <script>
-      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
-      document.querySelectorAll('[data-nav-item-id]').forEach(function(item) {
-        var active = item.getAttribute('data-nav-item-id') === ${JSON.stringify(activeNavigationItemId || "home")};
-        item.setAttribute('data-active', active ? 'true' : 'false');
-        item.setAttribute('aria-current', active ? 'page' : 'false');
-      });
-    <\/script>
-  </body>
-</html>`;
-
-      // ── Native Framework Exports (transpiler-based) ──
-      const combinedHtml = `<div>
-        <style>${exportTokenCss}</style>
-        ${screenCode}
-        ${navigationCode ? `<div id="drawgle-navigation-shell">${navigationCode}</div>` : ""}
-      </div>`;
-
-      const ast = parseScreenHtml(combinedHtml, designTokens);
-      if (!ast) {
-        throw new Error("Unable to parse HTML into structured DOM tree.");
-      }
-
-      const headers = generateTokenHeaderComment(designTokens);
-
-      // Extract fixed-bottom nodes (e.g., bottom nav) from main tree
-      const { mainTree, fixedBottomNodes } = extractFixedBottomNodes(ast);
-      const hasFixedBottom = fixedBottomNodes.length > 0;
-
-      // SwiftUI — Two-section output with ZStack for fixed bottom nav
-      const swiftTheme = headers.swift;
-      const fixedBottomSwift = fixedBottomNodes.map(n => transpileToSwiftUI(n)).join('');
-      const swiftBodyOpen = hasFixedBottom
-        ? `        ZStack(alignment: .bottom) {\n            ScrollView {\n`
-        : `        ScrollView {\n`;
-      const swiftBodyClose = hasFixedBottom
-        ? `            }\n${fixedBottomSwift}        }\n`
-        : `        }\n`;
-      const swiftScreen = `//\n//  ${cleanScreenName}View.swift\n//  Auto-generated by Drawgle\n//\n\nimport SwiftUI\n// Requires: https://github.com/lucide-icons/lucide-swift\n// Import your project's AppTheme file here\n// import AppTheme\n\n// 💡 PRODUCTION DESIGN SYSTEM INTEGRATION HINT:\n// Instead of copying the generated AppTheme class above, you can easily map the exported tokens\n// directly into your project's native theme catalog:\n// - AppTheme.backgroundPrimary ➔ Color("PrimaryBackground")\n// - AppTheme.surfaceCard       ➔ Color("CardBackground")\n// - AppTheme.actionPrimary     ➔ Color.accentColor\n// - AppTheme.textHigh          ➔ Color.primary\n// - AppTheme.borderRadiusApp   ➔ 32.0 (or your custom corner radius parameter)\n\nstruct ${cleanScreenName}View: View {\n    var body: some View {\n` +
-        swiftBodyOpen +
-        transpileToSwiftUI(mainTree) +
-        swiftBodyClose +
-        `        .background(AppTheme.backgroundPrimary)\n        .ignoresSafeArea(edges: .bottom)\n    }\n}\n\n#Preview {\n    ${cleanScreenName}View()\n}\n`;
-      const swiftFull = `${FILE_SEPARATOR}\n// FILE 1: AppTheme.swift — Add to your project's theme directory\n${FILE_SEPARATOR}\n\n${swiftTheme}\n\n${FILE_SEPARATOR}\n// FILE 2: ${cleanScreenName}View.swift — Add to your screens directory\n${FILE_SEPARATOR}\n\n${swiftScreen}`;
-
-      // Jetpack Compose — Two-section output with Box for fixed bottom nav
-      const composeTheme = headers.compose;
-      const fixedBottomCompose = fixedBottomNodes.map(n => transpileToCompose(n)).join('');
-      const composeScreen = `/*\n * ${cleanScreenName}Screen.kt\n * Auto-generated by Drawgle\n */\n\npackage com.drawgle.ui\n\nimport androidx.compose.foundation.layout.*\nimport androidx.compose.foundation.rememberScrollState\nimport androidx.compose.foundation.verticalScroll\nimport androidx.compose.runtime.Composable\nimport androidx.compose.ui.Modifier\nimport androidx.compose.ui.Alignment\nimport androidx.compose.ui.graphics.Color\nimport androidx.compose.ui.text.font.FontWeight\nimport androidx.compose.ui.unit.sp\nimport androidx.compose.ui.text.style.TextAlign\nimport androidx.compose.material.icons.Icons\nimport androidx.compose.material.icons.filled.*\nimport androidx.compose.material3.* // For Button, Text, Icon
-import androidx.compose.foundation.lazy.grid.*
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.draw.shadow\n// Import your project's AppTheme here\n\n// 💡 PRODUCTION DESIGN SYSTEM INTEGRATION HINT:\n// Instead of copying the generated AppTheme class above, you can easily map the exported tokens\n// directly into your project's existing MaterialTheme configuration:\n// - AppTheme.BackgroundPrimary ➔ MaterialTheme.colorScheme.background\n// - AppTheme.SurfaceCard       ➔ MaterialTheme.colorScheme.surface\n// - AppTheme.ActionPrimary     ➔ MaterialTheme.colorScheme.primary\n// - AppTheme.textHigh          ➔ MaterialTheme.colorScheme.onBackground\n// - AppTheme.BorderRadiusApp   ➔ 32.dp (or your custom shape corner constant)\n\n@Composable\nfun ${cleanScreenName}Screen() {\n    Box(\n        modifier = Modifier\n            .fillMaxSize()\n            .background(AppTheme.BackgroundPrimary)\n    ) {\n        Column(\n            modifier = Modifier\n                .fillMaxSize()\n                .verticalScroll(rememberScrollState())\n        ) {\n` +
-        transpileToCompose(mainTree) +
-        `        }\n` +
-        (hasFixedBottom ? fixedBottomCompose : '') +
-        `    }\n}\n`;
-      const composeFull = `${FILE_SEPARATOR}\n// FILE 1: AppTheme.kt — Add to your project's theme directory\n${FILE_SEPARATOR}\n\n${composeTheme}\n\n${FILE_SEPARATOR}\n// FILE 2: ${cleanScreenName}Screen.kt — Add to your screens directory\n${FILE_SEPARATOR}\n\n${composeScreen}`;
-
-      // React Native — Two-section output with View overlay for fixed bottom nav
-      const rnTheme = headers.rn;
-      const fixedBottomRN = fixedBottomNodes.map(n => transpileToReactNative(n)).join('');
-      const rnScreen = `//\n// ${cleanScreenName}Screen.tsx\n// Auto-generated by Drawgle\n//\n\nimport React from 'react';\nimport {\n  StyleSheet,\n  Text,\n  View,\n  Image,\n  ScrollView,\n  TouchableOpacity,\n  SafeAreaView\n} from 'react-native';\nimport { LinearGradient } from 'expo-linear-gradient';\n// Import your project's AppTheme here\n// import { AppTheme } from './path/to/AppTheme';\n\n// 💡 PRODUCTION DESIGN SYSTEM INTEGRATION HINT:\n// Instead of copying the generated AppTheme constant above, you can easily map the exported tokens\n// directly into your project's existing StyleSheet theme configuration:\n// - AppTheme.colors.backgroundPrimary ➔ theme.colors.background\n// - AppTheme.colors.surfaceCard       ➔ theme.colors.card\n// - AppTheme.colors.actionPrimary     ➔ theme.colors.primary\n// - AppTheme.colors.textHigh          ➔ theme.colors.text\n// - AppTheme.radii.app                 ➔ theme.borderRadii.large\n\n// Icon placeholder — swap with react-native-vector-icons, expo-icons, or custom SVGs\nfunction Icon({ name, size = 24, color = '#000' }: { name: string; size?: number; color?: string }) {\n  return (\n    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>\n      <Text style={{ color, fontSize: size * 0.8, fontWeight: 'bold' }}>•</Text>\n    </View>\n  );\n}\n\nexport default function ${cleanScreenName}Screen() {\n  return (\n    <SafeAreaView style={{ flex: 1, backgroundColor: AppTheme.colors.backgroundPrimary }}>\n` +
-        (hasFixedBottom ? `      <View style={{ flex: 1 }}>\n` : '') +
-        `      <ScrollView contentContainerStyle={{ flexGrow: 1 }}>\n` +
-        transpileToReactNative(mainTree) +
-        `      </ScrollView>\n` +
-        (hasFixedBottom ? fixedBottomRN + `      </View>\n` : '') +
-        `    </SafeAreaView>\n  );\n}\n`;
-      const rnFull = `${FILE_SEPARATOR}\n// FILE 1: AppTheme.ts — Add to your project's theme directory\n${FILE_SEPARATOR}\n\n${rnTheme}\n\n${FILE_SEPARATOR}\n// FILE 2: ${cleanScreenName}Screen.tsx — Add to your screens directory\n${FILE_SEPARATOR}\n\n${rnScreen}`;
-
-      // Flutter — Two-section output with Stack for fixed bottom nav
-      const flutterTheme = headers.flutter;
-      const fixedBottomFlutter = fixedBottomNodes.map(n => transpileToFlutter(n)).join('');
-      const flutterScreen = `//\n// ${cleanScreenName.toLowerCase()}_screen.dart\n// Auto-generated by Drawgle\n//\n\nimport 'package:flutter/material.dart';\n// Import your project's AppTheme here\n// import 'package:your_app/theme/app_theme.dart';\n\n// 💡 PRODUCTION DESIGN SYSTEM INTEGRATION HINT:\n// Instead of copying the generated AppTheme class above, you can easily map the exported tokens\n// directly to your existing Flutter ColorScheme / TextTheme design system:\n// - AppTheme.backgroundPrimary ➔ Theme.of(context).colorScheme.background\n// - AppTheme.surfaceCard       ➔ Theme.of(context).colorScheme.surface\n// - AppTheme.actionPrimary     ➔ Theme.of(context).colorScheme.primary\n// - AppTheme.textHigh          ➔ Theme.of(context).colorScheme.onBackground\n// - AppTheme.borderRadiusApp   ➔ 32.0 (or your custom double corner constant)\n\nclass ${cleanScreenName}Screen extends StatelessWidget {\n  const ${cleanScreenName}Screen({Key? key}) : super(key: key);\n\n  @override\n  Widget build(BuildContext context) {\n    return Scaffold( \n      backgroundColor: AppTheme.backgroundPrimary,\n      body: SafeArea(\n` +
-        (hasFixedBottom
-          ? `        child: Stack(\n          children: [\n            SingleChildScrollView(\n              child: ` + transpileToFlutter(mainTree).trim() + `,\n            ),\n` + fixedBottomFlutter + `          ],\n        ),\n`
-          : `        child: SingleChildScrollView(\n          child: ` + transpileToFlutter(mainTree).trim() + `,\n        ),\n`) +
-        `      ),\n    );\n  }\n}\n`;
-      const flutterFull = `${FILE_SEPARATOR}\n// FILE 1: app_theme.dart — Add to your project's theme directory\n${FILE_SEPARATOR}\n\n${flutterTheme}\n\n${FILE_SEPARATOR}\n// FILE 2: ${cleanScreenName.toLowerCase()}_screen.dart — Add to your screens directory\n${FILE_SEPARATOR}\n\n${flutterScreen}`;
-
-      return {
-        html: htmlExport,
-        swiftui: swiftFull,
-        compose: composeFull,
-        reactnative: rnFull,
-        flutter: flutterFull,
-        ast
-      };
-    } catch (err) {
-      console.error("Transpilation failed", err);
-      return null;
-    }
-  }, [open, screenCode, navigationCode, designTokens, cleanScreenName, googleFontAssetLinks, activeNavigationItemId, tokenCss]);
-
-  const activeCode = compiledCodes?.[activeTab] || "";
-
-  const handleCopy = () => {
-    if (!activeCode) return;
-    navigator.clipboard.writeText(activeCode);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const markCopied = async (key: string, value: string) => {
+    await navigator.clipboard?.writeText(value).catch(() => undefined);
+    setCopiedAction(key);
+    window.setTimeout(() => setCopiedAction(null), 1400);
   };
 
-  const handleDownload = () => {
-    if (!activeCode) return;
-    const mimeType = activeTab === "html" ? "text/html;charset=utf-8" : "text/plain;charset=utf-8";
-    const blob = new Blob([activeCode], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${activeTab === "flutter" ? cleanScreenName.toLowerCase() : cleanScreenName}.${fileExtensions[activeTab]}`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+  const handleAgentPackDownload = () => {
+    const bytes = buildAgentPackZip({ context, target });
+    downloadBlob(
+      [new Uint8Array(bytes)],
+      "application/zip",
+      `drawgle-agent-pack-${slugifyExportName(project.name, "project")}.zip`,
+    );
+    setPackInstructionVisible(true);
   };
+
+  const scaffoldOption = SCAFFOLD_OPTIONS.find((option) => option.id === scaffoldTarget) || SCAFFOLD_OPTIONS[0];
+  const cleanScreenName = activeScreen ? cleanExportName(activeScreen.name) : "Screen";
 
   return (
     <Sheet open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <SheetContent
         side="right"
-        className="dg-export-drawer !w-full sm:!w-[540px] sm:!max-w-[540px] border-l border-slate-950/[0.1] bg-white p-0 text-slate-900 shadow-2xl overflow-hidden flex flex-col h-full"
+        className="dg-export-drawer !w-full !max-w-none border-l border-slate-950/[0.1] bg-[#f4f5f6] p-0 text-slate-900 shadow-2xl sm:!w-[min(920px,calc(100vw-32px))] sm:!max-w-[920px]"
       >
-        <div className="flex h-full flex-col min-h-0">
-          {/* Header */}
-          <SheetHeader className="border-b border-slate-950/[0.08] bg-white px-6 pb-5 pt-6 shrink-0 space-y-0">
-            <div className="flex flex-col gap-4">
-              <div className="flex items-center justify-between">
-                <div className="text-left">
-                  <SheetTitle className="text-[16px] font-extrabold tracking-tight text-slate-950 flex items-center gap-2">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-slate-950 text-white shadow-sm shrink-0">
-                      <Smartphone className="h-3.5 w-3.5" />
-                    </span>
-                    Code Export
-                  </SheetTitle>
-                  <SheetDescription className="mt-1 text-[13px] text-slate-500">
-                    Export high-fidelity compilable code for your screens.
-                  </SheetDescription>
+        <div className="flex h-full min-h-0 flex-col">
+          <SheetHeader className="shrink-0 border-b border-slate-950/[0.08] bg-white px-4 pb-4 pt-5 sm:px-6">
+            <div className="flex items-start justify-between gap-5 pr-10">
+              <div className="min-w-0 text-left">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-[11px] bg-slate-950 text-white shadow-sm">
+                    <PackageOpen className="h-4 w-4" />
+                  </span>
+                  <span className="rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-extrabold uppercase tracking-[0.14em] text-emerald-700 ring-1 ring-emerald-600/15">
+                    Agent-ready
+                  </span>
                 </div>
-              </div>
-
-              {/* Ultra-Premium Screen Selector */}
-              <div className="flex flex-col gap-1.5 text-left">
-                <div className="flex items-center justify-between px-0.5">
-                  <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#667894]">Active Screen</span>
-                  <span className="text-[10px] font-bold text-slate-400">{screens.length} screens total</span>
-                </div>
-                
-                <PremiumDropdown
-                  align="start"
-                  width={320}
-                  className="w-full"
-                  open={dropdownOpen}
-                  onOpenChange={setDropdownOpen}
-                  trigger={
-                    <button
-                      type="button"
-                      className="flex h-11 w-full items-center justify-between gap-3 rounded-[14px] border border-[var(--dg-border)] bg-[var(--dg-surface-muted)] px-3.5 text-left text-sm font-semibold text-[var(--dg-text)] shadow-sm transition hover:border-[var(--dg-border-strong)] hover:bg-[var(--dg-surface)] focus:outline-none focus:ring-2 focus:ring-[var(--dg-border-strong)] dark:border-white/[0.08] dark:bg-[#2a2a2a] dark:text-[#e8eaf0] dark:hover:bg-[#2c3039]"
-                    >
-                      <span className="flex min-w-0 items-center gap-2">
-                        <Smartphone className="h-4 w-4 text-[#FF4F00]" />
-                        <span className="truncate">{screenName}</span>
-                      </span>
-                      <ChevronDown className="h-4 w-4 text-[var(--dg-text-muted)] shrink-0" />
-                    </button>
-                  }
-                >
-                  <div className="flex flex-col gap-2 p-1 font-sans">
-                    {/* Live Search Box */}
-                    <div className="relative flex items-center px-1 py-0.5">
-                      <Search className="absolute left-3.5 h-3.5 w-3.5 text-[var(--dg-text-muted)]" />
-                      <input
-                        type="text"
-                        placeholder="Search screens..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="h-9 w-full rounded-[12px] border-none bg-[var(--dg-surface-muted)] pl-8 pr-8 text-xs font-semibold text-[var(--dg-text)] outline-none transition placeholder:text-[var(--dg-text-muted)] focus:bg-[var(--dg-surface-muted)] dark:bg-[#2a2a2a] dark:text-[#e8eaf0] dark:placeholder:text-[#6f7785]"
-                      />
-                      {searchQuery && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSearchQuery("");
-                          }}
-                          className="absolute right-3 flex h-5 w-5 items-center justify-center rounded-full text-[var(--dg-text-muted)] transition hover:bg-[var(--dg-surface-muted)] hover:text-[var(--dg-text)] dark:hover:bg-white/10"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Scrollable list */}
-                    <div className="max-h-[220px] overflow-y-auto flex flex-col gap-0.5 pr-1 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent dark:scrollbar-thumb-white/20 text-left">
-                      {filteredScreens.length > 0 ? (
-                        filteredScreens.map((screen) => {
-                          const isSelected = activeScreenId === screen.id;
-                          return (
-                            <button
-                              type="button"
-                              key={screen.id}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setActiveScreenId(screen.id);
-                                setSearchQuery("");
-                                setDropdownOpen(false);
-                              }}
-                              className={`flex w-full items-center justify-between rounded-[12px] px-3 py-2 text-left transition cursor-pointer border-none outline-none ${
-                                isSelected
-                                  ? "bg-slate-950 text-white dark:bg-[#0f172a] dark:text-white dark:ring-1 dark:ring-white/[0.10]"
-                                  : "text-[var(--dg-text)] hover:bg-[var(--dg-surface-muted)] dark:text-[#d8dde7] dark:hover:bg-white/[0.06]"
-                              }`}
-                            >
-                              <span className="flex min-w-0 items-center gap-2.5">
-                                <Smartphone className={`h-4 w-4 ${isSelected ? "text-current" : "text-[var(--dg-text-muted)]"}`} />
-                                <span className="truncate text-xs font-semibold">{screen.name}</span>
-                              </span>
-                              {isSelected && (
-                                <Check className="h-3.5 w-3.5 text-white shrink-0" />
-                              )}
-                            </button>
-                          );
-                        })
-                      ) : (
-                        <div className="py-6 text-center text-xs font-semibold text-[var(--dg-text-muted)]">
-                          No screens match &ldquo;{searchQuery}&rdquo;
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </PremiumDropdown>
+                <SheetTitle className="text-[20px] font-extrabold tracking-[-0.025em] text-slate-950">
+                  Ship to Code
+                </SheetTitle>
+                <SheetDescription className="mt-1 max-w-2xl text-[12px] leading-5 text-slate-500">
+                  Hand polished HTML and complete design context to your coding agent, or use a structural native scaffold as a starting point.
+                </SheetDescription>
               </div>
             </div>
-            
-            {/* Segmented Pill Selector Row — 5 tabs including HTML */}
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+              <ExportSelect
+                label="Screen"
+                value={activeScreenId}
+                options={screens.map((screen) => ({ id: screen.id, label: screen.name }))}
+                onChange={setActiveScreenId}
+              />
+              {mode === "scaffolds" ? (
+                <ExportSelect
+                  label="Beta scaffold"
+                  value={scaffoldTarget}
+                  options={SCAFFOLD_OPTIONS}
+                  onChange={setScaffoldTarget}
+                />
+              ) : (
+                <ExportSelect
+                  label="Implementation target"
+                  value={target}
+                  options={TARGET_OPTIONS}
+                  onChange={setTarget}
+                />
+              )}
+            </div>
+
             <PremiumSegmentedTabs
-              items={FRAMEWORK_TABS}
-              value={activeTab}
-              onValueChange={setActiveTab}
+              items={MODE_TABS}
+              value={mode}
+              onValueChange={setMode}
+              layoutId="ship-to-code-mode"
               size="sm"
-              layoutId="export-framework-tab"
-              className="mt-6"
-              tabClassName="px-1 text-[10px] sm:text-[11px]"
+              className="mt-4"
+              tabClassName="text-[10px] sm:text-[11px]"
             />
           </SheetHeader>
 
-          {/* Content Area */}
-          <div className="flex-1 min-h-0 bg-[#f7f7f8] px-4 py-4 flex flex-col">
-            <div className="flex-1 min-h-0 flex flex-col rounded-xl border border-slate-950/[0.08] bg-white overflow-hidden shadow-sm">
-              <div className="flex items-center justify-between border-b border-slate-950/[0.05] bg-white px-4 py-2 shrink-0">
-                <div className="text-[12px] font-medium text-slate-500 font-mono">
-                  {activeTab === "html"
-                    ? `${cleanScreenName.toLowerCase()}.html`
-                    : activeTab === "swiftui"
-                    ? `${cleanScreenName}View.swift`
-                    : activeTab === "compose"
-                    ? `${cleanScreenName}Screen.kt`
-                    : activeTab === "reactnative"
-                    ? `${cleanScreenName}Screen.tsx`
-                    : `${cleanScreenName.toLowerCase()}_screen.dart`}
-                </div>
-              </div>
-              <div className="flex-1 min-h-0 relative font-mono text-[12px] leading-relaxed">
-                <PremiumTabPanel panelKey={activeTab} className="h-full">
-                  {compiledCodes ? (
-                    <pre className="h-full w-full overflow-auto p-4 text-slate-700 select-text scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
-                      <code>{activeCode}</code>
-                    </pre>
-                  ) : (
-                    <div className="flex h-full flex-col items-center justify-center gap-3 text-center px-6">
-                      <Loader2 className="h-5 w-5 text-slate-400 animate-spin" />
-                      <div className="text-[13px] text-slate-500">Compiling native code...</div>
+          <div className="min-h-0 flex-1 overflow-hidden p-3 sm:p-4">
+            <PremiumTabPanel panelKey={mode} className="h-full min-h-0">
+              {mode === "agent" ? (
+                <div className="grid h-full min-h-0 gap-3 lg:grid-cols-[280px_minmax(0,1fr)]">
+                  <aside className="flex min-h-0 flex-col gap-3 overflow-auto rounded-[18px] border border-slate-950/[0.08] bg-white p-4 shadow-sm">
+                    <div className="rounded-[15px] bg-slate-950 p-4 text-white">
+                      <div className="flex items-center gap-2 text-xs font-extrabold">
+                        <Sparkles className="h-4 w-4 text-emerald-300" />
+                        Recommended workflow
+                      </div>
+                      <p className="mt-2 text-[11px] leading-5 text-slate-300">
+                        Your local agent already knows your repository. Drawgle gives it the visual source, design contract, and implementation checklist.
+                      </p>
                     </div>
-                  )}
-                </PremiumTabPanel>
-              </div>
-            </div>
-          </div>
 
-          {/* Action CTAs Bottom Bar */}
-          <div className="border-t border-slate-950/[0.08] bg-white px-5 py-3 flex items-center justify-end gap-2 shrink-0">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleDownload}
-              disabled={!activeCode}
-              className="h-8 rounded-[10px] bg-white px-3 text-[12px] font-semibold text-slate-700 border-slate-950/[0.1] hover:bg-slate-50"
-            >
-              <Download className="mr-1.5 h-3.5 w-3.5" />
-              Download
-            </Button>
-            <Button
-              type="button"
-              onClick={handleCopy}
-              disabled={!activeCode}
-              className="h-8 rounded-[10px] bg-slate-950 px-3 text-[12px] font-semibold text-white hover:bg-slate-800"
-            >
-              {copied ? <Check className="mr-1.5 h-3.5 w-3.5" /> : <Copy className="mr-1.5 h-3.5 w-3.5" />}
-              {copied ? "Copied" : "Copy Code"}
-            </Button>
+                    <div>
+                      <div className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-slate-500">Included context</div>
+                      <div className="mt-2 space-y-2">
+                        {CONTEXT_ITEMS.map((item) => (
+                          <div key={item} className="flex items-start gap-2 text-[11px] font-medium leading-4 text-slate-600">
+                            <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                            {item}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="mt-auto space-y-2">
+                      <Button
+                        type="button"
+                        onClick={() => void markCopied("agent", agentPrompt)}
+                        className="h-10 w-full rounded-[12px] bg-slate-950 text-xs font-bold text-white hover:bg-slate-800"
+                        data-testid="copy-for-agent"
+                      >
+                        {copiedAction === "agent" ? <Check className="mr-2 h-4 w-4" /> : <Clipboard className="mr-2 h-4 w-4" />}
+                        {copiedAction === "agent" ? "Copied for Agent" : "Copy for Agent"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => downloadBlob([agentPrompt], "text/markdown;charset=utf-8", `${slugifyExportName(activeScreen?.name || "screen")}-agent-prompt.md`)}
+                        className="h-9 w-full rounded-[11px] border-slate-950/[0.1] bg-white text-[11px] font-bold"
+                      >
+                        <FileDown className="mr-2 h-3.5 w-3.5" />
+                        Download Prompt (.md)
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleAgentPackDownload}
+                        className="h-9 w-full rounded-[11px] border-emerald-600/20 bg-emerald-50 text-[11px] font-bold text-emerald-800 hover:bg-emerald-100"
+                        data-testid="download-agent-pack"
+                      >
+                        <FolderArchive className="mr-2 h-3.5 w-3.5" />
+                        Download Project Agent Pack
+                      </Button>
+                    </div>
+
+                    {packInstructionVisible ? (
+                      <div className="rounded-[13px] border border-emerald-600/15 bg-emerald-50 p-3">
+                        <div className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-emerald-800">After adding the pack</div>
+                        <button
+                          type="button"
+                          onClick={() => void markCopied("pack-instruction", "Read .drawgle/handoff.md and implement the Drawgle screens in this repository.")}
+                          className="mt-2 flex w-full items-start justify-between gap-2 rounded-[9px] bg-white px-2.5 py-2 text-left font-mono text-[10px] leading-4 text-slate-700 ring-1 ring-emerald-600/10"
+                        >
+                          Read .drawgle/handoff.md and implement the Drawgle screens in this repository.
+                          {copiedAction === "pack-instruction" ? <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" /> : <Clipboard className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
+                        </button>
+                      </div>
+                    ) : null}
+                  </aside>
+                  <CodePreview value={agentPrompt} />
+                </div>
+              ) : null}
+
+              {mode === "html" ? (
+                <div className="flex h-full min-h-0 flex-col gap-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-slate-950/[0.08] bg-white px-4 py-3 shadow-sm">
+                    <div>
+                      <div className="flex items-center gap-2 text-xs font-extrabold text-slate-900">
+                        <Code2 className="h-4 w-4 text-sky-600" />
+                        High-fidelity HTML source
+                      </div>
+                      <p className="mt-1 text-[11px] text-slate-500">Standalone Tailwind HTML with tokens, fonts, and selected-screen navigation state.</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" onClick={() => void markCopied("html", htmlExport)} className="h-8 rounded-[10px] text-[11px] font-bold">
+                        {copiedAction === "html" ? <Check className="mr-1.5 h-3.5 w-3.5" /> : <Clipboard className="mr-1.5 h-3.5 w-3.5" />}
+                        Copy HTML
+                      </Button>
+                      <Button onClick={() => downloadBlob([htmlExport], "text/html;charset=utf-8", `${slugifyExportName(activeScreen?.name || "screen")}.html`)} className="h-8 rounded-[10px] bg-slate-950 text-[11px] font-bold text-white hover:bg-slate-800">
+                        <Download className="mr-1.5 h-3.5 w-3.5" />
+                        Download
+                      </Button>
+                    </div>
+                  </div>
+                  <CodePreview value={htmlExport} />
+                </div>
+              ) : null}
+
+              {mode === "scaffolds" ? (
+                <div className="flex h-full min-h-0 flex-col gap-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-amber-500/20 bg-amber-50 px-4 py-3 shadow-sm">
+                    <div className="max-w-xl">
+                      <div className="flex items-center gap-2 text-xs font-extrabold text-amber-950">
+                        <AlertTriangle className="h-4 w-4 text-amber-700" />
+                        Structural scaffold, Beta
+                      </div>
+                      <p className="mt-1 text-[11px] leading-4 text-amber-900/70">
+                        Generates visual structure and token constants to accelerate implementation. Adjust it for your architecture, dependencies, and platform conventions.
+                      </p>
+                    </div>
+                    {scaffoldResult?.code ? (
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" onClick={() => void markCopied("scaffold", scaffoldResult.code || "")} className="h-8 rounded-[10px] border-amber-700/20 bg-white text-[11px] font-bold">
+                          {copiedAction === "scaffold" ? <Check className="mr-1.5 h-3.5 w-3.5" /> : <Clipboard className="mr-1.5 h-3.5 w-3.5" />}
+                          Copy Scaffold
+                        </Button>
+                        <Button
+                          onClick={() => downloadBlob([scaffoldResult.code || ""], "text/plain;charset=utf-8", `${cleanScreenName}.${scaffoldOption.extension}`)}
+                          className="h-8 rounded-[10px] bg-amber-900 text-[11px] font-bold text-white hover:bg-amber-800"
+                        >
+                          <Download className="mr-1.5 h-3.5 w-3.5" />
+                          Download Beta
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                  {scaffoldResult?.error ? (
+                    <div className="flex min-h-0 flex-1 flex-col items-center justify-center rounded-[16px] border border-rose-500/20 bg-white px-6 text-center shadow-sm" data-testid="scaffold-error">
+                      <AlertTriangle className="h-7 w-7 text-rose-500" />
+                      <div className="mt-3 text-sm font-extrabold text-slate-900">This Beta Scaffold could not be generated</div>
+                      <p className="mt-1 max-w-md text-xs leading-5 text-slate-500">{scaffoldResult.error}</p>
+                      <p className="mt-3 text-[11px] font-semibold text-emerald-700">Agent Handoff and HTML export are still available.</p>
+                    </div>
+                  ) : (
+                    <CodePreview value={scaffoldResult?.code} emptyMessage="Open a Beta Scaffold to generate its structural starting point." />
+                  )}
+                </div>
+              ) : null}
+            </PremiumTabPanel>
           </div>
         </div>
       </SheetContent>

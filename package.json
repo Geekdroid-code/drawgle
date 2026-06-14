@@ -39,6 +39,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "dodopayments": "^2.32.0",
+    "fflate": "^0.8.3",
     "framer-motion": "^12.38.0",
     "geist": "^1.7.2",
     "lucide-react": "^0.553.0",

@@ -110,7 +110,7 @@ export default function ManageSubscription({ subscription, plans, userEmail }: M
                     { name: `${credits.toLocaleString()} AI generation credits/mo`, icon: 'check' },
                     { name: `Build ~${screens} screens per month`, icon: 'check' },
                     { name: 'Free blueprint brief planner', icon: 'check' },
-                    { name: 'Tailwind CSS component exports', icon: 'check' },
+                    { name: 'Agent-ready HTML & design context', icon: 'check' },
                     { name: 'Figma design system matching', icon: 'check' },
                 ]
             }
@@ -128,7 +128,7 @@ export default function ManageSubscription({ subscription, plans, userEmail }: M
                 { name: `${credits.toLocaleString()} AI generation credits/mo`, icon: 'check' },
                 { name: `Build ~${screens} screens per month`, icon: 'check' },
                 { name: 'Multi-screen system planning', icon: 'check' },
-                { name: 'Unlimited Figma exports', icon: 'check' },
+                { name: 'Project Agent Packs & Beta Scaffolds', icon: 'check' },
                 { name: 'Priority developer support', icon: 'check' },
             ]
         }

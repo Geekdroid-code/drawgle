@@ -92,7 +92,7 @@ export default function PlanGrid({ plans, subscription, isAuthenticated }: PlanG
         `${credits.toLocaleString()} AI generation credits/mo`,
         `Build ~${screens} screens per month`,
         'Free blueprint brief planner',
-        'Tailwind CSS component exports',
+        'Agent-ready HTML & design context',
         'Figma design system matching',
       ]
     }
@@ -110,7 +110,7 @@ export default function PlanGrid({ plans, subscription, isAuthenticated }: PlanG
       `${credits.toLocaleString()} AI generation credits/mo`,
       `Build ~${screens} screens per month`,
       'Multi-screen system planning',
-      'Unlimited Figma exports',
+      'Project Agent Packs & Beta Scaffolds',
       'Priority developer support',
     ]
   }

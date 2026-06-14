@@ -77,7 +77,7 @@ function CameraAction({
             className="h-9 rounded-xl px-2 text-[var(--dg-text-muted)] hover:bg-[var(--dg-surface-muted)] hover:text-[var(--dg-text)] md:h-10 md:px-2.5"
           >
             {children}
-            {text ? <span className="hidden text-xs font-semibold xl:inline">{text}</span> : null}
+            {text ? <span className="hidden text-xs font-semibold xl:inline"></span> : null}
           </Button>
         }
       />

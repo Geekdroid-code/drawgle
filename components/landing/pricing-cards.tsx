@@ -38,7 +38,7 @@ export default function PricingCards() {
     "Generate ~30 full screens",
     "Standard build speeds",
     "AI-powered element edits",
-    "Figma integration & export",
+    "Agent-ready HTML & design context",
     "Full commercial license"
   ]
 
@@ -70,7 +70,7 @@ export default function PricingCards() {
             <span className="text-[#1b7fcccc]">at warp speed.</span>
           </h2>
           <p className="text-lg md:text-xl text-gray-600 max-w-3xl mx-auto leading-tight mb-4">
-            Choose the perfect plan to fuel your product development with high-fidelity, production-ready mobile screen designs.
+            Choose the perfect plan to create high-fidelity mobile screens and hand complete implementation context to your coding agents.
           </p>
         </div>
         

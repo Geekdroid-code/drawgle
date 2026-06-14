@@ -616,7 +616,7 @@ export default function DescribeToDesign() {
                 exit={{ opacity: 0, x: 4 }}
                 className="truncate"
               >
-                {currentStep >= 6 ? 'Production-ready React · design system preserved' : `Applying ${activeToken.name} across ${activeToken.affected}`}
+                {currentStep >= 6 ? 'Agent-ready handoff · design system preserved' : `Applying ${activeToken.name} across ${activeToken.affected}`}
               </motion.span>
             </AnimatePresence>
           </div>

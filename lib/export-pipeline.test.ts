@@ -1,0 +1,161 @@
+import { strFromU8, unzipSync } from "fflate";
+import { describe, expect, it } from "vitest";
+
+import { buildPublicDesignMdDocument } from "@/lib/design-md";
+import {
+  buildAgentHandoffPrompt,
+  buildAgentPackFiles,
+  buildAgentPackZip,
+  buildStandaloneHtmlExport,
+  sanitizeHtmlForExport,
+} from "@/lib/export-pipeline";
+import type { DesignTokens, ProjectData, ProjectNavigationData, ScreenData } from "@/lib/types";
+
+const designTokens: DesignTokens = {
+  system_schema: "mobile_universal_core",
+  tokens: {
+    color: {
+      background: { primary: "#101010", secondary: "#181818" },
+      surface: { card: "#202020" },
+      text: { high_emphasis: "#FFFFFF", medium_emphasis: "#B0B0B0", low_emphasis: "#777777" },
+      action: { primary: "#5EE1A2", on_primary_text: "#08110C", secondary: "#303030" },
+      border: { divider: "#333333", focused: "#5EE1A2" },
+    },
+    typography: { font_family: "Inter" },
+    mobile_layout: { screen_margin: "20px", section_gap: "24px", element_gap: "12px" },
+    radii: { app: "22px", pill: "9999px" },
+  },
+};
+
+const project: ProjectData = {
+  id: "project-1",
+  userId: "user-1",
+  name: "Finance App",
+  prompt: "Build a calm finance app.",
+  status: "completed",
+  designTokens,
+  charter: {
+    originalPrompt: "Build a calm finance app.",
+    appType: "personal finance app",
+    targetAudience: "busy professionals",
+    navigationModel: "bottom tabs",
+    keyFeatures: ["Balance overview", "Expense tracking"],
+    designRationale: "Quiet hierarchy with confident actions.",
+  },
+  createdAt: "2026-01-01",
+  updatedAt: "2026-01-01",
+};
+
+const screens: ScreenData[] = [
+  {
+    id: "home",
+    projectId: project.id,
+    userId: project.userId,
+    name: "Home",
+    code: '<main data-drawgle-id="secret-home"><h1>Home balance</h1></main>',
+    prompt: "Show the balance.",
+    summary: "Balance overview.",
+    chromePolicy: { chrome: "bottom-tabs", showPrimaryNavigation: true, showsBackButton: false },
+    navigationItemId: "home",
+    x: 0,
+    y: 0,
+    createdAt: "2026-01-01",
+    updatedAt: "2026-01-01",
+  },
+  {
+    id: "insights",
+    projectId: project.id,
+    userId: project.userId,
+    name: "Insights",
+    code: "<main><h1>Private insights marker</h1></main>",
+    prompt: "Show trends.",
+    chromePolicy: { chrome: "bottom-tabs", showPrimaryNavigation: true, showsBackButton: false },
+    navigationItemId: "insights",
+    x: 500,
+    y: 0,
+    createdAt: "2026-01-01",
+    updatedAt: "2026-01-01",
+  },
+];
+
+const projectNavigation: ProjectNavigationData = {
+  id: "nav",
+  projectId: project.id,
+  ownerId: project.userId,
+  plan: {
+    enabled: true,
+    kind: "bottom-tabs",
+    items: [
+      { id: "home", label: "Home", icon: "home", role: "Overview", linkedScreenName: "Home" },
+      { id: "insights", label: "Insights", icon: "chart", role: "Trends", linkedScreenName: "Insights" },
+    ],
+    visualBrief: "Floating compact navigation.",
+    screenChrome: [
+      { screenName: "Home", chrome: "bottom-tabs", navigationItemId: "home" },
+      { screenName: "Insights", chrome: "bottom-tabs", navigationItemId: "insights" },
+    ],
+  },
+  shellCode: '<nav data-drawgle-primary-nav><button data-nav-item-id="home">Home</button></nav>',
+  status: "ready",
+  createdAt: "2026-01-01",
+  updatedAt: "2026-01-01",
+};
+
+const context = { project, screens, projectNavigation, designTokens };
+
+describe("export pipeline", () => {
+  it("sanitizes editor metadata from exported HTML", () => {
+    expect(sanitizeHtmlForExport(screens[0].code)).toBe("<main><h1>Home balance</h1></main>");
+  });
+
+  it("builds standalone HTML with the selected screen navigation state", () => {
+    const html = buildStandaloneHtmlExport({
+      screen: screens[0],
+      navigationCode: projectNavigation.shellCode,
+      activeNavigationItemId: "home",
+      designTokens,
+    });
+
+    expect(html).toContain("Home balance");
+    expect(html).toContain('=== "home"');
+    expect(html).not.toContain("secret-home");
+  });
+
+  it("builds a target-specific prompt containing only the selected screen HTML", () => {
+    const prompt = buildAgentHandoffPrompt({ context, screen: screens[0], target: "swiftui" });
+
+    expect(prompt).toContain("Implement this screen in SwiftUI");
+    expect(prompt).toContain("Home balance");
+    expect(prompt).not.toContain("Private insights marker");
+    expect(prompt).toContain("Quiet hierarchy with confident actions.");
+  });
+
+  it("reuses the shared Design.md builder in handoff files", () => {
+    const files = buildAgentPackFiles({ context });
+    const designMd = buildPublicDesignMdDocument({ project, projectNavigation, tokenDraft: designTokens });
+
+    expect(files[".drawgle/design.md"]).toBe(designMd);
+  });
+
+  it("builds a project pack with every screen and no native, asset, or root instruction files", () => {
+    const files = buildAgentPackFiles({ context, target: "auto" });
+    const paths = Object.keys(files);
+
+    expect(paths).toContain(".drawgle/screens/home.html");
+    expect(paths).toContain(".drawgle/screens/insights.html");
+    expect(paths).toContain(".agents/skills/drawgle-ui-handoff/SKILL.md");
+    expect(paths).toContain(".claude/skills/drawgle-ui-handoff/SKILL.md");
+    expect(paths).not.toContain("AGENTS.md");
+    expect(paths).not.toContain("CLAUDE.md");
+    expect(paths.some((path) => /assets|\.swift$|\.kt$|\.tsx$|\.dart$/i.test(path))).toBe(false);
+  });
+
+  it("creates a readable ZIP matching the project pack", () => {
+    const zip = unzipSync(buildAgentPackZip({ context }));
+    const manifest = JSON.parse(strFromU8(zip[".drawgle/manifest.json"]));
+
+    expect(manifest.project.name).toBe("Finance App");
+    expect(strFromU8(zip[".drawgle/screens/home.html"])).toContain("Home balance");
+    expect(strFromU8(zip[".drawgle/screens/insights.html"])).toContain("Private insights marker");
+  });
+});

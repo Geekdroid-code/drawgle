@@ -12,7 +12,7 @@ AI-powered product design and UI generation workspace (mobile-first).
 From idea to editable app screens, with control at every step.
 
 ### Mission
-Help product teams ship production-ready mobile UI faster by turning prompts into governed generation workflows instead of one-shot AI output.
+Help product teams ship premium mobile UI faster by turning prompts into governed design workflows and agent-ready engineering handoffs.
 
 ### Vision
 Make AI-assisted app creation reliable enough for real product teams, not just demos.
