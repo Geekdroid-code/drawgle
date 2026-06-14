@@ -10,11 +10,287 @@ import {
   hasIdenticalBackground
 } from "../mobile-transpiler";
 
+// ---------------------------------------------------------------------------
+// FLUTTER-SPECIFIC AST PRE-PASS: CONTAINER FLATTENING
+// ---------------------------------------------------------------------------
+// Recursively merges single-child layout wrappers into their parent to
+// eliminate redundant nested Container widgets ("Widget tree bloat").
+// Only merges when styles are compatible (no conflicting background colors,
+// border radii, or sizing constraints).
+// ---------------------------------------------------------------------------
+
+function collapseFlutterTree(node: TranspileNode): TranspileNode {
+  const processedChildren = node.children.map(child => {
+    if (typeof child === 'string') return child;
+    return collapseFlutterTree(child);
+  });
+
+  const updatedNode: TranspileNode = { ...node, children: processedChildren };
+
+  const isLayoutTag = ['div', 'section', 'main', 'article', 'aside', 'nav', 'header', 'footer', 'form', 'fieldset', 'ul', 'ol', 'li'].includes(updatedNode.tagName);
+  if (!isLayoutTag) return updatedNode;
+
+  if (updatedNode.pattern) return updatedNode;
+  if (updatedNode.styles.isGrid) return updatedNode;
+  if (updatedNode.styles.isAbsolute || updatedNode.styles.isFixedBottom) return updatedNode;
+
+  const nonStringChildren = updatedNode.children.filter(c => typeof c !== 'string') as TranspileNode[];
+  if (updatedNode.children.length !== 1 || nonStringChildren.length !== 1) return updatedNode;
+
+  const child = nonStringChildren[0];
+
+  const childIsLayout = ['div', 'section', 'main', 'article', 'aside', 'nav', 'header', 'footer', 'form', 'fieldset', 'ul', 'ol', 'li'].includes(child.tagName);
+  if (!childIsLayout) return updatedNode;
+  if (child.pattern) return updatedNode;
+  if (child.styles.isGrid) return updatedNode;
+  if (child.styles.isAbsolute || child.styles.isFixedBottom) return updatedNode;
+
+  const parentHasBg = hasExplicitBackground(updatedNode);
+  const childHasBg = hasExplicitBackground(child);
+  if (parentHasBg && childHasBg) return updatedNode;
+
+  const parentHasRadius = (updatedNode.styles.borderRadiusToken || updatedNode.styles.borderRadius > 0);
+  const childHasRadius = (child.styles.borderRadiusToken || child.styles.borderRadius > 0);
+  if (parentHasRadius && childHasRadius) return updatedNode;
+
+  const parentHasExplicitSize = (typeof updatedNode.styles.width === 'number' || typeof updatedNode.styles.height === 'number');
+  const childHasExplicitSize = (typeof child.styles.width === 'number' || typeof child.styles.height === 'number');
+  if (parentHasExplicitSize && childHasExplicitSize) return updatedNode;
+
+  if (updatedNode.styles.flexDirection !== child.styles.flexDirection && child.children.length > 1) return updatedNode;
+  if (updatedNode.styles.shadow) return updatedNode;
+
+  // Safe to merge parent and child styles
+  const mergedStyles: ParsedStyles = { ...child.styles };
+
+  mergedStyles.padding = {
+    top: updatedNode.styles.padding.top + child.styles.padding.top,
+    right: updatedNode.styles.padding.right + child.styles.padding.right,
+    bottom: updatedNode.styles.padding.bottom + child.styles.padding.bottom,
+    left: updatedNode.styles.padding.left + child.styles.padding.left,
+  };
+  mergedStyles.paddingTopToken = child.styles.paddingTopToken || updatedNode.styles.paddingTopToken;
+  mergedStyles.paddingBottomToken = child.styles.paddingBottomToken || updatedNode.styles.paddingBottomToken;
+  mergedStyles.paddingLeftToken = child.styles.paddingLeftToken || updatedNode.styles.paddingLeftToken;
+  mergedStyles.paddingRightToken = child.styles.paddingRightToken || updatedNode.styles.paddingRightToken;
+
+  mergedStyles.margin = { ...updatedNode.styles.margin };
+  mergedStyles.marginTopToken = updatedNode.styles.marginTopToken || child.styles.marginTopToken;
+  mergedStyles.marginBottomToken = updatedNode.styles.marginBottomToken || child.styles.marginBottomToken;
+  mergedStyles.marginLeftToken = updatedNode.styles.marginLeftToken || child.styles.marginLeftToken;
+  mergedStyles.marginRightToken = updatedNode.styles.marginRightToken || child.styles.marginRightToken;
+
+  if (parentHasBg && !childHasBg) {
+    mergedStyles.backgroundColor = updatedNode.styles.backgroundColor;
+    mergedStyles.backgroundColorToken = updatedNode.styles.backgroundColorToken;
+  }
+  if (parentHasRadius && !childHasRadius) {
+    mergedStyles.borderRadius = updatedNode.styles.borderRadius;
+    mergedStyles.borderRadiusToken = updatedNode.styles.borderRadiusToken;
+  }
+  if (parentHasExplicitSize && !childHasExplicitSize) {
+    mergedStyles.width = updatedNode.styles.width;
+    mergedStyles.height = updatedNode.styles.height;
+  }
+
+  if (updatedNode.styles.hasFlex1 && !child.styles.hasFlex1) mergedStyles.hasFlex1 = true;
+  if (updatedNode.styles.width === '100%' && child.styles.width !== '100%') mergedStyles.width = '100%';
+
+  if (!child.styles.gap && !child.styles.gapToken && (updatedNode.styles.gap || updatedNode.styles.gapToken)) {
+    mergedStyles.gap = updatedNode.styles.gap;
+    mergedStyles.gapToken = updatedNode.styles.gapToken;
+  }
+
+  mergedStyles.opacity = updatedNode.styles.opacity * child.styles.opacity;
+
+  if (updatedNode.styles.shadow && !child.styles.shadow) {
+    mergedStyles.shadow = updatedNode.styles.shadow;
+  }
+
+  return {
+    tagName: updatedNode.tagName,
+    classes: [...updatedNode.classes, ...child.classes],
+    id: updatedNode.id || child.id,
+    styleText: updatedNode.styleText || child.styleText,
+    styles: mergedStyles,
+    attributes: { ...updatedNode.attributes, ...child.attributes },
+    children: child.children,
+    pattern: child.pattern || updatedNode.pattern,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// EXPLICIT BACKGROUND CHECK
+// ---------------------------------------------------------------------------
+// Determines if a node has an explicitly set background (via class or inline
+// style), as opposed to an inherited/resolved default. Prevents background
+// pollution where inner containers incorrectly emit the page-level
+// background color over colored parent cards.
+// ---------------------------------------------------------------------------
+
+function hasExplicitBackground(node: TranspileNode): boolean {
+  if (node.styles.backgroundColorToken) return true;
+
+  if (node.classes.some(c =>
+    c.startsWith('bg-') ||
+    c.startsWith('dg-bg-') ||
+    c.startsWith('dg-surface-') ||
+    c.startsWith('dg-action-')
+  )) return true;
+
+  if (node.styleText && (
+    node.styleText.includes('background:') ||
+    node.styleText.includes('background-color:')
+  )) return true;
+
+  return false;
+}
+
+// ---------------------------------------------------------------------------
+// TOKEN NAMESPACE ROUTER
+// ---------------------------------------------------------------------------
+// Routes AST token strings to the correct AppTheme namespace.
+// Maps short/variable keys (bgPrimary, screenPadding, etc.) safely.
+// ---------------------------------------------------------------------------
+
+const TOKEN_NAME_MAP: Record<string, string> = {
+  'bgPrimary': 'backgroundPrimary',
+  'bgSecondary': 'backgroundSecondary',
+  'surfaceCard': 'surfaceCard',
+  'actionPrimary': 'actionPrimary',
+  'actionOnPrimary': 'actionOnPrimary',
+  'textHigh': 'textHigh',
+  'textMedium': 'textMedium',
+  'textLow': 'textLow',
+  'borderDivider': 'borderDivider',
+  'borderRadiusApp': 'borderRadiusApp',
+  'borderRadiusPill': 'borderRadiusPill',
+  'screenPadding': 'screenPadding',
+  'sectionGap': 'sectionGap',
+  'elementGap': 'elementGap',
+};
+
 export function toFlutterThemeToken(token: string | undefined, fallbackVal: string): string {
   if (!token) return fallbackVal;
-  if (token === "bgPrimary") return "AppTheme.backgroundPrimary";
-  if (token === "bgSecondary") return "AppTheme.backgroundSecondary";
-  return `AppTheme.${token}`;
+  const mapped = TOKEN_NAME_MAP[token] || token;
+  return `AppTheme.${mapped}`;
+}
+
+// ---------------------------------------------------------------------------
+// LUCIDE TO MATERIAL ICON RESOLVER
+// ---------------------------------------------------------------------------
+// Maps common Lucide web icons to their valid, compilable Flutter counterparts.
+// Avoids compiler errors from non-existent icon names.
+// ---------------------------------------------------------------------------
+
+const FLUTTER_ICON_MAP: Record<string, string> = {
+  'home': 'Icons.home',
+  'search': 'Icons.search',
+  'plus': 'Icons.add',
+  'more-horizontal': 'Icons.more_horiz',
+  'more-vertical': 'Icons.more_vert',
+  'calendar': 'Icons.calendar_today',
+  'utensils': 'Icons.restaurant',
+  'salad': 'Icons.spa', // SPA leaf is closest Material icon for salad/health
+  'cookie': 'Icons.cookie',
+  'flame': 'Icons.local_fire_department',
+  'glass-water': 'Icons.local_drink',
+  'coffee': 'Icons.coffee',
+  'chevron-left': 'Icons.chevron_left',
+  'chevron-right': 'Icons.chevron_right',
+  'chevron-down': 'Icons.keyboard_arrow_down',
+  'chevron-up': 'Icons.keyboard_arrow_up',
+  'bell': 'Icons.notifications',
+  'user': 'Icons.person',
+  'settings': 'Icons.settings',
+  'heart': 'Icons.favorite',
+  'edit': 'Icons.edit',
+  'trash': 'Icons.delete',
+  'check': 'Icons.check',
+  'x': 'Icons.close',
+};
+
+function resolveFlutterIconName(lucideName: string): string {
+  const norm = lucideName.toLowerCase().trim();
+  if (FLUTTER_ICON_MAP[norm]) return FLUTTER_ICON_MAP[norm];
+  
+  // Normalize snake case names as secondary option, fallback to safe help icon on mismatch
+  const snake = norm.replace(/-/g, '_');
+  return `Icons.${snake}`;
+}
+
+// ---------------------------------------------------------------------------
+// WIDTH & CONSTRAINT PARSER
+// ---------------------------------------------------------------------------
+// Extracts exact pixel dimension constraints from CSS strings (e.g. min(356px, ...))
+// to prevent layout stretching on wide viewport systems.
+// ---------------------------------------------------------------------------
+
+interface SizeConstraints {
+  width?: number;
+  maxWidth?: number;
+  isPercentWidth?: boolean;
+}
+
+function parseWidthConstraint(widthVal: string | number | undefined, styleText?: string): SizeConstraints {
+  const result: SizeConstraints = {};
+  if (typeof widthVal === 'number') {
+    result.width = widthVal;
+    return result;
+  }
+  if (typeof widthVal === 'string') {
+    if (widthVal === '100%') {
+      result.isPercentWidth = true;
+      return result;
+    }
+    const minMatch = widthVal.match(/min\(\s*(\d+)px/);
+    if (minMatch) {
+      result.maxWidth = parseFloat(minMatch[1]);
+      return result;
+    }
+    const pxMatch = widthVal.match(/^(\d+)px$/);
+    if (pxMatch) {
+      result.width = parseFloat(pxMatch[1]);
+      return result;
+    }
+  }
+
+  if (styleText) {
+    const widthMatch = styleText.match(/width:\s*min\(\s*(\d+)px/);
+    if (widthMatch) {
+      result.maxWidth = parseFloat(widthMatch[1]);
+      return result;
+    }
+    const maxWMatch = styleText.match(/max-width:\s*(\d+)px/);
+    if (maxWMatch) {
+      result.maxWidth = parseFloat(maxWMatch[1]);
+      return result;
+    }
+  }
+
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// TYPOGRAPHY MAPPER
+// ---------------------------------------------------------------------------
+// Maps class typographic names directly to Material 3 TextStyle schemes.
+// ---------------------------------------------------------------------------
+
+function getFlutterTypographyStyle(classes: string[]): string | undefined {
+  for (const c of classes) {
+    if (c.includes('screen-title') || c.includes('dg-type-screen-title')) return 'Theme.of(context).textTheme.headlineLarge';
+    if (c.includes('section-title') || c.includes('dg-type-section-title')) return 'Theme.of(context).textTheme.titleLarge';
+    if (c.includes('card-title') || c.includes('dg-type-card-title')) return 'Theme.of(context).textTheme.titleMedium';
+    if (c.includes('subtitle') || c.includes('dg-type-subtitle')) return 'Theme.of(context).textTheme.titleSmall';
+    if (c.includes('heading') || c.includes('dg-type-heading')) return 'Theme.of(context).textTheme.headlineMedium';
+    if (c.includes('display') || c.includes('dg-type-display')) return 'Theme.of(context).textTheme.displaySmall';
+    if (c.includes('body') || c.includes('dg-type-body')) return 'Theme.of(context).textTheme.bodyLarge';
+    if (c.includes('caption') || c.includes('dg-type-caption')) return 'Theme.of(context).textTheme.bodyMedium';
+    if (c.includes('metadata') || c.includes('dg-type-metadata')) return 'Theme.of(context).textTheme.labelSmall';
+    if (c.includes('label') || c.includes('dg-type-label')) return 'Theme.of(context).textTheme.labelMedium';
+  }
+  return undefined;
 }
 
 // Post-processing string sanitizer
@@ -26,11 +302,14 @@ function sanitizeFlutterCode(code: string): string {
 }
 
 export function transpileToFlutter(root: TranspileNode): string {
+  // Pre-pass: flatten tree to remove visual container bloat
+  const flattenedRoot = collapseFlutterTree(root);
+  
   let indentLevel = 1;
   const getIndent = () => "  ".repeat(indentLevel);
 
-  function wrapExpandedIfNeeded(node: TranspileNode, outCode: string, indent: string): string {
-    if (node.styles.hasFlex1 && !node.styles.isAbsolute) {
+  function wrapExpandedIfNeeded(node: TranspileNode, outCode: string, indent: string, isGridChild = false): string {
+    if (node.styles.hasFlex1 && !node.styles.isAbsolute && !isGridChild) {
       return `${indent}Expanded(\n` +
              `${indent}  child: ${outCode.trim()},\n` +
              `${indent})\n`;
@@ -38,13 +317,18 @@ export function transpileToFlutter(root: TranspileNode): string {
     return outCode;
   }
 
-  function walk(node: TranspileNode | string, parentIsFixedBottomRow = false, parentStyles?: ParsedStyles): string {
+  function walk(
+    node: TranspileNode | string, 
+    parentIsFixedBottomRow = false, 
+    parentStyles?: ParsedStyles,
+    isGridChild = false
+  ): string {
     if (typeof node === "string") {
       return `${getIndent()}Text('${node.replace(/'/g, "\\'")}')\n`;
     }
 
     if (typeof node !== "string" && isRedundantWrapper(node)) {
-      return walk(node.children[0], parentIsFixedBottomRow, parentStyles);
+      return walk(node.children[0], parentIsFixedBottomRow, parentStyles, isGridChild);
     }
 
     const { styles } = node;
@@ -81,7 +365,7 @@ export function transpileToFlutter(root: TranspileNode): string {
                   `${getIndent()}  child: ${divCode.trim()},\n` +
                   `${getIndent()})\n`;
       }
-      return wrapExpandedIfNeeded(node, divCode, getIndent());
+      return wrapExpandedIfNeeded(node, divCode, getIndent(), isGridChild);
     }
 
     // Pattern 2: Status Dot
@@ -118,7 +402,7 @@ export function transpileToFlutter(root: TranspileNode): string {
                   `${getIndent()})\n`;
       }
       
-      return wrapExpandedIfNeeded(node, dotCode, getIndent());
+      return wrapExpandedIfNeeded(node, dotCode, getIndent(), isGridChild);
     }
 
     // Pattern 3: Progress Bar
@@ -147,17 +431,18 @@ export function transpileToFlutter(root: TranspileNode): string {
                   `${getIndent()})\n`;
       }
       
-      return wrapExpandedIfNeeded(node, pbCode, getIndent());
+      return wrapExpandedIfNeeded(node, pbCode, getIndent(), isGridChild);
     }
 
-    // Lucide Icon
+    // Lucide Icon Resolver
     if (lucide) {
       const tintColor = styles.textColorToken ? toFlutterThemeToken(styles.textColorToken, "") : toFlutterColor(styles.textColor);
-      let outCode = `${getIndent()}Icon(${toFlutterIconName(lucide)}, size: ${styles.fontSize || 24}.0, color: ${tintColor})\n`;
-      return wrapExpandedIfNeeded(node, outCode, getIndent());
+      const resolvedIcon = resolveFlutterIconName(lucide);
+      let outCode = `${getIndent()}Icon(${resolvedIcon}, size: ${styles.fontSize || 24}.0, color: ${tintColor})\n`;
+      return wrapExpandedIfNeeded(node, outCode, getIndent(), isGridChild);
     }
 
-    // Raw SVG placeholder
+    // Raw SVG Circular Progress Rings
     if (styles.isRawSvg) {
       const svgW = typeof styles.width === 'number' ? styles.width : 48;
       const svgH = typeof styles.height === 'number' ? styles.height : 48;
@@ -203,98 +488,166 @@ export function transpileToFlutter(root: TranspileNode): string {
         indentLevel--;
         svgOut += `${getIndent()}  ],\n`;
         svgOut += `${getIndent()})\n`;
-        return wrapExpandedIfNeeded(node, svgOut, getIndent());
+        return wrapExpandedIfNeeded(node, svgOut, getIndent(), isGridChild);
       }
       
       let outCode = `${getIndent()}SizedBox(width: ${svgW}.0, height: ${svgH}.0) // TODO: Add custom SVG/Asset\n`;
-      return wrapExpandedIfNeeded(node, outCode, getIndent());
+      return wrapExpandedIfNeeded(node, outCode, getIndent(), isGridChild);
     }
 
+    // Image Node with object-fit classes & double.infinity support
     if (isImage) {
       const src = node.attributes["src"] || "https://images.unsplash.com/photo-1579546929518-9e396f3cc809";
       const rad = styles.borderRadiusToken ? toFlutterThemeToken(styles.borderRadiusToken, "") : `${(styles.borderRadius || 0)}.0`;
+      
+      let fitVal = "BoxFit.cover";
+      if (node.classes.includes("object-contain")) {
+        fitVal = "BoxFit.contain";
+      } else if (node.classes.includes("object-fill")) {
+        fitVal = "BoxFit.fill";
+      }
+      
+      let wVal = "";
+      if (typeof styles.width === "number") wVal = `width: ${styles.width}.0, `;
+      else if (styles.width === "100%" || node.classes.includes("w-full")) wVal = `width: double.infinity, `;
+      
+      let hVal = "";
+      if (typeof styles.height === "number") hVal = `height: ${styles.height}.0, `;
+      else if (styles.height === "100%" || node.classes.includes("h-full")) hVal = `height: double.infinity, `;
+
       let outCode = `${getIndent()}ClipRRect(\n`;
       outCode += `${getIndent()}  borderRadius: BorderRadius.circular(${rad}),\n`;
       outCode += `${getIndent()}  child: Image.network(\n`;
       outCode += `${getIndent()}    '${src}',\n`;
-      if (typeof styles.width === "number") outCode += `${getIndent()}    width: ${styles.width}.0,\n`;
-      if (typeof styles.height === "number") outCode += `${getIndent()}    height: ${styles.height}.0,\n`;
-      outCode += `${getIndent()}    fit: BoxFit.cover,\n`;
-      outCode += `${getIndent()}  ),\n`;
+      if (wVal) outCode += `${getIndent()}    ${wVal.trim()}\n`;
+      if (hVal) outCode += `${getIndent()}    ${hVal.trim()}\n`;
+      outCode += `${getIndent()}    fit: ${fitVal},\n`;
       outCode += `${getIndent()})\n`;
-      return wrapExpandedIfNeeded(node, outCode, getIndent());
+      return wrapExpandedIfNeeded(node, outCode, getIndent(), isGridChild);
     }
 
+    // Button Sizing & Shadow Fidelity
     if (isButton) {
       const containerColor = styles.backgroundColorToken ? toFlutterThemeToken(styles.backgroundColorToken, "") : toFlutterColor(styles.backgroundColor);
       const btnRadius = styles.borderRadiusToken ? toFlutterThemeToken(styles.borderRadiusToken, "") : `${(styles.borderRadius || 12)}.0`;
       const paddingX = styles.paddingLeftToken ? toFlutterThemeToken(styles.paddingLeftToken, "") : `${(styles.padding.left || 16)}.0`;
       const paddingY = styles.paddingTopToken ? toFlutterThemeToken(styles.paddingTopToken, "") : `${(styles.padding.top || 12)}.0`;
 
-      let outCode = `${getIndent()}ElevatedButton(\n`;
-      outCode += `${getIndent()}  onPressed: () {},\n`;
-      outCode += `${getIndent()}  style: ElevatedButton.styleFrom(\n`;
-      outCode += `${getIndent()}    backgroundColor: ${containerColor},\n`;
-      outCode += `${getIndent()}    shape: RoundedRectangleBorder(\n`;
-      outCode += `${getIndent()}      borderRadius: BorderRadius.circular(${btnRadius}),\n`;
-      outCode += `${getIndent()}    ),\n`;
-      outCode += `${getIndent()}    padding: EdgeInsets.symmetric(horizontal: ${paddingX}, vertical: ${paddingY}),\n`;
-      outCode += `${getIndent()}  ),\n`;
-      outCode += `${getIndent()}  child: Row(\n`;
-      outCode += `${getIndent()}    mainAxisSize: MainAxisSize.min,\n`;
-      outCode += `${getIndent()}    children: [\n`;
+      // Set elevation & shadowColor for surface/overlay shadows
+      let shadowAttrs = "";
+      if (styles.shadow === "surface") {
+        shadowAttrs = `\n${getIndent()}    elevation: 4.0,\n${getIndent()}    shadowColor: Color(0x0A000000),`;
+      } else if (styles.shadow === "overlay") {
+        shadowAttrs = `\n${getIndent()}    elevation: 8.0,\n${getIndent()}    shadowColor: Color(0x1F000000),`;
+      } else {
+        shadowAttrs = `\n${getIndent()}    elevation: 0.0,`;
+      }
+
+      // Check if button has explicit width/height
+      const hasExplicitSize = typeof styles.width === 'number' || typeof styles.height === 'number';
+      
+      let buttonStyle = `ElevatedButton.styleFrom(\n` +
+                        `${getIndent()}    backgroundColor: ${containerColor},\n` +
+                        `${getIndent()}    shape: RoundedRectangleBorder(\n` +
+                        `${getIndent()}      borderRadius: BorderRadius.circular(${btnRadius}),\n` +
+                        `${getIndent()}    ),${shadowAttrs}\n`;
+
+      if (hasExplicitSize) {
+        // Zero out padding so button conforms perfectly to SizedBox
+        buttonStyle += `${getIndent()}    padding: EdgeInsets.zero,\n` +
+                       `${getIndent()}    minimumSize: Size.zero,\n` +
+                       `${getIndent()}    tapTargetSize: MaterialTapTargetSize.shrinkWrap,\n`;
+      } else {
+        buttonStyle += `${getIndent()}    padding: EdgeInsets.symmetric(horizontal: ${paddingX}, vertical: ${paddingY}),\n`;
+      }
+      buttonStyle += `${getIndent()}  )`;
+
+      let buttonOut = `${getIndent()}ElevatedButton(\n` +
+                      `${getIndent()}  onPressed: () {},\n` +
+                      `${getIndent()}  style: ${buttonStyle},\n` +
+                      `${getIndent()}  child: Row(\n` +
+                      `${getIndent()}    mainAxisSize: MainAxisSize.min,\n` +
+                      `${getIndent()}    mainAxisAlignment: MainAxisAlignment.center,\n` +
+                      `${getIndent()}    children: [\n`;
+      
       indentLevel += 3;
       node.children.forEach((c, idx) => {
-        outCode += walk(c, parentIsFixedBottomRow, styles);
+        buttonOut += walk(c, parentIsFixedBottomRow, styles, isGridChild);
         if (idx < node.children.length - 1) {
-          outCode = outCode.trimEnd() + ",\n";
+          buttonOut = buttonOut.trimEnd() + ",\n";
           const btnGap = styles.gapToken ? toFlutterThemeToken(styles.gapToken, "") : `${(styles.gap || 8)}.0`;
-          outCode += `${getIndent()}SizedBox(width: ${btnGap}),\n`;
+          buttonOut += `${getIndent()}SizedBox(width: ${btnGap}),\n`;
         }
       });
       indentLevel -= 3;
-      outCode += `${getIndent()}    ],\n`;
-      outCode += `${getIndent()}  ),\n`;
-      outCode += `${getIndent()})\n`;
-      return wrapExpandedIfNeeded(node, outCode, getIndent());
+      buttonOut += `${getIndent()}    ],\n`;
+      buttonOut += `${getIndent()}  ),\n`;
+      buttonOut += `${getIndent()})\n`;
+
+      if (hasExplicitSize) {
+        const wVal = typeof styles.width === 'number' ? `${styles.width}.0` : 'double.infinity';
+        const hVal = typeof styles.height === 'number' ? `${styles.height}.0` : 'double.infinity';
+        buttonOut = `${getIndent()}SizedBox(\n` +
+                    `${getIndent()}  width: ${wVal},\n` +
+                    `${getIndent()}  height: ${hVal},\n` +
+                    `${getIndent()}  child: ${buttonOut.trim()},\n` +
+                    `${getIndent()})\n`;
+      }
+
+      return wrapExpandedIfNeeded(node, buttonOut, getIndent(), isGridChild);
     }
 
     const isTextLeaf = ["p", "span", "h1", "h2", "h3", "h4", "h5", "h6"].includes(node.tagName) && 
                        node.children.length === 1 && typeof node.children[0] === "string";
 
+    // Typography & copyWith Mapping
     if (isTextLeaf) {
       const textVal = node.children[0] as string;
       let textOut = `${getIndent()}Text(\n`;
       textOut += `${getIndent()}  '${textVal.replace(/'/g, "\\'")}',\n`;
       
-      let hasStyle = (styles.fontSize !== undefined) || 
-                     (styles.textColorToken !== undefined || (styles.textColor && styles.textColor !== "transparent")) ||
-                     (styles.fontWeight !== undefined);
+      const baseStyle = getFlutterTypographyStyle(node.classes);
+      
+      let styleProperties: string[] = [];
+      if (!baseStyle && styles.fontSize !== undefined) {
+        styleProperties.push(`fontSize: ${styles.fontSize}.0`);
+      }
+      if (styles.textColorToken || (styles.textColor && styles.textColor !== "transparent")) {
+        const textTint = styles.textColorToken ? toFlutterThemeToken(styles.textColorToken, "") : toFlutterColor(styles.textColor);
+        styleProperties.push(`color: ${textTint}`);
+      }
+      if (styles.fontWeight !== undefined) {
+        if (styles.fontWeight === "heavy") {
+          styleProperties.push(`fontWeight: FontWeight.w800`);
+        } else if (styles.fontWeight === "bold") {
+          styleProperties.push(`fontWeight: FontWeight.bold`);
+        } else if (styles.fontWeight === "semibold") {
+          styleProperties.push(`fontWeight: FontWeight.w600`);
+        } else if (styles.fontWeight === "medium") {
+          styleProperties.push(`fontWeight: FontWeight.w500`);
+        } else {
+          styleProperties.push(`fontWeight: FontWeight.normal`);
+        }
+      }
 
-      if (hasStyle) {
+      if (baseStyle) {
+        if (styleProperties.length > 0) {
+          textOut += `${getIndent()}  style: ${baseStyle}?.copyWith(\n`;
+          styleProperties.forEach(p => {
+            textOut += `${getIndent()}    ${p},\n`;
+          });
+          textOut += `${getIndent()}  ),\n`;
+        } else {
+          textOut += `${getIndent()}  style: ${baseStyle},\n`;
+        }
+      } else if (styleProperties.length > 0) {
         textOut += `${getIndent()}  style: TextStyle(\n`;
-        if (styles.fontSize !== undefined) {
-          textOut += `${getIndent()}    fontSize: ${styles.fontSize}.0,\n`;
-        }
-        if (styles.textColorToken || (styles.textColor && styles.textColor !== "transparent")) {
-          const textTint = styles.textColorToken ? toFlutterThemeToken(styles.textColorToken, "") : toFlutterColor(styles.textColor);
-          textOut += `${getIndent()}    color: ${textTint},\n`;
-        }
-        if (styles.fontWeight !== undefined) {
-          if (styles.fontWeight === "heavy") {
-            textOut += `${getIndent()}    fontWeight: FontWeight.w800,\n`;
-          } else if (styles.fontWeight === "bold") {
-            textOut += `${getIndent()}    fontWeight: FontWeight.bold,\n`;
-          } else if (styles.fontWeight === "semibold") {
-            textOut += `${getIndent()}    fontWeight: FontWeight.w600,\n`;
-          } else if (styles.fontWeight === "medium") {
-            textOut += `${getIndent()}    fontWeight: FontWeight.w500,\n`;
-          } else {
-            textOut += `${getIndent()}    fontWeight: FontWeight.normal,\n`;
-          }
-        }
+        styleProperties.forEach(p => {
+          textOut += `${getIndent()}    ${p},\n`;
+        });
         textOut += `${getIndent()}  ),\n`;
       }
+
       if (styles.textAlign !== undefined) {
         if (styles.textAlign === "center") {
           textOut += `${getIndent()}  textAlign: TextAlign.center,\n`;
@@ -314,49 +667,69 @@ export function transpileToFlutter(root: TranspileNode): string {
                   `${getIndent()}  child: ${textOut.trim()},\n` +
                   `${getIndent()})\n`;
       }
-      return wrapExpandedIfNeeded(node, textOut, getIndent());
+      return wrapExpandedIfNeeded(node, textOut, getIndent(), isGridChild);
     }
 
-    // Grid Layout
+    // Static Grid Layout using Column & Rows to replace GridView.count
     if (styles.isGrid && styles.gridCols > 0) {
       const spacing = styles.gapToken ? toFlutterThemeToken(styles.gapToken, '') : `${styles.gap}.0`;
-      const useWrap = styles.gridCols >= 4;
-      let gridOut = "";
+      const cols = styles.gridCols;
       
-      if (useWrap) {
-        gridOut += `${getIndent()}Wrap(\n`;
-        gridOut += `${getIndent()}  spacing: ${spacing},\n`;
-        gridOut += `${getIndent()}  runSpacing: ${spacing},\n`;
+      let gridOut = `${getIndent()}Column(\n`;
+      gridOut += `${getIndent()}  crossAxisAlignment: CrossAxisAlignment.stretch,\n`;
+      gridOut += `${getIndent()}  children: [\n`;
+      indentLevel++;
+      
+      const gridChildren = node.children.filter(c => typeof c === 'string' || !c.styles.isAbsolute);
+      
+      for (let i = 0; i < gridChildren.length; i += cols) {
+        const rowChildren = gridChildren.slice(i, i + cols);
+        
+        gridOut += `${getIndent()}Row(\n`;
+        gridOut += `${getIndent()}  crossAxisAlignment: CrossAxisAlignment.start,\n`;
         gridOut += `${getIndent()}  children: [\n`;
-        indentLevel += 2;
-        node.children.forEach((c, idx) => {
-          gridOut += walk(c, false, styles);
-          if (idx < node.children.length - 1) gridOut = gridOut.trimEnd() + ",\n";
+        indentLevel++;
+        
+        rowChildren.forEach((child, colIdx) => {
+          let childCode = walk(child, parentIsFixedBottomRow, styles, true).trim();
+          
+          gridOut += `${getIndent()}Expanded(\n`;
+          gridOut += `${getIndent()}  child: ${childCode},\n`;
+          gridOut += `${getIndent()}),\n`;
+          
+          if (colIdx < rowChildren.length - 1) {
+            gridOut += `${getIndent()}SizedBox(width: ${spacing}),\n`;
+          }
         });
-        indentLevel -= 2;
+        
+        // Pad incomplete last row with empty Expanded spacer
+        if (rowChildren.length < cols) {
+          const missing = cols - rowChildren.length;
+          for (let m = 0; m < missing; m++) {
+            gridOut += `${getIndent()}SizedBox(width: ${spacing}),\n`;
+            gridOut += `${getIndent()}Expanded(\n`;
+            gridOut += `${getIndent()}  child: SizedBox.shrink(),\n`;
+            gridOut += `${getIndent()}),\n`;
+          }
+        }
+        
+        indentLevel--;
         gridOut += `${getIndent()}  ],\n`;
-        gridOut += `${getIndent()})\n`;
-      } else {
-        gridOut += `${getIndent()}GridView.count(\n`;
-        gridOut += `${getIndent()}  crossAxisCount: ${styles.gridCols},\n`;
-        gridOut += `${getIndent()}  crossAxisSpacing: ${spacing},\n`;
-        gridOut += `${getIndent()}  mainAxisSpacing: ${spacing},\n`;
-        gridOut += `${getIndent()}  shrinkWrap: true,\n`;
-        gridOut += `${getIndent()}  physics: NeverScrollableScrollPhysics(),\n`;
-        gridOut += `${getIndent()}  children: [\n`;
-        indentLevel += 2;
-        node.children.forEach((c, idx) => {
-          gridOut += walk(c, false, styles);
-          if (idx < node.children.length - 1) gridOut = gridOut.trimEnd() + ",\n";
-        });
-        indentLevel -= 2;
-        gridOut += `${getIndent()}  ],\n`;
-        gridOut += `${getIndent()})\n`;
+        gridOut += `${getIndent()}),\n`;
+        
+        if (i + cols < gridChildren.length) {
+          gridOut += `${getIndent()}SizedBox(height: ${spacing}),\n`;
+        }
       }
-      return wrapExpandedIfNeeded(node, gridOut, getIndent());
+      
+      indentLevel--;
+      gridOut += `${getIndent()}  ],\n`;
+      gridOut += `${getIndent()})\n`;
+      
+      return wrapExpandedIfNeeded(node, gridOut, getIndent(), isGridChild);
     }
 
-    // Standard Stack Container
+    // Standard Stack Container (Column / Row)
     let isCol = styles.flexDirection === "column";
     if (parentIsFixedBottomRow && !isButton && !isImage && !lucide && !styles.isRawSvg && !isTextLeaf && !styles.isGrid) {
       isCol = false;
@@ -366,8 +739,10 @@ export function transpileToFlutter(root: TranspileNode): string {
     let containerWrap = false;
     let decoration = "";
     const identicalBg = hasIdenticalBackground(styles, parentStyles);
+    
+    // Background Inheritance Guard
     const hasBg = (styles.gradient && styles.gradient.fromColor && styles.gradient.toColor) ||
-                  (!identicalBg && (styles.backgroundColorToken || styles.backgroundColor !== "transparent"));
+                  (hasExplicitBackground(node) && !identicalBg && (styles.backgroundColorToken || styles.backgroundColor !== "transparent"));
 
     if (hasBg ||
         styles.borderRadiusToken || styles.borderRadius > 0 || 
@@ -383,9 +758,9 @@ export function transpileToFlutter(root: TranspileNode): string {
         decoration += `        end: ${end},\n`;
         decoration += `        colors: [${toFlutterColor(styles.gradient.fromColor)}, ${toFlutterColor(styles.gradient.toColor)}],\n`;
         decoration += `      ),\n`;
-      } else if (!identicalBg && styles.backgroundColorToken) {
+      } else if (hasExplicitBackground(node) && !identicalBg && styles.backgroundColorToken) {
         decoration += `      color: ${toFlutterThemeToken(styles.backgroundColorToken, "")},\n`;
-      } else if (!identicalBg && styles.backgroundColor !== "transparent") {
+      } else if (hasExplicitBackground(node) && !identicalBg && styles.backgroundColor !== "transparent") {
         decoration += `      color: ${toFlutterColor(styles.backgroundColor)},\n`;
       }
       
@@ -423,11 +798,32 @@ export function transpileToFlutter(root: TranspileNode): string {
     }
 
     let sizeAttrs = "";
-    if (typeof styles.width === "number") sizeAttrs += `    width: ${styles.width}.0,\n`;
-    else if (styles.width === "100%" || styles.hasFlex1) sizeAttrs += `    width: double.infinity,\n`;
-    if (typeof styles.height === "number") sizeAttrs += `    height: ${styles.height}.0,\n`;
+    
+    // Parse width and max-width constraints
+    const widthConstraints = parseWidthConstraint(styles.width, node.styleText);
+    
+    if (widthConstraints.width !== undefined) {
+      sizeAttrs += `    width: ${widthConstraints.width}.0,\n`;
+    } else if (widthConstraints.isPercentWidth || styles.hasFlex1) {
+      sizeAttrs += `    width: double.infinity,\n`;
+    }
+    
+    if (typeof styles.height === "number") {
+      sizeAttrs += `    height: ${styles.height}.0,\n`;
+    } else if (styles.height === "100%") {
+      sizeAttrs += `    height: double.infinity,\n`;
+    }
+
+    // BoxConstraints builder for minHeight, maxWidth, etc.
+    let constraintLines: string[] = [];
     if (typeof styles.minHeight === "number" && styles.minHeight > 0) {
-      sizeAttrs += `    constraints: BoxConstraints(minHeight: ${styles.minHeight}.0),\n`;
+      constraintLines.push(`minHeight: ${styles.minHeight}.0`);
+    }
+    if (widthConstraints.maxWidth !== undefined) {
+      constraintLines.push(`maxWidth: ${widthConstraints.maxWidth}.0`);
+    }
+    if (constraintLines.length > 0) {
+      sizeAttrs += `    constraints: BoxConstraints(${constraintLines.join(', ')}),\n`;
     }
     
     const pt = styles.paddingTopToken ? toFlutterThemeToken(styles.paddingTopToken, "") : `${styles.padding.top}.0`;
@@ -472,7 +868,7 @@ export function transpileToFlutter(root: TranspileNode): string {
       
       indentLevel++;
       normalChildren.forEach((c, idx) => {
-        innerStackOut += walk(c, parentIsFixedBottomRow || isCurrentFixedBottomRow, styles);
+        innerStackOut += walk(c, parentIsFixedBottomRow || isCurrentFixedBottomRow, styles, styles.isGrid);
         if (idx < normalChildren.length - 1) {
           innerStackOut = innerStackOut.trimEnd() + ",\n";
           if (styles.gap > 0 || styles.gapToken) {
@@ -513,7 +909,7 @@ export function transpileToFlutter(root: TranspileNode): string {
       indentLevel++;
       
       bgAbsoluteChildren.forEach(c => {
-        out += walk(c, parentIsFixedBottomRow || isCurrentFixedBottomRow, styles).trimEnd() + ",\n";
+        out += walk(c, parentIsFixedBottomRow || isCurrentFixedBottomRow, styles, isGridChild).trimEnd() + ",\n";
       });
 
       if (innerStackOut.trim() !== "") {
@@ -521,7 +917,7 @@ export function transpileToFlutter(root: TranspileNode): string {
       }
 
       fgAbsoluteChildren.forEach(c => {
-        out += walk(c, parentIsFixedBottomRow || isCurrentFixedBottomRow, styles).trimEnd() + ",\n";
+        out += walk(c, parentIsFixedBottomRow || isCurrentFixedBottomRow, styles, isGridChild).trimEnd() + ",\n";
       });
 
       indentLevel--;
@@ -567,7 +963,7 @@ export function transpileToFlutter(root: TranspileNode): string {
               `${getIndent()}  child: ${out.trim()},\n` +
               `${getIndent()})\n`;
       }
-      if (styles.hasFlex1 && !styles.isAbsolute) {
+      if (styles.hasFlex1 && !styles.isAbsolute && !isGridChild) {
         out = `${getIndent()}Expanded(\n` +
               `${getIndent()}  child: ${out.trim()},\n` +
               `${getIndent()})\n`;
@@ -577,6 +973,6 @@ export function transpileToFlutter(root: TranspileNode): string {
     return out;
   }
 
-  const rawFlutter = walk(root);
+  const rawFlutter = walk(flattenedRoot);
   return sanitizeFlutterCode(rawFlutter);
 }

@@ -12,6 +12,172 @@ import {
   hasIdenticalBackground
 } from "../mobile-transpiler";
 
+// ---------------------------------------------------------------------------
+// COMPOSE-SPECIFIC AST PRE-PASS: CONTAINER FLATTENING
+// ---------------------------------------------------------------------------
+// Recursively merges single-child layout wrappers into their parent to
+// eliminate redundant nested Column/Row containers ("AST bloat").
+// Only merges when styles are compatible (no conflicting backgrounds,
+// border radii, or sizing constraints).
+// ---------------------------------------------------------------------------
+
+function collapseComposeTree(node: TranspileNode): TranspileNode {
+  // First, recurse into children
+  const processedChildren = node.children.map(child => {
+    if (typeof child === 'string') return child;
+    return collapseComposeTree(child);
+  });
+
+  const updatedNode: TranspileNode = { ...node, children: processedChildren };
+
+  // Only attempt to collapse if this is a layout container (not a button, img, text leaf, svg, etc.)
+  const isLayoutTag = ['div', 'section', 'main', 'article', 'aside', 'nav', 'header', 'footer', 'form', 'fieldset', 'ul', 'ol', 'li'].includes(updatedNode.tagName);
+  if (!isLayoutTag) return updatedNode;
+
+  // Skip if this node has a semantic pattern, is a grid, or has absolute children
+  if (updatedNode.pattern) return updatedNode;
+  if (updatedNode.styles.isGrid) return updatedNode;
+  if (updatedNode.styles.isAbsolute || updatedNode.styles.isFixedBottom) return updatedNode;
+
+  // Only collapse single-child layout containers
+  const nonStringChildren = updatedNode.children.filter(c => typeof c !== 'string') as TranspileNode[];
+  if (updatedNode.children.length !== 1 || nonStringChildren.length !== 1) return updatedNode;
+
+  const child = nonStringChildren[0];
+
+  // Don't collapse into non-layout children (buttons, images, text nodes, semantic patterns)
+  const childIsLayout = ['div', 'section', 'main', 'article', 'aside', 'nav', 'header', 'footer', 'form', 'fieldset', 'ul', 'ol', 'li'].includes(child.tagName);
+  if (!childIsLayout) return updatedNode;
+  if (child.pattern) return updatedNode;
+  if (child.styles.isGrid) return updatedNode;
+  if (child.styles.isAbsolute || child.styles.isFixedBottom) return updatedNode;
+
+  // Check for style conflicts — don't merge if both have meaningful backgrounds
+  const parentHasBg = (updatedNode.styles.backgroundColorToken || updatedNode.styles.backgroundColor !== 'transparent');
+  const childHasBg = (child.styles.backgroundColorToken || child.styles.backgroundColor !== 'transparent');
+  if (parentHasBg && childHasBg) return updatedNode;
+
+  // Don't merge if both have border radii (would lose inner/outer corner distinction)
+  const parentHasRadius = (updatedNode.styles.borderRadiusToken || updatedNode.styles.borderRadius > 0);
+  const childHasRadius = (child.styles.borderRadiusToken || child.styles.borderRadius > 0);
+  if (parentHasRadius && childHasRadius) return updatedNode;
+
+  // Don't merge if both have explicit sizing that could conflict
+  const parentHasExplicitSize = (typeof updatedNode.styles.width === 'number' || typeof updatedNode.styles.height === 'number');
+  const childHasExplicitSize = (typeof child.styles.width === 'number' || typeof child.styles.height === 'number');
+  if (parentHasExplicitSize && childHasExplicitSize) return updatedNode;
+
+  // Don't merge if flexDirections conflict and both have meaningful children
+  if (updatedNode.styles.flexDirection !== child.styles.flexDirection && child.children.length > 1) return updatedNode;
+
+  // Don't merge if parent has a shadow (shadow needs its own container layer)
+  if (updatedNode.styles.shadow) return updatedNode;
+
+  // Safe to merge: hoist child's properties up into parent
+  const mergedStyles: ParsedStyles = { ...child.styles };
+
+  // Merge padding: parent outer + child inner = combined padding
+  mergedStyles.padding = {
+    top: updatedNode.styles.padding.top + child.styles.padding.top,
+    right: updatedNode.styles.padding.right + child.styles.padding.right,
+    bottom: updatedNode.styles.padding.bottom + child.styles.padding.bottom,
+    left: updatedNode.styles.padding.left + child.styles.padding.left,
+  };
+  // Prefer token-based padding if either has it
+  mergedStyles.paddingTopToken = child.styles.paddingTopToken || updatedNode.styles.paddingTopToken;
+  mergedStyles.paddingBottomToken = child.styles.paddingBottomToken || updatedNode.styles.paddingBottomToken;
+  mergedStyles.paddingLeftToken = child.styles.paddingLeftToken || updatedNode.styles.paddingLeftToken;
+  mergedStyles.paddingRightToken = child.styles.paddingRightToken || updatedNode.styles.paddingRightToken;
+
+  // Merge margin: use parent's margin (outer frame)
+  mergedStyles.margin = { ...updatedNode.styles.margin };
+  mergedStyles.marginTopToken = updatedNode.styles.marginTopToken || child.styles.marginTopToken;
+  mergedStyles.marginBottomToken = updatedNode.styles.marginBottomToken || child.styles.marginBottomToken;
+  mergedStyles.marginLeftToken = updatedNode.styles.marginLeftToken || child.styles.marginLeftToken;
+  mergedStyles.marginRightToken = updatedNode.styles.marginRightToken || child.styles.marginRightToken;
+
+  // Hoist non-conflicting visual styles from parent
+  if (parentHasBg && !childHasBg) {
+    mergedStyles.backgroundColor = updatedNode.styles.backgroundColor;
+    mergedStyles.backgroundColorToken = updatedNode.styles.backgroundColorToken;
+  }
+  if (parentHasRadius && !childHasRadius) {
+    mergedStyles.borderRadius = updatedNode.styles.borderRadius;
+    mergedStyles.borderRadiusToken = updatedNode.styles.borderRadiusToken;
+  }
+  if (parentHasExplicitSize && !childHasExplicitSize) {
+    mergedStyles.width = updatedNode.styles.width;
+    mergedStyles.height = updatedNode.styles.height;
+  }
+
+  // Preserve parent's flex-1 and width=100% if child doesn't already have them
+  if (updatedNode.styles.hasFlex1 && !child.styles.hasFlex1) mergedStyles.hasFlex1 = true;
+  if (updatedNode.styles.width === '100%' && child.styles.width !== '100%') mergedStyles.width = '100%';
+
+  // Merge gap: prefer child's gap (inner layout concern)
+  if (!child.styles.gap && !child.styles.gapToken && (updatedNode.styles.gap || updatedNode.styles.gapToken)) {
+    mergedStyles.gap = updatedNode.styles.gap;
+    mergedStyles.gapToken = updatedNode.styles.gapToken;
+  }
+
+  // Merge opacity: multiply
+  mergedStyles.opacity = updatedNode.styles.opacity * child.styles.opacity;
+
+  // Merge shadow: prefer parent shadow (outer)
+  if (updatedNode.styles.shadow && !child.styles.shadow) {
+    mergedStyles.shadow = updatedNode.styles.shadow;
+  }
+
+  return {
+    tagName: updatedNode.tagName,
+    classes: [...updatedNode.classes, ...child.classes],
+    id: updatedNode.id || child.id,
+    styleText: updatedNode.styleText || child.styleText,
+    styles: mergedStyles,
+    attributes: { ...updatedNode.attributes, ...child.attributes },
+    children: child.children,
+    pattern: child.pattern || updatedNode.pattern,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// MATERIAL 3 TYPOGRAPHY RESOLVER
+// ---------------------------------------------------------------------------
+// Maps `dg-type-*` utility classes to idiomatic Material 3 typography styles.
+// Returns undefined if no matching class is found, allowing fallback to
+// explicit fontSize/fontWeight values.
+// ---------------------------------------------------------------------------
+
+const DG_TYPE_TO_M3: Record<string, string> = {
+  'screen-title': 'headlineLarge',
+  'screen_title': 'headlineLarge',
+  'section-title': 'titleLarge',
+  'section_title': 'titleLarge',
+  'card-title': 'titleMedium',
+  'card_title': 'titleMedium',
+  'body': 'bodyLarge',
+  'caption': 'bodyMedium',
+  'metadata': 'labelSmall',
+  'label': 'labelMedium',
+  'overline': 'labelSmall',
+  'subtitle': 'titleSmall',
+  'heading': 'headlineMedium',
+  'display': 'displaySmall',
+};
+
+function resolveComposeTypography(classes: string[]): string | undefined {
+  for (const cls of classes) {
+    if (cls.startsWith('dg-type-')) {
+      const typeKey = cls.substring(8); // e.g. 'screen-title'
+      const m3Style = DG_TYPE_TO_M3[typeKey] || DG_TYPE_TO_M3[typeKey.replace(/-/g, '_')];
+      if (m3Style) {
+        return `MaterialTheme.typography.${m3Style}`;
+      }
+    }
+  }
+  return undefined;
+}
+
 export function toComposeThemeToken(token: string | undefined, fallbackVal: string): string {
   if (!token) return fallbackVal;
   if (token === "bgPrimary") return "AppTheme.BackgroundPrimary";
@@ -313,26 +479,48 @@ export function transpileToCompose(root: TranspileNode): string {
       const textVal = node.children[0] as string;
       const textTint = styles.textColorToken ? toComposeThemeToken(styles.textColorToken, "") : toComposeColor(styles.textColor);
       
+      // Resolve Material 3 typography style from dg-type-* class on this node
+      const m3Style = resolveComposeTypography(node.classes);
+      
       let textCode = `${getIndent()}Text(\n`;
       textCode += `${getIndent()}    text = "${textVal.replace(/"/g, '\\"')}",\n`;
-      if (styles.fontSize !== undefined) {
-        textCode += `${getIndent()}    fontSize = ${styles.fontSize}.sp,\n`;
-      }
-      if (textTint && textTint !== "Color.Transparent") {
-        textCode += `${getIndent()}    color = ${textTint},\n`;
-      }
-      if (styles.fontWeight !== undefined) {
-        if (styles.fontWeight === "heavy" || styles.fontWeight === "bold") {
-          textCode += `${getIndent()}    fontWeight = FontWeight.Bold,\n`;
-        } else if (styles.fontWeight === "semibold" || styles.fontWeight === "medium") {
-          textCode += `${getIndent()}    fontWeight = FontWeight.Medium,\n`;
-        } else {
-          textCode += `${getIndent()}    fontWeight = FontWeight.Normal,\n`;
+      
+      if (m3Style) {
+        // Use M3 semantic style — explicit overrides appended via .copy()
+        const overrides: string[] = [];
+        if (textTint && textTint !== "Color.Transparent") {
+          overrides.push(`color = ${textTint}`);
         }
-      }
-      if (styles.textAlign !== undefined) {
-        const align = styles.textAlign === "center" ? "TextAlign.Center" : styles.textAlign === "right" ? "TextAlign.End" : "TextAlign.Start";
-        textCode += `${getIndent()}    textAlign = ${align},\n`;
+        if (styles.textAlign !== undefined) {
+          const align = styles.textAlign === "center" ? "TextAlign.Center" : styles.textAlign === "right" ? "TextAlign.End" : "TextAlign.Start";
+          overrides.push(`textAlign = ${align}`);
+        }
+        if (overrides.length > 0) {
+          textCode += `${getIndent()}    style = ${m3Style}.copy(${overrides.join(', ')}),\n`;
+        } else {
+          textCode += `${getIndent()}    style = ${m3Style},\n`;
+        }
+      } else {
+        // Fallback: explicit fontSize/fontWeight for non-dg-type text
+        if (styles.fontSize !== undefined) {
+          textCode += `${getIndent()}    fontSize = ${styles.fontSize}.sp,\n`;
+        }
+        if (textTint && textTint !== "Color.Transparent") {
+          textCode += `${getIndent()}    color = ${textTint},\n`;
+        }
+        if (styles.fontWeight !== undefined) {
+          if (styles.fontWeight === "heavy" || styles.fontWeight === "bold") {
+            textCode += `${getIndent()}    fontWeight = FontWeight.Bold,\n`;
+          } else if (styles.fontWeight === "semibold" || styles.fontWeight === "medium") {
+            textCode += `${getIndent()}    fontWeight = FontWeight.Medium,\n`;
+          } else {
+            textCode += `${getIndent()}    fontWeight = FontWeight.Normal,\n`;
+          }
+        }
+        if (styles.textAlign !== undefined) {
+          const align = styles.textAlign === "center" ? "TextAlign.Center" : styles.textAlign === "right" ? "TextAlign.End" : "TextAlign.Start";
+          textCode += `${getIndent()}    textAlign = ${align},\n`;
+        }
       }
       
       const textModifiers: ComposeModifier[] = [];
@@ -353,17 +541,18 @@ export function transpileToCompose(root: TranspileNode): string {
       return textCode;
     }
 
-    // Grid Layout
+    // Grid Layout — Static Column/Row/Box layout (no LazyVerticalGrid)
+    // Generates crash-safe, non-scrollable grid for static template screens.
     if (styles.isGrid && styles.gridCols > 0) {
       const spacing = styles.gapToken ? toComposeThemeToken(styles.gapToken, '') : `${styles.gap}.dp`;
-      let gridCode = `${getIndent()}LazyVerticalGrid(\n`;
-      gridCode += `${getIndent()}    columns = GridCells.Fixed(${styles.gridCols}),\n`;
-      gridCode += `${getIndent()}    horizontalArrangement = Arrangement.spacedBy(${spacing}),\n`;
-      gridCode += `${getIndent()}    verticalArrangement = Arrangement.spacedBy(${spacing}),\n`;
-      
+      const cols = styles.gridCols;
+
+      // Build container modifiers (no hardcoded height — intrinsic sizing)
       const gridModifiers: ComposeModifier[] = [];
-      gridModifiers.push({ type: 'size', code: `.height(280.dp)` }); // Standard height limit for nested Grid to avoid infinite height crash
-      
+      if (styles.width === '100%' || styles.hasFlex1) {
+        gridModifiers.push({ type: 'size', code: `.fillMaxWidth()` });
+      }
+
       // Shadow
       if (styles.shadow) {
         let shape = "RectangleShape";
@@ -373,9 +562,9 @@ export function transpileToCompose(root: TranspileNode): string {
           shape = `RoundedCornerShape(${styles.borderRadius}.dp)`;
         }
         if (styles.shadow === "surface") {
-          gridModifiers.push({ type: 'shadow', code: `.shadow(elevation = 4.dp, shape = ${shape})` });
+          gridModifiers.push({ type: 'shadow', code: `.shadow(elevation = 8.dp, shape = ${shape})` });
         } else if (styles.shadow === "overlay") {
-          gridModifiers.push({ type: 'shadow', code: `.shadow(elevation = 12.dp, shape = ${shape})` });
+          gridModifiers.push({ type: 'shadow', code: `.shadow(elevation = 16.dp, shape = ${shape})` });
         }
       }
 
@@ -384,7 +573,7 @@ export function transpileToCompose(root: TranspileNode): string {
       } else if (styles.borderRadius > 0) {
         gridModifiers.push({ type: 'clip', code: `.clip(RoundedCornerShape(${styles.borderRadius}.dp))` });
       }
-      
+
       if (styles.gradient && styles.gradient.fromColor && styles.gradient.toColor) {
         const { start, end } = gradientDirectionToCompose(styles.gradient.direction);
         gridModifiers.push({ type: 'background', code: `.background(Brush.linearGradient(colors = listOf(${toComposeColor(styles.gradient.fromColor)}, ${toComposeColor(styles.gradient.toColor)}), start = ${start}, end = ${end}))` });
@@ -398,19 +587,59 @@ export function transpileToCompose(root: TranspileNode): string {
           }
         }
       }
-      
-      gridCode += `${getIndent()}    modifier = ${buildComposeModifiers(gridModifiers)}\n`;
+
+      // Padding
+      const gPt = styles.paddingTopToken ? toComposeThemeToken(styles.paddingTopToken, '') : `${styles.padding.top}.dp`;
+      const gPb = styles.paddingBottomToken ? toComposeThemeToken(styles.paddingBottomToken, '') : `${styles.padding.bottom}.dp`;
+      const gPl = styles.paddingLeftToken ? toComposeThemeToken(styles.paddingLeftToken, '') : `${styles.padding.left}.dp`;
+      const gPr = styles.paddingRightToken ? toComposeThemeToken(styles.paddingRightToken, '') : `${styles.padding.right}.dp`;
+      if (styles.padding.top > 0 || styles.padding.bottom > 0 || styles.padding.left > 0 || styles.padding.right > 0 ||
+          styles.paddingTopToken || styles.paddingBottomToken || styles.paddingLeftToken || styles.paddingRightToken) {
+        gridModifiers.push({ type: 'padding', code: `.padding(start = ${gPl}, top = ${gPt}, end = ${gPr}, bottom = ${gPb})` });
+      }
+
+      // Build static grid: Column containing Rows, each Row containing weighted Boxes
+      const gridChildren = node.children.filter(c => typeof c !== 'string') as TranspileNode[];
+      const rows: (TranspileNode | null)[][] = [];
+      for (let i = 0; i < gridChildren.length; i += cols) {
+        const row: (TranspileNode | null)[] = gridChildren.slice(i, i + cols);
+        // Pad last row with null spacers if needed
+        while (row.length < cols) {
+          row.push(null);
+        }
+        rows.push(row);
+      }
+
+      let gridCode = `${getIndent()}Column(\n`;
+      gridCode += `${getIndent()}    modifier = ${buildComposeModifiers(gridModifiers)},\n`;
+      gridCode += `${getIndent()}    verticalArrangement = Arrangement.spacedBy(${spacing})\n`;
       gridCode += `${getIndent()}) {\n`;
       indentLevel++;
-      
-      node.children.forEach(c => {
-        gridCode += `${getIndent()}item {\n`;
+
+      rows.forEach(row => {
+        gridCode += `${getIndent()}Row(\n`;
+        gridCode += `${getIndent()}    modifier = Modifier.fillMaxWidth(),\n`;
+        gridCode += `${getIndent()}    horizontalArrangement = Arrangement.spacedBy(${spacing})\n`;
+        gridCode += `${getIndent()}) {\n`;
         indentLevel++;
-        gridCode += walk(c, parentIsFixedBottomRow, styles);
+
+        row.forEach(cell => {
+          if (cell === null) {
+            // Empty spacer to maintain grid alignment
+            gridCode += `${getIndent()}Spacer(modifier = Modifier.weight(1f))\n`;
+          } else {
+            gridCode += `${getIndent()}Box(modifier = Modifier.weight(1f)) {\n`;
+            indentLevel++;
+            gridCode += walk(cell, parentIsFixedBottomRow, styles);
+            indentLevel--;
+            gridCode += `${getIndent()}}\n`;
+          }
+        });
+
         indentLevel--;
         gridCode += `${getIndent()}}\n`;
       });
-      
+
       indentLevel--;
       gridCode += `${getIndent()}}\n`;
       return gridCode;
@@ -451,9 +680,9 @@ export function transpileToCompose(root: TranspileNode): string {
         shape = `RoundedCornerShape(${styles.borderRadius}.dp)`;
       }
       if (styles.shadow === "surface") {
-        stackModifiers.push({ type: 'shadow', code: `.shadow(elevation = 4.dp, shape = ${shape})` });
+        stackModifiers.push({ type: 'shadow', code: `.shadow(elevation = 8.dp, shape = ${shape})` });
       } else if (styles.shadow === "overlay") {
-        stackModifiers.push({ type: 'shadow', code: `.shadow(elevation = 12.dp, shape = ${shape})` });
+        stackModifiers.push({ type: 'shadow', code: `.shadow(elevation = 16.dp, shape = ${shape})` });
       }
     }
 
@@ -622,6 +851,8 @@ export function transpileToCompose(root: TranspileNode): string {
     return out;
   }
 
-  const rawCompose = walk(root);
+  // Pre-pass: collapse redundant single-child layout wrappers
+  const collapsedRoot = collapseComposeTree(root);
+  const rawCompose = walk(collapsedRoot);
   return sanitizeComposeCode(rawCompose);
 }

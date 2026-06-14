@@ -8,7 +8,7 @@ import { PremiumDropdown } from "@/components/ui/premium-dropdown";
 import { createClient } from "@/lib/supabase/client";
 import { ensureDrawgleIds, stripDrawgleIds, type DrawgleBoundingRect, type DrawgleEditableMetadata } from "@/lib/drawgle-dom";
 import { DRAWGLE_STYLE_PROPERTY_CONFIGS } from "@/lib/element-style-inspection";
-import { deleteScreen, updateScreenPosition } from "@/lib/supabase/queries";
+import { deleteScreen } from "@/lib/supabase/queries";
 import { hasSharedNavigation } from "@/lib/project-navigation";
 import { buildDrawgleTokenCss, buildGoogleFontAssetLinks, buildGoogleFontHref } from "@/lib/token-runtime";
 import { useRealtimeRunWithStreams } from "@trigger.dev/react-hooks";
@@ -45,17 +45,6 @@ export interface SelectedElementInfo {
 export type ElementSelectionLostReason = "rehydrate_failed" | "click_miss" | "source_changed";
 
 export { SCREEN_FRAME_HEIGHT, SCREEN_FRAME_WIDTH } from "@/lib/canvas-interactions";
-
-/**
- * Pixels the pointer must travel before a drag is committed.
- * Anything below this is treated as a click (not a drag).
- */
-const DRAG_THRESHOLD_PX = 6;
-/**
- * Max ms between two taps/clicks to count as a double-click that enters
- * Interact Mode.  350 ms feels natural on both trackpad and touch.
- */
-const DOUBLE_CLICK_MS = 350;
 
 /** Strip markdown fences so the iframe always receives usable HTML. */
 const stripFences = (text: string): string => {
@@ -323,8 +312,7 @@ export function ScreenNode({
   projectNavigation,
   designTokens,
   isSelected,
-  onClick,
-  scale = 1,
+  isDragging = false,
   canvasTool = "pointer",
   isTemporaryCanvasPan = false,
   selectionMode = false,
@@ -338,8 +326,7 @@ export function ScreenNode({
   projectNavigation?: ProjectNavigationData | null;
   designTokens?: DesignTokens | null;
   isSelected?: boolean;
-  onClick?: () => void;
-  scale?: number;
+  isDragging?: boolean;
   canvasTool?: CanvasTool;
   isTemporaryCanvasPan?: boolean;
   /** When true, the iframe enters element-selection mode (hover outlines, click-to-select). */
@@ -358,44 +345,10 @@ export function ScreenNode({
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const safeCode = typeof screen.code === "string" ? screen.code : "";
 
-  // ── Visual position state (drives the CSS `left`/`top`).
-  // Initialised from DB; updated live during drag; NOT reset on drag-end
-  // until the DB value actually changes (see the sync effect below).
-  const [position, setPosition] = useState({ x: screen.x, y: screen.y });
-  const [isDraggingState, setIsDraggingState] = useState(false);
-
   // ── "Interact mode" lets the user scroll/tap the iframe content.
   // It is only active while the screen is selected.
   const [interactMode, setInteractMode] = useState(false);
   const isInteractModeActive = Boolean(isSelected && interactMode);
-
-  // ── Refs that survive re-renders without triggering them.
-  //
-  //  isDraggingRef   — shadow of isDraggingState used inside effects that
-  //                    must NOT list isDragging as a dependency (otherwise
-  //                    transitioning from true→false would cause a sync
-  //                    that snaps the node back to the stale DB position).
-  const isDraggingRef = useRef(false);
-  //
-  //  livePositionRef — always holds the current drag position.  Used in
-  //                    pointerup to avoid stale-closure reads of `position`
-  //                    state (which may lag by one render).
-  const livePositionRef = useRef({ x: screen.x, y: screen.y });
-  //
-  //  dragGesture     — all mutable drag bookkeeping in one place.
-  const dragGesture = useRef({
-    pending: false,   // true: pointerDown received, waiting for threshold
-    active: false,    // true: threshold crossed, full drag in progress
-    startClientX: 0,
-    startClientY: 0,
-    originNodeX: 0,   // node position at the moment of pointerDown
-    originNodeY: 0,
-    pointerId: -1,
-  });
-  //
-  //  lastTapTimeRef  — timestamp of the previous completed tap (pointerup
-  //                    without drag).  Used to detect double-click → interact.
-  const lastTapTimeRef = useRef(0);
 
   const syncIframeInteractionMode = useCallback((enabled: boolean) => {
     const iframe = iframeRef.current;
@@ -477,11 +430,10 @@ export function ScreenNode({
         activeNavigationItemId,
         tokenCss,
         googleFontHref,
-        selectedDrawgleId: selectedDrawgleId ?? null,
       },
       "*",
     );
-  }, [activeNavigationItemId, displayCode, googleFontHref, navigationShellCode, selectedDrawgleId, sharedNavigationActive, tokenCss]);
+  }, [activeNavigationItemId, displayCode, googleFontHref, navigationShellCode, sharedNavigationActive, tokenCss]);
 
   const handleExportCode = useCallback(() => {
     const cleanScreenCode = stripDrawgleIds(displayCode.trim() ? displayCode : lastNonEmptyDisplayCodeRef.current);
@@ -540,21 +492,6 @@ ${cleanScreenCode}
     link.remove();
     URL.revokeObjectURL(url);
   }, [activeNavigationItemId, displayCode, googleFontAssetLinks, navigationShellCode, screen.name, sharedNavigationActive, tokenCss, onExportCode]);
-
-  // ── Position sync from DB
-  //
-  // IMPORTANT: `isDraggingState` is intentionally NOT in the dependency array.
-  // We guard via `isDraggingRef` (a plain ref) so that when isDragging flips
-  // false at drag-end this effect does NOT re-run — which would snap the node
-  // back to the stale DB value before the Supabase write has propagated.
-  // The effect only re-runs when screen.x / screen.y themselves change, which
-  // happens only after a successful DB round-trip.
-  useEffect(() => {
-    if (isDraggingRef.current) return;
-    const newPos = { x: screen.x, y: screen.y };
-    livePositionRef.current = newPos;
-    setPosition(newPos);
-  }, [screen.x, screen.y]); // ← isDragging deliberately omitted — see above
 
   // ── Push code updates into the iframe without a full remount
   useEffect(() => {
@@ -739,171 +676,6 @@ ${cleanScreenCode}
       console.error("Failed to delete screen", err);
     }
   }, [screen.id]);
-
-  const handleSelect = useCallback(() => {
-    setInteractMode(false);
-    lastTapTimeRef.current = 0;
-    onClick?.();
-  }, [onClick]);
-
-  // =========================================================================
-  // Drag — all handled on the TRANSPARENT OVERLAY inside the phone frame.
-  //
-  // Why an overlay and not the outer wrapper?
-  //
-  // An iframe is a separate browsing context.  Any pointer event that starts
-  // inside it is consumed by the iframe's own document and never bubbles up
-  // to the React tree.  setPointerCapture() on the outer div only works if
-  // OUR div receives the pointerdown first — which it won't when the pointer
-  // lands on the iframe.
-  //
-  // The solution: a transparent `<div>` sitting at z-index 10 above the
-  // iframe.  It intercepts every pointer event on the phone body.  When the
-  // user toggles "interact mode" this overlay becomes pointer-events:none so
-  // the iframe is directly reachable.
-  // =========================================================================
-
-  const handleOverlayPointerDown = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      if (canvasTool !== "pointer" || isTemporaryCanvasPan) return;
-      // Primary button only (left-click or touch)
-      if (e.button !== 0 && e.pointerType === "mouse") return;
-
-      e.preventDefault();           // prevent text selection on drag
-      e.stopPropagation();          // don't let react-zoom-pan-pinch start panning
-
-      // Capture so that pointermove/up still arrive even when the pointer
-      // leaves our element boundary.
-      e.currentTarget.setPointerCapture(e.pointerId);
-
-      const origin = livePositionRef.current;
-      dragGesture.current = {
-        pending: true,
-        active: false,
-        startClientX: e.clientX,
-        startClientY: e.clientY,
-        originNodeX: origin.x,
-        originNodeY: origin.y,
-        pointerId: e.pointerId,
-      };
-    },
-    [canvasTool, isTemporaryCanvasPan],
-  );
-
-  const handleOverlayPointerMove = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      const g = dragGesture.current;
-      if (!g.pending || canvasTool !== "pointer" || isTemporaryCanvasPan) return;
-
-      const rawDx = e.clientX - g.startClientX;
-      const rawDy = e.clientY - g.startClientY;
-
-      // Don't commit to a drag until the pointer has moved far enough.
-      // This lets small twitches on click pass through as selection events.
-      if (!g.active) {
-        const dist = Math.hypot(rawDx, rawDy);
-        if (dist < DRAG_THRESHOLD_PX) return;
-        g.active = true;
-        isDraggingRef.current = true;
-        setIsDraggingState(true);
-      }
-
-      e.stopPropagation();
-
-      // Divide by `scale` to convert screen pixels → canvas-space pixels
-      const newPos = {
-        x: g.originNodeX + rawDx / scale,
-        y: g.originNodeY + rawDy / scale,
-      };
-
-      // Keep the ref always in sync — used by pointerup to avoid stale state
-      livePositionRef.current = newPos;
-      setPosition(newPos);
-    },
-    [canvasTool, isTemporaryCanvasPan, scale],
-  );
-
-  const handleOverlayPointerUp = useCallback(
-    async (e: React.PointerEvent<HTMLDivElement>) => {
-      const g = dragGesture.current;
-      if (!g.pending) return;
-
-      e.currentTarget.releasePointerCapture(g.pointerId);
-      const wasDragging = g.active;
-
-      // Reset gesture state
-      g.pending = false;
-      g.active = false;
-      isDraggingRef.current = false;
-      setIsDraggingState(false);
-
-      if (!wasDragging) {
-        const now = Date.now();
-        const gap = now - lastTapTimeRef.current;
-
-        if (gap > 0 && gap < DOUBLE_CLICK_MS) {
-          if (!isSelected) {
-            handleSelect();
-          }
-          setInteractMode(true);
-          lastTapTimeRef.current = 0;
-          window.requestAnimationFrame(() => syncIframeInteractionMode(true));
-          return;
-        }
-
-        if (!isSelected) {
-          lastTapTimeRef.current = now;
-          // Unselected screen tapped → select it
-          handleSelect();
-        } else {
-          // Already selected — check for double-tap to enter interact mode.
-          const now = Date.now();
-          const gap = now - lastTapTimeRef.current;
-          if (gap > 0 && gap < DOUBLE_CLICK_MS) {
-            // Double-tap detected → enter interact mode
-            setInteractMode(true);
-            lastTapTimeRef.current = 0; // reset so triple-tap doesn't re-trigger
-          } else {
-            lastTapTimeRef.current = now;
-          }
-        }
-        return;
-      }
-
-      e.stopPropagation();
-
-      // Read the LIVE position from the ref, not from state closure
-      // (state may be one render behind the last pointermove).
-      const finalPos = livePositionRef.current;
-
-      // Fire-and-forget: we already show the optimistic position; the next
-      // screen.x/screen.y prop update from the DB will confirm it.
-      const supabase = createClient();
-      updateScreenPosition(supabase, screen.id, finalPos.x, finalPos.y).catch(
-        (err) => console.error("Failed to save screen position", err),
-      );
-    },
-    [handleSelect, isSelected, screen.id, syncIframeInteractionMode],
-  );
-
-  const handleOverlayPointerCancel = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      const g = dragGesture.current;
-      if (!g.pending) return;
-      e.currentTarget.releasePointerCapture(g.pointerId);
-      g.pending = false;
-      g.active = false;
-      isDraggingRef.current = false;
-      setIsDraggingState(false);
-
-      // Pointer was cancelled by the OS (e.g. incoming call on mobile)
-      // Snap back to the last known good position.
-      const recovered = { x: screen.x, y: screen.y };
-      livePositionRef.current = recovered;
-      setPosition(recovered);
-    },
-    [screen.x, screen.y],
-  );
 
   // =========================================================================
   // iframe srcDoc
@@ -1905,7 +1677,7 @@ ${cleanScreenCode}
   const overlayActive =
     isCanvasNavigationActive || (!isInteractModeActive && !isSelectionModeActive);
   const overlayPointerStyle: React.CSSProperties = {
-    cursor: isDraggingState
+    cursor: isDragging
       ? "grabbing"
       : isCanvasNavigationActive
         ? "grab"
@@ -1915,35 +1687,14 @@ ${cleanScreenCode}
   };
 
   return (
-    /*
-     * Outer wrapper — no overflow-hidden so the label bar can bleed upward.
-     *
-     * `canvas-pan-exclude` tells react-zoom-pan-pinch to skip panning when
-     * the pointer initially hits this element (or any descendant).
-     *
-     * We do NOT attach any drag handlers here — see the overlay comment above.
-     */
     <div
-      className={`absolute ${
-        canvasTool === "pointer" && !isTemporaryCanvasPan
-          ? "canvas-touch-pan-exclude"
-          : ""
-      }`}
+      className="relative"
       style={{
-        left: position.x,
-        // Shift the wrapper up by the label bar height so that `screen.y`
-        // always refers to the TOP EDGE of the phone frame (not the label).
-        top: position.y - 16,
         width: SCREEN_FRAME_WIDTH,
-        // paddingTop carves out space for the absolute-positioned label bar
         paddingTop: 8,
-        zIndex: isSelected || isDraggingState ? 50 : 10,
-        // Pass cursor intent all the way to the canvas background
+        zIndex: isSelected || isDragging ? 50 : 10,
         cursor: overlayPointerStyle.cursor,
       }}
-      // Click on unselected screens selects them.
-      // For selected screens the overlay's pointerup handles click detection.
-      onClick={canvasTool === "pointer" && !isSelected ? handleSelect : undefined}
     >
       {/* ── External label bar ─────────────────────────────────────────── */}
       <ScreenLabelBar
@@ -2031,10 +1782,12 @@ ${cleanScreenCode}
             <div
               className="absolute inset-0 touch-none"
               style={{ zIndex: 10, ...overlayPointerStyle }}
-              onPointerDown={canvasTool === "pointer" ? handleOverlayPointerDown : undefined}
-              onPointerMove={canvasTool === "pointer" ? handleOverlayPointerMove : undefined}
-              onPointerUp={canvasTool === "pointer" ? handleOverlayPointerUp : undefined}
-              onPointerCancel={canvasTool === "pointer" ? handleOverlayPointerCancel : undefined}
+              onDoubleClick={() => {
+                if (canvasTool === "pointer" && isSelected && !isTemporaryCanvasPan) {
+                  setInteractMode(true);
+                  window.requestAnimationFrame(() => syncIframeInteractionMode(true));
+                }
+              }}
             />
           )}
 
@@ -2046,7 +1799,7 @@ ${cleanScreenCode}
             sandbox="allow-scripts allow-same-origin"
             srcDoc={srcDoc}
             style={{
-              pointerEvents: isDraggingState || overlayActive ? 'none' : 'auto',
+              pointerEvents: isDragging || overlayActive ? 'none' : 'auto',
               cursor: isSelectionModeActive ? 'crosshair' : undefined,
             }}
             onLoad={() => {
@@ -2091,7 +1844,7 @@ ${cleanScreenCode}
       </div>
 
       {/* ── Dimension badge — visible while dragging ────────────────────── */}
-      <DimensionBadge visible={isDraggingState} />
+      <DimensionBadge visible={isDragging} />
     </div>
   );
 }

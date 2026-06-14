@@ -142,7 +142,7 @@ export function CanvasToolDock({
       <div
         ref={containerRef}
         data-canvas-obstacle="bottom"
-        className="canvas-pan-exclude absolute bottom-[calc(env(safe-area-inset-bottom,0px)+1rem)] z-[90] flex max-w-[calc(100%-1rem)] flex-col items-center"
+        className="canvas-pan-exclude absolute bottom-[calc(env(safe-area-inset-bottom,0px)+1rem)] z-40 flex max-w-[calc(100%-1rem)] flex-col items-center"
         style={{
           left: workspaceCenterX ?? "50%",
           transform: "translateX(-50%)",
