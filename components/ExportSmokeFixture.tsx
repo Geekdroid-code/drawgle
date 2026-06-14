@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { MobileExportDrawer } from "@/components/MobileExportDrawer";
+import { ExportMenu } from "@/components/ExportMenu";
 import { Button } from "@/components/ui/button";
 import type { DesignTokens, ProjectData, ProjectNavigationData, ScreenData } from "@/lib/types";
 
@@ -105,18 +105,23 @@ const projectNavigation: ProjectNavigationData = {
 
 export function ExportSmokeFixture() {
   const [open, setOpen] = useState(true);
+  const [initialScreenId, setInitialScreenId] = useState<string | null>("dashboard");
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-100 p-6">
-      <Button onClick={() => setOpen(true)}>Open Ship to Code</Button>
-      <MobileExportDrawer
+    <main className="flex min-h-screen items-center justify-center gap-3 bg-slate-100 p-6">
+      <Button variant="outline" onClick={() => {
+        setInitialScreenId("insights");
+        setOpen(true);
+      }}>Open for Insights</Button>
+      <ExportMenu
         open={open}
-        onClose={() => setOpen(false)}
+        onOpenChange={setOpen}
         project={project}
         screens={screens}
-        initialScreenId="dashboard"
+        initialScreenId={initialScreenId}
         projectNavigation={projectNavigation}
         designTokens={designTokens}
+        trigger={<Button onClick={() => setInitialScreenId("dashboard")}>Export</Button>}
       />
     </main>
   );

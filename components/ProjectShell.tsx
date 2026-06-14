@@ -6,8 +6,8 @@ import { ArrowLeft, Sparkles, Check, ChevronDown, ImageIcon, Loader2, Palette, R
 
 import { AnimatedThemeToggle } from "@/components/AnimatedThemeToggle";
 import { CanvasStage } from "@/components/CanvasArea";
+import { ExportMenu } from "@/components/ExportMenu";
 import { ProjectCanvasLoading } from "@/components/ProjectCanvasLoading";
-import { MobileExportDrawer } from "@/components/MobileExportDrawer";
 import { ChatPanel } from "@/components/ChatPanel";
 import { ColorPickerButton } from "@/components/DesignSystemEditor";
 import type { ElementSelectionLostReason, SelectedElementInfo } from "@/components/ScreenNode";
@@ -1068,7 +1068,8 @@ export function ProjectShell({
   const [tokenDirty, setTokenDirty] = useState(false);
   const [tokenSaving, setTokenSaving] = useState(false);
   const tokenDirtyRef = useRef(tokenDirty);
-  const [exportDrawerOpen, setExportDrawerOpen] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [exportInitialScreenId, setExportInitialScreenId] = useState<string | null>(null);
 
   const handleSignOut = async () => {
     try {
@@ -1803,16 +1804,27 @@ export function ProjectShell({
                 Sharing launches soon. You&apos;ll be able to share a read-only project link with others.
               </TooltipContent>
             </Tooltip>
-            <Button
-              size="sm"
-              className="h-6 rounded-full dg-button-primary hover:dg-button-primary px-2 sm:px-3 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm transition-all flex items-center justify-center gap-1"
-              onClick={() => {
-                setExportDrawerOpen(true);
-              }}
-            >
-              <Download className="h-3 w-3 shrink-0" />
-              <span className="hidden sm:inline">Export</span>
-            </Button>
+            <ExportMenu
+              open={exportMenuOpen}
+              onOpenChange={setExportMenuOpen}
+              project={project}
+              screens={screens}
+              initialScreenId={exportInitialScreenId}
+              projectNavigation={projectNavigation}
+              designTokens={effectiveDesignTokens}
+              tokenCss={exportTokenCss}
+              googleFontAssetLinks={exportGoogleFontLinks}
+              trigger={
+                <Button
+                  size="sm"
+                  className="h-6 rounded-full dg-button-primary hover:dg-button-primary px-2 sm:px-3 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm transition-all flex items-center justify-center gap-1"
+                  onClick={() => setExportInitialScreenId(selectedScreen?.id || screens[0]?.id || null)}
+                >
+                  <Download className="h-3 w-3 shrink-0" />
+                  <span className="hidden sm:inline">Export</span>
+                </Button>
+              }
+            />
           </div>
 
           {/* Credits & Upgrade pill */}
@@ -1919,8 +1931,9 @@ export function ProjectShell({
               const matchedScreen = screens.find((s) => s.name === screenName);
               if (matchedScreen) {
                 setSelectedScreen(matchedScreen);
+                setExportInitialScreenId(matchedScreen.id);
               }
-              setExportDrawerOpen(true);
+              setExportMenuOpen(true);
             }}
           />
 
@@ -2027,17 +2040,6 @@ export function ProjectShell({
             />
           ) : null}
 
-          <MobileExportDrawer
-            open={exportDrawerOpen}
-            onClose={() => setExportDrawerOpen(false)}
-            project={project}
-            screens={screens}
-            initialScreenId={selectedScreen?.id || null}
-            projectNavigation={projectNavigation}
-            designTokens={effectiveDesignTokens}
-            tokenCss={exportTokenCss}
-            googleFontAssetLinks={exportGoogleFontLinks}
-          />
         </div>
       </main>
       <PricingDialog
