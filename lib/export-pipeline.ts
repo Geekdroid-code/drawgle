@@ -11,7 +11,13 @@ import {
   transpileToSwiftUI,
 } from "@/lib/mobile-transpiler";
 import { normalizeDesignTokens } from "@/lib/design-tokens";
-import { buildDrawgleTokenCss, buildGoogleFontAssetLinks } from "@/lib/token-runtime";
+import { buildDrawgleTokenCss, buildGoogleFontAssetLinks, flattenDesignTokensToCssVariables } from "@/lib/token-runtime";
+import {
+  compileHtmlForProduction,
+  compileStylesheetForProduction,
+  resolveCssVariables,
+  buildTailwindConfigScript,
+} from "@/lib/html-compiler";
 import type {
   DesignTokens,
   ProjectData,
@@ -92,9 +98,24 @@ export function buildStandaloneHtmlExport({
   tokenCss?: string;
   googleFontAssetLinks?: string;
 }) {
-  const cleanScreen = sanitizeHtmlForExport(screen.code);
-  const cleanNavigation = sanitizeHtmlForExport(navigationCode);
-  const exportTokenCss = tokenCss?.trim() ? tokenCss : buildDrawgleTokenCss(designTokens);
+  // 1. Compile the HTML codes to resolve design tokens and clean up classes/styles
+  const compiledScreen = compileHtmlForProduction(screen.code, designTokens);
+  const compiledNavigation = compileHtmlForProduction(navigationCode, designTokens);
+
+  // 2. Sanitize and remove editor-specific attributes
+  const cleanScreen = sanitizeHtmlForExport(compiledScreen);
+  const cleanNavigation = sanitizeHtmlForExport(compiledNavigation);
+
+  // 3. Resolve CSS variables for default styles
+  const normalized = normalizeDesignTokens(designTokens ?? {});
+  const variables = flattenDesignTokensToCssVariables(normalized);
+  const varMap = new Map<string, string>();
+  variables.forEach(v => {
+    varMap.set(v.name, v.value);
+  });
+
+  const exportTokenCss = compileStylesheetForProduction(varMap);
+
   const cleanGoogleFont = (googleFontAssetLinks || buildGoogleFontAssetLinks(designTokens))
     .replace(/\s*data-drawgle-font-preconnect="[^"]*"/g, "");
 
@@ -104,24 +125,11 @@ export function buildStandaloneHtmlExport({
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script src="https://cdn.tailwindcss.com"><\/script>
+    ${buildTailwindConfigScript()}
     <script src="https://unpkg.com/lucide@latest"><\/script>
     ${cleanGoogleFont}
     <style>
 ${exportTokenCss}
-      html, body { margin: 0; min-height: 100%; }
-      body {
-        font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
-        background: var(--dg-color-background-primary, #ffffff);
-        color: var(--dg-color-text-high-emphasis, #111827);
-      }
-      #drawgle-export-root {
-        position: relative;
-        min-height: 100vh;
-        overflow-x: hidden;
-        background: var(--dg-color-background-primary, #ffffff);
-      }
-      #drawgle-export-navigation { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; pointer-events: none; }
-      #drawgle-export-navigation [data-drawgle-primary-nav] { pointer-events: auto; }
     </style>
   </head>
   <body>
