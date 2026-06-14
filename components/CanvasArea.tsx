@@ -588,6 +588,7 @@ function CanvasStageContent({
       }
       if (key === "escape" || key === "v") onToolChange?.("pointer");
       else if (key === "h") onToolChange?.("pan");
+      else if (key === "p") onToolChange?.(tool === "pan" ? "pointer" : "pan");
       else if (key === "0") {
         event.preventDefault();
         void controller.resetZoom();
@@ -611,7 +612,7 @@ function CanvasStageContent({
       window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("blur", handleBlur);
     };
-  }, [controller, onToolChange, selectedScreen]);
+  }, [controller, onToolChange, selectedScreen, tool]);
 
   const handleNodesChange = useCallback(
     (changes: NodeChange<ScreenCanvasNode>[]) => {
