@@ -26,7 +26,7 @@ export interface ParsedStyles {
   borderColor: string;
 
   fontSize?: number;
-  fontWeight?: "normal" | "medium" | "semibold" | "bold";
+  fontWeight?: "normal" | "medium" | "semibold" | "bold" | "heavy";
   textAlign?: "left" | "center" | "right";
 
   shadow: string | null; // e.g. "surface", "overlay", or null
@@ -416,6 +416,74 @@ function resolveCssVariable(varName: string, varMap?: Map<string, string>): stri
   return varName;
 }
 
+function parseFontWeight(val: string, varMap?: Map<string, string>): "normal" | "medium" | "semibold" | "bold" | "heavy" {
+  const resolved = val.trim().startsWith("var(") ? resolveCssVariable(val.trim(), varMap) : val.trim();
+  const cleanVal = resolved.toLowerCase();
+  
+  const num = parseInt(cleanVal, 10);
+  if (!isNaN(num)) {
+    if (num >= 800) return "heavy";
+    if (num >= 700) return "bold";
+    if (num >= 600) return "semibold";
+    if (num >= 500) return "medium";
+    return "normal";
+  }
+
+  if (cleanVal === "heavy" || cleanVal === "black" || cleanVal === "extra-bold" || cleanVal === "extrabold" || cleanVal === "800" || cleanVal === "900") {
+    return "heavy";
+  }
+  if (cleanVal === "bold" || cleanVal === "700") {
+    return "bold";
+  }
+  if (cleanVal === "semibold" || cleanVal === "600") {
+    return "semibold";
+  }
+  if (cleanVal === "medium" || cleanVal === "500") {
+    return "medium";
+  }
+  return "normal";
+}
+
+function hasIdenticalBackground(styles: ParsedStyles, parentStyles?: ParsedStyles): boolean {
+  if (!parentStyles) return false;
+  if (styles.gradient || parentStyles.gradient) return false;
+
+  const thisBgToken = styles.backgroundColorToken;
+  const parentBgToken = parentStyles.backgroundColorToken;
+  const thisBgColor = styles.backgroundColor;
+  const parentBgColor = parentStyles.backgroundColor;
+
+  if (thisBgToken && parentBgToken && thisBgToken === parentBgToken) {
+    return true;
+  }
+
+  if (!thisBgToken && !parentBgToken) {
+    if (thisBgColor !== "transparent" && parentBgColor !== "transparent") {
+      return thisBgColor === parentBgColor;
+    }
+  }
+
+  const resolvedThis = thisBgToken ? resolveTokenToColor(thisBgToken) : thisBgColor;
+  const resolvedParent = parentBgToken ? resolveTokenToColor(parentBgToken) : parentBgColor;
+
+  if (resolvedThis !== "transparent" && resolvedParent !== "transparent") {
+    return resolvedThis === resolvedParent;
+  }
+
+  return false;
+}
+
+function resolveTokenToColor(token: string): string {
+  switch (token) {
+    case "bgPrimary": return "#FFFFFF";
+    case "bgSecondary": return "#F3F4F6";
+    case "surfaceCard": return "#FFFFFF";
+    case "actionPrimary": return "#3B82F6";
+    case "actionSecondary": return "#E5E7EB";
+    default: return token;
+  }
+}
+
 // Resolves compound values like calc(var(--x) + 8px), plain 120px, var(--x), etc.
 function resolveArbitraryValue(val: string, varMap: Map<string, string>): number {
   const trimmed = val.trim();
@@ -788,7 +856,7 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>, c
   let borderColor = "transparent";
 
   let fontSize: number | undefined = undefined;
-  let fontWeight: "normal" | "medium" | "semibold" | "bold" | undefined = undefined;
+  let fontWeight: "normal" | "medium" | "semibold" | "bold" | "heavy" | undefined = undefined;
   let textAlign: "left" | "center" | "right" | undefined = undefined;
 
   let shadow: string | null = null;
@@ -862,20 +930,7 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>, c
     const fontWeightMatch = c.match(/^font-\[(.+)\]$/);
     if (fontWeightMatch) {
       const val = fontWeightMatch[1].trim();
-      const resolvedVal = val.startsWith("var(") ? resolveCssVariable(val, varMap) : val;
-      const num = parseInt(resolvedVal, 10);
-      if (!isNaN(num)) {
-        if (num >= 700) fontWeight = "bold";
-        else if (num >= 600) fontWeight = "semibold";
-        else if (num >= 500) fontWeight = "medium";
-        else fontWeight = "normal";
-      } else {
-        const cleanVal = resolvedVal.toLowerCase().replace(/['" ]/g, "");
-        if (cleanVal === "bold" || cleanVal === "700" || cleanVal === "800" || cleanVal === "900") fontWeight = "bold";
-        else if (cleanVal === "semibold" || cleanVal === "600") fontWeight = "semibold";
-        else if (cleanVal === "medium" || cleanVal === "500") fontWeight = "medium";
-        else if (cleanVal === "normal" || cleanVal === "400") fontWeight = "normal";
-      }
+      fontWeight = parseFontWeight(val, varMap);
     }
 
     // Filter Tailwind Classes
@@ -1248,16 +1303,11 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>, c
     // Semantic typography classes
     if (c.startsWith("dg-type-")) {
       const typeName = c.substring(8).replace(/-/g, "_"); // E.g. screen-title -> screen_title
-      // Let's approximate based on standard system or loaded tokens
-      if (typeName === "hero_title") { fontSize = 32; fontWeight = "bold"; }
-      else if (typeName === "screen_title") { fontSize = 24; fontWeight = "bold"; }
-      else if (typeName === "section_title") { fontSize = 18; fontWeight = "bold"; }
-      else if (typeName === "nav_title") { fontSize = 17; fontWeight = "bold"; }
-      else if (typeName === "metric_value") { fontSize = 32; fontWeight = "bold"; }
-      else if (typeName === "body") { fontSize = 16; fontWeight = "normal"; }
-      else if (typeName === "supporting") { fontSize = 14; fontWeight = "normal"; }
-      else if (typeName === "caption") { fontSize = 12; fontWeight = "semibold"; }
-      else if (typeName === "button_label") { fontSize = 15; fontWeight = "bold"; }
+      const defaultVal = DEFAULT_TYPOGRAPHY[typeName as keyof typeof DEFAULT_TYPOGRAPHY];
+      if (defaultVal) {
+        fontSize = parseInt(defaultVal.size, 10) || fontSize;
+        fontWeight = parseFontWeight(defaultVal.weight, varMap);
+      }
     }
 
     // Grid layout detection
@@ -1529,11 +1579,7 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>, c
       }
     }
     if (key === "font-weight") {
-      const cleanVal = val.trim().toLowerCase();
-      if (cleanVal === "bold" || cleanVal === "700" || cleanVal === "800" || cleanVal === "900") fontWeight = "bold";
-      else if (cleanVal === "semibold" || cleanVal === "600") fontWeight = "semibold";
-      else if (cleanVal === "medium" || cleanVal === "500") fontWeight = "medium";
-      else fontWeight = "normal";
+      fontWeight = parseFontWeight(val, varMap);
     }
     if (key === "text-align") {
       const cleanVal = val.trim().toLowerCase();
@@ -2128,7 +2174,7 @@ export function cascadeInheritedStyles(
   inheritedTextColor?: string,
   inheritedTextColorToken?: string,
   inheritedFontSize?: number,
-  inheritedFontWeight?: "normal" | "medium" | "semibold" | "bold",
+  inheritedFontWeight?: "normal" | "medium" | "semibold" | "bold" | "heavy",
   inheritedTextAlign?: "left" | "center" | "right"
 ): void {
   // 1. Inherit Text Color
@@ -2422,7 +2468,9 @@ export function transpileToSwiftUI(root: TranspileNode): string {
         out += `${getIndent()}    .font(.system(size: ${styles.fontSize}))\n`;
       }
       if (styles.fontWeight !== undefined) {
-        if (styles.fontWeight === "bold") {
+        if (styles.fontWeight === "heavy") {
+          out += `${getIndent()}    .fontWeight(.heavy)\n`;
+        } else if (styles.fontWeight === "bold") {
           out += `${getIndent()}    .fontWeight(.bold)\n`;
         } else if (styles.fontWeight === "semibold") {
           out += `${getIndent()}    .fontWeight(.semibold)\n`;
@@ -2465,10 +2513,13 @@ export function transpileToSwiftUI(root: TranspileNode): string {
     // Empty Container Optimization (e.g., Progress Bar segments or Flex Spacers)
     if (node.children.length === 0) {
       let baseColor = "Color.clear";
-      if (styles.backgroundColorToken) {
-        baseColor = toSwiftThemeToken(styles.backgroundColorToken, "");
-      } else if (styles.backgroundColor !== "transparent") {
-        baseColor = toSwiftColor(styles.backgroundColor);
+      const identicalBg = hasIdenticalBackground(styles, parentStyles);
+      if (!identicalBg) {
+        if (styles.backgroundColorToken) {
+          baseColor = toSwiftThemeToken(styles.backgroundColorToken, "");
+        } else if (styles.backgroundColor !== "transparent") {
+          baseColor = toSwiftColor(styles.backgroundColor);
+        }
       }
       
       const fillCol = styles.gradient ? "Color.clear" : baseColor;
@@ -2583,10 +2634,15 @@ export function transpileToSwiftUI(root: TranspileNode): string {
         if (styles.gradient && styles.gradient.fromColor && styles.gradient.toColor) {
           const baseCol = styles.backgroundColorToken ? toSwiftThemeToken(styles.backgroundColorToken, "") : (styles.backgroundColor !== "transparent" ? toSwiftColor(styles.backgroundColor) : "Color.clear");
           out += toSwiftBackgroundGradient(styles, getIndent(), baseCol);
-        } else if (styles.backgroundColorToken) {
-          out += `${getIndent()}.background(${toSwiftThemeToken(styles.backgroundColorToken, '')})\n`;
-        } else if (styles.backgroundColor !== 'transparent') {
-          out += `${getIndent()}.background(${toSwiftColor(styles.backgroundColor)})\n`;
+        } else {
+          const identicalBg = hasIdenticalBackground(styles, parentStyles);
+          if (!identicalBg) {
+            if (styles.backgroundColorToken) {
+              out += `${getIndent()}.background(${toSwiftThemeToken(styles.backgroundColorToken, '')})\n`;
+            } else if (styles.backgroundColor !== 'transparent') {
+              out += `${getIndent()}.background(${toSwiftColor(styles.backgroundColor)})\n`;
+            }
+          }
         }
       }
       if (styles.borderRadiusToken) {
@@ -2693,10 +2749,15 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       if (styles.gradient && styles.gradient.fromColor && styles.gradient.toColor) {
         const baseCol = styles.backgroundColorToken ? toSwiftThemeToken(styles.backgroundColorToken, "") : (styles.backgroundColor !== "transparent" ? toSwiftColor(styles.backgroundColor) : "Color.clear");
         out += toSwiftBackgroundGradient(styles, getIndent(), baseCol);
-      } else if (styles.backgroundColorToken) {
-        out += `${getIndent()}.background(${toSwiftThemeToken(styles.backgroundColorToken, "")})\n`;
-      } else if (styles.backgroundColor !== "transparent") {
-        out += `${getIndent()}.background(${toSwiftColor(styles.backgroundColor)})\n`;
+      } else {
+        const identicalBg = hasIdenticalBackground(styles, parentStyles);
+        if (!identicalBg) {
+          if (styles.backgroundColorToken) {
+            out += `${getIndent()}.background(${toSwiftThemeToken(styles.backgroundColorToken, "")})\n`;
+          } else if (styles.backgroundColor !== "transparent") {
+            out += `${getIndent()}.background(${toSwiftColor(styles.backgroundColor)})\n`;
+          }
+        }
       }
     }
     if (styles.borderRadiusToken) {
@@ -2777,13 +2838,13 @@ export function transpileToCompose(root: TranspileNode): string {
   let indentLevel = 1;
   const getIndent = () => "    ".repeat(indentLevel);
 
-  function walk(node: TranspileNode | string, parentIsFixedBottomRow = false): string {
+  function walk(node: TranspileNode | string, parentIsFixedBottomRow = false, parentStyles?: ParsedStyles): string {
     if (typeof node === "string") {
       return `${getIndent()}Text(text = "${node.replace(/"/g, '\\"')}")\n`;
     }
 
     if (typeof node !== "string" && isRedundantWrapper(node)) {
-      return walk(node.children[0], parentIsFixedBottomRow);
+      return walk(node.children[0], parentIsFixedBottomRow, parentStyles);
     }
 
     const { styles } = node;
@@ -2902,7 +2963,7 @@ export function transpileToCompose(root: TranspileNode): string {
       out += `${getIndent()}) {\n`;
       indentLevel++;
       node.children.forEach(c => {
-        out += walk(c, parentIsFixedBottomRow);
+        out += walk(c, parentIsFixedBottomRow, styles);
       });
       indentLevel--;
       out += `${getIndent()}}\n`;
@@ -2927,8 +2988,12 @@ export function transpileToCompose(root: TranspileNode): string {
         out += `${getIndent()}    color = ${textTint},\n`;
       }
       if (styles.fontWeight !== undefined) {
-        if (styles.fontWeight === "bold" || styles.fontWeight === "semibold") {
+        if (styles.fontWeight === "heavy") {
+          out += `${getIndent()}    fontWeight = FontWeight.ExtraBold,\n`;
+        } else if (styles.fontWeight === "bold") {
           out += `${getIndent()}    fontWeight = FontWeight.Bold,\n`;
+        } else if (styles.fontWeight === "semibold") {
+          out += `${getIndent()}    fontWeight = FontWeight.SemiBold,\n`;
         } else if (styles.fontWeight === "medium") {
           out += `${getIndent()}    fontWeight = FontWeight.Medium,\n`;
         } else {
@@ -3012,10 +3077,15 @@ export function transpileToCompose(root: TranspileNode): string {
     if (styles.gradient && styles.gradient.fromColor && styles.gradient.toColor) {
       const { start, end } = gradientDirectionToCompose(styles.gradient.direction);
       stackModifier += `\n        .background(Brush.linearGradient(colors = listOf(${toComposeColor(styles.gradient.fromColor)}, ${toComposeColor(styles.gradient.toColor)}), start = ${start}, end = ${end}))`;
-    } else if (styles.backgroundColorToken) {
-      stackModifier += `\n        .background(${toComposeThemeToken(styles.backgroundColorToken, "")})`;
-    } else if (styles.backgroundColor !== "transparent") {
-      stackModifier += `\n        .background(${toComposeColor(styles.backgroundColor)})`;
+    } else {
+      const identicalBg = hasIdenticalBackground(styles, parentStyles);
+      if (!identicalBg) {
+        if (styles.backgroundColorToken) {
+          stackModifier += `\n        .background(${toComposeThemeToken(styles.backgroundColorToken, "")})`;
+        } else if (styles.backgroundColor !== "transparent") {
+          stackModifier += `\n        .background(${toComposeColor(styles.backgroundColor)})`;
+        }
+      }
     }
 
     // Border overlay
@@ -3078,7 +3148,7 @@ export function transpileToCompose(root: TranspileNode): string {
       
       // 1. Render background absolute children FIRST
       bgAbsoluteChildren.forEach(c => {
-        out += walk(c, parentIsFixedBottomRow || isCurrentFixedBottomRow);
+        out += walk(c, parentIsFixedBottomRow || isCurrentFixedBottomRow, styles);
       });
 
       // 2. Inner stack (normal children)
@@ -3107,14 +3177,14 @@ export function transpileToCompose(root: TranspileNode): string {
       out += `${getIndent()}) {\n`;
       indentLevel++;
       normalChildren.forEach(c => {
-        out += walk(c, parentIsFixedBottomRow || isCurrentFixedBottomRow);
+        out += walk(c, parentIsFixedBottomRow || isCurrentFixedBottomRow, styles);
       });
       indentLevel--;
       out += `${getIndent()}}\n`;
       
       // 3. Render foreground absolute children LAST
       fgAbsoluteChildren.forEach(c => {
-        out += walk(c, parentIsFixedBottomRow || isCurrentFixedBottomRow);
+        out += walk(c, parentIsFixedBottomRow || isCurrentFixedBottomRow, styles);
       });
       
       indentLevel--;
@@ -3145,7 +3215,7 @@ export function transpileToCompose(root: TranspileNode): string {
       out += `${getIndent()}) {\n`;
       indentLevel++;
       normalChildren.forEach(c => {
-        out += walk(c, parentIsFixedBottomRow || isCurrentFixedBottomRow);
+        out += walk(c, parentIsFixedBottomRow || isCurrentFixedBottomRow, styles);
       });
       indentLevel--;
       out += `${getIndent()}}\n`;
@@ -3190,13 +3260,13 @@ export function transpileToReactNative(root: TranspileNode): string {
   let indentLevel = 1;
   const getIndent = () => "  ".repeat(indentLevel);
 
-  function walk(node: TranspileNode | string, isGridChildOfCols?: number, parentIsFixedBottomRow = false): string {
+  function walk(node: TranspileNode | string, isGridChildOfCols?: number, parentIsFixedBottomRow = false, parentStyles?: ParsedStyles): string {
     if (typeof node === "string") {
       return `${getIndent()}<Text>${node.replace(/"/g, '\\"')}</Text>\n`;
     }
 
     if (typeof node !== "string" && isRedundantWrapper(node)) {
-      return walk(node.children[0], isGridChildOfCols, parentIsFixedBottomRow);
+      return walk(node.children[0], isGridChildOfCols, parentIsFixedBottomRow, parentStyles);
     }
 
     const { styles } = node;
@@ -3322,7 +3392,7 @@ export function transpileToReactNative(root: TranspileNode): string {
       indentLevel++;
       
       node.children.forEach(c => {
-        out += walk(c, undefined, parentIsFixedBottomRow);
+        out += walk(c, undefined, parentIsFixedBottomRow, styles);
       });
 
       indentLevel--;
@@ -3357,8 +3427,12 @@ export function transpileToReactNative(root: TranspileNode): string {
         out += `${getIndent()}  color: ${textTint},\n`;
       }
       if (styles.fontWeight !== undefined) {
-        if (styles.fontWeight === "bold" || styles.fontWeight === "semibold") {
+        if (styles.fontWeight === "heavy") {
+          out += `${getIndent()}  fontWeight: '800',\n`;
+        } else if (styles.fontWeight === "bold") {
           out += `${getIndent()}  fontWeight: 'bold',\n`;
+        } else if (styles.fontWeight === "semibold") {
+          out += `${getIndent()}  fontWeight: '600',\n`;
         } else if (styles.fontWeight === "medium") {
           out += `${getIndent()}  fontWeight: '500',\n`;
         } else {
@@ -3391,7 +3465,7 @@ export function transpileToReactNative(root: TranspileNode): string {
       const gapVal = styles.gapToken ? toRNThemeToken(styles.gapToken, '') : String(styles.gap);
       out += `${getIndent()}<View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: ${gapVal} }}>\n`;
       indentLevel++;
-      node.children.forEach(c => { out += walk(c, styles.gridCols, false); });
+      node.children.forEach(c => { out += walk(c, styles.gridCols, false, styles); });
       indentLevel--;
       out += `${getIndent()}</View>\n`;
       return out;
@@ -3466,10 +3540,13 @@ export function transpileToReactNative(root: TranspileNode): string {
     if (typeof styles.minHeight === "number" && styles.minHeight > 0) out += `${getIndent()}  minHeight: ${styles.minHeight},\n`;
 
     if (!hasGradient) {
-      if (styles.backgroundColorToken) {
-        out += `${getIndent()}  backgroundColor: ${toRNThemeToken(styles.backgroundColorToken, "")},\n`;
-      } else if (styles.backgroundColor !== "transparent") {
-        out += `${getIndent()}  backgroundColor: '${styles.backgroundColor}',\n`;
+      const identicalBg = hasIdenticalBackground(styles, parentStyles);
+      if (!identicalBg) {
+        if (styles.backgroundColorToken) {
+          out += `${getIndent()}  backgroundColor: ${toRNThemeToken(styles.backgroundColorToken, "")},\n`;
+        } else if (styles.backgroundColor !== "transparent") {
+          out += `${getIndent()}  backgroundColor: '${styles.backgroundColor}',\n`;
+        }
       }
     }
     
@@ -3520,13 +3597,13 @@ export function transpileToReactNative(root: TranspileNode): string {
     const isCurrentFixedBottomRow = styles.isFixedBottom && isRow;
 
     bgAbsoluteChildren.forEach(c => {
-      out += walk(c, isGridChildOfCols, parentIsFixedBottomRow || isCurrentFixedBottomRow);
+      out += walk(c, isGridChildOfCols, parentIsFixedBottomRow || isCurrentFixedBottomRow, styles);
     });
     normalChildren.forEach(c => {
-      out += walk(c, isGridChildOfCols, parentIsFixedBottomRow || isCurrentFixedBottomRow);
+      out += walk(c, isGridChildOfCols, parentIsFixedBottomRow || isCurrentFixedBottomRow, styles);
     });
     fgAbsoluteChildren.forEach(c => {
-      out += walk(c, isGridChildOfCols, parentIsFixedBottomRow || isCurrentFixedBottomRow);
+      out += walk(c, isGridChildOfCols, parentIsFixedBottomRow || isCurrentFixedBottomRow, styles);
     });
 
     indentLevel--;
@@ -3561,13 +3638,13 @@ export function transpileToFlutter(root: TranspileNode): string {
     return outCode;
   }
 
-  function walk(node: TranspileNode | string, parentIsFixedBottomRow = false): string {
+  function walk(node: TranspileNode | string, parentIsFixedBottomRow = false, parentStyles?: ParsedStyles): string {
     if (typeof node === "string") {
       return `${getIndent()}Text('${node.replace(/'/g, "\\'")}')\n`;
     }
 
     if (typeof node !== "string" && isRedundantWrapper(node)) {
-      return walk(node.children[0], parentIsFixedBottomRow);
+      return walk(node.children[0], parentIsFixedBottomRow, parentStyles);
     }
 
     const { styles } = node;
@@ -3671,7 +3748,7 @@ export function transpileToFlutter(root: TranspileNode): string {
       out += `${getIndent()}    children: [\n`;
       indentLevel += 3;
       node.children.forEach((c, idx) => {
-        out += walk(c, parentIsFixedBottomRow);
+        out += walk(c, parentIsFixedBottomRow, styles);
         if (idx < node.children.length - 1) {
           out = out.trimEnd() + ",\n";
           const btnGap = styles.gapToken ? toFlutterThemeToken(styles.gapToken, "") : `${(styles.gap || 8)}.0`;
@@ -3707,8 +3784,12 @@ export function transpileToFlutter(root: TranspileNode): string {
           out += `${getIndent()}    color: ${textTint},\n`;
         }
         if (styles.fontWeight !== undefined) {
-          if (styles.fontWeight === "bold" || styles.fontWeight === "semibold") {
+          if (styles.fontWeight === "heavy") {
+            out += `${getIndent()}    fontWeight: FontWeight.w800,\n`;
+          } else if (styles.fontWeight === "bold") {
             out += `${getIndent()}    fontWeight: FontWeight.bold,\n`;
+          } else if (styles.fontWeight === "semibold") {
+            out += `${getIndent()}    fontWeight: FontWeight.w600,\n`;
           } else if (styles.fontWeight === "medium") {
             out += `${getIndent()}    fontWeight: FontWeight.w500,\n`;
           } else {
@@ -3752,7 +3833,7 @@ export function transpileToFlutter(root: TranspileNode): string {
         out += `${getIndent()}  children: [\n`;
         indentLevel += 2;
         node.children.forEach((c, idx) => {
-          out += walk(c, false);
+          out += walk(c, false, styles);
           if (idx < node.children.length - 1) out = out.trimEnd() + ",\n";
         });
         indentLevel -= 2;
@@ -3768,7 +3849,7 @@ export function transpileToFlutter(root: TranspileNode): string {
         out += `${getIndent()}  children: [\n`;
         indentLevel += 2;
         node.children.forEach((c, idx) => {
-          out += walk(c, false);
+          out += walk(c, false, styles);
           if (idx < node.children.length - 1) out = out.trimEnd() + ",\n";
         });
         indentLevel -= 2;
@@ -3789,8 +3870,11 @@ export function transpileToFlutter(root: TranspileNode): string {
     let decoration = "";
     
     // Determine decoration — with gradient support
-    if ((styles.gradient && styles.gradient.fromColor && styles.gradient.toColor) ||
-        styles.backgroundColorToken || styles.backgroundColor !== "transparent" || 
+    const identicalBg = hasIdenticalBackground(styles, parentStyles);
+    const hasBg = (styles.gradient && styles.gradient.fromColor && styles.gradient.toColor) ||
+                  (!identicalBg && (styles.backgroundColorToken || styles.backgroundColor !== "transparent"));
+
+    if (hasBg ||
         styles.borderRadiusToken || styles.borderRadius > 0 || 
         styles.borderColorToken || styles.borderWidth > 0) {
       containerWrap = true;
@@ -3804,9 +3888,9 @@ export function transpileToFlutter(root: TranspileNode): string {
         decoration += `        end: ${end},\n`;
         decoration += `        colors: [${toFlutterColor(styles.gradient.fromColor)}, ${toFlutterColor(styles.gradient.toColor)}],\n`;
         decoration += `      ),\n`;
-      } else if (styles.backgroundColorToken) {
+      } else if (!identicalBg && styles.backgroundColorToken) {
         decoration += `      color: ${toFlutterThemeToken(styles.backgroundColorToken, "")},\n`;
-      } else if (styles.backgroundColor !== "transparent") {
+      } else if (!identicalBg && styles.backgroundColor !== "transparent") {
         decoration += `      color: ${toFlutterColor(styles.backgroundColor)},\n`;
       }
       
@@ -3876,7 +3960,7 @@ export function transpileToFlutter(root: TranspileNode): string {
       
       indentLevel++;
       normalChildren.forEach((c, idx) => {
-        innerStackOut += walk(c, parentIsFixedBottomRow || isCurrentFixedBottomRow);
+        innerStackOut += walk(c, parentIsFixedBottomRow || isCurrentFixedBottomRow, styles);
         if (idx < normalChildren.length - 1) {
           innerStackOut = innerStackOut.trimEnd() + ",\n";
           if (styles.gap > 0 || styles.gapToken) {
@@ -3918,7 +4002,7 @@ export function transpileToFlutter(root: TranspileNode): string {
       
       // 1. Paint background absolute children FIRST (bottom of Stack painting hierarchy)
       bgAbsoluteChildren.forEach(c => {
-        out += walk(c, parentIsFixedBottomRow || isCurrentFixedBottomRow).trimEnd() + ",\n";
+        out += walk(c, parentIsFixedBottomRow || isCurrentFixedBottomRow, styles).trimEnd() + ",\n";
       });
 
       // 2. Paint normal children inside Stack
@@ -3928,7 +4012,7 @@ export function transpileToFlutter(root: TranspileNode): string {
 
       // 3. Paint foreground absolute children LAST (top of Stack painting hierarchy)
       fgAbsoluteChildren.forEach(c => {
-        out += walk(c, parentIsFixedBottomRow || isCurrentFixedBottomRow).trimEnd() + ",\n";
+        out += walk(c, parentIsFixedBottomRow || isCurrentFixedBottomRow, styles).trimEnd() + ",\n";
       });
 
       indentLevel--;

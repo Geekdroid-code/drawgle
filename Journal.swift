@@ -67,7 +67,7 @@ struct JournalView: View {
             VStack(alignment: .leading) {
                 Text("Journal")
                     .font(.system(size: 24))
-                    .fontWeight(.bold)
+                    .fontWeight(.heavy)
                     .padding(.bottom, AppTheme.sectionGap)
                 VStack(alignment: .leading) {
                     HStack() {
@@ -110,7 +110,7 @@ struct JournalView: View {
                             Spacer()
                             Text("00 cal")
                                 .font(.system(size: 32))
-                                .fontWeight(.bold)
+                                .fontWeight(.heavy)
                         }
                         .padding(.top, 12)
                         .padding(.bottom, 12)
@@ -123,7 +123,7 @@ struct JournalView: View {
                             Spacer()
                             Text("00 cal")
                                 .font(.system(size: 32))
-                                .fontWeight(.bold)
+                                .fontWeight(.heavy)
                         }
                         .padding(.top, 12)
                         .padding(.bottom, 12)
@@ -156,7 +156,7 @@ struct JournalView: View {
                                 Spacer()
                                 Text("00 cal")
                                     .font(.system(size: 32))
-                                    .fontWeight(.bold)
+                                    .fontWeight(.heavy)
                             }
                         }
                         .padding(.top, 12)

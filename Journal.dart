@@ -73,7 +73,7 @@ class JournalScreen extends StatelessWidget {
           style: TextStyle(
             fontSize: 24.0,
             color: AppTheme.textHigh,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w800,
           ),
         ),
         ),
@@ -126,7 +126,7 @@ class JournalScreen extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12.0,
                     color: AppTheme.textMedium,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w600,
                   ),
                 )
                 ],
@@ -178,7 +178,7 @@ class JournalScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 32.0,
                   color: AppTheme.textHigh,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w800,
                 ),
               )
               ],
@@ -207,7 +207,7 @@ class JournalScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 32.0,
                   color: AppTheme.textHigh,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w800,
                 ),
               )
               ],
@@ -249,7 +249,7 @@ class JournalScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 32.0,
                   color: AppTheme.textLow,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w800,
                 ),
               )
               ],
@@ -338,7 +338,7 @@ class JournalScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12.0,
                   color: AppTheme.textMedium,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               )
@@ -421,7 +421,7 @@ class JournalScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12.0,
                   color: AppTheme.textMedium,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               )
@@ -504,7 +504,7 @@ class JournalScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12.0,
                   color: AppTheme.textMedium,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               )

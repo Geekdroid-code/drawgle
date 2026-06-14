@@ -84,7 +84,7 @@ fun JournalScreen() {
                     text = "Journal",
                     fontSize = 24.sp,
                     color = AppTheme.TextHigh,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.ExtraBold,
                     modifier = Modifier
                         .padding(top = 0.dp, bottom = AppTheme.SectionGap)
                 )
@@ -133,7 +133,7 @@ fun JournalScreen() {
                                     text = "Week Days",
                                     fontSize = 12.sp,
                                     color = AppTheme.TextMedium,
-                                    fontWeight = FontWeight.Bold,
+                                    fontWeight = FontWeight.SemiBold,
                                 
                                 )
                             }
@@ -180,7 +180,7 @@ fun JournalScreen() {
                                 text = "00 cal",
                                 fontSize = 32.sp,
                                 color = AppTheme.TextHigh,
-                                fontWeight = FontWeight.Bold,
+                                fontWeight = FontWeight.ExtraBold,
                             
                             )
                         }
@@ -203,7 +203,7 @@ fun JournalScreen() {
                                 text = "00 cal",
                                 fontSize = 32.sp,
                                 color = AppTheme.TextHigh,
-                                fontWeight = FontWeight.Bold,
+                                fontWeight = FontWeight.ExtraBold,
                             
                             )
                         }
@@ -235,7 +235,7 @@ fun JournalScreen() {
                                     text = "00 cal",
                                     fontSize = 32.sp,
                                     color = AppTheme.TextLow,
-                                    fontWeight = FontWeight.Bold,
+                                    fontWeight = FontWeight.ExtraBold,
                                 
                                 )
                             }
@@ -308,7 +308,7 @@ fun JournalScreen() {
                                 text = "Power Carbs",
                                 fontSize = 12.sp,
                                 color = AppTheme.TextMedium,
-                                fontWeight = FontWeight.Bold,
+                                fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier
                                     .padding(top = 2.dp, bottom = 0.dp)
                             )
@@ -375,7 +375,7 @@ fun JournalScreen() {
                                 text = "Protein Power",
                                 fontSize = 12.sp,
                                 color = AppTheme.TextMedium,
-                                fontWeight = FontWeight.Bold,
+                                fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier
                                     .padding(top = 2.dp, bottom = 0.dp)
                             )
@@ -442,7 +442,7 @@ fun JournalScreen() {
                                 text = "Healthy Fat",
                                 fontSize = 12.sp,
                                 color = AppTheme.TextMedium,
-                                fontWeight = FontWeight.Bold,
+                                fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier
                                     .padding(top = 2.dp, bottom = 0.dp)
                             )

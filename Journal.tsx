@@ -76,7 +76,7 @@ export default function JournalScreen() {
         <Text style={{
           fontSize: 24,
           color: AppTheme.colors.textHigh,
-          fontWeight: 'bold',
+          fontWeight: '800',
           marginBottom: AppTheme.layout.sectionGap,
         }}>
           Journal
@@ -119,7 +119,7 @@ export default function JournalScreen() {
                 <Text style={{
                   fontSize: 12,
                   color: AppTheme.colors.textMedium,
-                  fontWeight: 'bold',
+                  fontWeight: '600',
                 }}>
                   Week Days
                 </Text>
@@ -162,7 +162,7 @@ export default function JournalScreen() {
               <Text style={{
                 fontSize: 32,
                 color: AppTheme.colors.textHigh,
-                fontWeight: 'bold',
+                fontWeight: '800',
               }}>
                 00 cal
               </Text>
@@ -186,7 +186,7 @@ export default function JournalScreen() {
               <Text style={{
                 fontSize: 32,
                 color: AppTheme.colors.textHigh,
-                fontWeight: 'bold',
+                fontWeight: '800',
               }}>
                 00 cal
               </Text>
@@ -223,7 +223,7 @@ export default function JournalScreen() {
               <Text style={{
                 fontSize: 32,
                 color: AppTheme.colors.textLow,
-                fontWeight: 'bold',
+                fontWeight: '800',
               }}>
                 00 cal
               </Text>
@@ -272,7 +272,7 @@ export default function JournalScreen() {
               <Text style={{
                 fontSize: 12,
                 color: AppTheme.colors.textMedium,
-                fontWeight: 'bold',
+                fontWeight: '600',
                 marginTop: 2,
               }}>
                 Power Carbs
@@ -316,7 +316,7 @@ export default function JournalScreen() {
               <Text style={{
                 fontSize: 12,
                 color: AppTheme.colors.textMedium,
-                fontWeight: 'bold',
+                fontWeight: '600',
                 marginTop: 2,
               }}>
                 Protein Power
@@ -360,7 +360,7 @@ export default function JournalScreen() {
               <Text style={{
                 fontSize: 12,
                 color: AppTheme.colors.textMedium,
-                fontWeight: 'bold',
+                fontWeight: '600',
                 marginTop: 2,
               }}>
                 Healthy Fat

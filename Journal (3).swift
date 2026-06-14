@@ -86,8 +86,8 @@ struct JournalView: View {
         VStack(alignment: .leading) {
             HStack() {
                 Text("9:41")
-                    .font(.system(size: 0))
-                    .fontWeight(.semibold)
+                    .font(.system(size: 14))
+                    .fontWeight(.regular)
                 Spacer()
                 HStack(spacing: 6) {
                     LucideView(icon: .signal) // Lucide: signal
@@ -97,16 +97,18 @@ struct JournalView: View {
                     LucideView(icon: .batteryFull) // Lucide: battery-full
                         .frame(width: 20, height: 20)
                 }
+                .background(Color(hex: "#F5F5FA"))
             }
             .padding(.top, 20)
             .padding(.bottom, 8)
             .padding(.leading, 24)
             .padding(.trailing, 24)
+            .background(Color(hex: "#F5F5FA"))
             .frame(maxWidth: .infinity)
             HStack() {
                 Text("Journal")
-                    .font(.system(size: 0))
-                    .fontWeight(.bold)
+                    .font(.system(size: 34))
+                    .fontWeight(.regular)
                 Spacer()
                 Button(action: {
                     // Action here
@@ -117,6 +119,7 @@ struct JournalView: View {
                     }
                     .padding(.vertical, 12)
                     .padding(.horizontal, 16)
+                    .background(Color(hex: "#F5F5FA"))
                     .cornerRadius(9999)
                     .foregroundColor(AppTheme.textHigh)
                 }
@@ -124,6 +127,7 @@ struct JournalView: View {
             .padding(.horizontal, AppTheme.screenPadding)
             .padding(.top, 12)
             .padding(.bottom, 8)
+            .background(Color(hex: "#F5F5FA"))
             .frame(maxWidth: .infinity)
             VStack(alignment: .leading, spacing: AppTheme.sectionGap) {
                 VStack(alignment: .leading, spacing: 16) {
@@ -138,13 +142,15 @@ struct JournalView: View {
                             .frame(width: 40, height: 40)
                             VStack(alignment: .leading) {
                                 Text("Calories")
-                                    .font(.system(size: 0))
-                                    .fontWeight(.bold)
+                                    .font(.system(size: 20))
+                                    .fontWeight(.regular)
                                 Text("Week Days")
-                                    .font(.system(size: 0))
-                                    .fontWeight(.semibold)
+                                    .font(.system(size: 12))
+                                    .fontWeight(.regular)
                             }
+                            .background(Color(hex: "#F5F5FA"))
                         }
+                        .background(Color(hex: "#F5F5FA"))
                         Spacer()
                         Button(action: {
                             // Action here
@@ -155,20 +161,22 @@ struct JournalView: View {
                             }
                             .padding(.vertical, 12)
                             .padding(.horizontal, 16)
+                            .background(Color(hex: "#F5F5FA"))
                             .cornerRadius(9999)
                             .foregroundColor(AppTheme.textHigh)
                         }
                     }
+                    .background(Color(hex: "#F5F5FA"))
                     .frame(maxWidth: .infinity)
                     VStack(alignment: .leading, spacing: 10) {
                         HStack() {
                             Text("Consumed")
-                                .font(.system(size: 0))
+                                .font(.system(size: 14))
                                 .fontWeight(.regular)
                             Spacer()
                             Text("00 cal")
-                                .font(.system(size: 0))
-                                .fontWeight(.bold)
+                                .font(.system(size: 18))
+                                .fontWeight(.regular)
                         }
                         .padding(.top, 12)
                         .padding(.bottom, 12)
@@ -179,12 +187,12 @@ struct JournalView: View {
                         .frame(maxWidth: .infinity)
                         HStack() {
                             Text("Remaining")
-                                .font(.system(size: 0))
+                                .font(.system(size: 14))
                                 .fontWeight(.regular)
                             Spacer()
                             Text("00 cal")
-                                .font(.system(size: 0))
-                                .fontWeight(.bold)
+                                .font(.system(size: 18))
+                                .fontWeight(.regular)
                         }
                         .padding(.top, 12)
                         .padding(.bottom, 12)
@@ -195,21 +203,39 @@ struct JournalView: View {
                         .frame(maxWidth: .infinity)
                         HStack() {
                             Text("Remaining")
-                                .font(.system(size: 0))
+                                .font(.system(size: 14))
                                 .fontWeight(.regular)
                             Spacer()
                             Text("00 cal")
-                                .font(.system(size: 0))
-                                .fontWeight(.bold)
+                                .font(.system(size: 18))
+                                .fontWeight(.regular)
                         }
                         .padding(.top, 12)
                         .padding(.bottom, 12)
                         .padding(.leading, 16)
                         .padding(.trailing, 16)
-                        .background(LinearGradient(gradient: Gradient(colors: [Color(hex: "#EDEDF3"), Color(hex: "#E2E2EA")]), startPoint: .bottomLeading, endPoint: .topTrailing))
+                        .background(
+                            Canvas { context, size in
+                                let stripeWidth: CGFloat = 6
+                                let totalWidth = size.width + size.height
+                                var x: CGFloat = 0
+                                while x < totalWidth {
+                                    var path = Path()
+                                    path.move(to: CGPoint(x: x, y: 0))
+                                    path.addLine(to: CGPoint(x: x + stripeWidth, y: 0))
+                                    path.addLine(to: CGPoint(x: x - size.height + stripeWidth, y: size.height))
+                                    path.addLine(to: CGPoint(x: x - size.height, y: size.height))
+                                    path.closeSubpath()
+                                    context.fill(path, with: .color(Color(hex: "#E2E2EA")))
+                                    x += stripeWidth * 2
+                                }
+                            }
+                            .background(Color(hex: "#EDEDF3"))
+                        )
                         .cornerRadius(18)
                         .frame(maxWidth: .infinity)
                     }
+                    .background(Color(hex: "#F5F5FA"))
                     .frame(maxWidth: .infinity)
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3), spacing: 12) {
                         VStack(alignment: .center, spacing: 6) {
@@ -217,16 +243,18 @@ struct JournalView: View {
                                 VStack(alignment: .center) {
                                     VStack(alignment: .leading) {
                                         Text("0")
-                                            .font(.system(size: 0))
+                                            .font(.system(size: 18))
                                             .fontWeight(.bold)
                                         Text("/150")
-                                            .font(.system(size: 0))
-                                            .fontWeight(.bold)
+                                            .font(.system(size: 10))
+                                            .fontWeight(.regular)
                                     }
+                                    .background(Color(hex: "#F5F5FA"))
                                     Text("gr")
-                                        .font(.system(size: 0))
-                                        .fontWeight(.semibold)
+                                        .font(.system(size: 12))
+                                        .fontWeight(.regular)
                                 }
+                                .background(Color(hex: "#F5F5FA"))
                                 HStack() {
                                     ZStack {
                                         Circle()
@@ -240,32 +268,37 @@ struct JournalView: View {
                                     .frame(width: 48, height: 48)
                                 }
                             }
+                            .background(Color(hex: "#F5F5FA"))
                             .frame(width: 72, height: 72)
                             VStack(alignment: .center) {
                                 Text("Power")
-                                    .font(.system(size: 0))
+                                    .font(.system(size: 14))
                                     .fontWeight(.regular)
                                 Text("Carbs")
-                                    .font(.system(size: 0))
-                                    .fontWeight(.semibold)
+                                    .font(.system(size: 12))
+                                    .fontWeight(.regular)
                             }
+                            .background(Color(hex: "#F5F5FA"))
                         }
+                        .background(Color(hex: "#F5F5FA"))
                         .frame(maxWidth: .infinity)
                         VStack(alignment: .center, spacing: 6) {
                             ZStack(alignment: .topLeading) {
                                 VStack(alignment: .center) {
                                     VStack(alignment: .leading) {
                                         Text("0")
-                                            .font(.system(size: 0))
+                                            .font(.system(size: 18))
                                             .fontWeight(.bold)
                                         Text("/113")
-                                            .font(.system(size: 0))
-                                            .fontWeight(.bold)
+                                            .font(.system(size: 10))
+                                            .fontWeight(.regular)
                                     }
+                                    .background(Color(hex: "#F5F5FA"))
                                     Text("gr")
-                                        .font(.system(size: 0))
-                                        .fontWeight(.semibold)
+                                        .font(.system(size: 12))
+                                        .fontWeight(.regular)
                                 }
+                                .background(Color(hex: "#F5F5FA"))
                                 HStack() {
                                     ZStack {
                                         Circle()
@@ -279,32 +312,37 @@ struct JournalView: View {
                                     .frame(width: 48, height: 48)
                                 }
                             }
+                            .background(Color(hex: "#F5F5FA"))
                             .frame(width: 72, height: 72)
                             VStack(alignment: .center) {
                                 Text("Protein")
-                                    .font(.system(size: 0))
+                                    .font(.system(size: 14))
                                     .fontWeight(.regular)
                                 Text("Power")
-                                    .font(.system(size: 0))
-                                    .fontWeight(.semibold)
+                                    .font(.system(size: 12))
+                                    .fontWeight(.regular)
                             }
+                            .background(Color(hex: "#F5F5FA"))
                         }
+                        .background(Color(hex: "#F5F5FA"))
                         .frame(maxWidth: .infinity)
                         VStack(alignment: .center, spacing: 6) {
                             ZStack(alignment: .topLeading) {
                                 VStack(alignment: .center) {
                                     VStack(alignment: .leading) {
                                         Text("0")
-                                            .font(.system(size: 0))
+                                            .font(.system(size: 18))
                                             .fontWeight(.bold)
                                         Text("/50")
-                                            .font(.system(size: 0))
-                                            .fontWeight(.bold)
+                                            .font(.system(size: 10))
+                                            .fontWeight(.regular)
                                     }
+                                    .background(Color(hex: "#F5F5FA"))
                                     Text("gr")
-                                        .font(.system(size: 0))
-                                        .fontWeight(.semibold)
+                                        .font(.system(size: 12))
+                                        .fontWeight(.regular)
                                 }
+                                .background(Color(hex: "#F5F5FA"))
                                 HStack() {
                                     ZStack {
                                         Circle()
@@ -318,18 +356,22 @@ struct JournalView: View {
                                     .frame(width: 48, height: 48)
                                 }
                             }
+                            .background(Color(hex: "#F5F5FA"))
                             .frame(width: 72, height: 72)
                             VStack(alignment: .center) {
                                 Text("Healthy")
-                                    .font(.system(size: 0))
+                                    .font(.system(size: 14))
                                     .fontWeight(.regular)
                                 Text("Fat")
-                                    .font(.system(size: 0))
-                                    .fontWeight(.semibold)
+                                    .font(.system(size: 12))
+                                    .fontWeight(.regular)
                             }
+                            .background(Color(hex: "#F5F5FA"))
                         }
+                        .background(Color(hex: "#F5F5FA"))
                         .frame(maxWidth: .infinity)
                     }
+                    .background(Color(hex: "#F5F5FA"))
                 }
                 .padding(.top, 20)
                 .padding(.bottom, 20)
@@ -354,13 +396,14 @@ struct JournalView: View {
                             .frame(width: 56, height: 56)
                             Spacer()
                             Text("631 kcal")
-                                .font(.system(size: 0))
-                                .fontWeight(.bold)
+                                .font(.system(size: 18))
+                                .fontWeight(.regular)
                         }
+                        .background(Color(hex: "#F5F5FA"))
                         HStack(alignment: .bottom) {
                             Text("Breakfast")
-                                .font(.system(size: 0))
-                                .fontWeight(.bold)
+                                .font(.system(size: 20))
+                                .fontWeight(.regular)
                             Spacer()
                             Button(action: {
                                 // Action here
@@ -371,11 +414,12 @@ struct JournalView: View {
                                 }
                                 .padding(.vertical, 12)
                                 .padding(.horizontal, 16)
-                                .background(Color(hex: "#FFFFFF"))
+                                .background(Color(hex: "#F5F5FA"))
                                 .cornerRadius(9999)
                                 .foregroundColor(AppTheme.textHigh)
                             }
                         }
+                        .background(Color(hex: "#F5F5FA"))
                     }
                     .padding(.top, 16)
                     .padding(.bottom, 16)
@@ -395,13 +439,14 @@ struct JournalView: View {
                             .frame(width: 56, height: 56)
                             Spacer()
                             Text("486 kcal")
-                                .font(.system(size: 0))
-                                .fontWeight(.bold)
+                                .font(.system(size: 18))
+                                .fontWeight(.regular)
                         }
+                        .background(Color(hex: "#F5F5FA"))
                         HStack(alignment: .bottom) {
                             Text("Lunch")
-                                .font(.system(size: 0))
-                                .fontWeight(.bold)
+                                .font(.system(size: 20))
+                                .fontWeight(.regular)
                             Spacer()
                             Button(action: {
                                 // Action here
@@ -412,11 +457,12 @@ struct JournalView: View {
                                 }
                                 .padding(.vertical, 12)
                                 .padding(.horizontal, 16)
-                                .background(Color(hex: "#FFFFFF"))
+                                .background(Color(hex: "#F5F5FA"))
                                 .cornerRadius(9999)
                                 .foregroundColor(AppTheme.textHigh)
                             }
                         }
+                        .background(Color(hex: "#F5F5FA"))
                     }
                     .padding(.top, 16)
                     .padding(.bottom, 16)
@@ -436,13 +482,14 @@ struct JournalView: View {
                             .frame(width: 56, height: 56)
                             Spacer()
                             Text("359 kcal")
-                                .font(.system(size: 0))
-                                .fontWeight(.bold)
+                                .font(.system(size: 18))
+                                .fontWeight(.regular)
                         }
+                        .background(Color(hex: "#F5F5FA"))
                         HStack(alignment: .bottom) {
                             Text("Dinner")
-                                .font(.system(size: 0))
-                                .fontWeight(.bold)
+                                .font(.system(size: 20))
+                                .fontWeight(.regular)
                             Spacer()
                             Button(action: {
                                 // Action here
@@ -453,11 +500,12 @@ struct JournalView: View {
                                 }
                                 .padding(.vertical, 12)
                                 .padding(.horizontal, 16)
-                                .background(Color(hex: "#FFFFFF"))
+                                .background(Color(hex: "#F5F5FA"))
                                 .cornerRadius(9999)
                                 .foregroundColor(AppTheme.textHigh)
                             }
                         }
+                        .background(Color(hex: "#F5F5FA"))
                     }
                     .padding(.top, 16)
                     .padding(.bottom, 16)
@@ -477,13 +525,14 @@ struct JournalView: View {
                             .frame(width: 56, height: 56)
                             Spacer()
                             Text("193 kcal")
-                                .font(.system(size: 0))
-                                .fontWeight(.bold)
+                                .font(.system(size: 18))
+                                .fontWeight(.regular)
                         }
+                        .background(Color(hex: "#F5F5FA"))
                         HStack(alignment: .bottom) {
                             Text("Snack")
-                                .font(.system(size: 0))
-                                .fontWeight(.bold)
+                                .font(.system(size: 20))
+                                .fontWeight(.regular)
                             Spacer()
                             Button(action: {
                                 // Action here
@@ -494,11 +543,12 @@ struct JournalView: View {
                                 }
                                 .padding(.vertical, 12)
                                 .padding(.horizontal, 16)
-                                .background(Color(hex: "#FFFFFF"))
+                                .background(Color(hex: "#F5F5FA"))
                                 .cornerRadius(9999)
                                 .foregroundColor(AppTheme.textHigh)
                             }
                         }
+                        .background(Color(hex: "#F5F5FA"))
                     }
                     .padding(.top, 16)
                     .padding(.bottom, 16)
@@ -508,43 +558,65 @@ struct JournalView: View {
                     .cornerRadius(AppTheme.borderRadiusApp)
                     .frame(maxWidth: .infinity, minHeight: 180)
                 }
+                .background(Color(hex: "#F5F5FA"))
             }
             .padding(.horizontal, AppTheme.screenPadding)
             .padding(.top, 8)
             .padding(.bottom, 120)
+            .background(Color(hex: "#F5F5FA"))
             .frame(maxWidth: .infinity)
         }
         .background(AppTheme.backgroundPrimary)
         .frame(maxWidth: .infinity)
         .foregroundColor(AppTheme.textHigh)
-        Color.clear
+        Rectangle().fill(Color(hex: "#F5F5FA"))
     }
+    .background(Color(hex: "#F5F5FA"))
             }
     HStack() {
-        VStack(alignment: .leading) {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 2), spacing: 4) {
             Button(action: {
                 // Action here
             }) {
-                HStack() {
-                    LucideView(icon: .home) // Lucide: home
-                        .frame(width: 20, height: 20)
+                HStack(spacing: 3) {
+                    HStack() {
+                        LucideView(icon: .home) // Lucide: home
+                            .frame(width: 10, height: 10)
+                    }
+                    .background(Color(hex: "#F5F5FA"))
+                    .frame(width: 18, height: 18)
                     Text("Meal Plan")
+                        .font(.system(size: 10))
+                        .fontWeight(.bold)
                 }
                 .padding(.vertical, 12)
                 .padding(.horizontal, 16)
+                .cornerRadius(999)
+                .foregroundColor(Color(hex: "#999999"))
             }
+            .frame(maxWidth: .infinity)
             Button(action: {
                 // Action here
             }) {
-                HStack() {
-                    LucideView(icon: .search) // Lucide: search
-                        .frame(width: 20, height: 20)
+                HStack(spacing: 3) {
+                    HStack() {
+                        LucideView(icon: .search) // Lucide: search
+                            .frame(width: 10, height: 10)
+                    }
+                    .background(Color(hex: "#F5F5FA"))
+                    .frame(width: 18, height: 18)
                     Text("Journal")
+                        .font(.system(size: 10))
+                        .fontWeight(.bold)
                 }
                 .padding(.vertical, 12)
                 .padding(.horizontal, 16)
+                .cornerRadius(999)
+                .foregroundColor(Color(hex: "#999999"))
             }
+            .frame(maxWidth: .infinity)
         }
+        .background(Color(hex: "#F5F5FA"))
     }
     .padding(.top, 8)
     .padding(.bottom, 8)
