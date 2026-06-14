@@ -8,6 +8,7 @@ const testState = vi.hoisted(() => ({
   updateScreenPosition: vi.fn(() => Promise.resolve()),
   lastFlowProps: null as Record<string, unknown> | null,
   setViewportCalls: [] as Array<{ x: number; y: number; zoom: number }>,
+  fitViewCalls: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock("@/lib/supabase/client", () => ({
@@ -27,12 +28,33 @@ vi.mock("./ScreenNode", () => ({
 vi.mock("@xyflow/react", () => ({
   Background: () => null,
   BackgroundVariant: { Dots: "dots" },
-  applyNodeChanges: (_changes: unknown, nodes: unknown) => nodes,
   ReactFlowProvider: ({ children }: { children: React.ReactNode }) => children,
+  useNodesInitialized: () => true,
+  useNodesState: (initialNodes: Array<Record<string, unknown>>) => {
+    const [nodes, setNodes] = useState(initialNodes);
+    const onNodesChange = (changes: Array<Record<string, unknown>>) => {
+      setNodes((current) =>
+        current.map((node) => {
+          const change = changes.find((entry) => entry.id === node.id);
+          if (!change) return node;
+          if (change.type === "position" && change.position) {
+            return { ...node, position: change.position };
+          }
+          if (change.type === "dimensions" && change.dimensions) {
+            return { ...node, measured: change.dimensions };
+          }
+          return node;
+        }),
+      );
+    };
+    return [nodes, setNodes, onNodesChange];
+  },
   ReactFlow: (props: Record<string, unknown>) => {
     const [viewport, setViewport] = useState({ x: 0, y: 0, zoom: 1 });
     const viewportRef = useRef(viewport);
+    const propsRef = useRef(props);
     viewportRef.current = viewport;
+    propsRef.current = props;
     testState.lastFlowProps = props;
 
     useEffect(() => {
@@ -41,6 +63,18 @@ vi.mock("@xyflow/react", () => ({
         getViewport: () => viewportRef.current,
         getZoom: () => viewportRef.current.zoom,
         setViewport: async (next: { x: number; y: number; zoom: number }) => {
+          testState.setViewportCalls.push(next);
+          viewportRef.current = next;
+          setViewport(next);
+          (props.onMove as ((event: null, value: typeof next) => void) | undefined)?.(null, next);
+          return true;
+        },
+        getNodes: () => propsRef.current.nodes,
+        getNode: (id: string) =>
+          (propsRef.current.nodes as Array<{ id: string }>).find((node) => node.id === id),
+        fitView: async (options: Record<string, unknown>) => {
+          testState.fitViewCalls.push(options);
+          const next = { x: 100, y: 80, zoom: Array.isArray(options.nodes) && options.nodes.length === 1 ? 0.8 : 0.6 };
           testState.setViewportCalls.push(next);
           viewportRef.current = next;
           setViewport(next);
@@ -87,6 +121,7 @@ describe("CanvasStage React Flow viewport controls", () => {
   beforeEach(() => {
     testState.lastFlowProps = null;
     testState.setViewportCalls.length = 0;
+    testState.fitViewCalls.length = 0;
     testState.updateScreenPosition.mockClear();
   });
 
@@ -125,7 +160,7 @@ describe("CanvasStage React Flow viewport controls", () => {
     expect(testState.updateScreenPosition).not.toHaveBeenCalled();
   });
 
-  it("persists coordinates only from React Flow node drag stop", async () => {
+  it("persists coordinates only from a matching Pointer drag transaction", async () => {
     render(<CanvasStage {...defaultProps} />);
     await waitFor(() => expect(testState.lastFlowProps).not.toBeNull());
 
@@ -134,9 +169,14 @@ describe("CanvasStage React Flow viewport controls", () => {
     expect(testState.updateScreenPosition).not.toHaveBeenCalled();
 
     await act(async () => {
+      const onNodeDragStart = testState.lastFlowProps?.onNodeDragStart as
+        | ((event: null, node: { id: string; position: { x: number; y: number } }) => void)
+        | undefined;
       const onNodeDragStop = testState.lastFlowProps?.onNodeDragStop as
         | ((event: null, node: { id: string; position: { x: number; y: number } }) => void)
         | undefined;
+      onNodeDragStop?.(null, { id: "one", position: { x: 192, y: 240 } });
+      onNodeDragStart?.(null, { id: "one", position: { x: 92, y: 40 } });
       onNodeDragStop?.(null, { id: "one", position: { x: 192, y: 240 } });
     });
 
@@ -144,25 +184,28 @@ describe("CanvasStage React Flow viewport controls", () => {
     expect(testState.updateScreenPosition).toHaveBeenCalledWith({}, "one", 200, 300);
   });
 
-  it("never exposes generic node reconciliation as a position update path", async () => {
+  it("accepts React Flow measurement changes without persisting coordinates", async () => {
     render(<CanvasStage {...defaultProps} />);
     await waitFor(() => expect(testState.lastFlowProps).not.toBeNull());
 
-    expect(testState.lastFlowProps?.onNodesChange).toBeUndefined();
-    expect(testState.lastFlowProps?.onNodeDrag).toBeTypeOf("function");
+    expect(testState.lastFlowProps?.onNodesChange).toBeTypeOf("function");
 
     await act(async () => {
-      const onNodeDrag = testState.lastFlowProps?.onNodeDrag as
-        | ((event: null, node: { id: string; position: { x: number; y: number } }) => void)
+      const onNodesChange = testState.lastFlowProps?.onNodesChange as
+        | ((changes: Array<Record<string, unknown>>) => void)
         | undefined;
-      onNodeDrag?.(null, { id: "one", position: { x: Number.NaN, y: 240 } });
+      onNodesChange?.([
+        { id: "one", type: "dimensions", dimensions: { width: 406, height: 920 } },
+      ]);
     });
 
-    const nodes = testState.lastFlowProps?.nodes as Array<{
-      id: string;
-      position: { x: number; y: number };
-    }>;
-    expect(nodes.find((node) => node.id === "one")?.position).toEqual({ x: 92, y: 40 });
+    await waitFor(() => {
+      const nodes = testState.lastFlowProps?.nodes as Array<{
+        id: string;
+        measured?: { width: number; height: number };
+      }>;
+      expect(nodes.find((node) => node.id === "one")?.measured).toEqual({ width: 406, height: 920 });
+    });
     expect(testState.updateScreenPosition).not.toHaveBeenCalled();
   });
 
@@ -183,6 +226,15 @@ describe("CanvasStage React Flow viewport controls", () => {
     const initialViewport = structuredClone(testState.setViewportCalls.at(-1));
     const cameraCallCount = testState.setViewportCalls.length;
 
+    await act(async () => {
+      const onNodesChange = testState.lastFlowProps?.onNodesChange as
+        | ((changes: Array<Record<string, unknown>>) => void)
+        | undefined;
+      onNodesChange?.([
+        { id: "one", type: "dimensions", dimensions: { width: 406, height: 920 } },
+      ]);
+    });
+
     for (const drawgleId of ["second-element", "third-element", "fourth-element"]) {
       rerender(
         <CanvasStage
@@ -195,6 +247,10 @@ describe("CanvasStage React Flow viewport controls", () => {
     }
 
     expect(readPositions()).toEqual(initialPositions);
+    expect(
+      (testState.lastFlowProps?.nodes as Array<{ id: string; measured?: unknown }>)
+        .find((node) => node.id === "one")?.measured,
+    ).toEqual({ width: 406, height: 920 });
     expect(testState.setViewportCalls).toHaveLength(cameraCallCount);
     expect(testState.setViewportCalls.at(-1)).toEqual(initialViewport);
     expect(testState.updateScreenPosition).not.toHaveBeenCalled();

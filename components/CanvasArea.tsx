@@ -6,16 +6,16 @@ import {
   ReactFlow,
   ReactFlowProvider,
   type Node,
+  type NodeChange,
   type NodeProps,
   type ReactFlowInstance,
   type Viewport,
+  useNodesInitialized,
+  useNodesState,
 } from "@xyflow/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
-  getFitTransform,
-  getScreenVisualBounds,
-  getScreensVisualBounds,
   getVisibleWorkspace,
   getWorkspaceInsetsFromObstacles,
   getZoomAroundPointTransform,
@@ -122,7 +122,7 @@ type ScreenCanvasNodeData = {
 
 type ScreenCanvasNode = Node<ScreenCanvasNodeData, "screen">;
 
-const ScreenCanvasNodeView = ({ data, dragging }: NodeProps<ScreenCanvasNode>) => (
+const ScreenCanvasNodeView = memo(({ data, dragging }: NodeProps<ScreenCanvasNode>) => (
   <div
     style={{
       width: SCREEN_FRAME_WIDTH + SCREEN_VISUAL_INSETS.left + SCREEN_VISUAL_INSETS.right,
@@ -149,9 +149,20 @@ const ScreenCanvasNodeView = ({ data, dragging }: NodeProps<ScreenCanvasNode>) =
       onExportCode={data.onExportCode}
     />
   </div>
-);
+));
+ScreenCanvasNodeView.displayName = "ScreenCanvasNodeView";
 
 const nodeTypes = { screen: ScreenCanvasNodeView };
+
+const getNodePosition = (screen: Pick<ScreenData, "x" | "y">) => ({
+  x: screen.x - SCREEN_VISUAL_INSETS.left,
+  y: screen.y - SCREEN_VISUAL_INSETS.top,
+});
+
+const getScreenPosition = (node: Pick<ScreenCanvasNode, "position">) => ({
+  x: node.position.x + SCREEN_VISUAL_INSETS.left,
+  y: node.position.y + SCREEN_VISUAL_INSETS.top,
+});
 
 export type CanvasViewportController = {
   zoomIn: () => Promise<boolean>;
@@ -229,6 +240,16 @@ function CanvasStageContent({
   const initialFitCompletedRef = useRef(false);
   const pendingFocusScreenIdRef = useRef<string | null>(null);
   const iframePanRef = useRef({ active: false, x: 0, y: 0 });
+  const dragTransactionRef = useRef<{
+    screenId: string;
+    startPosition: { x: number; y: number };
+  } | null>(null);
+  const persistedPositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
+  const callbackRefs = useRef({
+    onElementSelected,
+    onElementSelectionLost,
+    onExportCode,
+  });
   const [viewportSize, setViewportSize] = useState<CanvasViewport | null>(null);
   const [workspaceInsets, setWorkspaceInsets] =
     useState<CanvasViewportInsets>(EMPTY_CANVAS_INSETS);
@@ -237,11 +258,8 @@ function CanvasStageContent({
   const [viewportState, setViewportState] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
-  const [localScreenPositions, setLocalScreenPositions] = useState<
-    Record<string, { x: number; y: number }>
-  >({});
-
-  const screenBounds = useMemo(() => getScreensVisualBounds(screens), [screens]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<ScreenCanvasNode>([]);
+  const nodesInitialized = useNodesInitialized();
   const visibleWorkspace = useMemo(
     () => (viewportSize ? getVisibleWorkspace(viewportSize, workspaceInsets) : null),
     [viewportSize, workspaceInsets],
@@ -254,6 +272,10 @@ function CanvasStageContent({
     : null;
   const isTemporaryPan = isSpacePressed;
   const isPanToolActive = tool === "pan" || isTemporaryPan;
+
+  useEffect(() => {
+    callbackRefs.current = { onElementSelected, onElementSelectionLost, onExportCode };
+  }, [onElementSelected, onElementSelectionLost, onExportCode]);
 
   const reportCommand = useCallback(async (name: string, command: () => Promise<boolean>) => {
     const succeeded = await command();
@@ -299,24 +321,40 @@ function CanvasStageContent({
   );
 
   const fitAll = useCallback(() => {
-    if (!viewportSize || !screenBounds) return Promise.resolve(false);
-    const transform = getFitTransform(screenBounds, viewportSize, workspaceInsets);
-    return setCameraViewport(
-      { x: transform.x, y: transform.y, zoom: transform.scale },
-      "fit all",
+    const instance = flowRef.current;
+    if (!instance?.viewportInitialized || !nodesInitialized || instance.getNodes().length === 0) {
+      return Promise.resolve(false);
+    }
+    return reportCommand("fit all", () =>
+      instance.fitView({
+        nodes: instance.getNodes(),
+        padding: 0.12,
+        minZoom: 0.1,
+        maxZoom: 4,
+        duration: CAMERA_ANIMATION_MS,
+      }),
     );
-  }, [screenBounds, setCameraViewport, viewportSize, workspaceInsets]);
+  }, [nodesInitialized, reportCommand]);
 
   const focusScreen = useCallback(
     (screen: ScreenData | null) => {
-      if (!viewportSize || !screen) return Promise.resolve(false);
-      const transform = getFitTransform(getScreenVisualBounds(screen), viewportSize, workspaceInsets);
-      return setCameraViewport(
-        { x: transform.x, y: transform.y, zoom: transform.scale },
-        "focus screen",
+      const instance = flowRef.current;
+      if (!instance?.viewportInitialized || !nodesInitialized || !screen) {
+        return Promise.resolve(false);
+      }
+      const node = instance.getNode(screen.id);
+      if (!node) return Promise.resolve(false);
+      return reportCommand("focus screen", () =>
+        instance.fitView({
+          nodes: [node],
+          padding: 0.16,
+          minZoom: 0.1,
+          maxZoom: 4,
+          duration: CAMERA_ANIMATION_MS,
+        }),
       );
     },
-    [setCameraViewport, viewportSize, workspaceInsets],
+    [nodesInitialized, reportCommand],
   );
 
   const panBy = useCallback(
@@ -383,59 +421,96 @@ function CanvasStageContent({
     [controller, setIsPanning],
   );
 
-  const nodes = useMemo<ScreenCanvasNode[]>(
-    () =>
-      screens.map((screen) => {
-        const position = localScreenPositions[screen.id] ?? { x: screen.x, y: screen.y };
+  const handleElementSelected = useCallback((info: SelectedElementInfo) => {
+    callbackRefs.current.onElementSelected?.(info);
+  }, []);
+  const handleElementSelectionLost = useCallback(
+    (info: { screenId: string; drawgleId: string; reason?: ElementSelectionLostReason }) => {
+      callbackRefs.current.onElementSelectionLost?.(info);
+    },
+    [],
+  );
+  const handleExportCode = useCallback<NonNullable<ScreenCanvasNodeData["onExportCode"]>>(
+    (...args) => callbackRefs.current.onExportCode?.(...args),
+    [],
+  );
+
+  useEffect(() => {
+    setNodes((currentNodes) => {
+      const currentById = new Map(currentNodes.map((node) => [node.id, node]));
+      const nextPersistedPositions = new Map<string, { x: number; y: number }>();
+      const nextNodes: ScreenCanvasNode[] = screens.map((screen) => {
+        const current = currentById.get(screen.id);
+        const selected = selectedScreen?.id === screen.id;
+        const persistedPosition = { x: screen.x, y: screen.y };
+        const previousPersistedPosition = persistedPositionsRef.current.get(screen.id);
+        nextPersistedPositions.set(screen.id, persistedPosition);
+        const nextData: ScreenCanvasNodeData = {
+          screen,
+          projectNavigation,
+          designTokens,
+          canvasTool: tool,
+          isTemporaryCanvasPan: isTemporaryPan,
+          isSelected: selected,
+          selectedDrawgleId:
+            selectedElementScreenId === screen.id ? selectedElementDrawgleId ?? null : null,
+          onElementSelected: handleElementSelected,
+          onElementSelectionLost: handleElementSelectionLost,
+          onCanvasNavigation: handleCanvasNavigation,
+          onExportCode: handleExportCode,
+        };
+
+        if (current) {
+          const dragOwnsPosition = dragTransactionRef.current?.screenId === screen.id;
+          const persistedPositionChanged =
+            !previousPersistedPosition ||
+            previousPersistedPosition.x !== persistedPosition.x ||
+            previousPersistedPosition.y !== persistedPosition.y;
+          return {
+            ...current,
+            position:
+              !dragOwnsPosition && persistedPositionChanged
+                ? getNodePosition(screen)
+                : current.position,
+            draggable: tool === "pointer" && !disabled,
+            selected,
+            data: nextData,
+          };
+        }
+
         return {
           id: screen.id,
           type: "screen",
-          position: {
-            x: position.x - SCREEN_VISUAL_INSETS.left,
-            y: position.y - SCREEN_VISUAL_INSETS.top,
-          },
+          position: getNodePosition(screen),
           draggable: tool === "pointer" && !disabled,
           selectable: false,
-          selected: selectedScreen?.id === screen.id,
-          data: {
-            screen,
-            projectNavigation,
-            designTokens,
-            canvasTool: tool,
-            isTemporaryCanvasPan: isTemporaryPan,
-            isSelected: selectedScreen?.id === screen.id,
-            selectedDrawgleId:
-              selectedElementScreenId === screen.id ? selectedElementDrawgleId ?? null : null,
-            onElementSelected,
-            onElementSelectionLost,
-            // React Flow stores this callback and ScreenNode only invokes it from iframe events.
-            // eslint-disable-next-line react-hooks/refs
-            onCanvasNavigation: handleCanvasNavigation,
-            onExportCode,
-          },
+          selected,
+          data: nextData,
           style: {
             width: SCREEN_FRAME_WIDTH + SCREEN_VISUAL_INSETS.left + SCREEN_VISUAL_INSETS.right,
             height: SCREEN_FRAME_HEIGHT + SCREEN_VISUAL_INSETS.top + SCREEN_VISUAL_INSETS.bottom,
           },
         };
-      }),
-    [
-      designTokens,
-      disabled,
-      handleCanvasNavigation,
-      isTemporaryPan,
-      localScreenPositions,
-      onElementSelected,
-      onElementSelectionLost,
-      onExportCode,
-      projectNavigation,
-      screens,
-      selectedElementDrawgleId,
-      selectedElementScreenId,
-      selectedScreen?.id,
-      tool,
-    ],
-  );
+      });
+      persistedPositionsRef.current = nextPersistedPositions;
+      return nextNodes;
+    });
+  }, [
+    designTokens,
+    disabled,
+    handleCanvasNavigation,
+    handleElementSelected,
+    handleElementSelectionLost,
+    handleExportCode,
+    isTemporaryPan,
+    projectNavigation,
+    screens,
+    selectedElementDrawgleId,
+    selectedElementScreenId,
+    selectedScreen?.id,
+    setNodes,
+    tool,
+  ]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -465,10 +540,19 @@ function CanvasStageContent({
   }, [mobileBottomReserve]);
 
   useEffect(() => {
-    if (!flowInstance || !viewportSize || initialFitCompletedRef.current) return;
-    initialFitCompletedRef.current = true;
-    void controller.fitAll();
-  }, [controller, flowInstance, viewportSize]);
+    if (
+      !flowInstance ||
+      !viewportSize ||
+      !nodesInitialized ||
+      nodes.length === 0 ||
+      initialFitCompletedRef.current
+    ) {
+      return;
+    }
+    void controller.fitAll().then((succeeded) => {
+      if (succeeded) initialFitCompletedRef.current = true;
+    });
+  }, [controller, flowInstance, nodes.length, nodesInitialized, viewportSize]);
 
   useEffect(() => {
     const currentIds = new Set(screens.map((screen) => screen.id));
@@ -486,13 +570,13 @@ function CanvasStageContent({
 
   useEffect(() => {
     const pendingId = pendingFocusScreenIdRef.current;
-    if (!flowInstance || !pendingId) return;
+    if (!flowInstance || !nodesInitialized || !pendingId) return;
     const screen = screens.find((candidate) => candidate.id === pendingId) ?? null;
     if (!screen) return;
     void controller.focusScreen(screen).then((succeeded) => {
       if (succeeded) pendingFocusScreenIdRef.current = null;
     });
-  }, [controller, flowInstance, screens]);
+  }, [controller, flowInstance, nodesInitialized, screens]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -529,26 +613,12 @@ function CanvasStageContent({
     };
   }, [controller, onToolChange, selectedScreen]);
 
-  const updateLocalScreenPosition = useCallback((node: ScreenCanvasNode) => {
-    const x = node.position.x + SCREEN_VISUAL_INSETS.left;
-    const y = node.position.y + SCREEN_VISUAL_INSETS.top;
-    if (!Number.isFinite(x) || !Number.isFinite(y)) {
-      if (process.env.NODE_ENV !== "production") {
-        console.error("[CanvasStage] Ignored invalid node drag position", {
-          id: node.id,
-          position: node.position,
-        });
-      }
-      return null;
-    }
-
-    setLocalScreenPositions((current) => {
-      const previous = current[node.id];
-      if (previous?.x === x && previous.y === y) return current;
-      return { ...current, [node.id]: { x, y } };
-    });
-    return { x, y };
-  }, [setLocalScreenPositions]);
+  const handleNodesChange = useCallback(
+    (changes: NodeChange<ScreenCanvasNode>[]) => {
+      onNodesChange(changes);
+    },
+    [onNodesChange],
+  );
 
   return (
     <div
@@ -560,6 +630,7 @@ function CanvasStageContent({
         nodes={nodes}
         edges={[]}
         nodeTypes={nodeTypes}
+        onNodesChange={handleNodesChange}
         onInit={(instance) => {
           flowRef.current = instance;
           setFlowInstance(instance);
@@ -571,18 +642,34 @@ function CanvasStageContent({
             onSelectScreen?.(screen);
           }
         }}
-        onNodeDrag={(_, node) => {
-          updateLocalScreenPosition(node);
+        onNodeDragStart={(_, node) => {
+          if (tool !== "pointer" || disabled || isTemporaryPan) return;
+          dragTransactionRef.current = {
+            screenId: node.id,
+            startPosition: { ...node.position },
+          };
         }}
         onNodeDragStop={(_, node) => {
-          const position = updateLocalScreenPosition(node);
-          if (!position) return;
+          const transaction = dragTransactionRef.current;
+          dragTransactionRef.current = null;
+          if (!transaction || transaction.screenId !== node.id || tool !== "pointer") return;
+          if (
+            transaction.startPosition.x === node.position.x &&
+            transaction.startPosition.y === node.position.y
+          ) {
+            return;
+          }
+          const position = getScreenPosition(node);
+          if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) return;
           updateScreenPosition(createClient(), node.id, position.x, position.y).catch((error) => {
-            setLocalScreenPositions((current) => {
-              const next = { ...current };
-              delete next[node.id];
-              return next;
-            });
+            const persistedScreen = screens.find((screen) => screen.id === node.id);
+            if (persistedScreen) {
+              setNodes((current) =>
+                current.map((entry) =>
+                  entry.id === node.id ? { ...entry, position: getNodePosition(persistedScreen) } : entry,
+                ),
+              );
+            }
             console.error("Failed to save screen position", error);
           });
         }}
