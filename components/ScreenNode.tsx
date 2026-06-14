@@ -12,6 +12,12 @@ import { deleteScreen, updateScreenPosition } from "@/lib/supabase/queries";
 import { hasSharedNavigation } from "@/lib/project-navigation";
 import { buildDrawgleTokenCss, buildGoogleFontAssetLinks, buildGoogleFontHref } from "@/lib/token-runtime";
 import { useRealtimeRunWithStreams } from "@trigger.dev/react-hooks";
+import {
+  SCREEN_FRAME_HEIGHT,
+  SCREEN_FRAME_WIDTH,
+  type CanvasNavigationMessage,
+  type CanvasTool,
+} from "@/lib/canvas-interactions";
 
 /** Data sent from the iframe when the user clicks an element in selection mode. */
 export interface SelectedElementInfo {
@@ -38,8 +44,7 @@ export interface SelectedElementInfo {
 
 export type ElementSelectionLostReason = "rehydrate_failed" | "click_miss" | "source_changed";
 
-export const SCREEN_FRAME_WIDTH = 390;
-export const SCREEN_FRAME_HEIGHT = 844;
+export { SCREEN_FRAME_HEIGHT, SCREEN_FRAME_WIDTH } from "@/lib/canvas-interactions";
 
 /**
  * Pixels the pointer must travel before a drag is committed.
@@ -320,10 +325,13 @@ export function ScreenNode({
   isSelected,
   onClick,
   scale = 1,
+  canvasTool = "pointer",
+  isTemporaryCanvasPan = false,
   selectionMode = false,
   selectedDrawgleId = null,
   onElementSelected,
   onElementSelectionLost,
+  onCanvasNavigation,
   onExportCode,
 }: {
   screen: ScreenData;
@@ -332,6 +340,8 @@ export function ScreenNode({
   isSelected?: boolean;
   onClick?: () => void;
   scale?: number;
+  canvasTool?: CanvasTool;
+  isTemporaryCanvasPan?: boolean;
   /** When true, the iframe enters element-selection mode (hover outlines, click-to-select). */
   selectionMode?: boolean;
   /** Stable selected element id to keep highlighted even after selection mode exits. */
@@ -340,6 +350,8 @@ export function ScreenNode({
   onElementSelected?: (info: SelectedElementInfo) => void;
   /** Called when a previously selected id no longer exists after the iframe re-renders. */
   onElementSelectionLost?: (info: { screenId: string; drawgleId: string; reason?: ElementSelectionLostReason }) => void;
+  /** Routes navigation overrides that begin inside the interact-mode iframe. */
+  onCanvasNavigation?: (message: CanvasNavigationMessage) => void;
   /** Callback for custom code export drawer. */
   onExportCode?: (cleanScreenCode: string, cleanNavigationCode: string, screenName: string, tokenCss: string, googleFontAssetLinks: string, activeNavigationItemId: string | null) => void;
 }) {
@@ -621,6 +633,47 @@ ${cleanScreenCode}
 
     const handleMessage = (event: MessageEvent) => {
       if (event.source !== iframeRef.current?.contentWindow) return;
+      if (
+        event.data?.type === "drawgleCanvasZoom" ||
+        event.data?.type === "drawgleCanvasPanStart" ||
+        event.data?.type === "drawgleCanvasPanMove" ||
+        event.data?.type === "drawgleCanvasPanEnd" ||
+        event.data?.type === "drawgleCanvasPanBy"
+      ) {
+        if (!onCanvasNavigation) return;
+        if (event.data.type === "drawgleCanvasPanEnd") {
+          onCanvasNavigation({ type: "drawgleCanvasPanEnd" });
+          return;
+        }
+        if (event.data.type === "drawgleCanvasPanBy") {
+          onCanvasNavigation({
+            type: "drawgleCanvasPanBy",
+            deltaX: Number(event.data.deltaX ?? 0),
+            deltaY: Number(event.data.deltaY ?? 0),
+          });
+          return;
+        }
+
+        const iframeRect = iframeRef.current?.getBoundingClientRect();
+        if (!iframeRect) return;
+        const clientX = iframeRect.left + Number(event.data.clientX ?? 0);
+        const clientY = iframeRect.top + Number(event.data.clientY ?? 0);
+        if (event.data.type === "drawgleCanvasZoom") {
+          onCanvasNavigation({
+            type: "drawgleCanvasZoom",
+            clientX,
+            clientY,
+            deltaY: Number(event.data.deltaY ?? 0),
+          });
+          return;
+        }
+        onCanvasNavigation({
+          type: event.data.type,
+          clientX,
+          clientY,
+        });
+        return;
+      }
       if (event.data?.type === "elementSelectionLost") {
         const lostDrawgleId = typeof event.data.drawgleId === "string" ? event.data.drawgleId : null;
         const lostReason = event.data.reason === "rehydrate_failed" || event.data.reason === "click_miss" || event.data.reason === "source_changed"
@@ -675,7 +728,7 @@ ${cleanScreenCode}
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [onElementSelected, onElementSelectionLost, screen.id]);
+  }, [onCanvasNavigation, onElementSelected, onElementSelectionLost, screen.id]);
 
   // ── Delete
   const handleDelete = useCallback(async () => {
@@ -712,6 +765,7 @@ ${cleanScreenCode}
 
   const handleOverlayPointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
+      if (canvasTool !== "pointer" || isTemporaryCanvasPan) return;
       // Primary button only (left-click or touch)
       if (e.button !== 0 && e.pointerType === "mouse") return;
 
@@ -733,13 +787,13 @@ ${cleanScreenCode}
         pointerId: e.pointerId,
       };
     },
-    [],
+    [canvasTool, isTemporaryCanvasPan],
   );
 
   const handleOverlayPointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       const g = dragGesture.current;
-      if (!g.pending) return;
+      if (!g.pending || canvasTool !== "pointer" || isTemporaryCanvasPan) return;
 
       const rawDx = e.clientX - g.startClientX;
       const rawDy = e.clientY - g.startClientY;
@@ -766,7 +820,7 @@ ${cleanScreenCode}
       livePositionRef.current = newPos;
       setPosition(newPos);
     },
-    [scale],
+    [canvasTool, isTemporaryCanvasPan, scale],
   );
 
   const handleOverlayPointerUp = useCallback(
@@ -1138,6 +1192,13 @@ ${cleanScreenCode}
 
           var interactionModeActive = false;
           var touchScrollState = null;
+          var canvasPinchState = null;
+          var canvasPanActive = false;
+          var spacePressed = false;
+
+          function postCanvasNavigation(payload) {
+            window.parent.postMessage(payload, '*');
+          }
 
           function getScreenContentHost() {
             return document.getElementById('drawgle-screen-content');
@@ -1184,7 +1245,27 @@ ${cleanScreenCode}
           }
 
           function handleInteractWheel(event) {
-            if (!interactionModeActive) return;
+            if (event.ctrlKey || event.metaKey) {
+              event.preventDefault();
+              event.stopPropagation();
+              postCanvasNavigation({
+                type: 'drawgleCanvasZoom',
+                clientX: event.clientX,
+                clientY: event.clientY,
+                deltaY: event.deltaY,
+              });
+              return;
+            }
+            if (!interactionModeActive) {
+              event.preventDefault();
+              event.stopPropagation();
+              postCanvasNavigation({
+                type: 'drawgleCanvasPanBy',
+                deltaX: -event.deltaX,
+                deltaY: -event.deltaY,
+              });
+              return;
+            }
             var host = findScrollableHost(event.target);
             if (!host) return;
             event.preventDefault();
@@ -1195,7 +1276,20 @@ ${cleanScreenCode}
           }
 
           function handleInteractTouchStart(event) {
-            if (!interactionModeActive || !event.touches || event.touches.length !== 1) return;
+            if (!event.touches) return;
+            if (event.touches.length === 2) {
+              var firstTouch = event.touches[0];
+              var secondTouch = event.touches[1];
+              canvasPinchState = {
+                distance: Math.hypot(secondTouch.clientX - firstTouch.clientX, secondTouch.clientY - firstTouch.clientY),
+              };
+              touchScrollState = null;
+              event.preventDefault();
+              event.stopPropagation();
+              return;
+            }
+            if (!interactionModeActive) return;
+            if (event.touches.length !== 1) return;
             touchScrollState = {
               y: event.touches[0].clientY,
               host: findScrollableHost(event.target),
@@ -1203,7 +1297,26 @@ ${cleanScreenCode}
           }
 
           function handleInteractTouchMove(event) {
-            if (!interactionModeActive || !touchScrollState || !event.touches || event.touches.length !== 1) return;
+            if (!event.touches) return;
+            if (event.touches.length === 2 && canvasPinchState) {
+              var firstTouch = event.touches[0];
+              var secondTouch = event.touches[1];
+              var nextDistance = Math.hypot(secondTouch.clientX - firstTouch.clientX, secondTouch.clientY - firstTouch.clientY);
+              var centerX = (firstTouch.clientX + secondTouch.clientX) / 2;
+              var centerY = (firstTouch.clientY + secondTouch.clientY) / 2;
+              event.preventDefault();
+              event.stopPropagation();
+              postCanvasNavigation({
+                type: 'drawgleCanvasZoom',
+                clientX: centerX,
+                clientY: centerY,
+                deltaY: (canvasPinchState.distance - nextDistance) * 3,
+              });
+              canvasPinchState.distance = nextDistance;
+              return;
+            }
+            if (!interactionModeActive) return;
+            if (!touchScrollState || event.touches.length !== 1) return;
             var nextY = event.touches[0].clientY;
             var deltaY = touchScrollState.y - nextY;
             touchScrollState.y = nextY;
@@ -1211,6 +1324,62 @@ ${cleanScreenCode}
             event.stopPropagation();
             if (!scrollHostBy(touchScrollState.host, deltaY) && touchScrollState.host !== getScreenContentHost()) {
               scrollHostBy(getScreenContentHost(), deltaY);
+            }
+          }
+
+          function handleInteractTouchEnd(event) {
+            if (!event.touches || event.touches.length < 2) {
+              canvasPinchState = null;
+            }
+            if (!event.touches || event.touches.length === 0) {
+              touchScrollState = null;
+            }
+          }
+
+          function handleInteractMouseDown(event) {
+            if (event.button !== 1 && !(event.button === 0 && spacePressed)) return;
+            event.preventDefault();
+            event.stopPropagation();
+            canvasPanActive = true;
+            postCanvasNavigation({
+              type: 'drawgleCanvasPanStart',
+              clientX: event.clientX,
+              clientY: event.clientY,
+            });
+          }
+
+          function handleInteractMouseMove(event) {
+            if (!canvasPanActive) return;
+            event.preventDefault();
+            event.stopPropagation();
+            postCanvasNavigation({
+              type: 'drawgleCanvasPanMove',
+              clientX: event.clientX,
+              clientY: event.clientY,
+            });
+          }
+
+          function handleInteractMouseUp(event) {
+            if (!canvasPanActive) return;
+            event.preventDefault();
+            event.stopPropagation();
+            canvasPanActive = false;
+            postCanvasNavigation({ type: 'drawgleCanvasPanEnd' });
+          }
+
+          function handleInteractKeyDown(event) {
+            if (event.code === 'Space') {
+              spacePressed = true;
+            }
+          }
+
+          function handleInteractKeyUp(event) {
+            if (event.code === 'Space') {
+              spacePressed = false;
+              if (canvasPanActive) {
+                canvasPanActive = false;
+                postCanvasNavigation({ type: 'drawgleCanvasPanEnd' });
+              }
             }
           }
 
@@ -1222,11 +1391,20 @@ ${cleanScreenCode}
           function exitInteractMode() {
             interactionModeActive = false;
             touchScrollState = null;
+            canvasPinchState = null;
+            canvasPanActive = false;
+            postCanvasNavigation({ type: 'drawgleCanvasPanEnd' });
           }
 
           document.addEventListener('wheel', handleInteractWheel, { capture: true, passive: false });
-          document.addEventListener('touchstart', handleInteractTouchStart, { capture: true, passive: true });
+          document.addEventListener('touchstart', handleInteractTouchStart, { capture: true, passive: false });
           document.addEventListener('touchmove', handleInteractTouchMove, { capture: true, passive: false });
+          document.addEventListener('touchend', handleInteractTouchEnd, { capture: true, passive: true });
+          document.addEventListener('mousedown', handleInteractMouseDown, true);
+          document.addEventListener('mousemove', handleInteractMouseMove, true);
+          document.addEventListener('mouseup', handleInteractMouseUp, true);
+          window.addEventListener('keydown', handleInteractKeyDown, true);
+          window.addEventListener('keyup', handleInteractKeyUp, true);
 
           function applyRenderPayload(payload) {
             var revision = ++renderRevision;
@@ -1628,8 +1806,6 @@ ${cleanScreenCode}
               selectionActive = false;
               document.body.style.cursor = '';
               clearHover();
-              clearSelected();
-              currentSelectedDrawgleId = null;
               document.removeEventListener('mouseover', onMouseOver, true);
               document.removeEventListener('mouseout', onMouseOut, true);
               document.removeEventListener('click', onClick, true);
@@ -1724,12 +1900,16 @@ ${cleanScreenCode}
   // =========================================================================
 
   const isSelectionModeActive = Boolean(selectionMode);
-  // Overlay is removed for interact mode AND selection mode (iframe needs pointer events)
-  const overlayActive = !isInteractModeActive && !isSelectionModeActive;
+  const isCanvasNavigationActive = canvasTool === "pan" || isTemporaryCanvasPan;
+  // Navigation mode needs the parent-page overlay so gestures do not disappear into the iframe.
+  const overlayActive =
+    isCanvasNavigationActive || (!isInteractModeActive && !isSelectionModeActive);
   const overlayPointerStyle: React.CSSProperties = {
     cursor: isDraggingState
       ? "grabbing"
-      : isSelected
+      : isCanvasNavigationActive
+        ? "grab"
+        : isSelected
         ? "grab"
         : "pointer",
   };
@@ -1744,7 +1924,11 @@ ${cleanScreenCode}
      * We do NOT attach any drag handlers here — see the overlay comment above.
      */
     <div
-      className="canvas-pan-exclude absolute"
+      className={`absolute ${
+        canvasTool === "pointer" && !isTemporaryCanvasPan
+          ? "canvas-touch-pan-exclude"
+          : ""
+      }`}
       style={{
         left: position.x,
         // Shift the wrapper up by the label bar height so that `screen.y`
@@ -1759,7 +1943,7 @@ ${cleanScreenCode}
       }}
       // Click on unselected screens selects them.
       // For selected screens the overlay's pointerup handles click detection.
-      onClick={!isSelected ? handleSelect : undefined}
+      onClick={canvasTool === "pointer" && !isSelected ? handleSelect : undefined}
     >
       {/* ── External label bar ─────────────────────────────────────────── */}
       <ScreenLabelBar
@@ -1847,10 +2031,10 @@ ${cleanScreenCode}
             <div
               className="absolute inset-0 touch-none"
               style={{ zIndex: 10, ...overlayPointerStyle }}
-              onPointerDown={handleOverlayPointerDown}
-              onPointerMove={handleOverlayPointerMove}
-              onPointerUp={handleOverlayPointerUp}
-              onPointerCancel={handleOverlayPointerCancel}
+              onPointerDown={canvasTool === "pointer" ? handleOverlayPointerDown : undefined}
+              onPointerMove={canvasTool === "pointer" ? handleOverlayPointerMove : undefined}
+              onPointerUp={canvasTool === "pointer" ? handleOverlayPointerUp : undefined}
+              onPointerCancel={canvasTool === "pointer" ? handleOverlayPointerCancel : undefined}
             />
           )}
 

@@ -64,30 +64,90 @@ struct JournalView: View {
             ScrollView {
     VStack(alignment: .leading) {
         VStack(alignment: .leading) {
-            VStack(alignment: .leading) {
+            HStack() {
+                Text("9:41")
+                    .font(.system(size: 14))
+                    .fontWeight(.medium)
+
+                    .foregroundColor(AppTheme.textHigh)
+                Spacer()
+                HStack(spacing: 6) {
+                    LucideView(icon: .signal) // Lucide: signal
+                        .frame(width: 20, height: 20)
+                    LucideView(icon: .wifi) // Lucide: wifi
+                        .frame(width: 20, height: 20)
+                    LucideView(icon: .batteryFull) // Lucide: battery-full
+                        .frame(width: 20, height: 20)
+                }
+
+                .frame(minHeight: 100)
+                .foregroundColor(AppTheme.textHigh)
+            }
+
+            .frame(maxWidth: .infinity, minHeight: 100)
+            .padding(.top, 20)
+            .padding(.bottom, 8)
+            .padding(.leading, 24)
+            .padding(.trailing, 24)
+            .background(Color(hex: "#F5F5FA"))
+            HStack() {
                 Text("Journal")
-                    .font(.system(size: 24))
+                    .font(.largeTitle)
                     .fontWeight(.heavy)
-                    .padding(.bottom, AppTheme.sectionGap)
-                VStack(alignment: .leading) {
+
+                    .foregroundColor(AppTheme.textHigh)
+                Spacer()
+                Button(action: {
+                    // Action here
+                }) {
                     HStack() {
-                        HStack() {
+                        LucideView(icon: .moreHorizontal) // Lucide: more-horizontal
+                            .frame(width: 20, height: 20)
+                            .foregroundColor(AppTheme.textHigh)
+                    }
+
+                    .padding(.vertical, 12)
+                    .padding(.horizontal, 16)
+                    .background(Color(hex: "#F5F5FA"))
+                    .cornerRadius(9999)
+                }
+            }
+
+            .frame(maxWidth: .infinity, minHeight: 100)
+            .padding(.horizontal, AppTheme.screenPadding)
+            .padding(.top, 12)
+            .padding(.bottom, 8)
+            .background(Color(hex: "#F5F5FA"))
+            VStack(alignment: .leading, spacing: AppTheme.sectionGap) {
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack() {
+                        HStack(spacing: 12) {
                             HStack() {
-                                LucideView(icon: .flame) // Lucide: flame
-                                    .frame(width: 20, height: 20)
+                                Text("🔥")
+                                    .font(.system(size: 20))
+
                             }
-                            .background(AppTheme.backgroundPrimary)
+
+                            .frame(width: 40, height: 40, minHeight: 100)
+                            .background(Color(red: 255/255.0, green: 214/255.0, blue: 0/255.0).opacity(0.18))
                             .cornerRadius(9999)
-                            .frame(width: 36, height: 36)
                             VStack(alignment: .leading) {
                                 Text("Calories")
-                                    .font(.system(size: 18))
+                                    .font(.title2)
                                     .fontWeight(.bold)
+
+                                    .foregroundColor(AppTheme.textHigh)
                                 Text("Week Days")
-                                    .font(.system(size: 12))
-                                    .fontWeight(.semibold)
+                                    .font(.caption)
+                                    .fontWeight(.regular)
+
+                                    .foregroundColor(AppTheme.textMedium)
                             }
+
+                            .frame(minHeight: 100)
                         }
+
+                        .frame(minHeight: 100)
                         Spacer()
                         Button(action: {
                             // Action here
@@ -95,190 +155,317 @@ struct JournalView: View {
                             HStack() {
                                 LucideView(icon: .calendar) // Lucide: calendar
                                     .frame(width: 20, height: 20)
+                                    .foregroundColor(AppTheme.textHigh)
                             }
+
                             .padding(.vertical, 12)
                             .padding(.horizontal, 16)
-                            .background(AppTheme.backgroundPrimary)
+                            .background(Color(hex: "#F5F5FA"))
                             .cornerRadius(9999)
                         }
                     }
-                    VStack(alignment: .leading) {
+
+                    .frame(maxWidth: .infinity, minHeight: 100)
+                    .background(Color(hex: "#F5F5FA"))
+                    VStack(alignment: .leading, spacing: 10) {
                         HStack() {
                             Text("Consumed")
-                                .font(.system(size: 16))
+                                .font(.system(size: 14))
                                 .fontWeight(.medium)
+
+                                .foregroundColor(AppTheme.textMedium)
                             Spacer()
                             Text("00 cal")
-                                .font(.system(size: 32))
-                                .fontWeight(.heavy)
+                                .font(.system(size: 18))
+                                .fontWeight(.semibold)
+
+                                .foregroundColor(AppTheme.textHigh)
                         }
+
+                        .frame(maxWidth: .infinity, minHeight: 100)
                         .padding(.top, 12)
                         .padding(.bottom, 12)
+                        .padding(.leading, 16)
+                        .padding(.trailing, 16)
                         .background(AppTheme.backgroundPrimary)
-                        .cornerRadius(20)
+                        .cornerRadius(18)
                         HStack() {
                             Text("Remaining")
-                                .font(.system(size: 16))
+                                .font(.system(size: 14))
                                 .fontWeight(.medium)
+
+                                .foregroundColor(AppTheme.textMedium)
                             Spacer()
                             Text("00 cal")
-                                .font(.system(size: 32))
-                                .fontWeight(.heavy)
+                                .font(.system(size: 18))
+                                .fontWeight(.semibold)
+
+                                .foregroundColor(AppTheme.textHigh)
                         }
+
+                        .frame(maxWidth: .infinity, minHeight: 100)
                         .padding(.top, 12)
                         .padding(.bottom, 12)
+                        .padding(.leading, 16)
+                        .padding(.trailing, 16)
                         .background(AppTheme.backgroundPrimary)
-                        .cornerRadius(20)
-                        ZStack(alignment: .topLeading) {
-                            Rectangle().fill(Color.clear)
-                            .background(
-                                Canvas { context, size in
-                                    let stripeWidth: CGFloat = 6
-                                    let totalWidth = size.width + size.height
-                                    var x: CGFloat = 0
-                                    while x < totalWidth {
-                                        var path = Path()
-                                        path.move(to: CGPoint(x: x, y: 0))
-                                        path.addLine(to: CGPoint(x: x + stripeWidth, y: 0))
-                                        path.addLine(to: CGPoint(x: x - size.height + stripeWidth, y: size.height))
-                                        path.addLine(to: CGPoint(x: x - size.height, y: size.height))
-                                        path.closeSubpath()
-                                        context.fill(path, with: .color(Color(red: 0/255.0, green: 0/255.0, blue: 0/255.0).opacity(0.03)))
-                                        x += stripeWidth * 2
+                        .cornerRadius(18)
+                        HStack() {
+                            Text("Remaining")
+                                .font(.system(size: 14))
+                                .fontWeight(.medium)
+
+                                .foregroundColor(AppTheme.textLow)
+                            Spacer()
+                            Text("00 cal")
+                                .font(.system(size: 18))
+                                .fontWeight(.semibold)
+
+                                .foregroundColor(AppTheme.textLow)
+                        }
+
+                        .frame(maxWidth: .infinity, minHeight: 100)
+                        .padding(.top, 12)
+                        .padding(.bottom, 12)
+                        .padding(.leading, 16)
+                        .padding(.trailing, 16)
+                        .background(
+    Canvas { context, size in
+        let stripeWidth: CGFloat = 6
+        let totalWidth = size.width + size.height
+        var x: CGFloat = 0
+        while x < totalWidth {
+            var path = Path()
+            path.move(to: CGPoint(x: x, y: 0))
+            path.addLine(to: CGPoint(x: x + stripeWidth, y: 0))
+            path.addLine(to: CGPoint(x: x - size.height + stripeWidth, y: size.height))
+            path.addLine(to: CGPoint(x: x - size.height, y: size.height))
+            path.closeSubpath()
+            context.fill(path, with: .color(Color(hex: "#E2E2EA")))
+            x += stripeWidth * 2
+        }
+    }
+    .background(Color(hex: "#EDEDF3"))
+)
+                        .cornerRadius(18)
+                    }
+
+                    .frame(maxWidth: .infinity, minHeight: 100)
+                    .background(Color(hex: "#F5F5FA"))
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3), spacing: 12) {
+                        VStack(alignment: .center, spacing: 6) {
+                            ZStack(alignment: .topLeading) {
+                                VStack(alignment: .center) {
+                                    VStack(alignment: .leading) {
+                                        Text("0")
+                                            .fontWeight(.bold)
+
+                                        Text("/150")
+                                            .font(.system(size: 10))
+
+                                            .foregroundColor(AppTheme.textMedium)
                                     }
+
+                                    .frame(minHeight: 100)
+                                    .foregroundColor(AppTheme.textHigh)
+                                    Text("gr")
+                                        .font(.caption)
+                                        .fontWeight(.regular)
+
+                                        .foregroundColor(AppTheme.textLow)
                                 }
-                                .background(AppTheme.borderDivider)
-                            )
-                            HStack() {
-                                Text("Remaining")
-                                    .font(.system(size: 16))
+
+                                .frame(minHeight: 100)
+                                .offset(x: 0, y: -(0))
+                                HStack() {
+                                    ZStack {
+                                        Circle()
+                                            .stroke(AppTheme.borderDivider, lineWidth: 8)
+                                            .rotationEffect(.degrees(-90))
+                                        Circle()
+                                            .trim(from: 0, to: 0.00)
+                                            .stroke(Color(hex: "#FF9A1F"), style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                                            .rotationEffect(.degrees(-90))
+                                    }
+                                    .frame(width: 48, height: 48)
+                                }
+                            }
+
+                            .frame(width: 72, height: 72, minHeight: 100)
+                            VStack(alignment: .center) {
+                                Text("Power")
+                                    .font(.system(size: 14))
                                     .fontWeight(.medium)
-                                Spacer()
-                                Text("00 cal")
-                                    .font(.system(size: 32))
-                                    .fontWeight(.heavy)
+
+                                    .foregroundColor(AppTheme.textHigh)
+                                Text("Carbs")
+                                    .font(.caption)
+                                    .fontWeight(.regular)
+
+                                    .foregroundColor(AppTheme.textMedium)
                             }
+
+                            .frame(minHeight: 100)
                         }
-                        .padding(.top, 12)
-                        .padding(.bottom, 12)
-                        .background(AppTheme.backgroundPrimary)
-                        .cornerRadius(20)
+
+                        .frame(minHeight: 100)
+                        VStack(alignment: .center, spacing: 6) {
+                            ZStack(alignment: .topLeading) {
+                                VStack(alignment: .center) {
+                                    VStack(alignment: .leading) {
+                                        Text("0")
+                                            .fontWeight(.bold)
+
+                                        Text("/113")
+                                            .font(.system(size: 10))
+
+                                            .foregroundColor(AppTheme.textMedium)
+                                    }
+
+                                    .frame(minHeight: 100)
+                                    .foregroundColor(AppTheme.textHigh)
+                                    Text("gr")
+                                        .font(.caption)
+                                        .fontWeight(.regular)
+
+                                        .foregroundColor(AppTheme.textLow)
+                                }
+
+                                .frame(minHeight: 100)
+                                .offset(x: 0, y: -(0))
+                                HStack() {
+                                    ZStack {
+                                        Circle()
+                                            .stroke(AppTheme.borderDivider, lineWidth: 8)
+                                            .rotationEffect(.degrees(-90))
+                                        Circle()
+                                            .trim(from: 0, to: 0.00)
+                                            .stroke(Color(hex: "#FF9A1F"), style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                                            .rotationEffect(.degrees(-90))
+                                    }
+                                    .frame(width: 48, height: 48)
+                                }
+                            }
+
+                            .frame(width: 72, height: 72, minHeight: 100)
+                            VStack(alignment: .center) {
+                                Text("Protein")
+                                    .font(.system(size: 14))
+                                    .fontWeight(.medium)
+
+                                    .foregroundColor(AppTheme.textHigh)
+                                Text("Power")
+                                    .font(.caption)
+                                    .fontWeight(.regular)
+
+                                    .foregroundColor(AppTheme.textMedium)
+                            }
+
+                            .frame(minHeight: 100)
+                        }
+
+                        .frame(minHeight: 100)
+                        VStack(alignment: .center, spacing: 6) {
+                            ZStack(alignment: .topLeading) {
+                                VStack(alignment: .center) {
+                                    VStack(alignment: .leading) {
+                                        Text("0")
+                                            .fontWeight(.bold)
+
+                                        Text("/50")
+                                            .font(.system(size: 10))
+
+                                            .foregroundColor(AppTheme.textMedium)
+                                    }
+
+                                    .frame(minHeight: 100)
+                                    .foregroundColor(AppTheme.textHigh)
+                                    Text("gr")
+                                        .font(.caption)
+                                        .fontWeight(.regular)
+
+                                        .foregroundColor(AppTheme.textLow)
+                                }
+
+                                .frame(minHeight: 100)
+                                .offset(x: 0, y: -(0))
+                                HStack() {
+                                    ZStack {
+                                        Circle()
+                                            .stroke(AppTheme.borderDivider, lineWidth: 8)
+                                            .rotationEffect(.degrees(-90))
+                                        Circle()
+                                            .trim(from: 0, to: 0.00)
+                                            .stroke(Color(hex: "#FF9A1F"), style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                                            .rotationEffect(.degrees(-90))
+                                    }
+                                    .frame(width: 48, height: 48)
+                                }
+                            }
+
+                            .frame(width: 72, height: 72, minHeight: 100)
+                            VStack(alignment: .center) {
+                                Text("Healthy")
+                                    .font(.system(size: 14))
+                                    .fontWeight(.medium)
+
+                                    .foregroundColor(AppTheme.textHigh)
+                                Text("Fat")
+                                    .font(.caption)
+                                    .fontWeight(.regular)
+
+                                    .foregroundColor(AppTheme.textMedium)
+                            }
+
+                            .frame(minHeight: 100)
+                        }
+
+                        .frame(minHeight: 100)
                     }
-                    HStack() {
-                        VStack(alignment: .center) {
-                            ZStack(alignment: .topLeading) {
-                                HStack() {
-                                    LucideView(icon: .wheat) // Lucide: wheat
-                                        .frame(width: 20, height: 20)
-                                }
-                                VStack(alignment: .leading) {
-                                    ZStack {
-                                        Circle()
-                                            .stroke(AppTheme.backgroundPrimary, lineWidth: 6)
-                                        Circle()
-                                            .trim(from: 0, to: 0.00)
-                                            .stroke(Color(hex: "#FFFFFF"), style: StrokeStyle(lineWidth: 6, lineCap: .round))
-                                    }
-                                    .frame(width: 48, height: 48)
-                                }
-                            }
-                            .frame(width: 64, height: 64)
-                            VStack(alignment: .leading) {
-                                Text("0/150")
-                                Text("gr")
-                                    .font(.system(size: 12))
-                            }
-                            Text("Power Carbs")
-                                .font(.system(size: 12))
-                                .fontWeight(.semibold)
-                                .padding(.top, 2)
-                        }
-                        .frame(maxWidth: .infinity)
-                        Spacer()
-                        VStack(alignment: .center) {
-                            ZStack(alignment: .topLeading) {
-                                HStack() {
-                                    LucideView(icon: .egg) // Lucide: egg
-                                        .frame(width: 20, height: 20)
-                                }
-                                VStack(alignment: .leading) {
-                                    ZStack {
-                                        Circle()
-                                            .stroke(AppTheme.backgroundPrimary, lineWidth: 6)
-                                        Circle()
-                                            .trim(from: 0, to: 0.00)
-                                            .stroke(Color(hex: "#FFFFFF"), style: StrokeStyle(lineWidth: 6, lineCap: .round))
-                                    }
-                                    .frame(width: 48, height: 48)
-                                }
-                            }
-                            .frame(width: 64, height: 64)
-                            VStack(alignment: .leading) {
-                                Text("0/113")
-                                Text("gr")
-                                    .font(.system(size: 12))
-                            }
-                            Text("Protein Power")
-                                .font(.system(size: 12))
-                                .fontWeight(.semibold)
-                                .padding(.top, 2)
-                        }
-                        .frame(maxWidth: .infinity)
-                        Spacer()
-                        VStack(alignment: .center) {
-                            ZStack(alignment: .topLeading) {
-                                HStack() {
-                                    LucideView(icon: .droplet) // Lucide: droplet
-                                        .frame(width: 20, height: 20)
-                                }
-                                VStack(alignment: .leading) {
-                                    ZStack {
-                                        Circle()
-                                            .stroke(AppTheme.backgroundPrimary, lineWidth: 6)
-                                        Circle()
-                                            .trim(from: 0, to: 0.00)
-                                            .stroke(Color(hex: "#FFFFFF"), style: StrokeStyle(lineWidth: 6, lineCap: .round))
-                                    }
-                                    .frame(width: 48, height: 48)
-                                }
-                            }
-                            .frame(width: 64, height: 64)
-                            VStack(alignment: .leading) {
-                                Text("0/50")
-                                Text("gr")
-                                    .font(.system(size: 12))
-                            }
-                            Text("Healthy Fat")
-                                .font(.system(size: 12))
-                                .fontWeight(.semibold)
-                                .padding(.top, 2)
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
+
+                    .background(Color(hex: "#F5F5FA"))
                 }
+
+                .frame(maxWidth: .infinity, minHeight: 100)
+                .padding(.top, 20)
+                .padding(.bottom, 20)
+                .padding(.leading, 20)
+                .padding(.trailing, 20)
                 .background(AppTheme.surfaceCard)
                 .cornerRadius(AppTheme.borderRadiusApp)
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: AppTheme.elementGap), count: 2), spacing: AppTheme.elementGap) {
-                    VStack(alignment: .leading) {
-                        HStack(alignment: .top) {
-                            AsyncImage(url: URL(string: "https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/b8041495-1552-4079-9c20-80bd656e240f/display_1024.png")) { image in
-                                image.resizable()
-                                    .aspectRatio(contentMode: .fill)
-                            } placeholder: {
-                                Color.gray.opacity(0.1)
+                .shadow(color: Color.black.opacity(0.04), radius: 15, x: 0, y: 10)
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 2), spacing: 12) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack() {
+                            HStack() {
+                                AsyncImage(url: URL(string: "https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/b8041495-1552-4079-9c20-80bd656e240f/display_1024.png")) { image in
+                                    image.resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                } placeholder: {
+                                    Color.gray.opacity(0.1)
+                                }
+
                             }
-                            .frame(width: 44, height: 44)
+
+                            .frame(width: 56, height: 56, minHeight: 100)
+                            .background(Color(red: 255/255.0, green: 255/255.0, blue: 255/255.0).opacity(0.55))
                             .cornerRadius(9999)
                             Spacer()
                             Text("631 kcal")
-                                .font(.system(size: 14))
-                                .fontWeight(.regular)
+                                .font(.system(size: 18))
+                                .fontWeight(.semibold)
+
+                                .foregroundColor(AppTheme.textHigh)
                         }
-                        Spacer()
-                        HStack() {
+
+                        .frame(minHeight: 100)
+                        .background(Color(hex: "#F5F5FA"))
+                        HStack(alignment: .bottom) {
                             Text("Breakfast")
-                                .font(.system(size: 16))
-                                .fontWeight(.medium)
+                                .font(.title2)
+                                .fontWeight(.bold)
+
+                                .foregroundColor(AppTheme.textHigh)
                             Spacer()
                             Button(action: {
                                 // Action here
@@ -286,35 +473,54 @@ struct JournalView: View {
                                 HStack() {
                                     LucideView(icon: .plus) // Lucide: plus
                                         .frame(width: 20, height: 20)
+                                        .foregroundColor(AppTheme.textHigh)
                                 }
+
                                 .padding(.vertical, 12)
                                 .padding(.horizontal, 16)
-                                .background(Color(hex: "#FFFFFF"))
+                                .background(Color(hex: "#F5F5FA"))
                                 .cornerRadius(9999)
                             }
                         }
+
+                        .frame(minHeight: 100)
+                        .background(Color(hex: "#F5F5FA"))
                     }
-                    .background(Color(hex: "#FFFFFF"))
+
+                    .frame(minHeight: 100)
+                    .padding(.top, 16)
+                    .padding(.bottom, 16)
+                    .padding(.leading, 16)
+                    .padding(.trailing, 16)
+                    .background(Color(hex: "#D8D2FF"))
                     .cornerRadius(AppTheme.borderRadiusApp)
-                    .frame(minHeight: 120)
-                    VStack(alignment: .leading) {
-                        HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack() {
                             HStack() {
                                 LucideView(icon: .salad) // Lucide: salad
                                     .frame(width: 20, height: 20)
+                                    .foregroundColor(Color(hex: "#7A6B2E"))
                             }
+
+                            .frame(width: 56, height: 56, minHeight: 100)
+                            .background(Color(red: 255/255.0, green: 255/255.0, blue: 255/255.0).opacity(0.55))
                             .cornerRadius(9999)
-                            .frame(width: 44, height: 44)
                             Spacer()
                             Text("486 kcal")
-                                .font(.system(size: 14))
-                                .fontWeight(.regular)
+                                .font(.system(size: 18))
+                                .fontWeight(.semibold)
+
+                                .foregroundColor(AppTheme.textHigh)
                         }
-                        Spacer()
-                        HStack() {
+
+                        .frame(minHeight: 100)
+                        .background(Color(hex: "#F5F5FA"))
+                        HStack(alignment: .bottom) {
                             Text("Lunch")
-                                .font(.system(size: 16))
-                                .fontWeight(.medium)
+                                .font(.title2)
+                                .fontWeight(.bold)
+
+                                .foregroundColor(AppTheme.textHigh)
                             Spacer()
                             Button(action: {
                                 // Action here
@@ -322,35 +528,54 @@ struct JournalView: View {
                                 HStack() {
                                     LucideView(icon: .plus) // Lucide: plus
                                         .frame(width: 20, height: 20)
+                                        .foregroundColor(AppTheme.textHigh)
                                 }
+
                                 .padding(.vertical, 12)
                                 .padding(.horizontal, 16)
-                                .background(Color(hex: "#FFFFFF"))
+                                .background(Color(hex: "#F5F5FA"))
                                 .cornerRadius(9999)
                             }
                         }
+
+                        .frame(minHeight: 100)
+                        .background(Color(hex: "#F5F5FA"))
                     }
-                    .background(Color(hex: "#FFFFFF"))
+
+                    .frame(minHeight: 100)
+                    .padding(.top, 16)
+                    .padding(.bottom, 16)
+                    .padding(.leading, 16)
+                    .padding(.trailing, 16)
+                    .background(Color(hex: "#FFE680"))
                     .cornerRadius(AppTheme.borderRadiusApp)
-                    .frame(minHeight: 120)
-                    VStack(alignment: .leading) {
-                        HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack() {
                             HStack() {
-                                LucideView(icon: .soup) // Lucide: soup
+                                LucideView(icon: .utensils) // Lucide: utensils
                                     .frame(width: 20, height: 20)
+                                    .foregroundColor(Color(hex: "#2F6A47"))
                             }
+
+                            .frame(width: 56, height: 56, minHeight: 100)
+                            .background(Color(red: 255/255.0, green: 255/255.0, blue: 255/255.0).opacity(0.55))
                             .cornerRadius(9999)
-                            .frame(width: 44, height: 44)
                             Spacer()
                             Text("359 kcal")
-                                .font(.system(size: 14))
-                                .fontWeight(.regular)
+                                .font(.system(size: 18))
+                                .fontWeight(.semibold)
+
+                                .foregroundColor(AppTheme.textHigh)
                         }
-                        Spacer()
-                        HStack() {
+
+                        .frame(minHeight: 100)
+                        .background(Color(hex: "#F5F5FA"))
+                        HStack(alignment: .bottom) {
                             Text("Dinner")
-                                .font(.system(size: 16))
-                                .fontWeight(.medium)
+                                .font(.title2)
+                                .fontWeight(.bold)
+
+                                .foregroundColor(AppTheme.textHigh)
                             Spacer()
                             Button(action: {
                                 // Action here
@@ -358,35 +583,54 @@ struct JournalView: View {
                                 HStack() {
                                     LucideView(icon: .plus) // Lucide: plus
                                         .frame(width: 20, height: 20)
+                                        .foregroundColor(AppTheme.textHigh)
                                 }
+
                                 .padding(.vertical, 12)
                                 .padding(.horizontal, 16)
-                                .background(Color(hex: "#FFFFFF"))
+                                .background(Color(hex: "#F5F5FA"))
                                 .cornerRadius(9999)
                             }
                         }
+
+                        .frame(minHeight: 100)
+                        .background(Color(hex: "#F5F5FA"))
                     }
-                    .background(Color(hex: "#FFFFFF"))
+
+                    .frame(minHeight: 100)
+                    .padding(.top, 16)
+                    .padding(.bottom, 16)
+                    .padding(.leading, 16)
+                    .padding(.trailing, 16)
+                    .background(Color(hex: "#B6F1C8"))
                     .cornerRadius(AppTheme.borderRadiusApp)
-                    .frame(minHeight: 120)
-                    VStack(alignment: .leading) {
-                        HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack() {
                             HStack() {
                                 LucideView(icon: .cookie) // Lucide: cookie
                                     .frame(width: 20, height: 20)
+                                    .foregroundColor(Color(hex: "#7A4521"))
                             }
+
+                            .frame(width: 56, height: 56, minHeight: 100)
+                            .background(Color(red: 255/255.0, green: 255/255.0, blue: 255/255.0).opacity(0.55))
                             .cornerRadius(9999)
-                            .frame(width: 44, height: 44)
                             Spacer()
                             Text("193 kcal")
-                                .font(.system(size: 14))
-                                .fontWeight(.regular)
+                                .font(.system(size: 18))
+                                .fontWeight(.semibold)
+
+                                .foregroundColor(AppTheme.textHigh)
                         }
-                        Spacer()
-                        HStack() {
+
+                        .frame(minHeight: 100)
+                        .background(Color(hex: "#F5F5FA"))
+                        HStack(alignment: .bottom) {
                             Text("Snack")
-                                .font(.system(size: 16))
-                                .fontWeight(.medium)
+                                .font(.title2)
+                                .fontWeight(.bold)
+
+                                .foregroundColor(AppTheme.textHigh)
                             Spacer()
                             Button(action: {
                                 // Action here
@@ -394,99 +638,104 @@ struct JournalView: View {
                                 HStack() {
                                     LucideView(icon: .plus) // Lucide: plus
                                         .frame(width: 20, height: 20)
+                                        .foregroundColor(AppTheme.textHigh)
                                 }
+
                                 .padding(.vertical, 12)
                                 .padding(.horizontal, 16)
-                                .background(Color(hex: "#FFFFFF"))
+                                .background(Color(hex: "#F5F5FA"))
                                 .cornerRadius(9999)
                             }
                         }
+
+                        .frame(minHeight: 100)
+                        .background(Color(hex: "#F5F5FA"))
                     }
-                    .background(Color(hex: "#FFE0B2"))
+
+                    .frame(minHeight: 100)
+                    .padding(.top, 16)
+                    .padding(.bottom, 16)
+                    .padding(.leading, 16)
+                    .padding(.trailing, 16)
+                    .background(Color(hex: "#FFCBA4"))
                     .cornerRadius(AppTheme.borderRadiusApp)
-                    .frame(minHeight: 120)
                 }
+
             }
+
+            .frame(maxWidth: .infinity, minHeight: 100)
             .padding(.horizontal, AppTheme.screenPadding)
+            .padding(.top, 8)
+            .padding(.bottom, 120)
+            .background(Color(hex: "#F5F5FA"))
         }
-        .padding(.top, 16)
-        .padding(.bottom, 96)
-        .frame(maxWidth: .infinity)
+
+        .frame(maxWidth: .infinity, minHeight: 100)
+        .background(AppTheme.backgroundPrimary)
+        .foregroundColor(AppTheme.textHigh)
+        Color.clear
+            .frame(minHeight: 100)
     }
-    .background(AppTheme.backgroundPrimary)
-    .frame(maxWidth: .infinity)
-    .foregroundColor(AppTheme.textHigh)
+
+    .frame(minHeight: 100)
+    .background(Color(hex: "#F5F5FA"))
             }
-    VStack(alignment: .leading) {
-        HStack() {
+    HStack() {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 2), spacing: 4) {
             Button(action: {
                 // Action here
             }) {
-                HStack() {
-                    LucideView(icon: .chefHat) // Lucide: chef-hat
-                        .frame(width: 20, height: 20)
-                }
-                .padding(.vertical, 12)
-                .padding(.horizontal, 16)
-            }
-            .frame(maxWidth: .infinity)
-            Button(action: {
-                // Action here
-            }) {
-                HStack() {
-                    LucideView(icon: .calendarDays) // Lucide: calendar-days
-                        .frame(width: 20, height: 20)
-                }
-                .padding(.vertical, 12)
-                .padding(.horizontal, 16)
-            }
-            .frame(maxWidth: .infinity)
-            Button(action: {
-                // Action here
-            }) {
-                HStack() {
-                    LucideView(icon: .sparkles) // Lucide: sparkles
-                        .frame(width: 20, height: 20)
-                }
-                .padding(.vertical, 12)
-                .padding(.horizontal, 16)
-            }
-            .frame(maxWidth: .infinity)
-            Button(action: {
-                // Action here
-            }) {
-                HStack() {
+                HStack(spacing: 3) {
                     HStack() {
-                        LucideView(icon: .bookOpen) // Lucide: book-open
+                        LucideView(icon: .home) // Lucide: home
                             .frame(width: 20, height: 20)
                     }
-                    .background(AppTheme.actionPrimary)
-                    .cornerRadius(9999)
-                    .frame(width: 44, height: 44)
+
+                    .frame(width: 18, height: 18, minHeight: 100)
+                    .background(Color(hex: "#F5F5FA"))
+                    Text("Meal Plan")
+
                 }
+
                 .padding(.vertical, 12)
                 .padding(.horizontal, 16)
+                .cornerRadius(999)
+                .foregroundColor(Color(hex: "#999999"))
             }
-            .frame(maxWidth: .infinity)
             Button(action: {
                 // Action here
             }) {
-                HStack() {
-                    LucideView(icon: .bookMarked) // Lucide: book-marked
-                        .frame(width: 20, height: 20)
+                HStack(spacing: 3) {
+                    HStack() {
+                        LucideView(icon: .search) // Lucide: search
+                            .frame(width: 20, height: 20)
+                    }
+
+                    .frame(width: 18, height: 18, minHeight: 100)
+                    .background(Color(hex: "#F5F5FA"))
+                    Text("Journal")
+
                 }
+
                 .padding(.vertical, 12)
                 .padding(.horizontal, 16)
+                .cornerRadius(999)
+                .foregroundColor(Color(hex: "#999999"))
             }
-            .frame(maxWidth: .infinity)
         }
-        .background(Color(hex: "#FFFFFF"))
-        .cornerRadius(AppTheme.borderRadiusPill)
-        .overlay(RoundedRectangle(cornerRadius: AppTheme.borderRadiusPill).stroke(AppTheme.borderDivider, lineWidth: 1))
-        .frame(height: 80)
+
+        .background(Color(hex: "#F5F5FA"))
     }
-    .padding(.horizontal, AppTheme.screenPadding)
-    .padding(.bottom, 16)
+
+    .frame(minHeight: 100)
+    .padding(.top, 8)
+    .padding(.bottom, 8)
+    .padding(.leading, 8)
+    .padding(.trailing, 8)
+    .background(Color(red: 255/255.0, green: 255/255.0, blue: 255/255.0).opacity(0.92))
+    .background(.ultraThinMaterial)
+    .cornerRadius(999)
+    .overlay(RoundedRectangle(cornerRadius: 999).stroke(Color(red: 0/255.0, green: 0/255.0, blue: 0/255.0).opacity(0.05), lineWidth: 1))
         }
         .background(AppTheme.backgroundPrimary)
         .ignoresSafeArea(edges: .bottom)

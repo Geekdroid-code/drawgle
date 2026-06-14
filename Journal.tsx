@@ -60,67 +60,146 @@ export default function JournalScreen() {
       <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
   <View style={{
     flexDirection: 'column',
-    width: '100%',
-    backgroundColor: AppTheme.colors.backgroundPrimary,
-  }}>
+    minHeight: 100,
+    backgroundColor: '#F5F5FA' }}>
     <View style={{
       flexDirection: 'column',
-      flex: 1,
-      paddingTop: 16,
-      paddingBottom: 96,
-    }}>
+      width: '100%',
+      minHeight: 100,
+      backgroundColor: AppTheme.colors.bgPrimary }}>
       <View style={{
-        flexDirection: 'column',
-        paddingHorizontal: AppTheme.layout.screenPadding,
-      }}>
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        width: '100%',
+        minHeight: 100,
+        paddingTop: 20,
+        paddingBottom: 8,
+        paddingLeft: 24,
+        paddingRight: 24,
+        backgroundColor: '#F5F5FA' }}>
         <Text style={{
-          fontSize: 24,
+          fontSize: 14,
           color: AppTheme.colors.textHigh,
-          fontWeight: '800',
-          marginBottom: AppTheme.layout.sectionGap,
-        }}>
-          Journal
+          fontWeight: '500' }}>
+          9:41
         </Text>
         <View style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 6,
+          minHeight: 100 }}>
+          <Icon 
+            name="signal"
+            size={24}
+            color={'transparent'}
+          />
+          <Icon 
+            name="wifi"
+            size={24}
+            color={'transparent'}
+          />
+          <Icon 
+            name="battery-full"
+            size={24}
+            color={'transparent'}
+          />
+        </View>
+      </View>
+      <View style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        width: '100%',
+        minHeight: 100,
+        paddingHorizontal: AppTheme.layout.screenPadding,
+        paddingTop: 12,
+        paddingBottom: 8,
+        backgroundColor: '#F5F5FA' }}>
+        <Text style={{
+          fontSize: 34,
+          color: AppTheme.colors.textHigh,
+          fontWeight: '800' }}>
+          Journal
+        </Text>
+        <TouchableOpacity 
+          onPress={() => {}}
+          style={{
+            backgroundColor: '#F5F5FA',
+            borderRadius: 9999,
+            paddingVertical: 12,
+            paddingHorizontal: 16,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center'
+  }}
+        >
+          <Icon 
+            name="more-horizontal"
+            size={24}
+            color={AppTheme.colors.textHigh}
+          />
+        </TouchableOpacity>
+      </View>
+      <View style={{
+        flexDirection: 'column',
+        gap: AppTheme.colors.sectionGap,
+        width: '100%',
+        minHeight: 100,
+        paddingHorizontal: AppTheme.layout.screenPadding,
+        paddingTop: 8,
+        paddingBottom: 120,
+        backgroundColor: '#F5F5FA' }}>
+        <View style={{
           flexDirection: 'column',
+          gap: 16,
+          width: '100%',
+          minHeight: 100,
+          paddingTop: 20,
+          paddingBottom: 20,
+          paddingLeft: 20,
+          paddingRight: 20,
           backgroundColor: AppTheme.colors.surfaceCard,
-          borderRadius: AppTheme.radii.app,
-        }}>
+          borderRadius: AppTheme.colors.borderRadiusApp }}>
           <View style={{
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'space-between',
-          }}>
+            width: '100%',
+            minHeight: 100,
+            backgroundColor: '#F5F5FA' }}>
             <View style={{
               flexDirection: 'row',
               alignItems: 'center',
-            }}>
+              gap: 12,
+              minHeight: 100 }}>
               <View style={{
                 flexDirection: 'row',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: 36,
-                height: 36,
-                backgroundColor: AppTheme.colors.backgroundPrimary,
-                borderRadius: 9999,
-              }}>
-                <Icon name="flame" size={24} color={'var(--dg-color-action-accent-coral)'} />
+                width: 40,
+                height: 40,
+                minHeight: 100,
+                backgroundColor: 'rgba(255, 214, 0, 0.18)',
+                borderRadius: 9999 }}>
+                <Text style={{
+                  fontSize: 20 }}>
+                  🔥
+                </Text>
               </View>
               <View style={{
                 flexDirection: 'column',
-              }}>
+                minHeight: 100 }}>
                 <Text style={{
-                  fontSize: 18,
+                  fontSize: 20,
                   color: AppTheme.colors.textHigh,
-                  fontWeight: 'bold',
-                }}>
+                  fontWeight: 'bold' }}>
                   Calories
                 </Text>
                 <Text style={{
                   fontSize: 12,
                   color: AppTheme.colors.textMedium,
-                  fontWeight: '600',
-                }}>
+                  fontWeight: 'normal' }}>
                   Week Days
                 </Text>
               </View>
@@ -128,42 +207,50 @@ export default function JournalScreen() {
             <TouchableOpacity 
               onPress={() => {}}
               style={{
-                backgroundColor: AppTheme.colors.backgroundPrimary,
+                backgroundColor: '#F5F5FA',
                 borderRadius: 9999,
                 paddingVertical: 12,
                 paddingHorizontal: 16,
                 flexDirection: 'row',
                 alignItems: 'center',
-                justifyContent: 'center',
-              }}
+                justifyContent: 'center'
+  }}
             >
-              <Icon name="calendar" size={24} color={AppTheme.colors.textHigh} />
+              <Icon 
+                name="calendar"
+                size={24}
+                color={AppTheme.colors.textHigh}
+              />
             </TouchableOpacity>
           </View>
           <View style={{
             flexDirection: 'column',
-          }}>
+            gap: 10,
+            width: '100%',
+            minHeight: 100,
+            backgroundColor: '#F5F5FA' }}>
             <View style={{
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'space-between',
-              backgroundColor: AppTheme.colors.backgroundPrimary,
-              borderRadius: 20,
+              width: '100%',
+              minHeight: 100,
               paddingTop: 12,
               paddingBottom: 12,
-            }}>
+              paddingLeft: 16,
+              paddingRight: 16,
+              backgroundColor: AppTheme.colors.bgPrimary,
+              borderRadius: 18 }}>
               <Text style={{
-                fontSize: 16,
+                fontSize: 14,
                 color: AppTheme.colors.textMedium,
-                fontWeight: '500',
-              }}>
+                fontWeight: '500' }}>
                 Consumed
               </Text>
               <Text style={{
-                fontSize: 32,
+                fontSize: 18,
                 color: AppTheme.colors.textHigh,
-                fontWeight: '800',
-              }}>
+                fontWeight: '600' }}>
                 00 cal
               </Text>
             </View>
@@ -171,23 +258,24 @@ export default function JournalScreen() {
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'space-between',
-              backgroundColor: AppTheme.colors.backgroundPrimary,
-              borderRadius: 20,
+              width: '100%',
+              minHeight: 100,
               paddingTop: 12,
               paddingBottom: 12,
-            }}>
+              paddingLeft: 16,
+              paddingRight: 16,
+              backgroundColor: AppTheme.colors.bgPrimary,
+              borderRadius: 18 }}>
               <Text style={{
-                fontSize: 16,
+                fontSize: 14,
                 color: AppTheme.colors.textMedium,
-                fontWeight: '500',
-              }}>
+                fontWeight: '500' }}>
                 Remaining
               </Text>
               <Text style={{
-                fontSize: 32,
+                fontSize: 18,
                 color: AppTheme.colors.textHigh,
-                fontWeight: '800',
-              }}>
+                fontWeight: '600' }}>
                 00 cal
               </Text>
             </View>
@@ -195,524 +283,651 @@ export default function JournalScreen() {
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'space-between',
-              backgroundColor: AppTheme.colors.backgroundPrimary,
-              borderRadius: 20,
+              width: '100%',
+              minHeight: 100,
               paddingTop: 12,
               paddingBottom: 12,
-            }}>
+              paddingLeft: 16,
+              paddingRight: 16,
+              borderRadius: 18 }}>
               <LinearGradient
-                colors={['transparent', 'rgba(0, 0, 0, 0.03)']}
-                start={{ x: 0, y: 1 }}
-                end={{ x: 1, y: 0 }}
-                style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                flexDirection: 'column',
-              }}>
+                colors={['#EDEDF3', '#E2E2EA']}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={{ flex: 1, width: '100%', height: '100%', borderRadius: 18 }}
+              >
+                <Text style={{
+                  fontSize: 14,
+                  color: AppTheme.colors.textLow,
+                  fontWeight: '500' }}>
+                  Remaining
+                </Text>
+                <Text style={{
+                  fontSize: 18,
+                  color: AppTheme.colors.textLow,
+                  fontWeight: '600' }}>
+                  00 cal
+                </Text>
               </LinearGradient>
-              <Text style={{
-                fontSize: 16,
-                color: AppTheme.colors.textLow,
-                fontWeight: '500',
-              }}>
-                Remaining
-              </Text>
-              <Text style={{
-                fontSize: 32,
-                color: AppTheme.colors.textLow,
-                fontWeight: '800',
-              }}>
-                00 cal
-              </Text>
             </View>
           </View>
-          <View style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 12 }}>
             <View style={{
               flexDirection: 'column',
               alignItems: 'center',
-              flex: 1,
-            }}>
+              gap: 6,
+              width: '31%',
+              minHeight: 100 }}>
               <View style={{
-                flexDirection: 'column',
-                width: 64,
-                height: 64,
-              }}>
+                position: 'relative',
+                backgroundColor: '#F5F5FA' }}>
                 <View style={{
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minHeight: 100,
                   position: 'absolute',
-                  top: 0,
-                  left: 0,
                   right: 0,
                   bottom: 0,
+                  left: 0 }}>
+                  <View style={{
+                    flexDirection: 'column',
+                    minHeight: 100 }}>
+                    <Text style={{
+                      fontWeight: 'bold' }}>
+                      0
+                    </Text>
+                    <Text style={{
+                      fontSize: 10,
+                      color: AppTheme.colors.textMedium }}>
+                      /150
+                    </Text>
+                  </View>
+                  <Text style={{
+                    fontSize: 12,
+                    color: AppTheme.colors.textLow,
+                    fontWeight: 'normal' }}>
+                    gr
+                  </Text>
+                </View>
+                <View style={{
                   flexDirection: 'row',
                   alignItems: 'center',
                   justifyContent: 'center',
-                }}>
-                  <Icon name="wheat" size={24} color={'var(--dg-color-action-accent-coral)'} />
+                  width: '100%',
+                  height: '100%' }}>
+                  <View style={{ width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}>
+                    <View style={{
+                      width: '100%',
+                      height: '100%',
+                      borderWidth: 8,
+                      borderColor: AppTheme.colors.borderDivider,
+                      borderRadius: 24,
+                      position: 'absolute' }} />
+                    <View style={{
+                      width: '100%',
+                      height: '100%',
+                      borderWidth: 8,
+                      borderColor: '#FF9A1F',
+                      borderRadius: 24,
+                      position: 'absolute' }} />
+                  </View>
                 </View>
-                <View style={{ width: 48, height: 48 }}>{/* TODO: Add custom SVG/Asset */}</View>
               </View>
               <View style={{
                 flexDirection: 'column',
-              }}>
-                <Text>0/150</Text>
+                alignItems: 'center',
+                minHeight: 100 }}>
+                <Text style={{
+                  fontSize: 14,
+                  color: AppTheme.colors.textHigh,
+                  fontWeight: '500' }}>
+                  Power
+                </Text>
                 <Text style={{
                   fontSize: 12,
-                  color: AppTheme.colors.textLow,
-                }}>
-                  gr
+                  color: AppTheme.colors.textMedium,
+                  fontWeight: 'normal' }}>
+                  Carbs
                 </Text>
               </View>
-              <Text style={{
-                fontSize: 12,
-                color: AppTheme.colors.textMedium,
-                fontWeight: '600',
-                marginTop: 2,
-              }}>
-                Power Carbs
-              </Text>
             </View>
             <View style={{
               flexDirection: 'column',
               alignItems: 'center',
-              flex: 1,
-            }}>
+              gap: 6,
+              width: '31%',
+              minHeight: 100 }}>
               <View style={{
-                flexDirection: 'column',
-                width: 64,
-                height: 64,
-              }}>
+                position: 'relative',
+                backgroundColor: '#F5F5FA' }}>
                 <View style={{
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minHeight: 100,
                   position: 'absolute',
-                  top: 0,
-                  left: 0,
                   right: 0,
                   bottom: 0,
+                  left: 0 }}>
+                  <View style={{
+                    flexDirection: 'column',
+                    minHeight: 100 }}>
+                    <Text style={{
+                      fontWeight: 'bold' }}>
+                      0
+                    </Text>
+                    <Text style={{
+                      fontSize: 10,
+                      color: AppTheme.colors.textMedium }}>
+                      /113
+                    </Text>
+                  </View>
+                  <Text style={{
+                    fontSize: 12,
+                    color: AppTheme.colors.textLow,
+                    fontWeight: 'normal' }}>
+                    gr
+                  </Text>
+                </View>
+                <View style={{
                   flexDirection: 'row',
                   alignItems: 'center',
                   justifyContent: 'center',
-                }}>
-                  <Icon name="egg" size={24} color={'var(--dg-color-action-accent-coral)'} />
+                  width: '100%',
+                  height: '100%' }}>
+                  <View style={{ width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}>
+                    <View style={{
+                      width: '100%',
+                      height: '100%',
+                      borderWidth: 8,
+                      borderColor: AppTheme.colors.borderDivider,
+                      borderRadius: 24,
+                      position: 'absolute' }} />
+                    <View style={{
+                      width: '100%',
+                      height: '100%',
+                      borderWidth: 8,
+                      borderColor: '#FF9A1F',
+                      borderRadius: 24,
+                      position: 'absolute' }} />
+                  </View>
                 </View>
-                <View style={{ width: 48, height: 48 }}>{/* TODO: Add custom SVG/Asset */}</View>
               </View>
               <View style={{
                 flexDirection: 'column',
-              }}>
-                <Text>0/113</Text>
+                alignItems: 'center',
+                minHeight: 100 }}>
+                <Text style={{
+                  fontSize: 14,
+                  color: AppTheme.colors.textHigh,
+                  fontWeight: '500' }}>
+                  Protein
+                </Text>
                 <Text style={{
                   fontSize: 12,
-                  color: AppTheme.colors.textLow,
-                }}>
-                  gr
+                  color: AppTheme.colors.textMedium,
+                  fontWeight: 'normal' }}>
+                  Power
                 </Text>
               </View>
-              <Text style={{
-                fontSize: 12,
-                color: AppTheme.colors.textMedium,
-                fontWeight: '600',
-                marginTop: 2,
-              }}>
-                Protein Power
-              </Text>
             </View>
             <View style={{
               flexDirection: 'column',
               alignItems: 'center',
-              flex: 1,
-            }}>
+              gap: 6,
+              width: '31%',
+              minHeight: 100 }}>
               <View style={{
-                flexDirection: 'column',
-                width: 64,
-                height: 64,
-              }}>
+                position: 'relative',
+                backgroundColor: '#F5F5FA' }}>
                 <View style={{
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minHeight: 100,
                   position: 'absolute',
-                  top: 0,
-                  left: 0,
                   right: 0,
                   bottom: 0,
+                  left: 0 }}>
+                  <View style={{
+                    flexDirection: 'column',
+                    minHeight: 100 }}>
+                    <Text style={{
+                      fontWeight: 'bold' }}>
+                      0
+                    </Text>
+                    <Text style={{
+                      fontSize: 10,
+                      color: AppTheme.colors.textMedium }}>
+                      /50
+                    </Text>
+                  </View>
+                  <Text style={{
+                    fontSize: 12,
+                    color: AppTheme.colors.textLow,
+                    fontWeight: 'normal' }}>
+                    gr
+                  </Text>
+                </View>
+                <View style={{
                   flexDirection: 'row',
                   alignItems: 'center',
                   justifyContent: 'center',
-                }}>
-                  <Icon name="droplet" size={24} color={'var(--dg-color-action-accent-coral)'} />
+                  width: '100%',
+                  height: '100%' }}>
+                  <View style={{ width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}>
+                    <View style={{
+                      width: '100%',
+                      height: '100%',
+                      borderWidth: 8,
+                      borderColor: AppTheme.colors.borderDivider,
+                      borderRadius: 24,
+                      position: 'absolute' }} />
+                    <View style={{
+                      width: '100%',
+                      height: '100%',
+                      borderWidth: 8,
+                      borderColor: '#FF9A1F',
+                      borderRadius: 24,
+                      position: 'absolute' }} />
+                  </View>
                 </View>
-                <View style={{ width: 48, height: 48 }}>{/* TODO: Add custom SVG/Asset */}</View>
               </View>
               <View style={{
                 flexDirection: 'column',
-              }}>
-                <Text>0/50</Text>
+                alignItems: 'center',
+                minHeight: 100 }}>
+                <Text style={{
+                  fontSize: 14,
+                  color: AppTheme.colors.textHigh,
+                  fontWeight: '500' }}>
+                  Healthy
+                </Text>
                 <Text style={{
                   fontSize: 12,
-                  color: AppTheme.colors.textLow,
-                }}>
-                  gr
+                  color: AppTheme.colors.textMedium,
+                  fontWeight: 'normal' }}>
+                  Fat
                 </Text>
               </View>
-              <Text style={{
-                fontSize: 12,
-                color: AppTheme.colors.textMedium,
-                fontWeight: '600',
-                marginTop: 2,
-              }}>
-                Healthy Fat
-              </Text>
             </View>
           </View>
         </View>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: AppTheme.layout.elementGap }}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 12 }}>
           <View style={{
-            width: '48%',
             flexDirection: 'column',
-            justifyContent: 'space-between',
-            minHeight: 120,
-            backgroundColor: 'var(--dg-color-surface-pastel-lavender)',
-            borderRadius: AppTheme.radii.app,
-          }}>
+            gap: 12,
+            width: '48%',
+            minHeight: 100,
+            paddingTop: 16,
+            paddingBottom: 16,
+            paddingLeft: 16,
+            paddingRight: 16,
+            backgroundColor: '#D8D2FF',
+            borderRadius: AppTheme.colors.borderRadiusApp }}>
             <View style={{
-              width: '48%',
               flexDirection: 'row',
-              alignItems: 'flex-start',
+              alignItems: 'center',
               justifyContent: 'space-between',
-            }}>
-              <Image 
-                source={{ uri: 'https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/b8041495-1552-4079-9c20-80bd656e240f/display_1024.png' }}
-                alt="Small bowl of cereal or fruit"
-                style={{
-                  width: '48%',
-                  height: 44,
-                  borderRadius: 9999,
-                }}
-              />
+              minHeight: 100,
+              backgroundColor: '#F5F5FA' }}>
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 56,
+                height: 56,
+                minHeight: 100,
+                backgroundColor: 'rgba(255, 255, 255, 0.55)',
+                borderRadius: 9999 }}>
+                <Image 
+                  source={{ uri: 'https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/b8041495-1552-4079-9c20-80bd656e240f/display_1024.png' }}
+                  alt="Small bowl of cereal or breakfast food"
+                  style={{
+                    width: '100%'
+  }}
+                />
+              </View>
               <Text style={{
-                width: '48%',
-                fontSize: 14,
+                fontSize: 18,
                 color: AppTheme.colors.textHigh,
-                fontWeight: 'normal',
-              }}>
+                fontWeight: '600' }}>
                 631 kcal
               </Text>
             </View>
             <View style={{
-              width: '48%',
               flexDirection: 'row',
-              alignItems: 'center',
+              alignItems: 'flex-end',
               justifyContent: 'space-between',
-            }}>
+              minHeight: 100,
+              backgroundColor: '#F5F5FA' }}>
               <Text style={{
-                width: '48%',
-                fontSize: 16,
+                fontSize: 20,
                 color: AppTheme.colors.textHigh,
-                fontWeight: '500',
-              }}>
+                fontWeight: 'bold' }}>
                 Breakfast
               </Text>
               <TouchableOpacity 
                 onPress={() => {}}
                 style={{
-                  width: '48%',
-                  backgroundColor: '#FFFFFF',
+                  backgroundColor: '#F5F5FA',
                   borderRadius: 9999,
                   paddingVertical: 12,
                   paddingHorizontal: 16,
                   flexDirection: 'row',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                }}
+                  justifyContent: 'center'
+  }}
               >
-                <Icon name="plus" size={24} color={AppTheme.colors.textHigh} />
+                <Icon 
+                  name="plus"
+                  size={24}
+                  color={AppTheme.colors.textHigh}
+                />
               </TouchableOpacity>
             </View>
           </View>
           <View style={{
-            width: '48%',
             flexDirection: 'column',
-            justifyContent: 'space-between',
-            minHeight: 120,
-            backgroundColor: 'var(--dg-color-surface-pastel-butter)',
-            borderRadius: AppTheme.radii.app,
-          }}>
+            gap: 12,
+            width: '48%',
+            minHeight: 100,
+            paddingTop: 16,
+            paddingBottom: 16,
+            paddingLeft: 16,
+            paddingRight: 16,
+            backgroundColor: '#FFE680',
+            borderRadius: AppTheme.colors.borderRadiusApp }}>
             <View style={{
-              width: '48%',
               flexDirection: 'row',
-              alignItems: 'flex-start',
+              alignItems: 'center',
               justifyContent: 'space-between',
-            }}>
+              minHeight: 100,
+              backgroundColor: '#F5F5FA' }}>
               <View style={{
-                width: '48%',
                 flexDirection: 'row',
                 alignItems: 'center',
                 justifyContent: 'center',
-                height: 44,
-                borderRadius: 9999,
-              }}>
-                <Icon name="salad" size={24} color={AppTheme.colors.textMedium} />
+                width: 56,
+                height: 56,
+                minHeight: 100,
+                backgroundColor: 'rgba(255, 255, 255, 0.55)',
+                borderRadius: 9999 }}>
+                <Icon 
+                  name="salad"
+                  size={24}
+                  color={'#7A6B2E'}
+                />
               </View>
               <Text style={{
-                width: '48%',
-                fontSize: 14,
+                fontSize: 18,
                 color: AppTheme.colors.textHigh,
-                fontWeight: 'normal',
-              }}>
+                fontWeight: '600' }}>
                 486 kcal
               </Text>
             </View>
             <View style={{
-              width: '48%',
               flexDirection: 'row',
-              alignItems: 'center',
+              alignItems: 'flex-end',
               justifyContent: 'space-between',
-            }}>
+              minHeight: 100,
+              backgroundColor: '#F5F5FA' }}>
               <Text style={{
-                width: '48%',
-                fontSize: 16,
+                fontSize: 20,
                 color: AppTheme.colors.textHigh,
-                fontWeight: '500',
-              }}>
+                fontWeight: 'bold' }}>
                 Lunch
               </Text>
               <TouchableOpacity 
                 onPress={() => {}}
                 style={{
-                  width: '48%',
-                  backgroundColor: '#FFFFFF',
+                  backgroundColor: '#F5F5FA',
                   borderRadius: 9999,
                   paddingVertical: 12,
                   paddingHorizontal: 16,
                   flexDirection: 'row',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                }}
+                  justifyContent: 'center'
+  }}
               >
-                <Icon name="plus" size={24} color={AppTheme.colors.textHigh} />
+                <Icon 
+                  name="plus"
+                  size={24}
+                  color={AppTheme.colors.textHigh}
+                />
               </TouchableOpacity>
             </View>
           </View>
           <View style={{
-            width: '48%',
             flexDirection: 'column',
-            justifyContent: 'space-between',
-            minHeight: 120,
-            backgroundColor: 'var(--dg-color-surface-pastel-mint)',
-            borderRadius: AppTheme.radii.app,
-          }}>
+            gap: 12,
+            width: '48%',
+            minHeight: 100,
+            paddingTop: 16,
+            paddingBottom: 16,
+            paddingLeft: 16,
+            paddingRight: 16,
+            backgroundColor: '#B6F1C8',
+            borderRadius: AppTheme.colors.borderRadiusApp }}>
             <View style={{
-              width: '48%',
               flexDirection: 'row',
-              alignItems: 'flex-start',
+              alignItems: 'center',
               justifyContent: 'space-between',
-            }}>
+              minHeight: 100,
+              backgroundColor: '#F5F5FA' }}>
               <View style={{
-                width: '48%',
                 flexDirection: 'row',
                 alignItems: 'center',
                 justifyContent: 'center',
-                height: 44,
-                borderRadius: 9999,
-              }}>
-                <Icon name="soup" size={24} color={AppTheme.colors.textMedium} />
+                width: 56,
+                height: 56,
+                minHeight: 100,
+                backgroundColor: 'rgba(255, 255, 255, 0.55)',
+                borderRadius: 9999 }}>
+                <Icon 
+                  name="utensils"
+                  size={24}
+                  color={'#2F6A47'}
+                />
               </View>
               <Text style={{
-                width: '48%',
-                fontSize: 14,
+                fontSize: 18,
                 color: AppTheme.colors.textHigh,
-                fontWeight: 'normal',
-              }}>
+                fontWeight: '600' }}>
                 359 kcal
               </Text>
             </View>
             <View style={{
-              width: '48%',
               flexDirection: 'row',
-              alignItems: 'center',
+              alignItems: 'flex-end',
               justifyContent: 'space-between',
-            }}>
+              minHeight: 100,
+              backgroundColor: '#F5F5FA' }}>
               <Text style={{
-                width: '48%',
-                fontSize: 16,
+                fontSize: 20,
                 color: AppTheme.colors.textHigh,
-                fontWeight: '500',
-              }}>
+                fontWeight: 'bold' }}>
                 Dinner
               </Text>
               <TouchableOpacity 
                 onPress={() => {}}
                 style={{
-                  width: '48%',
-                  backgroundColor: '#FFFFFF',
+                  backgroundColor: '#F5F5FA',
                   borderRadius: 9999,
                   paddingVertical: 12,
                   paddingHorizontal: 16,
                   flexDirection: 'row',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                }}
+                  justifyContent: 'center'
+  }}
               >
-                <Icon name="plus" size={24} color={AppTheme.colors.textHigh} />
+                <Icon 
+                  name="plus"
+                  size={24}
+                  color={AppTheme.colors.textHigh}
+                />
               </TouchableOpacity>
             </View>
           </View>
           <View style={{
-            width: '48%',
             flexDirection: 'column',
-            justifyContent: 'space-between',
-            minHeight: 120,
-            backgroundColor: '#FFE0B2',
-            borderRadius: AppTheme.radii.app,
-          }}>
+            gap: 12,
+            width: '48%',
+            minHeight: 100,
+            paddingTop: 16,
+            paddingBottom: 16,
+            paddingLeft: 16,
+            paddingRight: 16,
+            backgroundColor: '#FFCBA4',
+            borderRadius: AppTheme.colors.borderRadiusApp }}>
             <View style={{
-              width: '48%',
               flexDirection: 'row',
-              alignItems: 'flex-start',
+              alignItems: 'center',
               justifyContent: 'space-between',
-            }}>
+              minHeight: 100,
+              backgroundColor: '#F5F5FA' }}>
               <View style={{
-                width: '48%',
                 flexDirection: 'row',
                 alignItems: 'center',
                 justifyContent: 'center',
-                height: 44,
-                borderRadius: 9999,
-              }}>
-                <Icon name="cookie" size={24} color={AppTheme.colors.textMedium} />
+                width: 56,
+                height: 56,
+                minHeight: 100,
+                backgroundColor: 'rgba(255, 255, 255, 0.55)',
+                borderRadius: 9999 }}>
+                <Icon 
+                  name="cookie"
+                  size={24}
+                  color={'#7A4521'}
+                />
               </View>
               <Text style={{
-                width: '48%',
-                fontSize: 14,
+                fontSize: 18,
                 color: AppTheme.colors.textHigh,
-                fontWeight: 'normal',
-              }}>
+                fontWeight: '600' }}>
                 193 kcal
               </Text>
             </View>
             <View style={{
-              width: '48%',
               flexDirection: 'row',
-              alignItems: 'center',
+              alignItems: 'flex-end',
               justifyContent: 'space-between',
-            }}>
+              minHeight: 100,
+              backgroundColor: '#F5F5FA' }}>
               <Text style={{
-                width: '48%',
-                fontSize: 16,
+                fontSize: 20,
                 color: AppTheme.colors.textHigh,
-                fontWeight: '500',
-              }}>
+                fontWeight: 'bold' }}>
                 Snack
               </Text>
               <TouchableOpacity 
                 onPress={() => {}}
                 style={{
-                  width: '48%',
-                  backgroundColor: '#FFFFFF',
+                  backgroundColor: '#F5F5FA',
                   borderRadius: 9999,
                   paddingVertical: 12,
                   paddingHorizontal: 16,
                   flexDirection: 'row',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                }}
+                  justifyContent: 'center'
+  }}
               >
-                <Icon name="plus" size={24} color={AppTheme.colors.textHigh} />
+                <Icon 
+                  name="plus"
+                  size={24}
+                  color={AppTheme.colors.textHigh}
+                />
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </View>
     </View>
+    <View style={{
+      flexDirection: 'column',
+      minHeight: 100 }}>
+    </View>
   </View>
       </ScrollView>
   <View style={{
-    flexDirection: 'column',
-    paddingHorizontal: AppTheme.layout.screenPadding,
-    paddingBottom: 16,
-  }}>
-    <View style={{
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-around',
-      height: 80,
-      backgroundColor: 'var(--dg-color-surface-glass-nav)',
-      borderRadius: AppTheme.radii.pill,
-      borderWidth: 1,
-      borderColor: AppTheme.colors.borderDivider,
-    }}>
+    flexDirection: 'row',
+    minHeight: 100,
+    paddingTop: 8,
+    paddingBottom: 8,
+    paddingLeft: 8,
+    paddingRight: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.05)',
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    width: '100%' }}>
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 4 }}>
       <TouchableOpacity 
         onPress={() => {}}
         style={{
+          width: '48%',
+          borderRadius: 999,
           paddingVertical: 12,
           paddingHorizontal: 16,
           flexDirection: 'row',
           alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Icon name="chef-hat" size={24} color={AppTheme.colors.textLow} />
-      </TouchableOpacity>
-      <TouchableOpacity 
-        onPress={() => {}}
-        style={{
-          paddingVertical: 12,
-          paddingHorizontal: 16,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Icon name="calendar-days" size={24} color={AppTheme.colors.textLow} />
-      </TouchableOpacity>
-      <TouchableOpacity 
-        onPress={() => {}}
-        style={{
-          paddingVertical: 12,
-          paddingHorizontal: 16,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Icon name="sparkles" size={24} color={AppTheme.colors.textLow} />
-      </TouchableOpacity>
-      <TouchableOpacity 
-        onPress={() => {}}
-        style={{
-          paddingVertical: 12,
-          paddingHorizontal: 16,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
+          justifyContent: 'center'
+  }}
       >
         <View style={{
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'center',
-          width: 44,
-          height: 44,
-          backgroundColor: AppTheme.colors.actionPrimary,
-          borderRadius: 9999,
-        }}>
-          <Icon name="book-open" size={24} color={AppTheme.colors.actionOnPrimary} />
+          width: 18,
+          height: 18,
+          minHeight: 100,
+          backgroundColor: '#F5F5FA' }}>
+          <Icon 
+            name="home"
+            size={24}
+            color={'transparent'}
+          />
         </View>
+        <Text style={{
+        }}>
+          Meal Plan
+        </Text>
       </TouchableOpacity>
       <TouchableOpacity 
         onPress={() => {}}
         style={{
+          width: '48%',
+          borderRadius: 999,
           paddingVertical: 12,
           paddingHorizontal: 16,
           flexDirection: 'row',
           alignItems: 'center',
-          justifyContent: 'center',
-        }}
+          justifyContent: 'center'
+  }}
       >
-        <Icon name="book-marked" size={24} color={AppTheme.colors.textLow} />
+        <View style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 18,
+          height: 18,
+          minHeight: 100,
+          backgroundColor: '#F5F5FA' }}>
+          <Icon 
+            name="search"
+            size={24}
+            color={'transparent'}
+          />
+        </View>
+        <Text style={{
+        }}>
+          Journal
+        </Text>
       </TouchableOpacity>
     </View>
   </View>

@@ -1,246 +1,118 @@
 "use client";
 
-import { TransformComponent, TransformWrapper, useControls } from "react-zoom-pan-pinch";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ScreenNode, SCREEN_FRAME_HEIGHT, SCREEN_FRAME_WIDTH } from "./ScreenNode";
-import type { ElementSelectionLostReason, SelectedElementInfo } from "./ScreenNode";
+import {
+  TransformComponent,
+  TransformWrapper,
+  type ReactZoomPanPinchContentRef,
+} from "react-zoom-pan-pinch";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import {
+  clampCanvasScale,
+  getCenteredTransform,
+  getFitTransform,
+  getScreenVisualBounds,
+  getScreensVisualBounds,
+  getVisibleWorkspace,
+  getWorkspaceInsetsFromObstacles,
+  getZoomAroundPointTransform,
+  type CanvasBounds,
+  type CanvasObstacle,
+  type CanvasViewport,
+} from "@/lib/canvas-camera";
+import {
+  EMPTY_CANVAS_INSETS,
+  type CanvasNavigationMessage,
+  type CanvasTool,
+  type CanvasTransformState,
+  type CanvasViewportInsets,
+} from "@/lib/canvas-interactions";
 import type { DesignTokens, ProjectNavigationData, ScreenData } from "@/lib/types";
+import { CanvasToolDock } from "./CanvasToolDock";
+import { ScreenNode } from "./ScreenNode";
+import type { ElementSelectionLostReason, SelectedElementInfo } from "./ScreenNode";
 
 const CANVAS_SIZE = 10000;
 const DEFAULT_EMPTY_SCALE_DESKTOP = 0.7;
 const DEFAULT_EMPTY_SCALE_MOBILE = 0.45;
-const MIN_CANVAS_SCALE = 0.1;
-const MAX_CANVAS_SCALE = 4;
-const FIT_SCALE_REDUCTION = 0.9;
-const CHAT_PANEL_RESERVED_WIDTH = 416;
-const WHEEL_ZOOM_STEP = 0.02;
+const WHEEL_ZOOM_STEP = 0.08;
+const BUTTON_ZOOM_MULTIPLIER = 1.2;
 const PAN_EXCLUDED_SELECTORS = ["canvas-pan-exclude"];
-const INITIAL_FIT_REQUEST_VERSION = 0;
-const MOBILE_TOP_RESERVED_HEIGHT = 88;
-const MOBILE_DEFAULT_BOTTOM_RESERVED_HEIGHT = 150;
-// Vertical space reserved for the external label bar above each phone frame.
-// Must match the `paddingTop` / top-shift in ScreenNode (currently 44 px).
-const SCREEN_LABEL_BAR_HEIGHT = 16;
 
-type ViewportSize = {
-  width: number;
-  height: number;
+const EMPTY_CANVAS_BOUNDS: CanvasBounds = {
+  minX: 0,
+  minY: 0,
+  maxX: CANVAS_SIZE,
+  maxY: CANVAS_SIZE,
+  width: CANVAS_SIZE,
+  height: CANVAS_SIZE,
+  centerX: CANVAS_SIZE / 2,
+  centerY: CANVAS_SIZE / 2,
 };
 
-type ScreenBounds = {
-  minX: number;
-  minY: number;
-  maxX: number;
-  maxY: number;
-  width: number;
-  height: number;
-  centerX: number;
-  centerY: number;
-};
-
-const clampScale = (scale: number) => Math.min(MAX_CANVAS_SCALE, Math.max(MIN_CANVAS_SCALE, scale));
-
-const getUsableViewport = (viewport: ViewportSize, mobileBottomReserve = MOBILE_DEFAULT_BOTTOM_RESERVED_HEIGHT) => {
-  if (viewport.width >= 768) {
-    return {
-      top: 0,
-      bottom: 0,
-      width: viewport.width,
-      height: viewport.height,
-      centerY: viewport.height / 2,
-    };
+const isKeyboardInputTarget = (target: EventTarget | null) => {
+  if (!(target instanceof HTMLElement)) {
+    return false;
   }
 
-  const top = MOBILE_TOP_RESERVED_HEIGHT;
-  const bottom = mobileBottomReserve;
-  const height = Math.max(280, viewport.height - top - bottom);
-
-  return {
-    top,
-    bottom,
-    width: viewport.width,
-    height,
-    centerY: top + height / 2,
-  };
+  return Boolean(
+    target.closest(
+      "input, textarea, select, [contenteditable='true'], [role='dialog'], [role='menu']",
+    ),
+  );
 };
 
-const getScreenBounds = (screens: ScreenData[]): ScreenBounds | null => {
-  if (screens.length === 0) {
-    return null;
-  }
+const getMeasuredWorkspaceInsets = (
+  container: HTMLElement,
+  mobileBottomReserve: number,
+): CanvasViewportInsets => {
+  const containerRect = container.getBoundingClientRect();
+  const obstacles: CanvasObstacle[] = [];
 
-  let minX = Number.POSITIVE_INFINITY;
-  let minY = Number.POSITIVE_INFINITY;
-  let maxX = Number.NEGATIVE_INFINITY;
-  let maxY = Number.NEGATIVE_INFINITY;
+  document.querySelectorAll<HTMLElement>("[data-canvas-obstacle]").forEach((element) => {
+    const style = window.getComputedStyle(element);
+    if (element === container || style.display === "none" || style.visibility === "hidden") {
+      return;
+    }
 
-  for (const screen of screens) {
-    minX = Math.min(minX, screen.x);
-    // Include the label bar that floats above the phone frame.
-    minY = Math.min(minY, screen.y - SCREEN_LABEL_BAR_HEIGHT);
-    maxX = Math.max(maxX, screen.x + SCREEN_FRAME_WIDTH);
-    maxY = Math.max(maxY, screen.y + SCREEN_FRAME_HEIGHT);
-  }
-
-  const width = Math.max(maxX - minX, SCREEN_FRAME_WIDTH);
-  const height = Math.max(maxY - minY, SCREEN_FRAME_HEIGHT);
-
-  return {
-    minX,
-    minY,
-    maxX,
-    maxY,
-    width,
-    height,
-    centerX: minX + width / 2,
-    centerY: minY + height / 2,
-  };
-};
-
-const getFitTransform = (screenBounds: ScreenBounds, viewport: ViewportSize, mobileBottomReserve?: number) => {
-  const usableViewport = getUsableViewport(viewport, mobileBottomReserve);
-  const scale = clampScale(Math.min(usableViewport.width / screenBounds.width, usableViewport.height / screenBounds.height) * FIT_SCALE_REDUCTION);
-
-  return {
-    positionX: viewport.width / 2 - screenBounds.centerX * scale,
-    positionY: usableViewport.centerY - screenBounds.centerY * scale,
-    scale,
-  };
-};
-
-const getSelectedScreenTransform = (screen: ScreenData, viewport: ViewportSize, scale: number, mobileBottomReserve?: number) => {
-  const usableViewport = getUsableViewport(viewport, mobileBottomReserve);
-  const reservedWidth = viewport.width >= 768 ? CHAT_PANEL_RESERVED_WIDTH : 0;
-  const visualCenterX = viewport.width / 2 + reservedWidth / 2;
-  const centerX = screen.x + SCREEN_FRAME_WIDTH / 2;
-  // Offset the vertical centre upward by half the label bar so the
-  // phone + its label appear visually centred in the viewport.
-  const centerY = screen.y + SCREEN_FRAME_HEIGHT / 2 - SCREEN_LABEL_BAR_HEIGHT / 2;
-
-  return {
-    positionX: visualCenterX - centerX * scale,
-    positionY: usableViewport.centerY - centerY * scale,
-    scale: clampScale(scale),
-  };
-};
-
-const getEmptyCanvasTransform = (viewport: ViewportSize, mobileBottomReserve?: number) => {
-  const usableViewport = getUsableViewport(viewport, mobileBottomReserve);
-  const scale = viewport.width < 768 ? DEFAULT_EMPTY_SCALE_MOBILE : DEFAULT_EMPTY_SCALE_DESKTOP;
-
-  return {
-    positionX: viewport.width / 2 - (CANVAS_SIZE / 2) * scale,
-    positionY: usableViewport.centerY - (CANVAS_SIZE / 2) * scale,
-    scale,
-  };
-};
-
-const CanvasControls = ({
-  fitRequestVersion,
-  screenBounds,
-  selectedScreen,
-  viewport,
-  mobileBottomReserve,
-}: {
-  fitRequestVersion: number;
-  screenBounds: ScreenBounds | null;
-  selectedScreen: ScreenData | null;
-  viewport: ViewportSize | null;
-  mobileBottomReserve?: number;
-}) => {
-  const { setTransform, state } = useControls();
-  const lastHandledFitRequestRef = useRef(INITIAL_FIT_REQUEST_VERSION);
-  const lastSelectedSnapshotRef = useRef<{ id: string | null; x: number | null; y: number | null; scale: number | null }>({
-    id: null,
-    x: null,
-    y: null,
-    scale: null,
+    const rect = element.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) {
+      return;
+    }
+    const role = element.dataset.canvasObstacle as CanvasObstacle["role"] | undefined;
+    const isFullWidthOverlay =
+      (role === "left" || role === "right") && rect.width > containerRect.width * 0.7;
+    if (role && !isFullWidthOverlay) {
+      obstacles.push({
+        role,
+        left: rect.left - containerRect.left,
+        top: rect.top - containerRect.top,
+        right: rect.right - containerRect.left,
+        bottom: rect.bottom - containerRect.top,
+      });
+    }
   });
 
-  useEffect(() => {
-    if (!viewport || fitRequestVersion === lastHandledFitRequestRef.current) {
-      return;
-    }
+  const minimumInsets =
+    containerRect.width < 768
+      ? {
+          left: 16,
+          right: 16,
+          top: 72,
+          bottom: mobileBottomReserve + 64,
+        }
+      : {
+          left: 24,
+          right: 24,
+          top: 56,
+          bottom: 80,
+        };
 
-    lastHandledFitRequestRef.current = fitRequestVersion;
-
-    if (!screenBounds || selectedScreen) {
-      return;
-    }
-
-    const transform = getFitTransform(screenBounds, viewport, mobileBottomReserve);
-    setTransform(transform.positionX, transform.positionY, transform.scale, 450);
-  }, [fitRequestVersion, mobileBottomReserve, screenBounds, selectedScreen, setTransform, viewport]);
-
-  useEffect(() => {
-    if (!viewport || !selectedScreen) {
-      lastSelectedSnapshotRef.current = { id: null, x: null, y: null, scale: null };
-      return;
-    }
-
-    const previousSnapshot = lastSelectedSnapshotRef.current;
-    const positionChanged = previousSnapshot.id !== selectedScreen.id || previousSnapshot.x !== selectedScreen.x || previousSnapshot.y !== selectedScreen.y;
-    const scaleChanged = previousSnapshot.scale !== state.scale;
-
-    lastSelectedSnapshotRef.current = {
-      id: selectedScreen.id,
-      x: selectedScreen.x,
-      y: selectedScreen.y,
-      scale: state.scale,
-    };
-
-    const transform = getSelectedScreenTransform(selectedScreen, viewport, state.scale, mobileBottomReserve);
-    if (!positionChanged && !scaleChanged) {
-      return;
-    }
-
-    const animationTime = positionChanged ? 400 : 0;
-
-    setTransform(transform.positionX, transform.positionY, transform.scale, animationTime);
-  }, [mobileBottomReserve, selectedScreen, setTransform, state.scale, viewport]);
-
-  // Removed maximize/reset button and logic as requested
-
-  // Custom zoom handlers for smooth 10% zoom steps
-  const ZOOM_STEP = 1.05; // 5% zoom step
-  const handleZoomIn = () => {
-    const newScale = clampScale(state.scale * ZOOM_STEP);
-    setTransform(state.positionX, state.positionY, newScale, 200);
-  };
-
-  const handleZoomOut = () => {
-    const newScale = clampScale(state.scale / ZOOM_STEP);
-    setTransform(state.positionX, state.positionY, newScale, 200);
-  };
-
-  const handleFitCanvas = () => {
-    if (!viewport) {
-      return;
-    }
-
-    const transform = screenBounds && !selectedScreen
-      ? getFitTransform(screenBounds, viewport, mobileBottomReserve)
-      : selectedScreen
-        ? getSelectedScreenTransform(selectedScreen, viewport, state.scale, mobileBottomReserve)
-        : getEmptyCanvasTransform(viewport, mobileBottomReserve);
-
-    setTransform(transform.positionX, transform.positionY, transform.scale, 360);
-  };
-
-  useEffect(() => {
-    window.addEventListener("drawgle:canvas-zoom-in", handleZoomIn);
-    window.addEventListener("drawgle:canvas-zoom-out", handleZoomOut);
-    window.addEventListener("drawgle:canvas-fit", handleFitCanvas);
-
-    return () => {
-      window.removeEventListener("drawgle:canvas-zoom-in", handleZoomIn);
-      window.removeEventListener("drawgle:canvas-zoom-out", handleZoomOut);
-      window.removeEventListener("drawgle:canvas-fit", handleFitCanvas);
-    };
-  });
-
-  return null;
+  return getWorkspaceInsetsFromObstacles(
+    { width: containerRect.width, height: containerRect.height },
+    obstacles,
+    minimumInsets,
+  );
 };
 
 const CanvasContent = ({
@@ -248,38 +120,52 @@ const CanvasContent = ({
   projectNavigation,
   designTokens,
   selectedScreen,
+  scale,
+  tool,
+  isTemporaryPan,
   onSelectScreen,
-  selectionMode,
-  preserveSelectionOnCanvasClick,
+  onCanvasClick,
   selectedElementScreenId,
   selectedElementDrawgleId,
   onElementSelected,
   onElementSelectionLost,
+  onCanvasNavigation,
   onExportCode,
 }: {
   screens: ScreenData[];
   projectNavigation?: ProjectNavigationData | null;
   designTokens?: DesignTokens | null;
   selectedScreen?: ScreenData | null;
+  scale: number;
+  tool: CanvasTool;
+  isTemporaryPan: boolean;
   onSelectScreen?: (screen: ScreenData | null) => void;
-  selectionMode?: boolean;
-  preserveSelectionOnCanvasClick?: boolean;
+  onCanvasClick?: () => void;
   selectedElementScreenId?: string | null;
   selectedElementDrawgleId?: string | null;
   onElementSelected?: (info: SelectedElementInfo) => void;
-  onElementSelectionLost?: (info: { screenId: string; drawgleId: string; reason?: ElementSelectionLostReason }) => void;
-  onExportCode?: (cleanScreenCode: string, cleanNavigationCode: string, screenName: string, tokenCss: string, googleFontAssetLinks: string, activeNavigationItemId: string | null) => void;
+  onElementSelectionLost?: (info: {
+    screenId: string;
+    drawgleId: string;
+    reason?: ElementSelectionLostReason;
+  }) => void;
+  onCanvasNavigation?: (message: CanvasNavigationMessage) => void;
+  onExportCode?: (
+    cleanScreenCode: string,
+    cleanNavigationCode: string,
+    screenName: string,
+    tokenCss: string,
+    googleFontAssetLinks: string,
+    activeNavigationItemId: string | null,
+  ) => void;
 }) => {
-  const { state } = useControls();
-  const scale = state.scale;
-
   return (
     <TransformComponent wrapperStyle={{ width: "100%", height: "100%" }}>
       <div
-        className="w-[10000px] h-[10000px] relative"
-        onClick={(e) => {
-          if (e.target === e.currentTarget && !preserveSelectionOnCanvasClick) {
-            onSelectScreen?.(null);
+        className="relative h-[10000px] w-[10000px]"
+        onClick={(event) => {
+          if (event.target === event.currentTarget && tool !== "pan" && !isTemporaryPan) {
+            onCanvasClick?.();
           }
         }}
       >
@@ -292,10 +178,15 @@ const CanvasContent = ({
             isSelected={selectedScreen?.id === screen.id}
             onClick={() => onSelectScreen?.(screen)}
             scale={scale}
-            selectionMode={selectionMode}
-            selectedDrawgleId={selectedElementScreenId === screen.id ? selectedElementDrawgleId ?? null : null}
+            canvasTool={tool}
+            isTemporaryCanvasPan={isTemporaryPan}
+            selectionMode={tool === "element-select"}
+            selectedDrawgleId={
+              selectedElementScreenId === screen.id ? selectedElementDrawgleId ?? null : null
+            }
             onElementSelected={onElementSelected}
             onElementSelectionLost={onElementSelectionLost}
+            onCanvasNavigation={onCanvasNavigation}
             onExportCode={onExportCode}
           />
         ))}
@@ -304,41 +195,95 @@ const CanvasContent = ({
   );
 };
 
-export function CanvasArea({
+export function CanvasStage({
   screens,
   projectNavigation,
   designTokens,
-  fitRequestVersion = INITIAL_FIT_REQUEST_VERSION,
   selectedScreen,
-  mobileBottomReserve = MOBILE_DEFAULT_BOTTOM_RESERVED_HEIGHT,
+  mobileBottomReserve = 96,
+  tool,
+  disabled,
+  onToolChange,
   onSelectScreen,
-  selectionMode,
-  preserveSelectionOnCanvasClick,
+  onCanvasClick,
   selectedElementScreenId,
   selectedElementDrawgleId,
+  hasSelectedElement,
+  selectedElementCanEditText,
+  selectedElementCanEditDesign,
   onElementSelected,
   onElementSelectionLost,
+  onEditSelectedText,
+  onEditSelectedDesign,
+  onClearSelectedElement,
   onExportCode,
 }: {
   screens: ScreenData[];
   projectNavigation?: ProjectNavigationData | null;
   designTokens?: DesignTokens | null;
-  fitRequestVersion?: number;
   selectedScreen?: ScreenData | null;
   mobileBottomReserve?: number;
+  tool: CanvasTool;
+  disabled?: boolean;
+  onToolChange?: (tool: CanvasTool) => void;
   onSelectScreen?: (screen: ScreenData | null) => void;
-  selectionMode?: boolean;
-  preserveSelectionOnCanvasClick?: boolean;
+  onCanvasClick?: () => void;
   selectedElementScreenId?: string | null;
   selectedElementDrawgleId?: string | null;
+  hasSelectedElement: boolean;
+  selectedElementCanEditText: boolean;
+  selectedElementCanEditDesign: boolean;
   onElementSelected?: (info: SelectedElementInfo) => void;
-  onElementSelectionLost?: (info: { screenId: string; drawgleId: string; reason?: ElementSelectionLostReason }) => void;
-  onExportCode?: (cleanScreenCode: string, cleanNavigationCode: string, screenName: string, tokenCss: string, googleFontAssetLinks: string, activeNavigationItemId: string | null) => void;
+  onElementSelectionLost?: (info: {
+    screenId: string;
+    drawgleId: string;
+    reason?: ElementSelectionLostReason;
+  }) => void;
+  onEditSelectedText?: () => void;
+  onEditSelectedDesign?: () => void;
+  onClearSelectedElement?: () => void;
+  onExportCode?: (
+    cleanScreenCode: string,
+    cleanNavigationCode: string,
+    screenName: string,
+    tokenCss: string,
+    googleFontAssetLinks: string,
+    activeNavigationItemId: string | null,
+  ) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const cameraRef = useRef<ReactZoomPanPinchContentRef | null>(null);
+  const panGestureRef = useRef({
+    active: false,
+    lastX: 0,
+    lastY: 0,
+  });
+  const knownScreenIdsRef = useRef<Set<string>>(new Set());
+  const screenIdsHydratedRef = useRef(false);
+  const initialFitCompletedRef = useRef(false);
+  const pendingFocusScreenIdRef = useRef<string | null>(null);
   const [initialScale, setInitialScale] = useState<number | null>(null);
-  const [viewport, setViewport] = useState<ViewportSize | null>(null);
-  const screenBounds = useMemo(() => getScreenBounds(screens), [screens]);
+  const [viewport, setViewport] = useState<CanvasViewport | null>(null);
+  const [workspaceInsets, setWorkspaceInsets] =
+    useState<CanvasViewportInsets>(EMPTY_CANVAS_INSETS);
+  const [cameraReadyVersion, setCameraReadyVersion] = useState(0);
+  const [isSpacePressed, setIsSpacePressed] = useState(false);
+  const [isMousePanning, setIsMousePanning] = useState(false);
+  const [canvasScale, setCanvasScale] = useState(1);
+  const screenBounds = useMemo(() => getScreensVisualBounds(screens), [screens]);
+  const visibleWorkspace = useMemo(
+    () => (viewport ? getVisibleWorkspace(viewport, workspaceInsets) : null),
+    [viewport, workspaceInsets],
+  );
+  const dockCenterX = viewport
+    ? Math.min(
+        Math.max(visibleWorkspace?.centerX ?? viewport.width / 2, 180),
+        Math.max(180, viewport.width - 180),
+      )
+    : null;
+  const isTemporaryPan = isSpacePressed;
+  const isPanToolActive = tool === "pan" || isTemporaryPan;
+  const canUseCamera = Boolean(viewport) && cameraReadyVersion > 0;
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -356,60 +301,362 @@ export function CanvasArea({
         width: container.clientWidth,
         height: container.clientHeight,
       });
+      setWorkspaceInsets(getMeasuredWorkspaceInsets(container, mobileBottomReserve));
     };
 
     updateViewport();
-
-    const observer = new ResizeObserver(() => {
-      updateViewport();
-    });
-
+    const observer = new ResizeObserver(updateViewport);
     observer.observe(container);
-
+    const observeObstacles = () => {
+      document.querySelectorAll<HTMLElement>("[data-canvas-obstacle]").forEach((element) => {
+        observer.observe(element);
+      });
+      updateViewport();
+    };
+    observeObstacles();
+    const mutationObserver = new MutationObserver(observeObstacles);
+    mutationObserver.observe(document.body, { childList: true, subtree: true });
+    window.addEventListener("resize", updateViewport);
     return () => {
       observer.disconnect();
+      mutationObserver.disconnect();
+      window.removeEventListener("resize", updateViewport);
+    };
+  }, [mobileBottomReserve]);
+
+  const getCurrentTransform = useCallback((): CanvasTransformState | null => {
+    const controls = cameraRef.current;
+    if (!controls) {
+      return null;
+    }
+
+    return {
+      x: controls.instance.state.positionX,
+      y: controls.instance.state.positionY,
+      scale: controls.instance.state.scale,
     };
   }, []);
 
-  if (initialScale === null) return null;
+  const applyCameraTransform = useCallback((transform: CanvasTransformState) => {
+    const controls = cameraRef.current;
+    if (!controls?.instance.isInitialized) {
+      return false;
+    }
+
+    controls.setTransform(transform.x, transform.y, clampCanvasScale(transform.scale), 0);
+    return true;
+  }, []);
+
+  const fitAll = useCallback(() => {
+    if (!viewport) {
+      return false;
+    }
+
+    const transform = screenBounds
+      ? getFitTransform(screenBounds, viewport, workspaceInsets)
+      : getCenteredTransform(
+          EMPTY_CANVAS_BOUNDS,
+          viewport,
+          workspaceInsets,
+          viewport.width < 768 ? DEFAULT_EMPTY_SCALE_MOBILE : DEFAULT_EMPTY_SCALE_DESKTOP,
+        );
+    return applyCameraTransform(transform);
+  }, [applyCameraTransform, screenBounds, viewport, workspaceInsets]);
+
+  const focusScreen = useCallback(
+    (screen: ScreenData | null) => {
+      if (!viewport || !screen) {
+        return false;
+      }
+
+      return applyCameraTransform(
+        getFitTransform(getScreenVisualBounds(screen), viewport, workspaceInsets),
+      );
+    },
+    [applyCameraTransform, viewport, workspaceInsets],
+  );
+
+  const zoomAroundPoint = useCallback(
+    (nextScale: number, point: { x: number; y: number }) => {
+      const current = getCurrentTransform();
+      if (!current) {
+        return false;
+      }
+
+      return applyCameraTransform(getZoomAroundPointTransform(current, nextScale, point));
+    },
+    [applyCameraTransform, getCurrentTransform],
+  );
+
+  const zoomAroundWorkspaceCenter = useCallback(
+    (nextScale: number) => {
+      if (!visibleWorkspace) {
+        return false;
+      }
+      return zoomAroundPoint(nextScale, {
+        x: visibleWorkspace.centerX,
+        y: visibleWorkspace.centerY,
+      });
+    },
+    [visibleWorkspace, zoomAroundPoint],
+  );
+
+  const panBy = useCallback(
+    (deltaX: number, deltaY: number) => {
+      const current = getCurrentTransform();
+      if (!current) {
+        return false;
+      }
+      return applyCameraTransform({
+        x: current.x + deltaX,
+        y: current.y + deltaY,
+        scale: current.scale,
+      });
+    },
+    [applyCameraTransform, getCurrentTransform],
+  );
+
+  const captureCamera = useCallback((controls: ReactZoomPanPinchContentRef | null) => {
+    cameraRef.current = controls;
+    if (!controls) {
+      return;
+    }
+    setCanvasScale(controls.instance.state.scale);
+    setCameraReadyVersion((version) => version + 1);
+  }, []);
+
+  useEffect(() => {
+    if (!canUseCamera || initialFitCompletedRef.current) {
+      return;
+    }
+    if (fitAll()) {
+      initialFitCompletedRef.current = true;
+    }
+  }, [cameraReadyVersion, canUseCamera, fitAll]);
+
+  useEffect(() => {
+    const currentIds = new Set(screens.map((screen) => screen.id));
+    if (!screenIdsHydratedRef.current) {
+      screenIdsHydratedRef.current = true;
+      knownScreenIdsRef.current = currentIds;
+      return;
+    }
+
+    const newlyAddedScreens = screens.filter(
+      (screen) => !knownScreenIdsRef.current.has(screen.id),
+    );
+    knownScreenIdsRef.current = currentIds;
+    if (newlyAddedScreens.length === 0) {
+      return;
+    }
+
+    pendingFocusScreenIdRef.current = newlyAddedScreens[newlyAddedScreens.length - 1].id;
+  }, [screens]);
+
+  useEffect(() => {
+    const pendingScreenId = pendingFocusScreenIdRef.current;
+    if (!canUseCamera || !pendingScreenId) {
+      return;
+    }
+
+    const pendingScreen = screens.find((screen) => screen.id === pendingScreenId) ?? null;
+    if (pendingScreen && focusScreen(pendingScreen)) {
+      pendingFocusScreenIdRef.current = null;
+    }
+  }, [cameraReadyVersion, canUseCamera, focusScreen, screens]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isKeyboardInputTarget(event.target)) {
+        return;
+      }
+
+      const key = event.key.toLowerCase();
+      if (event.code === "Space") {
+        event.preventDefault();
+        setIsSpacePressed(true);
+        return;
+      }
+      if (key === "escape" || key === "v") {
+        onToolChange?.("pointer");
+        return;
+      }
+      if (key === "h") {
+        onToolChange?.("pan");
+        return;
+      }
+      if (key === "0") {
+        event.preventDefault();
+        zoomAroundWorkspaceCenter(1);
+        return;
+      }
+      if (event.shiftKey && key === "1") {
+        event.preventDefault();
+        fitAll();
+        return;
+      }
+      if (event.shiftKey && key === "2" && selectedScreen) {
+        event.preventDefault();
+        focusScreen(selectedScreen);
+      }
+    };
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.code === "Space") {
+        setIsSpacePressed(false);
+      }
+    };
+    const handleBlur = () => setIsSpacePressed(false);
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", handleBlur);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", handleBlur);
+    };
+  }, [fitAll, focusScreen, onToolChange, selectedScreen, zoomAroundWorkspaceCenter]);
+
+  if (initialScale === null) {
+    return null;
+  }
 
   return (
-    <div ref={containerRef} className="relative h-full w-full dg-dashed-grid-bg">
+    <div
+      ref={containerRef}
+      className="relative h-full w-full select-none dg-dashed-grid-bg"
+      style={{
+        cursor: isMousePanning ? "grabbing" : isPanToolActive ? "grab" : "default",
+      }}
+    >
       <TransformWrapper
+        ref={captureCamera}
         initialScale={initialScale}
-        minScale={MIN_CANVAS_SCALE}
-        maxScale={MAX_CANVAS_SCALE}
+        minScale={0.1}
+        maxScale={4}
         centerOnInit
         limitToBounds={false}
         smooth={false}
         doubleClick={{ disabled: true }}
-        panning={{ allowLeftClickPan: true, allowMiddleClickPan: true, excluded: PAN_EXCLUDED_SELECTORS }}
-        wheel={{ step: WHEEL_ZOOM_STEP }}
+        panning={{
+          allowLeftClickPan: isPanToolActive,
+          allowMiddleClickPan: true,
+          velocityDisabled: true,
+          excluded: PAN_EXCLUDED_SELECTORS,
+        }}
+        wheel={{ step: WHEEL_ZOOM_STEP, wheelDisabled: true }}
+        trackPadPanning={{
+          disabled: false,
+          velocityDisabled: true,
+          excluded: ["canvas-pan-exclude"],
+        }}
+        pinch={{ excluded: ["canvas-pan-exclude"] }}
+        onInit={captureCamera}
+        onPanningStart={() => setIsMousePanning(true)}
+        onPanningStop={() => setIsMousePanning(false)}
+        onTransform={(controls, transform) => {
+          if (!cameraRef.current) {
+            captureCamera(controls);
+          }
+          setCanvasScale(transform.scale);
+        }}
       >
-        <>
-          <CanvasControls
-            fitRequestVersion={fitRequestVersion}
-            screenBounds={screenBounds}
-            selectedScreen={selectedScreen || null}
-            viewport={viewport}
-            mobileBottomReserve={mobileBottomReserve}
-          />
-          <CanvasContent
-            screens={screens}
-            projectNavigation={projectNavigation}
-            designTokens={designTokens}
-            selectedScreen={selectedScreen}
-            onSelectScreen={onSelectScreen}
-            selectionMode={selectionMode}
-            preserveSelectionOnCanvasClick={preserveSelectionOnCanvasClick}
-            selectedElementScreenId={selectedElementScreenId}
-            selectedElementDrawgleId={selectedElementDrawgleId}
-            onElementSelected={onElementSelected}
-            onElementSelectionLost={onElementSelectionLost}
-            onExportCode={onExportCode}
-          />
-        </>
+        {() => {
+          const handleCanvasNavigation = (message: CanvasNavigationMessage) => {
+            const container = containerRef.current;
+            if (!container) {
+              return;
+            }
+
+            if (message.type === "drawgleCanvasZoom") {
+              const current = getCurrentTransform();
+              if (!current) {
+                return;
+              }
+              const rect = container.getBoundingClientRect();
+              const point = {
+                x: message.clientX - rect.left,
+                y: message.clientY - rect.top,
+              };
+              zoomAroundPoint(current.scale * Math.exp(-message.deltaY * 0.0025), point);
+              return;
+            }
+            if (message.type === "drawgleCanvasPanBy") {
+              panBy(message.deltaX, message.deltaY);
+              return;
+            }
+
+            const gesture = panGestureRef.current;
+            if (message.type === "drawgleCanvasPanStart") {
+              gesture.active = true;
+              gesture.lastX = message.clientX;
+              gesture.lastY = message.clientY;
+              setIsMousePanning(true);
+              return;
+            }
+            if (message.type === "drawgleCanvasPanMove" && gesture.active) {
+              panBy(message.clientX - gesture.lastX, message.clientY - gesture.lastY);
+              gesture.lastX = message.clientX;
+              gesture.lastY = message.clientY;
+              return;
+            }
+            if (message.type === "drawgleCanvasPanEnd") {
+              gesture.active = false;
+              setIsMousePanning(false);
+            }
+          };
+
+          return (
+            <CanvasContent
+              screens={screens}
+              projectNavigation={projectNavigation}
+              designTokens={designTokens}
+              selectedScreen={selectedScreen}
+              scale={canvasScale}
+              tool={tool}
+              isTemporaryPan={isTemporaryPan}
+              onSelectScreen={onSelectScreen}
+              onCanvasClick={onCanvasClick}
+              selectedElementScreenId={selectedElementScreenId}
+              selectedElementDrawgleId={selectedElementDrawgleId}
+              onElementSelected={onElementSelected}
+              onElementSelectionLost={onElementSelectionLost}
+              onCanvasNavigation={handleCanvasNavigation}
+              onExportCode={onExportCode}
+            />
+          );
+        }}
       </TransformWrapper>
+
+      <CanvasToolDock
+        tool={tool}
+        zoomPercent={Math.round(canvasScale * 100)}
+        canFocus={Boolean(selectedScreen)}
+        hasSelectedElement={hasSelectedElement}
+        selectedElementCanEditText={selectedElementCanEditText}
+        selectedElementCanEditDesign={selectedElementCanEditDesign}
+        disabled={disabled}
+        workspaceCenterX={dockCenterX}
+        onToolChange={onToolChange}
+        onZoomOut={() => {
+          const current = getCurrentTransform();
+          if (current) {
+            zoomAroundWorkspaceCenter(current.scale / BUTTON_ZOOM_MULTIPLIER);
+          }
+        }}
+        onResetZoom={() => zoomAroundWorkspaceCenter(1)}
+        onFitCanvas={fitAll}
+        onFocusSelection={() => focusScreen(selectedScreen ?? null)}
+        onZoomIn={() => {
+          const current = getCurrentTransform();
+          if (current) {
+            zoomAroundWorkspaceCenter(current.scale * BUTTON_ZOOM_MULTIPLIER);
+          }
+        }}
+        onEditSelectedText={onEditSelectedText}
+        onEditSelectedDesign={onEditSelectedDesign}
+        onClearSelectedElement={onClearSelectedElement}
+      />
     </div>
   );
 }

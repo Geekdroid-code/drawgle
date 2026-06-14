@@ -44,122 +44,224 @@ class JournalScreen extends StatelessWidget {
           children: [
             SingleChildScrollView(
               child: Container(
-    width: double.infinity,
+    constraints: BoxConstraints(minHeight: 100.0),
     decoration: BoxDecoration(
-      color: AppTheme.backgroundPrimary,
+      color: Color(0xFFF5F5FA)
     ),
     child: Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     mainAxisAlignment: MainAxisAlignment.start,
     children: [
-    Expanded(
-      child: Container(
+    Container(
       width: double.infinity,
-      padding: EdgeInsets.only(left: 0.0, top: 16.0, right: 0.0, bottom: 96.0),
+    constraints: BoxConstraints(minHeight: 100.0),
+      decoration: BoxDecoration(
+      color: AppTheme.backgroundPrimary
+    ),
       child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisAlignment: MainAxisAlignment.start,
       children: [
       Container(
-        padding: EdgeInsets.only(left: AppTheme.screenPadding, top: 0.0, right: AppTheme.screenPadding, bottom: 0.0),
+        width: double.infinity,
+    constraints: BoxConstraints(minHeight: 100.0),
+        padding: EdgeInsets.only(left: 24.0, top: 20.0, right: 24.0, bottom: 8.0),
+        decoration: BoxDecoration(
+      color: Color(0xFFF5F5FA)
+    ),
+        child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+        Text(
+          '9:41',
+          style: TextStyle(
+            fontSize: 14.0,
+            color: AppTheme.textHigh,
+            fontWeight: FontWeight.w500
+    ),
+        ),
+        Container(
+          constraints: BoxConstraints(minHeight: 100.0),
+          child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+          Icon(Icons.signal, size: 24.0, color: Colors.transparent),
+          SizedBox(width: 6.0),
+          Icon(Icons.wifi, size: 24.0, color: Colors.transparent),
+          SizedBox(width: 6.0),
+          Icon(Icons.battery_full, size: 24.0, color: Colors.transparent)
+          ]
+    ),
+        )
+        ]
+    ),
+      ),
+      Container(
+        width: double.infinity,
+    constraints: BoxConstraints(minHeight: 100.0),
+        padding: EdgeInsets.only(left: AppTheme.screenPadding, top: 12.0, right: AppTheme.screenPadding, bottom: 8.0),
+        decoration: BoxDecoration(
+      color: Color(0xFFF5F5FA)
+    ),
+        child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+        Text(
+          'Journal',
+          style: TextStyle(
+            fontSize: 34.0,
+            color: AppTheme.textHigh,
+            fontWeight: FontWeight.w800
+    ),
+        ),
+        ElevatedButton(
+          onPressed: () {},
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Color(0xFFF5F5FA),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(9999.0)
+    ),
+            padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0)
+    ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.more_horizontal, size: 24.0, color: AppTheme.textHigh)
+            ]
+    ),
+        )
+        ]
+    ),
+      ),
+      Container(
+        width: double.infinity,
+    constraints: BoxConstraints(minHeight: 100.0),
+        padding: EdgeInsets.only(left: AppTheme.screenPadding, top: 8.0, right: AppTheme.screenPadding, bottom: 120.0),
+        decoration: BoxDecoration(
+      color: Color(0xFFF5F5FA)
+    ),
         child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisAlignment: MainAxisAlignment.start,
         children: [
-        Padding(
-          padding: EdgeInsets.only(top: 0.0, bottom: AppTheme.sectionGap),
-          child: Text(
-          'Journal',
-          style: TextStyle(
-            fontSize: 24.0,
-            color: AppTheme.textHigh,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        ),
         Container(
+          width: double.infinity,
+    constraints: BoxConstraints(minHeight: 100.0),
+          padding: EdgeInsets.only(left: 20.0, top: 20.0, right: 20.0, bottom: 20.0),
           decoration: BoxDecoration(
       color: AppTheme.surfaceCard,
-      borderRadius: BorderRadius.circular(AppTheme.borderRadiusApp),
+      borderRadius: BorderRadius.circular(AppTheme.borderRadiusApp)
     ),
           child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisAlignment: MainAxisAlignment.start,
           children: [
-          Row(
+          Container(
+            width: double.infinity,
+    constraints: BoxConstraints(minHeight: 100.0),
+            decoration: BoxDecoration(
+      color: Color(0xFFF5F5FA)
+    ),
+            child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-            Row(
+            Container(
+              constraints: BoxConstraints(minHeight: 100.0),
+              child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               mainAxisAlignment: MainAxisAlignment.start,
               children: [
               Container(
-                width: 36.0,
-    height: 36.0,
+                width: 40.0,
+    height: 40.0,
+    constraints: BoxConstraints(minHeight: 100.0),
                 decoration: BoxDecoration(
-      color: AppTheme.backgroundPrimary,
-      borderRadius: BorderRadius.circular(9999.0),
+      color: Color.fromRGBO(255, 214, 0, 0.18),
+      borderRadius: BorderRadius.circular(9999.0)
     ),
                 child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                Icon(Icons.flame, size: 24.0, color: Color(0xFFFFFFFF))
-                ],
+                Text(
+                  '🔥',
+                  style: TextStyle(
+                    fontSize: 20.0
+    ),
+                )
+                ]
+    ),
               ),
-              ),
-              Column(
+              SizedBox(width: 12.0),
+              Container(
+                constraints: BoxConstraints(minHeight: 100.0),
+                child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisAlignment: MainAxisAlignment.start,
                 children: [
                 Text(
                   'Calories',
                   style: TextStyle(
-                    fontSize: 18.0,
+                    fontSize: 20.0,
                     color: AppTheme.textHigh,
-                    fontWeight: FontWeight.bold,
-                  ),
+                    fontWeight: FontWeight.bold
+    ),
                 ),
                 Text(
                   'Week Days',
                   style: TextStyle(
                     fontSize: 12.0,
                     color: AppTheme.textMedium,
-                    fontWeight: FontWeight.w600,
-                  ),
+                    fontWeight: FontWeight.normal
+    ),
                 )
-                ],
+                ]
+    ),
               )
-              ],
+              ]
+    ),
             ),
             ElevatedButton(
               onPressed: () {},
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.backgroundPrimary,
+                backgroundColor: Color(0xFFF5F5FA),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(9999.0),
-                ),
-                padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-              ),
+                  borderRadius: BorderRadius.circular(9999.0)
+    ),
+                padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0)
+    ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.calendar, size: 24.0, color: AppTheme.textHigh)
-                ],
-              ),
+                ]
+    ),
             )
-            ],
+            ]
+    ),
           ),
-          Column(
+          SizedBox(height: 16.0),
+          Container(
+            width: double.infinity,
+    constraints: BoxConstraints(minHeight: 100.0),
+            decoration: BoxDecoration(
+      color: Color(0xFFF5F5FA)
+    ),
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisAlignment: MainAxisAlignment.start,
             children: [
             Container(
-              padding: EdgeInsets.only(left: 0.0, top: 12.0, right: 0.0, bottom: 12.0),
+              width: double.infinity,
+    constraints: BoxConstraints(minHeight: 100.0),
+              padding: EdgeInsets.only(left: 16.0, top: 12.0, right: 16.0, bottom: 12.0),
               decoration: BoxDecoration(
       color: AppTheme.backgroundPrimary,
-      borderRadius: BorderRadius.circular(20.0),
+      borderRadius: BorderRadius.circular(18.0)
     ),
               child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
@@ -168,27 +270,30 @@ class JournalScreen extends StatelessWidget {
               Text(
                 'Consumed',
                 style: TextStyle(
-                  fontSize: 16.0,
+                  fontSize: 14.0,
                   color: AppTheme.textMedium,
-                  fontWeight: FontWeight.w500,
-                ),
+                  fontWeight: FontWeight.w500
+    ),
               ),
               Text(
                 '00 cal',
                 style: TextStyle(
-                  fontSize: 32.0,
+                  fontSize: 18.0,
                   color: AppTheme.textHigh,
-                  fontWeight: FontWeight.w800,
-                ),
+                  fontWeight: FontWeight.w600
+    ),
               )
-              ],
+              ]
+    ),
             ),
-            ),
+            SizedBox(height: 10.0),
             Container(
-              padding: EdgeInsets.only(left: 0.0, top: 12.0, right: 0.0, bottom: 12.0),
+              width: double.infinity,
+    constraints: BoxConstraints(minHeight: 100.0),
+              padding: EdgeInsets.only(left: 16.0, top: 12.0, right: 16.0, bottom: 12.0),
               decoration: BoxDecoration(
       color: AppTheme.backgroundPrimary,
-      borderRadius: BorderRadius.circular(20.0),
+      borderRadius: BorderRadius.circular(18.0)
     ),
               child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
@@ -197,40 +302,34 @@ class JournalScreen extends StatelessWidget {
               Text(
                 'Remaining',
                 style: TextStyle(
-                  fontSize: 16.0,
+                  fontSize: 14.0,
                   color: AppTheme.textMedium,
-                  fontWeight: FontWeight.w500,
-                ),
+                  fontWeight: FontWeight.w500
+    ),
               ),
               Text(
                 '00 cal',
                 style: TextStyle(
-                  fontSize: 32.0,
+                  fontSize: 18.0,
                   color: AppTheme.textHigh,
-                  fontWeight: FontWeight.w800,
-                ),
+                  fontWeight: FontWeight.w600
+    ),
               )
-              ],
+              ]
+    ),
             ),
-            ),
-            Stack(
-              children: [
-              Positioned.fill(
-                child: Container(
-                decoration: BoxDecoration(
+            SizedBox(height: 10.0),
+            Container(
+              width: double.infinity,
+    constraints: BoxConstraints(minHeight: 100.0),
+              padding: EdgeInsets.only(left: 16.0, top: 12.0, right: 16.0, bottom: 12.0),
+              decoration: BoxDecoration(
       gradient: LinearGradient(
         begin: Alignment.bottomLeft,
         end: Alignment.topRight,
-        colors: [Colors.transparent, Color.fromRGBO(0, 0, 0, 0.03)],
-      ),
+        colors: [Color(0xFFEDEDF3), Color(0xFFE2E2EA)]
     ),
-              ),
-              ),
-            Container(
-              padding: EdgeInsets.only(left: 0.0, top: 12.0, right: 0.0, bottom: 12.0),
-              decoration: BoxDecoration(
-      color: AppTheme.backgroundPrimary,
-      borderRadius: BorderRadius.circular(20.0),
+      borderRadius: BorderRadius.circular(18.0)
     ),
               child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
@@ -239,713 +338,854 @@ class JournalScreen extends StatelessWidget {
               Text(
                 'Remaining',
                 style: TextStyle(
-                  fontSize: 16.0,
+                  fontSize: 14.0,
                   color: AppTheme.textLow,
-                  fontWeight: FontWeight.w500,
-                ),
+                  fontWeight: FontWeight.w500
+    ),
               ),
               Text(
                 '00 cal',
                 style: TextStyle(
-                  fontSize: 32.0,
+                  fontSize: 18.0,
                   color: AppTheme.textLow,
-                  fontWeight: FontWeight.w800,
-                ),
+                  fontWeight: FontWeight.w600
+    ),
               )
-              ],
-            ),
-            ),
-              ],
+              ]
+    ),
             )
-            ],
+            ]
+    ),
           ),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          SizedBox(height: 16.0),
+          GridView.count(
+            crossAxisCount: 3,
+            crossAxisSpacing: 12.0,
+            mainAxisSpacing: 12.0,
+            shrinkWrap: true,
+            physics: NeverScrollableScrollPhysics(),
             children: [
-            Expanded(
-              child: Container(
-              width: double.infinity,
-              child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              mainAxisAlignment: MainAxisAlignment.start,
-              children: [
-              Stack(
+              Container(
+                constraints: BoxConstraints(minHeight: 100.0),
+                child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.start,
                 children: [
-                Positioned.fill(
+                Stack(
+                  children: [
+                  Positioned.fill(
+                    child: Container(
+                    constraints: BoxConstraints(minHeight: 100.0),
+                    child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                    Container(
+                      constraints: BoxConstraints(minHeight: 100.0),
+                      child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      children: [
+                      Text(
+                        '0',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold
+    ),
+                      ),
+                      Text(
+                        '/150',
+                        style: TextStyle(
+                          fontSize: 10.0,
+                          color: AppTheme.textMedium
+    ),
+                      )
+                      ]
+    ),
+                    ),
+                    Text(
+                      'gr',
+                      style: TextStyle(
+                        fontSize: 12.0,
+                        color: AppTheme.textLow,
+                        fontWeight: FontWeight.normal
+    ),
+                    )
+                    ]
+    ),
+                  )
+    ),
+                Container(
+                  width: 72.0,
+    height: 72.0,
+    constraints: BoxConstraints(minHeight: 100.0),
                   child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                  Icon(Icons.wheat, size: 24.0, color: Color(0xFFFFFFFF))
-                  ],
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 48.0,
+                        height: 48.0,
+                        child: CircularProgressIndicator(
+                          value: 1.00,
+                          valueColor: AlwaysStoppedAnimation<Color>(AppTheme.borderDivider),
+                          strokeWidth: 8.0
+    ),
+                      ),
+                      SizedBox(
+                        width: 48.0,
+                        height: 48.0,
+                        child: CircularProgressIndicator(
+                          value: 0.00,
+                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF9A1F)),
+                          strokeWidth: 8.0,
+                          strokeCap: StrokeCap.round
+    ),
+                      ),
+                    ],
+                  )
+                  ]
+    ),
                 ),
-                ),
+                  ]
+    ),
+                SizedBox(height: 6.0),
+                Container(
+                  constraints: BoxConstraints(minHeight: 100.0),
+                  child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: [
+                  Text(
+                    'Power',
+                    style: TextStyle(
+                      fontSize: 14.0,
+                      color: AppTheme.textHigh,
+                      fontWeight: FontWeight.w500
+    ),
+                  ),
+                  Text(
+                    'Carbs',
+                    style: TextStyle(
+                      fontSize: 12.0,
+                      color: AppTheme.textMedium,
+                      fontWeight: FontWeight.normal
+    ),
+                  )
+                  ]
+    ),
+                )
+                ]
+    ),
+              ),
               Container(
-                width: 64.0,
-    height: 64.0,
+                constraints: BoxConstraints(minHeight: 100.0),
                 child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 mainAxisAlignment: MainAxisAlignment.start,
                 children: [
                 Stack(
-                  alignment: Alignment.center,
                   children: [
-                    SizedBox(
-                      width: 48.0,
-                      height: 48.0,
-                      child: CircularProgressIndicator(
-                        value: 1.00,
-                        valueColor: AlwaysStoppedAnimation<Color>(AppTheme.backgroundPrimary),
-                        strokeWidth: 6.0,
+                  Positioned.fill(
+                    child: Container(
+                    constraints: BoxConstraints(minHeight: 100.0),
+                    child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                    Container(
+                      constraints: BoxConstraints(minHeight: 100.0),
+                      child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      children: [
+                      Text(
+                        '0',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold
+    ),
                       ),
+                      Text(
+                        '/113',
+                        style: TextStyle(
+                          fontSize: 10.0,
+                          color: AppTheme.textMedium
+    ),
+                      )
+                      ]
+    ),
                     ),
-                    SizedBox(
-                      width: 48.0,
-                      height: 48.0,
-                      child: CircularProgressIndicator(
-                        value: 0.00,
-                        valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFFFFFF)),
-                        strokeWidth: 6.0,
-                        strokeCap: StrokeCap.round,
-                      ),
-                    ),
-                  ],
-                )
-                ],
-              ),
-              ),
-                ],
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisAlignment: MainAxisAlignment.start,
-                children: [
-                Text('0/150'),
-                Text(
-                  'gr',
-                  style: TextStyle(
-                    fontSize: 12.0,
-                    color: AppTheme.textLow,
-                  ),
-                )
-                ],
-              ),
-              Padding(
-                padding: EdgeInsets.only(top: 2.0, bottom: 0.0),
-                child: Text(
-                'Power Carbs',
-                style: TextStyle(
-                  fontSize: 12.0,
-                  color: AppTheme.textMedium,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              )
-              ],
-            ),
-            ),
-            ),
-            Expanded(
-              child: Container(
-              width: double.infinity,
-              child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              mainAxisAlignment: MainAxisAlignment.start,
-              children: [
-              Stack(
-                children: [
-                Positioned.fill(
+                    Text(
+                      'gr',
+                      style: TextStyle(
+                        fontSize: 12.0,
+                        color: AppTheme.textLow,
+                        fontWeight: FontWeight.normal
+    ),
+                    )
+                    ]
+    ),
+                  )
+    ),
+                Container(
+                  width: 72.0,
+    height: 72.0,
+    constraints: BoxConstraints(minHeight: 100.0),
                   child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                  Icon(Icons.egg, size: 24.0, color: Color(0xFFFFFFFF))
-                  ],
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 48.0,
+                        height: 48.0,
+                        child: CircularProgressIndicator(
+                          value: 1.00,
+                          valueColor: AlwaysStoppedAnimation<Color>(AppTheme.borderDivider),
+                          strokeWidth: 8.0
+    ),
+                      ),
+                      SizedBox(
+                        width: 48.0,
+                        height: 48.0,
+                        child: CircularProgressIndicator(
+                          value: 0.00,
+                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF9A1F)),
+                          strokeWidth: 8.0,
+                          strokeCap: StrokeCap.round
+    ),
+                      ),
+                    ],
+                  )
+                  ]
+    ),
                 ),
-                ),
+                  ]
+    ),
+                SizedBox(height: 6.0),
+                Container(
+                  constraints: BoxConstraints(minHeight: 100.0),
+                  child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: [
+                  Text(
+                    'Protein',
+                    style: TextStyle(
+                      fontSize: 14.0,
+                      color: AppTheme.textHigh,
+                      fontWeight: FontWeight.w500
+    ),
+                  ),
+                  Text(
+                    'Power',
+                    style: TextStyle(
+                      fontSize: 12.0,
+                      color: AppTheme.textMedium,
+                      fontWeight: FontWeight.normal
+    ),
+                  )
+                  ]
+    ),
+                )
+                ]
+    ),
+              ),
               Container(
-                width: 64.0,
-    height: 64.0,
+                constraints: BoxConstraints(minHeight: 100.0),
                 child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 mainAxisAlignment: MainAxisAlignment.start,
                 children: [
                 Stack(
-                  alignment: Alignment.center,
                   children: [
-                    SizedBox(
-                      width: 48.0,
-                      height: 48.0,
-                      child: CircularProgressIndicator(
-                        value: 1.00,
-                        valueColor: AlwaysStoppedAnimation<Color>(AppTheme.backgroundPrimary),
-                        strokeWidth: 6.0,
+                  Positioned.fill(
+                    child: Container(
+                    constraints: BoxConstraints(minHeight: 100.0),
+                    child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                    Container(
+                      constraints: BoxConstraints(minHeight: 100.0),
+                      child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      children: [
+                      Text(
+                        '0',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold
+    ),
                       ),
+                      Text(
+                        '/50',
+                        style: TextStyle(
+                          fontSize: 10.0,
+                          color: AppTheme.textMedium
+    ),
+                      )
+                      ]
+    ),
                     ),
-                    SizedBox(
-                      width: 48.0,
-                      height: 48.0,
-                      child: CircularProgressIndicator(
-                        value: 0.00,
-                        valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFFFFFF)),
-                        strokeWidth: 6.0,
-                        strokeCap: StrokeCap.round,
-                      ),
-                    ),
-                  ],
-                )
-                ],
-              ),
-              ),
-                ],
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisAlignment: MainAxisAlignment.start,
-                children: [
-                Text('0/113'),
-                Text(
-                  'gr',
-                  style: TextStyle(
-                    fontSize: 12.0,
-                    color: AppTheme.textLow,
-                  ),
-                )
-                ],
-              ),
-              Padding(
-                padding: EdgeInsets.only(top: 2.0, bottom: 0.0),
-                child: Text(
-                'Protein Power',
-                style: TextStyle(
-                  fontSize: 12.0,
-                  color: AppTheme.textMedium,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              )
-              ],
-            ),
-            ),
-            ),
-            Expanded(
-              child: Container(
-              width: double.infinity,
-              child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              mainAxisAlignment: MainAxisAlignment.start,
-              children: [
-              Stack(
-                children: [
-                Positioned.fill(
+                    Text(
+                      'gr',
+                      style: TextStyle(
+                        fontSize: 12.0,
+                        color: AppTheme.textLow,
+                        fontWeight: FontWeight.normal
+    ),
+                    )
+                    ]
+    ),
+                  )
+    ),
+                Container(
+                  width: 72.0,
+    height: 72.0,
+    constraints: BoxConstraints(minHeight: 100.0),
                   child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                  Icon(Icons.droplet, size: 24.0, color: Color(0xFFFFFFFF))
-                  ],
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 48.0,
+                        height: 48.0,
+                        child: CircularProgressIndicator(
+                          value: 1.00,
+                          valueColor: AlwaysStoppedAnimation<Color>(AppTheme.borderDivider),
+                          strokeWidth: 8.0
+    ),
+                      ),
+                      SizedBox(
+                        width: 48.0,
+                        height: 48.0,
+                        child: CircularProgressIndicator(
+                          value: 0.00,
+                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF9A1F)),
+                          strokeWidth: 8.0,
+                          strokeCap: StrokeCap.round
+    ),
+                      ),
+                    ],
+                  )
+                  ]
+    ),
                 ),
-                ),
-              Container(
-                width: 64.0,
-    height: 64.0,
-                child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisAlignment: MainAxisAlignment.start,
-                children: [
-                Stack(
-                  alignment: Alignment.center,
+                  ]
+    ),
+                SizedBox(height: 6.0),
+                Container(
+                  constraints: BoxConstraints(minHeight: 100.0),
+                  child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.start,
                   children: [
-                    SizedBox(
-                      width: 48.0,
-                      height: 48.0,
-                      child: CircularProgressIndicator(
-                        value: 1.00,
-                        valueColor: AlwaysStoppedAnimation<Color>(AppTheme.backgroundPrimary),
-                        strokeWidth: 6.0,
-                      ),
-                    ),
-                    SizedBox(
-                      width: 48.0,
-                      height: 48.0,
-                      child: CircularProgressIndicator(
-                        value: 0.00,
-                        valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFFFFFF)),
-                        strokeWidth: 6.0,
-                        strokeCap: StrokeCap.round,
-                      ),
-                    ),
-                  ],
-                )
-                ],
-              ),
-              ),
-                ],
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisAlignment: MainAxisAlignment.start,
-                children: [
-                Text('0/50'),
-                Text(
-                  'gr',
-                  style: TextStyle(
-                    fontSize: 12.0,
-                    color: AppTheme.textLow,
+                  Text(
+                    'Healthy',
+                    style: TextStyle(
+                      fontSize: 14.0,
+                      color: AppTheme.textHigh,
+                      fontWeight: FontWeight.w500
+    ),
                   ),
+                  Text(
+                    'Fat',
+                    style: TextStyle(
+                      fontSize: 12.0,
+                      color: AppTheme.textMedium,
+                      fontWeight: FontWeight.normal
+    ),
+                  )
+                  ]
+    ),
                 )
-                ],
-              ),
-              Padding(
-                padding: EdgeInsets.only(top: 2.0, bottom: 0.0),
-                child: Text(
-                'Healthy Fat',
-                style: TextStyle(
-                  fontSize: 12.0,
-                  color: AppTheme.textMedium,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+                ]
+    ),
               )
-              ],
-            ),
-            ),
-            )
             ],
           )
-          ],
+          ]
+    ),
         ),
-        ),
+        SizedBox(height: AppTheme.sectionGap),
         GridView.count(
           crossAxisCount: 2,
-          crossAxisSpacing: AppTheme.elementGap,
-          mainAxisSpacing: AppTheme.elementGap,
+          crossAxisSpacing: 12.0,
+          mainAxisSpacing: 12.0,
           shrinkWrap: true,
           physics: NeverScrollableScrollPhysics(),
           children: [
             Container(
-              constraints: BoxConstraints(minHeight: 120.0),
+              constraints: BoxConstraints(minHeight: 100.0),
+              padding: EdgeInsets.only(left: 16.0, top: 16.0, right: 16.0, bottom: 16.0),
               decoration: BoxDecoration(
-      color: Color(0xFFFFFFFF),
-      borderRadius: BorderRadius.circular(AppTheme.borderRadiusApp),
+      color: Color(0xFFD8D2FF),
+      borderRadius: BorderRadius.circular(AppTheme.borderRadiusApp)
     ),
               child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.start,
               children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Container(
+                constraints: BoxConstraints(minHeight: 100.0),
+                decoration: BoxDecoration(
+      color: Color(0xFFF5F5FA)
+    ),
+                child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(9999.0),
-                  child: Image.network(
-                    'https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/b8041495-1552-4079-9c20-80bd656e240f/display_1024.png',
-                    width: 44.0,
-                    height: 44.0,
-                    fit: BoxFit.cover,
-                  ),
+                Container(
+                  width: 56.0,
+    height: 56.0,
+    constraints: BoxConstraints(minHeight: 100.0),
+                  decoration: BoxDecoration(
+      color: Color.fromRGBO(255, 255, 255, 0.55),
+      borderRadius: BorderRadius.circular(9999.0)
+    ),
+                  child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(0.0),
+                    child: Image.network(
+                      'https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/b8041495-1552-4079-9c20-80bd656e240f/display_1024.png',
+                      fit: BoxFit.cover
+    ),
+                  )
+                  ]
+    ),
                 ),
                 Text(
                   '631 kcal',
                   style: TextStyle(
-                    fontSize: 14.0,
+                    fontSize: 18.0,
                     color: AppTheme.textHigh,
-                    fontWeight: FontWeight.normal,
-                  ),
+                    fontWeight: FontWeight.w600
+    ),
                 )
-                ],
+                ]
+    ),
               ),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+              SizedBox(height: 12.0),
+              Container(
+                constraints: BoxConstraints(minHeight: 100.0),
+                decoration: BoxDecoration(
+      color: Color(0xFFF5F5FA)
+    ),
+                child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                 Text(
                   'Breakfast',
                   style: TextStyle(
-                    fontSize: 16.0,
+                    fontSize: 20.0,
                     color: AppTheme.textHigh,
-                    fontWeight: FontWeight.w500,
-                  ),
+                    fontWeight: FontWeight.bold
+    ),
                 ),
                 ElevatedButton(
                   onPressed: () {},
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFFFFFFFF),
+                    backgroundColor: Color(0xFFF5F5FA),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(9999.0),
-                    ),
-                    padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                  ),
+                      borderRadius: BorderRadius.circular(9999.0)
+    ),
+                    padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0)
+    ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.plus, size: 24.0, color: AppTheme.textHigh)
-                    ],
-                  ),
+                    ]
+    ),
                 )
-                ],
+                ]
+    ),
               )
-              ],
-            ),
+              ]
+    ),
             ),
             Container(
-              constraints: BoxConstraints(minHeight: 120.0),
+              constraints: BoxConstraints(minHeight: 100.0),
+              padding: EdgeInsets.only(left: 16.0, top: 16.0, right: 16.0, bottom: 16.0),
               decoration: BoxDecoration(
-      color: Color(0xFFFFFFFF),
-      borderRadius: BorderRadius.circular(AppTheme.borderRadiusApp),
+      color: Color(0xFFFFE680),
+      borderRadius: BorderRadius.circular(AppTheme.borderRadiusApp)
     ),
               child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.start,
               children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Container(
+                constraints: BoxConstraints(minHeight: 100.0),
+                decoration: BoxDecoration(
+      color: Color(0xFFF5F5FA)
+    ),
+                child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                 Container(
-                  width: 44.0,
-    height: 44.0,
+                  width: 56.0,
+    height: 56.0,
+    constraints: BoxConstraints(minHeight: 100.0),
                   decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(9999.0),
+      color: Color.fromRGBO(255, 255, 255, 0.55),
+      borderRadius: BorderRadius.circular(9999.0)
     ),
                   child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                  Icon(Icons.salad, size: 24.0, color: AppTheme.textMedium)
-                  ],
-                ),
+                  Icon(Icons.salad, size: 24.0, color: Color(0xFF7A6B2E))
+                  ]
+    ),
                 ),
                 Text(
                   '486 kcal',
                   style: TextStyle(
-                    fontSize: 14.0,
+                    fontSize: 18.0,
                     color: AppTheme.textHigh,
-                    fontWeight: FontWeight.normal,
-                  ),
+                    fontWeight: FontWeight.w600
+    ),
                 )
-                ],
+                ]
+    ),
               ),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+              SizedBox(height: 12.0),
+              Container(
+                constraints: BoxConstraints(minHeight: 100.0),
+                decoration: BoxDecoration(
+      color: Color(0xFFF5F5FA)
+    ),
+                child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                 Text(
                   'Lunch',
                   style: TextStyle(
-                    fontSize: 16.0,
+                    fontSize: 20.0,
                     color: AppTheme.textHigh,
-                    fontWeight: FontWeight.w500,
-                  ),
+                    fontWeight: FontWeight.bold
+    ),
                 ),
                 ElevatedButton(
                   onPressed: () {},
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFFFFFFFF),
+                    backgroundColor: Color(0xFFF5F5FA),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(9999.0),
-                    ),
-                    padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                  ),
+                      borderRadius: BorderRadius.circular(9999.0)
+    ),
+                    padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0)
+    ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.plus, size: 24.0, color: AppTheme.textHigh)
-                    ],
-                  ),
+                    ]
+    ),
                 )
-                ],
+                ]
+    ),
               )
-              ],
-            ),
+              ]
+    ),
             ),
             Container(
-              constraints: BoxConstraints(minHeight: 120.0),
+              constraints: BoxConstraints(minHeight: 100.0),
+              padding: EdgeInsets.only(left: 16.0, top: 16.0, right: 16.0, bottom: 16.0),
               decoration: BoxDecoration(
-      color: Color(0xFFFFFFFF),
-      borderRadius: BorderRadius.circular(AppTheme.borderRadiusApp),
+      color: Color(0xFFB6F1C8),
+      borderRadius: BorderRadius.circular(AppTheme.borderRadiusApp)
     ),
               child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.start,
               children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Container(
+                constraints: BoxConstraints(minHeight: 100.0),
+                decoration: BoxDecoration(
+      color: Color(0xFFF5F5FA)
+    ),
+                child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                 Container(
-                  width: 44.0,
-    height: 44.0,
+                  width: 56.0,
+    height: 56.0,
+    constraints: BoxConstraints(minHeight: 100.0),
                   decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(9999.0),
+      color: Color.fromRGBO(255, 255, 255, 0.55),
+      borderRadius: BorderRadius.circular(9999.0)
     ),
                   child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                  Icon(Icons.soup, size: 24.0, color: AppTheme.textMedium)
-                  ],
-                ),
+                  Icon(Icons.utensils, size: 24.0, color: Color(0xFF2F6A47))
+                  ]
+    ),
                 ),
                 Text(
                   '359 kcal',
                   style: TextStyle(
-                    fontSize: 14.0,
+                    fontSize: 18.0,
                     color: AppTheme.textHigh,
-                    fontWeight: FontWeight.normal,
-                  ),
+                    fontWeight: FontWeight.w600
+    ),
                 )
-                ],
+                ]
+    ),
               ),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+              SizedBox(height: 12.0),
+              Container(
+                constraints: BoxConstraints(minHeight: 100.0),
+                decoration: BoxDecoration(
+      color: Color(0xFFF5F5FA)
+    ),
+                child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                 Text(
                   'Dinner',
                   style: TextStyle(
-                    fontSize: 16.0,
+                    fontSize: 20.0,
                     color: AppTheme.textHigh,
-                    fontWeight: FontWeight.w500,
-                  ),
+                    fontWeight: FontWeight.bold
+    ),
                 ),
                 ElevatedButton(
                   onPressed: () {},
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFFFFFFFF),
+                    backgroundColor: Color(0xFFF5F5FA),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(9999.0),
-                    ),
-                    padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                  ),
+                      borderRadius: BorderRadius.circular(9999.0)
+    ),
+                    padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0)
+    ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.plus, size: 24.0, color: AppTheme.textHigh)
-                    ],
-                  ),
+                    ]
+    ),
                 )
-                ],
+                ]
+    ),
               )
-              ],
-            ),
+              ]
+    ),
             ),
             Container(
-              constraints: BoxConstraints(minHeight: 120.0),
+              constraints: BoxConstraints(minHeight: 100.0),
+              padding: EdgeInsets.only(left: 16.0, top: 16.0, right: 16.0, bottom: 16.0),
               decoration: BoxDecoration(
-      color: Color(0xFFFFE0B2),
-      borderRadius: BorderRadius.circular(AppTheme.borderRadiusApp),
+      color: Color(0xFFFFCBA4),
+      borderRadius: BorderRadius.circular(AppTheme.borderRadiusApp)
     ),
               child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.start,
               children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Container(
+                constraints: BoxConstraints(minHeight: 100.0),
+                decoration: BoxDecoration(
+      color: Color(0xFFF5F5FA)
+    ),
+                child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                 Container(
-                  width: 44.0,
-    height: 44.0,
+                  width: 56.0,
+    height: 56.0,
+    constraints: BoxConstraints(minHeight: 100.0),
                   decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(9999.0),
+      color: Color.fromRGBO(255, 255, 255, 0.55),
+      borderRadius: BorderRadius.circular(9999.0)
     ),
                   child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                  Icon(Icons.cookie, size: 24.0, color: AppTheme.textMedium)
-                  ],
-                ),
+                  Icon(Icons.cookie, size: 24.0, color: Color(0xFF7A4521))
+                  ]
+    ),
                 ),
                 Text(
                   '193 kcal',
                   style: TextStyle(
-                    fontSize: 14.0,
+                    fontSize: 18.0,
                     color: AppTheme.textHigh,
-                    fontWeight: FontWeight.normal,
-                  ),
+                    fontWeight: FontWeight.w600
+    ),
                 )
-                ],
+                ]
+    ),
               ),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+              SizedBox(height: 12.0),
+              Container(
+                constraints: BoxConstraints(minHeight: 100.0),
+                decoration: BoxDecoration(
+      color: Color(0xFFF5F5FA)
+    ),
+                child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                 Text(
                   'Snack',
                   style: TextStyle(
-                    fontSize: 16.0,
+                    fontSize: 20.0,
                     color: AppTheme.textHigh,
-                    fontWeight: FontWeight.w500,
-                  ),
+                    fontWeight: FontWeight.bold
+    ),
                 ),
                 ElevatedButton(
                   onPressed: () {},
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFFFFFFFF),
+                    backgroundColor: Color(0xFFF5F5FA),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(9999.0),
-                    ),
-                    padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                  ),
+                      borderRadius: BorderRadius.circular(9999.0)
+    ),
+                    padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0)
+    ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.plus, size: 24.0, color: AppTheme.textHigh)
-                    ],
-                  ),
+                    ]
+    ),
                 )
-                ],
+                ]
+    ),
               )
-              ],
-            ),
+              ]
+    ),
             )
           ],
         )
-        ],
-      ),
+        ]
+    ),
       )
-      ],
+      ]
     ),
     ),
+    Container(
+      constraints: BoxConstraints(minHeight: 100.0),
     )
-    ],
-  ),
+    ]
+    ),
   ),
             ),
   Align(
     alignment: Alignment.bottomCenter,
     child: Container(
-    padding: EdgeInsets.only(left: AppTheme.screenPadding, top: 0.0, right: AppTheme.screenPadding, bottom: 16.0),
-    child: Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    mainAxisAlignment: MainAxisAlignment.start,
+    constraints: BoxConstraints(minHeight: 100.0),
+    padding: EdgeInsets.only(left: 8.0, top: 8.0, right: 8.0, bottom: 8.0),
+    decoration: BoxDecoration(
+      color: Color.fromRGBO(255, 255, 255, 0.92),
+      borderRadius: BorderRadius.circular(999.0),
+      border: Border.all(color: Color.fromRGBO(0, 0, 0, 0.05), width: 1.0)
+    ),
+    child: Row(
+    crossAxisAlignment: CrossAxisAlignment.center,
+    mainAxisAlignment: MainAxisAlignment.spaceAround,
     children: [
-    Container(
-      height: 80.0,
-      decoration: BoxDecoration(
-      color: Color(0xFFFFFFFF),
-      borderRadius: BorderRadius.circular(AppTheme.borderRadiusPill),
-      border: Border.all(color: AppTheme.borderDivider, width: 1.0),
-    ),
-      child: Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
+    GridView.count(
+      crossAxisCount: 2,
+      crossAxisSpacing: 4.0,
+      mainAxisSpacing: 4.0,
+      shrinkWrap: true,
+      physics: NeverScrollableScrollPhysics(),
       children: [
-      Expanded(
-        child: ElevatedButton(
-        onPressed: () {},
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12.0),
-          ),
-          padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.chef_hat, size: 24.0, color: AppTheme.textLow)
-          ],
-        ),
-      ),
-      ),
-      Expanded(
-        child: ElevatedButton(
-        onPressed: () {},
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12.0),
-          ),
-          padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.calendar_days, size: 24.0, color: AppTheme.textLow)
-          ],
-        ),
-      ),
-      ),
-      Expanded(
-        child: ElevatedButton(
-        onPressed: () {},
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12.0),
-          ),
-          padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.sparkles, size: 24.0, color: AppTheme.textLow)
-          ],
-        ),
-      ),
-      ),
-      Expanded(
-        child: ElevatedButton(
-        onPressed: () {},
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12.0),
-          ),
-          padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 44.0,
-    height: 44.0,
-              decoration: BoxDecoration(
-      color: AppTheme.actionPrimary,
-      borderRadius: BorderRadius.circular(9999.0),
+        ElevatedButton(
+          onPressed: () {},
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(999.0)
     ),
-              child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-              Icon(Icons.book_open, size: 24.0, color: AppTheme.actionOnPrimary)
-              ],
-            ),
-            )
-          ],
+            padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0)
+    ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 18.0,
+    height: 18.0,
+    constraints: BoxConstraints(minHeight: 100.0),
+                decoration: BoxDecoration(
+      color: Color(0xFFF5F5FA)
+    ),
+                child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                Icon(Icons.home, size: 24.0, color: Colors.transparent)
+                ]
+    ),
+              ),
+              SizedBox(width: 3.0),
+              Text(
+                'Meal Plan',
+              )
+            ]
+    ),
         ),
-      ),
-      ),
-      Expanded(
-        child: ElevatedButton(
-        onPressed: () {},
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12.0),
-          ),
-          padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.book_marked, size: 24.0, color: AppTheme.textLow)
-          ],
-        ),
-      ),
-      )
+        ElevatedButton(
+          onPressed: () {},
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(999.0)
+    ),
+            padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0)
+    ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 18.0,
+    height: 18.0,
+    constraints: BoxConstraints(minHeight: 100.0),
+                decoration: BoxDecoration(
+      color: Color(0xFFF5F5FA)
+    ),
+                child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                Icon(Icons.search, size: 24.0, color: Colors.transparent)
+                ]
+    ),
+              ),
+              SizedBox(width: 3.0),
+              Text(
+                'Journal',
+              )
+            ]
+    ),
+        )
       ],
-    ),
     )
-    ],
-  ),
-  ),
-  )
+    ]
+    )),
+)
           ],
         ),
       ),

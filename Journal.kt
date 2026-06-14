@@ -64,84 +64,177 @@ fun JournalScreen() {
         ) {
     Column(
         modifier = Modifier
-        .fillMaxWidth()
-        .background(AppTheme.BackgroundPrimary),
+        .heightIn(min = 100.dp)
+        .background(Color(0xFFF5F5FA)),
         horizontalAlignment = Alignment.Start,
+        verticalArrangement = Arrangement.Top
     ) {
         Column(
             modifier = Modifier
         .fillMaxWidth()
-        .weight(1f)
-        .padding(start = 0.dp, top = 16.dp, end = 0.dp, bottom = 96.dp),
+        .heightIn(min = 100.dp)
+        .background(AppTheme.BackgroundPrimary),
             horizontalAlignment = Alignment.Start,
+            verticalArrangement = Arrangement.Top
         ) {
-            Column(
+            Row(
                 modifier = Modifier
-        .padding(start = AppTheme.ScreenPadding, top = 0.dp, end = AppTheme.ScreenPadding, bottom = 0.dp),
-                horizontalAlignment = Alignment.Start,
+        .fillMaxWidth()
+        .heightIn(min = 100.dp)
+        .background(Color(0xFFF5F5FA))
+        .padding(start = 24.dp, top = 20.dp, end = 24.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "9:41",
+                    fontSize = 14.sp,
+                    color = AppTheme.TextHigh,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                )
+                Row(
+                    modifier = Modifier
+        .heightIn(min = 100.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Signal, // Lucide: signal
+                        contentDescription = null,
+                        tint = Color.Transparent,
+                        modifier = Modifier
+        .size(24.dp)
+                    )
+                    Icon(
+                        imageVector = Icons.Default.Wifi, // Lucide: wifi
+                        contentDescription = null,
+                        tint = Color.Transparent,
+                        modifier = Modifier
+        .size(24.dp)
+                    )
+                    Icon(
+                        imageVector = Icons.Default.BatteryFull, // Lucide: battery-full
+                        contentDescription = null,
+                        tint = Color.Transparent,
+                        modifier = Modifier
+        .size(24.dp)
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier
+        .fillMaxWidth()
+        .heightIn(min = 100.dp)
+        .background(Color(0xFFF5F5FA))
+        .padding(start = AppTheme.ScreenPadding, top = 12.dp, end = AppTheme.ScreenPadding, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
                     text = "Journal",
-                    fontSize = 24.sp,
+                    fontSize = 34.sp,
                     color = AppTheme.TextHigh,
-                    fontWeight = FontWeight.ExtraBold,
+                    fontWeight = FontWeight.Bold,
                     modifier = Modifier
-                        .padding(top = 0.dp, bottom = AppTheme.SectionGap)
                 )
-                Column(
+                Button(
+                    onClick = { /* Action */ },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF5F5FA)),
+                    shape = RoundedCornerShape(9999.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                     modifier = Modifier
-        .clip(RoundedCornerShape(AppTheme.BorderRadiusApp))
-        .background(AppTheme.SurfaceCard),
-                    horizontalAlignment = Alignment.Start,
                 ) {
                     Row(
-                        modifier = Modifier,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreHorizontal, // Lucide: more-horizontal
+                            contentDescription = null,
+                            tint = AppTheme.TextHigh,
+                            modifier = Modifier
+        .size(24.dp)
+                        )
+                    }
+                }
+            }
+            Column(
+                modifier = Modifier
+        .fillMaxWidth()
+        .heightIn(min = 100.dp)
+        .background(Color(0xFFF5F5FA))
+        .padding(start = AppTheme.ScreenPadding, top = 8.dp, end = AppTheme.ScreenPadding, bottom = 120.dp),
+                horizontalAlignment = Alignment.Start,
+                verticalArrangement = Arrangement.spacedBy(AppTheme.SectionGap)
+            ) {
+                Column(
+                    modifier = Modifier
+        .fillMaxWidth()
+        .heightIn(min = 100.dp)
+        .clip(RoundedCornerShape(AppTheme.BorderRadiusApp))
+        .background(AppTheme.SurfaceCard)
+        .padding(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 20.dp),
+                    horizontalAlignment = Alignment.Start,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+        .fillMaxWidth()
+        .heightIn(min = 100.dp)
+        .background(Color(0xFFF5F5FA)),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(
-                            modifier = Modifier,
+                            modifier = Modifier
+        .heightIn(min = 100.dp),
                             verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Row(
                                 modifier = Modifier
-        .width(36.dp)
-        .height(36.dp)
+        .width(40.dp)
+        .height(40.dp)
+        .heightIn(min = 100.dp)
         .clip(RoundedCornerShape(9999.dp))
-        .background(AppTheme.BackgroundPrimary),
+        .background(Color(red = 255/255f, green = 214/255f, blue = 0/255f, alpha = 0.18f)),
                                 verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Start
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Flame, // Lucide: flame
-                                    contentDescription = null,
-                                    tint = Color(0xFFFFFFFF),
-                                    modifier = Modifier.size(24.dp)
+                                Text(
+                                    text = "🔥",
+                                    fontSize = 20.sp,
+                                    modifier = Modifier
                                 )
                             }
                             Column(
-                                modifier = Modifier,
+                                modifier = Modifier
+        .heightIn(min = 100.dp),
                                 horizontalAlignment = Alignment.Start,
+                                verticalArrangement = Arrangement.Top
                             ) {
                                 Text(
                                     text = "Calories",
-                                    fontSize = 18.sp,
+                                    fontSize = 20.sp,
                                     color = AppTheme.TextHigh,
                                     fontWeight = FontWeight.Bold,
-                                
+                                    modifier = Modifier
                                 )
                                 Text(
                                     text = "Week Days",
                                     fontSize = 12.sp,
                                     color = AppTheme.TextMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                
+                                    fontWeight = FontWeight.Normal,
+                                    modifier = Modifier
                                 )
                             }
                         }
                         Button(
                             onClick = { /* Action */ },
-                            colors = ButtonDefaults.buttonColors(containerColor = AppTheme.BackgroundPrimary),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF5F5FA)),
                             shape = RoundedCornerShape(9999.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                             modifier = Modifier
                         ) {
                             Row(
@@ -152,355 +245,459 @@ fun JournalScreen() {
                                     imageVector = Icons.Default.Calendar, // Lucide: calendar
                                     contentDescription = null,
                                     tint = AppTheme.TextHigh,
-                                    modifier = Modifier.size(24.dp)
+                                    modifier = Modifier
+        .size(24.dp)
                                 )
                             }
                         }
                     }
                     Column(
-                        modifier = Modifier,
+                        modifier = Modifier
+        .fillMaxWidth()
+        .heightIn(min = 100.dp)
+        .background(Color(0xFFF5F5FA)),
                         horizontalAlignment = Alignment.Start,
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Row(
                             modifier = Modifier
-        .clip(RoundedCornerShape(20.dp))
+        .fillMaxWidth()
+        .heightIn(min = 100.dp)
+        .clip(RoundedCornerShape(18.dp))
         .background(AppTheme.BackgroundPrimary)
-        .padding(start = 0.dp, top = 12.dp, end = 0.dp, bottom = 12.dp),
+        .padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
                                 text = "Consumed",
-                                fontSize = 16.sp,
+                                fontSize = 14.sp,
                                 color = AppTheme.TextMedium,
                                 fontWeight = FontWeight.Medium,
-                            
+                                modifier = Modifier
                             )
                             Text(
                                 text = "00 cal",
-                                fontSize = 32.sp,
+                                fontSize = 18.sp,
                                 color = AppTheme.TextHigh,
-                                fontWeight = FontWeight.ExtraBold,
-                            
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier
                             )
                         }
                         Row(
                             modifier = Modifier
-        .clip(RoundedCornerShape(20.dp))
+        .fillMaxWidth()
+        .heightIn(min = 100.dp)
+        .clip(RoundedCornerShape(18.dp))
         .background(AppTheme.BackgroundPrimary)
-        .padding(start = 0.dp, top = 12.dp, end = 0.dp, bottom = 12.dp),
+        .padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
                                 text = "Remaining",
-                                fontSize = 16.sp,
+                                fontSize = 14.sp,
                                 color = AppTheme.TextMedium,
                                 fontWeight = FontWeight.Medium,
-                            
+                                modifier = Modifier
                             )
                             Text(
                                 text = "00 cal",
-                                fontSize = 32.sp,
+                                fontSize = 18.sp,
                                 color = AppTheme.TextHigh,
-                                fontWeight = FontWeight.ExtraBold,
-                            
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier
                             )
                         }
-                        Box(
+                        Row(
                             modifier = Modifier
-        .clip(RoundedCornerShape(20.dp))
-        .background(AppTheme.BackgroundPrimary)
-        .padding(start = 0.dp, top = 12.dp, end = 0.dp, bottom = 12.dp)
+        .fillMaxWidth()
+        .heightIn(min = 100.dp)
+        .clip(RoundedCornerShape(18.dp))
+        .background(Brush.linearGradient(colors = listOf(Color(0xFFEDEDF3), Color(0xFFE2E2EA)), start = Offset(0f, 1f), end = Offset(1f, 0f)))
+        .padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Column(
+                            Text(
+                                text = "Remaining",
+                                fontSize = 14.sp,
+                                color = AppTheme.TextLow,
+                                fontWeight = FontWeight.Medium,
                                 modifier = Modifier
-        .background(Brush.linearGradient(colors = listOf(Color.Transparent, Color(red = 0/255f, green = 0/255f, blue = 0/255f, alpha = 0.03f)), start = Offset(0f, 1f), end = Offset(1f, 0f))),
-                                horizontalAlignment = Alignment.Start,
-                            ) {
-                            }
-                            Row(
-                                modifier = Modifier.fillMaxSize(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                            ) {
-                                Text(
-                                    text = "Remaining",
-                                    fontSize = 16.sp,
-                                    color = AppTheme.TextLow,
-                                    fontWeight = FontWeight.Medium,
-                                
-                                )
-                                Text(
-                                    text = "00 cal",
-                                    fontSize = 32.sp,
-                                    color = AppTheme.TextLow,
-                                    fontWeight = FontWeight.ExtraBold,
-                                
-                                )
-                            }
+                            )
+                            Text(
+                                text = "00 cal",
+                                fontSize = 18.sp,
+                                color = AppTheme.TextLow,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier
+                            )
                         }
                     }
-                    Row(
-                        modifier = Modifier,
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(3),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier
+        .height(280.dp)
+        .background(Color(0xFFF5F5FA))
                     ) {
-                        Column(
-                            modifier = Modifier
-        .fillMaxWidth()
-        .weight(1f),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            Box(
+                        item {
+                            Column(
                                 modifier = Modifier
-        .width(64.dp)
-        .height(64.dp)
+        .heightIn(min = 100.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Row(
-                                    modifier = Modifier,
-                                    verticalAlignment = Alignment.CenterVertically,
+                                Box(
+                                    modifier = Modifier
+        .width(72.dp)
+        .height(72.dp)
+        .heightIn(min = 100.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Wheat, // Lucide: wheat
-                                        contentDescription = null,
-                                        tint = Color(0xFFFFFFFF),
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
-                                Column(
-                                    modifier = Modifier.fillMaxSize(),
-                                    horizontalAlignment = Alignment.Start,
-                                ) {
-                                    Box(
-                                        contentAlignment = Alignment.Center,
-                                        modifier = Modifier.size(48.dp)
+                                    Column(
+                                        modifier = Modifier
+        .heightIn(min = 100.dp)
+        .offset(x = 0.dp, y = -(0.dp)),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Top
                                     ) {
-                                        CircularProgressIndicator(
-                                            progress = 1.00f,
-                                            color = AppTheme.BackgroundPrimary,
-                                            strokeWidth = 6.dp,
-                                            modifier = Modifier.fillMaxSize()
-                                        )
-                                        CircularProgressIndicator(
-                                            progress = 0.00f,
-                                            color = Color(0xFFFFFFFF),
-                                            strokeWidth = 6.dp,
-                                            strokeCap = StrokeCap.Round,
-                                            modifier = Modifier.fillMaxSize()
+                                        Column(
+                                            modifier = Modifier
+        .heightIn(min = 100.dp),
+                                            horizontalAlignment = Alignment.Start,
+                                            verticalArrangement = Arrangement.Top
+                                        ) {
+                                            Text(
+                                                text = "0",
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier
+                                            )
+                                            Text(
+                                                text = "/150",
+                                                fontSize = 10.sp,
+                                                color = AppTheme.TextMedium,
+                                                modifier = Modifier
+                                            )
+                                        }
+                                        Text(
+                                            text = "gr",
+                                            fontSize = 12.sp,
+                                            color = AppTheme.TextLow,
+                                            fontWeight = FontWeight.Normal,
+                                            modifier = Modifier
                                         )
                                     }
+                                    Row(
+                                        modifier = Modifier.fillMaxSize(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Start
+                                    ) {
+                                        Box(
+                                            contentAlignment = Alignment.Center,
+                                            modifier = Modifier.size(48.dp)
+                                        ) {
+                                            CircularProgressIndicator(
+                                                progress = 1.00f,
+                                                color = AppTheme.BorderDivider,
+                                                strokeWidth = 8.dp,
+                                                strokeCap = StrokeCap.Butt,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                            CircularProgressIndicator(
+                                                progress = 0.00f,
+                                                color = Color(0xFFFF9A1F),
+                                                strokeWidth = 8.dp,
+                                                strokeCap = StrokeCap.Round,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        }
+                                    }
+                                }
+                                Column(
+                                    modifier = Modifier
+        .heightIn(min = 100.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Top
+                                ) {
+                                    Text(
+                                        text = "Power",
+                                        fontSize = 14.sp,
+                                        color = AppTheme.TextHigh,
+                                        fontWeight = FontWeight.Medium,
+                                        modifier = Modifier
+                                    )
+                                    Text(
+                                        text = "Carbs",
+                                        fontSize = 12.sp,
+                                        color = AppTheme.TextMedium,
+                                        fontWeight = FontWeight.Normal,
+                                        modifier = Modifier
+                                    )
                                 }
                             }
-                            Column(
-                                modifier = Modifier,
-                                horizontalAlignment = Alignment.Start,
-                            ) {
-                                Text(text = "0/150")
-                                Text(
-                                    text = "gr",
-                                    fontSize = 12.sp,
-                                    color = AppTheme.TextLow,
-                                
-                                )
-                            }
-                            Text(
-                                text = "Power Carbs",
-                                fontSize = 12.sp,
-                                color = AppTheme.TextMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier
-                                    .padding(top = 2.dp, bottom = 0.dp)
-                            )
                         }
-                        Column(
-                            modifier = Modifier
-        .fillMaxWidth()
-        .weight(1f),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            Box(
+                        item {
+                            Column(
                                 modifier = Modifier
-        .width(64.dp)
-        .height(64.dp)
+        .heightIn(min = 100.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Row(
-                                    modifier = Modifier,
-                                    verticalAlignment = Alignment.CenterVertically,
+                                Box(
+                                    modifier = Modifier
+        .width(72.dp)
+        .height(72.dp)
+        .heightIn(min = 100.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Egg, // Lucide: egg
-                                        contentDescription = null,
-                                        tint = Color(0xFFFFFFFF),
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
-                                Column(
-                                    modifier = Modifier.fillMaxSize(),
-                                    horizontalAlignment = Alignment.Start,
-                                ) {
-                                    Box(
-                                        contentAlignment = Alignment.Center,
-                                        modifier = Modifier.size(48.dp)
+                                    Column(
+                                        modifier = Modifier
+        .heightIn(min = 100.dp)
+        .offset(x = 0.dp, y = -(0.dp)),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Top
                                     ) {
-                                        CircularProgressIndicator(
-                                            progress = 1.00f,
-                                            color = AppTheme.BackgroundPrimary,
-                                            strokeWidth = 6.dp,
-                                            modifier = Modifier.fillMaxSize()
-                                        )
-                                        CircularProgressIndicator(
-                                            progress = 0.00f,
-                                            color = Color(0xFFFFFFFF),
-                                            strokeWidth = 6.dp,
-                                            strokeCap = StrokeCap.Round,
-                                            modifier = Modifier.fillMaxSize()
+                                        Column(
+                                            modifier = Modifier
+        .heightIn(min = 100.dp),
+                                            horizontalAlignment = Alignment.Start,
+                                            verticalArrangement = Arrangement.Top
+                                        ) {
+                                            Text(
+                                                text = "0",
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier
+                                            )
+                                            Text(
+                                                text = "/113",
+                                                fontSize = 10.sp,
+                                                color = AppTheme.TextMedium,
+                                                modifier = Modifier
+                                            )
+                                        }
+                                        Text(
+                                            text = "gr",
+                                            fontSize = 12.sp,
+                                            color = AppTheme.TextLow,
+                                            fontWeight = FontWeight.Normal,
+                                            modifier = Modifier
                                         )
                                     }
+                                    Row(
+                                        modifier = Modifier.fillMaxSize(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Start
+                                    ) {
+                                        Box(
+                                            contentAlignment = Alignment.Center,
+                                            modifier = Modifier.size(48.dp)
+                                        ) {
+                                            CircularProgressIndicator(
+                                                progress = 1.00f,
+                                                color = AppTheme.BorderDivider,
+                                                strokeWidth = 8.dp,
+                                                strokeCap = StrokeCap.Butt,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                            CircularProgressIndicator(
+                                                progress = 0.00f,
+                                                color = Color(0xFFFF9A1F),
+                                                strokeWidth = 8.dp,
+                                                strokeCap = StrokeCap.Round,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        }
+                                    }
+                                }
+                                Column(
+                                    modifier = Modifier
+        .heightIn(min = 100.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Top
+                                ) {
+                                    Text(
+                                        text = "Protein",
+                                        fontSize = 14.sp,
+                                        color = AppTheme.TextHigh,
+                                        fontWeight = FontWeight.Medium,
+                                        modifier = Modifier
+                                    )
+                                    Text(
+                                        text = "Power",
+                                        fontSize = 12.sp,
+                                        color = AppTheme.TextMedium,
+                                        fontWeight = FontWeight.Normal,
+                                        modifier = Modifier
+                                    )
                                 }
                             }
-                            Column(
-                                modifier = Modifier,
-                                horizontalAlignment = Alignment.Start,
-                            ) {
-                                Text(text = "0/113")
-                                Text(
-                                    text = "gr",
-                                    fontSize = 12.sp,
-                                    color = AppTheme.TextLow,
-                                
-                                )
-                            }
-                            Text(
-                                text = "Protein Power",
-                                fontSize = 12.sp,
-                                color = AppTheme.TextMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier
-                                    .padding(top = 2.dp, bottom = 0.dp)
-                            )
                         }
-                        Column(
-                            modifier = Modifier
-        .fillMaxWidth()
-        .weight(1f),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            Box(
+                        item {
+                            Column(
                                 modifier = Modifier
-        .width(64.dp)
-        .height(64.dp)
+        .heightIn(min = 100.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Row(
-                                    modifier = Modifier,
-                                    verticalAlignment = Alignment.CenterVertically,
+                                Box(
+                                    modifier = Modifier
+        .width(72.dp)
+        .height(72.dp)
+        .heightIn(min = 100.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Droplet, // Lucide: droplet
-                                        contentDescription = null,
-                                        tint = Color(0xFFFFFFFF),
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
-                                Column(
-                                    modifier = Modifier.fillMaxSize(),
-                                    horizontalAlignment = Alignment.Start,
-                                ) {
-                                    Box(
-                                        contentAlignment = Alignment.Center,
-                                        modifier = Modifier.size(48.dp)
+                                    Column(
+                                        modifier = Modifier
+        .heightIn(min = 100.dp)
+        .offset(x = 0.dp, y = -(0.dp)),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Top
                                     ) {
-                                        CircularProgressIndicator(
-                                            progress = 1.00f,
-                                            color = AppTheme.BackgroundPrimary,
-                                            strokeWidth = 6.dp,
-                                            modifier = Modifier.fillMaxSize()
-                                        )
-                                        CircularProgressIndicator(
-                                            progress = 0.00f,
-                                            color = Color(0xFFFFFFFF),
-                                            strokeWidth = 6.dp,
-                                            strokeCap = StrokeCap.Round,
-                                            modifier = Modifier.fillMaxSize()
+                                        Column(
+                                            modifier = Modifier
+        .heightIn(min = 100.dp),
+                                            horizontalAlignment = Alignment.Start,
+                                            verticalArrangement = Arrangement.Top
+                                        ) {
+                                            Text(
+                                                text = "0",
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier
+                                            )
+                                            Text(
+                                                text = "/50",
+                                                fontSize = 10.sp,
+                                                color = AppTheme.TextMedium,
+                                                modifier = Modifier
+                                            )
+                                        }
+                                        Text(
+                                            text = "gr",
+                                            fontSize = 12.sp,
+                                            color = AppTheme.TextLow,
+                                            fontWeight = FontWeight.Normal,
+                                            modifier = Modifier
                                         )
                                     }
+                                    Row(
+                                        modifier = Modifier.fillMaxSize(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Start
+                                    ) {
+                                        Box(
+                                            contentAlignment = Alignment.Center,
+                                            modifier = Modifier.size(48.dp)
+                                        ) {
+                                            CircularProgressIndicator(
+                                                progress = 1.00f,
+                                                color = AppTheme.BorderDivider,
+                                                strokeWidth = 8.dp,
+                                                strokeCap = StrokeCap.Butt,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                            CircularProgressIndicator(
+                                                progress = 0.00f,
+                                                color = Color(0xFFFF9A1F),
+                                                strokeWidth = 8.dp,
+                                                strokeCap = StrokeCap.Round,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        }
+                                    }
+                                }
+                                Column(
+                                    modifier = Modifier
+        .heightIn(min = 100.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Top
+                                ) {
+                                    Text(
+                                        text = "Healthy",
+                                        fontSize = 14.sp,
+                                        color = AppTheme.TextHigh,
+                                        fontWeight = FontWeight.Medium,
+                                        modifier = Modifier
+                                    )
+                                    Text(
+                                        text = "Fat",
+                                        fontSize = 12.sp,
+                                        color = AppTheme.TextMedium,
+                                        fontWeight = FontWeight.Normal,
+                                        modifier = Modifier
+                                    )
                                 }
                             }
-                            Column(
-                                modifier = Modifier,
-                                horizontalAlignment = Alignment.Start,
-                            ) {
-                                Text(text = "0/50")
-                                Text(
-                                    text = "gr",
-                                    fontSize = 12.sp,
-                                    color = AppTheme.TextLow,
-                                
-                                )
-                            }
-                            Text(
-                                text = "Healthy Fat",
-                                fontSize = 12.sp,
-                                color = AppTheme.TextMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier
-                                    .padding(top = 2.dp, bottom = 0.dp)
-                            )
                         }
                     }
                 }
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
-                    horizontalArrangement = Arrangement.spacedBy(AppTheme.ElementGap),
-                    verticalArrangement = Arrangement.spacedBy(AppTheme.ElementGap),
-                    modifier = Modifier.height(280.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier
+        .height(280.dp)
                 ) {
                     item {
                         Column(
                             modifier = Modifier
-        .heightIn(min = 120.dp)
+        .heightIn(min = 100.dp)
         .clip(RoundedCornerShape(AppTheme.BorderRadiusApp))
-        .background(Color(0xFFFFFFFF)),
+        .background(Color(0xFFD8D2FF))
+        .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 16.dp),
                             horizontalAlignment = Alignment.Start,
-                            verticalArrangement = Arrangement.SpaceBetween,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Row(
-                                modifier = Modifier,
-                                verticalAlignment = Alignment.Top,
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier
+        .heightIn(min = 100.dp)
+        .background(Color(0xFFF5F5FA)),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                AsyncImage(
-                                    model = "https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/b8041495-1552-4079-9c20-80bd656e240f/display_1024.png",
-                                    contentDescription = null,
+                                Row(
                                     modifier = Modifier
-                                        .width(44.dp)
-                                        .height(44.dp)
-                                        .clip(RoundedCornerShape(9999.dp))
-                                )
+        .width(56.dp)
+        .height(56.dp)
+        .heightIn(min = 100.dp)
+        .clip(RoundedCornerShape(9999.dp))
+        .background(Color(red = 255/255f, green = 255/255f, blue = 255/255f, alpha = 0.55f)),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Start
+                                ) {
+                                    AsyncImage(
+                                        model = "https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/b8041495-1552-4079-9c20-80bd656e240f/display_1024.png",
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier
+                                    )
+                                }
                                 Text(
                                     text = "631 kcal",
-                                    fontSize = 14.sp,
+                                    fontSize = 18.sp,
                                     color = AppTheme.TextHigh,
-                                    fontWeight = FontWeight.Normal,
-                                
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier
                                 )
                             }
                             Row(
-                                modifier = Modifier,
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier
+        .heightIn(min = 100.dp)
+        .background(Color(0xFFF5F5FA)),
+                                verticalAlignment = Alignment.Bottom,
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
                                     text = "Breakfast",
-                                    fontSize = 16.sp,
+                                    fontSize = 20.sp,
                                     color = AppTheme.TextHigh,
-                                    fontWeight = FontWeight.Medium,
-                                
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier
                                 )
                                 Button(
                                     onClick = { /* Action */ },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFFFFF)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF5F5FA)),
                                     shape = RoundedCornerShape(9999.dp),
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                                     modifier = Modifier
                                 ) {
                                     Row(
@@ -511,7 +708,8 @@ fun JournalScreen() {
                                             imageVector = Icons.Default.Plus, // Lucide: plus
                                             contentDescription = null,
                                             tint = AppTheme.TextHigh,
-                                            modifier = Modifier.size(24.dp)
+                                            modifier = Modifier
+        .size(24.dp)
                                         )
                                     }
                                 }
@@ -521,55 +719,65 @@ fun JournalScreen() {
                     item {
                         Column(
                             modifier = Modifier
-        .heightIn(min = 120.dp)
+        .heightIn(min = 100.dp)
         .clip(RoundedCornerShape(AppTheme.BorderRadiusApp))
-        .background(Color(0xFFFFFFFF)),
+        .background(Color(0xFFFFE680))
+        .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 16.dp),
                             horizontalAlignment = Alignment.Start,
-                            verticalArrangement = Arrangement.SpaceBetween,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Row(
-                                modifier = Modifier,
-                                verticalAlignment = Alignment.Top,
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier
+        .heightIn(min = 100.dp)
+        .background(Color(0xFFF5F5FA)),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Row(
                                     modifier = Modifier
-        .width(44.dp)
-        .height(44.dp)
-        .clip(RoundedCornerShape(9999.dp)),
+        .width(56.dp)
+        .height(56.dp)
+        .heightIn(min = 100.dp)
+        .clip(RoundedCornerShape(9999.dp))
+        .background(Color(red = 255/255f, green = 255/255f, blue = 255/255f, alpha = 0.55f)),
                                     verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Start
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Salad, // Lucide: salad
                                         contentDescription = null,
-                                        tint = AppTheme.TextMedium,
-                                        modifier = Modifier.size(24.dp)
+                                        tint = Color(0xFF7A6B2E),
+                                        modifier = Modifier
+        .size(24.dp)
                                     )
                                 }
                                 Text(
                                     text = "486 kcal",
-                                    fontSize = 14.sp,
+                                    fontSize = 18.sp,
                                     color = AppTheme.TextHigh,
-                                    fontWeight = FontWeight.Normal,
-                                
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier
                                 )
                             }
                             Row(
-                                modifier = Modifier,
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier
+        .heightIn(min = 100.dp)
+        .background(Color(0xFFF5F5FA)),
+                                verticalAlignment = Alignment.Bottom,
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
                                     text = "Lunch",
-                                    fontSize = 16.sp,
+                                    fontSize = 20.sp,
                                     color = AppTheme.TextHigh,
-                                    fontWeight = FontWeight.Medium,
-                                
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier
                                 )
                                 Button(
                                     onClick = { /* Action */ },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFFFFF)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF5F5FA)),
                                     shape = RoundedCornerShape(9999.dp),
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                                     modifier = Modifier
                                 ) {
                                     Row(
@@ -580,7 +788,8 @@ fun JournalScreen() {
                                             imageVector = Icons.Default.Plus, // Lucide: plus
                                             contentDescription = null,
                                             tint = AppTheme.TextHigh,
-                                            modifier = Modifier.size(24.dp)
+                                            modifier = Modifier
+        .size(24.dp)
                                         )
                                     }
                                 }
@@ -590,55 +799,65 @@ fun JournalScreen() {
                     item {
                         Column(
                             modifier = Modifier
-        .heightIn(min = 120.dp)
+        .heightIn(min = 100.dp)
         .clip(RoundedCornerShape(AppTheme.BorderRadiusApp))
-        .background(Color(0xFFFFFFFF)),
+        .background(Color(0xFFB6F1C8))
+        .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 16.dp),
                             horizontalAlignment = Alignment.Start,
-                            verticalArrangement = Arrangement.SpaceBetween,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Row(
-                                modifier = Modifier,
-                                verticalAlignment = Alignment.Top,
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier
+        .heightIn(min = 100.dp)
+        .background(Color(0xFFF5F5FA)),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Row(
                                     modifier = Modifier
-        .width(44.dp)
-        .height(44.dp)
-        .clip(RoundedCornerShape(9999.dp)),
+        .width(56.dp)
+        .height(56.dp)
+        .heightIn(min = 100.dp)
+        .clip(RoundedCornerShape(9999.dp))
+        .background(Color(red = 255/255f, green = 255/255f, blue = 255/255f, alpha = 0.55f)),
                                     verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Start
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.Soup, // Lucide: soup
+                                        imageVector = Icons.Default.Utensils, // Lucide: utensils
                                         contentDescription = null,
-                                        tint = AppTheme.TextMedium,
-                                        modifier = Modifier.size(24.dp)
+                                        tint = Color(0xFF2F6A47),
+                                        modifier = Modifier
+        .size(24.dp)
                                     )
                                 }
                                 Text(
                                     text = "359 kcal",
-                                    fontSize = 14.sp,
+                                    fontSize = 18.sp,
                                     color = AppTheme.TextHigh,
-                                    fontWeight = FontWeight.Normal,
-                                
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier
                                 )
                             }
                             Row(
-                                modifier = Modifier,
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier
+        .heightIn(min = 100.dp)
+        .background(Color(0xFFF5F5FA)),
+                                verticalAlignment = Alignment.Bottom,
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
                                     text = "Dinner",
-                                    fontSize = 16.sp,
+                                    fontSize = 20.sp,
                                     color = AppTheme.TextHigh,
-                                    fontWeight = FontWeight.Medium,
-                                
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier
                                 )
                                 Button(
                                     onClick = { /* Action */ },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFFFFF)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF5F5FA)),
                                     shape = RoundedCornerShape(9999.dp),
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                                     modifier = Modifier
                                 ) {
                                     Row(
@@ -649,7 +868,8 @@ fun JournalScreen() {
                                             imageVector = Icons.Default.Plus, // Lucide: plus
                                             contentDescription = null,
                                             tint = AppTheme.TextHigh,
-                                            modifier = Modifier.size(24.dp)
+                                            modifier = Modifier
+        .size(24.dp)
                                         )
                                     }
                                 }
@@ -659,55 +879,65 @@ fun JournalScreen() {
                     item {
                         Column(
                             modifier = Modifier
-        .heightIn(min = 120.dp)
+        .heightIn(min = 100.dp)
         .clip(RoundedCornerShape(AppTheme.BorderRadiusApp))
-        .background(Color(0xFFFFE0B2)),
+        .background(Color(0xFFFFCBA4))
+        .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 16.dp),
                             horizontalAlignment = Alignment.Start,
-                            verticalArrangement = Arrangement.SpaceBetween,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Row(
-                                modifier = Modifier,
-                                verticalAlignment = Alignment.Top,
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier
+        .heightIn(min = 100.dp)
+        .background(Color(0xFFF5F5FA)),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Row(
                                     modifier = Modifier
-        .width(44.dp)
-        .height(44.dp)
-        .clip(RoundedCornerShape(9999.dp)),
+        .width(56.dp)
+        .height(56.dp)
+        .heightIn(min = 100.dp)
+        .clip(RoundedCornerShape(9999.dp))
+        .background(Color(red = 255/255f, green = 255/255f, blue = 255/255f, alpha = 0.55f)),
                                     verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Start
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Cookie, // Lucide: cookie
                                         contentDescription = null,
-                                        tint = AppTheme.TextMedium,
-                                        modifier = Modifier.size(24.dp)
+                                        tint = Color(0xFF7A4521),
+                                        modifier = Modifier
+        .size(24.dp)
                                     )
                                 }
                                 Text(
                                     text = "193 kcal",
-                                    fontSize = 14.sp,
+                                    fontSize = 18.sp,
                                     color = AppTheme.TextHigh,
-                                    fontWeight = FontWeight.Normal,
-                                
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier
                                 )
                             }
                             Row(
-                                modifier = Modifier,
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier
+        .heightIn(min = 100.dp)
+        .background(Color(0xFFF5F5FA)),
+                                verticalAlignment = Alignment.Bottom,
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
                                     text = "Snack",
-                                    fontSize = 16.sp,
+                                    fontSize = 20.sp,
                                     color = AppTheme.TextHigh,
-                                    fontWeight = FontWeight.Medium,
-                                
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier
                                 )
                                 Button(
                                     onClick = { /* Action */ },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFFFFF)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF5F5FA)),
                                     shape = RoundedCornerShape(9999.dp),
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                                     modifier = Modifier
                                 ) {
                                     Row(
@@ -718,7 +948,8 @@ fun JournalScreen() {
                                             imageVector = Icons.Default.Plus, // Lucide: plus
                                             contentDescription = null,
                                             tint = AppTheme.TextHigh,
-                                            modifier = Modifier.size(24.dp)
+                                            modifier = Modifier
+        .size(24.dp)
                                         )
                                     }
                                 }
@@ -728,120 +959,104 @@ fun JournalScreen() {
                 }
             }
         }
+        Column(
+            modifier = Modifier
+        .heightIn(min = 100.dp),
+            horizontalAlignment = Alignment.Start,
+            verticalArrangement = Arrangement.Top
+        ) {
+        }
     }
         }
-    Column(
+    Row(
         modifier = Modifier
-        .padding(start = AppTheme.ScreenPadding, top = 0.dp, end = AppTheme.ScreenPadding, bottom = 16.dp)
-        .align(Alignment.BottomCenter)
-        .fillMaxWidth(),
-        horizontalAlignment = Alignment.Start,
+        .heightIn(min = 100.dp)
+        .clip(RoundedCornerShape(999.dp))
+        .background(Color(red = 255/255f, green = 255/255f, blue = 255/255f, alpha = 0.92f))
+        .border(1.dp, Color(red = 0/255f, green = 0/255f, blue = 0/255f, alpha = 0.05f), RoundedCornerShape(999.dp))
+        .padding(start = 8.dp, top = 8.dp, end = 8.dp, bottom = 8.dp)
+        .align(Alignment.BottomCenter).fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Start
     ) {
-        Row(
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier
-        .height(80.dp)
-        .clip(RoundedCornerShape(AppTheme.BorderRadiusPill))
-        .background(Color(0xFFFFFFFF))
-        .border(1.dp, AppTheme.BorderDivider, RoundedCornerShape(AppTheme.BorderRadiusPill)),
-            verticalAlignment = Alignment.CenterVertically,
+        .height(280.dp)
+        .background(Color(0xFFF5F5FA))
         ) {
-            Button(
-                onClick = { /* Action */ },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFFFFF)),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.ChefHat, // Lucide: chef-hat
-                        contentDescription = null,
-                        tint = AppTheme.TextLow,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-            Button(
-                onClick = { /* Action */ },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFFFFF)),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.CalendarDays, // Lucide: calendar-days
-                        contentDescription = null,
-                        tint = AppTheme.TextLow,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-            Button(
-                onClick = { /* Action */ },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFFFFF)),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Sparkles, // Lucide: sparkles
-                        contentDescription = null,
-                        tint = AppTheme.TextLow,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-            Button(
-                onClick = { /* Action */ },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFFFFF)),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            item {
+                Button(
+                    onClick = { /* Action */ },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFFFFF)),
+                    shape = RoundedCornerShape(999.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                    modifier = Modifier
                 ) {
                     Row(
-                        modifier = Modifier
-        .width(44.dp)
-        .height(44.dp)
-        .clip(RoundedCornerShape(9999.dp))
-        .background(AppTheme.ActionPrimary),
-                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(3.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.BookOpen, // Lucide: book-open
-                            contentDescription = null,
-                            tint = AppTheme.ActionOnPrimary,
-                            modifier = Modifier.size(24.dp)
+                        Row(
+                            modifier = Modifier
+        .width(18.dp)
+        .height(18.dp)
+        .heightIn(min = 100.dp)
+        .background(Color(0xFFF5F5FA)),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Start
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Home, // Lucide: home
+                                contentDescription = null,
+                                tint = Color.Transparent,
+                                modifier = Modifier
+        .size(24.dp)
+                            )
+                        }
+                        Text(
+                            text = "Meal Plan",
+                            modifier = Modifier
                         )
                     }
                 }
             }
-            Button(
-                onClick = { /* Action */ },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFFFFF)),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            item {
+                Button(
+                    onClick = { /* Action */ },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFFFFF)),
+                    shape = RoundedCornerShape(999.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                    modifier = Modifier
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.BookMarked, // Lucide: book-marked
-                        contentDescription = null,
-                        tint = AppTheme.TextLow,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(3.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            modifier = Modifier
+        .width(18.dp)
+        .height(18.dp)
+        .heightIn(min = 100.dp)
+        .background(Color(0xFFF5F5FA)),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Start
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Search, // Lucide: search
+                                contentDescription = null,
+                                tint = Color.Transparent,
+                                modifier = Modifier
+        .size(24.dp)
+                            )
+                        }
+                        Text(
+                            text = "Journal",
+                            modifier = Modifier
+                        )
+                    }
                 }
             }
         }

@@ -1546,6 +1546,7 @@ export function ChatPanel({
 
   return (
     <div
+      data-canvas-obstacle="left"
       className={`absolute z-50 flex flex-col overflow-hidden transition-all duration-300
         animate-in fade-in-0 slide-in-from-left-2
         left-2 right-2 top-[var(--dg-mobile-top-reserve)] bottom-3 h-auto rounded-[24px]

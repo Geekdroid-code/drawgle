@@ -5,10 +5,9 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Sparkles, Check, ChevronDown, ImageIcon, Loader2, Palette, RotateCcw, Upload, X, HelpCircle, Megaphone, Play, Share2, LogOut, FolderSync, CircleDollarSign, User, CreditCard, Download, Mail, MessageCircle } from "lucide-react";
 
 import { AnimatedThemeToggle } from "@/components/AnimatedThemeToggle";
-import { CanvasArea } from "@/components/CanvasArea";
+import { CanvasStage } from "@/components/CanvasArea";
 import { ProjectCanvasLoading } from "@/components/ProjectCanvasLoading";
 import { MobileExportDrawer } from "@/components/MobileExportDrawer";
-import { CanvasToolDock } from "@/components/CanvasToolDock";
 import { ChatPanel } from "@/components/ChatPanel";
 import { ColorPickerButton } from "@/components/DesignSystemEditor";
 import type { ElementSelectionLostReason, SelectedElementInfo } from "@/components/ScreenNode";
@@ -64,6 +63,7 @@ import type {
   ScreenPlan,
   ScreenData,
 } from "@/lib/types";
+import type { CanvasTool } from "@/lib/canvas-interactions";
 
 const TERMINAL_GENERATION_STATUSES = new Set<GenerationRunData["status"]>([
   "completed",
@@ -708,7 +708,10 @@ function SelectedElementInspectorSidebar({
   }
 
   return (
-    <aside className="dg-visual-editor fixed bottom-[calc(var(--dg-mobile-prompt-bottom)+8.75rem)] left-3 right-3 top-auto z-[80] flex max-h-[min(72vh,660px)] flex-col overflow-hidden rounded-[26px] border border-slate-950/[0.08] bg-white/96 backdrop-blur-xl md:bottom-4 md:left-auto md:right-4 md:top-[calc(env(safe-area-inset-top,0px)+4.25rem)] md:max-h-none md:w-[min(420px,calc(100%-1rem))]">
+    <aside
+      data-canvas-obstacle="right"
+      className="dg-visual-editor fixed bottom-[calc(var(--dg-mobile-prompt-bottom)+8.75rem)] left-3 right-3 top-auto z-[80] flex max-h-[min(72vh,660px)] flex-col overflow-hidden rounded-[26px] border border-slate-950/[0.08] bg-white/96 backdrop-blur-xl md:bottom-4 md:left-auto md:right-4 md:top-[calc(env(safe-area-inset-top,0px)+4.25rem)] md:max-h-none md:w-[min(420px,calc(100%-1rem))]"
+    >
       <div className="flex items-start justify-between gap-3 border-b border-slate-950/[0.06] px-4 pb-3 pt-4">
         <div className="min-w-0">
           <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#667894]">
@@ -1041,7 +1044,7 @@ export function ProjectShell({
   const { screens, refreshScreens } = useScreens(initialProject.id, initialScreens);
   const { projectNavigation } = useProjectNavigation(initialProject.id, initialProjectNavigation);
   const { generationRun, generationRuns, refreshGenerationRuns } = useGenerationRuns(initialProject.id, initialGenerationRuns);
-  const [fitRequestVersion, setFitRequestVersion] = useState(0);
+  const [canvasTool, setCanvasTool] = useState<CanvasTool>("pointer");
   const [selectedScreen, setSelectedScreen] = useState<ScreenData | null>(null);
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
   const [isQueueingGeneration, setIsQueueingGeneration] = useState(false);
@@ -1049,7 +1052,6 @@ export function ProjectShell({
   const [pendingAddScreenRunId, setPendingAddScreenRunId] = useState<string | null>(null);
   const [queueError, setQueueError] = useState<string | null>(null);
   const [selectionNotice, setSelectionNotice] = useState<string | null>(null);
-  const [selectionMode, setSelectionMode] = useState(false);
   const [selectionVersion, setSelectionVersion] = useState(0);
 
   // Credits & Pricing Dialog state
@@ -1087,11 +1089,8 @@ export function ProjectShell({
 
   const exportTokenCss = useMemo(() => buildDrawgleTokenCss(effectiveDesignTokens), [effectiveDesignTokens]);
   const exportGoogleFontLinks = useMemo(() => buildGoogleFontAssetLinks(effectiveDesignTokens), [effectiveDesignTokens]);
-  const centeredRunIdRef = useRef<string | null>(null);
-  const knownScreenIdsRef = useRef<Set<string>>(new Set());
-  const hasHydratedScreenIdsRef = useRef(false);
   const addScreenRefreshAttemptedRunIdRef = useRef<string | null>(null);
-  const hasQueuedInitialFitRef = useRef(false);
+  const selectionMode = canvasTool === "element-select";
   const isGenerationBusy = Boolean(generationRun) || isQueueingGeneration || Boolean(pendingQueuedRunId);
   const isCanvasInteractionLocked = isGenerationBusy;
   const isGenerationActive = Boolean(
@@ -1164,57 +1163,6 @@ export function ProjectShell({
   }, [editSession?.screenId, screens, selectedScreen]);
 
   useEffect(() => {
-    if (!selectionMode && !editSession) {
-      return;
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setSelectionMode(false);
-        setEditSession(null);
-        setPendingElementSelection(null);
-        setSelectionNotice(null);
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [editSession, selectionMode]);
-
-  useEffect(() => {
-    if (screens.length === 0 || hasQueuedInitialFitRef.current) {
-      return;
-    }
-
-    hasQueuedInitialFitRef.current = true;
-    setFitRequestVersion((currentVersion) => currentVersion + 1);
-  }, [screens.length]);
-
-  useEffect(() => {
-    if (screens.length === 0) {
-      knownScreenIdsRef.current = new Set();
-      return;
-    }
-
-    const currentScreenIds = new Set(screens.map((screen) => screen.id));
-
-    if (!hasHydratedScreenIdsRef.current) {
-      hasHydratedScreenIdsRef.current = true;
-      knownScreenIdsRef.current = currentScreenIds;
-      return;
-    }
-
-    const hasNewScreen = screens.some((screen) => !knownScreenIdsRef.current.has(screen.id));
-    knownScreenIdsRef.current = currentScreenIds;
-
-    if (!hasNewScreen) {
-      return;
-    }
-
-    setFitRequestVersion((currentVersion) => currentVersion + 1);
-  }, [screens]);
-
-  useEffect(() => {
     if (!pendingQueuedRunId) {
       return;
     }
@@ -1255,26 +1203,6 @@ export function ProjectShell({
       setQueueError(null);
     }
   }, [generationRun?.id]);
-
-  useEffect(() => {
-    if (!generationRun?.id) {
-      centeredRunIdRef.current = null;
-      return;
-    }
-
-    if (centeredRunIdRef.current === generationRun.id) {
-      return;
-    }
-
-    const hasGeneratedScreens = screens.some((screen) => screen.generationRunId === generationRun.id);
-    if (!hasGeneratedScreens) {
-      return;
-    }
-
-    centeredRunIdRef.current = generationRun.id;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setFitRequestVersion((currentVersion) => currentVersion + 1);
-  }, [generationRun?.id, screens]);
 
   useEffect(() => {
     if (!pendingAddScreenRunId) {
@@ -1678,14 +1606,9 @@ export function ProjectShell({
   const handleToggleSelectionMode = () => {
     setSelectionNotice(null);
     setPendingElementSelection(null);
-
-    if (selectionMode) {
-      setSelectionMode(false);
-      setEditSession(null);
-      return;
-    }
-
-    setSelectionMode(true);
+    setCanvasTool((currentTool) =>
+      currentTool === "element-select" ? "pointer" : "element-select",
+    );
   };
 
   const commitElementSelection = (info: SelectedElementInfo) => {
@@ -1788,7 +1711,10 @@ export function ProjectShell({
   return (
     <div className="h-full min-h-0 overflow-hidden bg-[var(--dg-bg)] text-[var(--dg-text)]" style={shellLayoutVars}>
       <main className="relative z-0 flex h-full w-full overflow-hidden">
-        <div className="absolute left-4 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-50 flex items-center gap-2">
+        <div
+          data-canvas-obstacle="top"
+          className="absolute left-4 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-50 flex items-center gap-2"
+        >
           <div className="flex h-8 items-center rounded-full dg-panel px-2 backdrop-blur-xl lg:px-3">
             <Button variant="ghost" size="sm" onClick={() => router.push("/project/new")} className="h-8 rounded-full text-[var(--dg-text)] hover:bg-[var(--dg-surface-muted)] focus-visible:bg-[var(--dg-surface-muted)] data-[state=open]:bg-[var(--dg-surface-muted)] px-2 sm:px-3 flex items-center justify-center">
               <ArrowLeft className="h-4 w-4 sm:mr-2" />
@@ -1801,7 +1727,10 @@ export function ProjectShell({
           </div>
         </div>
 
-        <div className="absolute right-4 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-50 flex items-center gap-1.5 sm:gap-3">
+        <div
+          data-canvas-obstacle="top"
+          className="absolute right-4 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-50 flex items-center gap-1.5 sm:gap-3"
+        >
           {/* Group 1 (Utilities): Sun/Moon theme toggle + Help contact dropdown */}
           <div className="flex h-8 shrink-0 items-center rounded-full dg-panel px-1.5 backdrop-blur-xl gap-0.5">
             <Tooltip>
@@ -1962,20 +1891,30 @@ export function ProjectShell({
         </div>
 
         <div className="relative h-full min-w-0 flex-1">
-          <CanvasArea
+          <CanvasStage
             screens={screens}
             projectNavigation={projectNavigation}
             designTokens={effectiveDesignTokens}
-            fitRequestVersion={fitRequestVersion}
             selectedScreen={selectedScreen}
             mobileBottomReserve={mobilePromptReserve}
+            tool={canvasTool}
+            disabled={isCanvasInteractionLocked}
+            onToolChange={setCanvasTool}
             onSelectScreen={handleCanvasSelectScreen}
-            selectionMode={selectionMode}
-            preserveSelectionOnCanvasClick={Boolean(editSession) || selectionMode}
+            onCanvasClick={() => {
+              setSelectedScreen(null);
+              clearEditSession();
+            }}
             selectedElementScreenId={editSession?.screenId ?? null}
             selectedElementDrawgleId={editSession?.element.drawgleId ?? null}
+            hasSelectedElement={Boolean(selectedElementInfo)}
+            selectedElementCanEditText={selectedElementCanEditText}
+            selectedElementCanEditDesign={selectedElementCanEditDesign}
             onElementSelected={handleElementSelected}
             onElementSelectionLost={handleElementSelectionLost}
+            onEditSelectedText={() => setEditSessionMode("design")}
+            onEditSelectedDesign={() => setEditSessionMode("design")}
+            onClearSelectedElement={clearEditSession}
             onExportCode={(cleanScreenCode, cleanNavigationCode, screenName, tokenCss, googleFontAssetLinks, activeNavigationItemId) => {
               const matchedScreen = screens.find((s) => s.name === screenName);
               if (matchedScreen) {
@@ -2088,19 +2027,6 @@ export function ProjectShell({
               onReplaceImage={handleReplaceSelectedImage}
             />
           ) : null}
-
-          <CanvasToolDock
-            selectionMode={selectionMode}
-            hasSelectedElement={Boolean(selectedElementInfo)}
-            selectedElementCanEditText={selectedElementCanEditText}
-            selectedElementCanEditDesign={selectedElementCanEditDesign}
-            disabled={isCanvasInteractionLocked}
-            isChatCollapsed={isChatCollapsed}
-            onToggleSelectionMode={handleToggleSelectionMode}
-            onEditSelectedText={() => setEditSessionMode("design")}
-            onEditSelectedDesign={() => setEditSessionMode("design")}
-            onClearSelectedElement={clearEditSession}
-          />
 
           <MobileExportDrawer
             open={exportDrawerOpen}
