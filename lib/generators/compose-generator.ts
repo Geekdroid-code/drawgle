@@ -30,7 +30,7 @@ export function toComposeThemeToken(token: string | undefined, fallbackVal: stri
 
 // Structured Compose modifier builder
 interface ComposeModifier {
-  type: 'size' | 'weight' | 'clip' | 'background' | 'border' | 'padding' | 'offset' | 'alignment' | 'alpha';
+  type: 'size' | 'weight' | 'clip' | 'background' | 'border' | 'padding' | 'offset' | 'alignment' | 'alpha' | 'shadow';
   code: string;
 }
 
@@ -38,13 +38,14 @@ function buildComposeModifiers(modifiers: ComposeModifier[]): string {
   const order = {
     size: 1,
     weight: 2,
-    clip: 3,
-    background: 4,
-    border: 5,
-    padding: 6,
-    offset: 7,
-    alignment: 8,
-    alpha: 9
+    shadow: 3,
+    clip: 4,
+    background: 5,
+    border: 6,
+    padding: 7,
+    offset: 8,
+    alignment: 9,
+    alpha: 10
   };
 
   const sorted = [...modifiers].sort((a, b) => {
@@ -363,6 +364,21 @@ export function transpileToCompose(root: TranspileNode): string {
       const gridModifiers: ComposeModifier[] = [];
       gridModifiers.push({ type: 'size', code: `.height(280.dp)` }); // Standard height limit for nested Grid to avoid infinite height crash
       
+      // Shadow
+      if (styles.shadow) {
+        let shape = "RectangleShape";
+        if (styles.borderRadiusToken) {
+          shape = `RoundedCornerShape(${toComposeThemeToken(styles.borderRadiusToken, "")})`;
+        } else if (styles.borderRadius > 0) {
+          shape = `RoundedCornerShape(${styles.borderRadius}.dp)`;
+        }
+        if (styles.shadow === "surface") {
+          gridModifiers.push({ type: 'shadow', code: `.shadow(elevation = 4.dp, shape = ${shape})` });
+        } else if (styles.shadow === "overlay") {
+          gridModifiers.push({ type: 'shadow', code: `.shadow(elevation = 12.dp, shape = ${shape})` });
+        }
+      }
+
       if (styles.borderRadiusToken) {
         gridModifiers.push({ type: 'clip', code: `.clip(RoundedCornerShape(${toComposeThemeToken(styles.borderRadiusToken, "")}))` });
       } else if (styles.borderRadius > 0) {
@@ -424,6 +440,21 @@ export function transpileToCompose(root: TranspileNode): string {
     
     if (styles.hasFlex1 && !styles.isAbsolute) {
       stackModifiers.push({ type: 'weight', code: `.weight(1f)` });
+    }
+
+    // Shadow
+    if (styles.shadow) {
+      let shape = "RectangleShape";
+      if (styles.borderRadiusToken) {
+        shape = `RoundedCornerShape(${toComposeThemeToken(styles.borderRadiusToken, "")})`;
+      } else if (styles.borderRadius > 0) {
+        shape = `RoundedCornerShape(${styles.borderRadius}.dp)`;
+      }
+      if (styles.shadow === "surface") {
+        stackModifiers.push({ type: 'shadow', code: `.shadow(elevation = 4.dp, shape = ${shape})` });
+      } else if (styles.shadow === "overlay") {
+        stackModifiers.push({ type: 'shadow', code: `.shadow(elevation = 12.dp, shape = ${shape})` });
+      }
     }
 
     // Border clipping & rounding

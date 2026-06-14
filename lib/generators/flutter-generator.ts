@@ -371,7 +371,8 @@ export function transpileToFlutter(root: TranspileNode): string {
 
     if (hasBg ||
         styles.borderRadiusToken || styles.borderRadius > 0 || 
-        styles.borderColorToken || styles.borderWidth > 0) {
+        styles.borderColorToken || styles.borderWidth > 0 ||
+        styles.shadow) {
       containerWrap = true;
       decoration += `    decoration: BoxDecoration(\n`;
 
@@ -397,6 +398,26 @@ export function transpileToFlutter(root: TranspileNode): string {
       if (styles.borderColorToken || styles.borderWidth > 0) {
         const borderCol = styles.borderColorToken ? toFlutterThemeToken(styles.borderColorToken, "") : toFlutterColor(styles.borderColor);
         decoration += `      border: Border.all(color: ${borderCol}, width: ${styles.borderWidth || 1}.0),\n`;
+      }
+
+      if (styles.shadow) {
+        if (styles.shadow === "surface") {
+          decoration += "      boxShadow: [\n" +
+                        "        BoxShadow(\n" +
+                        "          color: Color(0x0A000000),\n" +
+                        "          blurRadius: 30.0,\n" +
+                        "          offset: Offset(0.0, 10.0),\n" +
+                        "        ),\n" +
+                        "      ],\n";
+        } else if (styles.shadow === "overlay") {
+          decoration += "      boxShadow: [\n" +
+                        "        BoxShadow(\n" +
+                        "          color: Color(0x1F000000),\n" +
+                        "          blurRadius: 40.0,\n" +
+                        "          offset: Offset(0.0, 20.0),\n" +
+                        "        ),\n" +
+                        "      ],\n";
+        }
       }
       decoration += `    ),\n`;
     }

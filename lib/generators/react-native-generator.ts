@@ -25,6 +25,25 @@ export function gradientDirectionToRN(direction: string): { start: { x: number; 
   return { start: { x: 0.5, y: 0 }, end: { x: 0.5, y: 1 } };
 }
 
+function getRNShadowStyle(shadow: string | null | undefined, indent: string): string {
+  if (!shadow) return "";
+  if (shadow === "surface") {
+    return `${indent}shadowColor: '#000',\n` +
+           `${indent}shadowOffset: { width: 0, height: 4 },\n` +
+           `${indent}shadowOpacity: 0.04,\n` +
+           `${indent}shadowRadius: 15,\n` +
+           `${indent}elevation: 2,\n`;
+  }
+  if (shadow === "overlay") {
+    return `${indent}shadowColor: '#000',\n` +
+           `${indent}shadowOffset: { width: 0, height: 10 },\n` +
+           `${indent}shadowOpacity: 0.12,\n` +
+           `${indent}shadowRadius: 20,\n` +
+           `${indent}elevation: 6,\n`;
+  }
+  return "";
+}
+
 // Post-processing string sanitizer
 function sanitizeReactNativeCode(code: string): string {
   return code
@@ -252,6 +271,7 @@ export function transpileToReactNative(root: TranspileNode): string {
       if (styles.borderRadiusToken || styles.borderRadius > 0) {
         out += `${getIndent()}    borderRadius: ${btnRadius},\n`;
       }
+      out += getRNShadowStyle(styles.shadow, getIndent() + "    ");
       out += `${getIndent()}    paddingVertical: ${paddingY},\n`;
       out += `${getIndent()}    paddingHorizontal: ${paddingX},\n`;
       out += `${getIndent()}    flexDirection: 'row',\n`;
@@ -358,6 +378,7 @@ export function transpileToReactNative(root: TranspileNode): string {
       } else if (styles.borderRadius > 0) {
         out += `${getIndent()}  borderRadius: ${styles.borderRadius},\n`;
       }
+      out += getRNShadowStyle(styles.shadow, getIndent() + "  ");
       out += `${getIndent()}}}>\n`;
       indentLevel++;
 
@@ -454,6 +475,7 @@ export function transpileToReactNative(root: TranspileNode): string {
     } else if (styles.borderRadius > 0) {
       out += `${getIndent()}  borderRadius: ${styles.borderRadius},\n`;
     }
+    out += getRNShadowStyle(styles.shadow, getIndent() + "  ");
 
     if (styles.borderWidth > 0 && styles.borderColor !== 'transparent') {
       const borderCol = styles.borderColorToken ? toRNThemeToken(styles.borderColorToken, '') : toRNColor(styles.borderColor);
