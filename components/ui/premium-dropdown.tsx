@@ -147,15 +147,25 @@ export function PremiumDropdown({
   );
 
   const fixedPositionStyle =
-    isOpen && triggerRect && isHorizontalSide
+    isOpen && triggerRect
       ? {
-          left: side === "right" ? triggerRect.right + 8 : triggerRect.left - width - 8,
-          top:
-            align === "end"
+          position: "fixed" as const,
+          left: isHorizontalSide
+            ? side === "right" ? triggerRect.right + 8 : triggerRect.left - width - 8
+            : align === "end"
+            ? triggerRect.right - width
+            : align === "start"
+            ? triggerRect.left
+            : triggerRect.left + triggerRect.width / 2 - width / 2,
+          top: isHorizontalSide
+            ? align === "end"
               ? triggerRect.bottom - openHeight
               : align === "start"
               ? triggerRect.top
-              : triggerRect.top + triggerRect.height / 2 - openHeight / 2,
+              : triggerRect.top + triggerRect.height / 2 - openHeight / 2
+            : side === "bottom"
+            ? triggerRect.bottom + 8
+            : triggerRect.top - openHeight - 8,
         }
       : undefined;
 
@@ -190,20 +200,20 @@ export function PremiumDropdown({
         stiffness: 380,
         mass: 0.8,
       }}
-      style={fixedPositionStyle}
+      style={portalReady ? fixedPositionStyle : undefined}
       className={cn(
         "z-[120] bg-white dark:bg-[#1b1b1b] border border-slate-950/[0.08] dark:border-white/[0.08] shadow-[0_20px_70px_rgba(15,23,42,0.15)] dark:shadow-[0_20px_70px_rgba(0,0,0,0.55)] overflow-hidden",
-        isHorizontalSide
-          ? "fixed"
-          : "absolute",
-        side === "top"
-          ? "bottom-full mb-2"
-          : side === "right"
-          ? ""
-          : side === "left"
-          ? ""
-          : "top-full mt-2",
-        !isHorizontalSide && popupPositionClass,
+        portalReady ? "fixed" : cn(
+          "absolute",
+          side === "top"
+            ? "bottom-full mb-2"
+            : side === "right"
+            ? ""
+            : side === "left"
+            ? ""
+            : "top-full mt-2",
+          !isHorizontalSide && popupPositionClass
+        ),
         originClass,
         menuClassName
       )}
@@ -327,6 +337,12 @@ export function PremiumDropdown({
     </motion.div>
   );
 
+  const portalledContent = (
+    <AnimatePresence>
+      {isOpen && dropdownContent}
+    </AnimatePresence>
+  );
+
   return (
     <div
       ref={containerRef}
@@ -336,9 +352,7 @@ export function PremiumDropdown({
         {trigger}
       </div>
 
-      <AnimatePresence>
-        {isOpen && (isHorizontalSide && portalReady ? createPortal(dropdownContent, document.body) : dropdownContent)}
-      </AnimatePresence>
+      {portalReady ? createPortal(portalledContent, document.body) : portalledContent}
     </div>
   );
 }

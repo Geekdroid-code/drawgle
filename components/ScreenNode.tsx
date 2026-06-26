@@ -1,10 +1,12 @@
 "use client";
 
 import type { DesignTokens, ProjectNavigationData, ScreenData } from "@/lib/types";
-import { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { MoreHorizontal, Download, Trash2, Edit2, Smartphone, MousePointerClick, Crosshair } from "lucide-react";
+import { useState, useRef, useEffect, useMemo, useCallback, memo } from "react";
+import { MoreHorizontal, Download, Trash2, Edit2, Smartphone, MousePointerClick, Crosshair, Code, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PremiumDropdown } from "@/components/ui/premium-dropdown";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { buildStandaloneHtmlExport, resolveScreenNavigationCode } from "@/lib/export-pipeline";
 import { createClient } from "@/lib/supabase/client";
 import { ensureDrawgleIds, stripDrawgleIds, type DrawgleBoundingRect, type DrawgleEditableMetadata } from "@/lib/drawgle-dom";
 import { DRAWGLE_STYLE_PROPERTY_CONFIGS } from "@/lib/element-style-inspection";
@@ -87,6 +89,7 @@ function ScreenLabelBar({
   onInteractToggle,
   onExport,
   onDelete,
+  onShowCode,
 }: {
   screen: ScreenData;
   isSelected: boolean;
@@ -95,6 +98,7 @@ function ScreenLabelBar({
   onInteractToggle: () => void;
   onExport: () => void;
   onDelete: () => void;
+  onShowCode: () => void;
 }) {
   return (
     <div
@@ -191,6 +195,17 @@ function ScreenLabelBar({
             <MousePointerClick className="w-3.5 h-3.5" />
           </Button>
         )}
+
+        {/* Code Viewer button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 rounded-lg text-[var(--dg-text)] opacity-90 hover:bg-[var(--dg-surface-muted)] hover:text-[var(--dg-text)] hover:opacity-100 dark:text-[#d8dde7] dark:hover:bg-white/10"
+          title="View clean code"
+          onClick={onShowCode}
+        >
+          <Code className="w-3.5 h-3.5" />
+        </Button>
 
         {/* Export */}
         <Button
@@ -307,6 +322,146 @@ function ScreenBuildPreloader({ visible }: { visible: boolean }) {
 // ---------------------------------------------------------------------------
 // Main ScreenNode
 // ---------------------------------------------------------------------------
+
+function highlightHTML(code: string): string {
+  let escaped = code
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+  const comments: string[] = [];
+  escaped = escaped.replace(/&lt;!--[\s\S]*?--&gt;/g, (match) => {
+    comments.push(match);
+    return `___COMMENT_PLACEHOLDER_${comments.length - 1}___`;
+  });
+
+  escaped = escaped.replace(/(&lt;\/?[a-zA-Z0-9:-]+)([\s\S]*?)(&gt;)/g, (match, p1, p2, p3) => {
+    let tagHtml = `<span class="text-sky-400 font-semibold">${p1}</span>`;
+    let attrs = p2;
+    if (attrs) {
+      attrs = attrs.replace(/([a-zA-Z0-9:-]+)(=(?:"[^"]*"|'[^']*'|[^\s"'>]+))?/g, (attrMatch, attrName, attrVal) => {
+        let highlightedAttr = `<span class="text-purple-300">${attrName}</span>`;
+        if (attrVal) {
+          const equalsIdx = attrVal.indexOf('=');
+          const eq = attrVal.slice(0, equalsIdx + 1);
+          const val = attrVal.slice(equalsIdx + 1);
+          highlightedAttr += `<span class="text-slate-400">${eq}</span><span class="text-emerald-300">${val}</span>`;
+        }
+        return highlightedAttr;
+      });
+    }
+    return tagHtml + attrs + `<span class="text-sky-400 font-semibold">${p3}</span>`;
+  });
+
+  escaped = escaped.replace(/___COMMENT_PLACEHOLDER_(\d+)___/g, (match, index) => {
+    return `<span class="text-slate-500 italic font-normal">${comments[parseInt(index, 10)]}</span>`;
+  });
+
+  return escaped;
+}
+
+interface CodeViewerDialogProps {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  screenName: string;
+  htmlExport: string;
+}
+
+const CodeViewerDialog = memo(function CodeViewerDialog({
+  isOpen,
+  onOpenChange,
+  screenName,
+  htmlExport,
+}: CodeViewerDialogProps) {
+  const [isCopied, setIsCopied] = useState(false);
+
+  const lineCount = useMemo(() => {
+    if (!htmlExport) return 0;
+    return htmlExport.split("\n").length;
+  }, [htmlExport]);
+
+  const highlightedCode = useMemo(() => {
+    if (!isOpen || !htmlExport) return "";
+    return highlightHTML(htmlExport);
+  }, [htmlExport, isOpen]);
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(htmlExport);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
+  }, [htmlExport]);
+
+  const handleDownload = useCallback(() => {
+    const blob = new Blob([htmlExport], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${screenName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "drawgle-screen"}.html`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }, [htmlExport, screenName]);
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-4xl max-h-[85vh] flex flex-col p-0 overflow-hidden bg-[var(--dg-surface,#18181b)] border border-[var(--dg-border,rgba(255,255,255,0.08))] text-slate-100 ring-1 ring-white/10 shadow-2xl">
+        <DialogHeader className="flex flex-row items-center justify-between px-6 py-4 border-b border-[var(--dg-border,rgba(255,255,255,0.08))] bg-[var(--dg-surface-muted,#202024)] gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <DialogTitle className="text-[15px] font-bold text-slate-100 truncate leading-none">
+              {screenName}
+            </DialogTitle>
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-[10px] font-extrabold tracking-wider text-slate-400 select-none">
+              <Code className="w-3 h-3 text-sky-400" />
+              HTML
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2 mr-8">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5 px-3 rounded-lg border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white"
+              onClick={handleCopy}
+            >
+              {isCopied ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="text-[11px] font-medium">Copied</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5" />
+                  <span className="text-[11px] font-medium">Copy</span>
+                </>
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5 px-3 rounded-lg border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white"
+              onClick={handleDownload}
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="text-[11px] font-medium">Download</span>
+            </Button>
+          </div>
+        </DialogHeader>
+
+        <div className="flex-1 min-h-0 overflow-auto bg-slate-950 p-6 font-mono text-[12px] leading-relaxed select-text">
+          <pre className="overflow-x-auto whitespace-pre [tab-size:2]">
+            <code dangerouslySetInnerHTML={{ __html: highlightedCode }} />
+          </pre>
+        </div>
+
+        <div className="flex items-center justify-between px-6 py-3 border-t border-[var(--dg-border,rgba(255,255,255,0.08))] bg-[var(--dg-surface-muted,#202024)] text-[11px] font-semibold text-slate-500 select-none">
+          <span>Raw HTML output · {lineCount} lines</span>
+          <span>.html</span>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+});
 
 export function ScreenNode({
   screen,
@@ -501,6 +656,23 @@ ${cleanScreenCode}
     link.remove();
     URL.revokeObjectURL(url);
   }, [activeNavigationItemId, displayCode, googleFontAssetLinks, navigationShellCode, screen.name, sharedNavigationActive, tokenCss, onExportCode]);
+
+  const [isCodeOpen, setIsCodeOpen] = useState(false);
+
+  const htmlExport = useMemo(() => {
+    if (!isCodeOpen) return "";
+    return buildStandaloneHtmlExport({
+      screen: {
+        ...screen,
+        code: rawDisplayCode,
+      },
+      navigationCode: sharedNavigationActive ? navigationShellCode : "",
+      activeNavigationItemId,
+      designTokens,
+      tokenCss,
+      googleFontAssetLinks,
+    });
+  }, [isCodeOpen, screen, rawDisplayCode, sharedNavigationActive, navigationShellCode, activeNavigationItemId, designTokens, tokenCss, googleFontAssetLinks]);
 
   // ── Push code updates into the iframe without a full remount
   useEffect(() => {
@@ -1809,6 +1981,7 @@ ${cleanScreenCode}
         onInteractToggle={() => setInteractMode((m) => !m)}
         onExport={handleExportCode}
         onDelete={handleDelete}
+        onShowCode={() => setIsCodeOpen(true)}
       />
 
       {/* ── Flat card container ─────────────────────────────────────────── */}
@@ -1889,6 +2062,14 @@ ${cleanScreenCode}
 
       {/* ── Dimension badge — visible while dragging ────────────────────── */}
       <DimensionBadge visible={isDragging} height={isInteractModeActive ? SCREEN_FRAME_HEIGHT : contentHeight} />
+
+      {/* Code Viewer Dialog */}
+      <CodeViewerDialog
+        isOpen={isCodeOpen}
+        onOpenChange={setIsCodeOpen}
+        screenName={screen.name}
+        htmlExport={htmlExport}
+      />
     </div>
   );
 }

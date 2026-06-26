@@ -212,7 +212,7 @@ function stylePropertyToTailwind(property: string, value: string, varMap: Map<st
   // Helper to format values for Tailwind arbitrary notation [val]
   const formatArbitraryValue = (v: string) => {
     let cleaned = v.replace(/([a-zA-Z0-9_-]+)\(([^)]+)\)/gi, (match, fn, args) => {
-      return `${fn}(${args.replace(/\s+/g, "")})`;
+      return `${fn}(${args.replace(/\s+/g, "_")})`;
     });
     cleaned = cleaned.replace(/\s+/g, "_");
     return cleaned;
@@ -377,6 +377,7 @@ function stylePropertyToTailwind(property: string, value: string, varMap: Map<st
       const val = resolveValueToVariable(value, 'other', varMap);
       if (val === "var(--shadow-surface)") return "shadow-surface";
       if (val === "var(--shadow-overlay)") return "shadow-overlay";
+      if (val === "var(--shadow-none)" || val === "none") return "shadow-none";
       return `shadow-[${formatArbitraryValue(val)}]`;
     }
     case "background-image": {
@@ -386,6 +387,39 @@ function stylePropertyToTailwind(property: string, value: string, varMap: Map<st
     default:
       return null;
   }
+}
+
+function isTextColorClass(cls: string): boolean {
+  if (!cls.startsWith("text-")) return false;
+  // Exclude alignments
+  if (["text-left", "text-center", "text-right", "text-justify"].includes(cls)) return false;
+  // Exclude typography sizes/weights
+  if (cls.match(/^text-(nav-title|screen-title|hero-title|section-title|metric-value|body|supporting|caption|button-label)$/)) return false;
+  // Check arbitrary values
+  const arbitraryMatch = cls.match(/^text-\[(.+)\]$/);
+  if (arbitraryMatch) {
+    const val = arbitraryMatch[1];
+    if (val.includes("px") || val.includes("rem") || val.includes("em") || val.includes("%") || val.includes("size")) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function isBorderColorClass(cls: string): boolean {
+  if (!cls.startsWith("border-")) return false;
+  // Exclude styles
+  if (["border-solid", "border-dashed", "border-dotted", "border-double", "border-none"].includes(cls)) return false;
+  // Exclude widths / sides
+  if (cls.match(/^border-(t|b|l|r|x|y)?(-\d+)?$/)) return false;
+  const arbitraryMatch = cls.match(/^border-\[(.+)\]$/);
+  if (arbitraryMatch) {
+    const val = arbitraryMatch[1];
+    if (val.includes("px") || val.includes("rem") || val.includes("em") || val.match(/^\d+$/)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function compileElement(element: Element, varMap: Map<string, string>) {
@@ -492,9 +526,9 @@ function compileElement(element: Element, varMap: Map<string, string>) {
     const resolved = normalizeCssVariableNames(cls);
     // Replace spaces with underscores inside any brackets [...] (Tailwind arbitrary notation requirement)
     return resolved.replace(/\[([^\]]+)\]/g, (match, content) => {
-      // Remove spaces inside any parenthesis functions (e.g. rgb/rgba/calc)
+      // Replace spaces with underscores inside any parenthesis functions (e.g. rgb/rgba/calc)
       let cleaned = content.replace(/([a-zA-Z0-9_-]+)\(([^)]+)\)/gi, (fnMatch, fn, args) => {
-        return `${fn}(${args.replace(/\s+/g, "")})`;
+        return `${fn}(${args.replace(/\s+/g, "_")})`;
       });
       // Replace remaining spaces with underscores
       cleaned = cleaned.replace(/\s+/g, "_");
@@ -514,6 +548,19 @@ function compileElement(element: Element, varMap: Map<string, string>) {
     for (const [property, value] of styleDeclarations.entries()) {
       const tailwindClass = stylePropertyToTailwind(property, value, varMap);
       if (tailwindClass) {
+        // Resolve conflicts based on property type
+        if (property === "background-color") {
+          classList = classList.filter(cls => !cls.startsWith("bg-") || ["bg-cover", "bg-contain", "bg-center", "bg-repeat", "bg-no-repeat", "bg-local", "bg-fixed", "bg-scroll"].includes(cls));
+        } else if (property === "box-shadow") {
+          classList = classList.filter(cls => !cls.startsWith("shadow"));
+        } else if (property === "border-radius") {
+          classList = classList.filter(cls => !cls.startsWith("rounded"));
+        } else if (property === "color") {
+          classList = classList.filter(cls => !isTextColorClass(cls));
+        } else if (property === "border-color") {
+          classList = classList.filter(cls => !isBorderColorClass(cls));
+        }
+
         classList.push(tailwindClass);
         compiledProperties.push(property);
       }
@@ -561,10 +608,14 @@ function compileElement(element: Element, varMap: Map<string, string>) {
       simplifiedClassList.push("border-primary");
     } else if (cls === "rounded-[var(--radius)]") {
       simplifiedClassList.push("rounded-lg");
+    } else if (cls === "rounded-[var(--radius-pill)]") {
+      simplifiedClassList.push("rounded-full");
     } else if (cls === "shadow-[var(--shadow-surface)]") {
       simplifiedClassList.push("shadow-surface");
     } else if (cls === "shadow-[var(--shadow-overlay)]") {
       simplifiedClassList.push("shadow-overlay");
+    } else if (cls === "shadow-[var(--shadow-none)]") {
+      simplifiedClassList.push("shadow-none");
     } else if (cls === "bg-[var(--tint-blue)]") {
       simplifiedClassList.push("bg-tint-blue");
     } else if (cls === "bg-[var(--tint-orange)]") {

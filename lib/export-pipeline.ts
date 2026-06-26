@@ -83,6 +83,17 @@ export function resolveScreenNavigationCode(
   return projectNavigation.shellCode;
 }
 
+const stripSharedNavigationMarkup = (code: string) =>
+  code
+    .replace(/<!--\s*(?:floating\s+dock|bottom\s+nav|navigation)[\s\S]*?placeholder[\s\S]*?-->\s*<div\b[^>]*(?:h-\[[^\]]*(?:8[0-9]|9[0-9]|1[0-9]{2})px\]|height\s*:\s*(?:8[0-9]|9[0-9]|1[0-9]{2})px)[^>]*>\s*<\/div>/gi, "")
+    .replace(/<nav\b[\s\S]*?<\/nav>/gi, (match) =>
+      /bottom|tab|navigation|nav|data-drawgle-primary-nav/i.test(match) ? "" : match,
+    )
+    .replace(/<footer\b[\s\S]*?<\/footer>/gi, (match) =>
+      /bottom|tab|navigation|nav/i.test(match) ? "" : match,
+    )
+    .trim();
+
 export function buildStandaloneHtmlExport({
   screen,
   navigationCode = "",
@@ -99,7 +110,10 @@ export function buildStandaloneHtmlExport({
   googleFontAssetLinks?: string;
 }) {
   // 1. Compile the HTML codes to resolve design tokens and clean up classes/styles
-  const compiledScreen = compileHtmlForProduction(screen.code, designTokens);
+  const isNavActive = !!navigationCode;
+  const screenCode = isNavActive ? stripSharedNavigationMarkup(screen.code) : screen.code;
+
+  const compiledScreen = compileHtmlForProduction(screenCode, designTokens);
   const compiledNavigation = compileHtmlForProduction(navigationCode, designTokens);
 
   // 2. Sanitize and remove editor-specific attributes
