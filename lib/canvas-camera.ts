@@ -96,12 +96,13 @@ export const getVisibleWorkspace = (
 };
 
 export const getScreenVisualBounds = (
-  screen: Pick<ScreenData, "x" | "y">,
+  screen: Pick<ScreenData, "x" | "y"> & { height?: number },
 ): CanvasBounds => {
   const minX = screen.x - SCREEN_VISUAL_INSETS.left;
   const minY = screen.y - SCREEN_VISUAL_INSETS.top;
   const maxX = screen.x + SCREEN_FRAME_WIDTH + SCREEN_VISUAL_INSETS.right;
-  const maxY = screen.y + SCREEN_FRAME_HEIGHT + SCREEN_VISUAL_INSETS.bottom;
+  const screenHeight = screen.height ?? SCREEN_FRAME_HEIGHT;
+  const maxY = screen.y + screenHeight + SCREEN_VISUAL_INSETS.bottom;
   const width = maxX - minX;
   const height = maxY - minY;
 
@@ -118,7 +119,7 @@ export const getScreenVisualBounds = (
 };
 
 export const getScreensVisualBounds = (
-  screens: Array<Pick<ScreenData, "x" | "y">>,
+  screens: Array<Pick<ScreenData, "x" | "y"> & { height?: number }>,
 ): CanvasBounds | null => {
   if (screens.length === 0) {
     return null;

@@ -103,6 +103,8 @@ type ScreenCanvasNodeData = {
   isTemporaryCanvasPan: boolean;
   isSelected: boolean;
   selectedDrawgleId: string | null;
+  height?: number;
+  onContentHeightChange?: (screenId: string, height: number) => void;
   onElementSelected?: (info: SelectedElementInfo) => void;
   onElementSelectionLost?: (info: {
     screenId: string;
@@ -122,34 +124,38 @@ type ScreenCanvasNodeData = {
 
 type ScreenCanvasNode = Node<ScreenCanvasNodeData, "screen">;
 
-const ScreenCanvasNodeView = memo(({ data, dragging }: NodeProps<ScreenCanvasNode>) => (
-  <div
-    style={{
-      width: SCREEN_FRAME_WIDTH + SCREEN_VISUAL_INSETS.left + SCREEN_VISUAL_INSETS.right,
-      height: SCREEN_FRAME_HEIGHT + SCREEN_VISUAL_INSETS.top + SCREEN_VISUAL_INSETS.bottom,
-      paddingTop: NODE_TOP_PADDING,
-      paddingRight: SCREEN_VISUAL_INSETS.right,
-      paddingBottom: SCREEN_VISUAL_INSETS.bottom,
-      paddingLeft: SCREEN_VISUAL_INSETS.left,
-    }}
-  >
-    <ScreenNode
-      screen={data.screen}
-      projectNavigation={data.projectNavigation}
-      designTokens={data.designTokens}
-      isSelected={data.isSelected}
-      isDragging={dragging}
-      canvasTool={data.canvasTool}
-      isTemporaryCanvasPan={data.isTemporaryCanvasPan}
-      selectionMode={data.canvasTool === "element-select"}
-      selectedDrawgleId={data.selectedDrawgleId}
-      onElementSelected={data.onElementSelected}
-      onElementSelectionLost={data.onElementSelectionLost}
-      onCanvasNavigation={data.onCanvasNavigation}
-      onExportCode={data.onExportCode}
-    />
-  </div>
-));
+const ScreenCanvasNodeView = memo(({ data, dragging }: NodeProps<ScreenCanvasNode>) => {
+  const nodeHeight = data.height ?? SCREEN_FRAME_HEIGHT;
+  return (
+    <div
+      style={{
+        width: SCREEN_FRAME_WIDTH + SCREEN_VISUAL_INSETS.left + SCREEN_VISUAL_INSETS.right,
+        height: nodeHeight + SCREEN_VISUAL_INSETS.top + SCREEN_VISUAL_INSETS.bottom,
+        paddingTop: NODE_TOP_PADDING,
+        paddingRight: SCREEN_VISUAL_INSETS.right,
+        paddingBottom: SCREEN_VISUAL_INSETS.bottom,
+        paddingLeft: SCREEN_VISUAL_INSETS.left,
+      }}
+    >
+      <ScreenNode
+        screen={data.screen}
+        projectNavigation={data.projectNavigation}
+        designTokens={data.designTokens}
+        isSelected={data.isSelected}
+        isDragging={dragging}
+        canvasTool={data.canvasTool}
+        isTemporaryCanvasPan={data.isTemporaryCanvasPan}
+        selectionMode={data.canvasTool === "element-select"}
+        selectedDrawgleId={data.selectedDrawgleId}
+        onElementSelected={data.onElementSelected}
+        onElementSelectionLost={data.onElementSelectionLost}
+        onCanvasNavigation={data.onCanvasNavigation}
+        onExportCode={data.onExportCode}
+        onContentHeightChange={data.onContentHeightChange}
+      />
+    </div>
+  );
+});
 ScreenCanvasNodeView.displayName = "ScreenCanvasNodeView";
 
 const nodeTypes = { screen: ScreenCanvasNodeView };
@@ -259,6 +265,16 @@ function CanvasStageContent({
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const [nodes, setNodes, onNodesChange] = useNodesState<ScreenCanvasNode>([]);
+  const [screenHeights, setScreenHeights] = useState<Record<string, number>>({});
+
+  const handleContentHeightChange = useCallback((screenId: string, height: number) => {
+    setScreenHeights((prev) => {
+      const currentHeight = prev[screenId] ?? SCREEN_FRAME_HEIGHT;
+      if (Math.abs(currentHeight - height) <= 4) return prev;
+      return { ...prev, [screenId]: height };
+    });
+  }, []);
+
   const nodesInitialized = useNodesInitialized();
   const visibleWorkspace = useMemo(
     () => (viewportSize ? getVisibleWorkspace(viewportSize, workspaceInsets) : null),
@@ -445,6 +461,10 @@ function CanvasStageContent({
         const persistedPosition = { x: screen.x, y: screen.y };
         const previousPersistedPosition = persistedPositionsRef.current.get(screen.id);
         nextPersistedPositions.set(screen.id, persistedPosition);
+
+        const screenHeight = screenHeights[screen.id] ?? SCREEN_FRAME_HEIGHT;
+        const nodeHeight = screenHeight + SCREEN_VISUAL_INSETS.top + SCREEN_VISUAL_INSETS.bottom;
+
         const nextData: ScreenCanvasNodeData = {
           screen,
           projectNavigation,
@@ -454,6 +474,8 @@ function CanvasStageContent({
           isSelected: selected,
           selectedDrawgleId:
             selectedElementScreenId === screen.id ? selectedElementDrawgleId ?? null : null,
+          height: screenHeight,
+          onContentHeightChange: handleContentHeightChange,
           onElementSelected: handleElementSelected,
           onElementSelectionLost: handleElementSelectionLost,
           onCanvasNavigation: handleCanvasNavigation,
@@ -475,6 +497,11 @@ function CanvasStageContent({
             draggable: tool === "pointer" && !disabled,
             selected,
             data: nextData,
+            style: {
+              ...current.style,
+              width: SCREEN_FRAME_WIDTH + SCREEN_VISUAL_INSETS.left + SCREEN_VISUAL_INSETS.right,
+              height: nodeHeight,
+            },
           };
         }
 
@@ -488,7 +515,7 @@ function CanvasStageContent({
           data: nextData,
           style: {
             width: SCREEN_FRAME_WIDTH + SCREEN_VISUAL_INSETS.left + SCREEN_VISUAL_INSETS.right,
-            height: SCREEN_FRAME_HEIGHT + SCREEN_VISUAL_INSETS.top + SCREEN_VISUAL_INSETS.bottom,
+            height: nodeHeight,
           },
         };
       });
@@ -499,11 +526,13 @@ function CanvasStageContent({
     designTokens,
     disabled,
     handleCanvasNavigation,
+    handleContentHeightChange,
     handleElementSelected,
     handleElementSelectionLost,
     handleExportCode,
     isTemporaryPan,
     projectNavigation,
+    screenHeights,
     screens,
     selectedElementDrawgleId,
     selectedElementScreenId,

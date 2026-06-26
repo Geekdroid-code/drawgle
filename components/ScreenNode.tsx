@@ -238,7 +238,7 @@ function ScreenLabelBar({
 // Dimension badge — shown while dragging below the phone frame
 // ---------------------------------------------------------------------------
 
-function DimensionBadge({ visible }: { visible: boolean }) {
+function DimensionBadge({ visible, height }: { visible: boolean; height: number }) {
   return (
     <div
       className="absolute left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[11px] font-semibold tabular-nums whitespace-nowrap"
@@ -252,9 +252,10 @@ function DimensionBadge({ visible }: { visible: boolean }) {
         transform: visible ? "translateY(0) scale(1)" : "translateY(-4px) scale(0.92)",
         transition: "opacity 0.12s ease, transform 0.12s ease",
         pointerEvents: "none",
+        zIndex: 60,
       }}
     >
-      {SCREEN_FRAME_WIDTH} × {SCREEN_FRAME_HEIGHT}
+      {SCREEN_FRAME_WIDTH} × {height}
     </div>
   );
 }
@@ -321,6 +322,7 @@ export function ScreenNode({
   onElementSelectionLost,
   onCanvasNavigation,
   onExportCode,
+  onContentHeightChange,
 }: {
   screen: ScreenData;
   projectNavigation?: ProjectNavigationData | null;
@@ -341,6 +343,7 @@ export function ScreenNode({
   onCanvasNavigation?: (message: CanvasNavigationMessage) => void;
   /** Callback for custom code export drawer. */
   onExportCode?: (cleanScreenCode: string, cleanNavigationCode: string, screenName: string, tokenCss: string, googleFontAssetLinks: string, activeNavigationItemId: string | null) => void;
+  onContentHeightChange?: (screenId: string, height: number) => void;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const safeCode = typeof screen.code === "string" ? screen.code : "";
@@ -349,6 +352,8 @@ export function ScreenNode({
   // It is only active while the screen is selected.
   const [interactMode, setInteractMode] = useState(false);
   const isInteractModeActive = Boolean(isSelected && interactMode);
+
+  const [contentHeight, setContentHeight] = useState(SCREEN_FRAME_HEIGHT);
 
   const syncIframeInteractionMode = useCallback((enabled: boolean) => {
     const iframe = iframeRef.current;
@@ -360,6 +365,10 @@ export function ScreenNode({
 
     iframe.contentWindow.postMessage(
       { type: enabled ? "enterInteractMode" : "exitInteractMode" },
+      "*",
+    );
+    iframe.contentWindow.postMessage(
+      { type: "setViewportMode", enabled },
       "*",
     );
   }, []);
@@ -513,10 +522,25 @@ ${cleanScreenCode}
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (event.source !== iframeRef.current?.contentWindow) return;
+
+      if (event.data?.type === "drawgleContentHeight") {
+        const height = Number(event.data.height);
+        if (!isNaN(height) && height > 0) {
+          const clampedHeight = Math.min(2000, Math.max(SCREEN_FRAME_HEIGHT, height));
+          setContentHeight(clampedHeight);
+          onContentHeightChange?.(screen.id, clampedHeight);
+        }
+        return;
+      }
+
       if (event.data?.type !== "drawgleIframeReady") return;
       iframeReadyRef.current = true;
       postCurrentRenderState(true);
       syncIframeInteractionMode(isInteractModeActive);
+      iframeRef.current?.contentWindow?.postMessage(
+        { type: "setViewportMode", enabled: isInteractModeActive },
+        "*",
+      );
       iframeRef.current?.contentWindow?.postMessage(
         { type: selectionMode ? "enableSelectionMode" : "disableSelectionMode" },
         "*",
@@ -529,7 +553,7 @@ ${cleanScreenCode}
 
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [isInteractModeActive, postCurrentRenderState, selectedDrawgleId, selectionMode, syncIframeInteractionMode]);
+  }, [isInteractModeActive, postCurrentRenderState, selectedDrawgleId, selectionMode, syncIframeInteractionMode, screen.id, onContentHeightChange]);
 
   // ── Escape key exits interact mode
   useEffect(() => {
@@ -699,13 +723,49 @@ ${cleanScreenCode}
         <script src="https://unpkg.com/lucide@latest"><\/script>
         ${initialGoogleFontAssetLinks}
         <style>
-          html, body { width: 100%; height: 100%; margin: 0; padding: 0; overscroll-behavior: none; }
-          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow: hidden; }
+          html, body { width: 100%; margin: 0; padding: 0; overscroll-behavior: none; }
           ::-webkit-scrollbar { display: none; width: 0; height: 0; }
           * { -ms-overflow-style: none; scrollbar-width: none; }
-          #root { position: relative; width: 100%; height: 100vh; overflow: hidden; background: transparent; }
-          html:not([data-drawgle-style-ready]) #root { visibility: hidden; }
-          #drawgle-screen-content { width: 100%; height: 100%; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
+          #root { position: relative; width: 100%; background: transparent; }
+
+          /* Full height mode (default) */
+          html:not([data-viewport-mode="true"]), 
+          html:not([data-viewport-mode="true"]) body { 
+            height: auto; 
+            overflow: visible; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          }
+          html:not([data-viewport-mode="true"]) #root { 
+            height: auto; 
+            overflow: visible; 
+          }
+          html:not([data-viewport-mode="true"]) #drawgle-screen-content { 
+            width: 100%; 
+            height: auto; 
+            overflow: visible; 
+          }
+
+          /* Viewport mode (fixed height with scrolling) */
+          html[data-viewport-mode="true"], 
+          html[data-viewport-mode="true"] body { 
+            height: 100%; 
+            overflow: hidden; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          }
+          html[data-viewport-mode="true"] #root { 
+            height: 100vh; 
+            overflow: hidden; 
+          }
+          html[data-viewport-mode="true"] #drawgle-screen-content { 
+            width: 100%; 
+            height: 100%; 
+            overflow-y: auto; 
+            overflow-x: hidden; 
+            overscroll-behavior: contain; 
+            -webkit-overflow-scrolling: touch; 
+            touch-action: pan-y; 
+          }
+
           #drawgle-screen-content:focus { outline: none; }
           #drawgle-navigation-host { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; pointer-events: none; width: 100%; }
           #drawgle-navigation-host:empty { display: none; }
@@ -866,9 +926,49 @@ ${cleanScreenCode}
             check();
           }
 
-          function notifyParentReady() {
+           function notifyParentReady() {
             window.parent.postMessage({ type: 'drawgleIframeReady' }, '*');
           }
+
+          var resizeObserver = null;
+          
+          function measureAndPostHeight() {
+            if (document.documentElement.getAttribute('data-viewport-mode') === 'true') {
+              return;
+            }
+            var content = document.getElementById('drawgle-screen-content');
+            if (!content) return;
+            var height = content.scrollHeight;
+            var minHeight = 844;
+            var maxHeight = 2000;
+            var clamped = Math.min(maxHeight, Math.max(minHeight, height));
+            window.parent.postMessage({ type: 'drawgleContentHeight', height: clamped }, '*');
+          }
+
+          function setupResizeObserver() {
+            if (window.ResizeObserver) {
+              var content = document.getElementById('drawgle-screen-content');
+              if (!content) return;
+              if (resizeObserver) resizeObserver.disconnect();
+              resizeObserver = new ResizeObserver(function() {
+                measureAndPostHeight();
+              });
+              resizeObserver.observe(content);
+            }
+          }
+
+          window.addEventListener('message', function(event) {
+            if (event.data?.type === 'setViewportMode') {
+              if (event.data.enabled) {
+                document.documentElement.setAttribute('data-viewport-mode', 'true');
+              } else {
+                document.documentElement.removeAttribute('data-viewport-mode');
+                window.requestAnimationFrame(function() {
+                  measureAndPostHeight();
+                });
+              }
+            }
+          });
 
           function refreshLucideIconsWithRetry() {
             var attempts = 0;
@@ -1192,6 +1292,10 @@ ${cleanScreenCode}
               waitForRenderedStylesReady(revision);
             }
             if (interactionModeActive) focusScreenContentHost();
+            setupResizeObserver();
+            window.requestAnimationFrame(function() {
+              measureAndPostHeight();
+            });
           }
 
           applyGoogleFontHref(initialGoogleFontHref || '');
@@ -1707,144 +1811,84 @@ ${cleanScreenCode}
         onDelete={handleDelete}
       />
 
-      {/* ──────────────── Side hardware buttons ──────────────────────── */}
-      {/* These are purely decorative — pointer-events: none throughout.    */}
-      {/* Positioned relative to the outer wrapper; top offsets include the  */}
-      {/* 44 px label-bar paddingTop so they align with the phone body.      */}
-
-      {/* Silent / ring switch */}
-      <div style={{ position: 'absolute', left: -4, top: 44 + 76, width: 4, height: 26, background: 'linear-gradient(90deg,#141416,#38383a)', borderRadius: '3px 0 0 3px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12),inset 0 -1px 0 rgba(0,0,0,0.4)', pointerEvents: 'none' }} />
-      {/* Volume + */}
-      <div style={{ position: 'absolute', left: -4, top: 44 + 118, width: 4, height: 34, background: 'linear-gradient(90deg,#141416,#38383a)', borderRadius: '3px 0 0 3px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12),inset 0 -1px 0 rgba(0,0,0,0.4)', pointerEvents: 'none' }} />
-      {/* Volume − */}
-      <div style={{ position: 'absolute', left: -4, top: 44 + 162, width: 4, height: 34, background: 'linear-gradient(90deg,#141416,#38383a)', borderRadius: '3px 0 0 3px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12),inset 0 -1px 0 rgba(0,0,0,0.4)', pointerEvents: 'none' }} />
-      {/* Power / sleep */}
-      <div style={{ position: 'absolute', right: -4, top: 44 + 140, width: 4, height: 68, background: 'linear-gradient(270deg,#141416,#38383a)', borderRadius: '0 3px 3px 0', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12),inset 0 -1px 0 rgba(0,0,0,0.4)', pointerEvents: 'none' }} />
-
-      {/* ── Phone shell ─────────────────────────────────────────────────── */}
-      {/*
-       * The outer div is the titanium-style frame.  No Tailwind border or
-       * ring classes here — selection state lives entirely in box-shadow so
-       * it can be a precise glow rather than a brutal 4-px ring.
-       */}
+      {/* ── Flat card container ─────────────────────────────────────────── */}
       <div
         style={{
           position: 'relative',
           width: SCREEN_FRAME_WIDTH,
-          height: SCREEN_FRAME_HEIGHT,
-          borderRadius: 54,
-          // Titanium-inspired directional gradient
-          background:
-            'linear-gradient(158deg,#404042 0%,#252527 28%,#1a1a1c 52%,#2b2b2d 76%,#3d3d3f 100%)',
-          // Frame micro-highlights (simulates metal specularity)
+          height: isInteractModeActive ? SCREEN_FRAME_HEIGHT : contentHeight,
+          borderRadius: 16,
+          background: 'var(--dg-color-background-primary, #ffffff)',
+          border: '1px solid rgba(0, 0, 0, 0.08)',
           boxShadow: (() => {
-            const frame =
-              'inset 0 0 0 1px rgba(255,255,255,0.07),' +
-              'inset 0 1px 0 rgba(255,255,255,0.15),' +
-              'inset 1px 0 0 rgba(255,255,255,0.04),' +
-              'inset -1px 0 0 rgba(0,0,0,0.25)';
+            const baseShadow = '0 10px 30px -10px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.02)';
             if (isSelectionModeActive)
-              return `0 0 0 2px #0d9488,0 0 22px rgba(13,148,136,0.35),${frame}`;
+              return `0 0 0 2px #0d9488, 0 0 16px rgba(13,148,136,0.2), ${baseShadow}`;
             if (isInteractModeActive)
-              return `0 0 0 2px #10b981,0 0 18px rgba(16,185,129,0.38),${frame}`;
+              return `0 0 0 2px #10b981, 0 0 16px rgba(16,185,129,0.2), ${baseShadow}`;
             if (isSelected)
-              return `0 0 0 2px #6366f1,0 0 22px rgba(99,102,241,0.3),${frame}`;
-            return frame;
+              return `0 0 0 2px #6366f1, 0 0 16px rgba(99,102,241,0.2), ${baseShadow}`;
+            return baseShadow;
           })(),
-          transition: 'box-shadow 0.22s ease',
-          // overflow visible so side buttons (negative-left/right) are shown
-          overflow: 'visible',
+          transition: 'box-shadow 0.22s ease, height 0.22s cubic-bezier(0.4, 0, 0.2, 1)',
+          overflow: 'hidden',
         }}
       >
         {/*
-         * Inner screen inset — this div carries the black bezel and clips
-         * all content (iframe, overlays) to the rounded screen shape.
-         * 10px inset on all sides = the physical bezel thickness.
+         * Drag / click overlay
+         * Always present in drag mode — sits above the iframe so the
+         * iframe's document never receives our pointer events.
+         * Removed only when the user enters Interact Mode.
          */}
-        <div
-          style={{
-            position: 'absolute',
-            top: 10, left: 10, right: 10, bottom: 10,
-            borderRadius: 46,
-            overflow: 'hidden',
-            background: '#000',
-          }}
-        >
-
-
-          {/*
-           * Drag / click overlay
-           * Always present in drag mode — sits above the iframe so the
-           * iframe's document never receives our pointer events.
-           * Removed only when the user enters Interact Mode.
-           */}
-          {overlayActive && (
-            <div
-              className="absolute inset-0 touch-none"
-              style={{ zIndex: 10, ...overlayPointerStyle }}
-              onDoubleClick={() => {
-                if (canvasTool === "pointer" && isSelected && !isTemporaryCanvasPan) {
-                  setInteractMode(true);
-                  window.requestAnimationFrame(() => syncIframeInteractionMode(true));
-                }
-              }}
-            />
-          )}
-
-          {/* Actual screen content */}
-          <iframe
-            ref={iframeRef}
-            title={screen.name}
-            className="absolute inset-0 w-full h-full border-none"
-            sandbox="allow-scripts allow-same-origin"
-            srcDoc={srcDoc}
-            style={{
-              pointerEvents: isDragging || overlayActive ? 'none' : 'auto',
-              cursor: isSelectionModeActive ? 'crosshair' : undefined,
-            }}
-            onLoad={() => {
-              iframeReadyRef.current = false;
-              window.setTimeout(() => {
-                iframeReadyRef.current = true;
-                postCurrentRenderState(true);
-              }, 120);
-              // Ensure selection mode is enabled if the iframe finishes loading
-              // after the selectionMode state has already been set.
-              if (selectionMode && iframeRef.current?.contentWindow) {
-                iframeRef.current.contentWindow.postMessage(
-                  { type: 'enableSelectionMode' },
-                  '*'
-                );
-              }
-              if (isInteractModeActive) {
-                syncIframeInteractionMode(true);
-              }
-            }}
-          />
-
-          <ScreenBuildPreloader visible={showBuildPreloader} />
-
-          {/* Home indicator pill */}
+        {overlayActive && (
           <div
-            style={{
-              position: 'absolute',
-              bottom: 9,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              width: 134,
-              height: 5,
-              // Semi-transparent so it reads over any content colour
-              background: 'rgba(255,255,255,0.22)',
-              borderRadius: 3,
-              zIndex: 25,
-              pointerEvents: 'none',
+            className="absolute inset-0 touch-none"
+            style={{ zIndex: 10, ...overlayPointerStyle }}
+            onDoubleClick={() => {
+              if (canvasTool === "pointer" && isSelected && !isTemporaryCanvasPan) {
+                setInteractMode(true);
+                window.requestAnimationFrame(() => syncIframeInteractionMode(true));
+              }
             }}
           />
-        </div>
+        )}
+
+        {/* Actual screen content */}
+        <iframe
+          ref={iframeRef}
+          title={screen.name}
+          className="absolute inset-0 w-full h-full border-none"
+          sandbox="allow-scripts allow-same-origin"
+          srcDoc={srcDoc}
+          style={{
+            pointerEvents: isDragging || overlayActive ? 'none' : 'auto',
+            cursor: isSelectionModeActive ? 'crosshair' : undefined,
+          }}
+          onLoad={() => {
+            iframeReadyRef.current = false;
+            window.setTimeout(() => {
+              iframeReadyRef.current = true;
+              postCurrentRenderState(true);
+            }, 120);
+            // Ensure selection mode is enabled if the iframe finishes loading
+            // after the selectionMode state has already been set.
+            if (selectionMode && iframeRef.current?.contentWindow) {
+              iframeRef.current.contentWindow.postMessage(
+                { type: 'enableSelectionMode' },
+                '*'
+              );
+            }
+            if (isInteractModeActive) {
+              syncIframeInteractionMode(true);
+            }
+          }}
+        />
+
+        <ScreenBuildPreloader visible={showBuildPreloader} />
       </div>
 
       {/* ── Dimension badge — visible while dragging ────────────────────── */}
-      <DimensionBadge visible={isDragging} />
+      <DimensionBadge visible={isDragging} height={isInteractModeActive ? SCREEN_FRAME_HEIGHT : contentHeight} />
     </div>
   );
 }

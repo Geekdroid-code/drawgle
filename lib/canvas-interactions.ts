@@ -48,9 +48,9 @@ export const SCREEN_FRAME_HEIGHT = 844;
 // Includes the external label, frame buttons, glow, and lower drag badge spacing.
 export const SCREEN_VISUAL_INSETS: CanvasViewportInsets = {
   top: 60,
-  right: 8,
-  bottom: 16,
-  left: 8,
+  right: 4,
+  bottom: 12,
+  left: 4,
 };
 
 export const EMPTY_CANVAS_INSETS: CanvasViewportInsets = {
