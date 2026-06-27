@@ -133,4 +133,47 @@ describe("Navigation Logic Improvement Tests", () => {
       }).toThrow("Deleting the root-level screen container is not allowed.");
     });
   });
+
+  describe("force immersive chrome for chat and assistant screens", () => {
+    it("should resolve to immersive for AI Chat Assistant screen", () => {
+      const assistantScreen: ScreenPlan = {
+        name: "AI Chat Assistant",
+        type: "root",
+        description: "An AI chat assistant screen",
+      };
+
+      const resolved = resolveScreenChromePolicy({
+        screenPlan: assistantScreen,
+        navigationArchitecture: defaultArchitecture,
+      });
+
+      expect(resolved.chrome).toBe("immersive");
+      expect(resolved.showPrimaryNavigation).toBe(false);
+    });
+
+    it("should normalize navigation plan to suppress navigationItemId for AI Chat Assistant screen", () => {
+      const screens: ScreenPlan[] = [
+        {
+          name: "Home",
+          type: "root",
+          description: "Home screen",
+        },
+        {
+          name: "AI Chat Assistant",
+          type: "root",
+          description: "Chat assistant screen",
+        },
+      ];
+
+      const navPlan = normalizeNavigationPlan({
+        screens,
+        navigationArchitecture: defaultArchitecture,
+        requiresBottomNav: true,
+      });
+
+      const assistantChrome = navPlan.screenChrome.find((sc) => sc.screenName === "AI Chat Assistant");
+      expect(assistantChrome?.chrome).toBe("immersive");
+      expect(assistantChrome?.navigationItemId).toBeNull();
+    });
+  });
 });

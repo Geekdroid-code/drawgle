@@ -164,11 +164,19 @@ export function resolveScreenChromePolicy({
 
   let chrome = isScreenChromeKind(requestedPolicy?.chrome) ? requestedPolicy.chrome : fallbackChrome;
 
+  const nameAndBrief = `${screenPlan.name} ${screenPlan.description || ""}`;
+  const IMMERSIVE_SCREENS_REGEX = /\b(login|log[\s-]?in|sign[\s-]?in|sign[\s-]?up|register|auth|forgot[\s-]?password|reset[\s-]?password|otp|verification|two[\s-]?factor|2fa|onboarding|splash|welcome|hero|chat|ai[\s-]?chat|ai[\s-]?assistant|assistant|messaging|conversation|compose|camera|player|video[\s-]?call|fullscreen|immersive)\b/i;
+  const shouldForceImmersive = IMMERSIVE_SCREENS_REGEX.test(nameAndBrief);
+
+  if (shouldForceImmersive) {
+    chrome = "immersive";
+  }
+
   if (screenPlan.type !== "root" && chrome === "bottom-tabs") {
     chrome = normalizedArchitecture.detailChrome;
   }
 
-  if (screenPlan.type === "root" && normalizedArchitecture.primaryNavigation === "bottom-tabs") {
+  if (screenPlan.type === "root" && normalizedArchitecture.primaryNavigation === "bottom-tabs" && !shouldForceImmersive) {
     const screenExplicitlyOptedOut = requestedPolicy?.chrome && requestedPolicy.chrome !== "bottom-tabs";
     if (!screenExplicitlyOptedOut) {
       chrome = "bottom-tabs";

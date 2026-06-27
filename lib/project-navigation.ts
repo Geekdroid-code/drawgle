@@ -243,7 +243,12 @@ export function normalizeNavigationPlan({
       const planned = navigationPlan?.screenChrome?.find((entry) => entry.screenName.toLowerCase() === screen.name.toLowerCase());
       const fallbackChrome = fallback.screenChrome.find((entry) => entry.screenName === screen.name);
       const matchingItem = itemForScreen(screen);
-      const chrome = planned?.chrome ?? fallbackChrome?.chrome ?? screen.chromePolicy?.chrome ?? "top-bar";
+      const nameAndBrief = `${screen.name} ${screen.description || ""}`;
+      const IMMERSIVE_SCREENS_REGEX = /\b(login|log[\s-]?in|sign[\s-]?in|sign[\s-]?up|register|auth|forgot[\s-]?password|reset[\s-]?password|otp|verification|two[\s-]?factor|2fa|onboarding|splash|welcome|hero|chat|ai[\s-]?chat|ai[\s-]?assistant|assistant|messaging|conversation|compose|camera|player|video[\s-]?call|fullscreen|immersive)\b/i;
+      const shouldForceImmersive = IMMERSIVE_SCREENS_REGEX.test(nameAndBrief);
+
+      const rawChrome = planned?.chrome ?? fallbackChrome?.chrome ?? screen.chromePolicy?.chrome ?? "top-bar";
+      const chrome = shouldForceImmersive ? "immersive" : rawChrome;
       const suppressesNav = chrome === "immersive" || chrome === "modal-sheet";
       return {
         screenName: screen.name,

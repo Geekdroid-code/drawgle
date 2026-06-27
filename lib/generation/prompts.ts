@@ -143,7 +143,8 @@ Blueprint rules:
 - A finite described flow is not automatically a bottom-tabs app. Use persistent bottom navigation only when screens are peer root destinations or the user/reference explicitly calls for primary navigation.
 - navigation_plan must be present. Use enabled false and kind "none" when persistent navigation should not exist.
 - navigation_plan.items must contain only project-specific primary destinations from the approved screen slate, usually 3-5 items for bottom-tabs apps. Never create screens because navigation needs more tabs.
-- Do not create nav items for onboarding, splash, transient tracking/detail, checkout, confirmation, modal, or one-off flow screens.
+- Do not create nav items for onboarding, splash, login, signup, register, auth, chat, messaging, assistant, transient tracking/detail, checkout, confirmation, modal, or one-off flow screens.
+- Inside navigation_plan.screen_chrome, set chrome to "immersive" and navigation_item_id to null for onboarding, splash, login, signup, register, auth, chat, messaging, and assistant screens. Under no circumstances should these screens show the primary bottom-tabs navigation.
 - Use Lucide icon names for navigation_plan.items.icon.
 - navigation_plan.visual_brief must describe the actual visual anatomy: floating dock, glass pill, compact rail, sculpted card-attached nav, centered action dock, active state, icon/label rhythm, surface, radius, elevation, and safe-area relationship.
 - Prefer modern mobile navigation patterns when appropriate. Do not default to a plain full-width 2015-style tab bar unless the reference or brief requires it.
@@ -165,9 +166,9 @@ Rules:
 - Screen briefs decide what exists. Use the user's scope and intent contract first; treat navigation tabs, settings rows, segmented controls, and menu labels as UI elements unless the user asked for those destinations as screens.
 - In Image to UI mode, visible bottom tabs in a one-screen screenshot are part of the visual anatomy for that one screen, not permission to create additional screens.
 - If the prompt names screens in order, preserve those names and order.
-- Root screens are peer primary destinations. Onboarding, splash, checkout, tracking, map, detail, modal, and confirmation screens are usually detail/immersive screens.
+- Root screens are peer primary destinations. Onboarding, splash, checkout, tracking, map, detail, modal, confirmation, login, signup, register, auth, chat, messaging, and assistant screens are detail/immersive screens.
 - chrome_policy must match the screen's role in the approved architecture. Detail screens should not carry the primary bottom-tab shell.
-- Onboarding and splash screens should normally use immersive chrome and show_primary_navigation false.
+- Onboarding, splash, login, signup, register, auth, chat, messaging, and assistant screens must use immersive chrome (or top-bar-back detail chrome) and set show_primary_navigation to false.
 - Each description should usually be 900-1800 characters and must be detailed enough for the builder to implement without seeing the original image.
 - Write each screen description as a construction brief that starts at the background layer and moves forward through primary layout structure, nested containment, component arrangement, edge/depth/material behavior, and must-preserve visual construction details.
 - Name concrete component structures and states: headers, hero regions, surfaces, containers, lists, rows, sheets, charts, progress rings, segmented controls, tabs, chips, icon buttons, badges, avatar stacks, maps, media areas, text groups, and CTA placement when relevant.
