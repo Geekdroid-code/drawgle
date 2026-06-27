@@ -85,11 +85,11 @@ const policyByTask: Record<GeminiTaskType, GeminiModelPolicy> = {
   },
   navigation_build: {
     model: FULL_BUILD_MODEL,
-    config: buildModelConfig("minimal", 12000),
+    config: buildModelConfig("low", 12000),
   },
   screen_build: {
     model: FULL_BUILD_MODEL,
-    config: buildModelConfig("minimal", SCREEN_BUILD_MAX_OUTPUT_TOKENS),
+    config: buildModelConfig("low", SCREEN_BUILD_MAX_OUTPUT_TOKENS),
   },
   selected_region_edit: {
     model: SELECTED_EDIT_MODEL,
@@ -97,11 +97,11 @@ const policyByTask: Record<GeminiTaskType, GeminiModelPolicy> = {
   },
   full_rebuild: {
     model: FULL_BUILD_MODEL,
-    config: buildModelConfig("minimal", FULL_REBUILD_MAX_OUTPUT_TOKENS),
+    config: buildModelConfig("low", FULL_REBUILD_MAX_OUTPUT_TOKENS),
   },
   repair: {
     model: FULL_BUILD_MODEL,
-    config: buildModelConfig("minimal", 18000),
+    config: buildModelConfig("low", 18000),
   },
 };
 

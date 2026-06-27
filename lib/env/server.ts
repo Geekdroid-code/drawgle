@@ -40,6 +40,9 @@ export const getScreenBuilderProvider = () =>
 export const getScreenBuilderModel = () =>
   process.env.DRAWGLE_SCREEN_BUILDER_MODEL ?? "gemini-3-flash-preview";
 
+export const getProjectPlannerModel = () =>
+  process.env.DRAWGLE_GEMINI_PROJECT_PLANNER_MODEL ?? "gemini-3.5-flash";
+
 export const getScreenEditorModel = () =>
   process.env.DRAWGLE_SCREEN_EDITOR_MODEL ?? getScreenBuilderModel();
 
