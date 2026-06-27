@@ -2,7 +2,7 @@
 
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Sparkles, Check, ChevronDown, ImageIcon, Loader2, Palette, RotateCcw, Upload, X, HelpCircle, Megaphone, Play, Share2, LogOut, FolderSync, CircleDollarSign, User, CreditCard, Download, Mail, MessageCircle } from "lucide-react";
+import { ArrowLeft, Sparkles, Check, ChevronDown, ImageIcon, Loader2, Palette, RotateCcw, Upload, X, HelpCircle, Megaphone, Play, Share2, LogOut, FolderSync, CircleDollarSign, User, CreditCard, Download, Mail, MessageCircle, Trash } from "lucide-react";
 
 import { AnimatedThemeToggle } from "@/components/AnimatedThemeToggle";
 import { CanvasStage } from "@/components/CanvasArea";
@@ -576,6 +576,7 @@ function SelectedElementInspectorSidebar({
   onClose,
   onApplyOperations,
   onReplaceImage,
+  onDelete,
 }: {
   project: ProjectData;
   selectedScreen: ScreenData | null;
@@ -586,6 +587,7 @@ function SelectedElementInspectorSidebar({
   onClose: () => void;
   onApplyOperations: (operations: DeterministicEditOperation[]) => Promise<boolean>;
   onReplaceImage: (target: DrawgleImageTargetMeta, file: File) => Promise<boolean>;
+  onDelete?: () => void | Promise<void>;
 }) {
   const [isSaving, setIsSaving] = useState(false);
   const [imageUploadError, setImageUploadError] = useState<string | null>(null);
@@ -984,12 +986,25 @@ function SelectedElementInspectorSidebar({
               ) : null}
             </div>
           </div>
-          <div className="flex justify-end gap-2 border-t border-slate-950/[0.06] bg-white/95 px-4 py-3">
-            <Button variant="outline" className="h-10 rounded-full px-4" onClick={() => onModeChange("selected")}>Back</Button>
-            <Button className="h-10 rounded-full dg-button-primary hover:dg-button-primary px-4 text-white gap-2" disabled={disabled || isSaving} onClick={() => void saveDesign()}>
-              {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-              Apply Changes
-            </Button>
+          <div className="flex justify-between border-t border-slate-950/[0.06] bg-white/95 px-4 py-3">
+            {onDelete && selectedElementInfo.targetType !== "navigation" ? (
+              <Button
+                variant="outline"
+                className="h-10 rounded-full px-4 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                disabled={disabled || isSaving}
+                onClick={() => void onDelete()}
+              >
+                <Trash className="mr-1.5 h-3.5 w-3.5" />
+                Delete
+              </Button>
+            ) : <div />}
+            <div className="flex gap-2">
+              <Button variant="outline" className="h-10 rounded-full px-4" onClick={() => onModeChange("selected")}>Back</Button>
+              <Button className="h-10 rounded-full dg-button-primary hover:dg-button-primary px-4 text-white gap-2" disabled={disabled || isSaving} onClick={() => void saveDesign()}>
+                {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                Apply Changes
+              </Button>
+            </div>
           </div>
         </div>
       ) : null}
@@ -1567,6 +1582,30 @@ export function ProjectShell({
     }]);
   };
 
+  const handleDeleteSelectedElement = async () => {
+    if (!project || !editSession?.element.drawgleId) {
+      return;
+    }
+
+    if (editSession.element.targetType === "navigation") {
+      alert("Deleting elements from the shared navigation shell is not supported.");
+      return;
+    }
+
+    const confirmed = window.confirm("Are you sure you want to delete this element?");
+    if (!confirmed) {
+      return;
+    }
+
+    const deleted = await handleDeterministicElementEdit([{
+      type: "deleteElement",
+    }]);
+
+    if (deleted) {
+      clearEditSession();
+    }
+  };
+
   const handleTokenDraftChange = (nextTokens: DesignTokens) => {
     setTokenDraft(normalizeDesignTokens(nextTokens));
     setTokenDirty(true);
@@ -2023,6 +2062,7 @@ export function ProjectShell({
             onEditSelectedText={() => setEditSessionMode("design")}
             onEditSelectedDesign={() => setEditSessionMode("design")}
             onClearSelectedElement={clearEditSession}
+            onDeleteSelectedElement={handleDeleteSelectedElement}
           />
 
           {editSession && editSession.mode !== "selected" ? (
@@ -2037,6 +2077,7 @@ export function ProjectShell({
               onClose={clearEditSession}
               onApplyOperations={handleDeterministicElementEdit}
               onReplaceImage={handleReplaceSelectedImage}
+              onDelete={handleDeleteSelectedElement}
             />
           ) : null}
 

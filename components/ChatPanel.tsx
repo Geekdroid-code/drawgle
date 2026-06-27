@@ -1387,6 +1387,7 @@ export function ChatPanel({
   onEditSelectedText,
   onEditSelectedDesign,
   onClearSelectedElement,
+  onDeleteSelectedElement,
 }: {
   project: ProjectData;
   screens: ScreenData[];
@@ -1425,6 +1426,7 @@ export function ChatPanel({
   onEditSelectedText?: () => void;
   onEditSelectedDesign?: () => void;
   onClearSelectedElement?: () => void;
+  onDeleteSelectedElement?: () => void | Promise<void>;
 }) {
   const { messages, isLoading } = useProjectMessages(project.id);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -1689,6 +1691,7 @@ export function ChatPanel({
                 onEditSelectedText={onEditSelectedText}
                 onEditSelectedDesign={onEditSelectedDesign}
                 onClearSelectedElement={onClearSelectedElement}
+                onDeleteSelectedElement={onDeleteSelectedElement}
               />
             </div>
           </>

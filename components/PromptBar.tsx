@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Loader2, Palette, Pencil, Send, X } from "lucide-react";
+import { Loader2, Palette, Pencil, Send, Trash, X } from "lucide-react";
 
 import { AgentThinkingIndicator } from "@/components/AgentBall";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ export type AgentComposerProps = {
   onEditSelectedText?: () => void;
   onEditSelectedDesign?: () => void;
   onClearSelectedElement?: () => void;
+  onDeleteSelectedElement?: () => void | Promise<void>;
   variant?: "floating" | "panel";
 };
 
@@ -46,6 +47,7 @@ export function AgentComposer({
   onEditSelectedText,
   onEditSelectedDesign,
   onClearSelectedElement,
+  onDeleteSelectedElement,
   variant = "floating",
 }: AgentComposerProps) {
   const [prompt, setPrompt] = useState("");
@@ -150,6 +152,24 @@ export function AgentComposer({
                 />
                 <TooltipContent>Open visual editor</TooltipContent>
               </Tooltip>
+              {onDeleteSelectedElement ? (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        type="button"
+                        className="rounded-full p-0.5 text-[var(--dg-text-muted)] hover:bg-[var(--dg-surface)] hover:text-red-500 dark:text-[#aeb5c2] dark:hover:text-red-400"
+                        onClick={onDeleteSelectedElement}
+                        disabled={disabled || isGenerating}
+                        aria-label="Delete element"
+                      >
+                        <Trash className="h-3.5 w-3.5" />
+                      </button>
+                    }
+                  />
+                  <TooltipContent>Delete element</TooltipContent>
+                </Tooltip>
+              ) : null}
               {onClearSelectedElement ? (
                 <Tooltip>
                   <TooltipTrigger

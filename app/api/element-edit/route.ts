@@ -31,6 +31,10 @@ const isOperation = (value: unknown): value is DeterministicEditOperation => {
     return typeof operation.mode === "string" && typeof operation.src === "string";
   }
 
+  if (operation.type === "deleteElement") {
+    return true;
+  }
+
   return false;
 };
 

@@ -99,7 +99,10 @@ export function createFallbackNavigationPlan({
     requiresBottomNav,
   });
   const enabled = deriveRequiresBottomNav(architecture);
-  const rootScreens = screens.filter((screen) => screen.type === "root").slice(0, 5);
+  const NAV_EXCLUDED_SCREEN_NAMES = /\b(login|sign[\s-]?in|sign[\s-]?up|register|auth|onboarding|splash|welcome|chat|ai[\s-]?assistant|assistant|forgot[\s-]?password|otp|verification|camera|player)\b/i;
+  const rootScreens = screens
+    .filter((screen) => screen.type === "root" && !NAV_EXCLUDED_SCREEN_NAMES.test(screen.name))
+    .slice(0, 5);
 
   const items: NavigationPlanItem[] = enabled
     ? (rootScreens.length > 0 ? rootScreens : screens.slice(0, 1)).map((screen, index) => ({
@@ -240,11 +243,13 @@ export function normalizeNavigationPlan({
       const planned = navigationPlan?.screenChrome?.find((entry) => entry.screenName.toLowerCase() === screen.name.toLowerCase());
       const fallbackChrome = fallback.screenChrome.find((entry) => entry.screenName === screen.name);
       const matchingItem = itemForScreen(screen);
+      const chrome = planned?.chrome ?? fallbackChrome?.chrome ?? screen.chromePolicy?.chrome ?? "top-bar";
+      const suppressesNav = chrome === "immersive" || chrome === "modal-sheet";
       return {
         screenName: screen.name,
-        chrome: planned?.chrome ?? fallbackChrome?.chrome ?? screen.chromePolicy?.chrome ?? "top-bar",
-        navigationItemId: enabled && screen.type === "root"
-          ? planned?.navigationItemId ?? matchingItem?.id ?? fallbackChrome?.navigationItemId ?? null
+        chrome,
+        navigationItemId: enabled && screen.type === "root" && !suppressesNav
+          ? planned?.navigationItemId ?? matchingItem?.id ?? null
           : null,
       };
     }),

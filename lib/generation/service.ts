@@ -598,6 +598,14 @@ const explicitSectionChromePolicy = (section: ExplicitScreenSection, index: numb
     return { chrome: "immersive", showPrimaryNavigation: false, showsBackButton: false };
   }
 
+  if (/\b(login|log[\s-]?in|sign[\s-]?in|sign[\s-]?up|register|auth|forgot[\s-]?password|reset[\s-]?password|otp|verification|two[\s-]?factor|2fa)\b/i.test(nameAndBrief)) {
+    return { chrome: "immersive", showPrimaryNavigation: false, showsBackButton: false };
+  }
+
+  if (/\b(chat|ai[\s-]?chat|ai[\s-]?assistant|assistant|messaging|conversation|compose|camera|player|video[\s-]?call|fullscreen|immersive)\b/i.test(nameAndBrief)) {
+    return { chrome: "immersive", showPrimaryNavigation: false, showsBackButton: false };
+  }
+
   if (/\b(tracking|map|detail|checkout|summary|confirmation|modal)\b/i.test(nameAndBrief)) {
     return { chrome: "top-bar-back", showPrimaryNavigation: false, showsBackButton: true };
   }
@@ -633,7 +641,7 @@ const screenPlanFromExplicitSection = (
 
   return {
     name: existing?.name?.trim() || section.name,
-    type: existing?.type ?? (index === 0 && !/\b(onboarding|splash|welcome)\b/i.test(section.name) ? "root" : "detail"),
+    type: existing?.type ?? (index === 0 && !/\b(onboarding|splash|welcome|login|sign[\s-]?in|sign[\s-]?up|register|auth|chat|assistant|ai[\s-]?assistant)\b/i.test(section.name) ? "root" : "detail"),
     description: appendRequiredAnchors(baseDescription, section.anchors),
     assetNeeds: existing?.assetNeeds ?? [],
     chromePolicy: explicitSectionChromePolicy(section, index, forceNoPersistentNav) ?? existing?.chromePolicy ?? null,

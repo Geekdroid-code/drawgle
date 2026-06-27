@@ -93,6 +93,10 @@ export type DeterministicEditOperation =
       src: string;
       alt?: string | null;
       targetIndex?: number | null;
+    }
+  | {
+      type: "deleteElement";
+      drawgleId?: string;
     };
 
 export type { DrawgleStyleProperty };
@@ -490,6 +494,23 @@ function applyReplaceImage(
   return replaceOpeningTagInCode(code, element, nextOpeningTag);
 }
 
+export function applyDeleteElement(code: string, drawgleId: string): string {
+  const elements = parseElements(code);
+  const element = elements.find((el) => el.attributes["data-drawgle-id"] === drawgleId);
+  if (!element) {
+    throw new Error(`Target element with drawgle ID "${drawgleId}" not found.`);
+  }
+
+  const hasParent = elements.some(
+    (el) => el.startOffset < element.startOffset && el.endOffset > element.endOffset
+  );
+  if (!hasParent) {
+    throw new Error("Deleting the root-level screen container is not allowed.");
+  }
+
+  return code.slice(0, element.startOffset) + code.slice(element.endOffset);
+}
+
 export function applyDeterministicEdits({
   code,
   drawgleId,
@@ -515,6 +536,8 @@ export function applyDeterministicEdits({
       nextCode = applyClearStyle(nextCode, targetDrawgleId, assertStyleProperty(operation.property));
     } else if (operation.type === "replaceImage") {
       nextCode = applyReplaceImage(nextCode, targetDrawgleId, operation.mode, operation.src, operation.alt, operation.targetIndex);
+    } else if (operation.type === "deleteElement") {
+      nextCode = applyDeleteElement(nextCode, targetDrawgleId);
     }
   }
 

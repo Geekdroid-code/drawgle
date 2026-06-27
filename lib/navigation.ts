@@ -169,7 +169,10 @@ export function resolveScreenChromePolicy({
   }
 
   if (screenPlan.type === "root" && normalizedArchitecture.primaryNavigation === "bottom-tabs") {
-    chrome = "bottom-tabs";
+    const screenExplicitlyOptedOut = requestedPolicy?.chrome && requestedPolicy.chrome !== "bottom-tabs";
+    if (!screenExplicitlyOptedOut) {
+      chrome = "bottom-tabs";
+    }
   }
 
   let showPrimaryNavigation = requestedPolicy?.showPrimaryNavigation ?? chrome === "bottom-tabs";
