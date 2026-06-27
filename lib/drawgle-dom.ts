@@ -288,17 +288,44 @@ export function ensureDrawgleIds(inputCode: string, prefix = "dg") {
     return { code: inputCode, changed: false };
   }
 
+  let cleanInputCode = inputCode;
+  if (prefix === "dg-nav") {
+    // Strip any data-drawgle-id attributes that do not start with "dg-nav-" to force re-generation
+    cleanInputCode = inputCode.replace(
+      /\sdata-drawgle-id\s*=\s*(?:"dg-([a-z0-9-]+)"|'dg-([a-z0-9-]+)'|dg-([a-z0-9-]+))/gi,
+      (match, g1, g2, g3) => {
+        const id = g1 ?? g2 ?? g3;
+        if (id && !id.startsWith("nav-")) {
+          return "";
+        }
+        return match;
+      }
+    );
+  } else if (prefix === "dg") {
+    // Strip any data-drawgle-id attributes that start with "dg-nav-" to force re-generation as screen IDs
+    cleanInputCode = inputCode.replace(
+      /\sdata-drawgle-id\s*=\s*(?:"dg-([a-z0-9-]+)"|'dg-([a-z0-9-]+)'|dg-([a-z0-9-]+))/gi,
+      (match, g1, g2, g3) => {
+        const id = g1 ?? g2 ?? g3;
+        if (id && id.startsWith("nav-")) {
+          return "";
+        }
+        return match;
+      }
+    );
+  }
+
   const usedIds = new Set(
-    Array.from(inputCode.matchAll(/\sdata-drawgle-id\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s"'=<>`]+))/g))
+    Array.from(cleanInputCode.matchAll(/\sdata-drawgle-id\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s"'=<>`]+))/g))
       .map((match) => match[1] ?? match[2] ?? match[3])
       .filter(Boolean),
   );
 
   let nextIndex = 1;
-  let changed = false;
+  let changed = cleanInputCode !== inputCode;
   const buildDrawgleId = (index: number) => `${prefix}-${index.toString(36)}`;
 
-  const code = inputCode.replace(/<!--[^]*?-->|<\/?([A-Za-z][\w:-]*)([^<>]*?)>/g, (token, rawTagName) => {
+  const code = cleanInputCode.replace(/<!--[^]*?-->|<\/?([A-Za-z][\w:-]*)([^<>]*?)>/g, (token, rawTagName) => {
     if (token.startsWith("<!--") || token.startsWith("</")) {
       return token;
     }

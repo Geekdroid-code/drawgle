@@ -564,7 +564,7 @@ export function ScreenNode({
     () => ensureDrawgleIds(sharedNavigationActive ? stripSharedNavigationMarkup(rawDisplayCode) : rawDisplayCode).code,
     [rawDisplayCode, sharedNavigationActive],
   );
-  const navigationShellCode = sharedNavigationActive ? ensureDrawgleIds(projectNavigation?.shellCode ?? "").code : "";
+  const navigationShellCode = sharedNavigationActive ? ensureDrawgleIds(projectNavigation?.shellCode ?? "", "dg-nav").code : "";
   const lastNonEmptyDisplayCodeRef = useRef(displayCode.trim() ? displayCode : "");
   const lastNonEmptyNavigationCodeRef = useRef(navigationShellCode.trim() ? navigationShellCode : "");
   const activeNavigationItemId = sharedNavigationActive ? screen.navigationItemId ?? "" : "";

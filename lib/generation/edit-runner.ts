@@ -728,7 +728,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
         return { targetType: "navigation" as const, changed: false, message: failureContent };
       }
       const nextCode = selectedMerge.diagnostics.changed
-        ? ensureDrawgleIds(tokenizeStaticDrawgleHtml(selectedMerge.code, designTokens).code).code
+        ? ensureDrawgleIds(tokenizeStaticDrawgleHtml(selectedMerge.code, designTokens).code, "dg-nav").code
         : navigationCode;
       const editChanged = selectedMerge.diagnostics.changed && nextCode !== navigationCode;
       const selectedElementDiagnostics = finalizeSelectedElementDiagnostics({
