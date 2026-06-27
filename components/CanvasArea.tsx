@@ -764,9 +764,6 @@ function CanvasStageContent({
         tool={tool}
         zoomPercent={Math.round(viewportState.zoom * 100)}
         canFocus={Boolean(selectedScreen)}
-        hasSelectedElement={hasSelectedElement}
-        selectedElementCanEditText={selectedElementCanEditText}
-        selectedElementCanEditDesign={selectedElementCanEditDesign}
         disabled={disabled}
         workspaceCenterX={dockCenterX}
         onToolChange={onToolChange}
@@ -775,9 +772,6 @@ function CanvasStageContent({
         onFitCanvas={() => void controller.fitAll()}
         onFocusSelection={() => void controller.focusScreen(selectedScreen ?? null)}
         onZoomIn={() => void controller.zoomIn()}
-        onEditSelectedText={onEditSelectedText}
-        onEditSelectedDesign={onEditSelectedDesign}
-        onClearSelectedElement={onClearSelectedElement}
       />
     </div>
   );

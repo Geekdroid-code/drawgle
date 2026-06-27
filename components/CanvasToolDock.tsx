@@ -1,14 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import {
   Expand,
   Focus,
   Hand,
   LassoSelect,
   MousePointer2,
-  Palette,
-  X,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
@@ -90,9 +88,6 @@ export function CanvasToolDock({
   tool,
   zoomPercent,
   canFocus,
-  hasSelectedElement,
-  selectedElementCanEditText,
-  selectedElementCanEditDesign,
   disabled,
   workspaceCenterX,
   onToolChange,
@@ -101,16 +96,10 @@ export function CanvasToolDock({
   onFitCanvas,
   onFocusSelection,
   onZoomIn,
-  onEditSelectedText,
-  onEditSelectedDesign,
-  onClearSelectedElement,
 }: {
   tool: CanvasTool;
   zoomPercent: number;
   canFocus: boolean;
-  hasSelectedElement: boolean;
-  selectedElementCanEditText: boolean;
-  selectedElementCanEditDesign: boolean;
   disabled?: boolean;
   workspaceCenterX: number | null;
   onToolChange?: (tool: CanvasTool) => void;
@@ -119,24 +108,8 @@ export function CanvasToolDock({
   onFitCanvas?: () => void;
   onFocusSelection?: () => void;
   onZoomIn?: () => void;
-  onEditSelectedText?: () => void;
-  onEditSelectedDesign?: () => void;
-  onClearSelectedElement?: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [styleOpen, setStyleOpen] = useState(false);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setStyleOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
   return (
     <TooltipProvider>
       <div
@@ -148,43 +121,6 @@ export function CanvasToolDock({
           transform: "translateX(-50%)",
         }}
       >
-        {styleOpen ? (
-          <div className="absolute bottom-[60px] w-[220px] rounded-2xl border border-[var(--dg-border)] bg-[color-mix(in_oklab,var(--dg-surface)_94%,transparent)] p-1.5 shadow-[0_20px_50px_rgba(15,23,42,0.22)] backdrop-blur-xl">
-            <button
-              type="button"
-              onClick={() => {
-                setStyleOpen(false);
-                if (onEditSelectedDesign) {
-                  onEditSelectedDesign();
-                } else {
-                  onEditSelectedText?.();
-                }
-              }}
-              disabled={
-                disabled ||
-                !hasSelectedElement ||
-                (!selectedElementCanEditDesign && !selectedElementCanEditText)
-              }
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-[13px] font-semibold text-[var(--dg-text-muted)] hover:bg-[var(--dg-surface-muted)] hover:text-[var(--dg-text)] disabled:opacity-40"
-            >
-              <Palette className="h-4 w-4" />
-              Open visual editor
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setStyleOpen(false);
-                onClearSelectedElement?.();
-              }}
-              disabled={disabled || !hasSelectedElement}
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-[13px] font-semibold text-rose-500 hover:bg-rose-500/10 hover:text-rose-600 disabled:opacity-40"
-            >
-              <X className="h-4 w-4" />
-              Clear selection
-            </button>
-          </div>
-        ) : null}
-
         <div className="flex max-w-full items-center gap-0.5 overflow-x-auto rounded-2xl border border-[var(--dg-border)] bg-[color-mix(in_oklab,var(--dg-surface)_92%,transparent)] p-1 shadow-[0_18px_55px_-34px_rgba(15,23,42,0.8)] backdrop-blur-xl">
           <DockButton
             label="Pointer (V)"
@@ -244,20 +180,6 @@ export function CanvasToolDock({
             >
               <Focus className="h-4 w-4" />
             </CameraAction>
-          ) : null}
-
-          {hasSelectedElement ? (
-            <>
-              <div className="mx-1 h-6 w-px shrink-0 bg-[var(--dg-border-strong)]/30" />
-              <DockButton
-                label="Visual settings"
-                active={styleOpen}
-                disabled={disabled}
-                onClick={() => setStyleOpen((open) => !open)}
-              >
-                <Palette className="h-4 w-4 md:h-5 md:w-5" />
-              </DockButton>
-            </>
           ) : null}
         </div>
       </div>

@@ -571,9 +571,7 @@ function SelectedElementInspectorSidebar({
   project,
   selectedScreen,
   selectedElementInfo,
-  mode,
   disabled,
-  onModeChange,
   onClose,
   onApplyOperations,
   onReplaceImage,
@@ -581,38 +579,47 @@ function SelectedElementInspectorSidebar({
 }: {
   project: ProjectData;
   selectedScreen: ScreenData | null;
-  selectedElementInfo: SelectedElementInfo;
-  mode: ManualEditMode;
+  selectedElementInfo: SelectedElementInfo | null;
   disabled: boolean;
-  onModeChange: (mode: ManualEditMode) => void;
   onClose: () => void;
   onApplyOperations: (operations: DeterministicEditOperation[]) => Promise<boolean>;
   onReplaceImage: (target: DrawgleImageTargetMeta, file: File) => Promise<boolean>;
   onDelete?: () => void | Promise<void>;
 }) {
+  const mode: ManualEditMode = "design";
   const [isSaving, setIsSaving] = useState(false);
   const [imageUploadError, setImageUploadError] = useState<string | null>(null);
   const [uploadingImageTargetId, setUploadingImageTargetId] = useState<string | null>(null);
   const [expandedProperty, setExpandedProperty] = useState<DrawgleStyleProperty | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const pendingImageTargetRef = useRef<DrawgleImageTargetMeta | null>(null);
-  const textNodes = selectedElementInfo.editableMetadata?.textNodes ?? EMPTY_TEXT_NODES;
-  const imageTargets = selectedElementInfo.editableMetadata?.imageTargets ?? [];
+
+  const textNodes = selectedElementInfo?.editableMetadata?.textNodes ?? EMPTY_TEXT_NODES;
+  const imageTargets = selectedElementInfo?.editableMetadata?.imageTargets ?? [];
   const tokenRefs = useMemo(
     () => getDrawgleTokenReferences(project.designTokens),
     [project.designTokens],
   );
   const styleInspection = useMemo(
-    () => resolveStyleInspection(selectedElementInfo.editableMetadata?.styleInspection ?? null, tokenRefs),
-    [selectedElementInfo.editableMetadata?.styleInspection, tokenRefs],
+    () => resolveStyleInspection(selectedElementInfo?.editableMetadata?.styleInspection ?? null, tokenRefs),
+    [selectedElementInfo?.editableMetadata?.styleInspection, tokenRefs],
   );
   const inspectedProperties = styleInspection?.properties ?? EMPTY_INSPECTED_PROPERTIES;
   const originalTextById = useMemo(
     () => Object.fromEntries(textNodes.map((node) => [node.drawgleId, node.text])),
     [textNodes],
   );
+
   const [textDrafts, setTextDrafts] = useState<Record<string, string>>(() => originalTextById);
-  const [styleDrafts, setStyleDrafts] = useState<Partial<Record<DrawgleStyleProperty, StyleDraft>>>(() => buildInitialStyleDrafts(inspectedProperties));
+  const [styleDrafts, setStyleDrafts] = useState<Partial<Record<DrawgleStyleProperty, StyleDraft>>>(() =>
+    buildInitialStyleDrafts(inspectedProperties),
+  );
+
+  useEffect(() => {
+    setTextDrafts(originalTextById);
+    setStyleDrafts(buildInitialStyleDrafts(inspectedProperties));
+    setExpandedProperty(null);
+  }, [selectedElementInfo, originalTextById, inspectedProperties]);
 
   const applyOperations = async (operations: DeterministicEditOperation[]) => {
     if (operations.length === 0) {
@@ -620,12 +627,8 @@ function SelectedElementInspectorSidebar({
     }
 
     setIsSaving(true);
-    const saved = await onApplyOperations(operations);
+    await onApplyOperations(operations);
     setIsSaving(false);
-
-    if (saved) {
-      onClose();
-    }
   };
 
   const buildTextOperations = () =>
@@ -675,7 +678,7 @@ function SelectedElementInspectorSidebar({
     await applyOperations(operations);
   };
 
-  const targetLabel = selectedElementInfo.targetType === "navigation" ? "Navigation" : selectedScreen?.name ?? "Screen";
+  const targetLabel = selectedElementInfo?.targetType === "navigation" ? "Navigation" : selectedScreen?.name ?? "Screen";
   const chooseImageFile = (target: DrawgleImageTargetMeta) => {
     pendingImageTargetRef.current = target;
     setImageUploadError(null);
@@ -691,10 +694,7 @@ function SelectedElementInspectorSidebar({
     setUploadingImageTargetId(target.drawgleId);
     setImageUploadError(null);
     try {
-      const saved = await onReplaceImage(target, file);
-      if (saved) {
-        onClose();
-      }
+      await onReplaceImage(target, file);
     } catch (error) {
       setImageUploadError(error instanceof Error ? error.message : "Image upload failed.");
     } finally {
@@ -706,8 +706,36 @@ function SelectedElementInspectorSidebar({
     }
   };
 
-  if (mode === "selected") {
-    return null;
+  if (!selectedElementInfo) {
+    return (
+      <aside
+        data-canvas-obstacle="right"
+        className="dg-visual-editor fixed bottom-[calc(var(--dg-mobile-prompt-bottom)+8.75rem)] left-3 right-3 top-auto z-[80] flex max-h-[min(72vh,660px)] flex-col overflow-hidden rounded-[26px] border border-slate-950/[0.08] bg-white/96 backdrop-blur-xl md:bottom-4 md:left-auto md:right-4 md:top-[calc(env(safe-area-inset-top,0px)+4.25rem)] md:max-h-none md:w-[min(420px,calc(100%-1rem))]"
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-slate-950/[0.06] px-4 pb-3 pt-4">
+          <div className="min-w-0">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#667894]">
+              Visual Editor
+            </div>
+            <div className="mt-0.5 truncate text-sm font-medium text-slate-900">
+              No Element Selected
+            </div>
+          </div>
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-950" onClick={onClose}>
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+        <div className="flex flex-1 flex-col items-center justify-center p-8 text-center bg-slate-50/20">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-50 text-slate-400 mb-3 border border-slate-100">
+            <Palette className="h-5 w-5 animate-pulse text-slate-400" />
+          </div>
+          <h3 className="text-sm font-semibold text-slate-900">Select an Element</h3>
+          <p className="mt-1 text-xs text-slate-500 max-w-[240px] leading-relaxed">
+            Click any component on the canvas screens to inspect and override its style properties here.
+          </p>
+        </div>
+      </aside>
+    );
   }
 
   return (
@@ -721,7 +749,7 @@ function SelectedElementInspectorSidebar({
             Visual Editor
           </div>
           <div className="mt-0.5 truncate text-sm font-medium text-slate-900">
-            {selectedElementInfo.textPreview || selectedElementInfo.editableMetadata?.tagName || "Element"}
+            {selectedElementInfo?.textPreview || selectedElementInfo?.editableMetadata?.tagName || "Element"}
           </div>
           <div className="mt-0.5 truncate text-[11px] font-medium text-slate-500">
             Selected in {targetLabel}
@@ -732,8 +760,7 @@ function SelectedElementInspectorSidebar({
         </Button>
       </div>
 
-      {mode === "design" ? (
-        <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex min-h-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
             {imageTargets.length > 0 ? (
               <section className="mb-3 overflow-hidden rounded-[20px] border border-slate-950/[0.08] bg-white shadow-[0_1px_0_rgba(15,23,42,0.03)]">
@@ -988,7 +1015,7 @@ function SelectedElementInspectorSidebar({
             </div>
           </div>
           <div className="flex justify-between border-t border-slate-950/[0.06] bg-white/95 px-4 py-3">
-            {onDelete && selectedElementInfo.targetType !== "navigation" ? (
+            {onDelete && selectedElementInfo?.targetType !== "navigation" ? (
               <Button
                 variant="outline"
                 className="h-10 rounded-full px-4 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
@@ -1000,7 +1027,6 @@ function SelectedElementInspectorSidebar({
               </Button>
             ) : <div />}
             <div className="flex gap-2">
-              <Button variant="outline" className="h-10 rounded-full px-4" onClick={() => onModeChange("selected")}>Back</Button>
               <Button className="h-10 rounded-full dg-button-primary hover:dg-button-primary px-4 text-white gap-2" disabled={disabled || isSaving} onClick={() => void saveDesign()}>
                 {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                 Apply Changes
@@ -1008,10 +1034,9 @@ function SelectedElementInspectorSidebar({
             </div>
           </div>
         </div>
-      ) : null}
-    </aside>
-  );
-}
+      </aside>
+    );
+  }
 
 async function enqueueGeneration(input: {
   projectId: string;
@@ -1063,6 +1088,17 @@ export function ProjectShell({
   const [canvasTool, setCanvasTool] = useState<CanvasTool>("pointer");
   const [selectedScreen, setSelectedScreen] = useState<ScreenData | null>(null);
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
+
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
   const [isQueueingGeneration, setIsQueueingGeneration] = useState(false);
   const [pendingQueuedRunId, setPendingQueuedRunId] = useState<string | null>(null);
   const [pendingAddScreenRunId, setPendingAddScreenRunId] = useState<string | null>(null);
@@ -1701,9 +1737,13 @@ export function ProjectShell({
   const handleToggleSelectionMode = () => {
     setSelectionNotice(null);
     setPendingElementSelection(null);
-    setCanvasTool((currentTool) =>
-      currentTool === "element-select" ? "pointer" : "element-select",
-    );
+    setCanvasTool((currentTool) => {
+      const nextTool = currentTool === "element-select" ? "pointer" : "element-select";
+      if (nextTool === "pointer") {
+        clearEditSession();
+      }
+      return nextTool;
+    });
   };
 
   const commitElementSelection = (info: SelectedElementInfo) => {
@@ -1795,8 +1835,8 @@ export function ProjectShell({
     }
   };
 
-  const setEditSessionMode = (mode: ManualEditMode) => {
-    setEditSession((currentSession) => currentSession ? { ...currentSession, mode } : currentSession);
+  const handleOpenVisualEditor = () => {
+    setCanvasTool("element-select");
   };
 
   if (isProjectLoading || !project) {
@@ -2018,8 +2058,8 @@ export function ProjectShell({
             selectedElementCanEditDesign={selectedElementCanEditDesign}
             onElementSelected={handleElementSelected}
             onElementSelectionLost={handleElementSelectionLost}
-            onEditSelectedText={() => setEditSessionMode("design")}
-            onEditSelectedDesign={() => setEditSessionMode("design")}
+            onEditSelectedText={handleOpenVisualEditor}
+            onEditSelectedDesign={handleOpenVisualEditor}
             onClearSelectedElement={clearEditSession}
             onDeleteSelectedElement={handleDeleteSelectedElement}
             onDuplicateSelectedElement={handleDuplicateSelectedElement}
@@ -2155,22 +2195,25 @@ export function ProjectShell({
             selectedElementTargetLabel={selectedElementTargetLabel}
             selectedElementCanEditText={selectedElementCanEditText}
             selectedElementCanEditDesign={selectedElementCanEditDesign}
-            onEditSelectedText={() => setEditSessionMode("design")}
-            onEditSelectedDesign={() => setEditSessionMode("design")}
+            onEditSelectedText={handleOpenVisualEditor}
+            onEditSelectedDesign={handleOpenVisualEditor}
             onClearSelectedElement={clearEditSession}
             onDeleteSelectedElement={handleDeleteSelectedElement}
           />
 
-          {editSession && editSession.mode !== "selected" ? (
+          {canvasTool === "element-select" && (!isMobile || Boolean(editSession)) ? (
             <SelectedElementInspectorSidebar
-              key={`${editSession.element.targetType}:${editSession.element.drawgleId ?? editSession.element.breadcrumb}:${editSession.mode}:${editSession.selectedAt}`}
+              key={editSession ? `${editSession.element.targetType}:${editSession.element.drawgleId ?? editSession.element.breadcrumb}:${editSession.selectedAt}` : "empty-inspector"}
               project={project}
               selectedScreen={selectedElementScreen ?? selectedScreen}
-              selectedElementInfo={editSession.element}
-              mode={editSession.mode}
+              selectedElementInfo={editSession?.element ?? null}
               disabled={isCanvasInteractionLocked}
-              onModeChange={setEditSessionMode}
-              onClose={clearEditSession}
+              onClose={() => {
+                clearEditSession();
+                if (!isMobile) {
+                  setCanvasTool("pointer");
+                }
+              }}
               onApplyOperations={handleDeterministicElementEdit}
               onReplaceImage={handleReplaceSelectedImage}
               onDelete={handleDeleteSelectedElement}

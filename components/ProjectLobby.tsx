@@ -605,66 +605,68 @@ export function ProjectLobby({
                               {isThemePickerOpen && (
                                 <motion.div
                                   layoutId="stylePickerWrapper"
-                                  className="absolute bottom-12 left-0 z-50 w-[240px] overflow-hidden rounded-2xl border border-neutral-200/80 bg-white p-3 shadow-xl dark:border-white/[0.08] dark:bg-[#1b1b1b]"
+                                  className="absolute bottom-12 left-0 z-50 flex max-h-[min(60vh,440px)] w-[264px] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl border border-neutral-200/80 bg-white shadow-xl dark:border-white/[0.08] dark:bg-[#1b1b1b]"
                                   transition={{ type: "spring", damping: 30, stiffness: 350, mass: 0.8 }}
                                 >
-                                  <div className="mb-2.5 flex items-center justify-between px-1">
+                                  <div className="flex shrink-0 items-center justify-between px-3 py-2.5">
                                     <span className="text-[10px] font-extrabold uppercase tracking-widest text-neutral-400">Design style</span>
                                     <button
                                       type="button"
                                       onClick={() => setIsThemePickerOpen(false)}
-                                      className="cursor-pointer flex h-5 w-5 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-white/10 dark:hover:text-white"
+                                      className="flex h-5 w-5 cursor-pointer items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-white/10 dark:hover:text-white"
                                       aria-label="Close styling options"
                                     >
                                       <X className="h-3.5 w-3.5" />
                                     </button>
                                   </div>
 
-                                  <div className="grid grid-cols-2 gap-2">
-                                    {briefStyles.map((style, index) => {
-                                      const isSelected = selectedBriefStyle === style.id;
-                                      const staggerDelay = (index + 2) * 0.035;
+                                  <div className="dg-style-picker-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pb-3">
+                                    <div className="grid grid-cols-2 gap-2">
+                                      {briefStyles.map((style, index) => {
+                                        const isSelected = selectedBriefStyle === style.id;
+                                        const staggerDelay = (index + 2) * 0.035;
 
-                                      return (
-                                        <motion.button
-                                          type="button"
-                                          key={style.id}
-                                          initial={{ opacity: 0, y: 15 }}
-                                          animate={{ opacity: 1, y: 0 }}
-                                          transition={{
-                                            type: "spring",
-                                            bounce: 0.12,
-                                            duration: 0.3,
-                                            delay: staggerDelay,
-                                          }}
-                                          onClick={() => {
-                                            setSelectedBriefStyle(style.id);
-                                            setSelectedStylePreset(null);
-                                            setTimeout(() => {
-                                              setIsThemePickerOpen(false);
-                                            }, 100);
-                                          }}
-                                          className="cursor-pointer flex min-w-0 flex-col gap-1.5 text-left group"
-                                        >
-                                          <span
-                                            className={`relative flex h-[50px] items-center justify-center overflow-hidden rounded-xl border transition-all duration-150 ${style.previewClassName} ${
-                                              isSelected
-                                                ? "border-[2.5px] border-neutral-900 dark:border-white shadow-sm scale-98"
-                                                : "hover:border-neutral-300 dark:hover:border-neutral-600 hover:scale-102 active:scale-98"
-                                            }`}
+                                        return (
+                                          <motion.button
+                                            type="button"
+                                            key={style.id}
+                                            initial={{ opacity: 0, y: 15 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{
+                                              type: "spring",
+                                              bounce: 0.12,
+                                              duration: 0.3,
+                                              delay: staggerDelay,
+                                            }}
+                                            onClick={() => {
+                                              setSelectedBriefStyle(style.id);
+                                              setSelectedStylePreset(null);
+                                              setTimeout(() => {
+                                                setIsThemePickerOpen(false);
+                                              }, 100);
+                                            }}
+                                            className="group flex min-w-0 cursor-pointer flex-col gap-1.5 text-left"
                                           >
-                                            {style.previewContent}
-                                          </span>
-                                          <span className={`truncate text-[11px] text-center w-full transition-colors duration-150 ${
-                                            isSelected
-                                              ? "font-bold text-neutral-800 dark:text-neutral-100"
-                                              : "font-semibold text-neutral-500 dark:text-neutral-400 group-hover:text-neutral-800 dark:group-hover:text-neutral-200"
-                                          }`}>
-                                            {style.label}
-                                          </span>
-                                        </motion.button>
-                                      );
-                                    })}
+                                            <span
+                                              className={`relative flex h-[48px] items-center justify-center overflow-hidden rounded-xl border transition-all duration-150 ${style.previewClassName} ${
+                                                isSelected
+                                                  ? "scale-98 border-[2.5px] border-neutral-900 shadow-sm dark:border-white"
+                                                  : "hover:scale-102 active:scale-98 hover:border-neutral-300 dark:hover:border-neutral-600"
+                                              }`}
+                                            >
+                                              {style.previewContent}
+                                            </span>
+                                            <span className={`w-full truncate text-center text-[11px] transition-colors duration-150 ${
+                                              isSelected
+                                                ? "font-bold text-neutral-800 dark:text-neutral-100"
+                                                : "font-semibold text-neutral-500 group-hover:text-neutral-800 dark:text-neutral-400 dark:group-hover:text-neutral-200"
+                                            }`}>
+                                              {style.label}
+                                            </span>
+                                          </motion.button>
+                                        );
+                                      })}
+                                    </div>
                                   </div>
                                 </motion.div>
                               )}
