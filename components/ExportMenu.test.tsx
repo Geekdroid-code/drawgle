@@ -1,4 +1,5 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, render } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Button } from "@/components/ui/button";
@@ -81,35 +82,37 @@ describe("ExportMenu", () => {
   });
 
   it("shows selected-screen and whole-project actions together", () => {
-    renderMenu();
+    const view = renderMenu();
 
-    expect(screen.getByTestId("export-menu")).toBeTruthy();
-    expect((screen.getByLabelText("Screen to export") as HTMLSelectElement).value).toBe("details");
-    expect(screen.getByText("Copy for AI agent")).toBeTruthy();
-    expect(screen.getByText("Download HTML / Tailwind")).toBeTruthy();
-    expect(screen.getByText("Native Scaffolds")).toBeTruthy();
-    expect(screen.getByText("Download Agent Pack")).toBeTruthy();
-    expect(screen.queryByText(/Preview/)).toBeNull();
+    expect(view.getByTestId("export-menu")).toBeTruthy();
+    expect((view.getByLabelText("Screen to export") as HTMLSelectElement).value).toBe("details");
+    expect(view.getByText("Copy for AI agent")).toBeTruthy();
+    expect(view.getByText("Download HTML / Tailwind")).toBeTruthy();
+    expect(view.getByText("Native Scaffolds")).toBeTruthy();
+    expect(view.getByText("Download Agent Pack")).toBeTruthy();
+    expect(view.queryByText(/Preview/)).toBeNull();
     expect(buildNativeScaffoldMock).not.toHaveBeenCalled();
   });
 
-  it("always creates agent handoff and Agent Pack with auto detection", () => {
-    renderMenu();
+  it("always creates agent handoff and Agent Pack with auto detection", async () => {
+    const user = userEvent.setup();
+    const view = renderMenu();
 
     expect(buildAgentHandoffPromptMock).toHaveBeenCalledWith(expect.objectContaining({
       screen: expect.objectContaining({ id: "details" }),
       target: "auto",
     }));
 
-    fireEvent.click(screen.getByTestId("download-agent-pack"));
+    await user.click(view.getByTestId("download-agent-pack"));
 
     expect(buildAgentPackZipMock).toHaveBeenCalledWith(expect.objectContaining({ target: "auto" }));
   });
 
-  it("changes only the selected-screen actions when the screen selector changes", () => {
-    renderMenu();
+  it("changes only the selected-screen actions when the screen selector changes", async () => {
+    const user = userEvent.setup();
+    const view = renderMenu();
 
-    fireEvent.change(screen.getByLabelText("Screen to export"), { target: { value: "home" } });
+    await user.selectOptions(view.getByLabelText("Screen to export"), "home");
 
     expect(buildAgentHandoffPromptMock).toHaveBeenLastCalledWith(expect.objectContaining({
       screen: expect.objectContaining({ id: "home" }),
@@ -117,33 +120,35 @@ describe("ExportMenu", () => {
     }));
   });
 
-  it("generates native scaffolds only after a Beta framework is clicked", () => {
-    renderMenu();
+  it("generates native scaffolds only after a Beta framework is clicked", async () => {
+    const user = userEvent.setup();
+    const view = renderMenu();
 
-    fireEvent.click(screen.getByTestId("toggle-scaffolds"));
-    expect(screen.getByTestId("scaffold-options")).toBeTruthy();
+    await user.click(view.getByTestId("toggle-scaffolds"));
+    expect(view.getByTestId("scaffold-options")).toBeTruthy();
     expect(buildNativeScaffoldMock).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: /SwiftUI/ }));
+    await user.click(view.getByRole("button", { name: /SwiftUI/ }));
 
     expect(buildNativeScaffoldMock).toHaveBeenCalledWith(expect.objectContaining({
       screen: expect.objectContaining({ id: "details" }),
       target: "swiftui",
     }));
-    expect(screen.getByTestId("scaffold-error")).toBeTruthy();
-    expect(screen.getByText("Download HTML / Tailwind")).toBeTruthy();
+    expect(view.getByTestId("scaffold-error")).toBeTruthy();
+    expect(view.getByText("Download HTML / Tailwind")).toBeTruthy();
   });
 
-  it("keeps the menu open and reveals a copyable instruction after Agent Pack download", () => {
+  it("keeps the menu open and reveals a copyable instruction after Agent Pack download", async () => {
+    const user = userEvent.setup();
     const createObjectURL = vi.fn(() => "blob:drawgle-test");
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
     vi.stubGlobal("URL", { ...URL, createObjectURL, revokeObjectURL: vi.fn() });
 
-    renderMenu();
-    fireEvent.click(screen.getByTestId("download-agent-pack"));
+    const view = renderMenu();
+    await user.click(view.getByTestId("download-agent-pack"));
 
-    expect(screen.getByTestId("export-menu")).toBeTruthy();
-    expect(screen.getByTestId("pack-after-download")).toBeTruthy();
+    expect(view.getByTestId("export-menu")).toBeTruthy();
+    expect(view.getByTestId("pack-after-download")).toBeTruthy();
 
     click.mockRestore();
     vi.unstubAllGlobals();

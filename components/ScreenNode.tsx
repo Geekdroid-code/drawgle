@@ -522,6 +522,7 @@ export function ScreenNode({
 
   const [contentHeight, setContentHeight] = useState(SCREEN_FRAME_HEIGHT);
   const [selectedElementBounds, setSelectedElementBounds] = useState<{
+    drawgleId: string;
     left: number;
     top: number;
     width: number;
@@ -776,9 +777,7 @@ ${cleanScreenCode}
       { type: 'setSelectedDrawgleId', drawgleId: selectedDrawgleId ?? null },
       '*',
     );
-    if (!selectedDrawgleId) {
-      setSelectedElementBounds(null);
-    }
+
   }, [selectedDrawgleId]);
 
   useEffect(() => {
@@ -876,6 +875,7 @@ ${cleanScreenCode}
       if (outerHTML && drawgleId) {
         if (boundingRect) {
           setSelectedElementBounds({
+            drawgleId,
             left: boundingRect.left,
             top: boundingRect.top,
             width: boundingRect.width,
@@ -2195,7 +2195,7 @@ ${cleanScreenCode}
 
         <ScreenBuildPreloader visible={showBuildPreloader} />
 
-        {selectedElementBounds && selectedDrawgleId && (
+        {selectedElementBounds && selectedElementBounds.drawgleId === selectedDrawgleId && (
           <div
             className="absolute z-[90] flex items-center gap-1 rounded-lg bg-slate-900 p-1 text-white shadow-lg select-none"
             style={{

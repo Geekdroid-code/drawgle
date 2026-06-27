@@ -1,6 +1,6 @@
 "use client";
 
-import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Sparkles, Check, ChevronDown, ImageIcon, Loader2, Palette, RotateCcw, Upload, X, HelpCircle, Megaphone, Play, Share2, LogOut, FolderSync, CircleDollarSign, User, CreditCard, Download, Mail, MessageCircle, Trash } from "lucide-react";
 
@@ -598,22 +598,15 @@ function SelectedElementInspectorSidebar({
   const [classDraft, setClassDraft] = useState(classListKey);
   const [resetClassUtilities, setResetClassUtilities] = useState<Partial<Record<DrawgleStyleProperty, boolean>>>({});
 
-  useEffect(() => {
-    setTextDrafts(originalTextById);
-    setStyleDrafts(buildInitialStyleDrafts(inspectedProperties));
-    setClassDraft(classListKey);
-    setResetClassUtilities({});
-  }, [selectedElementInfo, originalTextById, inspectedProperties, classListKey]);
+  const normalizeClassNames = useCallback((className: string) => className.trim().replace(/\s+/g, " "), []);
 
-  const normalizeClassNames = (className: string) => className.trim().replace(/\s+/g, " ");
-
-  const removeUtilityFamilyFromClassName = (className: string, family: DrawgleClassUtilityFamily) =>
+  const removeUtilityFamilyFromClassName = useCallback((className: string, family: DrawgleClassUtilityFamily) =>
     normalizeClassNames(className)
       .split(/\s+/)
       .filter((classNamePart) => classNamePart && !classNameMatchesUtilityFamily(family, classNamePart))
-      .join(" ");
+      .join(" "), [normalizeClassNames]);
 
-  const classNameAfterPendingUtilityResets = (className: string) => {
+  const classNameAfterPendingUtilityResets = useCallback((className: string) => {
     let nextClassName = normalizeClassNames(className);
     inspectedProperties.forEach((property) => {
       if (resetClassUtilities[property.property] && property.classUtilityFamily) {
@@ -621,7 +614,7 @@ function SelectedElementInspectorSidebar({
       }
     });
     return nextClassName;
-  };
+  }, [inspectedProperties, normalizeClassNames, removeUtilityFamilyFromClassName, resetClassUtilities]);
 
   useEffect(() => {
     if (!onPreviewChange) return;
@@ -670,7 +663,7 @@ function SelectedElementInspectorSidebar({
       styles,
       className: classChanged ? normalizedClassDraft : null,
     });
-  }, [classDraft, classListKey, inspectedProperties, onPreviewChange, resetClassUtilities, selectedElementInfo?.drawgleId, styleDrafts]);
+  }, [classDraft, classListKey, classNameAfterPendingUtilityResets, inspectedProperties, normalizeClassNames, onPreviewChange, selectedElementInfo?.drawgleId, styleDrafts]);
 
   useEffect(() => () => onPreviewChange?.(null), [onPreviewChange]);
 
@@ -783,7 +776,7 @@ function SelectedElementInspectorSidebar({
     });
     const classResetChanged = Object.values(resetClassUtilities).some(Boolean);
     return classChanged || classResetChanged || textChanged || styleChanged;
-  }, [classDraft, classListKey, inspectedProperties, resetClassUtilities, styleDrafts, textDrafts, textNodes]);
+  }, [classDraft, classListKey, classNameAfterPendingUtilityResets, inspectedProperties, normalizeClassNames, resetClassUtilities, styleDrafts, textDrafts, textNodes]);
 
   const targetLabel = selectedElementInfo?.targetType === "navigation" ? "Navigation" : selectedScreen?.name ?? "Screen";
   const riskMessages = [
