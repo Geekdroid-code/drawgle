@@ -73,7 +73,7 @@ const policyByTask: Record<GeminiTaskType, GeminiModelPolicy> = {
   },
   draft_plan: {
     model: ROUTER_MODEL,
-    config: routerModelConfig(4096, "low"),
+    config: routerModelConfig(4096, "minimal"),
   },
   project_planning: {
     model: PROJECT_PLANNER_MODEL,
@@ -81,11 +81,11 @@ const policyByTask: Record<GeminiTaskType, GeminiModelPolicy> = {
   },
   design_tokens: {
     model: PROJECT_PLANNER_MODEL,
-    config: buildModelConfig("low", 8192),
+    config: buildModelConfig("minimal", 8192),
   },
   navigation_build: {
     model: FULL_BUILD_MODEL,
-    config: buildModelConfig("low", 12000),
+    config: buildModelConfig("minimal", 12000),
   },
   screen_build: {
     model: FULL_BUILD_MODEL,
@@ -93,15 +93,15 @@ const policyByTask: Record<GeminiTaskType, GeminiModelPolicy> = {
   },
   selected_region_edit: {
     model: SELECTED_EDIT_MODEL,
-    config: buildModelConfig("low", 12000),
+    config: buildModelConfig("minimal", 12000),
   },
   full_rebuild: {
     model: FULL_BUILD_MODEL,
-    config: buildModelConfig("low", FULL_REBUILD_MAX_OUTPUT_TOKENS),
+    config: buildModelConfig("minimal", FULL_REBUILD_MAX_OUTPUT_TOKENS),
   },
   repair: {
     model: FULL_BUILD_MODEL,
-    config: buildModelConfig("low", 18000),
+    config: buildModelConfig("minimal", 18000),
   },
 };
 
