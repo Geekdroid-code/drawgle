@@ -380,6 +380,136 @@ function stylePropertyToTailwind(property: string, value: string, varMap: Map<st
       if (val === "var(--shadow-none)" || val === "none") return "shadow-none";
       return `shadow-[${formatArbitraryValue(val)}]`;
     }
+    case "display": {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === "none") return "hidden";
+      if (["block", "inline-block", "inline", "flex", "inline-flex", "grid", "inline-grid"].includes(normalized)) return normalized;
+      return null;
+    }
+    case "position": {
+      const normalized = value.trim().toLowerCase();
+      return ["static", "relative", "absolute", "fixed", "sticky"].includes(normalized) ? normalized : null;
+    }
+    case "overflow": {
+      const normalized = value.trim().toLowerCase();
+      return ["auto", "hidden", "visible", "scroll", "clip"].includes(normalized) ? `overflow-${normalized}` : null;
+    }
+    case "flex-direction": {
+      const normalized = value.trim().toLowerCase();
+      const map: Record<string, string> = { row: "flex-row", "row-reverse": "flex-row-reverse", column: "flex-col", "column-reverse": "flex-col-reverse" };
+      return map[normalized] ?? null;
+    }
+    case "flex-wrap": {
+      const normalized = value.trim().toLowerCase();
+      const map: Record<string, string> = { wrap: "flex-wrap", nowrap: "flex-nowrap", "wrap-reverse": "flex-wrap-reverse" };
+      return map[normalized] ?? null;
+    }
+    case "justify-content": {
+      const normalized = value.trim().toLowerCase();
+      const map: Record<string, string> = { "flex-start": "justify-start", start: "justify-start", center: "justify-center", "flex-end": "justify-end", end: "justify-end", "space-between": "justify-between", "space-around": "justify-around", "space-evenly": "justify-evenly" };
+      return map[normalized] ?? null;
+    }
+    case "align-items": {
+      const normalized = value.trim().toLowerCase();
+      const map: Record<string, string> = { "flex-start": "items-start", start: "items-start", center: "items-center", "flex-end": "items-end", end: "items-end", stretch: "items-stretch", baseline: "items-baseline" };
+      return map[normalized] ?? null;
+    }
+    case "align-self": {
+      const normalized = value.trim().toLowerCase();
+      const map: Record<string, string> = { auto: "self-auto", "flex-start": "self-start", start: "self-start", center: "self-center", "flex-end": "self-end", end: "self-end", stretch: "self-stretch", baseline: "self-baseline" };
+      return map[normalized] ?? null;
+    }
+    case "object-fit": {
+      const normalized = value.trim().toLowerCase();
+      const map: Record<string, string> = { fill: "object-fill", contain: "object-contain", cover: "object-cover", none: "object-none", "scale-down": "object-scale-down" };
+      return map[normalized] ?? null;
+    }
+    case "text-align": {
+      const normalized = value.trim().toLowerCase();
+      return ["left", "center", "right", "justify", "start", "end"].includes(normalized) ? `text-${normalized}` : null;
+    }
+    case "border-style": {
+      const normalized = value.trim().toLowerCase();
+      return ["none", "solid", "dashed", "dotted", "double"].includes(normalized) ? `border-${normalized}` : null;
+    }
+    case "letter-spacing": {
+      const val = resolveValueToVariable(value, 'other', varMap);
+      return `tracking-[${formatArbitraryValue(val)}]`;
+    }
+    case "aspect-ratio": {
+      const val = resolveValueToVariable(value, 'other', varMap);
+      if (val === "auto") return "aspect-auto";
+      if (val === "1 / 1" || val === "1/1") return "aspect-square";
+      if (val === "16 / 9" || val === "16/9") return "aspect-video";
+      return `aspect-[${formatArbitraryValue(val)}]`;
+    }
+    case "grid-template-columns": {
+      const val = resolveValueToVariable(value, 'other', varMap);
+      return `grid-cols-[${formatArbitraryValue(val)}]`;
+    }
+    case "flex": {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === "1") return "flex-1";
+      if (["auto", "initial", "none"].includes(normalized)) return `flex-${normalized}`;
+      return `flex-[${formatArbitraryValue(resolveValueToVariable(value, 'other', varMap))}]`;
+    }
+    case "top":
+    case "right":
+    case "bottom":
+    case "left": {
+      const val = resolveValueToVariable(value, 'spacing', varMap);
+      if (val === "auto") return `${prop}-auto`;
+      return `${prop}-[${formatArbitraryValue(val)}]`;
+    }
+    case "z-index": {
+      const val = resolveValueToVariable(value, 'other', varMap);
+      if (val === "auto") return "z-auto";
+      return `z-[${formatArbitraryValue(val)}]`;
+    }
+    case "border-top-width": {
+      const val = resolveValueToVariable(value, 'other', varMap);
+      return `border-t-[${formatArbitraryValue(val)}]`;
+    }
+    case "border-right-width": {
+      const val = resolveValueToVariable(value, 'other', varMap);
+      return `border-r-[${formatArbitraryValue(val)}]`;
+    }
+    case "border-bottom-width": {
+      const val = resolveValueToVariable(value, 'other', varMap);
+      return `border-b-[${formatArbitraryValue(val)}]`;
+    }
+    case "border-left-width": {
+      const val = resolveValueToVariable(value, 'other', varMap);
+      return `border-l-[${formatArbitraryValue(val)}]`;
+    }
+    case "border-top-left-radius": {
+      const val = resolveValueToVariable(value, 'radius', varMap);
+      return `rounded-tl-[${formatArbitraryValue(val)}]`;
+    }
+    case "border-top-right-radius": {
+      const val = resolveValueToVariable(value, 'radius', varMap);
+      return `rounded-tr-[${formatArbitraryValue(val)}]`;
+    }
+    case "border-bottom-right-radius": {
+      const val = resolveValueToVariable(value, 'radius', varMap);
+      return `rounded-br-[${formatArbitraryValue(val)}]`;
+    }
+    case "border-bottom-left-radius": {
+      const val = resolveValueToVariable(value, 'radius', varMap);
+      return `rounded-bl-[${formatArbitraryValue(val)}]`;
+    }
+    case "transform": {
+      const val = resolveValueToVariable(value, 'other', varMap);
+      return val === "none" ? null : `[transform:${formatArbitraryValue(val)}]`;
+    }
+    case "filter": {
+      const val = resolveValueToVariable(value, 'other', varMap);
+      return val === "none" ? "filter-none" : `[filter:${formatArbitraryValue(val)}]`;
+    }
+    case "backdrop-filter": {
+      const val = resolveValueToVariable(value, 'other', varMap);
+      return val === "none" ? "backdrop-filter-none" : `[backdrop-filter:${formatArbitraryValue(val)}]`;
+    }
     case "background-image": {
       const val = resolveValueToVariable(value, 'other', varMap);
       return `bg-[${formatArbitraryValue(val)}]`;
@@ -422,6 +552,63 @@ function isBorderColorClass(cls: string): boolean {
   return true;
 }
 
+function startsWithAny(cls: string, prefixes: string[]): boolean {
+  return prefixes.some((prefix) => cls === prefix.replace(/-$/, "") || cls.startsWith(prefix));
+}
+
+function isBorderWidthClass(cls: string): boolean {
+  return /^border(?:-[trblxy])?(?:-\d+|\-\[[^\]]+\])?$/i.test(cls);
+}
+
+function isRoundedClass(cls: string): boolean {
+  return /^rounded(?:-[trbl]{1,2})?(?:-[a-z0-9/]+|\-\[[^\]]+\])?$/i.test(cls);
+}
+
+function conflictsWithCompiledStyleProperty(property: string, cls: string): boolean {
+  if (property === "background-color") return cls.startsWith("bg-") && !["bg-cover", "bg-contain", "bg-center", "bg-repeat", "bg-no-repeat", "bg-local", "bg-fixed", "bg-scroll"].includes(cls);
+  if (property === "box-shadow") return cls.startsWith("shadow");
+  if (property === "border-radius" || property.startsWith("border-") && property.endsWith("-radius")) return isRoundedClass(cls);
+  if (property === "color") return isTextColorClass(cls);
+  if (property === "border-color") return isBorderColorClass(cls);
+  if (property === "border-width" || property.startsWith("border-") && property.endsWith("-width")) return isBorderWidthClass(cls);
+  if (property === "display") return /^(?:block|inline-block|inline|flex|inline-flex|grid|inline-grid|hidden)$/i.test(cls);
+  if (property === "position") return /^(?:static|relative|absolute|fixed|sticky)$/i.test(cls);
+  if (property === "overflow") return /^overflow-/i.test(cls);
+  if (property === "flex-direction") return /^(?:flex-row|flex-row-reverse|flex-col|flex-col-reverse)$/i.test(cls);
+  if (property === "flex-wrap") return /^(?:flex-wrap|flex-nowrap|flex-wrap-reverse)$/i.test(cls);
+  if (property === "justify-content") return /^justify-/i.test(cls);
+  if (property === "align-items") return /^items-/i.test(cls);
+  if (property === "align-self") return /^self-/i.test(cls);
+  if (property === "object-fit") return /^object-/i.test(cls);
+  if (property === "text-align") return ["text-left", "text-center", "text-right", "text-justify", "text-start", "text-end"].includes(cls);
+  if (property === "letter-spacing") return /^tracking-/i.test(cls);
+  if (property === "aspect-ratio") return /^aspect-/i.test(cls);
+  if (property === "grid-template-columns") return /^grid-cols-/i.test(cls);
+  if (property === "flex") return /^(?:flex-\[|flex-1|flex-auto|flex-initial|flex-none)/i.test(cls);
+  if (property === "width") return /^w-/i.test(cls);
+  if (property === "height") return /^h-/i.test(cls);
+  if (property === "min-height") return /^min-h-/i.test(cls);
+  if (property === "max-width") return /^max-w-/i.test(cls);
+  if (property === "gap") return /^gap-/i.test(cls);
+  if (property === "top") return /^top-/i.test(cls);
+  if (property === "right") return /^right-/i.test(cls);
+  if (property === "bottom") return /^bottom-/i.test(cls);
+  if (property === "left") return /^left-/i.test(cls);
+  if (property === "z-index") return /^z-/i.test(cls);
+  if (property === "padding-top") return startsWithAny(cls, ["p-", "py-", "pt-"]);
+  if (property === "padding-right") return startsWithAny(cls, ["p-", "px-", "pr-"]);
+  if (property === "padding-bottom") return startsWithAny(cls, ["p-", "py-", "pb-"]);
+  if (property === "padding-left") return startsWithAny(cls, ["p-", "px-", "pl-"]);
+  if (property === "margin-top") return startsWithAny(cls, ["m-", "my-", "mt-"]);
+  if (property === "margin-right") return startsWithAny(cls, ["m-", "mx-", "mr-"]);
+  if (property === "margin-bottom") return startsWithAny(cls, ["m-", "my-", "mb-"]);
+  if (property === "margin-left") return startsWithAny(cls, ["m-", "mx-", "ml-"]);
+  if (property === "border-style") return /^border-(?:solid|dashed|dotted|double|none)$/i.test(cls);
+  if (property === "filter") return /^filter(?:-|$)/i.test(cls) || /^\[filter:/i.test(cls);
+  if (property === "backdrop-filter") return /^backdrop-/i.test(cls) || /^\[backdrop-filter:/i.test(cls);
+  if (property === "transform") return /^(?:transform|translate-|scale-|rotate-|skew-)/i.test(cls) || /^\[transform:/i.test(cls);
+  return false;
+}
 function compileElement(element: Element, varMap: Map<string, string>) {
   // 1. Loop over all attributes and resolve variables first (like stroke/fill)
   const attrNames = element.getAttributeNames();
@@ -548,18 +735,7 @@ function compileElement(element: Element, varMap: Map<string, string>) {
     for (const [property, value] of styleDeclarations.entries()) {
       const tailwindClass = stylePropertyToTailwind(property, value, varMap);
       if (tailwindClass) {
-        // Resolve conflicts based on property type
-        if (property === "background-color") {
-          classList = classList.filter(cls => !cls.startsWith("bg-") || ["bg-cover", "bg-contain", "bg-center", "bg-repeat", "bg-no-repeat", "bg-local", "bg-fixed", "bg-scroll"].includes(cls));
-        } else if (property === "box-shadow") {
-          classList = classList.filter(cls => !cls.startsWith("shadow"));
-        } else if (property === "border-radius") {
-          classList = classList.filter(cls => !cls.startsWith("rounded"));
-        } else if (property === "color") {
-          classList = classList.filter(cls => !isTextColorClass(cls));
-        } else if (property === "border-color") {
-          classList = classList.filter(cls => !isBorderColorClass(cls));
-        }
+        classList = classList.filter((cls) => !conflictsWithCompiledStyleProperty(property, cls));
 
         classList.push(tailwindClass);
         compiledProperties.push(property);

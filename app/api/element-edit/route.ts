@@ -26,7 +26,21 @@ const isOperation = (value: unknown): value is DeterministicEditOperation => {
   if (operation.type === "clearStyle") {
     return typeof operation.property === "string";
   }
+  if (operation.type === "setClassUtility") {
+    return typeof operation.family === "string" && typeof operation.className === "string";
+  }
 
+  if (operation.type === "removeClassUtility") {
+    return typeof operation.family === "string";
+  }
+
+  if (operation.type === "replaceClassList") {
+    return typeof operation.className === "string";
+  }
+
+  if (operation.type === "setAttribute") {
+    return typeof operation.name === "string" && (typeof operation.value === "string" || operation.value === null);
+  }
   if (operation.type === "replaceImage") {
     return typeof operation.mode === "string" && typeof operation.src === "string";
   }

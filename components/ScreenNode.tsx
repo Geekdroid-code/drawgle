@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { buildStandaloneHtmlExport, resolveScreenNavigationCode } from "@/lib/export-pipeline";
 import { createClient } from "@/lib/supabase/client";
 import { ensureDrawgleIds, stripDrawgleIds, type DrawgleBoundingRect, type DrawgleEditableMetadata } from "@/lib/drawgle-dom";
-import { DRAWGLE_STYLE_PROPERTY_CONFIGS } from "@/lib/element-style-inspection";
+import { DRAWGLE_STYLE_PROPERTY_CONFIGS, type DrawgleStyleValueMap } from "@/lib/element-style-inspection";
 import { deleteScreen } from "@/lib/supabase/queries";
 import { hasSharedNavigation } from "@/lib/project-navigation";
 import { buildDrawgleTokenCss, buildGoogleFontAssetLinks, buildGoogleFontHref } from "@/lib/token-runtime";
@@ -44,6 +44,11 @@ export interface SelectedElementInfo {
   selectionReason?: "click" | "rehydrated";
 }
 
+export type SelectedElementPreviewPayload = {
+  drawgleId: string | null;
+  styles: DrawgleStyleValueMap;
+  className?: string | null;
+};
 export type ElementSelectionLostReason = "rehydrate_failed" | "click_miss" | "source_changed";
 
 export { SCREEN_FRAME_HEIGHT, SCREEN_FRAME_WIDTH } from "@/lib/canvas-interactions";
@@ -473,6 +478,7 @@ export function ScreenNode({
   isTemporaryCanvasPan = false,
   selectionMode = false,
   selectedDrawgleId = null,
+  selectedElementPreview = null,
   onElementSelected,
   onElementSelectionLost,
   onCanvasNavigation,
@@ -492,6 +498,8 @@ export function ScreenNode({
   selectionMode?: boolean;
   /** Stable selected element id to keep highlighted even after selection mode exits. */
   selectedDrawgleId?: string | null;
+  /** Draft style/class preview for the selected element before Apply Changes persists it. */
+  selectedElementPreview?: SelectedElementPreviewPayload | null;
   /** Called when the user clicks an element inside the iframe during selection mode. */
   onElementSelected?: (info: SelectedElementInfo) => void;
   /** Called when a previously selected id no longer exists after the iframe re-renders. */
@@ -772,6 +780,26 @@ ${cleanScreenCode}
       setSelectedElementBounds(null);
     }
   }, [selectedDrawgleId]);
+
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe?.contentWindow) return;
+
+    if (!selectedElementPreview?.drawgleId) {
+      iframe.contentWindow.postMessage({ type: 'clearSelectedElementPreview' }, '*');
+      return;
+    }
+
+    iframe.contentWindow.postMessage(
+      {
+        type: 'previewSelectedElement',
+        drawgleId: selectedElementPreview.drawgleId,
+        styles: selectedElementPreview.styles,
+        className: selectedElementPreview.className ?? null,
+      },
+      '*',
+    );
+  }, [selectedElementPreview]);
 
   // ── Listen for elementSelected messages from the iframe
   useEffect(() => {
@@ -1525,6 +1553,42 @@ ${cleanScreenCode}
             var hoveredEl = null;
             var selectedEl = null;
             var currentSelectedDrawgleId = null;
+            var activePreview = null;
+
+            function restorePreview() {
+              if (!activePreview || !activePreview.el) return;
+              if (activePreview.originalStyle === null) activePreview.el.removeAttribute('style');
+              else activePreview.el.setAttribute('style', activePreview.originalStyle);
+              if (activePreview.originalClass === null) activePreview.el.removeAttribute('class');
+              else activePreview.el.setAttribute('class', activePreview.originalClass);
+              activePreview = null;
+            }
+
+            function applyElementPreview(payload) {
+              restorePreview();
+              var drawgleId = payload && payload.drawgleId;
+              if (!drawgleId) return;
+              var target = document.querySelector('[data-drawgle-id="' + String(drawgleId).replace(/"/g, '\\"') + '"]');
+              if (!target) return;
+
+              activePreview = {
+                el: target,
+                originalStyle: target.getAttribute('style'),
+                originalClass: target.getAttribute('class'),
+              };
+
+              if (typeof payload.className === 'string') {
+                if (payload.className.trim()) target.setAttribute('class', payload.className.trim());
+                else target.removeAttribute('class');
+              }
+
+              var styles = payload.styles || {};
+              Object.keys(styles).forEach(function(property) {
+                var value = styles[property];
+                if (value === null || value === undefined || value === '') target.style.removeProperty(property);
+                else target.style.setProperty(property, String(value));
+              });
+            }
 
             /* Tags that are too granular to be useful edit targets */
             var LEAF_TAGS = new Set([
@@ -1780,6 +1844,33 @@ ${cleanScreenCode}
               return imageTargets.slice(0, 6);
             }
 
+            function buildLayoutContext(target) {
+              var parent = target.parentElement;
+              var parentStyle = parent ? window.getComputedStyle(parent) : null;
+              var siblings = parent ? Array.from(parent.children) : [];
+              return {
+                parentTagName: parent ? parent.tagName.toLowerCase() : null,
+                parentDisplay: parentStyle ? parentStyle.display : null,
+                parentFlexDirection: parentStyle ? parentStyle.flexDirection : null,
+                childIndex: siblings.indexOf(target),
+                siblingCount: siblings.length,
+                childrenCount: target.children ? target.children.length : 0,
+              };
+            }
+
+            function buildRiskFlags(target) {
+              var screenContent = document.getElementById('drawgle-screen-content');
+              var targetStyle = window.getComputedStyle(target);
+              var childrenCount = target.children ? target.children.length : 0;
+              var isNavigationRoot = Boolean(target.closest && target.matches && target.matches('[data-drawgle-primary-nav]'));
+              var isRootLike = Boolean(screenContent && target.parentElement === screenContent) || isNavigationRoot;
+              return {
+                isRootLike: isRootLike,
+                isNavigationRoot: isNavigationRoot,
+                affectsManyChildren: childrenCount >= 6 || (target.textContent || '').length > 800,
+                absolutePositioned: ['absolute', 'fixed', 'sticky'].indexOf(targetStyle.position) >= 0,
+              };
+            }
             function buildEditableMetadata(target) {
               return {
                 tagName: target.tagName.toLowerCase(),
@@ -1787,6 +1878,8 @@ ${cleanScreenCode}
                 imageTargets: collectImageTargets(target),
                 style: buildStylePayload(target),
                 styleInspection: buildStyleInspectionPayload(target),
+                layoutContext: buildLayoutContext(target),
+                riskFlags: buildRiskFlags(target),
               };
             }
 
@@ -1916,6 +2009,7 @@ ${cleanScreenCode}
             window.addEventListener('message', function(event) {
               if (!event.data) return;
               if (event.data.type === 'updateCode') {
+                restorePreview();
                 /* Preserve selection state across live code updates */
                 var wasActive = selectionActive;
                 var hasSelectedDrawgleId = Object.prototype.hasOwnProperty.call(event.data, 'selectedDrawgleId');
@@ -1940,6 +2034,10 @@ ${cleanScreenCode}
                   }
                 }
                 if (wasActive) enableSelection();
+              } else if (event.data.type === 'previewSelectedElement') {
+                applyElementPreview(event.data);
+              } else if (event.data.type === 'clearSelectedElementPreview') {
+                restorePreview();
               } else if (event.data.type === 'updateDesignTokenCss') {
                 applyGoogleFontHref(event.data.googleFontHref || '');
                 applyDesignTokenCss(event.data.tokenCss || '');

@@ -1,6 +1,8 @@
 import {
+  classNameMatchesUtilityFamily,
   DRAWGLE_STYLE_PROPERTY_SET,
   validateStyleValue,
+  type DrawgleClassUtilityFamily,
   type DrawgleRawStyleInspection,
   type DrawgleStyleProperty,
 } from "@/lib/element-style-inspection";
@@ -61,12 +63,30 @@ export type DrawgleBoundingRect = {
   left: number;
 };
 
+export type DrawgleElementLayoutContext = {
+  parentTagName: string | null;
+  parentDisplay: string | null;
+  parentFlexDirection: string | null;
+  childIndex: number;
+  siblingCount: number;
+  childrenCount: number;
+};
+
+export type DrawgleEditableRiskFlags = {
+  isRootLike?: boolean;
+  isNavigationRoot?: boolean;
+  affectsManyChildren?: boolean;
+  absolutePositioned?: boolean;
+};
+
 export type DrawgleEditableMetadata = {
   tagName: string;
   textNodes: DrawgleTextNodeMeta[];
   imageTargets?: DrawgleImageTargetMeta[];
   style: DrawgleStyleMeta;
   styleInspection?: DrawgleRawStyleInspection | null;
+  layoutContext?: DrawgleElementLayoutContext | null;
+  riskFlags?: DrawgleEditableRiskFlags | null;
 };
 
 export type DeterministicEditOperation =
@@ -85,6 +105,29 @@ export type DeterministicEditOperation =
       type: "clearStyle";
       drawgleId?: string;
       property: DrawgleStyleProperty;
+    }
+  | {
+      type: "setClassUtility";
+      drawgleId?: string;
+      family: DrawgleClassUtilityFamily;
+      className: string;
+      property?: DrawgleStyleProperty;
+    }
+  | {
+      type: "removeClassUtility";
+      drawgleId?: string;
+      family: DrawgleClassUtilityFamily;
+    }
+  | {
+      type: "replaceClassList";
+      drawgleId?: string;
+      className: string;
+    }
+  | {
+      type: "setAttribute";
+      drawgleId?: string;
+      name: string;
+      value: string | null;
     }
   | {
       type: "replaceImage";
@@ -379,6 +422,102 @@ const setOpeningTagAttribute = (openingTag: string, attributeName: string, value
     : openingTag.replace(/\s*>$/, `${attribute}>`);
 };
 
+const removeOpeningTagAttribute = (openingTag: string, attributeName: string) => {
+  const escapedName = attributeName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const regex = new RegExp("\\s" + escapedName + "\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s\"'=<>`]+)", "i");
+  return openingTag.replace(regex, "");
+};
+
+const sanitizeClassToken = (value: string) => {
+  const normalized = value.trim();
+  if (!normalized || /\s/.test(normalized) || /[<>"`;{}]/.test(normalized)) {
+    throw new Error("Unsupported class utility value.");
+  }
+  return normalized;
+};
+
+const sanitizeClassList = (value: string) =>
+  value
+    .split(/\s+/)
+    .map((className) => className.trim())
+    .filter(Boolean)
+    .map(sanitizeClassToken)
+    .filter((className, index, list) => list.indexOf(className) === index)
+    .join(" ");
+
+const sanitizeAttributeName = (name: string) => {
+  const normalized = name.trim().toLowerCase();
+  if (!/^(?:aria-[a-z0-9_-]+|data-[a-z0-9_-]+|role|title|alt|href|src|type|value|placeholder|target|rel)$/i.test(normalized)) {
+    throw new Error(`Unsupported attribute: ${name}`);
+  }
+  return normalized;
+};
+
+function applySetClassUtility(code: string, drawgleId: string, family: DrawgleClassUtilityFamily, className: string) {
+  const element = findDrawgleElement(code, drawgleId);
+  if (!element) {
+    throw new Error("Selected design target is stale. Please reselect the element.");
+  }
+
+  const openingTag = getOpeningTag(code, element);
+  const nextClass = sanitizeClassToken(className);
+  const classes = getAttributeValue(openingTag, "class")
+    .split(/\s+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .filter((item) => !classNameMatchesUtilityFamily(family, item));
+
+  classes.push(nextClass);
+  const nextOpeningTag = setOpeningTagAttribute(openingTag, "class", Array.from(new Set(classes)).join(" "));
+  return replaceOpeningTagInCode(code, element, nextOpeningTag);
+}
+
+function applyRemoveClassUtility(code: string, drawgleId: string, family: DrawgleClassUtilityFamily) {
+  const element = findDrawgleElement(code, drawgleId);
+  if (!element) {
+    throw new Error("Selected design target is stale. Please reselect the element.");
+  }
+
+  const openingTag = getOpeningTag(code, element);
+  const classes = getAttributeValue(openingTag, "class")
+    .split(/\s+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .filter((item) => !classNameMatchesUtilityFamily(family, item));
+
+  const nextOpeningTag = classes.length > 0
+    ? setOpeningTagAttribute(openingTag, "class", classes.join(" "))
+    : removeOpeningTagAttribute(openingTag, "class");
+  return replaceOpeningTagInCode(code, element, nextOpeningTag);
+}
+
+function applyReplaceClassList(code: string, drawgleId: string, className: string) {
+  const element = findDrawgleElement(code, drawgleId);
+  if (!element) {
+    throw new Error("Selected design target is stale. Please reselect the element.");
+  }
+
+  const openingTag = getOpeningTag(code, element);
+  const nextClassName = sanitizeClassList(className);
+  const nextOpeningTag = nextClassName
+    ? setOpeningTagAttribute(openingTag, "class", nextClassName)
+    : removeOpeningTagAttribute(openingTag, "class");
+  return replaceOpeningTagInCode(code, element, nextOpeningTag);
+}
+
+function applySetAttribute(code: string, drawgleId: string, name: string, value: string | null) {
+  const element = findDrawgleElement(code, drawgleId);
+  if (!element) {
+    throw new Error("Selected design target is stale. Please reselect the element.");
+  }
+
+  const openingTag = getOpeningTag(code, element);
+  const attributeName = sanitizeAttributeName(name);
+  const nextOpeningTag = value === null || value === ""
+    ? removeOpeningTagAttribute(openingTag, attributeName)
+    : setOpeningTagAttribute(openingTag, attributeName, value.replace(/[<>]/g, "").slice(0, 500));
+  return replaceOpeningTagInCode(code, element, nextOpeningTag);
+}
 const parseStyle = (style: string) => {
   const entries = new Map<string, string>();
   for (const declaration of style.split(";")) {
@@ -587,6 +726,14 @@ export function applyDeterministicEdits({
       nextCode = applySetStyle(nextCode, targetDrawgleId, assertStyleProperty(operation.property), operation.value);
     } else if (operation.type === "clearStyle") {
       nextCode = applyClearStyle(nextCode, targetDrawgleId, assertStyleProperty(operation.property));
+    } else if (operation.type === "setClassUtility") {
+      nextCode = applySetClassUtility(nextCode, targetDrawgleId, operation.family, operation.className);
+    } else if (operation.type === "removeClassUtility") {
+      nextCode = applyRemoveClassUtility(nextCode, targetDrawgleId, operation.family);
+    } else if (operation.type === "replaceClassList") {
+      nextCode = applyReplaceClassList(nextCode, targetDrawgleId, operation.className);
+    } else if (operation.type === "setAttribute") {
+      nextCode = applySetAttribute(nextCode, targetDrawgleId, operation.name, operation.value);
     } else if (operation.type === "replaceImage") {
       nextCode = applyReplaceImage(nextCode, targetDrawgleId, operation.mode, operation.src, operation.alt, operation.targetIndex);
     } else if (operation.type === "deleteElement") {

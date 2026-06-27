@@ -1,6 +1,6 @@
 "use client";
 
-import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Sparkles, Check, ChevronDown, ImageIcon, Loader2, Palette, RotateCcw, Upload, X, HelpCircle, Megaphone, Play, Share2, LogOut, FolderSync, CircleDollarSign, User, CreditCard, Download, Mail, MessageCircle, Trash } from "lucide-react";
 
@@ -10,7 +10,7 @@ import { ExportMenu } from "@/components/ExportMenu";
 import { ProjectCanvasLoading } from "@/components/ProjectCanvasLoading";
 import { ChatPanel } from "@/components/ChatPanel";
 import { ColorPickerButton } from "@/components/DesignSystemEditor";
-import type { ElementSelectionLostReason, SelectedElementInfo } from "@/components/ScreenNode";
+import type { ElementSelectionLostReason, SelectedElementInfo, SelectedElementPreviewPayload } from "@/components/ScreenNode";
 import { Button } from "@/components/ui/button";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -34,13 +34,17 @@ import {
 } from "@/components/ui/popover";
 import type { DeterministicEditOperation, DrawgleImageTargetMeta } from "@/lib/drawgle-dom";
 import {
+  classNameMatchesUtilityFamily,
+  getClassUtilityForStyle,
   getTokenReferencesForStyleProperty,
   normalizeCssValue,
   resolveStyleInspection,
   tokenVariableNameFromValue,
+  type DrawgleClassUtilityFamily,
   type DrawgleResolvedStyleProperty,
   type DrawgleStyleGroup,
   type DrawgleStyleProperty,
+  type DrawgleStyleValueMap,
   type DrawgleTokenReferenceLike,
 } from "@/lib/element-style-inspection";
 import { useGenerationRuns } from "@/hooks/use-generation-runs";
@@ -233,6 +237,22 @@ const getTokenPickerDescription = (property: DrawgleStyleProperty) => {
 };
 
 const styleGroupMeta: Record<DrawgleStyleGroup, { title: string; description: string }> = {
+  Position: {
+    title: "Position",
+    description: "Placement, stacking, and overflow.",
+  },
+  Layout: {
+    title: "Layout",
+    description: "Display mode and child alignment.",
+  },
+  Size: {
+    title: "Size",
+    description: "Fill, hug, fixed dimensions, and media fitting.",
+  },
+  Spacing: {
+    title: "Spacing",
+    description: "Padding and margin around the element.",
+  },
   Type: {
     title: "Type",
     description: "Text styling for this selected element.",
@@ -241,56 +261,15 @@ const styleGroupMeta: Record<DrawgleStyleGroup, { title: string; description: st
     title: "Surface",
     description: "Fill, border, and corner styling.",
   },
-  Layout: {
-    title: "Layout",
-    description: "Padding, margin, and spacing.",
-  },
-  Size: {
-    title: "Size",
-    description: "Element dimensions and constraints.",
-  },
   Effects: {
     title: "Effects",
-    description: "Shadow and opacity.",
+    description: "Shadow, opacity, transforms, and filters.",
   },
 };
-
 type StyleDraft =
   | { mode: "inherit"; value: "" }
   | { mode: "token"; value: string }
   | { mode: "custom"; value: string };
-
-const styleSourceLabel = (property: DrawgleResolvedStyleProperty) => {
-  if (property.status === "linked") {
-    return "Linked to token";
-  }
-  if (property.source === "inline-custom") {
-    return "Local override";
-  }
-  if (property.source === "inherited") {
-    return "Inherited";
-  }
-  if (property.inlineValue) {
-    return "Reset available";
-  }
-  if (property.source === "class") {
-    return "Class style";
-  }
-  return "Rendered";
-};
-
-const styleSourceClassName = (property: DrawgleResolvedStyleProperty) => {
-  if (property.status === "linked") {
-    return "bg-teal-50 text-teal-700";
-  }
-  if (property.source === "inline-custom") {
-    return "bg-amber-50 text-amber-700";
-  }
-  if (property.source === "inherited") {
-    return "bg-slate-100 text-slate-500";
-  }
-  return "bg-slate-100 text-slate-600";
-};
 
 const initialDraftForProperty = (property: DrawgleResolvedStyleProperty): StyleDraft => {
   const inlineToken = tokenVariableNameFromValue(property.inlineValue);
@@ -314,22 +293,6 @@ const draftDisplayValue = (draft: StyleDraft | undefined, property: DrawgleResol
     return `var(${draft.value})`;
   }
   return draft.value;
-};
-
-const propertyPreviewStyle = (property: DrawgleResolvedStyleProperty): CSSProperties => {
-  if (property.valueKind === "color") {
-    return { backgroundColor: property.computedValue || "transparent" };
-  }
-  if (property.property === "border-radius") {
-    return { borderRadius: property.computedValue || "0px" };
-  }
-  if (property.property === "box-shadow") {
-    return { boxShadow: property.computedValue || "none" };
-  }
-  if (property.property === "opacity") {
-    return { opacity: Number(property.computedValue) || 1 };
-  }
-  return {};
 };
 
 const CSS_LENGTH_UNITS = ["px", "rem", "em", "%", "vh", "vw"] as const;
@@ -374,10 +337,10 @@ function NumericCssControl({
   };
 
   return (
-    <div className="flex min-w-0 flex-1 items-center rounded-[14px] border border-slate-950/[0.08] bg-white shadow-none focus-within:ring-3 focus-within:ring-ring/50">
+    <div className="flex min-w-0 w-full items-center overflow-hidden rounded-[10px] border border-slate-950/[0.08] bg-white shadow-none focus-within:ring-2 focus-within:ring-ring/40">
       <button
         type="button"
-        className="flex h-11 w-10 shrink-0 items-center justify-center rounded-l-[14px] text-slate-500 hover:bg-slate-50 hover:text-slate-950"
+        className="flex h-9 w-8 shrink-0 items-center justify-center rounded-l-[10px] text-slate-500 hover:bg-slate-50 hover:text-slate-950"
         onClick={() => commit(String(Math.max(0, Number((amount - step).toFixed(2)))), parsed.unit)}
       >
         -
@@ -387,12 +350,12 @@ function NumericCssControl({
         step={step}
         value={parsed.amount}
         onChange={(event) => commit(event.target.value)}
-        className="h-11 min-w-0 flex-1 border-x border-slate-950/[0.06] bg-transparent px-3 text-sm outline-none"
+        className="h-9 min-w-0 flex-1 border-x border-slate-950/[0.06] bg-transparent px-2 text-sm outline-none"
       />
       <select
         value={parsed.unit}
         onChange={(event) => commit(parsed.amount, event.target.value)}
-        className="h-11 w-16 shrink-0 bg-transparent px-2 text-xs font-medium text-slate-500 outline-none"
+        className="h-9 w-14 shrink-0 bg-transparent px-1.5 text-xs font-medium text-slate-500 outline-none"
       >
         {units.map((unit) => (
           <option key={unit || "unitless"} value={unit}>
@@ -402,7 +365,7 @@ function NumericCssControl({
       </select>
       <button
         type="button"
-        className="flex h-11 w-10 shrink-0 items-center justify-center rounded-r-[14px] text-slate-500 hover:bg-slate-50 hover:text-slate-950"
+        className="flex h-9 w-8 shrink-0 items-center justify-center rounded-r-[10px] text-slate-500 hover:bg-slate-50 hover:text-slate-950"
         onClick={() => commit(String(Number((amount + step).toFixed(2))), parsed.unit)}
       >
         +
@@ -429,7 +392,7 @@ function CustomStyleControl({
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-11 min-w-0 flex-1 rounded-[14px] border border-slate-950/[0.08] bg-white px-3 text-sm shadow-none outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="h-9 min-w-0 w-full rounded-[10px] border border-slate-950/[0.08] bg-white px-3 text-sm shadow-none outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
       >
         {["300", "400", "500", "600", "700", "800", "900"].map((weight) => (
           <option key={weight} value={weight}>
@@ -444,7 +407,7 @@ function CustomStyleControl({
     const numericValue = Number(value || property.computedValue || 1);
     const clamped = Number.isFinite(numericValue) ? Math.max(0, Math.min(1, numericValue)) : 1;
     return (
-      <div className="grid gap-2 rounded-[14px] border border-slate-950/[0.08] bg-white px-3 py-2">
+      <div className="grid gap-2 rounded-[10px] border border-slate-950/[0.08] bg-white px-3 py-2">
         <div className="flex items-center justify-between gap-3">
           <input
             type="range"
@@ -470,7 +433,7 @@ function CustomStyleControl({
       value={value}
       placeholder={property.property === "box-shadow" ? "none" : "Custom value"}
       onChange={(event) => onChange(event.target.value)}
-      className="h-11 min-w-0 flex-1 rounded-[14px] border-slate-950/[0.08] bg-white px-3 text-sm shadow-none focus-visible:bg-white"
+      className="h-9 min-w-0 w-full rounded-[10px] border-slate-950/[0.08] bg-white px-3 text-sm shadow-none focus-visible:bg-white"
     />
   );
 }
@@ -489,6 +452,7 @@ function TokenValuePicker({
   const pickerTokens = getTokenReferencesForStyleProperty(property, tokens);
   const activeTokenName = value;
   const activeToken = pickerTokens.find((token) => token.name === activeTokenName) ?? null;
+  const isColorTokenProperty = property === "color" || property === "background-color" || property === "border-color";
 
   if (pickerTokens.length === 0) {
     return null;
@@ -500,15 +464,21 @@ function TokenValuePicker({
         render={(
           <button
             type="button"
-            className="flex h-10 w-full items-center justify-between gap-2 rounded-[14px] border border-[var(--dg-border)] bg-[var(--dg-surface-muted)] px-3 text-left text-xs font-medium text-[var(--dg-text)] transition hover:border-[var(--dg-border-strong)] hover:bg-[var(--dg-surface)] dark:border-white/[0.08] dark:bg-[#1b1b1b] dark:text-[#e8eaf0] dark:hover:bg-[#2a2a2a]"
+            className="flex h-9 w-full min-w-0 items-center justify-between gap-2 rounded-[10px] border border-[var(--dg-border)] bg-[var(--dg-surface-muted)] px-2.5 text-left text-xs font-medium text-[var(--dg-text)] transition hover:border-[var(--dg-border-strong)] hover:bg-[var(--dg-surface)] dark:border-white/[0.08] dark:bg-[#1b1b1b] dark:text-[#e8eaf0] dark:hover:bg-[#2a2a2a]"
           />
         )}
       >
         <span className="flex min-w-0 items-center gap-2">
-          <span
-            className="h-4 w-4 shrink-0 rounded-full border border-[var(--dg-border-strong)] dark:border-white/[0.16]"
-            style={{ backgroundColor: activeToken?.value ?? "#ffffff" }}
-          />
+          {isColorTokenProperty ? (
+            <span
+              className="h-4 w-4 shrink-0 rounded-[5px] border border-[var(--dg-border-strong)] dark:border-white/[0.16]"
+              style={{ backgroundColor: activeToken?.value ?? "#ffffff" }}
+            />
+          ) : (
+            <span className="flex h-4 w-5 shrink-0 items-center justify-center rounded-[5px] border border-[var(--dg-border-strong)] bg-white text-[8px] font-bold uppercase text-[var(--dg-text-muted)] dark:border-white/[0.16] dark:bg-white/[0.06]">
+              T
+            </span>
+          )}
           <span className="truncate">
             {activeToken ? activeToken.label : getTokenPickerLabel(property)}
           </span>
@@ -519,13 +489,13 @@ function TokenValuePicker({
         align="end"
         side="bottom"
         sideOffset={8}
-        className="dg-token-popover w-[min(320px,calc(100vw-2rem))] rounded-[18px] border border-[var(--dg-border)] bg-[var(--dg-surface)] p-2 text-[var(--dg-text)] shadow-[0_20px_70px_rgba(15,23,42,0.2)] dark:border-white/[0.08] dark:bg-[#1b1b1b] dark:shadow-[0_20px_70px_rgba(0,0,0,0.58)]"
+        className="dg-token-popover w-[min(280px,calc(100vw-2rem))] rounded-[14px] border border-[var(--dg-border)] bg-[var(--dg-surface)] p-2 text-[var(--dg-text)] shadow-[0_20px_70px_rgba(15,23,42,0.2)] dark:border-white/[0.08] dark:bg-[#1b1b1b] dark:shadow-[0_20px_70px_rgba(0,0,0,0.58)]"
       >
         <div className="px-2 pb-1 pt-1">
           <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#667894]">Project Tokens</div>
           <div className="mt-0.5 text-xs leading-5 text-[var(--dg-text-muted)]">{getTokenPickerDescription(property)}</div>
         </div>
-        <div className="max-h-72 space-y-1 overflow-y-auto pr-1">
+        <div className="max-h-56 space-y-1 overflow-y-auto pr-1">
           {pickerTokens.map((token) => (
             <button
               key={token.name}
@@ -533,16 +503,22 @@ function TokenValuePicker({
               className="flex w-full items-center gap-3 rounded-[14px] px-2 py-2 text-left text-[var(--dg-text)] transition hover:bg-[var(--dg-surface-muted)] dark:hover:bg-white/[0.06]"
               onClick={() => onSelect(token.name)}
             >
-              <span
-              className="h-8 w-8 shrink-0 rounded-full border border-[var(--dg-border-strong)] dark:border-white/[0.12]"
-                style={property === "color" || property === "background-color" || property === "border-color" ? { backgroundColor: token.value } : undefined}
-              />
+              {isColorTokenProperty ? (
+                <span
+                  className="h-7 w-7 shrink-0 rounded-[7px] border border-[var(--dg-border-strong)] dark:border-white/[0.12]"
+                  style={{ backgroundColor: token.value }}
+                />
+              ) : (
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] border border-[var(--dg-border-strong)] bg-[var(--dg-surface-muted)] font-mono text-[9px] font-bold text-[var(--dg-text-muted)] dark:border-white/[0.12] dark:bg-white/[0.06]">
+                  var
+                </span>
+              )}
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium text-[var(--dg-text)]">{token.label}</span>
                 <span className="block truncate text-[11px] text-[var(--dg-text-muted)]">{token.value}</span>
               </span>
               {activeTokenName === token.name ? (
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-950 text-white">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] bg-slate-950 text-white">
                   <Check className="h-3.5 w-3.5" />
                 </span>
               ) : null}
@@ -574,6 +550,8 @@ function SelectedElementInspectorSidebar({
   disabled,
   onClose,
   onApplyOperations,
+  onPreviewChange,
+  onAskAiRefine,
   onReplaceImage,
   onDelete,
 }: {
@@ -583,19 +561,21 @@ function SelectedElementInspectorSidebar({
   disabled: boolean;
   onClose: () => void;
   onApplyOperations: (operations: DeterministicEditOperation[]) => Promise<boolean>;
+  onPreviewChange?: (preview: SelectedElementPreviewPayload | null) => void;
+  onAskAiRefine?: (intent: string) => void | Promise<void>;
   onReplaceImage: (target: DrawgleImageTargetMeta, file: File) => Promise<boolean>;
   onDelete?: () => void | Promise<void>;
 }) {
-  const mode: ManualEditMode = "design";
   const [isSaving, setIsSaving] = useState(false);
   const [imageUploadError, setImageUploadError] = useState<string | null>(null);
   const [uploadingImageTargetId, setUploadingImageTargetId] = useState<string | null>(null);
-  const [expandedProperty, setExpandedProperty] = useState<DrawgleStyleProperty | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const pendingImageTargetRef = useRef<DrawgleImageTargetMeta | null>(null);
 
   const textNodes = selectedElementInfo?.editableMetadata?.textNodes ?? EMPTY_TEXT_NODES;
   const imageTargets = selectedElementInfo?.editableMetadata?.imageTargets ?? [];
+  const layoutContext = selectedElementInfo?.editableMetadata?.layoutContext ?? null;
+  const riskFlags = selectedElementInfo?.editableMetadata?.riskFlags ?? null;
   const tokenRefs = useMemo(
     () => getDrawgleTokenReferences(project.designTokens),
     [project.designTokens],
@@ -605,6 +585,7 @@ function SelectedElementInspectorSidebar({
     [selectedElementInfo?.editableMetadata?.styleInspection, tokenRefs],
   );
   const inspectedProperties = styleInspection?.properties ?? EMPTY_INSPECTED_PROPERTIES;
+  const classListKey = styleInspection?.classList.join(" ") ?? "";
   const originalTextById = useMemo(
     () => Object.fromEntries(textNodes.map((node) => [node.drawgleId, node.text])),
     [textNodes],
@@ -614,21 +595,100 @@ function SelectedElementInspectorSidebar({
   const [styleDrafts, setStyleDrafts] = useState<Partial<Record<DrawgleStyleProperty, StyleDraft>>>(() =>
     buildInitialStyleDrafts(inspectedProperties),
   );
+  const [classDraft, setClassDraft] = useState(classListKey);
+  const [resetClassUtilities, setResetClassUtilities] = useState<Partial<Record<DrawgleStyleProperty, boolean>>>({});
 
   useEffect(() => {
     setTextDrafts(originalTextById);
     setStyleDrafts(buildInitialStyleDrafts(inspectedProperties));
-    setExpandedProperty(null);
-  }, [selectedElementInfo, originalTextById, inspectedProperties]);
+    setClassDraft(classListKey);
+    setResetClassUtilities({});
+  }, [selectedElementInfo, originalTextById, inspectedProperties, classListKey]);
 
-  const applyOperations = async (operations: DeterministicEditOperation[]) => {
-    if (operations.length === 0) {
+  const normalizeClassNames = (className: string) => className.trim().replace(/\s+/g, " ");
+
+  const removeUtilityFamilyFromClassName = (className: string, family: DrawgleClassUtilityFamily) =>
+    normalizeClassNames(className)
+      .split(/\s+/)
+      .filter((classNamePart) => classNamePart && !classNameMatchesUtilityFamily(family, classNamePart))
+      .join(" ");
+
+  const classNameAfterPendingUtilityResets = (className: string) => {
+    let nextClassName = normalizeClassNames(className);
+    inspectedProperties.forEach((property) => {
+      if (resetClassUtilities[property.property] && property.classUtilityFamily) {
+        nextClassName = removeUtilityFamilyFromClassName(nextClassName, property.classUtilityFamily);
+      }
+    });
+    return nextClassName;
+  };
+
+  useEffect(() => {
+    if (!onPreviewChange) return;
+    if (!selectedElementInfo?.drawgleId) {
+      onPreviewChange(null);
       return;
     }
 
+    const styles: DrawgleStyleValueMap = {};
+    let hasStylePreview = false;
+
+    inspectedProperties.forEach((property) => {
+      const draft = styleDrafts[property.property] ?? initialDraftForProperty(property);
+      const initialDraft = initialDraftForProperty(property);
+      const draftValue = normalizeCssValue(draft.value);
+      const initialValue = normalizeCssValue(initialDraft.value);
+      if (draft.mode === initialDraft.mode && draftValue === initialValue) {
+        return;
+      }
+
+      if (draft.mode === "inherit") {
+        if (normalizeCssValue(property.inlineValue)) {
+          styles[property.property] = "";
+          hasStylePreview = true;
+        }
+        return;
+      }
+
+      const nextValue = draft.mode === "token" ? `var(${draft.value})` : normalizeCssValue(draft.value);
+      if (!nextValue) return;
+      styles[property.property] = nextValue;
+      hasStylePreview = true;
+    });
+
+    const normalizedClassDraft = classNameAfterPendingUtilityResets(classDraft);
+    const normalizedOriginalClass = normalizeClassNames(classListKey);
+    const classChanged = normalizedClassDraft !== normalizedOriginalClass;
+
+    if (!hasStylePreview && !classChanged) {
+      onPreviewChange(null);
+      return;
+    }
+
+    onPreviewChange({
+      drawgleId: selectedElementInfo.drawgleId,
+      styles,
+      className: classChanged ? normalizedClassDraft : null,
+    });
+  }, [classDraft, classListKey, inspectedProperties, onPreviewChange, resetClassUtilities, selectedElementInfo?.drawgleId, styleDrafts]);
+
+  useEffect(() => () => onPreviewChange?.(null), [onPreviewChange]);
+
+  const applyOperations = async (operations: DeterministicEditOperation[]) => {
+    if (operations.length === 0) {
+      return false;
+    }
+
     setIsSaving(true);
-    await onApplyOperations(operations);
-    setIsSaving(false);
+    try {
+      const saved = await onApplyOperations(operations);
+      if (saved) {
+        onPreviewChange?.(null);
+      }
+      return saved;
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const buildTextOperations = () =>
@@ -640,34 +700,69 @@ function SelectedElementInspectorSidebar({
         text: textDrafts[node.drawgleId] ?? "",
       }));
 
+  const buildStyleOperations = () => {
+    const operations: DeterministicEditOperation[] = [];
+    const normalizedClassDraft = classNameAfterPendingUtilityResets(classDraft);
+    const normalizedOriginalClass = normalizeClassNames(classListKey);
+
+    if (normalizedClassDraft !== normalizedOriginalClass) {
+      operations.push({ type: "replaceClassList", className: normalizedClassDraft });
+    }
+
+    inspectedProperties.forEach((property) => {
+      const draft = styleDrafts[property.property] ?? initialDraftForProperty(property);
+      const initialDraft = initialDraftForProperty(property);
+      const draftValue = normalizeCssValue(draft.value);
+      const initialValue = normalizeCssValue(initialDraft.value);
+      const currentInlineValue = normalizeCssValue(property.inlineValue);
+
+      if (draft.mode === initialDraft.mode && draftValue === initialValue) {
+        return;
+      }
+
+      if (draft.mode === "inherit") {
+        if (currentInlineValue) {
+          operations.push({ type: "clearStyle", property: property.property });
+        }
+        return;
+      }
+
+      const nextValue = draft.mode === "token"
+        ? `var(${draft.value})`
+        : normalizeCssValue(draft.value);
+      if (!nextValue || currentInlineValue === nextValue) {
+        return;
+      }
+
+      const classUtility = getClassUtilityForStyle(property.property, nextValue);
+      if (classUtility) {
+        if (currentInlineValue) {
+          operations.push({ type: "clearStyle", property: property.property });
+        }
+        operations.push({
+          type: "setClassUtility",
+          property: property.property,
+          family: classUtility.family,
+          className: classUtility.className,
+        });
+        return;
+      }
+
+      operations.push({ type: "setStyle", property: property.property, value: nextValue });
+    });
+
+    return operations;
+  };
+
   const saveDesign = async () => {
-    const styleOperations = inspectedProperties
-      .map((property): DeterministicEditOperation | null => {
-        const draft = styleDrafts[property.property] ?? initialDraftForProperty(property);
-        const currentInlineValue = normalizeCssValue(property.inlineValue);
-
-        if (draft.mode === "inherit") {
-          return currentInlineValue
-            ? { type: "clearStyle", property: property.property }
-            : null;
-        }
-
-        const nextValue = draft.mode === "token"
-          ? `var(${draft.value})`
-          : normalizeCssValue(draft.value);
-
-        if (currentInlineValue === nextValue) {
-          return null;
-        }
-
-        return { type: "setStyle", property: property.property, value: nextValue };
-      })
-      .filter((operation): operation is DeterministicEditOperation => operation !== null);
-
-    await applyOperations([...buildTextOperations(), ...styleOperations]);
+    await applyOperations([...buildTextOperations(), ...buildStyleOperations()]);
   };
 
   const resetAllLocalOverrides = async () => {
+    setStyleDrafts(buildInitialStyleDrafts(inspectedProperties));
+    setClassDraft(classListKey);
+    setResetClassUtilities({});
+
     const operations = inspectedProperties
       .filter((property) => normalizeCssValue(property.inlineValue))
       .map((property): DeterministicEditOperation => ({
@@ -678,7 +773,26 @@ function SelectedElementInspectorSidebar({
     await applyOperations(operations);
   };
 
+  const hasDraftChanges = useMemo(() => {
+    const classChanged = classNameAfterPendingUtilityResets(classDraft) !== normalizeClassNames(classListKey);
+    const textChanged = textNodes.some((node) => textDrafts[node.drawgleId] !== undefined && textDrafts[node.drawgleId] !== node.text);
+    const styleChanged = inspectedProperties.some((property) => {
+      const draft = styleDrafts[property.property] ?? initialDraftForProperty(property);
+      const initialDraft = initialDraftForProperty(property);
+      return draft.mode !== initialDraft.mode || normalizeCssValue(draft.value) !== normalizeCssValue(initialDraft.value);
+    });
+    const classResetChanged = Object.values(resetClassUtilities).some(Boolean);
+    return classChanged || classResetChanged || textChanged || styleChanged;
+  }, [classDraft, classListKey, inspectedProperties, resetClassUtilities, styleDrafts, textDrafts, textNodes]);
+
   const targetLabel = selectedElementInfo?.targetType === "navigation" ? "Navigation" : selectedScreen?.name ?? "Screen";
+  const riskMessages = [
+    riskFlags?.isNavigationRoot ? "Navigation root" : null,
+    riskFlags?.isRootLike ? "Root layout" : null,
+    riskFlags?.affectsManyChildren ? "Many children" : null,
+    riskFlags?.absolutePositioned ? "Positioned element" : null,
+  ].filter(Boolean);
+
   const chooseImageFile = (target: DrawgleImageTargetMeta) => {
     pendingImageTargetRef.current = target;
     setImageUploadError(null);
@@ -706,32 +820,432 @@ function SelectedElementInspectorSidebar({
     }
   };
 
+  const updateStyleDraft = (property: DrawgleResolvedStyleProperty, draft: StyleDraft) => {
+    setStyleDrafts((current) => ({ ...current, [property.property]: draft }));
+    setResetClassUtilities((current) => {
+      if (!current[property.property]) return current;
+      const next = { ...current };
+      delete next[property.property];
+      return next;
+    });
+  };
+
+  const resetPropertyDraft = (property: DrawgleResolvedStyleProperty) => {
+    setStyleDrafts((current) => ({ ...current, [property.property]: { mode: "inherit", value: "" } }));
+    if (property.classBinding && property.classUtilityFamily) {
+      setResetClassUtilities((current) => ({ ...current, [property.property]: true }));
+    }
+  };
+
+  const propertyByName = (propertyName: DrawgleStyleProperty) =>
+    inspectedProperties.find((property) => property.property === propertyName) ?? null;
+
+  const getPropertyDraftValue = (property: DrawgleResolvedStyleProperty) => {
+    const draft = styleDrafts[property.property] ?? initialDraftForProperty(property);
+    if (draft.mode === "token") return property.computedValue || `var(${draft.value})`;
+    if (draft.mode === "custom") return draft.value;
+    return property.inlineValue || property.computedValue || "";
+  };
+
+  const renderSourceBadges = (property: DrawgleResolvedStyleProperty) => {
+    const draft = styleDrafts[property.property] ?? initialDraftForProperty(property);
+    const isTokenLinked = draft.mode === "token" || property.status === "linked";
+    const isLocal = draft.mode === "custom" || property.source === "inline-custom";
+    const isResettingClass = Boolean(resetClassUtilities[property.property]);
+
+    return (
+      <div className="flex shrink-0 items-center gap-1">
+        {isResettingClass ? <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-slate-500">Reset</span> : null}
+        {isTokenLinked ? <span className="rounded-full bg-teal-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-teal-700">Token</span> : null}
+        {isLocal ? <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-amber-700">Local</span> : null}
+      </div>
+    );
+  };
+
+  const renderResetButton = (property: DrawgleResolvedStyleProperty) => (
+    <button
+      type="button"
+      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] text-slate-400 hover:bg-slate-100 hover:text-slate-900"
+      onClick={() => resetPropertyDraft(property)}
+      title={`Reset ${property.label}`}
+    >
+      <RotateCcw className="h-3.5 w-3.5" />
+    </button>
+  );
+
+  const renderSegmentControl = (
+    propertyName: DrawgleStyleProperty,
+    values: string[],
+    labels?: Record<string, string>,
+    columns = Math.min(values.length, 4),
+  ) => {
+    const property = propertyByName(propertyName);
+    if (!property) return null;
+    const draft = styleDrafts[property.property] ?? initialDraftForProperty(property);
+    const currentValue = normalizeCssValue(draft.mode === "custom" ? draft.value : property.computedValue);
+
+    return (
+      <div className="grid min-w-0 gap-1.5 rounded-[10px] border border-slate-950/[0.07] bg-white p-2 shadow-[0_1px_0_rgba(15,23,42,0.03)]">
+        <div className="flex min-w-0 items-center justify-between gap-2">
+          <span className="min-w-0 truncate text-[11px] font-semibold text-slate-600">{property.label}</span>
+          <div className="flex items-center gap-1">
+            {renderSourceBadges(property)}
+            {renderResetButton(property)}
+          </div>
+        </div>
+        <div className="grid min-w-0 rounded-[9px] bg-slate-100 p-1" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
+          {values.map((value) => {
+            const active = currentValue === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                className={`min-h-8 truncate rounded-[7px] px-2 text-[11px] font-semibold transition ${active ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:bg-white/70 hover:text-slate-900"}`}
+                onClick={() => updateStyleDraft(property, { mode: "custom", value })}
+              >
+                {labels?.[value] ?? value}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  const renderValueRow = (
+    propertyName: DrawgleStyleProperty,
+    options: { label?: string; token?: boolean; color?: boolean } = {},
+  ) => {
+    const property = propertyByName(propertyName);
+    if (!property) return null;
+    const draft = styleDrafts[property.property] ?? initialDraftForProperty(property);
+    const value = getPropertyDraftValue(property);
+    const tokenOptions = getTokenReferencesForStyleProperty(property.property, tokenRefs);
+    const allowTokenPicker = options.token !== false && tokenOptions.length > 0;
+    const activeTokenName = draft.mode === "token" ? draft.value : property.tokenName;
+    const colorPickerValue = tokenOptions.find((token) => token.name === activeTokenName)?.value ?? cssColorToHex(value);
+
+    return (
+      <div key={property.property} className="min-w-0 overflow-hidden rounded-[10px] border border-slate-950/[0.07] bg-white p-2 shadow-[0_1px_0_rgba(15,23,42,0.03)]">
+        <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
+          <span className="min-w-0 truncate text-[11px] font-semibold text-slate-700">{options.label ?? property.label}</span>
+          <div className="flex shrink-0 items-center gap-1">
+            {renderSourceBadges(property)}
+            {renderResetButton(property)}
+          </div>
+        </div>
+        <div className="grid min-w-0 gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            {property.valueKind === "color" ? (
+              <ColorPickerButton
+                label={property.label}
+                value={colorPickerValue}
+                className="h-9 w-10 shrink-0 cursor-pointer rounded-[9px] border border-slate-950/[0.08] bg-white p-1"
+                onChange={(nextColor) => updateStyleDraft(property, { mode: "custom", value: nextColor })}
+              />
+            ) : null}
+            <CustomStyleControl
+              property={property}
+              value={value}
+              onChange={(nextValue) => updateStyleDraft(property, { mode: "custom", value: nextValue })}
+            />
+          </div>
+          {allowTokenPicker ? (
+            <div className="min-w-0">
+              <TokenValuePicker
+                tokens={tokenRefs}
+                property={property.property}
+                value={activeTokenName ?? null}
+                onSelect={(tokenName) => updateStyleDraft(property, { mode: "token", value: tokenName })}
+              />
+            </div>
+          ) : null}
+        </div>
+        <div className="mt-1.5 flex min-w-0 items-center justify-between gap-2 text-[10px] text-slate-400">
+          <span className="min-w-0 truncate">{draftDisplayValue(draft, property)}</span>
+          {property.classBinding ? <span className="min-w-0 truncate font-mono">{property.classBinding}</span> : null}
+        </div>
+      </div>
+    );
+  };
+
+  const renderCompactBoxInput = (propertyName: DrawgleStyleProperty, label: string) => {
+    const property = propertyByName(propertyName);
+    if (!property) return <div />;
+    const draft = styleDrafts[property.property] ?? initialDraftForProperty(property);
+    const value = getPropertyDraftValue(property);
+    const tokenOptions = getTokenReferencesForStyleProperty(property.property, tokenRefs);
+    const activeTokenName = draft.mode === "token" ? draft.value : property.tokenName;
+
+    return (
+      <div key={property.property} className="grid min-w-0 gap-1 rounded-[8px] border border-slate-950/[0.07] bg-white px-2 py-1.5">
+        <span className="truncate text-[9px] font-semibold uppercase text-slate-400">{label}</span>
+        <Input
+          value={value}
+          onChange={(event) => updateStyleDraft(property, { mode: "custom", value: event.target.value })}
+          className="h-8 min-w-0 rounded-[7px] border-0 bg-slate-50 px-1.5 text-center text-[11px] font-semibold shadow-none focus-visible:ring-1"
+        />
+        {tokenOptions.length > 0 ? (
+          <TokenValuePicker
+            tokens={tokenRefs}
+            property={property.property}
+            value={activeTokenName ?? null}
+            onSelect={(tokenName) => updateStyleDraft(property, { mode: "token", value: tokenName })}
+          />
+        ) : null}
+      </div>
+    );
+  };
+
+  const renderBoxGroup = (
+    title: string,
+    top: DrawgleStyleProperty,
+    right: DrawgleStyleProperty,
+    bottom: DrawgleStyleProperty,
+    left: DrawgleStyleProperty,
+  ) => (
+    <div className="min-w-0 overflow-hidden rounded-[10px] border border-slate-950/[0.07] bg-slate-50 p-2">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="text-[11px] font-bold text-slate-700">{title}</div>
+        <div className="text-[10px] font-medium text-slate-400">Top / Right / Bottom / Left</div>
+      </div>
+      <div className="grid min-w-0 grid-cols-2 gap-2">
+        {renderCompactBoxInput(top, "Top")}
+        {renderCompactBoxInput(right, "Right")}
+        {renderCompactBoxInput(bottom, "Bottom")}
+        {renderCompactBoxInput(left, "Left")}
+      </div>
+    </div>
+  );
+  const renderSizeControl = (propertyName: DrawgleStyleProperty, label: string) => {
+    const property = propertyByName(propertyName);
+    if (!property) return null;
+    const draft = styleDrafts[property.property] ?? initialDraftForProperty(property);
+    const value = getPropertyDraftValue(property);
+    const normalizedValue = normalizeCssValue(value);
+    const sizeMode = normalizedValue === "100%" ? "fill" : normalizedValue === "auto" ? "hug" : "fixed";
+    const tokenOptions = getTokenReferencesForStyleProperty(property.property, tokenRefs);
+    const activeTokenName = draft.mode === "token" ? draft.value : property.tokenName;
+
+    return (
+      <div className="rounded-[12px] border border-slate-950/[0.07] bg-white p-2">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <span className="text-[11px] font-bold text-slate-700">{label}</span>
+          <div className="flex items-center gap-1">
+            {renderSourceBadges(property)}
+            {renderResetButton(property)}
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-1 rounded-[9px] bg-slate-100 p-1">
+          {[
+            ["fill", "Fill", "100%"],
+            ["hug", "Hug", "auto"],
+            ["fixed", "Fixed", normalizedValue && normalizedValue !== "auto" && normalizedValue !== "100%" ? normalizedValue : property.computedValue || "0px"],
+          ].map(([mode, modeLabel, nextValue]) => (
+            <button
+              key={mode}
+              type="button"
+              className={`h-7 rounded-[7px] text-[10px] font-semibold ${sizeMode === mode ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:bg-white/70"}`}
+              onClick={() => updateStyleDraft(property, { mode: "custom", value: nextValue })}
+            >
+              {modeLabel}
+            </button>
+          ))}
+        </div>
+        <Input
+          value={value}
+          onChange={(event) => updateStyleDraft(property, { mode: "custom", value: event.target.value })}
+          className="mt-2 h-8 rounded-[8px] border-slate-950/[0.08] bg-slate-50 px-2 text-center text-xs font-semibold"
+        />
+        {tokenOptions.length > 0 ? (
+          <div className="mt-2 min-w-0">
+            <TokenValuePicker
+              tokens={tokenRefs}
+              property={property.property}
+              value={activeTokenName ?? null}
+              onSelect={(tokenName) => updateStyleDraft(property, { mode: "token", value: tokenName })}
+            />
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
+  const renderSectionShell = (group: DrawgleStyleGroup, children: ReactNode, trailing?: ReactNode) => {
+    if (!children) return null;
+    return (
+      <section key={group} className="border-b border-slate-950/[0.06] bg-white px-3 py-3">
+        <div className="mb-2.5 flex items-center justify-between gap-3">
+          <div className="text-[13px] font-bold text-slate-950">{styleGroupMeta[group].title}</div>
+          {trailing}
+        </div>
+        {children}
+      </section>
+    );
+  };
+
+  const renderPositionSection = () => renderSectionShell(
+    "Position",
+    <div className="grid gap-2">
+      {renderSegmentControl("position", ["static", "relative", "absolute", "fixed"], { static: "Static", relative: "Rel", absolute: "Abs", fixed: "Fixed" }, 4)}
+      <div className="grid grid-cols-1 gap-2">
+        {renderValueRow("top")}
+        {renderValueRow("right")}
+        {renderValueRow("bottom")}
+        {renderValueRow("left")}
+      </div>
+      <div className="grid grid-cols-1 gap-2">
+        {renderValueRow("z-index", { label: "Layer" })}
+        {renderSegmentControl("overflow", ["visible", "hidden", "auto", "scroll"], { visible: "Show", hidden: "Hide", auto: "Auto", scroll: "Scroll" }, 4)}
+      </div>
+    </div>,
+    riskMessages.length ? <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">Guarded</span> : null,
+  );
+
+  const renderLayoutSection = () => renderSectionShell(
+    "Layout",
+    <div className="grid gap-2">
+      {renderSegmentControl("display", ["block", "flex", "grid", "inline-flex", "none"], { block: "Block", flex: "Flex", grid: "Grid", "inline-flex": "Inline", none: "None" }, 5)}
+      <div className="grid grid-cols-1 gap-2">
+        {renderSegmentControl("flex-direction", ["row", "column", "row-reverse", "column-reverse"], { row: "Row", column: "Col", "row-reverse": "Row R", "column-reverse": "Col R" }, 2)}
+        {renderSegmentControl("flex-wrap", ["nowrap", "wrap", "wrap-reverse"], { nowrap: "No", wrap: "Wrap", "wrap-reverse": "Rev" }, 3)}
+      </div>
+      <div className="grid grid-cols-1 gap-2">
+        {renderSegmentControl("justify-content", ["flex-start", "center", "flex-end", "space-between"], { "flex-start": "Start", center: "Center", "flex-end": "End", "space-between": "Between" }, 4)}
+        {renderSegmentControl("align-items", ["stretch", "flex-start", "center", "flex-end"], { stretch: "Stretch", "flex-start": "Start", center: "Center", "flex-end": "End" }, 4)}
+      </div>
+      {renderSegmentControl("align-self", ["auto", "stretch", "flex-start", "center", "flex-end"], { auto: "Auto", stretch: "Stretch", "flex-start": "Start", center: "Center", "flex-end": "End" }, 5)}
+      <div className="grid grid-cols-1 gap-2">
+        {renderValueRow("gap")}
+        {renderValueRow("grid-template-columns", { label: "Columns" })}
+      </div>
+      {renderValueRow("flex")}
+    </div>,
+  );
+
+  const renderSizeSection = () => renderSectionShell(
+    "Size",
+    <div className="grid gap-2">
+      <div className="grid grid-cols-1 gap-2">
+        {renderSizeControl("width", "Width")}
+        {renderSizeControl("height", "Height")}
+      </div>
+      <div className="grid grid-cols-1 gap-2">
+        {renderValueRow("min-height", { label: "Min H" })}
+        {renderValueRow("max-width", { label: "Max W" })}
+      </div>
+      <div className="grid grid-cols-1 gap-2">
+        {renderValueRow("aspect-ratio", { label: "Aspect" })}
+        {renderSegmentControl("object-fit", ["cover", "contain", "fill", "none"], { cover: "Cover", contain: "Contain", fill: "Fill", none: "None" }, 4)}
+      </div>
+    </div>,
+  );
+
+  const renderSpacingSection = () => renderSectionShell(
+    "Spacing",
+    <div className="grid gap-2">
+      {renderBoxGroup("Padding", "padding-top", "padding-right", "padding-bottom", "padding-left")}
+      {renderBoxGroup("Margin", "margin-top", "margin-right", "margin-bottom", "margin-left")}
+    </div>,
+  );
+
+  const renderTypeSection = () => renderSectionShell(
+    "Type",
+    <div className="grid gap-2">
+      <div className="grid grid-cols-1 gap-2">
+        {renderValueRow("font-size")}
+        {renderValueRow("font-weight")}
+      </div>
+      <div className="grid grid-cols-1 gap-2">
+        {renderValueRow("line-height")}
+        {renderValueRow("letter-spacing", { label: "Tracking" })}
+      </div>
+      {renderValueRow("font-family")}
+      <div className="grid grid-cols-1 gap-2">
+        {renderSegmentControl("text-align", ["left", "center", "right", "justify"], { left: "Left", center: "Center", right: "Right", justify: "Justify" }, 4)}
+        {renderValueRow("color", { color: true, label: "Text" })}
+      </div>
+    </div>,
+  );
+
+  const renderSurfaceSection = () => renderSectionShell(
+    "Surface",
+    <div className="grid gap-2">
+      <div className="grid grid-cols-1 gap-2">
+        {renderValueRow("background-color", { color: true, label: "Fill" })}
+        {renderValueRow("border-color", { color: true, label: "Border" })}
+      </div>
+      <div className="grid grid-cols-1 gap-2">
+        {renderSegmentControl("border-style", ["none", "solid", "dashed", "dotted"], { none: "None", solid: "Solid", dashed: "Dash", dotted: "Dot" }, 4)}
+        {renderValueRow("border-width", { label: "Border W" })}
+      </div>
+      {renderBoxGroup("Border", "border-top-width", "border-right-width", "border-bottom-width", "border-left-width")}
+      {renderValueRow("border-radius", { label: "Radius" })}
+      {renderBoxGroup("Radius", "border-top-left-radius", "border-top-right-radius", "border-bottom-right-radius", "border-bottom-left-radius")}
+    </div>,
+  );
+
+  const renderEffectsSection = () => renderSectionShell(
+    "Effects",
+    <div className="grid gap-2">
+      <div className="grid grid-cols-1 gap-2">
+        {renderValueRow("opacity")}
+        {renderValueRow("box-shadow", { label: "Shadow" })}
+      </div>
+      {renderValueRow("transform")}
+      <div className="grid grid-cols-1 gap-2">
+        {renderValueRow("filter")}
+        {renderValueRow("backdrop-filter", { label: "Backdrop" })}
+      </div>
+    </div>,
+  );
+
+  const buildAiRefinePrompt = () => {
+    const normalizedClassDraft = classNameAfterPendingUtilityResets(classDraft);
+    const changedStyles = inspectedProperties
+      .map((property) => {
+        const draft = styleDrafts[property.property] ?? initialDraftForProperty(property);
+        const initialDraft = initialDraftForProperty(property);
+        const changed = draft.mode !== initialDraft.mode || normalizeCssValue(draft.value) !== normalizeCssValue(initialDraft.value) || resetClassUtilities[property.property];
+        if (!changed) return null;
+        return `${property.property}: ${draft.mode === "inherit" ? "reset" : draftDisplayValue(draft, property)}`;
+      })
+      .filter(Boolean)
+      .join("; ");
+
+    return [
+      `Refine the selected ${selectedElementInfo?.editableMetadata?.tagName ?? "element"} using the current visual editor draft.`,
+      `Target: ${targetLabel} / ${selectedElementInfo?.breadcrumb || selectedElementInfo?.editableMetadata?.tagName || "element"}.`,
+      `Parent layout: ${layoutContext?.parentDisplay ?? "unknown"}; children: ${layoutContext?.childrenCount ?? 0}; risk flags: ${riskMessages.join(", ") || "none"}.`,
+      `Current classes: ${classListKey || "none"}.`,
+      normalizedClassDraft !== normalizeClassNames(classListKey) ? `Draft classes: ${normalizedClassDraft || "none"}.` : null,
+      changedStyles ? `Draft styles: ${changedStyles}.` : null,
+      "Preserve project tokens, prefer Tailwind-compatible utilities, avoid unnecessary inline styles, and keep exported HTML production-safe.",
+    ].filter(Boolean).join("\n");
+  };
+
   if (!selectedElementInfo) {
     return (
       <aside
         data-canvas-obstacle="right"
-        className="dg-visual-editor fixed bottom-[calc(var(--dg-mobile-prompt-bottom)+8.75rem)] left-3 right-3 top-auto z-[80] flex max-h-[min(72vh,660px)] flex-col overflow-hidden rounded-[26px] border border-slate-950/[0.08] bg-white/96 backdrop-blur-xl md:bottom-4 md:left-auto md:right-4 md:top-[calc(env(safe-area-inset-top,0px)+4.25rem)] md:max-h-none md:w-[min(420px,calc(100%-1rem))]"
+        className="dg-visual-editor fixed bottom-[calc(var(--dg-mobile-prompt-bottom)+8.75rem)] left-3 right-3 top-auto z-[80] flex max-h-[min(72vh,660px)] flex-col overflow-hidden rounded-[18px] border border-slate-950/[0.08] bg-white/96 md:bottom-4 md:left-auto md:right-4 md:top-[calc(env(safe-area-inset-top,0px)+4.25rem)] md:max-h-none md:w-[min(420px,calc(100%-1rem))]"
       >
         <div className="flex items-start justify-between gap-3 border-b border-slate-950/[0.06] px-4 pb-3 pt-4">
           <div className="min-w-0">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#667894]">
-              Visual Editor
-            </div>
-            <div className="mt-0.5 truncate text-sm font-medium text-slate-900">
-              No Element Selected
-            </div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#667894]">Visual Editor</div>
+            <div className="mt-0.5 truncate text-sm font-medium text-slate-900">No Element Selected</div>
           </div>
           <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-950" onClick={onClose}>
             <X className="h-3.5 w-3.5" />
           </Button>
         </div>
-        <div className="flex flex-1 flex-col items-center justify-center p-8 text-center bg-slate-50/20">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-50 text-slate-400 mb-3 border border-slate-100">
-            <Palette className="h-5 w-5 animate-pulse text-slate-400" />
+        <div className="flex flex-1 flex-col items-center justify-center bg-slate-50/40 p-8 text-center">
+          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full border border-slate-100 bg-white text-slate-400 shadow-sm">
+            <Palette className="h-5 w-5 text-slate-400" />
           </div>
           <h3 className="text-sm font-semibold text-slate-900">Select an Element</h3>
-          <p className="mt-1 text-xs text-slate-500 max-w-[240px] leading-relaxed">
-            Click any component on the canvas screens to inspect and override its style properties here.
+          <p className="mt-1 max-w-[240px] text-xs leading-relaxed text-slate-500">
+            Click a canvas element to inspect tokens, classes, layout, spacing, and code.
           </p>
         </div>
       </aside>
@@ -741,302 +1255,221 @@ function SelectedElementInspectorSidebar({
   return (
     <aside
       data-canvas-obstacle="right"
-      className="dg-visual-editor fixed bottom-[calc(var(--dg-mobile-prompt-bottom)+8.75rem)] left-3 right-3 top-auto z-[80] flex max-h-[min(72vh,660px)] flex-col overflow-hidden rounded-[26px] border border-slate-950/[0.08] bg-white/96 backdrop-blur-xl md:bottom-4 md:left-auto md:right-4 md:top-[calc(env(safe-area-inset-top,0px)+4.25rem)] md:max-h-none md:w-[min(420px,calc(100%-1rem))]"
+      className="dg-visual-editor fixed bottom-[calc(var(--dg-mobile-prompt-bottom)+8.75rem)] left-3 right-3 top-auto z-[80] flex max-h-[min(72vh,660px)] flex-col overflow-hidden rounded-[18px] border border-slate-950/[0.08] bg-white/96 shadow-[0_24px_90px_rgba(15,23,42,0.18)] backdrop-blur-xl md:bottom-4 md:left-auto md:right-4 md:top-[calc(env(safe-area-inset-top,0px)+4.25rem)] md:max-h-none md:w-[min(440px,calc(100%-1rem))]"
     >
-      <div className="flex items-start justify-between gap-3 border-b border-slate-950/[0.06] px-4 pb-3 pt-4">
-        <div className="min-w-0">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#667894]">
-            Visual Editor
+      <div className="border-b border-slate-950/[0.06] bg-white px-3 pb-3 pt-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#667894]">Visual Editor</div>
+            <div className="mt-0.5 truncate text-sm font-bold text-slate-950">
+              {selectedElementInfo.textPreview || selectedElementInfo.editableMetadata?.tagName || "Element"}
+            </div>
+            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] font-medium text-slate-500">
+              <span>{targetLabel}</span>
+              <span>/</span>
+              <span className="truncate">{selectedElementInfo.breadcrumb || selectedElementInfo.editableMetadata?.tagName}</span>
+            </div>
           </div>
-          <div className="mt-0.5 truncate text-sm font-medium text-slate-900">
-            {selectedElementInfo?.textPreview || selectedElementInfo?.editableMetadata?.tagName || "Element"}
-          </div>
-          <div className="mt-0.5 truncate text-[11px] font-medium text-slate-500">
-            Selected in {targetLabel}
-          </div>
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-950" onClick={onClose}>
+            <X className="h-3.5 w-3.5" />
+          </Button>
         </div>
-        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-950" onClick={onClose}>
-          <X className="h-3.5 w-3.5" />
-        </Button>
+
+        <div className="mt-3 flex min-w-0 flex-wrap items-center gap-1.5 text-[10px] font-semibold text-slate-500">
+          <span className="rounded-[7px] border border-slate-950/[0.06] bg-slate-50 px-2 py-1">{styleInspection?.tagName ?? selectedElementInfo.editableMetadata?.tagName ?? "node"}</span>
+          <span className="rounded-[7px] border border-slate-950/[0.06] bg-slate-50 px-2 py-1">{layoutContext ? `${layoutContext.childrenCount} children` : "context"}</span>
+          <span className={riskMessages.length ? "rounded-[7px] border border-amber-200 bg-amber-50 px-2 py-1 text-amber-700" : "rounded-[7px] border border-teal-200 bg-teal-50 px-2 py-1 text-teal-700"}>{riskMessages.length ? "guarded" : "safe"}</span>
+        </div>
+
+        {riskMessages.length > 0 ? (
+          <div className="mt-2 rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-medium leading-4 text-amber-800">
+            Guardrails: {riskMessages.join(" / ")}. Apply is allowed, but layout changes may affect nearby UI.
+          </div>
+        ) : null}
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col">
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-            {imageTargets.length > 0 ? (
-              <section className="mb-3 overflow-hidden rounded-[20px] border border-slate-950/[0.08] bg-white shadow-[0_1px_0_rgba(15,23,42,0.03)]">
-                <input
-                  ref={imageInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/gif"
-                  className="hidden"
-                  onChange={(event) => void handleImageFileChange(event.target.files?.[0] ?? null)}
-                />
-                <div className="border-b border-slate-950/[0.06] px-3 py-2.5">
-                  <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#667894]">
-                    <ImageIcon className="h-3.5 w-3.5" />
-                    Image
+      <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/50">
+        {imageTargets.length > 0 ? (
+          <section className="border-b border-slate-950/[0.06] px-3 py-4">
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              className="hidden"
+              onChange={(event) => void handleImageFileChange(event.target.files?.[0] ?? null)}
+            />
+            <div className="mb-3 flex items-center gap-2 text-[13px] font-bold text-slate-950">
+              <ImageIcon className="h-3.5 w-3.5 text-slate-500" />
+              Media
+            </div>
+            <div className="grid gap-2">
+              {imageTargets.map((target) => (
+                <div key={`${target.kind}-${target.drawgleId}-${target.targetIndex ?? 0}`} className="flex items-center gap-3 rounded-[12px] border border-slate-950/[0.07] bg-white p-2">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[10px] border border-slate-950/[0.08] bg-slate-50">
+                    {target.src ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={target.src} alt={target.alt || target.label} className="h-full w-full object-cover" />
+                    ) : (
+                      <ImageIcon className="h-4 w-4 text-slate-400" />
+                    )}
                   </div>
-                  <div className="mt-0.5 text-[11px] leading-4 text-slate-500">
-                    Replace the selected image source. New files are stored in the project.
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-xs font-semibold text-slate-900">{target.label}</div>
+                    <div className="mt-0.5 truncate text-[11px] text-slate-500">{labelForImageTargetKind(target.kind)}</div>
                   </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-8 shrink-0 rounded-[10px] px-2 text-[11px]"
+                    disabled={disabled || Boolean(uploadingImageTargetId)}
+                    onClick={() => chooseImageFile(target)}
+                  >
+                    {uploadingImageTargetId === target.drawgleId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                  </Button>
                 </div>
-                <div className="divide-y divide-slate-950/[0.06]">
-                  {imageTargets.map((target) => (
-                    <div key={`${target.kind}-${target.drawgleId}-${target.targetIndex ?? 0}`} className="flex items-center gap-3 px-3 py-2.5">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-slate-950/[0.08] bg-slate-50">
-                        {target.src ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={target.src} alt={target.alt || target.label} className="h-full w-full object-cover" />
-                        ) : (
-                          <ImageIcon className="h-4 w-4 text-slate-400" />
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium text-slate-900">{target.label}</div>
-                        <div className="mt-0.5 truncate text-[11px] text-slate-500">
-                          {labelForImageTargetKind(target.kind)}
-                        </div>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="h-9 shrink-0 rounded-full px-3 text-xs"
-                        disabled={disabled || Boolean(uploadingImageTargetId)}
-                        onClick={() => chooseImageFile(target)}
-                      >
-                        {uploadingImageTargetId === target.drawgleId ? (
-                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Upload className="mr-1.5 h-3.5 w-3.5" />
-                        )}
-                        Replace
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-                {imageUploadError ? (
-                  <div className="border-t border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                    {imageUploadError}
-                  </div>
-                ) : null}
-              </section>
+              ))}
+            </div>
+            {imageUploadError ? (
+              <div className="mt-2 rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">{imageUploadError}</div>
             ) : null}
+          </section>
+        ) : null}
 
-            {textNodes.length > 0 ? (
-              <section className="mb-3 overflow-hidden rounded-[20px] border border-slate-950/[0.08] bg-white shadow-[0_1px_0_rgba(15,23,42,0.03)]">
-                <div className="border-b border-slate-950/[0.06] px-3 py-2.5">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#667894]">Content</div>
-                  <div className="mt-0.5 text-[11px] leading-4 text-slate-500">Edit text inside the selected element.</div>
-                </div>
-                <div className="grid gap-3 p-3">
-                  {textNodes.map((node) => (
-                    <label key={node.drawgleId} className="grid gap-1.5">
-                      <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">{node.tagName}</span>
-                      <Textarea
-                        value={textDrafts[node.drawgleId] ?? ""}
-                        onChange={(event) => setTextDrafts((current) => ({ ...current, [node.drawgleId]: event.target.value }))}
-                        className="resize-y rounded-[14px] border-slate-950/[0.08] bg-slate-50/80 px-3 py-2 text-xs focus-visible:bg-white"
-                      />
-                    </label>
-                  ))}
-                </div>
-              </section>
-            ) : null}
-            <div className="mb-3 rounded-[18px] border border-slate-950/[0.06] bg-slate-50/80 px-3 py-2">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="truncate text-xs font-medium text-slate-700">
-                    {styleInspection?.classList.length ? styleInspection.classList.slice(0, 4).join(" · ") : "No element classes"}
-                  </div>
-                  <div className="mt-0.5 text-[11px] leading-4 text-slate-500">
-                    Token-linked values stay live. Local overrides affect only this selected element.
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  className="h-8 shrink-0 rounded-full px-2.5 text-[11px] font-medium text-slate-500 hover:bg-white hover:text-slate-950"
-                  disabled={disabled || isSaving || inspectedProperties.every((property) => !normalizeCssValue(property.inlineValue))}
-                  onClick={() => void resetAllLocalOverrides()}
-                >
-                  <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
-                  Reset all
-                </Button>
+        {textNodes.length > 0 ? (
+          <section className="border-b border-slate-950/[0.06] px-3 py-4">
+            <div className="mb-3 text-[13px] font-bold text-slate-950">Content</div>
+            <div className="grid gap-2">
+              {textNodes.map((node) => (
+                <label key={node.drawgleId} className="grid gap-1.5 rounded-[12px] border border-slate-950/[0.07] bg-white p-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">{node.tagName}</span>
+                  <Textarea
+                    value={textDrafts[node.drawgleId] ?? ""}
+                    onChange={(event) => setTextDrafts((current) => ({ ...current, [node.drawgleId]: event.target.value }))}
+                    className="min-h-20 resize-y rounded-[10px] border-slate-950/[0.08] bg-slate-50/80 px-3 py-2 text-xs focus-visible:bg-white"
+                  />
+                </label>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <section className="border-b border-slate-950/[0.06] px-3 py-3">
+          <div className="flex items-center justify-between gap-3 rounded-[12px] border border-slate-950/[0.07] bg-white p-2">
+            <div className="min-w-0">
+              <div className="truncate text-xs font-semibold text-slate-900">
+                {classListKey || "No classes"}
+              </div>
+              <div className="mt-0.5 text-[11px] text-slate-500">
+                {inspectedProperties.filter((property) => property.status === "linked").length} token links / {inspectedProperties.filter((property) => property.inlineValue).length} local overrides
               </div>
             </div>
-
-            <div className="space-y-3">
-              {(["Type", "Surface", "Layout", "Size", "Effects"] as DrawgleStyleGroup[]).map((group) => {
-                const properties = inspectedProperties.filter((property) => property.group === group);
-                if (properties.length === 0) {
-                  return null;
-                }
-
-                return (
-                  <section key={group} className="overflow-hidden rounded-[20px] border border-slate-950/[0.08] bg-white shadow-[0_1px_0_rgba(15,23,42,0.03)]">
-                    <div className="border-b border-slate-950/[0.06] px-3 py-2.5">
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#667894]">{styleGroupMeta[group].title}</div>
-                      <div className="mt-0.5 text-[11px] leading-4 text-slate-500">{styleGroupMeta[group].description}</div>
-                    </div>
-                    <div className="divide-y divide-slate-950/[0.06]">
-                      {properties.map((property) => {
-                        const draft = styleDrafts[property.property] ?? initialDraftForProperty(property);
-                        const isExpanded = expandedProperty === property.property;
-                        const tokenOptions = getTokenReferencesForStyleProperty(property.property, tokenRefs);
-                        const activeTokenName = draft.mode === "token" ? draft.value : property.tokenName;
-                        const activeToken = tokenOptions.find((token) => token.name === activeTokenName) ?? null;
-                        const displayValue = draftDisplayValue(draft, property);
-                        const customValue = draft.mode === "custom" ? draft.value : property.inlineValue || property.computedValue;
-                        const colorPickerValue = activeToken?.value ?? cssColorToHex(customValue);
-
-                        return (
-                          <div key={property.property}>
-                            <button
-                              type="button"
-                              className="flex min-h-[56px] w-full items-center gap-3 px-3 py-2.5 text-left transition hover:bg-slate-50"
-                              onClick={() => setExpandedProperty(isExpanded ? null : property.property)}
-                            >
-                              <span
-                                className="h-8 w-8 shrink-0 rounded-[11px] border border-slate-950/[0.08] bg-slate-50"
-                                style={propertyPreviewStyle(property)}
-                              />
-                              <span className="min-w-0 flex-1">
-                                <span className="flex items-center gap-2">
-                                  <span className="text-sm font-medium text-slate-900">{property.label}</span>
-                                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${styleSourceClassName(property)}`}>
-                                    {styleSourceLabel(property)}
-                                  </span>
-                                </span>
-                                <span className="mt-0.5 block truncate text-xs text-slate-500">
-                                  {activeToken ? activeToken.label : displayValue}
-                                </span>
-                              </span>
-                              <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition ${isExpanded ? "rotate-180" : ""}`} />
-                            </button>
-
-                            {isExpanded ? (
-                              <div className="grid gap-3 bg-slate-50/70 px-3 pb-3 pt-1">
-                                <div className="grid grid-cols-3 gap-2">
-                                  <Button
-                                    variant={draft.mode === "inherit" ? "default" : "outline"}
-                                    className="h-9 rounded-full text-xs"
-                                    onClick={() => setStyleDrafts((current) => ({ ...current, [property.property]: { mode: "inherit", value: "" } }))}
-                                  >
-                                    Reset
-                                  </Button>
-                                  <Button
-                                    variant={draft.mode === "token" ? "default" : "outline"}
-                                    className="h-9 rounded-full text-xs"
-                                    disabled={tokenOptions.length === 0}
-                                    onClick={() => {
-                                      const nextToken = activeTokenName ?? tokenOptions[0]?.name;
-                                      if (!nextToken) {
-                                        return;
-                                      }
-                                      setStyleDrafts((current) => ({ ...current, [property.property]: { mode: "token", value: nextToken } }));
-                                    }}
-                                  >
-                                    Use token
-                                  </Button>
-                                  <Button
-                                    variant={draft.mode === "custom" ? "default" : "outline"}
-                                    className="h-9 rounded-full text-xs"
-                                    onClick={() => setStyleDrafts((current) => ({
-                                      ...current,
-                                      [property.property]: { mode: "custom", value: property.inlineValue || property.computedValue },
-                                    }))}
-                                  >
-                                    Custom
-                                  </Button>
-                                </div>
-
-                                {draft.mode === "token" ? (
-                                  <TokenValuePicker
-                                    tokens={tokenRefs}
-                                    property={property.property}
-                                    value={draft.value}
-                                    onSelect={(tokenName) => setStyleDrafts((current) => ({ ...current, [property.property]: { mode: "token", value: tokenName } }))}
-                                  />
-                                ) : null}
-
-                                {draft.mode === "custom" ? (
-                                  <div className="grid gap-2">
-                                    <div className="flex gap-2">
-                                      {property.valueKind === "color" ? (
-                                        <ColorPickerButton
-                                          label={property.label}
-                                          value={colorPickerValue}
-                                          className="h-11 w-12 shrink-0 cursor-pointer rounded-[14px] border border-slate-950/[0.08] bg-white p-1"
-                                          onChange={(nextColor) => setStyleDrafts((current) => ({
-                                            ...current,
-                                            [property.property]: { mode: "custom", value: nextColor },
-                                          }))}
-                                        />
-                                      ) : null}
-                                      <CustomStyleControl
-                                        property={property}
-                                        value={draft.value}
-                                        onChange={(nextValue) => setStyleDrafts((current) => ({
-                                          ...current,
-                                          [property.property]: { mode: "custom", value: nextValue },
-                                        }))}
-                                      />
-                                    </div>
-                                    <div className="rounded-[12px] bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
-                                      This will save as a local override for this element only.
-                                    </div>
-                                  </div>
-                                ) : null}
-
-                                {draft.mode === "inherit" ? (
-                                  <div className="rounded-[12px] bg-white px-3 py-2 text-xs leading-5 text-slate-500">
-                                    Removes the inline override. The rendered value will come from classes, inherited styles, or project tokens.
-                                  </div>
-                                ) : null}
-
-                                {property.classBinding ? (
-                                  <div className="truncate text-[11px] text-slate-400">
-                                    Class source: {property.classBinding}
-                                  </div>
-                                ) : null}
-                              </div>
-                            ) : null}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </section>
-                );
-              })}
-              {inspectedProperties.length === 0 ? (
-                <div className="rounded-[20px] border border-slate-950/[0.08] bg-white px-4 py-6 text-center text-sm text-slate-500">
-                  Reselect the element to inspect its live CSS sources.
-                </div>
+            <div className="flex shrink-0 gap-1">
+              {onAskAiRefine ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-8 rounded-[10px] px-2 text-[11px] text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+                  disabled={disabled || isSaving}
+                  onClick={() => void onAskAiRefine(buildAiRefinePrompt())}
+                >
+                  <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                  Ask AI
+                </Button>
               ) : null}
-            </div>
-          </div>
-          <div className="flex justify-between border-t border-slate-950/[0.06] bg-white/95 px-4 py-3">
-            {onDelete && selectedElementInfo?.targetType !== "navigation" ? (
               <Button
-                variant="outline"
-                className="h-10 rounded-full px-4 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
-                disabled={disabled || isSaving}
-                onClick={() => void onDelete()}
+                variant="ghost"
+                className="h-8 rounded-[10px] px-2 text-[11px] font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-950"
+                disabled={disabled || isSaving || inspectedProperties.every((property) => !normalizeCssValue(property.inlineValue))}
+                onClick={() => void resetAllLocalOverrides()}
               >
-                <Trash className="mr-1.5 h-3.5 w-3.5" />
-                Delete
-              </Button>
-            ) : <div />}
-            <div className="flex gap-2">
-              <Button className="h-10 rounded-full dg-button-primary hover:dg-button-primary px-4 text-white gap-2" disabled={disabled || isSaving} onClick={() => void saveDesign()}>
-                {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                Apply Changes
+                <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                Reset
               </Button>
             </div>
           </div>
-        </div>
-      </aside>
-    );
-  }
+        </section>
+
+        {renderPositionSection()}
+        {renderLayoutSection()}
+        {renderSizeSection()}
+        {renderSpacingSection()}
+        {renderTypeSection()}
+        {renderSurfaceSection()}
+        {renderEffectsSection()}
+
+        <section className="border-b border-slate-950/[0.06] px-3 py-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <div className="text-[13px] font-bold text-slate-950">Properties</div>
+              <div className="mt-0.5 text-[11px] text-slate-500">Classes and element context</div>
+            </div>
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">Advanced</span>
+          </div>
+          <div className="grid gap-2">
+            <label className="grid gap-1.5 rounded-[12px] border border-slate-950/[0.07] bg-white p-2">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Classes</span>
+              <Textarea
+                value={classDraft}
+                onChange={(event) => setClassDraft(event.target.value)}
+                className="min-h-20 resize-y rounded-[10px] border-slate-950/[0.08] bg-slate-50/80 px-3 py-2 font-mono text-[11px] leading-5 focus-visible:bg-white"
+              />
+            </label>
+            {layoutContext ? (
+              <div className="grid grid-cols-3 gap-2 text-[11px]">
+                <div className="rounded-[10px] border border-slate-950/[0.07] bg-white p-2">
+                  <div className="text-slate-400">Parent</div>
+                  <div className="mt-0.5 truncate font-semibold text-slate-900">{layoutContext.parentDisplay ?? "none"}</div>
+                </div>
+                <div className="rounded-[10px] border border-slate-950/[0.07] bg-white p-2">
+                  <div className="text-slate-400">Index</div>
+                  <div className="mt-0.5 truncate font-semibold text-slate-900">{layoutContext.childIndex + 1}/{layoutContext.siblingCount}</div>
+                </div>
+                <div className="rounded-[10px] border border-slate-950/[0.07] bg-white p-2">
+                  <div className="text-slate-400">Children</div>
+                  <div className="mt-0.5 truncate font-semibold text-slate-900">{layoutContext.childrenCount}</div>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </section>
+
+        <section className="px-3 py-4">
+          <div className="mb-3 text-[13px] font-bold text-slate-950">Code</div>
+          <pre className="max-h-48 overflow-auto rounded-[12px] border border-slate-950/[0.07] bg-slate-950 p-3 text-[11px] leading-5 text-slate-100">
+            <code>{selectedElementInfo.outerHTML}</code>
+          </pre>
+        </section>
+
+        {inspectedProperties.length === 0 ? (
+          <div className="mx-3 mb-4 rounded-[14px] border border-slate-950/[0.08] bg-white px-4 py-6 text-center text-sm text-slate-500">
+            Reselect the element to inspect its live CSS sources.
+          </div>
+        ) : null}
+      </div>
+
+      <div className="flex items-center justify-between gap-3 border-t border-slate-950/[0.06] bg-white/95 px-3 py-3">
+        {onDelete && selectedElementInfo.targetType !== "navigation" ? (
+          <Button
+            variant="outline"
+            className="h-10 rounded-[12px] border-red-200 px-3 text-red-600 hover:bg-red-50 hover:text-red-700"
+            disabled={disabled || isSaving}
+            onClick={() => void onDelete()}
+          >
+            <Trash className="h-3.5 w-3.5" />
+          </Button>
+        ) : <div />}
+        <Button
+          className="h-10 rounded-[12px] dg-button-primary hover:dg-button-primary px-4 text-white gap-2"
+          disabled={disabled || isSaving || !hasDraftChanges}
+          onClick={() => void saveDesign()}
+        >
+          {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+          Apply Changes
+        </Button>
+      </div>
+    </aside>
+  );
+}
 
 async function enqueueGeneration(input: {
   projectId: string;
@@ -1111,6 +1544,7 @@ export function ProjectShell({
   const [isPricingOpen, setIsPricingOpen] = useState(false);
   const [pricingReason, setPricingReason] = useState<"upgrade" | "insufficient_credits">("upgrade");
   const [editSession, setEditSession] = useState<ElementEditSession | null>(null);
+  const [selectedElementPreview, setSelectedElementPreview] = useState<SelectedElementPreviewPayload | null>(null);
   const [pendingElementSelection, setPendingElementSelection] = useState<PendingElementSelection | null>(null);
   const [tokenDraft, setTokenDraft] = useState<DesignTokens | null>(() =>
     hasApprovedDesignTokens(initialProject.designTokens)
@@ -1211,6 +1645,7 @@ export function ProjectShell({
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedScreen(null);
       if (editSession?.screenId === selectedScreen.id) {
+        setSelectedElementPreview(null);
         setEditSession(null);
       }
       return;
@@ -1392,6 +1827,7 @@ export function ProjectShell({
       const supabase = createClient();
       await deleteScreen(supabase, selectedScreen.id);
       setSelectedScreen(null);
+      setSelectedElementPreview(null);
       setEditSession(null);
     } catch (error) {
       console.error("Error deleting screen:", error);
@@ -1429,6 +1865,7 @@ export function ProjectShell({
 
     if (activeEditElement && !activeEditElement.drawgleId) {
       setSelectionNotice("I lost the selected element identity. Please reselect the exact element and try again.");
+      setSelectedElementPreview(null);
       setEditSession(null);
       return false;
     }
@@ -1452,27 +1889,27 @@ export function ProjectShell({
           selectedElementSelectionVersion: editSession?.selectionVersion ?? null,
           activeSelection: activeEditElement
             ? {
-                present: true,
-                screenId: activeEditScreenId,
-                drawgleId: activeEditElement.drawgleId,
-                targetType: activeEditElement.targetType,
-                targetLabel: activeSelectionTargetLabel,
-                textPreview: activeEditElement.textPreview,
-                outerHTML: activeEditElement.outerHTML,
-                selectionVersion: editSession?.selectionVersion ?? null,
-                freshness: editSession?.freshness ?? "fresh",
-              }
+              present: true,
+              screenId: activeEditScreenId,
+              drawgleId: activeEditElement.drawgleId,
+              targetType: activeEditElement.targetType,
+              targetLabel: activeSelectionTargetLabel,
+              textPreview: activeEditElement.textPreview,
+              outerHTML: activeEditElement.outerHTML,
+              selectionVersion: editSession?.selectionVersion ?? null,
+              freshness: editSession?.freshness ?? "fresh",
+            }
             : {
-                present: false,
-                screenId: null,
-                drawgleId: null,
-                targetType: null,
-                targetLabel: null,
-                textPreview: null,
-                outerHTML: null,
-                selectionVersion: null,
-                freshness: null,
-              },
+              present: false,
+              screenId: null,
+              drawgleId: null,
+              targetType: null,
+              targetLabel: null,
+              textPreview: null,
+              outerHTML: null,
+              selectionVersion: null,
+              freshness: null,
+            },
           clientTurnId: options.clientTurnId ?? null,
         }),
       });
@@ -1601,6 +2038,7 @@ export function ProjectShell({
         throw new Error(payload?.error ?? "Failed to edit selected element.");
       }
 
+      setSelectedElementPreview(null);
       await refreshScreens();
       return true;
     } catch (error: any) {
@@ -1729,6 +2167,7 @@ export function ProjectShell({
   };
 
   const clearEditSession = () => {
+    setSelectedElementPreview(null);
     setEditSession(null);
     setPendingElementSelection(null);
     setSelectionNotice(null);
@@ -1750,6 +2189,7 @@ export function ProjectShell({
     const ownerScreen = screens.find((screen) => screen.id === info.screenId) ?? null;
     const nextSelectionVersion = selectionVersion + 1;
 
+    setSelectedElementPreview(null);
     setSelectionNotice(null);
     setSelectionVersion(nextSelectionVersion);
     setSelectedScreen(ownerScreen);
@@ -1806,8 +2246,8 @@ export function ProjectShell({
         setSelectionNotice("The selected element is being verified from the saved screen before the next edit.");
         setEditSession((currentSession) =>
           currentSession &&
-          currentSession.screenId === info.screenId &&
-          currentSession.element.drawgleId === info.drawgleId
+            currentSession.screenId === info.screenId &&
+            currentSession.element.drawgleId === info.drawgleId
             ? { ...currentSession, freshness: "stale" }
             : currentSession,
         );
@@ -1815,6 +2255,7 @@ export function ProjectShell({
       }
 
       setSelectionNotice("The selected element changed after the canvas refreshed. Please reselect it before asking for another selected edit.");
+      setSelectedElementPreview(null);
       setEditSession(null);
     }
   };
@@ -1831,6 +2272,7 @@ export function ProjectShell({
     }
 
     if (editSession?.screenId && editSession.screenId !== screen.id) {
+      setSelectedElementPreview(null);
       setEditSession(null);
     }
   };
@@ -1882,7 +2324,7 @@ export function ProjectShell({
               />
               <TooltipContent>Toggle theme</TooltipContent>
             </Tooltip>
-            
+
             <PremiumDropdown
               align="start"
               width={200}
@@ -2003,7 +2445,7 @@ export function ProjectShell({
               <div className="text-left">
                 <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500 mb-0.5">Account</div>
                 <div className="truncate text-xs font-semibold text-slate-900 dark:text-slate-100">{user.email || "user@drawgle.com"}</div>
-                
+
               </div>
             }
             items={[
@@ -2053,6 +2495,7 @@ export function ProjectShell({
             }}
             selectedElementScreenId={editSession?.screenId ?? null}
             selectedElementDrawgleId={editSession?.element.drawgleId ?? null}
+            selectedElementPreview={selectedElementPreview}
             hasSelectedElement={Boolean(selectedElementInfo)}
             selectedElementCanEditText={selectedElementCanEditText}
             selectedElementCanEditDesign={selectedElementCanEditDesign}
@@ -2187,6 +2630,7 @@ export function ProjectShell({
             onToggleSelectionMode={handleToggleSelectionMode}
             onClearSelectedScreen={() => {
               setSelectedScreen(null);
+              setSelectedElementPreview(null);
               setEditSession(null);
               setSelectionNotice(null);
             }}
@@ -2215,6 +2659,8 @@ export function ProjectShell({
                 }
               }}
               onApplyOperations={handleDeterministicElementEdit}
+              onPreviewChange={setSelectedElementPreview}
+              onAskAiRefine={(intent) => void handlePromptAction({ prompt: intent })}
               onReplaceImage={handleReplaceSelectedImage}
               onDelete={handleDeleteSelectedElement}
             />

@@ -79,9 +79,32 @@ describe("HTML production compiler", () => {
     const compiled = compileHtmlForProduction(rawHtml, designTokens);
 
     expect(compiled).toContain("text-foreground");
+    expect(compiled).toContain("block");
     expect(compiled).toContain("style=");
-    expect(compiled).toContain("display: block");
+    expect(compiled).not.toContain("display: block");
     expect(compiled).toContain("border-left: 2px dashed #000");
+  });
+
+  it("compiles Visual Editor V2 production properties to classes", () => {
+    const rawHtml = `<div class="block justify-start p-[8px]" style="display: flex; position: absolute; top: 12px; overflow: hidden; flex-direction: column; justify-content: center; align-items: stretch; width: 100%; aspect-ratio: 16 / 9; text-align: center; letter-spacing: 0.02em; border-top-width: 2px; border-style: dashed; transform: translateX(4px);"></div>`;
+    const compiled = compileHtmlForProduction(rawHtml, designTokens);
+
+    expect(compiled).toContain("flex");
+    expect(compiled).toContain("absolute");
+    expect(compiled).toContain("top-[var(--element-gap)]");
+    expect(compiled).toContain("overflow-hidden");
+    expect(compiled).toContain("flex-col");
+    expect(compiled).toContain("justify-center");
+    expect(compiled).toContain("items-stretch");
+    expect(compiled).toContain("w-full");
+    expect(compiled).toContain("aspect-video");
+    expect(compiled).toContain("text-center");
+    expect(compiled).toContain("tracking-[0.02em]");
+    expect(compiled).toContain("border-t-[2px]");
+    expect(compiled).toContain("border-dashed");
+    expect(compiled).toContain("[transform:translateX(4px)]");
+    expect(compiled).not.toContain("justify-start");
+    expect(compiled).not.toContain("style=");
   });
 
   it("resolves variables in other element attributes like stroke or fill in SVGs", () => {

@@ -39,6 +39,7 @@ import {
   ScreenNode,
   type ElementSelectionLostReason,
   type SelectedElementInfo,
+  type SelectedElementPreviewPayload,
 } from "./ScreenNode";
 
 const BUTTON_ZOOM_MULTIPLIER = 1.2;
@@ -103,6 +104,7 @@ type ScreenCanvasNodeData = {
   isTemporaryCanvasPan: boolean;
   isSelected: boolean;
   selectedDrawgleId: string | null;
+  selectedElementPreview?: SelectedElementPreviewPayload | null;
   height?: number;
   onContentHeightChange?: (screenId: string, height: number) => void;
   onElementSelected?: (info: SelectedElementInfo) => void;
@@ -149,6 +151,7 @@ const ScreenCanvasNodeView = memo(({ data, dragging }: NodeProps<ScreenCanvasNod
         isTemporaryCanvasPan={data.isTemporaryCanvasPan}
         selectionMode={data.canvasTool === "element-select"}
         selectedDrawgleId={data.selectedDrawgleId}
+        selectedElementPreview={data.selectedElementPreview ?? null}
         onElementSelected={data.onElementSelected}
         onElementSelectionLost={data.onElementSelectionLost}
         onCanvasNavigation={data.onCanvasNavigation}
@@ -197,6 +200,7 @@ type CanvasStageProps = {
   onCanvasClick?: () => void;
   selectedElementScreenId?: string | null;
   selectedElementDrawgleId?: string | null;
+  selectedElementPreview?: SelectedElementPreviewPayload | null;
   hasSelectedElement: boolean;
   selectedElementCanEditText: boolean;
   selectedElementCanEditDesign: boolean;
@@ -235,6 +239,7 @@ function CanvasStageContent({
   onCanvasClick,
   selectedElementScreenId,
   selectedElementDrawgleId,
+  selectedElementPreview,
   hasSelectedElement,
   selectedElementCanEditText,
   selectedElementCanEditDesign,
@@ -498,6 +503,8 @@ function CanvasStageContent({
           isSelected: selected,
           selectedDrawgleId:
             selectedElementScreenId === screen.id ? selectedElementDrawgleId ?? null : null,
+          selectedElementPreview:
+            selectedElementScreenId === screen.id ? selectedElementPreview ?? null : null,
           height: screenHeight,
           onContentHeightChange: handleContentHeightChange,
           onElementSelected: handleElementSelected,
@@ -561,6 +568,7 @@ function CanvasStageContent({
     screenHeights,
     screens,
     selectedElementDrawgleId,
+    selectedElementPreview,
     selectedElementScreenId,
     selectedScreen?.id,
     setNodes,
