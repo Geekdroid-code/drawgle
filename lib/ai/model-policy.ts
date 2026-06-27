@@ -31,6 +31,7 @@ const GEMINI_FLASH_LITE_MODEL = "gemini-3.1-flash-lite";
 const ROUTER_MODEL = env("DRAWGLE_GEMINI_ROUTER_MODEL", GEMINI_FLASH_LITE_MODEL);
 const SELECTED_EDIT_MODEL = env("DRAWGLE_GEMINI_SELECTED_EDIT_MODEL", GEMINI_FLASH_LITE_MODEL);
 const FULL_BUILD_MODEL = env("DRAWGLE_GEMINI_FULL_BUILD_MODEL", "gemini-3-flash-preview");
+const PROJECT_PLANNER_MODEL = env("DRAWGLE_GEMINI_PROJECT_PLANNER_MODEL", "gemini-3.5-flash");
 const SCREEN_BUILD_MAX_OUTPUT_TOKENS = envInt("DRAWGLE_GEMINI_SCREEN_BUILD_MAX_OUTPUT_TOKENS", 40000);
 const FULL_REBUILD_MAX_OUTPUT_TOKENS = envInt("DRAWGLE_GEMINI_FULL_REBUILD_MAX_OUTPUT_TOKENS", 40000);
 
@@ -75,11 +76,11 @@ const policyByTask: Record<GeminiTaskType, GeminiModelPolicy> = {
     config: routerModelConfig(4096, "low"),
   },
   project_planning: {
-    model: FULL_BUILD_MODEL,
+    model: PROJECT_PLANNER_MODEL,
     config: buildModelConfig("low", 12000),
   },
   design_tokens: {
-    model: FULL_BUILD_MODEL,
+    model: PROJECT_PLANNER_MODEL,
     config: buildModelConfig("low", 8192),
   },
   navigation_build: {
