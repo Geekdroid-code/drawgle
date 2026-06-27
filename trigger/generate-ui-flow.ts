@@ -4,6 +4,7 @@ import { logger, runs, streams, task } from "@trigger.dev/sdk";
 
 import { ensureDrawgleIds } from "@/lib/drawgle-dom";
 import { geminiPolicyForTask } from "@/lib/ai/model-policy";
+import { cleanErrorMessage } from "@/lib/ai/error-handler";
 import { loadCuratedStyleReferenceImage, matchCuratedStyleReference } from "@/lib/generation/curated-style-references";
 import { getDesignStylePack, isDesignStyleId, summarizeDesignStyle } from "@/lib/generation/design-styles";
 import { indexScreenCode } from "@/lib/generation/block-index";
@@ -997,7 +998,8 @@ export const generateUiFlowTask = task({
   maxDuration: 900,
   onFailure: async ({ payload, error }: { payload: GenerateUiFlowPayload; error: unknown }) => {
     const admin = createAdminClient();
-    const message = error instanceof Error ? error.message : String(error);
+    const rawMessage = error instanceof Error ? error.message : String(error);
+    const message = cleanErrorMessage(rawMessage);
 
     await updateGenerationRun(admin, payload.generationRunId, {
       status: "failed",
@@ -1756,7 +1758,8 @@ export const generateUiFlowTask = task({
         }
       } catch (screenError) {
         failedScreens += 1;
-        const message = screenError instanceof Error ? screenError.message : String(screenError);
+        const rawMessage = screenError instanceof Error ? screenError.message : String(screenError);
+        const message = cleanErrorMessage(rawMessage);
         logger.error("Failed to build screen", { screenName: screenPlan.name, error: screenError });
         generationJournal.screens = generationJournal.screens?.map((screen) =>
           screen.name === screenPlan.name ? { ...screen, status: "failed" } : screen,

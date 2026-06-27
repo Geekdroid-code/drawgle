@@ -4,6 +4,7 @@ import { executeModifyScreenTask, type ModifyScreenPayload } from "@/lib/generat
 import type { AgentStepMetadata } from "@/lib/agent/message-metadata";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { adminCreditService } from "@/lib/credits";
+import { cleanErrorMessage } from "@/lib/ai/error-handler";
 
 const now = () => new Date().toISOString();
 
@@ -135,13 +136,13 @@ export const modifyScreenTask = task({
   },
   maxDuration: 300,
   onFailure: async ({ payload, error }: { payload: ModifyScreenPayload; error: unknown }) => {
-    const message = error instanceof Error ? error.message : String(error);
+    const rawMessage = error instanceof Error ? error.message : String(error);
     logger.error("Modify screen task failed", {
       projectId: payload.projectId,
       screenId: payload.screenId,
-      error: message,
+      error: rawMessage,
     });
-    await markEditFailed(payload, `Edit failed: ${message}`);
+    await markEditFailed(payload, `Edit failed: ${cleanErrorMessage(rawMessage)}`);
   },
   run: async (payload: ModifyScreenPayload) => {
     logger.info("Running async Drawgle edit", {
