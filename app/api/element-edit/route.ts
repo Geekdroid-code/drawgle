@@ -35,6 +35,10 @@ const isOperation = (value: unknown): value is DeterministicEditOperation => {
     return true;
   }
 
+  if (operation.type === "duplicateElement") {
+    return true;
+  }
+
   return false;
 };
 
@@ -87,11 +91,12 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Shared navigation not found." }, { status: 404 });
       }
 
-      const currentCode = ensureDrawgleIds(navigation.shell_code ?? "").code;
+      const currentCode = ensureDrawgleIds(navigation.shell_code ?? "", "dg-nav").code;
       const editedCode = applyDeterministicEdits({
         code: currentCode,
         drawgleId,
         operations,
+        prefix: "dg-nav",
       });
       const nextCode = tokenizeStaticDrawgleHtml(editedCode, designTokens).code;
 

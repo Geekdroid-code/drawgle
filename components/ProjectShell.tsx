@@ -12,6 +12,7 @@ import { ChatPanel } from "@/components/ChatPanel";
 import { ColorPickerButton } from "@/components/DesignSystemEditor";
 import type { ElementSelectionLostReason, SelectedElementInfo } from "@/components/ScreenNode";
 import { Button } from "@/components/ui/button";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCredits } from "@/hooks/useCredits";
 import { PricingDialog } from "@/components/PricingDialog";
@@ -1086,6 +1087,18 @@ export function ProjectShell({
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [exportInitialScreenId, setExportInitialScreenId] = useState<string | null>(null);
 
+  const [deleteConfirmState, setDeleteConfirmState] = useState<{
+    isOpen: boolean;
+    screenId: string;
+    drawgleId: string;
+  } | null>(null);
+
+  const [alertModalState, setAlertModalState] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+  } | null>(null);
+
   const handleSignOut = async () => {
     try {
       await fetch("/auth/signout", {
@@ -1517,8 +1530,20 @@ export function ProjectShell({
     }
   };
 
-  const handleDeterministicElementEdit = async (operations: DeterministicEditOperation[]) => {
-    if (!project || !editSession?.element.drawgleId || operations.length === 0) {
+  const handleDeterministicElementEdit = async (
+    operations: DeterministicEditOperation[],
+    overrideScreenId?: string,
+    overrideDrawgleId?: string,
+  ) => {
+    if (!project || operations.length === 0) {
+      return false;
+    }
+
+    const screenId = overrideScreenId ?? editSession?.screenId;
+    const drawgleId = overrideDrawgleId ?? editSession?.element.drawgleId;
+    const targetType = editSession?.element.targetType ?? "screen";
+
+    if (!screenId || !drawgleId) {
       return false;
     }
 
@@ -1528,9 +1553,9 @@ export function ProjectShell({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           projectId: project.id,
-          screenId: editSession.screenId,
-          targetType: editSession.element.targetType,
-          drawgleId: editSession.element.drawgleId,
+          screenId,
+          targetType,
+          drawgleId,
           operations,
         }),
       });
@@ -1542,8 +1567,13 @@ export function ProjectShell({
 
       await refreshScreens();
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Deterministic element edit error:", error);
+      setAlertModalState({
+        isOpen: true,
+        title: "Action Restricted",
+        description: error.message || "Failed to edit selected element.",
+      });
       return false;
     }
   };
@@ -1582,26 +1612,52 @@ export function ProjectShell({
     }]);
   };
 
-  const handleDeleteSelectedElement = async () => {
-    if (!project || !editSession?.element.drawgleId) {
+  const handleDeleteSelectedElement = async (overrideScreenId?: string, overrideDrawgleId?: string) => {
+    const screenId = overrideScreenId ?? editSession?.screenId;
+    const drawgleId = overrideDrawgleId ?? editSession?.element.drawgleId;
+
+    if (!project || !screenId || !drawgleId) {
       return;
     }
 
-    if (editSession.element.targetType === "navigation") {
-      alert("Deleting elements from the shared navigation shell is not supported.");
+    setDeleteConfirmState({
+      isOpen: true,
+      screenId,
+      drawgleId,
+    });
+  };
+
+  const executeDeleteSelectedElement = async () => {
+    if (!deleteConfirmState) return;
+    const { screenId, drawgleId } = deleteConfirmState;
+
+    try {
+      const deleted = await handleDeterministicElementEdit(
+        [{ type: "deleteElement", drawgleId }],
+        screenId,
+        drawgleId,
+      );
+
+      if (deleted) {
+        clearEditSession();
+      }
+    } finally {
+      setDeleteConfirmState(null);
+    }
+  };
+
+  const handleDuplicateSelectedElement = async (screenId: string, drawgleId: string) => {
+    if (!project || !screenId || !drawgleId) {
       return;
     }
 
-    const confirmed = window.confirm("Are you sure you want to delete this element?");
-    if (!confirmed) {
-      return;
-    }
+    const duplicated = await handleDeterministicElementEdit(
+      [{ type: "duplicateElement", drawgleId }],
+      screenId,
+      drawgleId,
+    );
 
-    const deleted = await handleDeterministicElementEdit([{
-      type: "deleteElement",
-    }]);
-
-    if (deleted) {
+    if (duplicated) {
       clearEditSession();
     }
   };
@@ -1965,6 +2021,8 @@ export function ProjectShell({
             onEditSelectedText={() => setEditSessionMode("design")}
             onEditSelectedDesign={() => setEditSessionMode("design")}
             onClearSelectedElement={clearEditSession}
+            onDeleteSelectedElement={handleDeleteSelectedElement}
+            onDuplicateSelectedElement={handleDuplicateSelectedElement}
             onExportCode={(...exportArgs) => {
               const screenName = exportArgs[2];
               const matchedScreen = screens.find((s) => s.name === screenName);
@@ -2018,6 +2076,44 @@ export function ProjectShell({
                   }}
                 >
                   Discard & Select
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <ConfirmationDialog
+            isOpen={Boolean(deleteConfirmState?.isOpen)}
+            onClose={() => setDeleteConfirmState(null)}
+            onConfirm={executeDeleteSelectedElement}
+            title="Delete Element"
+            description="Are you sure you want to delete this element? This action cannot be undone."
+            confirmText="Delete"
+            cancelText="Cancel"
+            variant="destructive"
+          />
+
+          <Dialog
+            open={Boolean(alertModalState?.isOpen)}
+            onOpenChange={(open) => !open && setAlertModalState(null)}
+          >
+            <DialogContent className="w-[min(420px,calc(100vw-2rem))] gap-0 overflow-hidden rounded-[24px] border border-slate-950/[0.08] bg-white p-0 shadow-[0_24px_90px_rgba(15,23,42,0.22)]">
+              <DialogHeader className="gap-2 px-5 pb-3 pt-5">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-700">
+                  <HelpCircle className="h-4 w-4" />
+                </div>
+                <DialogTitle className="text-lg font-semibold tracking-[-0.01em] text-slate-950">
+                  {alertModalState?.title || "Action Not Supported"}
+                </DialogTitle>
+                <DialogDescription className="text-sm leading-6 text-slate-600">
+                  {alertModalState?.description || ""}
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="mx-0 mb-0 flex-row justify-end gap-2 rounded-none border-t border-slate-950/[0.08] bg-slate-50/80 px-5 py-4">
+                <Button
+                  className="h-10 rounded-full bg-slate-950 px-5 text-white hover:bg-slate-800"
+                  onClick={() => setAlertModalState(null)}
+                >
+                  Okay
                 </Button>
               </DialogFooter>
             </DialogContent>

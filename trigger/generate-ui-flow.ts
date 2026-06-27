@@ -1383,7 +1383,7 @@ export const generateUiFlowTask = task({
       projectCharter: plan.charter,
       llmLog: (label, data) => logger.info(label, data),
     });
-    const navigationShellCode = ensureDrawgleIds(tokenizeStaticDrawgleHtml(rawNavigationShellCode, designTokens).code).code;
+    const navigationShellCode = ensureDrawgleIds(tokenizeStaticDrawgleHtml(rawNavigationShellCode, designTokens).code, "dg-nav").code;
 
     const { error: navigationUpsertError } = await admin
       .from("project_navigation")

@@ -120,6 +120,8 @@ type ScreenCanvasNodeData = {
     googleFontAssetLinks: string,
     activeNavigationItemId: string | null,
   ) => void;
+  onDeleteSelectedElement?: (screenId: string, drawgleId: string) => void;
+  onDuplicateSelectedElement?: (screenId: string, drawgleId: string) => void;
 };
 
 type ScreenCanvasNode = Node<ScreenCanvasNodeData, "screen">;
@@ -152,6 +154,8 @@ const ScreenCanvasNodeView = memo(({ data, dragging }: NodeProps<ScreenCanvasNod
         onCanvasNavigation={data.onCanvasNavigation}
         onExportCode={data.onExportCode}
         onContentHeightChange={data.onContentHeightChange}
+        onDeleteSelectedElement={data.onDeleteSelectedElement}
+        onDuplicateSelectedElement={data.onDuplicateSelectedElement}
       />
     </div>
   );
@@ -206,6 +210,8 @@ type CanvasStageProps = {
   onEditSelectedDesign?: () => void;
   onClearSelectedElement?: () => void;
   onExportCode?: ScreenCanvasNodeData["onExportCode"];
+  onDeleteSelectedElement?: (screenId: string, drawgleId: string) => void;
+  onDuplicateSelectedElement?: (screenId: string, drawgleId: string) => void;
 };
 
 export function CanvasStage(props: CanvasStageProps) {
@@ -238,6 +244,8 @@ function CanvasStageContent({
   onEditSelectedDesign,
   onClearSelectedElement,
   onExportCode,
+  onDeleteSelectedElement,
+  onDuplicateSelectedElement,
 }: CanvasStageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const flowRef = useRef<ReactFlowInstance<ScreenCanvasNode> | null>(null);
@@ -255,6 +263,8 @@ function CanvasStageContent({
     onElementSelected,
     onElementSelectionLost,
     onExportCode,
+    onDeleteSelectedElement,
+    onDuplicateSelectedElement,
   });
   const [viewportSize, setViewportSize] = useState<CanvasViewport | null>(null);
   const [workspaceInsets, setWorkspaceInsets] =
@@ -290,8 +300,14 @@ function CanvasStageContent({
   const isPanToolActive = tool === "pan" || isTemporaryPan;
 
   useEffect(() => {
-    callbackRefs.current = { onElementSelected, onElementSelectionLost, onExportCode };
-  }, [onElementSelected, onElementSelectionLost, onExportCode]);
+    callbackRefs.current = {
+      onElementSelected,
+      onElementSelectionLost,
+      onExportCode,
+      onDeleteSelectedElement,
+      onDuplicateSelectedElement,
+    };
+  }, [onElementSelected, onElementSelectionLost, onExportCode, onDeleteSelectedElement, onDuplicateSelectedElement]);
 
   const reportCommand = useCallback(async (name: string, command: () => Promise<boolean>) => {
     const succeeded = await command();
@@ -450,6 +466,14 @@ function CanvasStageContent({
     (...args) => callbackRefs.current.onExportCode?.(...args),
     [],
   );
+  const handleDeleteSelectedElement = useCallback<NonNullable<ScreenCanvasNodeData["onDeleteSelectedElement"]>>(
+    (screenId, drawgleId) => callbackRefs.current.onDeleteSelectedElement?.(screenId, drawgleId),
+    [],
+  );
+  const handleDuplicateSelectedElement = useCallback<NonNullable<ScreenCanvasNodeData["onDuplicateSelectedElement"]>>(
+    (screenId, drawgleId) => callbackRefs.current.onDuplicateSelectedElement?.(screenId, drawgleId),
+    [],
+  );
 
   useEffect(() => {
     setNodes((currentNodes) => {
@@ -480,6 +504,8 @@ function CanvasStageContent({
           onElementSelectionLost: handleElementSelectionLost,
           onCanvasNavigation: handleCanvasNavigation,
           onExportCode: handleExportCode,
+          onDeleteSelectedElement: handleDeleteSelectedElement,
+          onDuplicateSelectedElement: handleDuplicateSelectedElement,
         };
 
         if (current) {

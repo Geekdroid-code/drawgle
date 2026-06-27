@@ -610,7 +610,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
       throw new Error(navigationError?.message ?? "Shared project navigation was not found for this project.");
     }
 
-    const navigationCode = ensureDrawgleIds(projectNavigation.shell_code).code;
+    const navigationCode = ensureDrawgleIds(projectNavigation.shell_code, "dg-nav").code;
     const navigationPlan = projectNavigation.plan as unknown as NavigationPlan;
 
     if (selectedNavigationElement && selectedElementDrawgleId) {
@@ -840,7 +840,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
       selectedElementHtml: selectedNavigationElement ? selectedElementHtml : null,
       llmLog,
     });
-    const nextCode = ensureDrawgleIds(tokenizeStaticDrawgleHtml(editedNavigationCode, designTokens).code).code;
+    const nextCode = ensureDrawgleIds(tokenizeStaticDrawgleHtml(editedNavigationCode, designTokens).code, "dg-nav").code;
 
     if (nextCode !== navigationCode) {
       const { error: updateError } = await admin

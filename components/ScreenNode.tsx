@@ -478,6 +478,8 @@ export function ScreenNode({
   onCanvasNavigation,
   onExportCode,
   onContentHeightChange,
+  onDeleteSelectedElement,
+  onDuplicateSelectedElement,
 }: {
   screen: ScreenData;
   projectNavigation?: ProjectNavigationData | null;
@@ -499,6 +501,8 @@ export function ScreenNode({
   /** Callback for custom code export drawer. */
   onExportCode?: (cleanScreenCode: string, cleanNavigationCode: string, screenName: string, tokenCss: string, googleFontAssetLinks: string, activeNavigationItemId: string | null) => void;
   onContentHeightChange?: (screenId: string, height: number) => void;
+  onDeleteSelectedElement?: (screenId: string, drawgleId: string) => void;
+  onDuplicateSelectedElement?: (screenId: string, drawgleId: string) => void;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const safeCode = typeof screen.code === "string" ? screen.code : "";
@@ -509,6 +513,12 @@ export function ScreenNode({
   const isInteractModeActive = Boolean(isSelected && interactMode);
 
   const [contentHeight, setContentHeight] = useState(SCREEN_FRAME_HEIGHT);
+  const [selectedElementBounds, setSelectedElementBounds] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null>(null);
 
   const syncIframeInteractionMode = useCallback((enabled: boolean) => {
     const iframe = iframeRef.current;
@@ -758,6 +768,9 @@ ${cleanScreenCode}
       { type: 'setSelectedDrawgleId', drawgleId: selectedDrawgleId ?? null },
       '*',
     );
+    if (!selectedDrawgleId) {
+      setSelectedElementBounds(null);
+    }
   }, [selectedDrawgleId]);
 
   // ── Listen for elementSelected messages from the iframe
@@ -809,6 +822,7 @@ ${cleanScreenCode}
       }
       if (event.data?.type === "elementSelectionLost") {
         const lostDrawgleId = typeof event.data.drawgleId === "string" ? event.data.drawgleId : null;
+        setSelectedElementBounds(null);
         const lostReason = event.data.reason === "rehydrate_failed" || event.data.reason === "click_miss" || event.data.reason === "source_changed"
           ? event.data.reason
           : undefined;
@@ -832,6 +846,14 @@ ${cleanScreenCode}
       };
 
       if (outerHTML && drawgleId) {
+        if (boundingRect) {
+          setSelectedElementBounds({
+            left: boundingRect.left,
+            top: boundingRect.top,
+            width: boundingRect.width,
+            height: boundingRect.height,
+          });
+        }
         const screenRect = iframeRef.current?.getBoundingClientRect() ?? null;
         onElementSelected({
           screenId: screen.id,
@@ -872,6 +894,22 @@ ${cleanScreenCode}
       console.error("Failed to delete screen", err);
     }
   }, [screen.id]);
+
+  const handleInlineDelete = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (selectedDrawgleId && onDeleteSelectedElement) {
+      onDeleteSelectedElement(screen.id, selectedDrawgleId);
+    }
+  }, [screen.id, selectedDrawgleId, onDeleteSelectedElement]);
+
+  const handleInlineDuplicate = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (selectedDrawgleId && onDuplicateSelectedElement) {
+      onDuplicateSelectedElement(screen.id, selectedDrawgleId);
+    }
+  }, [screen.id, selectedDrawgleId, onDuplicateSelectedElement]);
 
   // =========================================================================
   // iframe srcDoc
@@ -2058,6 +2096,36 @@ ${cleanScreenCode}
         />
 
         <ScreenBuildPreloader visible={showBuildPreloader} />
+
+        {selectedElementBounds && selectedDrawgleId && (
+          <div
+            className="absolute z-[90] flex items-center gap-1 rounded-lg bg-slate-900 p-1 text-white shadow-lg select-none"
+            style={{
+              left: Math.max(45, Math.min(345, selectedElementBounds.left + selectedElementBounds.width / 2)),
+              top: Math.max(10, selectedElementBounds.top - 46),
+              transform: 'translateX(-50%)',
+              height: 36,
+            }}
+          >
+            <button
+              type="button"
+              className="flex h-7 w-7 items-center justify-center rounded hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
+              onClick={handleInlineDelete}
+              title="Delete element"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+            <div className="h-4 w-[1px] bg-slate-800" />
+            <button
+              type="button"
+              className="flex h-7 w-7 items-center justify-center rounded hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
+              onClick={handleInlineDuplicate}
+              title="Duplicate element"
+            >
+              <Copy className="h-4 w-4" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ── Dimension badge — visible while dragging ────────────────────── */}

@@ -776,7 +776,7 @@ async function verifySelectedElementSource({
       };
     }
 
-    const sourceCode = ensureDrawgleIds(navigation.shell_code ?? "").code;
+    const sourceCode = ensureDrawgleIds(navigation.shell_code ?? "", "dg-nav").code;
     const occurrenceCount = countDrawgleIdOccurrences(sourceCode, drawgleId);
     if (occurrenceCount !== 1) {
       return {
@@ -2268,11 +2268,12 @@ export async function POST(request: Request) {
           throw navigationError ?? new Error("Shared navigation not found.");
         }
 
-        const currentCode = ensureDrawgleIds(navigation.shell_code ?? "").code;
+        const currentCode = ensureDrawgleIds(navigation.shell_code ?? "", "dg-nav").code;
         const editedCode = applyDeterministicEdits({
           code: currentCode,
           drawgleId: activeSelectionDrawgleId,
           operations: deterministicStyleIntent.operations,
+          prefix: "dg-nav",
         });
         const nextCode = tokenizeStaticDrawgleHtml(editedCode, designTokens).code;
         changed = nextCode !== currentCode;

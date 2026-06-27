@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { resolveScreenChromePolicy } from "@/lib/navigation";
 import { normalizeNavigationPlan, createFallbackNavigationPlan } from "@/lib/project-navigation";
-import { applyDeleteElement } from "@/lib/drawgle-dom";
+import { applyDeleteElement, applyDuplicateElement } from "@/lib/drawgle-dom";
 import type { ScreenPlan, NavigationArchitecture } from "@/lib/types";
 
 describe("Navigation Logic Improvement Tests", () => {
@@ -131,6 +131,34 @@ describe("Navigation Logic Improvement Tests", () => {
       expect(() => {
         applyDeleteElement(code, "dg-root");
       }).toThrow("Deleting the root-level screen container is not allowed.");
+    });
+  });
+
+  describe("applyDuplicateElement", () => {
+    it("should successfully duplicate a child element and strip data-drawgle-id on the clone", () => {
+      const code = `<div class="root" data-drawgle-id="dg-root">
+        <h1 data-drawgle-id="dg-title">Hello World</h1>
+      </div>`;
+
+      const result = applyDuplicateElement(code, "dg-title");
+      // Check that it contains "Hello World" twice (the original and the clone)
+      const matches = result.match(/Hello World/g);
+      expect(matches?.length).toBe(2);
+      
+      // The clone should not carry data-drawgle-id="dg-title"
+      // Verify that there is exactly one instance of data-drawgle-id="dg-title"
+      const idMatches = result.match(/data-drawgle-id="dg-title"/g);
+      expect(idMatches?.length).toBe(1);
+    });
+
+    it("should reject duplicating a root-level element", () => {
+      const code = `<div class="root" data-drawgle-id="dg-root">
+        <h1 data-drawgle-id="dg-title">Hello World</h1>
+      </div>`;
+
+      expect(() => {
+        applyDuplicateElement(code, "dg-root");
+      }).toThrow("Duplicating the root-level screen container is not allowed.");
     });
   });
 

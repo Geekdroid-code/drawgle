@@ -97,6 +97,10 @@ export type DeterministicEditOperation =
   | {
       type: "deleteElement";
       drawgleId?: string;
+    }
+  | {
+      type: "duplicateElement";
+      drawgleId?: string;
     };
 
 export type { DrawgleStyleProperty };
@@ -279,9 +283,7 @@ const escapeText = (value: string) =>
 
 const shouldReceiveDrawgleId = (tagName: string) => SELECTABLE_TAGS.has(tagName);
 
-const buildDrawgleId = (index: number) => `dg-${index.toString(36)}`;
-
-export function ensureDrawgleIds(inputCode: string) {
+export function ensureDrawgleIds(inputCode: string, prefix = "dg") {
   if (!inputCode.trim()) {
     return { code: inputCode, changed: false };
   }
@@ -294,6 +296,8 @@ export function ensureDrawgleIds(inputCode: string) {
 
   let nextIndex = 1;
   let changed = false;
+  const buildDrawgleId = (index: number) => `${prefix}-${index.toString(36)}`;
+
   const code = inputCode.replace(/<!--[^]*?-->|<\/?([A-Za-z][\w:-]*)([^<>]*?)>/g, (token, rawTagName) => {
     if (token.startsWith("<!--") || token.startsWith("</")) {
       return token;
@@ -511,16 +515,38 @@ export function applyDeleteElement(code: string, drawgleId: string): string {
   return code.slice(0, element.startOffset) + code.slice(element.endOffset);
 }
 
+export function applyDuplicateElement(code: string, drawgleId: string): string {
+  const elements = parseElements(code);
+  const element = elements.find((el) => el.attributes["data-drawgle-id"] === drawgleId);
+  if (!element) {
+    throw new Error(`Target element with drawgle ID "${drawgleId}" not found.`);
+  }
+
+  const hasParent = elements.some(
+    (el) => el.startOffset < element.startOffset && el.endOffset > element.endOffset
+  );
+  if (!hasParent) {
+    throw new Error("Duplicating the root-level screen container is not allowed.");
+  }
+
+  const outerHtml = code.slice(element.startOffset, element.endOffset);
+  const cleanedCopy = stripDrawgleIds(outerHtml);
+
+  return code.slice(0, element.endOffset) + cleanedCopy + code.slice(element.endOffset);
+}
+
 export function applyDeterministicEdits({
   code,
   drawgleId,
   operations,
+  prefix = "dg",
 }: {
   code: string;
   drawgleId: string;
   operations: DeterministicEditOperation[];
+  prefix?: string;
 }) {
-  let nextCode = ensureDrawgleIds(code).code;
+  let nextCode = ensureDrawgleIds(code, prefix).code;
 
   for (const operation of operations) {
     const targetDrawgleId = operation.drawgleId || drawgleId;
@@ -538,6 +564,8 @@ export function applyDeterministicEdits({
       nextCode = applyReplaceImage(nextCode, targetDrawgleId, operation.mode, operation.src, operation.alt, operation.targetIndex);
     } else if (operation.type === "deleteElement") {
       nextCode = applyDeleteElement(nextCode, targetDrawgleId);
+    } else if (operation.type === "duplicateElement") {
+      nextCode = applyDuplicateElement(nextCode, targetDrawgleId);
     }
   }
 

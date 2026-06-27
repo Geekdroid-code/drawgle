@@ -871,7 +871,7 @@ function UserBubble({ content, image }: { content: string; image?: PromptImagePa
             />
           </div>
         ) : null}
-        <div className="whitespace-pre-wrap break-words">{content}</div>
+        <div className="whitespace-pre-wrap break-words text-xs">{content}</div>
       </div>
     </div>
   );
@@ -1552,7 +1552,7 @@ export function ChatPanel({
       className={`absolute z-50 flex flex-col overflow-hidden transition-all duration-300
         animate-in fade-in-0 slide-in-from-left-2
         left-2 right-2 top-[var(--dg-mobile-top-reserve)] bottom-3 h-auto rounded-[24px]
-        md:left-4 md:right-auto md:top-auto md:bottom-4 md:h-[calc(100dvh-5rem)] md:w-[404px]
+        md:left-4 md:right-auto md:top-auto md:bottom-4 md:h-[calc(100dvh-5rem)] md:w-[375px]
         dg-chat-shell dg-clickable-scope backdrop-blur-xl
       `}
     >
