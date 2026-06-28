@@ -1009,7 +1009,7 @@ ${cleanScreenCode}
           #drawgle-navigation-host:empty { display: none; }
           #drawgle-navigation-host [data-drawgle-primary-nav] { pointer-events: auto; }
           .__drawgle-hover-outline { outline: 2px solid rgba(20,184,166,0.8) !important; outline-offset: -1px; cursor: crosshair !important; }
-          .__drawgle-selected-outline { outline: 2.5px solid #0d9488 !important; outline-offset: -1px; background-color: rgba(20,184,166,0.06) !important; }
+          .__drawgle-selected-outline { outline: 2.5px solid #0d9488 !important; outline-offset: -1px; }
         </style>
         <style id="drawgle-project-tokens">${initialTokenCss}</style>
       </head>
@@ -1555,12 +1555,39 @@ ${cleanScreenCode}
             var currentSelectedDrawgleId = null;
             var activePreview = null;
 
+            function classListWithoutSelectionState(className) {
+              return String(className || '')
+                .split(/\s+/)
+                .filter(function(name) {
+                  return name && name !== '__drawgle-hover-outline' && name !== '__drawgle-selected-outline';
+                })
+                .join(' ');
+            }
+
+            function currentSelectionStateClasses(el) {
+              if (!el || !el.classList) return [];
+              return ['__drawgle-hover-outline', '__drawgle-selected-outline'].filter(function(name) {
+                return el.classList.contains(name);
+              });
+            }
+
+            function setClassPreservingSelectionState(el, className) {
+              var selectionClasses = currentSelectionStateClasses(el);
+              var nextClassName = classListWithoutSelectionState(className);
+              selectionClasses.forEach(function(name) {
+                if (nextClassName) nextClassName += ' ' + name;
+                else nextClassName = name;
+              });
+
+              if (nextClassName) el.setAttribute('class', nextClassName);
+              else el.removeAttribute('class');
+            }
+
             function restorePreview() {
               if (!activePreview || !activePreview.el) return;
               if (activePreview.originalStyle === null) activePreview.el.removeAttribute('style');
               else activePreview.el.setAttribute('style', activePreview.originalStyle);
-              if (activePreview.originalClass === null) activePreview.el.removeAttribute('class');
-              else activePreview.el.setAttribute('class', activePreview.originalClass);
+              setClassPreservingSelectionState(activePreview.el, activePreview.originalClass);
               activePreview = null;
             }
 
@@ -1574,12 +1601,11 @@ ${cleanScreenCode}
               activePreview = {
                 el: target,
                 originalStyle: target.getAttribute('style'),
-                originalClass: target.getAttribute('class'),
+                originalClass: classListWithoutSelectionState(target.getAttribute('class')),
               };
 
               if (typeof payload.className === 'string') {
-                if (payload.className.trim()) target.setAttribute('class', payload.className.trim());
-                else target.removeAttribute('class');
+                setClassPreservingSelectionState(target, payload.className.trim());
               }
 
               var styles = payload.styles || {};

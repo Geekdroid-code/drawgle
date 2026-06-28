@@ -597,6 +597,11 @@ function SelectedElementInspectorSidebar({
   );
   const [classDraft, setClassDraft] = useState(classListKey);
   const [resetClassUtilities, setResetClassUtilities] = useState<Partial<Record<DrawgleStyleProperty, boolean>>>({});
+  const [advancedDetailsOpen, setAdvancedDetailsOpen] = useState(false);
+
+  useEffect(() => {
+    setAdvancedDetailsOpen(false);
+  }, [selectedElementInfo?.drawgleId]);
 
   const normalizeClassNames = useCallback((className: string) => className.trim().replace(/\s+/g, " "), []);
 
@@ -1338,7 +1343,7 @@ function SelectedElementInspectorSidebar({
                   <Textarea
                     value={textDrafts[node.drawgleId] ?? ""}
                     onChange={(event) => setTextDrafts((current) => ({ ...current, [node.drawgleId]: event.target.value }))}
-                    className="min-h-20 resize-y rounded-[10px] border-slate-950/[0.08] bg-slate-50/80 px-3 py-2 text-xs focus-visible:bg-white"
+                    className="min-h-12 resize-y rounded-[10px] border-slate-950/[0.08] bg-slate-50/80 px-3 py-2 text-xs focus-visible:bg-white"
                   />
                 </label>
               ))}
@@ -1391,48 +1396,54 @@ function SelectedElementInspectorSidebar({
         {renderEffectsSection()}
 
         <section className="border-b border-slate-950/[0.06] px-3 py-4">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div>
-              <div className="text-[13px] font-bold text-slate-950">Properties</div>
-              <div className="mt-0.5 text-[11px] text-slate-500">Classes and element context</div>
+          <button
+            type="button"
+            className="flex w-full items-center justify-between gap-3 rounded-[12px] border border-slate-950/[0.07] bg-white px-3 py-2.5 text-left transition hover:bg-slate-50"
+            onClick={() => setAdvancedDetailsOpen((open) => !open)}
+            aria-expanded={advancedDetailsOpen}
+          >
+            <div className="min-w-0">
+              <div className="text-[13px] font-bold text-slate-950">Advanced details</div>
+              <div className="mt-0.5 text-[11px] text-slate-500">Raw classes, HTML, and element context</div>
             </div>
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">Advanced</span>
-          </div>
-          <div className="grid gap-2">
-            <label className="grid gap-1.5 rounded-[12px] border border-slate-950/[0.07] bg-white p-2">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Classes</span>
-              <Textarea
-                value={classDraft}
-                onChange={(event) => setClassDraft(event.target.value)}
-                className="min-h-20 resize-y rounded-[10px] border-slate-950/[0.08] bg-slate-50/80 px-3 py-2 font-mono text-[11px] leading-5 focus-visible:bg-white"
-              />
-            </label>
-            {layoutContext ? (
-              <div className="grid grid-cols-3 gap-2 text-[11px]">
-                <div className="rounded-[10px] border border-slate-950/[0.07] bg-white p-2">
-                  <div className="text-slate-400">Parent</div>
-                  <div className="mt-0.5 truncate font-semibold text-slate-900">{layoutContext.parentDisplay ?? "none"}</div>
+            <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${advancedDetailsOpen ? "rotate-180" : ""}`} />
+          </button>
+
+          {advancedDetailsOpen ? (
+            <div className="mt-3 grid gap-2">
+              <label className="grid gap-1.5 rounded-[12px] border border-slate-950/[0.07] bg-white p-2">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Classes</span>
+                <Textarea
+                  value={classDraft}
+                  readOnly
+                  className="min-h-20 resize-y rounded-[10px] border-slate-950/[0.08] bg-slate-50/80 px-3 py-2 font-mono text-[11px] leading-5 text-slate-700 focus-visible:bg-slate-50"
+                />
+              </label>
+              {layoutContext ? (
+                <div className="grid grid-cols-3 gap-2 text-[11px]">
+                  <div className="rounded-[10px] border border-slate-950/[0.07] bg-white p-2">
+                    <div className="text-slate-400">Parent</div>
+                    <div className="mt-0.5 truncate font-semibold text-slate-900">{layoutContext.parentDisplay ?? "none"}</div>
+                  </div>
+                  <div className="rounded-[10px] border border-slate-950/[0.07] bg-white p-2">
+                    <div className="text-slate-400">Index</div>
+                    <div className="mt-0.5 truncate font-semibold text-slate-900">{layoutContext.childIndex + 1}/{layoutContext.siblingCount}</div>
+                  </div>
+                  <div className="rounded-[10px] border border-slate-950/[0.07] bg-white p-2">
+                    <div className="text-slate-400">Children</div>
+                    <div className="mt-0.5 truncate font-semibold text-slate-900">{layoutContext.childrenCount}</div>
+                  </div>
                 </div>
-                <div className="rounded-[10px] border border-slate-950/[0.07] bg-white p-2">
-                  <div className="text-slate-400">Index</div>
-                  <div className="mt-0.5 truncate font-semibold text-slate-900">{layoutContext.childIndex + 1}/{layoutContext.siblingCount}</div>
-                </div>
-                <div className="rounded-[10px] border border-slate-950/[0.07] bg-white p-2">
-                  <div className="text-slate-400">Children</div>
-                  <div className="mt-0.5 truncate font-semibold text-slate-900">{layoutContext.childrenCount}</div>
-                </div>
+              ) : null}
+              <div className="grid gap-1.5 rounded-[12px] border border-slate-950/[0.07] bg-white p-2">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Code</span>
+                <pre className="max-h-48 overflow-auto rounded-[10px] bg-slate-950 p-3 text-[11px] leading-5 text-slate-100">
+                  <code>{selectedElementInfo.outerHTML}</code>
+                </pre>
               </div>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
         </section>
-
-        <section className="px-3 py-4">
-          <div className="mb-3 text-[13px] font-bold text-slate-950">Code</div>
-          <pre className="max-h-48 overflow-auto rounded-[12px] border border-slate-950/[0.07] bg-slate-950 p-3 text-[11px] leading-5 text-slate-100">
-            <code>{selectedElementInfo.outerHTML}</code>
-          </pre>
-        </section>
-
         {inspectedProperties.length === 0 ? (
           <div className="mx-3 mb-4 rounded-[14px] border border-slate-950/[0.08] bg-white px-4 py-6 text-center text-sm text-slate-500">
             Reselect the element to inspect its live CSS sources.
