@@ -4,6 +4,7 @@ import ManageSubscription from '@/components/subscribe/ManageSubscription'
 import RealtimeSubscriptionSync from '@/components/subscribe/RealtimeSubscriptionSync'
 import PlanGrid from '@/components/subscribe/PlanGrid'
 import { Card } from '@/components/ui/card'
+import { noindexRobots } from '@/lib/seo/metadata'
 
 type PlanRow = {
     id: string
@@ -156,4 +157,5 @@ export default async function SubscribePage() {
 export const metadata = {
     title: 'Billing & Subscriptions',
     description: 'Manage your pricing plans, upgrades, and billing details.',
+    robots: noindexRobots,
 }

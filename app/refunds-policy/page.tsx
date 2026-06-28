@@ -1,11 +1,18 @@
 import type { Metadata } from "next";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { siteConfig } from "@/lib/seo/config";
+import { buildMetadata } from "@/lib/seo/metadata";
+import { breadcrumbListSchema, webPageSchema } from "@/lib/seo/schema";
 
 import { LegalLink, LegalList, LegalPage, type LegalSection } from "@/components/legal/LegalPage";
 
-export const metadata: Metadata = {
-  title: "Refund Policy",
-  description: "Drawgle's policy for subscription cancellations, refund requests, and AI credits.",
-};
+const legalRoute = siteConfig.publicRoutes[5];
+
+export const metadata: Metadata = buildMetadata({
+  title: legalRoute.title,
+  description: legalRoute.description,
+  path: legalRoute.path,
+});
 
 const sections: LegalSection[] = [
   {
@@ -141,11 +148,26 @@ const sections: LegalSection[] = [
 
 export default function RefundPolicyPage() {
   return (
-    <LegalPage
-      eyebrow="Legal / Refunds"
+    <>
+      <JsonLd
+        data={[
+          webPageSchema({
+            path: legalRoute.path,
+            name: legalRoute.title,
+            description: legalRoute.description,
+          }),
+          breadcrumbListSchema([
+            { name: "Home", path: "/" },
+            { name: "Refund Policy", path: legalRoute.path },
+          ]),
+        ]}
+      />
+      <LegalPage
+        eyebrow="Legal / Refunds"
       title="Refund Policy"
       description="How cancellations, AI-credit usage, billing errors, and refund requests are handled."
       sections={sections}
     />
+    </>
   );
 }

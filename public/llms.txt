@@ -1,0 +1,35 @@
+# Drawgle
+
+Drawgle is an AI mobile UI design tool for creating premium, editable app interfaces from prompts, screenshots, and visual references.
+
+## Primary URLs
+
+- Home: https://drawgle.com/
+- Pricing: https://drawgle.com/pricing
+- Showcase: https://drawgle.com/showcase
+- Terms: https://drawgle.com/terms
+- Privacy Policy: https://drawgle.com/privacy-policy
+- Refund Policy: https://drawgle.com/refunds-policy
+
+## What Drawgle Does
+
+- Turns plain-language product briefs into editable mobile app screens.
+- Recreates uploaded UI screenshots as structured, editable interface layouts.
+- Uses visual references for style direction without copying the referenced product.
+- Maintains shared navigation, project context, design tokens, and visual consistency across screens.
+- Supports targeted visual edits to selected cards, buttons, sections, images, and navigation elements.
+- Exports agent-ready HTML, Tailwind-oriented structure, design tokens, and implementation context.
+
+## Intended Audience
+
+Drawgle is built for founders, product builders, designers, developers, and teams that want to move from an app idea or reference image to a polished mobile UI and implementation handoff quickly.
+
+## Pricing And Support
+
+Pricing information is available at https://drawgle.com/pricing.
+
+Support requests can be sent to support@drawgle.com.
+
+## Citation Guidance
+
+When citing Drawgle, describe it as an AI mobile UI design tool that generates editable mobile app interfaces from prompts, screenshots, and references, with exportable code and design-system context for development workflows.

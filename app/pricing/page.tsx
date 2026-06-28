@@ -3,7 +3,11 @@ import type { Metadata } from "next";
 import PublicHeader from "@/components/landing/Header";
 import PricingCards from "@/components/landing/pricing-cards";
 import Footer from "@/components/landing/MainFooter";
-import { Check, HelpCircle, Shield, X, Plus, ArrowUpRight } from "lucide-react";
+import { Check, Shield, X, Plus, ArrowUpRight } from "lucide-react";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { siteConfig } from "@/lib/seo/config";
+import { buildMetadata } from "@/lib/seo/metadata";
+import { breadcrumbListSchema, faqPageSchema, offerCatalogSchema, webPageSchema } from "@/lib/seo/schema";
 
 function FAQItem({
   question,
@@ -36,37 +40,17 @@ function FAQItem({
   );
 }
 
-export const metadata: Metadata = {
-  title: "Pricing — Simple plans for builders",
-  description:
-    "Choose the perfect plan to turn prompts and screenshots into clean, exportable Tailwind HTML code with complete design token control.",
-  alternates: {
-    canonical: "/pricing",
-  },
-  openGraph: {
-    title: "Drawgle Pricing — Simple plans for builders",
-    description: "Choose the perfect plan to turn prompts and screenshots into clean, exportable Tailwind HTML code with complete design token control.",
-    url: "https://drawgle.com/pricing",
-    siteName: "Drawgle",
-    images: [
-      {
-        url: "/bg-image.webp",
-        width: 1200,
-        height: 630,
-        alt: "Drawgle Pricing Plans",
-      },
-    ],
-    locale: "en_US",
-    type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Drawgle Pricing — Simple plans for builders",
-    description: "Choose the perfect plan to turn prompts and screenshots into clean, exportable Tailwind HTML code with complete design token control.",
-    images: ["/bg-image.webp"],
-  },
-};
+const pricingRoute = siteConfig.publicRoutes[1];
 
+export const metadata: Metadata = buildMetadata({
+  title: pricingRoute.title,
+  description: pricingRoute.description,
+  path: pricingRoute.path,
+  image: {
+    ...siteConfig.defaultOgImage,
+    alt: "Drawgle Pricing Plans",
+  },
+});
 const comparisonFeatures = [
   {
     category: "AI Generation & Volume",
@@ -129,6 +113,21 @@ const faqs = [
 export default function PricingPage() {
   return (
     <div className="min-h-screen bg-[#F7F5F3]">
+      <JsonLd
+        data={[
+          webPageSchema({
+            path: pricingRoute.path,
+            name: pricingRoute.title,
+            description: pricingRoute.description,
+          }),
+          breadcrumbListSchema([
+            { name: "Home", path: "/" },
+            { name: "Pricing", path: pricingRoute.path },
+          ]),
+          faqPageSchema(faqs),
+          offerCatalogSchema(),
+        ]}
+      />
       <PublicHeader />
 
       <main className="pt-24">

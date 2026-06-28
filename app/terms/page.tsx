@@ -1,11 +1,18 @@
 import type { Metadata } from "next";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { siteConfig } from "@/lib/seo/config";
+import { buildMetadata } from "@/lib/seo/metadata";
+import { breadcrumbListSchema, webPageSchema } from "@/lib/seo/schema";
 
 import { LegalLink, LegalList, LegalPage, type LegalSection } from "@/components/legal/LegalPage";
 
-export const metadata: Metadata = {
-  title: "Terms of Service",
-  description: "Terms governing your use of Drawgle's AI mobile UI design service.",
-};
+const legalRoute = siteConfig.publicRoutes[3];
+
+export const metadata: Metadata = buildMetadata({
+  title: legalRoute.title,
+  description: legalRoute.description,
+  path: legalRoute.path,
+});
 
 const sections: LegalSection[] = [
   {
@@ -217,11 +224,26 @@ const sections: LegalSection[] = [
 
 export default function TermsPage() {
   return (
-    <LegalPage
-      eyebrow="Legal / Terms"
+    <>
+      <JsonLd
+        data={[
+          webPageSchema({
+            path: legalRoute.path,
+            name: legalRoute.title,
+            description: legalRoute.description,
+          }),
+          breadcrumbListSchema([
+            { name: "Home", path: "/" },
+            { name: "Terms", path: legalRoute.path },
+          ]),
+        ]}
+      />
+      <LegalPage
+        eyebrow="Legal / Terms"
       title="Terms of Service"
       description="The rules that keep Drawgle useful, secure, and fair for everyone building with it."
       sections={sections}
     />
+    </>
   );
 }

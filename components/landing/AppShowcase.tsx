@@ -21,7 +21,7 @@ export default function AppShowcase() {
                 Templates & Presets
               </div>
               <h2 className="max-w-[880px] font-pixel-square text-[36px] font-semibold leading-[1.03] tracking-tight sm:text-5xl md:text-[54px] xl:text-[60px]">
-                Don't start from scratch.
+                Don&apos;t start from scratch.
                 <br />
                 <span className="text-white/45">Fork layouts or remix design styles.</span>
               </h2>
@@ -29,8 +29,8 @@ export default function AppShowcase() {
 
             <div>
               <p className="max-w-md text-sm leading-6 text-white/55 sm:text-base">
-                Kickstart your project by borrowing real app flows. Click 'Fork' on any card to copy
-                its page layouts, or 'Remix' to start a new project with its colors, typography, and
+                Kickstart your project by borrowing real app flows. Click &apos;Fork&apos; on any card to copy
+                its page layouts, or &apos;Remix&apos; to start a new project with its colors, typography, and
                 shadows pre-loaded.
               </p>
               <Link

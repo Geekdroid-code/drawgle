@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import { noindexRobots } from "@/lib/seo/metadata";
 import { AppThemeProvider } from "@/contexts/app-theme-context";
 import { ProtectedDashboardShell } from "@/components/dashboard/protected-dashboard-shell";
 import { mapAuthenticatedUser, mapProjectRow } from "@/lib/supabase/mappers";
@@ -6,6 +8,13 @@ import { createClient } from "@/lib/supabase/server";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+export const metadata: Metadata = {
+  title: {
+    template: "%s | Drawgle",
+    default: "Drawgle Workspace",
+  },
+  robots: noindexRobots,
+};
 export default async function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const requestHeaders = await headers();
   const requestedPath = getSafeAuthRedirect(requestHeaders.get("x-drawgle-request-path"));

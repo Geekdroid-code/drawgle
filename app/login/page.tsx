@@ -1,9 +1,16 @@
+import type { Metadata } from "next";
+import { noindexRobots } from "@/lib/seo/metadata";
 import { redirect } from "next/navigation";
 
 import LoginPageClient from "@/app/login/LoginPageClient";
 import { getSafeAuthRedirect } from "@/lib/auth-redirect";
 import { createClient } from "@/lib/supabase/server";
 
+export const metadata: Metadata = {
+  title: "Sign in",
+  description: "Sign in to your Drawgle workspace.",
+  robots: noindexRobots,
+};
 export default async function LoginPage({
   searchParams,
 }: {

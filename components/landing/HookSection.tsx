@@ -57,8 +57,8 @@ export default function HookSection() {
             </span>
           </h2>
           <p className="mx-auto mt-6 max-w-3xl text-sm leading-relaxed text-gray-500 sm:text-base md:text-lg">
-            Drawgle doesn't generate flat mockups or messy, unchangeable templates. It plans your
-            app's pages, builds clean Tailwind code, and exposes a real design token editor so
+            Drawgle doesn&apos;t generate flat mockups or messy, unchangeable templates. It plans your
+            app&apos;s pages, builds clean Tailwind code, and exposes a real design token editor so
             revisions take seconds, not hours.
           </p>
         </div>

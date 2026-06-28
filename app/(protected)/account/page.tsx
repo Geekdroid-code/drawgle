@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { AccountDashboard } from '@/components/account/account-dashboard'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import { cookies } from 'next/headers'
+import { noindexRobots } from '@/lib/seo/metadata'
 
 export default async function AccountPage() {
   await cookies() // enable dynamic cookie routing context
@@ -115,4 +116,5 @@ export default async function AccountPage() {
 export const metadata = {
   title: 'User Account Details',
   description: 'Manage your profile, view payment history, and track credits',
+  robots: noindexRobots,
 }

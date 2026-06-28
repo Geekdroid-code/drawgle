@@ -25,7 +25,7 @@ export function CTASection() {
             </h2>
 
             <p className="mx-auto mt-6 max-w-2xl text-sm leading-6 text-white/50 sm:text-base sm:leading-7">
-              Don't spend another week wrestling with Figma designs or writing boilerplate CSS from scratch. Build your first screen flow in seconds and export clean Tailwind HTML immediately.
+              Don&apos;t spend another week wrestling with Figma designs or writing boilerplate CSS from scratch. Build your first screen flow in seconds and export clean Tailwind HTML immediately.
             </p>
 
             <Link

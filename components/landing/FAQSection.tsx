@@ -1,6 +1,6 @@
 import { ArrowUpRight, Plus } from "lucide-react";
 
-const faqs = [
+export const homeFaqs = [
   {
     question: "What does Drawgle actually create?",
     answer:
@@ -119,12 +119,12 @@ export default function FAQSection() {
 
         <div className="grid lg:grid-cols-2 lg:gap-x-14">
           <div>
-            {faqs.slice(0, 5).map((faq, index) => (
+            {homeFaqs.slice(0, 5).map((faq, index) => (
               <FAQItem key={faq.question} {...faq} index={index} />
             ))}
           </div>
           <div>
-            {faqs.slice(5).map((faq, index) => (
+            {homeFaqs.slice(5).map((faq, index) => (
               <FAQItem key={faq.question} {...faq} index={index + 5} />
             ))}
           </div>

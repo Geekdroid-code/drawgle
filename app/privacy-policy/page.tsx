@@ -1,11 +1,18 @@
 import type { Metadata } from "next";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { siteConfig } from "@/lib/seo/config";
+import { buildMetadata } from "@/lib/seo/metadata";
+import { breadcrumbListSchema, webPageSchema } from "@/lib/seo/schema";
 
 import { LegalLink, LegalList, LegalPage, type LegalSection } from "@/components/legal/LegalPage";
 
-export const metadata: Metadata = {
-  title: "Privacy Policy",
-  description: "How Drawgle collects, uses, stores, and protects personal data.",
-};
+const legalRoute = siteConfig.publicRoutes[4];
+
+export const metadata: Metadata = buildMetadata({
+  title: legalRoute.title,
+  description: legalRoute.description,
+  path: legalRoute.path,
+});
 
 const sections: LegalSection[] = [
   {
@@ -186,11 +193,26 @@ const sections: LegalSection[] = [
 
 export default function PrivacyPolicyPage() {
   return (
-    <LegalPage
-      eyebrow="Legal / Privacy"
+    <>
+      <JsonLd
+        data={[
+          webPageSchema({
+            path: legalRoute.path,
+            name: legalRoute.title,
+            description: legalRoute.description,
+          }),
+          breadcrumbListSchema([
+            { name: "Home", path: "/" },
+            { name: "Privacy Policy", path: legalRoute.path },
+          ]),
+        ]}
+      />
+      <LegalPage
+        eyebrow="Legal / Privacy"
       title="Privacy Policy"
       description="A clear account of what Drawgle processes, why it is needed, and the choices available to you."
       sections={sections}
     />
+    </>
   );
 }
