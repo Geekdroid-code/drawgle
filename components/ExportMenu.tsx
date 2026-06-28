@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertTriangle,
   Bot,
@@ -59,7 +60,7 @@ function downloadBlob(contents: BlobPart[], type: string, filename: string) {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="px-2.5 pb-1 pt-1 text-[9px] font-extrabold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+    <div className="px-3 pb-1 pt-1 mb-0.5 text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
       {children}
     </div>
   );
@@ -75,6 +76,7 @@ function ExportRow({
   trailing,
   expanded,
   testId,
+  disabled = false,
 }: {
   icon: typeof Bot;
   title: string;
@@ -85,41 +87,57 @@ function ExportRow({
   trailing?: React.ReactNode;
   expanded?: boolean;
   testId?: string;
+  disabled?: boolean;
 }) {
   return (
     <div
       className={cn(
-        "group flex min-w-0 items-center gap-3 rounded-[11px] px-2.5 py-2 transition-colors",
-        onClick && "cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5",
+        "relative group flex min-w-0 items-center gap-2.5 rounded-lg pl-3 py-2 pr-4 transition-colors duration-150 ease-out",
+        onClick && !disabled && "cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5",
+        disabled && "cursor-not-allowed opacity-55",
         expanded && "bg-slate-50 dark:bg-white/5",
       )}
-      onClick={onClick}
+      onClick={onClick ? (event) => {
+        if (disabled) {
+          event.preventDefault();
+          return;
+        }
+        onClick();
+      } : undefined}
       onKeyDown={onClick ? (event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          onClick();
+          if (!disabled) onClick();
         }
       } : undefined}
       role={onClick ? "button" : undefined}
+      aria-disabled={disabled || undefined}
       tabIndex={onClick ? 0 : undefined}
       data-testid={testId}
     >
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border border-slate-950/[0.06] bg-slate-50 text-slate-600 transition-colors group-hover:bg-white group-hover:text-slate-950 dark:border-white/[0.06] dark:bg-white/5 dark:text-slate-300">
-        <Icon className="h-3.5 w-3.5" />
-      </span>
-      <span className="min-w-0 flex-1">
+      <Icon className={cn(
+        "h-4 w-4 shrink-0 transition-colors z-10",
+        onClick && !disabled ? "text-slate-500 group-hover:text-slate-900 dark:text-slate-400 dark:group-hover:text-white" : "text-slate-400"
+      )} />
+      <span className="min-w-0 flex-1 z-10">
         <span className="flex min-w-0 items-center gap-1.5">
-          <span className="truncate text-[12px] font-bold text-slate-800 dark:text-slate-100">{title}</span>
+          <span className={cn(
+            "truncate text-[13px] font-semibold transition-colors",
+            onClick && !disabled ? "text-slate-700 group-hover:text-slate-900 dark:text-slate-300 dark:group-hover:text-white" : "text-slate-500 dark:text-slate-400"
+          )}>{title}</span>
           {recommended ? (
             <span className="shrink-0 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[7px] font-extrabold uppercase tracking-[0.1em] text-emerald-700 ring-1 ring-emerald-600/10">
               Recommended
             </span>
           ) : null}
         </span>
-        <span className="mt-0.5 block truncate text-[9px] font-medium text-slate-400 dark:text-slate-500">{description}</span>
+        <span className={cn(
+          "mt-0.5 block truncate text-[10px] transition-colors",
+          onClick && !disabled ? "text-slate-500 group-hover:text-slate-600 dark:text-slate-400 dark:group-hover:text-slate-300" : "text-slate-400 dark:text-slate-500"
+        )}>{description}</span>
       </span>
-      {meta ? <span className="shrink-0 text-[8px] font-bold uppercase tracking-[0.11em] text-slate-400">{meta}</span> : null}
-      {trailing}
+      {meta ? <span className="shrink-0 text-[8px] font-bold uppercase tracking-[0.11em] text-slate-400 z-10">{meta}</span> : null}
+      <div className="relative z-10">{trailing}</div>
     </div>
   );
 }
@@ -135,6 +153,8 @@ export function ExportMenu({
   designTokens,
   tokenCss,
   googleFontAssetLinks,
+  tokenDirty,
+  generationActive,
 }: {
   trigger: React.ReactNode;
   open: boolean;
@@ -146,8 +166,12 @@ export function ExportMenu({
   designTokens?: DesignTokens | null;
   tokenCss?: string;
   googleFontAssetLinks?: string;
+  tokenDirty?: boolean;
+  generationActive?: boolean;
 }) {
   const [activeScreenId, setActiveScreenId] = useState(initialScreenId || screens[0]?.id || "");
+  const [screenSelectorOpen, setScreenSelectorOpen] = useState(false);
+  const [hoveredScreenId, setHoveredScreenId] = useState<string | null>(null);
   const [previousOpen, setPreviousOpen] = useState(open);
   const [previousInitialScreenId, setPreviousInitialScreenId] = useState(initialScreenId);
   const [scaffoldsOpen, setScaffoldsOpen] = useState(false);
@@ -160,6 +184,7 @@ export function ExportMenu({
     setPreviousInitialScreenId(initialScreenId);
     if (open) {
       setActiveScreenId(initialScreenId || screens[0]?.id || "");
+      setScreenSelectorOpen(false);
       setScaffoldsOpen(false);
       setScaffoldError(null);
       setPackDownloaded(false);
@@ -199,6 +224,7 @@ export function ExportMenu({
   };
 
   const downloadAgentPack = () => {
+    if (agentPackDisabled) return;
     const bytes = buildAgentPackZip({ context, target: "auto" });
     downloadBlob(
       [new Uint8Array(bytes)],
@@ -228,23 +254,52 @@ export function ExportMenu({
   const screenName = activeScreen?.name || "Screen";
   const screenSlug = slugifyExportName(screenName, "screen");
 
+  const selectedScreenBlockedReason = tokenDirty
+    ? "Save or discard design token changes"
+    : activeScreen?.status === "building"
+    ? "This screen is still building"
+    : null;
+
+  const agentPackBlockedReason = tokenDirty
+    ? "Save or discard design token changes"
+    : null;
+
+  const selectedActionsDisabled = !!selectedScreenBlockedReason;
+  const agentPackDisabled = !!agentPackBlockedReason;
+
+  const menuWidth = typeof window !== "undefined"
+    ? Math.min(380, window.innerWidth - 16)
+    : 380;
+  const innerWidth = menuWidth - 12;
+
   return (
     <PremiumDropdown
       open={open}
       onOpenChange={onOpenChange}
       align="end"
       side="bottom"
-      width={380}
+      width={menuWidth}
       trigger={trigger}
-      menuClassName="!w-[min(380px,calc(100vw-16px))] max-h-[min(680px,calc(100dvh-72px))] overflow-y-auto bg-white/96 backdrop-blur-xl dark:bg-[#1b1b1b]/96"
+      menuClassName="!h-auto !overflow-visible bg-white/98 backdrop-blur-2xl dark:bg-[#1b1b1b]/98"
     >
-      <div className="w-[min(368px,calc(100vw-28px))] p-0.5" data-testid="export-menu">
-        <div className="flex items-center justify-between gap-3 px-2.5 pb-2 pt-1">
+      <div 
+        style={{ width: innerWidth, minWidth: innerWidth }}
+        className="max-h-[calc(100dvh-48px)] overflow-y-auto p-1"
+        data-testid="export-menu"
+      >
+        <div className="flex items-center justify-between gap-3 pb-2 pt-1 pr-2.5">
           <div className="min-w-0">
             <SectionLabel>Selected screen</SectionLabel>
             {screens.length > 1 ? (
-              <label className="relative mt-0.5 block">
-                <span className="sr-only">Screen to export</span>
+              <div className="relative mt-0.5 pl-3">
+                <button
+                  type="button"
+                  onClick={() => setScreenSelectorOpen(!screenSelectorOpen)}
+                  className="flex h-8 items-center justify-between w-max min-w-[180px] max-w-[280px] rounded-lg border border-slate-950/[0.08] bg-slate-50/50 px-3 text-[12px] font-semibold text-slate-800 outline-none hover:border-slate-950/[0.15] hover:bg-slate-50 dark:border-white/[0.08] dark:bg-white/5 dark:text-slate-100 dark:hover:bg-white/10 transition-colors"
+                >
+                  <span className="truncate mr-3">{activeScreen?.name || ""}</span>
+                  <ChevronDown className={cn("h-3.5 w-3.5 text-slate-400 transition-transform duration-200 shrink-0", screenSelectorOpen && "rotate-180")} />
+                </button>
                 <select
                   aria-label="Screen to export"
                   value={activeScreen?.id || ""}
@@ -252,14 +307,54 @@ export function ExportMenu({
                     setActiveScreenId(event.target.value);
                     setScaffoldError(null);
                   }}
-                  className="h-7 max-w-[250px] appearance-none truncate rounded-lg border border-slate-950/[0.08] bg-slate-50 py-0 pl-2.5 pr-7 text-[11px] font-bold text-slate-800 outline-none hover:bg-slate-100 dark:border-white/[0.08] dark:bg-white/5 dark:text-slate-100"
+                  className="sr-only"
+                  tabIndex={-1}
                 >
                   {screens.map((screen) => <option key={screen.id} value={screen.id}>{screen.name}</option>)}
                 </select>
-                <ChevronDown className="pointer-events-none absolute right-2 top-1.5 h-3.5 w-3.5 text-slate-400" />
-              </label>
+                {screenSelectorOpen && (
+                  <div className="flex flex-col gap-0.5 min-w-[200px] mt-1.5">
+                    {screens.map((screen) => {
+                      const isScreenActive = screen.id === activeScreenId;
+                      const showScreenIndicator = hoveredScreenId
+                        ? hoveredScreenId === screen.id
+                        : isScreenActive;
+                      
+                      return (
+                        <div
+                          key={screen.id}
+                          onMouseEnter={() => setHoveredScreenId(screen.id)}
+                          onMouseLeave={() => setHoveredScreenId(null)}
+                          onClick={() => {
+                            setActiveScreenId(screen.id);
+                            setScreenSelectorOpen(false);
+                            setScaffoldError(null);
+                          }}
+                          className={cn(
+                            "relative flex items-center justify-between rounded-lg text-[12px] font-semibold cursor-pointer select-none pl-3 py-1.5 pr-3 transition-colors duration-150 ease-out whitespace-nowrap",
+                            isScreenActive
+                              ? "text-slate-900 dark:text-white"
+                              : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+                          )}
+                        >
+                          {showScreenIndicator && (
+                            <div className="absolute inset-0 rounded-lg -z-10 bg-slate-50/80 dark:bg-white/5" />
+                          )}
+                          {showScreenIndicator && (
+                            <div className="absolute left-0 top-0 bottom-0 my-auto w-[3px] h-4 rounded-full bg-slate-900 dark:bg-slate-100" />
+                          )}
+                          <span className="truncate mr-3 relative z-10">{screen.name}</span>
+                          {isScreenActive && (
+                            <Check className="h-3.5 w-3.5 text-slate-900 dark:text-white shrink-0 relative z-10" />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             ) : (
-              <div className="mt-0.5 px-2.5 text-[11px] font-bold text-slate-800 dark:text-slate-100">{screenName}</div>
+              <div className="mt-0.5 px-3 text-[12px] font-semibold text-slate-800 dark:text-slate-100">{screenName}</div>
             )}
           </div>
           <span className="shrink-0 rounded-full bg-slate-50 px-2 py-1 text-[8px] font-extrabold uppercase tracking-[0.12em] text-slate-400 ring-1 ring-slate-950/[0.06] dark:bg-white/5 dark:ring-white/[0.06]">
@@ -268,12 +363,19 @@ export function ExportMenu({
         </div>
 
         <div className="space-y-0.5">
+          {selectedScreenBlockedReason ? (
+            <div className="mx-2.5 mb-1.5 flex items-start gap-2 rounded-lg bg-amber-50 px-2.5 py-2 text-[9px] font-semibold leading-4 text-amber-800" data-testid="selected-export-blocked">
+              <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+              {selectedScreenBlockedReason}
+            </div>
+          ) : null}
           <ExportRow
             icon={Bot}
             title={copiedAction === "agent" ? "Copied for AI agent" : "Copy for AI agent"}
             description="HTML source + complete design context"
             recommended
             onClick={() => void markCopied("agent", agentPrompt)}
+            disabled={selectedActionsDisabled}
             testId="copy-for-agent"
             trailing={
               <Button
@@ -282,6 +384,7 @@ export function ExportMenu({
                 size="icon-sm"
                 aria-label="Download agent prompt"
                 title="Download agent prompt (.md)"
+                disabled={selectedActionsDisabled}
                 onClick={(event) => {
                   event.stopPropagation();
                   downloadBlob([agentPrompt], "text/markdown;charset=utf-8", `${screenSlug}-agent-prompt.md`);
@@ -298,6 +401,7 @@ export function ExportMenu({
             description="Reliable standalone visual source"
             meta="HTML"
             onClick={() => downloadBlob([htmlExport], "text/html;charset=utf-8", `${screenSlug}.html`)}
+            disabled={selectedActionsDisabled}
             testId="download-screen-html"
           />
           <ExportRow
@@ -307,20 +411,23 @@ export function ExportMenu({
             meta="Beta"
             expanded={scaffoldsOpen}
             onClick={() => {
+              if (selectedActionsDisabled) return;
               setScaffoldsOpen((value) => !value);
               setScaffoldError(null);
             }}
+            disabled={selectedActionsDisabled}
             testId="toggle-scaffolds"
             trailing={<ChevronRight className={cn("h-3.5 w-3.5 shrink-0 text-slate-300 transition-transform", scaffoldsOpen && "rotate-90")} />}
           />
-          {scaffoldsOpen ? (
-            <div className="ml-11 grid grid-cols-2 gap-1 pb-1.5 pr-2 pt-0.5" data-testid="scaffold-options">
+          {scaffoldsOpen && !selectedActionsDisabled ? (
+            <div className="ml-[26px] grid grid-cols-2 gap-1.5 pb-2 pr-3 pt-0.5" data-testid="scaffold-options">
               {SCAFFOLD_OPTIONS.map((option) => (
                 <button
                   type="button"
                   key={option.id}
+                  disabled={selectedActionsDisabled}
                   onClick={() => downloadScaffold(option.id, option.extension)}
-                  className="flex h-8 items-center justify-between rounded-lg border border-slate-950/[0.06] bg-slate-50 px-2.5 text-[9px] font-bold text-slate-600 transition hover:border-slate-950/[0.12] hover:bg-white hover:text-slate-950 dark:border-white/[0.06] dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+                  className="flex h-8 items-center justify-between rounded-lg border border-slate-950/[0.06] bg-slate-50 px-2.5 text-[9px] font-bold text-slate-600 transition hover:border-slate-950/[0.12] hover:bg-white hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/[0.06] dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
                 >
                   {option.label}
                   <Download className="h-3 w-3 text-slate-300" />
@@ -329,7 +436,7 @@ export function ExportMenu({
             </div>
           ) : null}
           {scaffoldError ? (
-            <div className="mx-2.5 mb-1.5 ml-11 flex items-start gap-2 rounded-lg bg-rose-50 px-2.5 py-2 text-[9px] font-semibold leading-4 text-rose-700" data-testid="scaffold-error">
+            <div className="mx-2.5 mb-1.5 ml-[26px] flex items-start gap-2 rounded-lg bg-rose-50 px-2.5 py-2 text-[10px] font-semibold leading-4 text-rose-700" data-testid="scaffold-error">
               <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
               {scaffoldError}
             </div>
@@ -337,13 +444,19 @@ export function ExportMenu({
         </div>
 
         <div className="my-2 border-t border-slate-950/[0.06] dark:border-white/[0.06]" />
-        <SectionLabel>Whole project</SectionLabel>
+        {agentPackBlockedReason ? (
+          <div className="mx-2.5 mb-1.5 flex items-start gap-2 rounded-lg bg-amber-50 px-2.5 py-2 text-[9px] font-semibold leading-4 text-amber-800" data-testid="agent-pack-blocked">
+            <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+            {agentPackBlockedReason}
+          </div>
+        ) : null}
         <ExportRow
           icon={FolderArchive}
           title="Download Agent Pack"
-          description={`Every screen + Design.md + agent skills`}
+          description={agentPackBlockedReason ?? `Every screen + Design.md + agent skills`}
           meta={`All ${screens.length} · ZIP`}
           onClick={downloadAgentPack}
+          disabled={agentPackDisabled}
           testId="download-agent-pack"
         />
         {packDownloaded ? (

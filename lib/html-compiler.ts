@@ -135,7 +135,40 @@ export function resolveCssVariables(value: string, varMap: Map<string, string>):
   }
   return current;
 }
+function mergeCssVariablesFromText(varMap: Map<string, string>, cssText?: string | null) {
+  if (!cssText?.trim()) {
+    return;
+  }
 
+  const variableMatches = cssText.matchAll(/(--[a-zA-Z0-9_-]+)\s*:\s*([^;}\n]+)/g);
+  for (const match of variableMatches) {
+    const name = match[1]?.trim();
+    const value = match[2]?.trim();
+    if (name && value) {
+      varMap.set(name, value);
+    }
+  }
+}
+
+export function buildProductionVariableMap(
+  designTokens?: DesignTokens | null,
+  tokenCss?: string | null,
+): Map<string, string> {
+  const normalized = normalizeDesignTokens(designTokens ?? {});
+  const variables = flattenDesignTokensToCssVariables(normalized);
+  const varMap = new Map<string, string>();
+  variables.forEach((v) => {
+    varMap.set(v.name, v.value);
+  });
+
+  mergeCssVariablesFromText(varMap, tokenCss);
+
+  if (!varMap.has("--surface-muted")) {
+    varMap.set("--surface-muted", "#F5F5F5");
+  }
+
+  return varMap;
+}
 function resolveValueToVariable(
   value: string,
   propertyType: 'color' | 'bg' | 'border' | 'radius' | 'spacing' | 'other',
@@ -188,6 +221,10 @@ function resolveValueToVariable(
         else if (normalizedName === '--section-gap') priority = 90;
         else if (normalizedName === '--element-gap') priority = 80;
         else if (normalizedName.startsWith('--spacing-')) priority = 70;
+      }
+      
+      if (propertyType !== 'other' && priority <= 0) {
+        continue;
       }
       
       if (priority > bestPriority) {
@@ -567,7 +604,11 @@ function isRoundedClass(cls: string): boolean {
 function conflictsWithCompiledStyleProperty(property: string, cls: string): boolean {
   if (property === "background-color") return cls.startsWith("bg-") && !["bg-cover", "bg-contain", "bg-center", "bg-repeat", "bg-no-repeat", "bg-local", "bg-fixed", "bg-scroll"].includes(cls);
   if (property === "box-shadow") return cls.startsWith("shadow");
-  if (property === "border-radius" || property.startsWith("border-") && property.endsWith("-radius")) return isRoundedClass(cls);
+  if (property === "border-radius") return isRoundedClass(cls);
+  if (property === "border-top-left-radius") return /^rounded-tl-/i.test(cls);
+  if (property === "border-top-right-radius") return /^rounded-tr-/i.test(cls);
+  if (property === "border-bottom-right-radius") return /^rounded-br-/i.test(cls);
+  if (property === "border-bottom-left-radius") return /^rounded-bl-/i.test(cls);
   if (property === "color") return isTextColorClass(cls);
   if (property === "border-color") return isBorderColorClass(cls);
   if (property === "border-width" || property.startsWith("border-") && property.endsWith("-width")) return isBorderWidthClass(cls);
@@ -822,23 +863,18 @@ function compileElement(element: Element, varMap: Map<string, string>) {
   }
 }
 
-export function compileHtmlForProduction(html: string, designTokens?: DesignTokens | null): string {
+export function compileHtmlForProduction(
+  html: string,
+  designTokens?: DesignTokens | null,
+  tokenCss?: string | null,
+): string {
   if (!html.trim()) {
     return html;
   }
 
-  // 1. Flatten active design tokens into CSS variables map
-  const normalized = normalizeDesignTokens(designTokens ?? {});
-  const variables = flattenDesignTokensToCssVariables(normalized);
-  const varMap = new Map<string, string>();
-  variables.forEach(v => {
-    varMap.set(v.name, v.value);
-  });
-
-  // Ensure surface-muted is defined in varMap for dynamic resolution
-  if (!varMap.has("--surface-muted")) {
-    varMap.set("--surface-muted", "#F5F5F5");
-  }
+  // 1. Flatten active design tokens into CSS variables map, with live CSS
+  // taking precedence when the visual editor is passing a fresher token sheet.
+  const varMap = buildProductionVariableMap(designTokens, tokenCss);
 
   // 2. Parse the HTML using DOMParser
   if (typeof DOMParser === "undefined") {

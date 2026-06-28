@@ -11,12 +11,12 @@ import {
   transpileToSwiftUI,
 } from "@/lib/mobile-transpiler";
 import { normalizeDesignTokens } from "@/lib/design-tokens";
-import { buildDrawgleTokenCss, buildGoogleFontAssetLinks, flattenDesignTokensToCssVariables } from "@/lib/token-runtime";
+import { buildDrawgleTokenCss, buildGoogleFontAssetLinks } from "@/lib/token-runtime";
 import {
+  buildProductionVariableMap,
+  buildTailwindConfigScript,
   compileHtmlForProduction,
   compileStylesheetForProduction,
-  resolveCssVariables,
-  buildTailwindConfigScript,
 } from "@/lib/html-compiler";
 import type {
   DesignTokens,
@@ -42,6 +42,15 @@ export type NativeScaffoldResult = {
   error: string | null;
 };
 
+export type CompiledExportSnapshot = {
+  standaloneHtml: string;
+  cleanScreenHtml: string;
+  cleanNavigationHtml: string;
+  activeNavigationItemId: string;
+  tokenCss: string;
+  googleFontAssetLinks: string;
+  warnings: string[];
+};
 const FILE_SEPARATOR = "// ============================================================";
 
 export function slugifyExportName(value: string, fallback = "drawgle-screen") {
@@ -94,7 +103,7 @@ const stripSharedNavigationMarkup = (code: string) =>
     )
     .trim();
 
-export function buildStandaloneHtmlExport({
+export function buildCompiledExportSnapshot({
   screen,
   navigationCode = "",
   activeNavigationItemId,
@@ -108,32 +117,28 @@ export function buildStandaloneHtmlExport({
   designTokens?: DesignTokens | null;
   tokenCss?: string;
   googleFontAssetLinks?: string;
-}) {
-  // 1. Compile the HTML codes to resolve design tokens and clean up classes/styles
+}): CompiledExportSnapshot {
+  // 1. Compile the HTML codes to resolve design tokens and clean up classes/styles.
   const isNavActive = !!navigationCode;
   const screenCode = isNavActive ? stripSharedNavigationMarkup(screen.code) : screen.code;
 
-  const compiledScreen = compileHtmlForProduction(screenCode, designTokens);
-  const compiledNavigation = compileHtmlForProduction(navigationCode, designTokens);
+  const compiledScreen = compileHtmlForProduction(screenCode, designTokens, tokenCss);
+  const compiledNavigation = compileHtmlForProduction(navigationCode, designTokens, tokenCss);
 
-  // 2. Sanitize and remove editor-specific attributes
+  // 2. Sanitize and remove editor-specific attributes.
   const cleanScreen = sanitizeHtmlForExport(compiledScreen);
   const cleanNavigation = sanitizeHtmlForExport(compiledNavigation);
 
-  // 3. Resolve CSS variables for default styles
-  const normalized = normalizeDesignTokens(designTokens ?? {});
-  const variables = flattenDesignTokensToCssVariables(normalized);
-  const varMap = new Map<string, string>();
-  variables.forEach(v => {
-    varMap.set(v.name, v.value);
-  });
-
+  // 3. Resolve CSS variables for default styles from the same live token CSS
+  // used by the canvas preview. Design tokens remain the fallback source.
+  const varMap = buildProductionVariableMap(designTokens, tokenCss);
   const exportTokenCss = compileStylesheetForProduction(varMap);
+  const cleanActiveNavigationItemId = activeNavigationItemId || "";
 
   const cleanGoogleFont = (googleFontAssetLinks || buildGoogleFontAssetLinks(designTokens))
     .replace(/\s*data-drawgle-font-preconnect="[^"]*"/g, "");
 
-  return `<!DOCTYPE html>
+  const standaloneHtml = `<!DOCTYPE html>
 <html>
   <head>
     <meta charset="UTF-8" />
@@ -154,15 +159,28 @@ ${cleanScreen}
     <script>
       if (window.lucide && typeof window.lucide.createIcons === "function") window.lucide.createIcons();
       document.querySelectorAll("[data-nav-item-id]").forEach(function(item) {
-        var active = item.getAttribute("data-nav-item-id") === ${JSON.stringify(activeNavigationItemId || "")};
+        var active = item.getAttribute("data-nav-item-id") === ${JSON.stringify(cleanActiveNavigationItemId)};
         item.setAttribute("data-active", active ? "true" : "false");
         item.setAttribute("aria-current", active ? "page" : "false");
       });
     <\/script>
   </body>
 </html>`;
+
+  return {
+    standaloneHtml,
+    cleanScreenHtml: cleanScreen,
+    cleanNavigationHtml: cleanNavigation,
+    activeNavigationItemId: cleanActiveNavigationItemId,
+    tokenCss: exportTokenCss,
+    googleFontAssetLinks: cleanGoogleFont,
+    warnings: [],
+  };
 }
 
+export function buildStandaloneHtmlExport(input: Parameters<typeof buildCompiledExportSnapshot>[0]) {
+  return buildCompiledExportSnapshot(input).standaloneHtml;
+}
 const TARGET_INSTRUCTIONS: Record<AgentTarget, string> = {
   auto: "Inspect the repository and determine the active UI framework, architecture, language, and platform conventions before implementing.",
   html: "Implement this screen as accessible HTML and Tailwind CSS that matches the repository's existing web conventions.",
@@ -197,12 +215,20 @@ export function buildAgentHandoffPrompt({
     tokenDraft: designTokens,
   });
   const navigationCode = resolveScreenNavigationCode(screen, context.projectNavigation);
+  const compiledSnapshot = buildCompiledExportSnapshot({
+    screen,
+    navigationCode,
+    activeNavigationItemId: screen.navigationItemId,
+    designTokens,
+    tokenCss: context.tokenCss,
+    googleFontAssetLinks: context.googleFontAssetLinks,
+  });
   const normalizedTokens = normalizeDesignTokens(designTokens ?? {});
   const navigationPlan = context.projectNavigation?.plan ?? null;
 
   return `# Drawgle UI implementation handoff
 
-Implement the selected Drawgle screen in this repository. The HTML below is the visual source of truth; adapt it to the repository instead of treating it as production application code.
+Implement the selected Drawgle screen in this repository. The compiled standalone HTML below is the visual source of truth; adapt it to the repository instead of treating it as production application code.
 
 ## Target
 
@@ -243,15 +269,15 @@ ${JSON.stringify(normalizedTokens.tokens ?? {}, null, 2)}
 ${JSON.stringify(navigationPlan, null, 2)}
 \`\`\`
 
-## Selected screen HTML
+## Compiled standalone HTML visual source
 
 \`\`\`html
-${sanitizeHtmlForExport(screen.code)}
+${compiledSnapshot.standaloneHtml}
 \`\`\`
 
-## Shared navigation HTML
+## Compiled shared navigation HTML
 
-${navigationCode ? `\`\`\`html\n${sanitizeHtmlForExport(navigationCode)}\n\`\`\`` : "This screen does not use the shared Drawgle navigation shell."}
+${compiledSnapshot.cleanNavigationHtml ? `\`\`\`html\n${compiledSnapshot.cleanNavigationHtml}\n\`\`\`` : "This screen does not use the shared Drawgle navigation shell."}
 
 ## Acceptance checklist
 
@@ -370,14 +396,14 @@ No root instruction files are included or overwritten.
   }
 
   for (const [index, screen] of context.screens.entries()) {
-    files[screenEntries[index].file] = buildStandaloneHtmlExport({
+    files[screenEntries[index].file] = buildCompiledExportSnapshot({
       screen,
       navigationCode: resolveScreenNavigationCode(screen, context.projectNavigation),
       activeNavigationItemId: screen.navigationItemId,
       designTokens,
       tokenCss,
       googleFontAssetLinks: context.googleFontAssetLinks,
-    });
+    }).standaloneHtml;
   }
 
   return files;
@@ -477,7 +503,7 @@ import { LinearGradient } from "expo-linear-gradient";
 
 // Drawgle structural scaffold (Beta). Adapt to your app architecture and theme.
 function Icon({ size = 24, color = "#000" }: { name: string; size?: number; color?: string }) {
-  return <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}><Text style={{ color }}>•</Text></View>;
+  return <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}><Text style={{ color }}>*</Text></View>;
 }
 
 export default function ${cleanName}Screen() {

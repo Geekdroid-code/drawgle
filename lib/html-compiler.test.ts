@@ -107,6 +107,33 @@ describe("HTML production compiler", () => {
     expect(compiled).not.toContain("style=");
   });
 
+  it("lets live token CSS override persisted design tokens", () => {
+    const rawHtml = `<div style="background-color: #223344; color: #fefefe;"></div>`;
+    const compiled = compileHtmlForProduction(
+      rawHtml,
+      designTokens,
+      ":root { --dg-color-background-primary: #223344; --dg-color-text-high-emphasis: #fefefe; }",
+    );
+
+    expect(compiled).toContain("bg-background");
+    expect(compiled).toContain("text-foreground");
+  });
+
+  it("preserves expanded Visual Editor effects and layout properties in production classes", () => {
+    const rawHtml = `<div style="background-image: linear-gradient(135deg, #111111, #222222); filter: blur(2px); backdrop-filter: blur(12px); border-top-left-radius: 18px; border-bottom-right-radius: 20px; z-index: 40; left: 12px; right: auto; grid-template-columns: repeat(2, minmax(0, 1fr));"></div>`;
+    const compiled = compileHtmlForProduction(rawHtml, designTokens);
+
+    expect(compiled).toContain("bg-[linear-gradient(135deg,_#111111,_#222222)]");
+    expect(compiled).toContain("[filter:blur(2px)]");
+    expect(compiled).toContain("[backdrop-filter:blur(12px)]");
+    expect(compiled).toContain("rounded-tl-[18px]");
+    expect(compiled).toContain("rounded-br-[20px]");
+    expect(compiled).toContain("z-[40]");
+    expect(compiled).toContain("left-[var(--element-gap)]");
+    expect(compiled).toContain("right-auto");
+    expect(compiled).toContain("grid-cols-[repeat(2,_minmax(0,_1fr))]");
+    expect(compiled).not.toContain("style=");
+  });
   it("resolves variables in other element attributes like stroke or fill in SVGs", () => {
     const rawHtml = `<svg><path stroke="var(--dg-color-action-primary)" fill="var(--dg-color-border-divider)" /></svg>`;
     const compiled = compileHtmlForProduction(rawHtml, designTokens);

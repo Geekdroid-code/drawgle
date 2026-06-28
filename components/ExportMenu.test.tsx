@@ -1,14 +1,16 @@
 import { cleanup, render } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Button } from "@/components/ui/button";
 import type { ProjectData, ScreenData } from "@/lib/types";
 
-const { buildAgentHandoffPromptMock, buildAgentPackZipMock, buildNativeScaffoldMock } = vi.hoisted(() => ({
-  buildAgentHandoffPromptMock: vi.fn(() => "Auto-detect prompt with selected screen HTML"),
+const { buildAgentHandoffPromptMock, buildAgentPackZipMock, buildNativeScaffoldMock, buildStandaloneHtmlExportMock } = vi.hoisted(() => ({
+  buildAgentHandoffPromptMock: vi.fn(() => "Auto-detect prompt with compiled selected screen HTML"),
   buildAgentPackZipMock: vi.fn(() => new Uint8Array([1, 2, 3])),
   buildNativeScaffoldMock: vi.fn(() => ({ code: null, error: "Mock scaffold parse failure." })),
+  buildStandaloneHtmlExportMock: vi.fn(() => "compiled standalone html"),
 }));
 
 vi.mock("@/lib/export-pipeline", async (importOriginal) => {
@@ -18,6 +20,7 @@ vi.mock("@/lib/export-pipeline", async (importOriginal) => {
     buildAgentHandoffPrompt: buildAgentHandoffPromptMock,
     buildAgentPackZip: buildAgentPackZipMock,
     buildNativeScaffold: buildNativeScaffoldMock,
+    buildStandaloneHtmlExport: buildStandaloneHtmlExportMock,
   };
 });
 
@@ -60,7 +63,7 @@ const screens: ScreenData[] = [
   },
 ];
 
-function renderMenu(initialScreenId = "details") {
+function renderMenu(initialScreenId = "details", props: Partial<ComponentProps<typeof ExportMenu>> = {}) {
   return render(
     <ExportMenu
       open
@@ -69,6 +72,7 @@ function renderMenu(initialScreenId = "details") {
       screens={screens}
       initialScreenId={initialScreenId}
       trigger={<Button>Export</Button>}
+      {...props}
     />,
   );
 }
@@ -79,6 +83,7 @@ describe("ExportMenu", () => {
     buildAgentHandoffPromptMock.mockClear();
     buildAgentPackZipMock.mockClear();
     buildNativeScaffoldMock.mockClear();
+    buildStandaloneHtmlExportMock.mockClear();
   });
 
   it("shows selected-screen and whole-project actions together", () => {
@@ -91,9 +96,35 @@ describe("ExportMenu", () => {
     expect(view.getByText("Native Scaffolds")).toBeTruthy();
     expect(view.getByText("Download Agent Pack")).toBeTruthy();
     expect(view.queryByText(/Preview/)).toBeNull();
+    expect(buildStandaloneHtmlExportMock).toHaveBeenCalledWith(expect.objectContaining({
+      screen: expect.objectContaining({ id: "details" }),
+    }));
     expect(buildNativeScaffoldMock).not.toHaveBeenCalled();
   });
 
+  it("blocks fidelity exports when design token changes are unsaved", async () => {
+    const user = userEvent.setup();
+    const view = renderMenu("details", { tokenDirty: true });
+
+    expect(view.getByTestId("selected-export-blocked").textContent).toContain("Save or discard design token changes");
+    expect(view.getByTestId("agent-pack-blocked").textContent).toContain("Save or discard design token changes");
+    expect(view.getByTestId("copy-for-agent").getAttribute("aria-disabled")).toBe("true");
+
+    await user.click(view.getByTestId("download-agent-pack"));
+    expect(buildAgentPackZipMock).not.toHaveBeenCalled();
+  });
+
+  it("blocks selected-screen exports when the selected screen is not ready", async () => {
+    const user = userEvent.setup();
+    const blockedScreens = screens.map((screen) => screen.id === "details" ? { ...screen, status: "building" as const } : screen);
+    const view = renderMenu("details", { screens: blockedScreens });
+
+    expect(view.getByTestId("selected-export-blocked").textContent).toContain("This screen is still building");
+    expect(view.getByTestId("copy-for-agent").getAttribute("aria-disabled")).toBe("true");
+
+    await user.click(view.getByTestId("toggle-scaffolds"));
+    expect(view.queryByTestId("scaffold-options")).toBeNull();
+  });
   it("always creates agent handoff and Agent Pack with auto detection", async () => {
     const user = userEvent.setup();
     const view = renderMenu();

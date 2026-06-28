@@ -2340,7 +2340,7 @@ export function ProjectShell({
                   id: "x",
                   label: "Send message on X",
                   icon: MessageCircle,
-                  onClick: () => window.open("https://x.com/OkUseAI", "_blank"),
+                  onClick: () => window.open("https://x.com/9to5_Dad", "_blank"),
                 },
                 {
                   id: "email",
@@ -2384,6 +2384,8 @@ export function ProjectShell({
               designTokens={effectiveDesignTokens}
               tokenCss={exportTokenCss}
               googleFontAssetLinks={exportGoogleFontLinks}
+              tokenDirty={tokenDirty}
+              generationActive={isGenerationActive}
               trigger={
                 <Button
                   size="sm"

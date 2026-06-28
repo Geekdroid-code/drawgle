@@ -6,6 +6,7 @@ import {
   buildAgentHandoffPrompt,
   buildAgentPackFiles,
   buildAgentPackZip,
+  buildCompiledExportSnapshot,
   buildStandaloneHtmlExport,
   sanitizeHtmlForExport,
 } from "@/lib/export-pipeline";
@@ -121,15 +122,32 @@ describe("export pipeline", () => {
     expect(html).not.toContain("secret-home");
   });
 
-  it("builds a target-specific prompt containing only the selected screen HTML", () => {
+  it("builds a target-specific prompt containing the compiled visual source for only the selected screen", () => {
     const prompt = buildAgentHandoffPrompt({ context, screen: screens[0], target: "swiftui" });
 
     expect(prompt).toContain("Implement this screen in SwiftUI");
+    expect(prompt).toContain("## Compiled standalone HTML visual source");
+    expect(prompt).toContain("<!DOCTYPE html>");
     expect(prompt).toContain("Home balance");
     expect(prompt).not.toContain("Private insights marker");
+    expect(prompt).not.toContain("secret-home");
     expect(prompt).toContain("Quiet hierarchy with confident actions.");
   });
 
+  it("builds a reusable compiled snapshot with live token CSS precedence", () => {
+    const snapshot = buildCompiledExportSnapshot({
+      screen: screens[0],
+      navigationCode: projectNavigation.shellCode,
+      activeNavigationItemId: "home",
+      designTokens,
+      tokenCss: ":root { --dg-color-background-primary: #223344; }",
+    });
+
+    expect(snapshot.standaloneHtml).toContain("--background: #223344;");
+    expect(snapshot.cleanScreenHtml).toContain("Home balance");
+    expect(snapshot.cleanScreenHtml).not.toContain("secret-home");
+    expect(snapshot.cleanNavigationHtml).toContain("data-nav-item-id");
+  });
   it("reuses the shared Design.md builder in handoff files", () => {
     const files = buildAgentPackFiles({ context });
     const designMd = buildPublicDesignMdDocument({ project, projectNavigation, tokenDraft: designTokens });
@@ -155,6 +173,7 @@ describe("export pipeline", () => {
     const manifest = JSON.parse(strFromU8(zip[".drawgle/manifest.json"]));
 
     expect(manifest.project.name).toBe("Finance App");
+    expect(strFromU8(zip[".drawgle/screens/home.html"])).toContain("<!DOCTYPE html>");
     expect(strFromU8(zip[".drawgle/screens/home.html"])).toContain("Home balance");
     expect(strFromU8(zip[".drawgle/screens/insights.html"])).toContain("Private insights marker");
   });
