@@ -16,51 +16,51 @@ type Testimonial = {
 const testimonials: Testimonial[] = [
   {
     quote:
-      "I went from a Dribbble screenshot to a working Flutter UI in minutes instead of spending two weeks fighting nested layouts.",
+      "bro i literally just screenshot a design i liked on twitter, uploaded it, and got clean tailwind code in like 40 seconds. usually i spend 3 hours crying over flexbox alignment. this is a cheat code.",
     name: "Sachin Singh",
     role: "Indie hacker, FitTrack",
     avatar: "/content/sachin.webp",
-    signal: "Reference to Flutter",
+    signal: "screenshot to tailwind",
   },
   {
     quote:
-      "The exported SwiftUI code is clean: standard stacks, sensible structure, and design tokens mapped exactly where I expect them.",
+      "so clean. normal ai code generators write absolute spaghetti code that breaks if you touch it. with this i just edited the primary color token and it synced across all pages. actually works.",
     name: "Mariah Edwards",
     role: "Lead iOS engineer",
     avatar: "/content/vishnu.webp",
-    signal: "Tokens preserved",
+    signal: "token syncing",
   },
   {
     quote:
-      "We turn a client mood board into a coherent visual direction and several polished screens before the first review call.",
+      "did a client call yesterday, they wanted to change a button radius and background. usually that's a figma back and forth, but i just clicked the element on the canvas, tweaked the radius visually, and boom. approved.",
     name: "Sumesh",
     role: "Founder, AppCraft Studio",
     avatar: "/content/sumesh.webp",
-    signal: "Faster client reviews",
+    signal: "live canvas editing",
   },
   {
     quote:
-      "I can build the backend, but visual polish slowed me down. Drawgle gives me a considered UI I can still edit and own.",
+      "i write good backend code but my designs always look like garbage from 2005. first time my project actually looks like a premium SaaS and i didn't have to hire a freelancer.",
     name: "Alex Rivera",
     role: "Full-stack bootstrapper",
     avatar: "/content/emma-thopmson.jpg",
-    signal: "Editable output",
+    signal: "designs look premium",
   },
   {
     quote:
-      "Surgical edits changed the workflow. I select the one element that feels off and improve it without losing the screen.",
+      "the fact that i can select a single button, type 'make this stand out more' and it only edits that button instead of regenerating the entire page and ruining my design is just huge.",
     name: "Manoj",
     role: "Indie app builder",
     avatar: "/content/manoj.jpg",
-    signal: "Focused refinement",
+    signal: "point-and-click edits",
   },
   {
     quote:
-      "Our product team keeps the design language consistent while exploring ideas, then exports the direction into native frameworks.",
+      "shipped the nextjs code straight to production today. zero inline styling garbage or weird nested div soup. just plain, simple tailwind classes.",
     name: "Shrey Singh",
     role: "Product lead, EcoStep",
     avatar: "/content/sachin.webp",
-    signal: "One shared system",
+    signal: "clean tailwind export",
   },
 ];
 

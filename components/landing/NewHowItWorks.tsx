@@ -248,7 +248,7 @@ export default function DescribeToDesign() {
   });
 
   return (
-    <section className="relative z-10 w-full overflow-hidden bg-[#080808] px-4 py-16 font-sans text-white md:px-6 md:py-24">
+    <section id="how-it-works" className="relative z-10 w-full overflow-hidden bg-[#080808] px-4 py-16 font-sans text-white md:px-6 md:py-24">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.055),transparent_38%)]" />
       <VerticalRuler side="left" />
       <VerticalRuler side="right" />
@@ -531,12 +531,12 @@ export default function DescribeToDesign() {
                           >
                              {currentStep === 3 && <PrecisionFrame label="selected.component" detail="product grid" />}
                              <div className="bg-[#FAFAFA] border border-gray-100 rounded-2xl p-4 flex flex-col items-center text-center">
-                                <img src="https://static.vecteezy.com/system/resources/previews/016/542/379/non_2x/black-and-red-running-shoe-free-png.png" className="w-[100px] h-[80px] object-contain mb-2" />
+                                <img src="/assets/shoes2.webp" className="w-[100px] h-[80px] object-contain mb-2" />
                                 <div className="text-[14px] font-semibold text-black">Aero Glide</div>
                                 <div className="text-[14px] font-bold text-gray-500 mt-1">$120</div>
                              </div>
                              <div className="bg-[#FAFAFA] border border-gray-100 rounded-2xl p-4 flex flex-col items-center text-center">
-                                <img src="https://static.vecteezy.com/system/resources/previews/010/893/781/non_2x/white-and-red-running-shoe-free-png.png" className="w-[100px] h-[80px] object-contain mb-2" />
+                                <img src="/assets/shoes1.webp" className="w-[100px] h-[80px] object-contain mb-2" />
                                 <div className="text-[14px] font-semibold text-black">Stratus X</div>
                                 <div className="text-[14px] font-bold text-gray-500 mt-1">$145</div>
                              </div>
@@ -554,7 +554,7 @@ export default function DescribeToDesign() {
                                   <span className="bg-black text-white text-[9px] px-2 py-1 rounded-md font-bold">NEW</span>
                                   <Heart size={14} className="text-gray-300" />
                                 </div>
-                                <img src="https://static.vecteezy.com/system/resources/previews/016/542/379/non_2x/black-and-red-running-shoe-free-png.png" className="w-[100px] h-[70px] object-contain mx-auto my-1" />
+                                <img src="/assets/shoes2.webp" className="w-[100px] h-[70px] object-contain mx-auto my-1" />
                                 <div className="text-[14px] font-bold text-black leading-tight mt-1">Aero Glide</div>
                                 <div className="text-[11px] font-medium text-gray-400 mt-0.5">Road Running</div>
                                 <div className="text-[15px] font-black text-black mt-1">$120</div>
@@ -564,7 +564,7 @@ export default function DescribeToDesign() {
                                   <span className="bg-black text-white text-[9px] px-2 py-1 rounded-md font-bold opacity-0">NEW</span>
                                   <Heart size={14} className="text-gray-300" />
                                 </div>
-                                <img src="https://static.vecteezy.com/system/resources/previews/010/893/781/non_2x/white-and-red-running-shoe-free-png.png" className="w-[100px] h-[70px] object-contain mx-auto my-1" />
+                                <img src="/assets/shoes1.webp" className="w-[100px] h-[70px] object-contain mx-auto my-1" />
                                 <div className="text-[14px] font-bold text-black leading-tight mt-1">Stratus X</div>
                                 <div className="text-[11px] font-medium text-gray-400 mt-0.5">Trail Running</div>
                                 <div className="text-[15px] font-black text-black mt-1">$145</div>

@@ -9,7 +9,7 @@ import FAQSection from '@/components/landing/FAQSection'
 import { CTASection } from '@/components/landing/CTASection'
 import  Footer  from '@/components/landing/MainFooter'
 import TestimonialSection from "@/components/landing/Testimonial";
-import PrivacySection from "@/components/landing/PrivacySection";
+import HookSection from "@/components/landing/HookSection";
 
 export default function Home() {
   return (
@@ -17,7 +17,7 @@ export default function Home() {
       <PublicHeader />
       <main>
         <HeroSection />
-        <PrivacySection />
+        <HookSection />
         <AppShowcase />
         <NewHowItWorks />
         <MethodComparison />

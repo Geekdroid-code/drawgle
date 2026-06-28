@@ -2,6 +2,7 @@
 
 import {
   Check,
+  Download,
   ImageIcon,
   LayoutTemplate,
   MessageSquareText,
@@ -62,10 +63,10 @@ const capabilities = [
     icon: Check,
   },
   {
-    title: "Add the next screen when you need it",
+    title: "Export clean, agent-ready code",
     description:
-      "Describe a new screen later and review its plan before building. Drawgle fits it into the app you already made instead of starting another disconnected project.",
-    icon: LayoutTemplate,
+      "Get production-ready Tailwind HTML, CSS variables for design tokens, and implementation context ready to hand off directly to coding agents like Cursor or Copilot.",
+    icon: Download,
   },
 ];
 
@@ -170,7 +171,7 @@ export function FeaturesSection() {
           <div className="hidden h-px flex-1 bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.12)_100%)] md:block" />
           <div className="flex h-8 items-center gap-2 rounded-[9px] border border-white/[0.08] bg-white/[0.025] px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45 shadow-[inset_0_1px_1px_rgba(255,255,255,0.07)]">
             <Sparkles className="h-3.5 w-3.5" />
-            What Drawgle lets you do
+            Core Features
           </div>
           <div className="hidden h-px flex-1 bg-[linear-gradient(90deg,rgba(255,255,255,0.12)_0%,transparent_100%)] md:block" />
           <span className="absolute left-0 top-1/2 hidden h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 bg-[#252525] ring-[5px] ring-[#111111] xl:block" />
@@ -179,12 +180,12 @@ export function FeaturesSection() {
 
         <div className="mx-auto mb-12 max-w-3xl text-left sm:text-center md:mb-20">
           <h2 className="font-pixel-square text-[36px] font-semibold leading-[1.05] tracking-tight text-white sm:text-5xl md:text-6xl">
-            Design the first screen.
-            <span className="block text-[#1b7fcc]">Keep control of everything after.</span>
+            Total control.
+            <span className="block text-[#1b7fcc] mt-2">Every design feature at your fingertips.</span>
           </h2>
           <p className="mx-auto mt-6 max-w-2xl text-sm leading-6 text-white/45 sm:text-base">
-            Drawgle does more than generate a polished first draft. It gives you simple, visual ways
-            to shape the entire app, improve specific details, and keep every screen working together.
+            We built the editor to feel like a real design engineering workspace. Tweak styles, edit
+            code structures, sync tokens, and export templates without the bloat.
           </p>
         </div>
 

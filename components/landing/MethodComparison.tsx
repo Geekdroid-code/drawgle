@@ -19,17 +19,17 @@ const stages = [
 ];
 
 const drawgleJourney = [
-  { title: "Clear direction", detail: "Your intent stays intact", mood: "happy" },
-  { title: "Polished UI", detail: "Refine any selected section", mood: "calm" },
-  { title: "One system", detail: "Tokens keep every screen aligned", mood: "spark" },
-  { title: "Ready to ship", detail: "Clean React, built for production", mood: "done" },
+  { title: "Clean blueprint", detail: "A structured scope checklist before building", mood: "happy" },
+  { title: "Pinpoint edits", detail: "Refining exact elements instead of full regenerations", mood: "calm" },
+  { title: "Global tokens", detail: "Central styling rules that scale dynamically", mood: "spark" },
+  { title: "Production-ready", detail: "Clean, semantic Tailwind HTML you'll actually use", mood: "done" },
 ];
 
 const genericJourney = [
-  { title: "Vague output", detail: "A generic first draft", mood: "blank" },
-  { title: "Design drift", detail: "Every revision changes the style", mood: "sad" },
-  { title: "Manual cleanup", detail: "Patch components and messy CSS", mood: "lost" },
-  { title: "Rewrite again", detail: "Developers rebuild it anyway", mood: "flat" },
+  { title: "Vague guess", detail: "A random layout that doesn't fit your spec", mood: "blank" },
+  { title: "AI design drift", detail: "Revisions rewrite and break existing styling", mood: "sad" },
+  { title: "CSS spaghetti", detail: "Manually patching inline styles and bloated markup", mood: "lost" },
+  { title: "The binary bin", detail: "Throwing it away and rewriting it yourself", mood: "flat" },
 ];
 
 function Face({ mood, active }: { mood: string; active: boolean }) {
@@ -158,14 +158,16 @@ export default function MethodComparison() {
         <div className="mx-auto mb-12 max-w-3xl text-center md:mb-16">
           <div className="mb-5 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#1b7fcc]">
             <Figma className="h-3.5 w-3.5" />
-            The Drawgle difference
+            The Real Workflow
           </div>
           <h2 className="font-pixel-square text-[34px] font-semibold leading-[1.08] tracking-tight text-black sm:text-5xl md:text-6xl">
-            Keep the design momentum
-            <span className="block text-[#1b7fcc]">all the way to production</span>
+            Break the cycle of
+            <span className="block text-[#1b7fcc] mt-2">rebuilding AI code from scratch.</span>
           </h2>
-          <p className="mx-auto mt-6 max-w-2xl text-sm leading-relaxed text-gray-500 sm:text-base md:text-lg">
-            Generic AI gets less useful with every revision. Drawgle turns each refinement into a stronger, more consistent product.
+          <p className="mx-auto mt-6 max-w-3xl text-sm leading-relaxed text-gray-500 sm:text-base md:text-lg">
+            Most AI UI generators are one-off toys. The second you ask for changes, they lose your
+            styles or write messy, unchangeable markup. Drawgle keeps a single source of design
+            truth.
           </p>
         </div>
 

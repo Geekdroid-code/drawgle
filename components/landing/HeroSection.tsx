@@ -4,9 +4,8 @@ import { Button } from "@/components/ui/button"
 import { Play, Sparkles, ImagePlus, Palette, AudioLines } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect } from "react"
-import Image from "next/image"
 import { Caveat } from 'next/font/google';
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 
 // Configure the Caveat font
 const caveat = Caveat({
@@ -56,86 +55,12 @@ export function HeroSection() {
               </div>
             </div>
             
-<h1 className="text-[32px] sm:text-6xl max-w-4xl mx-auto font-semibold leading-none mb-4 font-pixel-square">  <span className="text-white">
-    Ship beautiful App UIs
-  </span><br />
-  
-  {/* The Tearing Text Container */}
-  <span className="relative inline-block mt-2 group">
+<h1 className="text-[32px] sm:text-6xl max-w-4xl mx-auto font-semibold leading-none mb-4 font-pixel-square">
+  <span className="text-white">Ship beautiful App UIs</span>
+  <br />
+  <span className="relative mt-2 inline-block text-[#1b7fcc]">
+    at the speed of thought
     
-    <style jsx>{`
-      /* The High-Speed Projectile */
-      @keyframes sliceShoot {
-        0%, 10% { transform: translate(-100%, -50%); opacity: 0; }
-        11% { opacity: 1; }
-        14% { transform: translate(100%, -50%); opacity: 1; }
-        15%, 100% { transform: translate(100%, -50%); opacity: 0; }
-      }
-
-      /* Top Half lifts up from the left */
-      @keyframes tearTop {
-        0%, 12% { transform: translateY(0) rotate(0); }
-        15% { transform: translateY(-8px) rotate(-2deg); filter: drop-shadow(0 5px 5px rgba(27,127,204,0.4)); }
-        22% { transform: translateY(0) rotate(0); }
-        100% { transform: translateY(0) rotate(0); }
-      }
-
-      /* Bottom Half drops down from the left */
-      @keyframes tearBottom {
-        0%, 12% { transform: translateY(0) rotate(0); }
-        15% { transform: translateY(8px) rotate(2deg); filter: drop-shadow(0 -5px 5px rgba(27,127,204,0.4)); }
-        22% { transform: translateY(0) rotate(0); }
-        100% { transform: translateY(0) rotate(0); }
-      }
-
-      /* The bright plasma glow revealed inside the tear */
-      @keyframes innerTearGlow {
-        0%, 12% { opacity: 0; transform: scaleX(0); }
-        14% { opacity: 1; transform: scaleX(1); }
-        20%, 100% { opacity: 0; transform: scaleX(1); }
-      }
-    `}</style>
-
-    {/* Invisible baseline text (Keeps the layout from collapsing and allows copy/pasting) */}
-    <span className="text-transparent selection:text-white/30">
-      at the speed of thought
-    </span>
-
-    {/* The internal glowing light that leaks out when torn */}
-    <div 
-      className="absolute top-1/2 left-0 right-0 h-[2px] bg-white shadow-[0_0_15px_#fff,0_0_30px_#1b7fcc,0_0_50px_#1b7fcc] -translate-y-1/2 origin-left z-0"
-      style={{ animation: 'innerTearGlow 4s cubic-bezier(0.16, 1, 0.3, 1) infinite' }}
-    />
-
-    {/* TOP HALF OF THE TEXT */}
-    <span 
-      aria-hidden="true"
-      className="absolute top-0 left-0 w-full text-[#1b7fcc] z-10 origin-right"
-      style={{ 
-        clipPath: 'inset(0 0 50% 0)', // Cuts off the bottom half
-        animation: 'tearTop 4s cubic-bezier(0.16, 1, 0.3, 1) infinite' 
-      }}
-    >
-      at the speed of thought
-    </span>
-
-    {/* BOTTOM HALF OF THE TEXT */}
-    <span 
-      aria-hidden="true"
-      className="absolute top-0 left-0 w-full text-[#1b7fcc] z-10 origin-right"
-      style={{ 
-        clipPath: 'inset(50% 0 0 0)', // Cuts off the top half
-        animation: 'tearBottom 4s cubic-bezier(0.16, 1, 0.3, 1) infinite' 
-      }}
-    >
-      at the speed of thought
-    </span>
-
-    {/* The Laser Blade / Projectile */}
-    <div 
-      className="absolute top-1/2 left-0 w-[80%] h-[3px] bg-white rounded-full shadow-[0_0_10px_#fff,0_0_20px_#1b7fcc] z-20 pointer-events-none"
-      style={{ animation: 'sliceShoot 4s ease-in-out infinite' }}
-    />
   </span>
 </h1>
 
@@ -283,6 +208,7 @@ function AnimatedPlaceholderText({
   isVisible: boolean;
 }) {
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
+  const shouldReduceMotion = useReducedMotion();
   const activePlaceholder = phrases[placeholderIndex % phrases.length] || "";
 
   useEffect(() => {
@@ -297,133 +223,16 @@ function AnimatedPlaceholderText({
 
   return (
     <AnimatePresence mode="wait" initial={false}>
-      <WavePlaceholderPhrase key={activePlaceholder} phrase={activePlaceholder} />
+      <motion.span
+        key={activePlaceholder}
+        className="block text-white/90"
+        initial={shouldReduceMotion ? false : { opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
+        transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+      >
+        {activePlaceholder}
+      </motion.span>
     </AnimatePresence>
-  );
-}
-
-function WavePlaceholderPhrase({ phrase }: { phrase: string }) {
-  return (
-    <motion.span
-      className="inline-block whitespace-pre-wrap"
-      initial="hidden"
-      animate="visible"
-      exit="exit"
-      variants={{
-        hidden: {},
-        visible: {
-          transition: {
-            staggerChildren: 0.02,
-          },
-        },
-        exit: {
-          transition: {
-            staggerChildren: 0.016,
-          },
-        },
-      }}
-    >
-      {phrase.split("").map((character, index) => (
-        (() => {
-          const glyph = character === " " ? "\u00A0" : character;
-
-          return (
-        <motion.span
-          key={`${phrase}-${index}-${character}`}
-          className="relative inline-block will-change-transform"
-          style={{ transformOrigin: "50% 100%" }}
-          variants={{
-            hidden: {
-              opacity: 0,
-              y: 18,
-              rotateX: -22,
-              scale: 0.985,
-            },
-            visible: {
-              opacity: 1,
-              y: 0,
-              rotateX: 0,
-              transition: {
-                y: {
-                  type: "spring",
-                  stiffness: 360,
-                  damping: 26,
-                  mass: 0.78,
-                },
-                opacity: {
-                  duration: 0.34,
-                  ease: [0.22, 1, 0.36, 1],
-                },
-                rotateX: {
-                  duration: 0.42,
-                  ease: [0.22, 1, 0.36, 1],
-                },
-                scale: {
-                  duration: 0.42,
-                  ease: [0.22, 1, 0.36, 1],
-                },
-              },
-            },
-            exit: {
-              opacity: 0,
-              y: -14,
-              rotateX: 14,
-              scale: 0.99,
-              transition: {
-                duration: 0.28,
-                ease: [0.4, 0, 1, 1],
-              },
-            },
-          }}
-        >
-          <motion.span
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 text-zinc-300/70 blur-[4px]"
-            variants={{
-              hidden: {
-                opacity: 0,
-                y: 20,
-                scale: 1.05,
-              },
-              visible: {
-                opacity: 0.4,
-                y: 4,
-                scale: 1,
-                transition: {
-                  opacity: {
-                    duration: 0.42,
-                    ease: [0.22, 1, 0.36, 1],
-                  },
-                  y: {
-                    type: "spring",
-                    stiffness: 240,
-                    damping: 28,
-                    mass: 0.9,
-                  },
-                  scale: {
-                    duration: 0.42,
-                    ease: [0.22, 1, 0.36, 1],
-                  },
-                },
-              },
-              exit: {
-                opacity: 0,
-                y: -8,
-                scale: 0.98,
-                transition: {
-                  duration: 0.24,
-                  ease: [0.4, 0, 1, 1],
-                },
-              },
-            }}
-          >
-            {glyph}
-          </motion.span>
-          <span className="relative block">{glyph}</span>
-        </motion.span>
-          );
-        })()
-      ))}
-    </motion.span>
   );
 }

@@ -66,11 +66,11 @@ export default function PricingCards() {
       <div className="w-full max-w-6xl mx-auto">
         <div className="text-center mb-16">
           <h2 className="text-4xl sm:text-6xl max-w-4xl mx-auto font-bold leading-[1.1] mb-4 font-[var(--font-inter-tight)]">
-            Design premium app UIs <br />
-            <span className="text-[#1b7fcccc]">at warp speed.</span>
+            Fair pricing. <br />
+            <span className="text-[#1b7fcccc]">Start designing for less than a lunch.</span>
           </h2>
           <p className="text-lg md:text-xl text-gray-600 max-w-3xl mx-auto leading-tight mb-4">
-            Choose the perfect plan to create high-fidelity mobile screens and hand complete implementation context to your coding agents.
+            Pick a plan that fits your build speed. No hidden fees, cancel anytime. Whether you are validating a weekend project or building app flows for clients, choose the tier that matches your design volume.
           </p>
         </div>
         
@@ -148,7 +148,7 @@ export default function PricingCards() {
                   <img
                     src="/arrow.svg"
                     alt="arrow-right"
-                    className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1 filter invert"
+                    className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1 brightness-0 invert"
                   />
                 </div>
               </Link>
