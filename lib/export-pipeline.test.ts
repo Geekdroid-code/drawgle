@@ -6,6 +6,7 @@ import {
   buildAgentHandoffPrompt,
   buildAgentPackFiles,
   buildAgentPackZip,
+  buildNativeScaffoldZip,
   buildCompiledExportSnapshot,
   buildStandaloneHtmlExport,
   sanitizeHtmlForExport,
@@ -96,7 +97,7 @@ const projectNavigation: ProjectNavigationData = {
       { screenName: "Insights", chrome: "bottom-tabs", navigationItemId: "insights" },
     ],
   },
-  shellCode: '<nav data-drawgle-primary-nav><button data-nav-item-id="home">Home</button></nav>',
+  shellCode: '<nav data-drawgle-primary-nav><button data-nav-item-id="home">Home Tab</button><button data-nav-item-id="insights">Insights Tab</button></nav>',
   status: "ready",
   createdAt: "2026-01-01",
   updatedAt: "2026-01-01",
@@ -118,6 +119,7 @@ describe("export pipeline", () => {
     });
 
     expect(html).toContain("Home balance");
+    expect(html).toContain("Home Tab");
     expect(html).toContain('=== "home"');
     expect(html).not.toContain("secret-home");
   });
@@ -127,6 +129,9 @@ describe("export pipeline", () => {
 
     expect(prompt).toContain("Implement this screen in SwiftUI");
     expect(prompt).toContain("## Compiled standalone HTML visual source");
+    expect(prompt).not.toContain("## Selected screen");
+    expect(prompt).not.toContain("## Universal design tokens");
+    expect(prompt).not.toContain("## Navigation plan");
     expect(prompt).toContain("<!DOCTYPE html>");
     expect(prompt).toContain("Home balance");
     expect(prompt).not.toContain("Private insights marker");
@@ -168,6 +173,57 @@ describe("export pipeline", () => {
     expect(paths.some((path) => /assets|\.swift$|\.kt$|\.tsx$|\.dart$/i.test(path))).toBe(false);
   });
 
+  it("keeps Agent Pack screen HTML free of duplicated shared navigation", () => {
+    const files = buildAgentPackFiles({ context, target: "auto" });
+    const homeHtml = files[".drawgle/screens/home.html"];
+    const navPaths = Object.keys(files).filter((path) => path === ".drawgle/navigation.html");
+
+    expect(navPaths).toHaveLength(1);
+    expect(files[".drawgle/navigation.html"]).toContain("Home Tab");
+    expect(files[".drawgle/navigation.html"]).toContain("Insights Tab");
+    expect(homeHtml).toContain("<!DOCTYPE html>");
+    expect(homeHtml).toContain("Home balance");
+    expect(homeHtml).not.toContain("data-drawgle-primary-nav");
+    expect(homeHtml).not.toContain("data-nav-item-id");
+    expect(homeHtml).not.toContain("Home Tab");
+    expect(homeHtml).not.toContain("Insights Tab");
+  });
+
+  it("creates native scaffold ZIPs with separate React Native screen, nav, shell, and theme files", () => {
+    const result = buildNativeScaffoldZip({
+      screen: screens[0],
+      target: "reactnative",
+      navigationCode: projectNavigation.shellCode,
+      designTokens,
+    });
+
+    expect(result.error).toBeNull();
+    const zip = unzipSync(result.bytes!);
+    expect(zip["src/theme/AppTheme.ts"]).toBeTruthy();
+    expect(zip["src/screens/HomeScreen.tsx"]).toBeTruthy();
+    expect(zip["src/navigation/DrawgleBottomNavigation.tsx"]).toBeTruthy();
+    expect(zip["src/navigation/AppShell.tsx"]).toBeTruthy();
+    expect(strFromU8(zip["src/screens/HomeScreen.tsx"])).not.toContain("DrawgleBottomNavigation");
+    expect(strFromU8(zip["src/navigation/AppShell.tsx"])).toContain("activeTab");
+  });
+
+  it("creates native scaffold ZIPs with separate Flutter screen, nav, shell, and theme files", () => {
+    const result = buildNativeScaffoldZip({
+      screen: screens[0],
+      target: "flutter",
+      navigationCode: projectNavigation.shellCode,
+      designTokens,
+    });
+
+    expect(result.error).toBeNull();
+    const zip = unzipSync(result.bytes!);
+    expect(zip["lib/theme/app_theme.dart"]).toBeTruthy();
+    expect(zip["lib/screens/home_screen.dart"]).toBeTruthy();
+    expect(zip["lib/navigation/drawgle_bottom_navigation.dart"]).toBeTruthy();
+    expect(zip["lib/navigation/app_shell.dart"]).toBeTruthy();
+    expect(strFromU8(zip["lib/screens/home_screen.dart"])).not.toContain("DrawgleBottomNavigation");
+    expect(strFromU8(zip["lib/navigation/app_shell.dart"])).toContain("activeTab");
+  });
   it("creates a readable ZIP matching the project pack", () => {
     const zip = unzipSync(buildAgentPackZip({ context }));
     const manifest = JSON.parse(strFromU8(zip[".drawgle/manifest.json"]));

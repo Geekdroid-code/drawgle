@@ -6,10 +6,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Button } from "@/components/ui/button";
 import type { ProjectData, ScreenData } from "@/lib/types";
 
-const { buildAgentHandoffPromptMock, buildAgentPackZipMock, buildNativeScaffoldMock, buildStandaloneHtmlExportMock } = vi.hoisted(() => ({
+const { buildAgentHandoffPromptMock, buildAgentPackZipMock, buildNativeScaffoldZipMock, buildStandaloneHtmlExportMock } = vi.hoisted(() => ({
   buildAgentHandoffPromptMock: vi.fn(() => "Auto-detect prompt with compiled selected screen HTML"),
   buildAgentPackZipMock: vi.fn(() => new Uint8Array([1, 2, 3])),
-  buildNativeScaffoldMock: vi.fn(() => ({ code: null, error: "Mock scaffold parse failure." })),
+  buildNativeScaffoldZipMock: vi.fn(() => ({ bytes: null, error: "Mock scaffold parse failure." })),
   buildStandaloneHtmlExportMock: vi.fn(() => "compiled standalone html"),
 }));
 
@@ -19,7 +19,7 @@ vi.mock("@/lib/export-pipeline", async (importOriginal) => {
     ...actual,
     buildAgentHandoffPrompt: buildAgentHandoffPromptMock,
     buildAgentPackZip: buildAgentPackZipMock,
-    buildNativeScaffold: buildNativeScaffoldMock,
+    buildNativeScaffoldZip: buildNativeScaffoldZipMock,
     buildStandaloneHtmlExport: buildStandaloneHtmlExportMock,
   };
 });
@@ -82,7 +82,7 @@ describe("ExportMenu", () => {
     cleanup();
     buildAgentHandoffPromptMock.mockClear();
     buildAgentPackZipMock.mockClear();
-    buildNativeScaffoldMock.mockClear();
+    buildNativeScaffoldZipMock.mockClear();
     buildStandaloneHtmlExportMock.mockClear();
   });
 
@@ -99,7 +99,7 @@ describe("ExportMenu", () => {
     expect(buildStandaloneHtmlExportMock).toHaveBeenCalledWith(expect.objectContaining({
       screen: expect.objectContaining({ id: "details" }),
     }));
-    expect(buildNativeScaffoldMock).not.toHaveBeenCalled();
+    expect(buildNativeScaffoldZipMock).not.toHaveBeenCalled();
   });
 
   it("blocks fidelity exports when design token changes are unsaved", async () => {
@@ -157,11 +157,11 @@ describe("ExportMenu", () => {
 
     await user.click(view.getByTestId("toggle-scaffolds"));
     expect(view.getByTestId("scaffold-options")).toBeTruthy();
-    expect(buildNativeScaffoldMock).not.toHaveBeenCalled();
+    expect(buildNativeScaffoldZipMock).not.toHaveBeenCalled();
 
     await user.click(view.getByRole("button", { name: /SwiftUI/ }));
 
-    expect(buildNativeScaffoldMock).toHaveBeenCalledWith(expect.objectContaining({
+    expect(buildNativeScaffoldZipMock).toHaveBeenCalledWith(expect.objectContaining({
       screen: expect.objectContaining({ id: "details" }),
       target: "swiftui",
     }));

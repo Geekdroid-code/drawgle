@@ -22,9 +22,8 @@ import { PremiumDropdown } from "@/components/ui/premium-dropdown";
 import {
   buildAgentHandoffPrompt,
   buildAgentPackZip,
-  buildNativeScaffold,
+  buildNativeScaffoldZip,
   buildStandaloneHtmlExport,
-  cleanExportName,
   resolveScreenNavigationCode,
   slugifyExportName,
   type ExportProjectContext,
@@ -36,12 +35,11 @@ import type { DesignTokens, ProjectData, ProjectNavigationData, ScreenData } fro
 const SCAFFOLD_OPTIONS: Array<{
   id: NativeScaffoldTarget;
   label: string;
-  extension: string;
 }> = [
-  { id: "reactnative", label: "React Native", extension: "tsx" },
-  { id: "swiftui", label: "SwiftUI", extension: "swift" },
-  { id: "compose", label: "Compose", extension: "kt" },
-  { id: "flutter", label: "Flutter", extension: "dart" },
+  { id: "reactnative", label: "React Native" },
+  { id: "swiftui", label: "SwiftUI" },
+  { id: "compose", label: "Compose" },
+  { id: "flutter", label: "Flutter" },
 ];
 
 const HANDOFF_INSTRUCTION = "Read .drawgle/handoff.md and implement the Drawgle screens in this repository.";
@@ -234,21 +232,25 @@ export function ExportMenu({
     setPackDownloaded(true);
   };
 
-  const downloadScaffold = (target: NativeScaffoldTarget, extension: string) => {
+  const downloadScaffold = (target: NativeScaffoldTarget) => {
     if (!activeScreen) return;
-    const result = buildNativeScaffold({
+    const result = buildNativeScaffoldZip({
       screen: activeScreen,
       target,
       navigationCode,
       designTokens,
       tokenCss,
     });
-    if (result.error || !result.code) {
+    if (result.error || !result.bytes) {
       setScaffoldError(result.error || "This Beta Scaffold could not be generated.");
       return;
     }
     setScaffoldError(null);
-    downloadBlob([result.code], "text/plain;charset=utf-8", `${cleanExportName(activeScreen.name)}.${extension}`);
+    downloadBlob(
+      [new Uint8Array(result.bytes)],
+      "application/zip",
+      `drawgle-${target}-${slugifyExportName(activeScreen.name, "screen")}-scaffold.zip`,
+    );
   };
 
   const screenName = activeScreen?.name || "Screen";
@@ -426,7 +428,7 @@ export function ExportMenu({
                   type="button"
                   key={option.id}
                   disabled={selectedActionsDisabled}
-                  onClick={() => downloadScaffold(option.id, option.extension)}
+                  onClick={() => downloadScaffold(option.id)}
                   className="flex h-8 items-center justify-between rounded-lg border border-slate-950/[0.06] bg-slate-50 px-2.5 text-[9px] font-bold text-slate-600 transition hover:border-slate-950/[0.12] hover:bg-white hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/[0.06] dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
                 >
                   {option.label}
