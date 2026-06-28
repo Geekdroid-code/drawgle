@@ -1590,12 +1590,16 @@ ${cleanScreenCode}
               });
             }
 
-            /* Tags that are too granular to be useful edit targets */
-            var LEAF_TAGS = new Set([
-              'SPAN','B','I','EM','STRONG','SMALL','BR','HR','IMG',
+            /* Tags that should bubble to a useful owner instead of becoming edit targets */
+            var NON_CONTENT_LEAF_TAGS = new Set([
+              'BR','HR',
               'SVG','PATH','CIRCLE','RECT','LINE','POLYLINE','POLYGON',
               'ELLIPSE','G','DEFS','CLIPPATH','USE','STOP',
               'LINEARGRADIENT','RADIALGRADIENT','TEXT','TSPAN',
+            ]);
+            var PRECISE_CONTENT_TAGS = new Set([
+              'A','BUTTON','H1','H2','H3','H4','H5','H6','IMG','INPUT',
+              'LABEL','LI','P','SELECT','SPAN','TEXTAREA',
             ]);
 
             function hasDrawgleId(el) {
@@ -1610,17 +1614,34 @@ ${cleanScreenCode}
               return nearest;
             }
 
-            /* Walk up from a clicked leaf to the nearest meaningful container */
+            function hasOwnReadableText(el) {
+              if (!el || !el.childNodes) return false;
+              return Array.from(el.childNodes).some(function(node) {
+                return node.nodeType === Node.TEXT_NODE && (node.textContent || '').replace(/\s+/g, ' ').trim().length > 0;
+              });
+            }
+
+            function isPreciseContentTarget(el) {
+              if (!hasDrawgleId(el) || NON_CONTENT_LEAF_TAGS.has(el.tagName)) return false;
+              if (PRECISE_CONTENT_TAGS.has(el.tagName)) return true;
+              return Boolean(el.children && el.children.length === 0 && hasOwnReadableText(el));
+            }
+
+            /* Walk up from a clicked leaf to the nearest meaningful edit target */
             function resolveTarget(el) {
               var root = document.getElementById('root');
               if (!root || !el) return null;
               var navRoot = el.closest && el.closest('[data-drawgle-primary-nav]');
               
-              var node = el;
+              var node = nearestDrawgleElement(el);
               var maxWalk = 12;
               while (node && node !== root && node !== navRoot && maxWalk-- > 0) {
+                if (isPreciseContentTarget(node)) {
+                  return node;
+                }
+
                 /* Stop bubbling if this element has layout classes or multiple children */
-                if (!LEAF_TAGS.has(node.tagName)) {
+                if (!NON_CONTENT_LEAF_TAGS.has(node.tagName)) {
                   var childElements = node.querySelectorAll(':scope > *');
                   if (childElements.length >= 2 || (node.innerHTML && node.innerHTML.length > 80)) {
                     return hasDrawgleId(node) ? node : nearestDrawgleElement(el);
