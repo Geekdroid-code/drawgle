@@ -170,9 +170,10 @@ describe("HTML production compiler", () => {
   it("builds the tailwind configuration script containing font family and functional tints", () => {
     const configScript = buildTailwindConfigScript();
     expect(configScript).toContain("fontFamily:");
-    expect(configScript).toContain('sans: ["var(--font-body)"');
+    expect(configScript).toContain('sans: ["var(--font-body, var(--dg-typography-font-family))"');
     expect(configScript).toContain("tint:");
-    expect(configScript).toContain('blue: "var(--tint-blue)"');
-    expect(configScript).toContain('gray: "var(--surface-muted)"');
+    expect(configScript).toContain('blue: "var(--tint-blue, var(--dg-color-functional-tints-blue-base))"');
+    expect(configScript).toContain('gray: "var(--surface-muted, #F5F5F5)"');
+    expect(configScript).toContain('"screen-title": ["var(--screen-title-size, var(--dg-type-screen-title-size))"');
   });
 });

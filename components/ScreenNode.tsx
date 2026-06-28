@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { PremiumDropdown } from "@/components/ui/premium-dropdown";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { buildStandaloneHtmlExport, resolveScreenNavigationCode } from "@/lib/export-pipeline";
+import { buildDrawgleTailwindConfigScript } from "@/lib/drawgle-html-runtime";
 import { createClient } from "@/lib/supabase/client";
 import { ensureDrawgleIds, stripDrawgleIds, type DrawgleBoundingRect, type DrawgleEditableMetadata } from "@/lib/drawgle-dom";
 import { DRAWGLE_STYLE_PROPERTY_CONFIGS, type DrawgleStyleValueMap } from "@/lib/element-style-inspection";
@@ -413,7 +414,7 @@ const CodeViewerDialog = memo(function CodeViewerDialog({
       <DialogContent className="sm:max-w-4xl max-h-[85vh] flex flex-col p-0 overflow-hidden bg-[var(--dg-surface,#18181b)] border border-[var(--dg-border,rgba(255,255,255,0.08))] text-slate-100 ring-1 ring-white/10 shadow-2xl">
         <DialogHeader className="flex flex-row items-center justify-between px-6 py-4 border-b border-[var(--dg-border,rgba(255,255,255,0.08))] bg-[var(--dg-surface-muted,#202024)] gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <DialogTitle className="text-[15px] font-bold text-slate-100 truncate leading-none">
+            <DialogTitle className="text-[15px] font-bold text-primary truncate leading-none">
               {screenName}
             </DialogTitle>
             <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-[10px] font-extrabold tracking-wider text-slate-400 select-none">
@@ -633,38 +634,14 @@ export function ScreenNode({
       return;
     }
 
-    const exportCode = `<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script src="https://cdn.tailwindcss.com"><\/script>
-    <script src="https://unpkg.com/lucide@latest"><\/script>
-    ${googleFontAssetLinks}
-    <style>
-${tokenCss}
-      html, body { margin: 0; min-height: 100%; }
-      body { font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif); background: var(--dg-color-background-primary, #ffffff); }
-      #drawgle-export-root { position: relative; min-height: 100vh; overflow-x: hidden; }
-      #drawgle-export-navigation { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; pointer-events: none; }
-      #drawgle-export-navigation [data-drawgle-primary-nav] { pointer-events: auto; }
-    </style>
-  </head>
-  <body>
-    <div id="drawgle-export-root">
-${cleanScreenCode}
-      ${cleanNavigationCode ? `<div id="drawgle-export-navigation">${cleanNavigationCode}</div>` : ""}
-    </div>
-    <script>
-      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
-      document.querySelectorAll('[data-nav-item-id]').forEach(function(item) {
-        var active = item.getAttribute('data-nav-item-id') === ${serializeForInlineScript(activeNavigationItemId)};
-        item.setAttribute('data-active', active ? 'true' : 'false');
-        item.setAttribute('aria-current', active ? 'page' : 'false');
-      });
-    <\/script>
-  </body>
-</html>`;
+    const exportCode = buildStandaloneHtmlExport({
+      screen: { ...screen, code: cleanScreenCode },
+      navigationCode: cleanNavigationCode,
+      activeNavigationItemId,
+      designTokens,
+      tokenCss,
+      googleFontAssetLinks,
+    });
     const blob = new Blob([exportCode], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -674,7 +651,7 @@ ${cleanScreenCode}
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
-  }, [activeNavigationItemId, displayCode, googleFontAssetLinks, navigationShellCode, screen.name, sharedNavigationActive, tokenCss, onExportCode]);
+  }, [activeNavigationItemId, designTokens, displayCode, googleFontAssetLinks, navigationShellCode, screen, sharedNavigationActive, tokenCss, onExportCode]);
 
   const [isCodeOpen, setIsCodeOpen] = useState(false);
 
@@ -957,6 +934,7 @@ ${cleanScreenCode}
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        ${buildDrawgleTailwindConfigScript()}
         <script id="drawgle-tailwind-cdn" src="https://cdn.tailwindcss.com" onerror="window.__drawgleTailwindLoadFailed = true"><\/script>
         <script src="https://unpkg.com/lucide@latest"><\/script>
         ${initialGoogleFontAssetLinks}

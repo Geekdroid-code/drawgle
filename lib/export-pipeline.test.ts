@@ -128,7 +128,7 @@ describe("export pipeline", () => {
     const prompt = buildAgentHandoffPrompt({ context, screen: screens[0], target: "swiftui" });
 
     expect(prompt).toContain("Implement this screen in SwiftUI");
-    expect(prompt).toContain("## Compiled standalone HTML visual source");
+    expect(prompt).toContain("## Standalone HTML visual source");
     expect(prompt).not.toContain("## Selected screen");
     expect(prompt).not.toContain("## Universal design tokens");
     expect(prompt).not.toContain("## Navigation plan");
@@ -148,10 +148,31 @@ describe("export pipeline", () => {
       tokenCss: ":root { --dg-color-background-primary: #223344; }",
     });
 
-    expect(snapshot.standaloneHtml).toContain("--background: #223344;");
+    expect(snapshot.standaloneHtml).toContain("--dg-color-background-primary: #223344;");
+    expect(snapshot.standaloneHtml).toContain("background: var(--dg-color-background-primary, #ffffff);");
     expect(snapshot.cleanScreenHtml).toContain("Home balance");
     expect(snapshot.cleanScreenHtml).not.toContain("secret-home");
     expect(snapshot.cleanNavigationHtml).toContain("data-nav-item-id");
+  });
+
+  it("preserves canvas-authored classes and uses the shared runtime before Tailwind", () => {
+    const html = buildStandaloneHtmlExport({
+      screen: {
+        ...screens[0],
+        code: `<main data-drawgle-id="wrap"><section data-drawgle-id="driver" class="dg-surface-card bg-[var(--dg-color-background-secondary)] rounded-[var(--dg-radii-app)] text-screen-title">Fare Split</section></main>`,
+      },
+      designTokens,
+    });
+
+    expect(html.indexOf("tailwind.config")).toBeGreaterThan(-1);
+    expect(html.indexOf("https://cdn.tailwindcss.com")).toBeGreaterThan(-1);
+    expect(html.indexOf("tailwind.config")).toBeLessThan(html.indexOf("https://cdn.tailwindcss.com"));
+    expect(html).toContain("dg-surface-card bg-[var(--dg-color-background-secondary)] rounded-[var(--dg-radii-app)] text-screen-title");
+    expect(html).toContain("--dg-color-surface-card: #202020;");
+    expect(html).toContain("--surface-muted: var(--dg-color-background-secondary, #F5F5F5);");
+    expect(html).toContain('background: "var(--background, var(--dg-color-background-primary))"');
+    expect(html).not.toContain("data-drawgle-id");
+    expect(html).not.toContain(".bg-tint-gray { background-color");
   });
   it("reuses the shared Design.md builder in handoff files", () => {
     const files = buildAgentPackFiles({ context });

@@ -225,6 +225,49 @@ const typographyClass = (name: string, tokenKey: string) => `
   line-height: var(--dg-type-${tokenKey}-line-height);
 }`;
 
+const buildCompatibilityAliasVariables = () => `
+  --background: var(--dg-color-background-primary, #ffffff);
+  --muted: var(--dg-color-background-secondary, #f5f5f5);
+  --card: var(--dg-color-surface-card, #ffffff);
+  --popover: var(--dg-color-surface-modal, #ffffff);
+  --foreground: var(--dg-color-text-high-emphasis, #111827);
+  --muted-foreground: var(--dg-color-text-medium-emphasis, #6b7280);
+  --low-foreground: var(--dg-color-text-low-emphasis, #9ca3af);
+  --primary: var(--dg-color-action-primary, #2563eb);
+  --primary-foreground: var(--dg-color-action-on-primary-text, #ffffff);
+  --secondary: var(--dg-color-action-secondary, #e5e7eb);
+  --border: var(--dg-color-border-divider, #e5e7eb);
+  --ring: var(--dg-color-border-focused, #2563eb);
+  --action-disabled: var(--dg-color-action-disabled, #d1d5db);
+  --tint-blue: var(--dg-color-functional-tints-blue-base, #F0F7FF);
+  --tint-orange: var(--dg-color-functional-tints-orange-base, #FFF7F0);
+  --tint-cyan: var(--dg-color-functional-tints-cyan-base, #F0FBFF);
+  --tint-purple: var(--dg-color-functional-tints-purple-base, #F9F5FF);
+  --surface-muted: var(--dg-color-background-secondary, #F5F5F5);
+  --radius: var(--dg-radii-app, 16px);
+  --radius-pill: var(--dg-radii-pill, 9999px);
+  --screen-margin: var(--dg-mobile-layout-screen-margin, 20px);
+  --section-gap: var(--dg-mobile-layout-section-gap, 24px);
+  --element-gap: var(--dg-mobile-layout-element-gap, 12px);
+  --safe-area-top: var(--dg-mobile-layout-safe-area-top, 0px);
+  --safe-area-bottom: var(--dg-mobile-layout-safe-area-bottom, 0px);
+  --icon-small: var(--dg-sizing-icon-small, 20px);
+  --icon-standard: var(--dg-sizing-icon-standard, 24px);
+  --bottom-nav-height: var(--dg-sizing-bottom-nav-height, 80px);
+  --standard-input-height: var(--dg-sizing-standard-input-height, 52px);
+  --standard-button-height: var(--dg-sizing-standard-button-height, 56px);
+  --min-touch-target: var(--dg-sizing-min-touch-target, 44px);
+  --shadow-surface: var(--dg-shadows-surface, none);
+  --shadow-overlay: var(--dg-shadows-overlay, none);
+  --shadow-none: var(--dg-shadows-none, none);
+  --font-body: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+${TYPOGRAPHY_TOKEN_KEYS.map((key) => {
+  const name = key.replace(/_/g, "-");
+  return `  --${name}-size: var(--dg-type-${name}-size);
+  --${name}-weight: var(--dg-type-${name}-weight);
+  --${name}-line-height: var(--dg-type-${name}-line-height);`;
+}).join("\n")}
+`.trimEnd();
 export function buildDrawgleTokenCss(designTokens?: DesignTokens | null) {
   const variables = flattenDesignTokensToCssVariables(designTokens);
   const variableCss = variables
@@ -234,6 +277,7 @@ export function buildDrawgleTokenCss(designTokens?: DesignTokens | null) {
   return `
 :root {
 ${variableCss}
+${buildCompatibilityAliasVariables()}
 }
 
 #root {

@@ -1659,7 +1659,7 @@ export function ChatPanel({
                                     : "Rendering mobile UI on canvas"
                                   }...`
                                   : isQueueing
-                                    ? "Queueing generation job to Trigger.dev..."
+                                    ? "Queueing generation job..."
                                     : "Polishing style rules and visual details..."
                           }
                           className="text-slate-600 font-semibold"

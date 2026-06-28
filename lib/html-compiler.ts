@@ -1,4 +1,5 @@
 import { normalizeDesignTokens } from "@/lib/design-tokens";
+import { buildDrawgleTailwindConfigScript } from "@/lib/drawgle-html-runtime";
 import { flattenDesignTokensToCssVariables } from "@/lib/token-runtime";
 import type { DesignTokens } from "@/lib/types";
 
@@ -944,83 +945,5 @@ body {
 }
 
 export function buildTailwindConfigScript(): string {
-  return `
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ["var(--font-body)", "-apple-system", "BlinkMacSystemFont", "sans-serif"]
-            },
-            colors: {
-              background: "var(--background)",
-              muted: {
-                DEFAULT: "var(--muted)",
-                foreground: "var(--muted-foreground)"
-              },
-              card: {
-                DEFAULT: "var(--card)",
-                foreground: "var(--foreground)"
-              },
-              popover: {
-                DEFAULT: "var(--popover)",
-                foreground: "var(--foreground)"
-              },
-              foreground: "var(--foreground)",
-              primary: {
-                DEFAULT: "var(--primary)",
-                foreground: "var(--primary-foreground)"
-              },
-              secondary: "var(--secondary)",
-              border: "var(--border)",
-              "low-foreground": "var(--low-foreground)",
-              tint: {
-                blue: "var(--tint-blue)",
-                orange: "var(--tint-orange)",
-                cyan: "var(--tint-cyan)",
-                purple: "var(--tint-purple)",
-                gray: "var(--surface-muted)"
-              }
-            },
-            borderRadius: {
-              lg: "var(--radius)",
-              md: "calc(var(--radius) - 2px)",
-              sm: "calc(var(--radius) - 4px)"
-            },
-            spacing: {
-              "screen-margin": "var(--screen-margin)",
-              "section-gap": "var(--section-gap)",
-              "element-gap": "var(--element-gap)"
-            },
-            boxShadow: {
-              surface: "var(--shadow-surface)",
-              overlay: "var(--shadow-overlay)"
-            },
-            fontSize: {
-              "nav-title": ["var(--nav-title-size)", { lineHeight: "var(--nav-title-line-height)" }],
-              "screen-title": ["var(--screen-title-size)", { lineHeight: "var(--screen-title-line-height)" }],
-              "hero-title": ["var(--hero-title-size)", { lineHeight: "var(--hero-title-line-height)" }],
-              "section-title": ["var(--section-title-size)", { lineHeight: "var(--section-title-line-height)" }],
-              "metric-value": ["var(--metric-value-size)", { lineHeight: "var(--metric-value-line-height)" }],
-              body: ["var(--body-size)", { lineHeight: "var(--body-line-height)" }],
-              supporting: ["var(--supporting-size)", { lineHeight: "var(--supporting-line-height)" }],
-              caption: ["var(--caption-size)", { lineHeight: "var(--caption-line-height)" }],
-              "button-label": ["var(--button-label-size)", { lineHeight: "var(--button-label-line-height)" }]
-            },
-            fontWeight: {
-              "nav-title": "var(--nav-title-weight)",
-              "screen-title": "var(--screen-title-weight)",
-              "hero-title": "var(--hero-title-weight)",
-              "section-title": "var(--section-title-weight)",
-              "metric-value": "var(--metric-value-weight)",
-              body: "var(--body-weight)",
-              supporting: "var(--supporting-weight)",
-              caption: "var(--caption-weight)",
-              "button-label": "var(--button-label-weight)"
-            }
-          }
-        }
-      };
-    </script>
-  `.trim();
+  return buildDrawgleTailwindConfigScript();
 }

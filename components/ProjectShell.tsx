@@ -599,10 +599,6 @@ function SelectedElementInspectorSidebar({
   const [resetClassUtilities, setResetClassUtilities] = useState<Partial<Record<DrawgleStyleProperty, boolean>>>({});
   const [advancedDetailsOpen, setAdvancedDetailsOpen] = useState(false);
 
-  useEffect(() => {
-    setAdvancedDetailsOpen(false);
-  }, [selectedElementInfo?.drawgleId]);
-
   const normalizeClassNames = useCallback((className: string) => className.trim().replace(/\s+/g, " "), []);
 
   const removeUtilityFamilyFromClassName = useCallback((className: string, family: DrawgleClassUtilityFamily) =>

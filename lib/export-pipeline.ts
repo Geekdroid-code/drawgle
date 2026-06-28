@@ -1,6 +1,7 @@
 import { strToU8, zipSync } from "fflate";
 
 import { buildPublicDesignMdDocument } from "@/lib/design-md";
+import { buildDrawgleExportRuntimeCss, buildDrawgleTailwindConfigScript } from "@/lib/drawgle-html-runtime";
 import {
   extractFixedBottomNodes,
   generateTokenHeaderComment,
@@ -12,12 +13,6 @@ import {
 } from "@/lib/mobile-transpiler";
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { buildDrawgleTokenCss, buildGoogleFontAssetLinks } from "@/lib/token-runtime";
-import {
-  buildProductionVariableMap,
-  buildTailwindConfigScript,
-  compileHtmlForProduction,
-  compileStylesheetForProduction,
-} from "@/lib/html-compiler";
 import type {
   DesignTokens,
   ProjectData,
@@ -184,21 +179,15 @@ export function buildCompiledExportSnapshot({
   tokenCss?: string;
   googleFontAssetLinks?: string;
 }): CompiledExportSnapshot {
-  // 1. Compile the HTML codes to resolve design tokens and clean up classes/styles.
+  // Standalone visual exports must preserve the same authored HTML/CSS contract
+  // used by the canvas. Do not rewrite classes here; class compilation is lossy
+  // for arbitrary Tailwind utilities and can drift from the preview.
   const isNavActive = !!navigationCode;
   const screenCode = isNavActive ? stripSharedNavigationMarkup(screen.code) : screen.code;
 
-  const compiledScreen = compileHtmlForProduction(screenCode, designTokens, tokenCss);
-  const compiledNavigation = compileHtmlForProduction(navigationCode, designTokens, tokenCss);
-
-  // 2. Sanitize and remove editor-specific attributes.
-  const cleanScreen = sanitizeHtmlForExport(compiledScreen);
-  const cleanNavigation = sanitizeHtmlForExport(compiledNavigation);
-
-  // 3. Resolve CSS variables for default styles from the same live token CSS
-  // used by the canvas preview. Design tokens remain the fallback source.
-  const varMap = buildProductionVariableMap(designTokens, tokenCss);
-  const exportTokenCss = compileStylesheetForProduction(varMap);
+  const cleanScreen = sanitizeHtmlForExport(screenCode);
+  const cleanNavigation = sanitizeHtmlForExport(navigationCode);
+  const exportTokenCss = tokenCss?.trim() || buildDrawgleTokenCss(designTokens);
   const cleanActiveNavigationItemId = activeNavigationItemId || "";
 
   const cleanGoogleFont = (googleFontAssetLinks || buildGoogleFontAssetLinks(designTokens))
@@ -209,12 +198,12 @@ export function buildCompiledExportSnapshot({
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    ${buildDrawgleTailwindConfigScript()}
     <script src="https://cdn.tailwindcss.com"><\/script>
-    ${buildTailwindConfigScript()}
     <script src="https://unpkg.com/lucide@latest"><\/script>
     ${cleanGoogleFont}
     <style>
-${exportTokenCss}
+${buildDrawgleExportRuntimeCss(exportTokenCss)}
     </style>
   </head>
   <body>
@@ -250,22 +239,18 @@ export function buildStandaloneHtmlExport(input: Parameters<typeof buildCompiled
 
 export function buildScreenOnlyHtmlExport(input: Parameters<typeof buildCompiledExportSnapshot>[0]) {
   const snapshot = buildCompiledExportSnapshot(input);
-  const screenOnlyTokenCss = snapshot.tokenCss
-    .split("\n")
-    .filter((line) => !line.includes("#drawgle-export-navigation"))
-    .join("\n");
 
   return `<!DOCTYPE html>
 <html>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    ${buildDrawgleTailwindConfigScript()}
     <script src="https://cdn.tailwindcss.com"><\/script>
-    ${buildTailwindConfigScript()}
     <script src="https://unpkg.com/lucide@latest"><\/script>
     ${snapshot.googleFontAssetLinks}
     <style>
-${screenOnlyTokenCss}
+${buildDrawgleExportRuntimeCss(snapshot.tokenCss, { includeNavigation: false })}
     </style>
   </head>
   <body>
@@ -323,7 +308,7 @@ export function buildAgentHandoffPrompt({
 
   return `# Drawgle UI implementation handoff
 
-Implement the selected Drawgle screen in this repository. The compiled standalone HTML below is the visual source of truth; adapt it to the repository instead of treating it as production application code.
+Implement the selected Drawgle screen in this repository. The standalone HTML below is the visual source of truth; adapt it to the repository instead of treating it as production application code.
 
 ## Target
 
@@ -344,13 +329,13 @@ ${TARGET_INSTRUCTIONS[target]}
 
 ${designMd}
 
-## Compiled standalone HTML visual source
+## Standalone HTML visual source
 
 \`\`\`html
 ${compiledSnapshot.standaloneHtml}
 \`\`\`
 
-## Compiled shared navigation HTML
+## Shared navigation HTML
 
 ${compiledSnapshot.cleanNavigationHtml ? `\`\`\`html\n${compiledSnapshot.cleanNavigationHtml}\n\`\`\`` : "This screen does not use the shared Drawgle navigation shell."}
 
