@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { DrawgleLogo } from "@/components/DrawgleLogo";
 
 type AgentBallProps = {
   className?: string;
@@ -55,18 +56,7 @@ const ballCircles = [
 ];
 
 export function AgentBall({ className = "h-4 w-4", active = false }: AgentBallProps) {
-  return (
-    <svg
-      className={`${className} pointer-events-none flex-shrink-0 ${active ? "dg-agent-ball-active" : ""}`}
-      viewBox="0 0 22 22"
-      aria-label="Agent Ball"
-      role="img"
-    >
-      {ballCircles.map((circle, index) => (
-        <circle key={`${circle.cx}-${circle.cy}-${index}`} {...circle} />
-      ))}
-    </svg>
-  );
+  return <DrawgleLogo className={className} animated={active} />;
 }
 
 export function AgentThinkingIndicator({ label = "Dreaming...", className = "", hideBall = false }: AgentThinkingIndicatorProps) {

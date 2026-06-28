@@ -7,6 +7,7 @@ import type React from "react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { AgentBall } from "@/components/AgentBall"
+import { DrawgleLogo } from "@/components/DrawgleLogo"
 
 interface NavbarProps {
   children: React.ReactNode
@@ -197,7 +198,7 @@ const BrandLogo = ({ compact = false }: { compact?: boolean }) => (
       "flex items-center justify-center rounded-md ",
       compact ? "size-8 [&_svg]:!size-5" : "size-9 [&_svg]:!size-6",
     )}>
-      <AgentBall className={compact ? "h-5 w-5" : "h-6 w-6"} />
+      <DrawgleLogo className={cn("text-[#1b7fcc] fill-current", compact ? "h-5 w-5" : "h-6 w-6")} />
     </span>
     <span className="text-base font-semibold tracking-tight text-white">
       Drawgle
@@ -211,7 +212,7 @@ function Header() {
   const navItems = [
     { name: "Features", link: "/#features" },
     { name: "How it works", link: "/#how-it-works" },
-    { name: "Blog", link: "/blog" },
+    { name: "Showcase", link: "/showcase" },
   ]
 
   return (

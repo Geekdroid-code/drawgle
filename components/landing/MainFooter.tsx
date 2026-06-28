@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { AgentBall } from "@/components/AgentBall"
+import { DrawgleLogo } from "@/components/DrawgleLogo"
 import { cn } from "@/lib/utils"
 
 function BrandLogo({ compact = false }: { compact?: boolean }) {
@@ -11,7 +12,7 @@ function BrandLogo({ compact = false }: { compact?: boolean }) {
           compact ? "size-8 [&_svg]:!size-5" : "size-9 [&_svg]:!size-6",
         )}
       >
-        <AgentBall className={compact ? "h-5 w-5" : "h-6 w-6"} />
+        <DrawgleLogo className={cn("text-[#1B7FCC] fill-current", compact ? "h-5 w-5" : "h-6 w-6")} />
       </span>
     </span>
   );
@@ -22,15 +23,10 @@ export default function Footer() {
     Community: [
       { href: '/pricing', label: 'Pricing' },
       { href: '/showcase', label: 'Showcase' },
-      { href: '/affiliates', label: 'Affiliates' },
     ],
     Resources: [
-      { href: '/blog', label: 'Blog' },
-      { href: '/vs/google-stitch', label: 'vs Google Stitch' },
-      { href: '/vs/Sleek', label: 'vs Sleek.design' },
-      { href: '/vs/app-alchemy', label: 'vs App Alchemy' },
-      { href: '/vs/screensdesign', label: 'vs ScreensDesign' },
-      { href: '/vs/floow', label: 'vs Floow.design' },
+      { href: '/vs', label: 'Comparisons' },
+      { href: '/vs/sleek-design', label: 'Drawgle vs Sleek.design' },
     ],
 
     Legal: [

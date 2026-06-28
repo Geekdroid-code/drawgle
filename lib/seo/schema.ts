@@ -18,6 +18,20 @@ type WebPageInput = {
   description: string;
 };
 
+type ArticleInput = {
+  path: string;
+  headline: string;
+  description: string;
+  publishedDate: string;
+  modifiedDate: string;
+};
+
+type ItemListInput = {
+  name: string;
+  path: string;
+  items: readonly string[];
+};
+
 export function organizationSchema(): JsonLd {
   return {
     "@context": "https://schema.org",
@@ -130,6 +144,47 @@ export function offerCatalogSchema(): JsonLd {
         "@type": "Service",
         name: `${siteConfig.name} ${plan.name}`,
       },
+    })),
+  };
+}
+
+export function articleSchema({
+  path,
+  headline,
+  description,
+  publishedDate,
+  modifiedDate,
+}: ArticleInput): JsonLd {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "@id": `${absoluteUrl(path)}#article`,
+    headline,
+    description,
+    datePublished: publishedDate,
+    dateModified: modifiedDate,
+    mainEntityOfPage: {
+      "@id": `${absoluteUrl(path)}#webpage`,
+    },
+    author: {
+      "@id": `${siteConfig.baseUrl}/#organization`,
+    },
+    publisher: {
+      "@id": `${siteConfig.baseUrl}/#organization`,
+    },
+  };
+}
+
+export function itemListSchema({ name, path, items }: ItemListInput): JsonLd {
+  return {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    "@id": `${absoluteUrl(path)}#comparison-criteria`,
+    name,
+    itemListElement: items.map((item, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: item,
     })),
   };
 }

@@ -44,15 +44,13 @@ export function HeroSection() {
       <div className="px-4 pt-[150px] max-w-6xl mx-auto text-center flex flex-col justify-center">
         <div className="relative z-10 space-y-6">
           <div className="space-y-6">
-            <div className="inline-flex rounded-lg border border-white/15 bg-[#080808] p-[2px] shadow-[inset_0_1px_2px_rgba(0,0,0,0.9),inset_0_-1px_0_rgba(255,255,255,0.05)]">
-              <div className="flex items-center gap-1.5 rounded-md border border-[#1b7fcc]/20 bg-[#1b7fcc]/10 px-2.5 py-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.07),inset_0_-1px_1px_rgba(0,0,0,0.45)]">
+            <div className="inline-flex rounded-lg border border-white/15 bg-[#080808] py-1 px-2 shadow-[inset_0_1px_2px_rgba(0,0,0,0.9),inset_0_-1px_0_rgba(255,255,255,0.05)]">
                 <span className="flex h-3.5 w-3.5 items-center justify-center rounded-md bg-[#1b7fcc]/15">
                   <Sparkles size={8} className="text-[#75b9ed]" />
                 </span>
                 <span className="text-[10px] font-semibold tracking-[0.04em] text-gray-200">
                   Native mobile UI, ready to ship
                 </span>
-              </div>
             </div>
             
 <h1 className="text-[32px] sm:text-6xl max-w-4xl mx-auto font-semibold leading-none mb-4 font-pixel-square">
@@ -181,7 +179,7 @@ Drawgle turns prompts into premium mobile UI, then hands agent-ready HTML, desig
                   className="w-8 h-8 rounded-full border-2 border-white object-cover"
                 />
                 <div className="w-8 h-8 rounded-full bg-gray-900 border-2 border-white flex items-center justify-center">
-                  <span className="text-white text-xs font-bold">1.2k</span>
+                  <span className="text-white text-xs font-bold">15+</span>
                 </div>
               </div>
               <div className="flex text-yellow-400">
@@ -192,7 +190,7 @@ Drawgle turns prompts into premium mobile UI, then hands agent-ready HTML, desig
                 ))}
               </div>
             </div>
-            <p className="text-gray-400 text-md">Starting at $9.99 ONLY</p>
+            <p className="text-gray-400 text-md">Starting at $9 ONLY</p>
           </div>
         </div>
       </div>

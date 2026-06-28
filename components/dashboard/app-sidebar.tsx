@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 
 import { AgentBall } from "@/components/AgentBall";
+import { DrawgleLogo } from "@/components/DrawgleLogo";
 import { NavSecondary } from "@/components/dashboard/nav-secondary";
 import { NavUser } from "@/components/dashboard/nav-user";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
@@ -460,7 +461,7 @@ export function AppSidebar({
               tooltip="Drawgle"
             >
               <span className="flex aspect-square size-9 items-center justify-center rounded-md bg-[var(--dg-surface-muted)] ring-1 ring-[var(--dg-border)] group-data-[collapsible=icon]:size-8 [&_svg]:!size-6 group-data-[collapsible=icon]:[&_svg]:!size-5">
-                <AgentBall className="h-6 w-6" />
+                <DrawgleLogo className="h-6 w-6 text-[#1B7FCC] fill-current" />
               </span>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">Drawgle</span>

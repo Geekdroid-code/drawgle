@@ -7,6 +7,8 @@ Drawgle is an AI mobile UI design tool for creating premium, editable app interf
 - Home: https://drawgle.com/
 - Pricing: https://drawgle.com/pricing
 - Showcase: https://drawgle.com/showcase
+- Comparisons: https://drawgle.com/vs
+- Drawgle vs Sleek.design: https://drawgle.com/vs/sleek-design
 - Terms: https://drawgle.com/terms
 - Privacy Policy: https://drawgle.com/privacy-policy
 - Refund Policy: https://drawgle.com/refunds-policy
@@ -19,14 +21,17 @@ Drawgle is an AI mobile UI design tool for creating premium, editable app interf
 - Maintains shared navigation, project context, design tokens, and visual consistency across screens.
 - Supports targeted visual edits to selected cards, buttons, sections, images, and navigation elements.
 - Exports agent-ready HTML, Tailwind-oriented structure, design tokens, and implementation context.
+- Publishes source-backed comparison pages for competing AI mobile UI design tools.
 
 ## Intended Audience
 
 Drawgle is built for founders, product builders, designers, developers, and teams that want to move from an app idea or reference image to a polished mobile UI and implementation handoff quickly.
 
-## Pricing And Support
+## Pricing, Comparisons, And Support
 
 Pricing information is available at https://drawgle.com/pricing.
+
+Comparison guidance is available at https://drawgle.com/vs.
 
 Support requests can be sent to support@drawgle.com.
 

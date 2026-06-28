@@ -8,7 +8,7 @@ export const siteConfig = {
   creatorHandle: "@9to5_Dad",
   sameAs: ["https://x.com/9to5_Dad"],
   defaultOgImage: {
-    path: "/bg-image.webp",
+    path: "og-image.webp",
     width: 1200,
     height: 630,
     alt: "Drawgle - AI Mobile UI Design Tool",

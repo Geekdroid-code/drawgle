@@ -25,7 +25,7 @@ const testimonials: Testimonial[] = [
   {
     quote:
       "so clean. normal ai code generators write absolute spaghetti code that breaks if you touch it. with this i just edited the primary color token and it synced across all pages. actually works.",
-    name: "Mariah Edwards",
+    name: "Vishnu das",
     role: "Lead iOS engineer",
     avatar: "/content/vishnu.webp",
     signal: "token syncing",
@@ -34,14 +34,14 @@ const testimonials: Testimonial[] = [
     quote:
       "did a client call yesterday, they wanted to change a button radius and background. usually that's a figma back and forth, but i just clicked the element on the canvas, tweaked the radius visually, and boom. approved.",
     name: "Sumesh",
-    role: "Founder, AppCraft Studio",
+    role: "Freelance product designer",
     avatar: "/content/sumesh.webp",
     signal: "live canvas editing",
   },
   {
     quote:
       "i write good backend code but my designs always look like garbage from 2005. first time my project actually looks like a premium SaaS and i didn't have to hire a freelancer.",
-    name: "Alex Rivera",
+    name: "Amela Rivera",
     role: "Full-stack bootstrapper",
     avatar: "/content/emma-thopmson.jpg",
     signal: "designs look premium",
@@ -56,11 +56,11 @@ const testimonials: Testimonial[] = [
   },
   {
     quote:
-      "shipped the nextjs code straight to production today. zero inline styling garbage or weird nested div soup. just plain, simple tailwind classes.",
-    name: "Shrey Singh",
-    role: "Product lead, EcoStep",
-    avatar: "/content/sachin.webp",
-    signal: "clean tailwind export",
+      "honestly didn't expect much but i pasted a screenshot of an app ui i liked and it spit out production-ready code. saved me like 3 days of pixel pushing. absolute game changer.",
+    name: "MAtilda Rumera",
+    role: "Indie App Developer",
+    avatar: "/content/rumera.jpg",
+    signal: "insane time saver",
   },
 ];
 
