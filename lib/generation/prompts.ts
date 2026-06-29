@@ -236,6 +236,7 @@ Return strictly valid JSON in this format after inspecting the image with a expe
       "layoutSummary": "Background-to-foreground structural walk: layer order, parent-child containment, grid/flex-like arrangement, spacing, anchors, overlap, inset, and clipping",
       "visualHierarchy": "Actual visible priority and reading path: what dominates first, second, third, and why by scale, contrast, depth, placement, or motion cue",
       "components": ["Concrete constructed unit with wrapper, children, alignment, icon/text relationship, and state", "Another concrete constructed unit"],
+      "premiumMaterialCraft": ["Describe specific high-end rendering detected: e.g., 1px semi-transparent inner borders (catch-lights), frosted glass (backdrop-blur), tinted outer glows instead of black drop shadows, or ambient radial background glows", "Craft detail 2"],
       "stylingCues": ["Surface material, color, radius, edge treatment, border/inner-border, shadow direction/spread/blur, bevel/highlight/glass cue", "Cue 2"],
       "interactionCues": ["Interaction affordance or state 1"],
       "copyPatterns": ["Important text treatments or literal anchors"],
@@ -257,6 +258,7 @@ Rules:
 - screenCountEstimate counts only visible phone screens/panels in the uploaded image. Bottom navigation tabs, side tabs, segmented controls, carousel dots, menu items, or labels inside one visible screen are not additional screens.
 - Focus on actual composition, not product strategy.
 - VISUAL FORENSICS PASS: Before summarizing, inspect the UI from the absolute screen background forward through every visible layer. For each meaningful layer, name what it is, where it sits, what contains it, what it contains, and how it is separated from the layer behind it.
+- MATERIAL & LIGHTING FORENSICS PASS: You MUST actively hunt for 2026 premium rendering techniques. Do not just see "a dark box". Look closely for: 1) Frosted glass (backdrop blurs) on floating elements, 2) 1px semi-transparent inner borders used as edge catch-lights on dark surfaces, 3) Colored/tinted outer glows rather than generic black drop shadows, 4) Ambient background glows illuminating the space behind focal cards, and 5) High-contrast typography with custom weights and tight tracking. 
 - Use broad structural language, not one layout pattern: surface, layer, container, group, control, content cluster, media plane, navigation surface, overlay, text group, icon well, chart plane, map plane, and floating affordance.
 - Do not collapse nested or grouped UI into generic nouns like "card", "header", "list", "section", "panel", or "button". When a visible object has a wrapper and children, describe the wrapper and the children separately.
 - Explain how inner elements are arranged: row, column, grid, stack, absolute/floating placement, alignment, gap, padding, inset, overlap, clipping, and anchor positions. Use approximate px-like terms when helpful, such as "about 2-3px highlight edge" or "about 12-16px internal padding"; do not invent false precision.
