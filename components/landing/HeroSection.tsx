@@ -20,8 +20,11 @@ const placeholderPhrases = [
   "Generate a clean e-commerce product page...",
 ];
 
+const initialDemoNote = "Watch it live before you give your money to us";
+const demoNotReadyNote = "Demo is still trapped in my 9-to-5. Recording it tonight after office hours.";
+
 export function HeroSection() {
-  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const [demoNote, setDemoNote] = useState(initialDemoNote);
   return (
     <section className="relative mx-auto pb-12 overflow-hidden min-h-screen bg-black">
       {/* Paper Texture */}
@@ -96,7 +99,7 @@ Drawgle turns prompts into premium mobile UI, then hands agent-ready HTML, desig
             </div>
           </div>
 
-          <div className="flex  sm:flex-row gap-2 justify-center items-center w-full relative">
+          <div className="flex flex-wrap sm:flex-row gap-2 justify-center items-center w-full relative">
 
             <div className="relative">
             <Link href="/project/new">
@@ -121,7 +124,7 @@ Drawgle turns prompts into premium mobile UI, then hands agent-ready HTML, desig
                 className="text-sm sm:text-md py-5 sm:py-6 group relative bg-[#F5F5F5] hover:bg-white text-black rounded-md overflow-hidden cursor-pointer pr-12 border border-white/50 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),inset_0_-2px_3px_rgba(0,0,0,0.16)]"
                 onClick={(e) => {
                   e.preventDefault();
-                  setIsVideoModalOpen(true);
+                  setDemoNote(demoNotReadyNote);
                 }}
               >
                 <span className="sm:px-2">Watch Demo</span>
@@ -151,8 +154,19 @@ Drawgle turns prompts into premium mobile UI, then hands agent-ready HTML, desig
             </div>
 
             {/* Floating text */}
-            <p className={`hidden md:block text-gray-300 text-lg font-semibold leading-none md:absolute md:transform md:rotate-6 md:right-40 md:top-full md:mt-8 md:w-48 sm:static sm:mt-2 sm:transform-none sm:rotate-0 sm:text-center sm:w-auto pointer-events-none ${caveat.className}`}>
-              Watch it Live before you give your money to us
+            <p aria-live="polite" className={`basis-full pt-2 text-center text-base font-semibold leading-tight text-gray-300 pointer-events-none md:absolute md:right-40 md:top-full md:mt-8 md:w-48 md:basis-auto md:rotate-6 md:pt-0 md:text-left md:text-lg ${caveat.className}`}>
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.span
+                  key={demoNote}
+                  className="block"
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.18 }}
+                >
+                  {demoNote}
+                </motion.span>
+              </AnimatePresence>
             </p>
           </div>
           <div className="flex flex-col items-center space-y-2 pt-2">

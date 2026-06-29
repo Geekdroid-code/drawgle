@@ -6,6 +6,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
+import PublicHeader from "@/components/landing/Header";
+import Footer from "@/components/landing/MainFooter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getSafeAuthRedirect } from "@/lib/auth-redirect";
@@ -33,9 +35,13 @@ const noticeMessages: Record<string, string> = {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<LoginPageFallback />}>
-      <LoginPageContent />
-    </Suspense>
+    <div className="min-h-screen bg-white">
+      <PublicHeader />
+      <Suspense fallback={<LoginPageFallback />}>
+        <LoginPageContent />
+      </Suspense>
+      <Footer />
+    </div>
   );
 }
 
@@ -205,22 +211,10 @@ function LoginPageContent() {
   };
 
   return (
-    <main className="min-h-dvh bg-white text-black lg:h-dvh lg:overflow-hidden">
-      <div className="grid min-h-dvh w-full lg:h-dvh lg:grid-cols-2">
-        <section className="flex min-h-dvh flex-col border-black/[0.09] px-5 py-5 sm:px-10 lg:h-dvh lg:min-h-0 lg:border-r lg:px-14">
-          <div className="flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-2.5" aria-label="Drawgle home">
-              <span className="flex h-7 w-7 items-center justify-center border border-[#1b7fcc]/25 bg-[#1b7fcc]/[0.07]">
-                <span className="h-2 w-2 bg-[#1b7fcc]" />
-              </span>
-              <span className="text-sm font-semibold tracking-tight">Drawgle</span>
-            </Link>
-            <Link href="/" className="text-xs font-medium text-black/40 transition-colors hover:text-black">
-              Back home
-            </Link>
-          </div>
-
-          <div className="mx-auto flex w-full max-w-[410px] flex-1 flex-col justify-center py-5 sm:py-7 lg:min-h-0">
+    <main className="bg-white pt-24 text-black sm:pt-28">
+      <div className="grid min-h-[calc(100dvh-7rem)] w-full lg:grid-cols-2">
+        <section className="flex min-h-[calc(100dvh-7rem)] flex-col justify-center border-black/[0.09] px-5 py-12 sm:px-10 lg:border-r lg:px-14">
+          <div className="mx-auto flex w-full max-w-[410px] flex-col justify-center">
             <div className="mb-5">
               <div className="mb-2.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-[#1b7fcc]">
                 Your design workspace
@@ -393,11 +387,6 @@ function LoginPageContent() {
               .
             </p>
           </div>
-
-          <div className="flex items-center justify-between border-t border-black/[0.08] pt-4 text-[9px] text-black/30">
-            <span>AI mobile UI design workspace</span>
-            <span className="font-mono uppercase tracking-[0.12em]">Secure sign in</span>
-          </div>
         </section>
 
         <ShowcasePanel />
@@ -408,8 +397,8 @@ function LoginPageContent() {
 
 function LoginPageFallback() {
   return (
-    <main className="min-h-dvh bg-white lg:h-dvh lg:overflow-hidden">
-      <div className="grid min-h-dvh w-full lg:h-dvh lg:grid-cols-2">
+    <main className="bg-white pt-24 sm:pt-28">
+      <div className="grid min-h-[calc(100dvh-7rem)] w-full lg:grid-cols-2">
         <div className="flex items-center justify-center border-r border-black/[0.09] p-8">
           <div className="w-full max-w-[430px] space-y-4">
             <div className="h-10 w-56 bg-black/[0.05]" />
@@ -516,7 +505,7 @@ function ShowcasePanel() {
   ];
 
   return (
-    <aside className="relative hidden min-h-screen overflow-hidden border-l border-black/[0.09] bg-[#f3f3ef] lg:flex lg:flex-col">
+    <aside className="relative hidden min-h-[calc(100dvh-7rem)] overflow-hidden border-l border-black/[0.09] bg-[#f3f3ef] lg:flex lg:flex-col">
       <div className="relative z-10 px-10 pb-5 pt-10 xl:px-14 xl:pt-12">
         <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#1b7fcc]">
           Designed with Drawgle
