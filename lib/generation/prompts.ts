@@ -22,7 +22,7 @@ Non-negotiable output discipline:
 - Do not make each screen feel like a different app. Distinct compositions are allowed; inconsistent padding, line-height, card radii, and nav rhythm are not.
 - Every screen brief must include these labels inside description: Reference DNA, Visual Goal, Layout Anatomy, Key Components, Visual Styling, Interaction Notes, Must Preserve.
 - Each screen brief must be builder-ready, not a product summary. Describe background layer, content rail, parent-child containment, spacing, edge treatment, type roles, nav clearance, and overflow/wrapping policy.
-- COMPOSITIONAL DIRECTION (2026 DESIGN MINDSET): When planning screens, push past generic "linear list layouts". Plan layouts using spatial orchestration: define distinct z-axis depth (e.g., floating overlays, elevated controls, background planes), intentional asymmetry matching content importance, and dynamic visual rhythms (horizontal rails, nested modules, card clusters). For recreate mode, prioritize replicating the exact composition of the source image over adding new style moves.
+- COMPOSITIONAL DIRECTION: Push past generic list layouts. Define the specific spatial orchestration required by the product or reference: note intentional depth, structural asymmetry, and varying visual density. If Recreate Mode, strictly preserve the exact composition and material choices of the source image.
 - Creative direction is the product-wide art-direction thesis. Do not water it down into generic product language.
 - Current project context is continuity evidence. Preserve existing product architecture, approved navigation architecture, approved navigation plan, naming, and design language unless the user explicitly asks to redesign them.
 - If reference analysis is present, use it to increase specificity and preserve the strongest useful cues instead of rewriting them as generic app language.`;
@@ -236,8 +236,7 @@ Return strictly valid JSON in this format after inspecting the image with a expe
       "layoutSummary": "Background-to-foreground structural walk: layer order, parent-child containment, grid/flex-like arrangement, spacing, anchors, overlap, inset, and clipping",
       "visualHierarchy": "Actual visible priority and reading path: what dominates first, second, third, and why by scale, contrast, depth, placement, or motion cue",
       "components": ["Concrete constructed unit with wrapper, children, alignment, icon/text relationship, and state", "Another concrete constructed unit"],
-      "premiumMaterialCraft": ["Describe specific high-end rendering detected: e.g., 1px semi-transparent inner borders (catch-lights), frosted glass (backdrop-blur), tinted outer glows instead of black drop shadows, or ambient radial background glows", "Craft detail 2"],
-      "stylingCues": ["Surface material, color, radius, edge treatment, border/inner-border, shadow direction/spread/blur, bevel/highlight/glass cue", "Cue 2"],
+      "stylingCues": ["Extract precise surface materials, exact shadow qualities (color/blur/offset), exact edge treatments, and background lighting interactions", "Cue 2"],
       "interactionCues": ["Interaction affordance or state 1"],
       "copyPatterns": ["Important text treatments or literal anchors"],
       "implementationNotes": ["Must-preserve structural fact the builder must not flatten or merge"]
@@ -258,11 +257,10 @@ Rules:
 - screenCountEstimate counts only visible phone screens/panels in the uploaded image. Bottom navigation tabs, side tabs, segmented controls, carousel dots, menu items, or labels inside one visible screen are not additional screens.
 - Focus on actual composition, not product strategy.
 - VISUAL FORENSICS PASS: Before summarizing, inspect the UI from the absolute screen background forward through every visible layer. For each meaningful layer, name what it is, where it sits, what contains it, what it contains, and how it is separated from the layer behind it.
-- MATERIAL & LIGHTING FORENSICS PASS: You MUST actively hunt for 2026 premium rendering techniques. Do not just see "a dark box". Look closely for: 1) Frosted glass (backdrop blurs) on floating elements, 2) 1px semi-transparent inner borders used as edge catch-lights on dark surfaces, 3) Colored/tinted outer glows rather than generic black drop shadows, 4) Ambient background glows illuminating the space behind focal cards, and 5) High-contrast typography with custom weights and tight tracking. 
 - Use broad structural language, not one layout pattern: surface, layer, container, group, control, content cluster, media plane, navigation surface, overlay, text group, icon well, chart plane, map plane, and floating affordance.
 - Do not collapse nested or grouped UI into generic nouns like "card", "header", "list", "section", "panel", or "button". When a visible object has a wrapper and children, describe the wrapper and the children separately.
 - Explain how inner elements are arranged: row, column, grid, stack, absolute/floating placement, alignment, gap, padding, inset, overlap, clipping, and anchor positions. Use approximate px-like terms when helpful, such as "about 2-3px highlight edge" or "about 12-16px internal padding"; do not invent false precision.
-- Describe depth physically. Do not write only "soft shadow" or "elevated". Name shadow direction, offset, spread, blur, opacity impression, structural purpose, border/inner-border, highlight edge, bevel width, frosted/glass edge, pressed state, raised state, or machined edge when visible.
+- Describe depth and material physically with extreme precision. Do not write generic terms like "soft shadow" or "modern glass". Describe the exact shadow color, blur spread, border visibility, surface finish (frosted/matte/glossy), and how layers interact with light.
 - Be specific about overlap, layering, floating surfaces, bottom sheets, tabs, charts, gauges, avatar stacks, map regions, large typography, image cutouts, control bars, and CTA construction when visible.
 - Describe each visible screen as if the next designer ai model will not see the image. Include exact top/middle/bottom regions, approximate proportions, anchored/floating surfaces, active states, icon/label treatment, repeated visual motifs, and the parent-child structure needed to rebuild it.
 - For navigation, capture the real anatomy: full-width rail, floating dock, glass pill, attached card, center action, icon-only row, label rhythm, active-state shape, radius, shadow, and bottom safe-area relationship.
@@ -758,19 +756,13 @@ Do NOT flatten a highly specific composition into a generic dashboard, generic c
 CRITICAL INSTRUCTION 0.25: STRUCTURAL DEPTH FROM REFERENCE
 When the screen spec includes reference-derived layer, surface, container, group, control, content cluster, media plane, or navigation surface details, build those as actual nested HTML structure. Preserve parent-child containment, row/column/grid alignment, gaps, padding, insets, clipping, overlaps, radii, borders, shadows, highlight edges, bevels, and glass/raised/pressed depth cues. Do not merge multiple visible layers into one wrapper just because they share a region.
 
-CRITICAL INSTRUCTION 0.5: PREMIUM DIFFERENTIATION (2026 DESIGN MINDSET)
-Avoid interchangeable AI-app defaults like stacking identical blocks down the screen. Shift your thinking to modern spatial orchestration:
-1. SPATIAL ORCHESTRATION & DEPTH: Treat the screen as a multi-layered canvas. Create vertical depth using background planes, elevated modules, subtle backdrop blurs, and overlapping controls.
-2. DYNAMIC COMPOSITIONAL RHYTHM: Match the structural arrangement to the content's nature. Rather than repeating identical container templates, vary visual density. Cluster minor details tightly with micro-whitespace, and use generous macro-whitespace to separate major functional modules.
-3. CONTEXTUAL LAYOUTS: Break layout monotony intentionally when it improves usability. Consider horizontal overflow rails for collections of secondary chips/actions, offset elements, or grid groupings when a standard vertical list feels dry.
-4. FOCAL HIERARCHY: Anchor every screen around a single clear hero area (e.g., an oversized metric, a prominent graphical display, a high-contrast card). Let surrounding elements act as clean, subordinate supporting layers.
-*If rebuilding a screenshot (Recreate Mode), prioritize matching the original structure exactly; do not override the source UI layout with these patterns unless the original is vague or incomplete.*
+CRITICAL INSTRUCTION 0.5: STRUCTURAL AND MATERIAL FIDELITY
+Avoid generic AI-app defaults like stacking identical blocks down the screen. Carefully reproduce the specific spatial depth, material choices, and layout rhythm requested in the screen spec. If the spec demands high-contrast typography, tight data clustering, or specific lighting/shadow interactions, build them precisely.
+*If rebuilding a screenshot, prioritize its exact original structure and material choices above all else.*
 
 CRITICAL INSTRUCTION 0.75: HUMAN LAYOUT PREFLIGHT
-Before writing HTML, mentally analyze the screen's spatial orchestration. Do not output a reasoning block, but use this checklist:
-- Establish the Viewport Budget: Plan the header, focal center, content rails, bottom navigation clearance, and safe margins to prevent clipping or layout collisions.
-- Structure for Real Content: Design card heights, text wraps, and flexing containers to gracefully adapt to real data without breaking containment.
-- Balance Density and Rhythm: Use your spacing tokens intentionally. Cluster tight groupings with minimal gaps, and define distinct sections with section-gap tokens to let the layout breathe.
+Mentally plan spatial orchestration before writing HTML (do not output reasoning).
+Preflight checklist: establish viewport budget (header, focal center, nav clearance), build flexible containers for real text wraps, and strictly contrast micro-groupings (tight gaps) with macro-sections (section-gap tokens).
 Use one horizontal rail across the app, normally px-[var(--dg-mobile-layout-screen-margin)] unless the brief explicitly calls for full-bleed media.
 Use one vertical rhythm from the tokens: major sections use gap-[var(--dg-mobile-layout-section-gap)], card internals use p-[var(--dg-spacing-md)] or a clearly tighter token, and small icon/label groups use gap-[var(--dg-spacing-xs)].
 If shared bottom navigation is injected, reserve at least 96px plus the bottom safe area at the bottom of the screen content. Put this clearance on the scroll/main content container, not by drawing a fake nav.
