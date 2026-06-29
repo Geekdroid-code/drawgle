@@ -73,7 +73,7 @@ export const DESIGN_STYLE_PACKS: DesignStylePack[] = [
     layoutGrammar: [
       "Use one centered content rail with generous screen margins and visible breathing room.",
       "Lead with a compact header plus one strong hero module, then group secondary content into 1-2 clear sections.",
-      "Prefer asymmetry through scale and spacing: use 2-column bento grids (one wide summary, one compact stat) or horizontal scroll strips for secondary content. Do not use random decorative shapes.",
+      "Prefer asymmetry through scale and spacing: utilize layered modules (e.g., side-by-side varying stats or horizontal scroll rails) to organize secondary information dynamically.",
     ],
     componentRecipes: [
       "Hero metric cards with oversized number, concise context, and one action cluster.",
@@ -148,7 +148,7 @@ export const DESIGN_STYLE_PACKS: DesignStylePack[] = [
     layoutGrammar: [
       "Use dark layered surfaces with clear z-axis depth: frosted background, elevated floating modules, active controls overlapping cards.",
       "Give the main command or metric a strong top-third focal zone.",
-      "Use compact 2-column bento grids for metric clusters, horizontal scroll rails for secondary series, and protect text from collisions with min widths.",
+      "Use compact grids and rows with varied dimensions to cluster metrics, utilizing horizontal data rails or nested groups to keep interfaces clean and protected from collisions.",
     ],
     componentRecipes: [
       "Command cards use hairline borders, top-left labels, right-side status chips, and luminous values.",
