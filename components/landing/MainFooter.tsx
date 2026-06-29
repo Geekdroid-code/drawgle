@@ -52,8 +52,6 @@ export default function Footer() {
             <p className="text-gray-600 text-sm mt-2 max-w-[200px] mx-auto md:mx-0">
               Ship beautiful UIs at the speed of thought.
             </p>
-            
-          
           </div>
 
           {/* Link groups */}
