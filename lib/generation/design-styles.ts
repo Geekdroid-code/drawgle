@@ -73,7 +73,7 @@ export const DESIGN_STYLE_PACKS: DesignStylePack[] = [
     layoutGrammar: [
       "Use one centered content rail with generous screen margins and visible breathing room.",
       "Lead with a compact header plus one strong hero module, then group secondary content into 1-2 clear sections.",
-      "Prefer asymmetry through scale and spacing, not random decorative shapes.",
+      "Prefer asymmetry through scale and spacing: use 2-column bento grids (one wide summary, one compact stat) or horizontal scroll strips for secondary content. Do not use random decorative shapes.",
     ],
     componentRecipes: [
       "Hero metric cards with oversized number, concise context, and one action cluster.",
@@ -81,8 +81,8 @@ export const DESIGN_STYLE_PACKS: DesignStylePack[] = [
       "Forms use quiet filled fields and a single dominant full-width CTA near the next natural action.",
     ],
     navigationRecipes: [
-      "Floating white dock or compact tab surface with blue active pill and soft shadow.",
-      "Top bars should feel native: short title, icon buttons, and no heavy divider unless content scrolls.",
+      "Floating translucent dock (backdrop-blur) or compact floating tab pill, elevated with soft shadows, separated from the screen edge.",
+      "Top bars should feel native: short title, floating icon buttons, and no heavy divider unless content scrolls under it.",
     ],
     assetAndImageryRules: [
       "Use imagery only when product-specific; otherwise express polish through typography, charts, icons, and surfaces.",
@@ -146,9 +146,9 @@ export const DESIGN_STYLE_PACKS: DesignStylePack[] = [
       motionTone: "Precise, fast, and deliberate.",
     },
     layoutGrammar: [
-      "Use dark layered surfaces with clear z-depth: background, elevated modules, active controls.",
+      "Use dark layered surfaces with clear z-axis depth: frosted background, elevated floating modules, active controls overlapping cards.",
       "Give the main command or metric a strong top-third focal zone.",
-      "Use compact grids and rows, but protect text from collisions with min widths and truncation.",
+      "Use compact 2-column bento grids for metric clusters, horizontal scroll rails for secondary series, and protect text from collisions with min widths.",
     ],
     componentRecipes: [
       "Command cards use hairline borders, top-left labels, right-side status chips, and luminous values.",
@@ -156,8 +156,8 @@ export const DESIGN_STYLE_PACKS: DesignStylePack[] = [
       "Primary CTAs are bright filled pills against dark surfaces, never low-contrast gray.",
     ],
     navigationRecipes: [
-      "Floating graphite dock with active icon glow or filled capsule.",
-      "Top action buttons use bordered dark wells with slight inner highlight.",
+      "Floating graphite dock pill or island, separated from the screen bottom edge, with active icon glow or filled capsule.",
+      "Top action buttons use floating bordered dark wells with slight inner highlight.",
     ],
     assetAndImageryRules: [
       "Prefer constructed charts, maps, code/data surfaces, and icon systems over decorative photos.",

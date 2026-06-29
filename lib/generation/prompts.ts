@@ -22,6 +22,7 @@ Non-negotiable output discipline:
 - Do not make each screen feel like a different app. Distinct compositions are allowed; inconsistent padding, line-height, card radii, and nav rhythm are not.
 - Every screen brief must include these labels inside description: Reference DNA, Visual Goal, Layout Anatomy, Key Components, Visual Styling, Interaction Notes, Must Preserve.
 - Each screen brief must be builder-ready, not a product summary. Describe background layer, content rail, parent-child containment, spacing, edge treatment, type roles, nav clearance, and overflow/wrapping policy.
+- COMPOSITIONAL DIRECTION (2026 PRO AESTHETIC): When architecting Layout Anatomy in screen briefs, prescribe modern, dynamic mobile compositions. For dashboards/overview screens, specify asymmetric Bento grid arrangements (e.g., 2-column grids with varying row spans). Specify Z-axis layering (floating action pills, overlapping cards, frosted glass sheets). For secondary content collections, specify horizontal scroll rails that bleed off the edge. Do NOT write linear top-to-bottom stacks of identically-weighted full-width cards unless the screen is a pure settings list.
 - Creative direction is the product-wide art-direction thesis. Do not water it down into generic product language.
 - Current project context is continuity evidence. Preserve existing product architecture, approved navigation architecture, approved navigation plan, naming, and design language unless the user explicitly asks to redesign them.
 - If reference analysis is present, use it to increase specificity and preserve the strongest useful cues instead of rewriting them as generic app language.`;
@@ -755,13 +756,20 @@ Do NOT flatten a highly specific composition into a generic dashboard, generic c
 CRITICAL INSTRUCTION 0.25: STRUCTURAL DEPTH FROM REFERENCE
 When the screen spec includes reference-derived layer, surface, container, group, control, content cluster, media plane, or navigation surface details, build those as actual nested HTML structure. Preserve parent-child containment, row/column/grid alignment, gaps, padding, insets, clipping, overlaps, radii, borders, shadows, highlight edges, bevels, and glass/raised/pressed depth cues. Do not merge multiple visible layers into one wrapper just because they share a region.
 
-CRITICAL INSTRUCTION 0.5: PREMIUM DIFFERENTIATION
-Avoid interchangeable AI-app defaults such as evenly stacked white cards, generic hero plus stat blocks, or filler dashboards unless the spec explicitly requires them.
+CRITICAL INSTRUCTION 0.5: PREMIUM DIFFERENTIATION (2026 PRO DESIGNER MINDSET)
+Avoid interchangeable AI-app defaults such as evenly stacked full-width white cards, generic hero plus stat blocks, or filler dashboards unless the spec explicitly requires them.
+You MUST utilize modern, premium compositional techniques (unless building a pure list):
+1. ASYMMETRIC BENTO GRIDS: Do not stack more than 3 identical full-width cards vertically. Use CSS Grid (grid-cols-2, col-span-2, row-span-2) to create bento box layouts where items have varying visual weights and dimensions.
+2. Z-AXIS LAYERING & TRANSLUCENCY: Utilize absolute positioning for floating elements (e.g., a floating glassmorphism action pill, overlapping avatar stacks, or cards breaking out of their containers). Use backdrop-blur for floating surfaces.
+3. HORIZONTAL SCROLL RAILS: Break up vertical scrolling by injecting horizontal scrollable rails (flex flex-nowrap overflow-x-auto snap-x gap-[var(--dg-spacing-sm)]) for secondary elements (chips, categories, compact cards). Let items bleed off the screen edge using negative margins if necessary.
+4. MICRO VS MACRO WHITESPACE: Group related data points extremely close together (gap-1 or gap-2) inside cards. Separate distinct bento blocks or sections with macro-whitespace (gap-[var(--dg-mobile-layout-section-gap)]).
 When the screen description or project memory suggests a strong visual concept, express it with clear focal hierarchy, material contrast, and at least one memorable composition move.
 
 CRITICAL INSTRUCTION 0.75: HUMAN LAYOUT PREFLIGHT
-Before writing HTML, mentally simulate this screen inside a narrow mobile viewport around 390px wide and 844px tall. Do not output your reasoning, but use it to prevent bad UI.
-You must decide a layout budget first: top safe area/header height, primary content height, section gaps, card padding, text line counts, and bottom clearance.
+Before writing HTML, mentally plan the spatial orchestration for a 390px × 844px mobile viewport. Do not output a reasoning block, but use this checklist to prevent bad UI:
+- Decide the viewport budget: header zone (~60-80px), hero/focal zone (top 30-40% of visible area), content zone, bottom clearance.
+- Choose the dominant composition: single-column content rail, asymmetric 2-column grid, hero-plus-supporting-grid, or full-bleed media with overlaid controls.
+- Identify one memorable composition move for this screen: a Bento module cluster, a horizontal scroll rail, a floating pill or badge, a large typographic hero, or an asymmetric card pair.
 Use one horizontal rail across the app, normally px-[var(--dg-mobile-layout-screen-margin)] unless the brief explicitly calls for full-bleed media.
 Use one vertical rhythm from the tokens: major sections use gap-[var(--dg-mobile-layout-section-gap)], card internals use p-[var(--dg-spacing-md)] or a clearly tighter token, and small icon/label groups use gap-[var(--dg-spacing-xs)].
 If shared bottom navigation is injected, reserve at least 96px plus the bottom safe area at the bottom of the screen content. Put this clearance on the scroll/main content container, not by drawing a fake nav.
