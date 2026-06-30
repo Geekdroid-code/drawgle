@@ -761,7 +761,7 @@ Avoid generic AI-app defaults like stacking identical blocks down the screen. Ca
 *If rebuilding a screenshot, prioritize its exact original structure and material choices above all else.*
 
 CRITICAL INSTRUCTION 0.75: HUMAN LAYOUT PREFLIGHT
-Mentally plan spatial orchestration before writing HTML (do not output reasoning).
+Mentally plan spatial orchestration before writing HTML.
 Preflight checklist: establish viewport budget (header, focal center, nav clearance), build flexible containers for real text wraps, and strictly contrast micro-groupings (tight gaps) with macro-sections (section-gap tokens).
 Use one horizontal rail across the app, normally px-[var(--dg-mobile-layout-screen-margin)] unless the brief explicitly calls for full-bleed media.
 Use one vertical rhythm from the tokens: major sections use gap-[var(--dg-mobile-layout-section-gap)], card internals use p-[var(--dg-spacing-md)] or a clearly tighter token, and small icon/label groups use gap-[var(--dg-spacing-xs)].

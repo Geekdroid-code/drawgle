@@ -536,6 +536,13 @@ const serializeStyle = (style: Map<string, string>) =>
     .map(([property, value]) => `${property}: ${value}`)
     .join("; ");
 
+const setOpeningTagStyle = (openingTag: string, style: Map<string, string>) => {
+  const serialized = serializeStyle(style);
+  return serialized
+    ? setOpeningTagAttribute(openingTag, "style", serialized)
+    : removeOpeningTagAttribute(openingTag, "style");
+};
+
 const normalizeStyleValue = (value: string) => value.trim().replace(/[<>]/g, "");
 
 const normalizeImageUrl = (value: string) => {
@@ -590,7 +597,7 @@ function applySetStyle(code: string, drawgleId: string, property: DrawgleStylePr
     style.delete(property);
   }
 
-  const nextOpeningTag = setOpeningTagAttribute(openingTag, "style", serializeStyle(style));
+  const nextOpeningTag = setOpeningTagStyle(openingTag, style);
   return replaceOpeningTagInCode(code, element, nextOpeningTag);
 }
 
@@ -604,7 +611,7 @@ function applyClearStyle(code: string, drawgleId: string, property: DrawgleStyle
   const style = parseStyle(getAttributeValue(openingTag, "style"));
   style.delete(property);
 
-  const nextOpeningTag = setOpeningTagAttribute(openingTag, "style", serializeStyle(style));
+  const nextOpeningTag = setOpeningTagStyle(openingTag, style);
   return replaceOpeningTagInCode(code, element, nextOpeningTag);
 }
 
@@ -660,7 +667,7 @@ function applyReplaceImage(
 
   const style = parseStyle(getAttributeValue(openingTag, "style"));
   style.set("background-image", `url('${nextSrc.replaceAll("'", "%27")}')`);
-  const nextOpeningTag = setOpeningTagAttribute(openingTag, "style", serializeStyle(style));
+  const nextOpeningTag = setOpeningTagStyle(openingTag, style);
   return replaceOpeningTagInCode(code, element, nextOpeningTag);
 }
 

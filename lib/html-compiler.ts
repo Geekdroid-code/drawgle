@@ -602,8 +602,38 @@ function isRoundedClass(cls: string): boolean {
   return /^rounded(?:-[trbl]{1,2})?(?:-[a-z0-9/]+|\-\[[^\]]+\])?$/i.test(cls);
 }
 
+function isRoundedShorthandForCorner(cls: string, sides: string[]): boolean {
+  return /^rounded(?:$|-(?![trbl]{1,2}(?:-|$)))/i.test(cls)
+    || sides.some((side) => new RegExp(`^rounded-${side}(?:-|$)`, "i").test(cls));
+}
+
+function isBackgroundImageClass(cls: string): boolean {
+  return /^(?:bg-gradient-|from-|via-|to-)/i.test(cls) || ["bg-cover", "bg-contain", "bg-center", "bg-repeat", "bg-no-repeat", "bg-local", "bg-fixed", "bg-scroll"].includes(cls);
+}
+
+function hasShorthandUtilityConflict(property: string, classList: string[]): boolean {
+  if (property === "background-color") return classList.some(isBackgroundImageClass);
+  if (property === "padding-top") return classList.some((cls) => startsWithAny(cls, ["p-", "py-"]));
+  if (property === "padding-right") return classList.some((cls) => startsWithAny(cls, ["p-", "px-"]));
+  if (property === "padding-bottom") return classList.some((cls) => startsWithAny(cls, ["p-", "py-"]));
+  if (property === "padding-left") return classList.some((cls) => startsWithAny(cls, ["p-", "px-"]));
+  if (property === "margin-top") return classList.some((cls) => startsWithAny(cls, ["m-", "my-"]));
+  if (property === "margin-right") return classList.some((cls) => startsWithAny(cls, ["m-", "mx-"]));
+  if (property === "margin-bottom") return classList.some((cls) => startsWithAny(cls, ["m-", "my-"]));
+  if (property === "margin-left") return classList.some((cls) => startsWithAny(cls, ["m-", "mx-"]));
+  if (property === "border-top-width") return classList.some((cls) => /^(?:border|border-y)(?:-|$)/i.test(cls));
+  if (property === "border-right-width") return classList.some((cls) => /^(?:border|border-x)(?:-|$)/i.test(cls));
+  if (property === "border-bottom-width") return classList.some((cls) => /^(?:border|border-y)(?:-|$)/i.test(cls));
+  if (property === "border-left-width") return classList.some((cls) => /^(?:border|border-x)(?:-|$)/i.test(cls));
+  if (property === "border-top-left-radius") return classList.some((cls) => isRoundedShorthandForCorner(cls, ["t", "l"]));
+  if (property === "border-top-right-radius") return classList.some((cls) => isRoundedShorthandForCorner(cls, ["t", "r"]));
+  if (property === "border-bottom-right-radius") return classList.some((cls) => isRoundedShorthandForCorner(cls, ["b", "r"]));
+  if (property === "border-bottom-left-radius") return classList.some((cls) => isRoundedShorthandForCorner(cls, ["b", "l"]));
+  return false;
+}
+
 function conflictsWithCompiledStyleProperty(property: string, cls: string): boolean {
-  if (property === "background-color") return cls.startsWith("bg-") && !["bg-cover", "bg-contain", "bg-center", "bg-repeat", "bg-no-repeat", "bg-local", "bg-fixed", "bg-scroll"].includes(cls);
+  if (property === "background-color") return cls.startsWith("bg-") && !isBackgroundImageClass(cls);
   if (property === "box-shadow") return cls.startsWith("shadow");
   if (property === "border-radius") return isRoundedClass(cls);
   if (property === "border-top-left-radius") return /^rounded-tl-/i.test(cls);
@@ -766,6 +796,8 @@ function compileElement(element: Element, varMap: Map<string, string>) {
   });
 
   // 4. Parse and resolve inline styles
+  const originalClassList = [...classList];
+
   const styleAttr = element.getAttribute("style");
   if (styleAttr) {
     const resolvedStyleAttr = normalizeCssVariableNames(styleAttr);
@@ -775,6 +807,10 @@ function compileElement(element: Element, varMap: Map<string, string>) {
     const compiledProperties: string[] = [];
 
     for (const [property, value] of styleDeclarations.entries()) {
+      if (hasShorthandUtilityConflict(property, originalClassList)) {
+        continue;
+      }
+
       const tailwindClass = stylePropertyToTailwind(property, value, varMap);
       if (tailwindClass) {
         classList = classList.filter((cls) => !conflictsWithCompiledStyleProperty(property, cls));

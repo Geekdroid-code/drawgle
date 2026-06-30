@@ -107,6 +107,40 @@ describe("HTML production compiler", () => {
     expect(compiled).not.toContain("style=");
   });
 
+  it("preserves shorthand utility classes when compiling manual longhand overrides", () => {
+    const rawHtml = `<div class="p-4 m-4 rounded-xl border border-red-500 bg-gradient-to-r from-red-500 to-blue-500" style="padding-top: 24px; margin-left: 24px; border-top-left-radius: 4px; border-top-width: 4px; background-color: #ff0000;"></div>`;
+    const compiled = compileHtmlForProduction(rawHtml, designTokens);
+
+    expect(compiled).toContain("p-4");
+    expect(compiled).toContain("m-4");
+    expect(compiled).toContain("rounded-xl");
+    expect(compiled).toContain("border border-red-500");
+    expect(compiled).toContain("bg-gradient-to-r");
+    expect(compiled).toContain("from-red-500");
+    expect(compiled).toContain("to-blue-500");
+    expect(compiled).toContain("padding-top: 24px");
+    expect(compiled).toContain("margin-left: 24px");
+    expect(compiled).toContain("border-top-left-radius: 4px");
+    expect(compiled).toContain("border-top-width: 4px");
+    expect(compiled).toContain("background-color: #ff0000");
+    expect(compiled).not.toContain("pt-[24px]");
+    expect(compiled).not.toContain("ml-[24px]");
+    expect(compiled).not.toContain("rounded-tl-[4px]");
+    expect(compiled).not.toContain("border-t-[4px]");
+    expect(compiled).not.toContain("bg-[#ff0000]");
+  });
+
+  it("still replaces exact longhand utility conflicts when no shorthand carries sibling styles", () => {
+    const rawHtml = `<div class="pt-2 ml-2" style="padding-top: 25px; margin-left: 25px;"></div>`;
+    const compiled = compileHtmlForProduction(rawHtml, designTokens);
+
+    expect(compiled).toContain("pt-[25px]");
+    expect(compiled).toContain("ml-[25px]");
+    expect(compiled).not.toContain("pt-2");
+    expect(compiled).not.toContain("ml-2");
+    expect(compiled).not.toContain("style=");
+  });
+
   it("lets live token CSS override persisted design tokens", () => {
     const rawHtml = `<div style="background-color: #223344; color: #fefefe;"></div>`;
     const compiled = compileHtmlForProduction(

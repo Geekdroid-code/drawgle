@@ -34,13 +34,10 @@ import {
 } from "@/components/ui/popover";
 import type { DeterministicEditOperation, DrawgleImageTargetMeta } from "@/lib/drawgle-dom";
 import {
-  classNameMatchesUtilityFamily,
-  getClassUtilityForStyle,
   getTokenReferencesForStyleProperty,
   normalizeCssValue,
   resolveStyleInspection,
   tokenVariableNameFromValue,
-  type DrawgleClassUtilityFamily,
   type DrawgleResolvedStyleProperty,
   type DrawgleStyleGroup,
   type DrawgleStyleProperty,
@@ -596,26 +593,10 @@ function SelectedElementInspectorSidebar({
     buildInitialStyleDrafts(inspectedProperties),
   );
   const [classDraft, setClassDraft] = useState(classListKey);
-  const [resetClassUtilities, setResetClassUtilities] = useState<Partial<Record<DrawgleStyleProperty, boolean>>>({});
   const [advancedDetailsOpen, setAdvancedDetailsOpen] = useState(false);
 
   const normalizeClassNames = useCallback((className: string) => className.trim().replace(/\s+/g, " "), []);
 
-  const removeUtilityFamilyFromClassName = useCallback((className: string, family: DrawgleClassUtilityFamily) =>
-    normalizeClassNames(className)
-      .split(/\s+/)
-      .filter((classNamePart) => classNamePart && !classNameMatchesUtilityFamily(family, classNamePart))
-      .join(" "), [normalizeClassNames]);
-
-  const classNameAfterPendingUtilityResets = useCallback((className: string) => {
-    let nextClassName = normalizeClassNames(className);
-    inspectedProperties.forEach((property) => {
-      if (resetClassUtilities[property.property] && property.classUtilityFamily) {
-        nextClassName = removeUtilityFamilyFromClassName(nextClassName, property.classUtilityFamily);
-      }
-    });
-    return nextClassName;
-  }, [inspectedProperties, normalizeClassNames, removeUtilityFamilyFromClassName, resetClassUtilities]);
 
   useEffect(() => {
     if (!onPreviewChange) return;
@@ -650,7 +631,7 @@ function SelectedElementInspectorSidebar({
       hasStylePreview = true;
     });
 
-    const normalizedClassDraft = classNameAfterPendingUtilityResets(classDraft);
+    const normalizedClassDraft = normalizeClassNames(classDraft);
     const normalizedOriginalClass = normalizeClassNames(classListKey);
     const classChanged = normalizedClassDraft !== normalizedOriginalClass;
 
@@ -664,7 +645,7 @@ function SelectedElementInspectorSidebar({
       styles,
       className: classChanged ? normalizedClassDraft : null,
     });
-  }, [classDraft, classListKey, classNameAfterPendingUtilityResets, inspectedProperties, normalizeClassNames, onPreviewChange, selectedElementInfo?.drawgleId, styleDrafts]);
+  }, [classDraft, classListKey, inspectedProperties, normalizeClassNames, onPreviewChange, selectedElementInfo?.drawgleId, styleDrafts]);
 
   useEffect(() => () => onPreviewChange?.(null), [onPreviewChange]);
 
@@ -696,7 +677,7 @@ function SelectedElementInspectorSidebar({
 
   const buildStyleOperations = () => {
     const operations: DeterministicEditOperation[] = [];
-    const normalizedClassDraft = classNameAfterPendingUtilityResets(classDraft);
+    const normalizedClassDraft = normalizeClassNames(classDraft);
     const normalizedOriginalClass = normalizeClassNames(classListKey);
 
     if (normalizedClassDraft !== normalizedOriginalClass) {
@@ -728,20 +709,6 @@ function SelectedElementInspectorSidebar({
         return;
       }
 
-      const classUtility = getClassUtilityForStyle(property.property, nextValue);
-      if (classUtility) {
-        if (currentInlineValue) {
-          operations.push({ type: "clearStyle", property: property.property });
-        }
-        operations.push({
-          type: "setClassUtility",
-          property: property.property,
-          family: classUtility.family,
-          className: classUtility.className,
-        });
-        return;
-      }
-
       operations.push({ type: "setStyle", property: property.property, value: nextValue });
     });
 
@@ -755,7 +722,6 @@ function SelectedElementInspectorSidebar({
   const resetAllLocalOverrides = async () => {
     setStyleDrafts(buildInitialStyleDrafts(inspectedProperties));
     setClassDraft(classListKey);
-    setResetClassUtilities({});
 
     const operations = inspectedProperties
       .filter((property) => normalizeCssValue(property.inlineValue))
@@ -768,16 +734,15 @@ function SelectedElementInspectorSidebar({
   };
 
   const hasDraftChanges = useMemo(() => {
-    const classChanged = classNameAfterPendingUtilityResets(classDraft) !== normalizeClassNames(classListKey);
+    const classChanged = normalizeClassNames(classDraft) !== normalizeClassNames(classListKey);
     const textChanged = textNodes.some((node) => textDrafts[node.drawgleId] !== undefined && textDrafts[node.drawgleId] !== node.text);
     const styleChanged = inspectedProperties.some((property) => {
       const draft = styleDrafts[property.property] ?? initialDraftForProperty(property);
       const initialDraft = initialDraftForProperty(property);
       return draft.mode !== initialDraft.mode || normalizeCssValue(draft.value) !== normalizeCssValue(initialDraft.value);
     });
-    const classResetChanged = Object.values(resetClassUtilities).some(Boolean);
-    return classChanged || classResetChanged || textChanged || styleChanged;
-  }, [classDraft, classListKey, classNameAfterPendingUtilityResets, inspectedProperties, normalizeClassNames, resetClassUtilities, styleDrafts, textDrafts, textNodes]);
+    return classChanged || textChanged || styleChanged;
+  }, [classDraft, classListKey, inspectedProperties, normalizeClassNames, styleDrafts, textDrafts, textNodes]);
 
   const targetLabel = selectedElementInfo?.targetType === "navigation" ? "Navigation" : selectedScreen?.name ?? "Screen";
   const riskMessages = [
@@ -816,19 +781,10 @@ function SelectedElementInspectorSidebar({
 
   const updateStyleDraft = (property: DrawgleResolvedStyleProperty, draft: StyleDraft) => {
     setStyleDrafts((current) => ({ ...current, [property.property]: draft }));
-    setResetClassUtilities((current) => {
-      if (!current[property.property]) return current;
-      const next = { ...current };
-      delete next[property.property];
-      return next;
-    });
   };
 
   const resetPropertyDraft = (property: DrawgleResolvedStyleProperty) => {
     setStyleDrafts((current) => ({ ...current, [property.property]: { mode: "inherit", value: "" } }));
-    if (property.classBinding && property.classUtilityFamily) {
-      setResetClassUtilities((current) => ({ ...current, [property.property]: true }));
-    }
   };
 
   const propertyByName = (propertyName: DrawgleStyleProperty) =>
@@ -845,11 +801,9 @@ function SelectedElementInspectorSidebar({
     const draft = styleDrafts[property.property] ?? initialDraftForProperty(property);
     const isTokenLinked = draft.mode === "token" || property.status === "linked";
     const isLocal = draft.mode === "custom" || property.source === "inline-custom";
-    const isResettingClass = Boolean(resetClassUtilities[property.property]);
 
     return (
       <div className="flex shrink-0 items-center gap-1">
-        {isResettingClass ? <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-slate-500">Reset</span> : null}
         {isTokenLinked ? <span className="rounded-full bg-teal-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-teal-700">Token</span> : null}
         {isLocal ? <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-amber-700">Local</span> : null}
       </div>
@@ -1195,12 +1149,12 @@ function SelectedElementInspectorSidebar({
   );
 
   const buildAiRefinePrompt = () => {
-    const normalizedClassDraft = classNameAfterPendingUtilityResets(classDraft);
+    const normalizedClassDraft = normalizeClassNames(classDraft);
     const changedStyles = inspectedProperties
       .map((property) => {
         const draft = styleDrafts[property.property] ?? initialDraftForProperty(property);
         const initialDraft = initialDraftForProperty(property);
-        const changed = draft.mode !== initialDraft.mode || normalizeCssValue(draft.value) !== normalizeCssValue(initialDraft.value) || resetClassUtilities[property.property];
+        const changed = draft.mode !== initialDraft.mode || normalizeCssValue(draft.value) !== normalizeCssValue(initialDraft.value);
         if (!changed) return null;
         return `${property.property}: ${draft.mode === "inherit" ? "reset" : draftDisplayValue(draft, property)}`;
       })
@@ -1411,7 +1365,8 @@ function SelectedElementInspectorSidebar({
                 <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Classes</span>
                 <Textarea
                   value={classDraft}
-                  readOnly
+                  disabled={disabled || isSaving}
+                  onChange={(event) => setClassDraft(event.target.value)}
                   className="min-h-20 resize-y rounded-[10px] border-slate-950/[0.08] bg-slate-50/80 px-3 py-2 font-mono text-[11px] leading-5 text-slate-700 focus-visible:bg-slate-50"
                 />
               </label>
