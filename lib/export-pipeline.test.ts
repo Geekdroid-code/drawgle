@@ -110,6 +110,11 @@ describe("export pipeline", () => {
     expect(sanitizeHtmlForExport(screens[0].code)).toBe("<main><h1>Home balance</h1></main>");
   });
 
+  it("does not strip attribute selectors like data-active inside style tags", () => {
+    const htmlWithStyle = `<style>[data-drawgle-primary-nav] .onyx-nav-item[data-active="true"] .onyx-icon-wrapper { color: red; }</style><main data-drawgle-id="123"><h1>Home balance</h1></main>`;
+    expect(sanitizeHtmlForExport(htmlWithStyle)).toBe(`<style>[data-drawgle-primary-nav] .onyx-nav-item[data-active="true"] .onyx-icon-wrapper { color: red; }</style><main><h1>Home balance</h1></main>`);
+  });
+
   it("builds standalone HTML with the selected screen navigation state", () => {
     const html = buildStandaloneHtmlExport({
       screen: screens[0],

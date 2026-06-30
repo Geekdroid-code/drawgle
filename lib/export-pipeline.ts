@@ -73,9 +73,18 @@ export function cleanExportName(value: string, fallback = "Screen") {
 
 export function sanitizeHtmlForExport(html: string) {
   if (!html) return "";
+
+  // Extract <style> blocks to prevent attribute selectors inside CSS from being stripped
+  const styleBlocks: string[] = [];
+  const htmlWithoutStyle = html.replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gi, (match) => {
+    styleBlocks.push(match);
+    return `<!--STYLE_PLACEHOLDER_${styleBlocks.length - 1}-->`;
+  });
+
   const exportedAttribute = (name: string) =>
     new RegExp(`\\s*${name}\\s*=\\s*(?:"[^"]*"|'[^']*'|[^\\s"'=<>]+)`, "gi");
-  return html
+
+  let sanitized = htmlWithoutStyle
     .replace(exportedAttribute("data-drawgle-id"), "")
     .replace(exportedAttribute("data-drawgle-theme"), "")
     .replace(exportedAttribute("data-drawgle-icon"), "")
@@ -84,6 +93,13 @@ export function sanitizeHtmlForExport(html: string) {
     .replace(exportedAttribute("aria-current"), "")
     .replace(exportedAttribute("data-active"), "")
     .trim();
+
+  // Restore <style> blocks
+  sanitized = sanitized.replace(/<!--STYLE_PLACEHOLDER_(\d+)-->/g, (_, index) => {
+    return styleBlocks[parseInt(index, 10)] ?? "";
+  });
+
+  return sanitized;
 }
 
 export function resolveScreenNavigationCode(
