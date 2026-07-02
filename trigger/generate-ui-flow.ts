@@ -9,6 +9,13 @@ import { loadCuratedStyleReferenceImage, matchCuratedStyleReference } from "@/li
 import { getDesignStylePack, isDesignStyleId, summarizeDesignStyle } from "@/lib/generation/design-styles";
 import { indexScreenCode } from "@/lib/generation/block-index";
 import { assembleProjectContext } from "@/lib/generation/context";
+import {
+  buildStateVariantEditActivityKey,
+  buildStateVariantEditInstruction,
+  buildStateVariantFailurePatch,
+  stateVariantScreenName,
+} from "@/lib/agent/state-variant-build";
+import { executeModifyScreenTask } from "@/lib/generation/edit-runner";
 import { generateEmbedding, generateScreenSummary } from "@/lib/generation/embeddings";
 import {
   buildScreenHealthError,
@@ -37,7 +44,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
 import { adminCreditService } from "@/lib/credits";
 import type { Database } from "@/lib/supabase/database.types";
-import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationScopeContract, ImageReferenceMode, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenPlan } from "@/lib/types";
+import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationScopeContract, ImageReferenceMode, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenBaseStatePlan, ScreenPlan, ScreenStateVariantPlan } from "@/lib/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -58,6 +65,9 @@ type GenerateUiFlowPayload = {
   projectCharter?: ProjectCharter | null;
   scopeContract?: GenerationScopeContract | null;
   planningMode?: PlanningMode;
+  baseState?: ScreenBaseStatePlan | null;
+  stateVariants?: ScreenStateVariantPlan[] | null;
+  approvalUserMessageId?: string | null;
 };
 
 type BuildScreenTaskPayload = {
@@ -334,6 +344,265 @@ async function reserveScreenSlots(admin: AdminClient, projectId: string, slotCou
   return (data ?? []) as ReservedScreenSlot[];
 }
 
+
+type StateVariantBuildResult = {
+  successfulVariants: number;
+  failedVariants: number;
+};
+
+async function buildStateVariantsForParent({
+  admin,
+  payload,
+  parentScreenId,
+  variants,
+}: {
+  admin: AdminClient;
+  payload: GenerateUiFlowPayload;
+  parentScreenId: string;
+  variants: ScreenStateVariantPlan[];
+}): Promise<StateVariantBuildResult> {
+  if (variants.length === 0) {
+    return { successfulVariants: 0, failedVariants: 0 };
+  }
+
+  let successfulVariants = 0;
+  let failedVariants = 0;
+
+  try {
+    const { data: parentScreen, error: parentError } = await admin
+      .from("screens")
+      .select("id, name, prompt, code, block_index, chrome_policy, navigation_item_id")
+      .eq("id", parentScreenId)
+      .maybeSingle();
+
+    if (parentError || !parentScreen?.code) {
+      throw parentError ?? new Error("Parent screen source was not available for state variants.");
+    }
+
+    const reservedSlots = await reserveScreenSlots(admin, payload.projectId, variants.length);
+
+    for (let index = 0; index < variants.length; index++) {
+      const variant = variants[index];
+      const variantScreenId = randomUUID();
+      const variantName = stateVariantScreenName(parentScreen.name, variant.stateLabel);
+      const instruction = buildStateVariantEditInstruction(parentScreen.name, variant);
+      const editActivityKey = buildStateVariantEditActivityKey(payload.generationRunId, variant.id);
+      const buildActivityKey = screenBuildActivityKey(variantScreenId);
+      let rowInserted = false;
+
+      try {
+        const { error: insertError } = await admin
+          .from("screens")
+          .insert({
+            id: variantScreenId,
+            owner_id: payload.ownerId,
+            project_id: payload.projectId,
+            generation_run_id: payload.generationRunId,
+            parent_screen_id: parentScreen.id,
+            state_key: variant.stateKey,
+            state_label: variant.stateLabel,
+            state_role: variant.stateRole,
+            name: variantName,
+            prompt: [
+              parentScreen.prompt,
+              `State variant: ${variant.stateLabel}`,
+              variant.description,
+              variant.editInstruction,
+            ].filter(Boolean).join("\n\n"),
+            code: parentScreen.code,
+            block_index: (parentScreen.block_index ?? null) as never,
+            chrome_policy: (parentScreen.chrome_policy ?? null) as never,
+            navigation_item_id: parentScreen.navigation_item_id ?? null,
+            status: "building",
+            trigger_run_id: null,
+            stream_public_token: null,
+            position_x: reservedSlots[index]?.position_x ?? 4800 + (index + 1) * 450,
+            position_y: reservedSlots[index]?.position_y ?? 5050,
+            sort_index: reservedSlots[index]?.sort_index ?? index,
+            created_at: now(),
+            updated_at: now(),
+          });
+
+        if (insertError) {
+          throw insertError;
+        }
+
+        rowInserted = true;
+
+        await postStatusMessage(
+          admin,
+          payload.projectId,
+          payload.ownerId,
+          `Creating ${variantName}...`,
+          "generation_started",
+          {
+            generationRunId: payload.generationRunId,
+            screenName: variantName,
+            parentScreenId: parentScreen.id,
+            stateVariantId: variant.id,
+            stateKey: variant.stateKey,
+            activityKey: buildActivityKey,
+          },
+          variantScreenId,
+        );
+
+        const result = await executeModifyScreenTask({
+          projectId: payload.projectId,
+          ownerId: payload.ownerId,
+          screenId: variantScreenId,
+          prompt: instruction,
+          resolvedInstruction: instruction,
+          userMessageId: payload.approvalUserMessageId ?? payload.generationRunId,
+          activityKey: editActivityKey,
+          selectedElementTarget: "screen",
+          selectedElementHtml: null,
+          selectedElementDrawgleId: null,
+          requestTargetsNavigation: false,
+          targetScope: "screen_region",
+          editOperation: "content_change",
+          editStrategy: "legacy_patch_then_region_replace",
+          conversationContext: null,
+          recoveryContext: {
+            kind: "state_variant_edit",
+            parentScreenId: parentScreen.id,
+            stateVariantId: variant.id,
+            stateKey: variant.stateKey,
+          },
+          routerDecision: {
+            action: "state_variant_edit",
+            targetScope: "screen_region",
+            editStrategy: "legacy_patch_then_region_replace",
+          },
+        }, (label, data) => logger.info(label, data));
+
+        const { data: editedVariant } = await admin
+          .from("screens")
+          .select("code")
+          .eq("id", variantScreenId)
+          .maybeSingle();
+
+        const materialChange = Boolean(result.changed && editedVariant?.code && editedVariant.code !== parentScreen.code);
+
+        if (!materialChange) {
+          const message = "State variant edit produced no material code change from the parent.";
+          await admin
+            .from("screens")
+            .update({
+              ...buildStateVariantFailurePatch(message),
+              updated_at: now(),
+            })
+            .eq("id", variantScreenId);
+
+          await postStatusMessage(
+            admin,
+            payload.projectId,
+            payload.ownerId,
+            `${variantName} failed`,
+            "error",
+            {
+              generationRunId: payload.generationRunId,
+              screenName: variantName,
+              parentScreenId: parentScreen.id,
+              stateVariantId: variant.id,
+              activityKey: buildActivityKey,
+              error: message,
+            },
+            variantScreenId,
+          );
+          failedVariants += 1;
+          continue;
+        }
+
+        successfulVariants += 1;
+        await postStatusMessage(
+          admin,
+          payload.projectId,
+          payload.ownerId,
+          `${variantName} ready`,
+          "generation_completed",
+          {
+            generationRunId: payload.generationRunId,
+            screenName: variantName,
+            parentScreenId: parentScreen.id,
+            stateVariantId: variant.id,
+            activityKey: buildActivityKey,
+          },
+          variantScreenId,
+        );
+
+        await enrichScreenTask.trigger(
+          {
+            screenId: variantScreenId,
+            screenName: variantName,
+            code: editedVariant!.code,
+          },
+          {
+            concurrencyKey: `enrich-${payload.projectId}`,
+          },
+        );
+      } catch (variantError) {
+        failedVariants += 1;
+        const message = cleanErrorMessage(variantError instanceof Error ? variantError.message : String(variantError));
+        logger.error("Failed to build state variant", {
+          generationRunId: payload.generationRunId,
+          parentScreenId: parentScreen.id,
+          variantId: variant.id,
+          error: variantError,
+        });
+
+        if (rowInserted) {
+          await admin
+            .from("screens")
+            .update({
+              ...buildStateVariantFailurePatch(message),
+              updated_at: now(),
+            })
+            .eq("id", variantScreenId);
+        }
+
+        await postStatusMessage(
+          admin,
+          payload.projectId,
+          payload.ownerId,
+          `${variantName} failed`,
+          "error",
+          {
+            generationRunId: payload.generationRunId,
+            screenName: variantName,
+            parentScreenId: parentScreen.id,
+            stateVariantId: variant.id,
+            activityKey: buildActivityKey,
+            error: message,
+          },
+          rowInserted ? variantScreenId : undefined,
+        );
+      }
+    }
+  } catch (error) {
+    failedVariants += variants.length;
+    const message = cleanErrorMessage(error instanceof Error ? error.message : String(error));
+    logger.error("Failed to prepare state variants", {
+      generationRunId: payload.generationRunId,
+      parentScreenId,
+      error,
+    });
+    await postStatusMessage(
+      admin,
+      payload.projectId,
+      payload.ownerId,
+      `State variants failed: ${message}`,
+      "error",
+      {
+        generationRunId: payload.generationRunId,
+        parentScreenId,
+        activityKey: `run:${payload.generationRunId}:state_variants`,
+        error: message,
+      },
+    );
+  }
+
+  return { successfulVariants, failedVariants };
+}
 async function postStatusMessage(
   admin: AdminClient,
   projectId: string,
@@ -995,7 +1264,8 @@ export const generateUiFlowTask = task({
   queue: {
     concurrencyLimit: 4,
   },
-  maxDuration: 900,
+  // Parent build plus up to three sequential state edit passes can exceed the old 900s ceiling.
+  maxDuration: 1800,
   onFailure: async ({ payload, error }: { payload: GenerateUiFlowPayload; error: unknown }) => {
     const admin = createAdminClient();
     const rawMessage = error instanceof Error ? error.message : String(error);
@@ -1526,21 +1796,27 @@ export const generateUiFlowTask = task({
         }))
       : baseScreenPlans;
 
+    const requestedStateVariants = (payload.stateVariants ?? []).slice(0, 3);
+    const shouldBuildStateVariants = screenPlans.length === 1 && requestedStateVariants.length > 0;
+    const stateVariantsToBuild = shouldBuildStateVariants ? requestedStateVariants : [];
+    const plannedOutputCount = screenPlans.length + stateVariantsToBuild.length;
+
     await postStatusMessage(
       admin,
       payload.projectId,
       payload.ownerId,
-      `Planned ${screenPlans.length} screen${screenPlans.length === 1 ? "" : "s"}`,
+      `Planned ${plannedOutputCount} screen${plannedOutputCount === 1 ? "" : "s"}`,
       "generation_completed",
       {
         generationRunId: payload.generationRunId,
-        plannedScreenCount: screenPlans.length,
+        plannedScreenCount: plannedOutputCount,
+        baseScreenCount: screenPlans.length,
+        stateVariantCount: stateVariantsToBuild.length,
         activityKey: planningActivityKey(payload.generationRunId),
       },
     );
-
     // Each screen build costs 20 credits (planning is completely free!)
-    const requiredCredits = screenPlans.length * 20;
+    const requiredCredits = plannedOutputCount * 20;
     const creditCheck = await adminCreditService.hasCredits(payload.ownerId, requiredCredits);
 
     if (!creditCheck.hasCredits) {
@@ -1576,10 +1852,10 @@ export const generateUiFlowTask = task({
     await updateGenerationRun(admin, payload.generationRunId, {
       status: "building",
       requires_bottom_nav: plan.requiresBottomNav,
-      requested_screen_count: plan.scopeContract?.finalScreenCount ?? plan.screenCountContract?.exactCount ?? null,
+      requested_screen_count: plannedOutputCount,
     });
     generationJournal.status = "building";
-    setJournalPhase(generationJournal, "build", "active", `Building ${screenPlans.length} screen${screenPlans.length === 1 ? "" : "s"} on the canvas.`);
+    setJournalPhase(generationJournal, "build", "active", `Building ${plannedOutputCount} screen${plannedOutputCount === 1 ? "" : "s"} on the canvas.`);
     await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
     // Sequential build: each screen is triggered, inserted, and polled to
@@ -1589,6 +1865,8 @@ export const generateUiFlowTask = task({
     // rather than a long wait for all screens to finish simultaneously.
     let successfulScreens = 0;
     let failedScreens = 0;
+    let successfulStateVariants = 0;
+    let failedStateVariants = 0;
 
     for (let index = 0; index < screenPlans.length; index++) {
       const screenPlan = screenPlans[index];
@@ -1637,6 +1915,10 @@ export const generateUiFlowTask = task({
             owner_id: payload.ownerId,
             project_id: payload.projectId,
             generation_run_id: payload.generationRunId,
+            parent_screen_id: null,
+            state_key: shouldBuildStateVariants && index === 0 ? payload.baseState?.stateKey ?? "base" : null,
+            state_label: shouldBuildStateVariants && index === 0 ? payload.baseState?.stateLabel ?? "Base" : null,
+            state_role: shouldBuildStateVariants && index === 0 ? "base" : null,
             name: screenPlan.name,
             prompt: screenPlan.description,
             code: buildPlaceholderCode(screenPlan.name, designTokens),
@@ -1723,6 +2005,18 @@ export const generateUiFlowTask = task({
               },
               screenId,
             );
+            if (shouldBuildStateVariants && index === 0) {
+              const variantResult = await buildStateVariantsForParent({
+                admin,
+                payload,
+                parentScreenId: screenId,
+                variants: stateVariantsToBuild,
+              });
+              successfulStateVariants += variantResult.successfulVariants;
+              failedStateVariants += variantResult.failedVariants;
+              successfulScreens += variantResult.successfulVariants;
+              failedScreens += variantResult.failedVariants;
+            }
           }
         } else {
           failedScreens += 1;
@@ -1830,13 +2124,18 @@ export const generateUiFlowTask = task({
     await mergeGenerationRunMetadata(admin, payload.generationRunId, {
       successfulScreens,
       failedScreens,
+      plannedScreenCount: plannedOutputCount,
+      baseScreenCount: screenPlans.length,
+      stateVariantCount: stateVariantsToBuild.length,
+      successfulStateVariants,
+      failedStateVariants,
     });
 
     await updateProject(admin, payload.projectId, {
       status: finishedStatus === "completed" ? "completed" : "failed",
     });
 
-    const plannedScreenCount = plan.screens.length;
+    const plannedScreenCount = plannedOutputCount;
     const partialFailure = successfulScreens > 0 && failedScreens > 0;
     const completionContent = finishedStatus === "completed"
       ? partialFailure
@@ -1925,12 +2224,20 @@ export const generateUiFlowTask = task({
       generationRunId: payload.generationRunId,
       successfulScreens,
       failedScreens,
+      plannedScreenCount: plannedOutputCount,
+      baseScreenCount: screenPlans.length,
+      stateVariantCount: stateVariantsToBuild.length,
+      successfulStateVariants,
+      failedStateVariants,
     });
 
     return {
       generationRunId: payload.generationRunId,
       successfulScreens,
       failedScreens,
+      stateVariantCount: stateVariantsToBuild.length,
+      successfulStateVariants,
+      failedStateVariants,
     };
   },
 });

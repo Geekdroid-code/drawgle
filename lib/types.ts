@@ -481,6 +481,22 @@ export interface ScreenPlan {
   referenceScreenCount?: number | null;
 }
 
+export interface ScreenBaseStatePlan {
+  stateKey: string;
+  stateLabel: string;
+}
+
+export interface ScreenStateVariantPlan {
+  id: string;
+  stateKey: string;
+  stateLabel: string;
+  stateRole: string;
+  triggerLabel: string;
+  description: string;
+  editInstruction: string;
+  defaultSelected: boolean;
+}
+
 export interface ReferenceScreenAnalysis {
   index: number;
   suggestedRole: string;
@@ -699,6 +715,10 @@ export interface ScreenData {
   blockIndex?: ScreenBlockIndex | null;
   chromePolicy?: ScreenChromePolicy | null;
   navigationItemId?: string | null;
+  parentScreenId?: string | null;
+  stateKey?: string | null;
+  stateLabel?: string | null;
+  stateRole?: string | null;
   x: number;
   y: number;
   sortIndex?: number;

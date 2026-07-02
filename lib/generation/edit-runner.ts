@@ -50,7 +50,7 @@ import type {
 type AdminClient = ReturnType<typeof createAdminClient>;
 type ProjectMessageInput = Parameters<typeof insertProjectMessage>[1];
 type EditTargetScope = "selected_element" | "screen_region" | "whole_screen" | "screen" | "navigation";
-type EditOperation = "none" | "append_content" | "replace_region" | "restyle_region" | "rewrite_screen" | "repair_screen";
+type EditOperation = "none" | "append_content" | "replace_region" | "restyle_region" | "rewrite_screen" | "repair_screen" | "content_change";
 type EditStrategy =
   | "selected_element_region_replace"
   | "screen_root_region_replace"
@@ -64,6 +64,7 @@ export type ModifyScreenPayload = {
   prompt: string;
   resolvedInstruction?: string | null;
   userMessageId: string;
+  activityKey?: string | null;
   screenId?: string | null;
   selectedElementHtml?: string | null;
   selectedElementDrawgleId?: string | null;
@@ -182,7 +183,8 @@ const isKnownEditOperation = (value: unknown): value is EditOperation =>
   value === "replace_region" ||
   value === "restyle_region" ||
   value === "rewrite_screen" ||
-  value === "repair_screen";
+  value === "repair_screen" ||
+  value === "content_change";
 
 const isRootReplacementAllowed = ({
   requestedEditStrategy,
@@ -552,7 +554,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
   const admin = createAdminClient();
   const originalPrompt = payload.prompt.trim();
   const prompt = payload.resolvedInstruction?.trim() || originalPrompt;
-  const editActivityKey = `edit:${payload.userMessageId}`;
+  const editActivityKey = payload.activityKey?.trim() || `edit:${payload.userMessageId}`;
   const routerScope = typeof payload.routerDecision?.targetScope === "string"
     ? payload.routerDecision.targetScope
     : null;

@@ -892,12 +892,36 @@ function ActionCard({
   proposal?: ScreenPlanProposalMetadata | null;
   proposalMessageId?: string | null;
   onRetryGeneration?: (run: GenerationRunData) => void;
-  onApproveScreenPlan?: (proposalMessageId: string) => void;
+  onApproveScreenPlan?: (proposalMessageId: string, selectedStateVariantIds?: string[]) => void;
 }) {
   const busy = step.status === "queued" || step.status === "thinking" || step.status === "editing";
   const failed = step.status === "failed";
   const pendingProposal = isProposalPending(proposal);
   const styleDiff = (step as any).styleDiff as string | undefined;
+  const stateVariants = useMemo(() => proposal?.stateVariants ?? [], [proposal]);
+  const defaultStateVariantIds = useMemo(() => {
+    if (!proposal || stateVariants.length === 0) return [];
+    const selectedIds = proposal.selectedStateVariantIds?.length
+      ? proposal.selectedStateVariantIds
+      : stateVariants.filter((variant) => variant.defaultSelected).map((variant) => variant.id);
+    const validIds = new Set(stateVariants.map((variant) => variant.id));
+    return Array.from(new Set(selectedIds.filter((id) => validIds.has(id))));
+  }, [proposal, stateVariants]);
+  const [selectedStateVariantIds, setSelectedStateVariantIds] = useState<string[]>(defaultStateVariantIds);
+  const selectedStateVariantSet = useMemo(() => new Set(selectedStateVariantIds), [selectedStateVariantIds]);
+  const selectedBuildCount = 1 + selectedStateVariantIds.length;
+  const buildButtonLabel = stateVariants.length > 0
+    ? `Build ${selectedBuildCount} screen${selectedBuildCount === 1 ? "" : "s"}`
+    : "Build screen";
+
+
+  const toggleStateVariant = (variantId: string) => {
+    setSelectedStateVariantIds((current) =>
+      current.includes(variantId)
+        ? current.filter((id) => id !== variantId)
+        : [...current, variantId],
+    );
+  };
 
   const rawProcessLines = step.processLines?.length ? step.processLines : step.detail ? [step.detail] : [];
   const processLines = rawProcessLines.filter((line) => {
@@ -1018,14 +1042,44 @@ function ActionCard({
               </details>
             ) : null}
 
+            {pendingProposal && stateVariants.length > 0 ? (
+              <div className="mt-3 space-y-2 border-t border-slate-950/[0.08] pt-3">
+                <div className="flex items-center justify-between gap-2 text-[11px] leading-5 text-slate-600">
+                  <span className="min-w-0 truncate font-semibold text-slate-700">
+                    {proposal?.baseState?.stateLabel ?? "Base"}
+                  </span>
+                  <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                    Required
+                  </span>
+                </div>
+                {stateVariants.map((variant) => (
+                  <label
+                    key={variant.id}
+                    className="flex cursor-pointer items-start gap-2 rounded-[8px] px-1 py-1.5 text-[11px] leading-5 text-slate-600 transition hover:bg-slate-950/[0.03]"
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border-slate-300 text-slate-900 accent-slate-950"
+                      checked={selectedStateVariantSet.has(variant.id)}
+                      onChange={() => toggleStateVariant(variant.id)}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-semibold text-slate-800">{variant.stateLabel}</span>
+                      <span className="block break-words text-slate-500">{variant.triggerLabel}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            ) : null}
+
             {pendingProposal && proposalMessageId && onApproveScreenPlan ? (
               <Button
                 type="button"
                 className="mt-3 h-8 rounded-full px-3 text-[11px] font-semibold"
-                onClick={() => onApproveScreenPlan(proposalMessageId)}
+                onClick={() => onApproveScreenPlan(proposalMessageId, selectedStateVariantIds)}
                 disabled={retryDisabled}
               >
-                Build screen
+                {buildButtonLabel}
               </Button>
             ) : null}
 
@@ -1408,7 +1462,7 @@ export function ChatPanel({
   screenPlan?: ScreenPlanState | null;
   isBuilding?: boolean;
   onRetryGeneration?: (run: GenerationRunData) => void;
-  onApproveScreenPlan?: (proposalMessageId: string) => void;
+  onApproveScreenPlan?: (proposalMessageId: string, selectedStateVariantIds?: string[]) => void;
   onBuildPlannedScreen?: () => void;
   onCancelPlan?: () => void;
   isCollapsed: boolean;

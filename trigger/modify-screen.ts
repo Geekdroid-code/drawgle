@@ -37,7 +37,7 @@ const buildFailedEditAgentState = (payload: ModifyScreenPayload, message: string
 
 async function markEditFailed(payload: ModifyScreenPayload, message: string) {
   const admin = createAdminClient();
-  const activityKey = `edit:${payload.userMessageId}`;
+  const activityKey = payload.activityKey?.trim() || `edit:${payload.userMessageId}`;
   const isNavigation = payload.selectedElementTarget === "navigation" || payload.requestTargetsNavigation;
   const failedStep: AgentStepMetadata = {
     kind: isNavigation ? "navigation" : "edit",

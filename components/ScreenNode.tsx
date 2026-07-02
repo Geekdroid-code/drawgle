@@ -161,6 +161,19 @@ function ScreenLabelBar({
         >
           {screen.name}
         </span>
+        {screen.stateLabel ? (
+          <span
+            className="max-w-[88px] shrink-0 truncate rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none"
+            style={{
+              background: "color-mix(in oklab, var(--dg-surface-muted) 86%, transparent)",
+              color: isSelected ? "#c7d2fe" : "var(--dg-text-muted)",
+              border: "1px solid color-mix(in oklab, var(--dg-border) 72%, transparent)",
+            }}
+            title={screen.stateLabel}
+          >
+            {screen.stateLabel}
+          </span>
+        ) : null}
         {/* INTERACT MODE badge — appears beside the name */}
         {interactMode && (
           <span

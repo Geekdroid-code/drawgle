@@ -1913,7 +1913,7 @@ export function ProjectShell({
     }
   };
 
-  const handleApproveScreenPlan = async (proposalMessageId: string) => {
+  const handleApproveScreenPlan = async (proposalMessageId: string, selectedStateVariantIds: string[] = []) => {
     if (!project || isCanvasInteractionLocked) {
       return;
     }
@@ -1928,6 +1928,7 @@ export function ProjectShell({
         body: JSON.stringify({
           projectId: project.id,
           proposalMessageId,
+          selectedStateVariantIds,
         }),
       });
       const payload = await response.json().catch(() => ({}));

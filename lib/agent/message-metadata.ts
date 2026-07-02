@@ -1,4 +1,4 @@
-import type { ImageReferenceMode, NavigationArchitecture, NavigationPlan, ScreenPlan } from "@/lib/types";
+import type { ImageReferenceMode, NavigationArchitecture, NavigationPlan, ScreenBaseStatePlan, ScreenPlan, ScreenStateVariantPlan } from "@/lib/types";
 
 export type AgentStepStatus = "queued" | "thinking" | "editing" | "completed" | "failed";
 
@@ -42,6 +42,9 @@ export type ScreenPlanProposalMetadata = {
   expiresAt: string;
   imagePath?: string | null;
   imageReferenceMode?: ImageReferenceMode | null;
+  baseState?: ScreenBaseStatePlan | null;
+  stateVariants?: ScreenStateVariantPlan[];
+  selectedStateVariantIds?: string[];
   status?: "pending" | "approved" | "expired";
   approvedGenerationRunId?: string | null;
 };
@@ -88,6 +91,63 @@ const asBoolean = (value: unknown) => typeof value === "boolean" ? value : null;
 
 const asImageReferenceMode = (value: unknown): ImageReferenceMode | null =>
   value === "style" || value === "recreate" ? value : null;
+const asBaseState = (value: unknown): ScreenBaseStatePlan | null => {
+  const record = asRecord(value);
+  const stateKey = asString(record?.stateKey);
+  const stateLabel = asString(record?.stateLabel);
+
+  return stateKey && stateLabel ? { stateKey, stateLabel } : null;
+};
+
+const asStateVariant = (value: unknown): ScreenStateVariantPlan | null => {
+  const record = asRecord(value);
+  const id = asString(record?.id);
+  const stateKey = asString(record?.stateKey);
+  const stateLabel = asString(record?.stateLabel);
+  const stateRole = asString(record?.stateRole);
+  const triggerLabel = asString(record?.triggerLabel);
+  const description = asString(record?.description);
+  const editInstruction = asString(record?.editInstruction);
+
+  if (!id || !stateKey || !stateLabel || !stateRole || !triggerLabel || !description || !editInstruction) {
+    return null;
+  }
+
+  return {
+    id,
+    stateKey,
+    stateLabel,
+    stateRole,
+    triggerLabel,
+    description,
+    editInstruction,
+    defaultSelected: typeof record?.defaultSelected === "boolean" ? record.defaultSelected : true,
+  };
+};
+
+const asStateVariants = (value: unknown): ScreenStateVariantPlan[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+  const variants: ScreenStateVariantPlan[] = [];
+
+  for (const item of value) {
+    const variant = asStateVariant(item);
+    if (!variant || seen.has(variant.id)) {
+      continue;
+    }
+
+    seen.add(variant.id);
+    variants.push(variant);
+    if (variants.length >= 3) {
+      break;
+    }
+  }
+
+  return variants;
+};
 
 const isScreenPlan = (value: unknown): value is ScreenPlan => {
   const record = asRecord(value);
@@ -188,6 +248,9 @@ export function readScreenPlanProposal(metadata: Record<string, unknown>): Scree
     expiresAt,
     imagePath: asString(proposal.imagePath),
     imageReferenceMode: asImageReferenceMode(proposal.imageReferenceMode),
+    baseState: asBaseState(proposal.baseState),
+    stateVariants: asStateVariants(proposal.stateVariants),
+    selectedStateVariantIds: asStringArray(proposal.selectedStateVariantIds) ?? [],
     status,
     approvedGenerationRunId: asString(proposal.approvedGenerationRunId),
   };

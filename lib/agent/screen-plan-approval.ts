@@ -5,6 +5,8 @@ import { tasks } from "@trigger.dev/sdk";
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { persistProjectMessageMemoryPair } from "@/lib/generation/message-memory";
 import { readScreenPlanProposal, type AgentStepMetadata } from "@/lib/agent/message-metadata";
+import { selectStateVariantsForApproval } from "@/lib/agent/state-variant-selection";
+import { adminCreditService } from "@/lib/credits";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { insertProjectMessage } from "@/lib/supabase/queries";
 import {
@@ -56,6 +58,7 @@ export async function approveScreenPlanProposal({
   proposalMessageId,
   approvalContent = "Build this screen.",
   approvalUserMessageId = null,
+  selectedStateVariantIds,
 }: {
   admin: AdminClient;
   ownerId: string;
@@ -63,6 +66,7 @@ export async function approveScreenPlanProposal({
   proposalMessageId: string;
   approvalContent?: string;
   approvalUserMessageId?: string | null;
+  selectedStateVariantIds?: string[];
 }) {
   const { data: project, error: projectError } = await admin
     .from("projects")
@@ -127,6 +131,26 @@ export async function approveScreenPlanProposal({
     throw new ScreenPlanApprovalError("That screen plan expired. Ask me to draft it again and I will rebuild the brief.", 410);
   }
 
+  const variantSelection = selectStateVariantsForApproval(proposal, selectedStateVariantIds);
+
+  if (variantSelection.invalidIds.length > 0) {
+    throw new ScreenPlanApprovalError("One or more selected screen states are no longer available. Review the plan and try again.", 400);
+  }
+
+  const selectedStateVariants = variantSelection.selectedVariants;
+  const selectedVariantIds = variantSelection.selectedIds;
+  const selectedStateCount = selectedStateVariants.length;
+  const totalScreenCount = 1 + selectedStateCount;
+  const requiredCredits = totalScreenCount * 20;
+  const creditCheck = await adminCreditService.hasCredits(ownerId, requiredCredits);
+
+  if (!creditCheck.hasCredits) {
+    throw new ScreenPlanApprovalError(
+      `Insufficient credits to build this proposal. (Required: ${requiredCredits}, Balance: ${creditCheck.currentBalance}). Please upgrade your plan.`,
+      402,
+    );
+  }
+
   const designTokens = project.design_tokens
     ? normalizeDesignTokens(project.design_tokens as DesignTokens)
     : null;
@@ -155,6 +179,9 @@ export async function approveScreenPlanProposal({
         requestedImageReferenceMode: proposal.imageReferenceMode ?? "recreate",
         navigationArchitecture: proposal.navigationArchitecture,
         navigationPlan: proposal.navigationPlan,
+        baseState: proposal.baseState ?? null,
+        stateVariants: selectedStateVariants,
+        selectedStateVariantIds: selectedVariantIds,
         plannedScreens: [proposal.screenPlan],
       } as never,
       created_at: now(),
@@ -178,6 +205,7 @@ export async function approveScreenPlanProposal({
       action: "screen_plan_approved",
       proposalMessageId,
       generationRunId: generationRun.id,
+      selectedStateVariantIds: selectedVariantIds,
     },
   })).id;
 
@@ -189,7 +217,9 @@ export async function approveScreenPlanProposal({
     targetLabel: proposal.screenPlan.name,
     processLines: [
       "Approved the screen plan.",
-      "Queued one screen for generation.",
+      selectedStateCount > 0
+        ? `Queued parent screen plus ${selectedStateCount} state variant${selectedStateCount === 1 ? "" : "s"}.`
+        : "Queued one screen for generation.",
     ],
   };
 
@@ -198,7 +228,9 @@ export async function approveScreenPlanProposal({
     ownerId,
     screenId: null,
     role: "system",
-    content: `Queued ${proposal.screenPlan.name} for generation.`,
+    content: selectedStateCount > 0
+      ? `Queued ${proposal.screenPlan.name} plus ${selectedStateCount} state variant${selectedStateCount === 1 ? "" : "s"} for generation.`
+      : `Queued ${proposal.screenPlan.name} for generation.`,
     messageType: "generation_started",
     metadata: {
       action: "generation_queued",
@@ -227,6 +259,9 @@ export async function approveScreenPlanProposal({
       navigationPlan: proposal.navigationPlan,
       projectCharter,
       planningMode: "single-screen",
+      baseState: proposal.baseState ?? null,
+      stateVariants: selectedStateVariants,
+      approvalUserMessageId: userMessageId,
     },
     {
       concurrencyKey: ownerId,
@@ -260,6 +295,7 @@ export async function approveScreenPlanProposal({
         screenPlanProposal: {
           ...proposal,
           status: "approved",
+          selectedStateVariantIds: selectedVariantIds,
           approvedGenerationRunId: generationRun.id,
         },
       } as never,

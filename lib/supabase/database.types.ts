@@ -166,6 +166,10 @@ export interface Database {
           block_index: Json | null;
           chrome_policy: Json | null;
           navigation_item_id: string | null;
+          parent_screen_id: string | null;
+          state_key: string | null;
+          state_label: string | null;
+          state_role: string | null;
           status: ScreenStatus;
           position_x: number;
           position_y: number;
@@ -189,6 +193,10 @@ export interface Database {
           block_index?: Json | null;
           chrome_policy?: Json | null;
           navigation_item_id?: string | null;
+          parent_screen_id?: string | null;
+          state_key?: string | null;
+          state_label?: string | null;
+          state_role?: string | null;
           status?: ScreenStatus;
           position_x: number;
           position_y: number;
@@ -212,6 +220,10 @@ export interface Database {
           block_index?: Json | null;
           chrome_policy?: Json | null;
           navigation_item_id?: string | null;
+          parent_screen_id?: string | null;
+          state_key?: string | null;
+          state_label?: string | null;
+          state_role?: string | null;
           status?: ScreenStatus;
           position_x?: number;
           position_y?: number;
@@ -222,7 +234,15 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "screens_parent_screen_id_fkey";
+            columns: ["parent_screen_id"];
+            isOneToOne: false;
+            referencedRelation: "screens";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       project_navigation: {
         Row: {

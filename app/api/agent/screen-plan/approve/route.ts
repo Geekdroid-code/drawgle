@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 const requestSchema = z.object({
   projectId: z.string().uuid(),
   proposalMessageId: z.string().uuid(),
+  selectedStateVariantIds: z.array(z.string().trim().min(1).max(80)).max(3).optional(),
 });
 
 export async function POST(request: Request) {
@@ -32,6 +33,7 @@ export async function POST(request: Request) {
       ownerId: user.id,
       projectId: payload.projectId,
       proposalMessageId: payload.proposalMessageId,
+      selectedStateVariantIds: payload.selectedStateVariantIds,
     });
 
     return NextResponse.json(

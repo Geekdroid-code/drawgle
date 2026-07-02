@@ -2852,7 +2852,7 @@ export async function buildSourceRegionReplacementCode({
   userPrompt: string;
   currentCode: string;
   repairTarget: RepairTarget;
-  editOperation?: "none" | "append_content" | "replace_region" | "restyle_region" | "rewrite_screen" | "repair_screen";
+  editOperation?: "none" | "append_content" | "replace_region" | "restyle_region" | "rewrite_screen" | "repair_screen" | "content_change";
   requiredRootDrawgleId?: string | null;
   designTokens?: DesignTokens | null;
   projectCharter?: ProjectCharter | null;
