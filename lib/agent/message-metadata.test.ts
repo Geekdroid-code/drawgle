@@ -92,4 +92,36 @@ describe("screen plan proposal metadata", () => {
 
     expect(proposal?.stateVariants?.map((variant) => variant.id)).toEqual(["one", "two", "three"]);
   });
+  it("filters visual-only state variants from proposal metadata", () => {
+    const metadata = baseProposal();
+    metadata.screenPlanProposal = {
+      ...metadata.screenPlanProposal,
+      stateVariants: [
+        {
+          id: "light-theme",
+          stateKey: "light-theme",
+          stateLabel: "Light",
+          stateRole: "Theme segmented control state",
+          triggerLabel: "Light",
+          description: "Same settings screen with the Light theme option selected.",
+          editInstruction: "Activate Light in the Interface Theme control and update only the visual theme selection.",
+          defaultSelected: true,
+        },
+        {
+          id: "add-wallet-modal",
+          stateKey: "add-wallet-modal",
+          stateLabel: "Add Wallet",
+          stateRole: "Modal open state for a plus button",
+          triggerLabel: "Plus button",
+          description: "Same wallet screen with the add-wallet modal open and form fields visible.",
+          editInstruction: "Open the add-wallet modal, preserve the screen shell, and add only the modal form overlay.",
+          defaultSelected: true,
+        },
+      ],
+    };
+
+    const proposal = readScreenPlanProposal(metadata);
+
+    expect(proposal?.stateVariants?.map((variant) => variant.id)).toEqual(["add-wallet-modal"]);
+  });
 });

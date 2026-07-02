@@ -1,3 +1,4 @@
+import { isMeaningfulStateVariant } from "@/lib/agent/state-variant-guardrails";
 import type { ImageReferenceMode, NavigationArchitecture, NavigationPlan, ScreenBaseStatePlan, ScreenPlan, ScreenStateVariantPlan } from "@/lib/types";
 
 export type AgentStepStatus = "queued" | "thinking" | "editing" | "completed" | "failed";
@@ -135,7 +136,7 @@ const asStateVariants = (value: unknown): ScreenStateVariantPlan[] => {
 
   for (const item of value) {
     const variant = asStateVariant(item);
-    if (!variant || seen.has(variant.id)) {
+    if (!variant || seen.has(variant.id) || !isMeaningfulStateVariant(variant)) {
       continue;
     }
 

@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { createGeminiClient } from "@/lib/ai/gemini";
 import { geminiPolicyForTask } from "@/lib/ai/model-policy";
+import { filterMeaningfulStateVariants } from "@/lib/agent/state-variant-guardrails";
 import type { ScreenBaseStatePlan, ScreenPlan, ScreenStateVariantPlan } from "@/lib/types";
 
 const StateVariantSchema = z.object({
@@ -83,8 +84,10 @@ export async function planScreenStateVariants({
       systemInstruction: [
         "You identify optional same-screen UI states for Drawgle screen proposals.",
         "Return ONLY JSON with shape { baseState: { stateKey, stateLabel } | null, stateVariants: [] }.",
-        "A same-screen state is a local state of the same route/screen shell: active tab, segmented-control selection, filter state, modal/sheet open state, empty/loading/error state, selected item state, or expanded/collapsed state.",
+        "A same-screen state is a local state of the same route/screen shell that materially changes the screen content or workflow: a tab/segment with a distinct content body, filter/search/sort results, modal/sheet/dialog/popover open state, empty/loading/error state, selected item detail panel, form/create flow, or expanded/collapsed content region.",
         "Do not suggest real navigation routes, detail pages, checkout flows, settings/profile routes, onboarding/login, CTA destinations, shared bottom-nav destinations, or separate app sections.",
+        "Reject visual preference states: dark mode, light mode, theme/system appearance, compact mode, density, colors, hover/focus/pressed styling, icon/button color changes, typography, spacing, radius, shadows, or animation-only changes. These are not paid state variants.",
+        "If a control only changes styling or preferences without a meaningful content/workflow surface, return stateVariants: [] for that control.",
         "If the screen brief does not clearly need alternate local states, return stateVariants: [].",
         "Return at most 3 variants. Prefer 1-2 high-value variants.",
         "Each editInstruction must tell the edit worker to preserve the parent shell, header, shared navigation, spacing, typography, tokens, and overall layout, changing only the local active state and content region.",
@@ -129,13 +132,13 @@ export async function planScreenStateVariants({
     }
 
     const seen = new Set<string>();
-    const stateVariants = parsed.data.stateVariants
+    const stateVariants = filterMeaningfulStateVariants(parsed.data.stateVariants
       .map(normalizeVariant)
       .filter((variant) => {
         if (seen.has(variant.id)) return false;
         seen.add(variant.id);
         return true;
-      });
+      }));
 
     const baseState = stateVariants.length > 0
       ? parsed.data.baseState ?? { stateKey: "base", stateLabel: "Base" }
