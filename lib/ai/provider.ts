@@ -15,6 +15,19 @@ import {
 import { geminiPolicyForTask, type GeminiTaskType } from "./model-policy";
 import type { GenerateContentConfig } from "@google/genai";
 
+const summarizeOpenRouterError = (error: unknown) => {
+  if (error instanceof Error) {
+    return { name: error.name, message: error.message };
+  }
+
+  return { message: String(error) };
+};
+
+const messageHasImagePart = (message: any) => {
+  const content = message?.content;
+  return Array.isArray(content) && content.some((part) => part?.type === "image_url");
+};
+
 export interface ScreenBuilderStreamInput {
   task: GeminiTaskType;
   contents: any;
@@ -34,8 +47,11 @@ export async function* generateScreenBuilderContentStream({
 
   if (provider === "openrouter") {
     const model = task === "selected_region_edit" ? getScreenEditorModel() : getScreenBuilderModel();
+    const timeoutMs = getOpenRouterTimeoutMs();
     const openRouter = new OpenRouter({
       apiKey: getOpenRouterApiKey(),
+      retryConfig: { strategy: "none" },
+      timeoutMs,
     });
 
     const policy = geminiPolicyForTask(task, configOverride);
@@ -125,46 +141,113 @@ export async function* generateScreenBuilderContentStream({
     const only = allowedProviders
       ? allowedProviders.split(",").map((p) => p.trim()).filter(Boolean)
       : undefined;
+    const sort = getOpenRouterSort();
+    const providerPreferences = {
+      allowFallbacks: getOpenRouterAllowFallbacks(),
+      ...(sort ? { sort } : {}),
+      ...(only ? { only } : {}),
+    };
 
-    const stream = await openRouter.chat.send({
-      chatRequest: {
-        model,
-        messages,
-        temperature: temperature ?? undefined,
-        maxCompletionTokens: maxOutputTokens ?? undefined,
-        provider: {
-          allowFallbacks: getOpenRouterAllowFallbacks(),
-          sort: getOpenRouterSort(),
-          ...(only ? { only } : {}),
-        },
-        stream: true,
-      },
-    }, {
-      timeoutMs: getOpenRouterTimeoutMs(),
+    const requestStartedAt = Date.now();
+    console.info("[OpenRouter] requesting chat completion", {
+      task,
+      model,
+      messageCount: messages.length,
+      hasImage: messages.some(messageHasImagePart),
+      maxCompletionTokens: maxOutputTokens ?? null,
+      temperature: temperature ?? null,
+      provider: providerPreferences,
+      timeoutMs,
     });
 
-    for await (const chunk of stream) {
-      const adaptedChunk = {
-        ...chunk,
-        candidates: chunk.choices?.map((choice) => ({
-          finishReason: choice.finishReason || undefined,
-          content: {
-            parts: [{ text: choice.delta?.content || "" }],
-          },
-        })),
-        usageMetadata: chunk.usage ? {
-          promptTokenCount: chunk.usage.promptTokens,
-          candidatesTokenCount: chunk.usage.completionTokens,
-          totalTokenCount: chunk.usage.totalTokens,
-        } : undefined,
-      };
+    let stream;
+    try {
+      stream = await openRouter.chat.send({
+        chatRequest: {
+          model,
+          messages,
+          temperature: temperature ?? undefined,
+          maxCompletionTokens: maxOutputTokens ?? undefined,
+          provider: providerPreferences,
+          stream: true,
+        },
+      }, {
+        headers: {
+          "X-OpenRouter-Metadata": "enabled",
+        },
+        timeoutMs,
+      });
+    } catch (error) {
+      console.error("[OpenRouter] request failed before stream opened", {
+        task,
+        model,
+        elapsedMs: Date.now() - requestStartedAt,
+        error: summarizeOpenRouterError(error),
+      });
+      throw error;
+    }
 
-      onResponseChunk?.(adaptedChunk);
+    console.info("[OpenRouter] stream opened", {
+      task,
+      model,
+      elapsedMs: Date.now() - requestStartedAt,
+    });
+    let chunkCount = 0;
+    let textCharCount = 0;
+    let firstTokenLogged = false;
 
-      const text = chunk.choices?.[0]?.delta?.content;
-      if (text) {
-        yield text;
+    try {
+      for await (const chunk of stream) {
+        chunkCount += 1;
+        const adaptedChunk = {
+          ...chunk,
+          candidates: chunk.choices?.map((choice) => ({
+            finishReason: choice.finishReason || undefined,
+            content: {
+              parts: [{ text: choice.delta?.content || "" }],
+            },
+          })),
+          usageMetadata: chunk.usage ? {
+            promptTokenCount: chunk.usage.promptTokens,
+            candidatesTokenCount: chunk.usage.completionTokens,
+            totalTokenCount: chunk.usage.totalTokens,
+          } : undefined,
+        };
+
+        onResponseChunk?.(adaptedChunk);
+
+        const text = chunk.choices?.[0]?.delta?.content;
+        if (text) {
+          textCharCount += text.length;
+          if (!firstTokenLogged) {
+            firstTokenLogged = true;
+            console.info("[OpenRouter] first token received", {
+              task,
+              model,
+              elapsedMs: Date.now() - requestStartedAt,
+            });
+          }
+          yield text;
+        }
       }
+
+      console.info("[OpenRouter] stream completed", {
+        task,
+        model,
+        elapsedMs: Date.now() - requestStartedAt,
+        chunkCount,
+        textCharCount,
+      });
+    } catch (error) {
+      console.error("[OpenRouter] stream failed", {
+        task,
+        model,
+        elapsedMs: Date.now() - requestStartedAt,
+        chunkCount,
+        textCharCount,
+        error: summarizeOpenRouterError(error),
+      });
+      throw error;
     }
   } else {
     // Gemini route

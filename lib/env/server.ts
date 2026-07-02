@@ -47,13 +47,13 @@ export const getScreenEditorModel = () =>
   process.env.DRAWGLE_SCREEN_EDITOR_MODEL ?? getScreenBuilderModel();
 
 export const getOpenRouterSort = () =>
-  process.env.DRAWGLE_OPENROUTER_SORT ?? "price";
+  process.env.DRAWGLE_OPENROUTER_SORT?.trim() || undefined;
 
 export const getOpenRouterProviders = () =>
   process.env.DRAWGLE_OPENROUTER_PROVIDERS;
 
 export const getOpenRouterAllowFallbacks = () =>
-  process.env.DRAWGLE_OPENROUTER_ALLOW_FALLBACKS === "true";
+  process.env.DRAWGLE_OPENROUTER_ALLOW_FALLBACKS !== "false";
 
 export const getOpenRouterTimeoutMs = () => {
   const value = Number.parseInt(process.env.DRAWGLE_OPENROUTER_TIMEOUT_MS ?? "60000", 10);

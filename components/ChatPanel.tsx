@@ -1301,7 +1301,7 @@ function DesignTab({
   if (!hasTokens || !tokenDraft || !onTokenDraftChange || !onSaveTokens || !onDiscardTokens) {
     return (
       <div className="dg-token-editor-muted flex min-h-0 flex-1 items-center justify-center px-5 text-center text-sm leading-6 text-slate-500">
-        Design tokens will appear here as soon as the generation job finishes design analysis.
+        Design tokens will appear here soon.
       </div>
     );
   }
