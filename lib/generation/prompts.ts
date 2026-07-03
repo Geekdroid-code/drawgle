@@ -266,7 +266,7 @@ DEPTH EXTRACTION METHOD — apply this procedure to every visible surface, but s
 7. Continue forward layer by layer until you reach the topmost visible element. Do not stop at the first "card" you find; modern UI has more above it.
 8. Repeat the procedure for each visually distinct region of the screen.
 
-PRECISION DEMAND:
+PRECISION DEMAND — for accurate observation, not as a hard contract for the builder:
 - If you can see a shadow, give the color rgba, blur px, spread px, offset y px. Do not write "soft shadow".
 - If you can see a border or hairline, give the color rgba or hex, the px weight, and the position (all sides / top only / between rows).
 - If you can see a gradient, give the stops, colors, and direction.
@@ -275,16 +275,14 @@ PRECISION DEMAND:
 - If you can see a gap or padding, give an approximate px.
 - If you can see an opacity or alpha, give the value.
 - If you cannot measure something precisely, give a tight range (e.g. "12-16px" or "4-8% black") and say so explicitly.
+- Frame these values as observations of what is visible, not as a recipe the builder must follow literally. The builder is a creative interpreter: it should use these observations to understand the design's intent, then express that intent in its own build, free to adjust, recompose, or reinterpret values as long as the same design character is preserved. The goal is fidelity of feel, not literal reproduction of numbers.
 
 WHAT TO LOOK FOR — small decisions of any kind:
-The design's character is set by the small decisions, not the large ones. Look for any fine border or hairline; any subtle gradient; any inner highlight or inner stroke; any small-radius vs large-radius contrast; any micro-spacing difference (e.g. asymmetric padding, 1-2px tighter or looser than the surrounding rhythm); any optical type adjustment; any small icon framing detail; any hairline divider; any 1-2px shadow detail. Report what you actually see, in the categories and at the locations where they appear, in language that names the decision rather than the aesthetic.
+The design's character is set by the small decisions, not the large ones. Look for any fine border or hairline; any subtle gradient; any inner highlight or inner stroke; any small-radius vs large-radius contrast; any micro-spacing difference (e.g. asymmetric padding, 1-2px tighter or looser than the surrounding rhythm); any optical type adjustment; any small icon framing detail; any hairline divider; any 1-2px shadow detail. Report what you actually see, in the categories and at the locations where they appear, in language that names the decision rather than the aesthetic. Frame these as cues the builder can draw on, not as a checklist it must satisfy.
 
-AESTHETIC NEUTRALITY:
-- If the design is flat and undecorated, describe it as flat and undecorated, with the exact reasons it works (rhythm, spacing, type, contrast). Do not invent layers that are not there.
-- If the design is layered and decorative, describe each layer precisely. Do not collapse it to "a card with a shadow".
-- If the design is brutalist, describe the raw shapes, hard edges, and high contrast with the same precision as a glassy design.
-- If the design is illustrated or photographic, describe the imagery, its treatment, and how it sits within the surrounding structure.
-- Do not score the design against an internal premium rubric. Extract it.
+DESIGN VOICE — describe the mood and character the design expresses:
+After extracting the precise structural and material facts, also report what the design *feels like* — its observable mood, energy, rhythm, and character. This is observational, not a quality score. Examples: "calm and confident, with generous space and minimal motion cues", "energetic and dense, with high contrast and tight grouping", "playful and soft, with rounded forms and warm tones", "brutally direct, with hard edges and no decoration", "editorial and quiet, with one strong typographic moment per screen", "technical and precise, with monospace cues and grid alignment".
+Use language that names the character without judging it. This voice description gives the builder something to express, not just something to copy. It is the difference between the builder reproducing values blindly and the builder understanding what those values are *for*.
 
 Rules:
 - If the image contains multiple phone screens or panels, describe them left-to-right.
