@@ -53,7 +53,7 @@ export const getOpenRouterScreenBuildModel = () =>
   ?? "moonshotai/kimi-k2.5";
 
 export const getProjectPlannerModel = () =>
-  process.env.DRAWGLE_GEMINI_PROJECT_PLANNER_MODEL ?? "gemini-3.5-flash";
+  process.env.DRAWGLE_GEMINI_PROJECT_PLANNER_MODEL ?? "gemini-3-flash-preview";
 
 export const getScreenEditorModel = () =>
   process.env.DRAWGLE_SCREEN_EDITOR_MODEL ?? getScreenBuilderModel();
@@ -86,5 +86,26 @@ export const getOpenRouterStreamTimeouts = () => ({
 export const getOpenRouterTimeoutMs = () => {
   const value = Number.parseInt(process.env.DRAWGLE_OPENROUTER_TIMEOUT_MS ?? "60000", 10);
   return Number.isFinite(value) && value > 0 ? value : 60000;
+};
+
+export const getOpenRouterScreenBuildReasoning = () => {
+  const enabledRaw = process.env.DRAWGLE_OPENROUTER_SCREEN_BUILD_REASONING_ENABLED;
+  const effort = process.env.DRAWGLE_OPENROUTER_SCREEN_BUILD_REASONING_EFFORT?.trim();
+  const maxTokensRaw = process.env.DRAWGLE_OPENROUTER_SCREEN_BUILD_REASONING_MAX_TOKENS;
+  const excludeRaw = process.env.DRAWGLE_OPENROUTER_SCREEN_BUILD_REASONING_EXCLUDE;
+
+  if (enabledRaw === "false" || effort === "none") {
+    return { enabled: false } as const;
+  }
+
+  const maxTokens = maxTokensRaw ? Number.parseInt(maxTokensRaw, 10) : undefined;
+  return {
+    effort:
+      effort && ["minimal", "low", "medium", "high", "xhigh", "max"].includes(effort)
+        ? (effort as "minimal" | "low" | "medium" | "high" | "xhigh" | "max")
+        : ("low" as const),
+    max_tokens: Number.isFinite(maxTokens) && maxTokens && maxTokens > 0 ? maxTokens : undefined,
+    exclude: excludeRaw === "true" ? true : undefined,
+  };
 };
 

@@ -14,6 +14,13 @@ export type OpenRouterProviderPreferences = {
   only?: string[];
 };
 
+export type OpenRouterReasoningConfig = {
+  effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+  max_tokens?: number;
+  exclude?: boolean;
+  enabled?: boolean;
+};
+
 export type OpenRouterStreamTimeouts = {
   headerTimeoutMs: number;
   firstContentTimeoutMs: number;
@@ -101,6 +108,7 @@ export type StreamOpenRouterChatCompletionInput = {
   temperature?: number | null;
   maxTokens?: number | null;
   provider?: OpenRouterProviderPreferences | null;
+  reasoning?: OpenRouterReasoningConfig | null;
   timeouts: OpenRouterStreamTimeouts;
   onEvent?: (event: OpenRouterStreamEvent) => void;
   onChunk?: (chunk: OpenRouterStreamChunk) => void;
@@ -307,14 +315,36 @@ export async function* streamOpenRouterChatCompletion(
   const hardTimeoutId = setTimeout(() => abortWith("hard_timeout"), timeouts.hardTimeoutMs);
   const headerTimeoutId = setTimeout(() => abortWith("header_timeout"), timeouts.headerTimeoutMs);
 
+  // Strip undefined values from reasoning so OpenRouter does not see a "reasoning: null" body.
+  const reasoningPayload = input.reasoning
+    ? Object.fromEntries(
+        Object.entries(input.reasoning).filter(([, v]) => v !== undefined && v !== null),
+      )
+    : undefined;
+
   const body = JSON.stringify({
     model: input.model,
     messages: input.messages,
     temperature: input.temperature ?? undefined,
     max_tokens: input.maxTokens ?? undefined,
     provider: normalizeProviderPreferences(input.provider),
+    reasoning: reasoningPayload,
     stream: true,
   });
+
+  // region debug-point openrouter-reasoning-snapshot
+  // Instrumentation: surface the exact reasoning config in the next emit so we can
+  // confirm in the Trigger.dev trace that the `reasoning` field is actually in the
+  // outgoing body (H2). Pairs with the `before_fetch` event below.
+  emit(input, {
+    event: "openrouter:reasoning_configured",
+    level: "info",
+    metadata: {
+      reasoning: reasoningPayload ?? null,
+      hasReasoningInBody: body.includes('"reasoning"'),
+    },
+  }, startedAt);
+  // endregion debug-point openrouter-reasoning-snapshot
 
   emit(input, {
     event: "openrouter:before_fetch",
