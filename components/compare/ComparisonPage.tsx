@@ -73,6 +73,49 @@ export function ComparisonPage({ page }: { page: ComparisonPageData }) {
           </div>
         </section>
 
+        {/* Section 1a: Premium Design System Moat (Option C) */}
+        {page.premiumMoat?.items?.length > 0 && (
+          <section className="w-full max-w-5xl mx-auto px-6 mb-16">
+            <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
+              <div className="bg-stone-900 text-white px-6 py-5 border-b border-stone-800">
+                <div className="text-[10px] font-bold text-[#1b7fcc] uppercase tracking-widest mb-1.5">
+                  {page.premiumMoat.eyebrow}
+                </div>
+                <h2 className="font-pixel-square text-xl md:text-2xl font-semibold text-white leading-tight">
+                  {page.premiumMoat.title}
+                </h2>
+                <p className="mt-2 text-sm text-white/55 leading-relaxed max-w-3xl">
+                  {page.premiumMoat.intro}
+                </p>
+              </div>
+              <div className="grid sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-stone-100">
+                {page.premiumMoat.items.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className={`p-6 md:p-7 space-y-3 ${idx >= 2 ? "sm:border-t md:border-t-0 border-stone-100" : ""}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#1b7fcc]/10 text-[10px] font-bold text-[#1b7fcc]">
+                        {String(idx + 1).padStart(2, "0")}
+                      </span>
+                      <h3 className="font-pixel-square text-base font-semibold text-stone-900">
+                        {item.title}
+                      </h3>
+                    </div>
+                    <p className="text-sm text-stone-600 leading-relaxed">
+                      {item.description}
+                    </p>
+                    <p className="text-xs text-stone-500 leading-relaxed pt-2 border-t border-stone-100 mt-3">
+                      <span className="font-semibold text-stone-700">What you get: </span>
+                      {item.proofPoint}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* Section 1b: Methodology */}
         {page.methodology && (
           <section className="w-full max-w-5xl mx-auto px-6 mb-16">
@@ -508,34 +551,6 @@ export function ComparisonPage({ page }: { page: ComparisonPageData }) {
           </div>
         </section>
 
-        {/* Section 6b: Sources */}
-        {page.sources && page.sources.length > 0 && (
-          <section className="w-full max-w-5xl mx-auto px-6 mb-16">
-            <SectionHeader index="06b" label="Sources And Methodology" />
-            <div className="bg-white rounded-lg border border-stone-200 divide-y divide-stone-100">
-              {page.sources.map((source, idx) => (
-                <div
-                  key={idx}
-                  className="p-5 flex flex-col md:flex-row md:items-start md:justify-between gap-2"
-                >
-                  <div className="text-sm text-stone-600">
-                    <div className="font-medium text-stone-900">{source.label}</div>
-                    {source.note && <div className="mt-1">{source.note}</div>}
-                  </div>
-                  <Link
-                    href={source.href}
-                    className="text-sm font-medium text-[#1b7fcc] hover:text-[#145f99]"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Visit source
-                  </Link>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
         {/* Section 7: Final Verdict */}
         <section className="w-full max-w-5xl mx-auto px-6 mb-16">
           <SectionHeader index="07" label="Final Verdict" />
@@ -574,6 +589,30 @@ export function ComparisonPage({ page }: { page: ComparisonPageData }) {
             </div>
           </div>
         </section>
+        {/* Sources (minimalist authority footer) */}
+        {page.sources && page.sources.length > 0 && (
+          <footer className="w-full max-w-5xl mx-auto px-6">
+            <div className="border-t border-stone-200 pt-6 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xs text-stone-500">
+              <span className="uppercase tracking-widest font-semibold text-stone-400">Sources</span>
+              <span className="text-stone-300">·</span>
+              {page.sources.map((source, idx) => (
+                <span key={idx} className="inline-flex items-baseline">
+                  <Link
+                    href={source.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-stone-500 hover:text-[#1b7fcc] underline-offset-2 hover:underline"
+                  >
+                    {source.label}
+                  </Link>
+                  {idx < page.sources.length - 1 && (
+                    <span className="text-stone-300 ml-2">·</span>
+                  )}
+                </span>
+              ))}
+            </div>
+          </footer>
+        )}
       </main>
     </div>
   );

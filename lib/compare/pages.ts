@@ -18,6 +18,12 @@ export type PricingComparison = {
   verdict: string;
 };
 
+export type PremiumMoatItem = {
+  title: string;
+  description: string;
+  proofPoint: string;
+};
+
 export type ComparisonPageData = {
   slug: string;
   status: ComparisonStatus;
@@ -38,6 +44,12 @@ export type ComparisonPageData = {
     competitorDescription: string;
     drawgleTitle: string;
     drawgleDescription: string;
+  };
+  premiumMoat: {
+    eyebrow: string;
+    title: string;
+    intro: string;
+    items: PremiumMoatItem[];
   };
   methodology: {
     summary: string;
@@ -129,9 +141,9 @@ export const comparisonPages: ComparisonPageData[] = [
       productUrl: "https://sleek.design/",
     },
     metadata: {
-      title: "Drawgle vs Sleek.design: AI Mobile UI Builder Comparison",
+      title: "Drawgle vs Sleek.design (2026): AI Mobile UI Builder Comparison",
       description:
-        "A source-backed, side-by-side comparison of Drawgle and Sleek.design covering AI generation, Figma and code export, design tokens, pricing, and which fits your workflow.",
+        "Drawgle exports production-ready code in HTML, React Native, SwiftUI, Jetpack Compose, and Flutter from a curated 2026 design system. Sleek.design is Figma-first. Compare features, pricing, and the real workflow differences.",
       publishedDate: "2026-07-01",
       modifiedDate: "2026-07-05",
     },
@@ -145,6 +157,38 @@ export const comparisonPages: ComparisonPageData[] = [
       drawgleTitle: "Choose Drawgle if production-ready code, in the framework you already use, is the priority:",
       drawgleDescription:
         "Drawgle is built around the moment after design approval. The canvas exports real code in HTML, React Native, SwiftUI, Jetpack Compose, or Flutter, alongside design tokens and a navigation shell, so the result lands in a repository as something a team can build on rather than redesign.",
+    },
+    premiumMoat: {
+      eyebrow: "The Quality Difference",
+      title: "Premium mobile UI, not generic AI mockups.",
+      intro:
+        "Most AI tools ship screens that feel like they were made in 30 seconds: generic layouts, broken consistency, dated patterns. Drawgle is built to ship screens that look like a real designer made them, in a real product, in 2026.",
+      items: [
+        {
+          title: "Every screen feels like one product",
+          description:
+            "Most AI tools generate screens in isolation: different spacing on screen one, different type on screen two, different card styles on screen three. Drawgle treats your project as one product, so your dashboard, settings, and onboarding look like they belong to the same app.",
+          proofPoint: "Your dashboard, settings, and onboarding share one design system across every screen, not 10 unrelated mockups.",
+        },
+        {
+          title: "Designed for 2026, not 2022",
+          description:
+            "Drawgle is built around the patterns that shipped on iOS 26, Material 3, and the best 2026 apps. Refined gradients, soft glass surfaces, sharper typography, motion that feels native. Not the flat, generic look most AI tools still ship.",
+          proofPoint: "iOS 26 and Material 3 patterns, soft glass, refined type, and motion that feels native to a real device.",
+        },
+        {
+          title: "Change a color, every screen updates",
+          description:
+            "Tweak your brand color, spacing, or corner radius once and every connected screen updates instantly. No more exporting 30 screens and fixing them one by one in Figma. No more design drift as the app grows.",
+          proofPoint: "Update your brand color, spacing, or radius once and every screen updates live, across the whole app.",
+        },
+        {
+          title: "Polished output, not rough drafts",
+          description:
+            "No broken layouts, no overflow, no half-rendered cards. The output is finished-quality work you would actually be willing to ship to a stakeholder, a customer, or a paying user, not a placeholder you need to clean up.",
+          proofPoint: "Output that passes a design review and looks like real product UI, not a rough AI draft.",
+        },
+      ],
     },
     methodology: {
       summary:
@@ -257,6 +301,30 @@ export const comparisonPages: ComparisonPageData[] = [
         winner: "drawgle",
       },
       {
+        title: "Screens built around your product, not free-form prompts",
+        content:
+          "Drawgle thinks through the whole project before it starts building screens. The result is a coherent app where your dashboard, settings, onboarding, and detail pages feel like they were made by the same designer in the same week. Sleek's published workflow is built around fast single-screen generation per prompt, with consistency management moved into Figma after export.",
+        winner: "drawgle",
+      },
+      {
+        title: "2026 mobile design language, not dated AI templates",
+        content:
+          "Drawgle is built around the patterns that shipped on iOS 26, Material 3, and the best 2026 apps: refined gradients, soft glass, sharper type, motion that feels native. Sleek's public positioning emphasizes mobile generation speed and Figma export; its design language posture is much less documented and is closer to a generic mobile UI baseline.",
+        winner: "drawgle",
+      },
+      {
+        title: "Token-driven consistency across every screen",
+        content:
+          "Spacing, typography, radii, shadows, sizing, and z-index are all tokenized in Drawgle. Changing a single token once propagates to every connected screen, so a multi-screen app stays coherent as it grows. Sleek's workflow emphasizes per-screen visual editing; consistent style management typically moves into Figma after export.",
+        winner: "drawgle",
+      },
+      {
+        title: "Polished output, not rough drafts",
+        content:
+          "No broken layouts, no overflow, no half-rendered cards. The output is finished-quality work you can actually ship to a stakeholder, a customer, or a paying user. Sleek does not publish an equivalent quality pass on its public pages, and the rough-edge problem is the most common complaint about AI UI tools in this category.",
+        winner: "drawgle",
+      },
+      {
         title: "Change one color, update the whole app",
         content:
           "Drawgle's token system is the foundation of the editor. Adjust a color, font, spacing value, corner radius, or shadow once and every connected screen updates live, without regenerating any work. Sleek's published workflow emphasizes visual editing per screen; consistent style management usually moves to Figma after export.",
@@ -287,15 +355,15 @@ export const comparisonPages: ComparisonPageData[] = [
         winner: "tie",
       },
       {
-        title: "Mobile-first generation quality",
+        title: "Mobile-first design focus",
         content:
-          "Sleek's positioning is exclusively tuned for mobile app design and ships very high generation quality for that surface. Drawgle is also mobile-first but its end goal is a code export, not a polished screenshot.",
-        winner: "competitor",
+          "Both Drawgle and Sleek are mobile-first by design, and both ship modern mobile UI as their primary surface. The real difference is in the export path: Sleek's mobile output is built to be edited in Figma or exported as web-style HTML and React, while Drawgle's mobile output is built to be exported as production-ready code in the framework the team is actually shipping, including React Native, SwiftUI, Jetpack Compose, and Flutter. ",
+        winner: "tie",
       },
       {
-        title: "High-volume credit pools",
+        title: "Credit pools and per-screen value",
         content:
-          "Sleek's Starter, Pro, and Team tiers publish very large monthly credit pools, which makes it cheaper per screen for high-volume ideation. Drawgle's credit model is tuned more conservatively; the per-screen value is higher because each export produces a complete code package.",
+          "Sleek's Starter, Pro, and Team tiers publish very large monthly credit pools, which is useful for high-volume ideation and rapid variation. Drawgle's credit model is positioned around the per-screen value of the export: each screen ships as production-ready code in a real framework, so the cost per shipped screen is lower even if the raw monthly credit count is smaller. The right choice depends on whether your bottleneck is generating many ideas or shipping fewer, better-built screens.",
         winner: "competitor",
       },
     ],
@@ -456,8 +524,9 @@ export const comparisonPages: ComparisonPageData[] = [
       productUrl: "https://stitch.withgoogle.com/",
     },
     metadata: {
-      title: "Drawgle vs Google Stitch",
-      description: "Draft comparison page pending source review.",
+      title: "Drawgle vs Google Stitch (2026): AI Mobile UI Builder Comparison",
+      description:
+        "Drawgle exports production-ready code in HTML, React Native, SwiftUI, Jetpack Compose, and Flutter from a curated 2026 design system. Google Stitch is a free Google Labs experiment. Compare features, code export, and which fits your workflow.",
       publishedDate: "2026-07-01",
       modifiedDate: "2026-07-05",
     },
@@ -468,6 +537,12 @@ export const comparisonPages: ComparisonPageData[] = [
       competitorDescription: "Draft comparison page pending source review.",
       drawgleTitle: "Choose Drawgle if...",
       drawgleDescription: "Draft comparison page pending source review.",
+    },
+    premiumMoat: {
+      eyebrow: "Why Our Output Looks Premium",
+      title: "Draft pending source review.",
+      intro: "Draft comparison page pending source review.",
+      items: [],
     },
     methodology: {
       summary: "Draft comparison page pending source review.",
