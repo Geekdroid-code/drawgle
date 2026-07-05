@@ -81,7 +81,7 @@ export default async function CompetitorComparisonPage({ params }: PageProps) {
           itemListSchema({
             path,
             name: `${page.metadata.title} comparison criteria`,
-            items: page.comparisonRows.map((row) => row.feature),
+            items: Object.values(page.matrix).map((row) => row.feature),
           }),
         ]}
       />

@@ -1,299 +1,580 @@
 import Link from "next/link";
-import {
-  ArrowRight,
-  Check,
-  CheckCircle2,
-  Code2,
-  FileText,
-  Sparkles,
-} from "lucide-react";
+import { ArrowRight, Check, X, Zap, Target, Users, AlertTriangle, FileText } from "lucide-react";
 
 import type { ComparisonPageData } from "@/lib/compare/pages";
 
-const winnerLabel = {
-  drawgle: "Drawgle edge",
-  competitor: "Competitor edge",
-  tie: "Depends",
-} as const;
+type SectionHeaderProps = {
+  index: string;
+  label: string;
+};
+
+function SectionHeader({ index, label }: SectionHeaderProps) {
+  return (
+    <div className="flex items-center gap-3 mb-6 border-b border-stone-200 pb-2">
+      <span className="text-xs font-bold text-[#1b7fcc] uppercase tracking-widest">[{index}]</span>
+      <h2 className="font-pixel-square text-xs font-semibold text-stone-500 uppercase tracking-widest">{label}</h2>
+    </div>
+  );
+}
 
 export function ComparisonPage({ page }: { page: ComparisonPageData }) {
-  const toc = [
-    ["verdict", "Quick verdict"],
-    ["facts", `${page.competitor.name} facts`],
-    ["matrix", "Side-by-side"],
-    ["workflow", "Workflow"],
-    ["switching", "Which to choose"],
-    ["sources", "Sources"],
-    ["faq", "FAQ"],
-  ] as const;
+  const matrixEntries = Object.entries(page.matrix);
+  const matrixRows = matrixEntries.map(([key, value]) => ({ key, ...value }));
 
   return (
-    <div className="min-h-screen bg-[#f7f5f3] text-black">
-      <section className="relative overflow-hidden border-b border-black/[0.08] bg-[#080808] px-4 pb-20 pt-32 text-white sm:px-6 sm:pb-24 sm:pt-36">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-96 bg-[radial-gradient(ellipse_at_top,rgba(27,127,204,0.32),transparent_65%)]" />
-        <div className="relative mx-auto grid max-w-6xl gap-10 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-end">
-          <div>
-            <div className="mb-5 inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#75b9ed]">
-              <Sparkles className="h-3.5 w-3.5" />
-              {page.hero.eyebrow}
-            </div>
-            <h1 className="max-w-4xl font-pixel-square text-[42px] font-semibold leading-[1.02] tracking-tight sm:text-6xl md:text-7xl">
-              {page.hero.h1}
-              <span className="block text-[#1b7fcc]">for mobile UI builders</span>
+    <div className="relative min-h-screen w-full flex flex-col bg-stone-50/20 text-stone-900">
+      <main className="flex-grow flex flex-col items-center w-full relative pt-24 pb-24 z-10">
+        {/* Section 1: Quick Verdict Header */}
+        <section className="w-full max-w-5xl mx-auto px-6 mb-16">
+          <div className="text-center mb-10 max-w-3xl mx-auto">
+            <h1 className="font-pixel-square text-3xl md:text-5xl text-stone-900 leading-[1.1] mb-4 tracking-tight font-semibold">
+              {page.heroTitle}
             </h1>
-            <p className="mt-7 max-w-3xl text-base leading-7 text-white/62 sm:text-lg">
-              {page.hero.summary}
-            </p>
-            <div className="mt-9 flex flex-wrap gap-3">
-              <Link
-                href="/project/new"
-                className="inline-flex min-h-12 items-center gap-2 rounded-md bg-[#1b7fcc] px-5 py-3 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] transition hover:bg-[#1975bd]"
-              >
-                Try Drawgle
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-              <Link
-                href="/showcase"
-                className="inline-flex min-h-12 items-center gap-2 rounded-md border border-white/14 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-white/86 transition hover:bg-white/[0.08]"
-              >
-                View examples
-              </Link>
+            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-stone-400">
+              <span>
+                Updated{" "}
+                {new Date(page.metadata.modifiedDate).toLocaleDateString("en-US", {
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </span>
+              <span className="text-stone-300">•</span>
+              <span>Reviewed by Drawgle Editorial</span>
             </div>
           </div>
 
-          <aside className="rounded-[22px] border border-white/10 bg-white/[0.045] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
-            <div className="mb-4 text-[10px] font-bold uppercase tracking-[0.18em] text-white/40">
-              Best fit at a glance
+          <div className="bg-white rounded-lg border border-[#1b7fcc]/20 overflow-hidden">
+            <div className="bg-[#1b7fcc]/[0.04] px-6 py-4 border-b border-[#1b7fcc]/10 flex items-center gap-2">
+              <Zap className="w-4 h-4 text-[#1b7fcc] fill-[#1b7fcc]" />
+              <h2 className="font-pixel-square text-sm text-stone-900 uppercase tracking-wider font-semibold">The 30-Second Verdict</h2>
             </div>
-            <div className="space-y-4">
-              <div>
-                <div className="mb-2 font-pixel-square text-xl text-white">Choose Drawgle for</div>
-                <ul className="space-y-2 text-sm leading-5 text-white/62">
-                  {page.verdict.drawgleBestFor.slice(0, 3).map((item) => (
-                    <li key={item} className="flex gap-2">
-                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#75b9ed]" />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="border-t border-white/10 pt-4">
-                <div className="mb-2 font-pixel-square text-xl text-white">Choose {page.competitor.name} for</div>
-                <ul className="space-y-2 text-sm leading-5 text-white/62">
-                  {page.verdict.competitorBestFor.slice(0, 3).map((item) => (
-                    <li key={item} className="flex gap-2">
-                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-white/42" />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
+
+            <div className="p-6 md:p-8">
+              <div className="grid md:grid-cols-2 gap-8 md:gap-12">
+                <div>
+                  <h3 className="font-pixel-square text-stone-900 text-lg mb-3 font-semibold flex items-center gap-2">
+                    {page.quickVerdict.competitorTitle}
+                  </h3>
+                  <p className="text-stone-600 text-sm leading-relaxed">
+                    {page.quickVerdict.competitorDescription}
+                  </p>
+                </div>
+                <div>
+                  <h3 className="font-pixel-square text-[#1b7fcc] text-lg mb-3 font-semibold flex items-center gap-2">
+                    {page.quickVerdict.drawgleTitle}
+                  </h3>
+                  <p className="text-stone-900 text-sm leading-relaxed font-medium">
+                    {page.quickVerdict.drawgleDescription}
+                  </p>
+                </div>
               </div>
             </div>
-          </aside>
-        </div>
-      </section>
+          </div>
+        </section>
 
-      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <aside className="hidden lg:block">
-          <nav className="sticky top-28 space-y-3 text-sm">
-            <div className="mb-5 text-[10px] font-bold uppercase tracking-[0.18em] text-black/35">
-              On this page
-            </div>
-            {toc.map(([id, label]) => (
-              <a key={id} href={`#${id}`} className="block text-black/50 transition hover:text-[#1b7fcc]">
-                {label}
-              </a>
-            ))}
-          </nav>
-        </aside>
-
-        <main className="min-w-0">
-          <section id="verdict" className="scroll-mt-28 border-b border-black/[0.08] pb-14">
-            <div className="mb-4 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#1b7fcc]">
-              <CheckCircle2 className="h-4 w-4" />
-              Quick verdict
-            </div>
-            <p className="max-w-4xl text-2xl font-semibold leading-snug text-black sm:text-3xl">
-              {page.verdict.short}
-            </p>
-          </section>
-
-          <section id="facts" className="scroll-mt-28 border-b border-black/[0.08] py-14">
-            <div className="grid gap-10 lg:grid-cols-[0.78fr_1.22fr]">
-              <div>
-                <h2 className="font-pixel-square text-4xl font-semibold leading-tight text-black">
-                  What {page.competitor.name} publicly says it does
+        {/* Section 1b: Methodology */}
+        {page.methodology && (
+          <section className="w-full max-w-5xl mx-auto px-6 mb-16">
+            <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
+              <div className="bg-stone-50 px-6 py-4 border-b border-stone-200">
+                <h2 className="font-pixel-square text-sm font-semibold text-stone-900">
+                  How We Evaluated {page.competitor.name}
                 </h2>
-                <p className="mt-4 text-sm leading-6 text-black/55">
-                  These facts come from official Sleek pages or its public GitHub repository. They set the boundary for a fair comparison.
-                </p>
               </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                {page.competitorFacts.map((fact) => (
-                  <article key={fact.label} className="rounded-[18px] border border-black/[0.08] bg-white p-5">
-                    <div className="mb-2 text-sm font-bold text-black">{fact.label}</div>
-                    <p className="text-sm leading-6 text-black/55">{fact.detail}</p>
-                    <a
-                      href={fact.source.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-4 inline-flex text-xs font-semibold text-[#1b7fcc] hover:text-[#145f99]"
+              <div className="p-6 space-y-5">
+                <p className="text-sm text-stone-600 leading-relaxed">{page.methodology.summary}</p>
+                <ul className="grid md:grid-cols-2 gap-3">
+                  {page.methodology.checks.map((item, idx) => (
+                    <li key={idx} className="flex items-start gap-2 text-sm text-stone-600">
+                      <Check className="w-4 h-4 text-[#1b7fcc] shrink-0 mt-0.5" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Section 2: Feature Comparison Table */}
+        <section className="w-full max-w-5xl mx-auto px-6 mb-16">
+          <SectionHeader index="02" label="Feature Comparison" />
+          <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
+            {/* Desktop Table View */}
+            <div className="hidden md:block">
+              <div className="grid grid-cols-12 bg-stone-50 border-b border-stone-200 divide-x divide-stone-200">
+                <div className="col-span-4 p-4 text-xs font-bold text-stone-500 uppercase tracking-wider">Feature</div>
+                <div className="col-span-3 p-4 text-xs font-bold text-stone-500 uppercase tracking-wider flex items-center gap-2">
+                  <span className="w-4 h-4 rounded bg-stone-200 flex items-center justify-center text-[8px] text-stone-600">
+                    {page.competitor.name.charAt(0)}
+                  </span>
+                  {page.competitor.name}
+                </div>
+                <div className="col-span-3 p-4 text-xs font-bold text-[#1b7fcc] uppercase tracking-wider flex items-center gap-2 bg-[#1b7fcc]/[0.04]">
+                  <span className="w-4 h-4 rounded bg-[#1b7fcc]/20 flex items-center justify-center text-[8px] text-[#1b7fcc]">D</span>
+                  Drawgle
+                </div>
+                <div className="col-span-2 p-4 text-xs font-bold text-stone-400 uppercase tracking-wider text-center">Winner</div>
+              </div>
+
+              <div className="divide-y divide-stone-100">
+                {matrixRows.map((row) => (
+                  <div
+                    key={row.key}
+                    className="grid grid-cols-12 divide-x divide-stone-100 hover:bg-stone-50/50 transition-colors"
+                  >
+                    <div className="col-span-4 p-4 text-sm font-medium text-stone-900 flex items-center">
+                      {row.feature}
+                    </div>
+                    <div className="col-span-3 p-4 text-sm text-stone-500 leading-tight flex items-center">
+                      {row.competitor}
+                    </div>
+                    <div className="col-span-3 p-4 text-sm font-medium text-stone-900 bg-[#1b7fcc]/[0.02] leading-tight flex items-center border-l border-[#1b7fcc]/10">
+                      {row.drawgle}
+                    </div>
+                    <div className="col-span-2 p-4 flex items-center justify-center">
+                      {row.winner === "drawgle" && (
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-[#1b7fcc] bg-[#1b7fcc]/[0.06] px-2 py-1 rounded border border-[#1b7fcc]/15">
+                          <Target className="w-3 h-3" />
+                          Drawgle
+                        </div>
+                      )}
+                      {row.winner === "competitor" && (
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-stone-600 bg-stone-100 px-2 py-1 rounded border border-stone-200">
+                          <span className="text-[10px]">{page.competitor.name.charAt(0)}</span>
+                          {page.competitor.name}
+                        </div>
+                      )}
+                      {row.winner === "tie" && (
+                        <div className="text-xs font-medium text-stone-400">Draw</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="md:hidden divide-y divide-stone-100">
+              {matrixRows.map((row) => (
+                <div key={row.key} className="p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-bold text-stone-400 uppercase tracking-wider">
+                      {row.feature}
+                    </div>
+                    <div>
+                      {row.winner === "drawgle" && (
+                        <div className="flex items-center gap-1 text-[10px] font-bold text-[#1b7fcc] bg-[#1b7fcc]/[0.06] px-2 py-0.5 rounded border border-[#1b7fcc]/15">
+                          Winner: Drawgle
+                        </div>
+                      )}
+                      {row.winner === "competitor" && (
+                        <div className="flex items-center gap-1 text-[10px] font-bold text-stone-600 bg-stone-100 px-2 py-0.5 rounded border border-stone-200">
+                          Winner: {page.competitor.name}
+                        </div>
+                      )}
+                      {row.winner === "tie" && (
+                        <div className="text-[10px] font-medium text-stone-400 px-2 py-0.5 bg-stone-50 rounded border border-stone-100">
+                          Draw
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-stone-400 uppercase">
+                        <span className="w-3.5 h-3.5 rounded bg-stone-100 flex items-center justify-center text-[7px] text-stone-500 border border-stone-200">
+                          {page.competitor.name.charAt(0)}
+                        </span>
+                        {page.competitor.name}
+                      </div>
+                      <div className="text-sm text-stone-600 leading-tight">{row.competitor}</div>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-[#1b7fcc] uppercase">
+                        <span className="w-3.5 h-3.5 rounded bg-[#1b7fcc]/15 flex items-center justify-center text-[7px] text-[#1b7fcc] border border-[#1b7fcc]/20">D</span>
+                        Drawgle
+                      </div>
+                      <div className="text-sm text-stone-900 font-medium leading-tight">{row.drawgle}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Section 2b: Best For By Niche */}
+        {page.bestForNiche && page.bestForNiche.length > 0 && (
+          <section className="w-full max-w-5xl mx-auto px-6 mb-16">
+            <SectionHeader index="02b" label="Best Fit By Niche" />
+            <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
+              <div className="hidden md:block">
+                <div className="grid grid-cols-12 bg-stone-50 border-b border-stone-200 divide-x divide-stone-200">
+                  <div className="col-span-4 p-4 text-xs font-bold text-stone-500 uppercase tracking-wider">Niche / Use Case</div>
+                  <div className="col-span-2 p-4 text-xs font-bold text-stone-500 uppercase tracking-wider text-center">Best Fit</div>
+                  <div className="col-span-6 p-4 text-xs font-bold text-stone-500 uppercase tracking-wider">Why</div>
+                </div>
+
+                <div className="divide-y divide-stone-100">
+                  {page.bestForNiche.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="grid grid-cols-12 divide-x divide-stone-100 hover:bg-stone-50/50 transition-colors"
                     >
-                      Source: {fact.source.label}
-                    </a>
-                  </article>
+                      <div className="col-span-4 p-4 text-sm font-medium text-stone-900 flex items-center">
+                        {item.niche}
+                      </div>
+                      <div className="col-span-2 p-4 flex items-center justify-center">
+                        {item.bestTool === "drawgle" && (
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-[#1b7fcc] bg-[#1b7fcc]/[0.06] px-2 py-1 rounded border border-[#1b7fcc]/15">
+                            <Target className="w-3 h-3" />
+                            Drawgle
+                          </div>
+                        )}
+                        {item.bestTool === "competitor" && (
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-stone-600 bg-stone-100 px-2 py-1 rounded border border-stone-200">
+                            <span className="text-[10px]">{page.competitor.name.charAt(0)}</span>
+                            {page.competitor.name}
+                          </div>
+                        )}
+                        {item.bestTool === "tie" && (
+                          <div className="text-xs font-medium text-stone-400">Draw</div>
+                        )}
+                      </div>
+                      <div className="col-span-6 p-4 text-sm text-stone-500 leading-relaxed flex items-center">
+                        {item.reason}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="md:hidden divide-y divide-stone-100">
+                {page.bestForNiche.map((item, idx) => (
+                  <div key={idx} className="p-5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-bold text-stone-900">{item.niche}</div>
+                      <div>
+                        {item.bestTool === "drawgle" && (
+                          <div className="flex items-center gap-1 text-[10px] font-bold text-[#1b7fcc] bg-[#1b7fcc]/[0.06] px-2 py-0.5 rounded border border-[#1b7fcc]/15">
+                            Best: Drawgle
+                          </div>
+                        )}
+                        {item.bestTool === "competitor" && (
+                          <div className="flex items-center gap-1 text-[10px] font-bold text-stone-600 bg-stone-100 px-2 py-0.5 rounded border border-stone-200">
+                            Best: {page.competitor.name}
+                          </div>
+                        )}
+                        {item.bestTool === "tie" && (
+                          <div className="text-[10px] font-medium text-stone-400 px-2 py-0.5 bg-stone-50 rounded border border-stone-100">
+                            Draw
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-sm text-stone-500 leading-relaxed">{item.reason}</p>
+                  </div>
                 ))}
               </div>
             </div>
           </section>
+        )}
 
-          <section className="border-b border-black/[0.08] py-14">
-            <h2 className="font-pixel-square text-4xl font-semibold leading-tight text-black">
-              Where Drawgle is intentionally different
-            </h2>
-            <div className="mt-7 grid gap-4 sm:grid-cols-2">
-              {page.drawgleAdvantages.map((advantage) => (
-                <div key={advantage} className="flex gap-3 rounded-[18px] border border-[#1b7fcc]/15 bg-[#1b7fcc]/[0.05] p-5">
-                  <Check className="mt-1 h-4 w-4 shrink-0 text-[#1b7fcc]" />
-                  <p className="text-sm leading-6 text-black/68">{advantage}</p>
+        {/* Section 3: Pricing Analysis */}
+        <section className="w-full max-w-5xl mx-auto px-6 mb-16">
+          <SectionHeader index="03" label="Pricing Analysis" />
+          <div className="space-y-6">
+            <div className="grid lg:grid-cols-2 gap-6">
+              <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
+                <div className="px-6 py-5 border-b border-stone-200 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded bg-stone-100 flex items-center justify-center text-stone-500 font-bold text-lg border border-stone-200">
+                    {page.competitor.name.charAt(0)}
+                  </div>
+                  <h3 className="font-pixel-square text-lg font-semibold text-stone-900">{page.competitor.name}</h3>
                 </div>
-              ))}
-            </div>
-          </section>
-
-          <section id="matrix" className="scroll-mt-28 border-b border-black/[0.08] py-14">
-            <h2 className="font-pixel-square text-4xl font-semibold leading-tight text-black">
-              Drawgle vs {page.competitor.name}: side-by-side
-            </h2>
-            <div className="mt-8 overflow-x-auto rounded-[20px] border border-black/[0.08] bg-white">
-              <table className="w-full min-w-[760px] border-collapse text-left">
-                <thead className="bg-black/[0.025]">
-                  <tr>
-                    <th className="w-[22%] border-b border-black/[0.08] p-5 text-xs font-bold uppercase tracking-[0.14em] text-black/45">
-                      Criteria
-                    </th>
-                    <th className="w-[34%] border-b border-black/[0.08] p-5 text-xs font-bold uppercase tracking-[0.14em] text-black">
-                      Drawgle
-                    </th>
-                    <th className="w-[34%] border-b border-black/[0.08] p-5 text-xs font-bold uppercase tracking-[0.14em] text-black">
-                      {page.competitor.name}
-                    </th>
-                    <th className="w-[10%] border-b border-black/[0.08] p-5 text-xs font-bold uppercase tracking-[0.14em] text-black/45">
-                      Fit
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {page.comparisonRows.map((row) => (
-                    <tr key={row.feature} className="border-b border-black/[0.06] last:border-b-0">
-                      <td className="p-5 align-top text-sm font-semibold text-black">{row.feature}</td>
-                      <td className="p-5 align-top text-sm leading-6 text-black/62">{row.drawgle}</td>
-                      <td className="p-5 align-top text-sm leading-6 text-black/62">{row.competitor}</td>
-                      <td className="p-5 align-top text-xs font-bold text-[#1b7fcc]">{winnerLabel[row.winner]}</td>
-                    </tr>
+                <div className="divide-y divide-stone-100">
+                  {page.pricing.competitorPlans.map((plan) => (
+                    <div key={plan.name} className="px-6 py-5 flex items-start justify-between gap-6">
+                      <div>
+                        <div className="text-sm font-semibold text-stone-900">{plan.name}</div>
+                        <div className="text-sm text-stone-500 mt-1 leading-relaxed">{plan.subtitle}</div>
+                      </div>
+                      <div className="text-sm font-bold text-stone-900 whitespace-nowrap">{plan.price}</div>
+                    </div>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section id="workflow" className="scroll-mt-28 border-b border-black/[0.08] py-14">
-            <div className="mb-8 max-w-3xl">
-              <h2 className="font-pixel-square text-4xl font-semibold leading-tight text-black">{page.workflow.title}</h2>
-              <p className="mt-4 text-sm leading-6 text-black/55">{page.workflow.description}</p>
-            </div>
-            <div className="grid gap-4 md:grid-cols-3">
-              {page.workflow.steps.map((step, index) => (
-                <article key={step.title} className="rounded-[18px] border border-black/[0.08] bg-white p-5">
-                  <div className="mb-5 flex h-10 w-10 items-center justify-center rounded-[12px] bg-[#1b7fcc] text-sm font-bold text-white">
-                    {index + 1}
-                  </div>
-                  <h3 className="font-pixel-square text-xl font-semibold text-black">{step.title}</h3>
-                  <div className="mt-5 space-y-4 text-sm leading-6">
-                    <p className="text-black/62">
-                      <span className="font-bold text-black">Drawgle:</span> {step.drawgle}
-                    </p>
-                    <p className="text-black/52">
-                      <span className="font-bold text-black">{page.competitor.name}:</span> {step.competitor}
-                    </p>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <section id="switching" className="scroll-mt-28 border-b border-black/[0.08] py-14">
-            <h2 className="font-pixel-square text-4xl font-semibold leading-tight text-black">
-              Which one should you choose?
-            </h2>
-            <div className="mt-7 grid gap-4">
-              {page.switchGuide.map((item) => (
-                <article key={item.title} className="rounded-[18px] border border-black/[0.08] bg-white p-6">
-                  <h3 className="font-pixel-square text-2xl font-semibold text-black">{item.title}</h3>
-                  <p className="mt-3 text-sm leading-6 text-black/58">{item.description}</p>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <section className="my-14 overflow-hidden rounded-[24px] bg-[#080808] p-6 text-white sm:p-8">
-            <div className="grid gap-8 md:grid-cols-[1fr_auto] md:items-center">
-              <div>
-                <div className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[#75b9ed]">
-                  <Code2 className="h-4 w-4" />
-                  Build from the handoff
                 </div>
-                <h2 className="font-pixel-square text-3xl font-semibold leading-tight sm:text-4xl">
-                  Want mobile UI your coding workflow can actually use?
-                </h2>
-                <p className="mt-4 max-w-2xl text-sm leading-6 text-white/55">
-                  Start with a prompt, screenshot, or reference, then export implementation context instead of stopping at a static-looking design.
-                </p>
               </div>
-              <Link
-                href="/project/new"
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-[#1b7fcc] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1975bd]"
-              >
-                Design in Drawgle
-                <ArrowRight className="h-4 w-4" />
-              </Link>
+
+              <div className="bg-white rounded-lg border-2 border-[#1b7fcc] overflow-hidden shadow-md relative">
+                <div className="absolute top-0 right-0 bg-[#1b7fcc] text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg uppercase tracking-wider">
+                  Our Pick
+                </div>
+                <div className="px-6 py-5 border-b border-[#1b7fcc]/15 bg-[#1b7fcc]/[0.04] flex items-center gap-3">
+                  <div className="w-10 h-10 rounded bg-[#1b7fcc]/15 flex items-center justify-center text-[#1b7fcc] font-bold text-lg border border-[#1b7fcc]/20">
+                    D
+                  </div>
+                  <div>
+                    <h3 className="font-pixel-square text-lg font-semibold text-stone-900">Drawgle</h3>
+                    <span className="text-sm font-medium text-[#1b7fcc]">Best for production-ready code</span>
+                  </div>
+                </div>
+                <div className="divide-y divide-stone-100">
+                  {page.pricing.drawglePlans.map((plan) => (
+                    <div key={plan.name} className="px-6 py-5 flex items-start justify-between gap-6">
+                      <div>
+                        <div className="text-sm font-semibold text-stone-900">{plan.name}</div>
+                        <div className="text-sm text-stone-500 mt-1 leading-relaxed">{plan.subtitle}</div>
+                      </div>
+                      <div className="text-sm font-bold text-[#1b7fcc] whitespace-nowrap">{plan.price}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg border border-stone-200 p-6">
+              <div className="flex items-center gap-2 text-xs font-bold text-stone-400 uppercase tracking-widest mb-3">
+                <Zap className="w-4 h-4 text-[#1b7fcc]" />
+                Pricing Verdict
+              </div>
+              <p className="text-stone-600 text-sm leading-relaxed">{page.pricing.verdict}</p>
+            </div>
+          </div>
+        </section>
+
+        {/* Section 4: Detailed Feature Breakdown */}
+        <section className="w-full max-w-5xl mx-auto px-6 mb-16">
+          <SectionHeader index="04" label="Detailed Feature Breakdown" />
+          <div className="space-y-6">
+            {page.features.map((feature, i) => (
+              <div key={i} className="bg-white rounded-lg border border-stone-200 overflow-hidden">
+                <div className="bg-stone-50/50 px-6 py-4 border-b border-stone-200 flex items-center justify-between">
+                  <h3 className="font-pixel-square text-sm font-semibold text-stone-900">{feature.title}</h3>
+                  {feature.winner === "drawgle" && (
+                    <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-[#1b7fcc]/[0.06] text-[#1b7fcc] text-[10px] font-bold uppercase border border-[#1b7fcc]/15">
+                      <Target className="w-3 h-3" />
+                      Drawgle Wins
+                    </div>
+                  )}
+                  {feature.winner === "competitor" && (
+                    <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-stone-100 text-stone-600 text-[10px] font-bold uppercase border border-stone-200">
+                      <span className="text-[8px]">{page.competitor.name.charAt(0)}</span>
+                      {page.competitor.name} Wins
+                    </div>
+                  )}
+                  {feature.winner === "tie" && (
+                    <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-stone-100 text-stone-400 text-[10px] font-bold uppercase border border-stone-200">
+                      Draw
+                    </div>
+                  )}
+                </div>
+                <div className="p-6">
+                  <p className="text-stone-600 text-sm leading-relaxed">{feature.content}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Section 4b: Ideal User Profiles */}
+        {page.idealUsers && (
+          <section className="w-full max-w-5xl mx-auto px-6 mb-16">
+            <SectionHeader index="04b" label="Who Is Each Tool Actually For?" />
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-6 h-6 rounded bg-[#1b7fcc]/15 flex items-center justify-center text-[#1b7fcc] text-xs font-bold border border-[#1b7fcc]/20">D</div>
+                  <span className="text-sm font-semibold text-[#1b7fcc]">Drawgle is built for</span>
+                </div>
+                {page.idealUsers.drawgle.map((user, idx) => (
+                  <div key={idx} className="bg-white rounded-lg border border-[#1b7fcc]/15 p-5 hover:border-[#1b7fcc]/30 transition-colors">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Users className="w-4 h-4 text-[#1b7fcc]" />
+                      <span className="text-sm font-semibold text-stone-900">{user.role}</span>
+                    </div>
+                    <div className="text-xs text-[#1b7fcc] font-medium mb-3 pl-6">Goal: {user.goal}</div>
+                    <p className="text-sm text-stone-600 leading-relaxed pl-6">{user.whyFit}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-6 h-6 rounded bg-stone-100 flex items-center justify-center text-stone-500 text-xs font-bold border border-stone-200">
+                    {page.competitor.name.charAt(0)}
+                  </div>
+                  <span className="text-sm font-semibold text-stone-700">{page.competitor.name} is built for</span>
+                </div>
+                {page.idealUsers.competitor.map((user, idx) => (
+                  <div key={idx} className="bg-white rounded-lg border border-stone-200 p-5 hover:border-stone-300 transition-colors">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Users className="w-4 h-4 text-stone-400" />
+                      <span className="text-sm font-semibold text-stone-900">{user.role}</span>
+                    </div>
+                    <div className="text-xs text-stone-500 font-medium mb-3 pl-6">Goal: {user.goal}</div>
+                    <p className="text-sm text-stone-500 leading-relaxed pl-6">{user.whyFit}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           </section>
+        )}
 
-          <section id="sources" className="scroll-mt-28 border-b border-black/[0.08] pb-14">
-            <h2 className="font-pixel-square text-4xl font-semibold leading-tight text-black">Sources used</h2>
-            <div className="mt-6 grid gap-3">
-              {page.sources.map((source) => (
-                <a
-                  key={source.url}
-                  href={source.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-3 rounded-[14px] border border-black/[0.08] bg-white p-4 text-sm font-semibold text-black/70 transition hover:text-[#1b7fcc]"
+        {/* Section 4c: Honest Limitations */}
+        {page.limitations && (
+          <section className="w-full max-w-5xl mx-auto px-6 mb-16">
+            <SectionHeader index="04c" label="Honest Limitations" />
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
+                <div className="px-5 py-4 border-b border-stone-200 bg-[#1b7fcc]/[0.04] flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-[#1b7fcc]" />
+                  <h3 className="font-pixel-square text-sm font-semibold text-stone-900">Where Drawgle Falls Short</h3>
+                </div>
+                <ul className="divide-y divide-stone-100">
+                  {page.limitations.drawgle.map((item, idx) => (
+                    <li key={idx} className="px-5 py-4 flex items-start gap-3">
+                      <X className="w-4 h-4 text-stone-300 shrink-0 mt-0.5" />
+                      <span className="text-sm text-stone-600 leading-relaxed">{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
+                <div className="px-5 py-4 border-b border-stone-200 bg-stone-50 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-stone-400" />
+                  <h3 className="font-pixel-square text-sm font-semibold text-stone-900">Where {page.competitor.name} Falls Short</h3>
+                </div>
+                <ul className="divide-y divide-stone-100">
+                  {page.limitations.competitor.map((item, idx) => (
+                    <li key={idx} className="px-5 py-4 flex items-start gap-3">
+                      <X className="w-4 h-4 text-stone-300 shrink-0 mt-0.5" />
+                      <span className="text-sm text-stone-600 leading-relaxed">{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Section 5: Which Should You Choose? */}
+        <section className="w-full max-w-5xl mx-auto px-6 mb-16">
+          <SectionHeader index="05" label="Which One Should You Choose?" />
+          <div className="grid md:grid-cols-2 gap-6 bg-white rounded-lg border border-stone-200 overflow-hidden">
+            <div className="p-6 border-b md:border-b-0 md:border-r border-stone-200 bg-[#1b7fcc]/[0.04]">
+              <h3 className="font-pixel-square text-[#1b7fcc] font-semibold mb-6">Choose Drawgle if...</h3>
+              <ul className="space-y-4">
+                {page.verdict.drawgleIf.map((item, i) => (
+                  <li key={i} className="flex items-start gap-3 text-stone-700 text-sm">
+                    <Check className="w-4 h-4 text-[#1b7fcc] shrink-0 mt-0.5" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="p-6">
+              <h3 className="font-pixel-square text-stone-900 font-semibold mb-6">Choose {page.competitor.name} if...</h3>
+              <ul className="space-y-4">
+                {page.verdict.competitorIf.map((item, i) => (
+                  <li key={i} className="flex items-start gap-3 text-stone-500 text-sm">
+                    <div className="w-4 h-4 rounded-full border border-stone-300 flex items-center justify-center shrink-0 mt-0.5">
+                      <div className="w-1.5 h-1.5 rounded-full bg-stone-300"></div>
+                    </div>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        {/* Section 6: FAQ */}
+        <section className="w-full max-w-5xl mx-auto px-6 mb-24">
+          <SectionHeader index="06" label="Frequently Asked Questions" />
+          <div className="bg-white rounded-lg border border-stone-200 divide-y divide-stone-100">
+            {page.faqs.map((faq, idx) => (
+              <div key={idx} className="p-6">
+                <h3 className="font-pixel-square text-sm font-semibold text-stone-900 mb-2 flex items-center gap-2">
+                  <span className="text-[#1b7fcc]">Q.</span>
+                  {faq.question}
+                </h3>
+                <p className="text-stone-500 text-sm leading-relaxed pl-6">{faq.answer}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Section 6b: Sources */}
+        {page.sources && page.sources.length > 0 && (
+          <section className="w-full max-w-5xl mx-auto px-6 mb-16">
+            <SectionHeader index="06b" label="Sources And Methodology" />
+            <div className="bg-white rounded-lg border border-stone-200 divide-y divide-stone-100">
+              {page.sources.map((source, idx) => (
+                <div
+                  key={idx}
+                  className="p-5 flex flex-col md:flex-row md:items-start md:justify-between gap-2"
                 >
-                  <FileText className="h-4 w-4 shrink-0" />
-                  {source.label}
-                </a>
+                  <div className="text-sm text-stone-600">
+                    <div className="font-medium text-stone-900">{source.label}</div>
+                    {source.note && <div className="mt-1">{source.note}</div>}
+                  </div>
+                  <Link
+                    href={source.href}
+                    className="text-sm font-medium text-[#1b7fcc] hover:text-[#145f99]"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Visit source
+                  </Link>
+                </div>
               ))}
             </div>
           </section>
+        )}
 
-          <section id="faq" className="scroll-mt-28 pt-14">
-            <h2 className="font-pixel-square text-4xl font-semibold leading-tight text-black">FAQ</h2>
-            <div className="mt-7 space-y-3">
-              {page.faqs.map((faq) => (
-                <details key={faq.question} className="group rounded-[18px] border border-black/[0.08] bg-white p-5">
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold text-black marker:content-none">
-                    {faq.question}
-                    <span className="text-[#1b7fcc] transition group-open:rotate-45">+</span>
-                  </summary>
-                  <p className="mt-4 text-sm leading-6 text-black/58">{faq.answer}</p>
-                </details>
-              ))}
+        {/* Section 7: Final Verdict */}
+        <section className="w-full max-w-5xl mx-auto px-6 mb-16">
+          <SectionHeader index="07" label="Final Verdict" />
+          <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-stone-200 flex items-center gap-2">
+              <Target className="w-4 h-4 text-[#1b7fcc]" />
+              <h3 className="font-pixel-square text-sm font-semibold text-stone-900">{page.finalVerdict.title}</h3>
             </div>
-          </section>
-        </main>
-      </div>
+            <div className="p-6 space-y-4">
+              {page.finalVerdict.body.map((paragraph, idx) => (
+                <p key={idx} className="text-stone-600 text-sm leading-relaxed">
+                  {paragraph}
+                </p>
+              ))}
+              <p className="text-stone-900 text-sm leading-relaxed font-medium">
+                {page.finalVerdict.recommendation}
+              </p>
+              <div className="pt-4 flex flex-col sm:flex-row gap-3">
+                <Link
+                  href={page.finalVerdict.drawgleCta.href}
+                  className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-md bg-[#1b7fcc] text-white text-sm font-semibold hover:bg-[#1975bd] transition-colors"
+                >
+                  {page.finalVerdict.drawgleCta.label}
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+                <Link
+                  href={page.finalVerdict.competitorCta.href}
+                  className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-md bg-white border border-stone-200 text-stone-700 text-sm font-semibold hover:bg-stone-50 transition-colors"
+                  target={page.finalVerdict.competitorCta.href.startsWith("http") ? "_blank" : undefined}
+                  rel={page.finalVerdict.competitorCta.href.startsWith("http") ? "noreferrer" : undefined}
+                >
+                  {page.finalVerdict.competitorCta.label}
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
     </div>
   );
 }
