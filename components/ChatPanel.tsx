@@ -907,10 +907,23 @@ function ActionCard({
     const validIds = new Set(stateVariants.map((variant) => variant.id));
     return Array.from(new Set(selectedIds.filter((id) => validIds.has(id))));
   }, [proposal, stateVariants]);
-  const [selectedStateVariantIds, setSelectedStateVariantIds] = useState<string[]>(defaultStateVariantIds);
-  useEffect(() => {
-    setSelectedStateVariantIds(defaultStateVariantIds);
-  }, [defaultStateVariantIds]);
+  const stateVariantSelectionKey = useMemo(
+    () =>
+      JSON.stringify({
+        proposalMessageId: proposalMessageId ?? null,
+        variantIds: stateVariants.map((variant) => variant.id),
+        defaultIds: defaultStateVariantIds,
+      }),
+    [defaultStateVariantIds, proposalMessageId, stateVariants],
+  );
+  const [stateVariantSelection, setStateVariantSelection] = useState(() => ({
+    key: stateVariantSelectionKey,
+    ids: defaultStateVariantIds,
+  }));
+  const selectedStateVariantIds =
+    stateVariantSelection.key === stateVariantSelectionKey
+      ? stateVariantSelection.ids
+      : defaultStateVariantIds;
   const selectedStateVariantSet = useMemo(() => new Set(selectedStateVariantIds), [selectedStateVariantIds]);
   const selectedBuildCount = 1 + selectedStateVariantIds.length;
   const buildButtonLabel = stateVariants.length > 0
@@ -919,11 +932,16 @@ function ActionCard({
 
 
   const toggleStateVariant = (variantId: string) => {
-    setSelectedStateVariantIds((current) =>
-      current.includes(variantId)
-        ? current.filter((id) => id !== variantId)
-        : [...current, variantId],
-    );
+    setStateVariantSelection((current) => {
+      const activeIds =
+        current.key === stateVariantSelectionKey ? current.ids : defaultStateVariantIds;
+      return {
+        key: stateVariantSelectionKey,
+        ids: activeIds.includes(variantId)
+          ? activeIds.filter((id) => id !== variantId)
+          : [...activeIds, variantId],
+      };
+    });
   };
 
   const rawProcessLines = step.processLines?.length ? step.processLines : step.detail ? [step.detail] : [];

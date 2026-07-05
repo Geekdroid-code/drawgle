@@ -560,6 +560,8 @@ function CanvasStageContent({
     disabled,
     handleCanvasNavigation,
     handleContentHeightChange,
+    handleDeleteSelectedElement,
+    handleDuplicateSelectedElement,
     handleElementSelected,
     handleElementSelectionLost,
     handleExportCode,
