@@ -134,26 +134,20 @@ Create the project charter, navigation architecture, and navigation plan. Do not
 ${plannerBlueprintJsonContract}
 
 Blueprint rules:
-- Screen Count Contract is the highest authority for screen quantity. Navigation architecture may not add, imply, or preserve extra screens beyond that contract.
-- Treat the screen slate as the source of truth. Navigation is only a projection of screens the user actually asked for or the intent contract allows.
-- When the contract says exactly 1 screen in Image to UI mode, visible screenshot tabs are visual chrome only. Do not turn them into peer screens or shared navigation unless the user explicitly requested multiple screens/prototype navigation.
-- Analyze the app concept and define one navigation_architecture for the whole product.
-- Use kind "bottom-tabs-app" only when the product has several peer root destinations.
-- Use kind "hierarchical" when the product mostly moves through push-style flows and detail screens.
-- Use kind "single-screen" when the experience is intentionally focused and does not need persistent app-level navigation.
-- A finite described flow is not automatically a bottom-tabs app. Use persistent bottom navigation only when screens are peer root destinations or the user/reference explicitly calls for primary navigation.
-- navigation_plan must be present. Use enabled false and kind "none" when persistent navigation should not exist.
-- navigation_plan.items must contain only project-specific primary destinations from the approved screen slate, usually 3-5 items for bottom-tabs apps. Never create screens because navigation needs more tabs.
-- Do not create nav items for onboarding, splash, login, signup, register, auth, chat, messaging, assistant, transient tracking/detail, checkout, confirmation, modal, or one-off flow screens.
-- Inside navigation_plan.screen_chrome, set chrome to "immersive" and navigation_item_id to null for onboarding, splash, login, signup, register, auth, chat, messaging, and assistant screens. Under no circumstances should these screens show the primary bottom-tabs navigation.
-- Use Lucide icon names for navigation_plan.items.icon.
-- navigation_plan.visual_brief must describe the actual visual anatomy: floating dock, glass pill, compact rail, sculpted card-attached nav, centered action dock, active state, icon/label rhythm, surface, radius, elevation, and safe-area relationship.
-- Prefer modern mobile navigation patterns when appropriate. Do not default to a plain full-width 2015-style tab bar unless the reference or brief requires it.
-- charter.navigationModel must match navigation_architecture, not introduce a conflicting second navigation system.
-- keyFeatures must be durable product capabilities, not just screen names.
-- charter.designRationale must act like a human layout contract: shared viewport budget, horizontal rail, vertical rhythm, typography scale discipline, bottom navigation reservation, card density, wrapping/truncation policy, and how screens stay consistent while still having distinct compositions.
-- creativeDirection.compositionPrinciples must include executable spatial rules: screen-edge padding, section rhythm, card/content padding, dense-row versus spacious-hero usage, bottom-safe content stop points, and text-heavy overflow avoidance.
-- If CURRENT PROJECT CONTEXT contains an approved navigation architecture or navigation plan, preserve it unless the user explicitly asks to add, remove, or redesign primary navigation.`;
+- Screen Count Contract and user scope are highest authority. Navigation may not add, imply, preserve, or invent screens beyond the approved slate. Tabs, menu labels, and screenshot chrome are not screens unless explicitly requested.
+- In Image to UI with exactly 1 screen, visible screenshot tabs are visual chrome only; do not turn them into peer screens or shared navigation unless the user explicitly requests multi-screen/prototype navigation.
+- Define one navigation_architecture for the whole product: bottom-tabs-app only for several peer root destinations; hierarchical for push/detail flows; single-screen for focused experiences without persistent navigation.
+- A finite described flow is not automatically a bottom-tabs app. Use persistent bottom navigation only for peer root destinations or when the user/reference explicitly calls for primary navigation.
+- navigation_plan is required. Use enabled false and kind "none" when persistent navigation should not exist.
+- navigation_plan.items must contain only project-specific primary destinations from the approved screen slate, usually 3-5 items for bottom-tabs apps. Never create screens to fill tabs.
+- Do not create nav items for onboarding, splash, login/signup/register/auth, chat/messaging/assistant, transient tracking/detail, checkout, confirmation, modal, or one-off flow screens.
+- In navigation_plan.screen_chrome, onboarding, splash, auth, chat/messaging/assistant screens must be immersive with navigation_item_id null and must never show primary bottom-tabs navigation.
+- Use Lucide icon names for navigation items.
+- navigation_plan.visual_brief must describe the real nav anatomy: surface, radius, elevation, safe-area relationship, floating dock/glass pill/compact rail/card-attached nav/center action when relevant, active state, and icon/label rhythm.
+- Prefer modern mobile navigation patterns. Do not default to a plain full-width old-style tab bar unless the reference or brief requires it.
+- charter.navigationModel must match navigation_architecture. keyFeatures must be durable product capabilities, not screen names.
+- charter.designRationale and creativeDirection.compositionPrinciples must be executable layout rules: viewport budget, screen-edge padding, horizontal rail, section rhythm, card/content padding, typography discipline, bottom-safe content stop points, dense-row vs spacious-hero usage, wrapping/truncation, and overflow avoidance.
+- If Current Project Context contains approved navigation architecture or plan, preserve it unless the user explicitly asks to add, remove, or redesign primary navigation.`;
 
 export const plannerScreenBriefStepInstruction = (mode: "recreate" | "style") => `${mode === "recreate" ? plannerRecreateInstruction : plannerStyleInstruction}
 
@@ -162,35 +156,18 @@ Use the provided project blueprint as fixed product architecture. Create only th
 ${plannerScreensJsonContract}
 
 Rules:
-- If the user explicitly asked for N screens, return exactly N screens.
-- If a Screen Count Contract is present, it overrides visible tab count, inferred app sections, and navigation_plan item count.
-- Screen briefs decide what exists. Use the user's scope and intent contract first; treat navigation tabs, settings rows, segmented controls, and menu labels as UI elements unless the user asked for those destinations as screens.
-- In Image to UI mode, visible bottom tabs in a one-screen screenshot are part of the visual anatomy for that one screen, not permission to create additional screens.
-- If the prompt names screens in order, preserve those names and order.
-- Root screens are peer primary destinations. Onboarding, splash, checkout, tracking, map, detail, modal, confirmation, login, signup, register, auth, chat, messaging, and assistant screens are detail/immersive screens.
-- chrome_policy must match the screen's role in the approved architecture. Detail screens should not carry the primary bottom-tab shell.
-- Onboarding, splash, login, signup, register, auth, chat, messaging, and assistant screens must use immersive chrome (or top-bar-back detail chrome) and set show_primary_navigation to false.
-- Each description should usually be 900-1800 characters and must be detailed enough for the builder to implement without seeing the original image.
-- Write each screen description as a construction brief that starts at the background layer and moves forward through primary layout structure, nested containment, component arrangement, edge/depth/material behavior, and must-preserve visual construction details.
-- Name concrete component structures and states: headers, hero regions, surfaces, containers, lists, rows, sheets, charts, progress rings, segmented controls, tabs, chips, icon buttons, badges, avatar stacks, maps, media areas, text groups, and CTA placement when relevant.
-- Call out typography treatment, imagery treatment, chart geometry, background treatment, rounded shapes, elevation, edge treatment, inner/outer borders, highlight edges, bevels, glass/frosting, and must-preserve composition cues.
-- Avoid weak phrases like "clean dashboard" or "stats cards" unless you immediately explain the exact anatomy.
-- Preserve real copy when it acts as a strong layout anchor; use generic placeholders only for volatile names, numbers, and dates.
-- If multiple screens are visible in one recreate reference collage, map them left-to-right unless the prompt clearly implies a different order.
-- Do not duplicate the same anatomy across screens unless the product shell or reference clearly reuses it.
-- Description must include a layout fit note for narrow 390px viewport, bottom nav clearance when applicable, and how the screen avoids overflow, text collision, clipped nav, and bottom overlap.
-- Every shared-bottom-nav screen must reserve a clear bottom content zone and must not place final rows, CTAs, cards, or map callouts under the nav shell.
-- Plan bitmap image needs inside asset_needs while designing the screen anatomy. Use [] when the screen needs no bitmap.
-- Use sourcePreference "internal_library" for transparent foreground cutouts: hero people, product cutouts, premium objects, device mockups, mascots, foreground illustrations, and map-like transparent elements.
-- Use sourcePreference "stock" only for non-transparent photos: avatars, section photos, background photos, generic product photos, and map/scene textures.
-- Use sourcePreference "user_upload" only when the prompt explicitly needs the user's own logo, product, brand photo, person, or private image.
-- Do not output "ai_generated". If a transparent cutout is needed but no internal asset exists, the resolver will provide a simple placeholder.
-- Do not request bitmap assets for icons, decorative blobs, CSS gradients, charts that can be drawn in HTML/CSS, simple cards, or generic UI chrome.
-- If the screen brief calls for a product/vehicle/food/fashion object, hero person, profile avatar, section photo, map texture, or large media plane, asset_needs must declare it explicitly with subject, type, priority, and placementHint.
-- Every description must contain at least 8 concrete visible implementation cues across layout, components, typography, color/material, spacing/radius/elevation, edge/depth treatment, imagery/charts/maps, and interaction state.
-- If this is recreate mode, include at least 3 cues explicitly traceable to the uploaded reference or reference analysis, including at least one structural cue about layer order, containment, or depth when visible.
-- If this is style mode, include at least 3 cues about borrowed material, typography, edge/depth, iconography, nav treatment, or micro-shapes, but keep the actual layout anatomy driven by the user prompt and project blueprint.
-- Final self-audit before returning JSON: every screen.description must contain all seven labels, must read like a builder-ready spec, and must preserve consistency in spacing scale, card padding, type roles, nav family, and edge/radius language.`;
+- Screen existence: obey explicit N and Screen Count Contract above visible tabs, inferred sections, and navigation item count. Screen briefs decide what exists. Treat navigation tabs, bottom tabs, segmented controls, settings rows, menu labels, and similar UI as elements unless the user/scope explicitly asks for those destinations as screens.
+- Preserve prompt-named screens and order. In recreate collages, map visible screens left-to-right unless instructed otherwise.
+- Architecture/chrome: use the approved blueprint as fixed architecture. Root screens are peer primary destinations. Onboarding, splash, checkout, tracking, map, detail, modal, confirmation, login/signup/register/auth, chat/messaging/assistant are detail/immersive. chrome_policy must match role; these screens must not show primary bottom navigation.
+- Description quality: each description should usually be 900-1800 chars, include all seven labels, and be detailed enough for the builder without seeing the image. Write as a construction brief from background forward through layout, containment, components, typography, materials, depth/edges, imagery/charts/maps, interaction states, and must-preserve construction cues.
+- Component specificity: name concrete structures/states when relevant: headers, hero regions, surfaces, containers, lists, rows, sheets, charts, progress rings, segmented controls, tabs, chips, icon buttons, badges, avatar stacks, maps, media areas, text groups, and CTA placement.
+- Material specificity: call out typography, imagery, chart geometry, background, rounded shapes, elevation, edge treatment, inner/outer borders, highlight edges, bevels, glass/frosting, and must-preserve composition cues. Avoid weak phrases like "clean dashboard" or "stats cards" unless immediately followed by exact anatomy.
+- Copy/anatomy: preserve real copy when it anchors layout; use placeholders only for volatile names, numbers, and dates. Do not duplicate anatomy across screens unless the product shell/reference clearly reuses it.
+- Viewport fit: include a 390px fit note, bottom-nav clearance when applicable, and how the screen avoids overflow, text collision, clipped nav, and bottom overlap. Shared-bottom-nav screens must reserve a clear bottom content zone; never place final rows, CTAs, cards, or map callouts under the nav shell.
+- Asset planning: plan bitmap needs in asset_needs; use [] when none. Declare subject, type, priority, and placementHint for product/vehicle/food/fashion objects, hero people, avatars, section/background photos, map textures, or large media planes.
+- Asset sourcePreference: internal_library for transparent foreground cutouts; stock for non-transparent photos/textures; user_upload only for explicit user-owned logo/product/brand/person/private image. Never output "ai_generated"; placeholders are resolved later. Do not request bitmaps for icons, decorative blobs, CSS gradients, HTML/CSS charts, simple cards, or generic chrome.
+- Mode cues: recreate mode needs at least 3 reference-traceable cues, including one layer/containment/depth cue when visible. Style mode needs at least 3 borrowed style cues from material, typography, edge/depth, iconography, nav treatment, or micro-shapes, while layout stays driven by the prompt and blueprint.
+- Final self-audit: every description must contain at least 8 concrete visible implementation cues and preserve consistency in spacing scale, card padding, type roles, nav family, and edge/radius language.`;
 
 export const creativeDirectionInstruction = `You are an elite mobile product Art Director.
 Your job is to invent or infer a premium, opinionated creative direction that will keep the generated UI out of generic AI-app territory.
@@ -280,22 +257,16 @@ After extracting the precise structural and material facts, also report what the
 Use language that names the character without judging it. This voice description gives the builder something to express, not just something to copy. It is the difference between the builder reproducing values blindly and the builder understanding what those values are *for*.
 
 Rules:
-- If the image contains multiple phone screens or panels, describe them left-to-right.
-- screenCountEstimate counts only visible phone screens/panels in the uploaded image. Bottom navigation tabs, side tabs, segmented controls, carousel dots, menu items, or labels inside one visible screen are not additional screens.
-- VISUAL FORENSICS PASS: Before summarizing, inspect the UI from the absolute screen background forward through every visible layer. For each meaningful layer, name what it is, where it sits, what contains it, what it contains, and how it is separated from the layer behind it.
-- Use broad structural language, not one layout pattern: surface, layer, container, group, control, content cluster, media plane, navigation surface, overlay, text group, icon well, chart plane, map plane, and floating affordance.
-- Do not collapse nested or grouped UI into generic nouns like "card", "header", "list", "section", "panel", or "button". When a visible object has a wrapper and children, describe the wrapper and the children separately.
-- Explain how inner elements are arranged: row, column, grid, stack, absolute/floating placement, alignment, gap, padding, inset, overlap, clipping, and anchor positions. Use approximate px-like terms when helpful, such as "about 2-3px highlight edge" or "about 12-16px internal padding"; do not invent false precision.
-- Describe depth and material physically with extreme precision. Do not write generic terms like "soft shadow" or "modern glass". Describe the exact shadow color, blur spread, border visibility, surface finish (frosted/matte/glossy), and how layers interact with light.
-- Be specific about overlap, layering, floating surfaces, bottom sheets, tabs, charts, gauges, avatar stacks, map regions, large typography, image cutouts, control bars, and CTA construction when visible.
-- Describe each visible screen as if the next designer ai model will not see the image. Include exact top/middle/bottom regions, approximate proportions, anchored/floating surfaces, active states, icon/label treatment, repeated visual motifs, and the parent-child structure needed to rebuild it.
-- For navigation, capture the real anatomy: full-width rail, floating dock, glass pill, attached card, center action, icon-only row, label rhythm, active-state shape, radius, shadow, and bottom safe-area relationship.
-- For charts/maps/media, name the constructed geometry rather than saying "chart" or "map": bar shapes, route curves, grid blocks, pins, sheets, overlays, legends, rings, gauges, image crop/cutouts, etc. Also capture the visual container's height, internal padding, clipping behavior, visible top/bottom bounds, label/axis placement, and whether the plotted geometry has enough breathing room so the builder does not create empty chart areas or clipped graph lines.
-- Avoid generic phrases like "modern UI" unless you immediately explain what makes it modern.
-- Do not invent hidden screens, unseen features, or backend behavior.
-- Use generic placeholders only for volatile literal values; preserve visible layout anchors when they matter to the composition.
-- Length should track the visual density of the reference, not a fixed target. A visually rich reference (heavy layering, multiple material treatments, dense micro-decisions) should produce detailed implementationNotes, long stylingCues, and long components. A minimal or flat reference should produce shorter outputs that are still precise. Do not fabricate micro-details that are not visible.
-- The goal is not to summarize. The goal is to capture the screen anatomy, layer stack, edge behavior, and construction logic so a UI builder can recreate it faithfully without flattening the design.`;
+- Multi-screen handling: describe visible phone screens/panels left-to-right. screenCountEstimate counts only visible phone screens/panels; bottom/side tabs, segmented controls, carousel dots, menu items, and labels inside one screen are not screens.
+- Visual forensics: before summarizing, inspect each visible screen from absolute background to topmost layer. For every meaningful layer/region, name what it is, where it sits, what contains it, what it contains, and how it separates from the layer behind.
+- Structural language: use precise terms such as surface, layer, container, group, control, content cluster, media plane, navigation surface, overlay, text group, icon well, chart plane, map plane, and floating affordance. Do not flatten nested/grouped UI into generic "card/header/list/section/panel/button"; describe wrappers and children separately.
+- Arrangement: explain row/column/grid/stack/absolute/floating layout, alignment, gaps, padding, insets, overlap, clipping, anchors, top/middle/bottom regions, proportions, active states, icon/label treatment, repeated motifs, and parent-child rebuild structure. Use approximate px-like values when helpful; do not invent false precision.
+- Material/depth: describe overlap, layering, floating surfaces, bottom sheets, tabs, charts, gauges, avatar stacks, map regions, large type, image cutouts, control bars, CTA construction, shadow color/blur/spread, border visibility, surface finish, and light interaction. Avoid vague labels like "soft shadow", "modern glass", or "modern UI" unless immediately explained by observable anatomy.
+- Navigation: capture real anatomy: full-width rail, floating dock, glass pill, attached card, center action, icon-only row, label rhythm, active-state shape, radius, shadow, and bottom safe-area relationship.
+- Charts/maps/media: name constructed geometry such as bars, route curves, grid blocks, pins, sheets, overlays, legends, rings, gauges, crops/cutouts; capture container height, padding, clipping, bounds, labels/axes, and breathing room to avoid empty or clipped visuals.
+- Truthfulness/placeholders: do not invent hidden screens, unseen features, backend behavior, or micro-details. Use placeholders only for volatile literal values; preserve visible layout anchors that affect composition.
+- Detail budget: length follows visual density. Rich references need detailed implementationNotes, stylingCues, and components; minimal references stay shorter but precise.
+- Goal: capture screen anatomy, layer stack, edge behavior, and construction logic so the next builder can recreate faithfully without seeing the image or flattening the design.`;
 
 export const referenceAnalysisRecreateInstruction = `${referenceAnalysisInstruction}
 
