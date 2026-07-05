@@ -27,6 +27,14 @@ export default function Footer() {
     Resources: [
       { href: '/vs', label: 'Comparisons' },
       { href: '/vs/sleek-design', label: 'Drawgle vs Sleek.design' },
+      { href: '/vs/google-stitch', label: 'Drawgle vs Google Stitch' },
+      { href: '/vs/app-alchemy', label: 'Drawgle vs App Alchemy' },
+      { href: '/vs/floow-design', label: 'Drawgle vs floow.design' },
+      { href: '/vs/screensdesign', label: 'Drawgle vs ScreensDesign' },
+      { href: '/vs/visily', label: 'Drawgle vs Visily' },
+      { href: '/vs/uizard', label: 'Drawgle vs Uizard' },
+      { href: '/vs/ux-pilot', label: 'Drawgle vs UX Pilot' },
+      { href: '/vs/ux-magic', label: 'Drawgle vs UXMagic' },
     ],
 
     Legal: [
