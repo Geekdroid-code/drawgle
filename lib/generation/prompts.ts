@@ -400,6 +400,12 @@ REQUIRED JSON SCHEMA:
     "radii": { "app": "px", "pill": "9999px" },
     "border_widths": { "standard": "px" },
     "shadows": { "none": "none", "surface": "shadow string", "overlay": "shadow string" },
+    "gradients": {
+      "app_background": "linear-gradient/radial-gradient CSS value for the main app background when the direction needs gradient depth",
+      "action_primary": "linear-gradient CSS value for primary CTAs and brand/action moments",
+      "surface_highlight": "linear-gradient CSS value for elevated surface sheen/highlight when useful",
+      "accent_ring": "linear-gradient CSS value for thin accent borders/rings when useful"
+    },
     "opacities": { "transparent": "0", "disabled": "0.38", "scrim_overlay": "0.50", "pressed": "0.12", "opaque": "1" },
     "z_index": { "base": "0", "sticky_header": "10", "bottom_nav": "20", "bottom_sheet": "30", "modal_dialog": "40", "toast_snackbar": "50" }
   }
@@ -412,6 +418,8 @@ Rules:
 - Use radii.app for standard cards, buttons, inputs, sheets, and navigation surfaces. Use radii.pill only for capsule-shaped controls when the composition genuinely calls for them.
 - Use border_widths.standard as the default border weight across the app.
 - Use shadows.surface for standard elevated surfaces and shadows.overlay only for stronger overlays like sheets or floating panels.
+- Use gradients as first-class material tokens when the reference or creative direction uses gradient depth. Provide app_background, action_primary, surface_highlight, and accent_ring values as complete CSS gradient strings. Keep them disciplined and role-based, not a grab bag of decorative effects.
+- If the visual direction is flat/minimal, gradients may be very subtle two-stop values derived from the flat color tokens rather than loud decorative fills.
 - Keep token relationships coherent. Example: airy systems should not use cramped section gaps; sharp systems should not use very soft pill-heavy radii except where intentionally contrasting.
 - Keep touch targets mobile-safe even when the visual style is compact.
 
@@ -805,8 +813,8 @@ If a row/card contains more than two text lines plus controls, increase its heig
 CRITICAL INSTRUCTION 1: LIVE DESIGN TOKENS
 You MUST use Drawgle live token utility classes and CSS variables for canonical colors, typography, spacing, sizing, radii, borders, and shadows.
 Preferred examples: dg-bg-primary, dg-surface-card, dg-text-high, dg-text-medium, dg-action-primary, dg-border-divider, dg-radius-app, dg-radius-pill, dg-shadow-surface, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-body, dg-type-caption.
-For token values without a named utility, use Tailwind arbitrary values with CSS variables, e.g. bg-[var(--dg-color-action-primary)], p-[var(--dg-spacing-md)], rounded-[var(--dg-radii-app)].
-Do NOT freeze project token values as raw hex or raw pixels when a token variable exists. Raw values are allowed only for deliberate one-off art details such as charts, maps, gradients, or illustrations.
+For token values without a named utility, use Tailwind arbitrary values with CSS variables, e.g. bg-[var(--dg-color-action-primary)], [background-image:var(--dg-gradient-action-primary)], p-[var(--dg-spacing-md)], rounded-[var(--dg-radii-app)].
+Do NOT freeze project token values as raw hex or raw pixels when a token variable exists. Token gradients are canonical for expressive CTAs, app backgrounds, surface highlights, and accent rings. Raw/custom gradients are allowed only for deliberate one-off art details such as charts, maps, illustrations, or non-system lighting effects.
 Do NOT default to generic Tailwind palette values (e.g., bg-gray-900) if a design token exists for that purpose.
 Do NOT invent additional radius tiers, border widths, or shadow strengths. Use one geometry/elevation language across the entire screen.
 

@@ -39,6 +39,7 @@ describe("drawgle deterministic edit operations", () => {
         { type: "setStyle", property: "border-top-left-radius", value: "4px" },
         { type: "setStyle", property: "border-top-width", value: "4px" },
         { type: "setStyle", property: "background-color", value: "#ff0000" },
+        { type: "setStyle", property: "background-image", value: "var(--dg-gradients-action-primary)" },
         { type: "setStyle", property: "opacity", value: "0.5" },
         { type: "setStyle", property: "box-shadow", value: "none" },
       ],
@@ -50,6 +51,7 @@ describe("drawgle deterministic edit operations", () => {
     expect(result).toContain('border-top-left-radius: 4px');
     expect(result).toContain('border-top-width: 4px');
     expect(result).toContain('background-color: #ff0000');
+    expect(result).toContain('background-image: var(--dg-gradients-action-primary)');
     expect(result).toContain('opacity: 0.5');
     expect(result).toContain('box-shadow: none');
   });

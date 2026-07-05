@@ -175,6 +175,11 @@ const cssColorToHex = (value: string | undefined | null) => {
     return color;
   }
 
+  const shortHex = color.match(/^#([0-9a-f])([0-9a-f])([0-9a-f])$/i);
+  if (shortHex) {
+    return `#${shortHex[1]}${shortHex[1]}${shortHex[2]}${shortHex[2]}${shortHex[3]}${shortHex[3]}`;
+  }
+
   const match = color.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
   if (!match) {
     return "#000000";
@@ -185,6 +190,19 @@ const cssColorToHex = (value: string | undefined | null) => {
     .join("")}`;
 };
 
+const GRADIENT_COLOR_PATTERN = /#[0-9a-f]{3,8}|rgba?\([^)]+\)|hsla?\([^)]+\)/gi;
+
+const getGradientAngle = (value: string) => normalizeCssValue(value).match(/linear-gradient\(\s*([^,]+),/i)?.[1]?.trim() || "135deg";
+
+const getGradientColorStops = (value: string) => {
+  const colors = normalizeCssValue(value).match(GRADIENT_COLOR_PATTERN) ?? [];
+  const from = cssColorToHex(colors[0] ?? "#14f195");
+  const to = cssColorToHex(colors[1] ?? colors[0] ?? "#38bdf8");
+  return { from, to };
+};
+
+const buildLinearGradientValue = (from: string, to: string, angle = "135deg") => `linear-gradient(${angle}, ${from} 0%, ${to} 100%)`;
+
 const getTokenPickerLabel = (property: DrawgleStyleProperty) => {
   if (property === "color") {
     return "Link text token";
@@ -192,6 +210,10 @@ const getTokenPickerLabel = (property: DrawgleStyleProperty) => {
 
   if (property === "background-color") {
     return "Link fill token";
+  }
+
+  if (property === "background-image") {
+    return "Link gradient token";
   }
 
   if (property === "border-color") {
@@ -216,6 +238,10 @@ const getTokenPickerDescription = (property: DrawgleStyleProperty) => {
 
   if (property === "background-color") {
     return "Choose a surface, background, or action fill token.";
+  }
+
+  if (property === "background-image") {
+    return "Choose a project gradient token for this fill.";
   }
 
   if (property === "border-color") {
@@ -450,6 +476,7 @@ function TokenValuePicker({
   const activeTokenName = value;
   const activeToken = pickerTokens.find((token) => token.name === activeTokenName) ?? null;
   const isColorTokenProperty = property === "color" || property === "background-color" || property === "border-color";
+  const isGradientTokenProperty = property === "background-image";
 
   if (pickerTokens.length === 0) {
     return null;
@@ -470,6 +497,11 @@ function TokenValuePicker({
             <span
               className="h-4 w-4 shrink-0 rounded-[5px] border border-[var(--dg-border-strong)] dark:border-white/[0.16]"
               style={{ backgroundColor: activeToken?.value ?? "#ffffff" }}
+            />
+          ) : isGradientTokenProperty ? (
+            <span
+              className="h-4 w-5 shrink-0 rounded-[5px] border border-[var(--dg-border-strong)] dark:border-white/[0.16]"
+              style={{ backgroundImage: activeToken?.value ?? "linear-gradient(135deg,#e2e8f0,#94a3b8)" }}
             />
           ) : (
             <span className="flex h-4 w-5 shrink-0 items-center justify-center rounded-[5px] border border-[var(--dg-border-strong)] bg-white text-[8px] font-bold uppercase text-[var(--dg-text-muted)] dark:border-white/[0.16] dark:bg-white/[0.06]">
@@ -504,6 +536,11 @@ function TokenValuePicker({
                 <span
                   className="h-7 w-7 shrink-0 rounded-[7px] border border-[var(--dg-border-strong)] dark:border-white/[0.12]"
                   style={{ backgroundColor: token.value }}
+                />
+              ) : isGradientTokenProperty ? (
+                <span
+                  className="h-7 w-7 shrink-0 rounded-[7px] border border-[var(--dg-border-strong)] dark:border-white/[0.12]"
+                  style={{ backgroundImage: token.value }}
                 />
               ) : (
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] border border-[var(--dg-border-strong)] bg-[var(--dg-surface-muted)] font-mono text-[9px] font-bold text-[var(--dg-text-muted)] dark:border-white/[0.12] dark:bg-white/[0.06]">
@@ -1116,11 +1153,123 @@ function SelectedElementInspectorSidebar({
     </div>,
   );
 
+  const renderGradientFillControl = () => {
+    const property = propertyByName("background-image");
+    if (!property) return null;
+
+    const draft = styleDrafts[property.property] ?? initialDraftForProperty(property);
+    const value = getPropertyDraftValue(property);
+    const tokenOptions = getTokenReferencesForStyleProperty(property.property, tokenRefs);
+    const activeTokenName = draft.mode === "token" ? draft.value : draft.mode === "custom" ? undefined : property.tokenName;
+    const activeToken = tokenOptions.find((token) => token.name === activeTokenName) ?? null;
+    const gradientTokens = tokenOptions.filter((token) => token.path.startsWith("gradients."));
+    const editableGradientValue = activeToken?.value && draft.mode !== "custom" ? activeToken.value : value;
+    const gradientStops = getGradientColorStops(editableGradientValue);
+    const gradientAngle = getGradientAngle(editableGradientValue);
+    const previewGradient = buildLinearGradientValue(gradientStops.from, gradientStops.to, gradientAngle);
+    const setGradientStop = (stop: "from" | "to", nextColor: string) => {
+      updateStyleDraft(property, {
+        mode: "custom",
+        value: buildLinearGradientValue(
+          stop === "from" ? nextColor : gradientStops.from,
+          stop === "to" ? nextColor : gradientStops.to,
+          gradientAngle,
+        ),
+      });
+    };
+
+    return (
+      <div key={property.property} className="min-w-0 overflow-hidden rounded-[10px] border border-slate-950/[0.07] bg-white p-2 shadow-[0_1px_0_rgba(15,23,42,0.03)]">
+        <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="truncate text-[11px] font-semibold text-slate-700">Gradient Fill</div>
+            <div className="mt-0.5 truncate text-[10px] text-slate-400">Preset or custom editable gradient</div>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            {renderSourceBadges(property)}
+            {renderResetButton(property)}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-1.5">
+          <button
+            type="button"
+            className={`flex min-h-10 items-center gap-2 rounded-[9px] border px-2 text-left text-[11px] font-semibold transition ${draft.mode === "custom" && normalizeCssValue(draft.value) === "none" ? "border-slate-950/[0.18] bg-slate-950 text-white" : "border-slate-950/[0.07] bg-slate-50 text-slate-600 hover:bg-slate-100"}`}
+            onClick={() => updateStyleDraft(property, { mode: "custom", value: "none" })}
+          >
+            <span className="h-5 w-7 shrink-0 rounded-[6px] border border-slate-950/[0.08] bg-white" />
+            None
+          </button>
+          {gradientTokens.map((token) => (
+            <button
+              key={token.name}
+              type="button"
+              className={`flex min-h-10 min-w-0 items-center gap-2 rounded-[9px] border px-2 text-left text-[11px] font-semibold transition ${activeTokenName === token.name ? "border-teal-500 bg-teal-50 text-teal-800" : "border-slate-950/[0.07] bg-slate-50 text-slate-700 hover:bg-slate-100"}`}
+              onClick={() => updateStyleDraft(property, { mode: "token", value: token.name })}
+            >
+              <span
+                className="h-5 w-7 shrink-0 rounded-[6px] border border-slate-950/[0.08]"
+                style={{ backgroundImage: token.value }}
+              />
+              <span className="min-w-0 truncate">{token.label.replace(/^Gradients \/ /, "")}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-2 h-8 rounded-[9px] border border-slate-950/[0.08] shadow-inner" style={{ backgroundImage: previewGradient }} />
+
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <label className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-[9px] border border-slate-950/[0.07] bg-slate-50 px-2 py-2">
+            <ColorPickerButton
+              label="Gradient start"
+              value={gradientStops.from}
+              className="h-8 w-9 shrink-0 cursor-pointer rounded-[8px] border border-slate-950/[0.08] bg-white p-1"
+              onChange={(nextColor) => setGradientStop("from", nextColor)}
+            />
+            <span className="min-w-0">
+              <span className="block truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">From</span>
+              <span className="block truncate font-mono text-[11px] text-slate-700">{gradientStops.from}</span>
+            </span>
+          </label>
+          <label className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-[9px] border border-slate-950/[0.07] bg-slate-50 px-2 py-2">
+            <ColorPickerButton
+              label="Gradient end"
+              value={gradientStops.to}
+              className="h-8 w-9 shrink-0 cursor-pointer rounded-[8px] border border-slate-950/[0.08] bg-white p-1"
+              onChange={(nextColor) => setGradientStop("to", nextColor)}
+            />
+            <span className="min-w-0">
+              <span className="block truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">To</span>
+              <span className="block truncate font-mono text-[11px] text-slate-700">{gradientStops.to}</span>
+            </span>
+          </label>
+        </div>
+
+        <div className="mt-2 flex min-w-0 items-center gap-2">
+          <CustomStyleControl
+            property={property}
+            value={value}
+            onChange={(nextValue) => updateStyleDraft(property, { mode: "custom", value: nextValue })}
+          />
+        </div>
+
+        <div className="mt-2 min-w-0">
+          <TokenValuePicker
+            tokens={tokenRefs}
+            property={property.property}
+            value={activeTokenName ?? null}
+            onSelect={(tokenName) => updateStyleDraft(property, { mode: "token", value: tokenName })}
+          />
+        </div>
+      </div>
+    );
+  };
   const renderSurfaceSection = () => renderSectionShell(
     "Surface",
     <div className="grid gap-2">
       <div className="grid grid-cols-1 gap-2">
         {renderValueRow("background-color", { color: true, label: "Fill" })}
+        {renderGradientFillControl()}
         {renderValueRow("border-color", { color: true, label: "Border" })}
       </div>
       <div className="grid grid-cols-1 gap-2">

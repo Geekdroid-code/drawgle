@@ -11,6 +11,7 @@ const DEFAULT_PILL_RADIUS = "9999px";
 const DEFAULT_BORDER_WIDTH = "1px";
 const DEFAULT_SURFACE_SHADOW = "0 12px 32px rgba(15,23,42,0.14)";
 const DEFAULT_OVERLAY_SHADOW = "0 -4px 24px rgba(15,23,42,0.18)";
+const DEFAULT_ACTION_GRADIENT_ANGLE = "135deg";
 const DEFAULT_TYPOGRAPHY = {
   nav_title: { size: "17px", weight: 700, line_height: "22px" },
   screen_title: { size: "24px", weight: 800, line_height: "30px" },
@@ -135,6 +136,17 @@ const sanitizeMetadata = (value: unknown): DesignTokenMetadata | undefined => {
 
 const pickFirstRecord = (...values: unknown[]) => values.find(isRecord);
 
+const isGradientValue = (value: unknown): value is string =>
+  typeof value === "string" && /\b(?:linear|radial|conic)-gradient\(/i.test(value);
+
+const buildActionGradient = (tokens: DesignTokenValues | undefined) => {
+  const action = tokens?.color?.action;
+  const start = pickFirstString(action?.primary_gradient_start, action?.primary);
+  const end = pickFirstString(action?.primary_gradient_end, action?.secondary, action?.primary);
+
+  return start && end ? `linear-gradient(${DEFAULT_ACTION_GRADIENT_ANGLE}, ${start} 0%, ${end} 100%)` : undefined;
+};
+
 const normalizeTypography = (value: unknown): DesignTokenValues["typography"] | undefined => {
   if (!isRecord(value)) {
     return undefined;
@@ -175,7 +187,12 @@ const enforcePlatformConstraints = (tokens: DesignTokenValues | undefined) => {
   const legacyRadii = isRecord(next.radii) ? next.radii : {};
   const legacyBorderWidths = isRecord(next.border_widths) ? next.border_widths : {};
   const legacyShadows = isRecord(next.shadows) ? next.shadows : {};
+  const legacyGradients = isRecord(next.gradients) ? next.gradients : {};
   const typography = normalizeTypography(next.typography);
+  const actionGradient = pickFirstString(
+    isGradientValue(legacyGradients.action_primary) ? legacyGradients.action_primary : undefined,
+    buildActionGradient(next),
+  );
 
   next.mobile_layout = {
     ...(next.mobile_layout ?? {}),
@@ -234,6 +251,24 @@ const enforcePlatformConstraints = (tokens: DesignTokenValues | undefined) => {
       DEFAULT_OVERLAY_SHADOW,
     ),
   };
+  if (actionGradient) {
+    next.gradients = {
+      ...(legacyGradients as DesignTokenValues["gradients"]),
+      action_primary: actionGradient,
+      app_background: pickFirstString(
+        isGradientValue(legacyGradients.app_background) ? legacyGradients.app_background : undefined,
+        `linear-gradient(180deg, ${next.color?.background?.primary ?? "#ffffff"} 0%, ${next.color?.background?.secondary ?? "#f5f5f5"} 100%)`,
+      ),
+      surface_highlight: pickFirstString(
+        isGradientValue(legacyGradients.surface_highlight) ? legacyGradients.surface_highlight : undefined,
+        `linear-gradient(145deg, ${next.color?.surface?.card ?? "#ffffff"} 0%, ${next.color?.background?.surface_elevated ?? next.color?.background?.secondary ?? "#f5f5f5"} 100%)`,
+      ),
+      accent_ring: pickFirstString(
+        isGradientValue(legacyGradients.accent_ring) ? legacyGradients.accent_ring : undefined,
+        actionGradient,
+      ),
+    };
+  }
   if (typography) {
     next.typography = typography;
   }

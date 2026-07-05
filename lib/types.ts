@@ -282,6 +282,14 @@ export interface DesignShadowTokens {
   [key: string]: JsonValue | undefined;
 }
 
+export interface DesignGradientTokens {
+  app_background?: string;
+  action_primary?: string;
+  surface_highlight?: string;
+  accent_ring?: string;
+  [key: string]: JsonValue | undefined;
+}
+
 /**
  * Semantic map: compact, role-named entries sent to the LLM instead of the
  * raw spacing/sizing/opacities/z-index scales. Each entry resolves to a
@@ -306,6 +314,7 @@ export interface DesignTokenValues {
   radii?: DesignRadiiTokens;
   border_widths?: DesignBorderWidthTokens;
   shadows?: DesignShadowTokens;
+  gradients?: DesignGradientTokens;
   elevation?: Record<string, string>;
   opacities?: Record<string, string>;
   z_index?: Record<string, string>;
@@ -791,6 +800,12 @@ export interface ProjectMessage {
 /** Pass this to any service function to get Trigger.dev-visible LLM input + token usage logs. */
 export type LlmLogFn = (label: string, data: Record<string, unknown>) => void;
 
+export type LlmProviderEvent = {
+  event: string;
+  level?: "info" | "warn" | "error";
+  [key: string]: unknown;
+};
+
 export interface LlmInputSnapshot {
   screenName: string;
   model: string;
@@ -821,5 +836,6 @@ export interface BuildScreenInput {
   assetManifest?: ScreenAssetManifest[];
   projectContext?: string | null;
   onResponseChunk?: (chunk: unknown) => void;
+  onProviderEvent?: (event: LlmProviderEvent) => void;
   onLlmInput?: (snapshot: LlmInputSnapshot) => void;
 }

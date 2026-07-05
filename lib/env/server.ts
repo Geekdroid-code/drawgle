@@ -8,6 +8,13 @@ const getRequiredServerEnv = (name: string, value: string | undefined) => {
   return value;
 };
 
+const getOptionalServerEnv = (value: string | undefined) => value?.trim() || undefined;
+
+const getServerEnvInt = (name: string, fallback: number) => {
+  const value = Number.parseInt(process.env[name] ?? "", 10);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+};
+
 export const getGeminiApiKey = () =>
   getRequiredServerEnv("GEMINI_API_KEY", process.env.GEMINI_API_KEY ?? process.env.MY_GEMINI_API_KEY);
 
@@ -40,6 +47,11 @@ export const getScreenBuilderProvider = () =>
 export const getScreenBuilderModel = () =>
   process.env.DRAWGLE_SCREEN_BUILDER_MODEL ?? "gemini-3-flash-preview";
 
+export const getOpenRouterScreenBuildModel = () =>
+  getOptionalServerEnv(process.env.DRAWGLE_OPENROUTER_SCREEN_BUILD_MODEL)
+  ?? getOptionalServerEnv(process.env.DRAWGLE_SCREEN_BUILDER_MODEL)
+  ?? "moonshotai/kimi-k2.5";
+
 export const getProjectPlannerModel = () =>
   process.env.DRAWGLE_GEMINI_PROJECT_PLANNER_MODEL ?? "gemini-3.5-flash";
 
@@ -54,6 +66,22 @@ export const getOpenRouterProviders = () =>
 
 export const getOpenRouterAllowFallbacks = () =>
   process.env.DRAWGLE_OPENROUTER_ALLOW_FALLBACKS !== "false";
+
+export const getOpenRouterFallbackModels = () =>
+  (process.env.DRAWGLE_OPENROUTER_FALLBACK_MODELS ?? "")
+    .split(",")
+    .map((model) => model.trim())
+    .filter(Boolean);
+
+export const getOpenRouterMaxTokens = () =>
+  getServerEnvInt("DRAWGLE_OPENROUTER_MAX_TOKENS", 16000);
+
+export const getOpenRouterStreamTimeouts = () => ({
+  headerTimeoutMs: getServerEnvInt("DRAWGLE_OPENROUTER_HEADER_TIMEOUT_MS", 15000),
+  firstContentTimeoutMs: getServerEnvInt("DRAWGLE_OPENROUTER_FIRST_TOKEN_TIMEOUT_MS", 45000),
+  idleTimeoutMs: getServerEnvInt("DRAWGLE_OPENROUTER_IDLE_TIMEOUT_MS", 45000),
+  hardTimeoutMs: getServerEnvInt("DRAWGLE_OPENROUTER_HARD_TIMEOUT_MS", 240000),
+});
 
 export const getOpenRouterTimeoutMs = () => {
   const value = Number.parseInt(process.env.DRAWGLE_OPENROUTER_TIMEOUT_MS ?? "60000", 10);

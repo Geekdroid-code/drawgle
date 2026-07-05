@@ -260,6 +260,10 @@ const buildCompatibilityAliasVariables = () => `
   --shadow-surface: var(--dg-shadows-surface, none);
   --shadow-overlay: var(--dg-shadows-overlay, none);
   --shadow-none: var(--dg-shadows-none, none);
+  --dg-gradient-action-primary: var(--dg-gradients-action-primary, linear-gradient(135deg, var(--dg-color-action-primary, #2563eb) 0%, var(--dg-color-action-secondary, #0f172a) 100%));
+  --dg-gradient-app-background: var(--dg-gradients-app-background, linear-gradient(180deg, var(--dg-color-background-primary, #ffffff) 0%, var(--dg-color-background-secondary, #f5f5f5) 100%));
+  --dg-gradient-surface-highlight: var(--dg-gradients-surface-highlight, linear-gradient(145deg, var(--dg-color-surface-card, #ffffff) 0%, var(--dg-color-background-surface-elevated, #f5f5f5) 100%));
+  --dg-gradient-accent-ring: var(--dg-gradients-accent-ring, linear-gradient(135deg, var(--dg-color-action-primary, #2563eb) 0%, var(--dg-color-action-secondary, #0f172a) 100%));
   --font-body: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
 ${TYPOGRAPHY_TOKEN_KEYS.map((key) => {
   const name = key.replace(/_/g, "-");
@@ -298,6 +302,13 @@ ${buildCompatibilityAliasVariables()}
   color: var(--dg-color-action-on-primary-text);
 }
 .dg-action-secondary { background-color: var(--dg-color-action-secondary); }
+.dg-gradient-app-background { background-image: var(--dg-gradient-app-background); }
+.dg-gradient-action-primary {
+  background-image: var(--dg-gradient-action-primary);
+  color: var(--dg-color-action-on-primary-text);
+}
+.dg-gradient-surface-highlight { background-image: var(--dg-gradient-surface-highlight); }
+.dg-gradient-accent-ring { background-image: var(--dg-gradient-accent-ring); }
 .dg-border-divider { border-color: var(--dg-color-border-divider); }
 .dg-border-focused { border-color: var(--dg-color-border-focused); }
 .dg-radius-app { border-radius: var(--dg-radii-app); }
@@ -328,9 +339,9 @@ export function buildTokenUsageGuide(designTokens?: DesignTokens | null) {
 
   return [
     "Use Drawgle's live project tokens for canonical styling.",
-    "Prefer these utility classes when they match the intended role: dg-bg-primary, dg-bg-secondary, dg-surface-card, dg-surface-bottom-sheet, dg-text-high, dg-text-medium, dg-text-low, dg-action-primary, dg-border-divider, dg-radius-app, dg-radius-pill, dg-shadow-surface, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-metric-value, dg-type-body, dg-type-caption, dg-type-button-label.",
-    "For token values without a named utility, use Tailwind arbitrary values with CSS variables, for example bg-[var(--dg-color-action-primary)], text-[var(--dg-color-text-high-emphasis)], rounded-[var(--dg-radii-app)], shadow-[var(--dg-shadows-surface)].",
-    "Use raw hex, raw pixels, and custom gradients only for deliberate one-off visual details such as charts, maps, illustrations, or non-system accent marks.",
+    "Prefer these utility classes when they match the intended role: dg-bg-primary, dg-bg-secondary, dg-surface-card, dg-surface-bottom-sheet, dg-text-high, dg-text-medium, dg-text-low, dg-action-primary, dg-gradient-action-primary, dg-gradient-app-background, dg-gradient-surface-highlight, dg-gradient-accent-ring, dg-border-divider, dg-radius-app, dg-radius-pill, dg-shadow-surface, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-metric-value, dg-type-body, dg-type-caption, dg-type-button-label.",
+    "For token values without a named utility, use Tailwind arbitrary values with CSS variables, for example bg-[var(--dg-color-action-primary)], [background-image:var(--dg-gradient-action-primary)], text-[var(--dg-color-text-high-emphasis)], rounded-[var(--dg-radii-app)], shadow-[var(--dg-shadows-surface)].",
+    "Use token gradients for canonical gradient fills. Use raw hex, raw pixels, and custom gradients only for deliberate one-off visual details such as charts, maps, illustrations, or non-system accent marks.",
     variableList ? `Available token variables:\n${variableList}` : null,
   ].filter(Boolean).join("\n");
 }
@@ -372,6 +383,7 @@ const compactVisualTokenPrefixes = [
   "radii",
   "border_widths",
   "shadows",
+  "gradients",
 ];
 
 /**
@@ -453,9 +465,9 @@ export function buildTokenPromptContext(
 
     return [
       "TOKEN CONTEXT: Approved project design tokens — use these for every visual decision.",
-      "Prefer utility classes when the semantic role matches: dg-bg-primary, dg-bg-secondary, dg-surface-card, dg-surface-bottom-sheet, dg-surface-modal, dg-text-high, dg-text-medium, dg-text-low, dg-action-primary, dg-action-secondary, dg-border-divider, dg-border-focused, dg-radius-app, dg-radius-pill, dg-shadow-surface, dg-shadow-overlay, dg-type-nav-title, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-metric-value, dg-type-body, dg-type-supporting, dg-type-caption, dg-type-button-label.",
-      "For token values without a named utility, use CSS variables in Tailwind arbitrary classes, e.g. bg-[var(--dg-color-action-primary)], p-[var(--dg-spacing-md)], rounded-[var(--dg-radii-app)], shadow-[var(--dg-shadows-surface)], opacity-[var(--dg-opacities-disabled)].",
-      "Use raw hex, raw pixels, and custom gradients only for deliberate one-off visual details such as charts, maps, illustrations, and special effects.",
+      "Prefer utility classes when the semantic role matches: dg-bg-primary, dg-bg-secondary, dg-surface-card, dg-surface-bottom-sheet, dg-surface-modal, dg-text-high, dg-text-medium, dg-text-low, dg-action-primary, dg-action-secondary, dg-gradient-action-primary, dg-gradient-app-background, dg-gradient-surface-highlight, dg-gradient-accent-ring, dg-border-divider, dg-border-focused, dg-radius-app, dg-radius-pill, dg-shadow-surface, dg-shadow-overlay, dg-type-nav-title, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-metric-value, dg-type-body, dg-type-supporting, dg-type-caption, dg-type-button-label.",
+      "For token values without a named utility, use CSS variables in Tailwind arbitrary classes, e.g. bg-[var(--dg-color-action-primary)], [background-image:var(--dg-gradient-action-primary)], p-[var(--dg-spacing-md)], rounded-[var(--dg-radii-app)], shadow-[var(--dg-shadows-surface)], opacity-[var(--dg-opacities-disabled)].",
+      "Token gradients are canonical fills for expressive actions, app backgrounds, surface highlights, and accent rings. Use custom gradients only for deliberate one-off visual details such as charts, maps, illustrations, and special effects.",
       filteredReferences.length > 0 ? `Project token variables:\n${formatTokenReferences(filteredReferences, 200)}` : null,
       semanticMap,
     ].filter(Boolean).join("\n");

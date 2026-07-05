@@ -629,7 +629,7 @@ type DeterministicTokenStyleIntent = {
   reason: string;
 };
 
-const complexStyleRequestPattern = /\b(add|create|remove|delete|rewrite|redesign|rebuild|layout|premium|modern|beautiful|awesome|gradient|glass|map|chart|content)\b/i;
+const complexStyleRequestPattern = /\b(add|create|remove|delete|rewrite|redesign|rebuild|layout|premium|modern|beautiful|awesome|glass|map|chart|content)\b/i;
 
 const classifyDeterministicTokenStyleIntent = ({
   prompt,
@@ -639,7 +639,8 @@ const classifyDeterministicTokenStyleIntent = ({
   designTokens?: DesignTokens | null;
 }): DeterministicTokenStyleIntent | null => {
   const wordCount = prompt.trim().split(/\s+/).filter(Boolean).length;
-  if (!designTokens?.tokens || wordCount > 5 || complexStyleRequestPattern.test(prompt)) {
+  const wantsGradient = /\b(?:gradient|gradients)\b/i.test(prompt);
+  if (!designTokens?.tokens || wordCount > (wantsGradient ? 7 : 5) || complexStyleRequestPattern.test(prompt)) {
     return null;
   }
 
@@ -669,7 +670,18 @@ const classifyDeterministicTokenStyleIntent = ({
   const mentionsText = /\b(text|label|font)\b/i.test(prompt);
   const mentionsBackground = /\b(bg|background|surface|fill)\b/i.test(prompt);
 
-  if (/\b(primary|brand|action)\b/i.test(prompt) && mentionsColor) {
+  if (wantsGradient) {
+    if (/\b(app|screen|page|background|bg)\b/i.test(prompt)) {
+      addTokenStyle("background-image", "gradients.app_background");
+    } else if (/\b(surface|card|panel|sheet|highlight)\b/i.test(prompt)) {
+      addTokenStyle("background-image", "gradients.surface_highlight");
+    } else if (/\b(ring|border|accent)\b/i.test(prompt)) {
+      addTokenStyle("background-image", "gradients.accent_ring");
+    } else {
+      addTokenStyle("background-image", "gradients.action_primary");
+      addTokenStyle("color", "color.action.on_primary_text");
+    }
+  } else if (/\b(primary|brand|action)\b/i.test(prompt) && mentionsColor) {
     if (mentionsText && !mentionsBackground) {
       addTokenStyle("color", "color.action.primary");
     } else {

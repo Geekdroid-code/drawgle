@@ -23,6 +23,7 @@ export type DrawgleClassUtilityFamily =
   | "aspect-ratio"
   | "backdrop-filter"
   | "background-color"
+  | "background-image"
   | "border-color"
   | "border-radius"
   | "border-style"
@@ -116,6 +117,7 @@ const DRAWGLE_STYLE_PROPERTY_CONFIGS_RAW = [
   { property: "text-align", label: "Align text", group: "Type", valueKind: "keyword", allowedValues: ["left", "center", "right", "justify", "start", "end"], classUtilityFamily: "text-align", previewMode: "select", riskLevel: "safe" },
   { property: "letter-spacing", label: "Tracking", group: "Type", valueKind: "length", classUtilityFamily: "letter-spacing", previewMode: "number", riskLevel: "safe" },
   { property: "background-color", label: "Fill", group: "Surface", valueKind: "color", tokenScopes: ["color.background.", "color.surface.", "color.action."], classUtilityFamily: "background-color", previewMode: "swatch", riskLevel: "safe" },
+  { property: "background-image", label: "Gradient", group: "Surface", valueKind: "css-function", tokenScopes: ["gradients."], classUtilityFamily: "background-image", previewMode: "text", riskLevel: "safe" },
   { property: "border-color", label: "Border", group: "Surface", valueKind: "color", tokenScopes: ["color.border.", "color.action."], classUtilityFamily: "border-color", previewMode: "swatch", riskLevel: "safe" },
   { property: "border-style", label: "Border style", group: "Surface", valueKind: "keyword", allowedValues: ["none", "solid", "dashed", "dotted", "double"], classUtilityFamily: "border-style", previewMode: "select", riskLevel: "safe" },
   { property: "border-width", label: "Border width", group: "Surface", valueKind: "length", tokenScopes: ["border_widths."], classUtilityFamily: "border-width", previewMode: "number", riskLevel: "safe" },
@@ -254,7 +256,9 @@ const TOKEN_CLASS_MAP: Partial<Record<DrawgleStyleProperty, Record<string, strin
 };
 
 const arbitraryTokenClassPatterns: Array<[DrawgleStyleProperty[], RegExp]> = [
-  [["background-color"], /^bg-\[var\((--dg-[^)]+)\)\]$/],
+  [["background-color"], /^bg-\[var\((--dg-color-[^)]+)\)\]$/],
+  [["background-image"], /^\[background-image:var\((--dg-[^)]+)\)\]$/],
+  [["background-image"], /^bg-\[var\((--dg-gradients-[^)]+)\)\]$/],
   [["color"], /^text-\[var\((--dg-[^)]+)\)\]$/],
   [["border-color"], /^border-\[var\((--dg-[^)]+)\)\]$/],
   [["border-radius", "border-top-left-radius", "border-top-right-radius", "border-bottom-right-radius", "border-bottom-left-radius"], /^rounded(?:-[trbl]{1,2})?-\[var\((--dg-[^)]+)\)\]$/],
@@ -290,8 +294,15 @@ const isTextColorClass = (className: string) => {
   return true;
 };
 
+const isBackgroundImageClass = (className: string) =>
+  /^bg-gradient-/i.test(className)
+  || /^\[background-image:/i.test(className)
+  || /^bg-\[(?:var\(--dg-gradients-|(?:repeating-)?(?:linear|radial|conic)-gradient\()/i.test(className);
+
 const isBackgroundClass = (className: string) =>
-  /^bg-/i.test(className) && !/^(?:bg-cover|bg-contain|bg-center|bg-repeat|bg-no-repeat|bg-local|bg-fixed|bg-scroll)$/i.test(className);
+  /^bg-/i.test(className)
+  && !isBackgroundImageClass(className)
+  && !/^(?:bg-cover|bg-contain|bg-center|bg-repeat|bg-no-repeat|bg-local|bg-fixed|bg-scroll)$/i.test(className);
 
 const isBorderColorClass = (className: string) => {
   if (!/^border-/i.test(className)) return false;
@@ -306,6 +317,7 @@ const startsWithAny = (className: string, prefixes: string[]) =>
 export const classNameMatchesUtilityFamily = (family: DrawgleClassUtilityFamily, className: string) => {
   if (family === "text-color") return isTextColorClass(className);
   if (family === "background-color") return isBackgroundClass(className);
+  if (family === "background-image") return isBackgroundImageClass(className);
   if (family === "font-size") return textSizeClassPattern.test(className);
   if (family === "border-color") return isBorderColorClass(className);
   if (family === "border-width") return /^border(?:-[trblxy])?(?:-\d+|\-\[[^\]]+\])?$/i.test(className);
@@ -551,6 +563,7 @@ export const getClassUtilityForStyle = (property: DrawgleStyleProperty, value: s
   if (property === "font-weight") return { family, className: fontWeightClassMap[normalized] ?? `font-[${formatTailwindArbitraryValue(normalized)}]` };
   if (property === "color") return { family, className: `text-[${formatTailwindArbitraryValue(normalized)}]` };
   if (property === "background-color") return { family, className: `bg-[${formatTailwindArbitraryValue(normalized)}]` };
+  if (property === "background-image") return { family, className: `[background-image:${formatTailwindArbitraryValue(normalized)}]` };
   if (property === "border-color") return { family, className: `border-[${formatTailwindArbitraryValue(normalized)}]` };
   if (property === "font-size") return { family, className: `text-[${formatTailwindArbitraryValue(normalized)}]` };
   if (property === "line-height") return { family, className: `leading-[${formatTailwindArbitraryValue(normalized)}]` };

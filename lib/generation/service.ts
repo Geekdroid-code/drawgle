@@ -5,7 +5,7 @@ import { z } from "zod";
 import { createGeminiClient } from "@/lib/ai/gemini";
 import { generateScreenBuilderContent, generateScreenBuilderContentStream } from "@/lib/ai/provider";
 import { geminiPolicyForTask } from "@/lib/ai/model-policy";
-import { getScreenBuilderProvider, getScreenBuilderModel, getScreenEditorModel } from "@/lib/env/server";
+import { getOpenRouterScreenBuildModel, getScreenBuilderProvider, getScreenEditorModel } from "@/lib/env/server";
 import { hasApprovedDesignTokens, normalizeDesignTokens } from "@/lib/design-tokens";
 import { applyEdits } from "@/lib/diff-engine";
 import { buildScopedEditContext } from "@/lib/generation/block-index";
@@ -379,6 +379,7 @@ const DesignTokensSchema = z
         surface: z.string().optional(),
         overlay: z.string().optional(),
       }).passthrough().optional(),
+      gradients: StringRecordSchema.optional(),
       elevation: StringRecordSchema.optional(),
       opacities: StringRecordSchema.optional(),
       z_index: StringRecordSchema.optional(),
@@ -2536,7 +2537,7 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
 
   if (input.onLlmInput) {
     const provider = getScreenBuilderProvider();
-    const activeModel = provider === "openrouter" ? getScreenBuilderModel() : policy.model;
+    const activeModel = provider === "openrouter" ? getOpenRouterScreenBuildModel() : policy.model;
     const snapshot: LlmInputSnapshot = {
       screenName: input.screenPlan.name,
       model: activeModel,
@@ -2562,6 +2563,7 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
       temperature: 0.2,
     },
     onResponseChunk: input.onResponseChunk,
+    onProviderEvent: input.onProviderEvent,
   });
 
   for await (const chunk of responseStream) {
@@ -2800,7 +2802,7 @@ export async function buildSectionRepairCode({
       temperature: 0.24,
     });
     const provider = getScreenBuilderProvider();
-    const activeModel = provider === "openrouter" ? getScreenBuilderModel() : policy.model;
+    const activeModel = provider === "openrouter" ? getOpenRouterScreenBuildModel() : policy.model;
     llmLog(`[LLM INPUT] repair: ${screenName}`, {
       model: activeModel,
       systemInstructionLength: systemInstruction.length,
@@ -3033,7 +3035,7 @@ export async function buildFullScreenReconstructionCode({
       systemInstruction,
     });
     const provider = getScreenBuilderProvider();
-    const activeModel = provider === "openrouter" ? getScreenBuilderModel() : policy.model;
+    const activeModel = provider === "openrouter" ? getOpenRouterScreenBuildModel() : policy.model;
     llmLog(`[LLM INPUT] full-rebuild: ${screenPlan.name}`, {
       model: activeModel,
       systemInstructionLength: systemInstruction.length,
@@ -3117,7 +3119,7 @@ async function refineNavigationShellCode({
       systemInstruction,
     });
     const provider = getScreenBuilderProvider();
-    const activeModel = provider === "openrouter" ? getScreenBuilderModel() : policy.model;
+    const activeModel = provider === "openrouter" ? getOpenRouterScreenBuildModel() : policy.model;
     llmLog(`[LLM INPUT] nav-refine`, {
       model: activeModel,
       systemInstructionLength: systemInstruction.length,
@@ -3206,7 +3208,7 @@ export async function editNavigationShellCode({
       systemInstruction,
     });
     const provider = getScreenBuilderProvider();
-    const activeModel = provider === "openrouter" ? getScreenBuilderModel() : policy.model;
+    const activeModel = provider === "openrouter" ? getOpenRouterScreenBuildModel() : policy.model;
     llmLog(`[LLM INPUT] nav-edit`, {
       model: activeModel,
       systemInstructionLength: systemInstruction.length,

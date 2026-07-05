@@ -44,7 +44,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
 import { adminCreditService } from "@/lib/credits";
 import type { Database } from "@/lib/supabase/database.types";
-import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationScopeContract, ImageReferenceMode, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenBaseStatePlan, ScreenPlan, ScreenStateVariantPlan } from "@/lib/types";
+import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationScopeContract, ImageReferenceMode, LlmProviderEvent, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenBaseStatePlan, ScreenPlan, ScreenStateVariantPlan } from "@/lib/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -750,6 +750,22 @@ async function postGenerationJournal(
   );
 }
 
+const logProviderEvent = (event: LlmProviderEvent) => {
+  const label = event.event || "llm:provider_event";
+
+  if (event.level === "error") {
+    logger.error(label, event);
+    return;
+  }
+
+  if (event.level === "warn") {
+    logger.warn(label, event);
+    return;
+  }
+
+  logger.info(label, event);
+};
+
 async function collectScreenBuild(input: BuildScreenTaskPayload, screenPlan: ScreenPlan) {
   let rawText = "";
   const finishReasons = new Set<string>();
@@ -773,6 +789,7 @@ async function collectScreenBuild(input: BuildScreenTaskPayload, screenPlan: Scr
       navigationPlan: input.navigationPlan,
       assetManifest: input.assetManifest,
       projectContext: input.projectContext,
+      onProviderEvent: logProviderEvent,
       onResponseChunk: (chunk) => {
         collectFinishReasons(chunk, finishReasons);
         collectUsageMetadata(chunk, usageMetadata);
@@ -828,6 +845,7 @@ async function collectNonStreamingScreenBuild(input: BuildScreenTaskPayload, scr
     navigationPlan: input.navigationPlan,
     assetManifest: input.assetManifest,
     projectContext: input.projectContext,
+    onProviderEvent: logProviderEvent,
     onResponseChunk: (responseChunk) => {
       collectFinishReasons(responseChunk, finishReasons);
       collectUsageMetadata(responseChunk, usageMetadata);
