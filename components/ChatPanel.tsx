@@ -908,6 +908,9 @@ function ActionCard({
     return Array.from(new Set(selectedIds.filter((id) => validIds.has(id))));
   }, [proposal, stateVariants]);
   const [selectedStateVariantIds, setSelectedStateVariantIds] = useState<string[]>(defaultStateVariantIds);
+  useEffect(() => {
+    setSelectedStateVariantIds(defaultStateVariantIds);
+  }, [defaultStateVariantIds]);
   const selectedStateVariantSet = useMemo(() => new Set(selectedStateVariantIds), [selectedStateVariantIds]);
   const selectedBuildCount = 1 + selectedStateVariantIds.length;
   const buildButtonLabel = stateVariants.length > 0

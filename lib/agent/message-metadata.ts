@@ -1,4 +1,4 @@
-import { isMeaningfulStateVariant } from "@/lib/agent/state-variant-guardrails";
+import { isMeaningfulStateVariantForContext } from "@/lib/agent/state-variant-guardrails";
 import type { ImageReferenceMode, NavigationArchitecture, NavigationPlan, ScreenBaseStatePlan, ScreenPlan, ScreenStateVariantPlan } from "@/lib/types";
 
 export type AgentStepStatus = "queued" | "thinking" | "editing" | "completed" | "failed";
@@ -122,11 +122,14 @@ const asStateVariant = (value: unknown): ScreenStateVariantPlan | null => {
     triggerLabel,
     description,
     editInstruction,
-    defaultSelected: typeof record?.defaultSelected === "boolean" ? record.defaultSelected : true,
+    defaultSelected: typeof record?.defaultSelected === "boolean" ? record.defaultSelected : false,
   };
 };
 
-const asStateVariants = (value: unknown): ScreenStateVariantPlan[] => {
+const asStateVariants = (
+  value: unknown,
+  context: { prompt?: string | null; screenPlan?: ScreenPlan | null } = {},
+): ScreenStateVariantPlan[] => {
   if (!Array.isArray(value)) {
     return [];
   }
@@ -136,7 +139,7 @@ const asStateVariants = (value: unknown): ScreenStateVariantPlan[] => {
 
   for (const item of value) {
     const variant = asStateVariant(item);
-    if (!variant || seen.has(variant.id) || !isMeaningfulStateVariant(variant)) {
+    if (!variant || seen.has(variant.id) || !isMeaningfulStateVariantForContext(variant, context)) {
       continue;
     }
 
@@ -250,7 +253,7 @@ export function readScreenPlanProposal(metadata: Record<string, unknown>): Scree
     imagePath: asString(proposal.imagePath),
     imageReferenceMode: asImageReferenceMode(proposal.imageReferenceMode),
     baseState: asBaseState(proposal.baseState),
-    stateVariants: asStateVariants(proposal.stateVariants),
+    stateVariants: asStateVariants(proposal.stateVariants, { prompt, screenPlan: proposal.screenPlan }),
     selectedStateVariantIds: asStringArray(proposal.selectedStateVariantIds) ?? [],
     status,
     approvedGenerationRunId: asString(proposal.approvedGenerationRunId),

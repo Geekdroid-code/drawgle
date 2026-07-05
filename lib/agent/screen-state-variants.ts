@@ -15,7 +15,7 @@ const StateVariantSchema = z.object({
   triggerLabel: z.string().trim().min(1).max(80),
   description: z.string().trim().min(20).max(1200),
   editInstruction: z.string().trim().min(30).max(1800),
-  defaultSelected: z.boolean().default(true),
+  defaultSelected: z.boolean().default(false),
 });
 
 const StateVariantPlanSchema = z.object({
@@ -88,9 +88,12 @@ export async function planScreenStateVariants({
         "Do not suggest real navigation routes, detail pages, checkout flows, settings/profile routes, onboarding/login, CTA destinations, shared bottom-nav destinations, or separate app sections.",
         "Reject visual preference states: dark mode, light mode, theme/system appearance, compact mode, density, colors, hover/focus/pressed styling, icon/button color changes, typography, spacing, radius, shadows, or animation-only changes. These are not paid state variants.",
         "If a control only changes styling or preferences without a meaningful content/workflow surface, return stateVariants: [] for that control.",
+        "Do not suggest generic lifecycle states like empty, loading, skeleton, or error for normal dashboards, feeds, cards, or lists unless the user explicitly asked for that state or it is tied to a concrete visible action such as search no-results, filtered results, validation, upload, checkout, or permission failure.",
+        "Prioritize states opened by visible controls, such as quick action buttons, plus/add buttons, filters, search, tabs, segmented controls, sheets, dialogs, and forms.",
         "If the screen brief does not clearly need alternate local states, return stateVariants: [].",
         "Return at most 3 variants. Prefer 1-2 high-value variants.",
         "Each editInstruction must tell the edit worker to preserve the parent shell, header, shared navigation, spacing, typography, tokens, and overall layout, changing only the local active state and content region.",
+        "Set defaultSelected to false unless the user explicitly requested that state be built along with the base screen.",
       ].join("\n"),
     });
 
@@ -113,7 +116,7 @@ export async function planScreenStateVariants({
         "      \"triggerLabel\": \"Analytics tab\",",
         "      \"description\": \"Same dashboard shell with the Analytics tab active and analytics content visible in the tab body.\",",
         "      \"editInstruction\": \"Create a state variant of the parent screen. Preserve the parent shell, header, shared navigation, tokens, typography, spacing, and layout. Set the Analytics tab/segmented control as active and replace only the local tab body with analytics-focused content that matches the existing visual system.\",",
-        "      \"defaultSelected\": true",
+        "      \"defaultSelected\": false",
         "    }",
         "  ]",
         "}",
@@ -138,7 +141,7 @@ export async function planScreenStateVariants({
         if (seen.has(variant.id)) return false;
         seen.add(variant.id);
         return true;
-      }));
+      }), { userPrompt: prompt, screenPlan });
 
     const baseState = stateVariants.length > 0
       ? parsed.data.baseState ?? { stateKey: "base", stateLabel: "Base" }

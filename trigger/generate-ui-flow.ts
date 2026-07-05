@@ -458,9 +458,9 @@ async function buildStateVariantsForParent({
           selectedElementHtml: null,
           selectedElementDrawgleId: null,
           requestTargetsNavigation: false,
-          targetScope: "screen_region",
+          targetScope: "whole_screen",
           editOperation: "content_change",
-          editStrategy: "legacy_patch_then_region_replace",
+          editStrategy: "screen_root_region_replace",
           conversationContext: null,
           recoveryContext: {
             kind: "state_variant_edit",
@@ -470,8 +470,8 @@ async function buildStateVariantsForParent({
           },
           routerDecision: {
             action: "state_variant_edit",
-            targetScope: "screen_region",
-            editStrategy: "legacy_patch_then_region_replace",
+            targetScope: "whole_screen",
+            editStrategy: "screen_root_region_replace",
           },
         }, (label, data) => logger.info(label, data));
 
