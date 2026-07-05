@@ -798,6 +798,7 @@ ${buildSharedNavigationContract({ navigationInstruction, navigationPlan, screenP
 - Safe areas: top container pt-[${safeTop}], bottom/content pb-[${safeBottom}] unless shared nav requires larger clearance.
 - Clickable controls: min-h-[${minTouch}].
 - Text colors: use token classes/vars such as dg-text-high or text-[var(--dg-color-text-high-emphasis)] (current high text ${textHigh}).
+- Token lock: major app surfaces, backgrounds, cards, text, actions, nav-adjacent regions, radii, shadows, and spacing must use dg-* utilities or var(--dg-*). Do not use bg-white, bg-gray-*, text-black, raw hex/rgb, or arbitrary px values for system styling when an approved token role exists.
 - No phone frame, device mockup, notch, status bar, markdown fence, html/head/body tags, scripts, JSX, React, className, JS expressions, arrays, map(), template literals, or class/style objects.
 - Static HTML only. Manually expand repeated UI items. Return only the content HTML.
 - Icons: use Lucide via <i data-lucide="icon-name"></i> or static inline SVG.

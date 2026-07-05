@@ -36,6 +36,7 @@ import {
   resolveGenerationScopeContract,
 } from "@/lib/generation/scope-contract";
 import { buildTokenPromptContext } from "@/lib/token-runtime";
+import { detectTokenDrift } from "@/lib/token-drift";
 import type {
   BuildScreenInput,
   LlmInputSnapshot,
@@ -3067,6 +3068,7 @@ const navigationDesignQualityRules = [
   "Check the tap target comfort, label legibility, active-state clarity, and visual harmony with the screen behind it.",
   "Design for a narrow 390px mobile viewport. The nav must fit without horizontal scrolling, clipped labels, overlapping icons, or unsafe bottom-edge placement.",
   "Keep the shell compact enough for app content: target 64-88px visual height including labels, and never create a giant bottom panel unless the navigation plan explicitly asks for an expanded action dock.",
+  "Do not turn two-item or three-item navigation into oversized segmented pills or full-item active capsules unless the visual brief explicitly asks for that exact form; prefer a proportional icon well, underline, dot, or compact chip active state.",
   "If labels are shown, keep them short, stable, and aligned below their icons. If the available width is tight, use a compact icon-led treatment rather than squeezing text into collisions.",
   "Use a consistent item rhythm: equal touch targets, stable icon sizes, consistent label line-height, and one active-state shape. Do not mix unrelated margins, radii, or text sizes between nav items.",
   "Respect bottom safe-area behavior: include a small bottom inset/padding inside the nav surface, but do not push the shell so high that it covers core screen content.",
@@ -3144,7 +3146,20 @@ async function refineNavigationShellCode({
   const refinedCode = refinedCompletion.valid
     ? stripGenerationCompleteSentinel(rawRefinedCode)
     : candidateShellCode;
-  return validateNavigationShell(refinedCode, navigationPlan) ? refinedCode : candidateShellCode;
+
+  if (!validateNavigationShell(refinedCode, navigationPlan)) {
+    return candidateShellCode;
+  }
+
+  const drift = detectTokenDrift(refinedCode, { scope: "navigation" });
+  if (drift.hasSevereDrift) {
+    console.warn("[navigation] Refined navigation drifted from design tokens; using deterministic shell", {
+      warnings: drift.warnings.slice(0, 8),
+    });
+    return candidateShellCode;
+  }
+
+  return refinedCode;
 }
 export async function editNavigationShellCode({
   prompt,

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { resolveScreenChromePolicy } from "@/lib/navigation";
-import { normalizeNavigationPlan, createFallbackNavigationPlan } from "@/lib/project-navigation";
+import { normalizeNavigationPlan, createFallbackNavigationPlan, renderDeterministicNavigationShell } from "@/lib/project-navigation";
 import { applyDeleteElement, applyDuplicateElement } from "@/lib/drawgle-dom";
-import type { ScreenPlan, NavigationArchitecture } from "@/lib/types";
+import type { ScreenPlan, NavigationArchitecture, NavigationPlan } from "@/lib/types";
 
 describe("Navigation Logic Improvement Tests", () => {
   const defaultArchitecture: NavigationArchitecture = {
@@ -107,6 +107,30 @@ describe("Navigation Logic Improvement Tests", () => {
       expect(tabLabels).toContain("Settings");
       expect(tabLabels).not.toContain("Login");
       expect(tabLabels).not.toContain("AI Assistant");
+    });
+  });
+
+  describe("renderDeterministicNavigationShell", () => {
+    it("renders two-item navigation without full-width active pills", () => {
+      const plan: NavigationPlan = {
+        enabled: true,
+        kind: "bottom-tabs",
+        items: [
+          { id: "home", label: "Home", icon: "home", role: "Home", linkedScreenName: "Home" },
+          { id: "dashboard", label: "Dashboard", icon: "layout-dashboard", role: "Dashboard", linkedScreenName: "Dashboard" },
+        ],
+        visualBrief: "Compact premium dock",
+        screenChrome: [],
+      };
+
+      const code = renderDeterministicNavigationShell(plan);
+
+      expect(code).toContain('data-nav-item-id="home"');
+      expect(code).toContain('data-nav-item-id="dashboard"');
+      expect(code).toContain('var(--dg-color-surface-card');
+      expect(code).toContain('var(--dg-radii-pill');
+      expect(code).toContain('.dg-nav-item[data-active="true"] .dg-nav-icon{background:var(--dg-color-action-primary');
+      expect(code).not.toContain('.dg-nav-item[data-active="true"]{background:var(--dg-color-action-primary');
     });
   });
 

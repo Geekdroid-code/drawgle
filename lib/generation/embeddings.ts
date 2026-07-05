@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createGeminiClient } from "@/lib/ai/gemini";
+import { extractScreenStyleMemory } from "@/lib/generation/screen-style-memory";
 
 export const SCREEN_EMBEDDING_DIMENSIONS = 768;
 
@@ -31,13 +32,15 @@ const stripHtml = (value: string) =>
   );
 
 const buildFallbackSummary = (screenName: string, screenCode: string) => {
-  const visibleCopy = truncate(stripHtml(screenCode), 260);
+  const visibleCopy = truncate(stripHtml(screenCode), 220);
+  const styleMemory = extractScreenStyleMemory({ name: screenName, code: screenCode });
+  const styleEvidence = styleMemory ? ` Visual/token evidence: ${truncate(styleMemory, 240)}` : "";
 
   if (!visibleCopy) {
-    return `${screenName} screen with a mobile-first layout, primary actions, and supporting content for the main workflow.`;
+    return `${screenName} screen with a mobile-first layout, primary actions, and supporting content for the main workflow.${styleEvidence}`;
   }
 
-  return `${screenName} screen with a mobile-first layout, primary actions, and supporting content. Visible interface copy includes: ${visibleCopy}`;
+  return `${screenName} screen with a mobile-first layout, primary actions, and supporting content. Visible interface copy includes: ${visibleCopy}.${styleEvidence}`;
 };
 
 export async function generateEmbedding(text: string, taskType: EmbeddingTaskType): Promise<number[]> {
@@ -78,9 +81,10 @@ export async function generateScreenSummary(screenName: string, screenCode: stri
           {
             text: [
               "Summarize this generated mobile app screen for retrieval.",
-              "Return exactly 2 short sentences.",
-              "Focus on the screen's purpose, hierarchy, main controls, and notable UI patterns.",
-              "Do not mention HTML, Tailwind, CSS classes, or implementation details.",
+              "Return exactly 2 compact sentences.",
+              "Sentence 1: purpose, hierarchy, main controls, and notable UI patterns.",
+              "Sentence 2: visual system evidence for future consistency, including token utilities/CSS vars when visible, background, surfaces, radii, shadows, spacing density, typography, and nav/chrome style.",
+              "Mention class/token evidence only when it helps preserve style; do not include long code snippets.",
               `Screen name: ${screenName}`,
               `Screen code:\n${truncate(screenCode, MAX_SCREEN_CODE_CHARS)}`,
             ].join("\n\n"),

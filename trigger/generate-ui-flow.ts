@@ -40,6 +40,7 @@ import {
   sanitizeScreenCodeForSharedNavigation,
 } from "@/lib/project-navigation";
 import { tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
+import { detectTokenDrift } from "@/lib/token-drift";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
 import { adminCreditService } from "@/lib/credits";
@@ -147,7 +148,7 @@ type GeminiUsageMetadata = Record<string, number>;
 type GenerationAttemptDiagnostics = {
   attempt: number;
   task: "screen_build";
-  retryReason: "initial" | "completion_retry" | "structural_retry";
+  retryReason: "initial" | "completion_retry" | "structural_retry" | "token_drift_retry";
   streamed: boolean;
   model: string;
   maxOutputTokens: number | null;
@@ -161,6 +162,7 @@ type GenerationAttemptDiagnostics = {
   qualityIssues: string[];
   qualityWarnings: string[];
   missingAnchors: string[];
+  tokenDriftWarnings: string[];
 };
 
 const collectUsageMetadata = (chunk: unknown, usage: GeminiUsageMetadata) => {
@@ -188,6 +190,7 @@ const buildAttemptDiagnostics = ({
   completion,
   staticQuality,
   quality,
+  tokenDrift,
 }: {
   attempt: number;
   retryReason: GenerationAttemptDiagnostics["retryReason"];
@@ -196,6 +199,7 @@ const buildAttemptDiagnostics = ({
   completion?: ReturnType<typeof validateSourceCompletion> | null;
   staticQuality?: ReturnType<typeof validateStaticDrawgleHtml> | null;
   quality?: ReturnType<typeof validateGeneratedScreenCode> | null;
+  tokenDrift?: ReturnType<typeof detectTokenDrift> | null;
 }): GenerationAttemptDiagnostics => {
   const policy = geminiPolicyForTask("screen_build");
 
@@ -216,6 +220,7 @@ const buildAttemptDiagnostics = ({
     qualityIssues: quality?.issues ?? [],
     qualityWarnings: quality?.warnings ?? [],
     missingAnchors: quality?.missingAnchors ?? [],
+    tokenDriftWarnings: tokenDrift?.warnings ?? [],
   };
 };
 
@@ -1121,6 +1126,92 @@ export const buildScreenTask = task({
       }
     }
 
+    const finalizeGeneratedCode = (sourceCode: string) => {
+      const sanitizedCode = sanitizeScreenCodeForSharedNavigation(sourceCode, payload.screenPlan);
+      const tokenizedCode = tokenizeStaticDrawgleHtml(sanitizedCode, payload.designTokens).code;
+      const code = ensureDrawgleIds(tokenizedCode).code;
+      const tokenDrift = detectTokenDrift(code, { scope: "screen" });
+      return { code, tokenDrift };
+    };
+
+    let finalized = finalizeGeneratedCode(extractedCode);
+    attempts[attempts.length - 1] = {
+      ...attempts[attempts.length - 1],
+      tokenDriftWarnings: finalized.tokenDrift.warnings,
+    };
+
+    if (finalized.tokenDrift.hasSevereDrift) {
+      logger.warn("Screen build has severe token drift; retrying once with token repair instructions", {
+        screenId: payload.screenId,
+        screenName: payload.screenPlan.name,
+        warnings: finalized.tokenDrift.warnings.slice(0, 8),
+      });
+
+      const tokenRetryPlan: ScreenPlan = {
+        ...payload.screenPlan,
+        description: [
+          payload.screenPlan.description,
+          "TOKEN DRIFT RETRY: The previous build invented system styling instead of using Drawgle live tokens.",
+          "Replace generic Tailwind palette classes, raw hex/rgb system colors, and non-token radii/spacing with the nearest approved dg-* utility or var(--dg-*) value.",
+          "Allowed raw/custom values only for deliberate art details: charts, maps, illustrations, SVG geometry, media overlays, and asset-specific effects.",
+          finalized.tokenDrift.warnings.length > 0
+            ? `Drift issues to repair:\n${finalized.tokenDrift.warnings.slice(0, 8).map((warning) => `- ${warning}`).join("\n")}`
+            : null,
+          "Return one complete static HTML screen and end with <!-- DRAWGLE_GENERATION_COMPLETE --> on its own final line.",
+        ].filter(Boolean).join("\n\n"),
+      };
+
+      const tokenRetryBuild = await collectNonStreamingScreenBuild(buildPayload, tokenRetryPlan);
+      const tokenRetryCompletion = validateSourceCompletion({
+        code: tokenRetryBuild.extractedCode,
+        requireSentinel: true,
+        finishReasons: tokenRetryBuild.finishReasons,
+      });
+      let tokenRetryExtractedCode = tokenRetryBuild.extractedCode;
+      let tokenRetryStaticQuality: ReturnType<typeof validateStaticDrawgleHtml> | null = null;
+      let tokenRetryQuality: ReturnType<typeof validateGeneratedScreenCode> | null = null;
+      let tokenRetryDrift: ReturnType<typeof detectTokenDrift> | null = null;
+
+      if (tokenRetryCompletion.valid) {
+        tokenRetryExtractedCode = stripGenerationCompleteSentinel(tokenRetryExtractedCode);
+        tokenRetryStaticQuality = validateStaticDrawgleHtml({ code: tokenRetryExtractedCode, requireSingleScreenRoot: true });
+        tokenRetryQuality = validateGeneratedScreenCode({ code: tokenRetryExtractedCode, screenPlan: tokenRetryPlan });
+
+        if (tokenRetryStaticQuality.valid && tokenRetryQuality.valid) {
+          const retryFinalized = finalizeGeneratedCode(tokenRetryExtractedCode);
+          tokenRetryDrift = retryFinalized.tokenDrift;
+          const improvesDrift = !retryFinalized.tokenDrift.hasSevereDrift ||
+            retryFinalized.tokenDrift.severeIssues.length < finalized.tokenDrift.severeIssues.length;
+
+          if (improvesDrift) {
+            extractedCode = tokenRetryExtractedCode;
+            staticQuality = tokenRetryStaticQuality;
+            quality = tokenRetryQuality;
+            finalized = retryFinalized;
+          }
+        }
+      }
+
+      attempts.push(buildAttemptDiagnostics({
+        attempt: attempts.length + 1,
+        retryReason: "token_drift_retry",
+        streamed: false,
+        build: tokenRetryBuild,
+        completion: tokenRetryCompletion,
+        staticQuality: tokenRetryStaticQuality,
+        quality: tokenRetryQuality,
+        tokenDrift: tokenRetryDrift,
+      }));
+    }
+
+    if (finalized.tokenDrift.warnings.length > 0) {
+      logger.warn("Screen build saved with token drift diagnostics", {
+        screenId: payload.screenId,
+        screenName: payload.screenPlan.name,
+        warnings: finalized.tokenDrift.warnings.slice(0, 12),
+      });
+    }
+
     if (quality.warnings.length > 0 || quality.missingAnchors.length > 0) {
       logger.warn("Screen build saved with soft quality diagnostics", {
         screenId: payload.screenId,
@@ -1130,9 +1221,7 @@ export const buildScreenTask = task({
       });
     }
 
-    const sanitizedCode = sanitizeScreenCodeForSharedNavigation(extractedCode, payload.screenPlan);
-    const tokenizedCode = tokenizeStaticDrawgleHtml(sanitizedCode, payload.designTokens).code;
-    const code = ensureDrawgleIds(tokenizedCode).code;
+    const code = finalized.code;
     const health = detectScreenHealth({ code, screenPrompt: payload.screenPlan.description });
     const assetPolicy = validateScreenAssetPolicy({ code, assetManifest: payload.assetManifest });
     const blockIndex = indexScreenCode(code);

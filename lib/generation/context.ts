@@ -5,6 +5,7 @@ import type { Database } from "@/lib/supabase/database.types";
 import type { NavigationPlan, ProjectCharter, ProjectMessage } from "@/lib/types";
 
 import { generateEmbedding } from "@/lib/generation/embeddings";
+import { formatCanonicalVisualSystem, type ScreenStyleMemoryInput } from "@/lib/generation/screen-style-memory";
 import { createNavigationArchitecture, deriveRequiresBottomNav } from "@/lib/navigation";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
@@ -97,6 +98,83 @@ const formatMatches = (matches: MatchedScreen[]) =>
       return `${index + 1}. ${match.name} (${similarity} match)\n${match.summary}`;
     })
     .join("\n\n");
+
+const addStyleMemoryScreen = (
+  screensById: Map<string, ScreenStyleMemoryInput>,
+  screen: ScreenStyleMemoryInput,
+) => {
+  const id = screen.id?.trim();
+  if (!id || screensById.has(id) || !screen.code?.trim()) {
+    return;
+  }
+
+  screensById.set(id, screen);
+};
+
+const fetchCanonicalStyleScreens = async ({
+  client,
+  projectId,
+  matches,
+}: {
+  client: AdminClient;
+  projectId: string;
+  matches: MatchedScreen[];
+}) => {
+  const screensById = new Map<string, ScreenStyleMemoryInput>();
+
+  try {
+    const { data, error } = await client
+      .from("screens")
+      .select("id, name, code, summary")
+      .eq("project_id", projectId)
+      .eq("status", "ready")
+      .order("sort_index", { ascending: true })
+      .limit(3);
+
+    if (error) {
+      throw error;
+    }
+
+    for (const screen of data ?? []) {
+      addStyleMemoryScreen(screensById, screen);
+    }
+  } catch (error) {
+    console.error("Failed to retrieve canonical screen style memory", error);
+  }
+
+  const matchedIds = matches
+    .map((match) => match.screen_id)
+    .filter((id): id is string => Boolean(id));
+
+  if (matchedIds.length > 0) {
+    try {
+      const { data, error } = await client
+        .from("screens")
+        .select("id, name, code, summary")
+        .eq("project_id", projectId)
+        .in("id", matchedIds)
+        .eq("status", "ready");
+
+      if (error) {
+        throw error;
+      }
+
+      const matchedById = new Map<string, ScreenStyleMemoryInput>(
+        (data ?? []).map((screen) => [screen.id, screen]),
+      );
+      for (const id of matchedIds) {
+        const screen = matchedById.get(id);
+        if (screen) {
+          addStyleMemoryScreen(screensById, screen);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to retrieve matched screen style memory", error);
+    }
+  }
+
+  return Array.from(screensById.values());
+};
 
 export type AgentContextScreen = {
   id: string;
@@ -445,23 +523,37 @@ export async function assembleProjectContext({
     console.error("Failed to retrieve related screens", error);
   }
 
+  const styleMemoryScreens = await fetchCanonicalStyleScreens({
+    client,
+    projectId,
+    matches,
+  });
+  const canonicalVisualSystem = formatCanonicalVisualSystem(styleMemoryScreens);
+  const navigationPlanSummary = formatNavigationPlan(navigationPlan);
+
   const sections = [
-    charter ? `PROJECT CHARTER\n${formatCharter(charter)}` : null,
+    charter ? `PROJECT CHARTER
+${formatCharter(charter)}` : null,
     charter?.navigationArchitecture
-      ? `NAVIGATION ARCHITECTURE\n${formatNavigationArchitecture(charter)}`
+      ? `NAVIGATION ARCHITECTURE
+${formatNavigationArchitecture(charter)}`
       : null,
-    formatNavigationPlan(navigationPlan)
-      ? `APPROVED NAVIGATION PLAN\n${formatNavigationPlan(navigationPlan)}`
+    navigationPlanSummary
+      ? `APPROVED NAVIGATION PLAN
+${navigationPlanSummary}`
       : null,
     charter?.creativeDirection
-      ? `CREATIVE DIRECTION\n${formatCreativeDirection(charter.creativeDirection)}`
+      ? `CREATIVE DIRECTION
+${formatCreativeDirection(charter.creativeDirection)}`
       : null,
-    `TYPOGRAPHY ROLE CONTRACT\n${formatTypographyRoleContract()}`,
+    canonicalVisualSystem,
+    `TYPOGRAPHY ROLE CONTRACT
+${formatTypographyRoleContract()}`,
     matches.length > 0
-      ? `RELEVANT EXISTING SCREENS\n${formatMatches(matches)}`
+      ? `RELEVANT EXISTING SCREENS
+${formatMatches(matches)}`
       : null,
   ].filter(Boolean);
-
   if (sections.length === 0) {
     return "";
   }
