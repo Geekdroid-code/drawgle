@@ -2894,8 +2894,9 @@ export async function buildSourceRegionReplacementCode({
     navigationArchitecture: resolvedNavigationArchitecture,
     screenPlan,
     requiresBottomNav,
+    navigationPlan,
   });
-  const sharedNavContract = navigationPlan && screenPlan
+  const sharedNavContract = navigationPlan?.enabled && screenPlan
     ? buildSharedNavigationContract({ navigationInstruction, navigationPlan, screenPlan })
     : null;
 

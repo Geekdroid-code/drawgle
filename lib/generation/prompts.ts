@@ -256,26 +256,21 @@ Return strictly valid JSON in this format after inspecting the image with an exp
   }
 }
 
-DEPTH EXTRACTION METHOD — apply this procedure to every visible surface, but stop at whatever depth is actually present:
-1. Start at the absolute background. Describe the background color, gradient, texture, image, or pattern. State its exact value if observable.
-2. Move one layer forward. What is the next thing you see? A card, a panel, a sheet, a floating surface, a divider, a background tint, a subtle vignette? Name it and describe it precisely.
-3. For any container-like surface you encounter, walk through: the wrapper, the fill, the content, what is between content groups, and the relationship between this container and what is behind it. If the answer is "nothing is between them," say so.
-4. For any visual material you encounter (fill, shadow, border, gradient, texture, blur, glow), give a concrete value: the color or rgba, the size or weight, the position, the direction. Do not write "subtle" or "soft" — write the number.
-5. For any text element, describe the apparent size, weight, color, and any optical adjustments (tracking, leading, alignment, tabular nums, optical kerning) you can perceive.
-6. For any icon, describe the apparent weight, corner radius, framing, and active-vs-inactive treatment if both are visible.
-7. Continue forward layer by layer until you reach the topmost visible element. Do not stop at the first "card" you find; modern UI has more above it.
-8. Repeat the procedure for each visually distinct region of the screen.
+DEPTH EXTRACTION:
+For each distinct screen region, walk front-to-back:
+1. Background: color/gradient/texture/image/pattern.
+2. Surfaces: each card, panel, sheet, tint, divider, vignette, or floating layer.
+3. Containers: wrapper, fill, internal grouping, gaps, and relation to the layer behind it.
+4. Materials: fill, shadow, border, gradient, blur, glow with observable values or tight ranges.
+5. Content: text size/weight/color/alignment; icon weight/framing/active state.
+Continue until the topmost visible element. Do not stop at the first card.
+6. Repeat the procedure for each visually distinct region of the screen.
 
-PRECISION DEMAND — for accurate observation, not as a hard contract for the builder:
-- If you can see a shadow, give the color rgba, blur px, spread px, offset y px. Do not write "soft shadow".
-- If you can see a border or hairline, give the color rgba or hex, the px weight, and the position (all sides / top only / between rows).
-- If you can see a gradient, give the stops, colors, and direction.
-- If you can see a fill, give the exact color or rgba, not "white" or "gray".
-- If you can see a corner radius, give an approximate px.
-- If you can see a gap or padding, give an approximate px.
-- If you can see an opacity or alpha, give the value.
-- If you cannot measure something precisely, give a tight range (e.g. "12-16px" or "4-8% black") and say so explicitly.
-- Frame these values as observations of what is visible, not as a recipe the builder must follow literally. The builder is a creative interpreter: it should use these observations to understand the design's intent, then express that intent in its own build, free to adjust, recompose, or reinterpret values as long as the same design character is preserved. The goal is fidelity of feel, not literal reproduction of numbers.
+PRECISION OBSERVATION:
+Report visible design values as measurements, not vague adjectives.
+Capture: shadow(color/blur/spread/offset), border(color/width/position), gradient(direction/stops), fill color, radius, spacing, opacity.
+Use exact values when visible; otherwise give tight ranges.
+These are observations for design intent, not literal builder constraints.
 
 WHAT TO LOOK FOR — small decisions of any kind:
 The design's character is set by the small decisions, not the large ones. Look for any fine border or hairline; any subtle gradient; any inner highlight or inner stroke; any small-radius vs large-radius contrast; any micro-spacing difference (e.g. asymmetric padding, 1-2px tighter or looser than the surrounding rhythm); any optical type adjustment; any small icon framing detail; any hairline divider; any 1-2px shadow detail. Report what you actually see, in the categories and at the locations where they appear, in language that names the decision rather than the aesthetic. Frame these as cues the builder can draw on, not as a checklist it must satisfy.
@@ -506,14 +501,8 @@ const formatAssetManifestLine = (asset: ScreenAssetManifest, index: number) => {
     `pos=${compactPromptField(asset.objectPosition)}`,
     `size=${asset.width}x${asset.height}`,
     `alpha=${asset.hasAlpha ? "true" : "false"}`,
-    `source=${compactPromptField(asset.source)}/${compactPromptField(asset.provider)}`,
     `alt=${compactPromptField(asset.alt)}`,
     `hint=${compactPromptField(asset.placementHint)}`,
-    asset.id ? `id=${compactPromptField(asset.id)}` : null,
-    asset.requirementId ? `req=${compactPromptField(asset.requirementId)}` : null,
-    asset.license ? `license=${compactPromptField(asset.license)}` : null,
-    asset.attribution ? `attr=${compactPromptField(asset.attribution)}` : null,
-    asset.sourceUrl ? `sourceUrl=${compactPromptField(asset.sourceUrl)}` : null,
   ].filter(Boolean);
 
   return `- ${fields.join(" | ")}`;
@@ -536,7 +525,7 @@ const buildAssetManifestContract = (assetManifest?: ScreenAssetManifest[] | null
   return [
     realAssets.length > 0 ? "Use only listed bitmap URLs. Never invent/search image URLs." : "No approved bitmap URLs; render listed placeholders as CSS only.",
     "Use each entry only for its role. Avatar assets are avatars only; product/hero/decorative assets must never become profile photos.",
-    "Critical non-placeholder entries must appear in returned HTML. Use exact url/variantUrl, meaningful alt text, and the placement hint.",
+    "Critical non-placeholder entries must appear in returned HTML. Use the exact listed URL, meaningful alt text, size, fit, alpha, and placement hint.",
     "Placeholder entries: CSS surface + border/radius + Lucide icon + aspect ratio + short alt/role label; no img tag and no fake product/person/object artwork.",
     "Transparent cutouts use object-contain. Photos use object-cover unless hint says otherwise.",
     `Manifest summary: total=${assetManifest.length}; urls=${realAssets.length}; placeholders=${placeholders.length}.`,
@@ -549,18 +538,16 @@ export const buildNavigationArchitectureContract = ({
   navigationArchitecture,
   screenPlan,
   requiresBottomNav,
+  navigationPlan,
 }: {
   navigationArchitecture?: NavigationArchitecture | null;
   screenPlan?: ScreenPlan | null;
   requiresBottomNav?: boolean;
+  navigationPlan?: NavigationPlan | null;
 }) => {
   const normalizedArchitecture = createNavigationArchitecture({ navigationArchitecture, requiresBottomNav });
   const lines = [
-    `- Architecture kind: ${normalizedArchitecture.kind}`,
-    `- Primary navigation: ${normalizedArchitecture.primaryNavigation}`,
-    `- Default root chrome: ${normalizedArchitecture.rootChrome}`,
-    `- Default detail chrome: ${normalizedArchitecture.detailChrome}`,
-    `- Rationale: ${normalizedArchitecture.rationale}`,
+    `- App chrome: kind=${normalizedArchitecture.kind}; primary=${normalizedArchitecture.primaryNavigation}; root=${normalizedArchitecture.rootChrome}; detail=${normalizedArchitecture.detailChrome}.`,
   ];
 
   if (screenPlan) {
@@ -568,17 +555,17 @@ export const buildNavigationArchitectureContract = ({
       screenPlan,
       navigationArchitecture: normalizedArchitecture,
     });
+    const primaryNavPolicy = navigationPlan?.enabled
+      ? "external shared shell"
+      : screenChrome.showPrimaryNavigation
+        ? "render in this screen"
+        : "hidden";
 
-    lines.push(`- This screen chrome: ${screenChrome.chrome}`);
-    lines.push(`- Show primary navigation on this screen: ${screenChrome.showPrimaryNavigation ? "yes" : "no"}`);
-    lines.push(`- Show back button on this screen: ${screenChrome.showsBackButton ? "yes" : "no"}`);
+    lines.push(`- This screen: chrome=${screenChrome.chrome}; primaryNav=${primaryNavPolicy}; back=${screenChrome.showsBackButton ? "yes" : "no"}.`);
   }
 
   if (normalizedArchitecture.consistencyRules.length > 0) {
-    lines.push("- Navigation consistency rules:");
-    for (const rule of normalizedArchitecture.consistencyRules) {
-      lines.push(`  - ${rule}`);
-    }
+    lines.push(`- Nav consistency: ${normalizedArchitecture.consistencyRules.slice(0, 3).join(" | ")}`);
   }
 
   return lines.join("\n");
@@ -594,10 +581,7 @@ export const buildSharedNavigationContract = ({
   screenPlan: ScreenPlan;
 }) => {
   if (!navigationPlan?.enabled) {
-    return [
-      navigationInstruction,
-      "Any navigation surface must match the app family: spacing, icon size, label treatment, active state, radius, and elevation.",
-    ].join("\n");
+    return "";
   }
 
   return [
@@ -669,7 +653,7 @@ export const buildEditSystemInstruction = ({
     }
   })() : "";
 
-  const sharedNavContract = navigationPlan && screenPlan
+  const sharedNavContract = navigationPlan?.enabled && screenPlan
     ? `SHARED NAVIGATION CONTRACT:\n${buildSharedNavigationContract({ navigationInstruction, navigationPlan, screenPlan })}`
     : "";
 
@@ -682,7 +666,7 @@ TOKEN CONTEXT:
 ${buildTokenPromptContext(designTokens, "compact_visual")}
 
 NAVIGATION ARCHITECTURE CONTRACT:
-${buildNavigationArchitectureContract({ navigationArchitecture, screenPlan, requiresBottomNav })}
+${buildNavigationArchitectureContract({ navigationArchitecture, screenPlan, requiresBottomNav, navigationPlan })}
 
 TYPOGRAPHY ROLE CONTRACT:
 ${buildTypographyRoleContract()}
@@ -764,13 +748,11 @@ const buildScreenInstruction = ({
   })();
   const modeInstruction = mode === "recreate"
     ? [
-        "REFERENCE MODE: USER_RECREATE.",
         "If an image is attached in the user parts, treat it as structural evidence for this screen route.",
         "Preserve visible layer order, containment, layout mechanics, edge/depth treatment, navigation style family, and component construction while honoring the project tokens and screen brief.",
       ].join(" ")
     : [
-        "REFERENCE MODE: STYLE_REFERENCE.",
-        "No raw reference image should be attached for this builder route. Build from the screen brief, charter, navigation plan, creative direction, and tokens.",
+        "Build from the screen brief, charter, navigation plan, creative direction, and tokens.",
         "Borrow polish through the already-written reference analysis and creative direction only: material quality, shadows, radii, typography character, color rhythm, icon weight, nav feel, and component craft.",
         "Do not clone a curated or uploaded style screenshot's domain content, section order, object positions, or full layout anatomy.",
       ].join(" ");
@@ -828,6 +810,7 @@ ${buildNavigationArchitectureContract({
   navigationArchitecture: resolvedNavigationArchitecture,
   screenPlan,
   requiresBottomNav,
+  navigationPlan,
 })}
 
 APPROVED VISUAL ASSET MANIFEST:
@@ -836,10 +819,10 @@ ${buildAssetManifestContract(assetManifest)}
 TOKEN CONTEXT:
 ${buildTokenPromptContext(designTokens, "compact_visual")}
 
-SHARED NAVIGATION CONTRACT:
+${navigationPlan?.enabled ? `SHARED NAVIGATION CONTRACT:
 ${buildSharedNavigationContract({ navigationInstruction, navigationPlan, screenPlan })}
 
-OUTPUT RULES:
+` : ""}OUTPUT RULES:
 - Root element MUST be exactly: <div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden" style="font-family: var(--dg-typography-font-family, ${fontFamily})">
 - Safe areas: top container pt-[${safeTop}], bottom/content pb-[${safeBottom}] unless shared nav requires larger clearance.
 - Clickable controls: min-h-[${minTouch}].
