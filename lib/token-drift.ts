@@ -93,6 +93,9 @@ const addIssue = (issues: TokenDriftIssue[], issue: TokenDriftIssue) => {
 
 const issueWarning = (issue: TokenDriftIssue) => `${issue.code}: ${issue.value} in ${issue.context}`;
 
+const severeOnlyForNavigation = (options: DetectTokenDriftOptions): TokenDriftSeverity =>
+  options.scope === "navigation" ? "severe" : "warning";
+
 export function detectTokenDrift(code: string, options: DetectTokenDriftOptions = {}): TokenDriftResult {
   const source = stripAllowedArtBlocks(code);
   const issues: TokenDriftIssue[] = [];
@@ -112,7 +115,7 @@ export function detectTokenDrift(code: string, options: DetectTokenDriftOptions 
           code: "generic_tailwind_palette",
           value: className,
           context,
-          severity: "severe",
+          severity: severeOnlyForNavigation(options),
         });
         continue;
       }
@@ -123,7 +126,7 @@ export function detectTokenDrift(code: string, options: DetectTokenDriftOptions 
           code: "raw_arbitrary_color",
           value: rawColor[1],
           context,
-          severity: "severe",
+          severity: severeOnlyForNavigation(options),
         });
         continue;
       }
@@ -162,7 +165,7 @@ export function detectTokenDrift(code: string, options: DetectTokenDriftOptions 
         code: 'raw_style_color',
         value: declaration[1],
         context: compact(styleValue),
-        severity: 'severe',
+        severity: severeOnlyForNavigation(options),
       });
     }
 
@@ -176,7 +179,7 @@ export function detectTokenDrift(code: string, options: DetectTokenDriftOptions 
         code: 'raw_style_color',
         value: color[0],
         context: compact(styleValue),
-        severity: 'severe',
+        severity: severeOnlyForNavigation(options),
       });
     }
   }
@@ -193,7 +196,7 @@ export function detectTokenDrift(code: string, options: DetectTokenDriftOptions 
         code: 'raw_style_color',
         value: color[0],
         context: compact(css),
-        severity: 'severe',
+        severity: severeOnlyForNavigation(options),
       });
     }
   }

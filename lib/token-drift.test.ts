@@ -10,7 +10,8 @@ describe('detectTokenDrift', () => {
       </div>
     `);
 
-    expect(result.hasSevereDrift).toBe(true);
+    expect(result.hasSevereDrift).toBe(false);
+    expect(result.severeIssues).toHaveLength(0);
     expect(result.issues.map((issue) => issue.code)).toContain('generic_tailwind_palette');
     expect(result.issues.map((issue) => issue.code)).toContain('raw_style_color');
     expect(result.issues.map((issue) => issue.code)).toContain('raw_radius');
@@ -32,8 +33,9 @@ describe('detectTokenDrift', () => {
   it('flags raw system colors in style blocks', () => {
     const result = detectTokenDrift('<style>.bad{background:#f3f3f3;color:rgba(1,2,3,.4)}</style>');
 
-    expect(result.hasSevereDrift).toBe(true);
-    expect(result.severeIssues.filter((issue) => issue.code === 'raw_style_color')).toHaveLength(2);
+    expect(result.hasSevereDrift).toBe(false);
+    expect(result.issues.filter((issue) => issue.code === 'raw_style_color')).toHaveLength(2);
+    expect(result.severeIssues).toHaveLength(0);
   });
 
   it('does not flag values that tokenizeStaticDrawgleHtml rewrites to CSS variables', () => {
@@ -58,5 +60,17 @@ describe('detectTokenDrift', () => {
 
     expect(result.hasSevereDrift).toBe(true);
     expect(result.severeIssues.some((issue) => issue.code === 'raw_radius')).toBe(true);
+  });
+
+  it('escalates palette and raw color drift in navigation scope', () => {
+    const result = detectTokenDrift(
+      `<nav data-drawgle-primary-nav><div class="bg-white text-[#111111]" style="color:#111111">x</div></nav>`,
+      { scope: 'navigation' },
+    );
+
+    expect(result.hasSevereDrift).toBe(true);
+    expect(result.severeIssues.map((issue) => issue.code)).toEqual(
+      expect.arrayContaining(['generic_tailwind_palette', 'raw_arbitrary_color', 'raw_style_color']),
+    );
   });
 });

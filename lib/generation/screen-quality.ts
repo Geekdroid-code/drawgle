@@ -25,6 +25,11 @@ export type SourceCompletionDiagnosticCode =
   | "unclosed_comment"
   | "unclosed_root";
 
+export type StaticDrawgleHtmlSanitizationCode =
+  | "script_tag"
+  | "inline_event_handler"
+  | "javascript_url";
+
 const NON_CLOSING_TAGS = new Set([
   "area",
   "base",
@@ -318,6 +323,39 @@ const getTagBalance = (code: string) => {
     mismatches,
   };
 };
+
+const addSanitizationCode = (
+  codes: StaticDrawgleHtmlSanitizationCode[],
+  code: StaticDrawgleHtmlSanitizationCode,
+) => {
+  if (!codes.includes(code)) {
+    codes.push(code);
+  }
+};
+
+export function sanitizeStaticDrawgleHtml(code: string) {
+  let nextCode = code;
+  const removedCodes: StaticDrawgleHtmlSanitizationCode[] = [];
+
+  const replaceAndTrack = (pattern: RegExp, replacement: string, code: StaticDrawgleHtmlSanitizationCode) => {
+    const replaced = nextCode.replace(pattern, replacement);
+    if (replaced !== nextCode) {
+      addSanitizationCode(removedCodes, code);
+      nextCode = replaced;
+    }
+  };
+
+  replaceAndTrack(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, "", "script_tag");
+  replaceAndTrack(/<script\b[^>]*\/?>/gi, "", "script_tag");
+  replaceAndTrack(/\s+on[a-z][\w:-]*\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+)/gi, "", "inline_event_handler");
+  replaceAndTrack(/\s+(?:href|src|action|formaction|xlink:href)\s*=\s*(?:"\s*javascript:[^"]*"|'\s*javascript:[^']*'|javascript:[^\s"'=<>`]+)/gi, "", "javascript_url");
+
+  return {
+    code: nextCode,
+    changed: nextCode !== code,
+    removedCodes,
+  };
+}
 
 export function validateStaticDrawgleHtml({
   code,
