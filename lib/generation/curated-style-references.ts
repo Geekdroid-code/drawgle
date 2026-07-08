@@ -186,6 +186,7 @@ export const CURATED_STYLE_REFERENCES: CuratedStyleReference[] = [
   "negativeKeywords": ["dark-mode", "fintech", "heavy-shadows", "crypto", "analytics-dense", "monochrome", "brutalist", "sharp-edges"],
   "styleIntent": "Vibrant and cheerful light-themed nutrition hub showcasing a distinct pastel color-coded modular grid, asymmetrical wavy organic card backgrounds, minimal donut micro-charts for progress tracking, and a sleek, translucent glassmorphism floating menu dock."
 },
+
   {
     id: "finance-light-soft-banking-home",
     imageUrl: "/finance.jpeg",
