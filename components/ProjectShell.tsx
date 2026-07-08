@@ -634,29 +634,6 @@ function SelectedElementInspectorSidebar({
   const [advancedDetailsOpen, setAdvancedDetailsOpen] = useState(false);
 
   const normalizeClassNames = useCallback((className: string) => className.trim().replace(/\s+/g, " "), []);
-  const selectionDraftKey = useMemo(() => [
-    selectedElementInfo?.targetType ?? "none",
-    selectedElementInfo?.drawgleId ?? "none",
-    selectedElementInfo?.outerHTML ?? "",
-    classListKey,
-    textNodes.map((node) => `${node.drawgleId}:${node.text}`).join("|"),
-    inspectedProperties.map((property) => [
-      property.property,
-      property.inlineValue,
-      property.computedValue,
-      property.classBinding ?? "",
-      property.tokenName ?? "",
-    ].join(":")).join("|"),
-  ].join("||"), [classListKey, inspectedProperties, selectedElementInfo?.drawgleId, selectedElementInfo?.outerHTML, selectedElementInfo?.targetType, textNodes]);
-
-  useEffect(() => {
-    setTextDrafts(originalTextById);
-    setStyleDrafts(buildInitialStyleDrafts(inspectedProperties));
-    setClassDraft(classListKey);
-    setClassDraftTouched(false);
-    onPreviewChange?.(null);
-  }, [classListKey, inspectedProperties, onPreviewChange, originalTextById, selectionDraftKey]);
-
   const handleClassDraftChange = (value: string) => {
     setClassDraft(value);
     setClassDraftTouched(true);
@@ -2341,6 +2318,16 @@ export function ProjectShell({
 
   const handleElementSelected = (info: SelectedElementInfo) => {
     if (info.selectionReason === "rehydrated") {
+      if (
+        !editSession ||
+        editSession.screenId !== info.screenId ||
+        editSession.element.drawgleId !== info.drawgleId
+      ) {
+        return;
+      }
+
+      const nextSelectionVersion = editSession.selectionVersion + 1;
+      setSelectionVersion((currentVersion) => Math.max(currentVersion, nextSelectionVersion));
       setEditSession((currentSession) => {
         if (
           !currentSession ||
@@ -2353,6 +2340,7 @@ export function ProjectShell({
         return {
           ...currentSession,
           element: info,
+          selectionVersion: nextSelectionVersion,
           freshness: "fresh",
         };
       });
@@ -2785,7 +2773,7 @@ export function ProjectShell({
 
           {canvasTool === "element-select" && (!isMobile || Boolean(editSession)) ? (
             <SelectedElementInspectorSidebar
-              key={editSession ? `${editSession.element.targetType}:${editSession.element.drawgleId ?? editSession.element.breadcrumb}:${editSession.selectedAt}` : "empty-inspector"}
+              key={editSession ? `${editSession.element.targetType}:${editSession.element.drawgleId ?? editSession.element.breadcrumb}:${editSession.selectionVersion}` : "empty-inspector"}
               project={project}
               selectedScreen={selectedElementScreen ?? selectedScreen}
               selectedElementInfo={editSession?.element ?? null}
