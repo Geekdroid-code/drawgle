@@ -630,9 +630,37 @@ function SelectedElementInspectorSidebar({
     buildInitialStyleDrafts(inspectedProperties),
   );
   const [classDraft, setClassDraft] = useState(classListKey);
+  const [classDraftTouched, setClassDraftTouched] = useState(false);
   const [advancedDetailsOpen, setAdvancedDetailsOpen] = useState(false);
 
   const normalizeClassNames = useCallback((className: string) => className.trim().replace(/\s+/g, " "), []);
+  const selectionDraftKey = useMemo(() => [
+    selectedElementInfo?.targetType ?? "none",
+    selectedElementInfo?.drawgleId ?? "none",
+    selectedElementInfo?.outerHTML ?? "",
+    classListKey,
+    textNodes.map((node) => `${node.drawgleId}:${node.text}`).join("|"),
+    inspectedProperties.map((property) => [
+      property.property,
+      property.inlineValue,
+      property.computedValue,
+      property.classBinding ?? "",
+      property.tokenName ?? "",
+    ].join(":")).join("|"),
+  ].join("||"), [classListKey, inspectedProperties, selectedElementInfo?.drawgleId, selectedElementInfo?.outerHTML, selectedElementInfo?.targetType, textNodes]);
+
+  useEffect(() => {
+    setTextDrafts(originalTextById);
+    setStyleDrafts(buildInitialStyleDrafts(inspectedProperties));
+    setClassDraft(classListKey);
+    setClassDraftTouched(false);
+    onPreviewChange?.(null);
+  }, [classListKey, inspectedProperties, onPreviewChange, originalTextById, selectionDraftKey]);
+
+  const handleClassDraftChange = (value: string) => {
+    setClassDraft(value);
+    setClassDraftTouched(true);
+  };
 
 
   useEffect(() => {
@@ -670,7 +698,7 @@ function SelectedElementInspectorSidebar({
 
     const normalizedClassDraft = normalizeClassNames(classDraft);
     const normalizedOriginalClass = normalizeClassNames(classListKey);
-    const classChanged = normalizedClassDraft !== normalizedOriginalClass;
+    const classChanged = classDraftTouched && normalizedClassDraft !== normalizedOriginalClass;
 
     if (!hasStylePreview && !classChanged) {
       onPreviewChange(null);
@@ -681,8 +709,9 @@ function SelectedElementInspectorSidebar({
       drawgleId: selectedElementInfo.drawgleId,
       styles,
       className: classChanged ? normalizedClassDraft : null,
+      allowClassNamePreview: classChanged,
     });
-  }, [classDraft, classListKey, inspectedProperties, normalizeClassNames, onPreviewChange, selectedElementInfo?.drawgleId, styleDrafts]);
+  }, [classDraft, classDraftTouched, classListKey, inspectedProperties, normalizeClassNames, onPreviewChange, selectedElementInfo?.drawgleId, styleDrafts]);
 
   useEffect(() => () => onPreviewChange?.(null), [onPreviewChange]);
 
@@ -695,6 +724,7 @@ function SelectedElementInspectorSidebar({
     try {
       const saved = await onApplyOperations(operations);
       if (saved) {
+        setClassDraftTouched(false);
         onPreviewChange?.(null);
       }
       return saved;
@@ -717,7 +747,7 @@ function SelectedElementInspectorSidebar({
     const normalizedClassDraft = normalizeClassNames(classDraft);
     const normalizedOriginalClass = normalizeClassNames(classListKey);
 
-    if (normalizedClassDraft !== normalizedOriginalClass) {
+    if (classDraftTouched && normalizedClassDraft !== normalizedOriginalClass) {
       operations.push({ type: "replaceClassList", className: normalizedClassDraft });
     }
 
@@ -759,6 +789,7 @@ function SelectedElementInspectorSidebar({
   const resetAllLocalOverrides = async () => {
     setStyleDrafts(buildInitialStyleDrafts(inspectedProperties));
     setClassDraft(classListKey);
+    setClassDraftTouched(false);
 
     const operations = inspectedProperties
       .filter((property) => normalizeCssValue(property.inlineValue))
@@ -771,7 +802,7 @@ function SelectedElementInspectorSidebar({
   };
 
   const hasDraftChanges = useMemo(() => {
-    const classChanged = normalizeClassNames(classDraft) !== normalizeClassNames(classListKey);
+    const classChanged = classDraftTouched && normalizeClassNames(classDraft) !== normalizeClassNames(classListKey);
     const textChanged = textNodes.some((node) => textDrafts[node.drawgleId] !== undefined && textDrafts[node.drawgleId] !== node.text);
     const styleChanged = inspectedProperties.some((property) => {
       const draft = styleDrafts[property.property] ?? initialDraftForProperty(property);
@@ -779,7 +810,7 @@ function SelectedElementInspectorSidebar({
       return draft.mode !== initialDraft.mode || normalizeCssValue(draft.value) !== normalizeCssValue(initialDraft.value);
     });
     return classChanged || textChanged || styleChanged;
-  }, [classDraft, classListKey, inspectedProperties, normalizeClassNames, styleDrafts, textDrafts, textNodes]);
+  }, [classDraft, classDraftTouched, classListKey, inspectedProperties, normalizeClassNames, styleDrafts, textDrafts, textNodes]);
 
   const targetLabel = selectedElementInfo?.targetType === "navigation" ? "Navigation" : selectedScreen?.name ?? "Screen";
   const riskMessages = [
@@ -1315,7 +1346,7 @@ function SelectedElementInspectorSidebar({
       `Target: ${targetLabel} / ${selectedElementInfo?.breadcrumb || selectedElementInfo?.editableMetadata?.tagName || "element"}.`,
       `Parent layout: ${layoutContext?.parentDisplay ?? "unknown"}; children: ${layoutContext?.childrenCount ?? 0}; risk flags: ${riskMessages.join(", ") || "none"}.`,
       `Current classes: ${classListKey || "none"}.`,
-      normalizedClassDraft !== normalizeClassNames(classListKey) ? `Draft classes: ${normalizedClassDraft || "none"}.` : null,
+      classDraftTouched && normalizedClassDraft !== normalizeClassNames(classListKey) ? `Draft classes: ${normalizedClassDraft || "none"}.` : null,
       changedStyles ? `Draft styles: ${changedStyles}.` : null,
       "Preserve project tokens, prefer Tailwind-compatible utilities, avoid unnecessary inline styles, and keep exported HTML production-safe.",
     ].filter(Boolean).join("\n");
@@ -1515,7 +1546,7 @@ function SelectedElementInspectorSidebar({
                 <Textarea
                   value={classDraft}
                   disabled={disabled || isSaving}
-                  onChange={(event) => setClassDraft(event.target.value)}
+                  onChange={(event) => handleClassDraftChange(event.target.value)}
                   className="min-h-20 resize-y rounded-[10px] border-slate-950/[0.08] bg-slate-50/80 px-3 py-2 font-mono text-[11px] leading-5 text-slate-700 focus-visible:bg-slate-50"
                 />
               </label>

@@ -49,6 +49,7 @@ export type SelectedElementPreviewPayload = {
   drawgleId: string | null;
   styles: DrawgleStyleValueMap;
   className?: string | null;
+  allowClassNamePreview?: boolean;
 };
 export type ElementSelectionLostReason = "rehydrate_failed" | "click_miss" | "source_changed";
 
@@ -785,6 +786,7 @@ export function ScreenNode({
         drawgleId: selectedElementPreview.drawgleId,
         styles: selectedElementPreview.styles,
         className: selectedElementPreview.className ?? null,
+        allowClassNamePreview: selectedElementPreview.allowClassNamePreview === true,
       },
       '*',
     );
@@ -1595,7 +1597,7 @@ export function ScreenNode({
                 originalClass: classListWithoutSelectionState(target.getAttribute('class')),
               };
 
-              if (typeof payload.className === 'string') {
+              if (payload.allowClassNamePreview === true && typeof payload.className === 'string') {
                 setClassPreservingSelectionState(target, payload.className.trim());
               }
 
