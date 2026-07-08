@@ -483,11 +483,21 @@ export interface ScreenPlan {
   name: string;
   type: 'root' | 'detail';
   description: string;
+  layoutContract?: ScreenLayoutContract | null;
   chromePolicy?: ScreenChromePolicy | null;
   navigationItemId?: string | null;
   assetNeeds?: AssetRequirement[];
   referenceScreenIndex?: number | null;
   referenceScreenCount?: number | null;
+}
+
+export interface ScreenLayoutContract {
+  viewportPlan: string;
+  focalHierarchy: string;
+  sectionRhythm: string;
+  componentDensity: string;
+  ctaPolicy: string;
+  antiPatterns: string[];
 }
 
 export interface ScreenBaseStatePlan {
@@ -516,6 +526,10 @@ export interface ReferenceScreenAnalysis {
   interactionCues: string[];
   copyPatterns: string[];
   implementationNotes: string[];
+  compositionRules?: string[];
+  spacingRules?: string[];
+  componentRules?: string[];
+  antiPatterns?: string[];
 }
 
 export interface ReferenceDesignSystemSignals {
@@ -525,6 +539,10 @@ export interface ReferenceDesignSystemSignals {
   iconography: string;
   density: string;
   motionTone: string;
+  layoutGrammar?: string;
+  componentGrammar?: string;
+  spacingLogic?: string;
+  antiPatterns?: string;
   [key: string]: JsonValue | undefined;
 }
 

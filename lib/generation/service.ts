@@ -250,10 +250,20 @@ const AssetNeedSchema = z.object({
   origin: z.enum(["reference_visible", "user_explicit", "planner_inferred", "heuristic_inferred"]).optional(),
 });
 
+const ScreenLayoutContractSchema = z.object({
+  viewport_plan: z.string().trim().min(1).max(500),
+  focal_hierarchy: z.string().trim().min(1).max(500),
+  section_rhythm: z.string().trim().min(1).max(500),
+  component_density: z.string().trim().min(1).max(500),
+  cta_policy: z.string().trim().min(1).max(500),
+  anti_patterns: z.array(z.string().trim().min(1).max(260)).max(8).default([]).optional(),
+});
+
 const ScreenPlanSchema = z.object({
   name: z.string().trim().min(1).max(100),
   type: ScreenTypeSchema,
   description: z.string().trim().min(1).max(8000),
+  layout_contract: ScreenLayoutContractSchema.optional(),
   chrome_policy: z.object({
     chrome: ScreenChromeKindSchema,
     show_primary_navigation: BooleanishSchema.optional(),
@@ -428,6 +438,10 @@ const buildStructuredScreenDescription = (referenceScreen: ReferenceAnalysis["sc
     referenceScreen.interactionCues.length > 0 ? `Interaction Notes: ${referenceScreen.interactionCues.join("; ")}` : null,
     referenceScreen.copyPatterns.length > 0 ? `Copy / Typography Anchors: ${referenceScreen.copyPatterns.join("; ")}` : null,
     referenceScreen.implementationNotes.length > 0 ? `Must-Preserve Details: ${referenceScreen.implementationNotes.join("; ")}` : null,
+    referenceScreen.compositionRules?.length ? `Composition Rules: ${referenceScreen.compositionRules.join("; ")}` : null,
+    referenceScreen.spacingRules?.length ? `Spacing Rules: ${referenceScreen.spacingRules.join("; ")}` : null,
+    referenceScreen.componentRules?.length ? `Component Rules: ${referenceScreen.componentRules.join("; ")}` : null,
+    referenceScreen.antiPatterns?.length ? `Avoid: ${referenceScreen.antiPatterns.join("; ")}` : null,
   ]
     .filter(Boolean)
     .join("\n");
@@ -452,6 +466,8 @@ const fallbackCreativeDirection = ({
   iconographyStyle: referenceAnalysis?.designSystemSignals.iconography
     ?? "Use clean, slightly bold iconography with strong framing and purposeful circular or pill containers when emphasis is needed.",
   compositionPrinciples: [
+    ...(referenceAnalysis?.designSystemSignals.layoutGrammar ? [referenceAnalysis.designSystemSignals.layoutGrammar] : []),
+    ...(referenceAnalysis?.designSystemSignals.spacingLogic ? [referenceAnalysis.designSystemSignals.spacingLogic] : []),
     "Give each screen a clear focal hierarchy with one dominant anchor before secondary information.",
     "Use asymmetry, overlap, floating surfaces, or sculpted grouping when it improves memorability and clarity.",
     "Let whitespace and scale do real design work instead of filling the screen with repeated widgets.",
@@ -476,6 +492,7 @@ const fallbackCreativeDirection = ({
   avoid: [
     "Do not default to generic evenly stacked white cards with interchangeable stats.",
     "Do not rely on bland gray-on-white enterprise dashboard patterns unless the brief explicitly demands them.",
+    ...(referenceAnalysis?.designSystemSignals.antiPatterns ? [referenceAnalysis.designSystemSignals.antiPatterns] : []),
     "Do not make every screen symmetrical if the product would benefit from stronger visual tension and hierarchy.",
   ],
 });
@@ -865,7 +882,7 @@ const buildScreenFamilyContract = ({
       tokenRadius?.app ? `Preserve the approved app radius ${tokenRadius.app}.` : "Keep radius, shadow, border, and elevation consistent across screens.",
     ].join(" "),
     typography: signals?.typography ?? designStyle?.creativeDirectionSeed.typographyMood ?? "Use the same type scale, weight rhythm, label casing, and hierarchy across every screen.",
-    spacing: signals?.density ?? designStyle?.densityRules.join(" ") ?? "Keep screen-edge padding, card padding, vertical rhythm, and grid gaps consistent with the reference/design tokens.",
+    spacing: signals?.spacingLogic ?? signals?.density ?? designStyle?.densityRules.join(" ") ?? "Keep screen-edge padding, card padding, vertical rhythm, and grid gaps consistent with the reference/design tokens.",
     navigation: intentContract.visibleNavigationHandling === "inline_static_chrome"
       ? "Visible navigation from a one-screen recreate reference is static visual chrome inside that screen, not shared project navigation."
       : designStyle?.navigationRecipes.join(" ") ?? "Shared navigation, when present, is derived from the approved screen slate and must not create additional screens.",
@@ -873,7 +890,12 @@ const buildScreenFamilyContract = ({
     consistencyRules: [
       ...styleRules,
       ...(creativeDirection?.compositionPrinciples ?? []).slice(0, 4),
-      ...(referenceAnalysis?.screenReferences[0]?.stylingCues ?? []).slice(0, 3),
+      ...(signals?.layoutGrammar ? [signals.layoutGrammar] : []),
+      ...(signals?.componentGrammar ? [signals.componentGrammar] : []),
+      ...(signals?.antiPatterns ? [`Avoid: ${signals.antiPatterns}`] : []),
+      ...(referenceAnalysis?.screenReferences[0]?.compositionRules ?? []).slice(0, 2),
+      ...(referenceAnalysis?.screenReferences[0]?.componentRules ?? []).slice(0, 2),
+      ...(referenceAnalysis?.screenReferences[0]?.stylingCues ?? []).slice(0, 2),
       "Every planned screen must look like it belongs to the same product family while keeping a screen-specific composition.",
     ].slice(0, 8),
   };
@@ -1477,6 +1499,37 @@ const extractRawScreenArray = (value: unknown): unknown[] => {
   return isRecord(value.data) ? extractRawScreenArray(value.data) : [];
 };
 
+const normalizeScreenLayoutContract = (value: unknown): ScreenPlan["layoutContract"] => {
+  const raw = isRecord(value) && isRecord(value.layout_contract)
+    ? value.layout_contract
+    : isRecord(value) && isRecord(value.layoutContract)
+      ? value.layoutContract
+      : value;
+  const normalizedRaw = isRecord(raw) && typeof raw.viewportPlan === "string"
+    ? {
+        viewport_plan: raw.viewportPlan,
+        focal_hierarchy: raw.focalHierarchy,
+        section_rhythm: raw.sectionRhythm,
+        component_density: raw.componentDensity,
+        cta_policy: raw.ctaPolicy,
+        anti_patterns: Array.isArray(raw.antiPatterns) ? raw.antiPatterns : [],
+      }
+    : raw;
+  const parsed = ScreenLayoutContractSchema.safeParse(normalizedRaw);
+  if (!parsed.success) {
+    return null;
+  }
+
+  return {
+    viewportPlan: parsed.data.viewport_plan,
+    focalHierarchy: parsed.data.focal_hierarchy,
+    sectionRhythm: parsed.data.section_rhythm,
+    componentDensity: parsed.data.component_density,
+    ctaPolicy: parsed.data.cta_policy,
+    antiPatterns: parsed.data.anti_patterns ?? [],
+  };
+};
+
 const coerceScreenPlanFromRawItem = (item: unknown): ScreenPlan | null => {
   const parsed = ScreenPlanSchema.safeParse(item);
   if (parsed.success) {
@@ -1484,6 +1537,7 @@ const coerceScreenPlanFromRawItem = (item: unknown): ScreenPlan | null => {
       name: parsed.data.name,
       type: parsed.data.type,
       description: parsed.data.description,
+      layoutContract: normalizeScreenLayoutContract(parsed.data.layout_contract),
       assetNeeds: normalizeScreenAssetNeeds(parsed.data.name, parsed.data.asset_needs),
       chromePolicy: parsed.data.chrome_policy
         ? {
@@ -1539,6 +1593,7 @@ const coerceScreenPlanFromRawItem = (item: unknown): ScreenPlan | null => {
     name,
     type: normalizedType,
     description,
+    layoutContract: normalizeScreenLayoutContract(item),
     assetNeeds,
     chromePolicy: parsedChromePolicy
       ? {
@@ -1737,6 +1792,10 @@ const formatReferenceAnalysis = (referenceAnalysis: ReferenceAnalysis) => {
       referenceScreen.interactionCues.length > 0 ? `Interaction Cues: ${referenceScreen.interactionCues.join("; ")}` : null,
       referenceScreen.copyPatterns.length > 0 ? `Copy Patterns: ${referenceScreen.copyPatterns.join("; ")}` : null,
       referenceScreen.implementationNotes.length > 0 ? `Implementation Notes: ${referenceScreen.implementationNotes.join("; ")}` : null,
+      referenceScreen.compositionRules?.length ? `Composition Rules: ${referenceScreen.compositionRules.join("; ")}` : null,
+      referenceScreen.spacingRules?.length ? `Spacing Rules: ${referenceScreen.spacingRules.join("; ")}` : null,
+      referenceScreen.componentRules?.length ? `Component Rules: ${referenceScreen.componentRules.join("; ")}` : null,
+      referenceScreen.antiPatterns?.length ? `Avoid: ${referenceScreen.antiPatterns.join("; ")}` : null,
     ]
       .filter(Boolean)
       .join("\n"))
@@ -1751,6 +1810,10 @@ const formatReferenceAnalysis = (referenceAnalysis: ReferenceAnalysis) => {
     `- Iconography: ${referenceAnalysis.designSystemSignals.iconography}`,
     `- Density: ${referenceAnalysis.designSystemSignals.density}`,
     `- Motion Tone: ${referenceAnalysis.designSystemSignals.motionTone}`,
+    referenceAnalysis.designSystemSignals.layoutGrammar ? `- Layout Grammar: ${referenceAnalysis.designSystemSignals.layoutGrammar}` : null,
+    referenceAnalysis.designSystemSignals.componentGrammar ? `- Component Grammar: ${referenceAnalysis.designSystemSignals.componentGrammar}` : null,
+    referenceAnalysis.designSystemSignals.spacingLogic ? `- Spacing Logic: ${referenceAnalysis.designSystemSignals.spacingLogic}` : null,
+    referenceAnalysis.designSystemSignals.antiPatterns ? `- Avoid: ${referenceAnalysis.designSystemSignals.antiPatterns}` : null,
     "",
     "Screen Breakdown:",
     screenSections,
@@ -2291,6 +2354,7 @@ export async function planUiFlow({
     name: screenPlan.name,
     type: screenPlan.type,
     description: screenPlan.description,
+    layoutContract: normalizeScreenLayoutContract(screenPlan.layout_contract),
     assetNeeds: normalizeScreenAssetNeeds(screenPlan.name, screenPlan.asset_needs),
     chromePolicy: screenPlan.chrome_policy
       ? {
@@ -2309,6 +2373,7 @@ export async function planUiFlow({
       name: screenPlan.name,
       type: screenPlan.type,
       description: screenPlan.description,
+      layoutContract: screenPlan.layoutContract ?? null,
       assetNeeds: screenPlan.assetNeeds ?? [],
       chromePolicy: screenPlan.chromePolicy ?? null,
     },
@@ -2330,6 +2395,7 @@ export async function planUiFlow({
         name: screenPlan.name,
         type: screenPlan.type,
         description: screenPlan.description,
+        layoutContract: screenPlan.layoutContract ?? null,
         assetNeeds: screenPlan.assetNeeds ?? [],
         chromePolicy: screenPlan.chromePolicy ?? null,
       },

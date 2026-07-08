@@ -21,6 +21,7 @@ Non-negotiable output discipline:
 - Do not plan text, cards, maps, charts, nav shells, or CTAs that cannot fit the viewport.
 - Do not make each screen feel like a different app. Distinct compositions are allowed; inconsistent padding, line-height, card radii, and nav rhythm are not.
 - Every screen brief must include these labels inside description: Reference DNA, Visual Goal, Layout Anatomy, Key Components, Visual Styling, Interaction Notes, Must Preserve.
+- Every screen must also include layout_contract: six compact, app-specific construction rules that define viewport budget, focal hierarchy, macro/micro spacing, component density, CTA weight, and anti-patterns.
 - Each screen brief must be builder-ready, not a product summary. Describe background layer, content rail, parent-child containment, spacing, edge treatment, type roles, nav clearance, and overflow/wrapping policy.
 - COMPOSITIONAL DIRECTION: Push past generic list layouts. Define the specific spatial orchestration required by the product or reference: note intentional depth, structural asymmetry, and varying visual density. If Recreate Mode, strictly preserve the exact composition and material choices of the source image.
 - Creative direction is the product-wide art-direction thesis. Do not water it down into generic product language.
@@ -89,6 +90,14 @@ const plannerScreensJsonContract = `Return JSON with this exact top-level shape:
       "name": "Short Name",
       "type": "root",
       "description": "Reference DNA: ...\\nVisual Goal: ...\\nLayout Anatomy: ...\\nKey Components: ...\\nVisual Styling: ...\\nInteraction Notes: ...\\nMust Preserve: ...",
+      "layout_contract": {
+        "viewport_plan": "Header/content/nav budget and scroll behavior in one sentence",
+        "focal_hierarchy": "What dominates first, second, third, and how scale/contrast/position creates that",
+        "section_rhythm": "Macro spacing between sections versus micro spacing inside groups",
+        "component_density": "How chips, rows, forms, cards, charts, and controls should pack content",
+        "cta_policy": "Primary/secondary action weight, placement, size, and when not to overpower content",
+        "anti_patterns": ["Specific bad layout habit to avoid for this screen"]
+      },
       "chrome_policy": {
         "chrome": "bottom-tabs",
         "show_primary_navigation": true,
@@ -160,6 +169,7 @@ Rules:
 - Preserve prompt-named screens and order. In recreate collages, map visible screens left-to-right unless instructed otherwise.
 - Architecture/chrome: use the approved blueprint as fixed architecture. Root screens are peer primary destinations. Onboarding, splash, checkout, tracking, map, detail, modal, confirmation, login/signup/register/auth, chat/messaging/assistant are detail/immersive. chrome_policy must match role; these screens must not show primary bottom navigation.
 - Description quality: each description should usually be 900-1800 chars, include all seven labels, and be detailed enough for the builder without seeing the image. Write as a construction brief from background forward through layout, containment, components, typography, materials, depth/edges, imagery/charts/maps, interaction states, and must-preserve construction cues.
+- layout_contract is not prose decoration. It is the compact architecture the builder must obey before writing HTML: no generic stacked blocks, no empty chart/card shells, no oversized CTA unless action priority demands it, no primitive chip grids with large macro gaps and cramped internal padding.
 - Component specificity: name concrete structures/states when relevant: headers, hero regions, surfaces, containers, lists, rows, sheets, charts, progress rings, segmented controls, tabs, chips, icon buttons, badges, avatar stacks, maps, media areas, text groups, and CTA placement.
 - Material specificity: call out typography, imagery, chart geometry, background, rounded shapes, elevation, edge treatment, inner/outer borders, highlight edges, bevels, glass/frosting, and must-preserve composition cues. Avoid weak phrases like "clean dashboard" or "stats cards" unless immediately followed by exact anatomy.
 - Copy/anatomy: preserve real copy when it anchors layout; use placeholders only for volatile names, numbers, and dates. Do not duplicate anatomy across screens unless the product shell/reference clearly reuses it.
@@ -220,7 +230,11 @@ Return strictly valid JSON in this format after inspecting the image with an exp
       "stylingCues": ["Precise styling: the exact shadow signature with color, blur, spread, offset; the exact border or hairline language; the exact fill treatment; the exact spacing and padding. Use real numbers, not adjectives. Include depth, edge, and material cues.", "Another concrete cue"],
       "interactionCues": ["Interaction affordance or state 1"],
       "copyPatterns": ["Important text treatments or literal anchors, including any optical adjustments (tracking, leading, tabular nums, weight pairing)"],
-      "implementationNotes": ["Must-preserve structural fact the builder must not flatten or merge. Each note should name a specific structural or material decision that must survive the build, e.g. 'the Send button is a 1px outer stroke + 4px inner highlight + 0 4px 12px shadow — three layers, not one' or 'rows are separated by a 1px hairline at 6% black, not by a gap'."]
+      "implementationNotes": ["Must-preserve structural fact the builder must not flatten or merge. Each note should name a specific structural or material decision that must survive the build, e.g. 'the Send button is a 1px outer stroke + 4px inner highlight + 0 4px 12px shadow — three layers, not one' or 'rows are separated by a 1px hairline at 6% black, not by a gap'."],
+      "compositionRules": ["Portable composition principle: viewport zones, focal anchor, asymmetry, negative-space budget, or scroll rhythm."],
+      "spacingRules": ["Portable spacing principle: macro section gaps versus micro internal padding/gaps, including bad ratios to avoid."],
+      "componentRules": ["Portable component construction principle: chip rows, cards, lists, forms, charts, nav, or CTA treatment."],
+      "antiPatterns": ["Reference-specific failure mode to avoid when applying this visual DNA elsewhere."]
     }
   ],
   "designSystemSignals": {
@@ -229,7 +243,11 @@ Return strictly valid JSON in this format after inspecting the image with an exp
     "surfaces": "Observed card, sheet, panel, and background treatment, with the typical relationship between a surface and its container",
     "iconography": "Observed icon style, weight, framing, and active state behavior",
     "density": "Observed spacing density and information packing",
-    "motionTone": "Likely motion or interaction tone implied by the UI"
+    "motionTone": "Likely motion or interaction tone implied by the UI",
+    "layoutGrammar": "Portable layout architecture: region hierarchy, content rail, density rhythm, focal pattern, and how empty space is used",
+    "componentGrammar": "Portable component construction rules beyond colors/radius/shadow",
+    "spacingLogic": "How macro spacing, micro gaps, internal padding, and touch target sizes relate",
+    "antiPatterns": "What would make a generated UI look cheap or generic when applying this reference"
   }
 }
 
@@ -290,7 +308,11 @@ Return strictly valid JSON in this format:
       "stylingCues": ["Material, color, radius, edge, shadow, glass, typography, icon, or micro-shape cue"],
       "interactionCues": ["Portable interaction or state cue"],
       "copyPatterns": ["Reusable text rhythm or label treatment"],
-      "implementationNotes": ["Do-not-copy-layout rule plus reusable craftsmanship note"]
+      "implementationNotes": ["Do-not-copy-layout rule plus reusable craftsmanship note"],
+      "compositionRules": ["Portable composition principle: viewport zones, focal anchor, asymmetry, negative-space budget, or scroll rhythm."],
+      "spacingRules": ["Portable spacing principle: macro section gaps versus micro internal padding/gaps, including bad ratios to avoid."],
+      "componentRules": ["Portable component construction principle: chip rows, cards, lists, forms, charts, nav, or CTA treatment."],
+      "antiPatterns": ["Reference-specific failure mode to avoid when applying this visual DNA elsewhere."]
     }
   ],
   "designSystemSignals": {
@@ -299,7 +321,11 @@ Return strictly valid JSON in this format:
     "surfaces": "Reusable card, sheet, panel, background, shadow, radius, border, and blur language",
     "iconography": "Reusable icon style, weight, framing, and active state language",
     "density": "Reusable spacing density, content rhythm, and viewport fit constraints",
-    "motionTone": "Likely interaction/motion tone implied by the design"
+    "motionTone": "Likely interaction/motion tone implied by the design",
+    "layoutGrammar": "Portable layout architecture: region hierarchy, content rail, density rhythm, focal pattern, and how empty space is used",
+    "componentGrammar": "Portable component construction rules beyond colors/radius/shadow",
+    "spacingLogic": "How macro spacing, micro gaps, internal padding, and touch target sizes relate",
+    "antiPatterns": "What would make a generated UI look cheap or generic when applying this reference"
   }
 }
 
@@ -309,6 +335,8 @@ Rules:
 - Translate visible structure into portable principles: "floating dock with active pill and generous safe-area clearance", not "put this exact dock in the same place with the same labels".
 - Inspect the reference like a design-system sample: identify repeatable surface recipes, elevation levels, border/highlight behavior, corner radius rhythm, icon framing, control sizing, card density, and how text is grouped inside surfaces.
 - Capture hierarchy mechanics, not just style words: what creates the focal point, how secondary content recedes, how dense areas stay readable, how empty space is budgeted, and how the eye moves through the screen.
+- Extract portable design grammar, not token trivia. Name why spacing, grouping, density, action weight, and hierarchy work, including what ratio or relationship would break them.
+- For chips, lists, forms, cards, charts, media, and CTAs, describe internal construction and surrounding whitespace separately. A component can be visually cheap even when its colors, radius, and shadow match.
 - Extract reusable layout instincts without cloning coordinates: content rail width, safe-area handling, section rhythm, card/internal padding relationship, bottom-nav clearance, media/chart breathing room, and overflow avoidance.
 - For charts, maps, media, or large visuals, describe the reusable treatment: geometry style, crop behavior, label density, axis/legend subtlety, container padding, clipping discipline, and how the visual remains legible inside a mobile viewport.
 - Name anti-patterns to avoid when applying this style to another product, such as flattening layered surfaces, using generic gray cards, overusing the accent color, making all cards equal weight, or turning crafted navigation into a default tab bar.
@@ -459,6 +487,22 @@ const compactPromptField = (value: unknown, fallback = "none") => {
   }
   const text = String(value).replace(/\s+/g, " ").replace(/\|/g, "/").trim();
   return text || fallback;
+};
+
+const buildScreenLayoutContract = (screenPlan?: ScreenPlan | null) => {
+  const contract = screenPlan?.layoutContract;
+  if (!contract) {
+    return "";
+  }
+
+  return [
+    `- Viewport plan: ${contract.viewportPlan}`,
+    `- Focal hierarchy: ${contract.focalHierarchy}`,
+    `- Section rhythm: ${contract.sectionRhythm}`,
+    `- Component density: ${contract.componentDensity}`,
+    `- CTA policy: ${contract.ctaPolicy}`,
+    contract.antiPatterns.length ? `- Avoid: ${contract.antiPatterns.join(" | ")}` : null,
+  ].filter(Boolean).join("\n");
 };
 
 const formatAssetManifestLine = (asset: ScreenAssetManifest, index: number) => {
@@ -696,6 +740,7 @@ const buildScreenInstruction = ({
   const hasAssetEntries = Boolean(assetManifest?.length);
   const designStyleContract = formatDesignStyleContract(designStyle);
   const chartBuildInstruction = hasChartBuildIntent({ screenPlan, prompt }) ? `${CHART_BUILD_RULE}\n` : "";
+  const screenLayoutContract = buildScreenLayoutContract(screenPlan);
   const screenChrome = resolveScreenChromePolicy({
     screenPlan,
     navigationArchitecture: resolvedNavigationArchitecture,
@@ -734,6 +779,7 @@ Builder Variant: ${mode === "recreate" ? "recreate reference fidelity" : "style/
 Screen Name: ${screenPlan.name}
 Screen Type: ${screenPlan.type}
 Screen Description: ${screenPlan.description}
+${screenLayoutContract ? `SCREEN LAYOUT CONTRACT:\n${screenLayoutContract}` : ""}
 ${mode === "recreate" && screenPlan.referenceScreenIndex && screenPlan.referenceScreenCount && screenPlan.referenceScreenCount > 1
   ? `Reference Target: Build visible reference screen ${screenPlan.referenceScreenIndex} of ${screenPlan.referenceScreenCount}, mapped left-to-right unless the screen brief says otherwise.`
   : ""}

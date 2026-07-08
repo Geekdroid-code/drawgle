@@ -290,6 +290,10 @@ const normalizeReferenceAnalysis = (raw: unknown): ReferenceAnalysisResult => {
     interactionCues: textArray(readField(screen, ["interactionCues", "interaction_cues"]), [], 20, 400),
     copyPatterns: textArray(readField(screen, ["copyPatterns", "copy_patterns"]), [], 20, 400),
     implementationNotes: textArray(readField(screen, ["implementationNotes", "implementation_notes", "notes"]), [], 20, 400),
+    compositionRules: textArray(readField(screen, ["compositionRules", "composition_rules", "layoutPrinciples", "layout_principles"]), [], 8, 260),
+    spacingRules: textArray(readField(screen, ["spacingRules", "spacing_rules", "spacingPrinciples", "spacing_principles"]), [], 8, 260),
+    componentRules: textArray(readField(screen, ["componentRules", "component_rules", "componentPrinciples", "component_principles"]), [], 8, 260),
+    antiPatterns: textArray(readField(screen, ["antiPatterns", "anti_patterns", "avoid"]), [], 8, 260),
   }));
 
   const rawSignals = readField(raw, ["designSystemSignals", "design_system_signals", "signals"]);
@@ -346,6 +350,10 @@ const normalizeReferenceAnalysis = (raw: unknown): ReferenceAnalysisResult => {
       iconography: textField(signals, ["iconography", "icons"], "Use visible iconography cues from the reference.", 1200),
       density: textField(signals, ["density", "spacing"], "Use visible spacing and density cues from the reference.", 1200),
       motionTone: textField(signals, ["motionTone", "motion_tone", "motion"], "Use restrained mobile interaction motion.", 1200),
+      layoutGrammar: textField(signals, ["layoutGrammar", "layout_grammar", "composition", "compositionGrammar", "composition_grammar"], "Use visible composition, hierarchy, and layout grammar from the reference.", 1200),
+      componentGrammar: textField(signals, ["componentGrammar", "component_grammar", "componentConstruction", "component_construction"], "Use visible component construction logic from the reference.", 1200),
+      spacingLogic: textField(signals, ["spacingLogic", "spacing_logic", "spacingDensity", "spacing_density"], "Use visible macro and micro spacing logic from the reference.", 1200),
+      antiPatterns: textField(signals, ["antiPatterns", "anti_patterns", "avoid"], "Avoid flattening the reference into generic stacked cards or token-only mimicry.", 1200),
     },
   };
 
