@@ -194,6 +194,7 @@ Rules:
 - Screen existence: obey explicit N and Screen Count Contract above visible tabs, inferred sections, and navigation item count. Screen briefs decide what exists. Treat navigation tabs, bottom tabs, segmented controls, settings rows, menu labels, and similar UI as elements unless the user/scope explicitly asks for those destinations as screens.
 - Preserve prompt-named screens and order. In recreate collages, map visible screens left-to-right unless instructed otherwise.
 - Architecture/chrome: use the approved blueprint as fixed architecture. Root screens are peer primary destinations. Onboarding, splash, checkout, tracking, map, detail, modal, confirmation, login/signup/register/auth, chat/messaging/assistant are detail/immersive. chrome_policy must match role; these screens must not show primary bottom navigation.
+- Renderer-owned navigation: when the blueprint has shared primary navigation, do not describe its bottom dock/tab-bar/nav-pill anatomy inside any screen description. Say only that the screen reserves bottom clearance for the renderer-owned shared nav. Visible/reference bottom navigation belongs to navigation_plan/design, not to screen content.
 - Description quality: each description should usually be 900-1800 chars, include all seven labels, and be detailed enough for the builder without seeing the image. Write as a construction brief from background forward through layout, containment, components, typography, materials, depth/edges, imagery/charts/maps, interaction states, and must-preserve construction cues.
 - layout_contract is not prose decoration. It is the compact architecture the builder must obey before writing HTML: no generic stacked blocks, no empty chart/card shells, no oversized CTA unless action priority demands it, no primitive chip grids with large macro gaps and cramped internal padding.
 - Component specificity: name concrete structures/states when relevant: headers, hero regions, surfaces, containers, lists, rows, sheets, charts, progress rings, segmented controls, tabs, chips, icon buttons, badges, avatar stacks, maps, media areas, text groups, and CTA placement.
@@ -202,7 +203,7 @@ Rules:
 - Viewport fit: include a 390px fit note, bottom-nav clearance when applicable, and how the screen avoids overflow, text collision, clipped nav, and bottom overlap. Shared-bottom-nav screens must reserve a clear bottom content zone; never place final rows, CTAs, cards, or map callouts under the nav shell.
 - Asset planning: plan bitmap needs in asset_needs; use [] when none. Declare subject, type, priority, and placementHint for product/vehicle/food/fashion objects, hero people, avatars, section/background photos, map textures, or large media planes.
 - Asset sourcePreference: internal_library for transparent foreground cutouts; stock for non-transparent photos/textures; user_upload only for explicit user-owned logo/product/brand/person/private image. Never output "ai_generated"; placeholders are resolved later. Do not request bitmaps for icons, decorative blobs, CSS gradients, HTML/CSS charts, simple cards, or generic chrome.
-- Mode cues: recreate mode needs at least 3 reference-traceable cues, including one layer/containment/depth cue when visible. Style mode needs at least 3 borrowed style cues from material, typography, edge/depth, iconography, nav treatment, or micro-shapes, while layout stays driven by the prompt and blueprint.
+- Mode cues: recreate mode needs at least 3 reference-traceable cues, including one layer/containment/depth cue when visible. Style mode needs at least 3 borrowed style cues from material, typography, edge/depth, iconography, or micro-shapes, while layout stays driven by the prompt and blueprint. If shared navigation is enabled, nav treatment is renderer-owned and must not appear as screen anatomy.
 - Final self-audit: every description must contain at least 8 concrete visible implementation cues and preserve consistency in spacing scale, card padding, type roles, nav family, and edge/radius language.`;
 
 export const creativeDirectionInstruction = `You are an elite mobile product Art Director.
@@ -766,6 +767,16 @@ const hasChartBuildIntent = ({
     || /\b(?:bar\s+(?:chart|graph|plot|visuali[sz]ation)|(?:chart|graph|plot)\s+bars?|bars?\s+in\s+(?:this\s+)?(?:chart|graph|plot))\b/i.test(text);
 };
 
+const stripRendererOwnedNavigationFromBrief = (description: string) => {
+  const navAnatomyPattern = /\b(?:bottom[-\s]*(?:tabs?|nav(?:igation)?|bar)|tab\s*bar|footer\s*nav(?:igation)?|floating\s+(?:dock|nav(?:igation)?|tab)|navigation\s+(?:dock|pill|bar|surface|shell)|dock\s+navigation|shared\s+shell\s+simulation|primary\s+navigation\s+shell)\b/i;
+  const protectedLines = description
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !navAnatomyPattern.test(line));
+
+  const sanitized = protectedLines.join("\n").trim();
+  return sanitized || description;
+};
 const buildScreenInstruction = ({
   designTokens,
   designStyle,
@@ -786,6 +797,9 @@ const buildScreenInstruction = ({
   const designStyleContract = formatDesignStyleContract(designStyle);
   const chartBuildInstruction = hasChartBuildIntent({ screenPlan, prompt }) ? `${CHART_BUILD_RULE}\n` : "";
   const screenLayoutContract = buildScreenLayoutContract(screenPlan);
+  const screenDescription = navigationPlan?.enabled
+    ? stripRendererOwnedNavigationFromBrief(screenPlan.description)
+    : screenPlan.description;
   const screenChrome = resolveScreenChromePolicy({
     screenPlan,
     navigationArchitecture: resolvedNavigationArchitecture,
@@ -823,7 +837,7 @@ You are building ONE specific screen for a larger app.
 Builder Variant: ${mode === "recreate" ? "recreate reference fidelity" : "style/project-memory fidelity"}; assets=${hasAssetEntries ? "manifest" : "no approved bitmap URLs"}.
 Screen Name: ${screenPlan.name}
 Screen Type: ${screenPlan.type}
-Screen Description: ${screenPlan.description}
+Screen Description: ${screenDescription}
 ${screenLayoutContract ? `SCREEN LAYOUT CONTRACT:\n${screenLayoutContract}` : ""}
 ${mode === "recreate" && screenPlan.referenceScreenIndex && screenPlan.referenceScreenCount && screenPlan.referenceScreenCount > 1
   ? `Reference Target: Build visible reference screen ${screenPlan.referenceScreenIndex} of ${screenPlan.referenceScreenCount}, mapped left-to-right unless the screen brief says otherwise.`

@@ -423,6 +423,26 @@ export function validateNavigationShell(shellCode: string, navigationPlan: Navig
 
 const summarizeCandidate = (value: string) => value.replace(/\s+/g, " ").trim().slice(0, 320);
 
+const PRIMARY_NAV_WORD_PATTERN = /bottom\s+(?:nav|navigation)|tab\s*bar|footer\s*nav|navigation\s+(?:dock|pill|bar|surface|shell)|floating\s+(?:dock|nav|navigation|tab)|dock\s+navigation|shared\s+shell\s+simulation|data-nav-item-id|data-drawgle-primary-nav/i;
+const FIXED_BOTTOM_PATTERN = /\b(?:fixed|sticky|absolute|bottom-0|bottom-\[|inset-x-0)\b|position\s*:\s*fixed|bottom\s*:/i;
+
+const countNavLikeChildren = (block: string) => {
+  const actionCount = (block.match(/<(?:button|a)\b/gi) ?? []).length;
+  const iconCount = (block.match(/\bdata-lucide\s*=/gi) ?? []).length + (block.match(/<svg\b/gi) ?? []).length;
+  const labelCount = (block.match(/<span\b/gi) ?? []).length + (block.match(/aria-label\s*=/gi) ?? []).length;
+  return { actionCount, iconCount, labelCount };
+};
+
+const looksLikePrimaryBottomNavigationBlock = (block: string) => {
+  const { actionCount, iconCount, labelCount } = countNavLikeChildren(block);
+  const explicitNavWords = PRIMARY_NAV_WORD_PATTERN.test(block);
+  const looksFixedBottom = FIXED_BOTTOM_PATTERN.test(block);
+
+  if (explicitNavWords && actionCount >= 2) return true;
+  if (looksFixedBottom && actionCount >= 2 && (iconCount >= 2 || labelCount >= 2)) return true;
+  return false;
+};
+
 export function detectLocalNavigationMarkup(code: string) {
   const reasons: string[] = [];
   const candidates: string[] = [];
@@ -441,18 +461,13 @@ export function detectLocalNavigationMarkup(code: string) {
   for (const match of withoutStyles.matchAll(/<(nav|footer)\b[\s\S]*?<\/\1>/gi)) {
     const snippet = match[0];
     const actionCount = (snippet.match(/<(?:button|a)\b/gi) ?? []).length;
-    const looksFixedBottom = /\b(?:fixed|sticky|absolute|bottom-0|bottom-\[|inset-x-0)\b|position\s*:\s*fixed|bottom\s*:/i.test(snippet);
-    const explicitlyPrimary = /bottom\s+(?:nav|navigation)|tab\s*bar|floating\s+dock|data-nav-item-id|data-drawgle-primary-nav/i.test(snippet);
-    if (explicitlyPrimary || (looksFixedBottom && actionCount >= 2)) {
+    if (PRIMARY_NAV_WORD_PATTERN.test(snippet) || (FIXED_BOTTOM_PATTERN.test(snippet) && actionCount >= 2)) {
       push(`${match[1].toLowerCase()}_primary_navigation`, snippet);
     }
   }
 
-  for (const block of withoutStyles.match(/<div\b[^>]*(?:\bfixed\b[^>]*\bbottom-|bottom-\[|bottom-0|inset-x-0)[\s\S]{0,2600}?<\/div>/gi) ?? []) {
-    const iconCount = (block.match(/\bdata-lucide\s*=/gi) ?? []).length + (block.match(/<svg\b/gi) ?? []).length;
-    const actionCount = (block.match(/<(?:button|a)\b/gi) ?? []).length;
-    const explicitNavWords = /bottom\s+(?:nav|navigation)|tab\s*bar|navigation\s+pill|floating\s+dock|dock\s+navigation/i.test(block);
-    if (explicitNavWords || (iconCount >= 2 && actionCount >= 2)) push("fixed_bottom_nav_cluster", block);
+  for (const block of findBalancedFixedBottomDivBlocks(withoutStyles)) {
+    if (looksLikePrimaryBottomNavigationBlock(block)) push("fixed_bottom_nav_cluster", block);
   }
 
   return { hasLocalNavigation: reasons.length > 0, reasons, candidates };
@@ -460,15 +475,48 @@ export function detectLocalNavigationMarkup(code: string) {
 
 const removeBalancedDivAt = (code: string, start: number) => {
   let depth = 0;
-  let cursor = start;
   const tagPattern = /<\/?div\b[^>]*>/gi;
   tagPattern.lastIndex = start;
   for (let match = tagPattern.exec(code); match; match = tagPattern.exec(code)) {
     depth += /^<div\b/i.test(match[0]) ? 1 : -1;
-    cursor = tagPattern.lastIndex;
-    if (depth === 0) return { end: cursor, code: code.slice(0, start) + code.slice(cursor) };
+    if (depth === 0) {
+      const end = tagPattern.lastIndex;
+      return { end, block: code.slice(start, end), code: code.slice(0, start) + code.slice(end) };
+    }
   }
   return null;
+};
+
+const findBalancedFixedBottomDivBlocks = (code: string) => {
+  const blocks: string[] = [];
+  const openDivPattern = /<div\b[^>]*>/gi;
+  for (let match = openDivPattern.exec(code); match; match = openDivPattern.exec(code)) {
+    const openTag = match[0];
+    if (!FIXED_BOTTOM_PATTERN.test(openTag)) continue;
+    const removed = removeBalancedDivAt(code, match.index);
+    if (removed) blocks.push(removed.block);
+  }
+  return blocks;
+};
+
+const removeHighConfidenceFixedBottomNavigationDivs = (code: string) => {
+  let next = code;
+  const openDivPattern = /<div\b[^>]*>/gi;
+  const removals: Array<{ start: number; end: number }> = [];
+
+  for (let match = openDivPattern.exec(next); match; match = openDivPattern.exec(next)) {
+    const openTag = match[0];
+    if (!FIXED_BOTTOM_PATTERN.test(openTag)) continue;
+    const removed = removeBalancedDivAt(next, match.index);
+    if (!removed || !looksLikePrimaryBottomNavigationBlock(removed.block)) continue;
+    removals.push({ start: match.index, end: removed.end });
+  }
+
+  for (const removal of removals.reverse()) {
+    next = next.slice(0, removal.start) + next.slice(removal.end);
+  }
+
+  return next;
 };
 
 export function sanitizeScreenCodeForSharedNavigation(
@@ -479,7 +527,7 @@ export function sanitizeScreenCodeForSharedNavigation(
   if (!options.projectNavigationEnabled && !screenPlan.chromePolicy?.showPrimaryNavigation && !screenPlan.navigationItemId) return code;
 
   let sanitized = code;
-  const commentPattern = /<!--[\s\S]*?(?:floating\s+dock|bottom\s+nav|bottom\s+navigation|navigation\s+pill|tab\s+bar|dock\s+navigation|visual\s+mockup\s+for\s+screen\s+context)[\s\S]*?-->/gi;
+  const commentPattern = /<!--[\s\S]*?(?:floating\s+dock|floating\s+navigation|bottom\s+nav|bottom\s+navigation|navigation\s+(?:dock|pill|bar|surface|shell)|tab\s+bar|dock\s+navigation|shared\s+shell\s+simulation|visual\s+mockup\s+for\s+screen\s+context)[\s\S]*?-->/gi;
   for (const comment of Array.from(sanitized.matchAll(commentPattern)).reverse()) {
     const commentStart = comment.index ?? -1;
     if (commentStart < 0) continue;
@@ -487,23 +535,25 @@ export function sanitizeScreenCodeForSharedNavigation(
     const divStart = sanitized.indexOf("<div", afterComment);
     if (divStart < 0) continue;
     const openEnd = sanitized.indexOf(">", divStart);
-    if (openEnd < 0 || !/fixed|sticky|bottom-|inset-x-0/i.test(sanitized.slice(divStart, openEnd + 1))) continue;
+    if (openEnd < 0 || !FIXED_BOTTOM_PATTERN.test(sanitized.slice(divStart, openEnd + 1))) continue;
     const removed = removeBalancedDivAt(sanitized, divStart);
-    if (removed) sanitized = sanitized.slice(0, commentStart) + removed.code.slice(commentStart);
+    if (removed && looksLikePrimaryBottomNavigationBlock(removed.block)) {
+      sanitized = sanitized.slice(0, commentStart) + sanitized.slice(removed.end);
+    }
   }
 
   sanitized = sanitized
     .replace(/<(nav|footer)\b[\s\S]*?<\/\1>/gi, (match) => {
       const actionCount = (match.match(/<(?:button|a)\b/gi) ?? []).length;
-      const highConfidence = /data-drawgle-primary-nav|data-nav-item-id|bottom\s+(?:nav|navigation)|tab\s*bar|floating\s+dock/i.test(match) ||
-        (/fixed|sticky|bottom-0|bottom-\[|inset-x-0|position\s*:\s*fixed/i.test(match) && actionCount >= 2);
+      const highConfidence = PRIMARY_NAV_WORD_PATTERN.test(match) ||
+        (FIXED_BOTTOM_PATTERN.test(match) && actionCount >= 2);
       return highConfidence ? "" : match;
-    })
-    .trim();
+    });
+
+  sanitized = removeHighConfidenceFixedBottomNavigationDivs(sanitized).trim();
 
   return sanitized;
 }
-
 export function applyNavigationDesignEdit(navigationPlan: NavigationPlan, prompt: string): NavigationPlan {
   if (navigationPlan.version !== 2 || !navigationPlan.enabled) return navigationPlan;
 
