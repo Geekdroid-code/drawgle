@@ -725,6 +725,7 @@ const compileGenerationIntentContract = ({
 
   if (referenceMode === "user_recreate" && !fullAppRequested) {
     const exactScreenCount = scopeExactCount ?? explicitCount ?? referenceScreenCount ?? 1;
+    const allowSharedNavigation = exactScreenCount > 1;
     return {
       kind: "exact_recreate",
       source: explicitCount ? "prompt" : "reference_image",
@@ -737,8 +738,8 @@ const compileGenerationIntentContract = ({
       maxInitialScreens: exactScreenCount,
       explicitScreenCount: explicitCount,
       referenceScreenCount,
-      allowSharedNavigation: exactScreenCount > 1,
-      visibleNavigationHandling: "inline_static_chrome",
+      allowSharedNavigation,
+      visibleNavigationHandling: allowSharedNavigation ? "shared_navigation" : "inline_static_chrome",
     };
   }
 
@@ -3332,14 +3333,6 @@ export async function editNavigationShellCode({
 
 export async function buildNavigationShellCode({
   navigationPlan,
-  designTokens,
-  prompt,
-  image: _image,
-  referenceMode: _referenceMode,
-  referenceId: _referenceId,
-  designStyle,
-  projectCharter,
-  llmLog,
 }: {
   navigationPlan: NavigationPlan;
   designTokens?: DesignTokens | null;
@@ -3363,20 +3356,5 @@ export async function buildNavigationShellCode({
     return deterministicShellCode;
   }
 
-  try {
-    return await refineNavigationShellCode({
-      prompt,
-      candidateShellCode: deterministicShellCode,
-      navigationPlan,
-      designTokens,
-      designStyle,
-      projectCharter,
-      llmLog,
-    });
-  } catch (error) {
-    console.warn("[navigation] Optional navigation refinement failed; using deterministic shell", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return deterministicShellCode;
-  }
+  return deterministicShellCode;
 }

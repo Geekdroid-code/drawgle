@@ -1,5 +1,5 @@
 import { indexScreenCode } from "@/lib/generation/block-index";
-import { createNavigationArchitecture, deriveRequiresBottomNav, resolveScreenChromePolicy } from "@/lib/navigation";
+import { createNavigationArchitecture, deriveRequiresBottomNav, resolveScreenChromePolicy, shouldForceImmersiveScreen } from "@/lib/navigation";
 import type {
   NavigationArchitecture,
   NavigationPlan,
@@ -10,6 +10,7 @@ import type {
 } from "@/lib/types";
 
 const FALLBACK_ICONS = ["home", "search", "grid-2x2", "bell", "user"];
+const MIN_SHARED_NAV_ITEMS = 2;
 
 const escapeHtml = (value: string) =>
   value
@@ -33,11 +34,12 @@ const slugify = (value: string, fallback: string) => {
 };
 
 export function renderDeterministicNavigationShell(navigationPlan: NavigationPlan) {
-  if (!navigationPlan.enabled || navigationPlan.kind === "none" || navigationPlan.items.length === 0) {
+  if (!navigationPlan.enabled || navigationPlan.kind === "none" || navigationPlan.items.length < MIN_SHARED_NAV_ITEMS) {
     return "";
   }
 
   const navItems = navigationPlan.items.slice(0, 5);
+  const shellWidth = Math.min(342, navItems.length * 68 + 36);
   const items = navItems.map((item, index) => {
     const id = escapeAttribute(item.id);
     const label = escapeHtml(item.label || item.linkedScreenName || `Tab ${index + 1}`);
@@ -55,12 +57,12 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
   return [
     `<nav data-drawgle-primary-nav class="dg-nav-shell" aria-label="Primary navigation">`,
     `<style>`,
-    `[data-drawgle-primary-nav].dg-nav-shell{box-sizing:border-box;width:min(332px,calc(100% - 32px));margin:0 auto 10px;padding:7px;border-radius:var(--dg-radii-pill,999px);background:color-mix(in srgb,var(--dg-color-surface-card,#ffffff) 92%,transparent);border:var(--dg-border-widths-standard,1px) solid color-mix(in srgb,var(--dg-color-border-divider,#e5e7eb) 82%,transparent);box-shadow:var(--dg-shadows-overlay,0 18px 45px rgba(15,23,42,.16));backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);pointer-events:auto;}`,
+    `[data-drawgle-primary-nav].dg-nav-shell{box-sizing:border-box;width:min(${shellWidth}px,calc(100% - 32px));margin:0 auto 12px;padding:7px;border-radius:var(--dg-radii-pill,999px);background:color-mix(in srgb,var(--dg-color-surface-card,#ffffff) 88%,transparent);border:var(--dg-border-widths-standard,1px) solid color-mix(in srgb,var(--dg-color-border-divider,#e5e7eb) 72%,transparent);box-shadow:0 10px 30px rgba(15,23,42,.10);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);pointer-events:auto;}`,
     `[data-drawgle-primary-nav] .dg-nav-shell-inner{display:grid;grid-template-columns:repeat(${navItems.length},minmax(0,1fr));align-items:center;gap:2px;}`,
     `[data-drawgle-primary-nav] .dg-nav-item{appearance:none;border:0;background:transparent;color:var(--dg-color-text-low-emphasis,#94a3b8);min-width:0;height:50px;padding:4px 6px;border-radius:var(--dg-radii-pill,999px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-family:var(--dg-typography-font-family,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);font-size:10px;line-height:1;font-weight:700;letter-spacing:0;cursor:pointer;transition:color .18s ease,transform .18s ease;}`,
     `[data-drawgle-primary-nav] .dg-nav-item[data-active="true"]{color:var(--dg-color-action-primary,#111827);}`,
-    `[data-drawgle-primary-nav] .dg-nav-icon{display:flex;height:28px;width:28px;align-items:center;justify-content:center;border-radius:var(--dg-radii-pill,999px);background:color-mix(in srgb,var(--dg-color-background-secondary,#f8fafc) 72%,transparent);color:currentColor;transition:background .18s ease,color .18s ease,box-shadow .18s ease;}`,
-    `[data-drawgle-primary-nav] .dg-nav-item[data-active="true"] .dg-nav-icon{background:var(--dg-color-action-primary,#111827);color:var(--dg-color-action-on-primary-text,#ffffff);box-shadow:var(--dg-shadows-surface,0 8px 18px rgba(15,23,42,.14));}`,
+    `[data-drawgle-primary-nav] .dg-nav-icon{display:flex;height:28px;width:28px;align-items:center;justify-content:center;border-radius:var(--dg-radii-pill,999px);background:transparent;color:currentColor;transition:background .18s ease,color .18s ease;}`,
+    `[data-drawgle-primary-nav] .dg-nav-item[data-active="true"] .dg-nav-icon{background:var(--dg-color-action-primary,#111827);color:var(--dg-color-action-on-primary-text,#ffffff);}`,
     `[data-drawgle-primary-nav] .dg-nav-icon svg{height:17px;width:17px;stroke-width:2.25;}`,
     `[data-drawgle-primary-nav] .dg-nav-label{max-width:58px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:currentColor;}`,
     `</style>`,
@@ -165,7 +167,9 @@ export function normalizeNavigationPlan({
     requestedEnabled = true;
   }
 
-  const screenNameSet = new Set(screens.map((screen) => screen.name.toLowerCase()));
+  const screenByName = new Map(screens.map((screen) => [screen.name.toLowerCase(), screen]));
+  const screenNameSet = new Set(screenByName.keys());
+  const linkedScreenSeen = new Set<string>();
   const seen = new Set<string>();
   const rawItems = requestedEnabled
     ? (navigationPlan?.items?.length ? navigationPlan.items : fallback.items)
@@ -210,6 +214,27 @@ export function normalizeNavigationPlan({
         })
         .filter((item) => item.label.length > 0 && item.id.length > 0)
         .filter((item) => !strictScreenLinks || screenNameSet.has(item.linkedScreenName.toLowerCase()))
+        .filter((item) => {
+          if (!strictScreenLinks) {
+            return true;
+          }
+
+          const linkedScreen = screenByName.get(item.linkedScreenName.toLowerCase());
+          return Boolean(linkedScreen && linkedScreen.type === "root" && !shouldForceImmersiveScreen(linkedScreen));
+        })
+        .filter((item) => {
+          if (!strictScreenLinks) {
+            return true;
+          }
+
+          const key = item.linkedScreenName.toLowerCase();
+          if (linkedScreenSeen.has(key)) {
+            return false;
+          }
+
+          linkedScreenSeen.add(key);
+          return true;
+        })
     : [];
 
   // If rawItems mapping resulted in empty list but bottom tabs are structurally needed,
@@ -219,7 +244,7 @@ export function normalizeNavigationPlan({
     finalItems = fallback.items;
   }
 
-  const enabled = requestedEnabled && finalItems.length > 0 && (!strictScreenLinks || screens.length > 1);
+  const enabled = requestedEnabled && finalItems.length >= MIN_SHARED_NAV_ITEMS && (!strictScreenLinks || screens.length > 1);
   const kind = enabled ? "bottom-tabs" : "none";
   const items = enabled ? finalItems : [];
   const rootScreens = screens.filter((screen) => screen.type === "root");
@@ -241,15 +266,29 @@ export function normalizeNavigationPlan({
     items,
     visualBrief: (navigationPlan?.visualBrief || fallback.visualBrief).trim().slice(0, 1600),
     screenChrome: screens.map((screen) => {
+      if (!enabled) {
+        return {
+          screenName: screen.name,
+          chrome: shouldForceImmersiveScreen(screen)
+            ? "immersive"
+            : screen.type === "root"
+              ? "top-bar"
+              : "top-bar-back",
+          navigationItemId: null,
+        };
+      }
+
       const planned = navigationPlan?.screenChrome?.find((entry) => entry.screenName.toLowerCase() === screen.name.toLowerCase());
       const fallbackChrome = fallback.screenChrome.find((entry) => entry.screenName === screen.name);
       const matchingItem = itemForScreen(screen);
-      const nameAndBrief = `${screen.name} ${screen.description || ""}`;
-      const IMMERSIVE_SCREENS_REGEX = /\b(login|log[\s-]?in|sign[\s-]?in|sign[\s-]?up|register|auth|forgot[\s-]?password|reset[\s-]?password|otp|verification|two[\s-]?factor|2fa|onboarding|splash|welcome|hero|chat|ai[\s-]?chat|ai[\s-]?assistant|assistant|messaging|conversation|compose|camera|player|video[\s-]?call|fullscreen|immersive)\b/i;
-      const shouldForceImmersive = IMMERSIVE_SCREENS_REGEX.test(nameAndBrief);
+      const shouldForceImmersive = shouldForceImmersiveScreen(screen);
 
       const rawChrome = planned?.chrome ?? fallbackChrome?.chrome ?? screen.chromePolicy?.chrome ?? "top-bar";
-      const chrome = shouldForceImmersive ? "immersive" : rawChrome;
+      const chrome = shouldForceImmersive
+        ? "immersive"
+        : screen.type === "root" && matchingItem
+          ? "bottom-tabs"
+          : rawChrome;
       const suppressesNav = chrome === "immersive" || chrome === "modal-sheet";
       return {
         screenName: screen.name,
@@ -287,18 +326,84 @@ export function validateNavigationShell(shellCode: string, navigationPlan: Navig
     return true;
   }
 
-  if (!shellCode.includes("data-drawgle-primary-nav")) {
+  if (navigationPlan.items.length < MIN_SHARED_NAV_ITEMS) {
     return false;
   }
 
-  return navigationPlan.items.every((item) => {
-    const id = escapeAttribute(item.id);
-    return shellCode.includes(`data-nav-item-id="${id}"`) || shellCode.includes(`data-nav-item-id='${id}'`);
-  });
+  const navRootCount = (shellCode.match(/<nav\b[^>]*\bdata-drawgle-primary-nav\b/gi) ?? []).length;
+  if (navRootCount !== 1 || /<\/?(?:html|head|body)\b/i.test(shellCode) || /<script\b/i.test(shellCode)) {
+    return false;
+  }
+
+  const expectedIds = navigationPlan.items.map((item) => item.id);
+  const actualIds = Array.from(shellCode.matchAll(/\bdata-nav-item-id\s*=\s*(?:"([^"]+)"|'([^']+)')/gi))
+    .map((match) => match[1] ?? match[2])
+    .filter(Boolean);
+
+  if (actualIds.length !== expectedIds.length) {
+    return false;
+  }
+
+  const expected = new Set(expectedIds);
+  const actual = new Set(actualIds);
+  return expected.size === actual.size && expectedIds.every((id) => actual.has(id));
 }
 
-export function sanitizeScreenCodeForSharedNavigation(code: string, screenPlan: ScreenPlan) {
-  if (!screenPlan.chromePolicy?.showPrimaryNavigation && !screenPlan.navigationItemId) {
+export function detectLocalNavigationMarkup(code: string) {
+  const reasons: string[] = [];
+  const withoutStyles = code.replace(/<style\b[\s\S]*?<\/style>/gi, " ");
+
+  const push = (reason: string) => {
+    if (!reasons.includes(reason)) {
+      reasons.push(reason);
+    }
+  };
+
+  if (/\bdata-drawgle-primary-nav\b/i.test(withoutStyles)) {
+    push("screen_contains_shared_nav_marker");
+  }
+
+  if (/\bdata-nav-item-id\s*=/i.test(withoutStyles)) {
+    push("screen_contains_nav_item_ids");
+  }
+
+  if (/<!--[\s\S]*?(?:floating\s+dock|bottom\s+nav|bottom\s+navigation|navigation\s+pill|tab\s+bar|dock\s+navigation|visual\s+mockup\s+for\s+screen\s+context)[\s\S]*?-->/i.test(withoutStyles)) {
+    push("screen_contains_navigation_comment");
+  }
+
+  for (const match of withoutStyles.matchAll(/<(nav|footer)\b[\s\S]*?<\/\1>/gi)) {
+    const snippet = match[0];
+    const looksFixedBottom = /\b(?:fixed|sticky|absolute|bottom-0|bottom-\[|inset-x-0)\b|position\s*:\s*fixed|bottom\s*:/i.test(snippet);
+    const looksPrimaryNav = /bottom|tab|dock|navbar|navigation|data-nav-item-id/i.test(snippet);
+    if (looksFixedBottom || looksPrimaryNav) {
+      push(`${match[1].toLowerCase()}_primary_navigation`);
+    }
+  }
+
+  const fixedBottomBlocks = withoutStyles.match(/<div\b[^>]*(?:\bfixed\b[^>]*\bbottom-|bottom-\[|bottom-0|inset-x-0)[\s\S]{0,2400}?<\/div>/gi) ?? [];
+  for (const block of fixedBottomBlocks) {
+    const iconCount = (block.match(/\bdata-lucide\s*=/gi) ?? []).length + (block.match(/<svg\b/gi) ?? []).length;
+    const navLabelCount = (block.match(/\b(home|search|discover|markets|swap|wallet|profile|settings|journal|learn|plan|orders|cards|activity|account)\b/gi) ?? []).length;
+    const buttonCount = (block.match(/<(?:button|a)\b/gi) ?? []).length;
+    const explicitNavWords = /\b(?:bottom\s+nav|bottom\s+navigation|tab\s+bar|navigation\s+pill|floating\s+dock|dock\s+navigation)\b/i.test(block);
+
+    if (explicitNavWords || (iconCount >= 2 && (navLabelCount >= 2 || buttonCount >= 2))) {
+      push("fixed_bottom_nav_cluster");
+    }
+  }
+
+  return {
+    hasLocalNavigation: reasons.length > 0,
+    reasons,
+  };
+}
+
+export function sanitizeScreenCodeForSharedNavigation(
+  code: string,
+  screenPlan: ScreenPlan,
+  options: { projectNavigationEnabled?: boolean } = {},
+) {
+  if (!options.projectNavigationEnabled && !screenPlan.chromePolicy?.showPrimaryNavigation && !screenPlan.navigationItemId) {
     return code;
   }
 

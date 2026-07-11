@@ -31,6 +31,12 @@ const DEFAULT_CONSISTENCY_RULES = [
   "Detail screens must clearly expose a back or dismiss affordance.",
 ];
 
+const SCREEN_NAME_IMMERSIVE_PATTERN =
+  /\b(login|log[\s-]?in|sign[\s-]?in|sign[\s-]?up|register|auth|forgot[\s-]?password|reset[\s-]?password|otp|verification|two[\s-]?factor|2fa|onboarding|splash|welcome|chat|ai[\s-]?chat|ai[\s-]?assistant|assistant|messaging|conversation|compose|camera|player|video[\s-]?call|fullscreen|immersive)\b/i;
+
+const SCREEN_BRIEF_IMMERSIVE_PATTERN =
+  /\b(login|log[\s-]?in|sign[\s-]?in|sign[\s-]?up|register|auth|forgot[\s-]?password|reset[\s-]?password|otp|verification|two[\s-]?factor|2fa|onboarding|splash|welcome|chat|ai[\s-]?chat|ai[\s-]?assistant|assistant|messaging|conversation|compose|camera|player|video[\s-]?call|fullscreen|immersive)\b/i;
+
 const isNonEmptyString = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
 
 const isNavigationKind = (value: unknown): value is NavigationArchitecture["kind"] =>
@@ -146,6 +152,13 @@ export function deriveRequiresBottomNav(navigationArchitecture?: NavigationArchi
   return normalized.primaryNavigation === "bottom-tabs" || normalized.rootChrome === "bottom-tabs";
 }
 
+export function shouldForceImmersiveScreen(screenPlan: Pick<ScreenPlan, "name" | "description">) {
+  const name = screenPlan.name ?? "";
+  const description = screenPlan.description ?? "";
+
+  return SCREEN_NAME_IMMERSIVE_PATTERN.test(name) || SCREEN_BRIEF_IMMERSIVE_PATTERN.test(description);
+}
+
 export function resolveScreenChromePolicy({
   screenPlan,
   navigationArchitecture,
@@ -164,9 +177,7 @@ export function resolveScreenChromePolicy({
 
   let chrome = isScreenChromeKind(requestedPolicy?.chrome) ? requestedPolicy.chrome : fallbackChrome;
 
-  const nameAndBrief = `${screenPlan.name} ${screenPlan.description || ""}`;
-  const IMMERSIVE_SCREENS_REGEX = /\b(login|log[\s-]?in|sign[\s-]?in|sign[\s-]?up|register|auth|forgot[\s-]?password|reset[\s-]?password|otp|verification|two[\s-]?factor|2fa|onboarding|splash|welcome|hero|chat|ai[\s-]?chat|ai[\s-]?assistant|assistant|messaging|conversation|compose|camera|player|video[\s-]?call|fullscreen|immersive)\b/i;
-  const shouldForceImmersive = IMMERSIVE_SCREENS_REGEX.test(nameAndBrief);
+  const shouldForceImmersive = shouldForceImmersiveScreen(screenPlan);
 
   if (shouldForceImmersive) {
     chrome = "immersive";

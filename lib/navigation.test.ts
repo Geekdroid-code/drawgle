@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { resolveScreenChromePolicy } from "@/lib/navigation";
-import { normalizeNavigationPlan, createFallbackNavigationPlan, renderDeterministicNavigationShell } from "@/lib/project-navigation";
+import {
+  normalizeNavigationPlan,
+  createFallbackNavigationPlan,
+  detectLocalNavigationMarkup,
+  renderDeterministicNavigationShell,
+  sanitizeScreenCodeForSharedNavigation,
+} from "@/lib/project-navigation";
 import { applyDeleteElement, applyDuplicateElement } from "@/lib/drawgle-dom";
 import type { ScreenPlan, NavigationArchitecture, NavigationPlan } from "@/lib/types";
 
@@ -70,6 +76,11 @@ describe("Navigation Logic Improvement Tests", () => {
             showPrimaryNavigation: false,
             showsBackButton: false,
           },
+        },
+        {
+          name: "Settings",
+          type: "root",
+          description: "Settings screen",
         },
       ];
 
@@ -226,6 +237,112 @@ describe("Navigation Logic Improvement Tests", () => {
       const assistantChrome = navPlan.screenChrome.find((sc) => sc.screenName === "AI Chat Assistant");
       expect(assistantChrome?.chrome).toBe("immersive");
       expect(assistantChrome?.navigationItemId).toBeNull();
+    });
+
+    it("does not force root tab screens immersive just because the brief mentions a hero section", () => {
+      const dashboardScreen: ScreenPlan = {
+        name: "Portfolio Dashboard",
+        type: "root",
+        description: "Use a premium balance hero section with cards below it.",
+      };
+
+      const resolved = resolveScreenChromePolicy({
+        screenPlan: dashboardScreen,
+        navigationArchitecture: defaultArchitecture,
+      });
+
+      expect(resolved.chrome).toBe("bottom-tabs");
+      expect(resolved.showPrimaryNavigation).toBe(true);
+    });
+
+    it("disables shared navigation instead of rendering a one-item bottom nav", () => {
+      const screens: ScreenPlan[] = [
+        { name: "Onboarding", type: "root", description: "Welcome onboarding screen" },
+        { name: "Home", type: "root", description: "Ride booking dashboard" },
+      ];
+
+      const navPlan = normalizeNavigationPlan({
+        navigationPlan: {
+          enabled: true,
+          kind: "bottom-tabs",
+          items: [
+            { id: "home", label: "Home", icon: "home", role: "Primary dashboard", linkedScreenName: "Home" },
+          ],
+          visualBrief: "Floating taxi app dock",
+          screenChrome: [
+            { screenName: "Onboarding", chrome: "immersive", navigationItemId: null },
+            { screenName: "Home", chrome: "bottom-tabs", navigationItemId: "home" },
+          ],
+        },
+        screens,
+        navigationArchitecture: defaultArchitecture,
+        requiresBottomNav: true,
+      });
+
+      expect(navPlan.enabled).toBe(false);
+      expect(navPlan.items).toHaveLength(0);
+      expect(renderDeterministicNavigationShell(navPlan)).toBe("");
+      expect(navPlan.screenChrome.find((screen) => screen.screenName === "Home")?.chrome).toBe("top-bar");
+    });
+
+    it("keeps only unique root destinations in shared navigation", () => {
+      const screens: ScreenPlan[] = [
+        { name: "Portfolio Dashboard", type: "root", description: "Balance hero and market summary" },
+        { name: "Asset Detail", type: "detail", description: "Detailed asset chart" },
+        { name: "Market Overview", type: "root", description: "Markets list" },
+      ];
+
+      const navPlan = normalizeNavigationPlan({
+        navigationPlan: {
+          enabled: true,
+          kind: "bottom-tabs",
+          items: [
+            { id: "home", label: "Home", icon: "home", role: "Dashboard", linkedScreenName: "Portfolio Dashboard" },
+            { id: "swap", label: "Swap", icon: "repeat", role: "Exchange", linkedScreenName: "Asset Detail" },
+            { id: "wallet", label: "Wallet", icon: "wallet", role: "Wallet", linkedScreenName: "Portfolio Dashboard" },
+            { id: "markets", label: "Markets", icon: "trending-up", role: "Markets", linkedScreenName: "Market Overview" },
+          ],
+          visualBrief: "Floating market dock",
+          screenChrome: [],
+        },
+        screens,
+        navigationArchitecture: defaultArchitecture,
+        requiresBottomNav: true,
+      });
+
+      expect(navPlan.enabled).toBe(true);
+      expect(navPlan.items.map((item) => item.id)).toEqual(["home", "markets"]);
+      expect(navPlan.screenChrome.find((screen) => screen.screenName === "Portfolio Dashboard")?.navigationItemId).toBe("home");
+      expect(navPlan.screenChrome.find((screen) => screen.screenName === "Market Overview")?.navigationItemId).toBe("markets");
+      expect(navPlan.screenChrome.find((screen) => screen.screenName === "Asset Detail")?.navigationItemId).toBeNull();
+    });
+
+    it("strips local placeholder docks whenever a project shared nav exists", () => {
+      const code = `<div class="w-full min-h-screen dg-bg-primary">
+        <main>Content</main>
+        <!-- Floating Navigation Pill (Visual Placeholder for Shared Shell) -->
+        <div class="fixed bottom-[16px] left-4 right-4 h-[72px]">
+          <button><i data-lucide="home"></i>Home</button>
+          <button><i data-lucide="search"></i>Search</button>
+        </div>
+      </div>`;
+
+      const sanitized = sanitizeScreenCodeForSharedNavigation(
+        code,
+        {
+          name: "Portfolio Dashboard",
+          type: "root",
+          description: "Dashboard",
+          chromePolicy: { chrome: "immersive", showPrimaryNavigation: false, showsBackButton: false },
+          navigationItemId: null,
+        },
+        { projectNavigationEnabled: true },
+      );
+
+      expect(sanitized).not.toContain("Floating Navigation Pill");
+      expect(sanitized).not.toContain("fixed bottom-[16px]");
+      expect(sanitized).toContain("<main>Content</main>");
+      expect(detectLocalNavigationMarkup(sanitized).hasLocalNavigation).toBe(false);
     });
   });
 });

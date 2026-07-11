@@ -36,6 +36,7 @@ import { planVisualAssets, resolveProjectAssets } from "@/lib/generation/visual-
 import { createNavigationArchitecture, deriveRequiresBottomNav } from "@/lib/navigation";
 import {
   applyNavigationPlanToScreens,
+  detectLocalNavigationMarkup,
   indexNavigationShell,
   normalizeNavigationPlan,
   sanitizeScreenCodeForSharedNavigation,
@@ -165,6 +166,7 @@ type GenerationAttemptDiagnostics = {
   missingAnchors: string[];
   sanitizedCodes: string[];
   tokenDriftWarnings: string[];
+  localNavigationReasons: string[];
 };
 
 const collectUsageMetadata = (chunk: unknown, usage: GeminiUsageMetadata) => {
@@ -226,6 +228,7 @@ const buildAttemptDiagnostics = ({
     missingAnchors: quality?.missingAnchors ?? [],
     sanitizedCodes,
     tokenDriftWarnings: tokenDrift?.warnings ?? [],
+    localNavigationReasons: [],
   };
 };
 
@@ -1139,7 +1142,9 @@ export const buildScreenTask = task({
     }
 
     const finalizeGeneratedCode = (sourceCode: string) => {
-      const sanitizedCode = sanitizeScreenCodeForSharedNavigation(sourceCode, payload.screenPlan);
+      const sanitizedCode = sanitizeScreenCodeForSharedNavigation(sourceCode, payload.screenPlan, {
+        projectNavigationEnabled: Boolean(payload.navigationPlan?.enabled),
+      });
       const tokenizedCode = tokenizeStaticDrawgleHtml(sanitizedCode, payload.designTokens).code;
       const code = ensureDrawgleIds(tokenizedCode).code;
       const tokenDrift = detectTokenDrift(code, { scope: "screen" });
@@ -1177,6 +1182,30 @@ export const buildScreenTask = task({
     }
 
     const code = finalized.code;
+    const localNavigation = payload.navigationPlan?.enabled
+      ? detectLocalNavigationMarkup(code)
+      : { hasLocalNavigation: false, reasons: [] };
+    if (localNavigation.hasLocalNavigation) {
+      const latestAttempt = attempts.at(-1);
+      if (latestAttempt) {
+        latestAttempt.localNavigationReasons = localNavigation.reasons;
+      }
+
+      logger.warn("Screen build retained local navigation while shared project navigation is enabled", {
+        screenId: payload.screenId,
+        screenName: payload.screenPlan.name,
+        reasons: localNavigation.reasons,
+      });
+      await appendScreenBuildDiagnostics(admin, payload.generationRunId, payload.screenId, attempts);
+      return failWithoutSavingGeneratedCode({
+        error: `[screen_generation:local_navigation_conflict] Shared project navigation is enabled, but the screen still contains local primary navigation: ${localNavigation.reasons.join(", ")}`,
+        metadata: {
+          attempts,
+          localNavigation,
+        },
+      });
+    }
+
     const health = detectScreenHealth({ code, screenPrompt: payload.screenPlan.description });
     const assetPolicy = validateScreenAssetPolicy({ code, assetManifest: payload.assetManifest });
     const blockIndex = indexScreenCode(code);
