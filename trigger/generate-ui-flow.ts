@@ -167,6 +167,7 @@ type GenerationAttemptDiagnostics = {
   sanitizedCodes: string[];
   tokenDriftWarnings: string[];
   localNavigationReasons: string[];
+  localNavigationCandidates: string[];
 };
 
 const collectUsageMetadata = (chunk: unknown, usage: GeminiUsageMetadata) => {
@@ -229,6 +230,7 @@ const buildAttemptDiagnostics = ({
     sanitizedCodes,
     tokenDriftWarnings: tokenDrift?.warnings ?? [],
     localNavigationReasons: [],
+    localNavigationCandidates: [],
   };
 };
 
@@ -1184,25 +1186,23 @@ export const buildScreenTask = task({
     const code = finalized.code;
     const localNavigation = payload.navigationPlan?.enabled
       ? detectLocalNavigationMarkup(code)
-      : { hasLocalNavigation: false, reasons: [] };
+      : { hasLocalNavigation: false, reasons: [], candidates: [] };
     if (localNavigation.hasLocalNavigation) {
       const latestAttempt = attempts.at(-1);
       if (latestAttempt) {
         latestAttempt.localNavigationReasons = localNavigation.reasons;
+        latestAttempt.localNavigationCandidates = localNavigation.candidates;
+        latestAttempt.qualityWarnings = Array.from(new Set([
+          ...latestAttempt.qualityWarnings,
+          "Suspected local primary navigation remains; the paid screen was preserved for review.",
+        ]));
       }
 
-      logger.warn("Screen build retained local navigation while shared project navigation is enabled", {
+      logger.warn("Screen build retained suspected local navigation; preserving paid output with diagnostics", {
         screenId: payload.screenId,
         screenName: payload.screenPlan.name,
         reasons: localNavigation.reasons,
-      });
-      await appendScreenBuildDiagnostics(admin, payload.generationRunId, payload.screenId, attempts);
-      return failWithoutSavingGeneratedCode({
-        error: `[screen_generation:local_navigation_conflict] Shared project navigation is enabled, but the screen still contains local primary navigation: ${localNavigation.reasons.join(", ")}`,
-        metadata: {
-          attempts,
-          localNavigation,
-        },
+        candidates: localNavigation.candidates,
       });
     }
 
@@ -1259,7 +1259,6 @@ export const buildScreenTask = task({
         },
       });
     }
-
     // Persist the final code directly so the parent only polls for status.
     const { error: updateError } = await admin
       .from("screens")
@@ -1684,7 +1683,7 @@ export const generateUiFlowTask = task({
 
     const plan = payload.plannedScreens && payload.plannedScreens.length > 0
       ? {
-          requiresBottomNav: deriveRequiresBottomNav(requestedNavigationArchitecture),
+          requiresBottomNav: Boolean(payload.navigationPlan?.enabled),
           navigationArchitecture: requestedNavigationArchitecture,
           navigationPlan: normalizeNavigationPlan({
             navigationPlan: payload.navigationPlan,
@@ -1717,6 +1716,20 @@ export const generateUiFlowTask = task({
           llmLog: (label, data) => logger.info(label, data),
         });
     plan.screens = applyNavigationPlanToScreens(plan.screens, plan.navigationPlan);
+    const navigationTelemetry = {
+      version: plan.navigationPlan.version ?? 1,
+      decision: plan.navigationPlan.decision ?? (plan.navigationPlan.enabled ? "legacy-enabled" : "none"),
+      evidenceSource: plan.navigationPlan.evidence?.source ?? null,
+      enabled: plan.navigationPlan.enabled,
+      itemCount: plan.navigationPlan.items.length,
+      generatedDestinations: plan.navigationPlan.items.filter((item) => item.availability !== "planned" && item.linkedScreenName).length,
+      plannedDestinations: plan.navigationPlan.items.filter((item) => item.availability === "planned" || !item.linkedScreenName).length,
+      anatomy: plan.navigationPlan.design?.anatomy ?? null,
+    };
+    logger.info("Navigation planning telemetry", navigationTelemetry);
+    await mergeGenerationRunMetadata(admin, payload.generationRunId, {
+      navigationV2: navigationTelemetry,
+    });
     setJournalPhase(
       generationJournal,
       "blueprint",

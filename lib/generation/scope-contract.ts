@@ -298,6 +298,49 @@ const normalizeReferenceAnalysis = (raw: unknown): ReferenceAnalysisResult => {
 
   const rawSignals = readField(raw, ["designSystemSignals", "design_system_signals", "signals"]);
   const signals = isRecord(rawSignals) ? rawSignals : {};
+  const rawPrimaryNavigation = readField(raw, ["primaryNavigation", "primary_navigation", "navigationEvidence", "navigation_evidence"]);
+  const primaryNavigationRecord = isRecord(rawPrimaryNavigation) ? rawPrimaryNavigation : null;
+  const navigationAnatomies = new Set(["fixed-tab-rail", "floating-dock", "glass-dock", "compact-icon-rail", "center-action-dock"]);
+  const navigationItemsRaw = primaryNavigationRecord
+    ? readField(primaryNavigationRecord, ["items", "destinations", "tabs"])
+    : null;
+  const navigationItems = Array.isArray(navigationItemsRaw)
+    ? navigationItemsRaw.filter(isRecord).slice(0, 5).map((item) => ({
+        label: typeof item.label === "string" && item.label.trim() ? item.label.trim().slice(0, 40) : null,
+        icon: textField(item, ["icon", "iconMeaning", "icon_meaning"], "unidentified icon", 120),
+      }))
+    : [];
+  const rawNavigationCount = primaryNavigationRecord
+    ? readField(primaryNavigationRecord, ["itemCount", "item_count", "count"])
+    : null;
+  const parsedNavigationCount = typeof rawNavigationCount === "number" && Number.isFinite(rawNavigationCount)
+    ? Math.min(5, Math.max(0, Math.round(rawNavigationCount)))
+    : navigationItems.length;
+  const rawAnatomy = primaryNavigationRecord
+    ? readField(primaryNavigationRecord, ["anatomy", "type"])
+    : null;
+  const primaryNavigation = primaryNavigationRecord
+    ? {
+        present: primaryNavigationRecord.present === true,
+        repeatedAcrossScreens: primaryNavigationRecord.repeatedAcrossScreens === true || primaryNavigationRecord.repeated_across_screens === true,
+        itemCount: parsedNavigationCount,
+        items: navigationItems,
+        anatomy: typeof rawAnatomy === "string" && navigationAnatomies.has(rawAnatomy) ? rawAnatomy as NonNullable<ReferenceAnalysis["primaryNavigation"]>["anatomy"] : null,
+        geometry: textField(primaryNavigationRecord, ["geometry", "measurements"], "Navigation geometry was not measured.", 800),
+        labels: ["always", "active-only", "hidden"].includes(String(primaryNavigationRecord.labels))
+          ? primaryNavigationRecord.labels as NonNullable<ReferenceAnalysis["primaryNavigation"]>["labels"]
+          : null,
+        activeState: textField(primaryNavigationRecord, ["activeState", "active_state"], "Active state was not described.", 600),
+        elevation: textField(primaryNavigationRecord, ["elevation", "surface"], "Elevation was not described.", 600),
+        safeAreaRelationship: textField(primaryNavigationRecord, ["safeAreaRelationship", "safe_area_relationship"], "Safe-area relationship was not described.", 600),
+        activeItemByScreen: Array.isArray(primaryNavigationRecord.activeItemByScreen)
+          ? primaryNavigationRecord.activeItemByScreen.filter(isRecord).slice(0, 12).map((entry) => ({
+              screenIndex: clampScopeScreenCount(readField(entry, ["screenIndex", "screen_index"])) ?? 1,
+              itemIndex: clampScopeScreenCount(readField(entry, ["itemIndex", "item_index"])),
+            }))
+          : [],
+      }
+    : null;
   const rawCount = readField(raw, ["screenCountEstimate", "screen_count_estimate", "visibleScreenCount", "visible_screen_count", "screenCount", "screen_count"]);
   const parsedCount = clampScopeScreenCount(rawCount);
   const screenReferenceCount = screenReferences.length > 0 ? screenReferences.length : null;
@@ -343,6 +386,7 @@ const normalizeReferenceAnalysis = (raw: unknown): ReferenceAnalysisResult => {
           copyPatterns: [],
           implementationNotes: ["Builder must inspect the attached full reference image for this target screen."],
         })),
+    primaryNavigation,
     designSystemSignals: {
       palette: textField(signals, ["palette", "colors", "color"], "Use visible palette cues from the reference.", 1200),
       typography: textField(signals, ["typography", "type"], "Use visible typography cues from the reference.", 1200),

@@ -250,6 +250,34 @@ describe("export pipeline", () => {
     expect(strFromU8(zip["lib/screens/home_screen.dart"])).not.toContain("DrawgleBottomNavigation");
     expect(strFromU8(zip["lib/navigation/app_shell.dart"])).toContain("activeTab");
   });
+  it("exports generated and planned destination metadata explicitly", () => {
+    const files = buildAgentPackFiles({
+      context: {
+        ...context,
+        projectNavigation: {
+          ...projectNavigation,
+          plan: {
+            ...projectNavigation.plan,
+            version: 2,
+            decision: "project-native",
+            evidence: { source: "product-architecture", reason: "Peer finance areas" },
+            items: [
+              ...projectNavigation.plan.items.map((item) => ({ ...item, availability: "generated" as const })),
+              { id: "cards", label: "Cards", icon: "credit-card", role: "Manage payment cards", availability: "planned" as const, linkedScreenName: null },
+            ],
+          },
+        },
+      },
+    });
+    const manifest = JSON.parse(files[".drawgle/manifest.json"]);
+
+    expect(manifest.navigation.destinations).toContainEqual({
+      id: "cards",
+      label: "Cards",
+      availability: "planned",
+      linkedScreenName: null,
+    });
+  });
   it("creates a readable ZIP matching the project pack", () => {
     const zip = unzipSync(buildAgentPackZip({ context }));
     const manifest = JSON.parse(strFromU8(zip[".drawgle/manifest.json"]));

@@ -40,23 +40,50 @@ const plannerBlueprintJsonContract = `Return JSON with this exact top-level shap
     "rationale": "Why this navigation structure fits the product"
   },
   "navigation_plan": {
-    "enabled": true,
-    "kind": "bottom-tabs",
+    "version": 2,
+    "decision": "project-native",
+    "evidence": {
+      "source": "explicit-prompt",
+      "reason": "Positive evidence that persistent primary navigation belongs in this product."
+    },
     "items": [
       {
-        "id": "home",
-        "label": "Home",
-        "icon": "home",
-        "role": "Primary dashboard and launch point",
-        "linked_screen_name": "Home"
+        "id": "rides",
+        "label": "Rides",
+        "icon": "car",
+        "role": "Book and monitor rides",
+        "availability": "generated",
+        "linked_screen_name": "Ride Dashboard"
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "icon": "clock-3",
+        "role": "Review trip history and receipts",
+        "availability": "planned",
+        "linked_screen_name": null
       }
     ],
-    "visual_brief": "Project-specific nav anatomy: surface, radius, elevation, active state, icon/label rhythm, safe-area relationship.",
+    "design": {
+      "anatomy": "floating-dock",
+      "width": "content",
+      "labels": "always",
+      "active_treatment": "icon-fill",
+      "surface": "solid",
+      "radius_px": 28,
+      "safe_area_offset_px": 12,
+      "item_gap_px": 4,
+      "icon_size_px": 20,
+      "border": true,
+      "elevation": "low",
+      "center_action_item_id": null
+    },
+    "visual_brief": "Project-specific navigation anatomy and reference measurements.",
     "screen_chrome": [
       {
-        "screen_name": "Home",
+        "screen_name": "Ride Dashboard",
         "chrome": "bottom-tabs",
-        "navigation_item_id": "home"
+        "navigation_item_id": "rides"
       }
     ]
   },
@@ -143,17 +170,16 @@ Create the project charter, navigation architecture, and navigation plan. Do not
 ${plannerBlueprintJsonContract}
 
 Blueprint rules:
-- Screen Count Contract and user scope are highest authority. Navigation may not add, imply, preserve, or invent screens beyond the approved slate. Tabs, menu labels, and screenshot chrome are not screens unless explicitly requested.
-- In Image to UI with exactly 1 screen, visible screenshot tabs are visual chrome only; do not turn them into peer screens or shared navigation unless the user explicitly requests multi-screen/prototype navigation.
-- Define one navigation_architecture for the whole product: bottom-tabs-app only for several peer root destinations; hierarchical for push/detail flows; single-screen for focused experiences without persistent navigation.
-- A finite described flow is not automatically a bottom-tabs app. Use persistent bottom navigation only for peer root destinations or when the user/reference explicitly calls for primary navigation.
-- navigation_plan is required. Use enabled false and kind "none" when persistent navigation should not exist.
-- navigation_plan.items must contain only project-specific primary destinations from the approved screen slate, usually 3-5 items for bottom-tabs apps. Never create screens to fill tabs.
-- Do not create nav items for onboarding, splash, login/signup/register/auth, chat/messaging/assistant, transient tracking/detail, checkout, confirmation, modal, or one-off flow screens.
-- In navigation_plan.screen_chrome, onboarding, splash, auth, chat/messaging/assistant screens must be immersive with navigation_item_id null and must never show primary bottom-tabs navigation.
-- Use Lucide icon names for navigation items.
-- navigation_plan.visual_brief must describe the real nav anatomy: surface, radius, elevation, safe-area relationship, floating dock/glass pill/compact rail/card-attached nav/center action when relevant, active state, and icon/label rhythm.
-- Prefer modern mobile navigation patterns. Do not default to a plain full-width old-style tab bar unless the reference or brief requires it.
+- Screen Count Contract controls generated screens only. Navigation destinations are product information architecture and may be planned without creating or charging for screens.
+- Navigation requires positive evidence: an explicit prompt request, visible persistent navigation in a recreate reference, or a clearly described product architecture with peer root areas. Screen count and app category are never sufficient.
+- Explicit no-navigation intent and finite immersive flows always use decision "none", evidence.source null, no items, and design null.
+- Use decision "reference-derived" when recreate evidence visibly contains persistent navigation. Preserve observed item count, order, labels, icon meaning, anatomy, active states, geometry, elevation, and safe-area relationship. A legitimate two-item reference is valid.
+- Use decision "project-native" only for clear peer root product areas. Supply 3-5 unique meaningful destinations, defaulting to 4.
+- A requested root screen uses availability "generated" and links to its exact screen name. Future product destinations use availability "planned" and linked_screen_name null; they do not create screens.
+- Never fabricate generic Home/Search/Profile filler. Every destination label and role must be specific to the requested product.
+- Never use onboarding, splash, auth, chat, camera, player, checkout, confirmation, modal, transient tracking, or detail screens as primary destinations.
+- screen_chrome assigns an active navigation_item_id only to generated root destinations. Planned destinations are never active.
+- Use Lucide icon names. Select one supported design anatomy and provide bounded measurements; the renderer, not the builder, owns navigation HTML.
 - charter.navigationModel must match navigation_architecture. keyFeatures must be durable product capabilities, not screen names.
 - charter.designRationale and creativeDirection.compositionPrinciples must be executable layout rules: viewport budget, screen-edge padding, horizontal rail, section rhythm, card/content padding, typography discipline, bottom-safe content stop points, dense-row vs spacious-hero usage, wrapping/truncation, and overflow avoidance.
 - If Current Project Context contains approved navigation architecture or plan, preserve it unless the user explicitly asks to add, remove, or redesign primary navigation.`;
@@ -237,6 +263,25 @@ Return strictly valid JSON in this format after inspecting the image with an exp
       "antiPatterns": ["Reference-specific failure mode to avoid when applying this visual DNA elsewhere."]
     }
   ],
+  "primaryNavigation": {
+    "present": true,
+    "repeatedAcrossScreens": true,
+    "itemCount": 4,
+    "items": [
+      { "label": "Home", "icon": "house outline" },
+      { "label": "Markets", "icon": "rising chart" }
+    ],
+    "anatomy": "floating-dock",
+    "geometry": "Observed width, height, inset, radius, padding, and item spacing.",
+    "labels": "always",
+    "activeState": "Observed active icon, label, fill, indicator, and contrast treatment.",
+    "elevation": "Observed border, shadow, blur, or attached-surface treatment.",
+    "safeAreaRelationship": "Observed distance from bottom edge and home indicator.",
+    "activeItemByScreen": [
+      { "screenIndex": 1, "itemIndex": 1 },
+      { "screenIndex": 2, "itemIndex": 2 }
+    ]
+  },
   "designSystemSignals": {
     "palette": "Dominant palette and accent usage: which colors are functional (action, success, warning), which are decorative, and where each appears",
     "typography": "Observed font personality, scale, weight range, and emphasis patterns, including any optical adjustments (tracking, leading, tabular nums, weight pairing)",
@@ -280,7 +325,7 @@ Rules:
 - Structural language: use precise terms such as surface, layer, container, group, control, content cluster, media plane, navigation surface, overlay, text group, icon well, chart plane, map plane, and floating affordance. Do not flatten nested/grouped UI into generic "card/header/list/section/panel/button"; describe wrappers and children separately.
 - Arrangement: explain row/column/grid/stack/absolute/floating layout, alignment, gaps, padding, insets, overlap, clipping, anchors, top/middle/bottom regions, proportions, active states, icon/label treatment, repeated motifs, and parent-child rebuild structure. Use approximate px-like values when helpful; do not invent false precision.
 - Material/depth: describe overlap, layering, floating surfaces, bottom sheets, tabs, charts, gauges, avatar stacks, map regions, large type, image cutouts, control bars, CTA construction, shadow color/blur/spread, border visibility, surface finish, and light interaction. Avoid vague labels like "soft shadow", "modern glass", or "modern UI" unless immediately explained by observable anatomy.
-- Navigation: capture real anatomy: full-width rail, floating dock, glass pill, attached card, center action, icon-only row, label rhythm, active-state shape, radius, shadow, and bottom safe-area relationship.
+- Navigation: populate primaryNavigation from visible evidence only. Capture item count/order, labels, icon meaning, repeated-shell evidence, per-screen active item, supported anatomy, geometry, label rhythm, active-state shape, elevation, and safe-area relationship. Use present false when no persistent primary navigation is visible.
 - Charts/maps/media: name constructed geometry such as bars, route curves, grid blocks, pins, sheets, overlays, legends, rings, gauges, crops/cutouts; capture container height, padding, clipping, bounds, labels/axes, and breathing room to avoid empty or clipped visuals.
 - Truthfulness/placeholders: do not invent hidden screens, unseen features, backend behavior, or micro-details. Use placeholders only for volatile literal values; preserve visible layout anchors that affect composition.
 - Detail budget: length follows visual density. Rich references need detailed implementationNotes, stylingCues, and components; minimal references stay shorter but precise.

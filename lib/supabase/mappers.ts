@@ -1,3 +1,4 @@
+import { parseStoredNavigationPlan } from "@/lib/project-navigation";
 import type { User } from "@supabase/supabase-js";
 
 import type {
@@ -132,7 +133,7 @@ export function mapProjectNavigationRow(row: ProjectNavigationRow): ProjectNavig
     id: row.id,
     projectId: row.project_id,
     ownerId: row.owner_id,
-    plan: row.plan as unknown as NavigationPlan,
+    plan: parseStoredNavigationPlan(row.plan),
     shellCode: row.shell_code,
     blockIndex: (row.block_index as ScreenBlockIndex | null) ?? null,
     status: row.status,

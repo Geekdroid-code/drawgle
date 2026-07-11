@@ -226,7 +226,8 @@ const buildPublicDesignSections = ({
     ?.map((item) => {
       const label = sanitizePublicText(item.label);
       const role = sanitizePublicText(item.role);
-      return label ? `- ${label}${role ? `: ${role}` : ""}` : null;
+      const availability = item.availability === "planned" ? "planned route" : "generated screen";
+      return label ? `- ${label} (${availability})${role ? `: ${role}` : ""}` : null;
     })
     .filter((line): line is string => Boolean(line))
     .join("\n");

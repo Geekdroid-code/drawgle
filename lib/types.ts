@@ -440,12 +440,38 @@ export interface NavigationArchitecture {
 
 export type NavigationPlanKind = "bottom-tabs" | "none";
 
+export type NavigationDecision = "none" | "project-native" | "reference-derived";
+export type NavigationEvidenceSource = "explicit-prompt" | "reference" | "product-architecture";
+export type NavigationDestinationAvailability = "generated" | "planned";
+export type NavigationAnatomy =
+  | "fixed-tab-rail"
+  | "floating-dock"
+  | "glass-dock"
+  | "compact-icon-rail"
+  | "center-action-dock";
+
+export interface NavigationDesignContract {
+  anatomy: NavigationAnatomy;
+  width: "content" | "inset" | "full";
+  labels: "always" | "active-only" | "hidden";
+  activeTreatment: "icon-fill" | "tint" | "underline" | "compact-chip";
+  surface: "solid" | "translucent" | "glass";
+  radiusPx: number;
+  safeAreaOffsetPx: number;
+  itemGapPx: number;
+  iconSizePx: number;
+  border: boolean;
+  elevation: "none" | "low" | "medium";
+  centerActionItemId?: string | null;
+}
+
 export interface NavigationPlanItem {
   id: string;
   label: string;
   icon: string;
   role: string;
-  linkedScreenName: string;
+  linkedScreenName: string | null;
+  availability?: NavigationDestinationAvailability;
 }
 
 export interface NavigationPlanScreenChrome {
@@ -455,6 +481,13 @@ export interface NavigationPlanScreenChrome {
 }
 
 export interface NavigationPlan {
+  version?: 1 | 2;
+  decision?: NavigationDecision;
+  evidence?: {
+    source: NavigationEvidenceSource | null;
+    reason: string;
+  };
+  design?: NavigationDesignContract | null;
   enabled: boolean;
   kind: NavigationPlanKind;
   items: NavigationPlanItem[];
@@ -546,11 +579,30 @@ export interface ReferenceDesignSystemSignals {
   [key: string]: JsonValue | undefined;
 }
 
+export interface ReferenceNavigationItemEvidence {
+  label: string | null;
+  icon: string;
+}
+
+export interface ReferenceNavigationEvidence {
+  present: boolean;
+  repeatedAcrossScreens: boolean;
+  itemCount: number;
+  items: ReferenceNavigationItemEvidence[];
+  anatomy: NavigationAnatomy | null;
+  geometry: string;
+  labels: "always" | "active-only" | "hidden" | null;
+  activeState: string;
+  elevation: string;
+  safeAreaRelationship: string;
+  activeItemByScreen: Array<{ screenIndex: number; itemIndex: number | null }>;
+}
 export interface ReferenceAnalysis {
   overallVisualStyle: string;
   screenCountEstimate: number;
   screenReferences: ReferenceScreenAnalysis[];
   designSystemSignals: ReferenceDesignSystemSignals;
+  primaryNavigation?: ReferenceNavigationEvidence | null;
 }
 
 export interface ReferenceAnalysisResult {

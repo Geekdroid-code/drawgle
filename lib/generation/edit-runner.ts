@@ -29,7 +29,12 @@ import {
   validateStaticDrawgleHtml,
 } from "@/lib/generation/screen-quality";
 import { findRepairTarget, replaceSourceRegion, type RepairTarget } from "@/lib/generation/screen-repair";
-import { sanitizeScreenCodeForSharedNavigation, validateNavigationShell } from "@/lib/project-navigation";
+import {
+  applyNavigationDesignEdit,
+  renderDeterministicNavigationShell,
+  sanitizeScreenCodeForSharedNavigation,
+  validateNavigationShell,
+} from "@/lib/project-navigation";
 import { deriveRequiresBottomNav } from "@/lib/navigation";
 import type { AgentStepMetadata } from "@/lib/agent/message-metadata";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -599,7 +604,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
     }
   }
 
-  const selectedNavigationElement = requestedNavigationEdit && (selectedElementTarget === "navigation" || isNavigationElementHtml(selectedElementHtml));
+  let selectedNavigationElement = requestedNavigationEdit && (selectedElementTarget === "navigation" || isNavigationElementHtml(selectedElementHtml));
 
   if (requestedNavigationEdit) {
     const { data: projectNavigation, error: navigationError } = await admin
@@ -614,6 +619,9 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
 
     const navigationCode = ensureDrawgleIds(projectNavigation.shell_code, "dg-nav").code;
     const navigationPlan = projectNavigation.plan as unknown as NavigationPlan;
+    if (navigationPlan.version === 2) {
+      selectedNavigationElement = false;
+    }
 
     if (selectedNavigationElement && selectedElementDrawgleId) {
       const selectedNavigationTarget = findRepairTarget({
@@ -833,21 +841,27 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
       },
     });
 
-    const editedNavigationCode = await editNavigationShellCode({
-      prompt,
-      currentShellCode: navigationCode,
-      navigationPlan,
-      designTokens,
-      projectCharter,
-      selectedElementHtml: selectedNavigationElement ? selectedElementHtml : null,
-      llmLog,
-    });
+    const nextNavigationPlan = navigationPlan.version === 2
+      ? applyNavigationDesignEdit(navigationPlan, prompt)
+      : navigationPlan;
+    const editedNavigationCode = navigationPlan.version === 2
+      ? renderDeterministicNavigationShell(nextNavigationPlan)
+      : await editNavigationShellCode({
+          prompt,
+          currentShellCode: navigationCode,
+          navigationPlan,
+          designTokens,
+          projectCharter,
+          selectedElementHtml: selectedNavigationElement ? selectedElementHtml : null,
+          llmLog,
+        });
     const nextCode = ensureDrawgleIds(tokenizeStaticDrawgleHtml(editedNavigationCode, designTokens).code, "dg-nav").code;
-
-    if (nextCode !== navigationCode) {
+    const planChanged = JSON.stringify(nextNavigationPlan) !== JSON.stringify(navigationPlan);
+    if (nextCode !== navigationCode || planChanged) {
       const { error: updateError } = await admin
         .from("project_navigation")
         .update({
+          plan: nextNavigationPlan as never,
           shell_code: nextCode,
           block_index: indexScreenCode(nextCode) as never,
           status: "ready",
@@ -861,7 +875,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
       }
     }
 
-    const isChanged = nextCode !== navigationCode;
+    const isChanged = nextCode !== navigationCode || planChanged;
     let designSummary: any = null;
     if (isChanged) {
       designSummary = await generateDesignSummaryLLM(prompt, "Navigation");
@@ -924,7 +938,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
   const resolvedIsRoot = resolvedScreenChrome?.chrome === "bottom-tabs" ||
                          (screen.chrome_policy as ScreenPlan["chromePolicy"])?.chrome === "bottom-tabs" ||
                          Boolean(resolvedNavigationItemId) ||
-                         (projectNavigationPlan?.items?.some(item => item.linkedScreenName.toLowerCase() === (screen.name || "").toLowerCase()) ?? false);
+                         (projectNavigationPlan?.items?.some(item => item.linkedScreenName?.toLowerCase() === (screen.name || "").toLowerCase()) ?? false);
 
   const resolvedChromePolicy = (screen.chrome_policy as ScreenPlan["chromePolicy"]) || {
     chrome: resolvedScreenChrome?.chrome ?? (resolvedIsRoot ? (projectNavigationPlan?.enabled ? "bottom-tabs" : "top-bar") : "top-bar-back"),

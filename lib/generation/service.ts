@@ -281,17 +281,40 @@ const NavigationArchitectureSchema = z.object({
   rationale: z.string().trim().min(1).max(2400),
 });
 
+const NavigationDesignContractSchema = z.object({
+  anatomy: z.enum(["fixed-tab-rail", "floating-dock", "glass-dock", "compact-icon-rail", "center-action-dock"]),
+  width: z.enum(["content", "inset", "full"]),
+  labels: z.enum(["always", "active-only", "hidden"]),
+  active_treatment: z.enum(["icon-fill", "tint", "underline", "compact-chip"]),
+  surface: z.enum(["solid", "translucent", "glass"]),
+  radius_px: z.number().min(0).max(36),
+  safe_area_offset_px: z.number().min(4).max(28),
+  item_gap_px: z.number().min(0).max(16),
+  icon_size_px: z.number().min(16).max(26),
+  border: BooleanishSchema,
+  elevation: z.enum(["none", "low", "medium"]),
+  center_action_item_id: z.string().trim().min(1).max(80).nullable().optional(),
+}).nullable().optional();
+
 const NavigationPlanSchema = z.object({
-  enabled: BooleanishSchema,
-  kind: NavigationPlanKindSchema,
+  version: z.literal(2),
+  decision: z.enum(["none", "project-native", "reference-derived"]),
+  evidence: z.object({
+    source: z.enum(["explicit-prompt", "reference", "product-architecture"]).nullable(),
+    reason: z.string().trim().min(1).max(1200),
+  }),
+  enabled: BooleanishSchema.optional(),
+  kind: NavigationPlanKindSchema.optional(),
   items: z.array(z.object({
     id: z.string().trim().min(1).max(80),
     label: z.string().trim().min(1).max(40),
     icon: z.string().trim().min(1).max(80),
     role: z.string().trim().min(1).max(240),
-    linked_screen_name: z.string().trim().min(1).max(100),
+    availability: z.enum(["generated", "planned"]).optional(),
+    linked_screen_name: z.string().trim().min(1).max(100).nullable().optional(),
   })).max(5).default([]),
-  visual_brief: z.string().trim().min(1).max(1600),
+  design: NavigationDesignContractSchema,
+  visual_brief: z.string().trim().min(1).max(1600).optional(),
   screen_chrome: z.array(z.object({
     screen_name: z.string().trim().min(1).max(100),
     chrome: ScreenChromeKindSchema,
@@ -1113,22 +1136,46 @@ const resolvePlannedScreen = ({
   }),
 });
 
+
 const toNavigationPlan = (parsed?: ParsedNavigationPlan | null): NavigationPlan | null => {
   if (!parsed) {
     return null;
   }
 
+  const decision = parsed.decision;
+  const enabled = decision !== "none" && Boolean(parsed.evidence.source);
+
   return {
-    enabled: parsed.enabled,
-    kind: parsed.enabled ? parsed.kind : "none",
+    version: 2,
+    decision,
+    evidence: parsed.evidence,
+    design: parsed.design
+      ? {
+          anatomy: parsed.design.anatomy,
+          width: parsed.design.width,
+          labels: parsed.design.labels,
+          activeTreatment: parsed.design.active_treatment,
+          surface: parsed.design.surface,
+          radiusPx: parsed.design.radius_px,
+          safeAreaOffsetPx: parsed.design.safe_area_offset_px,
+          itemGapPx: parsed.design.item_gap_px,
+          iconSizePx: parsed.design.icon_size_px,
+          border: parsed.design.border,
+          elevation: parsed.design.elevation,
+          centerActionItemId: parsed.design.center_action_item_id ?? null,
+        }
+      : null,
+    enabled,
+    kind: enabled ? "bottom-tabs" : "none",
     items: parsed.items.map((item) => ({
       id: item.id,
       label: item.label,
       icon: item.icon,
       role: item.role,
-      linkedScreenName: item.linked_screen_name,
+      availability: item.availability ?? (item.linked_screen_name ? "generated" : "planned"),
+      linkedScreenName: item.linked_screen_name ?? null,
     })),
-    visualBrief: parsed.visual_brief,
+    visualBrief: parsed.visual_brief ?? "Typed project navigation.",
     screenChrome: parsed.screen_chrome.map((entry) => ({
       screenName: entry.screen_name,
       chrome: entry.chrome,
@@ -1136,7 +1183,29 @@ const toNavigationPlan = (parsed?: ParsedNavigationPlan | null): NavigationPlan 
     })),
   };
 };
+const navigationBlueprintIssues = (navigationPlan?: ParsedNavigationPlan | null) => {
+  if (!navigationPlan) return [];
+  const decision = navigationPlan.decision ?? "none";
+  if (decision === "none") return [];
 
+  const issues: string[] = [];
+  if (!navigationPlan.evidence?.source) issues.push("positive evidence source is required");
+  const minimumItems = decision === "project-native" ? 3 : 2;
+  if (navigationPlan.items.length < minimumItems || navigationPlan.items.length > 5) {
+    issues.push(decision + " requires " + minimumItems + "-5 destinations");
+  }
+  const labels = navigationPlan.items.map((item) => item.label.trim().toLowerCase());
+  const roles = navigationPlan.items.map((item) => item.role.trim().toLowerCase().replace(/[^a-z0-9]+/g, " "));
+  if (new Set(labels).size !== labels.length) issues.push("destination labels must be unique");
+  if (new Set(roles).size !== roles.length) issues.push("destination roles must be unique");
+  if (navigationPlan.items.some((item) => /^(?:tab|item|menu|page|section|destination)(?:\s*\d+)?$/i.test(item.label))) {
+    issues.push("generic filler destinations are forbidden");
+  }
+  if (navigationPlan.items.some((item) => item.availability === "planned" && item.linked_screen_name)) {
+    issues.push("planned destinations must use linked_screen_name null");
+  }
+  return issues;
+};
 const fallbackScreensFromReference = ({
   prompt,
   planningMode,
@@ -1802,8 +1871,27 @@ const formatReferenceAnalysis = (referenceAnalysis: ReferenceAnalysis) => {
       .join("\n"))
     .join("\n\n");
 
+  const navigationEvidence = referenceAnalysis.primaryNavigation;
+  const navigationSummary = navigationEvidence
+    ? [
+        "Primary Navigation Evidence:",
+        `- Present: ${navigationEvidence.present}`,
+        `- Repeated Across Screens: ${navigationEvidence.repeatedAcrossScreens}`,
+        `- Item Count: ${navigationEvidence.itemCount}`,
+        `- Items: ${navigationEvidence.items.map((item, index) => `${index + 1}. ${item.label ?? "Unlabeled"} (${item.icon})`).join("; ") || "None"}`,
+        `- Anatomy: ${navigationEvidence.anatomy ?? "unclassified"}`,
+        `- Geometry: ${navigationEvidence.geometry}`,
+        `- Labels: ${navigationEvidence.labels ?? "unclassified"}`,
+        `- Active State: ${navigationEvidence.activeState}`,
+        `- Elevation: ${navigationEvidence.elevation}`,
+        `- Safe Area: ${navigationEvidence.safeAreaRelationship}`,
+        `- Active Items By Screen: ${navigationEvidence.activeItemByScreen.map((entry) => `screen ${entry.screenIndex} -> item ${entry.itemIndex ?? "unknown"}`).join("; ") || "None"}`,
+      ].join("\n")
+    : "Primary Navigation Evidence: not provided.";
+
   return [
     `Overall Visual Style: ${referenceAnalysis.overallVisualStyle}`,
+    navigationSummary,
     "Design System Signals:",
     `- Palette: ${referenceAnalysis.designSystemSignals.palette}`,
     `- Typography: ${referenceAnalysis.designSystemSignals.typography}`,
@@ -2109,8 +2197,52 @@ export async function planUiFlow({
     llmLog(`[TOKEN USAGE] plan-ui-flow-blueprint`, response.usageMetadata as Record<string, unknown>);
   }
 
-  const rawBlueprint = parseJsonResponse<unknown>(response.text || "{}");
-  const parsedBlueprint = ProjectBlueprintSchema.safeParse(rawBlueprint);
+  let rawBlueprint = parseJsonResponse<unknown>(response.text || "{}");
+  let parsedBlueprint = ProjectBlueprintSchema.safeParse(rawBlueprint);
+
+  if (parsedBlueprint.success) {
+    const navigationIssues = navigationBlueprintIssues(parsedBlueprint.data.navigation_plan);
+    if (navigationIssues.length > 0) {
+      llmLog?.("[navigation:v2] blueprint repair requested", {
+        issues: navigationIssues,
+        itemCount: parsedBlueprint.data.navigation_plan?.items.length ?? 0,
+      });
+      const repairResponse = await ai.models.generateContent({
+        model: policy.model,
+        contents: {
+          parts: [
+            ...parts,
+            {
+              text: [
+                "NAVIGATION V2 REPAIR ONLY. Return the complete project blueprint JSON without screens.",
+                "The previous navigation plan failed validation: " + navigationIssues.join("; ") + ".",
+                "Keep the approved charter and architecture unless they conflict with the positive-evidence policy.",
+                "Do not create generated screens. Add meaningful planned destinations only when product evidence supports them.",
+                "Invalid blueprint: " + JSON.stringify(parsedBlueprint.data, null, 2),
+              ].join("\n"),
+            },
+          ],
+        },
+        config: policy.config,
+      });
+      if (llmLog && repairResponse.usageMetadata) {
+        llmLog("[TOKEN USAGE] plan-ui-flow-navigation-repair", repairResponse.usageMetadata as Record<string, unknown>);
+      }
+      const repairedRaw = parseJsonResponse<unknown>(repairResponse.text || "{}");
+      const repairedBlueprint = ProjectBlueprintSchema.safeParse(repairedRaw);
+      if (repairedBlueprint.success && navigationBlueprintIssues(repairedBlueprint.data.navigation_plan).length === 0) {
+        rawBlueprint = repairedRaw;
+        parsedBlueprint = repairedBlueprint;
+      } else {
+        llmLog?.("[navigation:v2] blueprint repair rejected", {
+          issues: repairedBlueprint.success
+            ? navigationBlueprintIssues(repairedBlueprint.data.navigation_plan)
+            : repairedBlueprint.error.issues.map((issue) => issue.path.join(".") + ": " + issue.message),
+        });
+      }
+    }
+  }
+
   let rawPlan: unknown = rawBlueprint;
   let parsed = PlanSchema.safeParse(rawPlan);
 
@@ -2273,7 +2405,7 @@ export async function planUiFlow({
     };
 
     return {
-      requiresBottomNav: deriveRequiresBottomNav(navigationArchitecture),
+      requiresBottomNav: navigationPlan.enabled,
       navigationArchitecture,
       navigationPlan,
       charter: salvageProjectCharterFromRawPlan({
@@ -2418,7 +2550,7 @@ export async function planUiFlow({
   });
 
   return {
-    requiresBottomNav: deriveRequiresBottomNav(navigationArchitecture),
+    requiresBottomNav: navigationPlan.enabled,
     navigationArchitecture,
     navigationPlan,
     charter,

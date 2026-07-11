@@ -212,7 +212,7 @@ export type AgentContextSnapshot = {
       id: string;
       label: string;
       icon: string;
-      linkedScreenName: string;
+      linkedScreenName: string | null;
     }>;
     screenChrome: Array<{
       screenName: string;

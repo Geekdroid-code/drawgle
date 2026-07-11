@@ -426,7 +426,17 @@ export function buildAgentPackFiles({
     },
     target,
     screens: screenEntries,
-    navigation: context.projectNavigation?.plan ?? null,
+    navigation: context.projectNavigation?.plan
+      ? {
+          ...context.projectNavigation.plan,
+          destinations: context.projectNavigation.plan.items.map((item) => ({
+            id: item.id,
+            label: item.label,
+            availability: item.availability ?? (item.linkedScreenName ? "generated" : "planned"),
+            linkedScreenName: item.linkedScreenName,
+          })),
+        }
+      : null,
   };
   const handoff = `# Drawgle project handoff
 

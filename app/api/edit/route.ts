@@ -69,7 +69,7 @@ export async function POST(req: Request) {
     const resolvedIsRoot = resolvedScreenChrome?.chrome === "bottom-tabs" ||
                            (screen.chrome_policy as ScreenPlan["chromePolicy"])?.chrome === "bottom-tabs" ||
                            Boolean(resolvedNavigationItemId) ||
-                           (projectNavigationPlan?.items?.some(item => item.linkedScreenName.toLowerCase() === (screen.name || "").toLowerCase()) ?? false);
+                           (projectNavigationPlan?.items?.some(item => item.linkedScreenName?.toLowerCase() === (screen.name || "").toLowerCase()) ?? false);
 
     const resolvedChromePolicy = (screen.chrome_policy as ScreenPlan["chromePolicy"]) || {
       chrome: resolvedScreenChrome?.chrome ?? (resolvedIsRoot ? (projectNavigationPlan?.enabled ? "bottom-tabs" : "top-bar") : "top-bar-back"),
