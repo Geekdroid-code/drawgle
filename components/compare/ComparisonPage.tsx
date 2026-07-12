@@ -27,7 +27,7 @@ export function ComparisonPage({ page }: { page: ComparisonPageData }) {
         <section className="w-full max-w-5xl mx-auto px-6 mb-16">
           <div className="text-center mb-10 max-w-3xl mx-auto">
             <h1 className="font-pixel-square text-3xl md:text-5xl text-stone-900 leading-[1.1] mb-4 tracking-tight font-semibold">
-              {page.heroTitle}
+              Best {page.competitor.name} Alternative: Drawgle vs {page.competitor.name} 2026 Comparison
             </h1>
             <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-stone-400">
               <span>

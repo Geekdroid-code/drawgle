@@ -33,15 +33,18 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     return {};
   }
 
+  const dynamicTitle = `Best ${page.competitor.name} Alternative (2026) — Drawgle vs ${page.competitor.name}`;
+  const dynamicDescription = `Looking for the best ${page.competitor.name} alternative? Compare Drawgle vs ${page.competitor.name} features, pricing, and code quality. Discover why developers switch for multi-screen UI systems.`;
+
   return buildMetadata({
-    title: page.metadata.title,
-    description: page.metadata.description,
-    path: `/vs/${page.slug}`,
+    title: dynamicTitle,
+    description: dynamicDescription,
+    path: `/alternatives/${page.slug}`,
     image: {
       path: "/bg-image.webp",
       width: 1200,
       height: 630,
-      alt: page.metadata.title,
+      alt: dynamicTitle,
     },
   });
 }
@@ -54,7 +57,9 @@ export default async function CompetitorComparisonPage({ params }: PageProps) {
     notFound();
   }
 
-  const path = `/vs/${page.slug}`;
+  const path = `/alternatives/${page.slug}`;
+  const dynamicTitle = `Best ${page.competitor.name} Alternative (2026) — Drawgle vs ${page.competitor.name}`;
+  const dynamicDescription = `Looking for the best ${page.competitor.name} alternative? Compare Drawgle vs ${page.competitor.name} features, pricing, and code quality. Discover why developers switch for multi-screen UI systems.`;
 
   return (
     <>
@@ -62,25 +67,25 @@ export default async function CompetitorComparisonPage({ params }: PageProps) {
         data={[
           webPageSchema({
             path,
-            name: page.metadata.title,
-            description: page.metadata.description,
+            name: dynamicTitle,
+            description: dynamicDescription,
           }),
           articleSchema({
             path,
-            headline: page.metadata.title,
-            description: page.metadata.description,
+            headline: dynamicTitle,
+            description: dynamicDescription,
             publishedDate: page.metadata.publishedDate,
             modifiedDate: page.metadata.modifiedDate,
           }),
           breadcrumbListSchema([
             { name: "Home", path: "/" },
-            { name: "Comparisons", path: "/vs" },
+            { name: "Alternatives", path: "/alternatives" },
             { name: page.competitor.name, path },
           ]),
           faqPageSchema(page.faqs),
           itemListSchema({
             path,
-            name: `${page.metadata.title} comparison criteria`,
+            name: `${dynamicTitle} comparison criteria`,
             items: page.comparisonRows.map((row) => row.title),
           }),
         ]}
