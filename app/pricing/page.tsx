@@ -77,7 +77,7 @@ const comparisonFeatures = [
       { name: "Clean Tailwind HTML/CSS Export", starter: true, pro: true, studio: true },
       { name: "Design System CSS Variables", starter: true, pro: true, studio: true },
       { name: "Agent Handoff Pack (Cursor/Copilot Context)", starter: true, pro: true, studio: true },
-      { name: "Native App Scaffolds (SwiftUI, React Native, Flutter, Compose)", starter: false, pro: true, studio: true },
+      { name: "Agent Handoff Pack (All Screens + Implementation Context)", starter: false, pro: true, studio: true },
       { name: "Full Commercial Code License", starter: true, pro: true, studio: true },
     ],
   },
@@ -91,10 +91,6 @@ const faqs = [
   {
     question: "What is the 'Agent Handoff Pack' and how do I use it with Cursor or Copilot?",
     answer: "When you export a screen, you can download a zip file containing the clean HTML/Tailwind code, a JSON design token manifest, and a `.drawgle/handoff.md` file. You drop this folder directly into your codebase. Downstream AI editors like Cursor, Copilot, or Claude can read the markdown instruction guide and implement the design tokens and pages perfectly into your actual repository.",
-  },
-  {
-    question: "What frameworks are supported in the Native Scaffolds?",
-    answer: "Drawgle exports native code scaffolds for React Native (TSX), SwiftUI (Swift), Jetpack Compose (Kotlin), and Flutter (Dart). It structures the views into standard native components so you aren't starting your mobile projects from blank files.",
   },
   {
     question: "Can I edit the generated code in my browser before exporting?",

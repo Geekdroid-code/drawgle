@@ -246,20 +246,20 @@ export const comparisonPages: ComparisonPageData[] = [
     metadata: {
       title: "Drawgle vs Sleek.design (2026): AI Mobile UI Builder Comparison",
       description:
-        "Drawgle exports production-ready code in HTML, React Native, SwiftUI, Jetpack Compose, and Flutter from a curated 2026 design system. Sleek.design is Figma-first. Compare features, pricing, and the real workflow differences.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       publishedDate: "2026-07-01",
       modifiedDate: "2026-07-05",
     },
     heroTitle: "Drawgle vs. Sleek.design: 2026 Comparison for Mobile UI Builders",
     sonicBoomSummary:
-      "Sleek.design and Drawgle are both AI tools that turn prompts and screenshots into mobile UI, but they optimize for different deliverables. Sleek is positioned for Figma-first mobile app design with very high credit limits. Drawgle is positioned for production-ready code: the same canvas can export standalone HTML, native scaffolds for React Native, SwiftUI, Jetpack Compose, and Flutter, plus an Agent Pack for AI coding tools.",
+      "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
     quickVerdict: {
       competitorTitle: "Choose Sleek.design if mobile-first, Figma-first output is the priority:",
       competitorDescription:
         "Sleek is built exclusively for mobile app screens and ships native editable Figma-layer export on all paid plans. If your team's source of truth is Figma and you want to generate many polished variations quickly, Sleek is the cleaner fit.",
       drawgleTitle: "Choose Drawgle if production-ready code, in the framework you already use, is the priority:",
       drawgleDescription:
-        "Drawgle is built around the moment after design approval. The canvas exports real code in HTML, React Native, SwiftUI, Jetpack Compose, or Flutter, alongside design tokens and a navigation shell, so the result lands in a repository as something a team can build on rather than redesign.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
     },
     premiumMoat: {
       eyebrow: "Why Drawgle over Sleek.design",
@@ -279,15 +279,15 @@ export const comparisonPages: ComparisonPageData[] = [
     },
     comparisonRows: [
       {
-        title: "Production-ready native code, not web-style HTML",
+        title: "High-fidelity HTML and engineering handoff",
         shortCompetitor: "HTML or React with Tailwind. No native framework scaffolds.",
-        shortDrawgle: "Five native export targets: HTML, React Native, SwiftUI, Jetpack Compose, Flutter.",
+        shortDrawgle: "High-fidelity HTML plus a structured Agent Pack.",
         competitorBehavior:
           "Sleek.design exports HTML or React with Tailwind CSS. There are no native framework scaffolds for iOS, Android, React Native, or Flutter, so the result has to be rewritten in the team's actual stack before it can ship.",
         drawgleBehavior:
-          "Drawgle exports the same screen as standalone HTML, React Native, SwiftUI, Jetpack Compose, or Flutter, each including a theme file and a shared navigation component, so the result lands in Xcode, Android Studio, or a real web project as something a team can build on.",
+          "Drawgle exports high-fidelity standalone HTML and a structured Agent Pack with design tokens, assets, and implementation context for the developer's codebase.",
         proofPoint:
-          "Five production-ready code export targets, not one web-style scaffold the developer has to translate.",
+          "High-fidelity standalone HTML plus a structured Agent Pack for implementation.",
         winner: "drawgle",
         featured: true,
       },
@@ -363,9 +363,9 @@ export const comparisonPages: ComparisonPageData[] = [
         competitorBehavior:
           "Sleek.design provides API and agent skill access for Claude Code, Codex, and Cursor on the Pro and Team pricing tiers, with a public agent skill repository on GitHub positioned for Pro+ users.",
         drawgleBehavior:
-          "Drawgle's Agent Pack is a downloadable .drawgle/ folder containing design tokens, handoff, manifest, and SKILL files for Cursor, Copilot, and Claude Code. It is one of the five export targets rather than the headline, and works best when paired with the native or HTML scaffold the team is shipping.",
+          "Drawgle exports high-fidelity standalone HTML and a structured Agent Pack with design tokens, assets, and implementation context for the developer's codebase.",
         proofPoint:
-          "Both tools ship a real AI coding tool handoff; Drawgle includes it as one of five export targets, Sleek gates it behind Pro and Team.",
+          "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
         winner: "tie",
         featured: false,
       },
@@ -385,11 +385,11 @@ export const comparisonPages: ComparisonPageData[] = [
       {
         title: "Mobile-first design focus",
         shortCompetitor: "Mobile-only by design; Figma-first handoff.",
-        shortDrawgle: "Mobile-only by design; production-ready code in mobile-native frameworks.",
+        shortDrawgle: "Mobile-only by design, with high-fidelity HTML and agent-ready handoff.",
         competitorBehavior:
           "Sleek.design is mobile-only by design, with a Figma-first handoff and a web-style HTML or React export path. The output is built to be edited in Figma or scaffolded into a web project.",
         drawgleBehavior:
-          "Drawgle is mobile-only by design, with five production-ready code export targets that include the actual mobile-native frameworks: React Native, SwiftUI, Jetpack Compose, and Flutter on top of standalone HTML. Neither tool tries to be a general-purpose web or desktop design tool.",
+          "Drawgle exports high-fidelity standalone HTML and a structured Agent Pack with design tokens, assets, and implementation context for the developer's codebase.",
         proofPoint:
           "Both tools are mobile-only; the difference is whether the mobile output is a Figma file or a buildable codebase in a real mobile framework.",
         winner: "tie",
@@ -440,13 +440,13 @@ export const comparisonPages: ComparisonPageData[] = [
         },
       ],
       verdict:
-        "Drawgle's pricing is built around the value of the code export itself, not just the screen generation. The Starter tier at $9/mo covers production-ready code in HTML, React Native, SwiftUI, Jetpack Compose, and Flutter for solo builders, while Studio at $79/mo competes with Sleek's $99/user/mo Team tier for design-led teams. Sleek's Free and Starter tiers are still cheaper for pure ideation volume, but Drawgle's credit pools are tuned to the moment after design approval, where each screen ships as a complete code package rather than a single asset.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
     },
     verdict: {
       competitorText:
         "Choose Sleek.design when Figma is the center of your design workflow, when you need high-volume AI credit pools, and when you want a tool that is exclusively tuned for mobile app mockups without pushing toward native code export.",
       drawgleText:
-        "Choose Drawgle when you need production-ready code from the canvas. The same project can export HTML, React Native, SwiftUI, Jetpack Compose, or Flutter, alongside design tokens and a navigation shell, so the result is something a team can build on instead of redesign.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       competitorIf: [
         "Your team already lives in Figma and wants native editable layer export.",
         "You want to generate many variations quickly and iterate visually at high volume.",
@@ -464,7 +464,7 @@ export const comparisonPages: ComparisonPageData[] = [
         niche: "Indie hackers shipping MVPs",
         bestTool: "drawgle",
         reason:
-          "Drawgle's Starter tier at $9/mo and production-ready code export (HTML, React Native, SwiftUI, Compose, Flutter) compresses the loop from prompt to shipping a real app for solo builders.",
+          "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       },
       {
         niche: "Design-led agencies",
@@ -476,7 +476,7 @@ export const comparisonPages: ComparisonPageData[] = [
         niche: "Native mobile teams (iOS / Android)",
         bestTool: "drawgle",
         reason:
-          "Built-in scaffolds for SwiftUI, Jetpack Compose, React Native, and Flutter mean teams targeting real devices get code in the framework they already use.",
+          "The Agent Pack gives mobile teams the assets, tokens, and implementation context needed for their chosen framework.",
       },
       {
         niche: "Investor pitch decks and quick mockups",
@@ -503,13 +503,13 @@ export const comparisonPages: ComparisonPageData[] = [
           role: "Solo developer building an MVP",
           goal: "Go from prompt to a running app UI as fast as possible.",
           whyFit:
-            "Drawgle's $9 Starter tier and five production-ready code export targets are built for that exact loop, no matter what stack the MVP lives on.",
+            "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
         },
         {
           role: "Native mobile engineer (iOS / Android)",
           goal: "Generate a UI in SwiftUI, Compose, or React Native without hand-writing the scaffold.",
           whyFit:
-            "Built-in native scaffolds include a theme file, screen file, and shared navigation component, so the export drops into an Xcode or Android Studio project as something buildable.",
+            "The Agent Pack includes design tokens, screen references, assets, and implementation instructions for coding agents.",
         },
         {
           role: "Startup CTO rebuilding a UI from scratch",
@@ -578,7 +578,7 @@ export const comparisonPages: ComparisonPageData[] = [
       title: "Our Recommendation",
       body: [
         "If your primary goal is to generate many polished mobile mockups and continue inside Figma, Sleek is the more direct tool. Its mobile-first output, native Figma export, and high credit limits are genuinely strong for that loop.",
-        "If your primary goal is to move from design to production-ready code in HTML, React Native, SwiftUI, Jetpack Compose, or Flutter, Drawgle is the better fit. The same canvas can export a real, buildable code package into the framework your team already ships in.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
         "If you operate both loops, treat Sleek as the ideation tool and Drawgle as the production tool. Many teams use both rather than forcing one to do both jobs.",
       ],
       recommendation:
@@ -603,21 +603,21 @@ export const comparisonPages: ComparisonPageData[] = [
     metadata: {
       title: "Drawgle vs Google Stitch (2026): Vibe Design vs Production Code",
       description:
-        "Google Stitch is a free Google Labs experiment that turns text, sketches, and voice into mobile and web UI. Drawgle is a commercial mobile-only design tool that exports production-ready code in HTML, React Native, SwiftUI, Jetpack Compose, and Flutter. Compare the real differences before you build on a sunset-risk tool.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       publishedDate: "2026-07-01",
       modifiedDate: "2026-07-05",
     },
     heroTitle:
       "Drawgle vs. Google Stitch: A Free Google Labs Experiment vs. a 2026 Mobile Product",
     sonicBoomSummary:
-      "Google Stitch and Drawgle both use generative AI to produce UI from prompts, but they answer very different questions. Stitch is positioned by Google Labs as a 'vibe design' canvas for fast text, sketch, and voice-to-UI exploration, with hard monthly generation caps, Figma and HTML export, and no paid plan. Drawgle is a commercial mobile-only product built around a curated 2026 design system and five production-ready code export targets, including React Native, SwiftUI, Jetpack Compose, and Flutter. The right choice depends on whether you are exploring ideas for free or shipping a real product that has to survive past a Google Labs sunset.",
+      "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
     quickVerdict: {
       competitorTitle: "Choose Google Stitch if free, fast exploration matters more than the final ship:",
       competitorDescription:
         "Stitch is the fastest way to try 'vibe design' without a subscription. If you want to throw prompts, sketches, and voice notes at a Gemini-powered canvas and get a high-fidelity mockup back, then iterate visually inside Figma or scaffold the result in HTML, Stitch is genuinely free and genuinely quick. The cost is hard monthly generation caps, no paid upgrade path, weak design system control, and the inherent risk of building a paid workflow on a Google Labs experiment.",
       drawgleTitle: "Choose Drawgle if the goal is a shippable mobile product, not a slick mockup:",
       drawgleDescription:
-        "Drawgle is a commercial mobile-only product built around the moment after the mockup is approved. The canvas exports production-ready code in HTML, React Native, SwiftUI, Jetpack Compose, and Flutter, alongside design tokens and a navigation shell, so the result lands in a repository as something a team can build on. Pricing is predictable, design system control is built in, and the product is not at risk of being deprecated by a parent company's experiments portfolio.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
     },
     premiumMoat: {
       eyebrow: "Why Drawgle over Google Stitch",
@@ -638,15 +638,15 @@ export const comparisonPages: ComparisonPageData[] = [
     },
     comparisonRows: [
       {
-        title: "Production-ready native code, not scaffolding HTML",
+        title: "High-fidelity HTML and engineering handoff",
         shortCompetitor: "HTML and React export treated as scaffolding, not production code.",
-        shortDrawgle: "Five native export targets: HTML, React Native, SwiftUI, Jetpack Compose, Flutter.",
+        shortDrawgle: "High-fidelity HTML plus a structured Agent Pack.",
         competitorBehavior:
           "Google Stitch's own public guidance is to treat its HTML and React export as scaffolding rather than as production code, so a developer still has to rewrite the export in the team's actual stack before it can ship.",
         drawgleBehavior:
-          "Drawgle exports the same screen as standalone HTML, React Native, SwiftUI, Jetpack Compose, or Flutter, each including a theme file and a shared navigation component, so the result lands in Xcode, Android Studio, or a real web project as something a team can build on.",
+          "Drawgle exports high-fidelity standalone HTML and a structured Agent Pack with design tokens, assets, and implementation context for the developer's codebase.",
         proofPoint:
-          "Five production-ready code export targets, not one web-style scaffold the developer has to translate.",
+          "High-fidelity standalone HTML plus a structured Agent Pack for implementation.",
         winner: "drawgle",
         featured: true,
       },
@@ -748,9 +748,9 @@ export const comparisonPages: ComparisonPageData[] = [
         competitorBehavior:
           "Stitch is positioned as a general-purpose vibe design canvas that can target mobile and web surfaces. It is not strictly mobile-only.",
         drawgleBehavior:
-          "Drawgle is strictly a mobile product: there is no web, tablet, or desktop design surface, and the export targets are React Native, SwiftUI, Jetpack Compose, and Flutter on top of standalone HTML. If your project is a real mobile app and your team is shipping to a real device, mobile-only is a feature, not a limitation.",
+          "Drawgle exports high-fidelity standalone HTML and a structured Agent Pack with design tokens, assets, and implementation context for the developer's codebase.",
         proofPoint:
-          "Different scope choices: general-purpose vibe design versus a focused, mobile-only product with mobile-native code export.",
+          "Different scope choices: general-purpose vibe design versus a focused, mobile-only product with mobile-focused engineering handoff.",
         winner: "tie",
         featured: false,
       },
@@ -791,13 +791,13 @@ export const comparisonPages: ComparisonPageData[] = [
         },
       ],
       verdict:
-        "Stitch is free, and that is a real advantage for early-stage exploration. The hidden cost shows up when a project graduates from 'first screen' to 'ten-screen product with native code': Stitch does not publish a paid tier, the monthly generation caps are hard, and the platform is a Google Labs experiment that can be deprecated. Drawgle's Starter tier at $9/mo is a fair benchmark for the price of one full screen per day; Pro at $21.75/mo and Studio at $79/mo are built for teams shipping real code, not exploring an idea for a weekend. The right framing is not 'Stitch is cheaper' but 'free exploration versus paid shipping'.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
     },
     verdict: {
       competitorText:
         "Choose Google Stitch when you want to explore UI ideas for free, you need sketch and voice input as a first-class surface, and you are comfortable treating the HTML or React export as scaffolding that a developer will rewrite. Stitch is at its best for early exploration, not for shipping a ten-screen product.",
       drawgleText:
-        "Choose Drawgle when the goal after the mockup is a real, shippable mobile product. The same canvas can export production-ready code in HTML, React Native, SwiftUI, Jetpack Compose, or Flutter, with design tokens, a navigation shell, and a project context that survives a rebrand. Pricing is predictable, the product is commercial, and the roadmap is not at the mercy of a Labs deprecation cycle.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       competitorIf: [
         "You want to try 'vibe design' for free before committing to any paid tool.",
         "Sketch-to-UI, voice-to-UI, and image-to-UI are central to how you think through a product.",
@@ -825,7 +825,7 @@ export const comparisonPages: ComparisonPageData[] = [
         niche: "Native mobile teams shipping to a real app store",
         bestTool: "drawgle",
         reason:
-          "Built-in scaffolds for SwiftUI, Jetpack Compose, React Native, and Flutter, with theme files and navigation, land directly in an Xcode or Android Studio project as something buildable.",
+          "The Agent Pack includes design tokens, navigation context, assets, and screen references for implementation.",
       },
       {
         niche: "Sketch-led designers who think in marks",
@@ -864,13 +864,13 @@ export const comparisonPages: ComparisonPageData[] = [
           role: "Solo founder building a real mobile MVP",
           goal: "Move from a prompt to a shippable mobile app as fast as possible.",
           whyFit:
-            "Drawgle's $9 Starter tier and five production-ready code export targets compress the loop from idea to a real Xcode, Android Studio, or web project.",
+            "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
         },
         {
           role: "Native mobile engineer (iOS / Android)",
           goal: "Generate a UI in SwiftUI, Compose, or React Native without writing the scaffold by hand.",
           whyFit:
-            "Built-in native scaffolds include a theme file, a screen file, and a shared navigation component, so the export drops into a real project as something buildable rather than something to rewrite.",
+            "The Agent Pack includes design tokens, screen references, assets, and implementation instructions for the target repository.",
         },
         {
           role: "Startup CTO rebuilding a UI from scratch",
@@ -949,7 +949,7 @@ export const comparisonPages: ComparisonPageData[] = [
       title: "Our Recommendation",
       body: [
         "If your goal is to throw prompts, sketches, and voice notes at a free canvas and get an impressive first draft back, Google Stitch is genuinely good at that and genuinely free. It is a reasonable tool for the exploration phase of a product, and there is no reason not to keep an account as long as it remains available.",
-        "If your goal is to move from an approved design to a real mobile product in a real codebase, Drawgle is the more direct path. The same canvas can export production-ready code in HTML, React Native, SwiftUI, Jetpack Compose, or Flutter, with design tokens and a navigation shell that hold a ten-screen product together. Pricing is predictable, the product is commercial, and the roadmap is not at the mercy of a Google Labs deprecation cycle.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
         "The honest answer for many teams is to use both: Stitch for the sketch-led exploration, Drawgle for the code-led shipping. The two tools are aimed at different stages of a product, and a small team can comfortably use one for ideation and the other for production.",
       ],
       recommendation:
@@ -974,21 +974,21 @@ export const comparisonPages: ComparisonPageData[] = [
     metadata: {
       title: "Drawgle vs App Alchemy (2026): AI Mobile App Design Comparison",
       description:
-        "App Alchemy focuses on browser-based mobile app design, template cloning, image-led starts, and HTML or design-link export. Drawgle is a mobile-only AI UI builder that exports production-ready code in HTML, React Native, SwiftUI, Jetpack Compose, and Flutter. Compare pricing, workflow, and handoff clarity.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       publishedDate: "2026-07-05",
       modifiedDate: "2026-07-05",
     },
     heroTitle:
       "Drawgle vs. App Alchemy: Fast Mobile Mockups or Build-Ready Mobile UI?",
     sonicBoomSummary:
-      "App Alchemy's public story is built around fast browser-based mobile app design: chat your way into a concept, start from templates or images, iterate visually, and export the result as a design artifact. Drawgle is narrower and more explicit. It is a mobile-only UI builder that turns approved screens into production-ready code in HTML, React Native, SwiftUI, Jetpack Compose, and Flutter. So the real comparison is not which tool can make a pretty first screen faster. It is whether the output after approval is still a mockup or already part of the product.",
+      "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
     quickVerdict: {
       competitorTitle: "Choose App Alchemy if your first priority is fast concept generation in the browser:",
       competitorDescription:
         "App Alchemy is a clean fit when the job is exploring app ideas quickly, cloning a reference pattern, starting from an image, and sharing a design link without pulling the team into a heavier workflow. Its paid plans also publish much larger credit pools than Drawgle, which matters if you want to generate lots of visual variations every month.",
       drawgleTitle: "Choose Drawgle if your first priority is getting from approved screen to real code:",
       drawgleDescription:
-        "Drawgle is built for the point in the workflow where the design is no longer the deliverable. The same screen can leave the canvas as production-ready HTML, React Native, SwiftUI, Jetpack Compose, or Flutter, with tokens and navigation structure intact, so a developer starts from shipped code rather than a design link or an HTML mockup.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
     },
     premiumMoat: {
       eyebrow: "Why Drawgle over App Alchemy",
@@ -1011,13 +1011,13 @@ export const comparisonPages: ComparisonPageData[] = [
       {
         title: "Buildable code outputs, not HTML or a shareable design link",
         shortCompetitor: "Publicly documented export is HTML and a shareable design link.",
-        shortDrawgle: "Exports ship as HTML, React Native, SwiftUI, Jetpack Compose, and Flutter.",
+        shortDrawgle: "High-fidelity HTML plus a structured Agent Pack.",
         competitorBehavior:
           "App Alchemy's public FAQ says designs can be exported in HTML format and as a design link you can share with anyone, while the pricing page frames the outcome as 'Export App Design'. That is useful for review and early handoff, but it is still a design artifact first.",
         drawgleBehavior:
-          "Drawgle treats the export as the start of engineering, not the end of design. The same approved screen can leave the canvas as HTML, React Native, SwiftUI, Jetpack Compose, or Flutter with the supporting theme and navigation pieces a team expects in a real project.",
+          "Drawgle exports high-fidelity standalone HTML and a structured Agent Pack with design tokens, assets, and implementation context for the developer's codebase.",
         proofPoint:
-          "The handoff ends in framework-specific code instead of a browser link or a generic HTML design export.",
+          "The handoff ends in implementation-ready context instead of a browser link or a generic HTML design export.",
         winner: "drawgle",
         featured: true,
       },
@@ -1180,7 +1180,7 @@ export const comparisonPages: ComparisonPageData[] = [
       competitorText:
         "Choose App Alchemy when your team wants a browser-based mobile design lab with large credit pools, fast concept exploration, template cloning, and image-led starts. It is best when the output can still be a design artifact and the team values idea volume over engineering specificity.",
       drawgleText:
-        "Choose Drawgle when the design step is expected to collapse directly into implementation. The mobile-only scope, explicit framework targets, token system, and more coherent multi-screen workflow make it the stronger choice for teams that care where the asset goes after approval, not just how quickly it appears on screen.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       competitorIf: [
         "You want to generate many app concepts each month and care more about credit volume than engineering handoff.",
         "Template cloning is an important part of your workflow.",
@@ -1246,7 +1246,7 @@ export const comparisonPages: ComparisonPageData[] = [
           role: "Solo founder building one real mobile product",
           goal: "Move from concept approval to implementation without a second redesign phase.",
           whyFit:
-            "Drawgle's lower entry price and framework-specific exports are a better match for a founder who needs the next step to be real code, not more mockups.",
+            "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
         },
         {
           role: "React Native or Flutter builder",
@@ -1313,7 +1313,7 @@ export const comparisonPages: ComparisonPageData[] = [
       {
         question: "Does App Alchemy export real iOS and Android code?",
         answer:
-          "Its homepage currently uses stronger app-builder language, but the public FAQ says designs can be exported in HTML format and as a shareable design link, and the pricing page repeatedly frames the output as app design export. Based on the public pages, Drawgle has the much clearer engineering handoff because it names the actual framework outputs upfront: HTML, React Native, SwiftUI, Jetpack Compose, and Flutter.",
+          "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       },
       {
         question: "Is App Alchemy cheaper than Drawgle?",
@@ -1331,7 +1331,7 @@ export const comparisonPages: ComparisonPageData[] = [
       title: "Our Recommendation",
       body: [
         "App Alchemy is strongest when the work still looks like concept generation. Its public surface is tuned for browser convenience, visual exploration, template cloning, image-led starts, and enough credits to try many directions without feeling constrained. If your team still needs a mockup, a review link, or a quick HTML export, it is a credible option.",
-        "Drawgle is stronger once the design has to stop being a design artifact and start being part of the product. The mobile-only scope, explicit framework outputs, token-driven consistency, and lower entry price make it a better fit for founders and teams who need a serious handoff into implementation.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
         "So the honest split is simple: App Alchemy is better for broad design exploration; Drawgle is better for turning an approved mobile UI into something engineering can immediately continue from.",
       ],
       recommendation:
@@ -1356,21 +1356,21 @@ export const comparisonPages: ComparisonPageData[] = [
     metadata: {
       title: "Drawgle vs floow.design (2026): AI Mobile Design Tool Comparison",
       description:
-        "floow.design is a mobile-first AI design tool with Figma export, React Native and Flutter code generation, HTML download, preview links, and multi-screen flows. Drawgle is a mobile-only AI UI builder focused on production-ready handoff in HTML, React Native, SwiftUI, Jetpack Compose, and Flutter. Compare the real workflow differences.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       publishedDate: "2026-07-05",
       modifiedDate: "2026-07-05",
     },
     heroTitle:
       "Drawgle vs. floow.design: Mobile-First AI Design Handoff vs. Build-Ready Mobile Output",
     sonicBoomSummary:
-      "floow.design is the closest competitor in the set so far because it is also unapologetically mobile-first. Its public surface is built around high-fidelity mobile design, template-led starts, iOS and Android variants, multi-screen flows, Figma export, preview links, and code generation for React Native, Flutter, and HTML. Drawgle overlaps on mobile focus and code export, but its center of gravity is different. It is less about flexible handoff to many downstream tools and more about turning an approved mobile UI directly into something the product team can keep building inside the exact framework they ship, including SwiftUI and Jetpack Compose. The real decision is whether your workflow ends in a design handoff surface or in a framework-specific engineering starting point.",
+      "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
     quickVerdict: {
       competitorTitle: "Choose floow.design if you want the strongest design-first mobile workflow in this category:",
       competitorDescription:
         "floow.design is a serious fit for teams that want polished mobile screens fast, Figma as a first-class destination, shareable preview links for review, multi-screen flows, and simultaneous iOS and Android variants from one prompt. It is especially strong when your workflow still passes through design review, client presentation, or an AI-builder handoff.",
       drawgleTitle: "Choose Drawgle if the approved design is expected to become the real mobile codebase next:",
       drawgleDescription:
-        "Drawgle is tighter around the moment after approval. Its mobile-only scope and explicit production-ready export targets, including SwiftUI and Jetpack Compose alongside React Native, Flutter, and HTML, make it the stronger choice when the team wants to shorten the jump from UI generation to implementation rather than optimize for a richer design handoff layer.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
     },
     premiumMoat: {
       eyebrow: "Why Drawgle over floow.design",
@@ -1385,7 +1385,7 @@ export const comparisonPages: ComparisonPageData[] = [
         "Reviewed floow.design's homepage positioning around mobile-first AI design, templates, iOS and Android readiness, multi-screen flows, and custom themes.",
         "Reviewed floow.design's pricing page for plan structure, approximate screen counts, project caps, preview links, code export, and collaboration features.",
         "Reviewed floow.design's export feature page for Figma export, React Native and Flutter code generation, HTML/CSS export, and shareable previews.",
-        "Cross-checked Drawgle's mobile-only scope and framework-specific export targets against the live product and comparison content already in the codebase.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
         "Compared where each workflow naturally ends: design handoff, AI builder handoff, or a direct framework-specific engineering start.",
       ],
     },
@@ -1393,11 +1393,11 @@ export const comparisonPages: ComparisonPageData[] = [
       {
         title: "Framework depth for mobile engineers",
         shortCompetitor: "Code generation for React Native, Flutter, and HTML/CSS.",
-        shortDrawgle: "Exports include React Native, Flutter, SwiftUI, Jetpack Compose, and HTML.",
+        shortDrawgle: "High-fidelity HTML plus a structured Agent Pack.",
         competitorBehavior:
           "floow.design publicly supports React Native, Flutter, and HTML/CSS export, which is already stronger than most design-first AI tools. But its code story is still centered on the handoff layer: give engineering or another builder a structured starting point and keep moving.",
         drawgleBehavior:
-          "Drawgle pushes further into the native implementation path. It names SwiftUI and Jetpack Compose alongside React Native, Flutter, and HTML, which matters for teams shipping directly into Apple's and Android's native UI stacks instead of treating React Native or Flutter as the only serious mobile outcomes.",
+          "Drawgle exports high-fidelity standalone HTML and a structured Agent Pack with design tokens, assets, and implementation context for the developer's codebase.",
         proofPoint:
           "Drawgle is the stronger fit when native iOS and native Android frameworks are part of the real delivery path, not just cross-platform stacks.",
         winner: "drawgle",
@@ -1556,11 +1556,11 @@ export const comparisonPages: ComparisonPageData[] = [
       competitorText:
         "Choose floow.design when your team still lives in the design and prototype layer. It is one of the strongest mobile-first AI design tools in the market: Figma export, preview links, React Native and Flutter generation, templates, multi-screen flows, platform-specific iOS and Android variants, and theme export all make sense together.",
       drawgleText:
-        "Choose Drawgle when the design layer is supposed to collapse directly into implementation. Its narrower, more opinionated export story is an advantage for teams who want fewer handoffs, more explicit native-framework coverage, and a builder that is less about presentation surfaces and more about moving toward a real shipped mobile product.",
+        "Choose Drawgle when the design layer is supposed to collapse directly into implementation. Its narrower, more opinionated export story is an advantage for teams who want fewer handoffs, more explicit mobile engineering handoff depth, and a builder that is less about presentation surfaces and more about moving toward a real shipped mobile product.",
       competitorIf: [
         "Your workflow still depends heavily on Figma files, preview links, and design review loops.",
         "You want simultaneous iOS and Android design variants from one prompt.",
-        "Template-led flows, states, and clickable prototype structure matter more right now than deeper native-framework coverage.",
+        "Template-led flows, states, and clickable prototype structure matter more right now than deeper mobile engineering handoff depth.",
         "You need token export and brand-theme portability across several external environments.",
         "REST API access, team collaboration, and design-layer automation are meaningful to your process.",
       ],
@@ -1583,7 +1583,7 @@ export const comparisonPages: ComparisonPageData[] = [
         niche: "Native mobile teams shipping directly into Apple and Android stacks",
         bestTool: "drawgle",
         reason:
-          "Drawgle's public support for SwiftUI and Jetpack Compose makes it the more direct option for teams that are truly native-first.",
+          "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       },
       {
         niche: "Founders comparing iOS and Android directions side by side",
@@ -1688,7 +1688,7 @@ export const comparisonPages: ComparisonPageData[] = [
       {
         question: "Is floow.design basically the same as Drawgle?",
         answer:
-          "No. It is the closest competitor so far, but the center of gravity is different. floow.design is a stronger design-first platform with Figma export, preview links, multi-screen flows, theme portability, and simultaneous iOS and Android design variants. Drawgle is stronger when the approved screen is expected to become the actual mobile codebase next, especially if SwiftUI or Jetpack Compose are part of the delivery path.",
+          "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       },
       {
         question: "Which tool is better for Figma-based teams?",
@@ -1698,7 +1698,7 @@ export const comparisonPages: ComparisonPageData[] = [
       {
         question: "Which tool is better for real mobile engineering handoff?",
         answer:
-          "If the team is handing off into React Native or Flutter and still wants a strong design-review layer, floow.design is credible. If the team wants fewer steps between approval and implementation, and especially if SwiftUI or Jetpack Compose matter, Drawgle has the clearer path. The deciding factor is whether you need richer design handoff or a tighter route into the actual mobile stack.",
+          "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       },
     ],
     sources: floowSources,
@@ -1706,11 +1706,11 @@ export const comparisonPages: ComparisonPageData[] = [
       title: "Our Recommendation",
       body: [
         "floow.design is one of the most serious mobile-first AI design tools in the category. It does many things right that most competitors still miss: platform-aware iOS and Android design, multi-screen flows, custom themes, structured Figma export, preview sharing, and code generation that already reaches into React Native and Flutter.",
-        "Drawgle still has a cleaner answer for a different moment in the workflow. When the prototype is no longer the goal and the team wants the approved UI to become the real mobile implementation surface quickly, the narrower, more opinionated export path becomes an advantage. That is especially true for teams working in SwiftUI and Jetpack Compose, where Drawgle's public handoff story is stronger.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
         "So the honest split is this: choose floow.design when design exploration, cross-platform prototyping, and Figma-centered collaboration still drive the project. Choose Drawgle when the team is already aligned and wants the shortest path from approved mobile UI to framework-specific product code.",
       ],
       recommendation:
-        "Final Recommendation: choose floow.design for premium mobile design exploration, Figma handoff, and cross-platform prototype workflows. Choose Drawgle when the approved UI needs to become real mobile code with fewer handoffs and stronger native-framework coverage, especially for SwiftUI and Jetpack Compose teams.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       drawgleCta: {
         label: "Try Drawgle",
         href: "/login",
@@ -1731,7 +1731,7 @@ export const comparisonPages: ComparisonPageData[] = [
     metadata: {
       title: "Drawgle vs ScreensDesign (2026): AI Mobile App Design Comparison",
       description:
-        "ScreensDesign combines a top-iOS-app research library with AI generation for onboarding flows, paywalls, and app screens, plus Figma copy and HTML or CSS export. Drawgle is a mobile-only AI UI builder focused on production-ready code in HTML, React Native, SwiftUI, Jetpack Compose, and Flutter. Compare the real workflow differences.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       publishedDate: "2026-07-05",
       modifiedDate: "2026-07-05",
     },
@@ -1745,13 +1745,13 @@ export const comparisonPages: ComparisonPageData[] = [
         "ScreensDesign is strongest when the team wants to study winning subscription-app patterns, borrow proven onboarding and paywall structures, and then generate fast variations that can be copied to Figma or exported as HTML or CSS for quick implementation. It is a focused tool for growth loops, not a general-purpose mobile product builder.",
       drawgleTitle: "Choose Drawgle if you are designing more than the monetization layer and need a clearer build path:",
       drawgleDescription:
-        "Drawgle is the better fit when the product is not just a paywall funnel. It is built for the whole mobile UI system and the moment after approval, where screens need to move into HTML, React Native, SwiftUI, Jetpack Compose, or Flutter rather than remain mostly in research, Figma, or HTML/CSS prototype territory.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
     },
     premiumMoat: {
       eyebrow: "Why Drawgle over ScreensDesign",
       title: "How Drawgle and ScreensDesign actually differ",
       intro:
-        "ScreensDesign wins by being narrow on purpose. It is built around the highest-leverage screens in subscription apps, especially onboarding, paywalls, and the research library behind them. Drawgle wins when the work extends beyond growth screens and into the full mobile product, where consistency, broader screen coverage, and framework-specific exports matter more than a giant library of top-grossing app patterns.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
     },
     methodology: {
       summary:
@@ -1760,7 +1760,7 @@ export const comparisonPages: ComparisonPageData[] = [
         "Reviewed ScreensDesign's homepage positioning around top iOS app research, onboarding and paywall flows, revenue signals, and AI screen creation.",
         "Reviewed ScreensDesign's pricing page for Full Pro monthly pricing, create credits, library access, exports, and support wording.",
         "Reviewed public ScreensDesign export and FAQ snippets for Copy to Figma, HTML/CSS export, and commercial-use language.",
-        "Cross-checked Drawgle's mobile-only scope and framework-specific export targets against the live product surface and existing comparison data.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
         "Compared whether each workflow is better suited to conversion-screen iteration or to broader mobile product delivery.",
       ],
     },
@@ -1794,11 +1794,11 @@ export const comparisonPages: ComparisonPageData[] = [
       {
         title: "Production-ready framework output versus HTML or CSS prototypes",
         shortCompetitor: "Public export story centers on Copy to Figma and HTML or CSS code for created screens.",
-        shortDrawgle: "Exports include HTML, React Native, SwiftUI, Jetpack Compose, and Flutter.",
+        shortDrawgle: "High-fidelity HTML plus a structured Agent Pack.",
         competitorBehavior:
           "ScreensDesign publicly promises Copy to Figma and HTML/CSS export for AI Create screens. That is useful for prototyping paywalls and onboarding flows fast, but it still leaves the team short of named native-framework outputs for a broader mobile codebase.",
         drawgleBehavior:
-          "Drawgle treats export as the start of implementation, not just a convenience layer. Screens can leave the builder as HTML, React Native, SwiftUI, Jetpack Compose, or Flutter, which makes the handoff materially closer to a real shipped app.",
+          "Drawgle exports high-fidelity standalone HTML and a structured Agent Pack with design tokens, assets, and implementation context for the developer's codebase.",
         proofPoint:
           "Drawgle gives engineering a clearer continuation path than a Figma copy or an HTML/CSS prototype export.",
         winner: "drawgle",
@@ -1870,13 +1870,13 @@ export const comparisonPages: ComparisonPageData[] = [
         featured: false,
       },
       {
-        title: "AI coding-agent handoff versus framework-specific engineering handoff",
+        title: "AI coding-agent handoff versus agent-ready engineering handoff",
         shortCompetitor: "Publicly encourages generating screens and feeding them to AI coding agents.",
         shortDrawgle: "Makes the target implementation frameworks explicit upfront.",
         competitorBehavior:
           "ScreensDesign frames the next step as 'let AI coding agents build them', which is a modern and useful story for fast experimentation. But it still keeps the implementation path abstract at the tool level.",
         drawgleBehavior:
-          "Drawgle is more explicit about where the work goes next. The framework targets are named, the mobile-only scope is clear, and the handoff is easier to reason about for teams that already know their stack.",
+          "Drawgle is explicit about where the work goes next: standalone HTML and a structured Agent Pack for teams that already know their stack.",
         proofPoint:
           "Drawgle is the better fit when engineering wants an explicit framework destination instead of a more open-ended agent handoff.",
         winner: "drawgle",
@@ -1919,7 +1919,7 @@ export const comparisonPages: ComparisonPageData[] = [
       competitorText:
         "Choose ScreensDesign when your team is working on subscription-app growth and needs better onboarding, paywalls, and conversion flows. Its research library, top-app examples, revenue signals, Copy to Figma workflow, and HTML/CSS export make it a sharp tool for monetization-focused design work.",
       drawgleText:
-        "Choose Drawgle when the work extends beyond the funnel and into the actual product. It is the better fit for teams designing a full mobile system and expecting the approved screens to become code in HTML, React Native, SwiftUI, Jetpack Compose, or Flutter rather than staying mostly in research, Figma, or HTML/CSS prototype form.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       competitorIf: [
         "Your biggest design problem is onboarding conversion, paywalls, or subscription-funnel performance.",
         "You want to study what top-grossing iOS apps are doing before generating new concepts.",
@@ -1929,7 +1929,7 @@ export const comparisonPages: ComparisonPageData[] = [
       ],
       drawgleIf: [
         "You are building more than the paywall and need the rest of the mobile product to be equally strong.",
-        "The approved design needs to become framework-specific code next, not just a Figma asset or HTML/CSS prototype.",
+        "The approved design needs to become implementation-ready context next, not just a Figma asset or HTML/CSS prototype.",
         "You want a cheaper entry point than $39 per month while validating one serious mobile app idea.",
         "You care more about implementation continuity than about a giant research library of existing conversion patterns.",
         "Your team already knows the product direction and needs a clearer mobile engineering path.",
@@ -1946,7 +1946,7 @@ export const comparisonPages: ComparisonPageData[] = [
         niche: "Teams building the whole mobile product, not just monetization surfaces",
         bestTool: "drawgle",
         reason:
-          "Drawgle has the broader app-surface value and the clearer path into real framework-specific implementation.",
+          "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       },
       {
         niche: "Growth designers studying market patterns before designing",
@@ -1958,7 +1958,7 @@ export const comparisonPages: ComparisonPageData[] = [
         niche: "Mobile engineers expecting code in the real target stack",
         bestTool: "drawgle",
         reason:
-          "Drawgle names the actual framework outputs upfront instead of stopping at Figma or HTML/CSS export.",
+          "Drawgle provides standalone HTML plus a structured Agent Pack instead of stopping at a visual design artifact.",
       },
       {
         niche: "Teams doing fast paywall experiments with design review in Figma",
@@ -2061,7 +2061,7 @@ export const comparisonPages: ComparisonPageData[] = [
       {
         question: "Who should choose Drawgle over ScreensDesign?",
         answer:
-          "Choose Drawgle if your team is designing more than paywalls and onboarding. It is the better option when you need a broader mobile UI system, a cheaper entry point, and a clearer export path into HTML, React Native, SwiftUI, Jetpack Compose, or Flutter.",
+          "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       },
     ],
     sources: screensDesignSources,
@@ -2069,7 +2069,7 @@ export const comparisonPages: ComparisonPageData[] = [
       title: "Our Recommendation",
       body: [
         "ScreensDesign is a smart, focused tool. It is strongest where many mobile teams actually lose money: weak onboarding, weak paywalls, and monetization screens built without enough market context. Its research library and AI creation layer make it a serious option for subscription teams that want faster, better conversion design.",
-        "Drawgle is still the better choice for a different class of problem. When the task is not just 'improve the paywall' but 'design and ship the whole mobile product', the broader product scope and clearer framework-specific export path matter more than a dense research library.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
         "So the honest split is this: choose ScreensDesign for research-backed subscription-funnel work. Choose Drawgle when the team needs a stronger full-product mobile builder with a clearer route into actual implementation.",
       ],
       recommendation:
@@ -2094,14 +2094,14 @@ export const comparisonPages: ComparisonPageData[] = [
     metadata: {
       title: "Drawgle vs Visily (2026): AI Mobile UI Builder vs Wireframing Tool",
       description:
-        "Visily is an AI wireframing and prototyping tool for non-designers with text-to-UI, screenshot-to-wireframe, Figma import and export, templates, and collaboration features. Drawgle is a mobile-only AI UI builder focused on premium mobile output and production-ready code in HTML, React Native, SwiftUI, Jetpack Compose, and Flutter. Compare the real workflow differences.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       publishedDate: "2026-07-05",
       modifiedDate: "2026-07-05",
     },
     heroTitle:
       "Drawgle vs. Visily: Non-Designer Wireframes or Build-Ready Premium Mobile UI?",
     sonicBoomSummary:
-      "Visily and Drawgle both use AI to turn ideas into screens, but they do not start from the same job. Visily is openly designed for non-designers, product managers, business analysts, and cross-functional teams who need wireframes, mockups, prototypes, diagrams, and stakeholder-ready visuals without learning a heavyweight design tool. It supports text-to-UI, screenshot-to-wireframe, templates, collaboration, Figma import and export, and a free starter plan. Drawgle is solving a tighter problem. It is a mobile-only builder built around premium mobile UI quality and what happens after approval, where the work needs to become real code in HTML, React Native, SwiftUI, Jetpack Compose, or Flutter. So the real comparison is not just 'which AI makes screens'. It is whether you need a collaborative ideation and wireframing platform for broad teams or a stronger mobile product builder with a clearer engineering path.",
+      "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
     quickVerdict: {
       competitorTitle: "Choose Visily if your team needs the easiest AI wireframing and prototyping workflow:",
       competitorDescription:
@@ -2118,12 +2118,12 @@ export const comparisonPages: ComparisonPageData[] = [
     },
     methodology: {
       summary:
-        "This comparison is based on Visily's public homepage, pricing page, and wireframing tool page as of July 2026, plus Drawgle's live product surface. The focus is on what each product is clearly optimized for in public: non-designer wireframing and collaboration versus premium mobile UI generation and framework-specific engineering handoff.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       checks: [
         "Reviewed Visily's homepage positioning around non-designers, collaboration, text prompts, screenshots, diagrams, and prototypes.",
         "Reviewed Visily's pricing page for Starter, Pro, and Business plan structure, AI credits, Figma import and export, export to code, and team limits.",
         "Reviewed Visily's wireframing tool page for text-to-UI, Screenshot to Wireframe, templates, prototyping, and broad wireframing workflow claims.",
-        "Cross-checked Drawgle's mobile-only scope and framework-specific export targets against the live product and existing comparison data.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
         "Compared whether each workflow is better suited to team ideation and wireframing or to building a premium mobile product that moves toward code.",
       ],
     },
@@ -2155,13 +2155,13 @@ export const comparisonPages: ComparisonPageData[] = [
         featured: true,
       },
       {
-        title: "Production-ready framework path versus generic export surfaces",
+        title: "Structured engineering handoff versus generic export surfaces",
         shortCompetitor: "Public paid plans include Figma import and export plus export to code, but without the same mobile-framework depth.",
-        shortDrawgle: "Exports are explicit: HTML, React Native, SwiftUI, Jetpack Compose, and Flutter.",
+        shortDrawgle: "High-fidelity HTML plus a structured Agent Pack.",
         competitorBehavior:
           "Visily's pricing page includes Figma import and export, export to code, and strong prototype and presentation features. That is useful for general product design work, but the public story is not centered on a specific mobile implementation destination in the way a shipping team usually wants.",
         drawgleBehavior:
-          "Drawgle is much clearer about where the work goes next. The mobile-only scope and the named outputs in HTML, React Native, SwiftUI, Jetpack Compose, and Flutter make the handoff more concrete and easier to reason about for teams already building the app.",
+          "Drawgle exports high-fidelity standalone HTML and a structured Agent Pack with design tokens, assets, and implementation context for the developer's codebase.",
         proofPoint:
           "Drawgle gives engineering a more explicit mobile-framework destination than Visily's broader wireframing export surface.",
         winner: "drawgle",
@@ -2294,7 +2294,7 @@ export const comparisonPages: ComparisonPageData[] = [
       competitorText:
         "Choose Visily when your team needs a collaborative AI wireframing and prototyping workspace that non-designers can actually use. It is a strong tool for product managers, business analysts, startup founders, and mixed teams that need to move quickly from rough idea to presentable visual concept.",
       drawgleText:
-        "Choose Drawgle when the output is expected to become a serious mobile product rather than remain mainly a wireframe, prototype, or cross-functional discussion asset. Its mobile-only focus and clearer framework-specific export path make it a better fit once the team is committed to shipping the app.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       competitorIf: [
         "Your team includes many non-designers who still need to create and edit UI concepts.",
         "You want to start from screenshots, diagrams, templates, or text prompts depending on the situation.",
@@ -2321,7 +2321,7 @@ export const comparisonPages: ComparisonPageData[] = [
         niche: "Teams building a premium mobile MVP that should move into code quickly",
         bestTool: "drawgle",
         reason:
-          "Drawgle's mobile-only scope and explicit framework outputs make it the cleaner fit once the goal is shipping the product.",
+          "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       },
       {
         niche: "Organizations testing AI design adoption with minimal risk",
@@ -2336,7 +2336,7 @@ export const comparisonPages: ComparisonPageData[] = [
           "Visily's multimodal starting points are a real strength for messy cross-functional ideation.",
       },
       {
-        niche: "Mobile engineers expecting framework-specific outputs",
+        niche: "Mobile engineers expecting implementation-ready handoffs",
         bestTool: "drawgle",
         reason:
           "Drawgle names the target implementation frameworks clearly, which makes the handoff easier to reason about for engineering.",
@@ -2417,7 +2417,7 @@ export const comparisonPages: ComparisonPageData[] = [
       ],
       competitor: [
         "Visily is optimized for accessibility, collaboration, and wireframing breadth rather than for a premium mobile-only product-building workflow.",
-        "Public export language is broader and less mobile-framework-specific than Drawgle's named outputs in React Native, SwiftUI, Jetpack Compose, Flutter, and HTML.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
         "Because it supports both web and mobile wireframes, the focus is less intense on premium mobile-specific product output.",
         "It is strongest while the team is still ideating, prototyping, and aligning; it becomes less differentiated once the goal is moving the approved UI directly into a real mobile codebase.",
       ],
@@ -2436,7 +2436,7 @@ export const comparisonPages: ComparisonPageData[] = [
       {
         question: "Who should choose Drawgle over Visily?",
         answer:
-          "Choose Drawgle if the output is meant to become a premium mobile app rather than stay mainly in the wireframe or prototype stage. It is the stronger option when the next step is framework-specific implementation in HTML, React Native, SwiftUI, Jetpack Compose, or Flutter.",
+          "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       },
     ],
     sources: visilySources,
@@ -2448,7 +2448,7 @@ export const comparisonPages: ComparisonPageData[] = [
         "So the honest split is simple: choose Visily for easy team-wide wireframing, prototyping, and idea communication. Choose Drawgle when the work is already becoming a real mobile product and the approved UI needs a stronger route into shipped code.",
       ],
       recommendation:
-        "Final Recommendation: choose Visily for non-designer wireframing, collaboration, and flexible ideation across mobile and web. Choose Drawgle when the team needs premium mobile UI with a clearer path into real framework-specific implementation.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       drawgleCta: {
         label: "Try Drawgle",
         href: "/login",
@@ -2469,27 +2469,27 @@ export const comparisonPages: ComparisonPageData[] = [
     metadata: {
       title: "Drawgle vs Uizard (2026): AI Mobile UI Builder vs AI Prototyping Tool",
       description:
-        "Uizard is an AI prototyping and UI design tool for product teams with Autodesigner, Screenshot Scanner, Wireframe Scanner, predictive heatmaps, and component-level React and CSS handoff. Drawgle is a mobile-only AI UI builder focused on premium mobile output and production-ready code in HTML, React Native, SwiftUI, Jetpack Compose, and Flutter. Compare the real workflow differences.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       publishedDate: "2026-07-05",
       modifiedDate: "2026-07-05",
     },
     heroTitle:
       "Drawgle vs. Uizard: AI Product Prototypes or Build-Ready Premium Mobile UI?",
     sonicBoomSummary:
-      "Uizard is one of the oldest and most polished AI design tools in the space, but its center of gravity is different from Drawgle's. Uizard is built for fast product-team ideation: type a prompt, scan a screenshot, scan a hand-drawn wireframe, generate themes, predict attention with heatmaps, then share a clickable prototype with stakeholders. It supports mobile and web projects, broad collaboration, and low-friction team adoption. Drawgle is narrower on purpose. It is mobile-only, more opinionated about premium output quality, and much clearer about what happens after approval, where the work needs to become real code in HTML, React Native, SwiftUI, Jetpack Compose, or Flutter. So this comparison is really about what kind of speed you need. Uizard optimizes for prototype speed and team ideation speed. Drawgle optimizes for product quality and implementation speed.",
+      "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
     quickVerdict: {
       competitorTitle: "Choose Uizard if your team needs the fastest route from idea to editable prototype:",
       competitorDescription:
         "Uizard is strongest when the job is broad product exploration: generate multi-screen mockups from text, turn screenshots into editable designs, convert sketches into digital UI, test flows quickly, and share prototypes with stakeholders. It is a mature AI design workspace for product teams, not a mobile-native engineering handoff system.",
       drawgleTitle: "Choose Drawgle if the approved mobile UI is expected to become the shipped product next:",
       drawgleDescription:
-        "Drawgle is the better fit once the team is already moving past prototype theater. Its mobile-only scope, premium visual bar, and explicit exports in HTML, React Native, SwiftUI, Jetpack Compose, and Flutter make it much stronger when the next step is implementation rather than another round of prototype alignment.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
     },
     premiumMoat: {
       eyebrow: "Why Drawgle over Uizard",
       title: "How Drawgle and Uizard actually differ",
       intro:
-        "Uizard wins by being broad, fast, and idea-friendly. It gives product teams many ways to start and many ways to prototype. Drawgle wins when the work gets narrower and more serious: premium mobile UI, stronger whole-product coherence, and a more explicit path from approved screen to real framework-specific code.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
     },
     methodology: {
       summary:
@@ -2498,19 +2498,19 @@ export const comparisonPages: ComparisonPageData[] = [
         "Reviewed Uizard's pricing page for Free, Pro, Business, and Enterprise plans, AI generation caps, project limits, and developer handoff claims.",
         "Reviewed Uizard's AI design and prototyping pages for Autodesigner, Screenshot Scanner, Wireframe Scanner, heatmaps, templates, and collaboration workflow.",
         "Reviewed Uizard's support documentation for the exact limitation on code export: component-level React and CSS handoff, but no whole-project HTML or JavaScript export.",
-        "Cross-checked Drawgle's mobile-only scope and framework-specific export targets against the live product and existing comparison data.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
         "Compared whether each tool is better suited to ideation and prototype speed or to producing mobile UI that can move directly toward implementation.",
       ],
     },
     comparisonRows: [
       {
-        title: "Production-ready mobile frameworks versus component-level handoff",
+        title: "HTML export and structured engineering handoff",
         shortCompetitor: "React and CSS handoff is available per component, not as a full project export.",
-        shortDrawgle: "Exports include HTML, React Native, SwiftUI, Jetpack Compose, and Flutter.",
+        shortDrawgle: "High-fidelity HTML plus a structured Agent Pack.",
         competitorBehavior:
           "Uizard's public pricing page promotes developer handoff in React and CSS, but its own support documentation is more precise: you can inspect individual components and copy or download React and CSS for one component at a time. It is not a whole-project code export tool, and it does not export an entire project to HTML or JavaScript.",
         drawgleBehavior:
-          "Drawgle is much clearer and deeper on this point. The handoff is framed as real export targets for the full mobile UI in HTML, React Native, SwiftUI, Jetpack Compose, and Flutter, which makes the output materially closer to a real codebase than a prototype plus a few inspected components.",
+          "Drawgle exports high-fidelity standalone HTML and a structured Agent Pack with design tokens, assets, and implementation context for the developer's codebase.",
         proofPoint:
           "Drawgle is the stronger fit when engineering needs an actual implementation starting point, not just component-level handoff inside a prototyping tool.",
         winner: "drawgle",
@@ -2678,7 +2678,7 @@ export const comparisonPages: ComparisonPageData[] = [
         "Component-level React and CSS handoff is enough for your current workflow.",
       ],
       drawgleIf: [
-        "You need the approved mobile UI to become framework-specific code next, not just a prototype.",
+        "You need the approved mobile UI to become implementation-ready context next, not just a prototype.",
         "Premium mobile quality matters more than broad product-team prototyping flexibility.",
         "You want explicit export targets in HTML, React Native, SwiftUI, Jetpack Compose, or Flutter.",
         "The team is already aligned and the main problem is implementation speed, not prototype alignment.",
@@ -2696,7 +2696,7 @@ export const comparisonPages: ComparisonPageData[] = [
         niche: "Founders turning approved mobile UI into real code",
         bestTool: "drawgle",
         reason:
-          "Drawgle's framework-specific export story is much clearer once the team is done exploring and ready to build.",
+          "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       },
       {
         niche: "Mixed teams with PMs, analysts, and stakeholders in the design loop",
@@ -2806,7 +2806,7 @@ export const comparisonPages: ComparisonPageData[] = [
       {
         question: "Can Uizard export a full project to code like Drawgle?",
         answer:
-          "No. Uizard's own support documentation says it cannot export an entire project to HTML or JavaScript. Its current code handoff is component-level React and CSS in Handoff Mode. Drawgle's value is stronger when the team wants a clearer, framework-specific implementation path for the full mobile UI.",
+          "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       },
       {
         question: "Who should choose Uizard over Drawgle?",
@@ -2819,11 +2819,11 @@ export const comparisonPages: ComparisonPageData[] = [
       title: "Our Recommendation",
       body: [
         "Uizard is a strong AI prototyping tool with real maturity behind it. It gives product teams many ways to start, many ways to iterate, and a fast way to turn rough ideas into editable, collaborative prototypes for apps and websites.",
-        "Drawgle is better for a different and narrower job. Once the work has to stop being just a prototype and start becoming a real mobile product, Drawgle's mobile-only focus and framework-specific export path matter more than Uizard's broader ideation and prototype toolkit.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
         "So the honest split is this: choose Uizard for AI-assisted product discovery, prototype speed, and cross-functional alignment. Choose Drawgle when the team is building a premium mobile app and wants the shortest serious path from approved UI to shipped code.",
       ],
       recommendation:
-        "Final Recommendation: choose Uizard for broad AI prototyping, scanners, clickable flows, and fast product-team ideation. Choose Drawgle when the output needs to become a premium mobile app with a clearer route into real framework-specific implementation.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       drawgleCta: {
         label: "Try Drawgle",
         href: "/login",
@@ -2844,21 +2844,21 @@ export const comparisonPages: ComparisonPageData[] = [
     metadata: {
       title: "Drawgle vs UX Pilot (2026): AI Mobile UI Builder vs Figma AI Design Tool",
       description:
-        "UX Pilot is an AI design tool built around Figma workflows, multi-screen flow generation, reference-based styling, design-system-aware generation, and prompt editing for product teams. Drawgle is a mobile-only AI UI builder focused on premium mobile output and production-ready code in HTML, React Native, SwiftUI, Jetpack Compose, and Flutter. Compare the real workflow differences.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       publishedDate: "2026-07-05",
       modifiedDate: "2026-07-05",
     },
     heroTitle:
       "Drawgle vs. UX Pilot: Figma-Native AI Design System Workflow or Build-Ready Mobile Output?",
     sonicBoomSummary:
-      "UX Pilot is not another broad wireframing tool. Its public story is sharper than Visily or Uizard: generate high-fidelity interfaces from prompts, train the AI on your existing design system, push the result into Figma with editable layers and auto-layout, iterate through chat, and generate complete user flows in one batch. That makes it a serious product-design workflow, especially for teams already centered on Figma. Drawgle is solving a different problem. It is less interested in making Figma faster and more interested in making the approved mobile UI become the actual product faster. The result is a tighter mobile-only scope, a premium-output bias, and explicit production-ready exports in HTML, React Native, SwiftUI, Jetpack Compose, and Flutter. So this comparison is not about beginner versus pro. It is about whether the source of truth stays in a Figma-centered design workflow or moves faster toward a real mobile codebase.",
+      "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
     quickVerdict: {
       competitorTitle: "Choose UX Pilot if your design team already lives in Figma and wants AI to amplify that workflow:",
       competitorDescription:
         "UX Pilot is strongest for designers and product teams who want direct Figma integration, design-system-aware generation, reference-image styling, full user-flow generation, and natural-language editing without leaving the design stack they already use. It is built to make design teams faster inside a familiar workflow.",
       drawgleTitle: "Choose Drawgle if the approved mobile UI is expected to move into the real app quickly:",
       drawgleDescription:
-        "Drawgle is the stronger fit when the team is already aligned on the product and wants fewer translation steps after approval. Its mobile-only scope and explicit framework targets make it better for teams that care less about a richer Figma loop and more about converting premium mobile UI into actual implementation momentum.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
     },
     premiumMoat: {
       eyebrow: "Why Drawgle over UX Pilot",
@@ -2873,19 +2873,19 @@ export const comparisonPages: ComparisonPageData[] = [
         "Reviewed UX Pilot's AI UI Generator page for design-system training, Figma layer output, multi-screen flow generation, PRD-to-design claims, and screenshot-led styling.",
         "Reviewed UX Pilot's Figma AI page for plugin workflow, shared subscription across web and Figma, adaptive interface claims, and brand-guideline control.",
         "Reviewed UX Pilot's terms for plan-credit rollover behavior and commercial usage rights on paid plans.",
-        "Cross-checked Drawgle's mobile-only scope and framework-specific export targets against the live product and existing comparison data.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
         "Compared where each workflow naturally ends: Figma-centered refinement versus a clearer path into a real mobile codebase.",
       ],
     },
     comparisonRows: [
       {
-        title: "Production-ready mobile frameworks versus Figma-native handoff",
-        shortCompetitor: "Strong Figma-centered design output and HTML-oriented handoff claims, but not the same native-framework depth.",
-        shortDrawgle: "Exports include HTML, React Native, SwiftUI, Jetpack Compose, and Flutter.",
+        title: "HTML export and structured engineering handoff",
+        shortCompetitor: "Strong Figma-centered design output and HTML-oriented handoff claims, but not the same mobile engineering handoff depth.",
+        shortDrawgle: "High-fidelity HTML plus a structured Agent Pack.",
         competitorBehavior:
           "UX Pilot is built to make high-fidelity UI design generation land cleanly inside Figma. Its public pages lean on editable layers, auto-layout, implementation-ready assets, and production-ready positioning, which is strong for a design-first workflow. But its public handoff story is still not centered on named native mobile frameworks in the same direct way Drawgle is.",
         drawgleBehavior:
-          "Drawgle is clearer about where the work goes next. The exports are explicitly tied to HTML, React Native, SwiftUI, Jetpack Compose, and Flutter, which makes the post-approval handoff materially easier for teams already committed to a mobile engineering stack.",
+          "Drawgle exports high-fidelity standalone HTML and a structured Agent Pack with design tokens, assets, and implementation context for the developer's codebase.",
         proofPoint:
           "Drawgle is the stronger fit when the bottleneck is moving premium mobile UI into the actual implementation stack, not just improving the design handoff.",
         winner: "drawgle",
@@ -2983,7 +2983,7 @@ export const comparisonPages: ComparisonPageData[] = [
         featured: false,
       },
       {
-        title: "Code-adjacent design work versus framework-specific delivery",
+        title: "Code-adjacent design work versus implementation-ready handoff",
         shortCompetitor: "Useful when design and code need to stay adjacent, especially around Figma and HTML-oriented handoff.",
         shortDrawgle: "Useful when the target delivery framework is already known and mobile-specific.",
         competitorBehavior:
@@ -3047,7 +3047,7 @@ export const comparisonPages: ComparisonPageData[] = [
         "Choose Drawgle when the source of truth is already shifting from design approval to implementation. Its mobile-only focus and explicit export targets make it the better option when the team wants to reduce translation work after approval and move directly toward a real mobile codebase.",
       competitorIf: [
         "Your design team already lives in Figma and wants AI that works inside that workflow rather than around it.",
-        "Design-system alignment, editable Figma layers, and reference-driven styling matter more than framework-specific delivery.",
+        "Design-system alignment, editable Figma layers, and reference-driven styling matter more than implementation-ready handoff.",
         "You want one-prompt multi-screen flows and natural-language iteration as the core interaction model.",
         "The team is still spending most of its time refining design output rather than shipping the approved app.",
         "A richer design operating surface matters more than a tighter mobile engineering handoff.",
@@ -3071,7 +3071,7 @@ export const comparisonPages: ComparisonPageData[] = [
         niche: "Mobile teams shipping directly into native or cross-platform app stacks",
         bestTool: "drawgle",
         reason:
-          "Drawgle's explicit export targets in SwiftUI, Jetpack Compose, React Native, Flutter, and HTML make the handoff much clearer for engineering.",
+          "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       },
       {
         niche: "Teams exploring many flow variants before locking the product direction",
@@ -3167,7 +3167,7 @@ export const comparisonPages: ComparisonPageData[] = [
       ],
       competitor: [
         "Even when the output quality is strong, the workflow still centers on a design-team operating surface more than on an explicit mobile engineering destination.",
-        "Public handoff claims are less concrete than Drawgle's named framework targets for SwiftUI, Jetpack Compose, React Native, Flutter, and HTML.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
         "The public pricing surface is inconsistent across current pages, which makes the commercial upgrade path less transparent than it should be.",
         "It is most differentiated when the design team remains the center of the workflow; that matters less once the bottleneck shifts to implementation.",
       ],
@@ -3181,7 +3181,7 @@ export const comparisonPages: ComparisonPageData[] = [
       {
         question: "Should a Figma-centered team choose UX Pilot over Drawgle?",
         answer:
-          "Usually yes, if Figma is still the operational center of the workflow. UX Pilot is built to make that environment faster and more AI-assisted. Drawgle becomes the better choice when the team is already past heavy Figma iteration and wants a shorter path from approved mobile UI to code in HTML, React Native, SwiftUI, Jetpack Compose, or Flutter.",
+          "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       },
       {
         question: "When is Drawgle the better choice over UX Pilot?",
@@ -3194,7 +3194,7 @@ export const comparisonPages: ComparisonPageData[] = [
       title: "Our Recommendation",
       body: [
         "UX Pilot is a serious AI design tool, not a toy. It is strongest for Figma-native product teams that want AI to understand their design language, generate complete flows, respond to visual references, and keep the result editable inside an existing design workflow.",
-        "Drawgle is stronger for a different moment in the process. When the team is already aligned on the product and the next real problem is turning premium mobile UI into a shipped app, the narrower mobile-only scope and clearer framework-specific export path become more valuable than a richer Figma operating surface.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
         "So the honest split is this: choose UX Pilot for design-team acceleration inside a Figma-centered workflow. Choose Drawgle when the team needs the approved mobile UI to move faster into real implementation with fewer handoffs.",
       ],
       recommendation:
@@ -3219,7 +3219,7 @@ export const comparisonPages: ComparisonPageData[] = [
     metadata: {
       title: "Drawgle vs UXMagic (2026): AI Mobile UI Builder vs Multimodal Design Copilot",
       description:
-        "UXMagic is an AI design copilot built around prompt-to-UI, screenshot-to-UI, sketch-to-UI, URL cloning, style guides, Figma import and export, and React or HTML handoff. Drawgle is a mobile-only AI UI builder focused on premium mobile output and production-ready code in HTML, React Native, SwiftUI, Jetpack Compose, and Flutter. Compare the real workflow differences.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       publishedDate: "2026-07-05",
       modifiedDate: "2026-07-05",
     },
@@ -3233,7 +3233,7 @@ export const comparisonPages: ComparisonPageData[] = [
         "UXMagic is strongest for teams that jump between prompts, screenshots, sketches, existing Figma files, website references, style guides, and design-system imports. It is a broad design copilot with many ways in and several practical ways out, especially if the workflow still values Figma or HTML and React handoff.",
       drawgleTitle: "Choose Drawgle if your team already knows it is building a mobile product and wants the shortest route to implementation:",
       drawgleDescription:
-        "Drawgle is the stronger fit once the work is not about supporting every kind of input or every design-side workflow. Its mobile-only scope, premium-output bias, and explicit exports in HTML, React Native, SwiftUI, Jetpack Compose, and Flutter make it better when the next serious step is building the app rather than expanding the design workflow.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
     },
     premiumMoat: {
       eyebrow: "Why Drawgle over UXMagic",
@@ -3249,18 +3249,18 @@ export const comparisonPages: ComparisonPageData[] = [
         "Reviewed UXMagic's AI UI Generator page for structured editable layers, responsive output, Figma export, and code-handoff language.",
         "Reviewed UXMagic's pricing page for free tier, Pro tier, Enterprise tier, screen limits, project limits, Figma export counts, and enterprise controls.",
         "Reviewed UXMagic's Figma import page for how it handles existing Figma files, style retention, Auto Layout, and code generation from imported designs.",
-        "Cross-checked Drawgle's mobile-only scope and framework-specific export targets against the live product and existing comparison data.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       ],
     },
     comparisonRows: [
       {
-        title: "Production-ready native mobile frameworks versus broader design handoff",
-        shortCompetitor: "Strong Figma, HTML, and React handoff, but no equally explicit native-framework story.",
-        shortDrawgle: "Exports include HTML, React Native, SwiftUI, Jetpack Compose, and Flutter.",
+        title: "HTML export and structured engineering handoff",
+        shortCompetitor: "Strong Figma, HTML, and React handoff, but no equally explicit mobile engineering handoff story.",
+        shortDrawgle: "High-fidelity HTML plus a structured Agent Pack.",
         competitorBehavior:
           "UXMagic is strong at getting design work into practical handoff formats. Its public pages emphasize Figma-ready output, HTML and React export, code-ready components, and production-friendly scaffolds. But the public story still stops short of the same native mobile specificity Drawgle offers.",
         drawgleBehavior:
-          "Drawgle is clearer about where the approved UI goes next. The exports are named in the actual mobile frameworks teams ship with, including SwiftUI and Jetpack Compose, which removes ambiguity once the design is approved and engineering is ready to continue.",
+          "Drawgle exports high-fidelity standalone HTML and a structured Agent Pack with design tokens, assets, and implementation context for the developer's codebase.",
         proofPoint:
           "Drawgle is the stronger fit when the target delivery framework matters more than having several design-side handoff options.",
         winner: "drawgle",
@@ -3413,7 +3413,7 @@ export const comparisonPages: ComparisonPageData[] = [
         },
       ],
       verdict:
-        "UXMagic is priced to be easy to adopt early and to scale into a broader design workflow later. The free tier is more generous than Drawgle's paid-first entry, and the Pro plan is still positioned for individual designers, agencies, and small product teams rather than only enterprise buyers. Drawgle is still easier to justify when the spend is tied directly to premium mobile product output and framework-specific implementation value. So the pricing split mirrors the product split: UXMagic is easier to explore and standardize across mixed design workflows; Drawgle is easier to defend when the goal is a serious mobile build path.",
+        "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
     },
     verdict: {
       competitorText:
@@ -3446,7 +3446,7 @@ export const comparisonPages: ComparisonPageData[] = [
         niche: "Mobile teams shipping in native or cross-platform app stacks",
         bestTool: "drawgle",
         reason:
-          "Drawgle's explicit export targets in SwiftUI, Jetpack Compose, React Native, Flutter, and HTML create a clearer engineering handoff.",
+          "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       },
       {
         niche: "Teams importing an existing Figma file and iterating with AI",
@@ -3561,7 +3561,7 @@ export const comparisonPages: ComparisonPageData[] = [
       {
         question: "When is Drawgle the better choice than UXMagic?",
         answer:
-          "Drawgle is the better choice when the product is strictly mobile and the next real job is shipping the app. If the team already knows what it is building and wants the approved UI to move directly into HTML, React Native, SwiftUI, Jetpack Compose, or Flutter, Drawgle has the clearer path.",
+          "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       },
     ],
     sources: uxMagicSources,

@@ -205,7 +205,7 @@ export default function TestimonialSection() {
             </span>
             <span className="flex items-center justify-center gap-2 sm:justify-start">
               <span className="h-1 w-1 bg-white/35" />
-              Native framework export
+              Agent-ready handoff
             </span>
             <span className="flex items-center justify-center gap-2 sm:justify-start">
               <span className="h-1 w-1 bg-white/35" />

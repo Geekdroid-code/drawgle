@@ -78,7 +78,7 @@ export const siteConfig = {
     },
     {
       name: "Pro",
-      description: "For creators producing larger mobile UI projects with native app scaffolds.",
+      description: "For creators producing larger mobile UI projects with complete HTML exports and Agent Packs.",
       price: "29",
       currency: "USD",
       url: "/pricing",

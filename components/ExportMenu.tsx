@@ -1,12 +1,10 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertTriangle,
   Bot,
   Check,
-  ChevronRight,
   Clipboard,
   Code2,
   Copy,
@@ -14,7 +12,6 @@ import {
   FileCode2,
   FileDown,
   FolderArchive,
-  Layers3,
   Sparkles,
 } from "lucide-react";
 
@@ -23,25 +20,13 @@ import { PremiumDropdown } from "@/components/ui/premium-dropdown";
 import {
   buildAgentHandoffPrompt,
   buildAgentPackZip,
-  buildNativeScaffoldZip,
   buildStandaloneHtmlExport,
   resolveScreenNavigationCode,
   slugifyExportName,
   type ExportProjectContext,
-  type NativeScaffoldTarget,
 } from "@/lib/export-pipeline";
 import { cn } from "@/lib/utils";
 import type { DesignTokens, ProjectData, ProjectNavigationData, ScreenData } from "@/lib/types";
-
-const SCAFFOLD_OPTIONS: Array<{
-  id: NativeScaffoldTarget;
-  label: string;
-}> = [
-  { id: "reactnative", label: "React Native" },
-  { id: "swiftui", label: "SwiftUI" },
-  { id: "compose", label: "Compose" },
-  { id: "flutter", label: "Flutter" },
-];
 
 const HANDOFF_INSTRUCTION = "Read .drawgle/handoff.md and implement the Drawgle screens in this repository.";
 
@@ -206,8 +191,6 @@ export function ExportMenu({
   const [activeScreenId, setActiveScreenId] = useState(initialScreenId || screens[0]?.id || "");
   const [previousOpen, setPreviousOpen] = useState(open);
   const [previousInitialScreenId, setPreviousInitialScreenId] = useState(initialScreenId);
-  const [scaffoldsOpen, setScaffoldsOpen] = useState(false);
-  const [scaffoldError, setScaffoldError] = useState<string | null>(null);
   const [copiedAction, setCopiedAction] = useState<string | null>(null);
   const [packDownloaded, setPackDownloaded] = useState(false);
 
@@ -216,8 +199,6 @@ export function ExportMenu({
     setPreviousInitialScreenId(initialScreenId);
     if (open) {
       setActiveScreenId(initialScreenId || screens[0]?.id || "");
-      setScaffoldsOpen(false);
-      setScaffoldError(null);
       setPackDownloaded(false);
     }
   }
@@ -244,7 +225,6 @@ export function ExportMenu({
     });
   }, [designTokens, googleFontAssetLinks, projectNavigation, tokenCss]);
 
-  const activeNavigationCode = activeScreen ? resolveScreenNavigationCode(activeScreen, projectNavigation) : "";
   const agentPrompt = useMemo(
     () => activeScreen ? buildAgentHandoffPrompt({ context, screen: activeScreen, target: "auto" }) : "",
     [activeScreen, context],
@@ -278,27 +258,6 @@ export function ExportMenu({
       `drawgle-agent-pack-${slugifyExportName(project.name, "project")}.zip`,
     );
     setPackDownloaded(true);
-  };
-
-  const downloadScaffold = (target: NativeScaffoldTarget) => {
-    if (!activeScreen) return;
-    const result = buildNativeScaffoldZip({
-      screen: activeScreen,
-      target,
-      navigationCode: activeNavigationCode,
-      designTokens,
-      tokenCss,
-    });
-    if (result.error || !result.bytes) {
-      setScaffoldError(result.error || "This native scaffold could not be generated.");
-      return;
-    }
-    setScaffoldError(null);
-    downloadBlob(
-      [new Uint8Array(result.bytes)],
-      "application/zip",
-      `drawgle-${target}-${slugifyExportName(activeScreen.name, "screen")}-scaffold.zip`,
-    );
   };
 
   const screenName = activeScreen?.name || "Screen";
@@ -374,52 +333,6 @@ export function ExportMenu({
                 trailing={<Download className="h-5 w-5" />}
               />
               <ActionCard
-                icon={Layers3}
-                title="Native Scaffolds"
-                description="React Native, SwiftUI, Compose, Flutter"
-                meta="Beta"
-                selected={scaffoldsOpen}
-                onClick={() => {
-                  if (selectedActionsDisabled) return;
-                  setScaffoldsOpen((value) => !value);
-                  setScaffoldError(null);
-                }}
-                disabled={selectedActionsDisabled}
-                testId="toggle-scaffolds"
-                trailing={<ChevronRight className={cn("h-5 w-5 transition-transform", scaffoldsOpen && "rotate-90")} />}
-              />
-              <AnimatePresence initial={false}>
-                {scaffoldsOpen && !selectedActionsDisabled ? (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="grid grid-cols-2 gap-2 px-1 pb-1 pt-1" data-testid="scaffold-options">
-                      {SCAFFOLD_OPTIONS.map((option) => (
-                        <button
-                          type="button"
-                          key={option.id}
-                          disabled={selectedActionsDisabled}
-                          onClick={() => downloadScaffold(option.id)}
-                          className="flex h-10 items-center justify-between rounded-xl border border-slate-950/[0.07] bg-white px-3 text-[12px] font-semibold text-slate-600 transition hover:bg-[#fbfbfc] hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-300 dark:hover:bg-white/[0.08] dark:hover:text-white"
-                        >
-                          {option.label}
-                          <Download className="h-3.5 w-3.5 text-slate-400" />
-                        </button>
-                      ))}
-                    </div>
-                  </motion.div>
-                ) : null}
-              </AnimatePresence>
-              {scaffoldError ? (
-                <div className="flex items-start gap-2 rounded-2xl bg-rose-50 px-3 py-2.5 text-[12px] font-semibold leading-5 text-rose-700 dark:bg-rose-400/10 dark:text-rose-200" data-testid="scaffold-error">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                  {scaffoldError}
-                </div>
-              ) : null}
-              <ActionCard
                 icon={FileDown}
                 title="Agent Prompt Markdown"
                 description="Download the selected screen handoff"
@@ -477,10 +390,7 @@ export function ExportMenu({
                     screen={screen}
                     active={screen.id === activeScreen?.id}
                     disabled={disabled}
-                    onSelect={() => {
-                      setActiveScreenId(screen.id);
-                      setScaffoldError(null);
-                    }}
+                    onSelect={() => setActiveScreenId(screen.id)}
                     onCopy={() => copyScreenForAgent(screen)}
                     onDownload={() => downloadScreenHtml(screen)}
                   />

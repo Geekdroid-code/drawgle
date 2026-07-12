@@ -6,10 +6,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Button } from "@/components/ui/button";
 import type { ProjectData, ScreenData } from "@/lib/types";
 
-const { buildAgentHandoffPromptMock, buildAgentPackZipMock, buildNativeScaffoldZipMock, buildStandaloneHtmlExportMock } = vi.hoisted(() => ({
+const { buildAgentHandoffPromptMock, buildAgentPackZipMock, buildStandaloneHtmlExportMock } = vi.hoisted(() => ({
   buildAgentHandoffPromptMock: vi.fn(() => "Auto-detect prompt with compiled selected screen HTML"),
   buildAgentPackZipMock: vi.fn(() => new Uint8Array([1, 2, 3])),
-  buildNativeScaffoldZipMock: vi.fn(() => ({ bytes: null, error: "Mock scaffold parse failure." })),
   buildStandaloneHtmlExportMock: vi.fn(() => "compiled standalone html"),
 }));
 
@@ -19,7 +18,6 @@ vi.mock("@/lib/export-pipeline", async (importOriginal) => {
     ...actual,
     buildAgentHandoffPrompt: buildAgentHandoffPromptMock,
     buildAgentPackZip: buildAgentPackZipMock,
-    buildNativeScaffoldZip: buildNativeScaffoldZipMock,
     buildStandaloneHtmlExport: buildStandaloneHtmlExportMock,
   };
 });
@@ -82,7 +80,6 @@ describe("ExportMenu", () => {
     cleanup();
     buildAgentHandoffPromptMock.mockClear();
     buildAgentPackZipMock.mockClear();
-    buildNativeScaffoldZipMock.mockClear();
     buildStandaloneHtmlExportMock.mockClear();
   });
 
@@ -90,16 +87,15 @@ describe("ExportMenu", () => {
     const view = renderMenu();
 
     expect(view.getByTestId("export-menu")).toBeTruthy();
-    expect((view.getByLabelText("Screen to export") as HTMLSelectElement).value).toBe("details");
-    expect(view.getByText("Copy for AI agent")).toBeTruthy();
+    expect(view.getByText("Details")).toBeTruthy();
+    expect(view.getByText("Copy Designs for AI Agent")).toBeTruthy();
     expect(view.getByText("Download HTML / Tailwind")).toBeTruthy();
-    expect(view.getByText("Native Scaffolds")).toBeTruthy();
     expect(view.getByText("Download Agent Pack")).toBeTruthy();
+    expect(view.queryByText("Native Scaffolds")).toBeNull();
     expect(view.queryByText(/Preview/)).toBeNull();
     expect(buildStandaloneHtmlExportMock).toHaveBeenCalledWith(expect.objectContaining({
       screen: expect.objectContaining({ id: "details" }),
     }));
-    expect(buildNativeScaffoldZipMock).not.toHaveBeenCalled();
   });
 
   it("blocks fidelity exports when design token changes are unsaved", async () => {
@@ -108,7 +104,7 @@ describe("ExportMenu", () => {
 
     expect(view.getByTestId("selected-export-blocked").textContent).toContain("Save or discard design token changes");
     expect(view.getByTestId("agent-pack-blocked").textContent).toContain("Save or discard design token changes");
-    expect(view.getByTestId("copy-for-agent").getAttribute("aria-disabled")).toBe("true");
+    expect(view.getByTestId("copy-for-agent").hasAttribute("disabled")).toBe(true);
 
     await user.click(view.getByTestId("download-agent-pack"));
     expect(buildAgentPackZipMock).not.toHaveBeenCalled();
@@ -120,10 +116,7 @@ describe("ExportMenu", () => {
     const view = renderMenu("details", { screens: blockedScreens });
 
     expect(view.getByTestId("selected-export-blocked").textContent).toContain("This screen is still building");
-    expect(view.getByTestId("copy-for-agent").getAttribute("aria-disabled")).toBe("true");
-
-    await user.click(view.getByTestId("toggle-scaffolds"));
-    expect(view.queryByTestId("scaffold-options")).toBeNull();
+    expect(view.getByTestId("copy-for-agent").hasAttribute("disabled")).toBe(true);
   });
   it("always creates agent handoff and Agent Pack with auto detection", async () => {
     const user = userEvent.setup();
@@ -143,30 +136,12 @@ describe("ExportMenu", () => {
     const user = userEvent.setup();
     const view = renderMenu();
 
-    await user.selectOptions(view.getByLabelText("Screen to export"), "home");
+    await user.click(view.getByText("Home"));
 
     expect(buildAgentHandoffPromptMock).toHaveBeenLastCalledWith(expect.objectContaining({
       screen: expect.objectContaining({ id: "home" }),
       target: "auto",
     }));
-  });
-
-  it("generates native scaffolds only after a Beta framework is clicked", async () => {
-    const user = userEvent.setup();
-    const view = renderMenu();
-
-    await user.click(view.getByTestId("toggle-scaffolds"));
-    expect(view.getByTestId("scaffold-options")).toBeTruthy();
-    expect(buildNativeScaffoldZipMock).not.toHaveBeenCalled();
-
-    await user.click(view.getByRole("button", { name: /SwiftUI/ }));
-
-    expect(buildNativeScaffoldZipMock).toHaveBeenCalledWith(expect.objectContaining({
-      screen: expect.objectContaining({ id: "details" }),
-      target: "swiftui",
-    }));
-    expect(view.getByTestId("scaffold-error")).toBeTruthy();
-    expect(view.getByText("Download HTML / Tailwind")).toBeTruthy();
   });
 
   it("keeps the menu open and reveals a copyable instruction after Agent Pack download", async () => {

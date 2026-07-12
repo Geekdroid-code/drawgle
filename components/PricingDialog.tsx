@@ -9,10 +9,14 @@ import { checkout } from "@/lib/dodopayments";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
+const FEATURE_LABELS: Record<string, string> = {
+  "Export to 5 Frameworks": "HTML/Tailwind + Agent Pack Export",
+};
+
 const FEATURE_TOOLTIPS: Record<string, string> = {
   "Unlimited Projects": "Create and manage an infinite number of design projects within your workspace.",
-  "Unlimited Code Exports": "Copy agent-ready handoffs and download high-fidelity HTML or Beta Scaffolds without limits.",
-  "Export to 5 Frameworks": "Export HTML/Tailwind as the visual source of truth, with React Native, SwiftUI, Compose, and Flutter structural Scaffolds (Beta).",
+  "Unlimited Code Exports": "Copy agent-ready handoffs and download high-fidelity HTML without limits.",
+  "Export to 5 Frameworks": "Export high-fidelity HTML/Tailwind plus structured Agent Packs for implementation in your codebase.",
   "Export Design.md Specs": "Automatically generate a comprehensive Markdown design specification for your team.",
   "Live Design Tokens Sync": "Extract and sync precise color, typography, and spacing tokens dynamically.",
   "AI-powered Screen Editing": "Prompt the AI to modify, iterate, or fix specific parts of your screen instantly.",
@@ -225,7 +229,7 @@ export function PricingDialog({
                             </div>
                                                         <div className="flex items-center gap-1.5 min-w-0">
                               <span className="text-sm font-medium text-slate-600 leading-snug">
-                                {feature}
+                                {FEATURE_LABELS[feature] || feature}
                               </span>
                               {tooltip && (
                                 <Tooltip>
