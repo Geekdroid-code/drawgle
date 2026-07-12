@@ -8,6 +8,7 @@ import { AnimatedThemeToggle } from "@/components/AnimatedThemeToggle";
 import { CanvasStage } from "@/components/CanvasArea";
 import { ExportMenu } from "@/components/ExportMenu";
 import { ProjectCanvasLoading } from "@/components/ProjectCanvasLoading";
+import { PreviewShareDialog } from "@/components/PreviewShareDialog";
 import { ChatPanel } from "@/components/ChatPanel";
 import { ColorPickerButton } from "@/components/DesignSystemEditor";
 import type { ElementSelectionLostReason, SelectedElementInfo, SelectedElementPreviewPayload } from "@/components/ScreenNode";
@@ -2452,24 +2453,22 @@ export function ProjectShell({
 
           {/* Group 2 (Actions): Preview, Share, Export */}
           <div className="flex h-8 shrink-0 items-center rounded-full dg-panel px-1.5 backdrop-blur-xl gap-0.5 shadow-sm">
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    aria-label="Share project"
-                    className="h-6 gap-1 rounded-full px-2 text-[10px] font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300 hover:bg-[#f7f7f8] dark:hover:bg-white/10 flex items-center justify-center"
-                  >
-                    <Share2 className="h-3 w-3 text-neutral-700 dark:text-neutral-300" />
-                    <span className="hidden sm:inline">Share</span>
-                  </Button>
-                }
-              />
-              <TooltipContent className="max-w-[250px] text-center leading-4">
-                Sharing launches soon. You&apos;ll be able to share a read-only project link with others.
-              </TooltipContent>
-            </Tooltip>
+            <PreviewShareDialog
+              projectId={project.id}
+              projectName={project.name}
+              initialEnabled={project.publicPreviewEnabled}
+              trigger={
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label="Share project"
+                  className="h-6 gap-1 rounded-full px-2 text-[10px] font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300 hover:bg-[#f7f7f8] dark:hover:bg-white/10 flex items-center justify-center"
+                >
+                  <Share2 className="h-3 w-3 text-neutral-700 dark:text-neutral-300" />
+                  <span className="hidden sm:inline">Share</span>
+                </Button>
+              }
+            />
             <ExportMenu
               open={exportMenuOpen}
               onOpenChange={setExportMenuOpen}

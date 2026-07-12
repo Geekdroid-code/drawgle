@@ -97,6 +97,7 @@ function ScreenLabelBar({
   onExport,
   onDelete,
   onShowCode,
+  readOnly,
 }: {
   screen: ScreenData;
   isSelected: boolean;
@@ -106,6 +107,7 @@ function ScreenLabelBar({
   onExport: () => void;
   onDelete: () => void;
   onShowCode: () => void;
+  readOnly?: boolean;
 }) {
   return (
     <div
@@ -216,54 +218,55 @@ function ScreenLabelBar({
           </Button>
         )}
 
-        {/* Code Viewer button */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 rounded-lg text-[var(--dg-text)] opacity-90 hover:bg-[var(--dg-surface-muted)] hover:text-[var(--dg-text)] hover:opacity-100 dark:text-[#d8dde7] dark:hover:bg-white/10"
-          title="View clean code"
-          onClick={onShowCode}
-        >
-          <Code className="w-3.5 h-3.5" />
-        </Button>
-
-        {/* Export */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 rounded-lg text-[var(--dg-text)] opacity-90 hover:bg-[var(--dg-surface-muted)] hover:text-[var(--dg-text)] hover:opacity-100 dark:text-[#d8dde7] dark:hover:bg-white/10"
-          title="Export code"
-          onClick={onExport}
-        >
-          <Download className="w-3.5 h-3.5" />
-        </Button>
-
-        {/* More / Delete */}
-        <PremiumDropdown
-          align="end"
-          trigger={
+        {!readOnly ? (
+          <>
             <Button
               variant="ghost"
               size="icon"
               className="h-7 w-7 rounded-lg text-[var(--dg-text)] opacity-90 hover:bg-[var(--dg-surface-muted)] hover:text-[var(--dg-text)] hover:opacity-100 dark:text-[#d8dde7] dark:hover:bg-white/10"
-              title="More actions"
+              title="View clean code"
+              onClick={onShowCode}
             >
-              <MoreHorizontal className="w-3.5 h-3.5" />
+              <Code className="w-3.5 h-3.5" />
             </Button>
-          }
-          items={[
-            {
-              id: "delete",
-              label: "Delete",
-              icon: Trash2,
-              variant: "destructive" as const,
-              onClick: (e) => {
-                e.stopPropagation();
-                onDelete();
-              },
-            },
-          ]}
-        />
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 rounded-lg text-[var(--dg-text)] opacity-90 hover:bg-[var(--dg-surface-muted)] hover:text-[var(--dg-text)] hover:opacity-100 dark:text-[#d8dde7] dark:hover:bg-white/10"
+              title="Export code"
+              onClick={onExport}
+            >
+              <Download className="w-3.5 h-3.5" />
+            </Button>
+
+            <PremiumDropdown
+              align="end"
+              trigger={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 rounded-lg text-[var(--dg-text)] opacity-90 hover:bg-[var(--dg-surface-muted)] hover:text-[var(--dg-text)] hover:opacity-100 dark:text-[#d8dde7] dark:hover:bg-white/10"
+                  title="More actions"
+                >
+                  <MoreHorizontal className="w-3.5 h-3.5" />
+                </Button>
+              }
+              items={[
+                {
+                  id: "delete",
+                  label: "Delete",
+                  icon: Trash2,
+                  variant: "destructive" as const,
+                  onClick: (e) => {
+                    e.stopPropagation();
+                    onDelete();
+                  },
+                },
+              ]}
+            />
+          </>
+        ) : null}
       </div>
     </div>
   );
@@ -501,6 +504,7 @@ export function ScreenNode({
   onContentHeightChange,
   onDeleteSelectedElement,
   onDuplicateSelectedElement,
+  readOnly,
 }: {
   screen: ScreenData;
   projectNavigation?: ProjectNavigationData | null;
@@ -526,6 +530,7 @@ export function ScreenNode({
   onContentHeightChange?: (screenId: string, height: number) => void;
   onDeleteSelectedElement?: (screenId: string, drawgleId: string) => void;
   onDuplicateSelectedElement?: (screenId: string, drawgleId: string) => void;
+  readOnly?: boolean;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const safeCode = typeof screen.code === "string" ? screen.code : "";
@@ -794,7 +799,7 @@ export function ScreenNode({
 
   // ── Listen for elementSelected messages from the iframe
   useEffect(() => {
-    if (!onElementSelected && !onElementSelectionLost) return;
+    if (!onCanvasNavigation && !onElementSelected && !onElementSelectionLost) return;
 
     const handleMessage = (event: MessageEvent) => {
       if (event.source !== iframeRef.current?.contentWindow) return;
@@ -2158,6 +2163,7 @@ export function ScreenNode({
         onExport={handleExportCode}
         onDelete={handleDelete}
         onShowCode={() => setIsCodeOpen(true)}
+        readOnly={readOnly}
       />
 
       {/* ── Flat card container ─────────────────────────────────────────── */}
@@ -2235,7 +2241,7 @@ export function ScreenNode({
 
         <ScreenBuildPreloader visible={showBuildPreloader} />
 
-        {selectedElementBounds && selectedElementBounds.drawgleId === selectedDrawgleId && (
+        {!readOnly && selectedElementBounds && selectedElementBounds.drawgleId === selectedDrawgleId && (
           <div
             className="absolute z-[90] flex items-center gap-1 rounded-lg bg-slate-900 p-1 text-white shadow-lg select-none"
             style={{
@@ -2270,12 +2276,14 @@ export function ScreenNode({
       <DimensionBadge visible={isDragging} height={isInteractModeActive ? SCREEN_FRAME_HEIGHT : contentHeight} />
 
       {/* Code Viewer Dialog */}
-      <CodeViewerDialog
-        isOpen={isCodeOpen}
-        onOpenChange={setIsCodeOpen}
-        screenName={screen.name}
-        htmlExport={htmlExport}
-      />
+      {!readOnly ? (
+        <CodeViewerDialog
+          isOpen={isCodeOpen}
+          onOpenChange={setIsCodeOpen}
+          screenName={screen.name}
+          htmlExport={htmlExport}
+        />
+      ) : null}
     </div>
   );
 }

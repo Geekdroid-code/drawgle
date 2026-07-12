@@ -68,6 +68,9 @@ export interface Database {
           status: ProjectStatus;
           project_charter: Json | null;
           design_tokens: Json | null;
+          public_preview_token: string | null;
+          public_preview_enabled: boolean;
+          public_preview_created_at: string | null;
           next_screen_x: number;
           screen_origin_y: number;
           created_at: string;
@@ -81,6 +84,9 @@ export interface Database {
           status?: ProjectStatus;
           project_charter?: Json | null;
           design_tokens?: Json | null;
+          public_preview_token?: string | null;
+          public_preview_enabled?: boolean;
+          public_preview_created_at?: string | null;
           next_screen_x?: number;
           screen_origin_y?: number;
           created_at?: string;
@@ -94,6 +100,9 @@ export interface Database {
           status?: ProjectStatus;
           project_charter?: Json | null;
           design_tokens?: Json | null;
+          public_preview_token?: string | null;
+          public_preview_enabled?: boolean;
+          public_preview_created_at?: string | null;
           next_screen_x?: number;
           screen_origin_y?: number;
           created_at?: string;

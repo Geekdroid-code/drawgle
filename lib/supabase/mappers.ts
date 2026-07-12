@@ -44,6 +44,9 @@ export function mapProjectRow(row: ProjectRow): ProjectData {
     status: row.status,
     charter: (row.project_charter as ProjectCharter | null) ?? null,
     designTokens: (row.design_tokens as DesignTokens | null) ?? null,
+    publicPreviewToken: row.public_preview_token,
+    publicPreviewEnabled: row.public_preview_enabled,
+    publicPreviewCreatedAt: row.public_preview_created_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

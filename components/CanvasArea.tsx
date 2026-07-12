@@ -105,6 +105,7 @@ type ScreenCanvasNodeData = {
   isSelected: boolean;
   selectedDrawgleId: string | null;
   selectedElementPreview?: SelectedElementPreviewPayload | null;
+  readOnly?: boolean;
   height?: number;
   onContentHeightChange?: (screenId: string, height: number) => void;
   onElementSelected?: (info: SelectedElementInfo) => void;
@@ -152,6 +153,7 @@ const ScreenCanvasNodeView = memo(({ data, dragging }: NodeProps<ScreenCanvasNod
         selectionMode={data.canvasTool === "element-select"}
         selectedDrawgleId={data.selectedDrawgleId}
         selectedElementPreview={data.selectedElementPreview ?? null}
+        readOnly={data.readOnly}
         onElementSelected={data.onElementSelected}
         onElementSelectionLost={data.onElementSelectionLost}
         onCanvasNavigation={data.onCanvasNavigation}
@@ -195,6 +197,7 @@ type CanvasStageProps = {
   mobileBottomReserve?: number;
   tool: CanvasTool;
   disabled?: boolean;
+  readOnly?: boolean;
   onToolChange?: (tool: CanvasTool) => void;
   onSelectScreen?: (screen: ScreenData | null) => void;
   onCanvasClick?: () => void;
@@ -234,6 +237,7 @@ function CanvasStageContent({
   mobileBottomReserve = 96,
   tool,
   disabled,
+  readOnly,
   onToolChange,
   onSelectScreen,
   onCanvasClick,
@@ -302,7 +306,15 @@ function CanvasStageContent({
       )
     : null;
   const isTemporaryPan = isSpacePressed;
-  const isPanToolActive = tool === "pan" || isTemporaryPan;
+  const activeTool = readOnly && tool === "element-select" ? "pointer" : tool;
+  const isPanToolActive = activeTool === "pan" || isTemporaryPan;
+  const changeTool = useCallback(
+    (nextTool: CanvasTool) => {
+      if (readOnly && nextTool === "element-select") return;
+      onToolChange?.(nextTool);
+    },
+    [onToolChange, readOnly],
+  );
 
   useEffect(() => {
     callbackRefs.current = {
@@ -498,21 +510,22 @@ function CanvasStageContent({
           screen,
           projectNavigation,
           designTokens,
-          canvasTool: tool,
+          canvasTool: activeTool,
           isTemporaryCanvasPan: isTemporaryPan,
           isSelected: selected,
           selectedDrawgleId:
             selectedElementScreenId === screen.id ? selectedElementDrawgleId ?? null : null,
           selectedElementPreview:
             selectedElementScreenId === screen.id ? selectedElementPreview ?? null : null,
+          readOnly,
           height: screenHeight,
           onContentHeightChange: handleContentHeightChange,
-          onElementSelected: handleElementSelected,
-          onElementSelectionLost: handleElementSelectionLost,
+          onElementSelected: readOnly ? undefined : handleElementSelected,
+          onElementSelectionLost: readOnly ? undefined : handleElementSelectionLost,
           onCanvasNavigation: handleCanvasNavigation,
-          onExportCode: handleExportCode,
-          onDeleteSelectedElement: handleDeleteSelectedElement,
-          onDuplicateSelectedElement: handleDuplicateSelectedElement,
+          onExportCode: readOnly ? undefined : handleExportCode,
+          onDeleteSelectedElement: readOnly ? undefined : handleDeleteSelectedElement,
+          onDuplicateSelectedElement: readOnly ? undefined : handleDuplicateSelectedElement,
         };
 
         if (current) {
@@ -527,7 +540,7 @@ function CanvasStageContent({
               !dragOwnsPosition && persistedPositionChanged
                 ? getNodePosition(screen)
                 : current.position,
-            draggable: tool === "pointer" && !disabled,
+            draggable: activeTool === "pointer" && !disabled && !readOnly,
             selected,
             data: nextData,
             style: {
@@ -542,7 +555,7 @@ function CanvasStageContent({
           id: screen.id,
           type: "screen",
           position: getNodePosition(screen),
-          draggable: tool === "pointer" && !disabled,
+          draggable: activeTool === "pointer" && !disabled && !readOnly,
           selectable: false,
           selected,
           data: nextData,
@@ -567,6 +580,7 @@ function CanvasStageContent({
     handleExportCode,
     isTemporaryPan,
     projectNavigation,
+    readOnly,
     screenHeights,
     screens,
     selectedElementDrawgleId,
@@ -574,7 +588,7 @@ function CanvasStageContent({
     selectedElementScreenId,
     selectedScreen?.id,
     setNodes,
-    tool,
+    activeTool,
   ]);
 
   useEffect(() => {
@@ -651,9 +665,9 @@ function CanvasStageContent({
         setIsSpacePressed(true);
         return;
       }
-      if (key === "escape" || key === "v") onToolChange?.("pointer");
-      else if (key === "h") onToolChange?.("pan");
-      else if (key === "p") onToolChange?.(tool === "pan" ? "pointer" : "pan");
+      if (key === "escape" || key === "v") changeTool("pointer");
+      else if (key === "h") changeTool("pan");
+      else if (key === "p") changeTool(activeTool === "pan" ? "pointer" : "pan");
       else if (key === "0") {
         event.preventDefault();
         void controller.resetZoom();
@@ -677,7 +691,7 @@ function CanvasStageContent({
       window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("blur", handleBlur);
     };
-  }, [controller, onToolChange, selectedScreen, tool]);
+  }, [activeTool, changeTool, controller, selectedScreen]);
 
   const handleNodesChange = useCallback(
     (changes: NodeChange<ScreenCanvasNode>[]) => {
@@ -703,13 +717,13 @@ function CanvasStageContent({
           setViewportState(instance.getViewport());
         }}
         onNodeClick={(_, node) => {
-          if (tool === "pointer" && !isTemporaryPan) {
+          if (activeTool === "pointer" && !isTemporaryPan) {
             const screen = screens.find((candidate) => candidate.id === node.id) ?? null;
             onSelectScreen?.(screen);
           }
         }}
         onNodeDragStart={(_, node) => {
-          if (tool !== "pointer" || disabled || isTemporaryPan) return;
+          if (activeTool !== "pointer" || disabled || readOnly || isTemporaryPan) return;
           dragTransactionRef.current = {
             screenId: node.id,
             startPosition: { ...node.position },
@@ -718,7 +732,7 @@ function CanvasStageContent({
         onNodeDragStop={(_, node) => {
           const transaction = dragTransactionRef.current;
           dragTransactionRef.current = null;
-          if (!transaction || transaction.screenId !== node.id || tool !== "pointer") return;
+          if (!transaction || transaction.screenId !== node.id || activeTool !== "pointer" || readOnly) return;
           if (
             transaction.startPosition.x === node.position.x &&
             transaction.startPosition.y === node.position.y
@@ -740,14 +754,14 @@ function CanvasStageContent({
           });
         }}
         onPaneClick={() => {
-          if (tool !== "pan" && !isTemporaryPan) onCanvasClick?.();
+          if (activeTool !== "pan" && !isTemporaryPan) onCanvasClick?.();
         }}
         onMove={(_, viewport) => setViewportState(viewport)}
         onMoveStart={() => setIsPanning(true)}
         onMoveEnd={() => setIsPanning(false)}
         minZoom={0.1}
         maxZoom={4}
-        nodesDraggable={tool === "pointer" && !disabled}
+        nodesDraggable={activeTool === "pointer" && !disabled && !readOnly}
         nodesConnectable={false}
         elementsSelectable={false}
         selectionOnDrag={false}
@@ -771,12 +785,13 @@ function CanvasStageContent({
       </ReactFlow>
 
       <CanvasToolDock
-        tool={tool}
+        tool={activeTool}
         zoomPercent={Math.round(viewportState.zoom * 100)}
         canFocus={Boolean(selectedScreen)}
         disabled={disabled}
+        readOnly={readOnly}
         workspaceCenterX={dockCenterX}
-        onToolChange={onToolChange}
+        onToolChange={changeTool}
         onZoomOut={() => void controller.zoomOut()}
         onResetZoom={() => void controller.resetZoom()}
         onFitCanvas={() => void controller.fitAll()}

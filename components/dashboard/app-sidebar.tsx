@@ -6,7 +6,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  Check,
   CreditCard,
   FolderPlus,
   LayoutDashboard,
@@ -23,6 +22,7 @@ import { DrawgleLogo } from "@/components/DrawgleLogo";
 import { NavSecondary } from "@/components/dashboard/nav-secondary";
 import { NavUser } from "@/components/dashboard/nav-user";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { PreviewShareDialog } from "@/components/PreviewShareDialog";
 import {
   Sidebar,
   SidebarContent,
@@ -234,8 +234,8 @@ function ProjectMenuItem({
   onDelete: () => void;
   onNavigate: () => void;
 }) {
-  const [copied, setCopied] = React.useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
+  const [isShareDialogOpen, setIsShareDialogOpen] = React.useState(false);
   const [isActionsOpen, setIsActionsOpen] = React.useState(false);
   const [hoveredAction, setHoveredAction] = React.useState<string | null>(null);
   const [menuPosition, setMenuPosition] = React.useState<{ left: number; top: number } | null>(null);
@@ -287,16 +287,6 @@ function ProjectMenuItem({
     };
   }, [isActionsOpen, updateActionMenuPosition]);
 
-  const handleShare = async () => {
-    try {
-      await navigator.clipboard.writeText(`${window.location.origin}/project/${project.id}`);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
-    } catch (error) {
-      console.error("Failed to copy project link", error);
-    }
-  };
-
   const openActions = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
@@ -324,9 +314,9 @@ function ProjectMenuItem({
           {[
             {
               id: "share",
-              label: copied ? "Copied!" : "Share project",
-              icon: copied ? Check : Share2,
-              onClick: handleShare,
+              label: "Share project",
+              icon: Share2,
+              onClick: () => setIsShareDialogOpen(true),
               destructive: false,
             },
             {
@@ -430,6 +420,13 @@ function ProjectMenuItem({
         confirmText="Delete"
         cancelText="Cancel"
         variant="destructive"
+      />
+      <PreviewShareDialog
+        projectId={project.id}
+        projectName={project.name}
+        initialEnabled={project.publicPreviewEnabled}
+        open={isShareDialogOpen}
+        onOpenChange={setIsShareDialogOpen}
       />
     </SidebarMenuItem>
   );

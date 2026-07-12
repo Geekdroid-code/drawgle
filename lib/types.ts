@@ -777,6 +777,9 @@ export interface ProjectData {
   status: ProjectStatus;
   charter?: ProjectCharter | null;
   designTokens?: DesignTokens | null;
+  publicPreviewToken?: string | null;
+  publicPreviewEnabled?: boolean;
+  publicPreviewCreatedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }

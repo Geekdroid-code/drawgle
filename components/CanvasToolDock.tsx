@@ -89,6 +89,7 @@ export function CanvasToolDock({
   zoomPercent,
   canFocus,
   disabled,
+  readOnly,
   workspaceCenterX,
   onToolChange,
   onZoomOut,
@@ -101,6 +102,7 @@ export function CanvasToolDock({
   zoomPercent: number;
   canFocus: boolean;
   disabled?: boolean;
+  readOnly?: boolean;
   workspaceCenterX: number | null;
   onToolChange?: (tool: CanvasTool) => void;
   onZoomOut?: () => void;
@@ -130,14 +132,16 @@ export function CanvasToolDock({
           >
             <MousePointer2 className="h-4 w-4 md:h-5 md:w-5" />
           </DockButton>
-          <DockButton
-            label="Select element"
-            active={tool === "element-select"}
-            disabled={disabled}
-            onClick={() => onToolChange?.("element-select")}
-          >
-            <LassoSelect className="h-4 w-4 md:h-5 md:w-5" />
-          </DockButton>
+          {!readOnly ? (
+            <DockButton
+              label="Select element"
+              active={tool === "element-select"}
+              disabled={disabled}
+              onClick={() => onToolChange?.("element-select")}
+            >
+              <LassoSelect className="h-4 w-4 md:h-5 md:w-5" />
+            </DockButton>
+          ) : null}
           <DockButton
             label="Pan canvas (H)"
             active={tool === "pan"}
