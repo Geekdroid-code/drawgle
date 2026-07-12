@@ -2213,7 +2213,7 @@ export function ScreenNode({
           ref={iframeRef}
           title={screen.name}
           className="absolute inset-0 w-full h-full border-none"
-          sandbox="allow-scripts allow-same-origin"
+          sandbox={readOnly ? "allow-scripts" : "allow-scripts allow-same-origin"}
           srcDoc={srcDoc}
           style={{
             pointerEvents: isDragging || overlayActive ? 'none' : 'auto',

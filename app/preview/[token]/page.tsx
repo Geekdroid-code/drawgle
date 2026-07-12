@@ -2,12 +2,10 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { PublicPreviewShell } from "@/components/PublicPreviewShell";
+import { parseStoredNavigationPlan } from "@/lib/project-navigation";
 import { noindexRobots } from "@/lib/seo/metadata";
-import type { ProjectNavigationRow, ScreenRow } from "@/lib/supabase/database.types";
-import { mapProjectNavigationRow, mapProjectRow, mapScreenRow } from "@/lib/supabase/mappers";
-import { PROJECT_NAVIGATION_SELECT_COLUMNS, SCREEN_SELECT_COLUMNS } from "@/lib/supabase/queries";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { ProjectData, ProjectNavigationData, ScreenData } from "@/lib/types";
+import type { DesignTokens, ProjectData, ProjectNavigationData, ScreenChromePolicy, ScreenData } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -18,34 +16,96 @@ export const metadata: Metadata = {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-const sanitizeProject = (project: ProjectData): ProjectData => ({
-  ...project,
-  ownerId: undefined,
+const PUBLIC_PROJECT_SELECT_COLUMNS = [
+  "id",
+  "name",
+  "status",
+  "design_tokens",
+  "created_at",
+  "updated_at",
+].join(", ");
+
+const PUBLIC_SCREEN_SELECT_COLUMNS = [
+  "id",
+  "project_id",
+  "name",
+  "code",
+  "chrome_policy",
+  "navigation_item_id",
+  "parent_screen_id",
+  "state_key",
+  "state_label",
+  "state_role",
+  "position_x",
+  "position_y",
+  "sort_index",
+  "status",
+  "created_at",
+  "updated_at",
+].join(", ");
+
+const PUBLIC_NAVIGATION_SELECT_COLUMNS = [
+  "id",
+  "project_id",
+  "plan",
+  "shell_code",
+  "status",
+  "created_at",
+  "updated_at",
+].join(", ");
+
+const mapPublicProject = (row: Record<string, any>): ProjectData => ({
+  id: row.id,
   userId: "public",
+  name: row.name,
   prompt: "",
+  status: row.status,
   charter: null,
-  publicPreviewToken: null,
+  designTokens: (row.design_tokens as DesignTokens | null) ?? null,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
 });
 
-const sanitizeScreen = (screen: ScreenData): ScreenData => ({
-  ...screen,
-  ownerId: undefined,
+const mapPublicScreen = (row: Record<string, any>): ScreenData => ({
+  id: row.id,
+  projectId: row.project_id,
   userId: "public",
-  generationRunId: null,
+  name: row.name,
+  code: row.code,
   prompt: "",
+  summary: null,
+  generationRunId: null,
   blockIndex: null,
+  chromePolicy: (row.chrome_policy as ScreenChromePolicy | null) ?? null,
+  navigationItemId: row.navigation_item_id,
+  parentScreenId: row.parent_screen_id,
+  stateKey: row.state_key,
+  stateLabel: row.state_label,
+  stateRole: row.state_role,
+  x: row.position_x,
+  y: row.position_y,
+  sortIndex: row.sort_index,
+  status: row.status,
   error: null,
   triggerRunId: null,
   streamPublicToken: null,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
 });
 
-const sanitizeNavigation = (navigation: ProjectNavigationData | null): ProjectNavigationData | null => (
-  navigation
+const mapPublicNavigation = (row: Record<string, any> | null): ProjectNavigationData | null => (
+  row
     ? {
-        ...navigation,
+        id: row.id,
+        projectId: row.project_id,
         ownerId: "public",
+        plan: parseStoredNavigationPlan(row.plan),
+        shellCode: row.shell_code,
         blockIndex: null,
+        status: row.status,
         error: null,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
       }
     : null
 );
@@ -63,7 +123,7 @@ export default async function PublicPreviewPage({
   const admin = createAdminClient();
   const { data: projectRow, error: projectError } = await admin
     .from("projects")
-    .select("*")
+    .select(PUBLIC_PROJECT_SELECT_COLUMNS)
     .eq("public_preview_token", token)
     .eq("public_preview_enabled", true)
     .maybeSingle();
@@ -78,13 +138,13 @@ export default async function PublicPreviewPage({
   ] = await Promise.all([
     admin
       .from("screens")
-      .select(SCREEN_SELECT_COLUMNS)
+      .select(PUBLIC_SCREEN_SELECT_COLUMNS)
       .eq("project_id", projectRow.id)
       .eq("status", "ready")
       .order("sort_index", { ascending: true }),
     admin
       .from("project_navigation")
-      .select(PROJECT_NAVIGATION_SELECT_COLUMNS)
+      .select(PUBLIC_NAVIGATION_SELECT_COLUMNS)
       .eq("project_id", projectRow.id)
       .maybeSingle(),
   ]);
@@ -93,15 +153,9 @@ export default async function PublicPreviewPage({
     notFound();
   }
 
-  const project = sanitizeProject(mapProjectRow(projectRow));
-  const screens = ((screenRows ?? []) as unknown as ScreenRow[])
-    .map(mapScreenRow)
-    .map(sanitizeScreen);
-  const projectNavigation = sanitizeNavigation(
-    projectNavigationRow
-      ? mapProjectNavigationRow(projectNavigationRow as unknown as ProjectNavigationRow)
-      : null,
-  );
+  const project = mapPublicProject(projectRow);
+  const screens = (screenRows ?? []).map(mapPublicScreen);
+  const projectNavigation = mapPublicNavigation(projectNavigationRow);
 
   return (
     <PublicPreviewShell

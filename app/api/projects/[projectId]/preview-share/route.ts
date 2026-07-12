@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { getPublicAppUrl } from "@/lib/env/public";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -11,14 +12,25 @@ const requestSchema = z.object({
 });
 const projectIdSchema = z.string().uuid();
 
-const buildPreviewResponse = (request: Request, token: string | null, enabled: boolean) => {
+const buildPreviewResponse = (token: string | null, enabled: boolean) => {
   const path = token ? `/preview/${token}` : null;
-  const url = path ? new URL(path, request.url).toString() : null;
+  const url = path ? new URL(path, getPublicAppUrl()).toString() : null;
   return {
     enabled,
     path,
     url,
   };
+};
+
+const isSameOriginMutation = (request: Request) => {
+  const origin = request.headers.get("origin");
+  if (!origin) return true;
+
+  try {
+    return new URL(origin).origin === new URL(request.url).origin;
+  } catch {
+    return false;
+  }
 };
 
 const loadOwnedProject = async (projectId: string, userId: string) => {
@@ -41,7 +53,7 @@ const loadOwnedProject = async (projectId: string, userId: string) => {
 };
 
 export async function GET(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ projectId: string }> },
 ) {
   const { projectId: rawProjectId } = await params;
@@ -66,7 +78,7 @@ export async function GET(
   }
 
   return NextResponse.json(
-    buildPreviewResponse(request, project.public_preview_token, project.public_preview_enabled),
+    buildPreviewResponse(project.public_preview_token, project.public_preview_enabled),
   );
 }
 
@@ -74,6 +86,10 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ projectId: string }> },
 ) {
+  if (!isSameOriginMutation(request)) {
+    return NextResponse.json({ error: "Invalid request origin" }, { status: 403 });
+  }
+
   const { projectId: rawProjectId } = await params;
   const parsedProjectId = projectIdSchema.safeParse(rawProjectId);
   if (!parsedProjectId.success) {
@@ -128,10 +144,6 @@ export async function POST(
   }
 
   return NextResponse.json(
-    buildPreviewResponse(
-      request,
-      updatedProject.public_preview_token,
-      updatedProject.public_preview_enabled,
-    ),
+    buildPreviewResponse(updatedProject.public_preview_token, updatedProject.public_preview_enabled),
   );
 }
