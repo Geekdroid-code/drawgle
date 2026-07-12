@@ -553,24 +553,44 @@ export const comparisonPages: ComparisonPageData[] = [
     },
     faqs: [
       {
-        question: "Is Drawgle a direct replacement for Sleek.design?",
+        question: "Can I export production-ready front-end code from Sleek.design?",
         answer:
-          "Not exactly. Both are AI mobile UI tools, but they optimize for different handoffs. Sleek is strong for Figma-first output, while Drawgle is built around editable UI, design tokens, and coding-agent handoff. Choosing one is really about whether your bottleneck is design file production or implementation speed.",
+          "Sleek.design exports standard HTML or React with Tailwind CSS, but its primary output is editable Figma layers. Drawgle focuses heavily on developer handoff, exporting highly structured, semantic HTML + Tailwind CSS alongside a '.drawgle' Agent Pack containing design tokens and asset references, optimized for developers and coding agents.",
       },
       {
-        question: "Does Sleek support code export and agent workflows?",
+        question: "How does the Figma integration differ between Sleek.design and Drawgle?",
         answer:
-          "Sleek says all plans include HTML or React with Tailwind CSS export. API and agent access for tools like Claude Code, Codex, and Cursor are documented on the Pro and Team pricing tiers, while the public agent skill repository on GitHub is positioned for Pro+ users.",
+          "Sleek.design is Figma-first, exporting editable Figma layers directly into a Figma design file. If your team's workflow relies on Figma as the source of truth, Sleek is a cleaner fit. Drawgle is canvas-first; it uses an in-app editor where you design and organize screens, then exports the code package directly to your repository, skipping Figma entirely.",
       },
       {
-        question: "Which tool should developers choose?",
+        question: "Does Drawgle support dynamic re-theming like Sleek's visual edits?",
         answer:
-          "Developers who want a UI handoff that includes code-oriented context, design tokens, and framework implementation paths should look closely at Drawgle. Developers whose workflow begins in Figma and ends in a design file may prefer Sleek.",
+          "Yes, but the philosophy differs. Sleek.design allows you to iterate visually per screen using visual prompts. Drawgle uses token-driven styling: you define design tokens (spacing, color, typography, radius) once, and they propagate globally across all connected screens. Changing a token updates your entire project instantly without needing to regenerate any screens.",
       },
       {
-        question: "Why compare Drawgle and Sleek at all?",
+        question: "How do the AI generation credits compare between Sleek.design and Drawgle?",
         answer:
-          "Sleek is one of the clearest AI mobile app design tools in this category, which makes it a useful benchmark for explaining where Drawgle's repo-ready workflow is different. The comparison helps buyers decide based on the actual handoff they need.",
+          "Sleek.design offers much larger monthly credit pools on its paid tiers, making it ideal for high-volume visual exploration and generating dozens of concepts quickly. Drawgle focuses on the engineering value of the exported code; you get fewer raw credits, but each credit translates into a shippable, tokenized front-end component rather than a visual mockup.",
+      },
+      {
+        question: "How does page-to-page navigation coherence work in Drawgle compared to Sleek?",
+        answer:
+          "Sleek is screen-centric, meaning you generate pages individually, and organizing them into flows is typically handled inside Figma after export. Drawgle maintains a persistent project context that remembers your app's global state, audience, and typography, allowing you to add and link new screens while maintaining complete visual and structural coherence.",
+      },
+      {
+        question: "Can I import a mockup screenshot from Sleek.design into Drawgle to edit it?",
+        answer:
+          "Yes. Drawgle features a screenshot-to-UI engine. You can upload a screenshot of any screen generated in Sleek.design, and Drawgle will rebuild it as a fully editable, tokenized layout. You can then refine it, apply your brand tokens, and export the code package.",
+      },
+      {
+        question: "Is Drawgle's HTML export responsive for mobile viewports?",
+        answer:
+          "Yes. All Drawgle exports use mobile-first Tailwind CSS classes that adapt cleanly to various mobile device viewports (iOS and Android). It is built to simulate a native app environment, prioritizing soft glassmorphism, native-like navigation headers, and flexible card layouts.",
+      },
+      {
+        question: "Do I need a designer to build UI on Drawgle vs. Sleek.design?",
+        answer:
+          "Both tools are accessible to non-designers. However, Sleek.design is optimized to hand off polished mockups to designers who finish the product in Figma. Drawgle is designed to hand off production-ready front-end code to developers or coding agents (like Cursor, Claude Code, or Copilot), making it a shorter path to launch for solo developers and technical founders.",
       },
     ],
     sources: sleekSources,
@@ -929,19 +949,44 @@ export const comparisonPages: ComparisonPageData[] = [
     },
     faqs: [
       {
-        question: "Is Google Stitch really free?",
+        question: "Is Google Stitch really free, and what is the catch?",
         answer:
-          "Yes. Stitch is published as a free Google Labs experiment, with the monthly generation caps documented on its product page. The catch is that there is no paid tier: users cannot pay to lift the caps, and Google Labs projects can be deprecated without notice. Free is real, but the operational guarantees of a paid commercial product are not part of the deal.",
+          "Yes, Google Stitch is a free Google Labs experiment. However, it enforces strict monthly generation caps, does not offer a paid tier to lift those limits, and provides no long-term hosting or product continuity guarantees. Google Labs has a history of deprecating experimental products. Drawgle is a commercial platform with dedicated plans, visual edit features, and a permanent product lifecycle roadmap.",
       },
       {
-        question: "What is the biggest difference between Drawgle and Google Stitch?",
+        question: "How does the code export of Google Stitch compare to Drawgle?",
         answer:
-          "Stitch is a free Google Labs experiment optimized for the 'first screen in under a minute' loop, with sketch and voice input as a strong suit. Drawgle is a commercial mobile-only product optimized for the 'ten-screen product that ships to a real device' loop, with design tokens, project context, and production-ready code in five frameworks. The tools are closer than they look at first glance, but they are aimed at very different stages of a project.",
+          "Google Stitch provides basic HTML/React code, but its documentation suggests treating it as visual scaffolding rather than production-ready code. Drawgle exports clean, semantic HTML + Tailwind CSS accompanied by an Agent Pack containing design tokens, visual assets, and system prompts, designed to be plugged directly into codebases or read by coding agents.",
       },
       {
-        question: "Should I use both Drawgle and Google Stitch?",
+        question: "Does Drawgle support voice or hand-drawn sketch inputs like Google Stitch?",
         answer:
-          "Many teams do. Stitch is well suited to the free, fast, sketch-led exploration phase, and Drawgle is well suited to the paid, token-driven, production-code phase. Treating Stitch as the ideation tool and Drawgle as the shipping tool is a reasonable architecture for a small team, especially while Stitch remains free and Drawgle's Starter tier is $9/mo.",
+          "No. Google Stitch uses Gemini to accept sketch drawings and voice inputs. Drawgle focuses on text prompts and screenshot-to-UI conversions. If you prefer to wireframe by drawing on paper, you can sketch in Stitch, take a screenshot of its first draft, and upload it to Drawgle to turn it into an editable, tokenized, code-exportable layout.",
+      },
+      {
+        question: "How do the visual design system capabilities compare between Google Stitch and Drawgle?",
+        answer:
+          "In Stitch, design system controls are limited, and styling is applied page-by-page. Drawgle uses centralized design tokens (colors, radius, spacing, typography). If you change a global token in Drawgle, all screens in your project update dynamically, ensuring visual coherence without needing to regenerate individual pages.",
+      },
+      {
+        question: "How does dynamic multi-page coherence work in both tools?",
+        answer:
+          "Stitch generates pages in isolation, meaning pages in the same session can sometimes have inconsistent styles or layouts. Drawgle maintains a project memory canvas that tracks your app's visual guidelines, layout architecture, and features, ensuring that the 10th screen looks and behaves consistently with the 1st screen.",
+      },
+      {
+        question: "Can I export my Drawgle projects to Figma like Google Stitch?",
+        answer:
+          "No, Drawgle does not support native Figma file exports or Auto Layout conversions. It is designed to bypass the design-file stage entirely. If your team's workflow relies on Figma, Google Stitch is a better fit. If you want to go directly from an idea to clean front-end code, Drawgle is built for that exact workflow.",
+      },
+      {
+        question: "What is the Agent Pack exported by Drawgle?",
+        answer:
+          "The Agent Pack is a structured folder containing your app's design tokens (JSON), custom assets, layout instructions, and context metadata. This pack is specifically designed to be read by coding agents (like Claude Code, Cursor, or GitHub Copilot), enabling them to build, extend, and style your application with high visual fidelity.",
+      },
+      {
+        question: "Who should choose Drawgle over Google Stitch?",
+        answer:
+          "Choose Stitch if you want a free sandbox to play with ideas, sketches, and voice-to-design concepts without buying a subscription. Choose Drawgle if you are building a commercial MVP or mobile web wrapper and need a reliable, token-driven workflow that exports production-ready code and offers long-term product continuity.",
       },
     ],
     sources: stitchSources,
@@ -1311,19 +1356,44 @@ export const comparisonPages: ComparisonPageData[] = [
     },
     faqs: [
       {
-        question: "Does App Alchemy export real iOS and Android code?",
+        question: "What is the main difference between AppAlchemy and Drawgle?",
         answer:
-          "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
+          "AppAlchemy is an image-led mockup builder focused on template cloning and visual exploration. It prioritizes creating visually styled mockups quickly. Drawgle is an engineering-first tool that converts prompts and screenshots into clean, semantic HTML + Tailwind CSS, with design tokens and an Agent Pack optimized for developer and coding agent workflows.",
       },
       {
-        question: "Is App Alchemy cheaper than Drawgle?",
+        question: "Can I edit individual elements in AppAlchemy like I can in Drawgle?",
         answer:
-          "No at entry. App Alchemy's Starter plan begins at $29.99 per month, while Drawgle starts at $9 per month. App Alchemy does give more credits and more app capacity, so it is stronger for higher-volume ideation. Drawgle is the cheaper first paid step when you are focused on one serious mobile product and care more about build-ready output than about raw generation volume.",
+          "AppAlchemy relies heavily on regenerating entire screens or applying broad template style overrides. Drawgle features pinpoint element edits: you can select a specific button, card, or navigation bar, describe your change, and the AI modifies that specific element in place without regenerating the rest of the screen or breaking the layout.",
       },
       {
-        question: "Who should choose App Alchemy over Drawgle?",
+        question: "Does AppAlchemy support global design tokens?",
         answer:
-          "Choose App Alchemy when your team is still in concept mode and wants template cloning, image-led starts, large credit pools, and design artifacts that are easy to review in the browser. Choose Drawgle when the approved design is expected to become real mobile code next, not later.",
+          "No. In AppAlchemy, consistency is maintained by copying template styles or manually matching colors across screens. Drawgle uses a centralized design token system (radii, colors, padding, typography). When you edit a token, all connected screens update instantly, ensuring perfect brand alignment.",
+      },
+      {
+        question: "How does the developer handoff compare between AppAlchemy and Drawgle?",
+        answer:
+          "AppAlchemy provides basic HTML code exports, but they are often structured around static, absolute-positioned template elements. Drawgle exports clean, responsive HTML with Tailwind classes, complete with a structured Agent Pack (tokens, assets, context prompts) designed for easy implementation in any developer stack.",
+      },
+      {
+        question: "How do the pricing structures and caps compare?",
+        answer:
+          "AppAlchemy gates active projects and template cloning behind higher pricing tiers, using an app-cap model. Drawgle's pricing is based on credit volume for code generation and token edits; you have unlimited project canvases and can edit or export code freely as long as you have generation credits.",
+      },
+      {
+        question: "Can I upload screenshots of my AppAlchemy designs into Drawgle?",
+        answer:
+          "Yes. If you have mockups in AppAlchemy and want to convert them into editable, token-driven front-end code, you can take a screenshot, upload it to Drawgle, and the screenshot-to-UI engine will rebuild it as clean, editable HTML/Tailwind components.",
+      },
+      {
+        question: "Is Drawgle's code export optimized for mobile viewports?",
+        answer:
+          "Yes. Drawgle is mobile-only by design. All HTML + Tailwind code is structured using mobile-first responsive classes (handling typical device widths, safe areas, and flexible flexbox/grid components) so it works out of the box in mobile web views.",
+      },
+      {
+        question: "Who is AppAlchemy best for vs. Drawgle?",
+        answer:
+          "AppAlchemy is best for visual designers and marketers who want to spin up visual app previews and presentations using a catalog of templates. Drawgle is built for developers, indie hackers, and technical founders who want to go from layout to clean front-end code that can be immediately committed to a repository.",
       },
     ],
     sources: appAlchemySources,
@@ -1686,19 +1756,44 @@ export const comparisonPages: ComparisonPageData[] = [
     },
     faqs: [
       {
-        question: "Is floow.design basically the same as Drawgle?",
+        question: "How does floow.design's prototyping compare to Drawgle?",
         answer:
-          "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
+          "floow.design is a mobile-first flow builder focused on visual prototyping, dynamic transitions, and team sharing. Drawgle is a developer-focused tool; instead of interactive visual prototyping, it focuses on exporting clean HTML + Tailwind code and structured Agent Packs so you can build the actual interactive logic in your real codebase.",
       },
       {
-        question: "Which tool is better for Figma-based teams?",
+        question: "Does floow.design export production-ready code?",
         answer:
-          "floow.design. Its export surface is explicitly built around structured Figma files with auto-layout and named layers, and it also supports preview links for review. Drawgle is less interested in sending the workflow back into Figma and more interested in sending it toward implementation.",
+          "floow.design offers code exports, but they are largely static CSS/HTML scaffolds that require significant restructuring to use. Drawgle exports highly structured, clean HTML + Tailwind CSS components aligned with a central JSON token file, ready to be read and implemented by coding agents or developers.",
       },
       {
-        question: "Which tool is better for real mobile engineering handoff?",
+        question: "How does global style management differ between these two tools?",
         answer:
-          "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
+          "floow.design uses theme presets and manual layout adjustments across screens. Drawgle uses a token-driven approach (padding, border radius, colors, typography tokens). When you change a token, the change propagates globally across all pages in the project without regenerating any layouts.",
+      },
+      {
+        question: "How do project and screen limits compare?",
+        answer:
+          "floow.design's pricing is gated by the number of active projects, screens, and shared links you can create. Drawgle does not restrict the number of projects or screens on its canvas; instead, pricing is based on the volume of AI generation and editing credits you use.",
+      },
+      {
+        question: "Can I import my floow.design visual flows into Drawgle?",
+        answer:
+          "Yes, you can export your floow.design screens as images, upload them to Drawgle's screenshot-to-UI engine, and rebuild them as clean, editable, token-driven HTML/Tailwind layouts.",
+      },
+      {
+        question: "How does page-to-page consistency work in Drawgle vs. floow.design?",
+        answer:
+          "floow.design keeps pages consistent through manual duplication and shared templates. Drawgle maintains a project-wide context memory that tracks your app's brand rules, typography, and visual goals, ensuring that any newly generated screen matches the existing structure.",
+      },
+      {
+        question: "Does Drawgle support team collaboration and preview sharing?",
+        answer:
+          "Drawgle allows you to generate public share links for your screens so team members can inspect designs. However, it is optimized as a developer tool rather than a visual design collaboration space. For deep, design-focused collaborative wireframing, floow.design has the advantage.",
+      },
+      {
+        question: "Who should choose Drawgle over floow.design?",
+        answer:
+          "Choose floow.design if your primary goal is to create interactive, clickable visual mockups for client approvals or team presentations. Choose Drawgle if your goal is to quickly build mobile screen layouts, establish clean design tokens, and export production-ready HTML/Tailwind code for your app repository.",
       },
     ],
     sources: floowSources,
@@ -2049,19 +2144,44 @@ export const comparisonPages: ComparisonPageData[] = [
     },
     faqs: [
       {
-        question: "Is ScreensDesign a direct replacement for Drawgle?",
+        question: "What makes ScreensDesign different from Drawgle?",
         answer:
-          "Not really. ScreensDesign is much more specialized. It is strongest for researching and generating high-converting onboarding flows, paywalls, and subscription app screens. Drawgle is broader and more implementation-oriented, so it fits better when the team is building the whole mobile product and expects the approved UI to become real code next.",
+          "ScreensDesign is built around a static library of top iOS screens (like paywalls, onboarding, and settings) that you can search and adapt. Drawgle is a prompt-to-UI and screenshot-to-UI generator; it doesn't rely on a static template catalog, allowing you to generate custom, bespoke layouts for any mobile niche.",
       },
       {
-        question: "Who should choose ScreensDesign over Drawgle?",
+        question: "Can I generate custom app flows in ScreensDesign?",
         answer:
-          "Choose ScreensDesign if you run a subscription app or growth team and the main problem is monetization-screen performance. Its library of top iOS apps, walkthrough videos, revenue signals, Copy to Figma workflow, and HTML/CSS export make it unusually good for that narrow but important job.",
+          "ScreensDesign is highly optimized for specific common screens (onboarding, paywalls, profiles). It is less suited for complex, custom business logic screens. Drawgle handles any custom layout prompts, using its project context to generate coherent, multi-screen user flows from scratch.",
       },
       {
-        question: "Who should choose Drawgle over ScreensDesign?",
+        question: "How does the code export compare between ScreensDesign and Drawgle?",
         answer:
-          "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
+          "ScreensDesign exports basic HTML/Tailwind and has integrations with some AI coding plugins. Drawgle exports clean HTML + Tailwind CSS along with a structured '.drawgle' Agent Pack containing design tokens, assets, and implementation context specifically optimized for coding agents (like Claude Code, Cursor, or Copilot).",
+      },
+      {
+        question: "Does ScreensDesign support global design tokens?",
+        answer:
+          "No. In ScreensDesign, changes to styles are done on a screen-by-screen basis or by selecting a new template style. Drawgle uses a tokenized system (radius, color, spacing, fonts). A single edit to a design token updates all screens in your workspace instantly.",
+      },
+      {
+        question: "Can I use my own screenshots in ScreensDesign?",
+        answer:
+          "ScreensDesign focuses on letting you search their library of existing apps. Drawgle allows you to upload any custom screenshot (whether from your competitor, a dribbble shot, or a live app) and converts it into a fully editable, tokenized layout.",
+      },
+      {
+        question: "What is the benefit of Drawgle's Agent Pack?",
+        answer:
+          "Coding agents need structured context to write good code. The Agent Pack provides a JSON file of your design tokens, asset paths, and visual guidelines. When you feed this pack to a tool like Cursor or Claude Code, it builds the front-end to match your designs exactly, eliminating visual bugs.",
+      },
+      {
+        question: "Is Drawgle's HTML output mobile-only?",
+        answer:
+          "Yes. Drawgle is strictly focused on mobile interfaces. The exported HTML uses mobile-first Tailwind utility classes designed for mobile viewports, safe areas, and flex layouts, making it easy to embed in Capacitor, Cordova, or standard web wrappers.",
+      },
+      {
+        question: "Who is ScreensDesign best for vs. Drawgle?",
+        answer:
+          "ScreensDesign is best for product managers and marketers looking to quickly copy standard iOS design patterns (like a Duolingo onboarding flow or a Spotify paywall). Drawgle is built for developers and technical founders who need custom, bespoke layouts and clean, exportable HTML/Tailwind code.",
       },
     ],
     sources: screensDesignSources,
@@ -2424,19 +2544,44 @@ export const comparisonPages: ComparisonPageData[] = [
     },
     faqs: [
       {
-        question: "Is Visily a direct competitor to Drawgle?",
+        question: "How does Visily's wireframing compare to Drawgle?",
         answer:
-          "Only at the broadest level. Both use AI to turn ideas into screens, but Visily is really a wireframing and collaboration platform for non-designers and broad product teams. Drawgle is a more specialized mobile product builder with a stronger post-approval implementation path.",
+          "Visily is a wireframing and design tool built for non-designers, supporting both web and mobile canvas layouts. Drawgle is strictly mobile-only and focuses on developer handoff, exporting clean HTML + Tailwind code and structured Agent Packs instead of a design file.",
       },
       {
-        question: "Who should choose Visily over Drawgle?",
+        question: "Does Visily export clean, production-ready code?",
         answer:
-          "Choose Visily if your team needs easy wireframing, prototypes, presentations, Figma-adjacent collaboration, and multimodal starting points like screenshots, diagrams, and text prompts. It is especially strong when non-designers are a big part of the workflow.",
+          "Visily has basic code exports (like CSS or HTML snippets), but they are designed as a starting point. Drawgle exports complete, structured HTML + Tailwind layouts aligned with a central JSON token file, optimized for direct integration into your front-end repository.",
       },
       {
-        question: "Who should choose Drawgle over Visily?",
+        question: "How do the AI engines compare between Visily and Drawgle?",
         answer:
-          "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
+          "Visily uses AI to convert screenshots or hand-drawn sketches into wireframes, which you then manually edit inside their canvas. Drawgle uses a prompt-to-UI and screenshot-to-UI engine that generates highly styled, token-driven HTML components that you can refine using text instructions.",
+      },
+      {
+        question: "Can I manage global brand tokens in Visily?",
+        answer:
+          "Visily supports color palettes and typography styles, but they are design-centric. Drawgle uses developer-centric design tokens (radii, margins, padding, colors) that map directly to Tailwind utility classes. Editing a token updates the exported JSON and all pages on the canvas instantly.",
+      },
+      {
+        question: "Does Drawgle support web or desktop layouts like Visily?",
+        answer:
+          "No. Drawgle is mobile-only by design. It does not support desktop, tablet, or generic web dashboard layouts. If you need to design multi-platform web applications, Visily is the better fit.",
+      },
+      {
+        question: "Can I import a Visily wireframe into Drawgle?",
+        answer:
+          "Yes. You can export your Visily wireframe as an image, upload it to Drawgle's screenshot-to-UI engine, and convert it into a fully styled, editable HTML + Tailwind layout.",
+      },
+      {
+        question: "What is the purpose of Drawgle's Agent Pack?",
+        answer:
+          "The Agent Pack is a package of tokens, assets, and layout context files. It is designed to be fed into coding agents (like Cursor, Copilot, or Claude Code) so they can implement your mobile front-end with pixel-perfect visual styling without needing manual design specifications.",
+      },
+      {
+        question: "Should I choose Visily or Drawgle?",
+        answer:
+          "Choose Visily if you want to collaborate on wireframes across both web and mobile platforms and hand off mockups to a design team. Choose Drawgle if you are a developer who wants to go from a mobile app idea or screenshot directly to clean, exportable HTML + Tailwind front-end code.",
       },
     ],
     sources: visilySources,
@@ -2799,17 +2944,42 @@ export const comparisonPages: ComparisonPageData[] = [
     },
     faqs: [
       {
-        question: "Is Uizard a direct replacement for Drawgle?",
+        question: "What is the main code export difference between Uizard and Drawgle?",
         answer:
-          "Not really. Uizard is stronger as a broad AI prototyping workspace for product teams. Drawgle is stronger as a mobile-only builder when the approved UI is expected to become real code next. They overlap at the 'AI makes screens' level, but they optimize for different outcomes after that.",
+          "Uizard only exports component-level React and CSS handoff code; it does not export full-page or multi-page HTML packages. Drawgle exports complete, semantic HTML + Tailwind CSS pages alongside a structured Agent Pack, allowing you to export your entire mobile screen flow as a complete package.",
       },
       {
-        question: "Can Uizard export a full project to code like Drawgle?",
+        question: "How does the Figma integration compare between Uizard and Drawgle?",
         answer:
-          "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
+          "Uizard supports exporting designs to Figma, where they can be edited as standard design files. Drawgle is canvas-first and does not support Figma file exports. It is designed to bypass the design-file phase entirely, going straight from prompt/screenshot to clean front-end code.",
       },
       {
-        question: "Who should choose Uizard over Drawgle?",
+        question: "Does Uizard support global design tokens?",
+        answer:
+          "Uizard has visual theme management, but it doesn't export a structured JSON design token file. Drawgle uses a token-driven system (padding, radius, colors, typography) that maps directly to your code. When you export, you get a '.drawgle' token file that ensures your code remains consistent with your design.",
+      },
+      {
+        question: "How do the AI editing loops compare between Uizard and Drawgle?",
+        answer:
+          "Uizard's Autodesigner is prompt-based for full screens but relies on manual drag-and-drop editing for modifications. Drawgle combines manual canvas adjustments with pinpoint AI editing: you can select any component and describe a change, and the AI will modify only that element, keeping your layout intact.",
+      },
+      {
+        question: "Can I use screenshots to generate layouts in both tools?",
+        answer:
+          "Yes, both tools support screenshot-to-design conversion. Uizard converts screenshots into editable design components. Drawgle converts screenshots directly into tokenized, responsive HTML + Tailwind screens, ready for export.",
+      },
+      {
+        question: "Does Drawgle support web and desktop designs like Uizard?",
+        answer:
+          "No. Uizard supports web, tablet, desktop, and mobile canvases. Drawgle is strictly mobile-only by design. If you need to build web applications or desktop portals, Uizard is the correct choice.",
+      },
+      {
+        question: "What is Vercel's role in the Drawgle workflow?",
+        answer:
+          "Drawgle runs on Vercel's edge network, ensuring fast loading and instant generation previews. You can generate shareable staging links for your screens directly from the canvas, making it easy to test mobile web wrappers on real devices.",
+      },
+      {
+        question: "Who should choose Drawgle over Uizard?",
         answer:
           "Choose Uizard if the main goal is moving from rough idea to editable prototype quickly. It is especially strong for teams using text prompts, screenshots, wireframes, templates, clickable flows, and broad stakeholder collaboration. Choose Drawgle when the work is already becoming a real mobile product and the next step is code, not just prototype alignment.",
       },
@@ -3174,19 +3344,44 @@ export const comparisonPages: ComparisonPageData[] = [
     },
     faqs: [
       {
-        question: "Is UX Pilot the closest competitor to Drawgle so far?",
+        question: "How does UX Pilot's workflow compare to Drawgle?",
         answer:
-          "It is one of the closest, but in a different direction than Floow. UX Pilot is especially strong for Figma-native design teams because it emphasizes design-system-aware generation, multi-screen flows, reference-driven styling, and editable Figma output. Drawgle is stronger when the approved mobile UI needs to move faster into the real implementation stack.",
+          "UX Pilot is a Figma-first tool, operating primarily as a Figma AI plugin to generate wireframes and train design systems. Drawgle is a standalone web application; it has a self-contained canvas editor and does not require Figma, exporting code packages directly to your repository.",
       },
       {
-        question: "Should a Figma-centered team choose UX Pilot over Drawgle?",
+        question: "Does UX Pilot export developer-ready code?",
         answer:
-          "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
+          "UX Pilot relies on Figma's developer mode or third-party plug-ins for code handoff. Drawgle exports clean, semantic HTML + Tailwind CSS out of the box, accompanied by a structured Agent Pack that bridges the gap between design and front-end development.",
       },
       {
-        question: "When is Drawgle the better choice over UX Pilot?",
+        question: "How do the design token systems differ between UX Pilot and Drawgle?",
         answer:
-          "Drawgle is the better choice when the work is strictly mobile and the team wants the design to become a real app quickly, not just a stronger design artifact. Its narrower focus becomes an advantage once implementation speed matters more than extending a Figma-based design workflow.",
+          "UX Pilot manages design systems inside Figma variables. Drawgle uses a built-in token editor (padding, colors, radius, fonts) that maps directly to Tailwind classes. Changing a token updates your entire project on the canvas and in the exported JSON files instantly.",
+      },
+      {
+        question: "Can I run prompt-to-UI generations in both tools?",
+        answer:
+          "Yes. UX Pilot generates UI inside Figma frames using prompt and style guides. Drawgle generates mobile screens inside its web canvas, using a project context memory to keep multi-page layouts visually and structurally coherent.",
+      },
+      {
+        question: "Does Drawgle support custom brand-guideline training like UX Pilot?",
+        answer:
+          "UX Pilot has a strong feature for training the AI on specific brand guidelines inside Figma. Drawgle achieves brand consistency through its tokenized canvas; once you set your brand colors, spacing, and typography tokens, the AI applies them to all new generations.",
+      },
+      {
+        question: "Can I rebuild screenshots using UX Pilot?",
+        answer:
+          "UX Pilot is focused on prompt-to-wireframe and visual styling inside Figma. Drawgle features a dedicated screenshot-to-UI engine that turns any uploaded mobile app screenshot into an editable, tokenized layout with exportable HTML/Tailwind.",
+      },
+      {
+        question: "What is included in Drawgle's Agent Pack?",
+        answer:
+          "The Agent Pack is a folder containing your HTML/Tailwind screen code, asset files, and a central JSON design token file. This package is optimized for coding agents (like Cursor or Claude Code) to help them write visual components without CSS bugs.",
+      },
+      {
+        question: "Who should choose Drawgle over UX Pilot?",
+        answer:
+          "Choose UX Pilot if you are a designer who lives in Figma and wants an AI assistant to speed up layout generation and style training. Choose Drawgle if you want a standalone tool that goes directly from an idea or screenshot to clean, exportable HTML + Tailwind CSS.",
       },
     ],
     sources: uxPilotSources,
@@ -3549,19 +3744,44 @@ export const comparisonPages: ComparisonPageData[] = [
     },
     faqs: [
       {
-        question: "Is UXMagic closer to UX Pilot or to Drawgle?",
+        question: "What is the main difference between UXMagic and Drawgle?",
         answer:
-          "It is closer to UX Pilot in the sense that it is still a broad design copilot rather than a dedicated mobile implementation builder. But UXMagic is more multimodal than UX Pilot. It leans harder into screenshots, sketches, URLs, Figma import and export, style guides, sectional editing, and HTML or React handoff in one workspace.",
+          "UXMagic is a prompt-to-UI tool focused on responsive design, exporting to Figma or basic HTML/React. Drawgle is strictly mobile-only and focuses on developer handoff, exporting clean HTML + Tailwind CSS along with a structured '.drawgle' Agent Pack containing design tokens and assets.",
       },
       {
-        question: "Who should choose UXMagic over Drawgle?",
+        question: "Can I export my Drawgle project to Figma like UXMagic?",
         answer:
-          "Choose UXMagic if your team wants one AI workspace that can start from many input types and still hand off cleanly to Figma or front-end workflows. It is especially strong for agencies, freelancers, and mixed product teams that need flexibility before they need a strict mobile build path.",
+          "No, Drawgle does not support Figma file exports or Figma plug-ins. It is designed to go directly from prompt or screenshot to clean code, skipping the design-file phase entirely. If Figma output is a hard requirement, UXMagic is a better fit.",
       },
       {
-        question: "When is Drawgle the better choice than UXMagic?",
+        question: "How does global style management differ between UXMagic and Drawgle?",
         answer:
-          "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
+          "UXMagic uses visual style guides to apply themes across pages. Drawgle uses developer-centric design tokens (margin, padding, border radius, colors). A single edit to a token updates your entire project on the canvas and in the exported JSON code instantly.",
+      },
+      {
+        question: "Does Drawgle support desktop or tablet layouts like UXMagic?",
+        answer:
+          "No. UXMagic is designed for responsive layouts that stretch across web, tablet, and desktop viewports. Drawgle is mobile-only by design. If you are building a responsive web portal, UXMagic has the advantage.",
+      },
+      {
+        question: "How do the AI editing features compare?",
+        answer:
+          "UXMagic uses prompt-based iterations on a page level. Drawgle features pinpoint element edits: you can select a specific button, text block, or card, and describe a change. The AI modifies only that element, preserving the rest of the layout and tokens.",
+      },
+      {
+        question: "Can I upload screenshots of my UXMagic designs into Drawgle?",
+        answer:
+          "Yes. You can take screenshots of your UXMagic wireframes, upload them to Drawgle, and the screenshot-to-UI engine will convert them into editable, token-driven mobile HTML + Tailwind components.",
+      },
+      {
+        question: "What is the benefit of Drawgle's Agent Pack?",
+        answer:
+          "Coding agents need structured styling data to write good code. The Agent Pack provides a JSON file of your design tokens, layout instructions, and assets. Feeding this pack into Cursor or Claude Code allows it to build your mobile app with pixel-perfect visual styling.",
+      },
+      {
+        question: "Who is UXMagic best for vs. Drawgle?",
+        answer:
+          "UXMagic is best for designers and product managers who need to create responsive layouts that span desktop and mobile viewports, with a Figma handoff. Drawgle is built for developers and indie hackers who want mobile-only layouts and clean, exportable HTML/Tailwind code ready for their repo.",
       },
     ],
     sources: uxMagicSources,

@@ -76,26 +76,22 @@ function SideRuler({ side }: { side: "left" | "right" }) {
   return (
     <div
       aria-hidden="true"
-      className={`pointer-events-none absolute bottom-0 top-0 hidden w-12 xl:block ${
-        side === "left" ? "-left-16" : "-right-16"
-      }`}
+      className={`pointer-events-none absolute bottom-0 top-0 hidden w-12 xl:block ${side === "left" ? "-left-16" : "-right-16"
+        }`}
     >
       <div
-        className={`absolute bottom-0 top-0 w-px ${
-          side === "left" ? "right-0" : "left-0"
-        } bg-[linear-gradient(180deg,transparent_0%,rgba(255,255,255,0.12)_18%,rgba(255,255,255,0.12)_82%,transparent_100%)]`}
+        className={`absolute bottom-0 top-0 w-px ${side === "left" ? "right-0" : "left-0"
+          } bg-[linear-gradient(180deg,transparent_0%,rgba(255,255,255,0.12)_18%,rgba(255,255,255,0.12)_82%,transparent_100%)]`}
       />
       <div
-        className={`absolute top-[18%] h-56 w-px ${
-          side === "left" ? "right-0" : "left-0"
-        } bg-[linear-gradient(180deg,transparent,#1b7fcc,transparent)] opacity-75`}
+        className={`absolute top-[18%] h-56 w-px ${side === "left" ? "right-0" : "left-0"
+          } bg-[linear-gradient(180deg,transparent,#1b7fcc,transparent)] opacity-75`}
       />
       {rulerTicks.map((tick, index) => (
         <div
           key={tick}
-          className={`absolute flex -translate-y-1/2 items-center gap-2 ${
-            side === "left" ? "right-0 flex-row" : "left-0 flex-row-reverse"
-          }`}
+          className={`absolute flex -translate-y-1/2 items-center gap-2 ${side === "left" ? "right-0 flex-row" : "left-0 flex-row-reverse"
+            }`}
           style={{ top: `${8 + index * 6}%` }}
         >
           <span className={`h-px bg-white/15 ${index % 2 === 0 ? "w-2.5" : "w-1.5"}`} />
@@ -196,9 +192,8 @@ export function FeaturesSection() {
             {capabilities.map(({ title, description, icon: Icon }, index) => (
               <article
                 key={title}
-                className={`group relative flex min-h-[142px] gap-4 border-white/[0.075] px-1 py-6 transition-colors hover:bg-white/[0.016] sm:block sm:min-h-[190px] sm:px-8 sm:py-9 sm:text-center lg:min-h-[210px] ${
-                  index < capabilities.length - 1 ? "border-b sm:border-b-0" : ""
-                }`}
+                className={`group relative flex min-h-[142px] gap-4 border-white/[0.075] px-1 py-6 transition-colors hover:bg-white/[0.016] sm:block sm:min-h-[190px] sm:px-8 sm:py-9 sm:text-center lg:min-h-[210px] ${index < capabilities.length - 1 ? "border-b sm:border-b-0" : ""
+                  }`}
               >
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-white/[0.09] bg-white/[0.035] text-[#1b7fcc] shadow-[inset_0_1px_0_rgba(255,255,255,0.06),inset_0_-1px_0_rgba(0,0,0,0.28)] transition-colors group-hover:border-[#1b7fcc]/25 group-hover:bg-[#1b7fcc]/[0.06] sm:mx-auto sm:mb-7">
                   <Icon className="h-4 w-4" strokeWidth={1.8} />
@@ -207,7 +202,7 @@ export function FeaturesSection() {
                   <h3 className="font-pixel-square text-[15px] font-semibold leading-[1.35] tracking-normal text-white sm:text-base">
                     {title}
                   </h3>
-                  <p className="mt-2 max-w-[290px] text-sm leading-5 text-white/35 sm:mx-auto">
+                  <p className="mt-2 max-w-[290px] text-sm leading-5 text-white/50 sm:mx-auto">
                     {description}
                   </p>
                 </div>
