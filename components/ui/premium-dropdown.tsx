@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useCallback, useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import useMeasure from "react-use-measure";
@@ -50,10 +50,10 @@ export function PremiumDropdown({
   const isControlled = open !== undefined;
   const isOpen = isControlled ? open : localOpen;
   
-  const setIsOpen = (val: boolean) => {
+  const setIsOpen = useCallback((val: boolean) => {
     if (onOpenChange) onOpenChange(val);
     if (!isControlled) setLocalOpen(val);
-  };
+  }, [isControlled, onOpenChange]);
 
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -79,7 +79,7 @@ export function PremiumDropdown({
       document.addEventListener("mousedown", handleClickOutside);
     }
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isOpen]);
+  }, [isOpen, setIsOpen]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -100,9 +100,13 @@ export function PremiumDropdown({
       window.removeEventListener("resize", updateRect);
       window.removeEventListener("scroll", updateRect, true);
     };
-  }, [isOpen]);
+  }, [isOpen, setIsOpen]);
 
-  const openHeight = Math.max(40, Math.ceil(contentBounds.height || 40));
+  const measuredHeight = Math.max(40, Math.ceil(contentBounds.height || 40));
+  const viewportMaxHeight = typeof window !== "undefined"
+    ? Math.max(40, window.innerHeight - 24)
+    : measuredHeight;
+  const openHeight = Math.min(measuredHeight, viewportMaxHeight);
 
   // Determine origin point for scale/expand animation
   const originClass = cn(
@@ -146,28 +150,35 @@ export function PremiumDropdown({
       : "left-1/2 -translate-x-1/2",
   );
 
-  const fixedPositionStyle =
-    isOpen && triggerRect
-      ? {
-          position: "fixed" as const,
-          left: isHorizontalSide
-            ? side === "right" ? triggerRect.right + 8 : triggerRect.left - width - 8
-            : align === "end"
-            ? triggerRect.right - width
-            : align === "start"
-            ? triggerRect.left
-            : triggerRect.left + triggerRect.width / 2 - width / 2,
-          top: isHorizontalSide
-            ? align === "end"
-              ? triggerRect.bottom - openHeight
-              : align === "start"
-              ? triggerRect.top
-              : triggerRect.top + triggerRect.height / 2 - openHeight / 2
-            : side === "bottom"
-            ? triggerRect.bottom + 8
-            : triggerRect.top - openHeight - 8,
-        }
-      : undefined;
+  const fixedPositionStyle = (() => {
+    if (!isOpen || !triggerRect) return undefined;
+
+    const viewportPadding = 12;
+    const viewportWidth = typeof window !== "undefined" ? window.innerWidth : width + viewportPadding * 2;
+    const viewportHeight = typeof window !== "undefined" ? window.innerHeight : openHeight + viewportPadding * 2;
+    const desiredLeft = isHorizontalSide
+      ? side === "right" ? triggerRect.right + 8 : triggerRect.left - width - 8
+      : align === "end"
+      ? triggerRect.right - width
+      : align === "start"
+      ? triggerRect.left
+      : triggerRect.left + triggerRect.width / 2 - width / 2;
+    const desiredTop = isHorizontalSide
+      ? align === "end"
+        ? triggerRect.bottom - openHeight
+        : align === "start"
+        ? triggerRect.top
+        : triggerRect.top + triggerRect.height / 2 - openHeight / 2
+      : side === "bottom"
+      ? triggerRect.bottom + 8
+      : triggerRect.top - openHeight - 8;
+
+    return {
+      position: "fixed" as const,
+      left: Math.max(viewportPadding, Math.min(desiredLeft, viewportWidth - width - viewportPadding)),
+      top: Math.max(viewportPadding, Math.min(desiredTop, viewportHeight - openHeight - viewportPadding)),
+    };
+  })();
 
   const dropdownContent = (
     <motion.div
@@ -183,7 +194,8 @@ export function PremiumDropdown({
         opacity: 1,
         scale: 1,
         width: width,
-        height: openHeight,
+        height: "auto",
+        maxHeight: viewportMaxHeight,
         borderRadius: 14,
       }}
       exit={{
@@ -200,7 +212,7 @@ export function PremiumDropdown({
         stiffness: 380,
         mass: 0.8,
       }}
-      style={portalReady ? fixedPositionStyle : undefined}
+      style={portalReady ? { ...(fixedPositionStyle ?? {}), maxHeight: viewportMaxHeight } : { maxHeight: viewportMaxHeight }}
       className={cn(
         "z-[120] bg-white dark:bg-[#1b1b1b] border border-slate-950/[0.08] dark:border-white/[0.08] shadow-[0_20px_70px_rgba(15,23,42,0.15)] dark:shadow-[0_20px_70px_rgba(0,0,0,0.55)] overflow-hidden",
         portalReady ? "fixed" : cn(
@@ -218,7 +230,7 @@ export function PremiumDropdown({
         menuClassName
       )}
     >
-      <div ref={contentRef} className="w-max min-w-full">
+      <div ref={contentRef} className="w-full min-w-full">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
