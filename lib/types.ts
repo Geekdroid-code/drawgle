@@ -549,10 +549,83 @@ export interface ProjectCharter {
   charterSource?: "planner" | "partial_planner" | "reference_fallback";
 }
 
+export type ProjectRoadmapItemKind = "screen" | "state";
+export type ProjectRoadmapPriority = "core" | "required" | "recommended" | "optional";
+export type ProjectRoadmapStatus = "planned" | "queued" | "building" | "ready" | "failed" | "dismissed";
+export type ProjectRoadmapSource = "prompt" | "planner" | "navigation" | "existing";
+
+export interface ProjectRoadmapItem {
+  id?: string;
+  stableKey: string;
+  parentStableKey?: string | null;
+  parentItemId?: string | null;
+  generatedScreenId?: string | null;
+  kind: ProjectRoadmapItemKind;
+  screenType?: "root" | "detail" | null;
+  name: string;
+  description: string;
+  priority: ProjectRoadmapPriority;
+  status: ProjectRoadmapStatus;
+  source: ProjectRoadmapSource;
+  explicitlyRequested: boolean;
+  sequence: number;
+  tranche: number;
+  dependencyKeys: string[];
+  stateKey?: string | null;
+  stateLabel?: string | null;
+  stateRole?: string | null;
+  triggerLabel?: string | null;
+  metadata?: Record<string, JsonValue>;
+}
+
+export interface ProjectRoadmap {
+  version: 1;
+  requestedParentCount: number | null;
+  plannedParentCount: number;
+  remainingUnplannedCount: number;
+  tranche: number;
+  items: ProjectRoadmapItem[];
+}
+
+export interface RoadmapBatchSelection {
+  parentItemIds: string[];
+  stateItemIds: string[];
+  parentCount: number;
+  stateCount: number;
+  outputCount: number;
+  requiredCredits: number;
+}
+
+export interface RoadmapBuildRecommendation {
+  version: 1;
+  kind: "parent_batch" | "state_batch";
+  title: string;
+  detail: string;
+  plannedScreens: ScreenPlan[];
+  roadmapItemIds: string[];
+  parentScreenId?: string | null;
+  outputCount: number;
+  estimatedCredits: number;
+  remainingCount: number;
+}
+
+export interface CreditReservationSummary {
+  reservedCredits: number;
+  capturedCredits: number;
+  releasedCredits: number;
+  outputCount: number;
+  availableBalance?: number | null;
+}
+
 export interface ScreenPlan {
   name: string;
   type: 'root' | 'detail';
   description: string;
+  roadmapStableKey?: string | null;
+  roadmapItemId?: string | null;
+  roadmapPriority?: ProjectRoadmapPriority;
+  explicitlyRequested?: boolean;
+  stateVariants?: ScreenStateVariantPlan[];
   layoutContract?: ScreenLayoutContract | null;
   chromePolicy?: ScreenChromePolicy | null;
   navigationItemId?: string | null;
@@ -584,6 +657,9 @@ export interface ScreenStateVariantPlan {
   description: string;
   editInstruction: string;
   defaultSelected: boolean;
+  roadmapStableKey?: string | null;
+  roadmapItemId?: string | null;
+  explicitlyRequested?: boolean;
 }
 
 export type GenerationRetryMode = "full_pipeline" | "missing_screens" | "state_variants";
@@ -681,12 +757,15 @@ export interface ScreenScopeGroup {
   count: number;
   orderedNames: string[];
   sourceText: string;
+  surfaceKind?: "screen" | "state";
+  parentName?: string | null;
 }
 
 export interface ScreenScopeScreen {
   index: number;
   name: string;
   kind: string;
+  parentName?: string | null;
 }
 
 export interface GenerationScopeContract {
@@ -766,6 +845,10 @@ export interface PlannedUiFlow {
   screenCountEnforcement?: ScreenCountEnforcement;
   intentContract?: GenerationIntentContract;
   screenFamilyContract?: ScreenFamilyContract;
+  roadmap?: ProjectRoadmap;
+  initialBatchItemKeys?: string[];
+  requestedParentCount?: number | null;
+  remainingUnplannedCount?: number;
 }
 
 export interface GenerationJournalScreen {
@@ -862,6 +945,7 @@ export interface ScreenData {
   generationRunId?: string | null;
   name: string;
   code: string;
+  sourceLoaded?: boolean;
   prompt: string;
   summary?: string | null;
   blockIndex?: ScreenBlockIndex | null;
@@ -871,6 +955,7 @@ export interface ScreenData {
   stateKey?: string | null;
   stateLabel?: string | null;
   stateRole?: string | null;
+  roadmapItemId?: string | null;
   x: number;
   y: number;
   sortIndex?: number;
@@ -911,6 +996,7 @@ export interface GenerationRunData {
   createdAt: string;
   updatedAt: string;
   completedAt?: string | null;
+  clientRequestId?: string | null;
 }
 
 export interface Message {

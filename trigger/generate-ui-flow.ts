@@ -40,6 +40,25 @@ import { shouldAttachReferenceImage } from "@/lib/generation/reference-image";
 import { loadStoredPromptImage } from "@/lib/generation/prompt-reference-storage";
 import { resolveGenerationReferencePolicy } from "@/lib/generation/reference-policy";
 import { resolveProjectReferenceDna } from "@/lib/generation/reference-dna";
+import {
+  bindReservationToScreen,
+  captureGenerationCredit,
+  CreditReservationError,
+  generationOutputKey,
+  getGenerationCreditSummary,
+  MAX_TOTAL_OUTPUTS_PER_RUN,
+  releaseGenerationCredit,
+  releaseGenerationCreditRemainder,
+  reserveGenerationCredits,
+} from "@/lib/generation/credit-reservations";
+import {
+  buildProjectRoadmap,
+  createRoadmapBuildRecommendation,
+  markRoadmapItemForScreen,
+  persistProjectRoadmap,
+  screenRoadmapKey,
+  stateRoadmapKey,
+} from "@/lib/generation/project-roadmap";
 import { createNavigationArchitecture, deriveRequiresBottomNav } from "@/lib/navigation";
 import {
   applyNavigationPlanToScreens,
@@ -52,11 +71,10 @@ import { tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
 import { detectTokenDrift } from "@/lib/token-drift";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
-import { adminCreditService } from "@/lib/credits";
 import { getGenerationEngineVersion } from "@/lib/env/server";
 import { enrichScreenMemoryTask } from "@/trigger/enrich-screen-memory";
-import type { Database } from "@/lib/supabase/database.types";
-import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationReferencePolicy, GenerationRetryContext, GenerationScopeContract, ImageReferenceMode, LlmProviderEvent, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenBaseStatePlan, ScreenPlan, ScreenStateVariantPlan } from "@/lib/types";
+import type { Database, ProjectScreenRoadmapRow } from "@/lib/supabase/database.types";
+import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationReferencePolicy, GenerationRetryContext, GenerationScopeContract, ImageReferenceMode, LlmProviderEvent, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, ProjectRoadmap, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenBaseStatePlan, ScreenPlan, ScreenStateVariantPlan } from "@/lib/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -83,6 +101,8 @@ type GenerateUiFlowPayload = {
   stateVariants?: ScreenStateVariantPlan[] | null;
   approvalUserMessageId?: string | null;
   retryContext?: GenerationRetryContext | null;
+  projectRoadmap?: ProjectRoadmap | null;
+  initialBatchItemKeys?: string[] | null;
 };
 
 type BuildScreenTaskPayload = {
@@ -307,6 +327,20 @@ async function updateProject(admin: AdminClient, projectId: string, patch: Datab
   }
 }
 
+async function settleProjectStatus(admin: AdminClient, projectId: string, runSucceeded: boolean) {
+  if (runSucceeded) {
+    await updateProject(admin, projectId, { status: "completed" });
+    return;
+  }
+  const { count, error } = await admin
+    .from("screens")
+    .select("id", { count: "exact", head: true })
+    .eq("project_id", projectId)
+    .eq("status", "ready");
+  if (error) throw error;
+  await updateProject(admin, projectId, { status: (count ?? 0) > 0 ? "completed" : "failed" });
+}
+
 async function updateGenerationRun(
   admin: AdminClient,
   generationRunId: string,
@@ -372,11 +406,13 @@ async function buildStateVariantsForParent({
   admin,
   payload,
   parentScreenId,
+  parentRoadmapStableKey,
   variants,
 }: {
   admin: AdminClient;
   payload: GenerateUiFlowPayload;
   parentScreenId: string;
+  parentRoadmapStableKey: string;
   variants: ScreenStateVariantPlan[];
 }): Promise<StateVariantBuildResult> {
   if (variants.length === 0) {
@@ -389,7 +425,7 @@ async function buildStateVariantsForParent({
   try {
     const { data: parentScreen, error: parentError } = await admin
       .from("screens")
-      .select("id, name, prompt, code, block_index, chrome_policy, navigation_item_id")
+      .select("id, name, prompt, code, block_index, chrome_policy, navigation_item_id, roadmap_item_id")
       .eq("id", parentScreenId)
       .maybeSingle();
 
@@ -401,6 +437,9 @@ async function buildStateVariantsForParent({
 
     for (let index = 0; index < variants.length; index++) {
       const variant = variants[index];
+      const variantRoadmapStableKey = variant.roadmapStableKey
+        ?? stateRoadmapKey(parentRoadmapStableKey, variant.stateKey);
+      const outputKey = generationOutputKey(payload.generationRunId, "state", variantRoadmapStableKey);
       const reusableVariantScreenId = payload.retryContext?.reuseStateVariantIdsByKey?.[variant.stateKey] ?? null;
       const variantScreenId = reusableVariantScreenId ?? randomUUID();
       const variantName = stateVariantScreenName(parentScreen.name, variant.stateLabel);
@@ -415,6 +454,7 @@ async function buildStateVariantsForParent({
             owner_id: payload.ownerId,
             project_id: payload.projectId,
             generation_run_id: payload.generationRunId,
+            roadmap_item_id: variant.roadmapItemId ?? null,
             parent_screen_id: parentScreen.id,
             state_key: variant.stateKey,
             state_label: variant.stateLabel,
@@ -444,6 +484,7 @@ async function buildStateVariantsForParent({
               .from("screens")
               .update({
                 generation_run_id: payload.generationRunId,
+                roadmap_item_id: variantRow.roadmap_item_id,
                 parent_screen_id: variantRow.parent_screen_id,
                 state_key: variantRow.state_key,
                 state_label: variantRow.state_label,
@@ -470,6 +511,20 @@ async function buildStateVariantsForParent({
         }
 
         rowInserted = true;
+
+        await bindReservationToScreen({
+          admin,
+          ownerId: payload.ownerId,
+          generationRunId: payload.generationRunId,
+          outputKey,
+          screenId: variantScreenId,
+        });
+        await markRoadmapItemForScreen({
+          admin,
+          roadmapItemId: variant.roadmapItemId,
+          screenId: variantScreenId,
+          status: "building",
+        });
 
         await postStatusMessage(
           admin,
@@ -519,14 +574,22 @@ async function buildStateVariantsForParent({
 
         const { data: editedVariant } = await admin
           .from("screens")
-          .select("code")
+          .select("code, status, error")
           .eq("id", variantScreenId)
           .maybeSingle();
 
-        const materialChange = Boolean(result.changed && editedVariant?.code && editedVariant.code !== parentScreen.code);
+        const materialChange = Boolean(
+          result.changed &&
+          editedVariant?.status === "ready" &&
+          editedVariant.code &&
+          editedVariant.code !== parentScreen.code,
+        );
 
         if (!materialChange) {
-          const message = "State variant edit produced no material code change from the parent.";
+          const message = editedVariant?.error
+            ?? (editedVariant?.status !== "ready"
+              ? "State variant was not durably saved as ready."
+              : "State variant edit produced no material code change from the parent.");
           await admin
             .from("screens")
             .update({
@@ -552,10 +615,44 @@ async function buildStateVariantsForParent({
             variantScreenId,
           );
           failedVariants += 1;
+          await releaseGenerationCredit({
+            admin,
+            ownerId: payload.ownerId,
+            generationRunId: payload.generationRunId,
+            outputKey,
+            reason: message,
+          });
+          await markRoadmapItemForScreen({
+            admin,
+            roadmapItemId: variant.roadmapItemId,
+            screenId: variantScreenId,
+            status: "failed",
+          });
           continue;
         }
 
         successfulVariants += 1;
+        await captureGenerationCredit({
+          admin,
+          ownerId: payload.ownerId,
+          generationRunId: payload.generationRunId,
+          outputKey,
+          screenId: variantScreenId,
+        }).catch((creditError) => logger.error("State screen was saved but credit capture will need reconciliation", {
+          outputKey,
+          screenId: variantScreenId,
+          error: creditError,
+        }));
+        await markRoadmapItemForScreen({
+          admin,
+          roadmapItemId: variant.roadmapItemId,
+          screenId: variantScreenId,
+          status: "ready",
+        }).catch((roadmapError) => logger.error("State screen was saved but roadmap settlement failed", {
+          outputKey,
+          screenId: variantScreenId,
+          error: roadmapError,
+        }));
         await postStatusMessage(
           admin,
           payload.projectId,
@@ -579,6 +676,19 @@ async function buildStateVariantsForParent({
       } catch (variantError) {
         failedVariants += 1;
         const message = cleanErrorMessage(variantError instanceof Error ? variantError.message : String(variantError));
+        await releaseGenerationCredit({
+          admin,
+          ownerId: payload.ownerId,
+          generationRunId: payload.generationRunId,
+          outputKey,
+          reason: message,
+        }).catch((creditError) => logger.error("Failed to release state credit", { outputKey, error: creditError }));
+        await markRoadmapItemForScreen({
+          admin,
+          roadmapItemId: variant.roadmapItemId,
+          screenId: variantScreenId,
+          status: "failed",
+        }).catch((roadmapError) => logger.error("Failed to mark state roadmap item", { outputKey, error: roadmapError }));
         logger.error("Failed to build state variant", {
           generationRunId: payload.generationRunId,
           parentScreenId: parentScreen.id,
@@ -1416,15 +1526,27 @@ export const generateUiFlowTask = task({
     const admin = createAdminClient();
     const rawMessage = error instanceof Error ? error.message : String(error);
     const message = cleanErrorMessage(rawMessage);
+    const returnedCredits = await releaseGenerationCreditRemainder({
+      admin,
+      ownerId: payload.ownerId,
+      generationRunId: payload.generationRunId,
+      reason: message,
+    }).catch((creditError) => {
+      logger.error("Failed to return reserved credits after generation failure", {
+        generationRunId: payload.generationRunId,
+        error: creditError,
+      });
+      return 0;
+    });
 
     await updateGenerationRun(admin, payload.generationRunId, {
       status: "failed",
       error: message,
       completed_at: now(),
     });
-
-    await updateProject(admin, payload.projectId, {
-      status: "failed",
+    await mergeGenerationRunMetadata(admin, payload.generationRunId, {
+      returnedCredits,
+      creditSettlement: "failure_cleanup",
     });
 
     // Mark any placeholder screens from this run as failed so they
@@ -1434,6 +1556,14 @@ export const generateUiFlowTask = task({
       .select("id, name")
       .eq("generation_run_id", payload.generationRunId)
       .eq("status", "building");
+
+    if ((stuckScreens ?? []).length > 0) {
+      const stuckScreenIds = (stuckScreens ?? []).map((screen) => screen.id);
+      await admin
+        .from("project_screen_roadmap")
+        .update({ status: "failed" })
+        .in("generated_screen_id", stuckScreenIds);
+    }
 
     await admin
       .from("screens")
@@ -1445,6 +1575,7 @@ export const generateUiFlowTask = task({
       })
       .eq("generation_run_id", payload.generationRunId)
       .eq("status", "building");
+    await settleProjectStatus(admin, payload.projectId, false);
 
     await Promise.all((stuckScreens ?? []).map((screen) =>
       postStatusMessage(
@@ -1486,6 +1617,7 @@ export const generateUiFlowTask = task({
         generationRunId: payload.generationRunId,
         activityKey: summaryActivityKey(payload.generationRunId),
         error: message,
+        returnedCredits,
         ui: { variant: "action_card" },
         agentStep: {
           kind: "generation",
@@ -1824,8 +1956,12 @@ export const generateUiFlowTask = task({
           screenCountContract: null,
           screenCountEnforcement: "none" as const,
           intentContract: null,
-          screenFamilyContract: null,
-        }
+	          screenFamilyContract: null,
+	          roadmap: payload.projectRoadmap ?? undefined,
+	          initialBatchItemKeys: payload.initialBatchItemKeys ?? undefined,
+	          requestedParentCount: payload.projectRoadmap?.requestedParentCount ?? null,
+	          remainingUnplannedCount: payload.projectRoadmap?.remainingUnplannedCount ?? 0,
+	        }
       : await planUiFlow({
           prompt: payload.prompt,
           image: promptImage,
@@ -1857,8 +1993,122 @@ export const generateUiFlowTask = task({
           sourceImagePath: payload.imagePath,
         },
       };
-    }
-    plan.screens = applyNavigationPlanToScreens(plan.screens, plan.navigationPlan);
+	    }
+	    plan.screens = applyNavigationPlanToScreens(plan.screens, plan.navigationPlan);
+	    if (payload.stateVariants?.length && plan.screens.length === 1) {
+	      plan.screens[0] = { ...plan.screens[0], stateVariants: payload.stateVariants };
+	    }
+
+	    const roadmapSeed = payload.projectRoadmap ?? plan.roadmap ?? buildProjectRoadmap({
+	      screens: plan.screens,
+	      navigationPlan: plan.navigationPlan,
+	      requestedParentCount: plan.requestedParentCount ?? plan.scopeContract?.finalScreenCount ?? scopeContract?.finalScreenCount ?? null,
+	    });
+	    const projectRoadmap = buildProjectRoadmap({
+	      screens: plan.screens,
+	      navigationPlan: plan.navigationPlan,
+	      requestedParentCount: roadmapSeed.requestedParentCount,
+	      tranche: roadmapSeed.tranche,
+	      plannedItems: roadmapSeed.items,
+	    });
+	    const persistedRoadmapRows = await persistProjectRoadmap({
+	      admin,
+	      projectId: payload.projectId,
+	      ownerId: payload.ownerId,
+	      roadmap: projectRoadmap,
+	    }) as ProjectScreenRoadmapRow[];
+	    const roadmapByKey = new Map(persistedRoadmapRows.map((item) => [item.stable_key, item]));
+	    plan.screens = plan.screens.slice(0, 5).map((screenPlan) => {
+	      const stableKey = screenPlan.roadmapStableKey ?? screenRoadmapKey(screenPlan.name);
+	      const roadmapItem = roadmapByKey.get(stableKey);
+	      const variants = (screenPlan.stateVariants ?? []).map((variant) => {
+	        const variantStableKey = variant.roadmapStableKey ?? stateRoadmapKey(stableKey, variant.stateKey);
+	        return {
+	          ...variant,
+	          roadmapStableKey: variantStableKey,
+	          roadmapItemId: roadmapByKey.get(variantStableKey)?.id ?? variant.roadmapItemId ?? null,
+	        };
+	      });
+	      return {
+	        ...screenPlan,
+	        roadmapStableKey: stableKey,
+	        roadmapItemId: roadmapItem?.id ?? screenPlan.roadmapItemId ?? null,
+	        stateVariants: variants,
+	      };
+	    });
+
+	    const retryOnlyStateVariants = payload.retryContext?.mode === "state_variants"
+	      && Boolean(payload.retryContext.parentScreenId);
+	    const stateGroups = plan.screens.map((screenPlan) => ({
+	      parent: screenPlan,
+	      variants: (screenPlan.stateVariants ?? []).filter((variant) =>
+	        payload.stateVariants?.length
+	          ? payload.stateVariants.some((selected) => selected.id === variant.id)
+	          : variant.defaultSelected || variant.explicitlyRequested,
+	      ),
+	    }));
+	    const parentOutputs = retryOnlyStateVariants ? [] : plan.screens;
+	    const stateCapacity = Math.max(0, MAX_TOTAL_OUTPUTS_PER_RUN - parentOutputs.length);
+	    let remainingStateCapacity = stateCapacity;
+	    const selectedStateGroups = stateGroups.map((group) => {
+	      const variants = group.variants.slice(0, remainingStateCapacity);
+	      remainingStateCapacity -= variants.length;
+	      return { ...group, variants };
+	    }).filter((group) => group.variants.length > 0);
+	    const reservationOutputs = [
+	      ...parentOutputs.map((screenPlan) => ({
+	        outputKey: generationOutputKey(
+	          payload.generationRunId,
+	          "screen",
+	          screenPlan.roadmapStableKey ?? screenRoadmapKey(screenPlan.name),
+	        ),
+	        outputKind: "screen" as const,
+	        roadmapItemId: screenPlan.roadmapItemId ?? null,
+	        metadata: { screenName: screenPlan.name },
+	      })),
+	      ...selectedStateGroups.flatMap((group) => group.variants.map((variant) => ({
+	        outputKey: generationOutputKey(
+	          payload.generationRunId,
+	          "state",
+	          variant.roadmapStableKey ?? stateRoadmapKey(group.parent.roadmapStableKey ?? screenRoadmapKey(group.parent.name), variant.stateKey),
+	        ),
+	        outputKind: "state" as const,
+	        roadmapItemId: variant.roadmapItemId ?? null,
+	        metadata: { screenName: group.parent.name, stateLabel: variant.stateLabel },
+	      }))),
+	    ];
+	    if (reservationOutputs.length === 0) {
+	      throw new Error("This generation has no unbuilt roadmap outputs to reserve.");
+	    }
+	    let reservationSummary;
+	    try {
+	      reservationSummary = await reserveGenerationCredits({
+	        admin,
+	        ownerId: payload.ownerId,
+	        projectId: payload.projectId,
+	        generationRunId: payload.generationRunId,
+	        outputs: reservationOutputs,
+	      });
+	    } catch (error) {
+	      if (error instanceof CreditReservationError && error.code === "insufficient_credits") {
+	        await postStatusMessage(admin, payload.projectId, payload.ownerId, error.message, "error", {
+	          generationRunId: payload.generationRunId,
+	          activityKey: `run:${payload.generationRunId}:credits_error`,
+	        });
+	      }
+	      throw error;
+	    }
+	    const queuedRoadmapIds = reservationOutputs
+	      .map((output) => output.roadmapItemId)
+	      .filter((id): id is string => Boolean(id));
+	    if (queuedRoadmapIds.length > 0) {
+	      const { error: roadmapQueueError } = await admin
+	        .from("project_screen_roadmap")
+	        .update({ status: "queued" })
+	        .in("id", queuedRoadmapIds)
+	        .neq("status", "ready");
+	      if (roadmapQueueError) throw roadmapQueueError;
+	    }
     const navigationTelemetry = {
       version: plan.navigationPlan.version ?? 1,
       decision: plan.navigationPlan.decision ?? (plan.navigationPlan.enabled ? "legacy-enabled" : "none"),
@@ -1891,34 +2141,36 @@ export const generateUiFlowTask = task({
     }));
     await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
-    const rawNavigationShellCode = await buildNavigationShellCode({
-      navigationPlan: plan.navigationPlan,
-      designTokens,
-      prompt: payload.prompt,
-      image: referenceMode === "user_recreate" ? promptImage : null,
-      referenceMode,
-      referenceId,
-      designStyle,
-      projectCharter: plan.charter,
-      llmLog: (label, data) => logger.info(label, data),
-    });
-    const navigationShellCode = ensureDrawgleIds(tokenizeStaticDrawgleHtml(rawNavigationShellCode, designTokens).code, "dg-nav").code;
+    if (!retryOnlyStateVariants) {
+      const rawNavigationShellCode = await buildNavigationShellCode({
+        navigationPlan: plan.navigationPlan,
+        designTokens,
+        prompt: payload.prompt,
+        image: referenceMode === "user_recreate" ? promptImage : null,
+        referenceMode,
+        referenceId,
+        designStyle,
+        projectCharter: plan.charter,
+        llmLog: (label, data) => logger.info(label, data),
+      });
+      const navigationShellCode = ensureDrawgleIds(tokenizeStaticDrawgleHtml(rawNavigationShellCode, designTokens).code, "dg-nav").code;
 
-    const { error: navigationUpsertError } = await admin
-      .from("project_navigation")
-      .upsert({
-        project_id: payload.projectId,
-        owner_id: payload.ownerId,
-        plan: plan.navigationPlan as never,
-        shell_code: navigationShellCode,
-        block_index: indexNavigationShell(navigationShellCode) as never,
-        status: "ready",
-        error: null,
-        updated_at: now(),
-      }, { onConflict: "project_id" });
+      const { error: navigationUpsertError } = await admin
+        .from("project_navigation")
+        .upsert({
+          project_id: payload.projectId,
+          owner_id: payload.ownerId,
+          plan: plan.navigationPlan as never,
+          shell_code: navigationShellCode,
+          block_index: indexNavigationShell(navigationShellCode) as never,
+          status: "ready",
+          error: null,
+          updated_at: now(),
+        }, { onConflict: "project_id" });
 
-    if (navigationUpsertError) {
-      throw navigationUpsertError;
+      if (navigationUpsertError) {
+        throw navigationUpsertError;
+      }
     }
 
     if (plan.charter) {
@@ -1939,9 +2191,21 @@ export const generateUiFlowTask = task({
         type: screenPlan.type,
         description: screenPlan.description,
         chromePolicy: screenPlan.chromePolicy ?? null,
-        navigationItemId: screenPlan.navigationItemId ?? null,
-        assetNeeds: screenPlan.assetNeeds ?? [],
-      })),
+	        navigationItemId: screenPlan.navigationItemId ?? null,
+	        assetNeeds: screenPlan.assetNeeds ?? [],
+	        roadmapStableKey: screenPlan.roadmapStableKey ?? null,
+	        roadmapItemId: screenPlan.roadmapItemId ?? null,
+	        roadmapPriority: screenPlan.roadmapPriority ?? null,
+	        explicitlyRequested: screenPlan.explicitlyRequested ?? false,
+	        stateVariants: screenPlan.stateVariants ?? [],
+	      })),
+	      roadmap: projectRoadmap,
+	      initialBatchItemKeys: plan.initialBatchItemKeys ?? plan.screens.map((screen) => screen.roadmapStableKey).filter(Boolean),
+	      requestedParentCount: projectRoadmap.requestedParentCount,
+	      remainingUnplannedCount: projectRoadmap.remainingUnplannedCount,
+	      stateVariants: selectedStateGroups.flatMap((group) => group.variants),
+	      selectedStateVariantIds: selectedStateGroups.flatMap((group) => group.variants.map((variant) => variant.id)),
+	      creditReservation: reservationSummary,
       screenCountContract: plan.screenCountContract ?? null,
       screenCountEnforcement: plan.screenCountEnforcement ?? "none",
       intentContract: plan.intentContract ?? null,
@@ -1965,7 +2229,7 @@ export const generateUiFlowTask = task({
       },
     );
 
-    const assetRequirements = await planVisualAssets({
+    const assetRequirements = retryOnlyStateVariants ? [] : await planVisualAssets({
       prompt: payload.prompt,
       screens: plan.screens,
       charter: plan.charter,
@@ -1974,13 +2238,15 @@ export const generateUiFlowTask = task({
       intentContract: plan.intentContract ?? null,
       llmLog: (label, data) => logger.info(label, data),
     });
-    const projectAssetManifest = await resolveProjectAssets({
-      admin,
-      ownerId: payload.ownerId,
-      projectId: payload.projectId,
-      generationRunId: payload.generationRunId,
-      requirements: assetRequirements,
-    });
+    const projectAssetManifest: ProjectAssetManifest = retryOnlyStateVariants
+      ? { requirements: [], assetsByScreen: {}, failures: [], diagnostics: [] }
+      : await resolveProjectAssets({
+          admin,
+          ownerId: payload.ownerId,
+          projectId: payload.projectId,
+          generationRunId: payload.generationRunId,
+          requirements: assetRequirements,
+        });
     const assetDiagnostics = projectAssetManifest.diagnostics ?? [];
     const requirementCount = Math.max(assetRequirements.length, 1);
     const assetLaunchMetrics = {
@@ -2048,9 +2314,7 @@ export const generateUiFlowTask = task({
       type: "root",
       description: payload.prompt,
     }];
-    const retryOnlyStateVariants = payload.retryContext?.mode === "state_variants"
-      && Boolean(payload.retryContext.parentScreenId);
-    const referenceTargetCount = plan.scopeContract?.finalScreenCount ?? plan.scopeContract?.imageScreenCount ?? baseScreenPlans.length;
+	    const referenceTargetCount = plan.scopeContract?.finalScreenCount ?? plan.scopeContract?.imageScreenCount ?? baseScreenPlans.length;
     const resolvedScreenPlans: ScreenPlan[] = referenceMode === "user_recreate"
       ? baseScreenPlans.map((screenPlan, index) => ({
           ...screenPlan,
@@ -2060,10 +2324,8 @@ export const generateUiFlowTask = task({
       : baseScreenPlans;
     const screenPlans = retryOnlyStateVariants ? [] : resolvedScreenPlans;
 
-    const requestedStateVariants = (payload.stateVariants ?? []).slice(0, 3);
-    const shouldBuildStateVariants = (screenPlans.length === 1 || retryOnlyStateVariants) && requestedStateVariants.length > 0;
-    const stateVariantsToBuild = shouldBuildStateVariants ? requestedStateVariants : [];
-    const plannedOutputCount = screenPlans.length + stateVariantsToBuild.length;
+	    const stateVariantCount = selectedStateGroups.reduce((total, group) => total + group.variants.length, 0);
+	    const plannedOutputCount = screenPlans.length + stateVariantCount;
 
     await postStatusMessage(
       admin,
@@ -2075,41 +2337,11 @@ export const generateUiFlowTask = task({
         generationRunId: payload.generationRunId,
         plannedScreenCount: plannedOutputCount,
         baseScreenCount: screenPlans.length,
-        stateVariantCount: stateVariantsToBuild.length,
-        activityKey: planningActivityKey(payload.generationRunId),
-      },
-    );
-    // Each screen build costs 20 credits (planning is completely free!)
-    const requiredCredits = plannedOutputCount * 20;
-    const creditCheck = await adminCreditService.hasCredits(payload.ownerId, requiredCredits);
-
-    if (!creditCheck.hasCredits) {
-      const errorMessage = `Insufficient credits to build planned screens. (Required: ${requiredCredits}, Balance: ${creditCheck.currentBalance}). Please upgrade your plan.`;
-      
-      await updateGenerationRun(admin, payload.generationRunId, {
-        status: "failed",
-        error: errorMessage,
-        completed_at: now(),
-      });
-      
-      await updateProject(admin, payload.projectId, {
-        status: "failed",
-      });
-
-      await postStatusMessage(
-        admin,
-        payload.projectId,
-        payload.ownerId,
-        errorMessage,
-        "error",
-        {
-          generationRunId: payload.generationRunId,
-          activityKey: `run:${payload.generationRunId}:credits_error`,
-        }
-      );
-      
-      throw new Error(errorMessage);
-    }
+	        stateVariantCount,
+	        reservedCredits: reservationSummary.reservedCredits,
+	        activityKey: planningActivityKey(payload.generationRunId),
+	      },
+	    );
 
     const reservedSlots = screenPlans.length > 0
       ? await reserveScreenSlots(admin, payload.projectId, screenPlans.length)
@@ -2136,20 +2368,30 @@ export const generateUiFlowTask = task({
     let sanitizerActions = 0;
 
     if (retryOnlyStateVariants && payload.retryContext?.parentScreenId) {
-      const variantResult = await buildStateVariantsForParent({
-        admin,
-        payload,
-        parentScreenId: payload.retryContext.parentScreenId,
-        variants: stateVariantsToBuild,
-      });
-      successfulStateVariants += variantResult.successfulVariants;
-      failedStateVariants += variantResult.failedVariants;
-      successfulScreens += variantResult.successfulVariants;
-      failedScreens += variantResult.failedVariants;
+      for (const stateGroup of selectedStateGroups) {
+        const variantResult = await buildStateVariantsForParent({
+          admin,
+          payload,
+          parentScreenId: payload.retryContext.parentScreenId,
+          parentRoadmapStableKey: stateGroup.parent.roadmapStableKey
+            ?? screenRoadmapKey(stateGroup.parent.name),
+          variants: stateGroup.variants,
+        });
+        successfulStateVariants += variantResult.successfulVariants;
+        failedStateVariants += variantResult.failedVariants;
+        successfulScreens += variantResult.successfulVariants;
+        failedScreens += variantResult.failedVariants;
+      }
     }
 
     for (let index = 0; index < screenPlans.length; index++) {
       const screenPlan = screenPlans[index];
+      const parentRoadmapStableKey = screenPlan.roadmapStableKey ?? screenRoadmapKey(screenPlan.name);
+      const outputKey = generationOutputKey(payload.generationRunId, "screen", parentRoadmapStableKey);
+      const selectedStateGroup = selectedStateGroups.find((group) =>
+        (group.parent.roadmapStableKey ?? screenRoadmapKey(group.parent.name)) === parentRoadmapStableKey,
+      );
+      const hasSelectedStateVariants = Boolean(selectedStateGroup?.variants.length);
       const reusableScreenId = payload.retryContext?.reuseScreenIdsByName?.[
         screenPlan.name.trim().toLowerCase().replace(/\s+/g, " ")
       ] ?? null;
@@ -2172,10 +2414,11 @@ export const generateUiFlowTask = task({
             .from("screens")
             .update({
               generation_run_id: payload.generationRunId,
+              roadmap_item_id: screenPlan.roadmapItemId ?? null,
               parent_screen_id: null,
-              state_key: shouldBuildStateVariants && index === 0 ? payload.baseState?.stateKey ?? "base" : null,
-              state_label: shouldBuildStateVariants && index === 0 ? payload.baseState?.stateLabel ?? "Base" : null,
-              state_role: shouldBuildStateVariants && index === 0 ? "base" : null,
+              state_key: hasSelectedStateVariants ? payload.baseState?.stateKey ?? "base" : null,
+              state_label: hasSelectedStateVariants ? payload.baseState?.stateLabel ?? "Base" : null,
+              state_role: hasSelectedStateVariants ? "base" : null,
               name: screenPlan.name,
               prompt: screenPlan.description,
               code: buildPlaceholderCode(screenPlan.name, designTokens),
@@ -2227,10 +2470,11 @@ export const generateUiFlowTask = task({
             owner_id: payload.ownerId,
             project_id: payload.projectId,
             generation_run_id: payload.generationRunId,
+            roadmap_item_id: screenPlan.roadmapItemId ?? null,
             parent_screen_id: null,
-            state_key: shouldBuildStateVariants && index === 0 ? payload.baseState?.stateKey ?? "base" : null,
-            state_label: shouldBuildStateVariants && index === 0 ? payload.baseState?.stateLabel ?? "Base" : null,
-            state_role: shouldBuildStateVariants && index === 0 ? "base" : null,
+            state_key: hasSelectedStateVariants ? payload.baseState?.stateKey ?? "base" : null,
+            state_label: hasSelectedStateVariants ? payload.baseState?.stateLabel ?? "Base" : null,
+            state_role: hasSelectedStateVariants ? "base" : null,
             name: screenPlan.name,
             prompt: screenPlan.description,
             code: buildPlaceholderCode(screenPlan.name, designTokens),
@@ -2263,6 +2507,20 @@ export const generateUiFlowTask = task({
         }
 
         rowInserted = true;
+
+        await bindReservationToScreen({
+          admin,
+          ownerId: payload.ownerId,
+          generationRunId: payload.generationRunId,
+          outputKey,
+          screenId,
+        });
+        await markRoadmapItemForScreen({
+          admin,
+          roadmapItemId: screenPlan.roadmapItemId,
+          screenId,
+          status: "building",
+        });
 
         const { error: usageScreenError } = await admin
           .from("project_asset_usages")
@@ -2305,8 +2563,39 @@ export const generateUiFlowTask = task({
             .eq("id", screenId)
             .maybeSingle();
 
-          if (completedScreen?.status === "failed") {
+          if (completedScreen?.status !== "ready") {
             failedScreens += 1;
+            const completedScreenError = completedScreen?.error
+              ?? "Screen builder completed without a durably saved ready screen.";
+            await releaseGenerationCredit({
+              admin,
+              ownerId: payload.ownerId,
+              generationRunId: payload.generationRunId,
+              outputKey,
+              reason: completedScreenError,
+            }).catch((creditError) => logger.error("Failed to release rejected screen credit", {
+              outputKey,
+              error: creditError,
+            }));
+            await markRoadmapItemForScreen({
+              admin,
+              roadmapItemId: screenPlan.roadmapItemId,
+              screenId,
+              status: "failed",
+            }).catch((roadmapError) => logger.error("Failed to settle rejected screen roadmap item", {
+              outputKey,
+              error: roadmapError,
+            }));
+            await admin
+              .from("screens")
+              .update({
+                status: "failed",
+                error: completedScreenError,
+                code: buildErrorCode(completedScreenError),
+                updated_at: now(),
+              })
+              .eq("id", screenId)
+              .neq("status", "ready");
             generationJournal.screens = generationJournal.screens?.map((screen) =>
               screen.name === screenPlan.name ? { ...screen, status: "failed" } : screen,
             );
@@ -2316,18 +2605,39 @@ export const generateUiFlowTask = task({
               admin,
               payload.projectId,
               payload.ownerId,
-              humanizeScreenBuildFailure(screenPlan.name, completedScreen.error),
+              humanizeScreenBuildFailure(screenPlan.name, completedScreenError),
               "error",
               {
                 generationRunId: payload.generationRunId,
                 screenName: screenPlan.name,
                 activityKey: screenBuildActivityKey(screenId),
-                error: completedScreen.error ?? "Screen generation failed.",
+                error: completedScreenError,
               },
               screenId,
             );
           } else {
             successfulScreens += 1;
+            await captureGenerationCredit({
+              admin,
+              ownerId: payload.ownerId,
+              generationRunId: payload.generationRunId,
+              outputKey,
+              screenId,
+            }).catch((creditError) => logger.error("Screen was saved but credit capture will need reconciliation", {
+              outputKey,
+              screenId,
+              error: creditError,
+            }));
+            await markRoadmapItemForScreen({
+              admin,
+              roadmapItemId: screenPlan.roadmapItemId,
+              screenId,
+              status: "ready",
+            }).catch((roadmapError) => logger.error("Screen was saved but roadmap settlement failed", {
+              outputKey,
+              screenId,
+              error: roadmapError,
+            }));
             generationJournal.screens = generationJournal.screens?.map((screen) =>
               screen.name === screenPlan.name ? { ...screen, status: "ready" } : screen,
             );
@@ -2346,12 +2656,13 @@ export const generateUiFlowTask = task({
               },
               screenId,
             );
-            if (shouldBuildStateVariants && index === 0) {
+            if (selectedStateGroup?.variants.length) {
               const variantResult = await buildStateVariantsForParent({
                 admin,
                 payload,
                 parentScreenId: screenId,
-                variants: stateVariantsToBuild,
+                parentRoadmapStableKey,
+                variants: selectedStateGroup.variants,
               });
               successfulStateVariants += variantResult.successfulVariants;
               failedStateVariants += variantResult.failedVariants;
@@ -2362,6 +2673,25 @@ export const generateUiFlowTask = task({
         } else {
           failedScreens += 1;
           const message = result?.error?.message ?? "Unknown error";
+          await releaseGenerationCredit({
+            admin,
+            ownerId: payload.ownerId,
+            generationRunId: payload.generationRunId,
+            outputKey,
+            reason: message,
+          }).catch((creditError) => logger.error("Failed to release unsuccessful screen credit", {
+            outputKey,
+            error: creditError,
+          }));
+          await markRoadmapItemForScreen({
+            admin,
+            roadmapItemId: screenPlan.roadmapItemId,
+            screenId,
+            status: "failed",
+          }).catch((roadmapError) => logger.error("Failed to settle unsuccessful screen roadmap item", {
+            outputKey,
+            error: roadmapError,
+          }));
           generationJournal.screens = generationJournal.screens?.map((screen) =>
             screen.name === screenPlan.name ? { ...screen, status: "failed" } : screen,
           );
@@ -2395,6 +2725,19 @@ export const generateUiFlowTask = task({
         failedScreens += 1;
         const rawMessage = screenError instanceof Error ? screenError.message : String(screenError);
         const message = cleanErrorMessage(rawMessage);
+        await releaseGenerationCredit({
+          admin,
+          ownerId: payload.ownerId,
+          generationRunId: payload.generationRunId,
+          outputKey,
+          reason: message,
+        }).catch((creditError) => logger.error("Failed to release screen credit", { outputKey, error: creditError }));
+        await markRoadmapItemForScreen({
+          admin,
+          roadmapItemId: screenPlan.roadmapItemId,
+          screenId: rowInserted ? screenId : null,
+          status: "failed",
+        }).catch((roadmapError) => logger.error("Failed to mark screen roadmap item", { outputKey, error: roadmapError }));
         logger.error("Failed to build screen", { screenName: screenPlan.name, error: screenError });
         generationJournal.screens = generationJournal.screens?.map((screen) =>
           screen.name === screenPlan.name ? { ...screen, status: "failed" } : screen,
@@ -2430,28 +2773,28 @@ export const generateUiFlowTask = task({
       }
     }
 
-    // Deduct credits for successful screens finally saved in Supabase
-    if (successfulScreens > 0) {
-      const actualCost = successfulScreens * 20;
-      const deductionResult = await adminCreditService.deductCredits(
-        payload.ownerId,
-        actualCost,
-        `Generated ${successfulScreens} successful screen${successfulScreens === 1 ? "" : "s"} for project`
-      );
-      if (!deductionResult.success) {
-        logger.error("Failed to deduct credits for successful screens", {
-          ownerId: payload.ownerId,
-          actualCost,
-          error: deductionResult.error,
-        });
-      } else {
-        logger.info("Successfully deducted credits for successful screens", {
-          ownerId: payload.ownerId,
-          actualCost,
-          newBalance: deductionResult.newBalance,
-        });
-      }
-    }
+    const returnedCredits = await releaseGenerationCreditRemainder({
+      admin,
+      ownerId: payload.ownerId,
+      generationRunId: payload.generationRunId,
+      reason: "Generation output was not delivered.",
+    });
+    const creditSummary = await getGenerationCreditSummary({
+      admin,
+      ownerId: payload.ownerId,
+      generationRunId: payload.generationRunId,
+    });
+    const roadmapRecommendation = await createRoadmapBuildRecommendation({
+      admin,
+      projectId: payload.projectId,
+      ownerId: payload.ownerId,
+    }).catch((roadmapError) => {
+      logger.error("Failed to prepare the next roadmap recommendation", {
+        generationRunId: payload.generationRunId,
+        error: roadmapError,
+      });
+      return null;
+    });
 
     const finishedStatus = successfulScreens === 0 ? "failed" : "completed";
     const errorSummary = failedScreens > 0 ? `${failedScreens} screen(s) failed during generation.` : null;
@@ -2467,18 +2810,19 @@ export const generateUiFlowTask = task({
       failedScreens,
       plannedScreenCount: plannedOutputCount,
       baseScreenCount: screenPlans.length,
-      stateVariantCount: stateVariantsToBuild.length,
+      stateVariantCount,
       successfulStateVariants,
       failedStateVariants,
+      creditReservation: creditSummary,
+      returnedCredits,
+      roadmapRecommendation,
       assetLaunchMetrics: {
         ...assetLaunchMetrics,
         sanitizerActions,
       },
     });
 
-    await updateProject(admin, payload.projectId, {
-      status: finishedStatus === "completed" ? "completed" : "failed",
-    });
+    await settleProjectStatus(admin, payload.projectId, finishedStatus === "completed");
 
     const plannedScreenCount = plannedOutputCount;
     const partialFailure = successfulScreens > 0 && failedScreens > 0;
@@ -2565,24 +2909,65 @@ export const generateUiFlowTask = task({
       });
     }
 
+    if (finishedStatus === "completed" && roadmapRecommendation) {
+      const { data: existingRecommendation } = await admin
+        .from("project_messages")
+        .select("id")
+        .eq("project_id", payload.projectId)
+        .eq("owner_id", payload.ownerId)
+        .contains("metadata", { recommendationForGenerationRunId: payload.generationRunId })
+        .limit(1)
+        .maybeSingle();
+      if (!existingRecommendation) {
+        await admin.from("project_messages").insert({
+          project_id: payload.projectId,
+          owner_id: payload.ownerId,
+          screen_id: null,
+          role: "system",
+          content: roadmapRecommendation.title,
+          message_type: "chat",
+          metadata: {
+            ui: { variant: "action_card" },
+            action: "roadmap_recommendation",
+            generationRunId: payload.generationRunId,
+            recommendationForGenerationRunId: payload.generationRunId,
+            roadmapRecommendation,
+            agentStep: {
+              kind: "proposal",
+              status: "completed",
+              title: roadmapRecommendation.title,
+              detail: roadmapRecommendation.detail,
+              targetLabel: `${roadmapRecommendation.outputCount} output${roadmapRecommendation.outputCount === 1 ? "" : "s"}`,
+              processLines: [
+                `${roadmapRecommendation.remainingCount} planned item${roadmapRecommendation.remainingCount === 1 ? " remains" : "s remain"} on the project roadmap.`,
+                `${roadmapRecommendation.estimatedCredits} credits are reserved only when you start this batch.`,
+              ],
+            },
+          } as never,
+        });
+      }
+    }
+
     logger.info("UI flow generation completed", {
       generationRunId: payload.generationRunId,
       successfulScreens,
       failedScreens,
       plannedScreenCount: plannedOutputCount,
       baseScreenCount: screenPlans.length,
-      stateVariantCount: stateVariantsToBuild.length,
+      stateVariantCount,
       successfulStateVariants,
       failedStateVariants,
+      returnedCredits,
     });
 
     return {
       generationRunId: payload.generationRunId,
       successfulScreens,
       failedScreens,
-      stateVariantCount: stateVariantsToBuild.length,
+      stateVariantCount,
       successfulStateVariants,
       failedStateVariants,
+      returnedCredits,
     };
   },
 });

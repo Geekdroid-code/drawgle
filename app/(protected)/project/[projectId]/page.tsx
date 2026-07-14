@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 
 import { ProjectShell } from "@/components/ProjectShell";
-import type { ProjectNavigationRow, ScreenRow } from "@/lib/supabase/database.types";
-import { mapAuthenticatedUser, mapGenerationRunRow, mapProjectNavigationRow, mapProjectRow, mapScreenRow } from "@/lib/supabase/mappers";
-import { PROJECT_NAVIGATION_SELECT_COLUMNS, SCREEN_SELECT_COLUMNS } from "@/lib/supabase/queries";
+import type { ProjectNavigationRow } from "@/lib/supabase/database.types";
+import { mapAuthenticatedUser, mapGenerationRunRow, mapProjectNavigationRow, mapProjectRow, mapScreenCatalogRow } from "@/lib/supabase/mappers";
+import { PROJECT_NAVIGATION_SELECT_COLUMNS, SCREEN_CATALOG_SELECT_COLUMNS } from "@/lib/supabase/queries";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function ProjectPage({
@@ -30,7 +30,7 @@ export default async function ProjectPage({
   ] =
     await Promise.all([
       supabase.from("projects").select("*").eq("id", projectId).maybeSingle(),
-      supabase.from("screens").select(SCREEN_SELECT_COLUMNS).eq("project_id", projectId).order("sort_index", { ascending: true }),
+      supabase.from("screens").select(SCREEN_CATALOG_SELECT_COLUMNS).eq("project_id", projectId).order("sort_index", { ascending: true }),
       supabase
         .from("generation_runs")
         .select("*")
@@ -64,7 +64,7 @@ export default async function ProjectPage({
     <ProjectShell
       user={mapAuthenticatedUser(user)}
       initialProject={mapProjectRow(projectRow)}
-      initialScreens={((screenRows ?? []) as unknown as ScreenRow[]).map(mapScreenRow)}
+      initialScreens={((screenRows ?? []) as unknown as Parameters<typeof mapScreenCatalogRow>[0][]).map(mapScreenCatalogRow)}
       initialGenerationRuns={(generationRunRows ?? []).map(mapGenerationRunRow)}
       initialProjectNavigation={projectNavigationRow ? mapProjectNavigationRow(projectNavigationRow as unknown as ProjectNavigationRow) : null}
     />

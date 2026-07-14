@@ -63,6 +63,7 @@ import type {
   ProjectData,
   ProjectNavigationData,
   PromptImagePayload,
+  RoadmapBuildRecommendation,
   ScreenPlan,
   ScreenData,
 } from "@/lib/types";
@@ -1550,6 +1551,7 @@ function SelectedElementInspectorSidebar({
 }
 
 async function enqueueGeneration(input: {
+  clientRequestId?: string;
   projectId: string;
   prompt: string;
   image?: PromptImagePayload | null;
@@ -1560,13 +1562,18 @@ async function enqueueGeneration(input: {
   requiresBottomNav?: boolean;
   navigationArchitecture?: NavigationArchitecture | null;
   navigationPlan?: NavigationPlan | null;
+  roadmapBuild?: {
+    kind: RoadmapBuildRecommendation["kind"];
+    roadmapItemIds: string[];
+    parentScreenId?: string | null;
+  };
 }) {
   const response = await fetch("/api/generations", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(input),
+    body: JSON.stringify({ clientRequestId: input.clientRequestId ?? crypto.randomUUID(), ...input }),
   });
 
   const payload = await response.json().catch(() => ({}));
@@ -1593,7 +1600,7 @@ export function ProjectShell({
 }) {
   const router = useRouter();
   const { project, isLoading: isProjectLoading } = useProject(initialProject.id, initialProject);
-  const { screens, refreshScreens } = useScreens(initialProject.id, initialScreens);
+  const { screens, refreshScreens, loadScreenSource } = useScreens(initialProject.id, initialScreens);
   const { projectNavigation } = useProjectNavigation(initialProject.id, initialProjectNavigation);
   const { generationRun, generationRuns, refreshGenerationRuns } = useGenerationRuns(initialProject.id, initialGenerationRuns);
   const [canvasTool, setCanvasTool] = useState<CanvasTool>("pointer");
@@ -1830,6 +1837,11 @@ export function ProjectShell({
     requiresBottomNav?: boolean;
     navigationArchitecture?: NavigationArchitecture | null;
     navigationPlan?: NavigationPlan | null;
+    roadmapBuild?: {
+      kind: RoadmapBuildRecommendation["kind"];
+      roadmapItemIds: string[];
+      parentScreenId?: string | null;
+    };
   }) => {
     if (!project || isGenerationBusy) {
       return false;
@@ -1852,6 +1864,7 @@ export function ProjectShell({
         requiresBottomNav: input.requiresBottomNav,
         navigationArchitecture: input.navigationArchitecture ?? null,
         navigationPlan: input.navigationPlan ?? null,
+        roadmapBuild: input.roadmapBuild,
       });
 
       setPendingQueuedRunId(queuedRun.generationRunId);
@@ -1868,10 +1881,10 @@ export function ProjectShell({
       await refreshGenerationRuns();
 
       if (error instanceof QueueGenerationError && error.status === 409) {
-        setQueueError("A generation is already queued or building for this project.");
-        if (error.activeGenerationRunId) {
-          setPendingQueuedRunId(error.activeGenerationRunId);
-        }
+        setQueueError(error.activeGenerationRunId
+          ? "A generation is already queued or building for this project."
+          : error.message);
+        if (error.activeGenerationRunId) setPendingQueuedRunId(error.activeGenerationRunId);
       } else {
         setQueueError(error instanceof Error ? error.message : "Failed to queue generation.");
       }
@@ -1890,6 +1903,27 @@ export function ProjectShell({
     await queueGenerationRequest({
       prompt: run.prompt,
       sourceGenerationRunId: run.id,
+    });
+  };
+
+  const handleBuildRoadmapRecommendation = async (recommendation: RoadmapBuildRecommendation) => {
+    if (!project || isCanvasInteractionLocked) return;
+    if (!loadingCredits && balance < recommendation.estimatedCredits) {
+      setPricingReason("insufficient_credits");
+      setIsPricingOpen(true);
+      return;
+    }
+
+    await queueGenerationRequest({
+      prompt: `Continue the approved project roadmap with: ${recommendation.detail}.`,
+      plannedScreens: recommendation.plannedScreens,
+      requiresBottomNav: projectNavigation?.plan?.enabled ?? undefined,
+      navigationPlan: projectNavigation?.plan ?? null,
+      roadmapBuild: {
+        kind: recommendation.kind,
+        roadmapItemIds: recommendation.roadmapItemIds,
+        parentScreenId: recommendation.parentScreenId ?? null,
+      },
     });
   };
 
@@ -2593,6 +2627,7 @@ export function ProjectShell({
             onClearSelectedElement={clearEditSession}
             onDeleteSelectedElement={handleDeleteSelectedElement}
             onDuplicateSelectedElement={handleDuplicateSelectedElement}
+            onScreenSourceNeeded={loadScreenSource}
             onExportCode={(...exportArgs) => {
               const screenName = exportArgs[2];
               const matchedScreen = screens.find((s) => s.name === screenName);
@@ -2709,6 +2744,7 @@ export function ProjectShell({
             isBuilding={isQueueingGeneration}
             onRetryGeneration={handleRetryGeneration}
             onApproveScreenPlan={handleApproveScreenPlan}
+            onBuildRoadmapRecommendation={handleBuildRoadmapRecommendation}
             isCollapsed={isChatCollapsed}
             onCollapseChange={setIsChatCollapsed}
             onSubmit={handlePromptAction}

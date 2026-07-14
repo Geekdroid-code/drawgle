@@ -1,7 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { Database } from '@/lib/supabase/database.types'
-import { SupabaseClient } from '@supabase/supabase-js'
 
 type Credits = {
   id?: string
@@ -11,7 +9,6 @@ type Credits = {
   updated_at?: string
 }
 type CreditsInsert = Credits
-type CreditsUpdate = Partial<Credits>
 
 export class CreditService {
   private customClient?: any
@@ -78,25 +75,17 @@ export class CreditService {
         return { success: false, error: 'Invalid parameters' }
       }
 
-      const { balance: currentBalance } = await this.getUserCredits(userId)
-      const newBalance = currentBalance + amount
-
       const supabase = await this.getClient()
-      const creditData: CreditsInsert = {
-        user_id: userId,
-        credits: newBalance
-      }
-      const { error } = await supabase
-        .from('credits')
-        .upsert(creditData, {
-          onConflict: 'user_id'
-        })
+      const { data, error } = await supabase.rpc('adjust_user_credits', {
+        input_user_id: userId,
+        input_delta: amount,
+      })
 
       if (error) {
-        return { success: false, error: 'Failed to add credits' }
+        return { success: false, error: `Failed to add credits: ${error.message}` }
       }
 
-      return { success: true, newBalance }
+      return { success: true, newBalance: Number(data) }
     } catch (error) {
       return { success: false, error: 'Error adding credits' }
     }
@@ -115,32 +104,18 @@ export class CreditService {
         return { success: false, error: 'Invalid parameters' }
       }
 
-      const { balance: currentBalance, error: fetchError } = await this.getUserCredits(userId)
-
-      if (fetchError) {
-        console.error('deductCredits balance check failed:', fetchError)
-        return { success: false, error: fetchError }
-      }
-
-      if (currentBalance < amount) {
-        return { success: false, error: `Insufficient credits. Available: ${currentBalance}, Required: ${amount}` }
-      }
-
-      const newBalance = currentBalance - amount
-
       const supabase = await this.getClient()
-      const updateData: CreditsUpdate = { credits: newBalance }
-      const { error } = await supabase
-        .from('credits')
-        .update(updateData)
-        .eq('user_id', userId)
+      const { data, error } = await supabase.rpc('adjust_user_credits', {
+        input_user_id: userId,
+        input_delta: -amount,
+      })
 
       if (error) {
         console.error('deductCredits update failed:', error)
-        return { success: false, error: `Failed to deduct credits: ${error.message}` }
+        return { success: false, error: error.message }
       }
 
-      return { success: true, newBalance }
+      return { success: true, newBalance: Number(data) }
     } catch (err: any) {
       console.error('deductCredits exception:', err)
       return { success: false, error: `Error deducting credits: ${err.message}` }
@@ -161,20 +136,16 @@ export class CreditService {
       }
 
       const supabase = await this.getClient()
-      const upsertData: CreditsInsert = {
-        user_id: userId,
-        credits: value
-      }
-
-      const { error } = await supabase
-        .from('credits')
-        .upsert(upsertData, { onConflict: 'user_id' })
+      const { data, error } = await supabase.rpc('set_user_credits_atomic', {
+        input_user_id: userId,
+        input_balance: value,
+      })
 
       if (error) {
         return { success: false, error: 'Failed to set credits' }
       }
 
-      return { success: true, newBalance: value }
+      return { success: true, newBalance: Number(data) }
     } catch (error) {
       return { success: false, error: 'Error setting credits' }
     }

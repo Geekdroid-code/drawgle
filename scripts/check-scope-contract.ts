@@ -36,11 +36,12 @@ const resolve = (prompt: string, result: ReferenceAnalysisResult | null, referen
 assert.equal(parsePromptScreenIntent("build all three screens").promptScreenCount, 3);
 assert.equal(parsePromptScreenIntent("recreate all three").promptScreenCount, 3);
 assert.equal(parsePromptScreenIntent("build these 3 views").promptScreenCount, 3);
-assert.equal(parsePromptScreenIntent("3-panel app screenshot, recreate all panels").promptScreenCount, 3);
+assert.equal(parsePromptScreenIntent("3-panel app screenshot, recreate all panels").promptScreenCount, null);
+assert.equal(resolve("3-panel app screenshot, recreate all panels", countOnly(3)).finalScreenCount, 3);
 
-const bringBackScope = parsePromptScreenIntent("An AI photo restoration app. Must have 2 step thoughtfully planned onboarding screen, one login/signup screen and 1 home screen.");
-assert.equal(bringBackScope.promptScreenCount, 4);
-assert.deepEqual(bringBackScope.screens?.map((screen) => screen.name), [
+const additiveScope = parsePromptScreenIntent("An AI photo restoration app. Must have 2 step thoughtfully planned onboarding screen, one login/signup screen and 1 home screen.");
+assert.equal(additiveScope.promptScreenCount, 4);
+assert.deepEqual(additiveScope.screens?.map((screen) => screen.name), [
   "Onboarding Step 1",
   "Onboarding Step 2",
   "Login / Signup",

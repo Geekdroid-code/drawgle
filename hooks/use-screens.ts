@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
 import type { ProjectMessageRow, ScreenRow } from "@/lib/supabase/database.types";
 import { mapScreenRow } from "@/lib/supabase/mappers";
-import { fetchScreens } from "@/lib/supabase/queries";
+import { fetchScreenCatalog, fetchScreenSource } from "@/lib/supabase/queries";
 import type { ScreenData } from "@/lib/types";
 
 const sortScreens = (screens: ScreenData[]) =>
@@ -45,6 +45,17 @@ const mergeScreenPatch = (currentScreen: ScreenData, nextScreen: ScreenData): Sc
 export function useScreens(projectId: string, initialScreens: ScreenData[] = []) {
   const [screens, setScreens] = useState<ScreenData[]>(sortScreens(initialScreens));
   const [isLoading, setIsLoading] = useState(initialScreens.length === 0);
+  const sourceRequestsRef = useRef(new Set<string>());
+
+  const mergeCatalog = useCallback((catalog: ScreenData[], current: ScreenData[]) => {
+    const currentById = new Map(current.map((screen) => [screen.id, screen]));
+    return catalog.map((screen) => {
+      const existing = currentById.get(screen.id);
+      return existing?.sourceLoaded
+        ? { ...screen, code: existing.code, blockIndex: existing.blockIndex, sourceLoaded: true }
+        : screen;
+    });
+  }, []);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -66,9 +77,9 @@ export function useScreens(projectId: string, initialScreens: ScreenData[] = [])
     const loadScreens = async () => {
       try {
         setIsLoading(true);
-        const nextScreens = await fetchScreens(supabase, projectId);
+        const nextScreens = await fetchScreenCatalog(supabase, projectId);
         if (!cancelled) {
-          setScreens(nextScreens);
+          setScreens((current) => sortScreens(mergeCatalog(nextScreens, current)));
         }
       } catch (error) {
         console.error("Failed to load screens", error);
@@ -169,16 +180,43 @@ export function useScreens(projectId: string, initialScreens: ScreenData[] = [])
       void supabase.removeChannel(channel);
       void supabase.removeChannel(invalidationChannel);
     };
-  }, [projectId]);
+  }, [mergeCatalog, projectId]);
 
   const refreshScreens = useCallback(async () => {
     if (!projectId) return;
     try {
       const supabase = createClient();
-      const nextScreens = await fetchScreens(supabase, projectId);
-      setScreens(nextScreens);
+      const nextScreens = await fetchScreenCatalog(supabase, projectId);
+      setScreens((current) => sortScreens(mergeCatalog(nextScreens, current)));
     } catch (error) {
       console.error("Failed to refresh screens", error);
+    }
+  }, [mergeCatalog, projectId]);
+
+  const loadScreenSource = useCallback(async (screenId: string) => {
+    if (!projectId || sourceRequestsRef.current.has(screenId)) return;
+    sourceRequestsRef.current.add(screenId);
+    try {
+      let lastError: unknown;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          const source = await fetchScreenSource(createClient(), screenId);
+          if (source.projectId === projectId) {
+            setScreens((entries) => upsertScreen(entries, source));
+          }
+          return;
+        } catch (error) {
+          lastError = error;
+          if (attempt < 2) {
+            await new Promise((resolve) => window.setTimeout(resolve, 250 * (attempt + 1)));
+          }
+        }
+      }
+      console.error("Failed to load screen source", { screenId, error: lastError });
+    } catch (error) {
+      console.error("Failed to load screen source", { screenId, error });
+    } finally {
+      sourceRequestsRef.current.delete(screenId);
     }
   }, [projectId]);
 
@@ -186,5 +224,6 @@ export function useScreens(projectId: string, initialScreens: ScreenData[] = [])
     screens,
     isLoading,
     refreshScreens,
+    loadScreenSource,
   };
 }

@@ -28,7 +28,6 @@ import { planUiFlow } from "@/lib/generation/service";
 import { readScreenPlanProposal, type AgentStepMetadata } from "@/lib/agent/message-metadata";
 import { approveScreenPlanProposal, ScreenPlanApprovalError } from "@/lib/agent/screen-plan-approval";
 import { classifyHistoryNeed, HISTORY_LIMITS } from "@/lib/agent/history-policy";
-import { planScreenStateVariants } from "@/lib/agent/screen-state-variants";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { fetchProjectMessages, insertProjectMessage, updateProjectMessage } from "@/lib/supabase/queries";
@@ -1716,12 +1715,11 @@ export async function POST(request: Request) {
         image: payload.image ?? null,
       });
       const imagePath = uploadedImagePath ?? inheritedImagePath;
-      const stateProposal = await planScreenStateVariants({
-        prompt: generationPrompt,
-        screenPlan,
-        projectContext: planningContext,
-      });
-      const selectedStateVariantIds = stateProposal.stateVariants
+      const stateVariants = screenPlan.stateVariants ?? [];
+      const baseState = stateVariants.length > 0
+        ? { stateKey: "base", stateLabel: "Base" }
+        : null;
+      const selectedStateVariantIds = stateVariants
         .filter((variant) => variant.defaultSelected)
         .map((variant) => variant.id);
       const proposalMetadata = {
@@ -1735,13 +1733,13 @@ export async function POST(request: Request) {
         referencePolicy,
         referenceDnaCacheHit: Boolean(plannerReferenceDna),
         referenceDnaCacheSource: cachedReferenceDna?.cacheSource ?? null,
-        baseState: stateProposal.baseState,
-        stateVariants: stateProposal.stateVariants,
+        baseState,
+        stateVariants,
         selectedStateVariantIds,
         status: "pending",
         expiresAt: new Date(Date.now() + 1000 * 60 * 45).toISOString(),
       };
-      const stateCount = stateProposal.stateVariants.length;
+      const stateCount = stateVariants.length;
       const proposalText = stateCount > 0
         ? `I drafted a plan for ${screenPlan.name} with ${stateCount} optional state${stateCount === 1 ? "" : "s"}. Review it, then choose what to build on the canvas.`
         : `I drafted a plan for ${screenPlan.name}. Review it, then I can build it on the canvas.`;

@@ -31,7 +31,7 @@ export type ProjectReadToolResult = {
 };
 
 const overviewSchema = z.object({
-  sections: z.array(z.enum(["charter", "tokens", "navigation", "plans", "assets", "generation"])).max(6).optional(),
+  sections: z.array(z.enum(["charter", "tokens", "navigation", "roadmap", "plans", "assets", "generation"])).max(7).optional(),
 });
 const searchSchema = z.object({
   query: z.string().trim().min(1).max(500),
@@ -110,11 +110,11 @@ const stringProperty = (description: string) => ({ type: Type.STRING, descriptio
 export const projectReadToolDeclarations: FunctionDeclaration[] = [
   {
     name: "get_project_overview",
-    description: "Read selected project design facts such as charter, tokens, navigation, plans, assets, and generation state. Never returns screen HTML.",
+    description: "Read selected project design facts such as charter, tokens, navigation, roadmap, plans, assets, and generation state. Never returns screen HTML.",
     parameters: {
       type: Type.OBJECT,
       properties: {
-        sections: { type: Type.ARRAY, items: stringProperty("charter, tokens, navigation, plans, assets, or generation") },
+        sections: { type: Type.ARRAY, items: stringProperty("charter, tokens, navigation, roadmap, plans, assets, or generation") },
       },
     },
   },
@@ -202,7 +202,7 @@ export function createProjectReadToolExecutor({
     try {
       if (tool === "get_project_overview") {
         const args = overviewSchema.parse(call.args ?? {});
-        const sections = new Set(args.sections?.length ? args.sections : ["charter", "navigation", "plans", "generation"]);
+        const sections = new Set(args.sections?.length ? args.sections : ["charter", "navigation", "roadmap", "plans", "generation"]);
         const project = await assertProject();
         const output: Record<string, unknown> = { project: { id: project.id, name: project.name, prompt: compact(project.prompt, 600) } };
         const jobs: Promise<void>[] = [];
@@ -215,6 +215,17 @@ export function createProjectReadToolExecutor({
         if (sections.has("generation")) jobs.push((async () => {
           const { data } = await admin.from("generation_runs").select("id, status, requested_screen_count, error, created_at, completed_at").eq("project_id", projectId).order("created_at", { ascending: false }).limit(3);
           output.generations = data ?? [];
+        })());
+        if (sections.has("roadmap")) jobs.push((async () => {
+          const { data } = await admin
+            .from("project_screen_roadmap")
+            .select("id, parent_item_id, generated_screen_id, stable_key, kind, screen_type, name, description, priority, status, explicitly_requested, sequence, tranche, dependency_keys, state_key, state_label, trigger_label")
+            .eq("project_id", projectId)
+            .eq("owner_id", ownerId)
+            .order("tranche", { ascending: true })
+            .order("sequence", { ascending: true })
+            .limit(50);
+          output.roadmap = data ?? [];
         })());
         if (sections.has("plans")) jobs.push((async () => {
           const { data } = await admin.from("project_messages").select("id, content, message_type, metadata, created_at").eq("project_id", projectId).eq("owner_id", ownerId).order("created_at", { ascending: false }).limit(30);
@@ -266,9 +277,19 @@ export function createProjectReadToolExecutor({
         }
 
         if (domains.has("plans")) {
-          const { data: messages } = await admin.from("project_messages").select("id, content, metadata, created_at").eq("project_id", projectId).eq("owner_id", ownerId).order("created_at", { ascending: false }).limit(100);
+          const [{ data: messages }, { data: roadmapItems }] = await Promise.all([
+            admin.from("project_messages").select("id, content, metadata, created_at").eq("project_id", projectId).eq("owner_id", ownerId).order("created_at", { ascending: false }).limit(100),
+            admin.from("project_screen_roadmap").select("id, name, description, kind, priority, status, state_label, trigger_label").eq("project_id", projectId).eq("owner_id", ownerId).limit(50),
+          ]);
           results.push(...(messages ?? []).filter((message) => JSON.stringify(message.metadata).includes("screen_plan")).map((message) => ({
             domain: "plans", id: message.id, label: "Screen plan", summary: compact(message.content, 700), confidence: lexicalScore(args.query, [message.content, JSON.stringify(message.metadata)]), createdAt: message.created_at,
+          })).filter((entry) => entry.confidence >= 8));
+          results.push(...(roadmapItems ?? []).map((item) => ({
+            domain: "plans",
+            id: item.id,
+            label: item.name,
+            summary: compact(`${item.kind}; ${item.priority}; ${item.status}; ${item.description}; ${item.state_label ?? ""}; ${item.trigger_label ?? ""}`, 700),
+            confidence: lexicalScore(args.query, [item.name, item.description, item.kind, item.priority, item.status, item.state_label, item.trigger_label]),
           })).filter((entry) => entry.confidence >= 8));
         }
 

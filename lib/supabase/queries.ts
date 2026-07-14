@@ -15,6 +15,7 @@ import {
   mapProjectMessageRow,
   mapProjectRow,
   mapScreenMessageRow,
+  mapScreenCatalogRow,
   mapScreenRow,
 } from "@/lib/supabase/mappers";
 import type { DesignTokens, GenerationRunData, Message, ProjectCharter, ProjectData, ProjectMessage, ProjectNavigationData, ScreenBlockIndex, ScreenData } from "@/lib/types";
@@ -37,6 +38,33 @@ export const SCREEN_SELECT_COLUMNS = [
   "state_key",
   "state_label",
   "state_role",
+  "roadmap_item_id",
+  "status",
+  "position_x",
+  "position_y",
+  "sort_index",
+  "error",
+  "trigger_run_id",
+  "stream_public_token",
+  "created_at",
+  "updated_at",
+].join(", ");
+
+export const SCREEN_CATALOG_SELECT_COLUMNS = [
+  "id",
+  "project_id",
+  "owner_id",
+  "generation_run_id",
+  "name",
+  "prompt",
+  "summary",
+  "chrome_policy",
+  "navigation_item_id",
+  "parent_screen_id",
+  "state_key",
+  "state_label",
+  "state_role",
+  "roadmap_item_id",
   "status",
   "position_x",
   "position_y",
@@ -93,6 +121,26 @@ export async function fetchScreens(client: Client, projectId: string): Promise<S
   }
 
   return ((data ?? []) as unknown as ScreenRow[]).map(mapScreenRow);
+}
+
+export async function fetchScreenCatalog(client: Client, projectId: string): Promise<ScreenData[]> {
+  const { data, error } = await client
+    .from("screens")
+    .select(SCREEN_CATALOG_SELECT_COLUMNS)
+    .eq("project_id", projectId)
+    .order("sort_index", { ascending: true });
+  if (error) throw error;
+  return ((data ?? []) as unknown as Parameters<typeof mapScreenCatalogRow>[0][]).map(mapScreenCatalogRow);
+}
+
+export async function fetchScreenSource(client: Client, screenId: string): Promise<ScreenData> {
+  const { data, error } = await client
+    .from("screens")
+    .select(SCREEN_SELECT_COLUMNS)
+    .eq("id", screenId)
+    .single();
+  if (error) throw error;
+  return mapScreenRow(data as unknown as ScreenRow);
 }
 
 export async function fetchScreenMessages(client: Client, screenId: string): Promise<Message[]> {

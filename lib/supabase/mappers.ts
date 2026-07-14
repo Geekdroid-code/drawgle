@@ -61,6 +61,7 @@ export function mapScreenRow(row: ScreenRow): ScreenData {
     generationRunId: row.generation_run_id,
     name: row.name,
     code: row.code,
+    sourceLoaded: true,
     prompt: row.prompt,
     summary: row.summary,
     blockIndex: (row.block_index as ScreenBlockIndex | null) ?? null,
@@ -70,6 +71,7 @@ export function mapScreenRow(row: ScreenRow): ScreenData {
     stateKey: row.state_key,
     stateLabel: row.state_label,
     stateRole: row.state_role,
+    roadmapItemId: row.roadmap_item_id,
     x: row.position_x,
     y: row.position_y,
     sortIndex: row.sort_index,
@@ -103,6 +105,16 @@ export function mapGenerationRunRow(row: GenerationRunRow): GenerationRunData {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     completedAt: row.completed_at,
+    clientRequestId: row.client_request_id,
+  };
+}
+
+export function mapScreenCatalogRow(
+  row: Omit<ScreenRow, "code" | "block_index"> & Partial<Pick<ScreenRow, "code" | "block_index">>,
+): ScreenData {
+  return {
+    ...mapScreenRow({ ...row, code: row.code ?? "", block_index: row.block_index ?? null }),
+    sourceLoaded: typeof row.code === "string",
   };
 }
 

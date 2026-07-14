@@ -43,7 +43,7 @@ export const GENERATION_V2_BENCHMARK_CASES: GenerationBenchmarkCase[] = [
     "Use the reference's photographic editorial style for recipe discovery.",
     "Apply the reference's high-contrast sports style to a workout plan.",
     "Use the reference's refined marketplace style for a headphone store.",
-    "Apply the supplied reference style to four BringBack AI product screens.",
+    "Apply the supplied reference style to four photo restoration product screens.",
   ]),
   ...cases("recreate", [
     "Recreate the supplied single-screen learning dashboard faithfully as editable UI.",
@@ -70,7 +70,7 @@ export const GENERATION_V2_BENCHMARK_CASES: GenerationBenchmarkCase[] = [
     "Create five screens from this app brief, including onboarding, auth, home, library, and profile.",
   ]),
   ...cases("historical", [
-    "BringBack AI with 2 step thoughtfully planned onboarding screen, one login/signup screen and 1 home screen.",
+    "Photo restoration app with 2 step thoughtfully planned onboarding screen, one login/signup screen and 1 home screen.",
     "Eight-cookie bakery grid where one correct cookie image may repeat across every product card.",
     "Workout dashboard where berry, food, and unrelated product imagery must never appear.",
     "People directory where every avatar must be a person and identities must remain distinct.",

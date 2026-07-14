@@ -108,6 +108,7 @@ type ScreenCanvasNodeData = {
   readOnly?: boolean;
   height?: number;
   onContentHeightChange?: (screenId: string, height: number) => void;
+  onScreenSourceNeeded?: (screenId: string) => void;
   onElementSelected?: (info: SelectedElementInfo) => void;
   onElementSelectionLost?: (info: {
     screenId: string;
@@ -131,6 +132,14 @@ type ScreenCanvasNode = Node<ScreenCanvasNodeData, "screen">;
 
 const ScreenCanvasNodeView = memo(({ data, dragging }: NodeProps<ScreenCanvasNode>) => {
   const nodeHeight = data.height ?? SCREEN_FRAME_HEIGHT;
+  const screenId = data.screen.id;
+  const sourceLoaded = data.screen.sourceLoaded;
+  const requestScreenSource = data.onScreenSourceNeeded;
+  useEffect(() => {
+    if (!sourceLoaded) {
+      requestScreenSource?.(screenId);
+    }
+  }, [requestScreenSource, screenId, sourceLoaded]);
   return (
     <div
       style={{
@@ -219,6 +228,7 @@ type CanvasStageProps = {
   onExportCode?: ScreenCanvasNodeData["onExportCode"];
   onDeleteSelectedElement?: (screenId: string, drawgleId: string) => void;
   onDuplicateSelectedElement?: (screenId: string, drawgleId: string) => void;
+  onScreenSourceNeeded?: (screenId: string) => void;
 };
 
 export function CanvasStage(props: CanvasStageProps) {
@@ -255,6 +265,7 @@ function CanvasStageContent({
   onExportCode,
   onDeleteSelectedElement,
   onDuplicateSelectedElement,
+  onScreenSourceNeeded,
 }: CanvasStageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const flowRef = useRef<ReactFlowInstance<ScreenCanvasNode> | null>(null);
@@ -274,6 +285,7 @@ function CanvasStageContent({
     onExportCode,
     onDeleteSelectedElement,
     onDuplicateSelectedElement,
+    onScreenSourceNeeded,
   });
   const [viewportSize, setViewportSize] = useState<CanvasViewport | null>(null);
   const [workspaceInsets, setWorkspaceInsets] =
@@ -323,8 +335,9 @@ function CanvasStageContent({
       onExportCode,
       onDeleteSelectedElement,
       onDuplicateSelectedElement,
+      onScreenSourceNeeded,
     };
-  }, [onElementSelected, onElementSelectionLost, onExportCode, onDeleteSelectedElement, onDuplicateSelectedElement]);
+  }, [onElementSelected, onElementSelectionLost, onExportCode, onDeleteSelectedElement, onDuplicateSelectedElement, onScreenSourceNeeded]);
 
   const reportCommand = useCallback(async (name: string, command: () => Promise<boolean>) => {
     const succeeded = await command();
@@ -491,6 +504,10 @@ function CanvasStageContent({
     (screenId, drawgleId) => callbackRefs.current.onDuplicateSelectedElement?.(screenId, drawgleId),
     [],
   );
+  const handleScreenSourceNeeded = useCallback<NonNullable<ScreenCanvasNodeData["onScreenSourceNeeded"]>>(
+    (screenId) => callbackRefs.current.onScreenSourceNeeded?.(screenId),
+    [],
+  );
 
   useEffect(() => {
     setNodes((currentNodes) => {
@@ -526,6 +543,7 @@ function CanvasStageContent({
           onExportCode: readOnly ? undefined : handleExportCode,
           onDeleteSelectedElement: readOnly ? undefined : handleDeleteSelectedElement,
           onDuplicateSelectedElement: readOnly ? undefined : handleDuplicateSelectedElement,
+          onScreenSourceNeeded: handleScreenSourceNeeded,
         };
 
         if (current) {
@@ -578,6 +596,7 @@ function CanvasStageContent({
     handleElementSelected,
     handleElementSelectionLost,
     handleExportCode,
+    handleScreenSourceNeeded,
     isTemporaryPan,
     projectNavigation,
     readOnly,
@@ -778,7 +797,7 @@ function CanvasStageContent({
         zoomOnPinch
         zoomOnDoubleClick={false}
         preventScrolling
-        onlyRenderVisibleElements={false}
+        onlyRenderVisibleElements
         proOptions={{ hideAttribution: true }}
       >
         <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="var(--dg-border-strong)" />

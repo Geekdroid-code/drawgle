@@ -87,6 +87,30 @@ const plannerBlueprintJsonContract = `Return JSON with this exact top-level shap
       }
     ]
   },
+  "roadmap": {
+    "requested_parent_count": 12,
+    "items": [
+      {
+        "stable_key": "screen:ride-dashboard",
+        "name": "Ride Dashboard",
+        "type": "root",
+        "summary": "Primary ride booking and active-trip overview.",
+        "priority": "core",
+        "explicitly_requested": true,
+        "dependency_keys": []
+      },
+      {
+        "stable_key": "screen:trip-receipt",
+        "name": "Trip Receipt",
+        "type": "detail",
+        "summary": "Completed trip fare and receipt details.",
+        "priority": "recommended",
+        "explicitly_requested": false,
+        "dependency_keys": ["screen:ride-dashboard"]
+      }
+    ],
+    "initial_batch_keys": ["screen:ride-dashboard"]
+  },
   "charter": {
     "originalPrompt": "Clean restatement of the user's intent",
     "imageReferenceSummary": "How the reference should influence the project, or null",
@@ -114,9 +138,10 @@ const plannerScreensJsonContract = `Return JSON with this exact top-level shape:
 {
   "screens": [
     {
-      "name": "Short Name",
-      "type": "root",
-      "description": "Reference DNA: ...\\nVisual Goal: ...\\nLayout Anatomy: ...\\nKey Components: ...\\nVisual Styling: ...\\nInteraction Notes: ...\\nMust Preserve: ...",
+	      "name": "Short Name",
+	      "type": "root",
+	      "roadmap_stable_key": "screen:short-name",
+	      "description": "Reference DNA: ...\\nVisual Goal: ...\\nLayout Anatomy: ...\\nKey Components: ...\\nVisual Styling: ...\\nInteraction Notes: ...\\nMust Preserve: ...",
       "layout_contract": {
         "viewport_plan": "Header/content/nav budget and scroll behavior in one sentence",
         "focal_hierarchy": "What dominates first, second, third, and how scale/contrast/position creates that",
@@ -147,7 +172,20 @@ const plannerScreensJsonContract = `Return JSON with this exact top-level shape:
           "slotCount": 1,
           "reusePolicy": "repeat"
         }
-      ]
+	      ],
+	      "state_variants": [
+	        {
+	          "id": "date-picker",
+	          "state_key": "date-picker",
+	          "state_label": "Date Picker",
+	          "state_role": "Local date selection overlay on the same screen",
+	          "trigger_label": "Due date control",
+	          "description": "The same parent screen with its date picker open.",
+	          "edit_instruction": "Preserve the complete parent shell and change only the local due-date control into its open picker state.",
+	          "explicitly_requested": false,
+	          "default_selected": false
+	        }
+	      ]
     }
   ]
 }`;
@@ -170,11 +208,17 @@ Plan screen anatomy from the user prompt, existing project context, charter, and
 export const plannerBlueprintStepInstruction = (mode: "recreate" | "style") => `${mode === "recreate" ? plannerRecreateInstruction : plannerStyleInstruction}
 
 STEP: PROJECT BLUEPRINT ONLY.
-Create the project charter, navigation architecture, and navigation plan. Do not return screens in this step.
+Create the project charter, navigation architecture, navigation plan, and compact product roadmap. Do not return detailed screen briefs in this step.
 ${plannerBlueprintJsonContract}
 
 Blueprint rules:
-- Screen Count Contract controls generated screens only. Navigation destinations are product information architecture and may be planned without creating or charging for screens.
+- Produce a compact product roadmap before any detailed screen briefs. Roadmap items are route or destination canvases, including root and detail screens; local modal, sheet, picker, active-tab, and confirmation states are not parent roadmap items.
+- For an explicit finite request, preserve every requested parent screen and order. For an open-ended complete app, choose the smallest credible roadmap covering entry, primary destinations, and the critical workflow. Return at most 24 parent items in one tranche.
+- initial_batch_keys selects at most five parent screens. Prefer explicitly requested screens, required entry points, primary destinations, and a coherent critical path in dependency order.
+- If more than five parent screens are requested, keep them in roadmap.items and select only the first production-worthy batch. Never silently discard them.
+- requested_parent_count is the explicit requested parent total when known; otherwise use the roadmap item count. Do not include card counts, navigation tabs, products, or local UI states.
+- Stable keys use screen:<short-kebab-name> and must be unique. Dependencies refer only to stable keys in the same roadmap.
+- Screen Count Contract controls the initial generated parent batch only. Navigation destinations and later roadmap items are not created or charged in this run.
 - Navigation requires positive evidence: an explicit prompt request, visible persistent navigation in a recreate reference, or a clearly described product architecture with peer root areas. Screen count and app category are never sufficient.
 - Explicit no-navigation intent and finite immersive flows always use decision "none", evidence.source null, no items, and design null.
 - Use decision "reference-derived" when recreate evidence visibly contains persistent navigation. Preserve observed item count, order, labels, icon meaning, anatomy, active states, geometry, elevation, and safe-area relationship. A legitimate two-item reference is valid.
@@ -207,6 +251,7 @@ Rules:
 - Viewport fit: include a 390px fit note, bottom-nav clearance when applicable, and how the screen avoids overflow, text collision, clipped nav, and bottom overlap. Shared-bottom-nav screens must reserve a clear bottom content zone; never place final rows, CTAs, cards, or map callouts under the nav shell.
 - Asset planning: plan bitmap groups in asset_needs; use [] when none. Declare subject, semanticCategory, semanticTags, type, priority, placementHint, slotCount, and reusePolicy. Eight similar image-bearing cards are one need with slotCount=8 and reusePolicy=repeat, not eight needs. Use distinct for different people or explicitly different named products.
 - Asset sourcePreference: internal_library for transparent foreground cutouts; stock for non-transparent photos/textures; user_upload only for explicit user-owned logo/product/brand/person/private image. Never output "ai_generated"; placeholders are resolved later. Do not request bitmaps for icons, decorative blobs, CSS gradients, HTML/CSS charts, simple cards, or generic chrome.
+- State proposals: state_variants are optional local states of the same route shell, not destinations. Suggest at most three meaningful states opened by visible controls: modal/dialog/sheet/popover, active tab with a distinct content body, filtered/search results, selected detail panel, or a concrete form flow. Never use onboarding, auth, profile/settings routes, checkout, navigation destinations, theme/dark mode, hover/focus styling, or generic loading/empty states as local paid states. Set explicitly_requested and default_selected true only when the user prompt or a recreate reference explicitly requires that visible state. Every edit_instruction must preserve the parent shell, navigation, tokens, typography, spacing, and overall layout.
 - Mode cues: recreate mode needs at least 3 reference-traceable cues, including one layer/containment/depth cue when visible. Style mode needs at least 3 borrowed style cues from material, typography, edge/depth, iconography, or micro-shapes, while layout stays driven by the prompt and blueprint. If shared navigation is enabled, nav treatment is renderer-owned and must not appear as screen anatomy.
 - Final self-audit: every description must contain at least 8 concrete visible implementation cues and preserve consistency in spacing scale, card padding, type roles, nav family, and edge/radius language.`;
 
@@ -383,6 +428,7 @@ Return strictly valid JSON in this format:
 }
 
 Rules:
+- Batch selection: return detailed briefs only for roadmap.initial_batch_keys, in that exact order, with the matching roadmap_stable_key. Never replace a selected roadmap item with an unselected one.
 - Return exactly one screenReferences entry for every visible phone screen or app frame counted by screenCountEstimate. boundingBox uses normalized 0-1 image coordinates.
 - Extract material quality, shadows, radii, blur/glass, typography character, icon weight, color rhythm, polish, micro-shapes, navigation treatment, component craftsmanship, spacing density, and viewport fit constraints.
 - Do not preserve exact section order, object positions, domain content, data values, product objects, literal copy, or full screenshot anatomy.

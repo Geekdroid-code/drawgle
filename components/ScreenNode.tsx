@@ -584,7 +584,6 @@ export function ScreenNode({
   }, []);
 
   // ── Streaming support while a screen is being generated
-  const [initialCode] = useState(safeCode);
   const isBuilding =
     screen.status === "building" &&
     !!screen.triggerRunId &&
@@ -602,6 +601,7 @@ export function ScreenNode({
   }, [triggerStreams]);
   const hasStreamedBuildCode = Boolean(streamedCode?.trim());
   const showBuildPreloader = isBuilding && !hasStreamedBuildCode && !hasMeaningfulRenderableCode(safeCode);
+  const showSourcePreloader = !screen.sourceLoaded && screen.status !== "failed";
   const showBuildFinalizing = isBuilding && hasStreamedBuildCode;
 
   const rawDisplayCode = streamedCode ?? safeCode;
@@ -2256,7 +2256,7 @@ export function ScreenNode({
           }}
         />
 
-        <ScreenBuildPreloader visible={showBuildPreloader} />
+        <ScreenBuildPreloader visible={showBuildPreloader || showSourcePreloader} />
         <ScreenBuildFinalizing visible={showBuildFinalizing} />
 
         {!readOnly && selectedElementBounds && selectedElementBounds.drawgleId === selectedDrawgleId && (

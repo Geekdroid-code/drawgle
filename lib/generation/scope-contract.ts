@@ -30,8 +30,10 @@ const NUMBER_WORDS: Record<string, number> = {
   twelve: 12,
 };
 
-const SCREEN_NOUNS = "screens?|pages?|views?|panels?|states?|modules?|frames?|mockups?";
+const SCREEN_NOUNS = "screens?|pages?|views?";
 const ACTION_WORDS = "build|create|generate|make|design|recreate|convert|copy|render";
+const MAX_SCOPE_COUNT = 200;
+const MAX_MATERIALIZED_SCOPE_SCREENS = 24;
 
 type PromptScreenIntent = {
   promptScreenCount: number | null;
@@ -60,7 +62,7 @@ export const clampScopeScreenCount = (value: unknown) => {
     return null;
   }
 
-  return Math.min(12, Math.max(1, Math.round(numeric)));
+  return Math.min(MAX_SCOPE_COUNT, Math.max(1, Math.round(numeric)));
 };
 
 const numberFromToken = (value: string | undefined | null) => {
@@ -219,11 +221,13 @@ const defaultScopeScreenName = (kind: string, index: number, count: number) => {
 const screensFromGroups = (groups: ScreenScopeGroup[]) => {
   const screens: ScreenScopeScreen[] = [];
   for (const group of groups) {
-    for (let index = 0; index < group.count && screens.length < 12; index += 1) {
+    if (group.surfaceKind === "state") continue;
+    for (let index = 0; index < group.count && screens.length < MAX_MATERIALIZED_SCOPE_SCREENS; index += 1) {
       screens.push({
         index: screens.length + 1,
         name: group.orderedNames[index] || defaultScopeScreenName(group.kind, index + 1, group.count),
         kind: group.kind,
+        parentName: group.parentName ?? null,
       });
     }
   }
@@ -260,7 +264,7 @@ export function parsePromptScreenIntent(prompt: string): PromptScreenIntent {
       source: "named_screens",
       allScreensRequested: true,
       diagnostics,
-      groups: screens.map((screen) => ({ kind: screen.kind, count: 1, orderedNames: [screen.name], sourceText: screen.name })),
+      groups: screens.map((screen) => ({ kind: screen.kind, count: 1, orderedNames: [screen.name], sourceText: screen.name, surfaceKind: "screen" })),
       screens,
       confidence: "high",
       ambiguities: [],
@@ -281,12 +285,13 @@ export function parsePromptScreenIntent(prompt: string): PromptScreenIntent {
       count,
       orderedNames: Array.from({ length: count }, (_, index) => defaultScopeScreenName(kind, index + 1, count)),
       sourceText: (match[0] ?? phrase).trim().slice(0, 240),
+      surfaceKind: "screen" as const,
     } satisfies ScreenScopeGroup];
   });
 
   if (groups.length > 0) {
     const screens = screensFromGroups(groups);
-    const count = screens.length;
+    const count = groups.reduce((total, group) => total + group.count, 0);
     diagnostics.push(`Detected ${groups.length} additive screen group${groups.length === 1 ? "" : "s"} totaling ${count} screen${count === 1 ? "" : "s"}.`);
     return {
       promptScreenCount: count,
@@ -312,8 +317,8 @@ export function parsePromptScreenIntent(prompt: string): PromptScreenIntent {
       source: "prompt_count",
       allScreensRequested: /\b(all|every|each)\b/i.test(normalized),
       diagnostics,
-      groups: [{ kind: "screen", count: trailingCount, orderedNames: [], sourceText: trailingActionCount?.[0] ?? normalized }],
-      screens: screensFromGroups([{ kind: "screen", count: trailingCount, orderedNames: [], sourceText: trailingActionCount?.[0] ?? normalized }]),
+      groups: [{ kind: "screen", count: trailingCount, orderedNames: [], sourceText: trailingActionCount?.[0] ?? normalized, surfaceKind: "screen" }],
+      screens: screensFromGroups([{ kind: "screen", count: trailingCount, orderedNames: [], sourceText: trailingActionCount?.[0] ?? normalized, surfaceKind: "screen" }]),
       confidence: "medium",
       ambiguities: [],
       requiresConfirmation: false,
@@ -346,19 +351,24 @@ const normalizeSemanticPromptIntent = (raw: unknown, prompt: string): PromptScre
   const explicitFiniteScope = raw.explicitFiniteScope === true || raw.explicit_finite_scope === true;
   const rawGroups = readField(raw, ["groups", "screenGroups", "screen_groups"]);
   const groups = Array.isArray(rawGroups)
-    ? rawGroups.filter(isRecord).slice(0, 12).flatMap((group) => {
+    ? rawGroups.filter(isRecord).slice(0, 24).flatMap((group) => {
         const count = clampScopeScreenCount(readField(group, ["count", "slotCount", "slot_count"]));
         if (!count) return [];
         const kind = textField(group, ["kind", "type", "role"], "screen", 80).toLowerCase().replace(/[^a-z0-9]+/g, "_");
-        const orderedNames = textArray(readField(group, ["orderedNames", "ordered_names", "names"]), [], count, 100);
+        const orderedNames = textArray(readField(group, ["orderedNames", "ordered_names", "names"]), [], Math.min(count, MAX_MATERIALIZED_SCOPE_SCREENS), 100);
+        const rawSurfaceKind = String(readField(group, ["surfaceKind", "surface_kind", "classification"]) ?? "screen").toLowerCase();
+        const surfaceKind = rawSurfaceKind === "state" || rawSurfaceKind === "local_state" ? "state" as const : "screen" as const;
+        const parentName = textField(group, ["parentName", "parent_name", "parentScreen", "parent_screen"], "", 100) || null;
         const useCanonicalNames = /onboarding|welcome|intro|auth|login|signup|register|home|dashboard/.test(kind);
         return [{
           kind,
           count,
-          orderedNames: Array.from({ length: count }, (_, index) => useCanonicalNames
+          orderedNames: Array.from({ length: Math.min(count, MAX_MATERIALIZED_SCOPE_SCREENS) }, (_, index) => useCanonicalNames
             ? defaultScopeScreenName(kind, index + 1, count)
             : orderedNames[index] || defaultScopeScreenName(kind, index + 1, count)),
           sourceText: textField(group, ["sourceText", "source_text", "evidence"], prompt, 240),
+          surfaceKind,
+          parentName,
         } satisfies ScreenScopeGroup];
       })
     : [];
@@ -385,15 +395,16 @@ const normalizeSemanticPromptIntent = (raw: unknown, prompt: string): PromptScre
   }
 
   const screens = screensFromGroups(groups);
+  const parentScreenCount = groups.reduce((total, group) => total + (group.surfaceKind === "state" ? 0 : group.count), 0);
   const reportedTotal = clampScopeScreenCount(readField(raw, ["totalCount", "total_count", "screenCount", "screen_count"]));
-  if (reportedTotal && reportedTotal !== screens.length) {
-    diagnostics.push(`Semantic scope total ${reportedTotal} disagreed with additive group total ${screens.length}; additive arithmetic won.`);
+  if (reportedTotal && reportedTotal !== parentScreenCount) {
+    diagnostics.push(`Semantic scope total ${reportedTotal} disagreed with additive parent-screen total ${parentScreenCount}; structured group arithmetic won.`);
     confidence = confidence === "high" ? "medium" : confidence;
   }
-  diagnostics.push(`Semantic scope interpreter resolved ${groups.length} group${groups.length === 1 ? "" : "s"} and ${screens.length} screen${screens.length === 1 ? "" : "s"}.`);
+  diagnostics.push(`Semantic scope interpreter resolved ${groups.length} group${groups.length === 1 ? "" : "s"} and ${parentScreenCount} parent screen${parentScreenCount === 1 ? "" : "s"}.`);
 
   return {
-    promptScreenCount: screens.length,
+    promptScreenCount: parentScreenCount,
     namedScreenCount: null,
     source: "prompt_count",
     allScreensRequested: raw.allScreensRequested === true || raw.all_screens_requested === true,
@@ -429,9 +440,10 @@ export async function analyzePromptScreenIntent({
     });
     const instruction = [
       "Extract only the user's explicitly requested finite mobile app screen scope.",
-      "Return JSON: { explicitFiniteScope, groups:[{kind,count,orderedNames,sourceText}], totalCount, confidence:'high|medium|low', ambiguities:[], allScreensRequested }.",
-      "Screen groups are additive. A two-step onboarding plus one login/signup screen plus one home screen totals four screens.",
-      "A combined login/signup screen counts as one unless separate screens are explicitly requested.",
+      "Return JSON: { explicitFiniteScope, groups:[{kind,count,orderedNames,sourceText,surfaceKind:'screen|state',parentName:null|string}], totalCount, confidence:'high|medium|low', ambiguities:[], allScreensRequested }.",
+      "Parent screen groups are additive. totalCount is the sum of groups whose surfaceKind is screen.",
+      "A combined destination counts once unless the user explicitly requests separate destinations.",
+      "A modal, sheet, picker, popover, active-tab body, confirmation, or other local variation of the same route uses surfaceKind state and names its parent; it does not increase totalCount.",
       "Do not treat version numbers, dimensions, product quantities, card counts, steps inside one non-screen workflow, or reference-image panel counts as prompt screen totals.",
       "If the user requests an app but does not enumerate a finite screen set, set explicitFiniteScope false and return no groups.",
       `User prompt: ${JSON.stringify(prompt.trim())}`,
@@ -872,7 +884,7 @@ export function resolveGenerationScopeContract({
   const scopeScreens = promptIntent.screens?.length
     ? promptIntent.screens
     : finalScreenCount && (countSource === "reference_image" || countSource === "default_single")
-      ? Array.from({ length: finalScreenCount }, (_, index) => ({
+      ? Array.from({ length: Math.min(finalScreenCount, MAX_MATERIALIZED_SCOPE_SCREENS) }, (_, index) => ({
           index: index + 1,
           name: referenceAnalysisResult?.analysis?.screenReferences[index]?.suggestedRole || `Reference Screen ${index + 1}`,
           kind: "reference",

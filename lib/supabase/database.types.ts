@@ -126,6 +126,7 @@ export interface Database {
           created_at: string;
           updated_at: string;
           completed_at: string | null;
+          client_request_id: string | null;
         };
         Insert: {
           id?: string;
@@ -142,6 +143,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
           completed_at?: string | null;
+          client_request_id?: string | null;
         };
         Update: {
           id?: string;
@@ -158,6 +160,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
           completed_at?: string | null;
+          client_request_id?: string | null;
         };
         Relationships: [];
       };
@@ -179,6 +182,7 @@ export interface Database {
           state_key: string | null;
           state_label: string | null;
           state_role: string | null;
+          roadmap_item_id: string | null;
           status: ScreenStatus;
           position_x: number;
           position_y: number;
@@ -206,6 +210,7 @@ export interface Database {
           state_key?: string | null;
           state_label?: string | null;
           state_role?: string | null;
+          roadmap_item_id?: string | null;
           status?: ScreenStatus;
           position_x: number;
           position_y: number;
@@ -233,6 +238,7 @@ export interface Database {
           state_key?: string | null;
           state_label?: string | null;
           state_role?: string | null;
+          roadmap_item_id?: string | null;
           status?: ScreenStatus;
           position_x?: number;
           position_y?: number;
@@ -251,7 +257,176 @@ export interface Database {
             referencedRelation: "screens";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "screens_roadmap_item_id_fkey";
+            columns: ["roadmap_item_id"];
+            isOneToOne: true;
+            referencedRelation: "project_screen_roadmap";
+            referencedColumns: ["id"];
+          },
         ];
+      };
+      project_screen_roadmap: {
+        Row: {
+          id: string;
+          project_id: string;
+          owner_id: string;
+          parent_item_id: string | null;
+          generated_screen_id: string | null;
+          stable_key: string;
+          kind: "screen" | "state";
+          screen_type: "root" | "detail" | null;
+          name: string;
+          description: string;
+          priority: "core" | "required" | "recommended" | "optional";
+          status: "planned" | "queued" | "building" | "ready" | "failed" | "dismissed";
+          source: "prompt" | "planner" | "navigation" | "existing";
+          explicitly_requested: boolean;
+          sequence: number;
+          tranche: number;
+          dependency_keys: string[];
+          state_key: string | null;
+          state_label: string | null;
+          state_role: string | null;
+          trigger_label: string | null;
+          metadata: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          project_id: string;
+          owner_id: string;
+          parent_item_id?: string | null;
+          generated_screen_id?: string | null;
+          stable_key: string;
+          kind: "screen" | "state";
+          screen_type?: "root" | "detail" | null;
+          name: string;
+          description?: string;
+          priority?: "core" | "required" | "recommended" | "optional";
+          status?: "planned" | "queued" | "building" | "ready" | "failed" | "dismissed";
+          source?: "prompt" | "planner" | "navigation" | "existing";
+          explicitly_requested?: boolean;
+          sequence?: number;
+          tranche?: number;
+          dependency_keys?: string[];
+          state_key?: string | null;
+          state_label?: string | null;
+          state_role?: string | null;
+          trigger_label?: string | null;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          project_id?: string;
+          owner_id?: string;
+          parent_item_id?: string | null;
+          generated_screen_id?: string | null;
+          stable_key?: string;
+          kind?: "screen" | "state";
+          screen_type?: "root" | "detail" | null;
+          name?: string;
+          description?: string;
+          priority?: "core" | "required" | "recommended" | "optional";
+          status?: "planned" | "queued" | "building" | "ready" | "failed" | "dismissed";
+          source?: "prompt" | "planner" | "navigation" | "existing";
+          explicitly_requested?: boolean;
+          sequence?: number;
+          tranche?: number;
+          dependency_keys?: string[];
+          state_key?: string | null;
+          state_label?: string | null;
+          state_role?: string | null;
+          trigger_label?: string | null;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      credits: {
+        Row: {
+          id: number;
+          user_id: string;
+          credits: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: number;
+          user_id: string;
+          credits?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: number;
+          user_id?: string;
+          credits?: number;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      credit_reservations: {
+        Row: {
+          id: string;
+          owner_id: string;
+          project_id: string | null;
+          generation_run_id: string | null;
+          roadmap_item_id: string | null;
+          screen_id: string | null;
+          output_key: string;
+          output_kind: "screen" | "state" | "edit";
+          amount: number;
+          status: "reserved" | "captured" | "released";
+          release_reason: string | null;
+          expires_at: string;
+          reserved_at: string;
+          settled_at: string | null;
+          metadata: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          project_id?: string | null;
+          generation_run_id?: string | null;
+          roadmap_item_id?: string | null;
+          screen_id?: string | null;
+          output_key: string;
+          output_kind: "screen" | "state" | "edit";
+          amount: number;
+          status?: "reserved" | "captured" | "released";
+          release_reason?: string | null;
+          expires_at?: string;
+          reserved_at?: string;
+          settled_at?: string | null;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          project_id?: string | null;
+          generation_run_id?: string | null;
+          roadmap_item_id?: string | null;
+          screen_id?: string | null;
+          output_key?: string;
+          output_kind?: "screen" | "state" | "edit";
+          amount?: number;
+          status?: "reserved" | "captured" | "released";
+          release_reason?: string | null;
+          expires_at?: string;
+          reserved_at?: string;
+          settled_at?: string | null;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
       };
       project_navigation: {
         Row: {
@@ -686,6 +861,55 @@ export interface Database {
           position_y: number;
         }[];
       };
+      reserve_generation_credits: {
+        Args: {
+          input_owner_id: string;
+          input_project_id: string;
+          input_generation_run_id: string;
+          input_outputs: Json;
+        };
+        Returns: Json;
+      };
+      capture_generation_credit: {
+        Args: {
+          input_owner_id: string;
+          input_generation_run_id: string;
+          input_output_key: string;
+          input_screen_id?: string | null;
+        };
+        Returns: boolean;
+      };
+      release_generation_credit: {
+        Args: {
+          input_owner_id: string;
+          input_generation_run_id: string;
+          input_output_key: string;
+          input_reason?: string | null;
+        };
+        Returns: number;
+      };
+      release_generation_credit_remainder: {
+        Args: {
+          input_owner_id: string;
+          input_generation_run_id: string;
+          input_reason?: string | null;
+        };
+        Returns: number;
+      };
+      adjust_user_credits: {
+        Args: {
+          input_user_id: string;
+          input_delta: number;
+        };
+        Returns: number;
+      };
+      set_user_credits_atomic: {
+        Args: {
+          input_user_id: string;
+          input_balance: number;
+        };
+        Returns: number;
+      };
       match_project_messages: {
         Args: {
           query_embedding: number[];
@@ -753,3 +977,5 @@ export type VisualAssetVariantRow = Database["public"]["Tables"]["visual_asset_v
 export type UserImageAssetRow = Database["public"]["Tables"]["user_image_assets"]["Row"];
 export type AssetGenerationJobRow = Database["public"]["Tables"]["asset_generation_jobs"]["Row"];
 export type ProjectAssetUsageRow = Database["public"]["Tables"]["project_asset_usages"]["Row"];
+export type ProjectScreenRoadmapRow = Database["public"]["Tables"]["project_screen_roadmap"]["Row"];
+export type CreditReservationRow = Database["public"]["Tables"]["credit_reservations"]["Row"];

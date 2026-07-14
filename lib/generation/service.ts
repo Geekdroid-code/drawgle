@@ -9,6 +9,7 @@ import { getOpenRouterScreenBuildModel, getScreenBuilderProvider, getScreenEdito
 import { hasApprovedDesignTokens, normalizeDesignTokens } from "@/lib/design-tokens";
 import { applyEdits } from "@/lib/diff-engine";
 import { buildScopedEditContext } from "@/lib/generation/block-index";
+import { filterMeaningfulStateVariants } from "@/lib/agent/state-variant-guardrails";
 import { inferSemanticCategory, VISUAL_ASSET_SEMANTIC_CATEGORIES } from "@/lib/generation/asset-semantics";
 import { formatDesignStyleContract, getDesignStylePack, summarizeDesignStyle } from "@/lib/generation/design-styles";
 import { createNavigationArchitecture, deriveRequiresBottomNav, resolveScreenChromePolicy } from "@/lib/navigation";
@@ -32,6 +33,7 @@ import {
 import { appendRequiredAnchors, DRAWGLE_GENERATION_COMPLETE_SENTINEL, extractRequiredAnchors, normalizeStaticDrawgleHtml, stripGenerationCompleteSentinel, validateSourceCompletion } from "@/lib/generation/screen-quality";
 import { buildRepairSurroundingContext, type RepairTarget } from "@/lib/generation/screen-repair";
 import { createProjectReferenceDna } from "@/lib/generation/reference-dna";
+import { buildProjectRoadmap, roadmapSlug, screenRoadmapKey } from "@/lib/generation/project-roadmap";
 import {
   analyzeReferenceImageForScope,
   preflightGenerationScope,
@@ -59,6 +61,7 @@ import type {
   PlannedUiFlow,
   PromptImagePayload,
   ProjectCharter,
+  ProjectRoadmapItem,
   ProjectReferenceDna,
   ReferenceAnalysis,
   ReferenceAnalysisResult,
@@ -68,6 +71,7 @@ import type {
   ScreenFamilyContract,
   ScreenBlockIndex,
   ScreenPlan,
+  ScreenStateVariantPlan,
 } from "@/lib/types";
 
 const normalizeScreenType = (value: unknown) => {
@@ -268,10 +272,24 @@ const ScreenLayoutContractSchema = z.object({
   anti_patterns: z.array(z.string().trim().min(1).max(260)).max(8).default([]).optional(),
 });
 
+const ScreenStateVariantSchema = z.object({
+  id: z.string().trim().min(1).max(80),
+  state_key: z.string().trim().min(1).max(80),
+  state_label: z.string().trim().min(1).max(60),
+  state_role: z.string().trim().min(1).max(500),
+  trigger_label: z.string().trim().min(1).max(120),
+  description: z.string().trim().min(20).max(1200),
+  edit_instruction: z.string().trim().min(30).max(1800),
+  explicitly_requested: BooleanishSchema.optional(),
+  default_selected: BooleanishSchema.optional(),
+});
+
 const ScreenPlanSchema = z.object({
   name: z.string().trim().min(1).max(100),
   type: ScreenTypeSchema,
   description: z.string().trim().min(1).max(8000),
+  roadmap_stable_key: z.string().trim().min(1).max(100).optional(),
+  state_variants: z.array(ScreenStateVariantSchema).max(3).default([]).optional(),
   layout_contract: ScreenLayoutContractSchema.optional(),
   chrome_policy: z.object({
     chrome: ScreenChromeKindSchema,
@@ -279,6 +297,20 @@ const ScreenPlanSchema = z.object({
     shows_back_button: BooleanishSchema.optional(),
   }).optional(),
   asset_needs: z.array(AssetNeedSchema).max(4).default([]).optional(),
+});
+
+const ProjectRoadmapSchema = z.object({
+  requested_parent_count: z.coerce.number().int().min(1).max(200).nullable().optional(),
+  items: z.array(z.object({
+    stable_key: z.string().trim().min(1).max(100),
+    name: z.string().trim().min(1).max(100),
+    type: ScreenTypeSchema,
+    summary: z.string().trim().min(20).max(1200),
+    priority: z.enum(["core", "required", "recommended", "optional"]),
+    explicitly_requested: BooleanishSchema.optional(),
+    dependency_keys: z.array(z.string().trim().min(1).max(100)).max(8).default([]).optional(),
+  })).min(1).max(24),
+  initial_batch_keys: z.array(z.string().trim().min(1).max(100)).min(1).max(5),
 });
 
 const NavigationArchitectureSchema = z.object({
@@ -349,6 +381,7 @@ const PlanSchema = z.object({
   requires_bottom_nav: BooleanishSchema.optional(),
   navigation_architecture: NavigationArchitectureSchema.optional(),
   navigation_plan: NavigationPlanSchema,
+  roadmap: ProjectRoadmapSchema.optional(),
   charter: z.object({
     originalPrompt: z.string().trim().min(1).max(10000),
     imageReferenceSummary: z.string().trim().max(6000).nullable().optional(),
@@ -359,16 +392,92 @@ const PlanSchema = z.object({
     designRationale: z.string().trim().min(1).max(8000),
     creativeDirection: CreativeDirectionSchema.nullable().optional(),
   }),
-  screens: z.array(ScreenPlanSchema).min(1).max(12),
+  screens: z.array(ScreenPlanSchema).min(1).max(5),
 });
 
 const ProjectBlueprintSchema = PlanSchema.omit({ screens: true });
 
 const ScreenBriefsSchema = z.object({
-  screens: z.array(ScreenPlanSchema).min(1).max(12),
+  screens: z.array(ScreenPlanSchema).min(1).max(5),
 });
 
 type ParsedCreativeDirection = z.infer<typeof CreativeDirectionSchema>;
+
+const compileProjectRoadmap = ({
+  rawRoadmap,
+  screens,
+  navigationPlan,
+  scopeContract,
+}: {
+  rawRoadmap: unknown;
+  screens: ScreenPlan[];
+  navigationPlan: NavigationPlan;
+  scopeContract?: GenerationScopeContract | null;
+}) => {
+  const parsed = ProjectRoadmapSchema.safeParse(rawRoadmap);
+  const plannedItems: ProjectRoadmapItem[] = parsed.success
+    ? parsed.data.items.map((item, index) => ({
+        stableKey: item.stable_key,
+        kind: "screen",
+        screenType: item.type,
+        name: item.name,
+        description: item.summary,
+        priority: item.priority,
+        status: "planned",
+        source: item.explicitly_requested ? "prompt" : "planner",
+        explicitlyRequested: item.explicitly_requested ?? false,
+        sequence: index,
+        tranche: 1,
+        dependencyKeys: item.dependency_keys ?? [],
+      }))
+    : [];
+  for (const scopedScreen of scopeContract?.screens ?? []) {
+    const stableKey = screenRoadmapKey(scopedScreen.name);
+    if (plannedItems.some((item) => item.stableKey === stableKey || normalizeScreenName(item.name) === normalizeScreenName(scopedScreen.name))) {
+      continue;
+    }
+    plannedItems.push({
+      stableKey,
+      kind: "screen",
+      screenType: scopedScreen.index === 1 && !/onboarding|authentication|login|signup|welcome/i.test(scopedScreen.kind)
+        ? "root"
+        : "detail",
+      name: scopedScreen.name,
+      description: `Explicitly requested ${scopedScreen.kind} screen from the approved scope contract.`,
+      priority: "required",
+      status: "planned",
+      source: "prompt",
+      explicitlyRequested: true,
+      sequence: plannedItems.length,
+      tranche: 1,
+      dependencyKeys: [],
+    });
+  }
+  const requestedParentCount = parsed.success
+    ? parsed.data.requested_parent_count ?? scopeContract?.finalScreenCount ?? null
+    : scopeContract?.finalScreenCount ?? null;
+  const roadmap = buildProjectRoadmap({
+    screens,
+    navigationPlan,
+    requestedParentCount,
+    plannedItems,
+  });
+  const scopedInitialKeys = scopeContract?.countSource === "prompt_count"
+    ? (scopeContract.screens ?? []).slice(0, 5).map((screen) => screenRoadmapKey(screen.name))
+    : [];
+  const initialBatchItemKeys = scopedInitialKeys.length > 0
+    ? scopedInitialKeys
+    : parsed.success
+      ? parsed.data.initial_batch_keys.filter((key) => roadmap.items.some((item) => item.kind === "screen" && item.stableKey === key)).slice(0, 5)
+      : screens.map((screen) => screen.roadmapStableKey ?? screenRoadmapKey(screen.name)).slice(0, 5);
+
+  return {
+    roadmap,
+    initialBatchItemKeys: initialBatchItemKeys.length > 0
+      ? initialBatchItemKeys
+      : screens.map((screen) => screen.roadmapStableKey ?? screenRoadmapKey(screen.name)).slice(0, 5),
+  };
+};
 
 const StringRecordSchema = z.record(z.string(), z.string());
 const TypographyScaleSchema = z.object({
@@ -680,7 +789,7 @@ const clampScreenCount = (value: number | null | undefined) => {
     return null;
   }
 
-  return Math.min(12, Math.max(1, Math.round(value as number)));
+  return Math.min(200, Math.max(1, Math.round(value as number)));
 };
 
 const INITIAL_PROJECT_SCREEN_LIMIT = 5;
@@ -732,8 +841,9 @@ const compileGenerationIntentContract = ({
   }
 
   if (referenceMode === "user_recreate" && !fullAppRequested) {
-    const exactScreenCount = scopeExactCount ?? explicitCount ?? referenceScreenCount ?? 1;
-    const allowSharedNavigation = exactScreenCount > 1;
+    const requestedCount = scopeExactCount ?? explicitCount ?? referenceScreenCount ?? 1;
+    const exactScreenCount = Math.min(requestedCount, INITIAL_PROJECT_SCREEN_LIMIT);
+    const allowSharedNavigation = requestedCount > 1;
     return {
       kind: "exact_recreate",
       source: explicitCount ? "prompt" : "reference_image",
@@ -743,7 +853,7 @@ const compileGenerationIntentContract = ({
           ? `The uploaded reference appears to contain ${referenceScreenCount} visible screen${referenceScreenCount === 1 ? "" : "s"}.`
           : "The user asked to recreate the uploaded reference, so uncertain reference count defaults to one visible screen."),
       exactScreenCount,
-      maxInitialScreens: exactScreenCount,
+      maxInitialScreens: INITIAL_PROJECT_SCREEN_LIMIT,
       explicitScreenCount: explicitCount,
       referenceScreenCount,
       allowSharedNavigation,
@@ -752,13 +862,14 @@ const compileGenerationIntentContract = ({
   }
 
   if (fullAppRequested) {
+    const requestedCount = scopeExactCount ?? explicitCount;
     return {
       kind: "full_app",
       source: explicitCount ? "prompt" : "prompt",
       reason: scopeContract?.reason ?? (explicitCount
         ? `The user requested a multi-screen app with ${explicitCount} screen${explicitCount === 1 ? "" : "s"}.`
         : `The user asked for a full app/product experience; initial generation is capped at ${INITIAL_PROJECT_SCREEN_LIMIT} screens.`),
-      exactScreenCount: scopeExactCount ?? (explicitCount ? Math.min(explicitCount, INITIAL_PROJECT_SCREEN_LIMIT) : null),
+      exactScreenCount: requestedCount ? Math.min(requestedCount, INITIAL_PROJECT_SCREEN_LIMIT) : null,
       maxInitialScreens: INITIAL_PROJECT_SCREEN_LIMIT,
       explicitScreenCount: explicitCount,
       referenceScreenCount,
@@ -771,7 +882,9 @@ const compileGenerationIntentContract = ({
     kind: "style_reference_app",
     source: referenceMode === "user_style" || referenceMode === "curated_style" ? "image_reference_mode" : "prompt",
     reason: `No exact recreate contract was detected; initial app planning is capped at ${INITIAL_PROJECT_SCREEN_LIMIT} screens.`,
-    exactScreenCount: scopeExactCount ?? explicitCount,
+    exactScreenCount: scopeExactCount || explicitCount
+      ? Math.min(scopeExactCount ?? explicitCount ?? INITIAL_PROJECT_SCREEN_LIMIT, INITIAL_PROJECT_SCREEN_LIMIT)
+      : null,
     maxInitialScreens: INITIAL_PROJECT_SCREEN_LIMIT,
     explicitScreenCount: explicitCount,
     referenceScreenCount,
@@ -1096,7 +1209,7 @@ const reconcileScreensWithScope = ({
   });
 
   const extras = screens.filter((screen) => !sections.some((section) => screenMatchesSection(screen, section)));
-  return [...reconciled, ...extras].slice(0, 12);
+  return [...reconciled, ...extras].slice(0, INITIAL_PROJECT_SCREEN_LIMIT);
 };
 
 const coerceNavigationArchitecture = ({
@@ -1618,13 +1731,55 @@ const normalizeScreenLayoutContract = (value: unknown): ScreenPlan["layoutContra
   };
 };
 
+const normalizeScreenStateVariants = (
+  value: unknown,
+  screenPlan: Pick<ScreenPlan, "name" | "description" | "type">,
+): ScreenStateVariantPlan[] => {
+  if (!Array.isArray(value)) return [];
+
+  const normalized = value.flatMap((item, index) => {
+    const input = isRecord(item)
+      ? {
+          ...item,
+          state_key: item.state_key ?? item.stateKey,
+          state_label: item.state_label ?? item.stateLabel,
+          state_role: item.state_role ?? item.stateRole,
+          trigger_label: item.trigger_label ?? item.triggerLabel,
+          edit_instruction: item.edit_instruction ?? item.editInstruction,
+          explicitly_requested: item.explicitly_requested ?? item.explicitlyRequested,
+          default_selected: item.default_selected ?? item.defaultSelected,
+        }
+      : item;
+    const parsed = ScreenStateVariantSchema.safeParse(input);
+    if (!parsed.success) return [];
+    return [{
+      id: roadmapSlug(parsed.data.id, `state-${index + 1}`),
+      stateKey: roadmapSlug(parsed.data.state_key, `state-${index + 1}`),
+      stateLabel: parsed.data.state_label,
+      stateRole: parsed.data.state_role,
+      triggerLabel: parsed.data.trigger_label,
+      description: parsed.data.description,
+      editInstruction: parsed.data.edit_instruction,
+      explicitlyRequested: parsed.data.explicitly_requested ?? false,
+      defaultSelected: parsed.data.default_selected ?? parsed.data.explicitly_requested ?? false,
+    } satisfies ScreenStateVariantPlan];
+  });
+
+  return filterMeaningfulStateVariants(normalized, { screenPlan }).slice(0, 3);
+};
+
 const coerceScreenPlanFromRawItem = (item: unknown): ScreenPlan | null => {
   const parsed = ScreenPlanSchema.safeParse(item);
   if (parsed.success) {
-    return {
+    const base = {
       name: parsed.data.name,
       type: parsed.data.type,
       description: parsed.data.description,
+    };
+    return {
+      ...base,
+      roadmapStableKey: parsed.data.roadmap_stable_key ?? screenRoadmapKey(parsed.data.name),
+      stateVariants: normalizeScreenStateVariants(parsed.data.state_variants, base),
       layoutContract: normalizeScreenLayoutContract(parsed.data.layout_contract),
       assetNeeds: normalizeScreenAssetNeeds(parsed.data.name, parsed.data.asset_needs),
       chromePolicy: parsed.data.chrome_policy
@@ -1681,6 +1836,15 @@ const coerceScreenPlanFromRawItem = (item: unknown): ScreenPlan | null => {
     name,
     type: normalizedType,
     description,
+    roadmapStableKey: typeof item.roadmap_stable_key === "string"
+      ? item.roadmap_stable_key
+      : typeof item.roadmapStableKey === "string"
+        ? item.roadmapStableKey
+        : screenRoadmapKey(name),
+    stateVariants: normalizeScreenStateVariants(
+      Array.isArray(item.state_variants) ? item.state_variants : item.stateVariants,
+      { name, type: normalizedType, description },
+    ),
     layoutContract: normalizeScreenLayoutContract(item),
     assetNeeds,
     chromePolicy: parsedChromePolicy
@@ -2097,7 +2261,7 @@ export async function planUiFlow({
     requestedScreenCount,
     scopeContract: resolvedScopeContract,
   });
-  const screenCountContract = buildScreenCountContract({
+  let screenCountContract = buildScreenCountContract({
     intentContract,
     explicitScreenSections,
     scopeContract: resolvedScopeContract,
@@ -2282,6 +2446,27 @@ export async function planUiFlow({
     }
   }
 
+  if (parsedBlueprint.success && parsedBlueprint.data.roadmap) {
+    const selectedKeys = resolvedScopeContract?.countSource === "prompt_count" && resolvedScopeContract.screens?.length
+      ? resolvedScopeContract.screens.slice(0, INITIAL_PROJECT_SCREEN_LIMIT).map((screen) => screenRoadmapKey(screen.name))
+      : parsedBlueprint.data.roadmap.initial_batch_keys.slice(0, INITIAL_PROJECT_SCREEN_LIMIT);
+    const selectedNames = selectedKeys.flatMap((key) => {
+      const roadmapItem = parsedBlueprint.data.roadmap?.items.find((item) => item.stable_key === key);
+      if (roadmapItem) return [roadmapItem.name];
+      const scopedScreen = resolvedScopeContract?.screens?.find((screen) => screenRoadmapKey(screen.name) === key);
+      return scopedScreen ? [scopedScreen.name] : [];
+    });
+    if (selectedNames.length > 0) {
+      screenCountContract = {
+        ...screenCountContract,
+        exactCount: selectedNames.length,
+        namedScreens: selectedNames,
+        maxScreens: INITIAL_PROJECT_SCREEN_LIMIT,
+        reason: `${screenCountContract.reason} The project roadmap selected ${selectedNames.length} parent screen${selectedNames.length === 1 ? "" : "s"} for this batch.`,
+      };
+    }
+  }
+
   let rawPlan: unknown = rawBlueprint;
   let parsed = PlanSchema.safeParse(rawPlan);
 
@@ -2290,6 +2475,11 @@ export async function planUiFlow({
       ...parts,
       {
         text: `Approved Project Blueprint:\n${JSON.stringify(parsedBlueprint.data, null, 2)}`,
+      },
+      {
+        text: `Initial batch contract:\n${formatScreenCountContract(screenCountContract)}\n${parsedBlueprint.data.roadmap
+          ? "Return screen briefs only for roadmap.initial_batch_keys, in that exact order."
+          : "Return only the parent screens selected by this contract, in exact prompt order."}`,
       },
     ];
     const screenPolicy = geminiPolicyForTask("project_planning", {
@@ -2421,6 +2611,12 @@ export async function planUiFlow({
       strictScreenLinks: planningMode !== "single-screen",
     });
     const plannedScreens = applyNavigationPlanToScreens(screens, navigationPlan);
+    const roadmapResult = compileProjectRoadmap({
+      rawRoadmap: isRecord(rawPlan) ? rawPlan.roadmap : null,
+      screens: plannedScreens,
+      navigationPlan,
+      scopeContract: resolvedScopeContract,
+    });
 
     console.warn(
       `[planUiFlow] Using ${salvageSource} screens (${screens.length}) after PlanSchema failure`,
@@ -2470,6 +2666,10 @@ export async function planUiFlow({
       screenCountEnforcement: enforced.enforcement,
       intentContract,
       screenFamilyContract,
+      roadmap: roadmapResult.roadmap,
+      initialBatchItemKeys: roadmapResult.initialBatchItemKeys,
+      requestedParentCount: roadmapResult.roadmap.requestedParentCount,
+      remainingUnplannedCount: roadmapResult.roadmap.remainingUnplannedCount,
     };
   }
 
@@ -2523,20 +2723,31 @@ export async function planUiFlow({
   const parsedScreens = planningMode === "single-screen"
       ? parsed.data.screens.slice(0, 1)
       : parsed.data.screens;
-  const rawScreens = parsedScreens.map((screenPlan) => ({
-    name: screenPlan.name,
-    type: screenPlan.type,
-    description: screenPlan.description,
-    layoutContract: normalizeScreenLayoutContract(screenPlan.layout_contract),
-    assetNeeds: normalizeScreenAssetNeeds(screenPlan.name, screenPlan.asset_needs),
-    chromePolicy: screenPlan.chrome_policy
-      ? {
-          chrome: screenPlan.chrome_policy.chrome,
-          showPrimaryNavigation: screenPlan.chrome_policy.show_primary_navigation ?? false,
-          showsBackButton: screenPlan.chrome_policy.shows_back_button ?? false,
-        }
-      : null,
-  }));
+  const rawScreens = parsedScreens.map((screenPlan) => {
+    const roadmapItem = parsed.data.roadmap?.items.find((item) => item.stable_key === screenPlan.roadmap_stable_key)
+      ?? parsed.data.roadmap?.items.find((item) => normalizeScreenName(item.name) === normalizeScreenName(screenPlan.name));
+    const base = {
+      name: screenPlan.name,
+      type: screenPlan.type,
+      description: screenPlan.description,
+    };
+    return {
+      ...base,
+      roadmapStableKey: screenPlan.roadmap_stable_key ?? roadmapItem?.stable_key ?? screenRoadmapKey(screenPlan.name),
+      roadmapPriority: roadmapItem?.priority,
+      explicitlyRequested: roadmapItem?.explicitly_requested ?? false,
+      stateVariants: normalizeScreenStateVariants(screenPlan.state_variants, base),
+      layoutContract: normalizeScreenLayoutContract(screenPlan.layout_contract),
+      assetNeeds: normalizeScreenAssetNeeds(screenPlan.name, screenPlan.asset_needs),
+      chromePolicy: screenPlan.chrome_policy
+        ? {
+            chrome: screenPlan.chrome_policy.chrome,
+            showPrimaryNavigation: screenPlan.chrome_policy.show_primary_navigation ?? false,
+            showsBackButton: screenPlan.chrome_policy.shows_back_button ?? false,
+          }
+        : null,
+    };
+  });
   const reconciledScreens = reconcileScreensWithScope({
     prompt,
     screens: rawScreens,
@@ -2589,6 +2800,12 @@ export async function planUiFlow({
     referenceMode: resolvedReferenceMode,
     scopeContract: resolvedScopeContract,
   });
+  const roadmapResult = compileProjectRoadmap({
+    rawRoadmap: parsed.data.roadmap,
+    screens: plannedScreens,
+    navigationPlan,
+    scopeContract: resolvedScopeContract,
+  });
 
   return {
     requiresBottomNav: navigationPlan.enabled,
@@ -2601,6 +2818,10 @@ export async function planUiFlow({
     screenCountEnforcement: enforced.enforcement,
     intentContract,
     screenFamilyContract,
+    roadmap: roadmapResult.roadmap,
+    initialBatchItemKeys: roadmapResult.initialBatchItemKeys,
+    requestedParentCount: roadmapResult.roadmap.requestedParentCount,
+    remainingUnplannedCount: roadmapResult.roadmap.remainingUnplannedCount,
   };
 }
 

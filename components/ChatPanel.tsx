@@ -9,6 +9,7 @@ import {
   ChevronDown,
   Copy,
   FileText,
+  Layers3,
   Loader2,
   MessageCircle,
   Minimize2,
@@ -47,6 +48,7 @@ import type {
   ProjectMessage,
   ProjectNavigationData,
   PromptImagePayload,
+  RoadmapBuildRecommendation,
   ScreenData,
   ScreenPlan,
 } from "@/lib/types";
@@ -85,7 +87,7 @@ type ConversationItem =
   | { id: string; kind: "assistant"; content: string; timestamp?: string; isError?: boolean }
   | { id: string; kind: "thinking"; summary: ThinkingSummaryMetadata; timestamp?: string; live?: boolean }
   | { id: string; kind: "generation_journal"; journal: GenerationJournalMetadata; timestamp?: string }
-  | { id: string; kind: "action"; step: AgentStepMetadata; sourceContent?: string; retryRun?: GenerationRunData; proposal?: ScreenPlanProposalMetadata | null; proposalMessageId?: string | null; timestamp?: string };
+  | { id: string; kind: "action"; step: AgentStepMetadata; sourceContent?: string; retryRun?: GenerationRunData; proposal?: ScreenPlanProposalMetadata | null; proposalMessageId?: string | null; roadmapRecommendation?: RoadmapBuildRecommendation | null; timestamp?: string };
 
 type ChatWorkspaceTab = "chat" | "design" | "design-md";
 
@@ -129,6 +131,24 @@ const getMessageActivityKey = (message: ProjectMessage) =>
 
 const getMessageClientTurnId = (message: ProjectMessage) =>
   getMetadataString(message.metadata, "clientTurnId");
+
+const readRoadmapRecommendation = (metadata: Record<string, unknown>): RoadmapBuildRecommendation | null => {
+  const value = metadataRecord(metadata.roadmapRecommendation);
+  if (
+    value.version !== 1 ||
+    (value.kind !== "parent_batch" && value.kind !== "state_batch") ||
+    typeof value.title !== "string" ||
+    typeof value.detail !== "string" ||
+    !Array.isArray(value.plannedScreens) ||
+    !Array.isArray(value.roadmapItemIds) ||
+    typeof value.outputCount !== "number" ||
+    typeof value.estimatedCredits !== "number" ||
+    typeof value.remainingCount !== "number"
+  ) {
+    return null;
+  }
+  return value as unknown as RoadmapBuildRecommendation;
+};
 
 const compactActionTitle = (content: string) =>
   content.replace(/\s+/g, " ").replace(/\.\.\.$/, "").trim() || "Working";
@@ -424,6 +444,9 @@ function buildConversationItems({
   );
   const terminalEditActivityKeys = new Set<string>();
   const terminalEditMessageIds = new Set<string>();
+  const readyRoadmapItemIds = new Set(
+    screens.filter((screen) => screen.status === "ready" && screen.roadmapItemId).map((screen) => screen.roadmapItemId!),
+  );
 
   for (const message of messages) {
     const action = getMetadataString(message.metadata, "action");
@@ -464,6 +487,10 @@ function buildConversationItems({
     const ui = readAgentUi(message.metadata);
     const thinkingSummary = readThinkingSummary(message.metadata);
     const screenPlanProposal = readScreenPlanProposal(message.metadata);
+    const rawRoadmapRecommendation = readRoadmapRecommendation(message.metadata);
+    const roadmapRecommendation = rawRoadmapRecommendation?.roadmapItemIds.some((id) => readyRoadmapItemIds.has(id))
+      ? null
+      : rawRoadmapRecommendation;
     const agentStep = resolveAgentStep(readAgentStep(message.metadata), stepFromLegacyMessage(message, screens));
     const generationJournal = readGenerationJournal(message.metadata);
     const uiVariant = getMetadataString(metadataRecord(message.metadata.ui), "variant");
@@ -630,6 +657,9 @@ function buildConversationItems({
             existing.proposal = screenPlanProposal;
             existing.proposalMessageId = message.id;
           }
+          if (roadmapRecommendation) {
+            existing.roadmapRecommendation = roadmapRecommendation;
+          }
           if (retryableAssociatedRun && !attachedRetryRunIds.has(retryableAssociatedRun.id)) {
             existing.retryRun = retryableAssociatedRun;
             attachedRetryRunIds.add(retryableAssociatedRun.id);
@@ -650,6 +680,7 @@ function buildConversationItems({
         retryRun: retryRun ?? undefined,
         proposal: screenPlanProposal,
         proposalMessageId: screenPlanProposal ? message.id : null,
+        roadmapRecommendation,
         timestamp: message.timestamp,
       };
 
@@ -899,8 +930,10 @@ function ActionCard({
   retryDisabled,
   proposal,
   proposalMessageId,
+  roadmapRecommendation,
   onRetryGeneration,
   onApproveScreenPlan,
+  onBuildRoadmapRecommendation,
 }: {
   step: AgentStepMetadata;
   retryRun?: GenerationRunData;
@@ -909,6 +942,8 @@ function ActionCard({
   proposalMessageId?: string | null;
   onRetryGeneration?: (run: GenerationRunData) => void;
   onApproveScreenPlan?: (proposalMessageId: string, selectedStateVariantIds?: string[]) => void;
+  roadmapRecommendation?: RoadmapBuildRecommendation | null;
+  onBuildRoadmapRecommendation?: (recommendation: RoadmapBuildRecommendation) => void;
 }) {
   const busy = step.status === "queued" || step.status === "thinking" || step.status === "editing";
   const failed = step.status === "failed";
@@ -1122,6 +1157,19 @@ function ActionCard({
 
             {proposal?.status === "approved" ? (
               <div className="mt-3 text-[11px] font-semibold text-emerald-600">Approved for build</div>
+            ) : null}
+
+            {roadmapRecommendation && onBuildRoadmapRecommendation ? (
+              <Button
+                type="button"
+                className="mt-3 h-8 gap-1.5 rounded-full px-3 text-[11px] font-semibold"
+                disabled={retryDisabled}
+                onClick={() => onBuildRoadmapRecommendation(roadmapRecommendation)}
+                title={`${roadmapRecommendation.outputCount} outputs, ${roadmapRecommendation.estimatedCredits} credits`}
+              >
+                <Layers3 className="h-3.5 w-3.5" />
+                Build {roadmapRecommendation.outputCount} output{roadmapRecommendation.outputCount === 1 ? "" : "s"} - {roadmapRecommendation.estimatedCredits} credits
+              </Button>
             ) : null}
 
             {retryRun && onRetryGeneration ? (
@@ -1463,6 +1511,7 @@ export function ChatPanel({
   screenPlan,
   onRetryGeneration,
   onApproveScreenPlan,
+  onBuildRoadmapRecommendation,
   isCollapsed,
   onCollapseChange,
   onSubmit,
@@ -1500,6 +1549,7 @@ export function ChatPanel({
   isBuilding?: boolean;
   onRetryGeneration?: (run: GenerationRunData) => void;
   onApproveScreenPlan?: (proposalMessageId: string, selectedStateVariantIds?: string[]) => void;
+  onBuildRoadmapRecommendation?: (recommendation: RoadmapBuildRecommendation) => void;
   onBuildPlannedScreen?: () => void;
   onCancelPlan?: () => void;
   isCollapsed: boolean;
@@ -1714,8 +1764,10 @@ export function ChatPanel({
                             retryDisabled={retryDisabled}
                             proposal={item.proposal}
                             proposalMessageId={item.proposalMessageId}
+                            roadmapRecommendation={item.roadmapRecommendation}
                             onRetryGeneration={onRetryGeneration}
                             onApproveScreenPlan={onApproveScreenPlan}
+                            onBuildRoadmapRecommendation={onBuildRoadmapRecommendation}
                           />
                         </motion.div>
                       );

@@ -266,6 +266,13 @@ export function ProjectLobby({
   const stylePresetSlug = !image ? selectedStylePreset?.slug ?? null : null;
   const activeImageModeDescription =
     imageReferenceModes.find((mode) => mode.id === imageReferenceMode)?.description ?? "";
+  const roadmapParentCount = plan?.roadmap?.items.filter((item) => item.kind === "screen").length ?? plan?.screens.length ?? 0;
+  const requestedStateCount = plan?.screens.reduce(
+    (count, screen) => count + (screen.stateVariants ?? []).filter((variant) => variant.defaultSelected || variant.explicitlyRequested).length,
+    0,
+  ) ?? 0;
+  const initialOutputCount = plan ? Math.min(8, plan.screens.length + requestedStateCount) : 0;
+  const initialCreditCost = initialOutputCount * 20;
 
   const handleImageUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -312,6 +319,7 @@ export function ProjectLobby({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          clientRequestId: crypto.randomUUID(),
           prompt: prompt.trim(),
           image,
           imageReferenceMode,
@@ -353,6 +361,7 @@ export function ProjectLobby({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          clientRequestId: crypto.randomUUID(),
           prompt: prompt.trim(),
           image,
           imageReferenceMode,
@@ -388,6 +397,11 @@ export function ProjectLobby({
     if (!designTokens || !plan || isBuilding) {
       return;
     }
+    if (!loadingCredits && balance < initialCreditCost) {
+      setPricingReason("insufficient_credits");
+      setIsPricingOpen(true);
+      return;
+    }
 
     setError(null);
     setIsBuilding(true);
@@ -397,6 +411,7 @@ export function ProjectLobby({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          clientRequestId: crypto.randomUUID(),
           prompt: prompt.trim(),
           image,
           imageReferenceMode,
@@ -409,6 +424,8 @@ export function ProjectLobby({
           navigationPlan: plan.navigationPlan,
           projectCharter: plan.charter,
           scopeContract: plan.scopeContract,
+          roadmap: plan.roadmap ?? null,
+          initialBatchItemKeys: plan.initialBatchItemKeys ?? [],
         }),
       });
 
@@ -776,8 +793,13 @@ export function ProjectLobby({
                           {describeNavigationArchitecture(plan.navigationArchitecture)}
                         </span>
                         <span className="inline-flex items-center rounded-full bg-[var(--dg-surface-muted)] px-3 py-2 text-xs font-bold text-[var(--dg-text)]">
-                          {plan.screens.length} {plan.screens.length === 1 ? "screen" : "screens"} queued
+                          {initialOutputCount} {initialOutputCount === 1 ? "output" : "outputs"} queued
                         </span>
+                        {roadmapParentCount > plan.screens.length ? (
+                          <span className="inline-flex items-center rounded-full bg-[var(--dg-surface-muted)] px-3 py-2 text-xs font-bold text-[var(--dg-text-muted)]">
+                            {roadmapParentCount - plan.screens.length} more on roadmap
+                          </span>
+                        ) : null}
                       </div>
                     </div>
 
@@ -805,7 +827,7 @@ export function ProjectLobby({
                   <section className="rounded-[18px] border border-[var(--dg-border)] bg-[var(--dg-surface)] text-[var(--dg-text)]">
                     <div className="border-b border-[var(--dg-border)] px-4 py-4 sm:px-5">
                       <div className="text-sm font-semibold text-[var(--dg-text)]">Initial screen plan</div>
-                      <div className="mt-1 text-sm text-[var(--dg-text-muted)]">This is the exact screen set Trigger.dev will build from.</div>
+                      <div className="mt-1 text-sm text-[var(--dg-text-muted)]">This is the exact first batch. The remaining roadmap stays available on the canvas.</div>
                     </div>
 
                     <div className="grid gap-3 p-3 sm:p-4 md:grid-cols-2 xl:grid-cols-3">
@@ -866,7 +888,7 @@ export function ProjectLobby({
                           </>
                         ) : (
                           <>
-                            Build all screens
+                            Build initial batch - {initialCreditCost} credits
                             <ArrowRight className="ml-1.5 h-4 w-4" />
                           </>
                         )}

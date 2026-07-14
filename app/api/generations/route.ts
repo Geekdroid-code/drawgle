@@ -12,6 +12,7 @@ import { normalizeReferenceImage } from "@/lib/generation/reference-image";
 import { findLatestProjectPromptImagePath } from "@/lib/generation/prompt-reference-storage";
 import { isGenerationReferencePolicy, resolveGenerationReferencePolicy } from "@/lib/generation/reference-policy";
 import { determineGenerationRetryScope } from "@/lib/generation/retry-scope";
+import { releaseGenerationCreditRemainder } from "@/lib/generation/credit-reservations";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
@@ -28,6 +29,7 @@ import {
   type NavigationArchitecture,
   type NavigationPlan,
   type ProjectCharter,
+  type ProjectRoadmap,
   type ReferenceAnalysis,
   type ScreenPlan,
 } from "@/lib/types";
@@ -37,6 +39,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const requestSchema = z.object({
+  clientRequestId: z.string().uuid().optional(),
   projectId: z.string().uuid().optional(),
   projectName: z.string().trim().min(1).max(100).optional(),
   prompt: z.string().trim().max(10000),
@@ -57,6 +60,23 @@ const requestSchema = z.object({
         name: z.string().trim().min(1).max(100),
         type: z.enum(["root", "detail"]),
         description: z.string().trim().min(1).max(8000),
+        roadmapStableKey: z.string().trim().min(1).max(100).nullable().optional(),
+        roadmapItemId: z.string().uuid().nullable().optional(),
+        roadmapPriority: z.enum(["core", "required", "recommended", "optional"]).optional(),
+        explicitlyRequested: z.boolean().optional(),
+        stateVariants: z.array(z.object({
+          id: z.string().trim().min(1).max(120),
+          stateKey: z.string().trim().min(1).max(120),
+          stateLabel: z.string().trim().min(1).max(160),
+          stateRole: z.string().trim().min(1).max(500),
+          triggerLabel: z.string().trim().min(1).max(240),
+          description: z.string().trim().min(1).max(2400),
+          editInstruction: z.string().trim().min(1).max(4000),
+          defaultSelected: z.boolean(),
+          explicitlyRequested: z.boolean().optional(),
+          roadmapStableKey: z.string().trim().min(1).max(160).nullable().optional(),
+          roadmapItemId: z.string().uuid().nullable().optional(),
+        })).max(3).optional(),
         assetNeeds: z.array(z.object({
           id: z.string().trim().min(1).max(80),
           screenName: z.string().trim().min(1).max(100),
@@ -103,7 +123,7 @@ const requestSchema = z.object({
       }),
     )
     .min(1)
-    .max(12)
+    .max(5)
     .nullable()
     .optional(),
   requiresBottomNav: z.boolean().optional(),
@@ -123,8 +143,9 @@ const requestSchema = z.object({
       label: z.string().trim().min(1).max(40),
       icon: z.string().trim().min(1).max(80),
       role: z.string().trim().min(1).max(240),
-      linkedScreenName: z.string().trim().min(1).max(100),
-    })).max(5),
+      linkedScreenName: z.string().trim().min(1).max(100).nullable(),
+      availability: z.enum(["generated", "planned"]).optional(),
+    }).passthrough()).max(5),
     visualBrief: z.string().trim().min(1).max(1600),
     screenChrome: z.array(z.object({
       screenName: z.string().trim().min(1).max(100),
@@ -166,15 +187,22 @@ const requestSchema = z.object({
         label: z.string(),
         version: z.number(),
       }).nullable().optional(),
-    })
+    }).passthrough()
     .optional(),
+  roadmap: z.unknown().nullable().optional(),
+  initialBatchItemKeys: z.array(z.string().trim().min(1).max(100)).max(5).optional(),
+  roadmapBuild: z.object({
+    kind: z.enum(["parent_batch", "state_batch"]),
+    roadmapItemIds: z.array(z.string().uuid()).min(1).max(8),
+    parentScreenId: z.string().uuid().nullable().optional(),
+  }).optional(),
   designTokens: z.unknown().nullable().optional(),
   scopeContract: z.unknown().nullable().optional(),
   planningMode: z.enum(["project", "single-screen"]).optional(),
   baseState: z.object({
     stateKey: z.string().trim().min(1).max(120),
     stateLabel: z.string().trim().min(1).max(160),
-  }).nullable().optional(),
+  }).passthrough().nullable().optional(),
   stateVariants: z.array(z.object({
     id: z.string().trim().min(1).max(120),
     stateKey: z.string().trim().min(1).max(120),
@@ -184,6 +212,9 @@ const requestSchema = z.object({
     description: z.string().trim().min(1).max(2400),
     editInstruction: z.string().trim().min(1).max(4000),
     defaultSelected: z.boolean(),
+    explicitlyRequested: z.boolean().optional(),
+    roadmapStableKey: z.string().trim().min(1).max(160).nullable().optional(),
+    roadmapItemId: z.string().uuid().nullable().optional(),
   })).max(3).optional(),
 }).superRefine((value, ctx) => {
   if (!value.prompt.trim() && !value.image) {
@@ -264,6 +295,8 @@ export async function POST(request: Request) {
   let projectId: string | undefined;
   let retryContext: GenerationRetryContext | null = null;
   let retrySourceRun: Database["public"]["Tables"]["generation_runs"]["Row"] | null = null;
+  let authenticatedOwnerId: string | null = null;
+  let requestClientId: string | null = null;
 
   try {
     const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -272,7 +305,12 @@ export async function POST(request: Request) {
     }
 
     const ownerId = authData.user.id;
+    authenticatedOwnerId = ownerId;
     const rawRequestBody = await request.json();
+    requestClientId = rawRequestBody && typeof rawRequestBody === "object" && !Array.isArray(rawRequestBody)
+      && typeof (rawRequestBody as Record<string, unknown>).clientRequestId === "string"
+      ? (rawRequestBody as Record<string, unknown>).clientRequestId as string
+      : null;
     let requestBody = rawRequestBody;
     const retryCoordinates = retryCoordinatesSchema.safeParse(rawRequestBody);
     const requestedSourceRunId = rawRequestBody && typeof rawRequestBody === "object" && !Array.isArray(rawRequestBody)
@@ -317,6 +355,13 @@ export async function POST(request: Request) {
       if (sourceRunResult.data.status !== "failed" && sourceRunResult.data.status !== "canceled") {
         return NextResponse.json({ error: "Only failed or canceled generations can be retried." }, { status: 409 });
       }
+
+      await releaseGenerationCreditRemainder({
+        admin,
+        ownerId,
+        generationRunId: sourceRunResult.data.id,
+        reason: "Retry released unfinished outputs from the previous run.",
+      });
 
       const sourceRun = sourceRunResult.data;
       retrySourceRun = sourceRun;
@@ -367,6 +412,9 @@ export async function POST(request: Request) {
         requiresConfirmation: false,
       } satisfies GenerationScopeContract);
       requestBody = {
+        clientRequestId: typeof (rawRequestBody as Record<string, unknown>).clientRequestId === "string"
+          ? (rawRequestBody as Record<string, unknown>).clientRequestId
+          : undefined,
         projectId: retryCoordinates.data.projectId,
         sourceGenerationRunId: sourceRun.id,
         prompt: sourceRun.prompt,
@@ -382,12 +430,34 @@ export async function POST(request: Request) {
         planningMode: typeof sourceMetadata.planningMode === "string" ? sourceMetadata.planningMode : undefined,
         baseState: sourceMetadata.baseState ?? undefined,
         stateVariants: retryScope.stateVariants,
+        roadmap: sourceMetadata.roadmap ?? undefined,
+        initialBatchItemKeys: Array.isArray(sourceMetadata.initialBatchItemKeys)
+          ? sourceMetadata.initialBatchItemKeys
+          : undefined,
       };
     }
 
     const payload = retryContext
       ? requestBody as GenerationRequest
       : requestSchema.parse(requestBody);
+    if (payload.clientRequestId) {
+      const { data: idempotentRun, error: idempotentError } = await admin
+        .from("generation_runs")
+        .select("id, project_id, trigger_run_id, status")
+        .eq("owner_id", ownerId)
+        .eq("client_request_id", payload.clientRequestId)
+        .maybeSingle();
+      if (idempotentError) throw idempotentError;
+      if (idempotentRun) {
+        return NextResponse.json({
+          projectId: idempotentRun.project_id,
+          generationRunId: idempotentRun.id,
+          triggerRunId: idempotentRun.trigger_run_id,
+          status: idempotentRun.status,
+          idempotent: true,
+        }, { status: 202 });
+      }
+    }
     const isExistingProjectRequest = Boolean(payload.projectId);
     const generationEngineVersion = getGenerationEngineVersion();
     const normalizedReference = payload.image ? await normalizeReferenceImage(payload.image) : null;
@@ -420,7 +490,8 @@ export async function POST(request: Request) {
     const requestedDesignTokens = payload.designTokens
       ? normalizeDesignTokens(payload.designTokens as DesignTokens)
       : null;
-    const plannedScreens = (payload.plannedScreens ?? null) as ScreenPlan[] | null;
+    let plannedScreens = (payload.plannedScreens ?? null) as ScreenPlan[] | null;
+    const projectRoadmap = (payload.roadmap ?? null) as ProjectRoadmap | null;
     const initialReferenceImagePath = !isExistingProjectRequest && promptImage && normalizedReference
       ? `${ownerId}/prompt-images/${normalizedReference.sha256}.webp`
       : null;
@@ -469,6 +540,60 @@ export async function POST(request: Request) {
           activeGenerationRun.id,
           activeGenerationRun.status,
         );
+      }
+
+      if (payload.roadmapBuild) {
+        if (!plannedScreens?.length) {
+          return NextResponse.json({ error: "The roadmap build no longer has a usable screen plan." }, { status: 409 });
+        }
+        const uniqueItemIds = Array.from(new Set(payload.roadmapBuild.roadmapItemIds));
+        const { data: roadmapItems, error: roadmapError } = await admin
+          .from("project_screen_roadmap")
+          .select("id, kind, status, parent_item_id, generated_screen_id")
+          .eq("project_id", projectId)
+          .eq("owner_id", ownerId)
+          .in("id", uniqueItemIds);
+        if (roadmapError) throw roadmapError;
+        if ((roadmapItems ?? []).length !== uniqueItemIds.length) {
+          return NextResponse.json({ error: "One or more roadmap items are unavailable." }, { status: 409 });
+        }
+        if ((roadmapItems ?? []).some((item) => item.status !== "planned" && item.status !== "failed")) {
+          return NextResponse.json({ error: "This roadmap recommendation is stale. Refresh to see the next available work." }, { status: 409 });
+        }
+
+        if (payload.roadmapBuild.kind === "state_batch") {
+          const stateItems = roadmapItems ?? [];
+          const parentItemIds = new Set(stateItems.map((item) => item.parent_item_id).filter(Boolean));
+          if (
+            !payload.roadmapBuild.parentScreenId ||
+            stateItems.some((item) => item.kind !== "state") ||
+            parentItemIds.size !== 1
+          ) {
+            return NextResponse.json({ error: "The child-screen roadmap batch is invalid." }, { status: 409 });
+          }
+          const parentItemId = Array.from(parentItemIds)[0]!;
+          const { data: parentItem, error: parentError } = await admin
+            .from("project_screen_roadmap")
+            .select("id, status, generated_screen_id")
+            .eq("id", parentItemId)
+            .eq("project_id", projectId)
+            .eq("owner_id", ownerId)
+            .maybeSingle();
+          if (parentError) throw parentError;
+          if (
+            parentItem?.status !== "ready" ||
+            parentItem.generated_screen_id !== payload.roadmapBuild.parentScreenId
+          ) {
+            return NextResponse.json({ error: "The parent screen must be ready before its child states can be built." }, { status: 409 });
+          }
+          retryContext = {
+            sourceGenerationRunId: parentItem.generated_screen_id,
+            mode: "state_variants",
+            parentScreenId: parentItem.generated_screen_id,
+          };
+        } else if ((roadmapItems ?? []).filter((item) => item.kind === "screen").length !== plannedScreens.length) {
+          return NextResponse.json({ error: "The roadmap screen batch does not match the approved recommendation." }, { status: 409 });
+        }
       }
 
       const projectUpdate: Database["public"]["Tables"]["projects"]["Update"] = {
@@ -549,7 +674,10 @@ export async function POST(request: Request) {
       referencePolicy = "user_upload";
     }
 
-    if (!imagePath && isExistingProjectRequest) {
+    if (!imagePath && isExistingProjectRequest && payload.roadmapBuild?.kind === "state_batch") {
+      referencePolicy = "project_memory";
+      effectiveImageReferenceMode = "style";
+    } else if (!imagePath && isExistingProjectRequest) {
       imagePath = await findLatestProjectPromptImagePath({
         admin,
         projectId: projectId!,
@@ -578,6 +706,7 @@ export async function POST(request: Request) {
         prompt: payload.prompt,
         image_path: imagePath,
         requested_screen_count: scopeContract?.finalScreenCount ?? null,
+        client_request_id: payload.clientRequestId ?? null,
         status: "queued",
         metadata: {
           generationEngineVersion,
@@ -598,6 +727,9 @@ export async function POST(request: Request) {
           stateVariants: payload.stateVariants ?? [],
           selectedStateVariantIds: (payload.stateVariants ?? []).map((variant) => variant.id),
           retryContext,
+          roadmapBuild: payload.roadmapBuild ?? null,
+          roadmap: projectRoadmap,
+          initialBatchItemKeys: payload.initialBatchItemKeys ?? [],
         } as never,
         created_at: now(),
         updated_at: now(),
@@ -658,6 +790,8 @@ export async function POST(request: Request) {
         baseState: payload.baseState ?? null,
         stateVariants: payload.stateVariants ?? [],
         retryContext,
+        projectRoadmap,
+        initialBatchItemKeys: payload.initialBatchItemKeys ?? [],
       },
       {
         concurrencyKey: ownerId,
@@ -709,6 +843,29 @@ export async function POST(request: Request) {
         return null;
       });
 
+      if (
+        activeGenerationRun &&
+        requestClientId &&
+        authenticatedOwnerId
+      ) {
+        const { data: idempotentRun } = await admin
+          .from("generation_runs")
+          .select("id, project_id, trigger_run_id, status")
+          .eq("id", activeGenerationRun.id)
+          .eq("owner_id", authenticatedOwnerId)
+          .eq("client_request_id", requestClientId)
+          .maybeSingle();
+        if (idempotentRun) {
+          return NextResponse.json({
+            projectId: idempotentRun.project_id,
+            generationRunId: idempotentRun.id,
+            triggerRunId: idempotentRun.trigger_run_id,
+            status: idempotentRun.status,
+            idempotent: true,
+          }, { status: 202 });
+        }
+      }
+
       return NextResponse.json(
         {
           error: "A generation is already queued or building for this project.",
@@ -732,10 +889,15 @@ export async function POST(request: Request) {
     }
 
     if (projectId) {
+      const { count: readyScreenCount } = await admin
+        .from("screens")
+        .select("id", { count: "exact", head: true })
+        .eq("project_id", projectId)
+        .eq("status", "ready");
       await admin
         .from("projects")
         .update({
-          status: "failed",
+          status: (readyScreenCount ?? 0) > 0 ? "completed" : "failed",
           updated_at: now(),
         })
         .eq("id", projectId);
