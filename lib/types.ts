@@ -445,6 +445,16 @@ export interface ProjectCharterPlanningDiagnostics {
   [key: string]: JsonValue | undefined;
 }
 
+export interface ProjectReferenceDna {
+  schemaVersion: 1;
+  source: "image_analysis" | "legacy_reconstruction";
+  referenceMode: ReferenceMode;
+  sourceImagePath?: string | null;
+  createdAt: string;
+  analysis: ReferenceAnalysis;
+  screenFamilyContract: ScreenFamilyContract;
+}
+
 export type PrimaryNavigationKind = "bottom-tabs" | "none";
 
 export type ScreenChromeKind = "bottom-tabs" | "top-bar" | "top-bar-back" | "modal-sheet" | "immersive";
@@ -534,6 +544,7 @@ export interface ProjectCharter {
   designStyle?: ProjectDesignStyleSummary | null;
   referenceScreens?: ProjectCharterReferenceScreen[];
   designSystemSignals?: ProjectCharterDesignSystemSignals | null;
+  referenceDna?: ProjectReferenceDna | null;
   planningDiagnostics?: ProjectCharterPlanningDiagnostics | null;
   charterSource?: "planner" | "partial_planner" | "reference_fallback";
 }

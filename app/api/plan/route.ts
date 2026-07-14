@@ -7,6 +7,7 @@ import { getDesignStylePack, isDesignStyleId } from "@/lib/generation/design-sty
 import { planUiFlow } from "@/lib/generation/service";
 import { analyzeReferenceImageForScope, preflightGenerationScope } from "@/lib/generation/scope-contract";
 import { normalizeReferenceImage } from "@/lib/generation/reference-image";
+import { resolveProjectReferenceDna } from "@/lib/generation/reference-dna";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
@@ -61,6 +62,7 @@ export async function POST(req: Request) {
     let projectContext: string | null = null;
     let existingCharter: ProjectCharter | null = null;
     let existingNavigationPlan: NavigationPlan | null = null;
+    let cachedReferenceDna: ReturnType<typeof resolveProjectReferenceDna> = null;
 
     if (payload.projectId) {
       const { data: project, error: projectError } = await admin
@@ -74,6 +76,26 @@ export async function POST(req: Request) {
       }
 
       existingCharter = (project.project_charter as ProjectCharter | null) ?? null;
+      if (!payload.image) {
+        cachedReferenceDna = resolveProjectReferenceDna(existingCharter);
+        if (cachedReferenceDna?.cacheSource === "legacy_reconstruction" && existingCharter) {
+          existingCharter = {
+            ...existingCharter,
+            referenceDna: cachedReferenceDna.dna,
+          };
+          const { error: dnaUpdateError } = await admin
+            .from("projects")
+            .update({ project_charter: existingCharter as never })
+            .eq("id", payload.projectId)
+            .eq("owner_id", user.id);
+          if (dnaUpdateError) {
+            console.warn("Failed to persist reconstructed project reference DNA", {
+              projectId: payload.projectId,
+              error: dnaUpdateError,
+            });
+          }
+        }
+      }
       const { data: projectNavigation } = await admin
         .from("project_navigation")
         .select("plan")
@@ -132,20 +154,27 @@ export async function POST(req: Request) {
 
     const providedScopeContract = (payload.scopeContract ?? null) as GenerationScopeContract | null;
     const scopePreflight = providedScopeContract
-      ? await analyzeReferenceImageForScope({
-          prompt: payload.prompt,
-          image: referenceImage,
-          referenceMode,
-        }).then((referenceAnalysisResult) => ({
+      ? cachedReferenceDna
+        ? {
+            scopeContract: providedScopeContract,
+            referenceAnalysis: cachedReferenceDna.dna.analysis,
+            referenceAnalysisResult: null,
+          }
+        : await analyzeReferenceImageForScope({
+            prompt: payload.prompt,
+            image: referenceImage,
+            referenceMode,
+          }).then((referenceAnalysisResult) => ({
           scopeContract: providedScopeContract,
           referenceAnalysis: referenceAnalysisResult.analysis,
           referenceAnalysisResult,
-        }))
+          }))
       : await preflightGenerationScope({
           prompt: payload.prompt,
           image: referenceImage,
           referenceMode,
           planningMode: payload.planningMode as PlanningMode,
+          cachedReferenceAnalysis: cachedReferenceDna?.dna.analysis,
         });
 
     if (!providedScopeContract && scopePreflight.scopeContract.requiresConfirmation) {
@@ -165,6 +194,8 @@ export async function POST(req: Request) {
       designTokens: (payload.designTokens ?? stylePreset?.tokenSeed ?? null) as DesignTokens | null,
       scopeContract: scopePreflight.scopeContract,
       referenceAnalysis: scopePreflight.referenceAnalysis,
+      referenceDna: cachedReferenceDna?.dna,
+      screenFamilyContract: cachedReferenceDna?.dna.screenFamilyContract,
       projectContext,
       existingCharter,
       existingNavigationPlan,

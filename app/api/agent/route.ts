@@ -23,6 +23,7 @@ import { assembleProjectContext } from "@/lib/generation/context";
 import { loadCuratedStyleReferenceImage, matchCuratedStyleReference } from "@/lib/generation/curated-style-references";
 import { findLatestProjectPromptImagePath, loadStoredPromptImage } from "@/lib/generation/prompt-reference-storage";
 import { resolveGenerationReferencePolicy } from "@/lib/generation/reference-policy";
+import { resolveProjectReferenceDna, selectProjectReferenceImagePath } from "@/lib/generation/reference-dna";
 import { planUiFlow } from "@/lib/generation/service";
 import { readScreenPlanProposal, type AgentStepMetadata } from "@/lib/agent/message-metadata";
 import { approveScreenPlanProposal, ScreenPlanApprovalError } from "@/lib/agent/screen-plan-approval";
@@ -1557,7 +1558,7 @@ export async function POST(request: Request) {
       const designTokens = project.design_tokens
         ? normalizeDesignTokens(project.design_tokens as DesignTokens)
         : null;
-      const projectCharter = (project.project_charter as ProjectCharter | null) ?? null;
+      let projectCharter = (project.project_charter as ProjectCharter | null) ?? null;
       const planningAck = whiteLabelAgentMessage(
         prompt,
         "Got it. I'm turning that into a brand-fit screen plan now.",
@@ -1589,14 +1590,27 @@ export async function POST(request: Request) {
         projectId: payload.projectId,
         userPrompt: generationPrompt,
       });
-      const inheritedImagePath = payload.image
+      const cachedReferenceDna = payload.image
+        ? null
+        : resolveProjectReferenceDna(projectCharter);
+      const latestProjectImagePath = payload.image || cachedReferenceDna?.dna.sourceImagePath
         ? null
         : await findLatestProjectPromptImagePath({
             admin,
             projectId: payload.projectId,
             ownerId: user.id,
           });
-      const inheritedReferenceImage = inheritedImagePath
+      const inheritedImagePath = selectProjectReferenceImagePath({
+        dna: cachedReferenceDna?.dna,
+        latestImagePath: latestProjectImagePath,
+      });
+      const plannerReferenceDna = cachedReferenceDna
+        ? {
+            ...cachedReferenceDna.dna,
+            sourceImagePath: cachedReferenceDna.dna.sourceImagePath ?? inheritedImagePath,
+          }
+        : null;
+      const inheritedReferenceImage = inheritedImagePath && !plannerReferenceDna
         ? await loadStoredPromptImage(admin, inheritedImagePath).catch((error) => {
             console.warn("Failed to load the project's persisted reference image; using project memory.", {
               projectId: payload.projectId,
@@ -1606,6 +1620,32 @@ export async function POST(request: Request) {
             return null;
           })
         : null;
+      if (
+        projectCharter
+        && plannerReferenceDna
+        && (
+          cachedReferenceDna?.cacheSource === "legacy_reconstruction"
+          || projectCharter.referenceDna?.sourceImagePath !== plannerReferenceDna.sourceImagePath
+        )
+      ) {
+        const upgradedCharter: ProjectCharter = {
+          ...projectCharter,
+          referenceDna: plannerReferenceDna,
+        };
+        const { error: referenceDnaUpdateError } = await admin
+          .from("projects")
+          .update({ project_charter: upgradedCharter as never, updated_at: now() })
+          .eq("id", payload.projectId)
+          .eq("owner_id", user.id);
+        if (referenceDnaUpdateError) {
+          console.warn("Failed to persist reconstructed project reference DNA; continuing with in-memory DNA.", {
+            projectId: payload.projectId,
+            error: referenceDnaUpdateError,
+          });
+        } else {
+          projectCharter = upgradedCharter;
+        }
+      }
       let referenceImage = payload.image ?? inheritedReferenceImage;
       const hasExistingProjectVisualMemory = Boolean(
         designTokens?.tokens
@@ -1615,13 +1655,13 @@ export async function POST(request: Request) {
       );
       const referencePolicy = resolveGenerationReferencePolicy({
         hasCurrentUserImage: Boolean(payload.image),
-        hasProjectReferenceImage: Boolean(inheritedReferenceImage),
+        hasProjectReferenceImage: Boolean(inheritedImagePath),
         hasExplicitStyle: false,
         isExistingProject: hasExistingProjectVisualMemory,
       });
       const effectiveImageReferenceMode: ImageReferenceMode = payload.image
         ? payload.imageReferenceMode
-        : inheritedReferenceImage
+        : inheritedImagePath
           ? "style"
           : payload.imageReferenceMode;
       let referenceMode: ReferenceMode | null = referenceImage
@@ -1631,7 +1671,9 @@ export async function POST(request: Request) {
         : null;
       let referenceId: string | null = null;
 
-      if (!referenceImage && referencePolicy === "project_memory") {
+      if (!referenceImage && plannerReferenceDna) {
+        referenceMode = "user_style";
+      } else if (!referenceImage && referencePolicy === "project_memory") {
         referenceMode = "user_style";
       } else if (!referenceImage) {
         const match = matchCuratedStyleReference({
@@ -1655,6 +1697,9 @@ export async function POST(request: Request) {
         referenceMode,
         referenceId,
         designTokens,
+        referenceAnalysis: plannerReferenceDna?.analysis,
+        referenceDna: plannerReferenceDna,
+        screenFamilyContract: plannerReferenceDna?.screenFamilyContract,
         projectContext: planningContext,
         existingCharter: projectCharter,
         existingNavigationPlan: navigationPlan,
@@ -1670,7 +1715,7 @@ export async function POST(request: Request) {
         ownerId: user.id,
         image: payload.image ?? null,
       });
-      const imagePath = uploadedImagePath ?? (inheritedReferenceImage ? inheritedImagePath : null);
+      const imagePath = uploadedImagePath ?? inheritedImagePath;
       const stateProposal = await planScreenStateVariants({
         prompt: generationPrompt,
         screenPlan,
@@ -1688,6 +1733,8 @@ export async function POST(request: Request) {
         imagePath,
         imageReferenceMode: effectiveImageReferenceMode,
         referencePolicy,
+        referenceDnaCacheHit: Boolean(plannerReferenceDna),
+        referenceDnaCacheSource: cachedReferenceDna?.cacheSource ?? null,
         baseState: stateProposal.baseState,
         stateVariants: stateProposal.stateVariants,
         selectedStateVariantIds,

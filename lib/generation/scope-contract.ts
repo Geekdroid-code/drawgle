@@ -912,12 +912,14 @@ export async function preflightGenerationScope({
   image,
   referenceMode,
   planningMode = "project",
+  cachedReferenceAnalysis,
   llmLog,
 }: {
   prompt: string;
   image?: PromptImagePayload | null;
   referenceMode?: ReferenceMode | null;
   planningMode?: PlanningMode;
+  cachedReferenceAnalysis?: ReferenceAnalysis | null;
   llmLog?: LlmLogFn;
 }): Promise<{
   scopeContract: GenerationScopeContract;
@@ -925,9 +927,21 @@ export async function preflightGenerationScope({
   referenceAnalysisResult: ReferenceAnalysisResult;
 }> {
   const useSemanticScope = process.env.DRAWGLE_GENERATION_ENGINE_VERSION !== "v1";
+  const cachedReferenceAnalysisResult: ReferenceAnalysisResult | null = cachedReferenceAnalysis
+    ? {
+        analysis: cachedReferenceAnalysis,
+        screenCountEstimate: cachedReferenceAnalysis.screenCountEstimate,
+        screenReferenceCount: cachedReferenceAnalysis.screenReferences.length,
+        confidence: "high",
+        source: "salvaged_analysis",
+        diagnostics: ["Reused cached project reference DNA; skipped multimodal reference analysis."],
+      }
+    : null;
   const [promptIntent, referenceAnalysisResult] = await Promise.all([
     useSemanticScope ? analyzePromptScreenIntent({ prompt, llmLog }) : Promise.resolve(parsePromptScreenIntent(prompt)),
-    analyzeReferenceImageForScope({ prompt, image, referenceMode, llmLog }),
+    cachedReferenceAnalysisResult
+      ? Promise.resolve(cachedReferenceAnalysisResult)
+      : analyzeReferenceImageForScope({ prompt, image, referenceMode, llmLog }),
   ]);
   const scopeContract = resolveGenerationScopeContract({
     prompt,

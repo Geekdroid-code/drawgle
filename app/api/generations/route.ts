@@ -421,10 +421,20 @@ export async function POST(request: Request) {
       ? normalizeDesignTokens(payload.designTokens as DesignTokens)
       : null;
     const plannedScreens = (payload.plannedScreens ?? null) as ScreenPlan[] | null;
+    const initialReferenceImagePath = !isExistingProjectRequest && promptImage && normalizedReference
+      ? `${ownerId}/prompt-images/${normalizedReference.sha256}.webp`
+      : null;
     const projectCharter = payload.projectCharter
       ? ({
           ...(payload.projectCharter as ProjectCharter),
           designStyle: (payload.projectCharter as ProjectCharter).designStyle ?? summarizeDesignStyle(designStyle),
+          referenceDna: (payload.projectCharter as ProjectCharter).referenceDna
+            ? {
+                ...(payload.projectCharter as ProjectCharter).referenceDna!,
+                sourceImagePath: (payload.projectCharter as ProjectCharter).referenceDna?.sourceImagePath
+                  ?? initialReferenceImagePath,
+              }
+            : null,
         } satisfies ProjectCharter)
       : null;
     const navigationArchitecture = (payload.navigationArchitecture ?? projectCharter?.navigationArchitecture ?? null) as NavigationArchitecture | null;
@@ -523,7 +533,8 @@ export async function POST(request: Request) {
         effectiveImageReferenceMode = sourceMode;
       }
     } else if (promptImage && normalizedReference) {
-      imagePath = `${ownerId}/prompt-images/${normalizedReference.sha256}.webp`;
+      imagePath = initialReferenceImagePath
+        ?? `${ownerId}/prompt-images/${normalizedReference.sha256}.webp`;
 
       const { error: uploadError } = await admin.storage
         .from("generation-assets")

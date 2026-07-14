@@ -39,6 +39,7 @@ import { planVisualAssets, resolveProjectAssets } from "@/lib/generation/visual-
 import { shouldAttachReferenceImage } from "@/lib/generation/reference-image";
 import { loadStoredPromptImage } from "@/lib/generation/prompt-reference-storage";
 import { resolveGenerationReferencePolicy } from "@/lib/generation/reference-policy";
+import { resolveProjectReferenceDna } from "@/lib/generation/reference-dna";
 import { createNavigationArchitecture, deriveRequiresBottomNav } from "@/lib/navigation";
 import {
   applyNavigationPlanToScreens,
@@ -1509,6 +1510,7 @@ export const generateUiFlowTask = task({
       .eq("id", payload.projectId)
       .maybeSingle();
     const existingCharter = (existingProject?.project_charter as ProjectCharter | null) ?? null;
+    const projectReferenceDna = resolveProjectReferenceDna(payload.projectCharter ?? existingCharter)?.dna ?? null;
     if (!designTokens && existingProject?.design_tokens) {
       designTokens = existingProject.design_tokens as DesignTokens;
     }
@@ -1633,6 +1635,13 @@ export const generateUiFlowTask = task({
         referenceId = match.reference.id;
       }
     }
+    const reusableProjectReferenceDna = projectReferenceDna && (
+      referencePolicy === "project_reference"
+      || referencePolicy === "project_memory"
+      || Boolean(payload.plannedScreens?.length)
+    )
+      ? projectReferenceDna
+      : null;
     setJournalPhase(
       generationJournal,
       "reference",
@@ -1652,10 +1661,10 @@ export const generateUiFlowTask = task({
     await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
     const scopePreflight = payload.scopeContract
-      ? payload.referenceAnalysis
+      ? payload.referenceAnalysis ?? reusableProjectReferenceDna?.analysis
         ? {
             scopeContract: payload.scopeContract,
-            referenceAnalysis: payload.referenceAnalysis,
+            referenceAnalysis: payload.referenceAnalysis ?? reusableProjectReferenceDna?.analysis ?? null,
             referenceAnalysisResult: null,
           }
         : payload.projectCharter || existingCharter
@@ -1679,6 +1688,7 @@ export const generateUiFlowTask = task({
           image: promptImage,
           referenceMode,
           planningMode: payload.planningMode ?? "project",
+          cachedReferenceAnalysis: reusableProjectReferenceDna?.analysis,
           llmLog: (label, data) => logger.info(label, data),
         });
     const scopeContract = scopePreflight.scopeContract;
@@ -1699,6 +1709,14 @@ export const generateUiFlowTask = task({
       referenceId,
       designStyle: summarizeDesignStyle(designStyle),
       scopeContract,
+      referenceDnaCache: reusableProjectReferenceDna
+        ? {
+            hit: true,
+            schemaVersion: reusableProjectReferenceDna.schemaVersion,
+            source: reusableProjectReferenceDna.source,
+            sourceImagePath: reusableProjectReferenceDna.sourceImagePath ?? null,
+          }
+        : { hit: false },
       referenceAnalysisDiagnostics: scopePreflight.referenceAnalysisResult
         ? {
             source: scopePreflight.referenceAnalysisResult.source,
@@ -1817,12 +1835,29 @@ export const generateUiFlowTask = task({
           designTokens,
           scopeContract,
           referenceAnalysis,
+          referenceDna: reusableProjectReferenceDna,
+          screenFamilyContract: reusableProjectReferenceDna?.screenFamilyContract,
           projectContext: planningContext,
           existingCharter: requestedCharter,
           existingNavigationPlan: payload.navigationPlan ?? null,
           planningMode: payload.planningMode ?? "project",
           llmLog: (label, data) => logger.info(label, data),
         });
+    if (
+      !payload.plannedScreens?.length
+      && plan.charter.referenceDna
+      && !plan.charter.referenceDna.sourceImagePath
+      && payload.imagePath
+      && (referencePolicy === "user_upload" || referencePolicy === "project_reference")
+    ) {
+      plan.charter = {
+        ...plan.charter,
+        referenceDna: {
+          ...plan.charter.referenceDna,
+          sourceImagePath: payload.imagePath,
+        },
+      };
+    }
     plan.screens = applyNavigationPlanToScreens(plan.screens, plan.navigationPlan);
     const navigationTelemetry = {
       version: plan.navigationPlan.version ?? 1,

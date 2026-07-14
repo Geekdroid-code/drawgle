@@ -5,6 +5,7 @@ import type { Database } from "@/lib/supabase/database.types";
 import type { NavigationPlan, ProjectCharter, ProjectMessage } from "@/lib/types";
 
 import { generateEmbedding } from "@/lib/generation/embeddings";
+import { formatProjectReferenceDnaForPrompt, resolveProjectReferenceDna } from "@/lib/generation/reference-dna";
 import { formatCanonicalVisualSystem, type ScreenStyleMemoryInput } from "@/lib/generation/screen-style-memory";
 import { createNavigationArchitecture, deriveRequiresBottomNav } from "@/lib/navigation";
 
@@ -494,6 +495,7 @@ export async function assembleProjectContext({
   }
 
   const charter = (project.project_charter as ProjectCharter | null) ?? null;
+  const referenceDna = resolveProjectReferenceDna(charter)?.dna ?? null;
   const { data: projectNavigation } = await client
     .from("project_navigation")
     .select("plan")
@@ -544,6 +546,10 @@ ${navigationPlanSummary}`
     charter?.creativeDirection
       ? `CREATIVE DIRECTION
 ${formatCreativeDirection(charter.creativeDirection)}`
+      : null,
+    referenceDna
+      ? `PROJECT REFERENCE DNA
+${formatProjectReferenceDnaForPrompt(referenceDna)}`
       : null,
     canonicalVisualSystem,
     `TYPOGRAPHY ROLE CONTRACT

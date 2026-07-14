@@ -31,6 +31,7 @@ import {
 } from "@/lib/generation/prompts";
 import { appendRequiredAnchors, DRAWGLE_GENERATION_COMPLETE_SENTINEL, extractRequiredAnchors, normalizeStaticDrawgleHtml, stripGenerationCompleteSentinel, validateSourceCompletion } from "@/lib/generation/screen-quality";
 import { buildRepairSurroundingContext, type RepairTarget } from "@/lib/generation/screen-repair";
+import { createProjectReferenceDna } from "@/lib/generation/reference-dna";
 import {
   analyzeReferenceImageForScope,
   preflightGenerationScope,
@@ -58,6 +59,7 @@ import type {
   PlannedUiFlow,
   PromptImagePayload,
   ProjectCharter,
+  ProjectReferenceDna,
   ReferenceAnalysis,
   ReferenceAnalysisResult,
   ReferenceMode,
@@ -2023,6 +2025,8 @@ export async function planUiFlow({
   designTokens,
   scopeContract,
   referenceAnalysis: providedReferenceAnalysis,
+  referenceDna: providedReferenceDna,
+  screenFamilyContract: providedScreenFamilyContract,
   projectContext,
   existingCharter,
   existingNavigationPlan,
@@ -2037,6 +2041,8 @@ export async function planUiFlow({
   designTokens?: DesignTokens | null;
   scopeContract?: GenerationScopeContract | null;
   referenceAnalysis?: ReferenceAnalysis | null;
+  referenceDna?: ProjectReferenceDna | null;
+  screenFamilyContract?: ScreenFamilyContract | null;
   projectContext?: string | null;
   existingCharter?: ProjectCharter | null;
   existingNavigationPlan?: NavigationPlan | null;
@@ -2048,16 +2054,20 @@ export async function planUiFlow({
   const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
   const resolvedDesignStyle = designStyle ?? getDesignStylePack(existingCharter?.designStyle?.id) ?? null;
   const designStyleContract = formatDesignStyleContract(resolvedDesignStyle);
-  const referencePreflight = !scopeContract && providedReferenceAnalysis === undefined
+  const referencePreflight = !scopeContract
     ? await preflightGenerationScope({
         prompt,
         image,
         referenceMode: resolvedReferenceMode,
         planningMode,
+        cachedReferenceAnalysis: providedReferenceAnalysis ?? providedReferenceDna?.analysis ?? null,
         llmLog,
       })
     : null;
-  const referenceAnalysis = providedReferenceAnalysis ?? referencePreflight?.referenceAnalysis ?? null;
+  const referenceAnalysis = providedReferenceAnalysis
+    ?? providedReferenceDna?.analysis
+    ?? referencePreflight?.referenceAnalysis
+    ?? null;
   const referenceAnalysisResult: ReferenceAnalysisResult | null = referencePreflight?.referenceAnalysisResult
     ?? (referenceAnalysis
       ? {
@@ -2110,13 +2120,25 @@ export async function planUiFlow({
   const resolvedCreativeDirection = projectContext?.trim()
     ? null
     : creativeDirection ?? fallbackCreativeDirection({ prompt, referenceAnalysis });
-  const screenFamilyContract = buildScreenFamilyContract({
-    referenceAnalysis,
-    creativeDirection: resolvedCreativeDirection,
-    designTokens,
-    designStyle: resolvedDesignStyle,
-    intentContract,
-  });
+  const screenFamilyContract = providedScreenFamilyContract
+    ?? providedReferenceDna?.screenFamilyContract
+    ?? buildScreenFamilyContract({
+      referenceAnalysis,
+      creativeDirection: resolvedCreativeDirection,
+      designTokens,
+      designStyle: resolvedDesignStyle,
+      intentContract,
+    });
+  const referenceDna = providedReferenceDna
+    ?? (referenceAnalysis
+      ? createProjectReferenceDna({
+          analysis: referenceAnalysis,
+          screenFamilyContract,
+          referenceMode: resolvedReferenceMode,
+        })
+      : null);
+  const withReferenceDna = (charter: ProjectCharter): ProjectCharter =>
+    referenceDna ? { ...charter, referenceDna } : charter;
 
   const inlineImage = resolvedReferenceMode === "user_recreate" ? toInlineImage(image) : null;
   if (inlineImage) {
@@ -2426,7 +2448,7 @@ export async function planUiFlow({
       requiresBottomNav: navigationPlan.enabled,
       navigationArchitecture,
       navigationPlan,
-      charter: salvageProjectCharterFromRawPlan({
+      charter: withReferenceDna(salvageProjectCharterFromRawPlan({
         rawPlan,
         prompt,
         image,
@@ -2437,7 +2459,7 @@ export async function planUiFlow({
         navigationArchitecture,
         existingCharter,
         diagnostics: planningDiagnostics,
-      }),
+      })),
       screens: attachReferenceScreenTargets({
         screens: plannedScreens,
         referenceMode: resolvedReferenceMode,
@@ -2474,7 +2496,7 @@ export async function planUiFlow({
         lockToExistingArchitecture: Boolean(projectContext?.trim() && existingCharter?.navigationArchitecture),
       });
 
-  const charter = enrichProjectCharter({
+  const charter = withReferenceDna(enrichProjectCharter({
     base: {
       ...parsed.data.charter,
       creativeDirection: parsed.data.charter.creativeDirection ?? resolvedCreativeDirection,
@@ -2496,7 +2518,7 @@ export async function planUiFlow({
       intentContract: intentContractJson(intentContract),
       screenFamilyContract: screenFamilyContract as unknown as JsonValue,
     },
-  });
+  }));
 
   const parsedScreens = planningMode === "single-screen"
       ? parsed.data.screens.slice(0, 1)
