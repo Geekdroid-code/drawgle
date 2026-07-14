@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { AdminAuthError, requireAdminUser } from "@/lib/admin-auth";
+import { VISUAL_ASSET_SEMANTIC_CATEGORIES } from "@/lib/generation/asset-semantics";
 import { importCuratedVisualAssetFromBytes } from "@/lib/generation/visual-assets";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -23,6 +24,7 @@ const UploadMetadataSchema = z.object({
     "map_texture",
   ]),
   assetType: z.enum(["transparent_png", "photo", "illustration", "icon_like"]).default("transparent_png"),
+  semanticCategory: z.enum(VISUAL_ASSET_SEMANTIC_CATEGORIES).optional(),
   hasAlpha: z.boolean().default(true),
   tags: z.array(z.string().trim().min(1).max(80)).max(40).default([]),
   reuseKey: z.string().trim().min(1).max(160).optional(),
@@ -62,6 +64,7 @@ export async function POST(req: Request) {
       subject: formData.get("subject"),
       role: formData.get("role"),
       assetType: formData.get("assetType") || undefined,
+      semanticCategory: formData.get("semanticCategory") || undefined,
       hasAlpha: parseBoolean(formData.get("hasAlpha"), file.type === "image/png" || file.type === "image/webp"),
       tags: parseTags(formData.get("tags")),
       reuseKey: formData.get("reuseKey") || undefined,
@@ -81,6 +84,7 @@ export async function POST(req: Request) {
       subject: parsed.data.subject,
       role: parsed.data.role,
       assetType: parsed.data.assetType,
+      semanticCategory: parsed.data.semanticCategory,
       hasAlpha: parsed.data.hasAlpha,
       tags: parsed.data.tags,
       reuseKey: parsed.data.reuseKey,
@@ -100,12 +104,11 @@ export async function POST(req: Request) {
       role: saved.asset.role,
       assetType: saved.asset.asset_type,
       publicUrl: saved.asset.public_url,
-      displayUrl: saved.displayVariant?.public_url ?? saved.asset.public_url,
-      width: saved.displayVariant?.width ?? saved.asset.width,
-      height: saved.displayVariant?.height ?? saved.asset.height,
+      displayUrl: saved.asset.public_url,
+      width: saved.asset.width,
+      height: saved.asset.height,
       hasAlpha: saved.asset.has_alpha,
-      verificationStatus: saved.asset.verification_status,
-      verificationScore: saved.asset.verification_score,
+      status: saved.asset.status,
     });
   } catch (error) {
     if (error instanceof AdminAuthError) {

@@ -364,10 +364,14 @@ export interface Database {
           owner_id: string | null;
           created_by_project_id: string | null;
           subject: string;
+          semantic_category: string;
           role: string;
           asset_type: string;
           source: string;
           provider: string;
+          provider_asset_id: string | null;
+          source_url: string | null;
+          attribution: string | null;
           license: string | null;
           r2_key: string;
           public_url: string;
@@ -381,6 +385,7 @@ export interface Database {
           embedding: number[] | null;
           quality_score: number;
           visibility: string;
+          status: string;
           verification_status: string;
           verification_score: number | null;
           verification_notes: string | null;
@@ -396,10 +401,14 @@ export interface Database {
           owner_id?: string | null;
           created_by_project_id?: string | null;
           subject: string;
+          semantic_category: string;
           role: string;
           asset_type: string;
           source: string;
           provider: string;
+          provider_asset_id?: string | null;
+          source_url?: string | null;
+          attribution?: string | null;
           license?: string | null;
           r2_key: string;
           public_url: string;
@@ -413,6 +422,7 @@ export interface Database {
           embedding?: number[] | null;
           quality_score?: number;
           visibility?: string;
+          status?: string;
           verification_status?: string;
           verification_score?: number | null;
           verification_notes?: string | null;
@@ -428,10 +438,14 @@ export interface Database {
           owner_id?: string | null;
           created_by_project_id?: string | null;
           subject?: string;
+          semantic_category?: string;
           role?: string;
           asset_type?: string;
           source?: string;
           provider?: string;
+          provider_asset_id?: string | null;
+          source_url?: string | null;
+          attribution?: string | null;
           license?: string | null;
           r2_key?: string;
           public_url?: string;
@@ -445,6 +459,7 @@ export interface Database {
           embedding?: number[] | null;
           quality_score?: number;
           visibility?: string;
+          status?: string;
           verification_status?: string;
           verification_score?: number | null;
           verification_notes?: string | null;

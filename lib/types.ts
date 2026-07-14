@@ -50,6 +50,25 @@ export type VisualAssetType = "transparent_png" | "photo" | "illustration" | "ic
 
 export type VisualAssetSourcePreference = "user_upload" | "internal_library" | "stock";
 
+export type VisualAssetSemanticCategory =
+  | "person"
+  | "animal"
+  | "food"
+  | "fashion"
+  | "electronics"
+  | "vehicle"
+  | "fitness"
+  | "beauty"
+  | "home"
+  | "place"
+  | "nature"
+  | "map"
+  | "logo"
+  | "generic_product"
+  | "other";
+
+export type VisualAssetReusePolicy = "repeat" | "distinct";
+
 export type VisualAssetPriority = "critical" | "supporting" | "optional";
 
 export type VisualAssetRequirementOrigin =
@@ -58,29 +77,16 @@ export type VisualAssetRequirementOrigin =
   | "planner_inferred"
   | "heuristic_inferred";
 
-export type VisualAssetSource = "user_upload" | "internal_library" | "stock" | "ai_generated" | "placeholder";
+export type VisualAssetSource = "user_upload" | "internal_library" | "stock" | "placeholder";
 
 export type VisualAssetProvider =
   | "user"
   | "drawgle_r2"
   | "pexels"
   | "pixabay"
-  | "placeholder"
-  | "fal-ai/gpt-image-1.5"
-  | "fal-ai/gpt-image-1-mini";
-
-export type VisualAssetGenerationStatus =
-  | "queued"
-  | "submitted"
-  | "processing"
-  | "completed"
-  | "failed";
+  | "placeholder";
 
 export type VisualAssetVisibility = "public_reusable" | "owner_private" | "project_private";
-
-export type VisualAssetVerificationStatus = "pending" | "verified" | "rejected" | "skipped";
-
-export type VisualAssetVariantName = "original" | "thumb_256" | "preview_512" | "display_1024";
 
 export interface AssetRequirement {
   id: string;
@@ -94,6 +100,11 @@ export interface AssetRequirement {
   placementHint: string;
   priority: VisualAssetPriority;
   reuseKey: string;
+  semanticCategory: VisualAssetSemanticCategory;
+  semanticTags: string[];
+  slotCount: number;
+  reusePolicy: VisualAssetReusePolicy;
+  userAssetId?: string;
   origin?: VisualAssetRequirementOrigin;
 }
 
@@ -120,6 +131,11 @@ export interface ScreenAssetManifest {
   attribution?: string | null;
   sourceUrl?: string | null;
   requirementOrigin?: VisualAssetRequirementOrigin;
+  semanticCategory: VisualAssetSemanticCategory;
+  semanticTags: string[];
+  reusePolicy: VisualAssetReusePolicy;
+  expectedUses: number;
+  slotIndex?: number;
 }
 
 export interface ProjectAssetManifest {
@@ -142,26 +158,17 @@ export interface AssetResolutionDiagnostic {
   requirementId: string;
   screenName: string;
   subject: string;
-  assetType: VisualAssetType;
-  hasAlpha: boolean;
-  sourcePreference: VisualAssetSourcePreference;
-  exactMatchCount: number;
-  vectorMatchCount: number;
-  tagFallbackMatchCount: number;
+  semanticCategory: VisualAssetSemanticCategory;
+  candidateCount: number;
   selectedAssetId?: string | null;
-  selectedVia?: "exact" | "vector" | "tag_fallback" | null;
-  rejectedCandidates: Array<{
-    assetId: string;
-    subject: string | null;
-    source: string | null;
-    visibility: string | null;
-    verificationStatus: string | null;
-    assetType: string | null;
-    hasAlpha: boolean | null;
-    qualityScore: number | null;
-    similarity?: number | null;
-    reason: string;
-  }>;
+  selectedVia?: "user_upload" | "cache" | "curated" | "stock" | "placeholder" | null;
+  selectedSource?: VisualAssetSource | null;
+  rejectionCode?: string | null;
+  cacheHit: boolean;
+  durationMs: number;
+  sanitizedMisuseCount: number;
+  apiCallCount: number;
+  r2WriteCount: number;
 }
 
 export type ImageReferenceMode = "recreate" | "style";

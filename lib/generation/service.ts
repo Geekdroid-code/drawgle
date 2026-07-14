@@ -9,6 +9,7 @@ import { getOpenRouterScreenBuildModel, getScreenBuilderProvider, getScreenEdito
 import { hasApprovedDesignTokens, normalizeDesignTokens } from "@/lib/design-tokens";
 import { applyEdits } from "@/lib/diff-engine";
 import { buildScopedEditContext } from "@/lib/generation/block-index";
+import { inferSemanticCategory, VISUAL_ASSET_SEMANTIC_CATEGORIES } from "@/lib/generation/asset-semantics";
 import { formatDesignStyleContract, getDesignStylePack, summarizeDesignStyle } from "@/lib/generation/design-styles";
 import { createNavigationArchitecture, deriveRequiresBottomNav, resolveScreenChromePolicy } from "@/lib/navigation";
 import {
@@ -247,6 +248,11 @@ const AssetNeedSchema = z.object({
   placementHint: z.string().trim().min(1).max(500),
   priority: z.preprocess(normalizeAssetPriority, z.enum(["critical", "supporting", "optional"])),
   reuseKey: z.string().trim().min(1).max(160).optional(),
+  semanticCategory: z.enum(VISUAL_ASSET_SEMANTIC_CATEGORIES).optional(),
+  semanticTags: z.array(z.string().trim().min(1).max(80)).max(8).default([]).optional(),
+  slotCount: z.coerce.number().int().min(1).max(12).default(1).optional(),
+  reusePolicy: z.enum(["repeat", "distinct"]).default("repeat").optional(),
+  userAssetId: z.string().uuid().optional(),
   origin: z.enum(["reference_visible", "user_explicit", "planner_inferred", "heuristic_inferred"]).optional(),
 });
 
@@ -1523,6 +1529,11 @@ const normalizeScreenAssetNeeds = (screenName: string, value: unknown): NonNulla
             transparentBackground: item.transparentBackground ?? item.transparent_background,
             placementHint: item.placementHint ?? item.placement_hint,
             reuseKey: item.reuseKey ?? item.reuse_key,
+            semanticCategory: item.semanticCategory ?? item.semantic_category,
+            semanticTags: item.semanticTags ?? item.semantic_tags,
+            slotCount: item.slotCount ?? item.slot_count,
+            reusePolicy: item.reusePolicy ?? item.reuse_policy,
+            userAssetId: item.userAssetId ?? item.user_asset_id,
             origin: item.origin,
           }
         : item;
@@ -1535,6 +1546,10 @@ const normalizeScreenAssetNeeds = (screenName: string, value: unknown): NonNulla
         ...parsed.data,
         screenName,
         reuseKey: parsed.data.reuseKey ?? `${parsed.data.role}-${parsed.data.subject}`,
+        semanticCategory: parsed.data.semanticCategory ?? inferSemanticCategory(parsed.data.subject, parsed.data.role),
+        semanticTags: parsed.data.semanticTags ?? [],
+        slotCount: parsed.data.slotCount ?? 1,
+        reusePolicy: parsed.data.reusePolicy ?? "repeat",
         origin: parsed.data.origin ?? (parsed.data.sourcePreference === "user_upload" ? "user_explicit" : "planner_inferred"),
       };
     })

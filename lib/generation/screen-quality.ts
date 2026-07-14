@@ -1,3 +1,5 @@
+import { load } from "cheerio";
+
 import type { ScreenAssetManifest, ScreenPlan, ScreenStatus } from "@/lib/types";
 
 export const REQUIRED_ANCHORS_LABEL = "Required screen anchors:";
@@ -543,6 +545,163 @@ const extractImageReferences = (code: string) => {
 
 const isAllowedInlineSvg = (url: string) => /^data:image\/svg\+xml/i.test(url);
 
+const assetPlaceholder = ($: ReturnType<typeof load>, element: Parameters<ReturnType<typeof load>>[0], asset?: ScreenAssetManifest) => {
+  const $element = $(element);
+  const replacement = $("<div></div>");
+  for (const attribute of ["class", "style", "width", "height", "data-drawgle-id"]) {
+    const value = $element.attr(attribute);
+    if (value) replacement.attr(attribute, value);
+  }
+  replacement
+    .attr("role", "img")
+    .attr("aria-label", asset?.alt || $element.attr("alt") || "Image unavailable")
+    .attr("data-asset-sanitized", "true")
+    .attr("data-asset-role", asset?.role ?? "unknown")
+    .addClass("bg-slate-100 border border-slate-200");
+  if (asset?.role === "avatar" && asset.semanticCategory === "person") {
+    replacement.text((asset.alt || "?").trim().charAt(0).toUpperCase());
+  }
+  $element.replaceWith(replacement);
+};
+
+export function sanitizeScreenAssetUsage({
+  code,
+  assetManifest = [],
+}: {
+  code: string;
+  assetManifest?: ScreenAssetManifest[] | null;
+}) {
+  const manifest = assetManifest ?? [];
+  const byRequirement = new Map(manifest.map((asset) => [asset.requirementId, asset]));
+  const allowedByUrl = new Map<string, ScreenAssetManifest[]>();
+  for (const asset of manifest) {
+    for (const url of [asset.url, asset.variantUrl]) {
+      if (!url) continue;
+      allowedByUrl.set(url, [...(allowedByUrl.get(url) ?? []), asset]);
+    }
+  }
+
+  const $ = load(code, {}, false);
+  const warnings: string[] = [];
+  const invalidUrls: string[] = [];
+  const roleMismatches: string[] = [];
+  const missingMetadata: string[] = [];
+  const distinctUrlUses = new Map<string, number>();
+  let sanitizedMisuseCount = 0;
+
+  $("img").each((_, element) => {
+    const $image = $(element);
+    const src = ($image.attr("src") ?? "").trim();
+    if (!src || isAllowedInlineSvg(src)) return;
+    const candidates = allowedByUrl.get(src) ?? [];
+    const requirementId = ($image.attr("data-asset-requirement-id") ?? "").trim();
+    const declaredRole = ($image.attr("data-asset-role") ?? "").trim();
+    const matchedCandidate = candidates.find((candidate) => candidate.requirementId === requirementId);
+    const asset = matchedCandidate ?? (requirementId ? byRequirement.get(requirementId) : candidates.length === 1 ? candidates[0] : undefined);
+    const context = [$image.attr("class"), $image.attr("id"), $image.attr("alt")]
+      .concat($image.parents().slice(0, 3).map((__, parent) => `${$(parent).attr("class") ?? ""} ${$(parent).attr("id") ?? ""}`).get())
+      .filter(Boolean)
+      .join(" ");
+    const avatarContext = /\b(avatar|author|headshot|member|profile|user)\b/i.test(context);
+    const invalid = candidates.length === 0;
+    const metadataMissing = !requirementId || !declaredRole;
+    const roleMismatch = Boolean(asset && (declaredRole !== asset.role || (avatarContext && asset.role !== "avatar")));
+    const requirementMismatch = Boolean(requirementId && !matchedCandidate);
+    const distinctReuse = Boolean(matchedCandidate?.reusePolicy === "distinct" && (distinctUrlUses.get(src) ?? 0) > 0);
+
+    if (!invalid && !metadataMissing && !roleMismatch && !requirementMismatch && !distinctReuse) {
+      if (matchedCandidate?.reusePolicy === "distinct") distinctUrlUses.set(src, (distinctUrlUses.get(src) ?? 0) + 1);
+      return;
+    }
+    sanitizedMisuseCount += 1;
+    if (invalid) invalidUrls.push(src);
+    if (metadataMissing) missingMetadata.push(src);
+    if (roleMismatch || requirementMismatch || distinctReuse) roleMismatches.push(`${requirementId || "unknown"}:${declaredRole || "unknown"}`);
+    assetPlaceholder($, element, asset ?? candidates[0]);
+  });
+
+  $("svg image").each((_, element) => {
+    const $image = $(element);
+    const url = ($image.attr("href") ?? $image.attr("xlink:href") ?? "").trim();
+    if (!url || isAllowedInlineSvg(url)) return;
+    const requirementId = ($image.attr("data-asset-requirement-id") ?? "").trim();
+    const declaredRole = ($image.attr("data-asset-role") ?? "").trim();
+    const candidate = (allowedByUrl.get(url) ?? []).find((asset) => asset.requirementId === requirementId);
+    if (candidate && declaredRole === candidate.role) return;
+    sanitizedMisuseCount += 1;
+    if (!(allowedByUrl.get(url) ?? []).length) invalidUrls.push(url);
+    if (!requirementId || !declaredRole) missingMetadata.push(url);
+    else roleMismatches.push(`${requirementId}:${declaredRole}`);
+    $image.removeAttr("href").removeAttr("xlink:href").attr("data-asset-sanitized", "true");
+  });
+
+  $("source[srcset]").each((_, element) => {
+    const $source = $(element);
+    const urls = ($source.attr("srcset") ?? "").split(",").map((candidate) => candidate.trim().split(/\s+/)[0]).filter(Boolean);
+    const requirementId = ($source.attr("data-asset-requirement-id") ?? "").trim();
+    const declaredRole = ($source.attr("data-asset-role") ?? "").trim();
+    const valid = urls.length > 0 && urls.every((url) =>
+      (allowedByUrl.get(url) ?? []).some((asset) => asset.requirementId === requirementId && asset.role === declaredRole));
+    if (valid) return;
+    sanitizedMisuseCount += 1;
+    for (const url of urls) if (!(allowedByUrl.get(url) ?? []).length) invalidUrls.push(url);
+    if (!requirementId || !declaredRole) missingMetadata.push(...urls);
+    else roleMismatches.push(`${requirementId}:${declaredRole}`);
+    $source.removeAttr("srcset").attr("data-asset-sanitized", "true");
+  });
+
+  $("[style]").each((_, element) => {
+    const $element = $(element);
+    const requirementId = ($element.attr("data-asset-requirement-id") ?? "").trim();
+    const declaredRole = ($element.attr("data-asset-role") ?? "").trim();
+    const style = $element.attr("style") ?? "";
+    const sanitized = style.replace(/url\((?:"([^"]+)"|'([^']+)'|([^)'\"]+))\)/gi, (match, doubleQuoted, singleQuoted, bare) => {
+      const url = String(doubleQuoted ?? singleQuoted ?? bare ?? "").trim();
+      if (!url || isAllowedInlineSvg(url)) return match;
+      const assets = allowedByUrl.get(url) ?? [];
+      const allowedBackground = assets.some((asset) =>
+        asset.requirementId === requirementId &&
+        asset.role === declaredRole &&
+        (asset.role === "background_photo" || asset.role === "map_texture"));
+      if (allowedBackground) return match;
+      sanitizedMisuseCount += 1;
+      if (assets.length === 0) invalidUrls.push(url);
+      else if (!requirementId || !declaredRole) missingMetadata.push(url);
+      else roleMismatches.push(`${requirementId}:${declaredRole}:css-background`);
+      return "none";
+    });
+    if (sanitized !== style) $element.attr("style", sanitized);
+  });
+
+  $("style").each((_, element) => {
+    const $style = $(element);
+    const css = $style.html() ?? "";
+    const sanitized = css.replace(/url\((?:"([^"]+)"|'([^']+)'|([^)'"]+))\)/gi, (match, doubleQuoted, singleQuoted, bare) => {
+      const url = String(doubleQuoted ?? singleQuoted ?? bare ?? "").trim();
+      if (!url || isAllowedInlineSvg(url) || !isBitmapLikeUrl(url, "css-url")) return match;
+      sanitizedMisuseCount += 1;
+      if (!(allowedByUrl.get(url) ?? []).length) invalidUrls.push(url);
+      else missingMetadata.push(url);
+      return "none";
+    });
+    if (sanitized !== css) $style.html(sanitized);
+  });
+
+  if (invalidUrls.length) warnings.push(`Sanitized ${new Set(invalidUrls).size} unapproved bitmap URL(s).`);
+  if (roleMismatches.length) warnings.push(`Sanitized ${roleMismatches.length} bitmap role or requirement mismatch(es).`);
+  if (missingMetadata.length) warnings.push(`Sanitized ${missingMetadata.length} bitmap element(s) without asset requirement metadata.`);
+
+  return {
+    code: $.html(),
+    changed: sanitizedMisuseCount > 0,
+    sanitizedMisuseCount,
+    warnings,
+    invalidUrls: Array.from(new Set(invalidUrls)),
+    roleMismatches,
+    missingMetadata,
+  };
+}
+
 const isBitmapLikeUrl = (url: string, kind: "src" | "css-url") => {
   if (isAllowedInlineSvg(url) || url.startsWith("#") || /^var\(/i.test(url)) {
     return false;
@@ -574,6 +733,13 @@ export function validateScreenAssetPolicy({
       .filter((url): url is string => typeof url === "string" && url.trim().length > 0),
   );
   const imageRefs = extractImageReferences(code);
+  const $ = load(code, {}, false);
+  const usesByRequirement = new Map<string, number>();
+  $("img[data-asset-requirement-id], svg image[data-asset-requirement-id], source[data-asset-requirement-id], [style*='url('][data-asset-requirement-id]").each((_, element) => {
+    const requirementId = ($(element).attr("data-asset-requirement-id") ?? "").trim();
+    if (requirementId) usesByRequirement.set(requirementId, (usesByRequirement.get(requirementId) ?? 0) + 1);
+  });
+  const usedUrls = new Set(imageRefs.map((ref) => ref.url));
   const invalidUrls = imageRefs.map((ref) => ref.url).filter((url, index, urls) => {
     const ref = imageRefs.find((candidate) => candidate.url === url);
     if (!ref || urls.indexOf(url) !== index) return false;
@@ -586,13 +752,27 @@ export function validateScreenAssetPolicy({
       asset.critical &&
       !asset.placeholder &&
       Boolean(asset.url) &&
-      !code.includes(asset.url!) &&
-      (!asset.variantUrl || !code.includes(asset.variantUrl))
+      (!usedUrls.has(asset.url as string) || (usesByRequirement.get(asset.requirementId) ?? 0) === 0)
     )
     .map((asset) => asset.url)
     .filter((url): url is string => Boolean(url));
 
   const warnings = invalidUrls.map((url) => `Generated screen used unapproved external image URL: ${url}`);
+  for (const asset of manifest) {
+    if (asset.placeholder || asset.expectedUses <= 1) continue;
+    const actualUses = usesByRequirement.get(asset.requirementId) ?? 0;
+    if (actualUses < asset.expectedUses) {
+      warnings.push(`Asset requirement ${asset.requirementId} expected ${asset.expectedUses} compatible uses but generated ${actualUses}.`);
+    }
+  }
+  const distinctRequirements = new Set(manifest.filter((asset) => asset.reusePolicy === "distinct").map((asset) => asset.requirementId));
+  for (const requirementId of distinctRequirements) {
+    const requiredUrls = new Set(manifest.filter((asset) => asset.requirementId === requirementId && asset.url).map((asset) => asset.url));
+    const actualUrls = new Set(Array.from(requiredUrls).filter((url) => usedUrls.has(url as string)));
+    if (actualUrls.size < requiredUrls.size) {
+      warnings.push(`Distinct asset requirement ${requirementId} used ${actualUrls.size} of ${requiredUrls.size} resolved identities.`);
+    }
+  }
   const blocking = missingRequiredUrls.length > 0;
 
   return {
@@ -601,6 +781,7 @@ export function validateScreenAssetPolicy({
     warnings,
     invalidUrls,
     missingRequiredUrls,
+    usesByRequirement: Object.fromEntries(usesByRequirement),
   };
 }
 

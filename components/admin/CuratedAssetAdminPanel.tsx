@@ -6,7 +6,7 @@ import { AlertTriangle, CheckCircle2, Image as ImageIcon, Loader2, UploadCloud, 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import type { VisualAssetRole, VisualAssetType } from "@/lib/types";
+import type { VisualAssetRole, VisualAssetSemanticCategory, VisualAssetType } from "@/lib/types";
 
 type UploadStatus = "ready" | "uploading" | "uploaded" | "failed";
 
@@ -26,6 +26,7 @@ type AssetDraft = {
   subject: string;
   role: VisualAssetRole;
   assetType: VisualAssetType;
+  semanticCategory: VisualAssetSemanticCategory;
   hasAlpha: boolean;
   tags: string;
   reuseKey: string;
@@ -54,6 +55,20 @@ const assetTypeOptions: Array<{ value: VisualAssetType; label: string }> = [
   { value: "illustration", label: "Illustration" },
   { value: "icon_like", label: "Icon-like" },
 ];
+
+const semanticCategoryOptions: Array<{ value: VisualAssetSemanticCategory; label: string }> = [
+  "person", "animal", "food", "fashion", "electronics", "vehicle", "fitness", "beauty",
+  "home", "place", "nature", "map", "logo", "generic_product", "other",
+].map((value) => ({ value: value as VisualAssetSemanticCategory, label: value.replace(/_/g, " ") }));
+
+const defaultSemanticCategory = (subject: string, role: VisualAssetRole): VisualAssetSemanticCategory => {
+  if (role === "avatar" || /\b(person|portrait|profile|woman|man)\b/i.test(subject)) return "person";
+  if (role === "map_texture" || /\b(map|route)\b/i.test(subject)) return "map";
+  if (/\b(food|fruit|cake|cookie|burger|taco|fries)\b/i.test(subject)) return "food";
+  if (/\b(headphone|earbud|phone|device|speaker)\b/i.test(subject)) return "electronics";
+  if (/\b(car|taxi|vehicle|bike|scooter)\b/i.test(subject)) return "vehicle";
+  return role === "product_cutout" || role === "product_photo" ? "generic_product" : "other";
+};
 
 const isAllowedImage = (file: File) => ["image/png", "image/jpeg", "image/webp"].includes(file.type);
 
@@ -93,6 +108,7 @@ const createDraft = (file: File): AssetDraft => {
     subject,
     role,
     assetType,
+    semanticCategory: defaultSemanticCategory(subject, role),
     hasAlpha: file.type === "image/png" || file.type === "image/webp",
     tags: [
       role.replace(/_/g, " "),
@@ -185,6 +201,7 @@ export function CuratedAssetAdminPanel({ adminEmail }: { adminEmail: string | nu
     formData.set("subject", draft.subject.trim());
     formData.set("role", draft.role);
     formData.set("assetType", draft.assetType);
+    formData.set("semanticCategory", draft.semanticCategory);
     formData.set("hasAlpha", String(draft.hasAlpha));
     formData.set("tags", draft.tags);
     formData.set("reuseKey", draft.reuseKey.trim());
@@ -394,6 +411,14 @@ function AssetDraftRow({
             onChange={(value) => onUpdate({ assetType: value as VisualAssetType })}
             options={assetTypeOptions}
             value={draft.assetType}
+          />
+        </Field>
+        <Field label="Semantic category">
+          <Select
+            disabled={!canEdit}
+            onChange={(value) => onUpdate({ semanticCategory: value as VisualAssetSemanticCategory })}
+            options={semanticCategoryOptions}
+            value={draft.semanticCategory}
           />
         </Field>
         <Field label="Tags">

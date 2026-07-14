@@ -7,3 +7,4 @@ coverage/
 .trigger-build/
 .env*
 !.env.example
+repair-backups/

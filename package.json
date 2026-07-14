@@ -14,6 +14,8 @@
     "check": "pnpm run lint && pnpm run typecheck",
     "showcase:screenshots": "tsx scripts/generate-showcase-screenshots.ts",
     "showcase:publish": "tsx scripts/publish-showcase-templates.ts",
+    "assets:audit": "tsx --conditions=react-server scripts/audit-repair-visual-assets.ts",
+    "assets:repair": "tsx --conditions=react-server scripts/audit-repair-visual-assets.ts --apply",
     "trigger:dev": "npx trigger.dev@latest dev",
     "trigger:deploy": "npx trigger.dev@latest deploy",
     "clean": "next clean"

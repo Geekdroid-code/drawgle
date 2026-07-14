@@ -5,13 +5,18 @@ import { createHash, randomUUID } from "crypto";
 import sharp from "sharp";
 import { z } from "zod";
 
-import { createGeminiClient } from "@/lib/ai/gemini";
-import { geminiPolicyForTask } from "@/lib/ai/model-policy";
 import {
-  getOptionalPexelsApiKey,
-  getOptionalPixabayApiKey,
-} from "@/lib/env/server";
-import { generateEmbedding } from "@/lib/generation/embeddings";
+  expandSemanticTags,
+  inferSemanticCategory,
+  isSemanticallyCompatible,
+  normalizeSemanticTags,
+  semanticOverlap,
+  semanticRequirementKey,
+  semanticTokens,
+  stableCandidateIndex,
+  VISUAL_ASSET_SEMANTIC_CATEGORIES,
+} from "@/lib/generation/asset-semantics";
+import { getOptionalPexelsApiKey, getOptionalPixabayApiKey } from "@/lib/env/server";
 import { uploadToR2 } from "@/lib/r2";
 import type { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
@@ -25,38 +30,25 @@ import type {
   ScreenAssetManifest,
   ScreenPlan,
   VisualAssetProvider,
-  VisualAssetPriority,
   VisualAssetRole,
-  VisualAssetRequirementOrigin,
+  VisualAssetSemanticCategory,
   VisualAssetSource,
-  VisualAssetSourcePreference,
   VisualAssetType,
-  VisualAssetVariantName,
-  VisualAssetVerificationStatus,
   VisualAssetVisibility,
 } from "@/lib/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
-
 type VisualAssetRow = Database["public"]["Tables"]["visual_assets"]["Row"];
-type VisualAssetVariantRow = Database["public"]["Tables"]["visual_asset_variants"]["Row"];
-
-const MAX_REQUIREMENTS = 8;
-
-type AssetVerificationResult = {
-  status: VisualAssetVerificationStatus;
-  score: number | null;
-  notes: string;
-};
+type UserImageAssetRow = Database["public"]["Tables"]["user_image_assets"]["Row"];
 
 type SavedAsset = {
   asset: VisualAssetRow;
-  displayVariant: VisualAssetVariantRow | null;
-  selectedVia?: AssetResolutionDiagnostic["selectedVia"];
+  displayVariant: null;
 };
 
-type ReusableAssetLookupResult = {
-  saved: SavedAsset | null;
+type ResolvedRequirement = {
+  manifests: ScreenAssetManifest[];
+  assetIds: string[];
   diagnostic: AssetResolutionDiagnostic;
 };
 
@@ -73,200 +65,61 @@ const VisualAssetRoleSchema = z.enum([
 
 const VisualAssetTypeSchema = z.enum(["transparent_png", "photo", "illustration", "icon_like"]);
 
-const VisualAssetSourcePreferenceSchema = z.preprocess((value) => {
-  if (value === "ai_generated") {
-    return "internal_library";
-  }
-  return value;
-}, z.enum(["user_upload", "internal_library", "stock"]));
-
 const AssetRequirementSchema = z.object({
   id: z.string().trim().min(1).max(80),
   screenName: z.string().trim().min(1).max(100),
   role: VisualAssetRoleSchema,
   subject: z.string().trim().min(3).max(260),
   assetType: VisualAssetTypeSchema,
-  sourcePreference: VisualAssetSourcePreferenceSchema,
+  sourcePreference: z.enum(["user_upload", "internal_library", "stock"]),
   desiredAspectRatio: z.enum(["1:1", "4:5", "5:4", "16:9", "free"]),
   transparentBackground: z.boolean(),
   placementHint: z.string().trim().min(1).max(500),
   priority: z.enum(["critical", "supporting", "optional"]),
   reuseKey: z.string().trim().min(1).max(160),
+  semanticCategory: z.enum(VISUAL_ASSET_SEMANTIC_CATEGORIES),
+  semanticTags: z.array(z.string().trim().min(1).max(80)).max(8),
+  slotCount: z.number().int().min(1).max(12),
+  reusePolicy: z.enum(["repeat", "distinct"]),
+  userAssetId: z.string().uuid().optional(),
   origin: z.enum(["reference_visible", "user_explicit", "planner_inferred", "heuristic_inferred"]).optional(),
 });
-
-const AssetVerificationResponseSchema = z.object({
-  approved: z.boolean().default(false),
-  score: z.number().min(0).max(1).default(0),
-  notes: z.array(z.string()).default([]),
-});
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  Boolean(value) && typeof value === "object" && !Array.isArray(value);
-
-const parseJsonResponse = <T>(text: string): T => {
-  const trimmed = text.trim();
-  const cleaned = trimmed.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-
-  try {
-    return JSON.parse(cleaned) as T;
-  } catch {
-    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error("The model did not return valid JSON.");
-    }
-
-    return JSON.parse(jsonMatch[0]) as T;
-  }
-};
 
 const compact = (value: string) => value.replace(/\s+/g, " ").trim();
 
 const slugify = (value: string, fallback = "asset") => {
-  const slug = value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 80);
-
+  const slug = value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 100);
   return slug || fallback;
 };
 
 const sha256Hex = (input: string | Uint8Array) => createHash("sha256").update(input).digest("hex");
 
-const clampQuality = (value: number) => Math.max(0, Math.min(1, value));
-
-const requirementText = (requirement: AssetRequirement) =>
-  compact([
-    requirement.role,
-    requirement.assetType,
-    requirement.subject,
-    requirement.transparentBackground ? "transparent background" : "opaque photo",
-    requirement.placementHint,
-  ].join(" "));
-
 const stableReuseKey = (requirement: AssetRequirement) =>
-  slugify(requirement.reuseKey || `${requirement.role}-${requirement.subject}-${requirement.assetType}`);
+  slugify(requirement.reuseKey || semanticRequirementKey(requirement));
 
 const normalizeMatchKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "");
 
-const tokenizeAssetText = (value: string) =>
-  Array.from(new Set(value
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .filter((token) => token.length >= 3)
-    .filter((token) => !["premium", "mobile", "object", "cutout", "transparent", "background", "image", "photo", "screen", "app", "with", "for", "the"].includes(token))));
-
-const assetRowQuality = (asset: VisualAssetRow) =>
-  typeof asset.quality_score === "number" ? asset.quality_score : Number(asset.quality_score ?? 0);
-
-const rejectionReasonForAsset = (
-  asset: VisualAssetRow,
-  ownerId: string,
-  projectId: string,
-  requirement: AssetRequirement,
-) => {
-  const reasons: string[] = [];
-  if (asset.source !== "internal_library") reasons.push(`source=${asset.source ?? "null"}`);
-  if (!isAssetVisibleToProject(asset, ownerId, projectId)) reasons.push(`visibility=${asset.visibility ?? "null"}`);
-  if (!["verified", "skipped"].includes(asset.verification_status ?? "pending")) reasons.push(`status=${asset.verification_status ?? "null"}`);
-  if (asset.role !== requirement.role) reasons.push(`role=${asset.role ?? "null"}`);
-  if (asset.asset_type !== requirement.assetType) reasons.push(`assetType=${asset.asset_type ?? "null"}`);
-  if (asset.has_alpha !== requirement.transparentBackground) reasons.push(`hasAlpha=${String(asset.has_alpha)}`);
-  if (assetRowQuality(asset) < 0.52) reasons.push(`quality=${assetRowQuality(asset).toFixed(2)}`);
-  return reasons.length > 0 ? reasons.join(", ") : "eligible but lower textual/tag match";
-};
-
-const buildBaseDiagnostic = (requirement: AssetRequirement): AssetResolutionDiagnostic => ({
-  requirementId: requirement.id,
-  screenName: requirement.screenName,
-  subject: requirement.subject,
-  assetType: requirement.assetType,
-  hasAlpha: requirement.transparentBackground,
-  sourcePreference: requirement.sourcePreference,
-  exactMatchCount: 0,
-  vectorMatchCount: 0,
-  tagFallbackMatchCount: 0,
-  selectedAssetId: null,
-  selectedVia: null,
-  rejectedCandidates: [],
-});
-
 const resolveRequirementScreenName = (screens: ScreenPlan[], requestedScreenName: string) => {
   const exact = screens.find((screen) => screen.name === requestedScreenName);
-  if (exact) {
-    return exact.name;
-  }
-
+  if (exact) return exact.name;
   const requestedKey = normalizeMatchKey(requestedScreenName);
   const normalized = screens.find((screen) => normalizeMatchKey(screen.name) === requestedKey);
-  if (normalized) {
-    return normalized.name;
-  }
-
-  if (requestedKey.length >= 4) {
-    const partial = screens.find((screen) => {
-      const screenKey = normalizeMatchKey(screen.name);
-      return screenKey.includes(requestedKey) || requestedKey.includes(screenKey);
-    });
-    if (partial) {
-      return partial.name;
-    }
-  }
-
+  if (normalized) return normalized.name;
   return screens.length === 1 ? screens[0].name : null;
 };
 
-const isBlockingRequirementOrigin = (origin?: VisualAssetRequirementOrigin) =>
-  origin === "reference_visible" || origin === "user_explicit";
 const isCriticalRequirement = (requirement: AssetRequirement) =>
-  requirement.priority === "critical" && isBlockingRequirementOrigin(requirement.origin);
-
-const privateSubjectPattern = /\b(my|our|client|customer|brand|logo|trademark|company|founder|employee|team|user|profile|avatar|headshot|portrait|face|real person|celebrity|influencer|shoe brand|product brand)\b/i;
-
-const personSubjectPattern = /\b(person|people|woman|man|girl|boy|trainer|athlete|model|human|face|portrait|avatar|headshot)\b/i;
-
-const productSubjectPattern = /\b(product|pack|package|bottle|shoe|sneaker|bag|watch|device|phone|card|logo|brand)\b/i;
-
-const determineVisibility = (source: VisualAssetSource, requirement: AssetRequirement): VisualAssetVisibility => {
-  if (requirement.sourcePreference === "user_upload" || requirement.role === "avatar" || privateSubjectPattern.test(requirement.subject)) {
-    return "owner_private";
-  }
-
-  if (personSubjectPattern.test(requirement.subject)) {
-    return "owner_private";
-  }
-
-  if (requirement.role === "product_cutout" || requirement.role === "product_photo" || productSubjectPattern.test(requirement.subject)) {
-    return "project_private";
-  }
-
-  if (source === "stock" || source === "ai_generated" || source === "internal_library") {
-    return "public_reusable";
-  }
-
-  return "owner_private";
-};
+  requirement.priority === "critical" &&
+  (requirement.origin === "reference_visible" || requirement.origin === "user_explicit");
 
 const isAssetVisibleToProject = (asset: VisualAssetRow, ownerId: string, projectId: string) => {
   const visibility = (asset.visibility ?? "owner_private") as VisualAssetVisibility;
   if (visibility === "public_reusable") return true;
   if (visibility === "owner_private") return asset.owner_id === ownerId;
-  if (visibility === "project_private") return asset.created_by_project_id === projectId;
-  return false;
+  return visibility === "project_private" && asset.created_by_project_id === projectId;
 };
 
-const visibleAssets = (assets: VisualAssetRow[], ownerId: string, projectId: string) =>
-  assets.filter((asset) =>
-    isAssetVisibleToProject(asset, ownerId, projectId) &&
-    ["verified", "skipped"].includes(asset.verification_status ?? "pending"),
-  );
-
-const stockOrientationForRequirement = (requirement: AssetRequirement) => {
-  if (requirement.desiredAspectRatio === "4:5") return "portrait";
-  if (requirement.desiredAspectRatio === "5:4" || requirement.desiredAspectRatio === "16:9") return "landscape";
-  return "square";
-};
+const isActiveAsset = (asset: VisualAssetRow) => asset.status === "active";
 
 const objectFitForRequirement = (requirement: AssetRequirement): ScreenAssetManifest["objectFit"] =>
   requirement.transparentBackground || requirement.assetType === "transparent_png" ? "contain" : "cover";
@@ -278,244 +131,48 @@ const objectPositionForRequirement = (requirement: AssetRequirement) => {
   return "center";
 };
 
-const isStockEligible = (requirement: AssetRequirement) =>
-  !requirement.transparentBackground &&
-  requirement.assetType === "photo" &&
-  ["avatar", "section_photo", "background_photo", "product_photo", "map_texture"].includes(requirement.role);
-
-const imageHeavyIntentPattern = /\b(product|shop|shopping|ecommerce|commerce|store|catalog|cart|checkout|showcase|detail|shoe|sneaker|scooter|bike|car|vehicle|fleet|watch|headphone|chair|furniture|bag|clothing|fashion|food|meal|recipe|restaurant|snack|fitness|workout|yoga|health|trainer|education|coding|course|learn|student|onboarding|hero|photo|image|avatar|profile|map|tracking)\b/i;
-const productIntentPattern = /\b(product|shop|shopping|ecommerce|commerce|store|catalog|cart|checkout|showcase|detail|shoe|sneaker|scooter|bike|car|vehicle|fleet|watch|headphone|chair|furniture|bag|clothing|fashion|bottle|device)\b/i;
-const personIntentPattern = /\b(fitness|workout|yoga|health|trainer|athlete|meditation|wellness|coach|person|woman|man)\b/i;
-const foodIntentPattern = /\b(food|meal|recipe|restaurant|snack|grocery|chips|drink|dish|nutrition)\b/i;
-const educationIntentPattern = /\b(education|coding|course|learn|student|school|lesson|tutorial|developer|code)\b/i;
-const mapIntentPattern = /\b(map|tracking|location|route|fleet|vehicle|delivery|live)\b/i;
-const avatarIntentPattern = /\b(profile|avatar|account|social|community|team|friends)\b/i;
-
-const screenLooksCriticalForImagery = (screen: ScreenPlan, text: string) =>
-  /\b(onboarding|splash|welcome|hero|detail|showcase|product|profile)\b/i.test(screen.name) ||
-  /\b(hero|large image|cutout|foreground|product image|photo-led|visual-led|illustration|mockup|showcase)\b/i.test(text);
-
-const createInferredRequirement = ({
-  id,
-  screenName,
-  role,
-  subject,
-  assetType,
-  sourcePreference,
-  desiredAspectRatio,
-  transparentBackground,
-  placementHint,
-  priority,
-  origin = "heuristic_inferred",
-}: {
-  id: string;
-  screenName: string;
-  role: VisualAssetRole;
-  subject: string;
-  assetType: VisualAssetType;
-  sourcePreference: VisualAssetSourcePreference;
-  desiredAspectRatio: AssetRequirement["desiredAspectRatio"];
-  transparentBackground: boolean;
-  placementHint: string;
-  priority: VisualAssetPriority;
-  origin?: VisualAssetRequirementOrigin;
-}): AssetRequirement => ({
-  id,
-  screenName,
-  role,
-  subject,
-  assetType,
-  sourcePreference,
-  desiredAspectRatio,
-  transparentBackground,
-  placementHint,
-  priority,
-  origin,
-  reuseKey: stableReuseKey({
-    id,
-    screenName,
-    role,
-    subject,
-    assetType,
-    sourcePreference,
-    desiredAspectRatio,
-    transparentBackground,
-    placementHint,
-    priority,
-    origin,
-    reuseKey: `${role}-${subject}`,
-  }),
+const createDiagnostic = (requirement: AssetRequirement, startedAt: number): AssetResolutionDiagnostic => ({
+  requirementId: requirement.id,
+  screenName: requirement.screenName,
+  subject: requirement.subject,
+  semanticCategory: requirement.semanticCategory,
+  candidateCount: 0,
+  selectedAssetId: null,
+  selectedVia: null,
+  selectedSource: null,
+  rejectionCode: null,
+  cacheHit: false,
+  durationMs: Math.max(0, Date.now() - startedAt),
+  sanitizedMisuseCount: 0,
+  apiCallCount: 0,
+  r2WriteCount: 0,
 });
 
-const subjectForProductIntent = (text: string) => {
-  if (/\bscooter\b/i.test(text)) return "premium electric scooter product cutout";
-  if (/\b(sneaker|shoe|air max|trainer shoe)\b/i.test(text)) return "premium sneaker product cutout";
-  if (/\b(car|vehicle|fleet)\b/i.test(text)) return "modern connected vehicle cutout";
-  if (/\b(headphone|earbud)\b/i.test(text)) return "premium headphones product cutout";
-  if (/\b(chair|furniture|sofa|lamp)\b/i.test(text)) return "premium furniture product object cutout";
-  if (/\b(watch|smart watch)\b/i.test(text)) return "premium smartwatch product cutout";
-  if (/\b(bag|clothing|fashion)\b/i.test(text)) return "premium fashion product cutout";
-  return "premium product object cutout for the app concept";
-};
-
-const inferAssetRequirementForScreen = ({
-  prompt,
-  screen,
-}: {
-  prompt: string;
-  screen: ScreenPlan;
-}): AssetRequirement | null => {
-  const text = compact(`${prompt} ${screen.name} ${screen.description}`);
-  if (!imageHeavyIntentPattern.test(text)) {
-    return null;
-  }
-
-  const isCritical = screenLooksCriticalForImagery(screen, text);
-  const priority: VisualAssetPriority = isCritical ? "critical" : "supporting";
-  const screenSlug = slugify(screen.name);
-
-  if (mapIntentPattern.test(text)) {
-    return createInferredRequirement({
-      id: `${screenSlug}-map-texture`,
-      screenName: screen.name,
-      role: "map_texture",
-      subject: "abstract premium mobile map texture with roads and route context",
-      assetType: "photo",
-      sourcePreference: "stock",
-      desiredAspectRatio: "5:4",
-      transparentBackground: false,
-      placementHint: "background map/media plane, object-cover, keep controls and bottom navigation above the image",
-      priority: priority === "critical" ? "supporting" : priority,
-    });
-  }
-
-  if (avatarIntentPattern.test(text)) {
-    return createInferredRequirement({
-      id: `${screenSlug}-avatar-photo`,
-      screenName: screen.name,
-      role: "avatar",
-      subject: "generic premium user avatar portrait",
-      assetType: "photo",
-      sourcePreference: "stock",
-      desiredAspectRatio: "1:1",
-      transparentBackground: false,
-      placementHint: "small circular avatar, object-cover, crop face safely",
-      priority: "supporting",
-    });
-  }
-
-  if (productIntentPattern.test(text)) {
-    return createInferredRequirement({
-      id: `${screenSlug}-product-cutout`,
-      screenName: screen.name,
-      role: "product_cutout",
-      subject: subjectForProductIntent(text),
-      assetType: "transparent_png",
-      sourcePreference: "internal_library",
-      desiredAspectRatio: "4:5",
-      transparentBackground: true,
-      placementHint: "use as the primary product/hero foreground image, object-contain, preserve clear margins and avoid covering text or navigation",
-      priority,
-    });
-  }
-
-  if (personIntentPattern.test(text)) {
-    return createInferredRequirement({
-      id: `${screenSlug}-person-cutout`,
-      screenName: screen.name,
-      role: "hero_cutout",
-      subject: "premium fitness or wellness person cutout matching the app concept",
-      assetType: "transparent_png",
-      sourcePreference: "internal_library",
-      desiredAspectRatio: "4:5",
-      transparentBackground: true,
-      placementHint: "large human foreground cutout inside the hero area, object-contain, bottom aligned, never clipped through face or limbs",
-      priority,
-    });
-  }
-
-  if (foodIntentPattern.test(text)) {
-    return createInferredRequirement({
-      id: `${screenSlug}-food-cutout`,
-      screenName: screen.name,
-      role: "product_cutout",
-      subject: "premium food or packaged snack product cutout matching the app concept",
-      assetType: "transparent_png",
-      sourcePreference: "internal_library",
-      desiredAspectRatio: "1:1",
-      transparentBackground: true,
-      placementHint: "foreground food/product image for card or hero composition, object-contain with generous breathing room",
-      priority,
-    });
-  }
-
-  if (educationIntentPattern.test(text)) {
-    return createInferredRequirement({
-      id: `${screenSlug}-learning-illustration`,
-      screenName: screen.name,
-      role: "decorative_object",
-      subject: "premium friendly learning and coding illustration object, no text",
-      assetType: "illustration",
-      sourcePreference: "internal_library",
-      desiredAspectRatio: "1:1",
-      transparentBackground: true,
-      placementHint: "supporting onboarding or empty-state illustration, object-contain, keep it secondary to the headline and CTA",
-      priority,
-    });
-  }
-
-  return null;
-};
-
-const mergeAssetRequirements = (requirements: AssetRequirement[]) => {
-  const seen = new Set<string>();
-  const merged: AssetRequirement[] = [];
-
-  for (const requirement of requirements) {
-    const key = normalizeMatchKey(`${requirement.screenName}-${requirement.role}-${requirement.assetType}-${stableReuseKey(requirement)}`);
-    if (seen.has(key)) {
-      continue;
-    }
-
-    merged.push(requirement);
-    seen.add(key);
-    if (merged.length >= MAX_REQUIREMENTS) {
-      break;
-    }
-  }
-
-  return merged;
-};
-
-const normalizePlannedAssetNeed = (screen: ScreenPlan, need: AssetRequirement): AssetRequirement | null => {
-  const sourcePreference: VisualAssetSourcePreference =
-    need.sourcePreference === "stock" && !need.transparentBackground && need.assetType === "photo"
-      ? "stock"
-      : need.sourcePreference === "user_upload"
-        ? "user_upload"
-        : "internal_library";
+const normalizeRequirement = (screen: ScreenPlan, need: AssetRequirement): AssetRequirement | null => {
+  const screenName = resolveRequirementScreenName([screen], need.screenName || screen.name);
+  if (!screenName) return null;
+  const roleContext = `${need.id} ${need.subject} ${need.placementHint}`;
+  const inferredCategory = inferSemanticCategory(roleContext, need.role);
+  const normalizedRole = need.role !== "hero_cutout" && /\b(avatar|headshot|profile portrait|profile photo|user portrait)\b/i.test(roleContext)
+    ? "avatar"
+    : need.role;
   const candidate = {
     ...need,
-    screenName: screen.name,
-    sourcePreference,
+    role: normalizedRole,
+    screenName,
+    semanticCategory: !need.semanticCategory || need.semanticCategory === "other" ? inferredCategory : need.semanticCategory,
+    semanticTags: normalizeSemanticTags(need.semanticTags ?? [], !need.semanticCategory || need.semanticCategory === "other" ? inferredCategory : need.semanticCategory).slice(0, 8),
+    slotCount: need.slotCount ?? 1,
+    reusePolicy: need.reusePolicy ?? "repeat",
     reuseKey: need.reuseKey || `${need.role}-${need.subject}`,
-  };
+    origin: need.origin ?? (need.sourcePreference === "user_upload" ? "user_explicit" : "planner_inferred"),
+  } satisfies AssetRequirement;
   const parsed = AssetRequirementSchema.safeParse(candidate);
-  if (!parsed.success) {
-    return null;
-  }
-  return {
-    ...parsed.data,
-    reuseKey: stableReuseKey(parsed.data),
-    origin: parsed.data.origin ?? (parsed.data.sourcePreference === "user_upload" ? "user_explicit" : "planner_inferred"),
-  };
+  return parsed.success ? { ...parsed.data, reuseKey: stableReuseKey(parsed.data) } : null;
 };
 
 export async function planVisualAssets({
-  prompt,
   screens,
-  referenceMode,
-  intentContract,
   llmLog,
 }: {
   prompt: string;
@@ -526,755 +183,306 @@ export async function planVisualAssets({
   intentContract?: { kind?: string | null } | null;
   llmLog?: LlmLogFn;
 }): Promise<AssetRequirement[]> {
-  const exactRecreate = referenceMode === "user_recreate" && intentContract?.kind === "exact_recreate";
-  const plannedRequirements = screens.flatMap((screen) =>
-    (screen.assetNeeds ?? [])
-      .map((need) => normalizePlannedAssetNeed(screen, need))
-      .filter((need): need is AssetRequirement => Boolean(need)),
-  ).map((requirement) => exactRecreate && !isBlockingRequirementOrigin(requirement.origin)
-    ? { ...requirement, priority: requirement.priority === "critical" ? "supporting" : requirement.priority }
-    : requirement);
-  const inferredRequirements = exactRecreate
-    ? []
-    : screens
-      .map((screen) => inferAssetRequirementForScreen({ prompt, screen }))
-      .filter((requirement): requirement is AssetRequirement => Boolean(requirement));
-  const screensWithPlannedAssets = new Set(plannedRequirements.map((requirement) => requirement.screenName));
-  const missingInferredRequirements = inferredRequirements.filter((requirement) => !screensWithPlannedAssets.has(requirement.screenName));
-  const finalRequirements = mergeAssetRequirements([...plannedRequirements, ...missingInferredRequirements]);
+  const requirements: AssetRequirement[] = [];
+  const seen = new Set<string>();
 
-  llmLog?.("[visual-assets] Asset requirements derived", {
-    plannedRequirementCount: plannedRequirements.length,
-    inferredRequirementCount: inferredRequirements.length,
-    finalRequirementCount: finalRequirements.length,
-    finalRequirements: finalRequirements.map((requirement) => ({
-      id: requirement.id,
-      screenName: requirement.screenName,
-      role: requirement.role,
-      assetType: requirement.assetType,
-      sourcePreference: requirement.sourcePreference,
-      priority: requirement.priority,
-      origin: requirement.origin ?? null,
-    })),
+  for (const screen of screens) {
+    for (const need of (screen.assetNeeds ?? []).slice(0, 4)) {
+      const normalized = normalizeRequirement(screen, need);
+      if (!normalized) continue;
+      const key = `${normalized.screenName}:${normalized.role}:${semanticRequirementKey(normalized)}:${normalized.reusePolicy}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      requirements.push(normalized);
+    }
+  }
+
+  llmLog?.("[visual-assets] Planner asset groups normalized", {
+    requirementCount: requirements.length,
+    screenCount: screens.length,
+    totalExpectedUses: requirements.reduce((sum, requirement) => sum + requirement.slotCount, 0),
   });
-
-  return finalRequirements;
+  return requirements;
 }
 
-const manifestFromAsset = (asset: VisualAssetRow, requirement: AssetRequirement, displayVariant?: VisualAssetVariantRow | null): ScreenAssetManifest => ({
+const manifestFromAsset = (
+  asset: VisualAssetRow,
+  requirement: AssetRequirement,
+  slotIndex?: number,
+): ScreenAssetManifest => ({
   id: asset.id,
   requirementId: requirement.id,
   role: requirement.role,
-  url: displayVariant?.public_url ?? asset.public_url,
-  variantUrl: displayVariant?.public_url ?? asset.public_url,
-  width: displayVariant?.width ?? asset.width,
-  height: displayVariant?.height ?? asset.height,
+  url: asset.public_url,
+  width: asset.width,
+  height: asset.height,
   hasAlpha: asset.has_alpha,
-  alt: compact(requirement.subject),
+  alt: compact(asset.subject || requirement.subject),
   placementHint: requirement.placementHint,
-  objectFit: objectFitForRequirement(requirement),
+  objectFit: asset.has_alpha ? "contain" : objectFitForRequirement({ ...requirement, transparentBackground: false, assetType: "photo" }),
   objectPosition: objectPositionForRequirement(requirement),
   source: asset.source as VisualAssetSource,
   provider: asset.provider as VisualAssetProvider,
   critical: isCriticalRequirement(requirement),
-  visibility: (asset.visibility ?? "owner_private") as VisualAssetVisibility,
-  verificationScore: asset.verification_score ?? null,
+  visibility: asset.visibility as VisualAssetVisibility,
+  verificationScore: null,
+  placeholder: false,
   license: asset.license,
+  attribution: asset.attribution,
+  sourceUrl: asset.source_url,
   requirementOrigin: requirement.origin,
+  semanticCategory: requirement.semanticCategory,
+  semanticTags: requirement.semanticTags,
+  reusePolicy: requirement.reusePolicy,
+  expectedUses: requirement.reusePolicy === "repeat" ? requirement.slotCount : 1,
+  ...(slotIndex == null ? {} : { slotIndex }),
 });
 
-const transientStockManifest = ({
-  requirement,
-  url,
-  provider,
-  width,
-  height,
-  alt,
-  attribution,
-  license,
-  sourceUrl,
-}: {
-  requirement: AssetRequirement;
-  url: string;
-  provider: "pexels" | "pixabay";
-  width?: number | null;
-  height?: number | null;
-  alt?: string | null;
-  attribution?: string | null;
-  license: string;
-  sourceUrl?: string | null;
-}): ScreenAssetManifest => ({
-  id: `stock:${provider}:${sha256Hex(url).slice(0, 16)}`,
+const manifestFromUserAsset = (asset: UserImageAssetRow, requirement: AssetRequirement): ScreenAssetManifest => ({
+  id: asset.id,
   requirementId: requirement.id,
   role: requirement.role,
-  url,
-  variantUrl: url,
-  width: width ?? 1024,
-  height: height ?? 1024,
-  hasAlpha: false,
-  alt: compact(alt || requirement.subject),
+  url: asset.public_url,
+  width: asset.width ?? 1024,
+  height: asset.height ?? 1024,
+  hasAlpha: /png|webp/i.test(asset.mime_type),
+  alt: compact(requirement.subject),
   placementHint: requirement.placementHint,
-  objectFit: "cover",
+  objectFit: objectFitForRequirement(requirement),
   objectPosition: objectPositionForRequirement(requirement),
-  source: "stock",
-  provider,
+  source: "user_upload",
+  provider: "user",
   critical: isCriticalRequirement(requirement),
-  visibility: "public_reusable",
-  verificationScore: null,
-  license,
-  attribution: attribution ?? null,
-  sourceUrl: sourceUrl ?? null,
+  visibility: "project_private",
+  placeholder: false,
+  license: null,
+  attribution: null,
+  sourceUrl: null,
   requirementOrigin: requirement.origin,
+  semanticCategory: requirement.semanticCategory,
+  semanticTags: requirement.semanticTags,
+  reusePolicy: requirement.reusePolicy,
+  expectedUses: requirement.reusePolicy === "repeat" ? requirement.slotCount : 1,
 });
 
-const placeholderManifest = (requirement: AssetRequirement, reason: string): ScreenAssetManifest => ({
-  id: `placeholder:${requirement.id}`,
+const placeholderManifest = (
+  requirement: AssetRequirement,
+  reason: string,
+  slotIndex?: number,
+): ScreenAssetManifest => ({
+  id: `placeholder:${requirement.id}${slotIndex == null ? "" : `:${slotIndex}`}`,
   requirementId: requirement.id,
   role: requirement.role,
   url: null,
-  width: requirement.desiredAspectRatio === "16:9" || requirement.desiredAspectRatio === "5:4" ? 1536 : 1024,
-  height: requirement.desiredAspectRatio === "4:5" ? 1536 : 1024,
-  hasAlpha: requirement.transparentBackground,
+  width: 1024,
+  height: 1024,
+  hasAlpha: false,
   alt: compact(requirement.subject),
-  placementHint: `${requirement.placementHint} Placeholder reason: ${reason}`,
+  placementHint: `${requirement.placementHint} Placeholder reason: ${reason}${requirement.role === "avatar" ? " Use initials or a person icon." : ""}`,
   objectFit: objectFitForRequirement(requirement),
   objectPosition: objectPositionForRequirement(requirement),
   source: "placeholder",
   provider: "placeholder",
   critical: isCriticalRequirement(requirement),
   visibility: "public_reusable",
-  verificationScore: null,
   placeholder: true,
   license: null,
   attribution: null,
   sourceUrl: null,
   requirementOrigin: requirement.origin,
+  semanticCategory: requirement.semanticCategory,
+  semanticTags: requirement.semanticTags,
+  reusePolicy: requirement.reusePolicy,
+  expectedUses: requirement.reusePolicy === "repeat" ? requirement.slotCount : 1,
+  ...(slotIndex == null ? {} : { slotIndex }),
 });
 
-const getDisplayVariant = async (admin: AdminClient, assetId: string): Promise<VisualAssetVariantRow | null> => {
-  const { data } = await admin
-    .from("visual_asset_variants")
-    .select("*")
-    .eq("asset_id", assetId)
-    .in("variant", ["display_1024", "preview_512", "original"])
-    .order("variant", { ascending: true })
-    .limit(10);
+const assetTags = (asset: VisualAssetRow) => Array.isArray(asset.tags) ? asset.tags : [];
 
-  const variants = (data ?? []) as VisualAssetVariantRow[];
-  return variants.find((variant) => variant.variant === "display_1024")
-    ?? variants.find((variant) => variant.variant === "preview_512")
-    ?? variants.find((variant) => variant.variant === "original")
-    ?? null;
-};
-
-const collectSearchDiagnostics = async (
-  admin: AdminClient,
-  ownerId: string,
-  projectId: string,
-  requirement: AssetRequirement,
-  vectorRows: Array<{ asset_id: string; similarity?: number | null; quality_score?: number | null }> = [],
-) => {
-  const subjectTokens = tokenizeAssetText(requirement.subject);
-  const { data } = await admin
-    .from("visual_assets")
-    .select("id, subject, source, visibility, verification_status, asset_type, has_alpha, quality_score, tags")
-    .or([
-      subjectTokens.map((token) => `subject.ilike.%${token}%`).join(","),
-      subjectTokens.map((token) => `tags.cs.{${token}}`).join(","),
-    ].filter(Boolean).join(",") || `asset_type.eq.${requirement.assetType}`)
-    .limit(24);
-
-  const vectorById = new Map(vectorRows.map((row) => [row.asset_id, row]));
-  return ((data ?? []) as VisualAssetRow[])
-    .map((asset) => ({
-      assetId: asset.id,
-      subject: asset.subject,
-      source: asset.source,
-      visibility: asset.visibility,
-      verificationStatus: asset.verification_status,
-      assetType: asset.asset_type,
-      hasAlpha: asset.has_alpha,
-      qualityScore: assetRowQuality(asset),
-      similarity: vectorById.get(asset.id)?.similarity ?? null,
-      reason: rejectionReasonForAsset(asset, ownerId, projectId, requirement),
-    }))
-    .slice(0, 12);
-};
-
-const findTagFallbackAsset = async (
-  admin: AdminClient,
-  ownerId: string,
-  projectId: string,
-  requirement: AssetRequirement,
-): Promise<{ saved: SavedAsset | null; matchCount: number }> => {
-  const requirementTokens = new Set(tokenizeAssetText(`${requirement.subject} ${requirement.role}`));
-  if (requirementTokens.size === 0) {
-    return { saved: null, matchCount: 0 };
-  }
-
-  const { data, error } = await admin
-    .from("visual_assets")
-    .select("*")
-    .eq("source", "internal_library")
-    .eq("role", requirement.role)
-    .eq("asset_type", requirement.assetType)
-    .eq("has_alpha", requirement.transparentBackground)
-    .in("verification_status", ["verified", "skipped"])
-    .order("quality_score", { ascending: false })
-    .limit(48);
-
-  if (error || !data?.length) {
-    return { saved: null, matchCount: 0 };
-  }
-
-  const ranked = visibleAssets(data as VisualAssetRow[], ownerId, projectId)
-    .map((asset) => {
-      const assetTokens = new Set(tokenizeAssetText([
-        asset.subject ?? "",
-        asset.role ?? "",
-        ...(Array.isArray(asset.tags) ? asset.tags : []),
-      ].join(" ")));
-      let overlap = 0;
-      for (const token of requirementTokens) {
-        if (assetTokens.has(token)) overlap += 1;
-      }
-      const containsSubjectTerm = Array.from(requirementTokens).some((token) =>
-        (asset.subject ?? "").toLowerCase().includes(token),
-      );
-      return {
-        asset,
-        score: overlap + (containsSubjectTerm ? 0.75 : 0) + assetRowQuality(asset) * 0.25,
-      };
-    })
-    .filter((candidate) => candidate.score >= 1.1)
-    .sort((left, right) => right.score - left.score);
-
-  const best = ranked[0]?.asset ?? null;
-  return {
-    matchCount: ranked.length,
-    saved: best
-      ? {
-          asset: best,
-          displayVariant: await getDisplayVariant(admin, best.id),
-          selectedVia: "tag_fallback",
-        }
-      : null,
-  };
-};
-
-const findReusableAsset = async (
-  admin: AdminClient,
-  ownerId: string,
-  projectId: string,
-  requirement: AssetRequirement,
-): Promise<ReusableAssetLookupResult> => {
-  const diagnostic = buildBaseDiagnostic(requirement);
-  const exact = await admin
-    .from("visual_assets")
-    .select("*")
-    .eq("source", "internal_library")
-    .eq("reuse_key", stableReuseKey(requirement))
-    .eq("role", requirement.role)
-    .eq("asset_type", requirement.assetType)
-    .eq("has_alpha", requirement.transparentBackground)
-    .in("verification_status", ["verified", "skipped"])
-    .gte("quality_score", 0.68)
-    .order("quality_score", { ascending: false })
-    .limit(12);
-
-  if (exact.error) {
-    console.warn("[visual-assets] Exact lookup failed", exact.error);
-  } else if (exact.data?.length) {
-    diagnostic.exactMatchCount = exact.data.length;
-    const bestExact = visibleAssets(exact.data as VisualAssetRow[], ownerId, projectId)[0];
-    if (bestExact) {
-      diagnostic.selectedAssetId = bestExact.id;
-      diagnostic.selectedVia = "exact";
-      diagnostic.rejectedCandidates = await collectSearchDiagnostics(admin, ownerId, projectId, requirement);
-      return {
-        saved: {
-          asset: bestExact,
-          displayVariant: await getDisplayVariant(admin, bestExact.id),
-          selectedVia: "exact",
-        },
-        diagnostic,
-      };
-    }
-  }
-
-  let vectorRows: Array<{ asset_id: string; similarity?: number | null; quality_score?: number | null }> = [];
-  try {
-    const embedding = await generateEmbedding(requirementText(requirement), "RETRIEVAL_QUERY");
-    const { data, error } = await admin.rpc("match_visual_assets", {
-      query_embedding: embedding,
-      p_asset_type: requirement.assetType,
-      p_role: requirement.role,
-      p_has_alpha: requirement.transparentBackground,
-      p_owner_id: ownerId,
-      p_project_id: projectId,
-      match_threshold: requirement.priority === "critical" ? 0.64 : 0.58,
-      match_count: 6,
-    });
-
-    if (error || !data?.length) {
-      const fallback = await findTagFallbackAsset(admin, ownerId, projectId, requirement);
-      diagnostic.tagFallbackMatchCount = fallback.matchCount;
-      if (fallback.saved) {
-        diagnostic.selectedAssetId = fallback.saved.asset.id;
-        diagnostic.selectedVia = "tag_fallback";
-      }
-      diagnostic.rejectedCandidates = await collectSearchDiagnostics(admin, ownerId, projectId, requirement);
-      return { saved: fallback.saved, diagnostic };
-    }
-
-    vectorRows = data as Array<{ asset_id: string; similarity?: number | null; quality_score?: number | null }>;
-    diagnostic.vectorMatchCount = vectorRows.length;
-
-    const best = vectorRows.find((candidate: { quality_score?: number | null }) => Number(candidate.quality_score ?? 0) >= 0.62);
-    if (!best) {
-      const fallback = await findTagFallbackAsset(admin, ownerId, projectId, requirement);
-      diagnostic.tagFallbackMatchCount = fallback.matchCount;
-      if (fallback.saved) {
-        diagnostic.selectedAssetId = fallback.saved.asset.id;
-        diagnostic.selectedVia = "tag_fallback";
-      }
-      diagnostic.rejectedCandidates = await collectSearchDiagnostics(admin, ownerId, projectId, requirement, vectorRows);
-      return { saved: fallback.saved, diagnostic };
-    }
-
-    const { data: asset, error: assetError } = await admin
-      .from("visual_assets")
-      .select("*")
-      .eq("id", best.asset_id)
-      .eq("source", "internal_library")
-      .maybeSingle();
-
-    if (assetError || !asset || !isAssetVisibleToProject(asset as VisualAssetRow, ownerId, projectId)) {
-      const fallback = await findTagFallbackAsset(admin, ownerId, projectId, requirement);
-      diagnostic.tagFallbackMatchCount = fallback.matchCount;
-      if (fallback.saved) {
-        diagnostic.selectedAssetId = fallback.saved.asset.id;
-        diagnostic.selectedVia = "tag_fallback";
-      }
-      diagnostic.rejectedCandidates = await collectSearchDiagnostics(admin, ownerId, projectId, requirement, vectorRows);
-      return { saved: fallback.saved, diagnostic };
-    }
-
-    diagnostic.selectedAssetId = (asset as VisualAssetRow).id;
-    diagnostic.selectedVia = "vector";
-    diagnostic.rejectedCandidates = await collectSearchDiagnostics(admin, ownerId, projectId, requirement, vectorRows);
-    return {
-      saved: {
-        asset: asset as VisualAssetRow,
-        displayVariant: await getDisplayVariant(admin, (asset as VisualAssetRow).id),
-        selectedVia: "vector",
-      },
-      diagnostic,
-    };
-  } catch (error) {
-    console.warn("[visual-assets] Vector lookup failed", error);
-    const fallback = await findTagFallbackAsset(admin, ownerId, projectId, requirement);
-    diagnostic.tagFallbackMatchCount = fallback.matchCount;
-    if (fallback.saved) {
-      diagnostic.selectedAssetId = fallback.saved.asset.id;
-      diagnostic.selectedVia = "tag_fallback";
-    }
-    diagnostic.rejectedCandidates = await collectSearchDiagnostics(admin, ownerId, projectId, requirement, vectorRows);
-    return { saved: fallback.saved, diagnostic };
-  }
-};
-
-const detectPngAlpha = (bytes: Uint8Array) => {
-  if (bytes.length < 26) {
-    return false;
-  }
-
-  const pngSignature = [137, 80, 78, 71, 13, 10, 26, 10];
-  if (!pngSignature.every((value, index) => bytes[index] === value)) {
-    return false;
-  }
-
-  const colorType = bytes[25];
-  return colorType === 4 || colorType === 6;
-};
-
-const mimeExtension = (mimeType: string, fallback = "bin") => {
-  if (/png/i.test(mimeType)) return "png";
-  if (/webp/i.test(mimeType)) return "webp";
-  if (/jpe?g/i.test(mimeType)) return "jpg";
-  return fallback;
-};
-
-const fetchRemoteBytes = async (url: string, fallbackMimeType = "application/octet-stream") => {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch image (${response.status}) from ${url}`);
-  }
-
-  const contentType = response.headers.get("content-type") || fallbackMimeType;
-  const arrayBuffer = await response.arrayBuffer();
-  return {
-    bytes: new Uint8Array(arrayBuffer),
-    contentType,
-  };
-};
-
-const imageMetadata = async (bytes: Uint8Array) => {
-  const metadata = await sharp(Buffer.from(bytes)).metadata();
-  return {
-    width: metadata.width ?? null,
-    height: metadata.height ?? null,
-    hasAlpha: Boolean(metadata.hasAlpha || metadata.channels === 4),
-    format: metadata.format ?? null,
-  };
-};
-
-const shouldVerifyAsset = (source: VisualAssetSource, requirement: AssetRequirement) =>
-  source === "ai_generated" || isCriticalRequirement(requirement);
-
-const verifierInstruction = `You are Drawgle's production visual asset verifier.
-Return strict JSON only.
-Approve the asset only when it is safe and useful inside a premium mobile UI.
-Check subject match, crop, orientation, transparent-background expectation, no unwanted text/watermark, and suitability for the described placement.
-If transparency was requested, reject obvious opaque/background-filled images.`;
-
-const verifyAsset = async ({
-  bytes,
-  contentType,
+const rankCompatibleAssets = ({
+  assets,
   requirement,
-  hasAlpha,
-  source,
+  seed,
 }: {
-  bytes: Uint8Array;
-  contentType: string;
+  assets: VisualAssetRow[];
   requirement: AssetRequirement;
-  hasAlpha: boolean;
-  source: VisualAssetSource;
-}): Promise<AssetVerificationResult> => {
-  if (!shouldVerifyAsset(source, requirement)) {
-    return { status: "skipped", score: null, notes: "Verification skipped for non-critical reusable photo asset." };
-  }
-
-  if (requirement.transparentBackground && !hasAlpha) {
-    return {
-      status: "rejected",
-      score: 0,
-      notes: "Rejected before vision verification because a transparent asset was required but no alpha channel was detected.",
-    };
-  }
-
-  const ai = createGeminiClient();
-  const policy = geminiPolicyForTask("project_planning", {
-    systemInstruction: verifierInstruction,
-    responseMimeType: "application/json",
-    temperature: 0,
-    maxOutputTokens: 1024,
-  });
-
-  try {
-    const response = await ai.models.generateContent({
-      model: policy.model,
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              data: Buffer.from(bytes).toString("base64"),
-              mimeType: contentType,
-            },
-          },
-          {
-            text: [
-              `Required subject: ${requirement.subject}`,
-              `Role: ${requirement.role}`,
-              `Asset type: ${requirement.assetType}`,
-              `Transparent background required: ${requirement.transparentBackground ? "yes" : "no"}`,
-              `Placement hint: ${requirement.placementHint}`,
-              `Priority: ${requirement.priority}`,
-              "Return JSON: { \"approved\": boolean, \"score\": 0-1, \"notes\": [\"...\"] }",
-            ].join("\n"),
-          },
-        ],
-      },
-      config: policy.config,
-    });
-
-    const parsed = AssetVerificationResponseSchema.safeParse(parseJsonResponse<unknown>(response.text || "{}"));
-    if (!parsed.success) {
-      return {
-        status: "rejected",
-        score: 0,
-        notes: "Verifier returned invalid JSON.",
-      };
-    }
-
-    return {
-      status: parsed.data.approved && parsed.data.score >= (isCriticalRequirement(requirement) ? 0.68 : 0.6) ? "verified" : "rejected",
-      score: clampQuality(parsed.data.score),
-      notes: parsed.data.notes.join(" ").slice(0, 2000),
-    };
-  } catch (error) {
-    return {
-      status: "rejected",
-      score: 0,
-      notes: `Verifier failed: ${error instanceof Error ? error.message : String(error)}`.slice(0, 2000),
-    };
-  }
-};
-
-const createVariantBuffer = async ({
-  bytes,
-  maxSize,
-  hasAlpha,
-}: {
-  bytes: Uint8Array;
-  maxSize: number;
-  hasAlpha: boolean;
+  seed: string;
 }) => {
-  const pipeline = sharp(Buffer.from(bytes))
-    .rotate()
-    .resize({
-      width: maxSize,
-      height: maxSize,
-      fit: "inside",
-      withoutEnlargement: true,
-    });
-
-  const output = hasAlpha
-    ? pipeline.png({ compressionLevel: 9, adaptiveFiltering: true })
-    : pipeline.webp({ quality: maxSize >= 1024 ? 84 : 78 });
-
-  const { data, info } = await output.toBuffer({ resolveWithObject: true });
-  return {
-    bytes: new Uint8Array(data),
-    width: info.width,
-    height: info.height,
-    contentType: hasAlpha ? "image/png" : "image/webp",
-    extension: hasAlpha ? "png" : "webp",
-  };
-};
-
-const insertVariant = async ({
-  admin,
-  assetId,
-  variant,
-  key,
-  publicUrl,
-  width,
-  height,
-  contentType,
-  byteSize,
-}: {
-  admin: AdminClient;
-  assetId: string;
-  variant: VisualAssetVariantName;
-  key: string;
-  publicUrl: string;
-  width: number;
-  height: number;
-  contentType: string;
-  byteSize: number;
-}) => {
-  const { data, error } = await admin
-    .from("visual_asset_variants")
-    .upsert({
-      asset_id: assetId,
-      variant,
-      r2_key: key,
-      public_url: publicUrl,
-      width,
-      height,
-      mime_type: contentType,
-      byte_size: byteSize,
-    }, {
-      onConflict: "asset_id,variant",
+  const reuseKey = stableReuseKey(requirement);
+  const compatible = assets
+    .filter(isActiveAsset)
+    .map((asset) => {
+      const exactReuseKey = asset.reuse_key === reuseKey;
+      const compatibleAsset = isSemanticallyCompatible({
+        requirement,
+        assetRole: asset.role,
+        assetCategory: asset.semantic_category,
+        assetSubject: asset.subject,
+        assetTags: assetTags(asset),
+        exactReuseKey,
+      });
+      const score = exactReuseKey
+        ? 100
+        : semanticOverlap(
+          semanticTokens([requirement.subject, ...requirement.semanticTags]),
+          semanticTokens([asset.subject, ...assetTags(asset)]),
+        );
+      return { asset, compatible: compatibleAsset, score };
     })
-    .select("*")
-    .single();
+    .filter((candidate) => candidate.compatible)
+    .sort((left, right) => right.score - left.score || left.asset.id.localeCompare(right.asset.id));
 
-  if (error) {
-    throw error;
-  }
-
-  return data as VisualAssetVariantRow;
+  if (compatible.length <= 1) return compatible.map((candidate) => candidate.asset);
+  const topScore = compatible[0].score;
+  const top = compatible.filter((candidate) => candidate.score === topScore);
+  const rest = compatible.filter((candidate) => candidate.score !== topScore);
+  const offset = stableCandidateIndex(seed, top.length);
+  return [...top.slice(offset), ...top.slice(0, offset), ...rest].map((candidate) => candidate.asset);
 };
 
-const createAndStoreVariants = async ({
-  admin,
-  assetId,
-  originalBytes,
-  originalKey,
-  originalUrl,
-  originalWidth,
-  originalHeight,
-  originalContentType,
-  hasAlpha,
-}: {
-  admin: AdminClient;
-  assetId: string;
-  originalBytes: Uint8Array;
-  originalKey: string;
-  originalUrl: string;
-  originalWidth: number;
-  originalHeight: number;
-  originalContentType: string;
-  hasAlpha: boolean;
-}) => {
-  await insertVariant({
-    admin,
-    assetId,
-    variant: "original",
-    key: originalKey,
-    publicUrl: originalUrl,
-    width: originalWidth,
-    height: originalHeight,
-    contentType: originalContentType,
-    byteSize: originalBytes.byteLength,
-  });
-
-  let displayVariant: VisualAssetVariantRow | null = null;
-  const variants: Array<{ name: VisualAssetVariantName; size: number }> = [
-    { name: "thumb_256", size: 256 },
-    { name: "preview_512", size: 512 },
-    { name: "display_1024", size: 1024 },
-  ];
-
-  for (const target of variants) {
-    const variant = await createVariantBuffer({ bytes: originalBytes, maxSize: target.size, hasAlpha });
-    const key = `visual-assets/${assetId}/${target.name}.${variant.extension}`;
-    const publicUrl = await uploadToR2({ key, bytes: variant.bytes, contentType: variant.contentType });
-    const row = await insertVariant({
-      admin,
-      assetId,
-      variant: target.name,
-      key,
-      publicUrl,
-      width: variant.width,
-      height: variant.height,
-      contentType: variant.contentType,
-      byteSize: variant.bytes.byteLength,
-    });
-
-    if (target.name === "display_1024") {
-      displayVariant = row;
-    }
-  }
-
-  return displayVariant;
-};
-
-const findAssetByContentHash = async ({
+const findCuratedAssets = async ({
   admin,
   ownerId,
   projectId,
-  contentHash,
-  visibility,
   requirement,
+  limit,
+}: {
+  admin: AdminClient;
+  ownerId: string;
+  projectId: string;
+  requirement: AssetRequirement;
+  limit: number;
+}) => {
+  const { data, error } = await admin
+    .from("visual_assets")
+    .select("*")
+    .eq("source", "internal_library")
+    .eq("role", requirement.role)
+    .eq("semantic_category", requirement.semanticCategory)
+    .eq("asset_type", requirement.assetType)
+    .eq("has_alpha", requirement.transparentBackground)
+    .eq("status", "active")
+    .limit(100);
+  if (error) throw error;
+  const visible = ((data as VisualAssetRow[] | null) ?? []).filter((asset) => isAssetVisibleToProject(asset, ownerId, projectId));
+  const ranked = rankCompatibleAssets({ assets: visible, requirement, seed: `${projectId}:${requirement.id}` });
+  return { assets: ranked.slice(0, limit), candidateCount: visible.length };
+};
+
+const findCachedStockAssets = async ({
+  admin,
+  ownerId,
+  projectId,
+  requirement,
+  limit,
+}: {
+  admin: AdminClient;
+  ownerId: string;
+  projectId: string;
+  requirement: AssetRequirement;
+  limit: number;
+}) => {
+  const { data, error } = await admin
+    .from("visual_assets")
+    .select("*")
+    .eq("source", "stock")
+    .eq("role", requirement.role)
+    .eq("semantic_category", requirement.semanticCategory)
+    .eq("reuse_key", stableReuseKey(requirement))
+    .eq("status", "active")
+    .limit(Math.max(limit, 12));
+  if (error) throw error;
+  const assets = ((data as VisualAssetRow[] | null) ?? [])
+    .filter((asset) => isAssetVisibleToProject(asset, ownerId, projectId))
+    .slice(0, limit);
+  return { assets, candidateCount: data?.length ?? 0 };
+};
+
+const fetchRemoteBytes = async (url: string) => {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Failed to fetch stock image (${response.status}).`);
+  return new Uint8Array(await response.arrayBuffer());
+};
+
+const normalizeAssetBytes = async (bytes: Uint8Array, preserveAlpha: boolean) => {
+  const pipeline = sharp(Buffer.from(bytes)).rotate().resize({ width: 1024, height: 1024, fit: "inside", withoutEnlargement: true });
+  const output = preserveAlpha
+    ? await pipeline.png({ compressionLevel: 9, adaptiveFiltering: true }).toBuffer({ resolveWithObject: true })
+    : await pipeline.webp({ quality: 84, effort: 5 }).toBuffer({ resolveWithObject: true });
+  return {
+    bytes: new Uint8Array(output.data),
+    width: output.info.width,
+    height: output.info.height,
+    contentType: preserveAlpha ? "image/png" : "image/webp",
+    extension: preserveAlpha ? "png" : "webp",
+    hasAlpha: preserveAlpha,
+  };
+};
+
+const saveNormalizedAsset = async ({
+  admin,
+  ownerId,
+  projectId,
+  requirement,
+  bytes,
+  source,
+  provider,
+  providerAssetId,
+  sourceUrl,
+  attribution,
+  license,
+  tags,
+  visibility,
+  diagnostic,
 }: {
   admin: AdminClient;
   ownerId: string | null;
   projectId: string | null;
-  contentHash: string;
-  visibility: VisualAssetVisibility;
   requirement: AssetRequirement;
-}): Promise<SavedAsset | null> => {
-  const { data, error } = await admin
+  bytes: Uint8Array;
+  source: "internal_library" | "stock";
+  provider: "drawgle_r2" | "pexels" | "pixabay";
+  providerAssetId?: string | null;
+  sourceUrl?: string | null;
+  attribution?: string | null;
+  license?: string | null;
+  tags?: string[];
+  visibility: VisualAssetVisibility;
+  diagnostic?: AssetResolutionDiagnostic;
+}): Promise<SavedAsset> => {
+  if (providerAssetId) {
+    const { data } = await admin
+      .from("visual_assets")
+      .select("*")
+      .eq("provider", provider)
+      .eq("provider_asset_id", providerAssetId)
+      .eq("reuse_key", stableReuseKey(requirement))
+      .eq("status", "active")
+      .maybeSingle();
+    if (data) return { asset: data as VisualAssetRow, displayVariant: null };
+  }
+
+  const normalized = await normalizeAssetBytes(bytes, requirement.transparentBackground);
+  const contentHash = sha256Hex(normalized.bytes);
+  const { data: duplicate } = await admin
     .from("visual_assets")
     .select("*")
     .eq("content_hash", contentHash)
-    .eq("visibility", visibility)
-    .eq("asset_type", requirement.assetType)
-    .eq("has_alpha", requirement.transparentBackground)
-    .in("verification_status", ["verified", "skipped"])
-    .order("quality_score", { ascending: false })
-    .limit(8);
+    .eq("role", requirement.role)
+    .eq("semantic_category", requirement.semanticCategory)
+    .eq("status", "active")
+    .limit(1)
+    .maybeSingle();
+  if (duplicate) return { asset: duplicate as VisualAssetRow, displayVariant: null };
 
-  if (error || !data?.length) {
-    return null;
-  }
-
-  const visible = visibleAssets(data as VisualAssetRow[], ownerId ?? "", projectId ?? "");
-  const asset = visible[0];
-  if (!asset) {
-    return null;
-  }
-
-  return {
-    asset,
-    displayVariant: await getDisplayVariant(admin, asset.id),
-  };
-};
-
-const saveAssetFromBytes = async ({
-  admin,
-  ownerId,
-  projectId,
-  requirement,
-  bytes,
-  contentType,
-  source,
-  provider,
-  license,
-  width,
-  height,
-  metadata,
-  visibilityOverride,
-  verificationOverride,
-  originalRemoteUrl,
-}: {
-  admin: AdminClient;
-  ownerId: string | null;
-  projectId: string | null;
-  requirement: AssetRequirement;
-  bytes: Uint8Array;
-  contentType: string;
-  source: VisualAssetSource;
-  provider: VisualAssetProvider;
-  license?: string | null;
-  width?: number | null;
-  height?: number | null;
-  metadata?: Record<string, unknown>;
-  visibilityOverride?: VisualAssetVisibility;
-  verificationOverride?: AssetVerificationResult;
-  originalRemoteUrl?: string | null;
-}): Promise<SavedAsset> => {
-  if (!/^image\//i.test(contentType)) {
-    throw new Error(`Asset did not provide an image content type: ${contentType}`);
-  }
-
-  const contentHash = sha256Hex(bytes);
-  const metadataFromBytes = await imageMetadata(bytes);
-  const hasAlpha = metadataFromBytes.hasAlpha || detectPngAlpha(bytes);
-  const visibility = visibilityOverride ?? determineVisibility(source, requirement);
-  const deduped = await findAssetByContentHash({
-    admin,
-    ownerId,
-    projectId,
-    contentHash,
-    visibility,
-    requirement: {
-      ...requirement,
-      transparentBackground: requirement.transparentBackground || hasAlpha,
-    },
-  });
-  if (deduped) {
-    return deduped;
-  }
-
-  const extension = mimeExtension(contentType, requirement.transparentBackground ? "png" : "jpg");
   const assetId = randomUUID();
-  const key = `visual-assets/${assetId}/original.${extension}`;
-  const publicUrl = await uploadToR2({ key, bytes, contentType });
-  const embedding = await generateEmbedding(requirementText(requirement), "RETRIEVAL_DOCUMENT").catch(() => null);
-  const verification = verificationOverride ?? await verifyAsset({
-    bytes,
-    contentType,
-    requirement,
-    hasAlpha,
-    source,
-  });
-  const widthValue = metadataFromBytes.width ?? width ?? 1024;
-  const heightValue = metadataFromBytes.height ?? height ?? 1024;
-
+  const key = `visual-assets/${assetId}/asset.${normalized.extension}`;
+  const publicUrl = await uploadToR2({ key, bytes: normalized.bytes, contentType: normalized.contentType });
+  if (diagnostic) diagnostic.r2WriteCount += 1;
+  const canonicalTags = normalizeSemanticTags(
+    [...(tags ?? []), ...requirement.semanticTags, requirement.subject],
+    requirement.semanticCategory,
+  );
   const { data, error } = await admin
     .from("visual_assets")
     .insert({
@@ -1282,388 +490,323 @@ const saveAssetFromBytes = async ({
       owner_id: ownerId,
       created_by_project_id: projectId,
       subject: requirement.subject,
+      semantic_category: requirement.semanticCategory,
       role: requirement.role,
-      asset_type: requirement.assetType,
+      asset_type: requirement.transparentBackground ? requirement.assetType : "photo",
       source,
       provider,
+      provider_asset_id: providerAssetId ?? null,
+      source_url: sourceUrl ?? null,
+      attribution: attribution ?? null,
       license: license ?? null,
       r2_key: key,
       public_url: publicUrl,
-      width: widthValue,
-      height: heightValue,
-      has_alpha: hasAlpha,
-      visibility,
-      verification_status: verification.status,
-      verification_score: verification.score,
-      verification_notes: verification.notes,
-      content_hash: contentHash,
-      mime_type: contentType,
-      byte_size: bytes.byteLength,
-      tags: [
-        requirement.role,
-        requirement.assetType,
-        visibility,
-        ...(Array.isArray(metadata?.tags)
-          ? metadata.tags.filter((tag): tag is string => typeof tag === "string" && tag.trim().length > 0).map((tag) => tag.trim().toLowerCase()).slice(0, 20)
-          : []),
-        ...requirement.subject.toLowerCase().split(/[^a-z0-9]+/).filter((part) => part.length > 2).slice(0, 10),
-      ],
+      width: normalized.width,
+      height: normalized.height,
+      has_alpha: normalized.hasAlpha,
+      tags: canonicalTags,
       reuse_key: stableReuseKey(requirement),
-      embedding: embedding as never,
-      quality_score: clampQuality(verification.score ?? (requirement.priority === "critical" ? 0.78 : 0.68)),
+      visibility,
+      status: "active",
+      content_hash: contentHash,
+      mime_type: normalized.contentType,
+      byte_size: normalized.bytes.byteLength,
       metadata: {
-        ...metadata,
+        semanticKey: semanticRequirementKey(requirement),
         placementHint: requirement.placementHint,
-        ...(originalRemoteUrl ? { originalRemoteUrl } : {}),
       } as never,
     })
     .select("*")
     .single();
-
-  if (error) {
-    const dedupedAfterInsertRace = await findAssetByContentHash({
-      admin,
-      ownerId,
-      projectId,
-      contentHash,
-      visibility,
-      requirement: {
-        ...requirement,
-        transparentBackground: requirement.transparentBackground || hasAlpha,
-      },
-    });
-    if (dedupedAfterInsertRace) {
-      return dedupedAfterInsertRace;
-    }
-
-    throw error;
-  }
-
-  if (verification.status === "rejected") {
-    throw new Error(`Asset verifier rejected "${requirement.id}": ${verification.notes || "quality threshold not met"}`);
-  }
-
-  const displayVariant = await createAndStoreVariants({
-    admin,
-    assetId,
-    originalBytes: bytes,
-    originalKey: key,
-    originalUrl: publicUrl,
-    originalWidth: widthValue,
-    originalHeight: heightValue,
-    originalContentType: contentType,
-    hasAlpha,
-  });
-
-  return {
-    asset: data as VisualAssetRow,
-    displayVariant,
-  };
+  if (error) throw error;
+  return { asset: data as VisualAssetRow, displayVariant: null };
 };
 
-const saveAssetFromRemoteUrl = async ({
+type StockCandidate = {
+  provider: "pexels" | "pixabay";
+  providerAssetId: string;
+  imageUrl: string;
+  sourceUrl: string | null;
+  description: string;
+  tags: string[];
+  attribution: string | null;
+  license: string;
+  width: number | null;
+  height: number | null;
+};
+
+const stockSearchQuery = (requirement: AssetRequirement) => {
+  const categoryHint: Partial<Record<VisualAssetSemanticCategory, string>> = {
+    person: "person portrait",
+    animal: "pet animal",
+    electronics: "technology",
+    fitness: "fitness workout",
+    place: "travel destination",
+    generic_product: "retail product",
+  };
+  return compact([requirement.subject, categoryHint[requirement.semanticCategory], ...requirement.semanticTags].filter(Boolean).join(" ")).slice(0, 100);
+};
+
+const pexelsCandidates = async (
+  requirement: AssetRequirement,
+  count: number,
+  diagnostic: AssetResolutionDiagnostic,
+): Promise<StockCandidate[]> => {
+  const apiKey = getOptionalPexelsApiKey();
+  if (!apiKey) return [];
+  const url = new URL("https://api.pexels.com/v1/search");
+  url.searchParams.set("query", stockSearchQuery(requirement));
+  url.searchParams.set("per_page", String(Math.max(8, Math.min(24, count * 3))));
+  url.searchParams.set("orientation", requirement.desiredAspectRatio === "4:5" ? "portrait" : requirement.desiredAspectRatio === "16:9" || requirement.desiredAspectRatio === "5:4" ? "landscape" : "square");
+  diagnostic.apiCallCount += 1;
+  const response = await fetch(url, { headers: { Authorization: apiKey } });
+  if (!response.ok) return [];
+  const payload = await response.json() as {
+    photos?: Array<{ id: number; width?: number; height?: number; alt?: string; photographer?: string; photographer_url?: string; url?: string; src?: Record<string, string> }>;
+  };
+  return (payload.photos ?? []).flatMap((photo) => {
+    const imageUrl = photo.src?.large2x ?? photo.src?.large ?? photo.src?.original;
+    if (!imageUrl) return [];
+    return [{
+      provider: "pexels" as const,
+      providerAssetId: String(photo.id),
+      imageUrl,
+      sourceUrl: photo.url ?? null,
+      description: photo.alt ?? "",
+      tags: Array.from(semanticTokens([photo.alt ?? ""])),
+      attribution: photo.photographer ? `Photo by ${photo.photographer} on Pexels` : "Pexels",
+      license: "Pexels License",
+      width: photo.width ?? null,
+      height: photo.height ?? null,
+    }];
+  });
+};
+
+const pixabayCandidates = async (
+  requirement: AssetRequirement,
+  count: number,
+  diagnostic: AssetResolutionDiagnostic,
+): Promise<StockCandidate[]> => {
+  const apiKey = getOptionalPixabayApiKey();
+  if (!apiKey) return [];
+  const url = new URL("https://pixabay.com/api/");
+  url.searchParams.set("key", apiKey);
+  url.searchParams.set("q", stockSearchQuery(requirement));
+  url.searchParams.set("image_type", "photo");
+  url.searchParams.set("orientation", requirement.desiredAspectRatio === "4:5" ? "vertical" : requirement.desiredAspectRatio === "16:9" || requirement.desiredAspectRatio === "5:4" ? "horizontal" : "all");
+  url.searchParams.set("per_page", String(Math.max(8, Math.min(24, count * 3))));
+  url.searchParams.set("safesearch", "true");
+  diagnostic.apiCallCount += 1;
+  const response = await fetch(url);
+  if (!response.ok) return [];
+  const payload = await response.json() as {
+    hits?: Array<{ id: number; imageWidth?: number; imageHeight?: number; largeImageURL?: string; webformatURL?: string; tags?: string; user?: string; pageURL?: string }>;
+  };
+  return (payload.hits ?? []).flatMap((image) => {
+    const imageUrl = image.largeImageURL ?? image.webformatURL;
+    if (!imageUrl) return [];
+    const tags = (image.tags ?? "").split(",").map((tag) => tag.trim()).filter(Boolean);
+    return [{
+      provider: "pixabay" as const,
+      providerAssetId: String(image.id),
+      imageUrl,
+      sourceUrl: image.pageURL ?? null,
+      description: tags.join(" ") || requirement.subject,
+      tags,
+      attribution: image.user ? `Image by ${image.user} on Pixabay` : "Pixabay",
+      license: "Pixabay Content License",
+      width: image.imageWidth ?? null,
+      height: image.imageHeight ?? null,
+    }];
+  });
+};
+
+const rankStockCandidates = (requirement: AssetRequirement, candidates: StockCandidate[]) => {
+  const required = expandSemanticTags(semanticTokens([requirement.subject, ...requirement.semanticTags]));
+  const targetRatio = requirement.desiredAspectRatio === "1:1" ? 1
+    : requirement.desiredAspectRatio === "4:5" ? 4 / 5
+      : requirement.desiredAspectRatio === "5:4" ? 5 / 4
+        : requirement.desiredAspectRatio === "16:9" ? 16 / 9
+          : null;
+  return candidates
+    .map((candidate) => {
+      const subjectScore = semanticOverlap(required, semanticTokens([candidate.description, ...candidate.tags]));
+      const ratio = candidate.width && candidate.height ? candidate.width / candidate.height : null;
+      const aspectScore = targetRatio && ratio ? Math.max(0, 3 - Math.abs(Math.log(ratio / targetRatio)) * 3) : 0;
+      return { candidate, subjectScore, score: subjectScore * 10 + aspectScore };
+    })
+    .filter((entry) => entry.subjectScore > 0)
+    .sort((left, right) => right.score - left.score || left.candidate.providerAssetId.localeCompare(right.candidate.providerAssetId))
+    .map((entry) => entry.candidate);
+};
+
+const resolveStockAssets = async ({
+  admin,
+  requirement,
+  count,
+  diagnostic,
+}: {
+  admin: AdminClient;
+  requirement: AssetRequirement;
+  count: number;
+  diagnostic: AssetResolutionDiagnostic;
+}) => {
+  if (requirement.semanticCategory === "logo") return { assets: [] as VisualAssetRow[], candidateCount: 0 };
+  const stockRequirement: AssetRequirement = {
+    ...requirement,
+    assetType: "photo",
+    transparentBackground: false,
+    reuseKey: stableReuseKey(requirement),
+  };
+  const pexels = rankStockCandidates(stockRequirement, await pexelsCandidates(stockRequirement, count, diagnostic));
+  const pixabay = pexels.length >= count
+    ? []
+    : rankStockCandidates(stockRequirement, await pixabayCandidates(stockRequirement, count - pexels.length, diagnostic));
+  const candidates = [...pexels, ...pixabay];
+  const selected = candidates.slice(0, count);
+  const assets: VisualAssetRow[] = [];
+  for (const candidate of selected) {
+    try {
+      const bytes = await fetchRemoteBytes(candidate.imageUrl);
+      const saved = await saveNormalizedAsset({
+        admin,
+        ownerId: null,
+        projectId: null,
+        requirement: stockRequirement,
+        bytes,
+        source: "stock",
+        provider: candidate.provider,
+        providerAssetId: candidate.providerAssetId,
+        sourceUrl: candidate.sourceUrl,
+        attribution: candidate.attribution,
+        license: candidate.license,
+        tags: candidate.tags,
+        visibility: "public_reusable",
+        diagnostic,
+      });
+      assets.push(saved.asset);
+    } catch (error) {
+      console.warn("[visual-assets] Stock candidate persistence failed", {
+        provider: candidate.provider,
+        providerAssetId: candidate.providerAssetId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  return { assets, candidateCount: candidates.length };
+};
+
+const resolveUserUpload = async ({
   admin,
   ownerId,
   projectId,
   requirement,
-  remoteUrl,
-  source,
-  provider,
-  license,
-  width,
-  height,
-  metadata,
-  visibilityOverride,
-  verificationOverride,
 }: {
   admin: AdminClient;
-  ownerId: string | null;
-  projectId: string | null;
+  ownerId: string;
+  projectId: string;
   requirement: AssetRequirement;
-  remoteUrl: string;
-  source: VisualAssetSource;
-  provider: VisualAssetProvider;
-  license?: string | null;
-  width?: number | null;
-  height?: number | null;
-  metadata?: Record<string, unknown>;
-  visibilityOverride?: VisualAssetVisibility;
-  verificationOverride?: AssetVerificationResult;
-}): Promise<SavedAsset> => {
-  const fetched = await fetchRemoteBytes(remoteUrl);
-
-  return saveAssetFromBytes({
-    admin,
-    ownerId,
-    projectId,
-    requirement,
-    bytes: fetched.bytes,
-    contentType: fetched.contentType,
-    source,
-    provider,
-    license,
-    width,
-    height,
-    metadata,
-    visibilityOverride,
-    verificationOverride,
-    originalRemoteUrl: remoteUrl,
-  });
+}) => {
+  if (!requirement.userAssetId) return null;
+  const { data, error } = await admin
+    .from("user_image_assets")
+    .select("*")
+    .eq("id", requirement.userAssetId)
+    .eq("owner_id", ownerId)
+    .eq("project_id", projectId)
+    .maybeSingle();
+  if (error) throw error;
+  return data as UserImageAssetRow | null;
 };
 
-const resolvePexelsStockAsset = async (
-  requirement: AssetRequirement,
-): Promise<ScreenAssetManifest | null> => {
-  const apiKey = getOptionalPexelsApiKey();
-  if (!apiKey || !isStockEligible(requirement)) {
-    return null;
-  }
-
-  const url = new URL("https://api.pexels.com/v1/search");
-  url.searchParams.set("query", requirement.subject);
-  url.searchParams.set("per_page", "1");
-  url.searchParams.set("orientation", stockOrientationForRequirement(requirement));
-
-  const response = await fetch(url, { headers: { Authorization: apiKey } });
-  if (!response.ok) {
-    return null;
-  }
-
-  const payload = await response.json() as {
-    photos?: Array<{
-      id: number;
-      alt?: string;
-      width?: number;
-      height?: number;
-      photographer?: string;
-      url?: string;
-      src?: Record<string, string>;
-    }>;
-  };
-  const photo = payload.photos?.[0];
-  if (!photo) {
-    return null;
-  }
-  const remoteUrl = photo?.src?.large2x ?? photo?.src?.large ?? photo?.src?.original;
-  if (!remoteUrl) {
-    return null;
-  }
-
-  return transientStockManifest({
-    requirement,
-    provider: "pexels",
-    url: remoteUrl,
-    license: "Pexels API",
-    width: photo.width,
-    height: photo.height,
-    alt: photo.alt,
-    attribution: photo.photographer ? `Photo by ${photo.photographer} on Pexels` : "Pexels",
-    sourceUrl: photo.url,
-  });
-};
-
-const resolvePixabayStockAsset = async (
-  requirement: AssetRequirement,
-): Promise<ScreenAssetManifest | null> => {
-  const apiKey = getOptionalPixabayApiKey();
-  if (!apiKey || !isStockEligible(requirement)) {
-    return null;
-  }
-
-  const url = new URL("https://pixabay.com/api/");
-  url.searchParams.set("key", apiKey);
-  url.searchParams.set("q", requirement.subject);
-  url.searchParams.set("image_type", "photo");
-  url.searchParams.set("orientation", stockOrientationForRequirement(requirement));
-  url.searchParams.set("per_page", "3");
-  url.searchParams.set("safesearch", "true");
-
-  const response = await fetch(url);
-  if (!response.ok) {
-    return null;
-  }
-
-  const payload = await response.json() as {
-    hits?: Array<{
-      id: number;
-      largeImageURL?: string;
-      webformatURL?: string;
-      imageWidth?: number;
-      imageHeight?: number;
-      user?: string;
-      pageURL?: string;
-    }>;
-  };
-  const image = payload.hits?.[0];
-  if (!image) {
-    return null;
-  }
-  const remoteUrl = image?.largeImageURL ?? image?.webformatURL;
-  if (!remoteUrl) {
-    return null;
-  }
-
-  return transientStockManifest({
-    requirement,
-    provider: "pixabay",
-    url: remoteUrl,
-    license: "Pixabay Content License",
-    width: image.imageWidth,
-    height: image.imageHeight,
-    alt: requirement.subject,
-    attribution: image.user ? `Image by ${image.user} on Pixabay` : "Pixabay",
-    sourceUrl: image.pageURL,
-  });
-};
-
-const resolveStockAsset = async (requirement: AssetRequirement): Promise<ScreenAssetManifest | null> => {
-  try {
-    return await resolvePexelsStockAsset(requirement)
-      ?? await resolvePixabayStockAsset(requirement);
-  } catch (error) {
-    console.warn("[visual-assets] Stock resolution failed", { requirementId: requirement.id, error });
-    return null;
-  }
-};
-
-export async function importCuratedVisualAsset({
+const resolveRequirement = async ({
   admin,
-  imageUrl,
-  subject,
-  role,
-  assetType = "transparent_png",
-  hasAlpha = true,
-  tags = [],
-  reuseKey,
-  license = "Drawgle curated internal library",
-  width,
-  height,
-  metadata = {},
+  ownerId,
+  projectId,
+  requirement,
+  memoryCache,
 }: {
   admin: AdminClient;
-  imageUrl: string;
-  subject: string;
-  role: VisualAssetRole;
-  assetType?: VisualAssetType;
-  hasAlpha?: boolean;
-  tags?: string[];
-  reuseKey?: string;
-  license?: string | null;
-  width?: number | null;
-  height?: number | null;
-  metadata?: Record<string, unknown>;
-}) {
-  const requirement: AssetRequirement = {
-    id: `curated-${slugify(subject)}`,
-    screenName: "Curated Library",
-    role,
-    subject,
-    assetType,
-    sourcePreference: "internal_library",
-    desiredAspectRatio: width && height
-      ? width > height ? "5:4" : height > width ? "4:5" : "1:1"
-      : "free",
-    transparentBackground: hasAlpha,
-    placementHint: "Reusable curated Drawgle asset for premium mobile UI compositions.",
-    priority: "supporting",
-    reuseKey: reuseKey ?? `${role}-${subject}`,
-  };
+  ownerId: string;
+  projectId: string;
+  requirement: AssetRequirement;
+  memoryCache: Map<string, VisualAssetRow[]>;
+}): Promise<ResolvedRequirement> => {
+  const startedAt = Date.now();
+  const diagnostic = createDiagnostic(requirement, startedAt);
+  const desiredCount = requirement.reusePolicy === "distinct" ? requirement.slotCount : 1;
 
-  return saveAssetFromRemoteUrl({
-    admin,
-    ownerId: null,
-    projectId: null,
-    requirement,
-    remoteUrl: imageUrl,
-    source: "internal_library",
-    provider: "drawgle_r2",
-    license,
-    width,
-    height,
-    metadata: {
-      ...metadata,
-      tags,
-      curated: true,
-    },
-    visibilityOverride: "public_reusable",
-    verificationOverride: {
-      status: "verified",
-      score: 0.92,
-      notes: "Manually approved curated internal library asset.",
-    },
-  });
-}
+  if (requirement.userAssetId || requirement.sourcePreference === "user_upload") {
+    const upload = await resolveUserUpload({ admin, ownerId, projectId, requirement });
+    diagnostic.selectedVia = upload ? "user_upload" : "placeholder";
+    diagnostic.selectedSource = upload ? "user_upload" : "placeholder";
+    diagnostic.rejectionCode = upload ? null : requirement.userAssetId ? "user_asset_not_accessible" : "user_asset_id_required";
+    diagnostic.durationMs = Date.now() - startedAt;
+    return {
+      manifests: upload ? [manifestFromUserAsset(upload, requirement)] : [placeholderManifest(requirement, diagnostic.rejectionCode ?? "user_asset_unavailable")],
+      assetIds: [],
+      diagnostic,
+    };
+  }
 
-export async function importCuratedVisualAssetFromBytes({
-  admin,
-  bytes,
-  contentType,
-  subject,
-  role,
-  assetType = "transparent_png",
-  hasAlpha = true,
-  tags = [],
-  reuseKey,
-  license = "Drawgle curated internal library",
-  width,
-  height,
-  metadata = {},
-}: {
-  admin: AdminClient;
-  bytes: Uint8Array;
-  contentType: string;
-  subject: string;
-  role: VisualAssetRole;
-  assetType?: VisualAssetType;
-  hasAlpha?: boolean;
-  tags?: string[];
-  reuseKey?: string;
-  license?: string | null;
-  width?: number | null;
-  height?: number | null;
-  metadata?: Record<string, unknown>;
-}) {
-  const requirement: AssetRequirement = {
-    id: `curated-${slugify(subject)}`,
-    screenName: "Curated Library",
-    role,
-    subject,
-    assetType,
-    sourcePreference: "internal_library",
-    desiredAspectRatio: width && height
-      ? width > height ? "5:4" : height > width ? "4:5" : "1:1"
-      : "free",
-    transparentBackground: hasAlpha,
-    placementHint: "Reusable curated Drawgle asset for premium mobile UI compositions.",
-    priority: "supporting",
-    reuseKey: reuseKey ?? `${role}-${subject}`,
-  };
+  const cacheKey = `${requirement.sourcePreference}:${semanticRequirementKey(requirement)}:${requirement.reusePolicy}:${desiredCount}`;
+  const memoryAssets = memoryCache.get(cacheKey);
+  if (memoryAssets?.length) {
+    diagnostic.cacheHit = true;
+    diagnostic.selectedVia = "cache";
+    diagnostic.selectedSource = memoryAssets[0].source as VisualAssetSource;
+    diagnostic.selectedAssetId = memoryAssets[0].id;
+    diagnostic.candidateCount = memoryAssets.length;
+    diagnostic.durationMs = Date.now() - startedAt;
+    return {
+      manifests: memoryAssets.map((asset, index) => manifestFromAsset(asset, requirement, requirement.reusePolicy === "distinct" ? index : undefined)),
+      assetIds: memoryAssets.map((asset) => asset.id),
+      diagnostic,
+    };
+  }
 
-  return saveAssetFromBytes({
-    admin,
-    ownerId: null,
-    projectId: null,
-    requirement,
-    bytes,
-    contentType,
-    source: "internal_library",
-    provider: "drawgle_r2",
-    license,
-    width,
-    height,
-    metadata: {
-      ...metadata,
-      tags,
-      curated: true,
-    },
-    visibilityOverride: "public_reusable",
-    verificationOverride: {
-      status: "verified",
-      score: 0.92,
-      notes: "Manually approved curated internal library asset.",
-    },
-  });
-}
+  const cached = await findCachedStockAssets({ admin, ownerId, projectId, requirement, limit: desiredCount });
+  diagnostic.candidateCount += cached.candidateCount;
+  let assets: VisualAssetRow[] = cached.assets;
+  if (assets.length) {
+    diagnostic.selectedVia = "cache";
+    diagnostic.cacheHit = true;
+  }
+
+  if (assets.length < desiredCount) {
+    const curated = await findCuratedAssets({ admin, ownerId, projectId, requirement, limit: desiredCount - assets.length });
+    diagnostic.candidateCount += curated.candidateCount;
+    assets = [...assets, ...curated.assets.filter((candidate) => !assets.some((asset) => asset.id === candidate.id))];
+    if (curated.assets.length && !diagnostic.selectedVia) diagnostic.selectedVia = "curated";
+  }
+
+  if (assets.length < desiredCount) {
+    const stock = await resolveStockAssets({ admin, requirement, count: desiredCount - assets.length, diagnostic });
+    diagnostic.candidateCount += stock.candidateCount;
+    assets = [...assets, ...stock.assets.filter((candidate) => !assets.some((asset) => asset.id === candidate.id))];
+    if (stock.assets.length && !diagnostic.selectedVia) diagnostic.selectedVia = "stock";
+  }
+
+  assets = assets.slice(0, desiredCount);
+  if (assets.length) memoryCache.set(cacheKey, assets);
+  diagnostic.selectedAssetId = assets[0]?.id ?? null;
+  diagnostic.selectedSource = (assets[0]?.source as VisualAssetSource | undefined) ?? "placeholder";
+  diagnostic.selectedVia = diagnostic.selectedVia ?? (assets.length ? "curated" : "placeholder");
+  diagnostic.rejectionCode = assets.length ? null : "no_semantic_match";
+  diagnostic.durationMs = Date.now() - startedAt;
+
+  const manifests = assets.map((asset, index) =>
+    manifestFromAsset(asset, requirement, requirement.reusePolicy === "distinct" ? index : undefined));
+  if (requirement.reusePolicy === "distinct") {
+    for (let index = assets.length; index < desiredCount; index++) {
+      manifests.push(placeholderManifest(requirement, "No additional distinct semantic match found.", index));
+    }
+  } else if (manifests.length === 0) {
+    manifests.push(placeholderManifest(requirement, "No semantically compatible curated or stock image found."));
+  }
+
+  return { manifests, assetIds: assets.map((asset) => asset.id), diagnostic };
+};
 
 const recordUsage = async ({
   admin,
@@ -1678,16 +821,15 @@ const recordUsage = async ({
   requirement: AssetRequirement;
   assetId: string;
 }) => {
-  await admin.from("project_asset_usages").upsert({
+  const { error } = await admin.from("project_asset_usages").upsert({
     project_id: projectId,
     generation_run_id: generationRunId,
     asset_id: assetId,
     requirement_id: requirement.id,
     screen_name: requirement.screenName,
     placement_hint: requirement.placementHint,
-  }, {
-    onConflict: "project_id,generation_run_id,requirement_id,asset_id",
-  });
+  }, { onConflict: "project_id,generation_run_id,requirement_id,asset_id" });
+  if (error) console.warn("[visual-assets] Failed to record usage", { requirementId: requirement.id, assetId, error });
 };
 
 export async function resolveProjectAssets({
@@ -1706,79 +848,29 @@ export async function resolveProjectAssets({
   const assetsByScreen: ProjectAssetManifest["assetsByScreen"] = {};
   const failures: NonNullable<ProjectAssetManifest["failures"]> = [];
   const diagnostics: NonNullable<ProjectAssetManifest["diagnostics"]> = [];
+  const memoryCache = new Map<string, VisualAssetRow[]>();
 
   for (const requirement of requirements) {
     try {
-      if (requirement.sourcePreference === "user_upload") {
-        const reason = "User-upload project asset resolution is not available in generation V1.";
-        failures.push({
-          requirementId: requirement.id,
-          screenName: requirement.screenName,
-          subject: requirement.subject,
-          priority: requirement.priority,
-          reason,
-          fatal: false,
-        });
-        assetsByScreen[requirement.screenName] = [
-          ...(assetsByScreen[requirement.screenName] ?? []),
-          placeholderManifest(requirement, reason),
-        ];
-        continue;
-      }
-
-      let manifest: ScreenAssetManifest | null = null;
-      const shouldSearchCurated = requirement.sourcePreference === "internal_library" || requirement.transparentBackground;
-      const shouldSearchStock = requirement.sourcePreference === "stock" || isStockEligible(requirement);
-
-      if (shouldSearchCurated) {
-        const lookup = await findReusableAsset(admin, ownerId, projectId, requirement);
-        diagnostics.push(lookup.diagnostic);
-        if (lookup.saved) {
-          await recordUsage({ admin, projectId, generationRunId, requirement, assetId: lookup.saved.asset.id });
-          manifest = manifestFromAsset(lookup.saved.asset, requirement, lookup.saved.displayVariant);
-        }
-      }
-      if (!manifest && shouldSearchStock && isStockEligible(requirement)) {
-        manifest = await resolveStockAsset(requirement);
-      }
-
-      if (!manifest) {
-        // Fallback: If curated lookup failed or was not found, try stock photos
-        // as a smart fallback rather than returning a blank/grey placeholder SVG
-        const canFallbackToStock =
-          requirement.assetType === "photo" ||
-          requirement.assetType === "transparent_png" ||
-          ["hero_cutout", "product_cutout", "section_photo", "background_photo", "product_photo", "avatar"].includes(requirement.role);
-
-        if (canFallbackToStock) {
-          const stockFallbackReq = {
-            ...requirement,
-            transparentBackground: false, // We'd rather have a real background image than a filthy placeholder SVG
-            assetType: "photo" as const,
-          };
-          manifest = await resolveStockAsset(stockFallbackReq);
-        }
-      }
-
-      if (!manifest) {
-        const reason = shouldSearchCurated
-          ? "No matching curated visual asset found."
-          : "No matching stock photo found.";
-        failures.push({
-          requirementId: requirement.id,
-          screenName: requirement.screenName,
-          subject: requirement.subject,
-          priority: requirement.priority,
-          reason,
-          fatal: false,
-        });
-        manifest = placeholderManifest(requirement, reason);
-      }
-
+      const resolved = await resolveRequirement({ admin, ownerId, projectId, requirement, memoryCache });
+      diagnostics.push(resolved.diagnostic);
       assetsByScreen[requirement.screenName] = [
         ...(assetsByScreen[requirement.screenName] ?? []),
-        manifest,
+        ...resolved.manifests,
       ];
+      for (const assetId of new Set(resolved.assetIds)) {
+        await recordUsage({ admin, projectId, generationRunId, requirement, assetId });
+      }
+      if (resolved.manifests.every((manifest) => manifest.placeholder)) {
+        failures.push({
+          requirementId: requirement.id,
+          screenName: requirement.screenName,
+          subject: requirement.subject,
+          priority: requirement.priority,
+          reason: resolved.diagnostic.rejectionCode ?? "No visual asset resolved.",
+          fatal: false,
+        });
+      }
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       failures.push({
@@ -1789,22 +881,127 @@ export async function resolveProjectAssets({
         reason,
         fatal: false,
       });
+      diagnostics.push({
+        ...createDiagnostic(requirement, Date.now()),
+        selectedVia: "placeholder",
+        selectedSource: "placeholder",
+        rejectionCode: "resolver_error",
+      });
       assetsByScreen[requirement.screenName] = [
         ...(assetsByScreen[requirement.screenName] ?? []),
         placeholderManifest(requirement, reason),
       ];
-      console.warn("[visual-assets] Requirement failed", {
-        requirementId: requirement.id,
-        subject: requirement.subject,
-        error: reason,
-      });
+      console.warn("[visual-assets] Requirement failed", { requirementId: requirement.id, error: reason });
     }
   }
 
+  return { requirements, assetsByScreen, failures, diagnostics };
+}
+
+const curatedRequirement = ({
+  subject,
+  role,
+  assetType,
+  hasAlpha,
+  semanticCategory,
+  tags,
+  reuseKey,
+  width,
+  height,
+}: {
+  subject: string;
+  role: VisualAssetRole;
+  assetType: VisualAssetType;
+  hasAlpha: boolean;
+  semanticCategory?: VisualAssetSemanticCategory;
+  tags: string[];
+  reuseKey?: string;
+  width?: number | null;
+  height?: number | null;
+}): AssetRequirement => {
+  const category = semanticCategory ?? inferSemanticCategory([subject, ...tags].join(" "), role);
   return {
-    requirements,
-    assetsByScreen,
-    failures,
-    diagnostics,
+    id: `curated-${slugify(subject)}`,
+    screenName: "Curated Library",
+    role,
+    subject,
+    assetType,
+    sourcePreference: "internal_library",
+    desiredAspectRatio: width && height ? width > height ? "5:4" : height > width ? "4:5" : "1:1" : "free",
+    transparentBackground: hasAlpha,
+    placementHint: "Reusable curated asset; the builder may place it in any compatible visual slot.",
+    priority: "supporting",
+    reuseKey: reuseKey ?? `${role}-${category}-${subject}`,
+    semanticCategory: category,
+    semanticTags: normalizeSemanticTags(tags, category).slice(0, 8),
+    slotCount: 1,
+    reusePolicy: "repeat",
   };
+};
+
+export async function importCuratedVisualAssetFromBytes({
+  admin,
+  bytes,
+  subject,
+  role,
+  assetType = "transparent_png",
+  hasAlpha = true,
+  semanticCategory,
+  tags = [],
+  reuseKey,
+  license = "Drawgle curated internal library",
+  width,
+  height,
+}: {
+  admin: AdminClient;
+  bytes: Uint8Array;
+  contentType: string;
+  subject: string;
+  role: VisualAssetRole;
+  assetType?: VisualAssetType;
+  hasAlpha?: boolean;
+  semanticCategory?: VisualAssetSemanticCategory;
+  tags?: string[];
+  reuseKey?: string;
+  license?: string | null;
+  width?: number | null;
+  height?: number | null;
+  metadata?: Record<string, unknown>;
+}) {
+  const requirement = curatedRequirement({ subject, role, assetType, hasAlpha, semanticCategory, tags, reuseKey, width, height });
+  return saveNormalizedAsset({
+    admin,
+    ownerId: null,
+    projectId: null,
+    requirement,
+    bytes,
+    source: "internal_library",
+    provider: "drawgle_r2",
+    license,
+    tags,
+    visibility: "public_reusable",
+  });
+}
+
+export async function importCuratedVisualAsset({
+  admin,
+  imageUrl,
+  ...input
+}: {
+  admin: AdminClient;
+  imageUrl: string;
+  subject: string;
+  role: VisualAssetRole;
+  assetType?: VisualAssetType;
+  hasAlpha?: boolean;
+  semanticCategory?: VisualAssetSemanticCategory;
+  tags?: string[];
+  reuseKey?: string;
+  license?: string | null;
+  width?: number | null;
+  height?: number | null;
+  metadata?: Record<string, unknown>;
+}) {
+  const bytes = await fetchRemoteBytes(imageUrl);
+  return importCuratedVisualAssetFromBytes({ admin, bytes, contentType: "application/octet-stream", ...input });
 }

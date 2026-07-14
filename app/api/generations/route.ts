@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { getDesignStylePack, isDesignStyleId, summarizeDesignStyle } from "@/lib/generation/design-styles";
+import { VISUAL_ASSET_SEMANTIC_CATEGORIES } from "@/lib/generation/asset-semantics";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
@@ -68,6 +69,11 @@ const requestSchema = z.object({
           placementHint: z.string().trim().min(1).max(500),
           priority: z.enum(["critical", "supporting", "optional"]),
           reuseKey: z.string().trim().min(1).max(160),
+          semanticCategory: z.enum(VISUAL_ASSET_SEMANTIC_CATEGORIES).default("other"),
+          semanticTags: z.array(z.string().trim().min(1).max(80)).max(8).default([]),
+          slotCount: z.number().int().min(1).max(12).default(1),
+          reusePolicy: z.enum(["repeat", "distinct"]).default("repeat"),
+          userAssetId: z.string().uuid().optional(),
         })).max(4).optional(),
         chromePolicy: z.object({
           chrome: z.enum(["bottom-tabs", "top-bar", "top-bar-back", "modal-sheet", "immersive"]),

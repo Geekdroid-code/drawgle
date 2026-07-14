@@ -24,6 +24,7 @@ import {
   isBlockingScreenHealthFailure,
   screenStatusForHealth,
   sanitizeStaticDrawgleHtml,
+  sanitizeScreenAssetUsage,
   stripGenerationCompleteSentinel,
   validateSourceCompletion,
   validateGeneratedScreenCode,
@@ -168,6 +169,8 @@ type GenerationAttemptDiagnostics = {
   tokenDriftWarnings: string[];
   localNavigationReasons: string[];
   localNavigationCandidates: string[];
+  assetSanitizedMisuseCount: number;
+  assetSanitizationWarnings: string[];
 };
 
 const collectUsageMetadata = (chunk: unknown, usage: GeminiUsageMetadata) => {
@@ -231,6 +234,8 @@ const buildAttemptDiagnostics = ({
     tokenDriftWarnings: tokenDrift?.warnings ?? [],
     localNavigationReasons: [],
     localNavigationCandidates: [],
+    assetSanitizedMisuseCount: 0,
+    assetSanitizationWarnings: [],
   };
 };
 
@@ -1183,7 +1188,16 @@ export const buildScreenTask = task({
       });
     }
 
-    const code = finalized.code;
+    const assetSanitization = sanitizeScreenAssetUsage({
+      code: finalized.code,
+      assetManifest: payload.assetManifest,
+    });
+    const latestAttempt = attempts.at(-1);
+    if (latestAttempt) {
+      latestAttempt.assetSanitizedMisuseCount = assetSanitization.sanitizedMisuseCount;
+      latestAttempt.assetSanitizationWarnings = assetSanitization.warnings;
+    }
+    const code = assetSanitization.code;
     const localNavigation = payload.navigationPlan?.enabled
       ? detectLocalNavigationMarkup(code)
       : { hasLocalNavigation: false, reasons: [], candidates: [] };
@@ -1217,13 +1231,21 @@ export const buildScreenTask = task({
       attempts,
       health,
       assetPolicy,
+      assetSanitization: {
+        changed: assetSanitization.changed,
+        sanitizedMisuseCount: assetSanitization.sanitizedMisuseCount,
+        warnings: assetSanitization.warnings,
+        invalidUrls: assetSanitization.invalidUrls,
+        roleMismatches: assetSanitization.roleMismatches,
+      },
     });
 
-    if (assetPolicy.warnings.length > 0) {
+    if (assetPolicy.warnings.length > 0 || assetSanitization.warnings.length > 0) {
       const latestAttempt = attempts.at(-1);
       if (latestAttempt) {
         latestAttempt.qualityWarnings = Array.from(new Set([
           ...latestAttempt.qualityWarnings,
+          ...assetSanitization.warnings,
           ...assetPolicy.warnings,
         ]));
       }
@@ -1232,6 +1254,7 @@ export const buildScreenTask = task({
         screenId: payload.screenId,
         screenName: payload.screenPlan.name,
         invalidUrls: assetPolicy.invalidUrls,
+        sanitizedMisuseCount: assetSanitization.sanitizedMisuseCount,
       });
     }
 
@@ -1306,7 +1329,11 @@ export const buildScreenTask = task({
       screenName: payload.screenPlan.name,
     });
 
-    return { screenId: payload.screenId, status: screenStatus };
+    return {
+      screenId: payload.screenId,
+      status: screenStatus,
+      sanitizedMisuseCount: assetSanitization.sanitizedMisuseCount,
+    };
   },
 });
 
@@ -1838,11 +1865,24 @@ export const generateUiFlowTask = task({
       generationRunId: payload.generationRunId,
       requirements: assetRequirements,
     });
+    const assetDiagnostics = projectAssetManifest.diagnostics ?? [];
+    const requirementCount = Math.max(assetRequirements.length, 1);
+    const assetLaunchMetrics = {
+      curatedHitRate: assetDiagnostics.filter((item) => item.selectedVia === "curated").length / requirementCount,
+      stockFallbackRate: assetDiagnostics.filter((item) => item.selectedSource === "stock").length / requirementCount,
+      placeholderRate: assetDiagnostics.filter((item) => item.selectedSource === "placeholder").length / requirementCount,
+      semanticRejectionRate: assetDiagnostics.filter((item) => Boolean(item.rejectionCode)).length / requirementCount,
+      cacheHitRate: assetDiagnostics.filter((item) => item.cacheHit).length / requirementCount,
+      apiCalls: assetDiagnostics.reduce((sum, item) => sum + item.apiCallCount, 0),
+      r2Writes: assetDiagnostics.reduce((sum, item) => sum + item.r2WriteCount, 0),
+      sanitizerActions: 0,
+    };
 
     await mergeGenerationRunMetadata(admin, payload.generationRunId, {
       assetRequirements,
       assetManifest: projectAssetManifest,
-      assetResolutionDiagnostics: projectAssetManifest.diagnostics ?? [],
+      assetResolutionDiagnostics: assetDiagnostics,
+      assetLaunchMetrics,
     });
 
     const resolvedAssetCount = Object.values(projectAssetManifest.assetsByScreen)
@@ -1971,6 +2011,7 @@ export const generateUiFlowTask = task({
     let failedScreens = 0;
     let successfulStateVariants = 0;
     let failedStateVariants = 0;
+    let sanitizerActions = 0;
 
     for (let index = 0; index < screenPlans.length; index++) {
       const screenPlan = screenPlans[index];
@@ -2044,6 +2085,21 @@ export const generateUiFlowTask = task({
 
         rowInserted = true;
 
+        const { error: usageScreenError } = await admin
+          .from("project_asset_usages")
+          .update({ screen_id: screenId })
+          .eq("project_id", payload.projectId)
+          .eq("generation_run_id", payload.generationRunId)
+          .eq("screen_name", screenPlan.name)
+          .is("screen_id", null);
+        if (usageScreenError) {
+          logger.warn("Failed to attach visual asset usages to screen", {
+            screenId,
+            screenName: screenPlan.name,
+            error: usageScreenError,
+          });
+        }
+
         await postStatusMessage(
           admin,
           payload.projectId,
@@ -2060,6 +2116,8 @@ export const generateUiFlowTask = task({
 
         // Wait for this screen to complete before moving to the next one.
         const result = await runs.poll(handle.id, { pollIntervalMs: 2000 });
+        const buildOutput = result?.output as { sanitizedMisuseCount?: number } | undefined;
+        sanitizerActions += buildOutput?.sanitizedMisuseCount ?? 0;
 
         if (result?.status === "COMPLETED") {
           const { data: completedScreen } = await admin
@@ -2233,6 +2291,10 @@ export const generateUiFlowTask = task({
       stateVariantCount: stateVariantsToBuild.length,
       successfulStateVariants,
       failedStateVariants,
+      assetLaunchMetrics: {
+        ...assetLaunchMetrics,
+        sanitizerActions,
+      },
     });
 
     await updateProject(admin, payload.projectId, {

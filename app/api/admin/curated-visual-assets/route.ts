@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { VISUAL_ASSET_SEMANTIC_CATEGORIES } from "@/lib/generation/asset-semantics";
 import { importCuratedVisualAsset } from "@/lib/generation/visual-assets";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -20,6 +21,7 @@ const CuratedAssetSchema = z.object({
     "map_texture",
   ]),
   assetType: z.enum(["transparent_png", "photo", "illustration", "icon_like"]).optional(),
+  semanticCategory: z.enum(VISUAL_ASSET_SEMANTIC_CATEGORIES).optional(),
   hasAlpha: z.boolean().optional(),
   tags: z.array(z.string().trim().min(1).max(80)).max(40).optional(),
   reuseKey: z.string().trim().min(1).max(160).optional(),
@@ -54,6 +56,7 @@ export async function POST(req: Request) {
       subject: asset.subject,
       role: asset.role,
       assetType: asset.assetType,
+      semanticCategory: asset.semanticCategory,
       hasAlpha: asset.hasAlpha,
       tags: asset.tags,
       reuseKey: asset.reuseKey,
@@ -66,7 +69,7 @@ export async function POST(req: Request) {
       id: saved.asset.id,
       subject: saved.asset.subject,
       publicUrl: saved.asset.public_url,
-      displayUrl: saved.displayVariant?.public_url ?? saved.asset.public_url,
+      displayUrl: saved.asset.public_url,
     });
   }
 

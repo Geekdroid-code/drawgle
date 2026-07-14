@@ -141,7 +141,11 @@ const plannerScreensJsonContract = `Return JSON with this exact top-level shape:
           "transparentBackground": true,
           "placementHint": "large foreground product image inside hero surface, object-contain, bottom aligned, never overlap text or nav",
           "priority": "critical",
-          "reuseKey": "premium-electric-scooter-side-view-cutout"
+          "reuseKey": "premium-electric-scooter-side-view-cutout",
+          "semanticCategory": "vehicle",
+          "semanticTags": ["electric", "scooter"],
+          "slotCount": 1,
+          "reusePolicy": "repeat"
         }
       ]
     }
@@ -201,7 +205,7 @@ Rules:
 - Material specificity: call out typography, imagery, chart geometry, background, rounded shapes, elevation, edge treatment, inner/outer borders, highlight edges, bevels, glass/frosting, and must-preserve composition cues. Avoid weak phrases like "clean dashboard" or "stats cards" unless immediately followed by exact anatomy.
 - Copy/anatomy: preserve real copy when it anchors layout; use placeholders only for volatile names, numbers, and dates. Do not duplicate anatomy across screens unless the product shell/reference clearly reuses it.
 - Viewport fit: include a 390px fit note, bottom-nav clearance when applicable, and how the screen avoids overflow, text collision, clipped nav, and bottom overlap. Shared-bottom-nav screens must reserve a clear bottom content zone; never place final rows, CTAs, cards, or map callouts under the nav shell.
-- Asset planning: plan bitmap needs in asset_needs; use [] when none. Declare subject, type, priority, and placementHint for product/vehicle/food/fashion objects, hero people, avatars, section/background photos, map textures, or large media planes.
+- Asset planning: plan bitmap groups in asset_needs; use [] when none. Declare subject, semanticCategory, semanticTags, type, priority, placementHint, slotCount, and reusePolicy. Eight similar image-bearing cards are one need with slotCount=8 and reusePolicy=repeat, not eight needs. Use distinct for different people or explicitly different named products.
 - Asset sourcePreference: internal_library for transparent foreground cutouts; stock for non-transparent photos/textures; user_upload only for explicit user-owned logo/product/brand/person/private image. Never output "ai_generated"; placeholders are resolved later. Do not request bitmaps for icons, decorative blobs, CSS gradients, HTML/CSS charts, simple cards, or generic chrome.
 - Mode cues: recreate mode needs at least 3 reference-traceable cues, including one layer/containment/depth cue when visible. Style mode needs at least 3 borrowed style cues from material, typography, edge/depth, iconography, or micro-shapes, while layout stays driven by the prompt and blueprint. If shared navigation is enabled, nav treatment is renderer-owned and must not appear as screen anatomy.
 - Final self-audit: every description must contain at least 8 concrete visible implementation cues and preserve consistency in spacing scale, card padding, type roles, nav family, and edge/radius language.`;
@@ -555,6 +559,8 @@ const formatAssetManifestLine = (asset: ScreenAssetManifest, index: number) => {
   const fields = [
     `#${index + 1}`,
     `role=${compactPromptField(asset.role)}`,
+    `category=${compactPromptField(asset.semanticCategory)}`,
+    `tags=${compactPromptField(asset.semanticTags.join(","))}`,
     `critical=${asset.critical ? "true" : "false"}`,
     `placeholder=${asset.placeholder ? "true" : "false"}`,
     `url=${compactPromptField(asset.variantUrl || asset.url)}`,
@@ -564,6 +570,9 @@ const formatAssetManifestLine = (asset: ScreenAssetManifest, index: number) => {
     `alpha=${asset.hasAlpha ? "true" : "false"}`,
     `alt=${compactPromptField(asset.alt)}`,
     `hint=${compactPromptField(asset.placementHint)}`,
+    `reuse=${asset.reusePolicy}`,
+    `expectedUses=${asset.expectedUses}`,
+    asset.slotIndex == null ? null : `slotIndex=${asset.slotIndex}`,
   ].filter(Boolean);
 
   return `- ${fields.join(" | ")}`;
@@ -585,7 +594,9 @@ const buildAssetManifestContract = (assetManifest?: ScreenAssetManifest[] | null
 
   return [
     realAssets.length > 0 ? "Use only listed bitmap URLs. Never invent/search image URLs." : "No approved bitmap URLs; render listed placeholders as CSS only.",
-    "Use each entry only for its role. Avatar assets are avatars only; product/hero/decorative assets must never become profile photos.",
+    "Use each entry only for its declared role and semantic category. Avatar assets are avatars only; product/hero/decorative assets must never become profile photos.",
+    "Every bitmap <img> must include data-asset-requirement-id and data-asset-role. The requirement id and role must exactly match the manifest entry used by that UI slot.",
+    "For reuse=repeat, use the same approved URL in every compatible repeated slot up to expectedUses; a correct repeated image is preferred over empty placeholders. For reuse=distinct, use each slotIndex entry at most once and never duplicate one identity.",
     "Critical non-placeholder entries must appear in returned HTML. Use the exact listed URL, meaningful alt text, size, fit, alpha, and placement hint.",
     "Placeholder entries: CSS surface + border/radius + Lucide icon + aspect ratio + short alt/role label; no img tag and no fake product/person/object artwork.",
     "Transparent cutouts use object-contain. Photos use object-cover unless hint says otherwise.",
