@@ -14,7 +14,9 @@ import { inferSemanticCategory, VISUAL_ASSET_SEMANTIC_CATEGORIES } from "@/lib/g
 import { formatDesignStyleContract, getDesignStylePack, summarizeDesignStyle } from "@/lib/generation/design-styles";
 import { createNavigationArchitecture, deriveRequiresBottomNav, resolveScreenChromePolicy } from "@/lib/navigation";
 import {
+  applyReferenceNavigationRolesToScreens,
   applyNavigationPlanToScreens,
+  deriveReferenceNavigationPlan,
   normalizeNavigationPlan,
   renderDeterministicNavigationShell,
   validateNavigationShell,
@@ -322,26 +324,104 @@ const NavigationArchitectureSchema = z.object({
   rationale: z.string().trim().min(1).max(2400),
 });
 
+const normalizeNavigationDesignAnatomy = (value: unknown) => {
+  if (typeof value !== "string") return value;
+  const normalized = value.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  if (/center|fab|notch|sculpt/.test(normalized)) return "center-action-dock";
+  if (/glass|frost|blur/.test(normalized)) return "glass-dock";
+  if (/compact|icon-only|icon-rail/.test(normalized)) return "compact-icon-rail";
+  if (/fixed|full|tab-rail/.test(normalized)) return "fixed-tab-rail";
+  return "floating-dock";
+};
+
+const normalizeNavigationLabels = (value: unknown) => {
+  if (typeof value !== "string") return value;
+  const normalized = value.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  if (/active/.test(normalized) && !/inactive|always/.test(normalized)) return "active-only";
+  if (/hidden|none|icon-only|icons-only|no-label/.test(normalized)) return "hidden";
+  return "always";
+};
+
+const normalizeNavigationElevation = (value: unknown) => {
+  if (typeof value !== "string") return value;
+  const normalized = value.toLowerCase();
+  if (/none|flat|zero/.test(normalized)) return "none";
+  if (/medium|high|strong|raised|elevated/.test(normalized)) return "medium";
+  return "low";
+};
+
+const normalizeNavigationWidth = (value: unknown) => {
+  if (typeof value !== "string") return value;
+  const normalized = value.toLowerCase();
+  if (/full|edge/.test(normalized)) return "full";
+  if (/inset|screen|container/.test(normalized)) return "inset";
+  return "content";
+};
+
+const normalizeNavigationActiveTreatment = (value: unknown) => {
+  if (typeof value !== "string") return value;
+  const normalized = value.toLowerCase();
+  if (/underline|line|indicator/.test(normalized)) return "underline";
+  if (/chip|pill|capsule/.test(normalized)) return "compact-chip";
+  if (/tint|color|colour/.test(normalized)) return "tint";
+  return "icon-fill";
+};
+
+const normalizeNavigationSurface = (value: unknown) => {
+  if (typeof value !== "string") return value;
+  const normalized = value.toLowerCase();
+  if (/glass|frost|blur/.test(normalized)) return "glass";
+  if (/translucent|transparent|alpha/.test(normalized)) return "translucent";
+  return "solid";
+};
+
+const normalizeNavigationEvidenceSource = (value: unknown) => {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value !== "string") return value;
+  const normalized = value.toLowerCase();
+  if (/reference|image|screenshot/.test(normalized)) return "reference";
+  if (/prompt|user|explicit/.test(normalized)) return "explicit-prompt";
+  if (/product|architecture|app|domain/.test(normalized)) return "product-architecture";
+  return value;
+};
+
+const normalizeNavigationDecision = (value: unknown) => {
+  if (typeof value !== "string") return value;
+  const normalized = value.toLowerCase();
+  if (/reference|image|screenshot/.test(normalized)) return "reference-derived";
+  if (/project|product|architecture|native/.test(normalized)) return "project-native";
+  if (/none|disabled|no-navigation/.test(normalized)) return "none";
+  return value;
+};
+
+const boundedNavigationNumber = (min: number, max: number) => z.preprocess((value) => {
+  const numeric = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numeric) ? Math.min(max, Math.max(min, Math.round(numeric))) : value;
+}, z.number().min(min).max(max));
+
 const NavigationDesignContractSchema = z.object({
-  anatomy: z.enum(["fixed-tab-rail", "floating-dock", "glass-dock", "compact-icon-rail", "center-action-dock"]),
-  width: z.enum(["content", "inset", "full"]),
-  labels: z.enum(["always", "active-only", "hidden"]),
-  active_treatment: z.enum(["icon-fill", "tint", "underline", "compact-chip"]),
-  surface: z.enum(["solid", "translucent", "glass"]),
-  radius_px: z.number().min(0).max(36),
-  safe_area_offset_px: z.number().min(4).max(28),
-  item_gap_px: z.number().min(0).max(16),
-  icon_size_px: z.number().min(16).max(26),
+  anatomy: z.preprocess(normalizeNavigationDesignAnatomy, z.enum(["fixed-tab-rail", "floating-dock", "glass-dock", "compact-icon-rail", "center-action-dock"])),
+  width: z.preprocess(normalizeNavigationWidth, z.enum(["content", "inset", "full"])),
+  labels: z.preprocess(normalizeNavigationLabels, z.enum(["always", "active-only", "hidden"])),
+  active_treatment: z.preprocess(normalizeNavigationActiveTreatment, z.enum(["icon-fill", "tint", "underline", "compact-chip"])),
+  surface: z.preprocess(normalizeNavigationSurface, z.enum(["solid", "translucent", "glass"])),
+  radius_px: boundedNavigationNumber(0, 36),
+  safe_area_offset_px: boundedNavigationNumber(4, 28),
+  item_gap_px: boundedNavigationNumber(0, 16),
+  icon_size_px: boundedNavigationNumber(16, 26),
   border: BooleanishSchema,
-  elevation: z.enum(["none", "low", "medium"]),
-  center_action_item_id: z.string().trim().min(1).max(80).nullable().optional(),
+  elevation: z.preprocess(normalizeNavigationElevation, z.enum(["none", "low", "medium"])),
+  center_action_item_id: z.preprocess(
+    (value) => typeof value === "string" && !value.trim() ? null : value,
+    z.string().trim().min(1).max(80).nullable().optional(),
+  ),
 }).nullable().optional();
 
 const NavigationPlanSchema = z.object({
-  version: z.literal(2),
-  decision: z.enum(["none", "project-native", "reference-derived"]),
+  version: z.preprocess((value) => Number(value), z.literal(2)),
+  decision: z.preprocess(normalizeNavigationDecision, z.enum(["none", "project-native", "reference-derived"])),
   evidence: z.object({
-    source: z.enum(["explicit-prompt", "reference", "product-architecture"]).nullable(),
+    source: z.preprocess(normalizeNavigationEvidenceSource, z.enum(["explicit-prompt", "reference", "product-architecture"]).nullable()),
     reason: z.string().trim().min(1).max(1200),
   }),
   enabled: BooleanishSchema.optional(),
@@ -351,8 +431,14 @@ const NavigationPlanSchema = z.object({
     label: z.string().trim().min(1).max(40),
     icon: z.string().trim().min(1).max(80),
     role: z.string().trim().min(1).max(240),
-    availability: z.enum(["generated", "planned"]).optional(),
-    linked_screen_name: z.string().trim().min(1).max(100).nullable().optional(),
+    availability: z.preprocess((value) => {
+      if (typeof value !== "string") return value;
+      return /generated|ready|built|existing/i.test(value) ? "generated" : "planned";
+    }, z.enum(["generated", "planned"]).optional()),
+    linked_screen_name: z.preprocess(
+      (value) => typeof value === "string" && !value.trim() ? null : value,
+      z.string().trim().min(1).max(100).nullable().optional(),
+    ),
   })).max(5).default([]),
   design: NavigationDesignContractSchema,
   visual_brief: z.string().trim().min(1).max(1600).optional(),
@@ -462,7 +548,11 @@ const compileProjectRoadmap = ({
     requestedParentCount,
     plannedItems,
   });
-  const scopedInitialKeys = scopeContract?.countSource === "prompt_count"
+  const scopedInitialKeys = scopeContract?.screens?.length && (
+    scopeContract.countSource === "prompt_count"
+    || scopeContract.countSource === "named_screens"
+    || scopeContract.countSource === "planning_mode"
+  )
     ? (scopeContract.screens ?? []).slice(0, 5).map((screen) => screenRoadmapKey(screen.name))
     : [];
   const initialBatchItemKeys = scopedInitialKeys.length > 0
@@ -1171,12 +1261,43 @@ const reconcileScreensWithScope = ({
   planningMode: PlanningMode;
   scopeContract?: GenerationScopeContract | null;
 }) => {
-  if (planningMode === "single-screen") {
-    return screens.slice(0, 1);
-  }
-
   const sections = parseExplicitScreenSections(prompt);
   const scopedScreens = scopeContract?.screens ?? [];
+
+  if (planningMode === "single-screen") {
+    const required = scopedScreens[0];
+    if (!required) {
+      return screens.slice(0, 1);
+    }
+
+    const exact = screens.find((screen) => normalizeScreenName(screen.name) === normalizeScreenName(required.name));
+    const candidate = exact ?? screens[0] ?? null;
+    const targetTerms = `${required.name} ${required.kind}`
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((term) => term.length >= 4 && !["screen", "page", "view", "detail"].includes(term));
+    const candidateText = candidate
+      ? `${candidate.name} ${candidate.description}`.toLowerCase()
+      : "";
+    const candidateMatchesTarget = Boolean(exact)
+      || targetTerms.some((term) => candidateText.includes(term));
+    const fallbackType: ScreenPlan["type"] = /home|dashboard|feed|library|browser|discovery|workspace|inbox/i.test(required.kind)
+      ? "root"
+      : "detail";
+    const resolved = candidateMatchesTarget && candidate
+      ? candidate
+      : {
+          ...fallbackScreenPlan(`${required.name}. ${prompt}`),
+          type: fallbackType,
+          stateVariants: candidate?.stateVariants ?? [],
+        };
+
+    return [{
+      ...resolved,
+      name: required.name,
+      roadmapStableKey: screenRoadmapKey(required.name),
+    } satisfies ScreenPlan];
+  }
 
   if (scopedScreens.length > 0) {
     const forceNoPersistentNav = looksLikeFiniteFlowWithoutPersistentNav(prompt, sections);
@@ -1337,12 +1458,16 @@ const fallbackScreensFromReference = ({
   planningMode: PlanningMode;
   referenceAnalysis: ReferenceAnalysis | null;
 }) => {
+  if (planningMode === "single-screen") {
+    return [fallbackScreenPlan(prompt)];
+  }
+
   if (!referenceAnalysis || referenceAnalysis.screenReferences.length === 0) {
     return [fallbackScreenPlan(prompt)];
   }
 
   const screens = referenceAnalysis.screenReferences
-    .slice(0, planningMode === "single-screen" ? 1 : 8)
+    .slice(0, 8)
     .map((referenceScreen, index) => ({
       name: humanizeReferenceRole(referenceScreen.suggestedRole, referenceScreen.index),
       type: index === 0 ? "root" : "detail",
@@ -2447,8 +2572,12 @@ export async function planUiFlow({
   }
 
   if (parsedBlueprint.success && parsedBlueprint.data.roadmap) {
-    const selectedKeys = resolvedScopeContract?.countSource === "prompt_count" && resolvedScopeContract.screens?.length
-      ? resolvedScopeContract.screens.slice(0, INITIAL_PROJECT_SCREEN_LIMIT).map((screen) => screenRoadmapKey(screen.name))
+    const scopeOwnsBatchSelection = resolvedScopeContract.screens?.length
+      && (resolvedScopeContract.countSource === "prompt_count"
+        || resolvedScopeContract.countSource === "named_screens"
+        || planningMode === "single-screen");
+    const selectedKeys = scopeOwnsBatchSelection
+      ? (resolvedScopeContract.screens ?? []).slice(0, INITIAL_PROJECT_SCREEN_LIMIT).map((screen) => screenRoadmapKey(screen.name))
       : parsedBlueprint.data.roadmap.initial_batch_keys.slice(0, INITIAL_PROJECT_SCREEN_LIMIT);
     const selectedNames = selectedKeys.flatMap((key) => {
       const roadmapItem = parsedBlueprint.data.roadmap?.items.find((item) => item.stable_key === key);
@@ -2478,7 +2607,9 @@ export async function planUiFlow({
       },
       {
         text: `Initial batch contract:\n${formatScreenCountContract(screenCountContract)}\n${parsedBlueprint.data.roadmap
-          ? "Return screen briefs only for roadmap.initial_batch_keys, in that exact order."
+          ? planningMode === "single-screen"
+            ? `Return exactly the requested additional screen${screenCountContract.namedScreens?.[0] ? ` named ${screenCountContract.namedScreens[0]}` : ""}. The blueprint roadmap is project context only; do not substitute one of its pre-existing screens.`
+            : "Return screen briefs only for roadmap.initial_batch_keys, in that exact order."
           : "Return only the parent screens selected by this contract, in exact prompt order."}`,
       },
     ];
@@ -2595,16 +2726,28 @@ export async function planUiFlow({
       prompt,
       referenceAnalysis,
     });
+    const navigationAwareScreens = applyReferenceNavigationRolesToScreens(
+      enforced.screens.map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture })),
+      referenceAnalysis,
+    );
     const screens = normalizeScreenBriefsWithFamilyContract({
       prompt,
       screenFamilyContract,
       screens: ensureBuilderGradeScreenBriefs({
-      referenceAnalysis,
-      screens: enforced.screens.map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture })),
+        referenceAnalysis,
+        screens: navigationAwareScreens,
       }),
     });
+    const suppliedNavigationPlan = salvaged.navigationPlan ?? (planningMode === "single-screen" ? existingNavigationPlan : null);
+    const referenceNavigationPlan = deriveReferenceNavigationPlan({ screens, referenceAnalysis });
+    const navigationCandidate = suppliedNavigationPlan && (
+      suppliedNavigationPlan.enabled
+      || (suppliedNavigationPlan.version === 2 && suppliedNavigationPlan.decision !== "none")
+    )
+      ? suppliedNavigationPlan
+      : referenceNavigationPlan;
     const navigationPlan = normalizeNavigationPlan({
-      navigationPlan: adjustedContract.disableSharedNavigation || forceFiniteFlowWithoutPersistentNav ? null : salvaged.navigationPlan ?? (planningMode === "single-screen" ? existingNavigationPlan : null),
+      navigationPlan: adjustedContract.disableSharedNavigation || forceFiniteFlowWithoutPersistentNav ? null : navigationCandidate,
       screens,
       navigationArchitecture,
       requiresBottomNav: deriveRequiresBottomNav(navigationArchitecture),
@@ -2770,12 +2913,8 @@ export async function planUiFlow({
     prompt,
     referenceAnalysis,
   });
-  const screens = normalizeScreenBriefsWithFamilyContract({
-    prompt,
-    screenFamilyContract,
-    screens: ensureBuilderGradeScreenBriefs({
-    referenceAnalysis,
-    screens: enforced.screens.map((screenPlan) => resolvePlannedScreen({
+  const navigationAwareScreens = applyReferenceNavigationRolesToScreens(
+    enforced.screens.map((screenPlan) => resolvePlannedScreen({
       screenPlan: {
         name: screenPlan.name,
         type: screenPlan.type,
@@ -2786,10 +2925,26 @@ export async function planUiFlow({
       },
       navigationArchitecture,
     })),
+    referenceAnalysis,
+  );
+  const screens = normalizeScreenBriefsWithFamilyContract({
+    prompt,
+    screenFamilyContract,
+    screens: ensureBuilderGradeScreenBriefs({
+      referenceAnalysis,
+      screens: navigationAwareScreens,
     }),
   });
+  const suppliedNavigationPlan = toNavigationPlan(parsed.data.navigation_plan) ?? (planningMode === "single-screen" ? existingNavigationPlan : null);
+  const referenceNavigationPlan = deriveReferenceNavigationPlan({ screens, referenceAnalysis });
+  const navigationCandidate = suppliedNavigationPlan && (
+    suppliedNavigationPlan.enabled
+    || (suppliedNavigationPlan.version === 2 && suppliedNavigationPlan.decision !== "none")
+  )
+    ? suppliedNavigationPlan
+    : referenceNavigationPlan;
   const navigationPlan = normalizeNavigationPlan({
-    navigationPlan: adjustedContract.disableSharedNavigation || forceFiniteFlowWithoutPersistentNav ? null : toNavigationPlan(parsed.data.navigation_plan) ?? (planningMode === "single-screen" ? existingNavigationPlan : null),
+    navigationPlan: adjustedContract.disableSharedNavigation || forceFiniteFlowWithoutPersistentNav ? null : navigationCandidate,
     screens,
     navigationArchitecture,
     requiresBottomNav: deriveRequiresBottomNav(navigationArchitecture),

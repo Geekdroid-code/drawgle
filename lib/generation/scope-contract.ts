@@ -34,6 +34,7 @@ const SCREEN_NOUNS = "screens?|pages?|views?";
 const ACTION_WORDS = "build|create|generate|make|design|recreate|convert|copy|render";
 const MAX_SCOPE_COUNT = 200;
 const MAX_MATERIALIZED_SCOPE_SCREENS = 24;
+const MAX_INITIAL_VISIBLE_SCREENS = 5;
 
 type PromptScreenIntent = {
   promptScreenCount: number | null;
@@ -248,6 +249,38 @@ const inferGroupKind = (phrase: string) => {
 export function parsePromptScreenIntent(prompt: string): PromptScreenIntent {
   const normalized = prompt.trim();
   const diagnostics: string[] = [];
+  const singleScreenName = normalized.match(/(?:^|\n)\s*Screen\s+name\s*:\s*([^\n]+)/i)?.[1]
+    ?.replace(/[.\s]+$/, "")
+    .trim()
+    .slice(0, 100);
+  const singleScreenRole = normalized.match(/(?:^|\n)\s*Screen\s+role\s*:\s*([^\n]+)/i)?.[1]
+    ?.replace(/[.\s]+$/, "")
+    .trim()
+    .slice(0, 80);
+
+  if (singleScreenName) {
+    const kind = singleScreenRole || inferGroupKind(singleScreenName);
+    diagnostics.push(`Detected explicit single-screen directive for ${singleScreenName}.`);
+    return {
+      promptScreenCount: 1,
+      namedScreenCount: 1,
+      source: "named_screens",
+      allScreensRequested: false,
+      diagnostics,
+      groups: [{
+        kind,
+        count: 1,
+        orderedNames: [singleScreenName],
+        sourceText: singleScreenName,
+        surfaceKind: "screen",
+      }],
+      screens: [{ index: 1, name: singleScreenName, kind }],
+      confidence: "high",
+      ambiguities: [],
+      requiresConfirmation: false,
+    };
+  }
+
   const namedScreenCount = extractNamedScreenCount(normalized);
 
   if (namedScreenCount) {
@@ -856,10 +889,12 @@ export function resolveGenerationScopeContract({
     confidence = promptIntent.confidence ?? "high";
     reason = `The user explicitly requested ${promptScreenCount} screen${promptScreenCount === 1 ? "" : "s"}.`;
   } else if (resolvedReferenceMode === "user_recreate" && imagePresent && imageScreenCount) {
-    finalScreenCount = imageScreenCount;
+    finalScreenCount = Math.min(imageScreenCount, MAX_INITIAL_VISIBLE_SCREENS);
     countSource = "reference_image";
     confidence = referenceAnalysisResult?.confidence ?? "medium";
-    reason = `The uploaded Image to UI reference appears to contain ${imageScreenCount} visible screen${imageScreenCount === 1 ? "" : "s"}.`;
+    reason = imageScreenCount > MAX_INITIAL_VISIBLE_SCREENS
+      ? `The uploaded Image to UI reference appears to contain ${imageScreenCount} visible screens; the initial build will use the first ${MAX_INITIAL_VISIBLE_SCREENS}.`
+      : `The uploaded Image to UI reference appears to contain ${imageScreenCount} visible screen${imageScreenCount === 1 ? "" : "s"}.`;
   } else if (resolvedReferenceMode === "user_recreate" && imagePresent) {
     finalScreenCount = 1;
     countSource = "default_single";
@@ -893,11 +928,16 @@ export function resolveGenerationScopeContract({
   const referenceAmbiguities = !promptScreenCount && imagePresent && resolvedReferenceMode === "user_recreate"
     ? referenceAnalysisResult?.validationIssues ?? []
     : [];
-  const requiresConfirmation = Boolean(promptIntent.requiresConfirmation)
-    || (!promptScreenCount
-      && resolvedReferenceMode === "user_recreate"
-      && imagePresent
-      && (confidence === "low" || referenceAmbiguities.length > 0));
+  const autoAcceptVisibleImageScope = planningMode !== "single-screen"
+    && resolvedReferenceMode === "user_recreate"
+    && imagePresent;
+  const requiresConfirmation = autoAcceptVisibleImageScope
+    ? false
+    : Boolean(promptIntent.requiresConfirmation)
+      || (!promptScreenCount
+        && resolvedReferenceMode === "user_recreate"
+        && imagePresent
+        && (confidence === "low" || referenceAmbiguities.length > 0));
 
   return {
     version: 2,

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { GENERATION_V2_BENCHMARK_CASES } from "@/lib/generation/benchmark-cases";
-import { normalizeReferenceAnalysis, parsePromptScreenIntent } from "@/lib/generation/scope-contract";
+import { normalizeReferenceAnalysis, parsePromptScreenIntent, resolveGenerationScopeContract } from "@/lib/generation/scope-contract";
 import { shouldAttachReferenceImage } from "@/lib/generation/reference-image";
 import { screenBuildOutputTokenBudget } from "@/lib/generation/screen-budget";
 import { renderDeterministicNavigationShell } from "@/lib/project-navigation";
@@ -31,6 +31,39 @@ describe("production generation V2 contracts", () => {
     const scope = parsePromptScreenIntent("Create one home screen with 8 product cards and 3 quick actions.");
     expect(scope.promptScreenCount).toBe(1);
     expect(scope.screens?.map((screen) => screen.name)).toEqual(["Home"]);
+  });
+
+  it("preserves the explicit identity of a single screen requested by the agent router", () => {
+    const scope = parsePromptScreenIntent([
+      "Create a cart and checkout experience for this existing project.",
+      "Screen name: Cart / Checkout.",
+      "Screen role: checkout.",
+    ].join("\n"));
+    expect(scope.promptScreenCount).toBe(1);
+    expect(scope.screens).toEqual([{ index: 1, name: "Cart / Checkout", kind: "checkout" }]);
+  });
+
+  it("auto-accepts all visible Image to UI screens while capping the initial build at five", () => {
+    const reference = normalizeReferenceAnalysis({
+      overallVisualStyle: "Multi-screen mobile reference",
+      screenCountEstimate: 7,
+      screenReferences: Array.from({ length: 7 }, (_, index) => ({
+        index: index + 1,
+        suggestedRole: `Reference ${index + 1}`,
+      })),
+      designSystemSignals: {},
+    });
+    const scope = resolveGenerationScopeContract({
+      prompt: "Build the screens visible in this image",
+      image,
+      referenceMode: "user_recreate",
+      planningMode: "project",
+      referenceAnalysisResult: reference,
+    });
+    expect(scope.imageScreenCount).toBe(7);
+    expect(scope.finalScreenCount).toBe(5);
+    expect(scope.screens).toHaveLength(5);
+    expect(scope.requiresConfirmation).toBe(false);
   });
 
   it("downgrades incomplete multi-frame reference analysis", () => {

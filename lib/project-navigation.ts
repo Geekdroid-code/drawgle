@@ -6,6 +6,7 @@ import type {
   NavigationPlan,
   NavigationPlanItem,
   ProjectNavigationData,
+  ReferenceAnalysis,
   ScreenData,
   ScreenPlan,
 } from "@/lib/types";
@@ -228,6 +229,126 @@ export function createFallbackNavigationPlan({
 
 const cleanComparable = (value: string) =>
   value.toLowerCase().replace(/\b(screen|page|tab|view|dashboard)\b/g, "").replace(/[^a-z0-9]/g, "");
+
+const hasStrongReferenceNavigation = (referenceAnalysis?: ReferenceAnalysis | null) => {
+  const evidence = referenceAnalysis?.primaryNavigation;
+  return Boolean(
+    evidence?.present
+    && evidence.repeatedAcrossScreens
+    && evidence.items.length >= LEGACY_MIN_SHARED_NAV_ITEMS
+    && evidence.items.length <= MAX_SHARED_NAV_ITEMS,
+  );
+};
+
+const referenceScreenForPlan = (
+  screen: ScreenPlan,
+  screenIndex: number,
+  referenceAnalysis: ReferenceAnalysis,
+) => referenceAnalysis.screenReferences.find((reference) => {
+  const referenceName = cleanComparable(reference.suggestedRole);
+  const screenName = cleanComparable(screen.name);
+  return referenceName && screenName && (
+    referenceName === screenName
+    || referenceName.includes(screenName)
+    || screenName.includes(referenceName)
+  );
+}) ?? referenceAnalysis.screenReferences[screenIndex] ?? null;
+
+export function applyReferenceNavigationRolesToScreens(
+  screens: ScreenPlan[],
+  referenceAnalysis?: ReferenceAnalysis | null,
+) {
+  if (!referenceAnalysis || !hasStrongReferenceNavigation(referenceAnalysis)) return screens;
+  const activeScreenIndexes = new Set(
+    referenceAnalysis.primaryNavigation?.activeItemByScreen.map((entry) => entry.screenIndex) ?? [],
+  );
+
+  return screens.map((screen, index) => {
+    const referenceScreen = referenceScreenForPlan(screen, index, referenceAnalysis);
+    if (!referenceScreen || !activeScreenIndexes.has(referenceScreen.index) || shouldForceImmersiveScreen(screen)) {
+      return screen;
+    }
+
+    return { ...screen, type: "root" as const };
+  });
+}
+
+export function deriveReferenceNavigationPlan({
+  screens,
+  referenceAnalysis,
+}: {
+  screens: ScreenPlan[];
+  referenceAnalysis?: ReferenceAnalysis | null;
+}): NavigationPlan | null {
+  const evidence = referenceAnalysis?.primaryNavigation;
+  if (!referenceAnalysis || !evidence || !hasStrongReferenceNavigation(referenceAnalysis)) return null;
+
+  const screenByReferenceIndex = new Map<number, ScreenPlan>();
+  screens.forEach((screen, index) => {
+    const referenceScreen = referenceScreenForPlan(screen, index, referenceAnalysis);
+    if (referenceScreen && screen.type === "root" && !shouldForceImmersiveScreen(screen)) {
+      screenByReferenceIndex.set(referenceScreen.index, screen);
+    }
+  });
+  const activeScreenForItem = new Map<number, ScreenPlan>();
+  for (const active of evidence.activeItemByScreen) {
+    if (!active.itemIndex) continue;
+    const screen = screenByReferenceIndex.get(active.screenIndex);
+    if (screen) activeScreenForItem.set(active.itemIndex, screen);
+  }
+
+  const usedIds = new Set<string>();
+  const items = evidence.items.map((item, index) => {
+    const label = item.label?.trim() || `Destination ${index + 1}`;
+    const baseId = slugify(label, `destination-${index + 1}`);
+    let id = baseId;
+    let suffix = 2;
+    while (usedIds.has(id)) id = `${baseId}-${suffix++}`;
+    usedIds.add(id);
+    const linkedScreen = activeScreenForItem.get(index + 1) ?? null;
+    return {
+      id,
+      label,
+      icon: slugify(item.icon, "circle"),
+      role: `${label} primary product destination`,
+      availability: linkedScreen ? "generated" as const : "planned" as const,
+      linkedScreenName: linkedScreen?.name ?? null,
+    };
+  });
+  const visualBrief = [
+    evidence.anatomy,
+    evidence.geometry,
+    evidence.activeState,
+    evidence.elevation,
+    evidence.safeAreaRelationship,
+  ].filter(Boolean).join(". ");
+  const design = defaultNavigationDesignContract(visualBrief);
+  design.anatomy = evidence.anatomy ?? design.anatomy;
+  design.labels = evidence.labels ?? "hidden";
+  design.surface = /glass|frost|blur/i.test(`${evidence.geometry} ${evidence.elevation}`) ? "glass" : design.surface;
+
+  return {
+    version: 2,
+    decision: "reference-derived",
+    evidence: {
+      source: "reference",
+      reason: "The saved reference DNA shows the same primary navigation across multiple visible screens.",
+    },
+    design,
+    enabled: true,
+    kind: "bottom-tabs",
+    items,
+    visualBrief,
+    screenChrome: screens.map((screen) => {
+      const item = items.find((candidate) => candidate.linkedScreenName === screen.name);
+      return {
+        screenName: screen.name,
+        chrome: item ? "bottom-tabs" as const : shouldForceImmersiveScreen(screen) ? "immersive" as const : "top-bar-back" as const,
+        navigationItemId: item?.id ?? null,
+      };
+    }),
+  };
+}
 
 export function normalizeNavigationPlan({
   navigationPlan,

@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { applyDeleteElement, applyDuplicateElement } from "@/lib/drawgle-dom";
+import { normalizeReferenceAnalysis } from "@/lib/generation/scope-contract";
 import { resolveScreenChromePolicy } from "@/lib/navigation";
 import {
+  applyReferenceNavigationRolesToScreens,
   applyNavigationDesignEdit,
   createFallbackNavigationPlan,
+  deriveReferenceNavigationPlan,
   detectLocalNavigationMarkup,
   normalizeNavigationPlan,
   parseStoredNavigationPlan,
@@ -109,6 +112,55 @@ describe("Production Navigation V2", () => {
     expect(plan.items).toHaveLength(2);
     expect(plan.screenChrome.map((entry) => entry.navigationItemId)).toEqual(["portfolio", "markets"]);
     expect(renderDeterministicNavigationShell(plan)).toContain('data-navigation-anatomy="compact-icon-rail"');
+  });
+
+  it("recovers one shared dock from repeated saved reference DNA", () => {
+    const referenceAnalysis = normalizeReferenceAnalysis({
+      overallVisualStyle: "Playful learning app",
+      screenCountEstimate: 3,
+      screenReferences: [
+        { index: 1, suggestedRole: "Onboarding / Splash" },
+        { index: 2, suggestedRole: "Dashboard / Home" },
+        { index: 3, suggestedRole: "Lesson Browser" },
+      ],
+      primaryNavigation: {
+        present: true,
+        repeatedAcrossScreens: true,
+        itemCount: 4,
+        items: [
+          { label: "Home", icon: "house" },
+          { label: "Lessons", icon: "book-open" },
+          { label: "Progress", icon: "chart-no-axes-column" },
+          { label: "Settings", icon: "settings" },
+        ],
+        anatomy: "floating-dock",
+        activeItemByScreen: [
+          { screenIndex: 2, itemIndex: 1 },
+          { screenIndex: 3, itemIndex: 2 },
+        ],
+      },
+      designSystemSignals: {},
+    }).analysis!;
+    const classified = applyReferenceNavigationRolesToScreens([
+      { name: "Onboarding / Splash", type: "root", description: "Immersive welcome" },
+      { name: "Dashboard / Home", type: "detail", description: "Learning dashboard" },
+      { name: "Lesson Browser", type: "detail", description: "Browse lessons" },
+    ], referenceAnalysis);
+    const recovered = deriveReferenceNavigationPlan({ screens: classified, referenceAnalysis });
+    const normalized = normalizeNavigationPlan({
+      navigationPlan: recovered,
+      screens: classified,
+      navigationArchitecture: architecture,
+    });
+
+    expect(classified.map((screen) => screen.type)).toEqual(["root", "root", "root"]);
+    expect(normalized.enabled).toBe(true);
+    expect(normalized.items.filter((item) => item.availability === "generated").map((item) => item.linkedScreenName)).toEqual([
+      "Dashboard / Home",
+      "Lesson Browser",
+    ]);
+    expect(normalized.screenChrome.map((entry) => entry.navigationItemId)).toEqual([null, "home", "lessons"]);
+    expect(renderDeterministicNavigationShell(normalized).match(/<nav\b[^>]*data-drawgle-primary-nav/g)).toHaveLength(1);
   });
 
   it("rejects duplicate and filler destinations instead of collapsing to one item", () => {
