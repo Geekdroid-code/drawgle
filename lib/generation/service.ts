@@ -29,7 +29,7 @@ import {
   buildNavigationArchitectureContract,
   buildSharedNavigationContract,
 } from "@/lib/generation/prompts";
-import { appendRequiredAnchors, DRAWGLE_GENERATION_COMPLETE_SENTINEL, extractRequiredAnchors, stripGenerationCompleteSentinel, validateSourceCompletion } from "@/lib/generation/screen-quality";
+import { appendRequiredAnchors, DRAWGLE_GENERATION_COMPLETE_SENTINEL, extractRequiredAnchors, normalizeStaticDrawgleHtml, stripGenerationCompleteSentinel, validateSourceCompletion } from "@/lib/generation/screen-quality";
 import { buildRepairSurroundingContext, type RepairTarget } from "@/lib/generation/screen-repair";
 import {
   analyzeReferenceImageForScope,
@@ -3364,8 +3364,11 @@ async function refineNavigationShellCode({
 
   const rawRefinedCode = extractCode(responseText).trim();
   const refinedCompletion = validateSourceCompletion({ code: rawRefinedCode, requireSentinel: true });
-  const refinedCode = refinedCompletion.valid
-    ? stripGenerationCompleteSentinel(rawRefinedCode)
+  const normalizedRefinedCode = refinedCompletion.valid
+    ? normalizeStaticDrawgleHtml(stripGenerationCompleteSentinel(rawRefinedCode))
+    : null;
+  const refinedCode = normalizedRefinedCode?.valid
+    ? normalizedRefinedCode.code
     : candidateShellCode;
 
   if (!validateNavigationShell(refinedCode, navigationPlan)) {
@@ -3469,7 +3472,11 @@ export async function editNavigationShellCode({
   if (!nextCompletion.valid) {
     throw new Error(`Navigation edit returned incomplete markup: ${nextCompletion.issues.join(" | ")}`);
   }
-  const nextCode = stripGenerationCompleteSentinel(rawNextCode);
+  const normalizedNextCode = normalizeStaticDrawgleHtml(stripGenerationCompleteSentinel(rawNextCode));
+  if (!normalizedNextCode.valid) {
+    throw new Error(`Navigation edit returned markup that could not be normalized: ${normalizedNextCode.incompleteParseErrors.join(", ") || "empty output"}.`);
+  }
+  const nextCode = normalizedNextCode.code;
   if (!validateNavigationShell(nextCode, navigationPlan)) {
     throw new Error("Navigation edit did not return valid shared navigation markup.");
   }

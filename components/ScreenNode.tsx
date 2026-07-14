@@ -2,7 +2,7 @@
 
 import type { DesignTokens, ProjectNavigationData, ScreenData } from "@/lib/types";
 import { useState, useRef, useEffect, useMemo, useCallback, memo } from "react";
-import { MoreHorizontal, Download, Trash2, Edit2, Smartphone, MousePointerClick, Crosshair, Code, Copy, Check } from "lucide-react";
+import { MoreHorizontal, Download, Trash2, Edit2, Smartphone, MousePointerClick, Crosshair, Code, Copy, Check, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PremiumDropdown } from "@/components/ui/premium-dropdown";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -342,6 +342,22 @@ function ScreenBuildPreloader({ visible }: { visible: boolean }) {
   );
 }
 
+function ScreenBuildFinalizing({ visible }: { visible: boolean }) {
+  if (!visible) return null;
+
+  return (
+    <div
+      className="absolute right-3 top-3 flex h-8 items-center gap-2 rounded-full border border-black/10 bg-white/95 px-3 text-[11px] font-semibold text-neutral-800 shadow-sm backdrop-blur"
+      style={{ zIndex: 18, pointerEvents: "none" }}
+      role="status"
+      aria-live="polite"
+    >
+      <LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+      Finalizing
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Main ScreenNode
 // ---------------------------------------------------------------------------
@@ -586,6 +602,7 @@ export function ScreenNode({
   }, [triggerStreams]);
   const hasStreamedBuildCode = Boolean(streamedCode?.trim());
   const showBuildPreloader = isBuilding && !hasStreamedBuildCode && !hasMeaningfulRenderableCode(safeCode);
+  const showBuildFinalizing = isBuilding && hasStreamedBuildCode;
 
   const rawDisplayCode = streamedCode ?? safeCode;
   const sharedNavigationActive = hasSharedNavigation({ screen, projectNavigation });
@@ -2240,6 +2257,7 @@ export function ScreenNode({
         />
 
         <ScreenBuildPreloader visible={showBuildPreloader} />
+        <ScreenBuildFinalizing visible={showBuildFinalizing} />
 
         {!readOnly && selectedElementBounds && selectedElementBounds.drawgleId === selectedDrawgleId && (
           <div

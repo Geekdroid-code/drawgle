@@ -22,6 +22,7 @@ import {
   detectScreenHealth,
   hasGenerationCompleteSentinel,
   isBlockingScreenHealthFailure,
+  normalizeStaticDrawgleHtml,
   screenStatusForHealth,
   sanitizeStaticDrawgleHtml,
   sanitizeScreenAssetUsage,
@@ -180,6 +181,8 @@ type GenerationAttemptDiagnostics = {
   localNavigationCandidates: string[];
   assetSanitizedMisuseCount: number;
   assetSanitizationWarnings: string[];
+  htmlNormalized: boolean;
+  htmlParseErrors: string[];
 };
 
 const collectUsageMetadata = (chunk: unknown, usage: GeminiUsageMetadata) => {
@@ -245,6 +248,8 @@ const buildAttemptDiagnostics = ({
     localNavigationCandidates: [],
     assetSanitizedMisuseCount: 0,
     assetSanitizationWarnings: [],
+    htmlNormalized: false,
+    htmlParseErrors: [],
   };
 };
 
@@ -938,9 +943,12 @@ export const buildScreenTask = task({
       error: string;
       metadata?: Record<string, unknown>;
     }) => {
+      const failureCode = buildErrorCode("This preview could not be finalized. Use Retry to rebuild the screen.");
       await admin
         .from("screens")
         .update({
+          code: failureCode,
+          block_index: indexScreenCode(failureCode) as never,
           status: "failed",
           error,
           updated_at: new Date().toISOString(),
@@ -1076,6 +1084,20 @@ export const buildScreenTask = task({
     }
 
     extractedCode = stripGenerationCompleteSentinel(extractedCode);
+    let normalization = normalizeStaticDrawgleHtml(extractedCode);
+    attempts[attempts.length - 1] = {
+      ...attempts[attempts.length - 1],
+      htmlNormalized: normalization.changed,
+      htmlParseErrors: normalization.parseErrors,
+    };
+    if (!normalization.valid) {
+      await appendScreenBuildDiagnostics(admin, payload.generationRunId, payload.screenId, attempts);
+      return failWithoutSavingGeneratedCode({
+        error: `[screen_generation:incomplete_html] Generated HTML could not be normalized safely: ${normalization.incompleteParseErrors.join(", ") || "empty output"}.`,
+        metadata: { attempts, generationEngineVersion, htmlParseErrors: normalization.parseErrors },
+      });
+    }
+    extractedCode = normalization.code;
     let sanitization = sanitizeStaticDrawgleHtml(extractedCode);
     extractedCode = sanitization.code;
     let staticQuality = validateStaticDrawgleHtml({ code: extractedCode, requireSingleScreenRoot: true });
@@ -1124,10 +1146,14 @@ export const buildScreenTask = task({
       let structuralSanitization: ReturnType<typeof sanitizeStaticDrawgleHtml> | null = null;
       if (completion.valid) {
         extractedCode = stripGenerationCompleteSentinel(extractedCode);
+        normalization = normalizeStaticDrawgleHtml(extractedCode);
+        extractedCode = normalization.code;
         structuralSanitization = sanitizeStaticDrawgleHtml(extractedCode);
         extractedCode = structuralSanitization.code;
-        structuralStaticQuality = validateStaticDrawgleHtml({ code: extractedCode, requireSingleScreenRoot: true });
-        structuralQuality = validateGeneratedScreenCode({ code: extractedCode, screenPlan: structuralRetryPlan });
+        if (normalization.valid) {
+          structuralStaticQuality = validateStaticDrawgleHtml({ code: extractedCode, requireSingleScreenRoot: true });
+          structuralQuality = validateGeneratedScreenCode({ code: extractedCode, screenPlan: structuralRetryPlan });
+        }
       }
 
       attempts.push(buildAttemptDiagnostics({
@@ -1140,6 +1166,11 @@ export const buildScreenTask = task({
         quality: structuralQuality,
         sanitizedCodes: structuralSanitization?.removedCodes ?? [],
       }));
+      const structuralAttempt = attempts.at(-1);
+      if (structuralAttempt && completion.valid) {
+        structuralAttempt.htmlNormalized = normalization.changed;
+        structuralAttempt.htmlParseErrors = normalization.parseErrors;
+      }
 
       if (!completion.valid) {
         await appendScreenBuildDiagnostics(admin, payload.generationRunId, payload.screenId, attempts);
@@ -1150,6 +1181,14 @@ export const buildScreenTask = task({
             completionCodes: completion.codes,
             finishReasons: build.finishReasons,
           },
+        });
+      }
+
+      if (!normalization.valid) {
+        await appendScreenBuildDiagnostics(admin, payload.generationRunId, payload.screenId, attempts);
+        return failWithoutSavingGeneratedCode({
+          error: `[screen_generation:incomplete_html] Generated HTML could not be normalized safely: ${normalization.incompleteParseErrors.join(", ") || "empty output"}.`,
+          metadata: { attempts, htmlParseErrors: normalization.parseErrors },
         });
       }
 

@@ -24,6 +24,7 @@ import {
   buildScreenHealthError,
   detectScreenHealth,
   isBlockingScreenHealthFailure,
+  normalizeStaticDrawgleHtml,
   screenStatusForHealth,
   stripGenerationCompleteSentinel,
   validateSourceCompletion,
@@ -1099,8 +1100,12 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
       ? targetBlockIds.map((id) => blockIndex.blocks.find((block) => block.id === id)?.name ?? id).join(", ")
       : "full screen";
   const screenPrompt = typeof screen.prompt === "string" ? screen.prompt : "";
-  const normalizeScreenCodeForSave = (code: string) =>
-    ensureDrawgleIds(tokenizeStaticDrawgleHtml(sanitizeScreenCodeForSharedNavigation(stripGenerationCompleteSentinel(code), screenPlanForSave), designTokens).code).code;
+  const normalizeScreenCodeForSave = (code: string) => {
+    const strippedCode = stripGenerationCompleteSentinel(code);
+    const normalized = normalizeStaticDrawgleHtml(strippedCode);
+    const safeCode = normalized.valid ? normalized.code : strippedCode;
+    return ensureDrawgleIds(tokenizeStaticDrawgleHtml(sanitizeScreenCodeForSharedNavigation(safeCode, screenPlanForSave), designTokens).code).code;
+  };
   const health = detectScreenHealth({ code: screenCode, screenPrompt });
   const selectedRegionStaticHealth = regionReplacementTarget
     ? validateStaticDrawgleHtml({ code: regionReplacementTarget.snippet })

@@ -3,8 +3,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ScreenData } from "@/lib/types";
 
+const triggerState = vi.hoisted(() => ({ streams: null as Record<string, string[]> | null }));
+
 vi.mock("@trigger.dev/react-hooks", () => ({
-  useRealtimeRunWithStreams: () => ({ streams: null }),
+  useRealtimeRunWithStreams: () => ({ streams: triggerState.streams }),
 }));
 
 import { ScreenNode } from "./ScreenNode";
@@ -23,7 +25,26 @@ const screen: ScreenData = {
 };
 
 describe("ScreenNode element selection messaging", () => {
-  afterEach(cleanup);
+  afterEach(() => {
+    triggerState.streams = null;
+    cleanup();
+  });
+
+  it("marks streamed generation output as provisional until it is committed", () => {
+    triggerState.streams = {
+      code: ['<div class="min-h-screen"><h1>Preview</h1></div>'],
+    };
+    const buildingScreen: ScreenData = {
+      ...screen,
+      status: "building",
+      triggerRunId: "run_building",
+      streamPublicToken: "public-token",
+    };
+
+    const { getByRole } = render(<ScreenNode screen={buildingScreen} />);
+
+    expect(getByRole("status").textContent).toContain("Finalizing");
+  });
 
   it("updates only the highlight when selectedDrawgleId changes", async () => {
     const { container, rerender } = render(

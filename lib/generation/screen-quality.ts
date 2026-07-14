@@ -25,31 +25,43 @@ export type SourceCompletionDiagnosticCode =
   | "max_tokens_finish"
   | "trailing_open_tag"
   | "unclosed_comment"
-  | "unclosed_root";
+  | "unterminated_raw_text";
 
 export type StaticDrawgleHtmlSanitizationCode =
   | "script_tag"
   | "inline_event_handler"
   | "javascript_url";
 
-const NON_CLOSING_TAGS = new Set([
-  "area",
-  "base",
-  "br",
-  "col",
-  "embed",
-  "hr",
-  "img",
-  "input",
-  "link",
-  "meta",
-  "param",
-  "source",
-  "track",
-  "wbr",
-]);
-
 const completionSentinelPattern = /<!--\s*DRAWGLE_GENERATION_COMPLETE\s*-->\s*$/i;
+
+type HtmlParseError = {
+  code: string;
+  startLine?: number;
+  startCol?: number;
+  startOffset?: number;
+};
+
+const parseHtmlFragment = (code: string) => {
+  const parseErrors: HtmlParseError[] = [];
+  const $ = load(code, {
+    onParseError: (error) => {
+      parseErrors.push({
+        code: error.code,
+        startLine: error.startLine,
+        startCol: error.startCol,
+        startOffset: error.startOffset,
+      });
+    },
+  }, false);
+
+  return {
+    $,
+    parseErrors,
+    code: ($.root().html() ?? "").trim(),
+  };
+};
+
+const isIncompleteParseError = (error: HtmlParseError) => error.code.startsWith("eof-");
 
 export function stripGenerationCompleteSentinel(code: string) {
   return code.replace(completionSentinelPattern, "").trim();
@@ -99,12 +111,15 @@ export function validateSourceCompletion({
     push("unclosed_comment", "Generated HTML ends inside an unfinished comment.");
   }
 
-  const tagBalance = getTagBalance(codeWithoutSentinel);
-  if (tagBalance.openTags !== tagBalance.closeTags || tagBalance.mismatches > 0) {
-    push(
-      "unclosed_root",
-      `Generated HTML root is not fully closed (${tagBalance.openTags} opening tags, ${tagBalance.closeTags} closing tags).`,
-    );
+  const incompleteParseErrors = parseHtmlFragment(codeWithoutSentinel).parseErrors.filter(isIncompleteParseError);
+  for (const error of incompleteParseErrors) {
+    if (error.code === "eof-in-comment") {
+      push("unclosed_comment", "Generated HTML ends inside an unfinished comment.");
+    } else if (error.code === "eof-in-element-that-can-contain-only-text") {
+      push("unterminated_raw_text", "Generated HTML ends inside an unfinished style or text element.");
+    } else {
+      push("trailing_open_tag", `Generated HTML ends in an unfinished parser state (${error.code}).`);
+    }
   }
 
   return {
@@ -283,49 +298,6 @@ const pushDiagnostic = (
   issues.push(issue);
 };
 
-const getTagBalance = (code: string) => {
-  const stack: string[] = [];
-  let openTags = 0;
-  let closeTags = 0;
-  let mismatches = 0;
-
-  for (const match of code.matchAll(/<\/?([a-z][\w:-]*)(?:\s[^<>]*)?>/gi)) {
-    const fullTag = match[0];
-    const tagName = match[1].toLowerCase();
-    if (/^<!|^<\?/.test(fullTag)) {
-      continue;
-    }
-
-    const isClosing = fullTag.startsWith("</");
-    const isSelfClosing = /\/>$/.test(fullTag) || NON_CLOSING_TAGS.has(tagName);
-    if (!isClosing && !isSelfClosing) {
-      openTags += 1;
-      stack.push(tagName);
-      continue;
-    }
-
-    if (isClosing) {
-      closeTags += 1;
-      const previous = stack.pop();
-      if (previous && previous !== tagName) {
-        mismatches += 1;
-        const rewindIndex = stack.lastIndexOf(tagName);
-        if (rewindIndex >= 0) {
-          stack.splice(rewindIndex);
-        }
-      } else if (!previous) {
-        mismatches += 1;
-      }
-    }
-  }
-
-  return {
-    openTags,
-    closeTags,
-    mismatches,
-  };
-};
-
 const addSanitizationCode = (
   codes: StaticDrawgleHtmlSanitizationCode[],
   code: StaticDrawgleHtmlSanitizationCode,
@@ -435,13 +407,13 @@ export function validateStaticDrawgleHtml({
     );
   }
 
-  const tagBalance = getTagBalance(trimmedCode);
-  if (Math.abs(tagBalance.openTags - tagBalance.closeTags) > 3 || tagBalance.mismatches > 3) {
+  const parseErrors = parseHtmlFragment(trimmedCode).parseErrors.filter(isIncompleteParseError);
+  if (parseErrors.length > 0) {
     pushDiagnostic(
       issues,
       codes,
       "tag_imbalance",
-      `Screen code has suspicious tag imbalance (${tagBalance.openTags} opening tags, ${tagBalance.closeTags} closing tags).`,
+      `Screen code ends in an incomplete HTML parser state: ${Array.from(new Set(parseErrors.map((error) => error.code))).join(", ")}.`,
     );
   }
 
@@ -702,6 +674,26 @@ export function sanitizeScreenAssetUsage({
   };
 }
 
+/**
+ * Parse and serialize generated markup with the same HTML5 recovery rules used
+ * by browsers. This closes ordinary omitted tags and removes stray closing tags
+ * without another model call. Lexically truncated tags/comments remain blocked
+ * by validateSourceCompletion before this function is used.
+ */
+export function normalizeStaticDrawgleHtml(code: string) {
+  const sourceCode = code.trim();
+  const parsed = parseHtmlFragment(sourceCode);
+  const incompleteParseErrors = parsed.parseErrors.filter(isIncompleteParseError);
+
+  return {
+    code: parsed.code,
+    changed: parsed.code !== sourceCode,
+    valid: incompleteParseErrors.length === 0 && parsed.code.length > 0,
+    parseErrors: parsed.parseErrors.map((error) => error.code),
+    incompleteParseErrors: incompleteParseErrors.map((error) => error.code),
+  };
+}
+
 const isBitmapLikeUrl = (url: string, kind: "src" | "css-url") => {
   if (isAllowedInlineSvg(url) || url.startsWith("#") || /^var\(/i.test(url)) {
     return false;
@@ -803,11 +795,6 @@ export function detectScreenHealth({
   const issues = [...validation.issues];
   const warnings = [...validation.warnings];
   const staticValidation = validateStaticDrawgleHtml({ code, requireSingleScreenRoot: true });
-
-  const tagBalance = getTagBalance(trimmedCode);
-  if (Math.abs(tagBalance.openTags - tagBalance.closeTags) > 3 || tagBalance.mismatches > 3) {
-    issues.push(`Generated HTML has suspicious tag imbalance (${tagBalance.openTags} opening tags, ${tagBalance.closeTags} closing tags).`);
-  }
 
   if (/class=["'][^"']*\bmin-h-screen\b[^"']*\boverflow-hidden\b/i.test(trimmedCode) && trimmedCode.length > 5000) {
     warnings.push("Outermost screen wrapper may clip required lower content with overflow-hidden.");

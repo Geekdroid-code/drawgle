@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DRAWGLE_GENERATION_COMPLETE_SENTINEL,
+  normalizeStaticDrawgleHtml,
   sanitizeScreenAssetUsage,
   sanitizeStaticDrawgleHtml,
+  validateSourceCompletion,
   validateScreenAssetPolicy,
   validateStaticDrawgleHtml,
 } from "@/lib/generation/screen-quality";
@@ -29,6 +32,58 @@ const repeatedProductManifest: ScreenAssetManifest = {
   reusePolicy: "repeat",
   expectedUses: 8,
 };
+
+describe("generated source completion", () => {
+  const complete = (html: string) => `${html}\n${DRAWGLE_GENERATION_COMPLETE_SENTINEL}`;
+
+  it("accepts complete HTML with void and SVG elements", () => {
+    const code = complete(`<div class="min-h-screen"><img src="photo.webp"><input type="text"><svg><path d="M0 0h1v1z" /></svg></div>`);
+
+    expect(validateSourceCompletion({ code, requireSentinel: true, finishReasons: ["STOP"] })).toMatchObject({
+      valid: true,
+      codes: [],
+    });
+  });
+
+  it("normalizes a stray closing tag instead of rejecting browser-valid output", () => {
+    const code = complete(`<div class="min-h-screen"><section><p>Ready</p></section></div></div>`);
+    const completion = validateSourceCompletion({ code, requireSentinel: true, finishReasons: ["STOP"] });
+    const normalized = normalizeStaticDrawgleHtml(code.replace(DRAWGLE_GENERATION_COMPLETE_SENTINEL, ""));
+
+    expect(completion.valid).toBe(true);
+    expect(normalized.valid).toBe(true);
+    expect(normalized.code).toBe(`<div class="min-h-screen"><section><p>Ready</p></section></div>`);
+  });
+
+  it("closes ordinary omitted tags deterministically", () => {
+    const code = complete(`<div class="min-h-screen"><section><p>Ready</p>`);
+    const completion = validateSourceCompletion({ code, requireSentinel: true, finishReasons: ["STOP"] });
+    const normalized = normalizeStaticDrawgleHtml(code.replace(DRAWGLE_GENERATION_COMPLETE_SENTINEL, ""));
+
+    expect(completion.valid).toBe(true);
+    expect(normalized.valid).toBe(true);
+    expect(normalized.code).toBe(`<div class="min-h-screen"><section><p>Ready</p></section></div>`);
+  });
+
+  it("blocks genuinely truncated tags, comments, and raw-text elements", () => {
+    const unfinishedTag = validateSourceCompletion({
+      code: complete(`<div class="min-h-screen"><section`),
+      requireSentinel: true,
+    });
+    const unfinishedComment = validateSourceCompletion({
+      code: complete(`<div class="min-h-screen"><!-- unfinished`),
+      requireSentinel: true,
+    });
+    const unfinishedStyle = validateSourceCompletion({
+      code: complete(`<div class="min-h-screen"><style>.card { color: red; }`),
+      requireSentinel: true,
+    });
+
+    expect(unfinishedTag.codes).toContain("trailing_open_tag");
+    expect(unfinishedComment.codes).toContain("unclosed_comment");
+    expect(unfinishedStyle.codes).toContain("unterminated_raw_text");
+  });
+});
 
 describe("sanitizeStaticDrawgleHtml", () => {
   it("removes script tags before hard validation", () => {
