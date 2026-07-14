@@ -450,7 +450,7 @@ Rules:
 export const designInstruction = `You are an elite Art Director and UI/UX Designer.
 Your job is to establish a comprehensive, production-grade Design Token System for a new mobile application based on the user's prompt.
 Analyze the requested app's vibe, target audience, purpose, and any provided reference image evidence, then output a strict JSON object matching the schema below.
-Use precise hex codes, appropriate typography, and a spacing / shape / elevation system that is intentionally derived from the prompt or reference.
+Use precise hex codes, appropriate typography, and a spacing / shape / elevation system that is intentionally derived from the prompt or reference image by looking deep into image design and layout layers.
 You may receive CREATIVE DIRECTION. When present, honor it as the primary artistic brief and convert it into reusable tokens.
 If REFERENCE SCREEN ANALYSIS is provided or an image is present, infer the token system from the actual visual cues in that reference instead of defaulting to a generic startup palette.
 If the image is marked as a style reference, derive reusable token decisions from its visual DNA only. Do not encode its exact layout, domain data, or content-specific structure into tokens.
@@ -565,7 +565,7 @@ const buildStrictDesignContract = (designTokens?: DesignTokens | null) => {
 
   return [
     `- Standard app radius: ${appRadius}`,
-    `- Pill radius: ${pillRadius} (use only for chips, segmented controls, or deliberate capsule CTAs)` ,
+    `- Pill radius: ${pillRadius} (use only for chips, segmented controls, or deliberate capsule CTAs)`,
     `- Standard border width: ${standardBorder}`,
     `- Standard surface shadow: ${surfaceShadow}`,
     `- Overlay shadow: ${overlayShadow}`,
@@ -895,15 +895,15 @@ const buildScreenInstruction = ({
   })();
   const modeInstruction = mode === "recreate"
     ? [
-        "If an image is attached in the user parts, treat it as structural evidence for this screen route.",
-        "Preserve visible layer order, containment, layout mechanics, edge/depth treatment, navigation style family, and component construction while honoring the project tokens and screen brief.",
-      ].join(" ")
+      "If an image is attached in the user parts, treat it as structural evidence for this screen route.",
+      "Preserve visible layer order, containment, layout mechanics, edge/depth treatment, navigation style family, and component construction while honoring the project tokens and screen brief.",
+    ].join(" ")
     : [
-        "Build from the screen brief, charter, navigation plan, creative direction, and tokens.",
-        "When a style reference image is attached, inspect it directly as visual evidence and preserve its material quality, shadows, radii, typography character, color rhythm, icon weight, navigation feel, component construction, density, and illustration character.",
-        "Use the written reference analysis as a construction contract, but prefer observable image evidence when prose is vague.",
-        "Do not clone a curated or uploaded style screenshot's domain content, section order, object positions, or full layout anatomy.",
-      ].join(" ");
+      "Build from the screen brief, charter, navigation plan, creative direction, and tokens.",
+      "When a style reference image is attached, inspect it directly as visual evidence and preserve its material quality, shadows, radii, typography character, color rhythm, icon weight, navigation feel, component construction, density, and illustration character.",
+      "Use the written reference analysis as a construction contract, but prefer observable image evidence when prose is vague.",
+      "Do not clone a curated or uploaded style screenshot's domain content, section order, object positions, or full layout anatomy.",
+    ].join(" ");
 
   return `You are an expert mobile UI designer and frontend developer.
 You are building ONE specific screen for a larger app.
@@ -913,8 +913,8 @@ Screen Type: ${screenPlan.type}
 Screen Description: ${screenDescription}
 ${screenLayoutContract ? `SCREEN LAYOUT CONTRACT:\n${screenLayoutContract}` : ""}
 ${mode === "recreate" && screenPlan.referenceScreenIndex && screenPlan.referenceScreenCount && screenPlan.referenceScreenCount > 1
-  ? `Reference Target: Build visible reference screen ${screenPlan.referenceScreenIndex} of ${screenPlan.referenceScreenCount}, mapped left-to-right unless the screen brief says otherwise.`
-  : ""}
+      ? `Reference Target: Build visible reference screen ${screenPlan.referenceScreenIndex} of ${screenPlan.referenceScreenCount}, mapped left-to-right unless the screen brief says otherwise.`
+      : ""}
 
 ${chartBuildInstruction}
 ${modeInstruction}
@@ -956,11 +956,11 @@ ${designStyleContract ? `STYLE CONTRACT:\n${designStyleContract}\n` : ""}
 
 NAVIGATION ARCHITECTURE CONTRACT:
 ${buildNavigationArchitectureContract({
-  navigationArchitecture: resolvedNavigationArchitecture,
-  screenPlan,
-  requiresBottomNav,
-  navigationPlan,
-})}
+        navigationArchitecture: resolvedNavigationArchitecture,
+        screenPlan,
+        requiresBottomNav,
+        navigationPlan,
+      })}
 
 APPROVED VISUAL ASSET MANIFEST:
 ${buildAssetManifestContract(assetManifest)}
