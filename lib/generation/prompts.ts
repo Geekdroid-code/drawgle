@@ -458,7 +458,8 @@ Translate the observed visual DNA into reusable tokens: accent color, neutrals, 
 Do not output a safe generic palette if the reference or creative direction clearly implies a stronger direction.
 If no reference image exists, use CREATIVE DIRECTION to produce a premium, recognizable system rather than a generic white-card app kit.
 Treat these as platform constraints, not stylistic variables: safe_area_top, safe_area_bottom, and min_touch_target. Keep them mobile-safe and realistic.
-Treat these as dynamic design variables that should change when the brief or image changes: spacing rhythm, section gaps, screen margins, radii, border widths, shadow depth, surface contrast, font recommendations, and typography hierarchy.
+Treat these as dynamic design variables that should change when the brief or image changes: spacing rhythm, section gaps, radii, border widths, shadow depth, surface contrast, font recommendations, and typography hierarchy.
+Use 16px as the production baseline for mobile screen_margin. Deviate only when the user explicitly requests another margin or the reference analysis contains clear measured screen-edge padding; vague words such as airy, spacious, premium, or generous are not evidence for a larger margin. Never enlarge the outer margin merely to create whitespace because it squeezes the usable content rail.
 Create one disciplined visual language for the whole app. Do not hand the builder a menu of different radii, border widths, or shadow strengths to choose from per screen.
 For shape and elevation, prefer a single standard surface radius, a single standard border width, and a single standard surface shadow. A pill radius may exist only as a controlled exception for chips, segmented controls, or capsule CTAs.
 
@@ -516,7 +517,7 @@ REQUIRED JSON SCHEMA:
 
 Rules:
 - recommendedFonts should be a short list of fonts that fit the direction, not a generic grab bag.
-- spacing and mobile_layout must be chosen intentionally from the brief or image, but should still read as one consistent rhythm system across the product.
+- spacing and mobile_layout must be chosen intentionally from the brief or image, but should still read as one consistent rhythm system across the product. screen_margin defaults to 16px and needs explicit measured evidence to be larger.
 - radii, border_widths, and shadows must define one coherent app-wide geometry/elevation language, not multiple interchangeable options.
 - Use radii.app for standard cards, buttons, inputs, sheets, and navigation surfaces. Use radii.pill only for capsule-shaped controls when the composition genuinely calls for them.
 - Use border_widths.standard as the default border weight across the app.
@@ -556,7 +557,7 @@ const buildStrictDesignContract = (designTokens?: DesignTokens | null) => {
   const overlayShadow = resolveToken(designTokens, "shadows.overlay", "0 -4px 24px rgba(15,23,42,0.18)");
   const sectionGap = resolveToken(designTokens, "mobile_layout.section_gap", "24px");
   const elementGap = resolveToken(designTokens, "mobile_layout.element_gap", "16px");
-  const screenMargin = resolveToken(designTokens, "mobile_layout.screen_margin", "20px");
+  const screenMargin = resolveToken(designTokens, "mobile_layout.screen_margin", "16px");
   const buttonHeight = resolveToken(designTokens, "sizing.standard_button_height", "52px");
   const inputHeight = resolveToken(designTokens, "sizing.standard_input_height", "48px");
   const textHigh = resolveToken(designTokens, "color.text.high_emphasis", "#111827");

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { GENERATION_V2_BENCHMARK_CASES } from "@/lib/generation/benchmark-cases";
+import { DESIGN_STYLE_PACKS } from "@/lib/generation/design-styles";
 import { normalizeReferenceAnalysis, parsePromptScreenIntent, resolveGenerationScopeContract } from "@/lib/generation/scope-contract";
 import { shouldAttachReferenceImage } from "@/lib/generation/reference-image";
 import { screenBuildOutputTokenBudget } from "@/lib/generation/screen-budget";
@@ -15,6 +16,11 @@ describe("production generation V2 contracts", () => {
   it("keeps the offline release corpus at sixty representative cases", () => {
     expect(GENERATION_V2_BENCHMARK_CASES).toHaveLength(60);
     expect(new Set(GENERATION_V2_BENCHMARK_CASES.map((item) => item.id)).size).toBe(60);
+  });
+
+  it("uses a 16px content rail across every built-in design style", () => {
+    expect(DESIGN_STYLE_PACKS.every((style) => style.tokenSeed.tokens?.mobile_layout?.screen_margin === "16px")).toBe(true);
+    expect(buildDrawgleTokenCss(null)).toContain("--screen-margin: var(--dg-mobile-layout-screen-margin, 16px)");
   });
   it("adds enumerated screen groups instead of trusting the first number", () => {
     const scope = parsePromptScreenIntent("Must have 2 step thoughtfully planned onboarding screen, one login/signup screen and 1 home screen.");

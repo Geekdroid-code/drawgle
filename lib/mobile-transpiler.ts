@@ -398,7 +398,7 @@ function resolveCssVariable(varName: string, varMap?: Map<string, string>): stri
   }
 
   // Spacing and radii standard fallbacks
-  if (varKey === "--dg-mobile-layout-screen-margin") return "24px";
+  if (varKey === "--dg-mobile-layout-screen-margin") return "16px";
   if (varKey === "--dg-mobile-layout-section-gap") return "24px";
   if (varKey === "--dg-mobile-layout-element-gap") return "16px";
   if (varKey === "--dg-radii-app") return "18px";
@@ -1306,7 +1306,7 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>, c
     }
 
     if (c === "dg-screen-padding") {
-      const val = parsePixel(varMap.get("--dg-mobile-layout-screen-margin") || "24px");
+      const val = parsePixel(varMap.get("--dg-mobile-layout-screen-margin") || "16px");
       padding.left = padding.right = val;
       paddingLeftToken = paddingRightToken = "screenPadding";
     }
@@ -2192,7 +2192,7 @@ export function generateTokenHeaderComment(designTokens?: DesignTokens | null): 
   };
 
   const layout = {
-    screenPadding: map.get("--dg-mobile-layout-screen-margin") || "24px",
+    screenPadding: map.get("--dg-mobile-layout-screen-margin") || "16px",
     sectionGap: map.get("--dg-mobile-layout-section-gap") || "24px",
     elementGap: map.get("--dg-mobile-layout-element-gap") || "16px",
   };

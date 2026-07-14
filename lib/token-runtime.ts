@@ -246,7 +246,7 @@ const buildCompatibilityAliasVariables = () => `
   --surface-muted: var(--dg-color-background-secondary, #F5F5F5);
   --radius: var(--dg-radii-app, 16px);
   --radius-pill: var(--dg-radii-pill, 9999px);
-  --screen-margin: var(--dg-mobile-layout-screen-margin, 20px);
+  --screen-margin: var(--dg-mobile-layout-screen-margin, 16px);
   --section-gap: var(--dg-mobile-layout-section-gap, 24px);
   --element-gap: var(--dg-mobile-layout-element-gap, 12px);
   --safe-area-top: var(--dg-mobile-layout-safe-area-top, 0px);
@@ -398,7 +398,7 @@ function resolveSemanticMap(tokens: DesignTokenValues | undefined): string {
   const op = tokens?.opacities ?? {};
 
   const spacingEntries: Array<[string, string, string]> = [
-    ["screen_edge_padding (outer horizontal padding of every screen)", "--dg-mobile-layout-screen-margin", ml.screen_margin ?? sp.lg ?? "24px"],
+    ["screen_edge_padding (outer horizontal padding of every screen)", "--dg-mobile-layout-screen-margin", ml.screen_margin ?? "16px"],
     ["between_sections (gap between major content blocks)", "--dg-mobile-layout-section-gap", ml.section_gap ?? sp.lg ?? "24px"],
     ["between_elements (gap between items within a section)", "--dg-mobile-layout-element-gap", ml.element_gap ?? sp.md ?? "16px"],
     ["component_inner (card padding, form field insets)", "--dg-spacing-md", sp.md ?? "16px"],

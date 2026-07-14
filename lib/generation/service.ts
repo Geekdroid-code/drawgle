@@ -632,12 +632,52 @@ const DesignTokensSchema = z
 
 const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
-const buildApprovedDesignTokens = (candidate: unknown): DesignTokens => {
+const measuredScreenMargin = (value: string) => {
+  const patterns = [
+    /(?:screen(?:-edge)?|outer|horizontal)\s+(?:margin|padding)|(?:screen|content)\s+gutter/i,
+    /(?:margin|padding|gutter)\s+(?:at\s+)?(?:the\s+)?(?:screen|viewport|left|right|horizontal)/i,
+  ];
+  for (const pattern of patterns) {
+    const match = pattern.exec(value);
+    if (!match || match.index === undefined) continue;
+    const nearby = value.slice(Math.max(0, match.index - 24), match.index + match[0].length + 40);
+    const pixels = nearby.match(/(\d{1,2}(?:\.\d+)?)\s*px/i)?.[1];
+    if (!pixels) continue;
+    const numeric = Number(pixels);
+    if (Number.isFinite(numeric) && numeric >= 8 && numeric <= 32) {
+      return `${Math.round(numeric)}px`;
+    }
+  }
+  return null;
+};
+
+const resolveGeneratedScreenMargin = ({
+  prompt,
+  referenceMode,
+  referenceAnalysis,
+}: {
+  prompt: string;
+  referenceMode: ReferenceMode;
+  referenceAnalysis?: ReferenceAnalysis | null;
+}) => measuredScreenMargin(prompt)
+  ?? (referenceMode === "user_recreate"
+    ? measuredScreenMargin(referenceAnalysis?.designSystemSignals.spacingLogic ?? "")
+    : null)
+  ?? "16px";
+
+const buildApprovedDesignTokens = (candidate: unknown, screenMargin = "16px"): DesignTokens => {
   if (!isRecord(candidate)) {
     throw new Error("Design generation did not return a valid mobile_universal_core token object.");
   }
 
   const next = normalizeDesignTokens(candidate as Partial<DesignTokens>);
+
+  if (next.tokens) {
+    next.tokens.mobile_layout = {
+      ...(next.tokens.mobile_layout ?? {}),
+      screen_margin: screenMargin,
+    };
+  }
 
   if (!hasApprovedDesignTokens(next)) {
     throw new Error("Design generation did not return a usable mobile_universal_core token set.");
@@ -3080,16 +3120,21 @@ export async function generateDesignTokens({
 
     const rawTokens = parseJsonResponse<unknown>(response.text || "{}");
     const parsed = DesignTokensSchema.safeParse(rawTokens);
+    const screenMargin = resolveGeneratedScreenMargin({
+      prompt,
+      referenceMode: resolvedReferenceMode,
+      referenceAnalysis,
+    });
 
     if (!parsed.success) {
-      return buildApprovedDesignTokens(rawTokens);
+      return buildApprovedDesignTokens(rawTokens, screenMargin);
     }
 
     return buildApprovedDesignTokens(parsed.data as {
       system_schema?: string;
       meta?: DesignTokenMetadata;
       tokens?: DesignTokenValues;
-    });
+    }, screenMargin);
   } catch (error) {
     console.error("Failed to generate design tokens", error);
     throw error instanceof Error
