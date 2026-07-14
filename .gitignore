@@ -8,3 +8,4 @@ coverage/
 .env*
 !.env.example
 repair-backups/
+.codex-remote-attachments/
