@@ -120,18 +120,14 @@ export async function POST(req: Request) {
         existingCharter,
       });
 
-      if (!match) {
-        throw new Error("No curated style reference is available for no-image planning.");
+      if (match) {
+        const curatedImage = await loadCuratedStyleReferenceImage(match.reference);
+        referenceImage = curatedImage;
+        referenceMode = curatedImage ? "curated_style" : "internal_style";
+        referenceId = match.reference.id;
+      } else {
+        referenceMode = "internal_style";
       }
-
-      const curatedImage = await loadCuratedStyleReferenceImage(match.reference);
-      if (!curatedImage) {
-        throw new Error(`Selected curated style reference could not be loaded: ${match.reference.id}`);
-      }
-
-      referenceImage = curatedImage;
-      referenceMode = "curated_style";
-      referenceId = match.reference.id;
     }
 
     const providedScopeContract = (payload.scopeContract ?? null) as GenerationScopeContract | null;

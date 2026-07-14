@@ -173,7 +173,14 @@ export interface AssetResolutionDiagnostic {
 
 export type ImageReferenceMode = "recreate" | "style";
 
-export type ReferenceSource = "user_upload" | "curated";
+export type GenerationReferencePolicy =
+  | "user_upload"
+  | "project_reference"
+  | "explicit_style"
+  | "project_memory"
+  | "curated_fallback";
+
+export type ReferenceSource = "user_upload" | "project_upload" | "project_memory" | "curated";
 
 export type ReferenceMode = "user_recreate" | "user_style" | "curated_style" | "internal_style";
 

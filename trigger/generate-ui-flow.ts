@@ -36,6 +36,8 @@ import { screenBuildOutputTokenBudget } from "@/lib/generation/screen-budget";
 import { analyzeReferenceImageForScope, preflightGenerationScope } from "@/lib/generation/scope-contract";
 import { planVisualAssets, resolveProjectAssets } from "@/lib/generation/visual-assets";
 import { shouldAttachReferenceImage } from "@/lib/generation/reference-image";
+import { loadStoredPromptImage } from "@/lib/generation/prompt-reference-storage";
+import { resolveGenerationReferencePolicy } from "@/lib/generation/reference-policy";
 import { createNavigationArchitecture, deriveRequiresBottomNav } from "@/lib/navigation";
 import {
   applyNavigationPlanToScreens,
@@ -52,7 +54,7 @@ import { adminCreditService } from "@/lib/credits";
 import { getGenerationEngineVersion } from "@/lib/env/server";
 import { enrichScreenMemoryTask } from "@/trigger/enrich-screen-memory";
 import type { Database } from "@/lib/supabase/database.types";
-import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationScopeContract, ImageReferenceMode, LlmProviderEvent, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenBaseStatePlan, ScreenPlan, ScreenStateVariantPlan } from "@/lib/types";
+import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationReferencePolicy, GenerationScopeContract, ImageReferenceMode, LlmProviderEvent, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenBaseStatePlan, ScreenPlan, ScreenStateVariantPlan } from "@/lib/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -64,6 +66,7 @@ type GenerateUiFlowPayload = {
   designTokens?: DesignTokens | null;
   imagePath?: string | null;
   imageReferenceMode?: ImageReferenceMode;
+  referencePolicy?: GenerationReferencePolicy | null;
   designStyleId?: string | null;
   stylePresetSlug?: string | null;
   plannedScreens?: ScreenPlan[] | null;
@@ -337,23 +340,6 @@ async function mergeGenerationRunMetadata(
       ...metadataPatch,
     } as never,
   });
-}
-
-async function loadPromptImage(admin: AdminClient, imagePath?: string | null): Promise<PromptImagePayload | null> {
-  if (!imagePath) {
-    return null;
-  }
-
-  const { data, error } = await admin.storage.from("generation-assets").download(imagePath);
-  if (error) {
-    throw error;
-  }
-
-  const arrayBuffer = await data.arrayBuffer();
-  return {
-    data: Buffer.from(arrayBuffer).toString("base64"),
-    mimeType: data.type || "application/octet-stream",
-  };
 }
 
 async function reserveScreenSlots(admin: AdminClient, projectId: string, slotCount: number) {
@@ -1500,36 +1486,67 @@ export const generateUiFlowTask = task({
     setJournalPhase(generationJournal, "brief", "completed", "Received the project brief and queued planning.");
     await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
-    const [uploadedPromptImage, planningContext] = await Promise.all([
-      loadPromptImage(admin, payload.imagePath),
+    const [storedPromptImage, planningContext] = await Promise.all([
+      loadStoredPromptImage(admin, payload.imagePath).catch((error) => {
+        if (payload.referencePolicy !== "project_reference") throw error;
+        logger.warn("[PROJECT REFERENCE] Stored project upload could not be loaded; continuing with project memory.", {
+          projectId: payload.projectId,
+          imagePath: payload.imagePath,
+          error,
+        });
+        return null;
+      }),
       assembleProjectContext({
         admin,
         projectId: payload.projectId,
         userPrompt: payload.prompt,
       }),
     ]);
-    const publishedStylePreset = !uploadedPromptImage
+    const publishedStylePreset = !storedPromptImage
       ? await resolvePublishedStylePreset(payload.stylePresetSlug)
       : null;
-    const designStyle = publishedStylePreset?.stylePack ?? (!uploadedPromptImage
+    const designStyle = publishedStylePreset?.stylePack ?? (!storedPromptImage
       ? getDesignStylePack(
           isDesignStyleId(payload.designStyleId)
             ? payload.designStyleId
             : payload.projectCharter?.designStyle?.id ?? existingCharter?.designStyle?.id ?? null,
         )
       : null);
-    let promptImage = uploadedPromptImage;
-    let referenceMode: ReferenceMode = uploadedPromptImage && payload.imageReferenceMode === "style"
-      ? "user_style"
-      : "user_recreate";
-    let referenceSource: ReferenceSource | null = uploadedPromptImage ? "user_upload" : null;
+    const hasInheritedProjectImage = payload.referencePolicy === "project_reference";
+    let referencePolicy = resolveGenerationReferencePolicy({
+      hasCurrentUserImage: Boolean(storedPromptImage) && !hasInheritedProjectImage,
+      hasProjectReferenceImage: Boolean(storedPromptImage) && hasInheritedProjectImage,
+      hasExplicitStyle: Boolean(designStyle),
+      isExistingProject: payload.planningMode === "single-screen" || planningContext.includes("RELEVANT EXISTING SCREENS"),
+      requestedPolicy: payload.referencePolicy,
+    });
+    if (referencePolicy === "project_reference" && !storedPromptImage) {
+      referencePolicy = "project_memory";
+    }
+    if (referencePolicy === "user_upload" && !storedPromptImage) {
+      throw new Error("The uploaded reference image is unavailable. Please attach it again and retry.");
+    }
+
+    let promptImage = storedPromptImage;
+    let referenceMode: ReferenceMode = "user_recreate";
+    let referenceSource: ReferenceSource | null = null;
     let referenceId: string | null = null;
 
-    if (!uploadedPromptImage && designStyle) {
+    if (referencePolicy === "user_upload") {
+      referenceMode = payload.imageReferenceMode === "style" ? "user_style" : "user_recreate";
+      referenceSource = "user_upload";
+    } else if (referencePolicy === "project_reference") {
+      referenceMode = "user_style";
+      referenceSource = "project_upload";
+    } else if (referencePolicy === "explicit_style" && designStyle) {
       referenceMode = "curated_style";
       referenceSource = "curated";
       referenceId = designStyle.id;
-    } else if (!uploadedPromptImage) {
+    } else if (referencePolicy === "project_memory") {
+      promptImage = null;
+      referenceMode = "user_style";
+      referenceSource = "project_memory";
+    } else {
       const match = matchCuratedStyleReference({
         prompt: payload.prompt,
         planningMode: payload.planningMode ?? "project",
@@ -1537,33 +1554,36 @@ export const generateUiFlowTask = task({
       });
 
       if (!match) {
-        throw new Error("No curated style reference is available for no-image generation.");
+        referenceMode = "internal_style";
+        referenceSource = "curated";
+      } else {
+        logger.info("[CURATED STYLE REFERENCE] selected", {
+          referenceId: match.reference.id,
+          score: match.score,
+          matchedTags: match.matchedTags,
+        });
+        const curatedImage = await loadCuratedStyleReferenceImage(match.reference);
+        promptImage = curatedImage;
+        referenceMode = curatedImage ? "curated_style" : "internal_style";
+        referenceSource = "curated";
+        referenceId = match.reference.id;
       }
-
-      logger.info("[CURATED STYLE REFERENCE] selected", {
-        referenceId: match.reference.id,
-        score: match.score,
-        matchedTags: match.matchedTags,
-      });
-      const curatedImage = await loadCuratedStyleReferenceImage(match.reference);
-      if (!curatedImage) {
-        throw new Error(`Selected curated style reference could not be loaded: ${match.reference.id}`);
-      }
-
-      promptImage = curatedImage;
-      referenceMode = "curated_style";
-      referenceSource = "curated";
-      referenceId = match.reference.id;
     }
     setJournalPhase(
       generationJournal,
       "reference",
       "completed",
-      referenceMode === "user_recreate"
-        ? "Using the uploaded image as structural UI evidence."
-        : referenceMode === "user_style"
-          ? "Using the uploaded image as style direction."
-          : `Matched internal style reference${referenceId ? `: ${referenceId}` : ""}.`,
+      referencePolicy === "user_upload"
+        ? referenceMode === "user_recreate"
+          ? "Using the uploaded image as structural UI evidence."
+          : "Using the uploaded image as style direction."
+        : referencePolicy === "project_reference"
+          ? "Using the project's persisted user reference as visual style direction."
+          : referencePolicy === "project_memory"
+            ? "Using the existing project's screens, charter, and design tokens as visual direction."
+            : referencePolicy === "explicit_style"
+              ? `Using the explicitly selected design style${referenceId ? `: ${referenceId}` : ""}.`
+              : `Matched internal style reference${referenceId ? `: ${referenceId}` : ""}.`,
     );
     await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
@@ -1606,6 +1626,7 @@ export const generateUiFlowTask = task({
 
     await mergeGenerationRunMetadata(admin, payload.generationRunId, {
       requestedImageReferenceMode: payload.imageReferenceMode ?? "recreate",
+      referencePolicy,
       requestedDesignStyleId: payload.designStyleId ?? null,
       requestedStylePresetSlug: publishedStylePreset?.slug ?? null,
       requestedStylePresetVersion: publishedStylePreset?.version ?? null,

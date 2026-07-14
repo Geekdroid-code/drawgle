@@ -1,5 +1,6 @@
 import { isMeaningfulStateVariantForContext } from "@/lib/agent/state-variant-guardrails";
-import type { ImageReferenceMode, NavigationArchitecture, NavigationPlan, ScreenBaseStatePlan, ScreenPlan, ScreenStateVariantPlan } from "@/lib/types";
+import { isGenerationReferencePolicy } from "@/lib/generation/reference-policy";
+import type { GenerationReferencePolicy, ImageReferenceMode, NavigationArchitecture, NavigationPlan, ScreenBaseStatePlan, ScreenPlan, ScreenStateVariantPlan } from "@/lib/types";
 
 export type AgentStepStatus = "queued" | "thinking" | "editing" | "completed" | "failed";
 
@@ -43,6 +44,7 @@ export type ScreenPlanProposalMetadata = {
   expiresAt: string;
   imagePath?: string | null;
   imageReferenceMode?: ImageReferenceMode | null;
+  referencePolicy?: GenerationReferencePolicy | null;
   baseState?: ScreenBaseStatePlan | null;
   stateVariants?: ScreenStateVariantPlan[];
   selectedStateVariantIds?: string[];
@@ -92,6 +94,8 @@ const asBoolean = (value: unknown) => typeof value === "boolean" ? value : null;
 
 const asImageReferenceMode = (value: unknown): ImageReferenceMode | null =>
   value === "style" || value === "recreate" ? value : null;
+const asGenerationReferencePolicy = (value: unknown): GenerationReferencePolicy | null =>
+  isGenerationReferencePolicy(value) ? value : null;
 const asBaseState = (value: unknown): ScreenBaseStatePlan | null => {
   const record = asRecord(value);
   const stateKey = asString(record?.stateKey);
@@ -252,6 +256,7 @@ export function readScreenPlanProposal(metadata: Record<string, unknown>): Scree
     expiresAt,
     imagePath: asString(proposal.imagePath),
     imageReferenceMode: asImageReferenceMode(proposal.imageReferenceMode),
+    referencePolicy: asGenerationReferencePolicy(proposal.referencePolicy),
     baseState: asBaseState(proposal.baseState),
     stateVariants: asStateVariants(proposal.stateVariants, { prompt, screenPlan: proposal.screenPlan }),
     selectedStateVariantIds: asStringArray(proposal.selectedStateVariantIds) ?? [],

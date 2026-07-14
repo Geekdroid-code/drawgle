@@ -33,6 +33,22 @@ describe("screen plan proposal metadata", () => {
     expect(proposal?.selectedStateVariantIds).toEqual([]);
   });
 
+  it("preserves project reference provenance across approval", () => {
+    const metadata = baseProposal();
+    metadata.screenPlanProposal = {
+      ...metadata.screenPlanProposal,
+      imagePath: "owner/prompt-images/reference.webp",
+      imageReferenceMode: "style",
+      referencePolicy: "project_reference",
+    };
+
+    const proposal = readScreenPlanProposal(metadata);
+
+    expect(proposal?.imagePath).toBe("owner/prompt-images/reference.webp");
+    expect(proposal?.imageReferenceMode).toBe("style");
+    expect(proposal?.referencePolicy).toBe("project_reference");
+  });
+
   it("parses state-aware proposal metadata", () => {
     const metadata = baseProposal();
     metadata.screenPlanProposal = {

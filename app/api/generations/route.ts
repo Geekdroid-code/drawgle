@@ -9,6 +9,8 @@ import { getDesignStylePack, isDesignStyleId, summarizeDesignStyle } from "@/lib
 import { VISUAL_ASSET_SEMANTIC_CATEGORIES } from "@/lib/generation/asset-semantics";
 import { preflightGenerationScope } from "@/lib/generation/scope-contract";
 import { normalizeReferenceImage } from "@/lib/generation/reference-image";
+import { findLatestProjectPromptImagePath } from "@/lib/generation/prompt-reference-storage";
+import { isGenerationReferencePolicy, resolveGenerationReferencePolicy } from "@/lib/generation/reference-policy";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
@@ -18,6 +20,7 @@ import {
   ACTIVE_GENERATION_STATUSES,
   type DesignTokens,
   type GenerationStatus,
+  type GenerationReferencePolicy,
   type GenerationScopeContract,
   type ImageReferenceMode,
   type NavigationArchitecture,
@@ -235,6 +238,7 @@ export async function POST(request: Request) {
     }
 
     const payload = requestSchema.parse(await request.json());
+    const isExistingProjectRequest = Boolean(payload.projectId);
     const generationEngineVersion = getGenerationEngineVersion();
     const normalizedReference = payload.image ? await normalizeReferenceImage(payload.image) : null;
     const promptImage = normalizedReference?.image ?? null;
@@ -250,7 +254,7 @@ export async function POST(request: Request) {
         image: promptImage,
         referenceMode: promptImage
           ? payload.imageReferenceMode === "style" ? "user_style" : "user_recreate"
-          : "curated_style",
+          : isExistingProjectRequest ? "user_style" : "curated_style",
         planningMode: "project",
       });
       scopeContract = preflight.scopeContract;
@@ -349,10 +353,12 @@ export async function POST(request: Request) {
     }
 
     let imagePath: string | null = null;
+    let effectiveImageReferenceMode: ImageReferenceMode = payload.imageReferenceMode;
+    let referencePolicy: GenerationReferencePolicy | null = null;
     if (payload.sourceGenerationRunId) {
       const { data: sourceRun, error: sourceRunError } = await admin
         .from("generation_runs")
-        .select("id, image_path")
+        .select("id, image_path, metadata")
         .eq("id", payload.sourceGenerationRunId)
         .eq("project_id", projectId)
         .eq("owner_id", ownerId)
@@ -363,6 +369,17 @@ export async function POST(request: Request) {
       }
 
       imagePath = sourceRun.image_path;
+      const sourceMetadata = sourceRun.metadata && typeof sourceRun.metadata === "object" && !Array.isArray(sourceRun.metadata)
+        ? sourceRun.metadata as Record<string, unknown>
+        : {};
+      const sourcePolicy = sourceMetadata.referencePolicy;
+      referencePolicy = isGenerationReferencePolicy(sourcePolicy)
+        ? sourcePolicy
+        : imagePath ? "user_upload" : null;
+      const sourceMode = sourceMetadata.requestedImageReferenceMode;
+      if (sourceMode === "style" || sourceMode === "recreate") {
+        effectiveImageReferenceMode = sourceMode;
+      }
     } else if (promptImage && normalizedReference) {
       imagePath = `${ownerId}/prompt-images/${normalizedReference.sha256}.webp`;
 
@@ -376,7 +393,29 @@ export async function POST(request: Request) {
       if (uploadError) {
         throw uploadError;
       }
+      referencePolicy = "user_upload";
     }
+
+    if (!imagePath && isExistingProjectRequest) {
+      imagePath = await findLatestProjectPromptImagePath({
+        admin,
+        projectId: projectId!,
+        ownerId,
+        excludeGenerationRunId: payload.sourceGenerationRunId,
+      });
+      if (imagePath) {
+        referencePolicy = "project_reference";
+        effectiveImageReferenceMode = "style";
+      }
+    }
+
+    referencePolicy = resolveGenerationReferencePolicy({
+      hasCurrentUserImage: Boolean(promptImage),
+      hasProjectReferenceImage: referencePolicy === "project_reference" && Boolean(imagePath),
+      hasExplicitStyle: Boolean(designStyle),
+      isExistingProject: isExistingProjectRequest,
+      requestedPolicy: referencePolicy,
+    });
 
     const { data: generationRun, error: generationRunError } = await admin
       .from("generation_runs")
@@ -391,7 +430,8 @@ export async function POST(request: Request) {
           generationEngineVersion,
           requestedFrom: payload.sourceGenerationRunId ? "retry" : "nextjs-route",
           sourceGenerationRunId: payload.sourceGenerationRunId ?? null,
-          requestedImageReferenceMode: payload.imageReferenceMode,
+          requestedImageReferenceMode: effectiveImageReferenceMode,
+          referencePolicy,
           requestedDesignStyleId: designStyle?.id ?? null,
           requestedStylePresetSlug: stylePreset?.slug ?? null,
           requestedStylePresetVersion: stylePreset?.version ?? null,
@@ -443,7 +483,8 @@ export async function POST(request: Request) {
         ownerId,
         prompt: payload.prompt,
         imagePath,
-        imageReferenceMode: payload.imageReferenceMode as ImageReferenceMode,
+        imageReferenceMode: effectiveImageReferenceMode,
+        referencePolicy,
         designStyleId: designStyle?.id ?? null,
         stylePresetSlug: stylePreset?.slug ?? null,
         designTokens,

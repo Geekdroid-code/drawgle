@@ -21,6 +21,8 @@ import { persistProjectMessageMemoryPair } from "@/lib/generation/message-memory
 import { findRepairTarget } from "@/lib/generation/screen-repair";
 import { assembleProjectContext } from "@/lib/generation/context";
 import { loadCuratedStyleReferenceImage, matchCuratedStyleReference } from "@/lib/generation/curated-style-references";
+import { findLatestProjectPromptImagePath, loadStoredPromptImage } from "@/lib/generation/prompt-reference-storage";
+import { resolveGenerationReferencePolicy } from "@/lib/generation/reference-policy";
 import { planUiFlow } from "@/lib/generation/service";
 import { readScreenPlanProposal, type AgentStepMetadata } from "@/lib/agent/message-metadata";
 import { approveScreenPlanProposal, ScreenPlanApprovalError } from "@/lib/agent/screen-plan-approval";
@@ -35,6 +37,7 @@ import {
   ACTIVE_GENERATION_STATUSES,
   type DesignTokens,
   type GenerationStatus,
+  type ImageReferenceMode,
   type NavigationPlan,
   type ProjectCharter,
   type ProjectMessage,
@@ -1586,22 +1589,49 @@ export async function POST(request: Request) {
         projectId: payload.projectId,
         userPrompt: generationPrompt,
       });
-      let referenceImage = payload.image ?? null;
-      let referenceMode: ReferenceMode | null = referenceImage
-        ? payload.imageReferenceMode === "style"
-          ? "user_style"
-          : "user_recreate"
+      const inheritedImagePath = payload.image
+        ? null
+        : await findLatestProjectPromptImagePath({
+            admin,
+            projectId: payload.projectId,
+            ownerId: user.id,
+          });
+      const inheritedReferenceImage = inheritedImagePath
+        ? await loadStoredPromptImage(admin, inheritedImagePath).catch((error) => {
+            console.warn("Failed to load the project's persisted reference image; using project memory.", {
+              projectId: payload.projectId,
+              imagePath: inheritedImagePath,
+              error,
+            });
+            return null;
+          })
         : null;
-      let referenceId: string | null = null;
-
+      let referenceImage = payload.image ?? inheritedReferenceImage;
       const hasExistingProjectVisualMemory = Boolean(
         designTokens?.tokens
         || projectCharter
         || navigationPlan?.items?.length
         || planningContext.includes("RELEVANT EXISTING SCREENS"),
       );
+      const referencePolicy = resolveGenerationReferencePolicy({
+        hasCurrentUserImage: Boolean(payload.image),
+        hasProjectReferenceImage: Boolean(inheritedReferenceImage),
+        hasExplicitStyle: false,
+        isExistingProject: hasExistingProjectVisualMemory,
+      });
+      const effectiveImageReferenceMode: ImageReferenceMode = payload.image
+        ? payload.imageReferenceMode
+        : inheritedReferenceImage
+          ? "style"
+          : payload.imageReferenceMode;
+      let referenceMode: ReferenceMode | null = referenceImage
+        ? effectiveImageReferenceMode === "style"
+          ? "user_style"
+          : "user_recreate"
+        : null;
+      let referenceId: string | null = null;
 
-      if (!referenceImage && hasExistingProjectVisualMemory) {
+      if (!referenceImage && referencePolicy === "project_memory") {
         referenceMode = "user_style";
       } else if (!referenceImage) {
         const match = matchCuratedStyleReference({
@@ -1610,18 +1640,14 @@ export async function POST(request: Request) {
           existingCharter: projectCharter,
         });
 
-        if (!match) {
-          throw new Error("No curated style reference is available for no-image planning.");
+        if (match) {
+          const curatedImage = await loadCuratedStyleReferenceImage(match.reference);
+          referenceImage = curatedImage;
+          referenceMode = curatedImage ? "curated_style" : "internal_style";
+          referenceId = match.reference.id;
+        } else {
+          referenceMode = "internal_style";
         }
-
-        const curatedImage = await loadCuratedStyleReferenceImage(match.reference);
-        if (!curatedImage) {
-          throw new Error(`Selected curated style reference could not be loaded: ${match.reference.id}`);
-        }
-
-        referenceImage = curatedImage;
-        referenceMode = "curated_style";
-        referenceId = match.reference.id;
       }
       const plan = await planUiFlow({
         prompt: generationPrompt,
@@ -1639,11 +1665,12 @@ export async function POST(request: Request) {
         type: "root" as const,
         description: generationPrompt,
       };
-      const imagePath = await uploadPromptImage({
+      const uploadedImagePath = await uploadPromptImage({
         admin,
         ownerId: user.id,
         image: payload.image ?? null,
       });
+      const imagePath = uploadedImagePath ?? (inheritedReferenceImage ? inheritedImagePath : null);
       const stateProposal = await planScreenStateVariants({
         prompt: generationPrompt,
         screenPlan,
@@ -1659,7 +1686,8 @@ export async function POST(request: Request) {
         navigationArchitecture: plan.navigationArchitecture,
         navigationPlan: plan.navigationPlan,
         imagePath,
-        imageReferenceMode: payload.imageReferenceMode,
+        imageReferenceMode: effectiveImageReferenceMode,
+        referencePolicy,
         baseState: stateProposal.baseState,
         stateVariants: stateProposal.stateVariants,
         selectedStateVariantIds,
