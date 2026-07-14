@@ -188,6 +188,7 @@ const enforcePlatformConstraints = (tokens: DesignTokenValues | undefined) => {
   const legacyBorderWidths = isRecord(next.border_widths) ? next.border_widths : {};
   const legacyShadows = isRecord(next.shadows) ? next.shadows : {};
   const legacyGradients = isRecord(next.gradients) ? next.gradients : {};
+  const legacyNavigation = isRecord(next.navigation) ? next.navigation : {};
   const typography = normalizeTypography(next.typography);
   const actionGradient = pickFirstString(
     isGradientValue(legacyGradients.action_primary) ? legacyGradients.action_primary : undefined,
@@ -250,6 +251,16 @@ const enforcePlatformConstraints = (tokens: DesignTokenValues | undefined) => {
       legacyShadows.md,
       DEFAULT_OVERLAY_SHADOW,
     ),
+  };
+  next.navigation = {
+    ...(legacyNavigation as DesignTokenValues["navigation"]),
+    surface: pickFirstString(legacyNavigation.surface, next.color?.surface?.card, "#ffffff"),
+    content: pickFirstString(legacyNavigation.content, next.color?.text?.high_emphasis, "#111827"),
+    muted_content: pickFirstString(legacyNavigation.muted_content, next.color?.text?.low_emphasis, "#94a3b8"),
+    active_surface: pickFirstString(legacyNavigation.active_surface, next.color?.action?.primary, "#111827"),
+    active_content: pickFirstString(legacyNavigation.active_content, next.color?.action?.on_primary_text, "#ffffff"),
+    border: pickFirstString(legacyNavigation.border, next.color?.border?.divider, "#e5e7eb"),
+    shadow: pickFirstString(legacyNavigation.shadow, legacyShadows.surface, DEFAULT_SURFACE_SHADOW),
   };
   if (actionGradient) {
     next.gradients = {

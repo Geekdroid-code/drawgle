@@ -16,7 +16,7 @@ import {
   stateVariantScreenName,
 } from "@/lib/agent/state-variant-build";
 import { executeModifyScreenTask } from "@/lib/generation/edit-runner";
-import { generateEmbedding, generateScreenSummary } from "@/lib/generation/embeddings";
+import { buildScreenSummaryLocally } from "@/lib/generation/embeddings";
 import {
   buildScreenHealthError,
   detectScreenHealth,
@@ -32,8 +32,10 @@ import {
   validateStaticDrawgleHtml,
 } from "@/lib/generation/screen-quality";
 import { buildNavigationShellCode, buildScreenStream, extractCode, fallbackProjectCharter, generateDesignTokens, planUiFlow } from "@/lib/generation/service";
-import { preflightGenerationScope } from "@/lib/generation/scope-contract";
+import { screenBuildOutputTokenBudget } from "@/lib/generation/screen-budget";
+import { analyzeReferenceImageForScope, preflightGenerationScope } from "@/lib/generation/scope-contract";
 import { planVisualAssets, resolveProjectAssets } from "@/lib/generation/visual-assets";
+import { shouldAttachReferenceImage } from "@/lib/generation/reference-image";
 import { createNavigationArchitecture, deriveRequiresBottomNav } from "@/lib/navigation";
 import {
   applyNavigationPlanToScreens,
@@ -47,6 +49,8 @@ import { detectTokenDrift } from "@/lib/token-drift";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
 import { adminCreditService } from "@/lib/credits";
+import { getGenerationEngineVersion } from "@/lib/env/server";
+import { enrichScreenMemoryTask } from "@/trigger/enrich-screen-memory";
 import type { Database } from "@/lib/supabase/database.types";
 import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationScopeContract, ImageReferenceMode, LlmProviderEvent, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenBaseStatePlan, ScreenPlan, ScreenStateVariantPlan } from "@/lib/types";
 
@@ -68,6 +72,7 @@ type GenerateUiFlowPayload = {
   navigationPlan?: NavigationPlan | null;
   projectCharter?: ProjectCharter | null;
   scopeContract?: GenerationScopeContract | null;
+  referenceAnalysis?: ReferenceAnalysis | null;
   planningMode?: PlanningMode;
   baseState?: ScreenBaseStatePlan | null;
   stateVariants?: ScreenStateVariantPlan[] | null;
@@ -219,7 +224,7 @@ const buildAttemptDiagnostics = ({
     retryReason,
     streamed,
     model: policy.model,
-    maxOutputTokens: typeof policy.config.maxOutputTokens === "number" ? policy.config.maxOutputTokens : null,
+    maxOutputTokens: build.maxOutputTokens ?? (typeof policy.config.maxOutputTokens === "number" ? policy.config.maxOutputTokens : null),
     finishReasons: build.finishReasons,
     usageMetadata: Object.keys(build.usageMetadata).length > 0 ? build.usageMetadata : null,
     rawLength: build.rawText.length,
@@ -550,15 +555,9 @@ async function buildStateVariantsForParent({
           variantScreenId,
         );
 
-        await enrichScreenTask.trigger(
-          {
-            screenId: variantScreenId,
-            screenName: variantName,
-            code: editedVariant!.code,
-          },
-          {
-            concurrencyKey: `enrich-${payload.projectId}`,
-          },
+        await enrichScreenMemoryTask.trigger(
+          { screenId: variantScreenId },
+          { concurrencyKey: `screen-memory-${variantScreenId}` },
         );
       } catch (variantError) {
         failedVariants += 1;
@@ -841,6 +840,7 @@ async function collectScreenBuild(input: BuildScreenTaskPayload, screenPlan: Scr
     extractedCode: extractCode(rawText),
     finishReasons: Array.from(finishReasons),
     usageMetadata,
+    maxOutputTokens: screenBuildOutputTokenBudget(screenPlan),
   };
 }
 
@@ -894,6 +894,7 @@ async function collectNonStreamingScreenBuild(input: BuildScreenTaskPayload, scr
     extractedCode: extractCode(rawText),
     finishReasons: Array.from(finishReasons),
     usageMetadata,
+    maxOutputTokens: screenBuildOutputTokenBudget(screenPlan),
   };
 }
 
@@ -917,6 +918,7 @@ export const buildScreenTask = task({
   },
   maxDuration: 300,
   run: async (payload: BuildScreenTaskPayload) => {
+    const generationEngineVersion = getGenerationEngineVersion();
     const admin = createAdminClient();
     const failWithoutSavingGeneratedCode = async ({
       error,
@@ -1006,7 +1008,7 @@ export const buildScreenTask = task({
       completion,
     }));
 
-    if (!completion.valid) {
+    if (!completion.valid && generationEngineVersion === "v1") {
       logger.warn("Screen build failed completion guard; retrying once", {
         screenId: payload.screenId,
         screenName: payload.screenPlan.name,
@@ -1054,6 +1056,14 @@ export const buildScreenTask = task({
       }
     }
 
+    if (!completion.valid) {
+      await appendScreenBuildDiagnostics(admin, payload.generationRunId, payload.screenId, attempts);
+      return failWithoutSavingGeneratedCode({
+        error: `[screen_generation:incomplete_html] ${completion.issues.join(" | ")}`,
+        metadata: { attempts, generationEngineVersion, completionCodes: completion.codes, finishReasons: build.finishReasons },
+      });
+    }
+
     extractedCode = stripGenerationCompleteSentinel(extractedCode);
     let sanitization = sanitizeStaticDrawgleHtml(extractedCode);
     extractedCode = sanitization.code;
@@ -1068,7 +1078,7 @@ export const buildScreenTask = task({
       missingAnchors: quality.missingAnchors,
     };
 
-    if (!staticQuality.valid || !quality.valid) {
+    if ((!staticQuality.valid || !quality.valid) && generationEngineVersion === "v1") {
       logger.warn("Screen build failed hard HTML validation; retrying once with structural repair instructions", {
         screenId: payload.screenId,
         screenName: payload.screenPlan.name,
@@ -1146,6 +1156,14 @@ export const buildScreenTask = task({
           },
         });
       }
+    }
+
+    if (!staticQuality.valid || !quality.valid) {
+      await appendScreenBuildDiagnostics(admin, payload.generationRunId, payload.screenId, attempts);
+      return failWithoutSavingGeneratedCode({
+        error: `[screen_generation:invalid_static_html] ${[...staticQuality.issues, ...quality.issues].join(" | ")}`,
+        metadata: { attempts, generationEngineVersion, staticCodes: staticQuality.codes, qualityIssues: quality.issues },
+      });
     }
 
     const finalizeGeneratedCode = (sourceCode: string) => {
@@ -1287,6 +1305,9 @@ export const buildScreenTask = task({
       .from("screens")
       .update({
         code,
+        summary: generationEngineVersion === "v2"
+          ? buildScreenSummaryLocally(payload.screenPlan.name, code, payload.screenPlan.description, blockIndex)
+          : undefined,
         block_index: blockIndex as never,
         chrome_policy: (payload.screenPlan.chromePolicy ?? null) as never,
         navigation_item_id: payload.screenPlan.navigationItemId ?? null,
@@ -1306,22 +1327,11 @@ export const buildScreenTask = task({
 
     await appendScreenBuildDiagnostics(admin, payload.generationRunId, payload.screenId, attempts);
 
-    // Fire-and-forget: enrich the screen with a semantic embedding so it
-    // can be retrieved as context for future generations.  This runs as a
-    // separate child task so buildScreenTask reaches COMPLETED immediately
-    // after saving the code — unblocking the parent from starting the next
-    // screen without waiting 1-2 minutes for extra Gemini API calls.
-    await enrichScreenTask.trigger(
-      {
-        screenId: payload.screenId,
-        screenName: payload.screenPlan.name,
-        code,
-      },
-      {
-        // Use a separate concurrency namespace so embedding calls never
-        // compete with build-screen streaming for Gemini API quota.
-        concurrencyKey: `enrich-${payload.projectId}`,
-      },
+    // Queue one non-blocking retrieval-memory refresh. The task reads the
+    // latest saved source, so stale task payloads cannot overwrite newer edits.
+    await enrichScreenMemoryTask.trigger(
+      { screenId: payload.screenId },
+      { concurrencyKey: `screen-memory-${payload.screenId}` },
     );
 
     logger.info("Built screen", {
@@ -1334,38 +1344,6 @@ export const buildScreenTask = task({
       status: screenStatus,
       sanitizedMisuseCount: assetSanitization.sanitizedMisuseCount,
     };
-  },
-});
-
-export const enrichScreenTask = task({
-  id: "enrich-screen",
-  retry: {
-    maxAttempts: 1,
-    factor: 2,
-    minTimeoutInMs: 1000,
-    maxTimeoutInMs: 15000,
-  },
-  maxDuration: 120,
-  run: async ({ screenId, screenName, code }: { screenId: string; screenName: string; code: string }) => {
-    const admin = createAdminClient();
-
-    const summary = await generateScreenSummary(screenName, code);
-    const embedding = await generateEmbedding(summary, "RETRIEVAL_DOCUMENT");
-
-    const { error } = await admin
-      .from("screens")
-      .update({
-        summary,
-        embedding: embedding as never,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", screenId);
-
-    if (error) {
-      throw error;
-    }
-
-    logger.info("Enriched screen embedding", { screenId, screenName });
   },
 });
 
@@ -1470,6 +1448,7 @@ export const generateUiFlowTask = task({
     );
   },
   run: async (payload: GenerateUiFlowPayload) => {
+    const generationEngineVersion = getGenerationEngineVersion();
     const admin = createAdminClient();
     const generationJournal = createGenerationJournal(payload.generationRunId);
 
@@ -1589,11 +1568,28 @@ export const generateUiFlowTask = task({
     await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
     const scopePreflight = payload.scopeContract
-      ? {
-          scopeContract: payload.scopeContract,
-          referenceAnalysis: null as ReferenceAnalysis | null,
-          referenceAnalysisResult: null,
-        }
+      ? payload.referenceAnalysis
+        ? {
+            scopeContract: payload.scopeContract,
+            referenceAnalysis: payload.referenceAnalysis,
+            referenceAnalysisResult: null,
+          }
+        : payload.projectCharter
+          ? {
+              scopeContract: payload.scopeContract,
+              referenceAnalysis: null as ReferenceAnalysis | null,
+              referenceAnalysisResult: null,
+            }
+        : await analyzeReferenceImageForScope({
+            prompt: payload.prompt,
+            image: promptImage,
+            referenceMode,
+            llmLog: (label, data) => logger.info(label, data),
+          }).then((referenceAnalysisResult) => ({
+            scopeContract: payload.scopeContract!,
+            referenceAnalysis: referenceAnalysisResult.analysis,
+            referenceAnalysisResult,
+          }))
       : await preflightGenerationScope({
           prompt: payload.prompt,
           image: promptImage,
@@ -1879,6 +1875,7 @@ export const generateUiFlowTask = task({
     };
 
     await mergeGenerationRunMetadata(admin, payload.generationRunId, {
+      generationEngineVersion,
       assetRequirements,
       assetManifest: projectAssetManifest,
       assetResolutionDiagnostics: assetDiagnostics,
@@ -2019,7 +2016,11 @@ export const generateUiFlowTask = task({
       let rowInserted = false;
 
       try {
-        const shouldAttachReferenceImage = referenceMode === "user_recreate";
+        const attachReferenceImage = shouldAttachReferenceImage({
+          engineVersion: generationEngineVersion,
+          image: promptImage,
+          referenceMode,
+        });
         generationJournal.screens = generationJournal.screens?.map((screen) =>
           screen.name === screenPlan.name ? { ...screen, status: "building" } : screen,
         );
@@ -2033,7 +2034,7 @@ export const generateUiFlowTask = task({
             screenPlan,
             prompt: payload.prompt,
             designTokens,
-            image: shouldAttachReferenceImage ? promptImage : null,
+            image: attachReferenceImage ? promptImage : null,
             referenceMode,
             referenceSource,
             referenceId,

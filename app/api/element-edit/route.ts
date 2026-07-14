@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { tasks } from "@trigger.dev/sdk";
 
 import { applyDeterministicEdits, ensureDrawgleIds, type DeterministicEditOperation, type DrawgleElementTargetType } from "@/lib/drawgle-dom";
 import { indexScreenCode } from "@/lib/generation/block-index";
@@ -6,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
 import type { DesignTokens } from "@/lib/types";
+import type { enrichScreenMemoryTask } from "@/trigger/enrich-screen-memory";
 
 export const runtime = "nodejs";
 
@@ -168,6 +170,14 @@ export async function POST(req: Request) {
 
     if (updateError) {
       throw updateError;
+    }
+
+    if (nextCode !== currentCode) {
+      await tasks.trigger<typeof enrichScreenMemoryTask>(
+        "enrich-screen-memory",
+        { screenId: screen.id },
+        { concurrencyKey: `screen-memory-${screen.id}` },
+      );
     }
 
     return NextResponse.json({ ok: true, targetType, changed: nextCode !== currentCode });

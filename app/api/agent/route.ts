@@ -12,10 +12,12 @@ import {
   type AgentTargetType,
   type AgentTurnState,
 } from "@/lib/agent/router";
+import { createProjectReadToolExecutor, resolveScreenReference, type ScreenRegionReference } from "@/lib/agent/project-tools";
 import { normalizeDesignTokens } from "@/lib/design-tokens";
+import { isProjectAgentV2Enabled } from "@/lib/env/server";
 import { applyDeterministicEdits, ensureDrawgleIds, type DeterministicEditOperation, type DrawgleImageTargetMeta } from "@/lib/drawgle-dom";
 import { indexScreenCode } from "@/lib/generation/block-index";
-import { persistProjectMessageMemory, persistProjectMessageMemoryPair } from "@/lib/generation/message-memory";
+import { persistProjectMessageMemoryPair } from "@/lib/generation/message-memory";
 import { findRepairTarget } from "@/lib/generation/screen-repair";
 import { assembleProjectContext } from "@/lib/generation/context";
 import { loadCuratedStyleReferenceImage, matchCuratedStyleReference } from "@/lib/generation/curated-style-references";
@@ -42,6 +44,7 @@ import {
 } from "@/lib/types";
 import type { generateUiFlowTask } from "@/trigger/generate-ui-flow";
 import type { modifyScreenTask } from "@/trigger/modify-screen";
+import type { enrichScreenMemoryTask } from "@/trigger/enrich-screen-memory";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -533,6 +536,9 @@ const makeRouterMetadata = (decision: AgentRouterDecision) => ({
     editOperation: decision.editOperation,
     source: decision.routerSource,
     failureReason: decision.routerFailureReason ?? null,
+    sourceReferences: decision.sourceReferences ?? [],
+    toolTrace: decision.toolTrace ?? [],
+    modelCallCount: decision.modelCallCount ?? 1,
   },
 });
 
@@ -1021,7 +1027,8 @@ export async function POST(request: Request) {
       ...activeSelection,
       outerHTML: activeSelection.outerHTML ? compactMessageContent(activeSelection.outerHTML) : null,
     };
-    const agentContextVersion = "agent-lightweight-v1";
+    const agentV2Enabled = isProjectAgentV2Enabled(payload.projectId);
+    const agentContextVersion = agentV2Enabled ? "agent-project-tools-v2" : "agent-lightweight-v1";
     const lightweightAgentContext: Record<string, unknown> = {
       version: agentContextVersion,
       project: {
@@ -1045,7 +1052,7 @@ export async function POST(request: Request) {
         id: screen.id,
         name: screen.name,
         status: screen.status,
-        summary: screen.summary,
+        summary: compactMessageContent(screen.summary ?? screen.prompt ?? ""),
         chrome: screen.chrome,
         navigationItemId: screen.navigationItemId,
       })),
@@ -1170,11 +1177,18 @@ export async function POST(request: Request) {
       recentMessages,
       agentState,
       agentContext: lightweightAgentContext,
-      loadProjectContext: () => assembleProjectContext({
+      executeReadTool: agentV2Enabled ? createProjectReadToolExecutor({
         admin,
         projectId: payload.projectId,
-        userPrompt: prompt,
-      }),
+        ownerId: user.id,
+        onStaleScreen: async (screenId) => {
+          await tasks.trigger<typeof enrichScreenMemoryTask>(
+            "enrich-screen-memory",
+            { screenId },
+            { concurrencyKey: `screen-memory-${screenId}` },
+          );
+        },
+      }) : undefined,
     });
     const routerSelectedElementUsed =
       routerDecision.targetType === "selected_element" ||
@@ -1896,6 +1910,14 @@ export async function POST(request: Request) {
         })
         .eq("id", screen.id);
 
+      if (changed) {
+        await tasks.trigger<typeof enrichScreenMemoryTask>(
+          "enrich-screen-memory",
+          { screenId: screen.id },
+          { concurrencyKey: `screen-memory-${screen.id}` },
+        );
+      }
+
       const completionContent = changed
         ? `Done - Replaced ${targetsToReplace.length === 1 ? "the selected image" : `${targetsToReplace.length} selected image placeholders`} in ${screen.name}. What do you think?`
         : `I imported the image, but ${screen.name} already matched the selected image replacement.`;
@@ -2090,15 +2112,48 @@ export async function POST(request: Request) {
       });
     }
 
-    const routerScreenId = routerDecision.targetScreenId ?? null;
-    const routerScreenExists = routerScreenId
-      ? screenContext.some((screen: any) => screen.id === routerScreenId)
-      : false;
+    const requestedSourceReferences = (routerDecision.sourceReferences ?? []).slice(0, 3);
+    const resolvedSourceReferences: ScreenRegionReference[] = requestedSourceReferences.flatMap((reference) => {
+      const resolution = resolveScreenReference(reference.screenId, screenContext);
+      return resolution.status === "resolved" && resolution.screen
+        ? [{ ...reference, screenId: resolution.screen.id }]
+        : [];
+    });
+    if (resolvedSourceReferences.length !== requestedSourceReferences.length) {
+      return saveClarification({
+        message: "I found the target, but not every source screen you referenced. Which existing screen should I borrow the design from?",
+        instruction: resolvedInstruction,
+        missingFields: ["source_screen"],
+        lastKnownTarget: buildDecisionTarget(routerDecision),
+        metadata: {
+          serverReconciliation: {
+            finalAction: "ask_clarification",
+            reason: "source_screen_not_found",
+            requestedSourceReferences,
+          },
+        },
+      });
+    }
+    const routerScreenResolution = routerDecision.targetScreenId
+      ? resolveScreenReference(routerDecision.targetScreenId, screenContext)
+      : null;
+    const resolvedRouterScreenId = routerScreenResolution?.status === "resolved"
+      ? routerScreenResolution.screen?.id ?? null
+      : null;
+    const routerTargetWasBorrowedSource = Boolean(
+      selectedScreenId &&
+      resolvedRouterScreenId &&
+      resolvedSourceReferences.some((reference) => reference.screenId === resolvedRouterScreenId),
+    );
+    const routerScreenId = routerTargetWasBorrowedSource ? selectedScreenId : resolvedRouterScreenId;
+    const routerScreenExists = Boolean(routerScreenId);
 
-    if (routerScreenId && !routerScreenExists) {
+    if (routerDecision.targetScreenId && !routerScreenExists) {
       const message = whiteLabelAgentMessage(
         prompt,
-        "I could not find that screen in this project. Which screen should I update?",
+        routerScreenResolution?.status === "ambiguous"
+          ? `I found multiple possible screens: ${routerScreenResolution.candidates.map((screen) => screen.name).join(", ")}. Which one should I update?`
+          : "I could not find that screen in this project. Which screen should I update?",
       );
 
       return saveClarification({
@@ -2110,7 +2165,7 @@ export async function POST(request: Request) {
           serverReconciliation: {
             finalAction: "ask_clarification",
             reason: "target_screen_id_not_found",
-            targetScreenId: routerScreenId,
+            targetScreenId: routerDecision.targetScreenId,
           },
         },
       });
@@ -2172,6 +2227,7 @@ export async function POST(request: Request) {
         scope: resolvedScope,
         selectedElementDrawgleId: shouldUseSelectedElement ? activeSelectionDrawgleId : null,
         editOperation,
+        sourceReferences: resolvedSourceReferences,
       },
       serverReconciliation: {
         finalAction: "modify_ui",
@@ -2187,6 +2243,7 @@ export async function POST(request: Request) {
       },
       editStrategy,
       editOperation,
+      sourceReferences: resolvedSourceReferences,
     };
     const executionRouterDecision: AgentRouterDecision = {
       ...routerDecision,
@@ -2195,6 +2252,7 @@ export async function POST(request: Request) {
       scope: resolvedScope,
       selectedElementDrawgleId: executionRouterMetadata.agentRouter.selectedElementDrawgleId,
       editOperation,
+      sourceReferences: resolvedSourceReferences,
     };
     let verifiedSelectedElementHtml = shouldUseSelectedElement
       ? activeSelection.outerHTML ?? null
@@ -2238,7 +2296,7 @@ export async function POST(request: Request) {
       verifiedSelectedElementHtml = verification.html;
     }
 
-    const deterministicStyleIntent = shouldUseSelectedElement
+    const deterministicStyleIntent = shouldUseSelectedElement && resolvedSourceReferences.length === 0
       ? classifyDeterministicTokenStyleIntent({
           prompt: resolvedInstruction,
           designTokens,
@@ -2360,6 +2418,11 @@ export async function POST(request: Request) {
               updated_at: now(),
             })
             .eq("id", screen.id);
+          await tasks.trigger<typeof enrichScreenMemoryTask>(
+            "enrich-screen-memory",
+            { screenId: screen.id },
+            { concurrencyKey: `screen-memory-${screen.id}` },
+          );
         }
       }
       if (changed) {
@@ -2510,7 +2573,7 @@ export async function POST(request: Request) {
       metadata: executionRouterMetadata,
     });
 
-    const preActionMessage = await insertPreActionMessage({
+    await insertPreActionMessage({
       admin,
       projectId: payload.projectId,
       ownerId: user.id,
@@ -2598,6 +2661,7 @@ export async function POST(request: Request) {
         targetScope: resolvedScope,
         editStrategy,
         editOperation,
+        sourceReferences: resolvedSourceReferences,
         conversationContext: shouldUseSelectedElement ? null : recentMessages,
         recoveryContext: shouldUseSelectedElement ? null : agentState as Record<string, unknown> | null,
         routerDecision: executionRouterMetadata.agentRouter,
@@ -2640,27 +2704,6 @@ export async function POST(request: Request) {
         triggerRunId: handle.id,
       },
     });
-
-    if (preActionMessage) {
-      await persistProjectMessageMemoryPair({
-        admin,
-        userMessageId: userMessage.id,
-        userContent: prompt || "[image]",
-        modelMessageId: preActionMessage.id,
-        modelContent: preActionMessage.content,
-      }).catch((error) => {
-        console.error("Failed to persist edit pre-action memory", error);
-      });
-    } else {
-      await persistProjectMessageMemory({
-        admin,
-        messageId: userMessage.id,
-        role: "user",
-        content: prompt || "[image]",
-      }).catch((error) => {
-        console.error("Failed to persist edit-request memory", error);
-      });
-    }
 
     return NextResponse.json(
       {

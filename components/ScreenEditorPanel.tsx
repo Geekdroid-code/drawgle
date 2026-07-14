@@ -112,6 +112,9 @@ export function ScreenEditorPanel({
         
         if (newCode !== sourceCode) {
           await updateScreenCode(supabase, screen.id, newCode, "ready", indexScreenCode(newCode));
+          void fetch(`/api/screens/${screen.id}/memory`, { method: "POST" }).catch((error) => {
+            console.error("Failed to queue screen memory refresh", error);
+          });
         }
       }
 

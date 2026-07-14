@@ -7,9 +7,12 @@ import { z } from "zod";
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { getDesignStylePack, isDesignStyleId, summarizeDesignStyle } from "@/lib/generation/design-styles";
 import { VISUAL_ASSET_SEMANTIC_CATEGORIES } from "@/lib/generation/asset-semantics";
+import { preflightGenerationScope } from "@/lib/generation/scope-contract";
+import { normalizeReferenceImage } from "@/lib/generation/reference-image";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
+import { getGenerationEngineVersion } from "@/lib/env/server";
 import type { Database } from "@/lib/supabase/database.types";
 import {
   ACTIVE_GENERATION_STATUSES,
@@ -20,6 +23,7 @@ import {
   type NavigationArchitecture,
   type NavigationPlan,
   type ProjectCharter,
+  type ReferenceAnalysis,
   type ScreenPlan,
 } from "@/lib/types";
 import type { generateUiFlowTask } from "@/trigger/generate-ui-flow";
@@ -231,16 +235,39 @@ export async function POST(request: Request) {
     }
 
     const payload = requestSchema.parse(await request.json());
-    const stylePreset = !payload.image ? await resolvePublishedStylePreset(payload.stylePresetSlug) : null;
-    const designStyle = stylePreset?.stylePack ?? (isDesignStyleId(payload.designStyleId) && !payload.image
+    const generationEngineVersion = getGenerationEngineVersion();
+    const normalizedReference = payload.image ? await normalizeReferenceImage(payload.image) : null;
+    const promptImage = normalizedReference?.image ?? null;
+    const stylePreset = !promptImage ? await resolvePublishedStylePreset(payload.stylePresetSlug) : null;
+    const designStyle = stylePreset?.stylePack ?? (isDesignStyleId(payload.designStyleId) && !promptImage
       ? getDesignStylePack(payload.designStyleId)
       : null);
+    let scopeContract = (payload.scopeContract ?? null) as GenerationScopeContract | null;
+    let referenceAnalysis: ReferenceAnalysis | null = null;
+    if (!scopeContract && generationEngineVersion === "v2") {
+      const preflight = await preflightGenerationScope({
+        prompt: payload.prompt,
+        image: promptImage,
+        referenceMode: promptImage
+          ? payload.imageReferenceMode === "style" ? "user_style" : "user_recreate"
+          : "curated_style",
+        planningMode: "project",
+      });
+      scopeContract = preflight.scopeContract;
+      referenceAnalysis = preflight.referenceAnalysis;
+      if (scopeContract.requiresConfirmation) {
+        return NextResponse.json({
+          error: "Please confirm the interpreted screen scope before generation.",
+          code: "scope_confirmation_required",
+          scopeContract,
+        }, { status: 409 });
+      }
+    }
     const ownerId = authData.user.id;
     const requestedDesignTokens = payload.designTokens
       ? normalizeDesignTokens(payload.designTokens as DesignTokens)
       : null;
     const plannedScreens = (payload.plannedScreens ?? null) as ScreenPlan[] | null;
-    const scopeContract = (payload.scopeContract ?? null) as GenerationScopeContract | null;
     const projectCharter = payload.projectCharter
       ? ({
           ...(payload.projectCharter as ProjectCharter),
@@ -336,15 +363,14 @@ export async function POST(request: Request) {
       }
 
       imagePath = sourceRun.image_path;
-    } else if (payload.image) {
-      const extension = payload.image.mimeType.split("/")[1] ?? "bin";
-      imagePath = `${ownerId}/prompt-images/${crypto.randomUUID()}.${extension}`;
+    } else if (promptImage && normalizedReference) {
+      imagePath = `${ownerId}/prompt-images/${normalizedReference.sha256}.webp`;
 
       const { error: uploadError } = await admin.storage
         .from("generation-assets")
-        .upload(imagePath, Buffer.from(payload.image.data, "base64"), {
-          contentType: payload.image.mimeType,
-          upsert: false,
+        .upload(imagePath, Buffer.from(promptImage.data, "base64"), {
+          contentType: promptImage.mimeType,
+          upsert: true,
         });
 
       if (uploadError) {
@@ -362,6 +388,7 @@ export async function POST(request: Request) {
         requested_screen_count: scopeContract?.finalScreenCount ?? null,
         status: "queued",
         metadata: {
+          generationEngineVersion,
           requestedFrom: payload.sourceGenerationRunId ? "retry" : "nextjs-route",
           sourceGenerationRunId: payload.sourceGenerationRunId ?? null,
           requestedImageReferenceMode: payload.imageReferenceMode,
@@ -399,7 +426,7 @@ export async function POST(request: Request) {
           metadata: {
             action: "agent_turn_user",
             clientTurnId: crypto.randomUUID(),
-            image: payload.image ?? null,
+            image: promptImage,
           },
           created_at: now(),
         });
@@ -422,6 +449,7 @@ export async function POST(request: Request) {
         designTokens,
         plannedScreens,
         scopeContract,
+        referenceAnalysis,
         requiresBottomNav: payload.requiresBottomNav,
         navigationArchitecture,
         navigationPlan,

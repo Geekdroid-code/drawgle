@@ -5,6 +5,7 @@ import type { AgentStepMetadata } from "@/lib/agent/message-metadata";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { adminCreditService } from "@/lib/credits";
 import { cleanErrorMessage } from "@/lib/ai/error-handler";
+import { enrichScreenMemoryTask } from "@/trigger/enrich-screen-memory";
 
 const now = () => new Date().toISOString();
 
@@ -207,6 +208,13 @@ export const modifyScreenTask = task({
           requiredCredits,
           newBalance: deduction.newBalance,
         });
+      }
+
+      if (payload.screenId && !isNavigation) {
+        await enrichScreenMemoryTask.trigger(
+          { screenId: payload.screenId },
+          { concurrencyKey: `screen-memory-${payload.screenId}` },
+        );
       }
     }
 

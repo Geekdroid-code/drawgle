@@ -38,6 +38,7 @@ import {
 } from "@/lib/generation/scope-contract";
 import { buildTokenPromptContext } from "@/lib/token-runtime";
 import { detectTokenDrift } from "@/lib/token-drift";
+import { screenBuildOutputTokenBudget } from "@/lib/generation/screen-budget";
 import type {
   BuildScreenInput,
   LlmInputSnapshot,
@@ -420,6 +421,7 @@ const DesignTokensSchema = z
         overlay: z.string().optional(),
       }).passthrough().optional(),
       gradients: StringRecordSchema.optional(),
+      navigation: StringRecordSchema.optional(),
       elevation: StringRecordSchema.optional(),
       opacities: StringRecordSchema.optional(),
       z_index: StringRecordSchema.optional(),
@@ -565,33 +567,8 @@ type ExplicitScreenSection = {
   anchors: string[];
 };
 
-const NUMBER_WORDS: Record<string, number> = {
-  one: 1,
-  two: 2,
-  three: 3,
-  four: 4,
-  five: 5,
-  six: 6,
-  seven: 7,
-  eight: 8,
-};
-
 const normalizeScreenName = (value: string) =>
   value.toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\b(screen|page|view|the)\b/g, " ").replace(/\s+/g, " ").trim();
-
-const parseRequestedScreenCount = (prompt: string) => {
-  const numeric = prompt.match(/\b(?:generate|create|build|make|design)?\s*(?:these\s+|all\s+|the\s+)*(\d{1,2})\b(?:\s+\w+){0,8}\s+(?:screen|screens|page|pages)\b/i);
-  if (numeric) {
-    return Number(numeric[1]);
-  }
-
-  const word = prompt.match(/\b(one|two|three|four|five|six|seven|eight)\b(?:\s+\w+){0,8}\s+(?:screen|screens|page|pages)\b/i);
-  if (word) {
-    return NUMBER_WORDS[word[1].toLowerCase()] ?? null;
-  }
-
-  return null;
-};
 
 const stripGlobalNavigationBrief = (sectionText: string) => {
   const globalNavMatch = sectionText.match(
@@ -804,9 +781,11 @@ const compileGenerationIntentContract = ({
 const buildScreenCountContract = ({
   intentContract,
   explicitScreenSections,
+  scopeContract,
 }: {
   intentContract: GenerationIntentContract;
   explicitScreenSections: ExplicitScreenSection[];
+  scopeContract?: GenerationScopeContract | null;
 }): ScreenCountContract => {
   if (intentContract.exactScreenCount) {
     const source: ScreenCountContract["source"] =
@@ -820,7 +799,7 @@ const buildScreenCountContract = ({
       exactCount: intentContract.exactScreenCount,
       source,
       reason: intentContract.reason,
-      namedScreens: explicitScreenSections.map((section) => section.name),
+      namedScreens: scopeContract?.screens?.map((screen) => screen.name) ?? explicitScreenSections.map((section) => section.name),
       referenceScreenCount: intentContract.referenceScreenCount,
       disableSharedNavigation: !intentContract.allowSharedNavigation,
       maxScreens: intentContract.maxInitialScreens ?? null,
@@ -1050,11 +1029,15 @@ const enforceScreenCountContract = ({
   if (screens.length < exactCount) {
     const nextScreens = [...screens];
     for (let index = screens.length; index < exactCount; index++) {
-      nextScreens.push(screenPlanFromReferenceScreen({
+      const fallback = screenPlanFromReferenceScreen({
         referenceScreen: referenceAnalysis?.screenReferences[index],
         index,
         prompt,
-      }));
+      });
+      nextScreens.push({
+        ...fallback,
+        name: contract.namedScreens?.[index] ?? fallback.name,
+      });
     }
     return { screens: nextScreens, enforcement: "filled" };
   }
@@ -1062,21 +1045,43 @@ const enforceScreenCountContract = ({
   return { screens, enforcement: "none" };
 };
 
-const reconcileScreensWithPrompt = ({
+const reconcileScreensWithScope = ({
   prompt,
   screens,
   planningMode,
+  scopeContract,
 }: {
   prompt: string;
   screens: ScreenPlan[];
   planningMode: PlanningMode;
+  scopeContract?: GenerationScopeContract | null;
 }) => {
   if (planningMode === "single-screen") {
     return screens.slice(0, 1);
   }
 
   const sections = parseExplicitScreenSections(prompt);
-  const requestedCount = parseRequestedScreenCount(prompt);
+  const scopedScreens = scopeContract?.screens ?? [];
+
+  if (scopedScreens.length > 0) {
+    const forceNoPersistentNav = looksLikeFiniteFlowWithoutPersistentNav(prompt, sections);
+    return scopedScreens.map((required, index) => {
+      const section = sections.find((candidate) => candidate.index === required.index);
+      const existing = screens.find((screen) => normalizeScreenName(screen.name) === normalizeScreenName(required.name))
+        ?? screens[index];
+      if (section) {
+        return {
+          ...screenPlanFromExplicitSection(section, index, forceNoPersistentNav, existing),
+          name: required.name,
+        };
+      }
+      return {
+        ...(existing ?? fallbackScreenPlan(`${required.name}. ${prompt}`)),
+        name: required.name,
+        type: existing?.type ?? (index === 0 && !/onboarding|authentication|login|signup|welcome/i.test(required.kind) ? "root" : "detail"),
+      } satisfies ScreenPlan;
+    });
+  }
 
   if (sections.length === 0) {
     return screens;
@@ -1088,12 +1093,8 @@ const reconcileScreensWithPrompt = ({
     return screenPlanFromExplicitSection(section, index, forceNoPersistentNav, existing);
   });
 
-  if (requestedCount && reconciled.length >= requestedCount) {
-    return reconciled.slice(0, requestedCount);
-  }
-
   const extras = screens.filter((screen) => !sections.some((section) => screenMatchesSection(screen, section)));
-  return [...reconciled, ...extras].slice(0, requestedCount ?? 12);
+  return [...reconciled, ...extras].slice(0, 12);
 };
 
 const coerceNavigationArchitecture = ({
@@ -2076,7 +2077,7 @@ export async function planUiFlow({
     referenceAnalysisResult,
   });
   const explicitScreenSections = parseExplicitScreenSections(prompt);
-  const requestedScreenCount = resolvedScopeContract.promptScreenCount ?? parseRequestedScreenCount(prompt);
+  const requestedScreenCount = resolvedScopeContract.promptScreenCount;
   const intentContract = compileGenerationIntentContract({
     prompt,
     planningMode,
@@ -2089,6 +2090,7 @@ export async function planUiFlow({
   const screenCountContract = buildScreenCountContract({
     intentContract,
     explicitScreenSections,
+    scopeContract: resolvedScopeContract,
   });
   const forceFiniteFlowWithoutPersistentNav = looksLikeFiniteFlowWithoutPersistentNav(prompt, explicitScreenSections);
   const fallbackRequiresBottomNav = screenCountContract.disableSharedNavigation ? false : inferLegacyRequiresBottomNav({
@@ -2356,10 +2358,11 @@ export async function planUiFlow({
           planningMode,
           referenceAnalysis,
         }).map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture }));
-    const reconciledScreens = reconcileScreensWithPrompt({
+    const reconciledScreens = reconcileScreensWithScope({
       prompt,
       screens: rawScreens,
       planningMode,
+      scopeContract: resolvedScopeContract,
     }).map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture }));
     const adjustedContract = { ...screenCountContract };
     if (
@@ -2512,10 +2515,11 @@ export async function planUiFlow({
         }
       : null,
   }));
-  const reconciledScreens = reconcileScreensWithPrompt({
+  const reconciledScreens = reconcileScreensWithScope({
     prompt,
     screens: rawScreens,
     planningMode,
+    scopeContract: resolvedScopeContract,
   }).map((screenPlan) => resolvePlannedScreen({
     screenPlan: {
       name: screenPlan.name,
@@ -2745,9 +2749,11 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
     assetManifest: input.assetManifest,
   });
 
+  const maxOutputTokens = screenBuildOutputTokenBudget(input.screenPlan);
   const policy = geminiPolicyForTask("screen_build", {
     systemInstruction,
     temperature: 0.2,
+    maxOutputTokens,
   });
 
   if (input.onLlmInput) {
@@ -2776,6 +2782,7 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
     configOverride: {
       systemInstruction,
       temperature: 0.2,
+      maxOutputTokens,
     },
     onResponseChunk: input.onResponseChunk,
     onProviderEvent: input.onProviderEvent,

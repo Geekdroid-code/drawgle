@@ -44,6 +44,28 @@ export const getOpenRouterApiKey = () =>
 export const getScreenBuilderProvider = () =>
   process.env.DRAWGLE_SCREEN_BUILDER_PROVIDER ?? "gemini";
 
+export const getGenerationEngineVersion = (): "v1" | "v2" =>
+  process.env.DRAWGLE_GENERATION_ENGINE_VERSION === "v1" ? "v1" : "v2";
+
+export const isProjectAgentV2Enabled = (projectId: string) => {
+  const allowlist = new Set(
+    (process.env.DRAWGLE_AGENT_V2_PROJECT_ALLOWLIST ?? "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean),
+  );
+  if (allowlist.has(projectId)) return true;
+
+  const parsedPercent = Number.parseInt(process.env.DRAWGLE_AGENT_V2_ROLLOUT_PERCENT ?? "100", 10);
+  const percent = Number.isFinite(parsedPercent) ? Math.min(100, Math.max(0, parsedPercent)) : 100;
+  let hash = 2166136261;
+  for (const character of projectId) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) % 100 < percent;
+};
+
 export const getScreenBuilderModel = () =>
   process.env.DRAWGLE_SCREEN_BUILDER_MODEL ?? "gemini-3-flash-preview";
 
@@ -108,4 +130,3 @@ export const getOpenRouterScreenBuildReasoning = () => {
     exclude: excludeRaw === "true" ? true : undefined,
   };
 };
-

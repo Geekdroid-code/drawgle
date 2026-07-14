@@ -1,14 +1,14 @@
 import "server-only";
 
 import { createGeminiClient } from "@/lib/ai/gemini";
+import { indexScreenCode } from "@/lib/generation/block-index";
 import { extractScreenStyleMemory } from "@/lib/generation/screen-style-memory";
+import type { ScreenBlockIndex } from "@/lib/types";
 
 export const SCREEN_EMBEDDING_DIMENSIONS = 768;
 
-const SUMMARY_MODEL = "gemini-3.1-flash-lite";
 const EMBEDDING_MODEL = "gemini-embedding-001";
 const MAX_EMBEDDING_INPUT_CHARS = 12000;
-const MAX_SCREEN_CODE_CHARS = 18000;
 
 type EmbeddingTaskType = "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY";
 
@@ -31,16 +31,45 @@ const stripHtml = (value: string) =>
       .replace(/&nbsp;/gi, " "),
   );
 
-const buildFallbackSummary = (screenName: string, screenCode: string) => {
-  const visibleCopy = truncate(stripHtml(screenCode), 220);
+const summarizeBlocks = (blockIndex: ScreenBlockIndex) => blockIndex.blocks
+  .filter((block) => block.id !== blockIndex.rootId)
+  .slice(0, 16)
+  .map((block) => {
+    const preview = block.preview ? `: ${truncate(block.preview, 90)}` : "";
+    return `${block.name} [${block.kind}]${preview}`;
+  })
+  .join("; ");
+
+const summarizeControls = (screenCode: string) => {
+  const controls = Array.from(screenCode.matchAll(/<(button|input|select|textarea|a)\b([^>]*)>(?:([\s\S]*?)<\/\1>)?/gi))
+    .map((match) => {
+      const attributes = match[2] ?? "";
+      const accessibleLabel = attributes.match(/(?:aria-label|placeholder|title)=["']([^"']+)["']/i)?.[1];
+      return collapseWhitespace(accessibleLabel || stripHtml(match[3] || "") || match[1] || "");
+    })
+    .filter(Boolean);
+  return Array.from(new Set(controls)).slice(0, 12).join(", ");
+};
+
+export const buildScreenSummaryLocally = (
+  screenName: string,
+  screenCode: string,
+  screenPrompt = "",
+  providedBlockIndex?: ScreenBlockIndex | null,
+) => {
+  const blockIndex = providedBlockIndex?.blocks?.length ? providedBlockIndex : indexScreenCode(screenCode);
+  const visibleCopy = truncate(stripHtml(screenCode), 480);
+  const regions = truncate(summarizeBlocks(blockIndex), 720);
+  const controls = truncate(summarizeControls(screenCode), 320);
   const styleMemory = extractScreenStyleMemory({ name: screenName, code: screenCode });
-  const styleEvidence = styleMemory ? ` Visual/token evidence: ${truncate(styleMemory, 240)}` : "";
-
-  if (!visibleCopy) {
-    return `${screenName} screen with a mobile-first layout, primary actions, and supporting content for the main workflow.${styleEvidence}`;
-  }
-
-  return `${screenName} screen with a mobile-first layout, primary actions, and supporting content. Visible interface copy includes: ${visibleCopy}.${styleEvidence}`;
+  return [
+    `Screen: ${screenName}.`,
+    screenPrompt.trim() ? `Purpose/request: ${truncate(collapseWhitespace(screenPrompt), 360)}.` : null,
+    visibleCopy ? `Visible interface copy: ${visibleCopy}.` : null,
+    regions ? `UI regions: ${regions}.` : null,
+    controls ? `Interactive controls: ${controls}.` : null,
+    styleMemory ? `Visual and token evidence: ${truncate(styleMemory, 420)}.` : null,
+  ].filter(Boolean).join(" ");
 };
 
 export async function generateEmbedding(text: string, taskType: EmbeddingTaskType): Promise<number[]> {
@@ -67,40 +96,4 @@ export async function generateEmbedding(text: string, taskType: EmbeddingTaskTyp
   }
 
   return values;
-}
-
-export async function generateScreenSummary(screenName: string, screenCode: string): Promise<string> {
-  const fallback = buildFallbackSummary(screenName, screenCode);
-  const ai = createGeminiClient();
-
-  try {
-    const response = await ai.models.generateContent({
-      model: SUMMARY_MODEL,
-      contents: {
-        parts: [
-          {
-            text: [
-              "Summarize this generated mobile app screen for retrieval.",
-              "Return exactly 2 compact sentences.",
-              "Sentence 1: purpose, hierarchy, main controls, and notable UI patterns.",
-              "Sentence 2: visual system evidence for future consistency, including token utilities/CSS vars when visible, background, surfaces, radii, shadows, spacing density, typography, and nav/chrome style.",
-              "Mention class/token evidence only when it helps preserve style; do not include long code snippets.",
-              `Screen name: ${screenName}`,
-              `Screen code:\n${truncate(screenCode, MAX_SCREEN_CODE_CHARS)}`,
-            ].join("\n\n"),
-          },
-        ],
-      },
-      config: {
-        temperature: 0.1,
-      },
-    });
-
-    const summary = truncate(collapseWhitespace(response.text ?? ""), 500).replace(/^['\"]+|['\"]+$/g, "");
-
-    return summary || fallback;
-  } catch (error) {
-    console.error("Failed to generate screen summary", error);
-    return fallback;
-  }
 }

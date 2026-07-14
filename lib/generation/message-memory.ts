@@ -1,5 +1,7 @@
 import "server-only";
 
+import { tasks } from "@trigger.dev/sdk";
+
 import { generateEmbedding } from "@/lib/generation/embeddings";
 import { updateProjectMessageMemoryEmbedding } from "@/lib/supabase/queries";
 import type { createAdminClient } from "@/lib/supabase/admin";
@@ -29,7 +31,7 @@ export function shouldPersistMessageMemory(content: string, role: "user" | "mode
   return true;
 }
 
-export async function persistProjectMessageMemory({
+export async function persistProjectMessageMemoryNow({
   admin,
   messageId,
   role,
@@ -49,6 +51,22 @@ export async function persistProjectMessageMemory({
   return true;
 }
 
+export async function persistProjectMessageMemory(input: {
+  admin: AdminClient;
+  messageId: string;
+  role: "user" | "model";
+  content: string;
+}) {
+  if (!shouldPersistMessageMemory(input.content, input.role)) return false;
+  await tasks.trigger("enrich-agent-turn-memory", {
+    kind: "single",
+    messageId: input.messageId,
+    role: input.role,
+    content: input.content,
+  });
+  return true;
+}
+
 export async function persistProjectMessageMemoryPair({
   admin,
   userMessageId,
@@ -62,18 +80,46 @@ export async function persistProjectMessageMemoryPair({
   modelMessageId: string;
   modelContent: string;
 }) {
-  await Promise.all([
-    persistProjectMessageMemory({
-      admin,
-      messageId: userMessageId,
-      role: "user",
-      content: userContent,
-    }),
-    persistProjectMessageMemory({
-      admin,
-      messageId: modelMessageId,
-      role: "model",
-      content: modelContent,
-    }),
-  ]);
+  const combined = [
+    `User request: ${collapseWhitespace(userContent)}`,
+    `Assistant outcome: ${collapseWhitespace(modelContent)}`,
+  ].join("\n");
+
+  if (!shouldPersistMessageMemory(combined, "model")) {
+    return false;
+  }
+
+  // One embedding represents the completed turn. The model message already
+  // carries userMessageId metadata, so retrieval can reconstruct both sides.
+  await tasks.trigger("enrich-agent-turn-memory", {
+    kind: "turn",
+    userMessageId,
+    userContent,
+    modelMessageId,
+    modelContent,
+  });
+  void admin;
+  return true;
+}
+
+export async function persistProjectMessageMemoryPairNow({
+  admin,
+  userContent,
+  modelMessageId,
+  modelContent,
+}: {
+  admin: AdminClient;
+  userMessageId: string;
+  userContent: string;
+  modelMessageId: string;
+  modelContent: string;
+}) {
+  const combined = [
+    `User request: ${collapseWhitespace(userContent)}`,
+    `Assistant outcome: ${collapseWhitespace(modelContent)}`,
+  ].join("\n");
+  if (!shouldPersistMessageMemory(combined, "model")) return false;
+  const embedding = await generateEmbedding(combined, "RETRIEVAL_DOCUMENT");
+  await updateProjectMessageMemoryEmbedding(admin, modelMessageId, embedding);
+  return true;
 }

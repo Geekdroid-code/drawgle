@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import type {
   AuthenticatedUser,
   DesignTokens,
+  GenerationScopeContract,
   ImageReferenceMode,
   PlannedUiFlow,
   ProjectData,
@@ -36,7 +37,7 @@ import type {
 } from "@/lib/types";
 
 type LobbyStage = "brief" | "design" | "plan";
-type ApiErrorPayload = { error?: unknown; details?: unknown };
+type ApiErrorPayload = { error?: unknown; details?: unknown; code?: string; scopeContract?: GenerationScopeContract };
 type TextShimmerWaveProps = {
   children: string;
   className?: string;
@@ -254,6 +255,10 @@ export function ProjectLobby({
   const { balance, loading: loadingCredits } = useCredits();
   const [isPricingOpen, setIsPricingOpen] = useState(false);
   const [pricingReason, setPricingReason] = useState<"upgrade" | "insufficient_credits">("upgrade");
+  const [pendingScopeConfirmation, setPendingScopeConfirmation] = useState<{
+    action: "generate" | "plan";
+    contract: GenerationScopeContract;
+  } | null>(null);
 
   const isBriefReady = Boolean(prompt.trim() || image);
   const selectedBriefStyleLabel = selectedStylePreset?.title ?? briefStyles.find((style) => style.id === selectedBriefStyle)?.label ?? "Auto";
@@ -288,7 +293,7 @@ export function ProjectLobby({
     }
   };
 
-  const handleGenerateDesign = async () => {
+  const handleGenerateDesign = async (confirmedScopeContract?: GenerationScopeContract) => {
     if (!isBriefReady || isGeneratingDesign) {
       return;
     }
@@ -312,10 +317,17 @@ export function ProjectLobby({
           imageReferenceMode,
           designStyleId: selectedDesignStyleId,
           stylePresetSlug,
+          scopeContract: confirmedScopeContract ?? null,
         }),
       });
 
       const payload = (await response.json().catch(() => null)) as ({ projectId?: string } & ApiErrorPayload) | null;
+
+      if (response.status === 409 && payload?.code === "scope_confirmation_required" && payload.scopeContract) {
+        setPendingScopeConfirmation({ action: "generate", contract: payload.scopeContract });
+        setIsGeneratingDesign(false);
+        return;
+      }
 
       if (!response.ok || !payload?.projectId) {
         throw new Error(readApiError(payload, "Failed to start the build."));
@@ -328,7 +340,7 @@ export function ProjectLobby({
     }
   };
 
-  const handlePlanFlow = async () => {
+  const handlePlanFlow = async (confirmedScopeContract?: GenerationScopeContract) => {
     if (!designTokens || isPlanning) {
       return;
     }
@@ -347,10 +359,17 @@ export function ProjectLobby({
           designStyleId: selectedDesignStyleId,
           stylePresetSlug,
           designTokens,
+          scopeContract: confirmedScopeContract ?? null,
         }),
       });
 
       const payload = (await response.json().catch(() => null)) as PlannedUiFlow | ApiErrorPayload | null;
+
+      const errorPayload = payload as ApiErrorPayload | null;
+      if (response.status === 409 && errorPayload?.code === "scope_confirmation_required" && errorPayload.scopeContract) {
+        setPendingScopeConfirmation({ action: "plan", contract: errorPayload.scopeContract });
+        return;
+      }
 
       if (!response.ok || !payload || "error" in payload) {
         throw new Error(readApiError(payload as ApiErrorPayload | null, "Failed to plan the UI flow."));
@@ -863,6 +882,41 @@ export function ProjectLobby({
           </div>
         </div>
       </main>
+      {pendingScopeConfirmation ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="scope-confirmation-title">
+          <div className="w-full max-w-md rounded-[8px] bg-white p-5 text-neutral-950 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 id="scope-confirmation-title" className="text-lg font-semibold">Confirm screen scope</h2>
+                <p className="mt-1 text-sm leading-5 text-neutral-600">The request could be interpreted more than one way. Confirm this screen set before paid generation begins.</p>
+              </div>
+              <button type="button" className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-neutral-500 hover:bg-neutral-100" aria-label="Close scope confirmation" onClick={() => setPendingScopeConfirmation(null)}>
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <ol className="mt-4 divide-y divide-neutral-200 border-y border-neutral-200">
+              {(pendingScopeConfirmation.contract.screens ?? []).map((screen) => (
+                <li key={`${screen.index}-${screen.name}`} className="flex min-h-12 items-center gap-3 py-2 text-sm">
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-neutral-950 text-xs font-semibold text-white">{screen.index}</span>
+                  <span className="font-medium">{screen.name}</span>
+                </li>
+              ))}
+            </ol>
+            {pendingScopeConfirmation.contract.ambiguities?.length ? (
+              <p className="mt-3 text-xs leading-5 text-amber-700">{pendingScopeConfirmation.contract.ambiguities.join(" ")}</p>
+            ) : null}
+            <div className="mt-5 flex gap-2">
+              <Button type="button" variant="outline" className="h-11 flex-1" onClick={() => { setPendingScopeConfirmation(null); setStage("brief"); }}>Edit prompt</Button>
+              <Button type="button" className="h-11 flex-1" onClick={() => {
+                const pending = pendingScopeConfirmation;
+                setPendingScopeConfirmation(null);
+                if (pending.action === "plan") void handlePlanFlow(pending.contract);
+                else void handleGenerateDesign(pending.contract);
+              }}>Confirm screens</Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <PricingDialog
         open={isPricingOpen}
         onOpenChange={setIsPricingOpen}

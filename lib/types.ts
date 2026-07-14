@@ -297,6 +297,17 @@ export interface DesignGradientTokens {
   [key: string]: JsonValue | undefined;
 }
 
+export interface DesignNavigationTokens {
+  surface?: string;
+  content?: string;
+  muted_content?: string;
+  active_surface?: string;
+  active_content?: string;
+  border?: string;
+  shadow?: string;
+  [key: string]: JsonValue | undefined;
+}
+
 /**
  * Semantic map: compact, role-named entries sent to the LLM instead of the
  * raw spacing/sizing/opacities/z-index scales. Each entry resolves to a
@@ -322,6 +333,7 @@ export interface DesignTokenValues {
   border_widths?: DesignBorderWidthTokens;
   shadows?: DesignShadowTokens;
   gradients?: DesignGradientTokens;
+  navigation?: DesignNavigationTokens;
   elevation?: Record<string, string>;
   opacities?: Record<string, string>;
   z_index?: Record<string, string>;
@@ -570,6 +582,12 @@ export interface ReferenceScreenAnalysis {
   spacingRules?: string[];
   componentRules?: string[];
   antiPatterns?: string[];
+  boundingBox?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null;
 }
 
 export interface ReferenceDesignSystemSignals {
@@ -630,8 +648,21 @@ export type GenerationScopeCountSource =
   | "default_single"
   | "open_project";
 
+export interface ScreenScopeGroup {
+  kind: string;
+  count: number;
+  orderedNames: string[];
+  sourceText: string;
+}
+
+export interface ScreenScopeScreen {
+  index: number;
+  name: string;
+  kind: string;
+}
+
 export interface GenerationScopeContract {
-  version: 1;
+  version: 1 | 2;
   referenceMode: ReferenceMode;
   promptScreenCount: number | null;
   namedScreenCount: number | null;
@@ -649,6 +680,10 @@ export interface GenerationScopeContract {
   allScreensRequested: boolean;
   reason: string;
   diagnostics: string[];
+  groups?: ScreenScopeGroup[];
+  screens?: ScreenScopeScreen[];
+  ambiguities?: string[];
+  requiresConfirmation?: boolean;
 }
 
 export type GenerationIntentKind =

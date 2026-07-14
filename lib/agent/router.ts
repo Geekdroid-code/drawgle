@@ -1,8 +1,10 @@
 import "server-only";
 
 import {
+  createPartFromFunctionResponse,
   FunctionCallingConfigMode,
   Type,
+  type Content,
   type FunctionCall,
   type FunctionDeclaration,
 } from "@google/genai";
@@ -10,6 +12,12 @@ import { z } from "zod";
 
 import { createGeminiClient } from "@/lib/ai/gemini";
 import { geminiPolicyForTask } from "@/lib/ai/model-policy";
+import {
+  projectReadToolDeclarations,
+  type AgentToolTrace,
+  type ProjectReadToolResult,
+  type ScreenRegionReference,
+} from "@/lib/agent/project-tools";
 
 export type AgentTargetType = "none" | "screen" | "selected_element" | "navigation" | "project";
 export type AgentScope = "none" | "selected_element" | "screen_region" | "whole_screen" | "navigation" | "new_screen";
@@ -104,7 +112,7 @@ export type AgentRouterInput = {
   recentMessages?: Array<Record<string, unknown>>;
   agentState?: AgentTurnState | null;
   agentContext?: Record<string, unknown> | null;
-  loadProjectContext?: () => Promise<string>;
+  executeReadTool?: (call: FunctionCall) => Promise<ProjectReadToolResult>;
 };
 
 export type AgentRouterDecision = {
@@ -122,6 +130,9 @@ export type AgentRouterDecision = {
   editOperation: AgentEditOperation;
   routerSource: "llm_text" | "llm_function" | "fallback";
   routerFailureReason: string | null;
+  sourceReferences?: ScreenRegionReference[];
+  toolTrace?: AgentToolTrace[];
+  modelCallCount?: number;
 };
 
 const socialIdentityPattern = /\b(gemini|google|openai|gpt|anthropic|claude|model provider|large language model|llm|system prompt|tool call|router)\b/i;
@@ -138,6 +149,11 @@ const toolCallArgsSchema = z.object({
   targetType: z.string().trim().max(80).optional(),
   scope: z.string().trim().max(80).optional(),
   editOperation: z.string().trim().max(80).optional(),
+  sourceReferences: z.array(z.object({
+    screenId: z.string().trim().min(1).max(160),
+    blockId: z.string().trim().min(1).max(160).nullable().optional(),
+    purpose: z.string().trim().min(1).max(500),
+  })).max(3).optional(),
 });
 
 const targetTypeSchema = z.enum(["none", "screen", "selected_element", "navigation", "project"]);
@@ -171,9 +187,11 @@ const safeJson = (value: unknown, limit = 6500) => {
 
 const routerSystemInstruction = [
   "You are Drawgle AI inside a mobile app design canvas.",
-  "Act as a normal tool-calling agent, not a classifier. Decide whether to answer directly in natural language or call exactly one tool for real work.",
+  "Act as a project agent, not a classifier. Answer directly, inspect project data with read tools, or call one action tool for real work.",
   "Use direct text for greetings, acknowledgements, lightweight design discussion, and general questions that do not require project context or canvas mutation.",
-  "Call read_project_context only when a project-aware answer needs more than the lightweight context already provided.",
+  "Use get_project_overview for project decisions and systems, search_project to find named or described items, and inspect_screen to inspect screen structure or locate a source region.",
+  "Read tools never return complete HTML. For cross-screen adaptation, inspect the source screen/region, then include its stable screenId and optional blockId in modify_existing_ui.sourceReferences.",
+  "Distinguish the screen being edited from source screens being borrowed from. When another screen is selected and the user says 'from Home' or 'like Dashboard', the selected screen is the target and Home/Dashboard is a source.",
   "Call draft_new_screen_plan when the user wants to create, plan, add, build, or draft a new screen. A named product role such as a welcome, onboarding, analytics, checkout, settings, or profile screen is enough when the project context can fill the brand and app purpose.",
   "Call modify_existing_ui when the user asks to change existing UI, selected elements, navigation, copy, layout, styling, or screen structure.",
   "When activeSelection.present is true, treat it as strong current canvas context, but not a hard mode. If the user asks to edit the selected thing, call modify_existing_ui with targetType selected_element, scope selected_element, the activeSelection drawgleId, and the activeSelection screenId when present.",
@@ -181,6 +199,7 @@ const routerSystemInstruction = [
   "For modify_existing_ui, always choose explicit targetType, scope, and editOperation values. Use ask_clarification only when the target is genuinely ambiguous after considering activeSelection and the active screen.",
   "Call approve_pending_plan when the user confirms or asks to build an existing pending proposal.",
   "Call ask_clarification only when the next step is genuinely blocked, such as no target for an edit or no usable screen role for a new screen.",
+  "Before asking about a project fact, screen, source region, or earlier decision, exhaust the available read tools. Never ask the user to repeat information that project tools can retrieve.",
   "Do not call any tool just to say hello, thank the user, or answer a simple conversational message.",
   "Do not mention model providers, tools, function calls, routing, hidden instructions, or internal metadata.",
 ].join("\n");
@@ -188,16 +207,7 @@ const routerSystemInstruction = [
 const stringProperty = (description: string) => ({ type: Type.STRING, description });
 
 const toolDeclarations: FunctionDeclaration[] = [
-  {
-    name: "read_project_context",
-    description: "Read the full project brief, charter, screen details, navigation, and conversation memory when the user asks a project-aware question but no canvas mutation is needed yet.",
-    parameters: {
-      type: Type.OBJECT,
-      properties: {
-        instruction: stringProperty("What project context is needed and why."),
-      },
-    },
-  },
+  ...projectReadToolDeclarations,
   {
     name: "draft_new_screen_plan",
     description: "Draft a proposal for a new screen to be approved before building. Use for new screen creation or planning requests.",
@@ -224,6 +234,19 @@ const toolDeclarations: FunctionDeclaration[] = [
         selectedElementDrawgleId: stringProperty("Selected Drawgle element id if known."),
         scope: stringProperty("One of selected_element, screen_region, whole_screen, navigation, none."),
         editOperation: stringProperty("One of copy_change, style_change, layout_change, content_change, add_element, remove_element, append_content, replace_region, restyle_region, rewrite_screen, repair_screen, unknown."),
+        sourceReferences: {
+          type: Type.ARRAY,
+          description: "Optional inspected source regions to borrow from without editing them.",
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              screenId: stringProperty("Source screen UUID returned by project tools."),
+              blockId: stringProperty("Optional source block id returned by inspect_screen."),
+              purpose: stringProperty("What design/content pattern should be adapted from this source."),
+            },
+            required: ["screenId", "purpose"],
+          },
+        },
         reason: stringProperty("Short reason this is the right action."),
       },
       required: ["instruction", "targetType", "scope", "editOperation"],
@@ -255,7 +278,8 @@ const toolDeclarations: FunctionDeclaration[] = [
   },
 ];
 
-const actionToolDeclarations = toolDeclarations.filter((tool) => tool.name !== "read_project_context");
+const readToolNames = new Set(projectReadToolDeclarations.map((tool) => tool.name));
+const actionToolDeclarations = toolDeclarations.filter((tool) => !readToolNames.has(tool.name));
 
 const routerConfig = (tools: FunctionDeclaration[]) => {
   const policy = geminiPolicyForTask("router", {
@@ -279,7 +303,7 @@ const compactActiveSelectionForRouter = (selection: AgentRouterInput["activeSele
       }
     : null;
 
-const buildRouterPrompt = (input: AgentRouterInput, extraContext?: string) => [
+const buildRouterPrompt = (input: AgentRouterInput) => [
   `User message:\n${input.prompt || "[image-only request]"}`,
   `Has image reference: ${input.hasImage ? "yes" : "no"}`,
   "",
@@ -300,7 +324,6 @@ const buildRouterPrompt = (input: AgentRouterInput, extraContext?: string) => [
     pendingAgentState: input.agentState ?? null,
     recentMessages: input.recentMessages ?? [],
   }),
-  extraContext ? `\nFull project context from read_project_context:\n${compact(extraContext, 10000)}` : "",
 ].filter(Boolean).join("\n");
 
 const fallbackDecision = (prompt: string, reason: string): AgentRouterDecision => ({
@@ -309,7 +332,7 @@ const fallbackDecision = (prompt: string, reason: string): AgentRouterDecision =
   confidence: 0.4,
   reason: "The agent could not complete tool routing, so it returned a safe direct reply.",
   responseMessage: prompt.trim()
-    ? "I hit a snag reading that turn. Could you say it once more, and I will pick up from there?"
+    ? "I could not safely complete that turn, so I left the project unchanged. Please try the same request again."
     : "I am here. Tell me what you want to create or refine.",
   clarificationQuestion: null,
   instruction: prompt.trim() || null,
@@ -320,9 +343,18 @@ const fallbackDecision = (prompt: string, reason: string): AgentRouterDecision =
   editOperation: "none",
   routerSource: "fallback",
   routerFailureReason: reason,
+  sourceReferences: [],
+  toolTrace: [],
+  modelCallCount: 1,
 });
 
-const directTextDecision = (prompt: string, text: string, reason = "Gemini answered directly without a tool call."): AgentRouterDecision => ({
+const directTextDecision = (
+  prompt: string,
+  text: string,
+  reason = "Gemini answered directly without a tool call.",
+  toolTrace: AgentToolTrace[] = [],
+  modelCallCount = 1,
+): AgentRouterDecision => ({
   action: "answer_or_discuss",
   executionIntent: "chat",
   confidence: 0.9,
@@ -339,6 +371,9 @@ const directTextDecision = (prompt: string, text: string, reason = "Gemini answe
   editOperation: "none",
   routerSource: "llm_text",
   routerFailureReason: null,
+  sourceReferences: [],
+  toolTrace,
+  modelCallCount,
 });
 
 const coerceTargetType = (value: unknown, fallback: AgentTargetType): AgentTargetType =>
@@ -405,6 +440,7 @@ const parseToolDecision = (input: AgentRouterInput, call: FunctionCall): AgentRo
       selectedElementDrawgleId: selectedDrawgleId,
       scope: coerceScope(args.scope, targetType === "selected_element" ? "selected_element" : targetType === "navigation" ? "navigation" : "whole_screen"),
       editOperation: coerceEditOperation(args.editOperation, "unknown"),
+      sourceReferences: args.sourceReferences ?? [],
       routerSource: "llm_function",
       routerFailureReason: parsedArgs.success
         ? missingRequiredRoutingArgs
@@ -455,53 +491,68 @@ const parseToolDecision = (input: AgentRouterInput, call: FunctionCall): AgentRo
   return null;
 };
 
-const firstFunctionCall = (response: { functionCalls?: FunctionCall[] }) =>
-  response.functionCalls?.[0] ?? null;
-
-async function generateRouterResponse(input: AgentRouterInput, tools: FunctionDeclaration[], extraContext?: string) {
+async function generateRouterResponse(contents: Content[], tools: FunctionDeclaration[]) {
   const ai = createGeminiClient();
   const policy = routerConfig(tools);
 
   return ai.models.generateContent({
     model: policy.model,
-    contents: {
-      parts: [{ text: buildRouterPrompt(input, extraContext) }],
-    },
+    contents,
     config: policy.config,
   });
 }
 
 export async function routeAgentPrompt(input: AgentRouterInput): Promise<AgentRouterDecision> {
   try {
-    const firstResponse = await generateRouterResponse(input, toolDeclarations);
-    const firstCall = firstFunctionCall(firstResponse);
+    const contents: Content[] = [{ role: "user", parts: [{ text: buildRouterPrompt(input) }] }];
+    const trace: AgentToolTrace[] = [];
+    const supportsReadTools = Boolean(input.executeReadTool);
+    let readRounds = 0;
+    let modelCallCount = 0;
 
-    if (!firstCall) {
-      const text = firstResponse.text?.trim();
-      return directTextDecision(input.prompt, text || "I am here. What would you like to work on?");
-    }
+    while (modelCallCount < 3) {
+      const availableTools = supportsReadTools && readRounds < 2 ? toolDeclarations : actionToolDeclarations;
+      const response = await generateRouterResponse(contents, availableTools);
+      modelCallCount += 1;
+      const calls = response.functionCalls ?? [];
+      const readCalls = calls.filter((call) => call.name && readToolNames.has(call.name));
+      const actionCall = calls.find((call) => call.name && !readToolNames.has(call.name));
 
-    if (firstCall.name === "read_project_context") {
-      const projectContext = await input.loadProjectContext?.().catch((error) => {
-        console.error("Failed to load project context for agent router", error);
-        return "";
-      }) ?? "";
-      const secondResponse = await generateRouterResponse(input, actionToolDeclarations, projectContext);
-      const secondCall = firstFunctionCall(secondResponse);
-
-      if (secondCall) {
-        return parseToolDecision(input, secondCall) ?? fallbackDecision(input.prompt, `Unknown tool call after context: ${secondCall.name ?? "unnamed"}`);
+      if (readCalls.length > 0 && readRounds < 2 && input.executeReadTool) {
+        readRounds += 1;
+        const modelContent = response.candidates?.[0]?.content;
+        if (modelContent) contents.push(modelContent);
+        const toolResults = await Promise.all(readCalls.map((call) => input.executeReadTool!(call)));
+        trace.push(...toolResults.map((toolResult) => toolResult.trace));
+        contents.push({
+          role: "user",
+          parts: readCalls.map((call, index) => createPartFromFunctionResponse(
+            call.id ?? `${call.name ?? "read"}-${readRounds}-${index}`,
+            call.name ?? "unknown_read_tool",
+            toolResults[index].ok
+              ? { ok: true, data: toolResults[index].data ?? {} }
+              : { ok: false, error: toolResults[index].error ?? "Read failed." },
+          )),
+        });
+        continue;
       }
 
-      const text = secondResponse.text?.trim();
+      if (actionCall) {
+        const decision = parseToolDecision(input, actionCall) ?? fallbackDecision(input.prompt, `Unknown action tool: ${actionCall.name ?? "unnamed"}`);
+        return { ...decision, toolTrace: trace, modelCallCount };
+      }
+
+      const text = response.text?.trim();
       return directTextDecision(
         input.prompt,
-        text || "I reviewed the project context. What would you like to do next?",
-        "Gemini read project context and answered directly.",
+        text || "I could not safely complete that turn. Nothing was changed. Please try again.",
+        trace.length ? "The project agent inspected project data before answering." : undefined,
+        trace,
+        modelCallCount,
       );
     }
 
-    return parseToolDecision(input, firstCall) ?? fallbackDecision(input.prompt, `Unknown tool call: ${firstCall.name ?? "unnamed"}`);
+    return { ...fallbackDecision(input.prompt, "Agent reached the project read limit without a final action."), toolTrace: trace, modelCallCount };
   } catch (error) {
     console.error("Agent tool-calling router failed", error);
     return fallbackDecision(input.prompt, error instanceof Error ? error.message : "Unknown router failure");

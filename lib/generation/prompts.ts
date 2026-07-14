@@ -254,6 +254,7 @@ Return strictly valid JSON in this format after inspecting the image with an exp
   "screenReferences": [
     {
       "index": 1,
+      "boundingBox": { "x": 0.0, "y": 0.0, "width": 0.33, "height": 1.0 },
       "suggestedRole": "Likely purpose of this screen",
       "layoutSummary": "Background-to-foreground structural walk: layer order, parent-child containment, grid/flex-like arrangement, spacing, anchors, overlap, inset, and clipping. Use approximate px-like terms when helpful, such as 'about 2-3px highlight edge' or 'about 12-16px internal padding'; do not invent false precision.",
       "visualHierarchy": "Actual visible priority and reading path: what dominates first, second, third, and why by scale, contrast, depth, placement, or motion cue",
@@ -326,6 +327,7 @@ Use language that names the character without judging it. This voice description
 
 Rules:
 - Multi-screen handling: describe visible phone screens/panels left-to-right. screenCountEstimate counts only visible phone screens/panels; bottom/side tabs, segmented controls, carousel dots, menu items, and labels inside one screen are not screens.
+- Frame completeness: return exactly one screenReferences entry per counted visible screen. boundingBox uses normalized 0-1 coordinates relative to the uploaded image and encloses that screen's visible frame.
 - Visual forensics: before summarizing, inspect each visible screen from absolute background to topmost layer. For every meaningful layer/region, name what it is, where it sits, what contains it, what it contains, and how it separates from the layer behind.
 - Structural language: use precise terms such as surface, layer, container, group, control, content cluster, media plane, navigation surface, overlay, text group, icon well, chart plane, map plane, and floating affordance. Do not flatten nested/grouped UI into generic "card/header/list/section/panel/button"; describe wrappers and children separately.
 - Arrangement: explain row/column/grid/stack/absolute/floating layout, alignment, gaps, padding, insets, overlap, clipping, anchors, top/middle/bottom regions, proportions, active states, icon/label treatment, repeated motifs, and parent-child rebuild structure. Use approximate px-like values when helpful; do not invent false precision.
@@ -351,6 +353,7 @@ Return strictly valid JSON in this format:
   "screenReferences": [
     {
       "index": 1,
+      "boundingBox": { "x": 0.0, "y": 0.0, "width": 1.0, "height": 1.0 },
       "suggestedRole": "Reusable style role, not required app screen",
       "layoutSummary": "Reusable composition principles and constraints, not exact section order or object positions",
       "visualHierarchy": "How the reference creates priority through scale, contrast, depth, spacing, typography, and focal moments",
@@ -380,6 +383,7 @@ Return strictly valid JSON in this format:
 }
 
 Rules:
+- Return exactly one screenReferences entry for every visible phone screen or app frame counted by screenCountEstimate. boundingBox uses normalized 0-1 image coordinates.
 - Extract material quality, shadows, radii, blur/glass, typography character, icon weight, color rhythm, polish, micro-shapes, navigation treatment, component craftsmanship, spacing density, and viewport fit constraints.
 - Do not preserve exact section order, object positions, domain content, data values, product objects, literal copy, or full screenshot anatomy.
 - Translate visible structure into portable principles: "floating dock with active pill and generous safe-area clearance", not "put this exact dock in the same place with the same labels".
@@ -450,6 +454,15 @@ REQUIRED JSON SCHEMA:
       "surface_highlight": "linear-gradient CSS value for elevated surface sheen/highlight when useful",
       "accent_ring": "linear-gradient CSS value for thin accent borders/rings when useful"
     },
+    "navigation": {
+      "surface": "HEX navigation surface color",
+      "content": "HEX primary navigation content color",
+      "muted_content": "HEX inactive navigation content color",
+      "active_surface": "HEX active indicator or icon-well color",
+      "active_content": "HEX content color on the active surface",
+      "border": "HEX navigation border color",
+      "shadow": "CSS box-shadow for the persistent navigation surface"
+    },
     "opacities": { "transparent": "0", "disabled": "0.38", "scrim_overlay": "0.50", "pressed": "0.12", "opaque": "1" },
     "z_index": { "base": "0", "sticky_header": "10", "bottom_nav": "20", "bottom_sheet": "30", "modal_dialog": "40", "toast_snackbar": "50" }
   }
@@ -463,6 +476,7 @@ Rules:
 - Use border_widths.standard as the default border weight across the app.
 - Use shadows.surface for standard elevated surfaces and shadows.overlay only for stronger overlays like sheets or floating panels.
 - Use gradients as first-class material tokens when the reference or creative direction uses gradient depth. Provide app_background, action_primary, surface_highlight, and accent_ring values as complete CSS gradient strings. Keep them disciplined and role-based, not a grab bag of decorative effects.
+- Derive navigation tokens from visible navigation evidence when present. A dark reference dock must produce a dark navigation.surface even when normal cards are light.
 - If the visual direction is flat/minimal, gradients may be very subtle two-stop values derived from the flat color tokens rather than loud decorative fills.
 - Keep token relationships coherent. Example: airy systems should not use cramped section gaps; sharp systems should not use very soft pill-heavy radii except where intentionally contrasting.
 - Keep touch targets mobile-safe even when the visual style is compact.
@@ -839,7 +853,8 @@ const buildScreenInstruction = ({
       ].join(" ")
     : [
         "Build from the screen brief, charter, navigation plan, creative direction, and tokens.",
-        "Borrow polish through the already-written reference analysis and creative direction only: material quality, shadows, radii, typography character, color rhythm, icon weight, nav feel, and component craft.",
+        "When a style reference image is attached, inspect it directly as visual evidence and preserve its material quality, shadows, radii, typography character, color rhythm, icon weight, navigation feel, component construction, density, and illustration character.",
+        "Use the written reference analysis as a construction contract, but prefer observable image evidence when prose is vague.",
         "Do not clone a curated or uploaded style screenshot's domain content, section order, object positions, or full layout anatomy.",
       ].join(" ");
 

@@ -11,6 +11,8 @@ import type {
   ReferenceAnalysisResult,
   ReferenceMode,
   PlanningMode,
+  ScreenScopeGroup,
+  ScreenScopeScreen,
 } from "@/lib/types";
 
 const NUMBER_WORDS: Record<string, number> = {
@@ -37,6 +39,11 @@ type PromptScreenIntent = {
   source: Extract<GenerationScopeCountSource, "prompt_count" | "named_screens"> | null;
   allScreensRequested: boolean;
   diagnostics: string[];
+  groups?: ScreenScopeGroup[];
+  screens?: ScreenScopeScreen[];
+  confidence?: "high" | "medium" | "low";
+  ambiguities?: string[];
+  requiresConfirmation?: boolean;
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -194,12 +201,58 @@ const extractNamedScreenCount = (prompt: string) => {
   return indexes.length > 0 ? Math.max(...indexes) : matches.length;
 };
 
+const titleCase = (value: string) => value
+  .replace(/[_-]+/g, " ")
+  .replace(/\s+/g, " ")
+  .trim()
+  .replace(/\b\w/g, (character) => character.toUpperCase());
+
+const defaultScopeScreenName = (kind: string, index: number, count: number) => {
+  const normalized = kind.toLowerCase();
+  if (/onboarding|welcome|intro/.test(normalized)) return count > 1 ? `Onboarding Step ${index}` : "Onboarding";
+  if (/auth|login|sign.?up|register/.test(normalized)) return "Login / Signup";
+  if (/home|dashboard/.test(normalized)) return normalized.includes("dashboard") ? "Dashboard" : "Home";
+  const label = titleCase(kind || "Screen");
+  return count > 1 ? `${label} ${index}` : label;
+};
+
+const screensFromGroups = (groups: ScreenScopeGroup[]) => {
+  const screens: ScreenScopeScreen[] = [];
+  for (const group of groups) {
+    for (let index = 0; index < group.count && screens.length < 12; index += 1) {
+      screens.push({
+        index: screens.length + 1,
+        name: group.orderedNames[index] || defaultScopeScreenName(group.kind, index + 1, group.count),
+        kind: group.kind,
+      });
+    }
+  }
+  return screens;
+};
+
+const inferGroupKind = (phrase: string) => {
+  const normalized = phrase.toLowerCase();
+  if (/onboarding|welcome|intro/.test(normalized)) return "onboarding";
+  if (/login|sign.?up|register|auth/.test(normalized)) return "authentication";
+  if (/home/.test(normalized)) return "home";
+  if (/dashboard/.test(normalized)) return "dashboard";
+  if (/profile|account/.test(normalized)) return "profile";
+  if (/settings/.test(normalized)) return "settings";
+  return "screen";
+};
+
 export function parsePromptScreenIntent(prompt: string): PromptScreenIntent {
   const normalized = prompt.trim();
   const diagnostics: string[] = [];
   const namedScreenCount = extractNamedScreenCount(normalized);
 
   if (namedScreenCount) {
+    const namedMatches = Array.from(normalized.matchAll(/(?:^|\n)\s*Screen\s+(\d{1,2})\s*:\s*([^\n.]+)/gi));
+    const screens = namedMatches.map((match, index) => ({
+      index: index + 1,
+      name: (match[2] || `Screen ${index + 1}`).trim().slice(0, 100),
+      kind: inferGroupKind(match[2] || "screen"),
+    }));
     diagnostics.push(`Detected ${namedScreenCount} named Screen N sections.`);
     return {
       promptScreenCount: namedScreenCount,
@@ -207,30 +260,46 @@ export function parsePromptScreenIntent(prompt: string): PromptScreenIntent {
       source: "named_screens",
       allScreensRequested: true,
       diagnostics,
+      groups: screens.map((screen) => ({ kind: screen.kind, count: 1, orderedNames: [screen.name], sourceText: screen.name })),
+      screens,
+      confidence: "high",
+      ambiguities: [],
+      requiresConfirmation: false,
     };
   }
 
   const token = "(\\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)";
-  const patterns = [
-    new RegExp(`\\b${token}\\s*(?:[- ]?)(?:${SCREEN_NOUNS})\\b`, "i"),
-    new RegExp(`\\b(?:these|those|the|all)\\s+${token}\\s*(?:${SCREEN_NOUNS})?\\b`, "i"),
-    new RegExp(`\\b(?:${ACTION_WORDS})\\s+(?:all\\s+|the\\s+|these\\s+|those\\s+)?${token}\\b`, "i"),
-    new RegExp(`\\b${token}\\s+(?:mobile\\s+|app\\s+|ui\\s+){0,3}(?:${SCREEN_NOUNS})\\b`, "i"),
-  ];
+  const quantityPattern = new RegExp(`\\b${token}\\b((?:\\s+[a-z][a-z/-]*){0,8})\\s+(?:${SCREEN_NOUNS})\\b`, "gi");
+  const quantityMatches = Array.from(normalized.replace(/-/g, " ").matchAll(quantityPattern));
+  const groups = quantityMatches.flatMap((match) => {
+    const count = numberFromToken(match[1]);
+    if (!count) return [];
+    const phrase = `${match[2] ?? ""} screen`.trim();
+    const kind = inferGroupKind(phrase);
+    return [{
+      kind,
+      count,
+      orderedNames: Array.from({ length: count }, (_, index) => defaultScopeScreenName(kind, index + 1, count)),
+      sourceText: (match[0] ?? phrase).trim().slice(0, 240),
+    } satisfies ScreenScopeGroup];
+  });
 
-  for (const pattern of patterns) {
-    const match = normalized.match(pattern);
-    const count = numberFromToken(match?.[1]);
-    if (count) {
-      diagnostics.push(`Detected prompt-requested screen count ${count} from "${match?.[0] ?? "prompt"}".`);
-      return {
-        promptScreenCount: count,
-        namedScreenCount: null,
-        source: "prompt_count",
-        allScreensRequested: /\b(all|every|each)\b/i.test(match?.[0] ?? normalized),
-        diagnostics,
-      };
-    }
+  if (groups.length > 0) {
+    const screens = screensFromGroups(groups);
+    const count = screens.length;
+    diagnostics.push(`Detected ${groups.length} additive screen group${groups.length === 1 ? "" : "s"} totaling ${count} screen${count === 1 ? "" : "s"}.`);
+    return {
+      promptScreenCount: count,
+      namedScreenCount: null,
+      source: "prompt_count",
+      allScreensRequested: /\b(all|every|each|must have)\b/i.test(normalized),
+      diagnostics,
+      groups,
+      screens,
+      confidence: groups.length > 1 ? "medium" : "high",
+      ambiguities: [],
+      requiresConfirmation: false,
+    };
   }
 
   const trailingActionCount = normalized.match(new RegExp(`\\b(?:${ACTION_WORDS})\\b[\\s\\S]{0,80}\\b${token}\\s*$`, "i"));
@@ -243,6 +312,11 @@ export function parsePromptScreenIntent(prompt: string): PromptScreenIntent {
       source: "prompt_count",
       allScreensRequested: /\b(all|every|each)\b/i.test(normalized),
       diagnostics,
+      groups: [{ kind: "screen", count: trailingCount, orderedNames: [], sourceText: trailingActionCount?.[0] ?? normalized }],
+      screens: screensFromGroups([{ kind: "screen", count: trailingCount, orderedNames: [], sourceText: trailingActionCount?.[0] ?? normalized }]),
+      confidence: "medium",
+      ambiguities: [],
+      requiresConfirmation: false,
     };
   }
 
@@ -259,10 +333,145 @@ export function parsePromptScreenIntent(prompt: string): PromptScreenIntent {
     source: null,
     allScreensRequested,
     diagnostics,
+    groups: [],
+    screens: [],
+    confidence: "high",
+    ambiguities: [],
+    requiresConfirmation: false,
   };
 }
 
-const normalizeReferenceAnalysis = (raw: unknown): ReferenceAnalysisResult => {
+const normalizeSemanticPromptIntent = (raw: unknown, prompt: string): PromptScreenIntent | null => {
+  if (!isRecord(raw)) return null;
+  const explicitFiniteScope = raw.explicitFiniteScope === true || raw.explicit_finite_scope === true;
+  const rawGroups = readField(raw, ["groups", "screenGroups", "screen_groups"]);
+  const groups = Array.isArray(rawGroups)
+    ? rawGroups.filter(isRecord).slice(0, 12).flatMap((group) => {
+        const count = clampScopeScreenCount(readField(group, ["count", "slotCount", "slot_count"]));
+        if (!count) return [];
+        const kind = textField(group, ["kind", "type", "role"], "screen", 80).toLowerCase().replace(/[^a-z0-9]+/g, "_");
+        const orderedNames = textArray(readField(group, ["orderedNames", "ordered_names", "names"]), [], count, 100);
+        const useCanonicalNames = /onboarding|welcome|intro|auth|login|signup|register|home|dashboard/.test(kind);
+        return [{
+          kind,
+          count,
+          orderedNames: Array.from({ length: count }, (_, index) => useCanonicalNames
+            ? defaultScopeScreenName(kind, index + 1, count)
+            : orderedNames[index] || defaultScopeScreenName(kind, index + 1, count)),
+          sourceText: textField(group, ["sourceText", "source_text", "evidence"], prompt, 240),
+        } satisfies ScreenScopeGroup];
+      })
+    : [];
+  const ambiguities = textArray(readField(raw, ["ambiguities", "uncertainties"]), [], 8, 240);
+  const confidenceValue = String(readField(raw, ["confidence"]) ?? "").toLowerCase();
+  let confidence: PromptScreenIntent["confidence"] = confidenceValue === "high" || confidenceValue === "medium" || confidenceValue === "low"
+    ? confidenceValue
+    : groups.length > 0 ? "medium" : "high";
+  const diagnostics: string[] = [];
+
+  if (!explicitFiniteScope || groups.length === 0) {
+    return {
+      promptScreenCount: null,
+      namedScreenCount: null,
+      source: null,
+      allScreensRequested: raw.allScreensRequested === true || raw.all_screens_requested === true,
+      diagnostics: ["Semantic scope interpreter found no explicit finite screen set."],
+      groups: [],
+      screens: [],
+      confidence,
+      ambiguities,
+      requiresConfirmation: confidence === "low" || ambiguities.length > 0,
+    };
+  }
+
+  const screens = screensFromGroups(groups);
+  const reportedTotal = clampScopeScreenCount(readField(raw, ["totalCount", "total_count", "screenCount", "screen_count"]));
+  if (reportedTotal && reportedTotal !== screens.length) {
+    diagnostics.push(`Semantic scope total ${reportedTotal} disagreed with additive group total ${screens.length}; additive arithmetic won.`);
+    confidence = confidence === "high" ? "medium" : confidence;
+  }
+  diagnostics.push(`Semantic scope interpreter resolved ${groups.length} group${groups.length === 1 ? "" : "s"} and ${screens.length} screen${screens.length === 1 ? "" : "s"}.`);
+
+  return {
+    promptScreenCount: screens.length,
+    namedScreenCount: null,
+    source: "prompt_count",
+    allScreensRequested: raw.allScreensRequested === true || raw.all_screens_requested === true,
+    diagnostics,
+    groups,
+    screens,
+    confidence,
+    ambiguities,
+    requiresConfirmation: confidence === "low" || ambiguities.length > 0,
+  };
+};
+
+export async function analyzePromptScreenIntent({
+  prompt,
+  llmLog,
+}: {
+  prompt: string;
+  llmLog?: LlmLogFn;
+}): Promise<PromptScreenIntent> {
+  const deterministic = parsePromptScreenIntent(prompt);
+  if (!prompt.trim() || deterministic.namedScreenCount) return deterministic;
+
+  try {
+    const [{ createGeminiClient }, { geminiPolicyForTask }] = await Promise.all([
+      import("@/lib/ai/gemini"),
+      import("@/lib/ai/model-policy"),
+    ]);
+    const ai = createGeminiClient();
+    const policy = geminiPolicyForTask("draft_plan", {
+      responseMimeType: "application/json",
+      temperature: 0,
+      maxOutputTokens: 3000,
+    });
+    const instruction = [
+      "Extract only the user's explicitly requested finite mobile app screen scope.",
+      "Return JSON: { explicitFiniteScope, groups:[{kind,count,orderedNames,sourceText}], totalCount, confidence:'high|medium|low', ambiguities:[], allScreensRequested }.",
+      "Screen groups are additive. A two-step onboarding plus one login/signup screen plus one home screen totals four screens.",
+      "A combined login/signup screen counts as one unless separate screens are explicitly requested.",
+      "Do not treat version numbers, dimensions, product quantities, card counts, steps inside one non-screen workflow, or reference-image panel counts as prompt screen totals.",
+      "If the user requests an app but does not enumerate a finite screen set, set explicitFiniteScope false and return no groups.",
+      `User prompt: ${JSON.stringify(prompt.trim())}`,
+    ].join("\n");
+
+    llmLog?.("[LLM INPUT] semantic-screen-scope", { model: policy.model, promptLength: prompt.length });
+    const response = await ai.models.generateContent({
+      model: policy.model,
+      contents: instruction,
+      config: policy.config,
+    });
+    const semantic = normalizeSemanticPromptIntent(parseJsonResponse<unknown>(response.text || "{}"), prompt);
+    return semantic ?? deterministic;
+  } catch (error) {
+    return {
+      ...deterministic,
+      diagnostics: [
+        ...deterministic.diagnostics,
+        `Semantic scope interpreter failed; deterministic additive fallback used: ${error instanceof Error ? error.message : String(error)}`,
+      ],
+    };
+  }
+}
+
+const normalizeBoundingBox = (value: unknown) => {
+  if (!isRecord(value)) return null;
+  const number = (keys: string[]) => {
+    const raw = readField(value, keys);
+    const parsed = typeof raw === "number" ? raw : Number(raw);
+    return Number.isFinite(parsed) ? Math.min(1, Math.max(0, parsed)) : null;
+  };
+  const x = number(["x", "left"]);
+  const y = number(["y", "top"]);
+  const width = number(["width", "w"]);
+  const height = number(["height", "h"]);
+  if (x == null || y == null || width == null || height == null || width <= 0 || height <= 0) return null;
+  return { x, y, width: Math.min(width, 1 - x), height: Math.min(height, 1 - y) };
+};
+
+export const normalizeReferenceAnalysis = (raw: unknown): ReferenceAnalysisResult => {
   const diagnostics: string[] = [];
   const validationIssues: string[] = [];
 
@@ -294,6 +503,7 @@ const normalizeReferenceAnalysis = (raw: unknown): ReferenceAnalysisResult => {
     spacingRules: textArray(readField(screen, ["spacingRules", "spacing_rules", "spacingPrinciples", "spacing_principles"]), [], 8, 260),
     componentRules: textArray(readField(screen, ["componentRules", "component_rules", "componentPrinciples", "component_principles"]), [], 8, 260),
     antiPatterns: textArray(readField(screen, ["antiPatterns", "anti_patterns", "avoid"]), [], 8, 260),
+    boundingBox: normalizeBoundingBox(readField(screen, ["boundingBox", "bounding_box", "bounds", "frameBounds", "frame_bounds"])),
   }));
 
   const rawSignals = readField(raw, ["designSystemSignals", "design_system_signals", "signals"]);
@@ -352,6 +562,7 @@ const normalizeReferenceAnalysis = (raw: unknown): ReferenceAnalysisResult => {
 
   if (parsedCount && screenReferenceCount && parsedCount !== screenReferenceCount) {
     diagnostics.push(`Reference analysis count mismatch: estimate=${parsedCount}, screenReferences=${screenReferenceCount}.`);
+    validationIssues.push("screenCountEstimate must equal the number of screenReferences entries.");
   }
 
   if (screenReferences.length === 0) {
@@ -599,15 +810,17 @@ export function resolveGenerationScopeContract({
   referenceMode,
   planningMode,
   referenceAnalysisResult,
+  promptIntent: providedPromptIntent,
 }: {
   prompt: string;
   image?: PromptImagePayload | null;
   referenceMode?: ReferenceMode | null;
   planningMode?: PlanningMode;
   referenceAnalysisResult?: ReferenceAnalysisResult | null;
+  promptIntent?: PromptScreenIntent | null;
 }): GenerationScopeContract {
   const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
-  const promptIntent = parsePromptScreenIntent(prompt);
+  const promptIntent = providedPromptIntent ?? parsePromptScreenIntent(prompt);
   const promptScreenCount = promptIntent.promptScreenCount;
   const imageScreenCount = resolveImageScreenCount(referenceAnalysisResult);
   const imagePresent = Boolean(image);
@@ -617,18 +830,18 @@ export function resolveGenerationScopeContract({
   ];
   let finalScreenCount: number | null = null;
   let countSource: GenerationScopeCountSource = "open_project";
-  let confidence: GenerationScopeContract["confidence"] = "medium";
+  let confidence: GenerationScopeContract["confidence"] = promptIntent.confidence ?? "medium";
   let reason = "No exact screen count was requested; planner may choose the initial app slate.";
 
   if (planningMode === "single-screen") {
     finalScreenCount = 1;
     countSource = "planning_mode";
-    confidence = "high";
+    confidence = promptIntent.confidence ?? "high";
     reason = "Single-screen planning mode always creates exactly one additional screen.";
   } else if (promptScreenCount) {
     finalScreenCount = promptScreenCount;
     countSource = promptIntent.source ?? "prompt_count";
-    confidence = "high";
+    confidence = promptIntent.confidence ?? "high";
     reason = `The user explicitly requested ${promptScreenCount} screen${promptScreenCount === 1 ? "" : "s"}.`;
   } else if (resolvedReferenceMode === "user_recreate" && imagePresent && imageScreenCount) {
     finalScreenCount = imageScreenCount;
@@ -656,8 +869,26 @@ export function resolveGenerationScopeContract({
     diagnostics.push(conflictResolution.reason);
   }
 
+  const scopeScreens = promptIntent.screens?.length
+    ? promptIntent.screens
+    : finalScreenCount && (countSource === "reference_image" || countSource === "default_single")
+      ? Array.from({ length: finalScreenCount }, (_, index) => ({
+          index: index + 1,
+          name: referenceAnalysisResult?.analysis?.screenReferences[index]?.suggestedRole || `Reference Screen ${index + 1}`,
+          kind: "reference",
+        }))
+      : [];
+  const referenceAmbiguities = !promptScreenCount && imagePresent && resolvedReferenceMode === "user_recreate"
+    ? referenceAnalysisResult?.validationIssues ?? []
+    : [];
+  const requiresConfirmation = Boolean(promptIntent.requiresConfirmation)
+    || (!promptScreenCount
+      && resolvedReferenceMode === "user_recreate"
+      && imagePresent
+      && (confidence === "low" || referenceAmbiguities.length > 0));
+
   return {
-    version: 1,
+    version: 2,
     referenceMode: resolvedReferenceMode,
     promptScreenCount,
     namedScreenCount: promptIntent.namedScreenCount,
@@ -669,6 +900,10 @@ export function resolveGenerationScopeContract({
     allScreensRequested: promptIntent.allScreensRequested,
     reason,
     diagnostics,
+    groups: promptIntent.groups ?? [],
+    screens: scopeScreens,
+    ambiguities: [...(promptIntent.ambiguities ?? []), ...referenceAmbiguities],
+    requiresConfirmation,
   };
 }
 
@@ -689,18 +924,18 @@ export async function preflightGenerationScope({
   referenceAnalysis: ReferenceAnalysis | null;
   referenceAnalysisResult: ReferenceAnalysisResult;
 }> {
-  const referenceAnalysisResult = await analyzeReferenceImageForScope({
-    prompt,
-    image,
-    referenceMode,
-    llmLog,
-  });
+  const useSemanticScope = process.env.DRAWGLE_GENERATION_ENGINE_VERSION !== "v1";
+  const [promptIntent, referenceAnalysisResult] = await Promise.all([
+    useSemanticScope ? analyzePromptScreenIntent({ prompt, llmLog }) : Promise.resolve(parsePromptScreenIntent(prompt)),
+    analyzeReferenceImageForScope({ prompt, image, referenceMode, llmLog }),
+  ]);
   const scopeContract = resolveGenerationScopeContract({
     prompt,
     image,
     referenceMode,
     planningMode,
     referenceAnalysisResult,
+    promptIntent,
   });
 
   return {

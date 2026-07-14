@@ -5,12 +5,13 @@ import { assembleProjectContext } from "@/lib/generation/context";
 import { loadCuratedStyleReferenceImage, matchCuratedStyleReference } from "@/lib/generation/curated-style-references";
 import { getDesignStylePack, isDesignStyleId } from "@/lib/generation/design-styles";
 import { planUiFlow } from "@/lib/generation/service";
-import { preflightGenerationScope } from "@/lib/generation/scope-contract";
+import { analyzeReferenceImageForScope, preflightGenerationScope } from "@/lib/generation/scope-contract";
+import { normalizeReferenceImage } from "@/lib/generation/reference-image";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
 
-import type { DesignTokens, NavigationPlan, PlanningMode, ProjectCharter, PromptImagePayload, ReferenceMode } from "@/lib/types";
+import type { DesignTokens, GenerationScopeContract, NavigationPlan, PlanningMode, ProjectCharter, PromptImagePayload, ReferenceMode } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -29,6 +30,7 @@ const requestSchema = z.object({
   stylePresetSlug: z.string().trim().min(1).max(120).nullable().optional(),
   designTokens: z.unknown().nullable().optional(),
   planningMode: z.enum(["project", "single-screen"]).optional().default("project"),
+  scopeContract: z.unknown().nullable().optional(),
 }).superRefine((value, ctx) => {
   if (!value.prompt.trim() && !value.image) {
     ctx.addIssue({
@@ -86,7 +88,9 @@ export async function POST(req: Request) {
       });
     }
 
-    let referenceImage = (payload.image ?? null) as PromptImagePayload | null;
+    let referenceImage = payload.image
+      ? (await normalizeReferenceImage(payload.image as PromptImagePayload)).image
+      : null;
     let referenceMode: ReferenceMode | null = referenceImage
       ? payload.imageReferenceMode === "style"
         ? "user_style"
@@ -130,12 +134,31 @@ export async function POST(req: Request) {
       referenceId = match.reference.id;
     }
 
-    const scopePreflight = await preflightGenerationScope({
-      prompt: payload.prompt,
-      image: referenceImage,
-      referenceMode,
-      planningMode: payload.planningMode as PlanningMode,
-    });
+    const providedScopeContract = (payload.scopeContract ?? null) as GenerationScopeContract | null;
+    const scopePreflight = providedScopeContract
+      ? await analyzeReferenceImageForScope({
+          prompt: payload.prompt,
+          image: referenceImage,
+          referenceMode,
+        }).then((referenceAnalysisResult) => ({
+          scopeContract: providedScopeContract,
+          referenceAnalysis: referenceAnalysisResult.analysis,
+          referenceAnalysisResult,
+        }))
+      : await preflightGenerationScope({
+          prompt: payload.prompt,
+          image: referenceImage,
+          referenceMode,
+          planningMode: payload.planningMode as PlanningMode,
+        });
+
+    if (!providedScopeContract && scopePreflight.scopeContract.requiresConfirmation) {
+      return NextResponse.json({
+        error: "Please confirm the interpreted screen scope before planning.",
+        code: "scope_confirmation_required",
+        scopeContract: scopePreflight.scopeContract,
+      }, { status: 409 });
+    }
 
     const plan = await planUiFlow({
       prompt: payload.prompt,

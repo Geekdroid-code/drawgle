@@ -308,6 +308,13 @@ export function DesignSystemEditor({
   const shadowSurface = tokens.shadows?.surface || "0 12px 32px rgba(15, 23, 42, 0.14)";
   const borderStandard = tokens.border_widths?.standard || "1px";
   const fontFamily = tokens.typography?.font_family?.trim() || undefined;
+  const navigationSurface = tokens.navigation?.surface || cardBg;
+  const navigationContent = tokens.navigation?.content || primaryText;
+  const navigationMuted = tokens.navigation?.muted_content || lowText;
+  const navigationActiveSurface = tokens.navigation?.active_surface || actionPrimary;
+  const navigationActiveContent = tokens.navigation?.active_content || actionText;
+  const navigationBorder = tokens.navigation?.border || borderDivider;
+  const navigationShadow = tokens.navigation?.shadow || shadowSurface;
 
   const deepUpdate = (mutator: (draft: DesignTokens) => void) => {
     const draft = normalizeDesignTokens(value);
@@ -414,6 +421,14 @@ export function DesignSystemEditor({
                   <ColorField label="Gradient start" value={actionGradientStart} tokenPath={["color", "action", "primary_gradient_start"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "action", "primary_gradient_start"], nextValue)} />
                   <ColorField label="Gradient end" value={actionGradientEnd} tokenPath={["color", "action", "primary_gradient_end"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "action", "primary_gradient_end"], nextValue)} />
                   <ColorField label="Disabled" value={tokens.color?.action?.disabled || "#e5e7eb"} tokenPath={["color", "action", "disabled"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "action", "disabled"], nextValue)} />
+                </TokenGroup>
+                <TokenGroup label="Navigation" panel={isPanel}>
+                  <ColorField label="Surface" value={navigationSurface} tokenPath={["navigation", "surface"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["navigation", "surface"], nextValue)} />
+                  <ColorField label="Content" value={navigationContent} tokenPath={["navigation", "content"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["navigation", "content"], nextValue)} />
+                  <ColorField label="Muted content" value={navigationMuted} tokenPath={["navigation", "muted_content"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["navigation", "muted_content"], nextValue)} />
+                  <ColorField label="Active surface" value={navigationActiveSurface} tokenPath={["navigation", "active_surface"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["navigation", "active_surface"], nextValue)} />
+                  <ColorField label="Active content" value={navigationActiveContent} tokenPath={["navigation", "active_content"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["navigation", "active_content"], nextValue)} />
+                  <ColorField label="Border" value={navigationBorder} tokenPath={["navigation", "border"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["navigation", "border"], nextValue)} />
                 </TokenGroup>
                 <TokenGroup label="Borders" panel={isPanel}>
                   <ColorField label="Divider" value={borderDivider} tokenPath={["color", "border", "divider"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "border", "divider"], nextValue)} />
@@ -594,6 +609,13 @@ export function DesignSystemEditor({
                     panel={isPanel}
                     onChange={(nextValue) => handleUpdateToken(["shadows", "overlay"], nextValue)}
                   />
+                  <ShadowField
+                    label="Navigation shadow"
+                    value={navigationShadow}
+                    previewRadius={radius}
+                    panel={isPanel}
+                    onChange={(nextValue) => handleUpdateToken(["navigation", "shadow"], nextValue)}
+                  />
                   <StaticTokenRow
                     label="Flat shadow"
                     value={tokens.shadows?.none || "none"}
@@ -618,6 +640,13 @@ export function DesignSystemEditor({
             actionPrimary={actionPrimary}
             actionSecondary={actionSecondary}
             actionText={actionText}
+            navigationSurface={navigationSurface}
+            navigationContent={navigationContent}
+            navigationMuted={navigationMuted}
+            navigationActiveSurface={navigationActiveSurface}
+            navigationActiveContent={navigationActiveContent}
+            navigationBorder={navigationBorder}
+            navigationShadow={navigationShadow}
             cardBg={cardBg}
             borderDivider={borderDivider}
             radius={radius}
@@ -1799,6 +1828,13 @@ function PhonePreview({
   actionPrimary,
   actionSecondary,
   actionText,
+  navigationSurface,
+  navigationContent,
+  navigationMuted,
+  navigationActiveSurface,
+  navigationActiveContent,
+  navigationBorder,
+  navigationShadow,
   cardBg,
   borderDivider,
   radius,
@@ -1816,6 +1852,13 @@ function PhonePreview({
   actionPrimary: string;
   actionSecondary: string;
   actionText: string;
+  navigationSurface: string;
+  navigationContent: string;
+  navigationMuted: string;
+  navigationActiveSurface: string;
+  navigationActiveContent: string;
+  navigationBorder: string;
+  navigationShadow: string;
   cardBg: string;
   borderDivider: string;
   radius: string;
@@ -1913,6 +1956,17 @@ function PhonePreview({
         </div>
 
         <div className="flex-1" />
+
+        <div
+          className="mt-[6%] grid grid-cols-4 gap-1 p-1.5"
+          style={{ backgroundColor: navigationSurface, border: `${borderStandard} solid ${navigationBorder}`, borderRadius: radius, boxShadow: navigationShadow }}
+        >
+          {[0, 1, 2, 3].map((item) => (
+            <div key={item} className="flex h-8 items-center justify-center rounded-full" style={{ backgroundColor: item === 0 ? navigationActiveSurface : "transparent", color: item === 0 ? navigationActiveContent : item === 1 ? navigationContent : navigationMuted }}>
+              <span className="h-2 w-2 rounded-full bg-current" />
+            </div>
+          ))}
+        </div>
 
         <button
           type="button"

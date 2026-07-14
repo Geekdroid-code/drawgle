@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
+import type { ScreenRegionReference } from "@/lib/agent/project-tools";
 import { detectTargetBlocks, indexScreenCode, isScreenBlockIndexUsable } from "@/lib/generation/block-index";
 import { assembleChatContext } from "@/lib/generation/context";
 import { persistProjectMessageMemoryPair } from "@/lib/generation/message-memory";
@@ -81,7 +82,81 @@ export type ModifyScreenPayload = {
   conversationContext?: Array<{ role: "user" | "model" | "system"; content: string; screenId?: string | null; screenName?: string | null; event?: string | null }> | null;
   recoveryContext?: Record<string, unknown> | null;
   routerDecision?: Record<string, unknown> | null;
+  sourceReferences?: ScreenRegionReference[] | null;
 };
+
+const compactReferenceSnippet = (value: string, limit = 12000) =>
+  value.length > limit ? `${value.slice(0, limit)}\n<!-- source region truncated -->` : value;
+
+async function buildSourceReferenceContext({
+  admin,
+  projectId,
+  ownerId,
+  references,
+}: {
+  admin: AdminClient;
+  projectId: string;
+  ownerId: string;
+  references: ScreenRegionReference[];
+}) {
+  type SourceScreen = {
+    id: string;
+    name: string;
+    prompt: string;
+    code: string;
+    summary: string | null;
+    block_index: unknown;
+  };
+  const requested = references.slice(0, 3);
+  if (requested.length === 0) return "";
+
+  const screenIds = Array.from(new Set(requested.map((reference) => reference.screenId)));
+  const { data: screens, error } = await admin
+    .from("screens")
+    .select("id, name, prompt, code, summary, block_index")
+    .eq("project_id", projectId)
+    .eq("owner_id", ownerId)
+    .in("id", screenIds);
+  if (error) throw error;
+  if ((screens ?? []).length !== screenIds.length) {
+    throw new Error("One or more source screens are unavailable in this project.");
+  }
+
+  const sourceScreens = (screens ?? []) as unknown as SourceScreen[];
+  const screenById = new Map(sourceScreens.map((screen) => [screen.id, screen]));
+  const sections = requested.map((reference, index) => {
+    const screen = screenById.get(reference.screenId)!;
+    const storedIndex = screen.block_index as ScreenBlockIndex | null;
+    const blockIndex = isScreenBlockIndexUsable(screen.code, storedIndex) ? storedIndex! : indexScreenCode(screen.code);
+    const requestedBlock = reference.blockId
+      ? blockIndex.blocks.find((block) => block.id === reference.blockId) ?? null
+      : null;
+    if (reference.blockId && !requestedBlock) {
+      throw new Error(`Source region ${reference.blockId} is no longer available on ${screen.name}.`);
+    }
+    const inferredBlockIds = !requestedBlock
+      ? detectTargetBlocks(reference.purpose, blockIndex).targetBlockIds
+      : [];
+    const sourceBlock = requestedBlock ?? blockIndex.blocks.find((block) => inferredBlockIds.includes(block.id)) ?? null;
+    const sourceEvidence = sourceBlock
+      ? compactReferenceSnippet(screen.code.slice(sourceBlock.startOffset, sourceBlock.endOffset).trim())
+      : `Summary only: ${screen.summary || screen.prompt || screen.name}`;
+
+    return [
+      `SOURCE REFERENCE ${index + 1} (READ ONLY)`,
+      `Screen: ${screen.name} (${screen.id})`,
+      `Purpose to adapt: ${reference.purpose}`,
+      sourceBlock ? `Region: ${sourceBlock.name} (${sourceBlock.id}, ${sourceBlock.kind})` : "Region: no unambiguous block; use semantic summary only",
+      sourceEvidence,
+    ].join("\n");
+  });
+
+  return [
+    "CROSS-SCREEN SOURCE EVIDENCE",
+    "Adapt the requested pattern into the target. Do not edit, reproduce wholesale, or navigate away from the target screen.",
+    ...sections,
+  ].join("\n\n");
+}
 
 async function generateDesignSummaryLLM(prompt: string, targetName: string) {
   try {
@@ -585,6 +660,13 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
   const designTokens = (project.design_tokens as DesignTokens | null) ?? null;
   const projectCharter = (project.project_charter as ProjectCharter | null) ?? null;
   const navigationArchitecture = (projectCharter?.navigationArchitecture ?? null) as NavigationArchitecture | null;
+  const sourceReferenceContext = await buildSourceReferenceContext({
+    admin,
+    projectId: payload.projectId,
+    ownerId: payload.ownerId,
+    references: payload.sourceReferences ?? [],
+  });
+  const editPrompt = sourceReferenceContext ? `${prompt}\n\n${sourceReferenceContext}` : prompt;
   let requestedNavigationEdit =
     payload.requestTargetsNavigation ||
     selectedElementTarget === "navigation" ||
@@ -683,7 +765,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
       const replacement = await buildSourceRegionReplacementCode({
         screenName: "Navigation",
         screenPrompt: `Shared navigation shell plan:\n${JSON.stringify(navigationPlan ?? null, null, 2)}`,
-        userPrompt: prompt,
+        userPrompt: editPrompt,
         currentCode: navigationCode,
         repairTarget: selectedNavigationTarget,
         editOperation,
@@ -998,14 +1080,17 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
     ? { scope: "scoped" as const, targetBlockIds: [] }
     : detectTargetBlocks(prompt, blockIndex);
   const targetBlockIds = resolution.scope === "scoped" && !selectedSourceElementHtml ? resolution.targetBlockIds : [];
-  const chatHistory = selectedSourceElementHtml
-    ? [{ role: "user" as const, content: prompt }]
+  const baseChatHistory = selectedSourceElementHtml
+    ? [{ role: "user" as const, content: editPrompt }]
     : await assembleChatContext({
         admin,
         projectId: payload.projectId,
         userPrompt: prompt,
         recentMessages: await fetchProjectMessages(admin, payload.projectId),
       });
+  const chatHistory = sourceReferenceContext && !selectedSourceElementHtml
+    ? [...baseChatHistory, { role: "user" as const, content: editPrompt }]
+    : baseChatHistory;
   const targetNames = selectedSourceElementHtml
     ? regionReplacementTarget?.reason === "screen_root_region"
       ? "screen"
@@ -1156,7 +1241,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
     const replacement = await buildSourceRegionReplacementCode({
       screenName: screen.name,
       screenPrompt,
-      userPrompt: prompt,
+      userPrompt: editPrompt,
       currentCode: screenCode,
       repairTarget: regionReplacementTarget,
       editOperation,
@@ -1442,7 +1527,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
 
     const reconstructed = await buildFullScreenReconstructionCode({
       screenPlan: screenPlanForSave,
-      userPrompt: prompt,
+      userPrompt: editPrompt,
       currentCode: screenCode,
       designTokens,
       projectCharter,
@@ -1572,7 +1657,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
     const replacement = await buildSectionRepairCode({
       screenName: screen.name,
       screenPrompt,
-      userPrompt: prompt,
+      userPrompt: editPrompt,
       currentCode: screenCode,
       repairTarget,
       missingAnchors: health.missingAnchors,
@@ -1691,7 +1776,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
       messages: [{
         role: "user" as const,
         content: [
-          prompt,
+          editPrompt,
           "",
           "The previous edit attempt did not apply any material source-code change.",
           "Return ONLY <edit> blocks whose <search> content exactly matches the current source HTML below.",
@@ -1733,7 +1818,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
       const replacement = await buildSourceRegionReplacementCode({
         screenName: screen.name,
         screenPrompt,
-        userPrompt: prompt,
+        userPrompt: editPrompt,
         currentCode: screenCode,
         repairTarget: fallbackRegionTarget,
         editOperation,

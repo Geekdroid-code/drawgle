@@ -10,7 +10,6 @@ import { createNavigationArchitecture, deriveRequiresBottomNav } from "@/lib/nav
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 type MatchedScreen = Database["public"]["Functions"]["match_screens"]["Returns"][number];
-type MatchedMessage = Database["public"]["Functions"]["match_project_messages"]["Returns"][number];
 
 const DEFAULT_MATCH_COUNT = 5;
 const DEFAULT_MATCH_THRESHOLD = 0.55;
@@ -570,10 +569,6 @@ ${formatMatches(matches)}`
 // ---------------------------------------------------------------------------
 
 const RECENT_MESSAGE_COUNT = 6;
-const SEMANTIC_MATCH_COUNT = 5;
-const SEMANTIC_MATCH_THRESHOLD = 0.50;
-const semanticMemoryPromptPattern =
-  /\b(like before|same as before|same style|similar to|as earlier|from earlier|previous|last time|that card|that screen|that section|remember|consistent with)\b/i;
 
 export async function assembleChatContext({
   admin,
@@ -586,57 +581,15 @@ export async function assembleChatContext({
   userPrompt: string;
   recentMessages: ProjectMessage[];
 }): Promise<Array<{ role: "user" | "model"; content: string }>> {
-  const client = admin ?? createAdminClient();
-
   // 1. Take the last N messages for recency
   const recent = recentMessages.slice(-RECENT_MESSAGE_COUNT);
+  void admin;
+  void projectId;
+  void userPrompt;
 
-  // 2. Semantic retrieval - find older relevant messages via embedding
-  let semanticMessages: MatchedMessage[] = [];
-
-  if (semanticMemoryPromptPattern.test(userPrompt)) {
-    try {
-      const queryEmbedding = await generateEmbedding(userPrompt, "RETRIEVAL_QUERY");
-      const { data, error } = await client.rpc("match_project_messages", {
-        query_embedding: queryEmbedding,
-        p_project_id: projectId,
-        match_threshold: SEMANTIC_MATCH_THRESHOLD,
-        match_count: SEMANTIC_MATCH_COUNT,
-      });
-
-      if (error) {
-        console.error("Failed to match project messages", error);
-      } else {
-        semanticMessages = data ?? [];
-      }
-    } catch (error) {
-      console.error("Failed to embed query for message retrieval", error);
-    }
-  }
-
-  // 3. Deduplicate: remove semantic results that overlap with recent
-  const recentIds = new Set(recent.map((m) => m.id));
-  const uniqueSemantic = semanticMessages.filter(
-    (m) => !recentIds.has(m.message_id),
-  );
-
-  // 4. Build the LLM history: semantic context first (as a summary), then recent messages
+  // Semantic history is now retrieved explicitly by the project agent's
+  // search_project tool. The edit worker receives only immediate continuity.
   const history: Array<{ role: "user" | "model"; content: string }> = [];
-
-  if (uniqueSemantic.length > 0) {
-    const summaryText = uniqueSemantic
-      .map((m) => `[${m.role}] ${m.content.slice(0, 300)}`)
-      .join("\n\n");
-
-    history.push({
-      role: "user",
-      content: `[Earlier conversation context for reference]\n${summaryText}`,
-    });
-    history.push({
-      role: "model",
-      content: "Understood. I have the earlier context and will use it as needed.",
-    });
-  }
 
   for (const msg of recent) {
     if (msg.role === "user" || msg.role === "model") {
