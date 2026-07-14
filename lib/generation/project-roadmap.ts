@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { createAdminClient } from "@/lib/supabase/admin";
-import type { ProjectScreenRoadmapRow } from "@/lib/supabase/database.types";
+import type { Database, ProjectScreenRoadmapRow } from "@/lib/supabase/database.types";
 import type {
   NavigationPlan,
   ProjectRoadmap,
@@ -12,6 +12,13 @@ import type {
 } from "@/lib/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
+type ProjectScreenRoadmapInsert = Database["public"]["Tables"]["project_screen_roadmap"]["Insert"];
+type ExistingRoadmapItem = Pick<ProjectScreenRoadmapRow, "id" | "stable_key" | "parent_item_id" | "generated_screen_id" | "status">;
+
+export const PROJECT_ROADMAP_UPSERT_OPTIONS = {
+  onConflict: "project_id,stable_key",
+  defaultToNull: false,
+} as const;
 
 const priorityRank = {
   required: 0,
@@ -155,6 +162,54 @@ export function buildProjectRoadmap({
   };
 }
 
+export function buildProjectRoadmapUpsertRows({
+  items,
+  projectId,
+  ownerId,
+  existingByKey,
+  parentIds,
+  updatedAt = new Date().toISOString(),
+}: {
+  items: ProjectRoadmapItem[];
+  projectId: string;
+  ownerId: string;
+  existingByKey: Map<string, ExistingRoadmapItem>;
+  parentIds?: Map<string, string>;
+  updatedAt?: string;
+}): ProjectScreenRoadmapInsert[] {
+  return items.map((item) => {
+    const current = existingByKey.get(item.stableKey);
+    const row: ProjectScreenRoadmapInsert = {
+      project_id: projectId,
+      owner_id: ownerId,
+      parent_item_id: item.parentStableKey ? parentIds?.get(item.parentStableKey) ?? null : null,
+      generated_screen_id: current?.generated_screen_id ?? item.generatedScreenId ?? null,
+      stable_key: item.stableKey,
+      kind: item.kind,
+      screen_type: item.screenType ?? null,
+      name: item.name,
+      description: item.description,
+      priority: item.priority,
+      status: current && ["ready", "queued", "building"].includes(current.status)
+        ? current.status
+        : item.status,
+      source: item.source,
+      explicitly_requested: item.explicitlyRequested,
+      sequence: item.sequence,
+      tranche: item.tranche,
+      dependency_keys: item.dependencyKeys,
+      state_key: item.stateKey ?? null,
+      state_label: item.stateLabel ?? null,
+      state_role: item.stateRole ?? null,
+      trigger_label: item.triggerLabel ?? null,
+      metadata: (item.metadata ?? {}) as never,
+      updated_at: updatedAt,
+    };
+    const persistedId = current?.id ?? (typeof item.id === "string" && item.id.trim() ? item.id : null);
+    return persistedId ? { ...row, id: persistedId } : row;
+  });
+}
+
 export async function persistProjectRoadmap({
   admin,
   projectId,
@@ -173,46 +228,23 @@ export async function persistProjectRoadmap({
     .eq("owner_id", ownerId);
   if (existingError) throw existingError;
 
-  const existingItems = (existing ?? []) as Array<Pick<ProjectScreenRoadmapRow, "id" | "stable_key" | "parent_item_id" | "generated_screen_id" | "status">>;
+  const existingItems = (existing ?? []) as ExistingRoadmapItem[];
   const existingByKey = new Map(existingItems.map((item) => [item.stable_key, item]));
   const parentItems = roadmap.items.filter((item) => item.kind === "screen");
   const childItems = roadmap.items.filter((item) => item.kind === "state");
 
   const upsertItems = async (items: ProjectRoadmapItem[], parentIds?: Map<string, string>) => {
     if (items.length === 0) return;
-    const rows = items.map((item) => {
-      const current = existingByKey.get(item.stableKey);
-      return {
-        id: current?.id ?? item.id,
-        project_id: projectId,
-        owner_id: ownerId,
-        parent_item_id: item.parentStableKey ? parentIds?.get(item.parentStableKey) ?? null : null,
-        generated_screen_id: current?.generated_screen_id ?? item.generatedScreenId ?? null,
-        stable_key: item.stableKey,
-        kind: item.kind,
-        screen_type: item.screenType ?? null,
-        name: item.name,
-        description: item.description,
-        priority: item.priority,
-        status: current && ["ready", "queued", "building"].includes(current.status)
-          ? current.status
-          : item.status,
-        source: item.source,
-        explicitly_requested: item.explicitlyRequested,
-        sequence: item.sequence,
-        tranche: item.tranche,
-        dependency_keys: item.dependencyKeys,
-        state_key: item.stateKey ?? null,
-        state_label: item.stateLabel ?? null,
-        state_role: item.stateRole ?? null,
-        trigger_label: item.triggerLabel ?? null,
-        metadata: (item.metadata ?? {}) as never,
-        updated_at: new Date().toISOString(),
-      };
+    const rows = buildProjectRoadmapUpsertRows({
+      items,
+      projectId,
+      ownerId,
+      existingByKey,
+      parentIds,
     });
     const { error } = await admin
       .from("project_screen_roadmap")
-      .upsert(rows, { onConflict: "project_id,stable_key" });
+      .upsert(rows, PROJECT_ROADMAP_UPSERT_OPTIONS);
     if (error) throw error;
   };
 
