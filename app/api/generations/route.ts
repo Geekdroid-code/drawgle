@@ -11,6 +11,7 @@ import { preflightGenerationScope } from "@/lib/generation/scope-contract";
 import { normalizeReferenceImage } from "@/lib/generation/reference-image";
 import { findLatestProjectPromptImagePath } from "@/lib/generation/prompt-reference-storage";
 import { isGenerationReferencePolicy, resolveGenerationReferencePolicy } from "@/lib/generation/reference-policy";
+import { determineGenerationRetryScope } from "@/lib/generation/retry-scope";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
@@ -21,6 +22,7 @@ import {
   type DesignTokens,
   type GenerationStatus,
   type GenerationReferencePolicy,
+  type GenerationRetryContext,
   type GenerationScopeContract,
   type ImageReferenceMode,
   type NavigationArchitecture,
@@ -90,10 +92,19 @@ const requestSchema = z.object({
         navigationItemId: z.string().trim().min(1).max(80).nullable().optional(),
         referenceScreenIndex: z.number().int().min(1).max(12).nullable().optional(),
         referenceScreenCount: z.number().int().min(1).max(12).nullable().optional(),
+        layoutContract: z.object({
+          viewportPlan: z.string().trim().min(1).max(2400),
+          focalHierarchy: z.string().trim().min(1).max(2400),
+          sectionRhythm: z.string().trim().min(1).max(2400),
+          componentDensity: z.string().trim().min(1).max(2400),
+          ctaPolicy: z.string().trim().min(1).max(2400),
+          antiPatterns: z.array(z.string().trim().min(1).max(600)).max(12),
+        }).nullable().optional(),
       }),
     )
     .min(1)
     .max(12)
+    .nullable()
     .optional(),
   requiresBottomNav: z.boolean().optional(),
   navigationArchitecture: z.object({
@@ -159,6 +170,21 @@ const requestSchema = z.object({
     .optional(),
   designTokens: z.unknown().nullable().optional(),
   scopeContract: z.unknown().nullable().optional(),
+  planningMode: z.enum(["project", "single-screen"]).optional(),
+  baseState: z.object({
+    stateKey: z.string().trim().min(1).max(120),
+    stateLabel: z.string().trim().min(1).max(160),
+  }).nullable().optional(),
+  stateVariants: z.array(z.object({
+    id: z.string().trim().min(1).max(120),
+    stateKey: z.string().trim().min(1).max(120),
+    stateLabel: z.string().trim().min(1).max(160),
+    stateRole: z.string().trim().min(1).max(500),
+    triggerLabel: z.string().trim().min(1).max(240),
+    description: z.string().trim().min(1).max(2400),
+    editInstruction: z.string().trim().min(1).max(4000),
+    defaultSelected: z.boolean(),
+  })).max(3).optional(),
 }).superRefine((value, ctx) => {
   if (!value.prompt.trim() && !value.image) {
     ctx.addIssue({
@@ -168,6 +194,12 @@ const requestSchema = z.object({
     });
   }
 });
+
+const retryCoordinatesSchema = z.object({
+  projectId: z.string().uuid(),
+  sourceGenerationRunId: z.string().uuid(),
+});
+type GenerationRequest = z.infer<typeof requestSchema>;
 
 const now = () => new Date().toISOString();
 
@@ -230,6 +262,8 @@ export async function POST(request: Request) {
 
   let generationRunId: string | undefined;
   let projectId: string | undefined;
+  let retryContext: GenerationRetryContext | null = null;
+  let retrySourceRun: Database["public"]["Tables"]["generation_runs"]["Row"] | null = null;
 
   try {
     const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -237,7 +271,123 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const payload = requestSchema.parse(await request.json());
+    const ownerId = authData.user.id;
+    const rawRequestBody = await request.json();
+    let requestBody = rawRequestBody;
+    const retryCoordinates = retryCoordinatesSchema.safeParse(rawRequestBody);
+    const requestedSourceRunId = rawRequestBody && typeof rawRequestBody === "object" && !Array.isArray(rawRequestBody)
+      ? (rawRequestBody as Record<string, unknown>).sourceGenerationRunId
+      : null;
+
+    if (requestedSourceRunId) {
+      if (!retryCoordinates.success) {
+        throw new z.ZodError(retryCoordinates.error.issues);
+      }
+
+      const [sourceRunResult, projectResult, navigationResult, screensResult] = await Promise.all([
+        admin
+          .from("generation_runs")
+          .select("*")
+          .eq("id", retryCoordinates.data.sourceGenerationRunId)
+          .eq("project_id", retryCoordinates.data.projectId)
+          .eq("owner_id", ownerId)
+          .maybeSingle(),
+        admin
+          .from("projects")
+          .select("id, owner_id, design_tokens")
+          .eq("id", retryCoordinates.data.projectId)
+          .eq("owner_id", ownerId)
+          .maybeSingle(),
+        admin
+          .from("project_navigation")
+          .select("plan")
+          .eq("project_id", retryCoordinates.data.projectId)
+          .maybeSingle(),
+        admin
+          .from("screens")
+          .select("id, name, status, parent_screen_id, state_key")
+          .eq("generation_run_id", retryCoordinates.data.sourceGenerationRunId),
+      ]);
+
+      if (sourceRunResult.error || !sourceRunResult.data || projectResult.error || !projectResult.data) {
+        return NextResponse.json({ error: "The failed generation could not be found." }, { status: 404 });
+      }
+      if (navigationResult.error) throw navigationResult.error;
+      if (screensResult.error) throw screensResult.error;
+      if (sourceRunResult.data.status !== "failed" && sourceRunResult.data.status !== "canceled") {
+        return NextResponse.json({ error: "Only failed or canceled generations can be retried." }, { status: 409 });
+      }
+
+      const sourceRun = sourceRunResult.data;
+      retrySourceRun = sourceRun;
+      const sourceMetadata = sourceRun.metadata && typeof sourceRun.metadata === "object" && !Array.isArray(sourceRun.metadata)
+        ? sourceRun.metadata as Record<string, unknown>
+        : {};
+      const retryScope = determineGenerationRetryScope({
+        sourceGenerationRunId: sourceRun.id,
+        plannedScreens: Array.isArray(sourceMetadata.plannedScreens) ? sourceMetadata.plannedScreens as unknown as ScreenPlan[] : null,
+        stateVariants: Array.isArray(sourceMetadata.stateVariants) ? sourceMetadata.stateVariants as never : [],
+        selectedStateVariantIds: Array.isArray(sourceMetadata.selectedStateVariantIds)
+          ? sourceMetadata.selectedStateVariantIds.filter((value): value is string => typeof value === "string")
+          : [],
+        screens: screensResult.data ?? [],
+      });
+
+      if (!retryScope.hasWork) {
+        return NextResponse.json({
+          error: "This generation has no failed or missing outputs left to retry.",
+          code: "retry_scope_complete",
+        }, { status: 409 });
+      }
+
+      retryContext = retryScope.context;
+      const retryPlanCount = retryScope.plannedScreens?.length ?? sourceRun.requested_screen_count ?? null;
+      const retryReferenceMode = sourceMetadata.requestedImageReferenceMode === "recreate" && Boolean(sourceRun.image_path)
+        ? "user_recreate"
+        : "user_style";
+      const retryScopeContract = sourceMetadata.scopeContract ?? ({
+        version: 2,
+        referenceMode: retryReferenceMode,
+        promptScreenCount: retryPlanCount,
+        namedScreenCount: retryPlanCount,
+        imageScreenCount: null,
+        finalScreenCount: retryPlanCount,
+        countSource: "planning_mode",
+        confidence: "high",
+        conflictResolution: null,
+        allScreensRequested: false,
+        reason: "Retry uses the server-persisted approved screen scope.",
+        diagnostics: [`Recovered retry scope from ${sourceRun.id}.`],
+        screens: retryScope.plannedScreens?.map((screen, index) => ({
+          index: index + 1,
+          name: screen.name,
+          kind: screen.type,
+        })),
+        ambiguities: [],
+        requiresConfirmation: false,
+      } satisfies GenerationScopeContract);
+      requestBody = {
+        projectId: retryCoordinates.data.projectId,
+        sourceGenerationRunId: sourceRun.id,
+        prompt: sourceRun.prompt,
+        imageReferenceMode: sourceMetadata.requestedImageReferenceMode === "style" ? "style" : "recreate",
+        designStyleId: typeof sourceMetadata.requestedDesignStyleId === "string" ? sourceMetadata.requestedDesignStyleId : null,
+        stylePresetSlug: typeof sourceMetadata.requestedStylePresetSlug === "string" ? sourceMetadata.requestedStylePresetSlug : null,
+        designTokens: projectResult.data.design_tokens,
+        plannedScreens: retryScope.plannedScreens?.length ? retryScope.plannedScreens : undefined,
+        requiresBottomNav: sourceRun.requires_bottom_nav ?? undefined,
+        navigationArchitecture: sourceMetadata.navigationArchitecture ?? undefined,
+        navigationPlan: sourceMetadata.navigationPlan ?? navigationResult.data?.plan ?? undefined,
+        scopeContract: retryScopeContract,
+        planningMode: typeof sourceMetadata.planningMode === "string" ? sourceMetadata.planningMode : undefined,
+        baseState: sourceMetadata.baseState ?? undefined,
+        stateVariants: retryScope.stateVariants,
+      };
+    }
+
+    const payload = retryContext
+      ? requestBody as GenerationRequest
+      : requestSchema.parse(requestBody);
     const isExistingProjectRequest = Boolean(payload.projectId);
     const generationEngineVersion = getGenerationEngineVersion();
     const normalizedReference = payload.image ? await normalizeReferenceImage(payload.image) : null;
@@ -267,7 +417,6 @@ export async function POST(request: Request) {
         }, { status: 409 });
       }
     }
-    const ownerId = authData.user.id;
     const requestedDesignTokens = payload.designTokens
       ? normalizeDesignTokens(payload.designTokens as DesignTokens)
       : null;
@@ -356,15 +505,8 @@ export async function POST(request: Request) {
     let effectiveImageReferenceMode: ImageReferenceMode = payload.imageReferenceMode;
     let referencePolicy: GenerationReferencePolicy | null = null;
     if (payload.sourceGenerationRunId) {
-      const { data: sourceRun, error: sourceRunError } = await admin
-        .from("generation_runs")
-        .select("id, image_path, metadata")
-        .eq("id", payload.sourceGenerationRunId)
-        .eq("project_id", projectId)
-        .eq("owner_id", ownerId)
-        .maybeSingle();
-
-      if (sourceRunError || !sourceRun) {
+      const sourceRun = retrySourceRun;
+      if (!sourceRun) {
         return NextResponse.json({ error: "Source generation run not found." }, { status: 404 });
       }
 
@@ -439,6 +581,12 @@ export async function POST(request: Request) {
           scopeContract,
           navigationArchitecture,
           navigationPlan,
+          plannedScreens,
+          planningMode: payload.planningMode ?? null,
+          baseState: payload.baseState ?? null,
+          stateVariants: payload.stateVariants ?? [],
+          selectedStateVariantIds: (payload.stateVariants ?? []).map((variant) => variant.id),
+          retryContext,
         } as never,
         created_at: now(),
         updated_at: now(),
@@ -495,6 +643,10 @@ export async function POST(request: Request) {
         navigationArchitecture,
         navigationPlan,
         projectCharter,
+        planningMode: payload.planningMode,
+        baseState: payload.baseState ?? null,
+        stateVariants: payload.stateVariants ?? [],
+        retryContext,
       },
       {
         concurrencyKey: ownerId,
@@ -519,6 +671,10 @@ export async function POST(request: Request) {
         projectId,
         generationRunId,
         triggerRunId: handle.id,
+        retry: retryContext ? {
+          sourceGenerationRunId: retryContext.sourceGenerationRunId,
+          mode: retryContext.mode,
+        } : null,
       },
       { status: 202 },
     );

@@ -575,6 +575,16 @@ export interface ScreenStateVariantPlan {
   defaultSelected: boolean;
 }
 
+export type GenerationRetryMode = "full_pipeline" | "missing_screens" | "state_variants";
+
+export interface GenerationRetryContext {
+  sourceGenerationRunId: string;
+  mode: GenerationRetryMode;
+  reuseScreenIdsByName?: Record<string, string>;
+  parentScreenId?: string | null;
+  reuseStateVariantIdsByKey?: Record<string, string>;
+}
+
 export interface ReferenceScreenAnalysis {
   index: number;
   suggestedRole: string;

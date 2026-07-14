@@ -1889,10 +1889,7 @@ export function ProjectShell({
 
     await queueGenerationRequest({
       prompt: run.prompt,
-      designTokens: project.designTokens ?? null,
       sourceGenerationRunId: run.id,
-      navigationArchitecture: project.charter?.navigationArchitecture ?? null,
-      navigationPlan: projectNavigation?.plan ?? null,
     });
   };
 

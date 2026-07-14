@@ -37,6 +37,11 @@ export function GenerationProgress({
   embedded?: boolean;
 }) {
   const terminalRuns = generationRuns.filter((run) => isTerminalGenerationStatus(run.status)).slice(0, 4);
+  const retriedRunIds = new Set(
+    generationRuns
+      .map((run) => typeof run.metadata?.sourceGenerationRunId === "string" ? run.metadata.sourceGenerationRunId : null)
+      .filter((runId): runId is string => Boolean(runId)),
+  );
 
   if (!generationRun && !isQueueing && !queueError && terminalRuns.length === 0) {
     return null;
@@ -116,7 +121,7 @@ export function GenerationProgress({
             <div className="px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Recent Results</div>
             {terminalRuns.map((run) => {
               const stats = getRunStats(run);
-              const retryLabel = run.status === "completed" ? "Run again" : "Retry";
+              const canRetry = (run.status === "failed" || run.status === "canceled") && !retriedRunIds.has(run.id);
               const updatedLabel = formatDistanceToNow(new Date(run.completedAt ?? run.updatedAt), { addSuffix: true });
 
               return (
@@ -141,9 +146,11 @@ export function GenerationProgress({
                       </div>
                       {run.error ? <div className="mt-2 text-xs text-red-600">{run.error}</div> : null}
                     </div>
-                    <Button variant="outline" size="xs" onClick={() => onRetry?.(run)} disabled={retryDisabled}>
-                      {retryLabel}
-                    </Button>
+                    {canRetry && onRetry ? (
+                      <Button variant="outline" size="xs" onClick={() => onRetry(run)} disabled={retryDisabled}>
+                        Retry
+                      </Button>
+                    ) : null}
                   </div>
                 </div>
               );

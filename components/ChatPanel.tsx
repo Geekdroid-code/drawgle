@@ -406,6 +406,11 @@ function buildConversationItems({
       .map((message) => readGenerationJournal(message.metadata)?.generationRunId)
       .filter((runId): runId is string => Boolean(runId)),
   );
+  const retriedRunIds = new Set(
+    generationRuns
+      .map((run) => typeof run.metadata?.sourceGenerationRunId === "string" ? run.metadata.sourceGenerationRunId : null)
+      .filter((runId): runId is string => Boolean(runId)),
+  );
   const pendingTurnMessages = pendingTurn
     ? messages.filter((message) => getMessageClientTurnId(message) === pendingTurn.id)
     : [];
@@ -441,6 +446,7 @@ function buildConversationItems({
   }
 
   const actionByTurnId = new Map<string, typeof items[number] & { kind: "action" }>();
+  const attachedRetryRunIds = new Set<string>();
   let latestUserMessageId = "";
 
   for (const message of messages) {
@@ -564,6 +570,12 @@ function buildConversationItems({
         message,
         screens,
       });
+      const retryableAssociatedRun = normalizedStep.status === "failed"
+        && run
+        && (run.status === "failed" || run.status === "canceled")
+        && !retriedRunIds.has(run.id)
+        ? run
+        : null;
       if (
         getMetadataString(message.metadata, "action") === "agent_turn_progress" &&
         normalizedStep.status === "completed"
@@ -618,20 +630,24 @@ function buildConversationItems({
             existing.proposal = screenPlanProposal;
             existing.proposalMessageId = message.id;
           }
+          if (retryableAssociatedRun && !attachedRetryRunIds.has(retryableAssociatedRun.id)) {
+            existing.retryRun = retryableAssociatedRun;
+            attachedRetryRunIds.add(retryableAssociatedRun.id);
+          }
           continue;
         }
       }
-
-      const latestRetryRun = [...generationRuns]
-        .filter((run) => run.status === "failed" || run.status === "canceled")
-        .sort((left, right) => new Date(right.completedAt ?? right.updatedAt).getTime() - new Date(left.completedAt ?? left.updatedAt).getTime())[0] ?? null;
+      const retryRun = retryableAssociatedRun && !attachedRetryRunIds.has(retryableAssociatedRun.id)
+        ? retryableAssociatedRun
+        : null;
+      if (retryRun) attachedRetryRunIds.add(retryRun.id);
 
       const newActionItem: typeof items[number] & { kind: "action" } = {
         id: `action-${message.id}`,
         kind: "action",
         step: normalizedStep,
         sourceContent: message.content,
-        retryRun: latestRetryRun ?? undefined,
+        retryRun: retryRun ?? undefined,
         proposal: screenPlanProposal,
         proposalMessageId: screenPlanProposal ? message.id : null,
         timestamp: message.timestamp,
@@ -726,7 +742,7 @@ function buildConversationItems({
   }
 
   const latestRetryRun = [...generationRuns]
-    .filter((run) => run.status === "failed" || run.status === "canceled")
+    .filter((run) => (run.status === "failed" || run.status === "canceled") && !retriedRunIds.has(run.id))
     .sort((left, right) => new Date(right.completedAt ?? right.updatedAt).getTime() - new Date(left.completedAt ?? left.updatedAt).getTime())[0] ?? null;
 
   if (!generationRun && latestRetryRun) {

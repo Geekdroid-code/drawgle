@@ -54,7 +54,7 @@ import { adminCreditService } from "@/lib/credits";
 import { getGenerationEngineVersion } from "@/lib/env/server";
 import { enrichScreenMemoryTask } from "@/trigger/enrich-screen-memory";
 import type { Database } from "@/lib/supabase/database.types";
-import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationReferencePolicy, GenerationScopeContract, ImageReferenceMode, LlmProviderEvent, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenBaseStatePlan, ScreenPlan, ScreenStateVariantPlan } from "@/lib/types";
+import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationReferencePolicy, GenerationRetryContext, GenerationScopeContract, ImageReferenceMode, LlmProviderEvent, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenBaseStatePlan, ScreenPlan, ScreenStateVariantPlan } from "@/lib/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -80,6 +80,7 @@ type GenerateUiFlowPayload = {
   baseState?: ScreenBaseStatePlan | null;
   stateVariants?: ScreenStateVariantPlan[] | null;
   approvalUserMessageId?: string | null;
+  retryContext?: GenerationRetryContext | null;
 };
 
 type BuildScreenTaskPayload = {
@@ -394,7 +395,8 @@ async function buildStateVariantsForParent({
 
     for (let index = 0; index < variants.length; index++) {
       const variant = variants[index];
-      const variantScreenId = randomUUID();
+      const reusableVariantScreenId = payload.retryContext?.reuseStateVariantIdsByKey?.[variant.stateKey] ?? null;
+      const variantScreenId = reusableVariantScreenId ?? randomUUID();
       const variantName = stateVariantScreenName(parentScreen.name, variant.stateLabel);
       const instruction = buildStateVariantEditInstruction(parentScreen.name, variant);
       const editActivityKey = buildStateVariantEditActivityKey(payload.generationRunId, variant.id);
@@ -402,9 +404,7 @@ async function buildStateVariantsForParent({
       let rowInserted = false;
 
       try {
-        const { error: insertError } = await admin
-          .from("screens")
-          .insert({
+        const variantRow = {
             id: variantScreenId,
             owner_id: payload.ownerId,
             project_id: payload.projectId,
@@ -432,7 +432,32 @@ async function buildStateVariantsForParent({
             sort_index: reservedSlots[index]?.sort_index ?? index,
             created_at: now(),
             updated_at: now(),
-          });
+          };
+        const { error: insertError } = reusableVariantScreenId
+          ? await admin
+              .from("screens")
+              .update({
+                generation_run_id: payload.generationRunId,
+                parent_screen_id: variantRow.parent_screen_id,
+                state_key: variantRow.state_key,
+                state_label: variantRow.state_label,
+                state_role: variantRow.state_role,
+                name: variantRow.name,
+                prompt: variantRow.prompt,
+                code: variantRow.code,
+                block_index: variantRow.block_index,
+                chrome_policy: variantRow.chrome_policy,
+                navigation_item_id: variantRow.navigation_item_id,
+                status: variantRow.status,
+                error: null,
+                trigger_run_id: null,
+                stream_public_token: null,
+                updated_at: variantRow.updated_at,
+              })
+              .eq("id", reusableVariantScreenId)
+              .eq("project_id", payload.projectId)
+              .eq("owner_id", payload.ownerId)
+          : await admin.from("screens").insert(variantRow);
 
         if (insertError) {
           throw insertError;
@@ -1594,7 +1619,7 @@ export const generateUiFlowTask = task({
             referenceAnalysis: payload.referenceAnalysis,
             referenceAnalysisResult: null,
           }
-        : payload.projectCharter
+        : payload.projectCharter || existingCharter
           ? {
               scopeContract: payload.scopeContract,
               referenceAnalysis: null as ReferenceAnalysis | null,
@@ -1949,17 +1974,20 @@ export const generateUiFlowTask = task({
       type: "root",
       description: payload.prompt,
     }];
+    const retryOnlyStateVariants = payload.retryContext?.mode === "state_variants"
+      && Boolean(payload.retryContext.parentScreenId);
     const referenceTargetCount = plan.scopeContract?.finalScreenCount ?? plan.scopeContract?.imageScreenCount ?? baseScreenPlans.length;
-    const screenPlans: ScreenPlan[] = referenceMode === "user_recreate"
+    const resolvedScreenPlans: ScreenPlan[] = referenceMode === "user_recreate"
       ? baseScreenPlans.map((screenPlan, index) => ({
           ...screenPlan,
           referenceScreenIndex: screenPlan.referenceScreenIndex ?? index + 1,
           referenceScreenCount: screenPlan.referenceScreenCount ?? referenceTargetCount,
         }))
       : baseScreenPlans;
+    const screenPlans = retryOnlyStateVariants ? [] : resolvedScreenPlans;
 
     const requestedStateVariants = (payload.stateVariants ?? []).slice(0, 3);
-    const shouldBuildStateVariants = screenPlans.length === 1 && requestedStateVariants.length > 0;
+    const shouldBuildStateVariants = (screenPlans.length === 1 || retryOnlyStateVariants) && requestedStateVariants.length > 0;
     const stateVariantsToBuild = shouldBuildStateVariants ? requestedStateVariants : [];
     const plannedOutputCount = screenPlans.length + stateVariantsToBuild.length;
 
@@ -2009,7 +2037,9 @@ export const generateUiFlowTask = task({
       throw new Error(errorMessage);
     }
 
-    const reservedSlots = await reserveScreenSlots(admin, payload.projectId, screenPlans.length);
+    const reservedSlots = screenPlans.length > 0
+      ? await reserveScreenSlots(admin, payload.projectId, screenPlans.length)
+      : [];
 
     await updateGenerationRun(admin, payload.generationRunId, {
       status: "building",
@@ -2031,9 +2061,25 @@ export const generateUiFlowTask = task({
     let failedStateVariants = 0;
     let sanitizerActions = 0;
 
+    if (retryOnlyStateVariants && payload.retryContext?.parentScreenId) {
+      const variantResult = await buildStateVariantsForParent({
+        admin,
+        payload,
+        parentScreenId: payload.retryContext.parentScreenId,
+        variants: stateVariantsToBuild,
+      });
+      successfulStateVariants += variantResult.successfulVariants;
+      failedStateVariants += variantResult.failedVariants;
+      successfulScreens += variantResult.successfulVariants;
+      failedScreens += variantResult.failedVariants;
+    }
+
     for (let index = 0; index < screenPlans.length; index++) {
       const screenPlan = screenPlans[index];
-      const screenId = randomUUID();
+      const reusableScreenId = payload.retryContext?.reuseScreenIdsByName?.[
+        screenPlan.name.trim().toLowerCase().replace(/\s+/g, " ")
+      ] ?? null;
+      const screenId = reusableScreenId ?? randomUUID();
       let rowInserted = false;
 
       try {
@@ -2046,6 +2092,33 @@ export const generateUiFlowTask = task({
           screen.name === screenPlan.name ? { ...screen, status: "building" } : screen,
         );
         await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
+
+        if (reusableScreenId) {
+          const { error: resetError } = await admin
+            .from("screens")
+            .update({
+              generation_run_id: payload.generationRunId,
+              parent_screen_id: null,
+              state_key: shouldBuildStateVariants && index === 0 ? payload.baseState?.stateKey ?? "base" : null,
+              state_label: shouldBuildStateVariants && index === 0 ? payload.baseState?.stateLabel ?? "Base" : null,
+              state_role: shouldBuildStateVariants && index === 0 ? "base" : null,
+              name: screenPlan.name,
+              prompt: screenPlan.description,
+              code: buildPlaceholderCode(screenPlan.name, designTokens),
+              chrome_policy: (screenPlan.chromePolicy ?? null) as never,
+              navigation_item_id: screenPlan.navigationItemId ?? null,
+              status: "building",
+              error: null,
+              trigger_run_id: null,
+              stream_public_token: null,
+              updated_at: now(),
+            })
+            .eq("id", reusableScreenId)
+            .eq("project_id", payload.projectId)
+            .eq("owner_id", payload.ownerId);
+          if (resetError) throw resetError;
+          rowInserted = true;
+        }
 
         const handle = await (buildScreenTask as any).trigger(
           {
@@ -2075,9 +2148,7 @@ export const generateUiFlowTask = task({
           },
         );
 
-        const { error: insertError } = await admin
-          .from("screens")
-          .insert({
+        const screenRow = {
             id: screenId,
             owner_id: payload.ownerId,
             project_id: payload.projectId,
@@ -2099,7 +2170,19 @@ export const generateUiFlowTask = task({
             sort_index: reservedSlots[index]?.sort_index ?? index,
             created_at: now(),
             updated_at: now(),
-          });
+          };
+        const { error: insertError } = reusableScreenId
+          ? await admin
+              .from("screens")
+              .update({
+                trigger_run_id: handle.id,
+                stream_public_token: handle.publicAccessToken ?? null,
+                updated_at: now(),
+              })
+              .eq("id", reusableScreenId)
+              .eq("project_id", payload.projectId)
+              .eq("owner_id", payload.ownerId)
+          : await admin.from("screens").insert(screenRow);
 
         if (insertError) {
           throw new Error(`Failed to insert placeholder for "${screenPlan.name}": ${insertError.message}`);
