@@ -72,6 +72,7 @@ const mapPublicScreen = (row: Record<string, any>): ScreenData => ({
   userId: "public",
   name: row.name,
   code: row.code,
+  sourceLoaded: true,
   prompt: "",
   summary: null,
   generationRunId: null,

@@ -601,7 +601,7 @@ export function ScreenNode({
   }, [triggerStreams]);
   const hasStreamedBuildCode = Boolean(streamedCode?.trim());
   const showBuildPreloader = isBuilding && !hasStreamedBuildCode && !hasMeaningfulRenderableCode(safeCode);
-  const showSourcePreloader = !screen.sourceLoaded && screen.status !== "failed";
+  const showSourcePreloader = screen.sourceLoaded === false && screen.status !== "failed";
   const showBuildFinalizing = isBuilding && hasStreamedBuildCode;
 
   const rawDisplayCode = streamedCode ?? safeCode;

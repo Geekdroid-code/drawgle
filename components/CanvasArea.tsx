@@ -136,7 +136,7 @@ const ScreenCanvasNodeView = memo(({ data, dragging }: NodeProps<ScreenCanvasNod
   const sourceLoaded = data.screen.sourceLoaded;
   const requestScreenSource = data.onScreenSourceNeeded;
   useEffect(() => {
-    if (!sourceLoaded) {
+    if (sourceLoaded === false) {
       requestScreenSource?.(screenId);
     }
   }, [requestScreenSource, screenId, sourceLoaded]);

@@ -46,6 +46,16 @@ describe("ScreenNode element selection messaging", () => {
     expect(getByRole("status").textContent).toContain("Finalizing");
   });
 
+  it("shows the source preloader only for explicitly unloaded screen code", () => {
+    const { container, rerender } = render(<ScreenNode screen={screen} readOnly />);
+
+    expect(container.querySelector(".drawgle-preload-scan")).toBeNull();
+
+    rerender(<ScreenNode screen={{ ...screen, sourceLoaded: false }} readOnly />);
+
+    expect(container.querySelector(".drawgle-preload-scan")).not.toBeNull();
+  });
+
   it("updates only the highlight when selectedDrawgleId changes", async () => {
     const { container, rerender } = render(
       <ScreenNode screen={screen} selectionMode selectedDrawgleId={null} />,
