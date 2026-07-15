@@ -50,6 +50,7 @@ import {
   releaseGenerationCredit,
   releaseGenerationCreditRemainder,
   reserveGenerationCredits,
+  STATE_GENERATION_CREDIT_COST,
 } from "@/lib/generation/credit-reservations";
 import {
   buildProjectRoadmap,
@@ -2084,6 +2085,7 @@ export const generateUiFlowTask = task({
 	          variant.roadmapStableKey ?? stateRoadmapKey(group.parent.roadmapStableKey ?? screenRoadmapKey(group.parent.name), variant.stateKey),
 	        ),
 	        outputKind: "state" as const,
+	        amount: STATE_GENERATION_CREDIT_COST,
 	        roadmapItemId: variant.roadmapItemId ?? null,
 	        metadata: { screenName: group.parent.name, stateLabel: variant.stateLabel },
 	      }))),

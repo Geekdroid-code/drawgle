@@ -6,6 +6,7 @@ import { readScreenStateProposal, type AgentStepMetadata } from "@/lib/agent/mes
 import { newStateRoadmapStableKey } from "@/lib/agent/screen-state-proposal";
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { adminCreditService } from "@/lib/credits";
+import { STATE_GENERATION_CREDIT_COST } from "@/lib/generation/credit-reservations";
 import { persistProjectMessageMemoryPair } from "@/lib/generation/message-memory";
 import { screenPlanFromRoadmap, stateVariantFromRoadmap } from "@/lib/generation/project-roadmap";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -96,10 +97,10 @@ export async function approveScreenStateProposal({
     );
   }
 
-  const creditCheck = await adminCreditService.hasCredits(ownerId, 20);
+  const creditCheck = await adminCreditService.hasCredits(ownerId, STATE_GENERATION_CREDIT_COST);
   if (!creditCheck.hasCredits) {
     throw new ScreenStateApprovalError(
-      `Insufficient credits to build this state. (Required: 20, Balance: ${creditCheck.currentBalance}). Please upgrade your plan.`,
+      `Insufficient credits to build this state. (Required: ${STATE_GENERATION_CREDIT_COST}, Balance: ${creditCheck.currentBalance}). Please upgrade your plan.`,
       402,
     );
   }
