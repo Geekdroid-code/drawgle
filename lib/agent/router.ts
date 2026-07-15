@@ -39,6 +39,7 @@ export type AgentExecutionIntent = "chat" | "plan" | "edit" | "approve" | "clari
 export type AgentAction =
   | "answer_or_discuss"
   | "draft_new_screen_plan"
+  | "propose_screen_state"
   | "approve_pending_plan"
   | "modify_existing_ui"
   | "ask_clarification"
@@ -133,6 +134,14 @@ export type AgentRouterDecision = {
   sourceReferences?: ScreenRegionReference[];
   toolTrace?: AgentToolTrace[];
   modelCallCount?: number;
+  stateProposal?: {
+    parentScreenName: string | null;
+    existingRoadmapItemId: string | null;
+    stateLabel: string;
+    stateRole: string;
+    triggerLabel: string;
+    description: string;
+  } | null;
 };
 
 const socialIdentityPattern = /\b(gemini|google|openai|gpt|anthropic|claude|model provider|large language model|llm|system prompt|tool call|router)\b/i;
@@ -144,6 +153,12 @@ const toolCallArgsSchema = z.object({
   reason: z.string().trim().max(1000).optional(),
   screenName: z.string().trim().max(120).optional(),
   screenRole: z.string().trim().max(240).optional(),
+  parentScreenName: z.string().trim().max(120).optional(),
+  existingRoadmapItemId: z.string().trim().max(120).optional(),
+  stateLabel: z.string().trim().max(120).optional(),
+  stateRole: z.string().trim().max(80).optional(),
+  triggerLabel: z.string().trim().max(160).optional(),
+  description: z.string().trim().max(600).optional(),
   targetScreenId: z.string().trim().max(120).optional(),
   selectedElementDrawgleId: z.string().trim().max(120).optional(),
   targetType: z.string().trim().max(80).optional(),
@@ -193,6 +208,9 @@ const routerSystemInstruction = [
   "Read tools never return complete HTML. For cross-screen adaptation, inspect the source screen/region, then include its stable screenId and optional blockId in modify_existing_ui.sourceReferences.",
   "Distinguish the screen being edited from source screens being borrowed from. When another screen is selected and the user says 'from Home' or 'like Dashboard', the selected screen is the target and Home/Dashboard is a source.",
   "Call draft_new_screen_plan when the user wants to create, plan, add, build, or draft a new screen. A named product role such as a welcome, onboarding, analytics, checkout, settings, or profile screen is enough when the project context can fill the brand and app purpose.",
+  "Call propose_screen_state when the user wants an interaction state, modal, sheet, popup, expanded/collapsed state, selected state, empty/loading/error/success state, or another variation of an existing parent screen. A state reuses the parent screen and must never be routed to draft_new_screen_plan.",
+  "For propose_screen_state, inspect roadmap/project context when needed and identify the existing parent screen. Use an existing state roadmap item id when the requested state is already planned. If the parent is genuinely ambiguous, ask one clarification question.",
+  "A state proposal is always presented for explicit button approval. Never use approve_pending_plan for a state proposal and never claim a state has started building from conversational confirmation alone.",
   "Call modify_existing_ui when the user asks to change existing UI, selected elements, navigation, copy, layout, styling, or screen structure.",
   "When activeSelection.present is true, treat it as strong current canvas context, but not a hard mode. If the user asks to edit the selected thing, call modify_existing_ui with targetType selected_element, scope selected_element, the activeSelection drawgleId, and the activeSelection screenId when present.",
   "If activeSelection.present is true but the user clearly asks for broader work such as a new screen, a whole-screen rewrite, project planning, or general discussion, choose that broader action instead of forcing a selected-element edit.",
@@ -220,6 +238,25 @@ const toolDeclarations: FunctionDeclaration[] = [
         reason: stringProperty("Short reason this is the right action."),
       },
       required: ["instruction"],
+    },
+  },
+  {
+    name: "propose_screen_state",
+    description: "Propose one interaction state of an existing built screen. This presents a dedicated approval card and does not build or spend credits yet.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        instruction: stringProperty("Precise edit instruction for transforming a clone of the parent into this state."),
+        targetScreenId: stringProperty("Existing parent screen UUID returned by project context or read tools."),
+        parentScreenName: stringProperty("Existing parent screen name."),
+        existingRoadmapItemId: stringProperty("Existing planned state roadmap item UUID when one already exists."),
+        stateLabel: stringProperty("Concise state name, such as Wallet Selection or Delete Confirmation."),
+        stateRole: stringProperty("Semantic state role, such as modal, sheet, overlay, expanded, selected, empty, loading, error, or success."),
+        triggerLabel: stringProperty("User interaction that opens the state."),
+        description: stringProperty("One concise sentence describing what the state shows and why."),
+        reason: stringProperty("Short reason this is a state of an existing screen rather than a new screen."),
+      },
+      required: ["instruction", "targetScreenId", "stateLabel", "stateRole", "triggerLabel", "description"],
     },
   },
   {
@@ -414,6 +451,58 @@ const parseToolDecision = (input: AgentRouterInput, call: FunctionCall): AgentRo
       editOperation: "none",
       routerSource: "llm_function",
       routerFailureReason: parsedArgs.success ? null : "Invalid draft_new_screen_plan args were partially ignored.",
+    };
+  }
+
+  if (name === "propose_screen_state") {
+    const stateLabel = args.stateLabel?.trim();
+    const stateRole = args.stateRole?.trim();
+    const triggerLabel = args.triggerLabel?.trim();
+    const description = args.description?.trim();
+    const targetScreenId = args.targetScreenId?.trim() || input.activeScreenId;
+    if (!instruction || !stateLabel || !stateRole || !triggerLabel || !description || !targetScreenId) {
+      return {
+        action: "ask_clarification",
+        executionIntent: "clarify",
+        confidence: 0.72,
+        reason: "A screen state needs one verified parent screen and a concrete state description.",
+        responseMessage: null,
+        clarificationQuestion: "Which existing screen should this state belong to?",
+        instruction,
+        targetType: "none",
+        targetScreenId: null,
+        selectedElementDrawgleId: null,
+        scope: "none",
+        editOperation: "none",
+        routerSource: "llm_function",
+        routerFailureReason: "Incomplete propose_screen_state arguments.",
+        stateProposal: null,
+      };
+    }
+
+    return {
+      action: "propose_screen_state",
+      executionIntent: "plan",
+      confidence: 0.92,
+      reason,
+      responseMessage: args.responseMessage ?? null,
+      clarificationQuestion: null,
+      instruction,
+      targetType: "screen",
+      targetScreenId,
+      selectedElementDrawgleId: null,
+      scope: "whole_screen",
+      editOperation: "copy_change",
+      routerSource: "llm_function",
+      routerFailureReason: parsedArgs.success ? null : "Invalid propose_screen_state args were partially ignored.",
+      stateProposal: {
+        parentScreenName: args.parentScreenName?.trim() || null,
+        existingRoadmapItemId: args.existingRoadmapItemId?.trim() || null,
+        stateLabel,
+        stateRole,
+        triggerLabel,
+        description,
+      },
     };
   }
 

@@ -31,8 +31,29 @@ export type AgentMessageUiMetadata = {
 export type ProjectMessageMetadata = Record<string, unknown> & {
   agentStep?: AgentStepMetadata;
   screenPlanProposal?: ScreenPlanProposalMetadata;
+  screenStateProposal?: ScreenStateProposalMetadata;
   thinkingSummary?: ThinkingSummaryMetadata;
   ui?: AgentMessageUiMetadata;
+};
+
+export type ScreenStateProposalMetadata = {
+  version: 1;
+  prompt: string;
+  parentScreenId: string;
+  parentScreenName: string;
+  parentRoadmapItemId: string;
+  existingRoadmapItemId?: string | null;
+  state: {
+    stateKey: string;
+    stateLabel: string;
+    stateRole: string;
+    triggerLabel: string;
+    description: string;
+    editInstruction: string;
+  };
+  expiresAt: string;
+  status?: "pending" | "approved" | "expired";
+  approvedGenerationRunId?: string | null;
 };
 
 export type ScreenPlanProposalMetadata = {
@@ -243,8 +264,9 @@ export function readScreenPlanProposal(metadata: Record<string, unknown>): Scree
     return null;
   }
 
-  const status = proposal.status === "approved" || proposal.status === "expired" || proposal.status === "pending"
-    ? proposal.status
+  const proposalRecord = proposal as Record<string, unknown>;
+  const status = proposalRecord.status === "approved" || proposalRecord.status === "expired" || proposalRecord.status === "pending"
+    ? proposalRecord.status
     : "pending";
 
   return {
@@ -262,6 +284,48 @@ export function readScreenPlanProposal(metadata: Record<string, unknown>): Scree
     selectedStateVariantIds: asStringArray(proposal.selectedStateVariantIds) ?? [],
     status,
     approvedGenerationRunId: asString(proposal.approvedGenerationRunId),
+  };
+}
+
+export function readScreenStateProposal(metadata: Record<string, unknown>): ScreenStateProposalMetadata | null {
+  const proposal = asRecord(metadata.screenStateProposal);
+  const state = asRecord(proposal?.state);
+  const version = proposal?.version;
+  const prompt = asString(proposal?.prompt);
+  const parentScreenId = asString(proposal?.parentScreenId);
+  const parentScreenName = asString(proposal?.parentScreenName);
+  const parentRoadmapItemId = asString(proposal?.parentRoadmapItemId);
+  const stateKey = asString(state?.stateKey);
+  const stateLabel = asString(state?.stateLabel);
+  const stateRole = asString(state?.stateRole);
+  const triggerLabel = asString(state?.triggerLabel);
+  const description = asString(state?.description);
+  const editInstruction = asString(state?.editInstruction);
+  const expiresAt = asString(proposal?.expiresAt);
+
+  if (
+    version !== 1 || !prompt || !parentScreenId || !parentScreenName || !parentRoadmapItemId ||
+    !stateKey || !stateLabel || !stateRole || !triggerLabel || !description || !editInstruction || !expiresAt
+  ) {
+    return null;
+  }
+
+  const proposalRecord = proposal as Record<string, unknown>;
+  const status = proposalRecord.status === "approved" || proposalRecord.status === "expired" || proposalRecord.status === "pending"
+    ? proposalRecord.status
+    : "pending";
+
+  return {
+    version: 1,
+    prompt,
+    parentScreenId,
+    parentScreenName,
+    parentRoadmapItemId,
+    existingRoadmapItemId: asString(proposalRecord.existingRoadmapItemId),
+    state: { stateKey, stateLabel, stateRole, triggerLabel, description, editInstruction },
+    expiresAt,
+    status,
+    approvedGenerationRunId: asString(proposalRecord.approvedGenerationRunId),
   };
 }
 

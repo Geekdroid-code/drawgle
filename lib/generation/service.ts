@@ -2916,7 +2916,7 @@ export async function planUiFlow({
     };
     return {
       ...base,
-      roadmapStableKey: screenPlan.roadmap_stable_key ?? roadmapItem?.stable_key ?? screenRoadmapKey(screenPlan.name),
+      roadmapStableKey: roadmapItem?.stable_key ?? screenPlan.roadmap_stable_key ?? screenRoadmapKey(screenPlan.name),
       roadmapPriority: roadmapItem?.priority,
       explicitlyRequested: roadmapItem?.explicitly_requested ?? false,
       stateVariants: normalizeScreenStateVariants(screenPlan.state_variants, base),

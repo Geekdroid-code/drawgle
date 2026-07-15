@@ -13,7 +13,7 @@ import type {
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 type ProjectScreenRoadmapInsert = Database["public"]["Tables"]["project_screen_roadmap"]["Insert"];
-type ExistingRoadmapItem = Pick<ProjectScreenRoadmapRow, "id" | "stable_key" | "parent_item_id" | "generated_screen_id" | "status">;
+type ExistingRoadmapItem = Pick<ProjectScreenRoadmapRow, "id" | "stable_key" | "parent_item_id" | "generated_screen_id" | "status" | "kind" | "name" | "state_key" | "state_label">;
 
 export const PROJECT_ROADMAP_UPSERT_OPTIONS = {
   onConflict: "project_id,stable_key",
@@ -26,6 +26,15 @@ const priorityRank = {
   recommended: 2,
   optional: 3,
 } as const;
+
+const roadmapStatusRank: Record<ProjectRoadmapItem["status"], number> = {
+  ready: 0,
+  building: 1,
+  queued: 2,
+  planned: 3,
+  failed: 4,
+  dismissed: 5,
+};
 
 const asRecord = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value)
@@ -40,6 +49,9 @@ export const roadmapSlug = (value: string, fallback = "screen") => {
     .slice(0, 72);
   return slug || fallback;
 };
+
+export const roadmapIdentityFingerprint = (value: string) =>
+  value.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "");
 
 export const screenRoadmapKey = (name: string) => `screen:${roadmapSlug(name)}`;
 
@@ -87,9 +99,20 @@ export function buildProjectRoadmap({
   const seen = new Set(items.map((item) => item.stableKey));
 
   screens.forEach((screen, index) => {
-    const stableKey = screen.roadmapStableKey ?? screenRoadmapKey(screen.name);
-    const existingIndex = items.findIndex((item) => item.stableKey === stableKey && item.kind === "screen");
+    const proposedStableKey = screen.roadmapStableKey ?? screenRoadmapKey(screen.name);
+    const existingIndex = items
+      .map((item, itemIndex) => ({ item, itemIndex }))
+      .filter(({ item }) => item.kind === "screen" && (
+        item.stableKey === proposedStableKey || roadmapIdentityFingerprint(item.name) === roadmapIdentityFingerprint(screen.name)
+      ))
+      .sort((left, right) =>
+        Number(Boolean(right.item.generatedScreenId)) - Number(Boolean(left.item.generatedScreenId))
+        || Number(right.item.stableKey === proposedStableKey) - Number(left.item.stableKey === proposedStableKey)
+        || roadmapStatusRank[left.item.status] - roadmapStatusRank[right.item.status]
+        || left.item.sequence - right.item.sequence
+      )[0]?.itemIndex ?? -1;
     const existing = existingIndex >= 0 ? items[existingIndex] : null;
+    const stableKey = existing?.stableKey ?? proposedStableKey;
     const parent: ProjectRoadmapItem = {
       stableKey,
       kind: "screen",
@@ -119,8 +142,17 @@ export function buildProjectRoadmap({
       items.push(parent);
     }
     for (const variant of screen.stateVariants ?? []) {
-      const child = roadmapStateItem(parent, variant, items.length);
-      if (!seen.has(child.stableKey)) {
+      const proposedChild = roadmapStateItem(parent, variant, items.length);
+      const existingChildIndex = items.findIndex((item) =>
+        item.kind === "state" &&
+        item.parentStableKey === parent.stableKey &&
+        roadmapIdentityFingerprint(item.stateKey ?? item.stateLabel ?? item.name) === roadmapIdentityFingerprint(variant.stateKey || variant.stateLabel)
+      );
+      const child = existingChildIndex >= 0
+        ? { ...proposedChild, stableKey: items[existingChildIndex].stableKey, sequence: items[existingChildIndex].sequence }
+        : proposedChild;
+      if (existingChildIndex >= 0) items[existingChildIndex] = child;
+      else if (!seen.has(child.stableKey)) {
         seen.add(child.stableKey);
         items.push(child);
       }
@@ -131,7 +163,7 @@ export function buildProjectRoadmap({
     const linkedName = navigationItem.linkedScreenName?.trim();
     const name = linkedName || navigationItem.label;
     const stableKey = screenRoadmapKey(name);
-    if (seen.has(stableKey)) continue;
+    if (seen.has(stableKey) || items.some((item) => item.kind === "screen" && roadmapIdentityFingerprint(item.name) === roadmapIdentityFingerprint(name))) continue;
     seen.add(stableKey);
     items.push({
       stableKey,
@@ -210,6 +242,61 @@ export function buildProjectRoadmapUpsertRows({
   });
 }
 
+export function canonicalizeRoadmapItems(
+  items: ProjectRoadmapItem[],
+  existingItems: ExistingRoadmapItem[],
+): ProjectRoadmapItem[] {
+  const existingByKey = new Map(existingItems.map((item) => [item.stable_key, item]));
+  const existingParentByIdentity = new Map<string, ExistingRoadmapItem>();
+  for (const item of existingItems) {
+    if (item.kind !== "screen") continue;
+    const identity = roadmapIdentityFingerprint(item.name);
+    const current = existingParentByIdentity.get(identity);
+    const itemIsBetter = !current
+      || (Boolean(item.generated_screen_id) && !current.generated_screen_id)
+      || (Boolean(item.generated_screen_id) === Boolean(current.generated_screen_id)
+        && roadmapStatusRank[item.status] < roadmapStatusRank[current.status]);
+    if (itemIsBetter) existingParentByIdentity.set(identity, item);
+  }
+
+  const aliases = new Map<string, string>();
+  const canonicalParents = items.filter((item) => item.kind === "screen").map((item) => {
+    const exact = existingByKey.get(item.stableKey);
+    const identityMatch = existingParentByIdentity.get(roadmapIdentityFingerprint(item.name));
+    const existing = identityMatch?.generated_screen_id && !exact?.generated_screen_id
+      ? identityMatch
+      : exact ?? identityMatch;
+    const stableKey = existing?.stable_key ?? item.stableKey;
+    aliases.set(item.stableKey, stableKey);
+    return { ...item, stableKey };
+  });
+  const parentIdByStableKey = new Map(existingItems
+    .filter((item) => item.kind === "screen")
+    .map((item) => [item.stable_key, item.id]));
+  const existingStateByIdentity = new Map<string, ExistingRoadmapItem>();
+  for (const item of existingItems) {
+    if (item.kind !== "state" || !item.parent_item_id) continue;
+    const identity = roadmapIdentityFingerprint(item.state_key ?? item.state_label ?? item.name);
+    existingStateByIdentity.set(`${item.parent_item_id}:${identity}`, item);
+  }
+
+  const canonicalStates = items.filter((item) => item.kind === "state").map((item) => {
+    const parentStableKey = aliases.get(item.parentStableKey ?? "") ?? item.parentStableKey;
+    const parentId = parentStableKey ? parentIdByStableKey.get(parentStableKey) : null;
+    const identity = roadmapIdentityFingerprint(item.stateKey ?? item.stateLabel ?? item.name);
+    const existing = existingByKey.get(item.stableKey)
+      ?? (parentId ? existingStateByIdentity.get(`${parentId}:${identity}`) : null);
+    const stableKey = existing?.stable_key ?? item.stableKey;
+    aliases.set(item.stableKey, stableKey);
+    return { ...item, stableKey, parentStableKey };
+  });
+
+  return [...canonicalParents, ...canonicalStates].map((item) => ({
+    ...item,
+    dependencyKeys: item.dependencyKeys.map((key) => aliases.get(key) ?? key),
+  }));
+}
+
 export async function persistProjectRoadmap({
   admin,
   projectId,
@@ -221,17 +308,52 @@ export async function persistProjectRoadmap({
   ownerId: string;
   roadmap: ProjectRoadmap;
 }) {
+  const manifestItems = roadmap.items.map((item) => ({
+    stable_key: item.stableKey,
+    parent_stable_key: item.parentStableKey ?? null,
+    kind: item.kind,
+    screen_type: item.screenType ?? null,
+    name: item.name,
+    description: item.description,
+    priority: item.priority,
+    status: item.status,
+    source: item.source,
+    explicitly_requested: item.explicitlyRequested,
+    sequence: item.sequence,
+    tranche: item.tranche,
+    dependency_keys: item.dependencyKeys,
+    state_key: item.stateKey ?? null,
+    state_label: item.stateLabel ?? null,
+    state_role: item.stateRole ?? null,
+    trigger_label: item.triggerLabel ?? null,
+    metadata: item.metadata ?? {},
+  }));
+  const manifestResult = await admin.rpc("reconcile_project_roadmap_manifest", {
+    input_owner_id: ownerId,
+    input_project_id: projectId,
+    input_items: manifestItems as never,
+  });
+  if (!manifestResult.error && Array.isArray(manifestResult.data)) {
+    return manifestResult.data as unknown as ProjectScreenRoadmapRow[];
+  }
+  if (manifestResult.error && manifestResult.error.code !== "42883" && manifestResult.error.code !== "PGRST202") {
+    throw manifestResult.error;
+  }
+
+  // Compatibility fallback for environments that have not applied the
+  // transactional roadmap migration yet.
   const { data: existing, error: existingError } = await admin
     .from("project_screen_roadmap")
-    .select("id, stable_key, parent_item_id, generated_screen_id, status")
+    .select("id, stable_key, parent_item_id, generated_screen_id, status, kind, name, state_key, state_label")
     .eq("project_id", projectId)
     .eq("owner_id", ownerId);
   if (existingError) throw existingError;
 
   const existingItems = (existing ?? []) as ExistingRoadmapItem[];
   const existingByKey = new Map(existingItems.map((item) => [item.stable_key, item]));
-  const parentItems = roadmap.items.filter((item) => item.kind === "screen");
-  const childItems = roadmap.items.filter((item) => item.kind === "state");
+  const canonicalItems = canonicalizeRoadmapItems(roadmap.items, existingItems);
+  const parentItems = canonicalItems.filter((item) => item.kind === "screen");
+  const childItems = canonicalItems.filter((item) => item.kind === "state");
 
   const upsertItems = async (items: ProjectRoadmapItem[], parentIds?: Map<string, string>) => {
     if (items.length === 0) return;

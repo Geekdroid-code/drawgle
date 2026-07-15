@@ -31,9 +31,11 @@ import {
   readAgentStep,
   readAgentUi,
   readScreenPlanProposal,
+  readScreenStateProposal,
   readThinkingSummary,
   type AgentStepMetadata,
   type ScreenPlanProposalMetadata,
+  type ScreenStateProposalMetadata,
   type ThinkingSummaryMetadata,
 } from "@/lib/agent/message-metadata";
 import type {
@@ -87,7 +89,7 @@ type ConversationItem =
   | { id: string; kind: "thinking"; summary: ThinkingSummaryMetadata; timestamp?: string; live?: boolean }
   | { id: string; kind: "generation_journal"; journal: GenerationJournalMetadata; timestamp?: string }
   | { id: string; kind: "screen_suggestions"; recommendation: RoadmapBuildRecommendation; timestamp?: string }
-  | { id: string; kind: "action"; step: AgentStepMetadata; sourceContent?: string; retryRun?: GenerationRunData; proposal?: ScreenPlanProposalMetadata | null; proposalMessageId?: string | null; timestamp?: string };
+  | { id: string; kind: "action"; step: AgentStepMetadata; sourceContent?: string; retryRun?: GenerationRunData; proposal?: ScreenPlanProposalMetadata | null; stateProposal?: ScreenStateProposalMetadata | null; proposalMessageId?: string | null; timestamp?: string };
 
 type ChatWorkspaceTab = "chat" | "design" | "design-md";
 
@@ -300,6 +302,9 @@ const isUsefulThinkingSummary = (summary: ThinkingSummaryMetadata) => {
 };
 
 const isProposalPending = (proposal?: ScreenPlanProposalMetadata | null) =>
+  Boolean(proposal && proposal.status === "pending" && new Date(proposal.expiresAt).getTime() >= Date.now());
+
+const isStateProposalPending = (proposal?: ScreenStateProposalMetadata | null) =>
   Boolean(proposal && proposal.status === "pending" && new Date(proposal.expiresAt).getTime() >= Date.now());
 
 const isTerminalStep = (step?: AgentStepMetadata | null) =>
@@ -548,6 +553,7 @@ function buildConversationItems({
     const ui = readAgentUi(message.metadata);
     const thinkingSummary = readThinkingSummary(message.metadata);
     const screenPlanProposal = readScreenPlanProposal(message.metadata);
+    const screenStateProposal = readScreenStateProposal(message.metadata);
     const rawRoadmapRecommendation = message.id === latestSuggestionMessageId
       ? readRoadmapRecommendation(message.metadata)
       : null;
@@ -734,6 +740,10 @@ function buildConversationItems({
             existing.proposal = screenPlanProposal;
             existing.proposalMessageId = message.id;
           }
+          if (screenStateProposal) {
+            existing.stateProposal = screenStateProposal;
+            existing.proposalMessageId = message.id;
+          }
           if (retryableAssociatedRun && !attachedRetryRunIds.has(retryableAssociatedRun.id)) {
             existing.retryRun = retryableAssociatedRun;
             attachedRetryRunIds.add(retryableAssociatedRun.id);
@@ -753,7 +763,8 @@ function buildConversationItems({
         sourceContent: message.content,
         retryRun: retryRun ?? undefined,
         proposal: screenPlanProposal,
-        proposalMessageId: screenPlanProposal ? message.id : null,
+        stateProposal: screenStateProposal,
+        proposalMessageId: screenPlanProposal || screenStateProposal ? message.id : null,
         timestamp: message.timestamp,
       };
 
@@ -1065,21 +1076,26 @@ function ActionCard({
   retryRun,
   retryDisabled,
   proposal,
+  stateProposal,
   proposalMessageId,
   onRetryGeneration,
   onApproveScreenPlan,
+  onApproveScreenState,
 }: {
   step: AgentStepMetadata;
   retryRun?: GenerationRunData;
   retryDisabled?: boolean;
   proposal?: ScreenPlanProposalMetadata | null;
+  stateProposal?: ScreenStateProposalMetadata | null;
   proposalMessageId?: string | null;
   onRetryGeneration?: (run: GenerationRunData) => void;
   onApproveScreenPlan?: (proposalMessageId: string, selectedStateVariantIds?: string[]) => void;
+  onApproveScreenState?: (proposalMessageId: string) => void;
 }) {
   const busy = step.status === "queued" || step.status === "thinking" || step.status === "editing";
   const failed = step.status === "failed";
   const pendingProposal = isProposalPending(proposal);
+  const pendingStateProposal = isStateProposalPending(stateProposal);
   const styleDiff = (step as any).styleDiff as string | undefined;
   const stateVariants = useMemo(() => proposal?.stateVariants ?? [], [proposal]);
   const defaultStateVariantIds = useMemo(() => {
@@ -1287,7 +1303,22 @@ function ActionCard({
               </Button>
             ) : null}
 
+            {pendingStateProposal && proposalMessageId && onApproveScreenState ? (
+              <Button
+                type="button"
+                className="mt-3 h-8 rounded-full px-3 text-[11px] font-semibold"
+                onClick={() => onApproveScreenState(proposalMessageId)}
+                disabled={retryDisabled}
+              >
+                Build state
+              </Button>
+            ) : null}
+
             {proposal?.status === "approved" ? (
+              <div className="mt-3 text-[11px] font-semibold text-emerald-600">Approved for build</div>
+            ) : null}
+
+            {stateProposal?.status === "approved" ? (
               <div className="mt-3 text-[11px] font-semibold text-emerald-600">Approved for build</div>
             ) : null}
 
@@ -1630,6 +1661,7 @@ export function ChatPanel({
   screenPlan,
   onRetryGeneration,
   onApproveScreenPlan,
+  onApproveScreenState,
   onBuildRoadmapRecommendation,
   isCollapsed,
   onCollapseChange,
@@ -1669,6 +1701,7 @@ export function ChatPanel({
   isBuilding?: boolean;
   onRetryGeneration?: (run: GenerationRunData) => void;
   onApproveScreenPlan?: (proposalMessageId: string, selectedStateVariantIds?: string[]) => void;
+  onApproveScreenState?: (proposalMessageId: string) => void;
   onBuildRoadmapRecommendation?: (recommendation: RoadmapBuildRecommendation, selectedItemIds: string[]) => void;
   contextualSuggestionsEnabled?: boolean;
   onBuildPlannedScreen?: () => void;
@@ -1898,9 +1931,11 @@ export function ChatPanel({
                             retryRun={item.retryRun}
                             retryDisabled={retryDisabled}
                             proposal={item.proposal}
+                            stateProposal={item.stateProposal}
                             proposalMessageId={item.proposalMessageId}
                             onRetryGeneration={onRetryGeneration}
                             onApproveScreenPlan={onApproveScreenPlan}
+                            onApproveScreenState={onApproveScreenState}
                           />
                         </motion.div>
                       );

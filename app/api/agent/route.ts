@@ -25,11 +25,13 @@ import { findLatestProjectPromptImagePath, loadStoredPromptImage } from "@/lib/g
 import { resolveGenerationReferencePolicy } from "@/lib/generation/reference-policy";
 import { resolveProjectReferenceDna, selectProjectReferenceImagePath } from "@/lib/generation/reference-dna";
 import { planUiFlow } from "@/lib/generation/service";
-import { readScreenPlanProposal, type AgentStepMetadata } from "@/lib/agent/message-metadata";
+import { readScreenPlanProposal, readScreenStateProposal, type AgentStepMetadata, type ScreenStateProposalMetadata } from "@/lib/agent/message-metadata";
 import { approveScreenPlanProposal, ScreenPlanApprovalError } from "@/lib/agent/screen-plan-approval";
+import { findExactPlannedStateCandidate, resolveScreenStateProposal } from "@/lib/agent/screen-state-proposal";
 import { classifyHistoryNeed, HISTORY_LIMITS } from "@/lib/agent/history-policy";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import type { ProjectScreenRoadmapRow } from "@/lib/supabase/database.types";
 import { fetchProjectMessages, insertProjectMessage, updateProjectMessage } from "@/lib/supabase/queries";
 import { getDrawgleTokenReferences, tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
 import { storeUserImageAssetFromRemoteUrl } from "@/lib/user-image-assets";
@@ -235,6 +237,10 @@ const buildVisibleThinkingText = ({
       : "I reviewed your prompt and project context, then matched it to a new-screen planning request.";
   }
 
+  if (action === "propose_screen_state") {
+    return "I matched this to a state of an existing screen and verified its parent before preparing approval.";
+  }
+
   if (action === "approve_pending_plan") {
     return "I matched your reply to the pending screen plan approval.";
   }
@@ -261,6 +267,10 @@ const fallbackPreActionMessage = ({
     return "Okay, I'm shaping that into a screen plan for this project.";
   }
 
+  if (action === "propose_screen_state") {
+    return `Okay, I'm preparing ${targetLabel ? `the ${targetLabel} state` : "that screen state"} for approval.`;
+  }
+
   if (action === "modify_existing_ui") {
     return `Okay, I'm applying a precise edit to ${targetLabel ?? "the selected UI"} now.`;
   }
@@ -281,6 +291,15 @@ const latestPendingScreenPlanProposal = (messages: ProjectMessage[]) => {
     };
   }
 
+  return null;
+};
+
+const latestPendingScreenStateProposal = (messages: ProjectMessage[]) => {
+  for (const message of [...messages].reverse()) {
+    const proposal = readScreenStateProposal(message.metadata);
+    if (!proposal || proposal.status !== "pending" || new Date(proposal.expiresAt).getTime() < Date.now()) continue;
+    return { messageId: message.id, proposal };
+  }
   return null;
 };
 
@@ -520,6 +539,8 @@ const compatibilityToolName = (action: AgentRouterDecision["action"]) =>
     ? "modify_screen"
     : action === "draft_new_screen_plan"
       ? "create_new_screen"
+      : action === "propose_screen_state"
+        ? "propose_screen_state"
       : action === "answer_or_discuss"
         ? "chat_response"
         : action;
@@ -943,7 +964,7 @@ export async function POST(request: Request) {
     const [{ data: screens, error: screensError }, { data: projectNavigation }, activeGeneration, projectMessages] = await Promise.all([
       admin
         .from("screens")
-        .select("id, name, prompt, status, summary, chrome_policy, navigation_item_id")
+        .select("id, name, prompt, status, summary, chrome_policy, navigation_item_id, roadmap_item_id")
         .eq("project_id", payload.projectId)
         .order("sort_index", { ascending: true }),
       admin
@@ -974,6 +995,7 @@ export async function POST(request: Request) {
         summary: screen.summary,
         chrome: typeof chromePolicy?.chrome === "string" ? chromePolicy.chrome : null,
         navigationItemId: screen.navigation_item_id,
+        roadmapItemId: screen.roadmap_item_id,
       };
     });
     const selectedScreenId = payload.activeSelection?.present && payload.activeSelection.targetType !== "navigation"
@@ -994,6 +1016,7 @@ export async function POST(request: Request) {
     });
     const recentMessages = buildCompactRecentMessages(projectMessages, screenContext, HISTORY_LIMITS[historyNeed]);
     const promptApprovalProposal = latestPendingScreenPlanProposal(projectMessages);
+    const promptStateApprovalProposal = latestPendingScreenStateProposal(projectMessages);
     const selectedScreen = selectedScreenId
       ? screenContext.find((screen: any) => screen.id === selectedScreenId) ?? null
       : null;
@@ -1157,7 +1180,8 @@ export async function POST(request: Request) {
       });
     };
 
-    const routerDecision = await routeAgentPrompt({
+    let stateRoadmapRowsForTurn: ProjectScreenRoadmapRow[] | null = null;
+    let routerDecision = await routeAgentPrompt({
       prompt,
       hasImage: Boolean(payload.image),
       activeScreenId: selectedScreenId,
@@ -1193,6 +1217,44 @@ export async function POST(request: Request) {
         },
       }) : undefined,
     });
+    if (routerDecision.action === "draft_new_screen_plan" || routerDecision.action === "modify_existing_ui") {
+      const { data: stateRoadmapRows, error: stateRoadmapError } = await admin
+        .from("project_screen_roadmap")
+        .select("*")
+        .eq("project_id", payload.projectId)
+        .eq("owner_id", user.id);
+      if (stateRoadmapError) throw stateRoadmapError;
+      stateRoadmapRowsForTurn = (stateRoadmapRows ?? []) as ProjectScreenRoadmapRow[];
+      const exactState = findExactPlannedStateCandidate({
+        prompt,
+        targetScreenId: selectedScreenId,
+        roadmapRows: stateRoadmapRowsForTurn,
+      });
+      if (exactState?.parent.generated_screen_id) {
+        const stateMetadata = metadataRecord(exactState.state.metadata);
+        routerDecision = {
+          ...routerDecision,
+          action: "propose_screen_state",
+          executionIntent: "plan",
+          reason: "Server reconciliation matched an exact planned state of the selected ready parent screen.",
+          targetType: "screen",
+          targetScreenId: exactState.parent.generated_screen_id,
+          scope: "whole_screen",
+          editOperation: "copy_change",
+          stateProposal: {
+            parentScreenName: exactState.parent.name,
+            existingRoadmapItemId: exactState.state.id,
+            stateLabel: exactState.state.state_label ?? exactState.state.name,
+            stateRole: exactState.state.state_role ?? "alternate",
+            triggerLabel: exactState.state.trigger_label ?? `Open ${exactState.state.state_label ?? exactState.state.name}`,
+            description: exactState.state.description,
+          },
+          instruction: typeof stateMetadata.editInstruction === "string" && stateMetadata.editInstruction.trim()
+            ? stateMetadata.editInstruction.trim()
+            : `Preserve ${exactState.parent.name} and open the ${exactState.state.state_label ?? exactState.state.name} state.`,
+        };
+      }
+    }
     const routerSelectedElementUsed =
       routerDecision.targetType === "selected_element" ||
       routerDecision.scope === "selected_element";
@@ -1395,6 +1457,26 @@ export async function POST(request: Request) {
     };
 
     if (routerDecision.action === "approve_pending_plan") {
+      if (promptStateApprovalProposal) {
+        const message = `Use the Build state button on ${promptStateApprovalProposal.proposal.state.stateLabel} when you are ready. I will not spend credits from a chat confirmation.`;
+        const modelMessage = await insertProjectMessage(admin, {
+          projectId: payload.projectId,
+          ownerId: user.id,
+          screenId: promptStateApprovalProposal.proposal.parentScreenId,
+          role: "model",
+          content: message,
+          messageType: "chat",
+          metadata: { ...routerMetadata, ui: { variant: "chat" }, userMessageId: userMessage.id },
+        });
+        await persistProjectMessageMemoryPair({
+          admin,
+          userMessageId: userMessage.id,
+          userContent: prompt || "Build this state.",
+          modelMessageId: modelMessage.id,
+          modelContent: message,
+        }).catch((error) => console.error("Failed to persist state approval boundary memory", error));
+        return NextResponse.json({ intent: "chat_response", message, routerDecision });
+      }
       if (promptApprovalProposal) {
         return approvePendingProposalTurn(promptApprovalProposal);
       }
@@ -1506,6 +1588,186 @@ export async function POST(request: Request) {
       return NextResponse.json({
         intent: "chat_response",
         message,
+        routerDecision,
+      });
+    }
+
+    if (routerDecision.action === "propose_screen_state") {
+      const requestedState = routerDecision.stateProposal;
+      if (!requestedState || !routerDecision.instruction || !routerDecision.targetScreenId) {
+        return saveClarification({
+          message: "Which existing screen should this state belong to?",
+          instruction: routerDecision.instruction?.trim() || prompt,
+          missingFields: ["parent_screen"],
+          lastKnownTarget: buildDecisionTarget(routerDecision),
+        });
+      }
+
+      let roadmapRows = stateRoadmapRowsForTurn;
+      if (!roadmapRows) {
+        const { data, error: roadmapError } = await admin
+          .from("project_screen_roadmap")
+          .select("*")
+          .eq("project_id", payload.projectId)
+          .eq("owner_id", user.id);
+        if (roadmapError) throw roadmapError;
+        roadmapRows = (data ?? []) as ProjectScreenRoadmapRow[];
+      }
+
+      let resolvedState;
+      try {
+        resolvedState = resolveScreenStateProposal({
+          request: {
+            targetScreenId: routerDecision.targetScreenId,
+            parentScreenName: requestedState.parentScreenName,
+            existingRoadmapItemId: requestedState.existingRoadmapItemId,
+            stateLabel: requestedState.stateLabel,
+            stateRole: requestedState.stateRole,
+            triggerLabel: requestedState.triggerLabel,
+            description: requestedState.description,
+            editInstruction: routerDecision.instruction,
+          },
+          screens: screenContext.map((screen) => ({
+            id: screen.id,
+            name: screen.name,
+            status: screen.status,
+            roadmap_item_id: screen.roadmapItemId,
+          })),
+          roadmapRows,
+        });
+      } catch (error) {
+        return saveClarification({
+          message: error instanceof Error ? error.message : "I could not safely resolve the parent screen for that state.",
+          instruction: routerDecision.instruction,
+          missingFields: ["verified_parent_screen"],
+          lastKnownTarget: buildDecisionTarget(routerDecision),
+          status: 409,
+          metadata: {
+            serverReconciliation: {
+              finalAction: "ask_clarification",
+              reason: "state_parent_resolution_failed",
+            },
+          },
+        });
+      }
+
+      const stateProposal: ScreenStateProposalMetadata = {
+        version: 1,
+        prompt: prompt || routerDecision.instruction,
+        parentScreenId: resolvedState.parentScreen.id,
+        parentScreenName: resolvedState.parentScreen.name,
+        parentRoadmapItemId: resolvedState.parentRoadmapItem.id,
+        existingRoadmapItemId: resolvedState.existingStateItem?.id ?? null,
+        state: resolvedState.state,
+        status: "pending",
+        expiresAt: new Date(Date.now() + 1000 * 60 * 45).toISOString(),
+      };
+      for (const message of projectMessages) {
+        const oldStateProposal = readScreenStateProposal(message.metadata);
+        if (
+          oldStateProposal?.status === "pending" &&
+          oldStateProposal.parentScreenId === resolvedState.parentScreen.id &&
+          oldStateProposal.state.stateKey === resolvedState.state.stateKey
+        ) {
+          await admin.from("project_messages").update({
+            metadata: {
+              ...message.metadata,
+              screenStateProposal: { ...oldStateProposal, status: "expired" },
+              repairDiagnostic: "Superseded by a newer proposal for the same screen state.",
+            } as never,
+          }).eq("id", message.id);
+          continue;
+        }
+        const oldProposal = readScreenPlanProposal(message.metadata);
+        if (!oldProposal || oldProposal.status !== "pending") continue;
+        const proposedName = oldProposal.screenPlan.name.replace(/\bstate\b/gi, "");
+        if (proposedName.toLowerCase().replace(/[^a-z0-9]+/g, "") !== resolvedState.state.stateLabel.toLowerCase().replace(/[^a-z0-9]+/g, "")) continue;
+        await admin.from("project_messages").update({
+          metadata: {
+            ...message.metadata,
+            screenPlanProposal: { ...oldProposal, status: "expired" },
+            repairDiagnostic: "Superseded by a verified existing-screen state proposal.",
+          } as never,
+        }).eq("id", message.id);
+      }
+      const proposalText = `${resolvedState.state.stateLabel} is a state of ${resolvedState.parentScreen.name}. It will clone the current screen and apply only the ${resolvedState.state.stateRole} interaction after you approve it.`;
+      const proposalBaseMetadata = {
+        ...routerMetadata,
+        serverReconciliation: {
+          finalAction: "propose_screen_state",
+          finalScope: "existing_screen_state",
+          parentScreenId: resolvedState.parentScreen.id,
+          parentRoadmapItemId: resolvedState.parentRoadmapItem.id,
+          existingRoadmapItemId: resolvedState.existingStateItem?.id ?? null,
+        },
+      };
+
+      await updateAgentProgress({
+        step: buildAgentProgressStep({
+          status: "completed",
+          title: "State ready for review",
+          detail: `Verified ${resolvedState.parentScreen.name} as the parent screen.`,
+          processLines: [...progressLines(), "Prepared one state approval without running the screen planner."],
+        }),
+        metadata: proposalBaseMetadata,
+      });
+      const modelMessage = await insertProjectMessage(admin, {
+        projectId: payload.projectId,
+        ownerId: user.id,
+        screenId: resolvedState.parentScreen.id,
+        role: "model",
+        content: proposalText,
+        messageType: "chat",
+        metadata: {
+          ...proposalBaseMetadata,
+          ui: { variant: "chat" },
+          action: "screen_state_proposed_intro",
+          userMessageId: userMessage.id,
+        },
+      });
+      const proposalMessage = await insertProjectMessage(admin, {
+        projectId: payload.projectId,
+        ownerId: user.id,
+        screenId: resolvedState.parentScreen.id,
+        role: "system",
+        content: `Screen state: ${resolvedState.state.stateLabel}`,
+        messageType: "chat",
+        metadata: {
+          ...proposalBaseMetadata,
+          ui: { variant: "action_card" },
+          action: "screen_state_proposed",
+          userMessageId: userMessage.id,
+          screenStateProposal: stateProposal,
+          agentStep: {
+            kind: "proposal",
+            status: "completed",
+            title: resolvedState.state.stateLabel,
+            detail: resolvedState.state.description,
+            targetLabel: resolvedState.parentScreen.name,
+            processLines: [
+              `State of ${resolvedState.parentScreen.name}`,
+              `Trigger: ${resolvedState.state.triggerLabel}`,
+              "Review this state before I build it.",
+            ],
+          } satisfies AgentStepMetadata,
+        },
+      });
+
+      await persistProjectMessageMemoryPair({
+        admin,
+        userMessageId: userMessage.id,
+        userContent: prompt || "[state request]",
+        modelMessageId: modelMessage.id,
+        modelContent: proposalText,
+      }).catch((error) => {
+        console.error("Failed to persist screen state proposal memory", error);
+      });
+
+      return NextResponse.json({
+        intent: "screen_state_proposed",
+        proposalMessageId: proposalMessage.id,
+        parentScreenId: resolvedState.parentScreen.id,
+        state: resolvedState.state,
         routerDecision,
       });
     }

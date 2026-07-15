@@ -6,6 +6,7 @@ import {
   PROJECT_ROADMAP_UPSERT_OPTIONS,
   buildProjectRoadmap,
   buildProjectRoadmapUpsertRows,
+  canonicalizeRoadmapItems,
   screenRoadmapKey,
   selectRoadmapBuildRecommendation,
   resolveRoadmapBuildSelection,
@@ -40,6 +41,8 @@ const roadmapRow = (patch: Partial<ProjectScreenRoadmapRow> & Pick<ProjectScreen
   state_label: null,
   state_role: null,
   trigger_label: null,
+  identity_fingerprint: null,
+  identity_exception: false,
   metadata: {},
   created_at: "2026-07-14T00:00:00.000Z",
   updated_at: "2026-07-14T00:00:00.000Z",
@@ -242,6 +245,67 @@ describe("project roadmap", () => {
       name: "Delete Confirmation",
       parentName: "Task Detail",
     });
+  });
+
+  it("keeps an existing canonical stable key when a planner returns the same visible screen under a new key", () => {
+    const canonical = roadmapRow({
+      id: "dashboard-roadmap",
+      stable_key: "screen:financial-dashboard",
+      name: "Financial Dashboard",
+      status: "ready",
+      generated_screen_id: "dashboard-screen",
+    });
+    const incoming: ProjectRoadmapItem = {
+      stableKey: "screen:financial-dashboard-digital-wallet",
+      kind: "screen",
+      screenType: "root",
+      name: "Financial Dashboard",
+      description: "Updated dashboard brief",
+      priority: "core",
+      status: "planned",
+      source: "planner",
+      explicitlyRequested: false,
+      sequence: 0,
+      tranche: 2,
+      dependencyKeys: [],
+    };
+
+    const orphanAlias = roadmapRow({
+      id: "dashboard-alias",
+      stable_key: incoming.stableKey,
+      name: "Financial Dashboard",
+      status: "planned",
+    });
+
+    expect(canonicalizeRoadmapItems([incoming], [orphanAlias, canonical])[0].stableKey).toBe(canonical.stable_key);
+  });
+
+  it("deduplicates same-name parents inside a newly compiled roadmap", () => {
+    const roadmap = buildProjectRoadmap({
+      plannedItems: [{
+        stableKey: "screen:financial-dashboard",
+        kind: "screen",
+        screenType: "root",
+        name: "Financial Dashboard",
+        description: "Existing dashboard",
+        priority: "core",
+        status: "ready",
+        source: "existing",
+        explicitlyRequested: true,
+        sequence: 0,
+        tranche: 1,
+        dependencyKeys: [],
+      }],
+      screens: [{
+        name: "Financial Dashboard",
+        type: "root",
+        description: "New planner wording",
+        roadmapStableKey: "screen:financial-dashboard-digital-wallet",
+      }],
+    });
+
+    expect(roadmap.items.filter((item) => item.kind === "screen")).toHaveLength(1);
+    expect(roadmap.items[0].stableKey).toBe("screen:financial-dashboard");
   });
 
   it("ranks screens that directly follow the latest completed screen first", () => {

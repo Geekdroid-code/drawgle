@@ -2116,6 +2116,41 @@ export function ProjectShell({
     }
   };
 
+  const handleApproveScreenState = async (proposalMessageId: string) => {
+    if (!project || isCanvasInteractionLocked) return;
+
+    setQueueError(null);
+    setIsQueueingGeneration(true);
+    try {
+      const response = await fetch("/api/agent/screen-state/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: project.id, proposalMessageId }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (response.status === 409 && payload.activeGenerationRunId) {
+          setPendingQueuedRunId(payload.activeGenerationRunId);
+          setQueueError(payload.error ?? "A generation is already queued or building for this project.");
+          await refreshGenerationRuns();
+          return;
+        }
+        throw new Error(payload.error ?? "Drawgle could not approve that screen state.");
+      }
+      if (payload.generationRunId) {
+        setPendingQueuedRunId(payload.generationRunId);
+        setPendingAddScreenRunId(payload.generationRunId);
+        addScreenRefreshAttemptedRunIdRef.current = null;
+      }
+      await refreshGenerationRuns();
+    } catch (error) {
+      console.error("Screen state approval error:", error);
+      setQueueError(error instanceof Error ? error.message : "Failed to approve screen state.");
+    } finally {
+      setIsQueueingGeneration(false);
+    }
+  };
+
   const handleDeterministicElementEdit = async (
     operations: DeterministicEditOperation[],
     overrideScreenId?: string,
@@ -2747,6 +2782,7 @@ export function ProjectShell({
             isBuilding={isQueueingGeneration}
             onRetryGeneration={handleRetryGeneration}
             onApproveScreenPlan={handleApproveScreenPlan}
+            onApproveScreenState={handleApproveScreenState}
             onBuildRoadmapRecommendation={handleBuildRoadmapRecommendation}
             contextualSuggestionsEnabled={
               project?.charter?.projectOrigin

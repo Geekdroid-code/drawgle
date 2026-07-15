@@ -69,4 +69,38 @@ describe("bounded project agent loop", () => {
     expect(agentInput.executeReadTool).toHaveBeenCalledTimes(2);
     expect(decision.action).toBe("answer_or_discuss");
   });
+
+  it("routes an existing-screen interaction state away from full-screen planning", async () => {
+    mocks.generateContent.mockResolvedValueOnce({
+      functionCalls: [{
+        id: "state-1",
+        name: "propose_screen_state",
+        args: {
+          instruction: "Clone the dashboard and open the wallet selector without changing the shell.",
+          targetScreenId: "22222222-2222-4222-8222-222222222222",
+          parentScreenName: "Library",
+          existingRoadmapItemId: "state-roadmap-id",
+          stateLabel: "Wallet Selection",
+          stateRole: "overlay",
+          triggerLabel: "All Wallets",
+          description: "Shows the wallets available for selection.",
+          reason: "This is an interaction state of an existing screen.",
+        },
+      }],
+    });
+
+    const decision = await routeAgentPrompt({
+      ...input(),
+      prompt: "Build the Wallet Selection state for Library.",
+    });
+
+    expect(decision.action).toBe("propose_screen_state");
+    expect(decision.executionIntent).toBe("plan");
+    expect(decision.targetScreenId).toBe("22222222-2222-4222-8222-222222222222");
+    expect(decision.stateProposal).toMatchObject({
+      existingRoadmapItemId: "state-roadmap-id",
+      stateLabel: "Wallet Selection",
+      stateRole: "overlay",
+    });
+  });
 });

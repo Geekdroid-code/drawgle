@@ -22,6 +22,8 @@
     "generation:v2:compare": "tsx scripts/compare-generation-v2-html.ts",
     "agent:memory:audit": "tsx --env-file-if-exists=.env.local --conditions=react-server scripts/repair-screen-memory.ts",
     "agent:memory:repair": "tsx --env-file-if-exists=.env.local --conditions=react-server scripts/repair-screen-memory.ts --apply",
+    "roadmap:audit": "tsx --env-file-if-exists=.env.local --conditions=react-server scripts/audit-repair-project-roadmap.ts",
+    "roadmap:repair": "tsx --env-file-if-exists=.env.local --conditions=react-server scripts/audit-repair-project-roadmap.ts --apply",
     "trigger:dev": "npx trigger.dev@latest dev",
     "trigger:deploy": "npx trigger.dev@latest deploy",
     "clean": "next clean"

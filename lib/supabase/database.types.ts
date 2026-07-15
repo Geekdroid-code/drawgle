@@ -289,6 +289,8 @@ export interface Database {
           state_label: string | null;
           state_role: string | null;
           trigger_label: string | null;
+          identity_fingerprint: string | null;
+          identity_exception: boolean;
           metadata: Json;
           created_at: string;
           updated_at: string;
@@ -315,6 +317,8 @@ export interface Database {
           state_label?: string | null;
           state_role?: string | null;
           trigger_label?: string | null;
+          identity_fingerprint?: string | null;
+          identity_exception?: boolean;
           metadata?: Json;
           created_at?: string;
           updated_at?: string;
@@ -341,6 +345,8 @@ export interface Database {
           state_label?: string | null;
           state_role?: string | null;
           trigger_label?: string | null;
+          identity_fingerprint?: string | null;
+          identity_exception?: boolean;
           metadata?: Json;
           created_at?: string;
           updated_at?: string;
@@ -836,6 +842,14 @@ export interface Database {
     };
     Views: {};
     Functions: {
+      reconcile_project_roadmap_manifest: {
+        Args: {
+          input_owner_id: string;
+          input_project_id: string;
+          input_items: Json;
+        };
+        Returns: Json;
+      };
       match_screens: {
         Args: {
           query_embedding: number[];

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { readScreenPlanProposal } from "@/lib/agent/message-metadata";
+import { readScreenPlanProposal, readScreenStateProposal } from "@/lib/agent/message-metadata";
 
 const baseProposal = (): { screenPlanProposal: Record<string, unknown> } => ({
   screenPlanProposal: {
@@ -139,5 +139,51 @@ describe("screen plan proposal metadata", () => {
     const proposal = readScreenPlanProposal(metadata);
 
     expect(proposal?.stateVariants?.map((variant) => variant.id)).toEqual(["add-wallet-modal"]);
+  });
+});
+
+describe("screen state proposal metadata", () => {
+  it("parses a verified parent and one clone-and-edit state", () => {
+    const proposal = readScreenStateProposal({
+      screenStateProposal: {
+        version: 1,
+        prompt: "Build the wallet selection state.",
+        parentScreenId: "screen-home",
+        parentScreenName: "Financial Dashboard",
+        parentRoadmapItemId: "roadmap-home",
+        existingRoadmapItemId: "roadmap-wallet-state",
+        state: {
+          stateKey: "wallet-selection",
+          stateLabel: "Wallet Selection",
+          stateRole: "overlay",
+          triggerLabel: "All Wallets",
+          description: "Shows the available wallets.",
+          editInstruction: "Preserve the dashboard and open the wallet selection overlay.",
+        },
+        status: "pending",
+        expiresAt: "2099-01-01T00:00:00.000Z",
+      },
+    });
+
+    expect(proposal).toMatchObject({
+      parentScreenId: "screen-home",
+      parentRoadmapItemId: "roadmap-home",
+      existingRoadmapItemId: "roadmap-wallet-state",
+      state: { stateKey: "wallet-selection", stateRole: "overlay" },
+      status: "pending",
+    });
+  });
+
+  it("rejects state proposals without a verified parent roadmap row", () => {
+    expect(readScreenStateProposal({
+      screenStateProposal: {
+        version: 1,
+        prompt: "Build a state",
+        parentScreenId: "screen-home",
+        parentScreenName: "Home",
+        state: {},
+        expiresAt: "2099-01-01T00:00:00.000Z",
+      },
+    })).toBeNull();
   });
 });
