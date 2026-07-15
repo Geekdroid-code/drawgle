@@ -32,7 +32,7 @@ import {
   validateScreenAssetPolicy,
   validateStaticDrawgleHtml,
 } from "@/lib/generation/screen-quality";
-import { buildNavigationShellCode, buildScreenStream, extractCode, fallbackProjectCharter, generateDesignTokens, planUiFlow } from "@/lib/generation/service";
+import { buildNavigationShellCode, buildScreenStream, extractCode, fallbackProjectCharter, generateDesignFoundation, planUiFlow } from "@/lib/generation/service";
 import { screenBuildOutputTokenBudget } from "@/lib/generation/screen-budget";
 import { analyzeReferenceImageForScope, preflightGenerationScope } from "@/lib/generation/scope-contract";
 import { planVisualAssets, resolveProjectAssets } from "@/lib/generation/visual-assets";
@@ -1646,6 +1646,8 @@ export const generateUiFlowTask = task({
       .eq("id", payload.projectId)
       .maybeSingle();
     const existingCharter = (existingProject?.project_charter as ProjectCharter | null) ?? null;
+    let foundationCreativeDirection = payload.projectCharter?.creativeDirection ?? existingCharter?.creativeDirection ?? null;
+    let craftBlueprint = payload.projectCharter?.craftBlueprint ?? existingCharter?.craftBlueprint ?? null;
     const projectReferenceDna = resolveProjectReferenceDna(payload.projectCharter ?? existingCharter)?.dna ?? null;
     if (!designTokens && existingProject?.design_tokens) {
       designTokens = existingProject.design_tokens as DesignTokens;
@@ -1829,6 +1831,13 @@ export const generateUiFlowTask = task({
         });
     const scopeContract = scopePreflight.scopeContract;
     const referenceAnalysis = scopePreflight.referenceAnalysis;
+    const isNewPromptOnlyProject = !existingCharter
+      && !payload.projectCharter
+      && (payload.planningMode ?? "project") !== "single-screen";
+    const enableSpatialCraft = referenceMode === "internal_style"
+      && !promptImage
+      && !designStyle
+      && (isNewPromptOnlyProject || Boolean(craftBlueprint));
 
     await updateGenerationRun(admin, payload.generationRunId, {
       requested_screen_count: scopeContract.finalScreenCount ?? null,
@@ -1881,15 +1890,21 @@ export const generateUiFlowTask = task({
         },
       );
 
-      designTokens = await generateDesignTokens({
+      const designFoundation = await generateDesignFoundation({
         prompt: payload.prompt,
         image: promptImage,
         referenceMode,
         referenceId,
         designStyle,
         referenceAnalysis,
+        enableSpatialCraft,
         llmLog: (label, data) => logger.info(label, data),
       });
+      designTokens = designFoundation.designTokens;
+      if (enableSpatialCraft) {
+        foundationCreativeDirection = designFoundation.creativeDirection;
+        craftBlueprint = designFoundation.craftBlueprint;
+      }
 
       await updateProject(admin, payload.projectId, {
         design_tokens: designTokens as never,
@@ -1897,6 +1912,10 @@ export const generateUiFlowTask = task({
 
       await mergeGenerationRunMetadata(admin, payload.generationRunId, {
         designTokenSnapshot: designTokens,
+        ...(enableSpatialCraft ? {
+          creativeDirection: foundationCreativeDirection,
+          craftBlueprint,
+        } : {}),
       });
 
       
@@ -1918,7 +1937,7 @@ export const generateUiFlowTask = task({
       setJournalPhase(generationJournal, "design", "completed", "Using the approved project design tokens.");
       await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
     }
-    const requestedCharter = payload.projectCharter ?? existingCharter ?? (
+    const requestedCharterBase = payload.projectCharter ?? existingCharter ?? (
       payload.plannedScreens && payload.plannedScreens.length > 0
         ? fallbackProjectCharter({
             prompt: payload.prompt,
@@ -1931,6 +1950,13 @@ export const generateUiFlowTask = task({
           })
         : null
     );
+    const requestedCharter = requestedCharterBase
+      ? {
+          ...requestedCharterBase,
+          creativeDirection: foundationCreativeDirection ?? requestedCharterBase.creativeDirection,
+          craftBlueprint: craftBlueprint ?? requestedCharterBase.craftBlueprint,
+        }
+      : null;
 
     logger.info("Assembled project context", {
       generationRunId: payload.generationRunId,
@@ -1977,6 +2003,9 @@ export const generateUiFlowTask = task({
           referenceAnalysis,
           referenceDna: reusableProjectReferenceDna,
           screenFamilyContract: reusableProjectReferenceDna?.screenFamilyContract,
+          creativeDirection: foundationCreativeDirection,
+          craftBlueprint,
+          enableSpatialCraft,
           projectContext: planningContext,
           existingCharter: requestedCharter,
           existingNavigationPlan: payload.navigationPlan ?? null,

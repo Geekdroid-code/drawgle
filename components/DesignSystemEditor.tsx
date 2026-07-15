@@ -407,6 +407,14 @@ export function DesignSystemEditor({
                   <ColorField label="Sheet" value={tokens.color?.surface?.bottom_sheet || "#ffffff"} tokenPath={["color", "surface", "bottom_sheet"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "surface", "bottom_sheet"], nextValue)} />
                   <ColorField label="Modal" value={tokens.color?.surface?.modal || "#ffffff"} tokenPath={["color", "surface", "modal"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "surface", "modal"], nextValue)} />
                 </TokenGroup>
+                <TokenGroup label="Advanced Surfaces" panel={isPanel}>
+                  <TextField label="Inset surface" value={tokens.color?.surface?.inset || ""} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "surface", "inset"], nextValue)} />
+                  <TextField label="Raised surface" value={tokens.color?.surface?.raised || ""} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "surface", "raised"], nextValue)} />
+                  <TextField label="Glass surface" value={tokens.color?.surface?.glass || ""} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "surface", "glass"], nextValue)} />
+                  <TextField label="Atmosphere gradient" value={tokens.gradients?.atmosphere || ""} panel={isPanel} wide onChange={(nextValue) => handleUpdateToken(["gradients", "atmosphere"], nextValue)} />
+                  <TextField label="Edge light gradient" value={tokens.gradients?.edge_light || ""} panel={isPanel} wide onChange={(nextValue) => handleUpdateToken(["gradients", "edge_light"], nextValue)} />
+                  <TextField label="Accent glow gradient" value={tokens.gradients?.accent_glow || ""} panel={isPanel} wide onChange={(nextValue) => handleUpdateToken(["gradients", "accent_glow"], nextValue)} />
+                </TokenGroup>
                 <TokenGroup label="Text" panel={isPanel}>
                   <ColorField label="Primary text" value={primaryText} tokenPath={["color", "text", "high_emphasis"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "text", "high_emphasis"], nextValue)} />
                   <ColorField label="Muted text" value={mediumText} tokenPath={["color", "text", "medium_emphasis"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "text", "medium_emphasis"], nextValue)} />
@@ -593,6 +601,10 @@ export function DesignSystemEditor({
                     panel={isPanel}
                     onChange={(nextValue) => handleUpdateToken(["radii", "pill"], nextValue)}
                   />
+                  <ShapeMetricRow label="Control radius" value={tokens.radii?.control || tokens.radii?.app || ""} min={0} max={48} preview="radius" panel={isPanel} onChange={(nextValue) => handleUpdateToken(["radii", "control"], nextValue)} />
+                  <ShapeMetricRow label="Card radius" value={tokens.radii?.card || tokens.radii?.app || ""} min={0} max={64} preview="radius" panel={isPanel} onChange={(nextValue) => handleUpdateToken(["radii", "card"], nextValue)} />
+                  <ShapeMetricRow label="Featured radius" value={tokens.radii?.featured || tokens.radii?.app || ""} min={0} max={80} preview="radius" panel={isPanel} onChange={(nextValue) => handleUpdateToken(["radii", "featured"], nextValue)} />
+                  <ShapeMetricRow label="Sheet radius" value={tokens.radii?.sheet || tokens.radii?.app || ""} min={0} max={80} preview="radius" panel={isPanel} onChange={(nextValue) => handleUpdateToken(["radii", "sheet"], nextValue)} />
                 </TokenGroup>
                 <TokenGroup label="Elevation" panel={isPanel}>
                   <ShadowField
@@ -622,6 +634,21 @@ export function DesignSystemEditor({
                     description="The no-elevation state used when a surface should stay flat."
                     panel={isPanel}
                   />
+                </TokenGroup>
+                <TokenGroup label="Advanced Depth" panel={isPanel}>
+                  <ShadowField label="Inset shadow" value={tokens.shadows?.inset || "none"} previewRadius={tokens.radii?.control || radius} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["shadows", "inset"], nextValue)} />
+                  <ShadowField label="Raised shadow" value={tokens.shadows?.raised || tokens.shadows?.surface || "none"} previewRadius={tokens.radii?.card || radius} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["shadows", "raised"], nextValue)} />
+                  <ShadowField label="Floating shadow" value={tokens.shadows?.floating || tokens.shadows?.overlay || "none"} previewRadius={tokens.radii?.featured || radius} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["shadows", "floating"], nextValue)} />
+                  <ShadowField label="Glow shadow" value={tokens.shadows?.glow || "none"} previewRadius={tokens.radii?.featured || radius} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["shadows", "glow"], nextValue)} />
+                </TokenGroup>
+                <TokenGroup label="Optical Effects" panel={isPanel}>
+                  <TextField label="Surface blur" value={tokens.effects?.surface_blur || ""} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["effects", "surface_blur"], nextValue)} />
+                  <TextField label="Overlay blur" value={tokens.effects?.overlay_blur || ""} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["effects", "overlay_blur"], nextValue)} />
+                  <TextField label="Edge highlight opacity" value={tokens.effects?.edge_highlight_opacity || ""} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["effects", "edge_highlight_opacity"], nextValue)} />
+                  <TextField label="Icon stroke width" value={tokens.iconography?.stroke_width || ""} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["iconography", "stroke_width"], nextValue)} />
+                  <TextField label="Icon well size" value={tokens.iconography?.well_size || ""} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["iconography", "well_size"], nextValue)} />
+                  <TextField label="Hairline border" value={tokens.border_widths?.hairline || ""} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["border_widths", "hairline"], nextValue)} />
+                  <TextField label="Emphasis border" value={tokens.border_widths?.emphasis || ""} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["border_widths", "emphasis"], nextValue)} />
                 </TokenGroup>
               </div>
             ) : null}

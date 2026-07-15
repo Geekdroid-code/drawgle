@@ -1703,36 +1703,38 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>, c
       }
     }
     if (key === "backdrop-filter" || key === "-webkit-backdrop-filter") {
-      const blurMatch = val.match(/blur\(([\d\.]+)(?:px)?\)/i);
+      const resolvedFilter = val.trim().startsWith("var(") ? resolveCssVariable(val.trim(), varMap) : val;
+      const blurMatch = resolvedFilter.match(/blur\(([\d\.]+)(?:px)?\)/i);
       if (blurMatch) {
         backdropFilterBlur = parseFloat(blurMatch[1]);
       }
     }
     if (key === "filter") {
-      const hueMatch = val.match(/hue-rotate\(([-\d\.]+)deg\)/i);
+      const resolvedFilter = val.trim().startsWith("var(") ? resolveCssVariable(val.trim(), varMap) : val;
+      const hueMatch = resolvedFilter.match(/hue-rotate\(([-\d\.]+)deg\)/i);
       if (hueMatch) {
         if (!filter) filter = {};
         filter.hueRotate = parseFloat(hueMatch[1]);
       }
-      const brightnessMatch = val.match(/brightness\(([\d\.]+)%?\)/i);
+      const brightnessMatch = resolvedFilter.match(/brightness\(([\d\.]+)%?\)/i);
       if (brightnessMatch) {
         if (!filter) filter = {};
         const rawVal = parseFloat(brightnessMatch[1]);
-        filter.brightness = val.includes("%") || rawVal > 10 ? rawVal / 100 : rawVal;
+        filter.brightness = resolvedFilter.includes("%") || rawVal > 10 ? rawVal / 100 : rawVal;
       }
-      const saturateMatch = val.match(/saturate\(([\d\.]+)%?\)/i);
+      const saturateMatch = resolvedFilter.match(/saturate\(([\d\.]+)%?\)/i);
       if (saturateMatch) {
         if (!filter) filter = {};
         const rawVal = parseFloat(saturateMatch[1]);
-        filter.saturate = val.includes("%") || rawVal > 10 ? rawVal / 100 : rawVal;
+        filter.saturate = resolvedFilter.includes("%") || rawVal > 10 ? rawVal / 100 : rawVal;
       }
-      const contrastMatch = val.match(/contrast\(([\d\.]+)%?\)/i);
+      const contrastMatch = resolvedFilter.match(/contrast\(([\d\.]+)%?\)/i);
       if (contrastMatch) {
         if (!filter) filter = {};
         const rawVal = parseFloat(contrastMatch[1]);
-        filter.contrast = val.includes("%") || rawVal > 10 ? rawVal / 100 : rawVal;
+        filter.contrast = resolvedFilter.includes("%") || rawVal > 10 ? rawVal / 100 : rawVal;
       }
-      const blurMatch = val.match(/blur\(([\d\.]+)(?:px)?\)/i);
+      const blurMatch = resolvedFilter.match(/blur\(([\d\.]+)(?:px)?\)/i);
       if (blurMatch) {
         if (!filter) filter = {};
         filter.blur = parseFloat(blurMatch[1]);

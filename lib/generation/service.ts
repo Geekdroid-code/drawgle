@@ -25,8 +25,8 @@ import {
   buildRecreateScreenInstruction,
   buildStyleScreenInstruction,
   buildEditSystemInstruction,
-  creativeDirectionInstruction,
-  designInstruction,
+  buildCreativeDirectionInstruction,
+  buildDesignInstruction,
   plannerBlueprintStepInstruction,
   plannerScreenBriefStepInstruction,
   buildNavigationArchitectureContract,
@@ -36,12 +36,20 @@ import { appendRequiredAnchors, DRAWGLE_GENERATION_COMPLETE_SENTINEL, extractReq
 import { buildRepairSurroundingContext, type RepairTarget } from "@/lib/generation/screen-repair";
 import { createProjectReferenceDna } from "@/lib/generation/reference-dna";
 import { buildProjectRoadmap, roadmapSlug, screenRoadmapKey } from "@/lib/generation/project-roadmap";
+import { resolveFoundationPromptMode, resolvePlannerPromptMode } from "@/lib/generation/prompt-routing";
+import {
+  formatCompactCraftCatalog,
+  normalizeCraftSelection,
+  resolveSpatialConstructionContract,
+  shortlistProjectCraftGrammars,
+  shortlistScreenCraftGrammars,
+} from "@/lib/generation/spatial-craft";
 import {
   analyzeReferenceImageForScope,
   preflightGenerationScope,
   resolveGenerationScopeContract,
 } from "@/lib/generation/scope-contract";
-import { buildTokenPromptContext } from "@/lib/token-runtime";
+import { buildTokenPromptContext, flattenDesignTokensToCssVariables } from "@/lib/token-runtime";
 import { detectTokenDrift } from "@/lib/token-drift";
 import { screenBuildOutputTokenBudget } from "@/lib/generation/screen-budget";
 import type {
@@ -63,6 +71,7 @@ import type {
   PlannedUiFlow,
   PromptImagePayload,
   ProjectCharter,
+  ProjectCraftBlueprint,
   ProjectRoadmapItem,
   ProjectReferenceDna,
   ReferenceAnalysis,
@@ -73,6 +82,7 @@ import type {
   ScreenFamilyContract,
   ScreenBlockIndex,
   ScreenPlan,
+  SpatialCraftSelection,
   ScreenStateVariantPlan,
 } from "@/lib/types";
 
@@ -274,6 +284,12 @@ const ScreenLayoutContractSchema = z.object({
   anti_patterns: z.array(z.string().trim().min(1).max(260)).max(8).default([]).optional(),
 });
 
+const SpatialCraftSelectionSchema = z.object({
+  macro_id: z.string().trim().min(1).max(120).nullable().optional(),
+  supporting_ids: z.array(z.string().trim().min(1).max(120)).max(2).default([]).optional(),
+  rationale: z.string().trim().min(1).max(600),
+}).optional();
+
 const ScreenStateVariantSchema = z.object({
   id: z.string().trim().min(1).max(80),
   state_key: z.string().trim().min(1).max(80),
@@ -293,6 +309,7 @@ const ScreenPlanSchema = z.object({
   roadmap_stable_key: z.string().trim().min(1).max(100).optional(),
   state_variants: z.array(ScreenStateVariantSchema).max(3).default([]).optional(),
   layout_contract: ScreenLayoutContractSchema.optional(),
+  craft_selection: SpatialCraftSelectionSchema,
   chrome_policy: z.object({
     chrome: ScreenChromeKindSchema,
     show_primary_navigation: BooleanishSchema.optional(),
@@ -463,6 +480,28 @@ const CreativeDirectionSchema = z.object({
   avoid: z.array(z.string().trim().min(1).max(600)).min(1).max(12),
 });
 
+const ProjectCraftBlueprintSchema = z.object({
+  version: z.literal(1).default(1),
+  compositionIntent: z.string().trim().min(1).max(1600),
+  layerStrategy: z.string().trim().min(1).max(1600),
+  geometryIntent: z.string().trim().min(1).max(1600),
+  lightingIntent: z.string().trim().min(1).max(1600),
+  elevationIntent: z.string().trim().min(1).max(1600),
+  borderIntent: z.string().trim().min(1).max(1600),
+  dataVisualizationIntent: z.string().trim().min(1).max(1600),
+  navigationIntent: z.string().trim().min(1).max(1600),
+  signatureConstructions: z.array(z.string().trim().min(1).max(600)).min(1).max(4),
+  layoutPrinciples: z.array(z.string().trim().min(1).max(600)).min(2).max(8),
+  preferredCraftTags: z.array(z.string().trim().min(1).max(80)).max(12).default([]),
+  requiredTokenRoles: z.array(z.string().trim().min(1).max(120)).max(24).default([]),
+  avoid: z.array(z.string().trim().min(1).max(600)).min(1).max(12),
+});
+
+const DesignFoundationDirectionSchema = z.object({
+  creativeDirection: CreativeDirectionSchema,
+  craftBlueprint: ProjectCraftBlueprintSchema.nullable().optional(),
+});
+
 const PlanSchema = z.object({
   requires_bottom_nav: BooleanishSchema.optional(),
   navigation_architecture: NavigationArchitectureSchema.optional(),
@@ -477,6 +516,7 @@ const PlanSchema = z.object({
     keyFeatures: z.array(z.string().trim().min(1).max(400)).min(1).max(20),
     designRationale: z.string().trim().min(1).max(8000),
     creativeDirection: CreativeDirectionSchema.nullable().optional(),
+    craftBlueprint: ProjectCraftBlueprintSchema.nullable().optional(),
   }),
   screens: z.array(ScreenPlanSchema).min(1).max(5),
 });
@@ -622,6 +662,8 @@ const DesignTokensSchema = z
         overlay: z.string().optional(),
       }).passthrough().optional(),
       gradients: StringRecordSchema.optional(),
+      effects: StringRecordSchema.optional(),
+      iconography: StringRecordSchema.optional(),
       navigation: StringRecordSchema.optional(),
       elevation: StringRecordSchema.optional(),
       opacities: StringRecordSchema.optional(),
@@ -769,6 +811,48 @@ const fallbackCreativeDirection = ({
   ],
 });
 
+const fallbackProjectCraftBlueprint = ({
+  prompt,
+  creativeDirection,
+}: {
+  prompt: string;
+  creativeDirection: CreativeDirection;
+}): ProjectCraftBlueprint => {
+  const candidates = shortlistProjectCraftGrammars(prompt).slice(0, 3);
+  return {
+    version: 1,
+    compositionIntent: creativeDirection.compositionPrinciples.slice(0, 2).join(" "),
+    layerStrategy: "Use a clear base canvas, one dominant content plane, and elevated or floating layers only where their relationship communicates hierarchy.",
+    geometryIntent: "Use unequal component geometry and explicit edge relationships; standard cards remain secondary to one deliberately constructed focal surface.",
+    lightingIntent: "Keep lighting localized to the focal region with disciplined falloff and stable text contrast.",
+    elevationIntent: "Use inset, raised, floating, and overlay depth as distinct roles rather than one shadow on every surface.",
+    borderIntent: "Use hairlines and directional inner highlights to clarify material edges without outlining every component.",
+    dataVisualizationIntent: "Give charts and scores definite geometry, visible plotted data, and a hierarchy appropriate to their decision value.",
+    navigationIntent: "Keep renderer-owned navigation coherent with the project material system and safely separated from screen content.",
+    signatureConstructions: candidates.map((candidate) => candidate.summary).slice(0, 2),
+    layoutPrinciples: creativeDirection.compositionPrinciples.slice(0, 6),
+    preferredCraftTags: Array.from(new Set(candidates.flatMap((candidate) => candidate.craftTags))).slice(0, 10),
+    requiredTokenRoles: Array.from(new Set(candidates.flatMap((candidate) => candidate.requiredTokenRoles))).slice(0, 20),
+    avoid: creativeDirection.avoid.slice(0, 10),
+  };
+};
+
+const formatProjectCraftBlueprint = (blueprint: ProjectCraftBlueprint) => [
+  `Composition intent: ${blueprint.compositionIntent}`,
+  `Layer strategy: ${blueprint.layerStrategy}`,
+  `Geometry intent: ${blueprint.geometryIntent}`,
+  `Lighting intent: ${blueprint.lightingIntent}`,
+  `Elevation intent: ${blueprint.elevationIntent}`,
+  `Border intent: ${blueprint.borderIntent}`,
+  `Data visualization intent: ${blueprint.dataVisualizationIntent}`,
+  `Navigation intent: ${blueprint.navigationIntent}`,
+  `Signature constructions: ${blueprint.signatureConstructions.join(" | ")}`,
+  `Layout principles: ${blueprint.layoutPrinciples.join(" | ")}`,
+  `Preferred craft tags: ${blueprint.preferredCraftTags.join(", ") || "none"}`,
+  `Required live token roles: ${blueprint.requiredTokenRoles.join(", ") || "existing core tokens only"}`,
+  `Avoid: ${blueprint.avoid.join(" | ")}`,
+].join("\n");
+
 const fallbackScreenPlan = (prompt: string): ScreenPlan => ({
   name: "New Screen",
   type: "root",
@@ -910,6 +994,13 @@ const screenPlanFromExplicitSection = (
     type: existing?.type ?? (index === 0 && !/\b(onboarding|splash|welcome|login|sign[\s-]?in|sign[\s-]?up|register|auth|chat|assistant|ai[\s-]?assistant)\b/i.test(section.name) ? "root" : "detail"),
     description: appendRequiredAnchors(baseDescription, section.anchors),
     assetNeeds: existing?.assetNeeds ?? [],
+    layoutContract: existing?.layoutContract ?? null,
+    craftSelection: existing?.craftSelection ?? null,
+    spatialContract: existing?.spatialContract ?? null,
+    stateVariants: existing?.stateVariants ?? [],
+    roadmapStableKey: existing?.roadmapStableKey,
+    roadmapPriority: existing?.roadmapPriority,
+    explicitlyRequested: true,
     chromePolicy: explicitSectionChromePolicy(section, index, forceNoPersistentNav) ?? existing?.chromePolicy ?? null,
   };
 };
@@ -2269,29 +2360,44 @@ const formatCreativeDirection = (creativeDirection: CreativeDirection) => [
   `Avoid: ${creativeDirection.avoid.join("; ")}`,
 ].join("\n");
 
-async function generateCreativeDirection({
+type GeneratedDesignDirection = {
+  creativeDirection: CreativeDirection;
+  craftBlueprint: ProjectCraftBlueprint | null;
+};
+
+async function generateDesignFoundationDirection({
   prompt,
   image,
   referenceMode,
   referenceAnalysis,
   designStyle,
+  enableSpatialCraft = false,
 }: {
   prompt: string;
   image?: PromptImagePayload | null;
   referenceMode?: ReferenceMode | null;
   referenceAnalysis?: ReferenceAnalysis | null;
   designStyle?: DesignStylePack | null;
-}): Promise<ParsedCreativeDirection | null> {
+  enableSpatialCraft?: boolean;
+}): Promise<GeneratedDesignDirection | null> {
   try {
     const ai = createGeminiClient();
+    const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
+    const inlineImage = toInlineImage(image);
+    const promptMode = resolveFoundationPromptMode({
+      referenceMode,
+      hasImage: Boolean(inlineImage),
+      hasDesignStyle: Boolean(designStyle),
+    });
     const policy = geminiPolicyForTask("project_planning", {
-      systemInstruction: creativeDirectionInstruction,
+      systemInstruction: buildCreativeDirectionInstruction({
+        mode: promptMode,
+        spatialCraftEnabled: enableSpatialCraft,
+      }),
       responseMimeType: "application/json",
       temperature: 0.35,
     });
     const parts: Array<Record<string, unknown>> = [];
-    const inlineImage = toInlineImage(image);
-    const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
     const designStyleContract = formatDesignStyleContract(designStyle);
 
     if (designStyleContract) {
@@ -2302,11 +2408,6 @@ async function generateCreativeDirection({
 
     if (inlineImage) {
       parts.push(inlineImage);
-      if (isStyleReferenceMode(resolvedReferenceMode)) {
-        parts.push({
-          text: styleReferenceInstruction,
-        });
-      }
     }
 
     parts.push({
@@ -2321,6 +2422,18 @@ async function generateCreativeDirection({
       });
     }
 
+    if (enableSpatialCraft) {
+      const candidates = shortlistProjectCraftGrammars(prompt);
+      parts.push({
+        text: [
+          "Use the compact candidates as professional construction vocabulary, not as complete visual presets.",
+          "Choose and adapt only ideas that fit the product. Do not copy a candidate mechanically.",
+          "Compact project craft candidates:",
+          formatCompactCraftCatalog(candidates),
+        ].join("\n"),
+      });
+    }
+
     const response = await ai.models.generateContent({
       model: policy.model,
       contents: { parts },
@@ -2328,12 +2441,32 @@ async function generateCreativeDirection({
     });
 
     const rawDirection = parseJsonResponse<unknown>(response.text || "{}");
-    const parsed = CreativeDirectionSchema.safeParse(rawDirection);
+    const foundation = DesignFoundationDirectionSchema.safeParse(rawDirection);
+    if (foundation.success) {
+      const creativeDirection = foundation.data.creativeDirection;
+      const craftBlueprint = enableSpatialCraft
+        ? foundation.data.craftBlueprint
+          ?? fallbackProjectCraftBlueprint({ prompt, creativeDirection })
+        : null;
+      return { creativeDirection, craftBlueprint };
+    }
 
-    return parsed.success ? parsed.data : null;
+    const legacy = CreativeDirectionSchema.safeParse(rawDirection);
+    if (!legacy.success) return null;
+    return {
+      creativeDirection: legacy.data,
+      craftBlueprint: enableSpatialCraft
+        ? fallbackProjectCraftBlueprint({ prompt, creativeDirection: legacy.data })
+        : null,
+    };
   } catch {
     return null;
   }
+}
+
+async function generateCreativeDirection(input: Parameters<typeof generateDesignFoundationDirection>[0]): Promise<ParsedCreativeDirection | null> {
+  const result = await generateDesignFoundationDirection(input);
+  return result?.creativeDirection ?? null;
 }
 
 export const extractCode = (text: string) => {
@@ -2352,6 +2485,9 @@ export async function planUiFlow({
   referenceId,
   designStyle,
   designTokens,
+  creativeDirection: providedCreativeDirection,
+  craftBlueprint: providedCraftBlueprint,
+  enableSpatialCraft = false,
   scopeContract,
   referenceAnalysis: providedReferenceAnalysis,
   referenceDna: providedReferenceDna,
@@ -2368,6 +2504,9 @@ export async function planUiFlow({
   referenceId?: string | null;
   designStyle?: DesignStylePack | null;
   designTokens?: DesignTokens | null;
+  creativeDirection?: CreativeDirection | null;
+  craftBlueprint?: ProjectCraftBlueprint | null;
+  enableSpatialCraft?: boolean;
   scopeContract?: GenerationScopeContract | null;
   referenceAnalysis?: ReferenceAnalysis | null;
   referenceDna?: ProjectReferenceDna | null;
@@ -2437,7 +2576,7 @@ export async function planUiFlow({
     planningMode,
     referenceAnalysis,
   });
-  const creativeDirection = projectContext?.trim()
+  const creativeDirection = providedCreativeDirection ?? (projectContext?.trim()
     ? null
     : await generateCreativeDirection({
         prompt,
@@ -2445,10 +2584,19 @@ export async function planUiFlow({
         referenceMode: resolvedReferenceMode,
         referenceAnalysis,
         designStyle: resolvedDesignStyle,
-      });
+        enableSpatialCraft,
+      }));
   const resolvedCreativeDirection = projectContext?.trim()
-    ? null
+    ? providedCreativeDirection ?? existingCharter?.creativeDirection ?? null
     : creativeDirection ?? fallbackCreativeDirection({ prompt, referenceAnalysis });
+  const resolvedCraftBlueprint = enableSpatialCraft
+    ? providedCraftBlueprint
+      ?? existingCharter?.craftBlueprint
+      ?? (resolvedCreativeDirection ? fallbackProjectCraftBlueprint({ prompt, creativeDirection: resolvedCreativeDirection }) : null)
+    : existingCharter?.craftBlueprint ?? null;
+  const availableCraftTokenPaths = enableSpatialCraft && designTokens
+    ? new Set(flattenDesignTokensToCssVariables(designTokens).map((token) => token.path))
+    : null;
   const screenFamilyContract = providedScreenFamilyContract
     ?? providedReferenceDna?.screenFamilyContract
     ?? buildScreenFamilyContract({
@@ -2466,8 +2614,11 @@ export async function planUiFlow({
           referenceMode: resolvedReferenceMode,
         })
       : null);
-  const withReferenceDna = (charter: ProjectCharter): ProjectCharter =>
-    referenceDna ? { ...charter, referenceDna } : charter;
+  const withReferenceDna = (charter: ProjectCharter): ProjectCharter => ({
+    ...charter,
+    craftBlueprint: resolvedCraftBlueprint ?? charter.craftBlueprint ?? null,
+    ...(referenceDna ? { referenceDna } : {}),
+  });
 
   const inlineImage = resolvedReferenceMode === "user_recreate" ? toInlineImage(image) : null;
   if (inlineImage) {
@@ -2514,6 +2665,12 @@ export async function planUiFlow({
     });
   }
 
+  if (resolvedCraftBlueprint) {
+    parts.push({
+      text: `Approved Project Craft Blueprint:\n${formatProjectCraftBlueprint(resolvedCraftBlueprint)}`,
+    });
+  }
+
   if (designTokens?.tokens) {
     parts.push({
       text: `Approved Token Context:\n${buildTokenPromptContext(designTokens, "compact_visual")}`,
@@ -2532,7 +2689,12 @@ export async function planUiFlow({
     });
   }
 
-  const plannerMode = resolvedReferenceMode === "user_recreate" ? "recreate" : "style";
+  const plannerMode = resolvePlannerPromptMode({
+    referenceMode,
+    hasImage: Boolean(image),
+    hasDesignStyle: Boolean(resolvedDesignStyle),
+    hasExistingProject: Boolean(existingCharter),
+  });
   const policy = geminiPolicyForTask("project_planning", {
     systemInstruction: plannerBlueprintStepInstruction(plannerMode),
     responseMimeType: "application/json",
@@ -2640,6 +2802,35 @@ export async function planUiFlow({
   let parsed = PlanSchema.safeParse(rawPlan);
 
   if (parsedBlueprint.success) {
+    const spatialCandidateText = enableSpatialCraft && resolvedCraftBlueprint
+      ? (() => {
+          const roadmapItems = parsedBlueprint.data.roadmap?.items ?? [];
+          const selectedKeys = parsedBlueprint.data.roadmap?.initial_batch_keys ?? [];
+          const selectedItems = selectedKeys.length
+            ? selectedKeys.flatMap((key) => roadmapItems.filter((item) => item.stable_key === key))
+            : roadmapItems.slice(0, 5);
+          const scopedItems = selectedItems.length
+            ? selectedItems
+            : (resolvedScopeContract.screens ?? []).slice(0, 5).map((screen) => ({
+                name: screen.name,
+                type: screen.kind === "root" ? "root" : "detail",
+                summary: `${screen.kind} screen${screen.parentName ? ` within ${screen.parentName}` : ""}`,
+              }));
+          return scopedItems.map((item) => {
+            const candidates = shortlistScreenCraftGrammars({
+              prompt,
+              blueprint: resolvedCraftBlueprint,
+              availableTokenPaths: availableCraftTokenPaths,
+              screen: {
+                name: item.name,
+                type: item.type === "root" ? "root" : "detail",
+                description: item.summary,
+              },
+            });
+            return [`Screen: ${item.name}`, formatCompactCraftCatalog(candidates)].join("\n");
+          }).join("\n\n");
+        })()
+      : "";
     const screenParts: Array<Record<string, unknown>> = [
       ...parts,
       {
@@ -2652,9 +2843,20 @@ export async function planUiFlow({
             : "Return screen briefs only for roadmap.initial_batch_keys, in that exact order."
           : "Return only the parent screens selected by this contract, in exact prompt order."}`,
       },
+      ...(spatialCandidateText
+        ? [{
+            text: [
+              "Bounded Spatial Craft Candidates by screen:",
+              spatialCandidateText,
+              "Choose only IDs listed for the matching screen. The server will expand selected IDs into full construction contracts after planning.",
+            ].join("\n"),
+          }]
+        : []),
     ];
     const screenPolicy = geminiPolicyForTask("project_planning", {
-      systemInstruction: plannerScreenBriefStepInstruction(plannerMode),
+      systemInstruction: plannerScreenBriefStepInstruction(plannerMode, {
+        spatialCraftEnabled: enableSpatialCraft,
+      }),
       responseMimeType: "application/json",
       temperature: 0.1,
     });
@@ -2914,6 +3116,31 @@ export async function planUiFlow({
       type: screenPlan.type,
       description: screenPlan.description,
     };
+    const parsedCraftSelection = enableSpatialCraft && resolvedCraftBlueprint
+      ? normalizeCraftSelection(screenPlan.craft_selection)
+      : null;
+    const allowedCraftIds = new Set(
+      enableSpatialCraft && resolvedCraftBlueprint
+        ? shortlistScreenCraftGrammars({
+            prompt,
+            screen: base,
+            blueprint: resolvedCraftBlueprint,
+            availableTokenPaths: availableCraftTokenPaths,
+          }).map((item) => item.id)
+        : [],
+    );
+    const craftSelection: SpatialCraftSelection | null = parsedCraftSelection
+      ? {
+          ...parsedCraftSelection,
+          macroId: parsedCraftSelection.macroId && allowedCraftIds.has(parsedCraftSelection.macroId)
+            ? parsedCraftSelection.macroId
+            : null,
+          supportingIds: parsedCraftSelection.supportingIds.filter((id) => allowedCraftIds.has(id)).slice(0, 2),
+        }
+      : null;
+    const normalizedCraftSelection = craftSelection && (craftSelection.macroId || craftSelection.supportingIds.length)
+      ? craftSelection
+      : null;
     return {
       ...base,
       roadmapStableKey: roadmapItem?.stable_key ?? screenPlan.roadmap_stable_key ?? screenRoadmapKey(screenPlan.name),
@@ -2921,6 +3148,8 @@ export async function planUiFlow({
       explicitlyRequested: roadmapItem?.explicitly_requested ?? false,
       stateVariants: normalizeScreenStateVariants(screenPlan.state_variants, base),
       layoutContract: normalizeScreenLayoutContract(screenPlan.layout_contract),
+      craftSelection: normalizedCraftSelection,
+      spatialContract: resolveSpatialConstructionContract(normalizedCraftSelection),
       assetNeeds: normalizeScreenAssetNeeds(screenPlan.name, screenPlan.asset_needs),
       chromePolicy: screenPlan.chrome_policy
         ? {
@@ -2931,17 +3160,40 @@ export async function planUiFlow({
         : null,
     };
   });
+  const usedMacroIds = new Set<string>();
+  const diversifiedScreens = rawScreens.map((screen) => {
+    const macroId = screen.craftSelection?.macroId ?? null;
+    if (!macroId || !usedMacroIds.has(macroId) || rawScreens.length === 1) {
+      if (macroId) usedMacroIds.add(macroId);
+      return screen;
+    }
+    const replacement = shortlistScreenCraftGrammars({
+      prompt,
+      screen,
+      blueprint: resolvedCraftBlueprint,
+      availableTokenPaths: availableCraftTokenPaths,
+    }).find((item) => item.category === "macro" && !usedMacroIds.has(item.id));
+    const nextSelection = replacement
+      ? { ...screen.craftSelection!, macroId: replacement.id }
+      : { ...screen.craftSelection!, macroId: null };
+    if (replacement) usedMacroIds.add(replacement.id);
+    return {
+      ...screen,
+      craftSelection: nextSelection,
+      spatialContract: resolveSpatialConstructionContract(nextSelection),
+    };
+  });
   const reconciledScreens = reconcileScreensWithScope({
     prompt,
-    screens: rawScreens,
+    screens: diversifiedScreens,
     planningMode,
     scopeContract: resolvedScopeContract,
   }).map((screenPlan) => resolvePlannedScreen({
     screenPlan: {
-      name: screenPlan.name,
-      type: screenPlan.type,
-      description: screenPlan.description,
+      ...screenPlan,
       layoutContract: screenPlan.layoutContract ?? null,
+      craftSelection: screenPlan.craftSelection ?? null,
+      spatialContract: screenPlan.spatialContract ?? null,
       assetNeeds: screenPlan.assetNeeds ?? [],
       chromePolicy: screenPlan.chromePolicy ?? null,
     },
@@ -2956,10 +3208,10 @@ export async function planUiFlow({
   const navigationAwareScreens = applyReferenceNavigationRolesToScreens(
     enforced.screens.map((screenPlan) => resolvePlannedScreen({
       screenPlan: {
-        name: screenPlan.name,
-        type: screenPlan.type,
-        description: screenPlan.description,
+        ...screenPlan,
         layoutContract: screenPlan.layoutContract ?? null,
+        craftSelection: screenPlan.craftSelection ?? null,
+        spatialContract: screenPlan.spatialContract ?? null,
         assetNeeds: screenPlan.assetNeeds ?? [],
         chromePolicy: screenPlan.chromePolicy ?? null,
       },
@@ -3020,13 +3272,20 @@ export async function planUiFlow({
   };
 }
 
-export async function generateDesignTokens({
+export type GeneratedDesignFoundation = {
+  designTokens: DesignTokens;
+  creativeDirection: CreativeDirection;
+  craftBlueprint: ProjectCraftBlueprint | null;
+};
+
+export async function generateDesignFoundation({
   prompt,
   image,
   referenceMode,
   referenceId,
   designStyle,
   referenceAnalysis: providedReferenceAnalysis,
+  enableSpatialCraft = false,
   llmLog,
 }: {
   prompt: string;
@@ -3035,17 +3294,27 @@ export async function generateDesignTokens({
   referenceId?: string | null;
   designStyle?: DesignStylePack | null;
   referenceAnalysis?: ReferenceAnalysis | null;
+  enableSpatialCraft?: boolean;
   llmLog?: LlmLogFn;
-}) {
+}): Promise<GeneratedDesignFoundation> {
   try {
     const ai = createGeminiClient();
+    const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
+    const inlineImage = toInlineImage(image);
+    const promptMode = resolveFoundationPromptMode({
+      referenceMode,
+      hasImage: Boolean(inlineImage),
+      hasDesignStyle: Boolean(designStyle),
+    });
     const policy = geminiPolicyForTask("design_tokens", {
-      systemInstruction: designInstruction,
+      systemInstruction: buildDesignInstruction({
+        mode: promptMode,
+        spatialCraftEnabled: enableSpatialCraft,
+      }),
       responseMimeType: "application/json",
       temperature: 0.35,
     });
     const parts: Array<Record<string, unknown>> = [];
-    const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
     const designStyleContract = formatDesignStyleContract(designStyle);
     const referenceAnalysis = providedReferenceAnalysis !== undefined
       ? providedReferenceAnalysis
@@ -3055,15 +3324,21 @@ export async function generateDesignTokens({
           referenceMode: resolvedReferenceMode,
           llmLog,
         })).analysis;
-    const creativeDirection = (await generateCreativeDirection({
+    const generatedDirection = await generateDesignFoundationDirection({
       prompt,
       image,
       referenceAnalysis,
       referenceMode: resolvedReferenceMode,
       designStyle,
-    })) ?? fallbackCreativeDirection({ prompt, referenceAnalysis });
+      enableSpatialCraft,
+    });
+    const creativeDirection = generatedDirection?.creativeDirection
+      ?? fallbackCreativeDirection({ prompt, referenceAnalysis });
+    const craftBlueprint = enableSpatialCraft
+      ? generatedDirection?.craftBlueprint
+        ?? fallbackProjectCraftBlueprint({ prompt, creativeDirection })
+      : null;
 
-    const inlineImage = toInlineImage(image);
     if (designStyleContract) {
       parts.push({
         text: `${designStyleContract}\nToken rule: adapt the token seed to this product domain and audience. Preserve the style's geometry, density, typography mood, and component intent. Do not blindly copy seed colors when the product domain requires a more suitable accent.`,
@@ -3072,11 +3347,6 @@ export async function generateDesignTokens({
 
     if (inlineImage) {
       parts.push(inlineImage);
-      if (isStyleReferenceMode(resolvedReferenceMode)) {
-        parts.push({
-          text: `${styleReferenceInstruction} Derive reusable tokens from the reference image's visual DNA only.`,
-        });
-      }
     }
 
     parts.push({
@@ -3094,6 +3364,16 @@ export async function generateDesignTokens({
     parts.push({
       text: `Creative Direction:\n${formatCreativeDirection(creativeDirection)}`,
     });
+
+    if (craftBlueprint) {
+      parts.push({
+        text: [
+          "Project Craft Blueprint:",
+          formatProjectCraftBlueprint(craftBlueprint),
+          "Generate only the optional advanced live token roles that this blueprint needs. Keep all other advanced roles absent instead of filling a preset matrix.",
+        ].join("\n"),
+      });
+    }
 
     if (llmLog) {
       const si = typeof policy.config.systemInstruction === "string" ? policy.config.systemInstruction : "";
@@ -3127,20 +3407,34 @@ export async function generateDesignTokens({
     });
 
     if (!parsed.success) {
-      return buildApprovedDesignTokens(rawTokens, screenMargin);
+      return {
+        designTokens: buildApprovedDesignTokens(rawTokens, screenMargin),
+        creativeDirection,
+        craftBlueprint,
+      };
     }
 
-    return buildApprovedDesignTokens(parsed.data as {
-      system_schema?: string;
-      meta?: DesignTokenMetadata;
-      tokens?: DesignTokenValues;
-    }, screenMargin);
+    return {
+      designTokens: buildApprovedDesignTokens(parsed.data as {
+        system_schema?: string;
+        meta?: DesignTokenMetadata;
+        tokens?: DesignTokenValues;
+      }, screenMargin),
+      creativeDirection,
+      craftBlueprint,
+    };
   } catch (error) {
     console.error("Failed to generate design tokens", error);
     throw error instanceof Error
       ? error
       : new Error("Failed to generate design tokens.");
   }
+}
+
+export async function generateDesignTokens(
+  input: Parameters<typeof generateDesignFoundation>[0],
+): Promise<DesignTokens> {
+  return (await generateDesignFoundation(input)).designTokens;
 }
 export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerator<string, void, void> {
   const parts: Array<Record<string, unknown>> = [];
