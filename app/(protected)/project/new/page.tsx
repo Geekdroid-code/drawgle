@@ -8,7 +8,7 @@ import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
 export default async function NewProjectPage({
   searchParams,
 }: {
-  searchParams: Promise<{ prompt?: string | string[]; style?: string | string[] }>;
+  searchParams: Promise<{ prompt?: string | string[]; style?: string | string[]; draft?: string | string[] }>;
 }) {
   const params = await searchParams;
   const supabase = await createClient();
@@ -32,12 +32,14 @@ export default async function NewProjectPage({
   }
 
   const initialPrompt = Array.isArray(params.prompt) ? params.prompt[0] : (params.prompt ?? "");
+  const initialClientDraftId = Array.isArray(params.draft) ? params.draft[0] : params.draft;
   const styleSlug = Array.isArray(params.style) ? params.style[0] : params.style;
   const stylePreset = await resolvePublishedStylePreset(styleSlug);
 
   return (
     <ProjectLobby
       initialPrompt={initialPrompt}
+      initialClientDraftId={initialClientDraftId}
       initialStylePreset={stylePreset ? {
         slug: stylePreset.slug,
         version: stylePreset.version,

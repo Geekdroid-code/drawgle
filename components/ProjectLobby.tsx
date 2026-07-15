@@ -2,8 +2,8 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useRef, useState, type CSSProperties, type ChangeEvent, type ReactNode } from "react";
-import { motion, type Transition, AnimatePresence } from "motion/react";
+import { useEffect, useRef, useState, type CSSProperties, type ChangeEvent } from "react";
+import { motion, type Transition } from "motion/react";
 import {
   ArrowUp,
   ArrowRight,
@@ -11,10 +11,7 @@ import {
   ImagePlus,
   LayoutTemplate,
   Loader2,
-  Palette,
-  Sparkles,
   X,
-  Check,
 } from "lucide-react";
 
 import { DesignSystemEditor } from "@/components/DesignSystemEditor";
@@ -23,9 +20,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCredits } from "@/hooks/useCredits";
 import { PricingDialog } from "@/components/PricingDialog";
-import { DESIGN_STYLE_AUTO_ID, DESIGN_STYLE_OPTIONS, type DesignStyleOptionId } from "@/lib/generation/design-styles";
 import { describeNavigationArchitecture } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
+import { draftImageToPromptPayload, readClientEntryDraft } from "@/lib/client-entry-draft";
 import type {
   AuthenticatedUser,
   DesignTokens,
@@ -53,80 +50,6 @@ type TextShimmerWaveProps = {
   transition?: Transition;
   style?: CSSProperties;
 };
-
-const briefStyles: Array<{
-  id: DesignStyleOptionId;
-  label: string;
-  previewClassName: string;
-  previewContent: ReactNode;
-}> = DESIGN_STYLE_OPTIONS.map((style) => {
-  const previews: Record<DesignStyleOptionId, { previewClassName: string; previewContent: ReactNode }> = {
-    auto: {
-    previewClassName: "border-neutral-200 bg-[#f4f3ed]",
-    previewContent: <Sparkles className="h-5 w-5 text-neutral-400" />,
-    },
-    "modern-light": {
-      previewClassName: "border-neutral-200 bg-[#f8fafc]",
-      previewContent: <span className="rounded-full bg-[#111827] px-3 py-1 text-[17px] font-black tracking-normal text-white">Aa</span>,
-    },
-    "modern-dark": {
-      previewClassName: "border-neutral-800 bg-[#090b10]",
-      previewContent: <span className="text-[18px] font-extrabold tracking-normal text-[#8ab4ff]">Aa</span>,
-    },
-    "editorial-minimal": {
-      previewClassName: "border-[#e5ded4] bg-[#fbfaf7]",
-      previewContent: <span className="font-serif text-[19px] font-semibold tracking-normal text-[#151412]">Aa</span>,
-    },
-    "soft-clay": {
-      previewClassName: "border-[#ead8c8] bg-[#fff4e7] shadow-[inset_4px_4px_10px_rgba(121,87,56,0.12)]",
-      previewContent: <span className="text-[18px] font-black tracking-normal text-[#f59a5f]">Aa</span>,
-    },
-    "neo-brutal": {
-    previewClassName: "border-neutral-200 bg-black",
-    previewContent: <span className="text-[18px] font-black tracking-normal text-[#ccff00]">Aa</span>,
-    },
-    "luxury-quiet": {
-      previewClassName: "border-[#373127] bg-[#10100f]",
-      previewContent: <span className="font-serif text-[20px] font-semibold tracking-normal text-[#d6b56d]">Aa</span>,
-    },
-    "cyberpunk-command": {
-      previewClassName: "border-[#16313b] bg-[#030608] shadow-[inset_0_0_18px_rgba(32,247,255,0.18)]",
-      previewContent: <span className="text-[18px] font-black tracking-normal text-[#20f7ff]">AA</span>,
-    },
-    "glass-utility": {
-      previewClassName: "border-white/80 bg-gradient-to-br from-[#eef5ff] via-[#dfeaff] to-[#c5d7ff]",
-      previewContent: <span className="rounded-full border border-white/80 bg-white/60 px-3 py-1 text-[17px] font-bold tracking-normal text-[#4f46e5] shadow-sm">Aa</span>,
-    },
-    "playful-whimsical": {
-      previewClassName: "border-neutral-200 bg-[#ffff80]",
-      previewContent: (
-        <>
-          <span className="absolute -left-1.5 -top-1.5 h-6 w-6 rounded-full bg-pink-400" />
-          <span className="absolute bottom-1 right-2 h-2.5 w-2.5 rounded-full bg-cyan-400" />
-          <span className="relative z-10 text-[18px] font-bold tracking-normal text-pink-600">Aa</span>
-        </>
-      ),
-    },
-    "data-command": {
-      previewClassName: "border-[#dfe5ee] bg-[#ffffff]",
-      previewContent: (
-        <>
-          <span className="absolute left-2 top-2 h-2 w-8 rounded-full bg-[#155eef]" />
-          <span className="absolute bottom-2 left-2 h-5 w-2 rounded-sm bg-[#12b76a]" />
-          <span className="absolute bottom-2 left-5 h-8 w-2 rounded-sm bg-[#155eef]" />
-          <span className="absolute bottom-2 left-8 h-4 w-2 rounded-sm bg-[#8d98a8]" />
-          <span className="relative z-10 ml-auto mr-3 text-[17px] font-black tracking-normal text-[#111827]">Aa</span>
-        </>
-      ),
-    },
-  };
-
-  return {
-    id: style.id,
-    label: style.label,
-    ...previews[style.id],
-  };
-});
 
 const imageReferenceModes: Array<{
   id: ImageReferenceMode;
@@ -228,22 +151,23 @@ function TextShimmerWave({
 
 export function ProjectLobby({
   initialPrompt = "",
+  initialClientDraftId,
   initialStylePreset = null,
 }: {
   initialPrompt?: string;
+  initialClientDraftId?: string;
   initialStylePreset?: { slug: string; version: number; title: string; description: string } | null;
   user: AuthenticatedUser;
   initialProjects: ProjectData[];
 }) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const restoredClientDraftRef = useRef(false);
   const [stage, setStage] = useState<LobbyStage>("brief");
   const [prompt, setPrompt] = useState(initialPrompt);
   const [image, setImage] = useState<PromptImagePayload | null>(null);
   const [imageReferenceMode, setImageReferenceMode] = useState<ImageReferenceMode>("recreate");
-  const [selectedBriefStyle, setSelectedBriefStyle] = useState<DesignStyleOptionId>(DESIGN_STYLE_AUTO_ID);
   const [selectedStylePreset, setSelectedStylePreset] = useState(initialStylePreset);
-  const [isThemePickerOpen, setIsThemePickerOpen] = useState(false);
   const [designTokens, setDesignTokens] = useState<DesignTokens | null>(null);
   const [plan, setPlan] = useState<PlannedUiFlow | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -260,9 +184,34 @@ export function ProjectLobby({
     contract: GenerationScopeContract;
   } | null>(null);
 
+  useEffect(() => {
+    if (!initialClientDraftId || restoredClientDraftRef.current) {
+      return;
+    }
+
+    restoredClientDraftRef.current = true;
+    void (async () => {
+      try {
+        const draft = await readClientEntryDraft(initialClientDraftId);
+        if (!draft) {
+          setError("Your saved homepage draft expired or is no longer available. You can enter it again here.");
+          return;
+        }
+
+        setPrompt(draft.prompt);
+        if (draft.image) {
+          setImage(await draftImageToPromptPayload(draft.image));
+          setSelectedStylePreset(null);
+        }
+      } catch (restoreError) {
+        console.error("Failed to restore homepage draft", restoreError);
+        setError("Could not restore the saved homepage draft. You can enter it again here.");
+      }
+    })();
+  }, [initialClientDraftId]);
+
   const isBriefReady = Boolean(prompt.trim() || image);
-  const selectedBriefStyleLabel = selectedStylePreset?.title ?? briefStyles.find((style) => style.id === selectedBriefStyle)?.label ?? "Auto";
-  const selectedDesignStyleId = !image && !selectedStylePreset && selectedBriefStyle !== DESIGN_STYLE_AUTO_ID ? selectedBriefStyle : null;
+  const selectedDesignStyleId = null;
   const stylePresetSlug = !image ? selectedStylePreset?.slug ?? null : null;
   const activeImageModeDescription =
     imageReferenceModes.find((mode) => mode.id === imageReferenceMode)?.description ?? "";
@@ -285,9 +234,7 @@ export function ProjectLobby({
       const base64String = reader.result as string;
       const base64Data = base64String.split(",")[1];
       setImage({ data: base64Data, mimeType: file.type });
-      setSelectedBriefStyle(DESIGN_STYLE_AUTO_ID);
       setSelectedStylePreset(null);
-      setIsThemePickerOpen(false);
     };
     reader.readAsDataURL(file);
   };
@@ -591,10 +538,7 @@ export function ProjectLobby({
                                   render={
                                     <button
                                       type="button"
-                                      onClick={() => {
-                                        setIsThemePickerOpen(false);
-                                        fileInputRef.current?.click();
-                                      }}
+                                      onClick={() => fileInputRef.current?.click()}
                                       className={`flex h-9 w-9 items-center justify-center rounded-[18px] text-neutral-500 transition-all hover:bg-black/5 hover:text-neutral-800 active:scale-95 focus:outline-none dark:text-neutral-400 dark:hover:bg-white/10 dark:hover:text-neutral-100 ${image ? "bg-black/5 text-neutral-800 dark:bg-white/10 dark:text-neutral-100" : ""}`}
                                       disabled={isGeneratingDesign}
                                       aria-label="Attach reference image"
@@ -606,120 +550,8 @@ export function ProjectLobby({
                                 <TooltipContent>Attach reference image</TooltipContent>
                               </Tooltip>
 
-                              {/* Tool 2: Select design style */}
-                              <Tooltip>
-                                <TooltipTrigger
-                                  render={
-                                    <button
-                                      type="button"
-                                      onClick={() => setIsThemePickerOpen((prev) => !prev)}
-                                      className={cn(
-                                        "relative flex h-9 w-9 items-center justify-center rounded-[18px] text-neutral-500 transition-all hover:bg-black/5 hover:text-neutral-800 active:scale-95 focus:outline-none dark:text-neutral-400 dark:hover:bg-white/10 dark:hover:text-neutral-100",
-                                        isThemePickerOpen && "bg-black/5 text-neutral-800 dark:bg-white/10 dark:text-neutral-100",
-                                        image && "cursor-not-allowed opacity-40 hover:bg-transparent hover:text-neutral-500"
-                                      )}
-                                      disabled={isGeneratingDesign || Boolean(image)}
-                                      aria-label="Select design style"
-                                    >
-                                      <Palette className="h-4.5 w-4.5 relative z-10" />
-                                      {!isThemePickerOpen && (
-                                        <motion.div
-                                          layoutId="stylePickerWrapper"
-                                          className="absolute inset-0 rounded-[18px] bg-transparent"
-                                        />
-                                      )}
-                                    </button>
-                                  }
-                                />
-                                <TooltipContent>
-                                  {image ? "Design styles are not available when using a reference image" : "Select design style"}
-                                </TooltipContent>
-                              </Tooltip>
-
-                            {/* Style Picker Dropdown Content positioned relative to this tool pill */}
-                            <AnimatePresence>
-                              {isThemePickerOpen && (
-                                <motion.div
-                                  layoutId="stylePickerWrapper"
-                                  className="absolute bottom-12 left-0 z-50 flex max-h-[min(60vh,440px)] w-[264px] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl border border-neutral-200/80 bg-white shadow-xl dark:border-white/[0.08] dark:bg-[#1b1b1b]"
-                                  transition={{ type: "spring", damping: 30, stiffness: 350, mass: 0.8 }}
-                                >
-                                  <div className="flex shrink-0 items-center justify-between px-3 py-2.5">
-                                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-neutral-400">Design style</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => setIsThemePickerOpen(false)}
-                                      className="flex h-5 w-5 cursor-pointer items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-white/10 dark:hover:text-white"
-                                      aria-label="Close styling options"
-                                    >
-                                      <X className="h-3.5 w-3.5" />
-                                    </button>
-                                  </div>
-
-                                  <div className="dg-style-picker-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pb-3">
-                                    <div className="grid grid-cols-2 gap-2">
-                                      {briefStyles.map((style, index) => {
-                                        const isSelected = selectedBriefStyle === style.id;
-                                        const staggerDelay = (index + 2) * 0.035;
-
-                                        return (
-                                          <motion.button
-                                            type="button"
-                                            key={style.id}
-                                            initial={{ opacity: 0, y: 15 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            transition={{
-                                              type: "spring",
-                                              bounce: 0.12,
-                                              duration: 0.3,
-                                              delay: staggerDelay,
-                                            }}
-                                            onClick={() => {
-                                              setSelectedBriefStyle(style.id);
-                                              setSelectedStylePreset(null);
-                                              setTimeout(() => {
-                                                setIsThemePickerOpen(false);
-                                              }, 100);
-                                            }}
-                                            className="group flex min-w-0 cursor-pointer flex-col gap-1.5 text-left"
-                                          >
-                                            <span
-                                              className={`relative flex h-[48px] items-center justify-center overflow-hidden rounded-xl border transition-all duration-150 ${style.previewClassName} ${
-                                                isSelected
-                                                  ? "scale-98 border-[2.5px] border-neutral-900 shadow-sm dark:border-white"
-                                                  : "hover:scale-102 active:scale-98 hover:border-neutral-300 dark:hover:border-neutral-600"
-                                              }`}
-                                            >
-                                              {style.previewContent}
-                                            </span>
-                                            <span className={`w-full truncate text-center text-[11px] transition-colors duration-150 ${
-                                              isSelected
-                                                ? "font-bold text-neutral-800 dark:text-neutral-100"
-                                                : "font-semibold text-neutral-500 group-hover:text-neutral-800 dark:text-neutral-400 dark:group-hover:text-neutral-200"
-                                            }`}>
-                                              {style.label}
-                                            </span>
-                                          </motion.button>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-
                           </div>
                         </TooltipProvider>
-
-                          {/* Selected Style Text label */}
-                          <div className="mr-auto hidden min-w-0 items-center text-xs font-semibold text-neutral-400 dark:text-neutral-500 sm:flex">
-                            Style: <span className="ml-1.5 truncate font-bold text-neutral-700 dark:text-neutral-300">{selectedBriefStyleLabel}</span>
-                            {selectedStylePreset ? (
-                              <button type="button" onClick={() => setSelectedStylePreset(null)} className="ml-1.5 rounded-full p-0.5 hover:bg-black/5" aria-label="Remove curated style">
-                                <X className="h-3 w-3" />
-                              </button>
-                            ) : null}
-                          </div>
 
                           {/* Right: Submit Button capsule */}
                           <button

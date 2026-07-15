@@ -1,11 +1,14 @@
 "use client"
 
+import Image from "next/image"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Play, Sparkles, ImagePlus, Palette, AudioLines } from "lucide-react"
+import { ArrowUp, Play, Sparkles, ImagePlus, X } from "lucide-react"
 import Link from "next/link"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, type ChangeEvent, type FormEvent, type KeyboardEvent } from "react"
 import { Caveat } from 'next/font/google';
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { saveClientEntryDraft, validateClientEntryImage } from "@/lib/client-entry-draft";
 
 // Configure the Caveat font
 const caveat = Caveat({
@@ -24,7 +27,68 @@ const initialDemoNote = "Watch it live before you give your money to us";
 const demoNotReadyNote = "Demo is still trapped in my 9-to-5. Recording it tonight after office hours.";
 
 export function HeroSection() {
+  const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [demoNote, setDemoNote] = useState(initialDemoNote);
+  const [prompt, setPrompt] = useState("");
+  const [image, setImage] = useState<File | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const [isForwarding, setIsForwarding] = useState(false);
+  const canContinue = Boolean(prompt.trim() || image);
+
+  useEffect(() => {
+    return () => {
+      if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+    };
+  }, [imagePreviewUrl]);
+
+  const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    if (!file) return;
+
+    const validationError = validateClientEntryImage(file);
+    if (validationError) {
+      setDraftError(validationError);
+      event.target.value = "";
+      return;
+    }
+
+    setDraftError(null);
+    setImage(file);
+    setImagePreviewUrl(URL.createObjectURL(file));
+  };
+
+  const removeImage = () => {
+    setImage(null);
+    setImagePreviewUrl(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const continueToLogin = async (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+    if (!canContinue || isForwarding) return;
+
+    setDraftError(null);
+    setIsForwarding(true);
+    try {
+      const draftId = await saveClientEntryDraft({ prompt: prompt.trim(), image });
+      const nextPath = `/project/new?draft=${encodeURIComponent(draftId)}`;
+      router.push(`/login?next=${encodeURIComponent(nextPath)}`);
+    } catch (error) {
+      console.error("Failed to save homepage draft", error);
+      setDraftError("This browser could not save your draft. Please try again or continue without an image.");
+      setIsForwarding(false);
+    }
+  };
+
+  const handlePromptKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      void continueToLogin();
+    }
+  };
+
   return (
     <section className="relative mx-auto pb-12 overflow-hidden min-h-screen bg-black">
       {/* Paper Texture */}
@@ -70,34 +134,57 @@ Drawgle turns prompts into premium mobile UI, then hands agent-ready HTML, desig
           </div>
 
           {/* Premium Prompt Box */}
-          <div className="max-w-3xl mx-auto w-full mt-8 mb-10">
-            <div className="bg-[#151515] border border-[#5b5b5b] rounded-[20px] p-4 sm:p-5 text-left flex flex-col justify-between shadow-2xl min-h-[140px] sm:min-h-[160px]">
-              <div className="text-white text-md font-medium mb-8 min-h-[56px] relative">
-                <AnimatedPlaceholderText 
-                  phrases={placeholderPhrases}
-                  isVisible={true}
+          <form className="max-w-3xl mx-auto w-full mt-8 mb-10" onSubmit={continueToLogin}>
+            <div className="relative bg-[#151515] border border-[#5b5b5b] rounded-[20px] p-4 sm:p-5 text-left flex flex-col justify-between shadow-2xl min-h-[140px] sm:min-h-[160px] focus-within:border-[#75b9ed]/70">
+              {image && imagePreviewUrl ? (
+                <div className="mb-3 flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-2.5">
+                  <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-black/40">
+                    <Image src={imagePreviewUrl} alt="Attached reference preview" fill unoptimized className="object-cover" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-xs font-medium text-white/80">{image.name}</div>
+                    <div className="mt-0.5 text-[10px] text-white/40">Ready to continue after sign in</div>
+                  </div>
+                  <button type="button" onClick={removeImage} className="flex h-8 w-8 items-center justify-center rounded-full text-white/45 hover:bg-white/10 hover:text-white" aria-label="Remove attached image">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : null}
+              <div className="relative mb-8 min-h-[56px] text-md font-medium text-white">
+                <textarea
+                  aria-label="Describe the mobile UI you want to design"
+                  value={prompt}
+                  onChange={(event) => {
+                    setPrompt(event.target.value);
+                    setDraftError(null);
+                  }}
+                  onKeyDown={handlePromptKeyDown}
+                  className="relative z-10 h-16 w-full resize-none border-0 bg-transparent p-0 text-base leading-6 text-white outline-none placeholder:text-transparent"
                 />
+                {!prompt ? (
+                  <div className="pointer-events-none absolute inset-0 text-white/75">
+                    <AnimatedPlaceholderText phrases={placeholderPhrases} isVisible />
+                  </div>
+                ) : null}
               </div>
               
               <div className="flex items-center justify-between mt-auto">
                 <div className="flex items-center gap-4">
-                  <button className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors text-sm font-medium" title="Attach reference image">
+                  <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={handleImageChange} />
+                  <button type="button" onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors text-sm font-medium" title="Attach reference image">
                     <ImagePlus className="w-5 h-5" />
                     Attach
                   </button>
-                  <button className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors text-sm font-medium" title="Select design style">
-                    <Palette className="w-5 h-5" />
-                    Style
-                  </button>
                 </div>
                 <div className="flex items-center gap-3">
-                  <Link href="/project/new" className="bg-white/10 p-2 rounded-full text-white hover:bg-[#1b7fcc] transition-colors group">
-                    <AudioLines className="w-5 h-5 transition-transform group-hover:-translate-y-0.5" />
-                  </Link>
+                  <button type="submit" disabled={!canContinue || isForwarding} className="bg-white/10 p-2 rounded-full text-white hover:bg-[#1b7fcc] transition-colors group disabled:cursor-not-allowed disabled:opacity-35" aria-label="Continue to sign in">
+                    <ArrowUp className="w-5 h-5 transition-transform group-hover:-translate-y-0.5" />
+                  </button>
                 </div>
               </div>
             </div>
-          </div>
+            {draftError ? <p className="mt-2 text-left text-xs text-red-300" role="alert">{draftError}</p> : null}
+          </form>
 
           <div className="flex flex-wrap sm:flex-row gap-2 justify-center items-center w-full relative">
 
