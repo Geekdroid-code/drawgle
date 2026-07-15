@@ -400,6 +400,7 @@ async function reserveScreenSlots(admin: AdminClient, projectId: string, slotCou
 type StateVariantBuildResult = {
   successfulVariants: number;
   failedVariants: number;
+  successfulRoadmapItemIds: string[];
 };
 
 async function buildStateVariantsForParent({
@@ -416,11 +417,12 @@ async function buildStateVariantsForParent({
   variants: ScreenStateVariantPlan[];
 }): Promise<StateVariantBuildResult> {
   if (variants.length === 0) {
-    return { successfulVariants: 0, failedVariants: 0 };
+    return { successfulVariants: 0, failedVariants: 0, successfulRoadmapItemIds: [] };
   }
 
   let successfulVariants = 0;
   let failedVariants = 0;
+  const successfulRoadmapItemIds: string[] = [];
 
   try {
     const { data: parentScreen, error: parentError } = await admin
@@ -632,6 +634,7 @@ async function buildStateVariantsForParent({
         }
 
         successfulVariants += 1;
+        if (variant.roadmapItemId) successfulRoadmapItemIds.push(variant.roadmapItemId);
         await captureGenerationCredit({
           admin,
           ownerId: payload.ownerId,
@@ -747,7 +750,7 @@ async function buildStateVariantsForParent({
     );
   }
 
-  return { successfulVariants, failedVariants };
+  return { successfulVariants, failedVariants, successfulRoadmapItemIds };
 }
 async function postStatusMessage(
   admin: AdminClient,
@@ -1979,7 +1982,7 @@ export const generateUiFlowTask = task({
           planningMode: payload.planningMode ?? "project",
           llmLog: (label, data) => logger.info(label, data),
         });
-    if (
+	    if (
       !payload.plannedScreens?.length
       && plan.charter.referenceDna
       && !plan.charter.referenceDna.sourceImagePath
@@ -1992,8 +1995,16 @@ export const generateUiFlowTask = task({
           ...plan.charter.referenceDna,
           sourceImagePath: payload.imagePath,
         },
-      };
+	      };
 	    }
+	    const projectOrigin = existingCharter?.projectOrigin
+	      ?? payload.projectCharter?.projectOrigin
+	      ?? (projectReferenceDna?.referenceMode === "user_recreate" || plan.charter.referenceDna?.referenceMode === "user_recreate"
+	        ? "image_to_ui"
+	        : projectReferenceDna || plan.charter.referenceDna
+	          ? "style_reference"
+	          : "prompt");
+	    plan.charter = { ...plan.charter, projectOrigin };
 	    plan.screens = applyNavigationPlanToScreens(plan.screens, plan.navigationPlan);
 	    if (payload.stateVariants?.length && plan.screens.length === 1) {
 	      plan.screens[0] = { ...plan.screens[0], stateVariants: payload.stateVariants };
@@ -2366,6 +2377,7 @@ export const generateUiFlowTask = task({
     let successfulStateVariants = 0;
     let failedStateVariants = 0;
     let sanitizerActions = 0;
+    const successfulRoadmapItemIds = new Set<string>();
 
     if (retryOnlyStateVariants && payload.retryContext?.parentScreenId) {
       for (const stateGroup of selectedStateGroups) {
@@ -2381,6 +2393,7 @@ export const generateUiFlowTask = task({
         failedStateVariants += variantResult.failedVariants;
         successfulScreens += variantResult.successfulVariants;
         failedScreens += variantResult.failedVariants;
+        variantResult.successfulRoadmapItemIds.forEach((id) => successfulRoadmapItemIds.add(id));
       }
     }
 
@@ -2617,6 +2630,7 @@ export const generateUiFlowTask = task({
             );
           } else {
             successfulScreens += 1;
+            if (screenPlan.roadmapItemId) successfulRoadmapItemIds.add(screenPlan.roadmapItemId);
             await captureGenerationCredit({
               admin,
               ownerId: payload.ownerId,
@@ -2668,6 +2682,7 @@ export const generateUiFlowTask = task({
               failedStateVariants += variantResult.failedVariants;
               successfulScreens += variantResult.successfulVariants;
               failedScreens += variantResult.failedVariants;
+              variantResult.successfulRoadmapItemIds.forEach((id) => successfulRoadmapItemIds.add(id));
             }
           }
         } else {
@@ -2784,17 +2799,20 @@ export const generateUiFlowTask = task({
       ownerId: payload.ownerId,
       generationRunId: payload.generationRunId,
     });
-    const roadmapRecommendation = await createRoadmapBuildRecommendation({
-      admin,
-      projectId: payload.projectId,
-      ownerId: payload.ownerId,
-    }).catch((roadmapError) => {
-      logger.error("Failed to prepare the next roadmap recommendation", {
-        generationRunId: payload.generationRunId,
-        error: roadmapError,
-      });
-      return null;
-    });
+    const roadmapRecommendation = successfulScreens === 0 || plan.charter.projectOrigin === "image_to_ui"
+      ? null
+      : await createRoadmapBuildRecommendation({
+          admin,
+          projectId: payload.projectId,
+          ownerId: payload.ownerId,
+          contextRoadmapItemIds: Array.from(successfulRoadmapItemIds),
+        }).catch((roadmapError) => {
+          logger.error("Failed to prepare contextual screen suggestions", {
+            generationRunId: payload.generationRunId,
+            error: roadmapError,
+          });
+          return null;
+        });
 
     const finishedStatus = successfulScreens === 0 ? "failed" : "completed";
     const errorSummary = failedScreens > 0 ? `${failedScreens} screen(s) failed during generation.` : null;
@@ -2927,22 +2945,11 @@ export const generateUiFlowTask = task({
           content: roadmapRecommendation.title,
           message_type: "chat",
           metadata: {
-            ui: { variant: "action_card" },
+            ui: { variant: "screen_suggestions" },
             action: "roadmap_recommendation",
             generationRunId: payload.generationRunId,
             recommendationForGenerationRunId: payload.generationRunId,
             roadmapRecommendation,
-            agentStep: {
-              kind: "proposal",
-              status: "completed",
-              title: roadmapRecommendation.title,
-              detail: roadmapRecommendation.detail,
-              targetLabel: `${roadmapRecommendation.outputCount} output${roadmapRecommendation.outputCount === 1 ? "" : "s"}`,
-              processLines: [
-                `${roadmapRecommendation.remainingCount} planned item${roadmapRecommendation.remainingCount === 1 ? " remains" : "s remain"} on the project roadmap.`,
-                `${roadmapRecommendation.estimatedCredits} credits are reserved only when you start this batch.`,
-              ],
-            },
           } as never,
         });
       }

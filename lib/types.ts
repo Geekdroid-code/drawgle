@@ -545,6 +545,7 @@ export interface ProjectCharter {
   referenceScreens?: ProjectCharterReferenceScreen[];
   designSystemSignals?: ProjectCharterDesignSystemSignals | null;
   referenceDna?: ProjectReferenceDna | null;
+  projectOrigin?: "image_to_ui" | "style_reference" | "prompt";
   planningDiagnostics?: ProjectCharterPlanningDiagnostics | null;
   charterSource?: "planner" | "partial_planner" | "reference_fallback";
 }
@@ -596,17 +597,19 @@ export interface RoadmapBatchSelection {
   requiredCredits: number;
 }
 
+export interface ContextualScreenSuggestionItem {
+  roadmapItemId: string;
+  kind: "screen" | "state";
+  name: string;
+  description: string;
+  parentName?: string | null;
+}
+
 export interface RoadmapBuildRecommendation {
-  version: 1;
+  version: 2;
   kind: "parent_batch" | "state_batch";
   title: string;
-  detail: string;
-  plannedScreens: ScreenPlan[];
-  roadmapItemIds: string[];
-  parentScreenId?: string | null;
-  outputCount: number;
-  estimatedCredits: number;
-  remainingCount: number;
+  items: ContextualScreenSuggestionItem[];
 }
 
 export interface CreditReservationSummary {

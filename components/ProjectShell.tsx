@@ -1906,23 +1906,26 @@ export function ProjectShell({
     });
   };
 
-  const handleBuildRoadmapRecommendation = async (recommendation: RoadmapBuildRecommendation) => {
+  const handleBuildRoadmapRecommendation = async (
+    recommendation: RoadmapBuildRecommendation,
+    selectedItemIds: string[],
+  ) => {
     if (!project || isCanvasInteractionLocked) return;
-    if (!loadingCredits && balance < recommendation.estimatedCredits) {
+    const selectedItems = recommendation.items.filter((item) => selectedItemIds.includes(item.roadmapItemId));
+    if (selectedItems.length === 0) return;
+    if (!loadingCredits && balance < selectedItems.length * 20) {
       setPricingReason("insufficient_credits");
       setIsPricingOpen(true);
       return;
     }
 
     await queueGenerationRequest({
-      prompt: `Continue the approved project roadmap with: ${recommendation.detail}.`,
-      plannedScreens: recommendation.plannedScreens,
+      prompt: `Build ${selectedItems.map((item) => item.name).join(", ")} as the next contextual ${selectedItems.length === 1 ? "screen" : "screens"}.`,
       requiresBottomNav: projectNavigation?.plan?.enabled ?? undefined,
       navigationPlan: projectNavigation?.plan ?? null,
       roadmapBuild: {
         kind: recommendation.kind,
-        roadmapItemIds: recommendation.roadmapItemIds,
-        parentScreenId: recommendation.parentScreenId ?? null,
+        roadmapItemIds: selectedItems.map((item) => item.roadmapItemId),
       },
     });
   };
@@ -2745,6 +2748,11 @@ export function ProjectShell({
             onRetryGeneration={handleRetryGeneration}
             onApproveScreenPlan={handleApproveScreenPlan}
             onBuildRoadmapRecommendation={handleBuildRoadmapRecommendation}
+            contextualSuggestionsEnabled={
+              project?.charter?.projectOrigin
+                ? project.charter.projectOrigin !== "image_to_ui"
+                : project?.charter?.referenceDna?.referenceMode !== "user_recreate"
+            }
             isCollapsed={isChatCollapsed}
             onCollapseChange={setIsChatCollapsed}
             onSubmit={handlePromptAction}

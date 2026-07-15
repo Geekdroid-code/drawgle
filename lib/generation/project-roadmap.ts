@@ -299,7 +299,7 @@ export async function getRoadmapRecommendations({
     .slice(0, limit);
 }
 
-const stateVariantFromRoadmap = (row: ProjectScreenRoadmapRow): ScreenStateVariantPlan => {
+export const stateVariantFromRoadmap = (row: ProjectScreenRoadmapRow): ScreenStateVariantPlan => {
   const metadata = asRecord(row.metadata);
   return {
     id: row.id,
@@ -318,7 +318,7 @@ const stateVariantFromRoadmap = (row: ProjectScreenRoadmapRow): ScreenStateVaria
   };
 };
 
-const screenPlanFromRoadmap = (
+export const screenPlanFromRoadmap = (
   row: ProjectScreenRoadmapRow,
   stateVariants: ScreenStateVariantPlan[] = [],
 ): ScreenPlan => {
@@ -340,38 +340,48 @@ const screenPlanFromRoadmap = (
 
 export function selectRoadmapBuildRecommendation(
   rows: ProjectScreenRoadmapRow[],
+  contextRoadmapItemIds: string[] = [],
 ): RoadmapBuildRecommendation | null {
   const rowByKey = new Map(rows.map((row) => [row.stable_key, row]));
   const rowById = new Map(rows.map((row) => [row.id, row]));
+  const contextIds = new Set(contextRoadmapItemIds);
+  const contextKeys = new Set(contextRoadmapItemIds.map((id) => rowById.get(id)?.stable_key).filter(Boolean));
+  const contextualRank = (row: ProjectScreenRoadmapRow) => {
+    if (row.parent_item_id && contextIds.has(row.parent_item_id)) return 0;
+    if (row.dependency_keys.some((key) => contextKeys.has(key))) return 0;
+    return 1;
+  };
   const eligible = rows
     .filter((row) => row.status === "planned" || row.status === "failed")
     .filter((row) => row.dependency_keys.every((key) => rowByKey.get(key)?.status === "ready"))
-    .sort((left, right) => priorityRank[left.priority] - priorityRank[right.priority] || left.sequence - right.sequence);
+    .sort((left, right) =>
+      contextualRank(left) - contextualRank(right)
+      || priorityRank[left.priority] - priorityRank[right.priority]
+      || left.sequence - right.sequence
+    );
   if (eligible.length === 0) return null;
 
-  const parentCandidates = eligible.filter((row) => row.kind === "screen").slice(0, 5);
-  if (parentCandidates.length > 0 && eligible[0]?.kind === "screen") {
-    let stateCapacity = Math.max(0, 8 - parentCandidates.length);
-    const plans = parentCandidates.map((parent) => {
-      const variants = eligible
-        .filter((row) => row.kind === "state" && row.parent_item_id === parent.id)
-        .slice(0, stateCapacity)
-        .map(stateVariantFromRoadmap);
-      stateCapacity -= variants.length;
-      return screenPlanFromRoadmap(parent, variants);
-    });
-    const stateIds = plans.flatMap((plan) => plan.stateVariants ?? []).map((variant) => variant.roadmapItemId).filter((id): id is string => Boolean(id));
-    const outputCount = plans.length + stateIds.length;
+  const suggestionFromRow = (row: ProjectScreenRoadmapRow) => ({
+    roadmapItemId: row.id,
+    kind: row.kind,
+    name: row.kind === "state" ? row.state_label ?? row.name : row.name,
+    description: (() => {
+      const concise = row.description.replace(/\s+/g, " ").trim().slice(0, 239)
+        || `Continue the product flow with ${row.name}.`;
+      return /[.!?]$/.test(concise) ? concise : `${concise}.`;
+    })(),
+    parentName: row.parent_item_id ? rowById.get(row.parent_item_id)?.name ?? null : null,
+  });
+
+  if (eligible[0]?.kind === "screen") {
+    const candidates = eligible.filter((row) => row.kind === "screen").slice(0, 3);
     return {
-      version: 1,
+      version: 2,
       kind: "parent_batch",
-      title: plans.length === 1 ? `Build ${plans[0].name}` : `Build the next ${plans.length} screens`,
-      detail: plans.map((plan) => plan.name).join(", "),
-      plannedScreens: plans,
-      roadmapItemIds: [...plans.map((plan) => plan.roadmapItemId!).filter(Boolean), ...stateIds],
-      outputCount,
-      estimatedCredits: outputCount * 20,
-      remainingCount: eligible.length,
+      title: candidates.length === 1
+        ? "A useful next screen would be:"
+        : "These screens would fit naturally next:",
+      items: candidates.map(suggestionFromRow),
     };
   }
 
@@ -381,20 +391,56 @@ export function selectRoadmapBuildRecommendation(
   if (!parent?.generated_screen_id) return null;
   const variants = eligible
     .filter((row) => row.kind === "state" && row.parent_item_id === parent.id)
-    .slice(0, 3)
-    .map(stateVariantFromRoadmap);
+    .slice(0, 3);
   if (variants.length === 0) return null;
   return {
-    version: 1,
+    version: 2,
     kind: "state_batch",
-    title: variants.length === 1 ? `Build ${variants[0].stateLabel}` : `Build ${variants.length} ${parent.name} states`,
-    detail: variants.map((variant) => variant.stateLabel).join(", "),
-    plannedScreens: [screenPlanFromRoadmap(parent, variants)],
-    roadmapItemIds: variants.map((variant) => variant.roadmapItemId!).filter(Boolean),
+    title: variants.length === 1
+      ? `A useful next state for ${parent.name} would be:`
+      : `These ${parent.name} states would fit naturally next:`,
+    items: variants.map(suggestionFromRow),
+  };
+}
+
+export function resolveRoadmapBuildSelection({
+  rows,
+  kind,
+  roadmapItemIds,
+}: {
+  rows: ProjectScreenRoadmapRow[];
+  kind: RoadmapBuildRecommendation["kind"];
+  roadmapItemIds: string[];
+}): { plannedScreens: ScreenPlan[]; parentScreenId: string | null } {
+  const uniqueIds = Array.from(new Set(roadmapItemIds));
+  if (uniqueIds.length === 0 || uniqueIds.length > 3) throw new Error("Select between one and three suggested screens.");
+  const rowById = new Map(rows.map((row) => [row.id, row]));
+  const rowByKey = new Map(rows.map((row) => [row.stable_key, row]));
+  const selected = uniqueIds.map((id) => rowById.get(id));
+  if (selected.some((row) => !row)) throw new Error("One or more suggested screens are unavailable.");
+  const selectedRows = selected as ProjectScreenRoadmapRow[];
+  if (selectedRows.some((row) => row.status !== "planned" && row.status !== "failed")) {
+    throw new Error("These suggestions are stale. Refresh to see the next available screens.");
+  }
+  if (selectedRows.some((row) => row.dependency_keys.some((key) => rowByKey.get(key)?.status !== "ready"))) {
+    throw new Error("A required earlier screen must be ready before this selection can be built.");
+  }
+
+  if (kind === "parent_batch") {
+    if (selectedRows.some((row) => row.kind !== "screen")) throw new Error("The selected screen batch is invalid.");
+    return { plannedScreens: selectedRows.map((row) => screenPlanFromRoadmap(row)), parentScreenId: null };
+  }
+
+  if (selectedRows.some((row) => row.kind !== "state")) throw new Error("The selected state batch is invalid.");
+  const parentIds = new Set(selectedRows.map((row) => row.parent_item_id).filter(Boolean));
+  if (parentIds.size !== 1) throw new Error("Selected states must belong to the same parent screen.");
+  const parent = rowById.get(Array.from(parentIds)[0]!);
+  if (!parent || parent.status !== "ready" || !parent.generated_screen_id) {
+    throw new Error("The parent screen must be ready before its states can be built.");
+  }
+  return {
+    plannedScreens: [screenPlanFromRoadmap(parent, selectedRows.map(stateVariantFromRoadmap))],
     parentScreenId: parent.generated_screen_id,
-    outputCount: variants.length,
-    estimatedCredits: variants.length * 20,
-    remainingCount: eligible.length,
   };
 }
 
@@ -402,10 +448,12 @@ export async function createRoadmapBuildRecommendation({
   admin,
   projectId,
   ownerId,
+  contextRoadmapItemIds = [],
 }: {
   admin: AdminClient;
   projectId: string;
   ownerId: string;
+  contextRoadmapItemIds?: string[];
 }): Promise<RoadmapBuildRecommendation | null> {
   const { data, error } = await admin
     .from("project_screen_roadmap")
@@ -415,7 +463,7 @@ export async function createRoadmapBuildRecommendation({
     .order("tranche", { ascending: true })
     .order("sequence", { ascending: true });
   if (error) throw error;
-  return selectRoadmapBuildRecommendation((data ?? []) as ProjectScreenRoadmapRow[]);
+  return selectRoadmapBuildRecommendation((data ?? []) as ProjectScreenRoadmapRow[], contextRoadmapItemIds);
 }
 
 export async function markRoadmapItemForScreen({

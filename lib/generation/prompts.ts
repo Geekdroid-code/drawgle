@@ -218,6 +218,7 @@ Blueprint rules:
 - If more than five parent screens are requested, keep them in roadmap.items and select only the first production-worthy batch. Never silently discard them.
 - requested_parent_count is the explicit requested parent total when known; otherwise use the roadmap item count. Do not include card counts, navigation tabs, products, or local UI states.
 - Stable keys use screen:<short-kebab-name> and must be unique. Dependencies refer only to stable keys in the same roadmap.
+- Give every roadmap item one concise, user-facing sentence describing its purpose, and map dependency_keys to the screen that naturally precedes it in the product workflow.
 - Screen Count Contract controls the initial generated parent batch only. Navigation destinations and later roadmap items are not created or charged in this run.
 - Navigation requires positive evidence: an explicit prompt request, visible persistent navigation in a recreate reference, or a clearly described product architecture with peer root areas. Screen count and app category are never sufficient.
 - Explicit no-navigation intent and finite immersive flows always use decision "none", evidence.source null, no items, and design null.

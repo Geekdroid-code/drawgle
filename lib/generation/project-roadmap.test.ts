@@ -8,6 +8,7 @@ import {
   buildProjectRoadmapUpsertRows,
   screenRoadmapKey,
   selectRoadmapBuildRecommendation,
+  resolveRoadmapBuildSelection,
   stateRoadmapKey,
 } from "@/lib/generation/project-roadmap";
 import type { ProjectScreenRoadmapRow } from "@/lib/supabase/database.types";
@@ -184,7 +185,7 @@ describe("project roadmap", () => {
     });
   });
 
-  it("selects at most five parents and eight total outputs for the next tranche", () => {
+  it("suggests at most three parent screens without bundling plans or credits", () => {
     const parents = Array.from({ length: 6 }, (_, index) => roadmapRow({
       id: `parent-${index}`,
       stable_key: `screen:parent-${index}`,
@@ -195,10 +196,10 @@ describe("project roadmap", () => {
     const recommendation = selectRoadmapBuildRecommendation(parents);
 
     expect(recommendation?.kind).toBe("parent_batch");
-    expect(recommendation?.plannedScreens).toHaveLength(5);
-    expect(recommendation?.outputCount).toBe(5);
-    expect(recommendation?.estimatedCredits).toBe(100);
-    expect(recommendation?.remainingCount).toBe(6);
+    expect(recommendation?.items).toHaveLength(3);
+    expect(recommendation?.items.map((item) => item.roadmapItemId)).toEqual(["parent-0", "parent-1", "parent-2"]);
+    expect(recommendation).not.toHaveProperty("plannedScreens");
+    expect(recommendation).not.toHaveProperty("estimatedCredits");
   });
 
   it("prioritizes an explicit child state once its parent is ready", () => {
@@ -235,8 +236,59 @@ describe("project roadmap", () => {
     const recommendation = selectRoadmapBuildRecommendation([parent, child, futureParent]);
 
     expect(recommendation?.kind).toBe("state_batch");
-    expect(recommendation?.parentScreenId).toBe("screen-ready");
-    expect(recommendation?.roadmapItemIds).toEqual([child.id]);
-    expect(recommendation?.plannedScreens[0].stateVariants?.[0].stateKey).toBe("delete");
+    expect(recommendation?.items.map((item) => item.roadmapItemId)).toEqual([child.id]);
+    expect(recommendation?.items[0]).toMatchObject({
+      kind: "state",
+      name: "Delete Confirmation",
+      parentName: "Task Detail",
+    });
+  });
+
+  it("ranks screens that directly follow the latest completed screen first", () => {
+    const home = roadmapRow({ id: "home", stable_key: "screen:home", name: "Home", status: "ready" });
+    const profile = roadmapRow({ id: "profile", stable_key: "screen:profile", name: "Profile", priority: "core", sequence: 1 });
+    const checkout = roadmapRow({
+      id: "checkout",
+      stable_key: "screen:checkout",
+      name: "Checkout",
+      priority: "recommended",
+      sequence: 8,
+      dependency_keys: [home.stable_key],
+    });
+
+    const recommendation = selectRoadmapBuildRecommendation([home, profile, checkout], [home.id]);
+    expect(recommendation?.items[0].roadmapItemId).toBe(checkout.id);
+  });
+
+  it("rehydrates only the selected parent screens from current roadmap rows", () => {
+    const cart = roadmapRow({ id: "cart", stable_key: "screen:cart", name: "Cart" });
+    const checkout = roadmapRow({ id: "checkout", stable_key: "screen:checkout", name: "Checkout" });
+    const selection = resolveRoadmapBuildSelection({
+      rows: [cart, checkout],
+      kind: "parent_batch",
+      roadmapItemIds: [checkout.id],
+    });
+
+    expect(selection.plannedScreens).toHaveLength(1);
+    expect(selection.plannedScreens[0]).toMatchObject({ name: "Checkout", roadmapItemId: checkout.id });
+  });
+
+  it("rejects stale selections and states from different parents", () => {
+    const firstParent = roadmapRow({ id: "parent-a", stable_key: "screen:a", name: "First", status: "ready", generated_screen_id: "screen-a" });
+    const secondParent = roadmapRow({ id: "parent-b", stable_key: "screen:b", name: "Second", status: "ready", generated_screen_id: "screen-b" });
+    const firstState = roadmapRow({ id: "state-a", stable_key: "screen:a:state:x", name: "First State", kind: "state", parent_item_id: firstParent.id, dependency_keys: [firstParent.stable_key] });
+    const secondState = roadmapRow({ id: "state-b", stable_key: "screen:b:state:y", name: "Second State", kind: "state", parent_item_id: secondParent.id, dependency_keys: [secondParent.stable_key] });
+
+    expect(() => resolveRoadmapBuildSelection({
+      rows: [firstParent, secondParent, firstState, secondState],
+      kind: "state_batch",
+      roadmapItemIds: [firstState.id, secondState.id],
+    })).toThrow("same parent");
+
+    expect(() => resolveRoadmapBuildSelection({
+      rows: [{ ...firstState, status: "ready" }, firstParent],
+      kind: "state_batch",
+      roadmapItemIds: [firstState.id],
+    })).toThrow("stale");
   });
 });

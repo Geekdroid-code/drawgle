@@ -9,7 +9,6 @@ import {
   ChevronDown,
   Copy,
   FileText,
-  Layers3,
   Loader2,
   MessageCircle,
   Minimize2,
@@ -87,7 +86,8 @@ type ConversationItem =
   | { id: string; kind: "assistant"; content: string; timestamp?: string; isError?: boolean }
   | { id: string; kind: "thinking"; summary: ThinkingSummaryMetadata; timestamp?: string; live?: boolean }
   | { id: string; kind: "generation_journal"; journal: GenerationJournalMetadata; timestamp?: string }
-  | { id: string; kind: "action"; step: AgentStepMetadata; sourceContent?: string; retryRun?: GenerationRunData; proposal?: ScreenPlanProposalMetadata | null; proposalMessageId?: string | null; roadmapRecommendation?: RoadmapBuildRecommendation | null; timestamp?: string };
+  | { id: string; kind: "screen_suggestions"; recommendation: RoadmapBuildRecommendation; timestamp?: string }
+  | { id: string; kind: "action"; step: AgentStepMetadata; sourceContent?: string; retryRun?: GenerationRunData; proposal?: ScreenPlanProposalMetadata | null; proposalMessageId?: string | null; timestamp?: string };
 
 type ChatWorkspaceTab = "chat" | "design" | "design-md";
 
@@ -135,6 +135,34 @@ const getMessageClientTurnId = (message: ProjectMessage) =>
 const readRoadmapRecommendation = (metadata: Record<string, unknown>): RoadmapBuildRecommendation | null => {
   const value = metadataRecord(metadata.roadmapRecommendation);
   if (
+    value.version === 2 &&
+    (value.kind === "parent_batch" || value.kind === "state_batch") &&
+    typeof value.title === "string" &&
+    Array.isArray(value.items)
+  ) {
+    const items: RoadmapBuildRecommendation["items"] = [];
+    for (const rawItem of value.items) {
+      const item = metadataRecord(rawItem);
+      if (
+        typeof item.roadmapItemId === "string" &&
+        (item.kind === "screen" || item.kind === "state") &&
+        typeof item.name === "string" &&
+        typeof item.description === "string"
+      ) {
+        items.push({
+          roadmapItemId: item.roadmapItemId,
+          kind: item.kind,
+          name: item.name,
+          description: item.description,
+          parentName: typeof item.parentName === "string" ? item.parentName : null,
+        });
+      }
+    }
+    if (items.length === 0 || items.length > 3) return null;
+    return { version: 2, kind: value.kind, title: value.title, items };
+  }
+
+  if (
     value.version !== 1 ||
     (value.kind !== "parent_batch" && value.kind !== "state_batch") ||
     typeof value.title !== "string" ||
@@ -147,7 +175,35 @@ const readRoadmapRecommendation = (metadata: Record<string, unknown>): RoadmapBu
   ) {
     return null;
   }
-  return value as unknown as RoadmapBuildRecommendation;
+  const plannedScreens = value.plannedScreens.map(metadataRecord);
+  const legacyItems = value.kind === "state_batch"
+    ? plannedScreens.flatMap((screen) => Array.isArray(screen.stateVariants)
+        ? screen.stateVariants.map(metadataRecord).map((variant) => ({
+            roadmapItemId: variant.roadmapItemId,
+            kind: "state" as const,
+            name: variant.stateLabel,
+            description: variant.description,
+            parentName: screen.name,
+          }))
+        : [])
+    : plannedScreens.map((screen) => ({
+        roadmapItemId: screen.roadmapItemId,
+        kind: "screen" as const,
+        name: screen.name,
+        description: screen.description,
+      }));
+  const items = legacyItems.filter((item) =>
+    typeof item.roadmapItemId === "string" &&
+    typeof item.name === "string" &&
+    typeof item.description === "string"
+  ).slice(0, 3) as RoadmapBuildRecommendation["items"];
+  if (items.length === 0) return null;
+  return {
+    version: 2,
+    kind: value.kind,
+    title: items.length === 1 ? "A useful next screen would be:" : "These screens would fit naturally next:",
+    items,
+  };
 };
 
 const compactActionTitle = (content: string) =>
@@ -394,6 +450,7 @@ function buildConversationItems({
   queueError,
   screenPlan,
   pendingTurn,
+  contextualSuggestionsEnabled,
 }: {
   messages: ProjectMessage[];
   screens: ScreenData[];
@@ -402,6 +459,7 @@ function buildConversationItems({
   queueError?: string | null;
   screenPlan?: ScreenPlanState | null;
   pendingTurn: PendingTurn | null;
+  contextualSuggestionsEnabled: boolean;
 }): ConversationItem[] {
   const items: ConversationItem[] = [];
   const generationRunById = new Map(generationRuns.map((run) => [run.id, run]));
@@ -447,6 +505,9 @@ function buildConversationItems({
   const readyRoadmapItemIds = new Set(
     screens.filter((screen) => screen.status === "ready" && screen.roadmapItemId).map((screen) => screen.roadmapItemId!),
   );
+  const latestSuggestionMessageId = contextualSuggestionsEnabled
+    ? [...messages].reverse().find((message) => readRoadmapRecommendation(message.metadata))?.id ?? null
+    : null;
 
   for (const message of messages) {
     const action = getMetadataString(message.metadata, "action");
@@ -487,10 +548,13 @@ function buildConversationItems({
     const ui = readAgentUi(message.metadata);
     const thinkingSummary = readThinkingSummary(message.metadata);
     const screenPlanProposal = readScreenPlanProposal(message.metadata);
-    const rawRoadmapRecommendation = readRoadmapRecommendation(message.metadata);
-    const roadmapRecommendation = rawRoadmapRecommendation?.roadmapItemIds.some((id) => readyRoadmapItemIds.has(id))
-      ? null
-      : rawRoadmapRecommendation;
+    const rawRoadmapRecommendation = message.id === latestSuggestionMessageId
+      ? readRoadmapRecommendation(message.metadata)
+      : null;
+    const remainingSuggestionItems = rawRoadmapRecommendation?.items.filter((item) => !readyRoadmapItemIds.has(item.roadmapItemId)) ?? [];
+    const roadmapRecommendation = rawRoadmapRecommendation && remainingSuggestionItems.length > 0
+      ? { ...rawRoadmapRecommendation, items: remainingSuggestionItems }
+      : null;
     const agentStep = resolveAgentStep(readAgentStep(message.metadata), stepFromLegacyMessage(message, screens));
     const generationJournal = readGenerationJournal(message.metadata);
     const uiVariant = getMetadataString(metadataRecord(message.metadata.ui), "variant");
@@ -508,6 +572,19 @@ function buildConversationItems({
         timestamp: message.timestamp,
         image: persistedImage ?? null,
       });
+      continue;
+    }
+
+    if (roadmapRecommendation) {
+      items.push({
+        id: `screen-suggestions-${message.id}`,
+        kind: "screen_suggestions",
+        recommendation: roadmapRecommendation,
+        timestamp: message.timestamp,
+      });
+      continue;
+    }
+    if (action === "roadmap_recommendation") {
       continue;
     }
 
@@ -657,9 +734,6 @@ function buildConversationItems({
             existing.proposal = screenPlanProposal;
             existing.proposalMessageId = message.id;
           }
-          if (roadmapRecommendation) {
-            existing.roadmapRecommendation = roadmapRecommendation;
-          }
           if (retryableAssociatedRun && !attachedRetryRunIds.has(retryableAssociatedRun.id)) {
             existing.retryRun = retryableAssociatedRun;
             attachedRetryRunIds.add(retryableAssociatedRun.id);
@@ -680,7 +754,6 @@ function buildConversationItems({
         retryRun: retryRun ?? undefined,
         proposal: screenPlanProposal,
         proposalMessageId: screenPlanProposal ? message.id : null,
-        roadmapRecommendation,
         timestamp: message.timestamp,
       };
 
@@ -924,16 +997,77 @@ function UserBubble({ content, image }: { content: string; image?: PromptImagePa
   );
 }
 
+function ContextualScreenSuggestions({
+  recommendation,
+  disabled,
+  onBuild,
+}: {
+  recommendation: RoadmapBuildRecommendation;
+  disabled?: boolean;
+  onBuild: (recommendation: RoadmapBuildRecommendation, selectedItemIds: string[]) => void;
+}) {
+  const selectionKey = recommendation.items.map((item) => item.roadmapItemId).join(":");
+  const [selection, setSelection] = useState({ key: selectionKey, ids: [recommendation.items[0]?.roadmapItemId].filter(Boolean) as string[] });
+  const selectedIds = selection.key === selectionKey
+    ? selection.ids
+    : [recommendation.items[0]?.roadmapItemId].filter(Boolean) as string[];
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const toggle = (id: string) => {
+    setSelection((current) => {
+      const active = current.key === selectionKey ? current.ids : selectedIds;
+      return {
+        key: selectionKey,
+        ids: active.includes(id) ? active.filter((itemId) => itemId !== id) : [...active, id],
+      };
+    });
+  };
+  const label = selectedIds.length === 1 ? "Build selected screen" : `Build ${selectedIds.length} selected screens`;
+
+  return (
+    <div className="mx-5 my-3 rounded-[8px] border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <div className="flex items-start gap-2.5">
+        <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
+        <div className="min-w-0 flex-1">
+          <p className="text-[13px] font-semibold leading-5 text-slate-900">{recommendation.title}</p>
+          <div className="mt-2 space-y-1">
+            {recommendation.items.map((item) => (
+              <label key={item.roadmapItemId} className="flex cursor-pointer items-start gap-2 rounded-[6px] px-1 py-1.5 hover:bg-slate-950/[0.03]">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 accent-slate-950"
+                  checked={selectedSet.has(item.roadmapItemId)}
+                  onChange={() => toggle(item.roadmapItemId)}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[12px] font-semibold leading-5 text-slate-800">{item.name}</span>
+                  {item.parentName ? <span className="block text-[10px] font-medium text-slate-400">For {item.parentName}</span> : null}
+                  <span className="block text-[11px] leading-4 text-slate-500">{item.description}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          <Button
+            type="button"
+            className="mt-3 h-8 rounded-full px-3 text-[11px] font-semibold"
+            disabled={disabled || selectedIds.length === 0}
+            onClick={() => onBuild(recommendation, selectedIds)}
+          >
+            {label}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ActionCard({
   step,
   retryRun,
   retryDisabled,
   proposal,
   proposalMessageId,
-  roadmapRecommendation,
   onRetryGeneration,
   onApproveScreenPlan,
-  onBuildRoadmapRecommendation,
 }: {
   step: AgentStepMetadata;
   retryRun?: GenerationRunData;
@@ -942,8 +1076,6 @@ function ActionCard({
   proposalMessageId?: string | null;
   onRetryGeneration?: (run: GenerationRunData) => void;
   onApproveScreenPlan?: (proposalMessageId: string, selectedStateVariantIds?: string[]) => void;
-  roadmapRecommendation?: RoadmapBuildRecommendation | null;
-  onBuildRoadmapRecommendation?: (recommendation: RoadmapBuildRecommendation) => void;
 }) {
   const busy = step.status === "queued" || step.status === "thinking" || step.status === "editing";
   const failed = step.status === "failed";
@@ -1157,19 +1289,6 @@ function ActionCard({
 
             {proposal?.status === "approved" ? (
               <div className="mt-3 text-[11px] font-semibold text-emerald-600">Approved for build</div>
-            ) : null}
-
-            {roadmapRecommendation && onBuildRoadmapRecommendation ? (
-              <Button
-                type="button"
-                className="mt-3 h-8 gap-1.5 rounded-full px-3 text-[11px] font-semibold"
-                disabled={retryDisabled}
-                onClick={() => onBuildRoadmapRecommendation(roadmapRecommendation)}
-                title={`${roadmapRecommendation.outputCount} outputs, ${roadmapRecommendation.estimatedCredits} credits`}
-              >
-                <Layers3 className="h-3.5 w-3.5" />
-                Build {roadmapRecommendation.outputCount} output{roadmapRecommendation.outputCount === 1 ? "" : "s"} - {roadmapRecommendation.estimatedCredits} credits
-              </Button>
             ) : null}
 
             {retryRun && onRetryGeneration ? (
@@ -1528,6 +1647,7 @@ export function ChatPanel({
   onEditSelectedDesign,
   onClearSelectedElement,
   onDeleteSelectedElement,
+  contextualSuggestionsEnabled = true,
 }: {
   project: ProjectData;
   screens: ScreenData[];
@@ -1549,7 +1669,8 @@ export function ChatPanel({
   isBuilding?: boolean;
   onRetryGeneration?: (run: GenerationRunData) => void;
   onApproveScreenPlan?: (proposalMessageId: string, selectedStateVariantIds?: string[]) => void;
-  onBuildRoadmapRecommendation?: (recommendation: RoadmapBuildRecommendation) => void;
+  onBuildRoadmapRecommendation?: (recommendation: RoadmapBuildRecommendation, selectedItemIds: string[]) => void;
+  contextualSuggestionsEnabled?: boolean;
   onBuildPlannedScreen?: () => void;
   onCancelPlan?: () => void;
   isCollapsed: boolean;
@@ -1590,9 +1711,10 @@ export function ChatPanel({
         queueError,
         screenPlan,
         pendingTurn,
+        contextualSuggestionsEnabled,
       });
     },
-    [generationRun, generationRuns, messages, pendingTick, pendingTurn, queueError, screenPlan, screens],
+    [contextualSuggestionsEnabled, generationRun, generationRuns, messages, pendingTick, pendingTurn, queueError, screenPlan, screens],
   );
 
   let collapsedEyebrow = "Drawgle";
@@ -1755,6 +1877,19 @@ export function ChatPanel({
                       );
                     }
 
+                    if (item.kind === "screen_suggestions") {
+                      if (!onBuildRoadmapRecommendation) return null;
+                      return (
+                        <motion.div key={item.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
+                          <ContextualScreenSuggestions
+                            recommendation={item.recommendation}
+                            disabled={retryDisabled || isBusy}
+                            onBuild={onBuildRoadmapRecommendation}
+                          />
+                        </motion.div>
+                      );
+                    }
+
                     if (item.kind === "action") {
                       return (
                         <motion.div key={item.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
@@ -1764,10 +1899,8 @@ export function ChatPanel({
                             retryDisabled={retryDisabled}
                             proposal={item.proposal}
                             proposalMessageId={item.proposalMessageId}
-                            roadmapRecommendation={item.roadmapRecommendation}
                             onRetryGeneration={onRetryGeneration}
                             onApproveScreenPlan={onApproveScreenPlan}
-                            onBuildRoadmapRecommendation={onBuildRoadmapRecommendation}
                           />
                         </motion.div>
                       );

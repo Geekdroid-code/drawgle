@@ -12,12 +12,13 @@ import { normalizeReferenceImage } from "@/lib/generation/reference-image";
 import { findLatestProjectPromptImagePath } from "@/lib/generation/prompt-reference-storage";
 import { isGenerationReferencePolicy, resolveGenerationReferencePolicy } from "@/lib/generation/reference-policy";
 import { determineGenerationRetryScope } from "@/lib/generation/retry-scope";
+import { resolveRoadmapBuildSelection } from "@/lib/generation/project-roadmap";
 import { releaseGenerationCreditRemainder } from "@/lib/generation/credit-reservations";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
 import { getGenerationEngineVersion } from "@/lib/env/server";
-import type { Database } from "@/lib/supabase/database.types";
+import type { Database, ProjectScreenRoadmapRow } from "@/lib/supabase/database.types";
 import {
   ACTIVE_GENERATION_STATUSES,
   type DesignTokens,
@@ -193,7 +194,7 @@ const requestSchema = z.object({
   initialBatchItemKeys: z.array(z.string().trim().min(1).max(100)).max(5).optional(),
   roadmapBuild: z.object({
     kind: z.enum(["parent_batch", "state_batch"]),
-    roadmapItemIds: z.array(z.string().uuid()).min(1).max(8),
+    roadmapItemIds: z.array(z.string().uuid()).min(1).max(3),
     parentScreenId: z.string().uuid().nullable().optional(),
   }).optional(),
   designTokens: z.unknown().nullable().optional(),
@@ -543,56 +544,31 @@ export async function POST(request: Request) {
       }
 
       if (payload.roadmapBuild) {
-        if (!plannedScreens?.length) {
-          return NextResponse.json({ error: "The roadmap build no longer has a usable screen plan." }, { status: 409 });
-        }
         const uniqueItemIds = Array.from(new Set(payload.roadmapBuild.roadmapItemIds));
         const { data: roadmapItems, error: roadmapError } = await admin
           .from("project_screen_roadmap")
-          .select("id, kind, status, parent_item_id, generated_screen_id")
+          .select("*")
           .eq("project_id", projectId)
-          .eq("owner_id", ownerId)
-          .in("id", uniqueItemIds);
+          .eq("owner_id", ownerId);
         if (roadmapError) throw roadmapError;
-        if ((roadmapItems ?? []).length !== uniqueItemIds.length) {
-          return NextResponse.json({ error: "One or more roadmap items are unavailable." }, { status: 409 });
-        }
-        if ((roadmapItems ?? []).some((item) => item.status !== "planned" && item.status !== "failed")) {
-          return NextResponse.json({ error: "This roadmap recommendation is stale. Refresh to see the next available work." }, { status: 409 });
-        }
-
-        if (payload.roadmapBuild.kind === "state_batch") {
-          const stateItems = roadmapItems ?? [];
-          const parentItemIds = new Set(stateItems.map((item) => item.parent_item_id).filter(Boolean));
-          if (
-            !payload.roadmapBuild.parentScreenId ||
-            stateItems.some((item) => item.kind !== "state") ||
-            parentItemIds.size !== 1
-          ) {
-            return NextResponse.json({ error: "The child-screen roadmap batch is invalid." }, { status: 409 });
-          }
-          const parentItemId = Array.from(parentItemIds)[0]!;
-          const { data: parentItem, error: parentError } = await admin
-            .from("project_screen_roadmap")
-            .select("id, status, generated_screen_id")
-            .eq("id", parentItemId)
-            .eq("project_id", projectId)
-            .eq("owner_id", ownerId)
-            .maybeSingle();
-          if (parentError) throw parentError;
-          if (
-            parentItem?.status !== "ready" ||
-            parentItem.generated_screen_id !== payload.roadmapBuild.parentScreenId
-          ) {
-            return NextResponse.json({ error: "The parent screen must be ready before its child states can be built." }, { status: 409 });
-          }
+        try {
+          const selection = resolveRoadmapBuildSelection({
+            rows: (roadmapItems ?? []) as ProjectScreenRoadmapRow[],
+            kind: payload.roadmapBuild.kind,
+            roadmapItemIds: uniqueItemIds,
+          });
+          plannedScreens = selection.plannedScreens;
+          if (payload.roadmapBuild.kind === "state_batch" && selection.parentScreenId) {
           retryContext = {
-            sourceGenerationRunId: parentItem.generated_screen_id,
+              sourceGenerationRunId: selection.parentScreenId,
             mode: "state_variants",
-            parentScreenId: parentItem.generated_screen_id,
+              parentScreenId: selection.parentScreenId,
           };
-        } else if ((roadmapItems ?? []).filter((item) => item.kind === "screen").length !== plannedScreens.length) {
-          return NextResponse.json({ error: "The roadmap screen batch does not match the approved recommendation." }, { status: 409 });
+          }
+        } catch (error) {
+          return NextResponse.json({
+            error: error instanceof Error ? error.message : "The selected suggestions are no longer available.",
+          }, { status: 409 });
         }
       }
 
