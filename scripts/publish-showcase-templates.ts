@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { loadEnvConfig } from "@next/env";
 import { createClient } from "@supabase/supabase-js";
 import { showcaseSourceData as showcaseSources } from "../lib/showcase-source-data";
+import { extractPublishedConstructionKnowledge } from "../lib/generation/published-style-extraction";
 import { uploadBytesToR2 } from "../lib/r2-upload-core";
 
 loadEnvConfig(process.cwd());
@@ -43,11 +44,12 @@ const hash = (value: unknown) => createHash("sha256").update(stable(value)).dige
 const asStrings = (value: unknown, fallback: string[]) =>
   Array.isArray(value) && value.every((item) => typeof item === "string") && value.length ? value : fallback;
 
-function makeStylePack(source: Source, project: JsonRecord, navigation: JsonRecord | null) {
+function makeStylePack(source: Source, project: JsonRecord, navigation: JsonRecord | null, screens: JsonRecord[]) {
   const charter = (project.project_charter ?? {}) as JsonRecord;
   const direction = (charter.creativeDirection ?? {}) as JsonRecord;
   const signals = (charter.designSystemSignals ?? {}) as JsonRecord;
   const visualBrief = navigation?.plan?.visualBrief || "Use a coherent navigation treatment derived from the selected visual system.";
+  const extracted = extractPublishedConstructionKnowledge(screens);
   const creativeDirectionSeed = {
     conceptName: direction.conceptName || source.title,
     styleEssence: direction.styleEssence || source.description,
@@ -79,10 +81,12 @@ function makeStylePack(source: Source, project: JsonRecord, navigation: JsonReco
     tokenSeed: project.design_tokens ?? {},
     creativeDirectionSeed,
     layoutGrammar: [
+      ...extracted.layoutGrammar,
       "Adapt the spacing, hierarchy, and composition rhythm to the user's own product.",
-      "Use the source as a visual grammar, never as a product-layout template.",
+      "Reuse proven portable construction anatomy from the source when it fits the new product; do not copy the source product's complete information architecture.",
     ],
     componentRecipes: [
+      ...extracted.componentRecipes,
       "Apply the source surface, radius, border, and typography treatment consistently.",
       "Create product-appropriate components while preserving the selected visual language.",
     ],
@@ -95,9 +99,11 @@ function makeStylePack(source: Source, project: JsonRecord, navigation: JsonReco
       signals.density || "Preserve the source system's relative density and breathing room.",
     ],
     antiPatterns: [
-      "Never reproduce the source project's features, audience, copy, or screen structure.",
+      "Never reproduce the source project's features, audience, copy, or complete screen sequence.",
+      "Never discard a proven source construction and replace it with an interchangeable rounded card stack.",
       "Never inject the source project's original prompt into generation.",
     ],
+    constructionEvidence: extracted.evidence,
   };
 }
 
@@ -138,7 +144,8 @@ async function publish(source: Source) {
   if (screensError) throw screensError;
   if (!screens?.length) throw new Error(`${source.slug}: source has no ready screens.`);
 
-  const contentHash = hash({ project, screens, navigation, usages, userAssets });
+  const stylePack = makeStylePack(source, project, navigation, screens);
+  const contentHash = hash({ project, screens, navigation, usages, userAssets, stylePack });
   const { data: current } = await admin
     .from("published_templates").select("id, version, content_hash")
     .eq("slug", source.slug).eq("is_current", true).maybeSingle();
@@ -208,7 +215,6 @@ async function publish(source: Source) {
     }));
   }
 
-  const stylePack = makeStylePack(source, project, navigation);
   const { data: template, error: templateError } = await admin.from("published_templates").insert({
     slug: source.slug,
     version,

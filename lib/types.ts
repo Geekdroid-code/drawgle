@@ -458,6 +458,8 @@ export interface ProjectCraftBlueprint {
   navigationIntent: string;
   signatureConstructions: string[];
   layoutPrinciples: string[];
+  /** Validated construction grammar ids selected from the bounded server catalog. */
+  preferredCraftIds?: string[];
   preferredCraftTags: string[];
   requiredTokenRoles: string[];
   avoid: string[];

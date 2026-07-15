@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { GENERATION_V2_BENCHMARK_CASES } from "@/lib/generation/benchmark-cases";
 import { DESIGN_STYLE_PACKS } from "@/lib/generation/design-styles";
-import { buildStyleScreenInstruction } from "@/lib/generation/prompts";
+import { buildRecreateScreenInstruction, buildStyleScreenInstruction } from "@/lib/generation/prompts";
 import { normalizeReferenceAnalysis, parsePromptScreenIntent, resolveGenerationScopeContract } from "@/lib/generation/scope-contract";
 import { shouldAttachReferenceImage } from "@/lib/generation/reference-image";
 import { screenBuildOutputTokenBudget } from "@/lib/generation/screen-budget";
@@ -72,6 +72,27 @@ describe("production generation V2 contracts", () => {
     expect(instruction).toContain("SPATIAL CONSTRUCTION CONTRACT");
     expect(instruction).toContain("layered-feature-card");
     expect(instruction).toContain("radius -> radii.featured");
+  });
+
+  it("makes reference pixels authoritative over generic tokens in recreate mode", () => {
+    const instruction = buildRecreateScreenInstruction({
+      designTokens: normalizeDesignTokens({ tokens: { radii: { app: "32px", pill: "9999px" } } }),
+      designStyle: null,
+      requiresBottomNav: false,
+      navigationArchitecture: null,
+      navigationPlan: null,
+      assetManifest: [],
+      screenPlan: {
+        name: "Reference Screen",
+        type: "root",
+        description: "Recreate the attached screen.",
+      },
+    });
+
+    expect(instruction).toContain("1) attached reference pixels");
+    expect(instruction).toContain("If these conflict on an observable visual fact, follow the image");
+    expect(instruction).toContain("exact one-off geometry");
+    expect(instruction).toContain("do not replace it with the standard app-card recipe");
   });
   it("adds enumerated screen groups instead of trusting the first number", () => {
     const scope = parsePromptScreenIntent("Must have 2 step thoughtfully planned onboarding screen, one login/signup screen and 1 home screen.");

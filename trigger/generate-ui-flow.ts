@@ -40,6 +40,7 @@ import { shouldAttachReferenceImage } from "@/lib/generation/reference-image";
 import { loadStoredPromptImage } from "@/lib/generation/prompt-reference-storage";
 import { resolveGenerationReferencePolicy } from "@/lib/generation/reference-policy";
 import { resolveProjectReferenceDna } from "@/lib/generation/reference-dna";
+import { shouldEnableSpatialCraft } from "@/lib/generation/spatial-craft-routing";
 import {
   bindReservationToScreen,
   captureGenerationCredit,
@@ -1831,13 +1832,18 @@ export const generateUiFlowTask = task({
         });
     const scopeContract = scopePreflight.scopeContract;
     const referenceAnalysis = scopePreflight.referenceAnalysis;
-    const isNewPromptOnlyProject = !existingCharter
+    const isNewProject = !existingCharter
       && !payload.projectCharter
       && (payload.planningMode ?? "project") !== "single-screen";
-    const enableSpatialCraft = referenceMode === "internal_style"
-      && !promptImage
-      && !designStyle
-      && (isNewPromptOnlyProject || Boolean(craftBlueprint));
+    // Spatial Craft is a planning/build capability, not a prompt-only reference mode.
+    // Keep it off only for literal screenshot recreation, where the pixels own the
+    // construction. Style references and published presets still need an explicit
+    // construction contract or they collapse into the builder's generic defaults.
+    const enableSpatialCraft = shouldEnableSpatialCraft({
+      referenceMode,
+      isNewProject,
+      craftBlueprint,
+    });
 
     await updateGenerationRun(admin, payload.generationRunId, {
       requested_screen_count: scopeContract.finalScreenCount ?? null,
@@ -2240,6 +2246,8 @@ export const generateUiFlowTask = task({
 	        roadmapPriority: screenPlan.roadmapPriority ?? null,
 	        explicitlyRequested: screenPlan.explicitlyRequested ?? false,
 	        stateVariants: screenPlan.stateVariants ?? [],
+	        craftSelection: screenPlan.craftSelection ?? null,
+	        spatialContract: screenPlan.spatialContract ?? null,
 	      })),
 	      roadmap: projectRoadmap,
 	      initialBatchItemKeys: plan.initialBatchItemKeys ?? plan.screens.map((screen) => screen.roadmapStableKey).filter(Boolean),

@@ -5,6 +5,7 @@ import {
   MAX_SCREEN_CRAFT_CANDIDATES,
   SPATIAL_CRAFT_GRAMMARS,
   normalizeCraftSelection,
+  normalizeProjectCraftBlueprint,
   resolveSpatialConstructionContract,
   shortlistProjectCraftGrammars,
   shortlistScreenCraftGrammars,
@@ -12,12 +13,48 @@ import {
 } from "@/lib/generation/spatial-craft";
 
 describe("spatial craft grammar library", () => {
-  it("ships the initial valid, category-balanced 20-pattern library", () => {
-    expect(SPATIAL_CRAFT_GRAMMARS).toHaveLength(20);
+  it("ships a valid category-balanced library with showcase-derived constructions", () => {
+    expect(SPATIAL_CRAFT_GRAMMARS.length).toBeGreaterThanOrEqual(26);
     expect(validateSpatialCraftLibrary()).toEqual([]);
     expect(new Set(SPATIAL_CRAFT_GRAMMARS.map((item) => item.category))).toEqual(
       new Set(["macro", "component", "data", "lighting", "navigation"]),
     );
+  });
+
+  it("derives tags and token roles from exact ids instead of trusting model aliases", () => {
+    const normalized = normalizeProjectCraftBlueprint({
+      version: 1,
+      compositionIntent: "An unboxed metric flow",
+      layerStrategy: "Direct canvas",
+      geometryIntent: "Unequal zones",
+      lightingIntent: "Restrained",
+      elevationIntent: "Mostly flat",
+      borderIntent: "Hairlines",
+      dataVisualizationIntent: "Inline plots",
+      navigationIntent: "Quiet",
+      signatureConstructions: ["showcase-unboxed-metric-flow"],
+      layoutPrinciples: ["Metrics live on the canvas"],
+      preferredCraftIds: ["showcase-unboxed-metric-flow"],
+      preferredCraftTags: ["invented-model-alias"],
+      requiredTokenRoles: ["radii.magic", "shadow.card"],
+      avoid: ["Generic card grid"],
+    });
+
+    expect(normalized.preferredCraftIds).toEqual(["showcase-unboxed-metric-flow"]);
+    expect(normalized.preferredCraftTags).not.toContain("invented-model-alias");
+    expect(normalized.requiredTokenRoles).not.toContain("radii.magic");
+    expect(normalized.requiredTokenRoles).toContain("border_widths.hairline");
+  });
+
+  it("honors explicit no-effect constraints before shortlisting", () => {
+    const project = shortlistProjectCraftGrammars(
+      "A flat sleep app with no gradients, no glow, no glass, no blur, and no shadows.",
+    );
+    const ids = project.map((item) => item.id);
+    expect(ids).not.toContain("immersive-atmospheric-canvas");
+    expect(project.every((item) => !item.requiredTokenRoles.some((role) => (
+      role.startsWith("gradients.") || role.startsWith("effects.") || role.startsWith("shadows.")
+    )))).toBe(true);
   });
 
   it("keeps project and screen context bounded", () => {

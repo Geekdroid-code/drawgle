@@ -36,20 +36,21 @@ const visualBriefAnatomy = (brief: string): NavigationDesignContract["anatomy"] 
   if (/center(?:ed)?\s+(?:action|fab)|center-action|sculpted|notch/i.test(brief)) return "center-action-dock";
   if (/glass|frost|blur|translucent/i.test(brief)) return "glass-dock";
   if (/icon-only|icon only|compact icon/i.test(brief)) return "compact-icon-rail";
+  if (/floating|detached|island|pill dock/i.test(brief)) return "floating-dock";
   if (/full-width|full width|attached|fixed rail|tab rail/i.test(brief)) return "fixed-tab-rail";
-  return "floating-dock";
+  return "fixed-tab-rail";
 };
 
 export function defaultNavigationDesignContract(visualBrief = ""): NavigationDesignContract {
   const anatomy = visualBriefAnatomy(visualBrief);
   return {
     anatomy,
-    width: anatomy === "fixed-tab-rail" ? "inset" : "content",
+    width: anatomy === "fixed-tab-rail" ? "full" : "content",
     labels: anatomy === "compact-icon-rail" ? "hidden" : "always",
     activeTreatment: anatomy === "fixed-tab-rail" ? "tint" : "icon-fill",
     surface: anatomy === "glass-dock" ? "glass" : "solid",
-    radiusPx: anatomy === "fixed-tab-rail" ? 18 : 28,
-    safeAreaOffsetPx: 12,
+    radiusPx: anatomy === "fixed-tab-rail" ? 0 : 28,
+    safeAreaOffsetPx: anatomy === "fixed-tab-rail" ? 4 : 12,
     itemGapPx: 4,
     iconSizePx: 20,
     border: true,
@@ -130,7 +131,7 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
   const itemCount = navItems.length;
   const contentWidth = Math.min(356, itemCount * 70 + 32);
   const width = design.width === "full"
-    ? "calc(100% - 24px)"
+    ? "100%"
     : design.width === "inset"
       ? "calc(100% - 32px)"
       : `min(${contentWidth}px,calc(100% - 32px))`;

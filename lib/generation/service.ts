@@ -40,10 +40,12 @@ import { resolveFoundationPromptMode, resolvePlannerPromptMode } from "@/lib/gen
 import {
   formatCompactCraftCatalog,
   normalizeCraftSelection,
+  normalizeProjectCraftBlueprint,
   resolveSpatialConstructionContract,
   shortlistProjectCraftGrammars,
   shortlistScreenCraftGrammars,
 } from "@/lib/generation/spatial-craft";
+import { ensureCraftTokenCoverage } from "@/lib/generation/craft-token-coverage";
 import {
   analyzeReferenceImageForScope,
   preflightGenerationScope,
@@ -348,7 +350,7 @@ const normalizeNavigationDesignAnatomy = (value: unknown) => {
   if (/glass|frost|blur/.test(normalized)) return "glass-dock";
   if (/compact|icon-only|icon-rail/.test(normalized)) return "compact-icon-rail";
   if (/fixed|full|tab-rail/.test(normalized)) return "fixed-tab-rail";
-  return "floating-dock";
+  return "fixed-tab-rail";
 };
 
 const normalizeNavigationLabels = (value: unknown) => {
@@ -492,6 +494,7 @@ const ProjectCraftBlueprintSchema = z.object({
   navigationIntent: z.string().trim().min(1).max(1600),
   signatureConstructions: z.array(z.string().trim().min(1).max(600)).min(1).max(4),
   layoutPrinciples: z.array(z.string().trim().min(1).max(600)).min(2).max(8),
+  preferredCraftIds: z.array(z.string().trim().min(1).max(80)).max(5).default([]),
   preferredCraftTags: z.array(z.string().trim().min(1).max(80)).max(12).default([]),
   requiredTokenRoles: z.array(z.string().trim().min(1).max(120)).max(24).default([]),
   avoid: z.array(z.string().trim().min(1).max(600)).min(1).max(12),
@@ -819,7 +822,7 @@ const fallbackProjectCraftBlueprint = ({
   creativeDirection: CreativeDirection;
 }): ProjectCraftBlueprint => {
   const candidates = shortlistProjectCraftGrammars(prompt).slice(0, 3);
-  return {
+  return normalizeProjectCraftBlueprint({
     version: 1,
     compositionIntent: creativeDirection.compositionPrinciples.slice(0, 2).join(" "),
     layerStrategy: "Use a clear base canvas, one dominant content plane, and elevated or floating layers only where their relationship communicates hierarchy.",
@@ -831,10 +834,11 @@ const fallbackProjectCraftBlueprint = ({
     navigationIntent: "Keep renderer-owned navigation coherent with the project material system and safely separated from screen content.",
     signatureConstructions: candidates.map((candidate) => candidate.summary).slice(0, 2),
     layoutPrinciples: creativeDirection.compositionPrinciples.slice(0, 6),
+    preferredCraftIds: candidates.map((candidate) => candidate.id),
     preferredCraftTags: Array.from(new Set(candidates.flatMap((candidate) => candidate.craftTags))).slice(0, 10),
     requiredTokenRoles: Array.from(new Set(candidates.flatMap((candidate) => candidate.requiredTokenRoles))).slice(0, 20),
     avoid: creativeDirection.avoid.slice(0, 10),
-  };
+  }, candidates.map((candidate) => candidate.id));
 };
 
 const formatProjectCraftBlueprint = (blueprint: ProjectCraftBlueprint) => [
@@ -848,6 +852,7 @@ const formatProjectCraftBlueprint = (blueprint: ProjectCraftBlueprint) => [
   `Navigation intent: ${blueprint.navigationIntent}`,
   `Signature constructions: ${blueprint.signatureConstructions.join(" | ")}`,
   `Layout principles: ${blueprint.layoutPrinciples.join(" | ")}`,
+  `Preferred construction ids: ${(blueprint.preferredCraftIds ?? []).join(", ") || "none"}`,
   `Preferred craft tags: ${blueprint.preferredCraftTags.join(", ") || "none"}`,
   `Required live token roles: ${blueprint.requiredTokenRoles.join(", ") || "existing core tokens only"}`,
   `Avoid: ${blueprint.avoid.join(" | ")}`,
@@ -2399,6 +2404,10 @@ async function generateDesignFoundationDirection({
     });
     const parts: Array<Record<string, unknown>> = [];
     const designStyleContract = formatDesignStyleContract(designStyle);
+    const craftEvidence = [prompt, referenceAnalysis ? formatReferenceAnalysis(referenceAnalysis) : ""]
+      .filter(Boolean)
+      .join("\n");
+    const craftCandidates = enableSpatialCraft ? shortlistProjectCraftGrammars(craftEvidence) : [];
 
     if (designStyleContract) {
       parts.push({
@@ -2423,13 +2432,12 @@ async function generateDesignFoundationDirection({
     }
 
     if (enableSpatialCraft) {
-      const candidates = shortlistProjectCraftGrammars(prompt);
       parts.push({
         text: [
           "Use the compact candidates as professional construction vocabulary, not as complete visual presets.",
           "Choose and adapt only ideas that fit the product. Do not copy a candidate mechanically.",
           "Compact project craft candidates:",
-          formatCompactCraftCatalog(candidates),
+          formatCompactCraftCatalog(craftCandidates),
         ].join("\n"),
       });
     }
@@ -2446,7 +2454,11 @@ async function generateDesignFoundationDirection({
       const creativeDirection = foundation.data.creativeDirection;
       const craftBlueprint = enableSpatialCraft
         ? foundation.data.craftBlueprint
-          ?? fallbackProjectCraftBlueprint({ prompt, creativeDirection })
+          ? normalizeProjectCraftBlueprint(
+              foundation.data.craftBlueprint,
+              craftCandidates.map((candidate) => candidate.id),
+            )
+          : fallbackProjectCraftBlueprint({ prompt, creativeDirection })
         : null;
       return { creativeDirection, craftBlueprint };
     }
@@ -2589,10 +2601,20 @@ export async function planUiFlow({
   const resolvedCreativeDirection = projectContext?.trim()
     ? providedCreativeDirection ?? existingCharter?.creativeDirection ?? null
     : creativeDirection ?? fallbackCreativeDirection({ prompt, referenceAnalysis });
+  const rawCraftBlueprint = providedCraftBlueprint ?? existingCharter?.craftBlueprint ?? null;
+  const craftEvidence = [prompt, referenceAnalysis ? formatReferenceAnalysis(referenceAnalysis) : ""]
+    .filter(Boolean)
+    .join("\n");
+  const craftCandidateIds = enableSpatialCraft
+    ? shortlistProjectCraftGrammars(craftEvidence).map((candidate) => candidate.id)
+    : [];
   const resolvedCraftBlueprint = enableSpatialCraft
-    ? providedCraftBlueprint
-      ?? existingCharter?.craftBlueprint
-      ?? (resolvedCreativeDirection ? fallbackProjectCraftBlueprint({ prompt, creativeDirection: resolvedCreativeDirection }) : null)
+    ? rawCraftBlueprint
+      ? normalizeProjectCraftBlueprint(
+          rawCraftBlueprint,
+          craftCandidateIds,
+        )
+      : (resolvedCreativeDirection ? fallbackProjectCraftBlueprint({ prompt, creativeDirection: resolvedCreativeDirection }) : null)
     : existingCharter?.craftBlueprint ?? null;
   const availableCraftTokenPaths = enableSpatialCraft && designTokens
     ? new Set(flattenDesignTokensToCssVariables(designTokens).map((token) => token.path))
@@ -3408,18 +3430,24 @@ export async function generateDesignFoundation({
 
     if (!parsed.success) {
       return {
-        designTokens: buildApprovedDesignTokens(rawTokens, screenMargin),
+        designTokens: ensureCraftTokenCoverage(
+          buildApprovedDesignTokens(rawTokens, screenMargin),
+          craftBlueprint,
+        ),
         creativeDirection,
         craftBlueprint,
       };
     }
 
     return {
-      designTokens: buildApprovedDesignTokens(parsed.data as {
-        system_schema?: string;
-        meta?: DesignTokenMetadata;
-        tokens?: DesignTokenValues;
-      }, screenMargin),
+      designTokens: ensureCraftTokenCoverage(
+        buildApprovedDesignTokens(parsed.data as {
+          system_schema?: string;
+          meta?: DesignTokenMetadata;
+          tokens?: DesignTokenValues;
+        }, screenMargin),
+        craftBlueprint,
+      ),
       creativeDirection,
       craftBlueprint,
     };

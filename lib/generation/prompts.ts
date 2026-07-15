@@ -65,17 +65,17 @@ const plannerBlueprintJsonContract = `Return JSON with this exact top-level shap
       }
     ],
     "design": {
-      "anatomy": "floating-dock",
-      "width": "content",
+      "anatomy": "fixed-tab-rail",
+      "width": "full",
       "labels": "always",
-      "active_treatment": "icon-fill",
+      "active_treatment": "tint",
       "surface": "solid",
-      "radius_px": 28,
-      "safe_area_offset_px": 12,
+      "radius_px": 0,
+      "safe_area_offset_px": 4,
       "item_gap_px": 4,
       "icon_size_px": 20,
       "border": true,
-      "elevation": "low",
+      "elevation": "none",
       "center_action_item_id": null
     },
     "visual_brief": "Project-specific navigation anatomy and reference measurements.",
@@ -253,6 +253,7 @@ Blueprint rules:
 - Never use onboarding, splash, auth, chat, camera, player, checkout, confirmation, modal, transient tracking, or detail screens as primary destinations.
 - screen_chrome assigns an active navigation_item_id only to generated root destinations. Planned destinations are never active.
 - Use Lucide icon names. Select one supported design anatomy and provide bounded measurements; the renderer, not the builder, owns navigation HTML.
+- The JSON example is a shape example, not a visual default. Choose navigation anatomy from product/reference evidence and the Creative Direction. Floating/glass/center-action docks require an explicit compositional reason; otherwise prefer a quiet attached rail. Do not repeatedly emit a black 28px floating pill merely because it appears in the schema.
 - charter.navigationModel must match navigation_architecture. keyFeatures must be durable product capabilities, not screen names.
 - charter.designRationale and creativeDirection.compositionPrinciples must be executable layout rules: viewport budget, screen-edge padding, horizontal rail, section rhythm, card/content padding, typography discipline, bottom-safe content stop points, dense-row vs spacious-hero usage, wrapping/truncation, and overflow avoidance.
 - If Current Project Context contains approved navigation architecture or plan, preserve it unless the user explicitly asks to add, remove, or redesign primary navigation.`;
@@ -371,11 +372,11 @@ const spatialCraftDirectionJsonSchema = `Return strictly valid JSON in this form
     "navigationIntent": "How renderer-owned navigation belongs to the material system",
     "signatureConstructions": ["One or two memorable construction moves"],
     "layoutPrinciples": ["Concrete reusable spatial rule", "Concrete reusable spatial rule"],
-    "preferredCraftTags": ["short normalized tag"],
-    "requiredTokenRoles": ["Only optional live token paths actually needed"],
+    "preferredCraftIds": ["Exact id copied from the supplied compact craft candidates"],
     "avoid": ["Specific spatial or material failure to avoid"]
   }
 }
+Select one dominant macro construction and at most two supporting component/data constructions. Never invent ids. The server derives tags and live-token requirements from the selected ids, so do not output those fields.
 Do not select a complete style preset. Use the supplied craft candidates as atomic construction vocabulary and keep the result coherent.`;
 
 export const buildCreativeDirectionInstruction = ({
@@ -428,7 +429,7 @@ Return strictly valid JSON in this format after inspecting the image with an exp
       { "label": "Home", "icon": "house outline" },
       { "label": "Markets", "icon": "rising chart" }
     ],
-    "anatomy": "floating-dock",
+    "anatomy": "Observed navigation anatomy and attachment relationship",
     "geometry": "Observed width, height, inset, radius, padding, and item spacing.",
     "labels": "always",
     "activeState": "Observed active icon, label, fill, indicator, and contrast treatment.",
@@ -512,7 +513,7 @@ Return strictly valid JSON in this format:
       "stylingCues": ["Material, color, radius, edge, shadow, glass, typography, icon, or micro-shape cue"],
       "interactionCues": ["Portable interaction or state cue"],
       "copyPatterns": ["Reusable text rhythm or label treatment"],
-      "implementationNotes": ["Do-not-copy-layout rule plus reusable craftsmanship note"],
+      "implementationNotes": ["Reusable multi-layer construction recipe with parent/child anatomy", "Exact edge, depth, clipping, or optical detail that must survive", "A concrete cheapening failure to avoid"],
       "compositionRules": ["Portable composition principle: viewport zones, focal anchor, asymmetry, negative-space budget, or scroll rhythm."],
       "spacingRules": ["Portable spacing principle: macro section gaps versus micro internal padding/gaps, including bad ratios to avoid."],
       "componentRules": ["Portable component construction principle: chip rows, cards, lists, forms, charts, nav, or CTA treatment."],
@@ -534,7 +535,6 @@ Return strictly valid JSON in this format:
 }
 
 Rules:
-- Batch selection: return detailed briefs only for roadmap.initial_batch_keys, in that exact order, with the matching roadmap_stable_key. Never replace a selected roadmap item with an unselected one.
 - Return exactly one screenReferences entry for every visible phone screen or app frame counted by screenCountEstimate. boundingBox uses normalized 0-1 image coordinates.
 - Extract material quality, shadows, radii, blur/glass, typography character, icon weight, color rhythm, polish, micro-shapes, navigation treatment, component craftsmanship, spacing density, and viewport fit constraints.
 - Do not preserve exact section order, object positions, domain content, data values, product objects, literal copy, or full screenshot anatomy.
@@ -547,6 +547,7 @@ Rules:
 - For charts, maps, media, or large visuals, describe the reusable treatment: geometry style, crop behavior, label density, axis/legend subtlety, container padding, clipping discipline, and how the visual remains legible inside a mobile viewport.
 - Name anti-patterns to avoid when applying this style to another product, such as flattening layered surfaces, using generic gray cards, overusing the accent color, making all cards equal weight, or turning crafted navigation into a default tab bar.
 - Identify what would make another product feel similarly premium without making it a clone.
+- For every screenReferences entry, provide at least three implementationNotes. Each note must name actual parent/child anatomy or an edge, clipping, lighting, divider, icon, navigation, or spacing recipe the builder can execute; vague adjectives do not count.
 - The downstream planner and builder will create app-specific layouts from the user prompt, so your analysis must separate visual craft from layout template.`;
 
 // ---------------------------------------------------------------------------
@@ -1108,8 +1109,9 @@ const buildScreenInstruction = ({
   })();
   const modeInstruction = mode === "recreate"
     ? [
-      "If an image is attached in the user parts, treat it as structural evidence for this screen route.",
-      "Preserve visible layer order, containment, layout mechanics, edge/depth treatment, navigation style family, and component construction while honoring the project tokens and screen brief.",
+      "If an image is attached in the user parts, it is the highest-priority structural and visual evidence for this screen route.",
+      "Preserve visible section order, proportions, layer order, containment, layout mechanics, edge/depth treatment, navigation family, and component construction.",
+      "Use tokens to bind repeated visual values, but never let a generic token default normalize away visible reference geometry, materials, clipping, overlaps, or one-off optical corrections.",
     ].join(" ")
     : [
       "Build from the screen brief, charter, navigation plan, creative direction, and tokens.",
@@ -1132,6 +1134,11 @@ ${mode === "recreate" && screenPlan.referenceScreenIndex && screenPlan.reference
 
 ${chartBuildInstruction}
 ${modeInstruction}
+
+EVIDENCE PRIORITY:
+${mode === "recreate"
+    ? "1) attached reference pixels, 2) reference analysis for details confirmed by those pixels, 3) screen brief for product copy and behavior, 4) project tokens for repeated values. If these conflict on an observable visual fact, follow the image."
+    : "1) explicit user constraints and screen purpose, 2) spatial construction/style contracts, 3) observable reusable reference craft when present, 4) project tokens and shared product memory. Do not copy reference information architecture in style mode."}
 
 CRITICAL INSTRUCTION 0: SCREEN SPEC FIDELITY
 Treat Screen Description as a concrete implementation spec, not loose inspiration.
@@ -1162,6 +1169,7 @@ For token values without a named utility, use Tailwind arbitrary values with CSS
 Do NOT freeze project token values as raw hex or raw pixels when a token variable exists. Token gradients are canonical for expressive CTAs, app backgrounds, surface highlights, and accent rings. Raw/custom gradients are allowed only for deliberate one-off art details such as charts, maps, illustrations, or non-system lighting effects.
 Do NOT default to generic Tailwind palette values (e.g., bg-gray-900) if a design token exists for that purpose.
 Do NOT invent unapproved radius tiers, border widths, blur strengths, or shadow strengths. Use the live core tokens plus any optional advanced roles present in the strict or spatial contract. If an advanced role is absent, fall back to the core token instead of hardcoding a substitute.
+${mode === "recreate" ? "REFERENCE EXCEPTION: exact one-off geometry that is visibly essential to fidelity (including a unique radius, offset, crop, clip-path, transform, divider, highlight, or shadow stack) may use an explicit value. Do not promote it into a global token and do not replace it with the standard app-card recipe." : ""}
 
 STRICT DESIGN CONTRACT:
 ${buildStrictDesignContract(designTokens)}
@@ -1190,7 +1198,7 @@ ${buildSharedNavigationContract({ navigationInstruction, navigationPlan, screenP
 - Safe areas: top container pt-[${safeTop}], bottom/content pb-[${safeBottom}] unless shared nav requires larger clearance.
 - Clickable controls: min-h-[${minTouch}].
 - Text colors: use token classes/vars such as dg-text-high or text-[var(--dg-color-text-high-emphasis)] (current high text ${textHigh}).
-- Token lock: major app surfaces, backgrounds, cards, text, actions, nav-adjacent regions, radii, shadows, and spacing must use dg-* utilities or var(--dg-*). Do not use bg-white, bg-gray-*, text-black, raw hex/rgb, or arbitrary px values for system styling when an approved token role exists.
+- Token lock: major repeated app surfaces, backgrounds, cards, text, actions, nav-adjacent regions, radii, shadows, and spacing must use dg-* utilities or var(--dg-*). Do not use bg-white, bg-gray-*, text-black, raw hex/rgb, or arbitrary px values for repeated system styling when an approved token role exists.${mode === "recreate" ? " Preserve image-observed one-off geometry under the reference exception above." : ""}
 - No phone frame, device mockup, notch, status bar, markdown fence, html/head/body tags, scripts, JSX, React, className, JS expressions, arrays, map(), template literals, or class/style objects.
 - Static HTML only. Manually expand repeated UI items. Return only the content HTML.
 - Icons: use Lucide via <i data-lucide="icon-name"></i> or static inline SVG.

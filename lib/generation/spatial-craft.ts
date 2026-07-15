@@ -6,7 +6,7 @@ import type {
   SpatialCraftSelection,
 } from "@/lib/types";
 
-export const SPATIAL_CRAFT_LIBRARY_VERSION = 1;
+export const SPATIAL_CRAFT_LIBRARY_VERSION = 2;
 export const MAX_PROJECT_CRAFT_CANDIDATES = 8;
 export const MAX_SCREEN_CRAFT_CANDIDATES = 6;
 export const MAX_SELECTED_CRAFT_GRAMMARS = 3;
@@ -59,6 +59,8 @@ export interface SpatialCraftGrammar {
   signatureDetail?: string | null;
   antiPatterns: string[];
 }
+
+const UNIQUE_CRAFT_ID_LIMIT = MAX_SELECTED_CRAFT_GRAMMARS;
 
 const grammar = (value: SpatialCraftGrammar) => value;
 
@@ -417,6 +419,115 @@ export const SPATIAL_CRAFT_GRAMMARS: SpatialCraftGrammar[] = [
     tokenBindings: { surface: "navigation.surface", border: "navigation.border", width: "border_widths.hairline" },
     antiPatterns: ["Do not add navigation markup inside screen HTML.", "Do not use a large pill behind every item."],
   }),
+  grammar({
+    id: "showcase-command-stage",
+    label: "Showcase Command Stage",
+    version: 1,
+    category: "macro",
+    summary: "A single oversized task or status stage carries the first viewport while secondary information stays structurally quieter.",
+    compatibleRoles: ["home", "dashboard", "care", "health", "reminder", "finance", "commerce"],
+    contentTags: ["next", "dose", "reminder", "primary action", "status", "balance", "summary", "order"],
+    craftTags: ["showcase-derived", "command", "focal", "stage", "accessible"],
+    requiredTokenRoles: ["radii.featured", "color.action.primary", "spacing.lg"],
+    viewportZones: ["Reserve 42-58% of the first viewport for one unmistakable command stage.", "Let the next section begin visibly below it without competing for equal weight."],
+    layerPlan: ["Quiet app canvas and compact identity header.", "One oversized command stage.", "Custom focal visualization or primary value inside the stage.", "Action integrated into the stage boundary.", "Secondary content rail below."],
+    geometryRules: ["The stage is one composed silhouette, not a heading plus several nested cards.", "Use a large uninterrupted interior and one custom geometric visual, then anchor the action to its lower edge."],
+    positioningRules: ["Keep stage content on an intentional top/middle/bottom axis.", "Allow a following rail or section edge to peek into the viewport to signal continuation."],
+    tokenBindings: { stageRadius: "radii.featured", accent: "color.action.primary", internalSpace: "spacing.lg" },
+    signatureDetail: "Derived from the showcase command surfaces: one memorable stage with an embedded action, not a dashboard grid.",
+    antiPatterns: ["Do not surround every datum inside the stage with another card.", "Do not repeat the same stage silhouette for secondary rows."],
+  }),
+  grammar({
+    id: "showcase-unboxed-metric-flow",
+    label: "Showcase Unboxed Metric Flow",
+    version: 1,
+    category: "macro",
+    summary: "Metrics, actions, and progress rows sit directly on the canvas; alignment and plotted geometry replace card containment.",
+    compatibleRoles: ["analytics", "dashboard", "health", "finance", "tracking", "performance", "status"],
+    contentTags: ["metrics", "progress", "budget", "timeline", "activity", "health", "sleep", "performance"],
+    craftTags: ["showcase-derived", "unboxed", "data", "continuous", "precise"],
+    requiredTokenRoles: ["border_widths.hairline", "color.text.medium_emphasis", "spacing.md"],
+    viewportZones: ["Open with one unboxed metric or date anchor.", "Use the center of the viewport for plotted or progressive information.", "Continue into aligned rows without individual card shells."],
+    layerPlan: ["Continuous base canvas.", "Free-standing metric and action groups.", "Progress or chart geometry.", "Aligned data rows separated by space or hairlines."],
+    geometryRules: ["Action icons may use wells, but their labels and related values remain unboxed.", "Repeated rows share baselines and plot widths instead of rounded outer containers."],
+    positioningRules: ["Use stable left and right rails for comparable labels and values.", "Let progress geometry span most of the content width."],
+    tokenBindings: { divider: "border_widths.hairline", secondaryText: "color.text.medium_emphasis", rhythm: "spacing.md" },
+    dataVisualization: "Use real bars, arcs, tracks, or SVG paths as first-class layout geometry rather than decorating a card.",
+    signatureDetail: "Derived from the Neobank and performance showcase screens where data lives on the canvas instead of inside repeated tiles.",
+    antiPatterns: ["Do not wrap every budget, activity, or metric row in a rounded white card.", "Do not use identical icon-left/text-middle/value-right cards for the whole screen."],
+  }),
+  grammar({
+    id: "showcase-editorial-product-stage",
+    label: "Showcase Editorial Product Stage",
+    version: 1,
+    category: "macro",
+    summary: "Copy and a dominant image, illustration, or object share an asymmetric stage with deliberate cropping and an anchored conversion action.",
+    compatibleRoles: ["commerce", "product", "food", "travel", "media", "discovery", "detail"],
+    contentTags: ["product", "food", "shop", "order", "discover", "collection", "media", "image"],
+    craftTags: ["showcase-derived", "editorial", "asymmetric", "media", "conversion"],
+    requiredTokenRoles: ["radii.featured", "color.action.primary", "spacing.lg"],
+    viewportZones: ["Use a broad editorial opening with copy on one side and a dominant visual crossing the opposite edge.", "Keep discovery rails or product grids below the stage."],
+    layerPlan: ["Quiet background.", "Asymmetric feature stage.", "Text and CTA plane.", "Cropped or transparent visual plane.", "Discovery content below."],
+    geometryRules: ["The visual occupies roughly 42-58% of the stage and may crop against one edge.", "The CTA is part of the composition, not a generic full-width button below it."],
+    positioningRules: ["Maintain separation between the text measure and visual focal mass.", "Use controlled edge cropping to create depth without overlap on copy."],
+    tokenBindings: { stageRadius: "radii.featured", action: "color.action.primary", gap: "spacing.lg" },
+    signatureDetail: "Derived from showcase commerce screens with a designed product stage rather than a generic promotional card.",
+    antiPatterns: ["Do not center a small placeholder image above centered copy.", "Do not turn the stage into a conventional banner with equal padding on every side."],
+  }),
+  grammar({
+    id: "showcase-partial-peek-rail",
+    label: "Showcase Partial-Peek Rail",
+    version: 1,
+    category: "component",
+    summary: "A horizontal rail intentionally reveals part of the next unequal item to communicate continuation and create visual tension.",
+    compatibleRoles: ["home", "discovery", "commerce", "analytics", "finance", "media"],
+    contentTags: ["carousel", "categories", "statistics", "products", "cards", "recommendations", "rail"],
+    craftTags: ["showcase-derived", "rail", "peek", "asymmetric", "scroll"],
+    requiredTokenRoles: ["radii.card", "spacing.md"],
+    viewportZones: ["Use at a section boundary where more content exists horizontally."],
+    layerPlan: ["Section heading rail.", "Horizontal overflow track.", "Primary item and partially visible continuation item."],
+    geometryRules: ["Items may have unequal widths when their content importance differs.", "Clip the rail at the viewport, never each item independently."],
+    positioningRules: ["Start on the main content rail and let the track extend to the viewport edge.", "Expose roughly 12-24% of the next item."],
+    tokenBindings: { itemRadius: "radii.card", gap: "spacing.md" },
+    antiPatterns: ["Do not squeeze the whole rail into equal columns.", "Do not show a tiny accidental sliver that reads as overflow damage."],
+  }),
+  grammar({
+    id: "showcase-embedded-action-capsule",
+    label: "Showcase Embedded Action Capsule",
+    version: 1,
+    category: "component",
+    summary: "A wide action capsule embeds direction, label, and a contrasting circular terminal control into one custom silhouette.",
+    compatibleRoles: ["home", "detail", "commerce", "care", "finance", "onboarding"],
+    contentTags: ["primary action", "next", "continue", "taken", "order", "send", "confirm"],
+    craftTags: ["showcase-derived", "action", "capsule", "directional", "custom"],
+    requiredTokenRoles: ["radii.pill", "color.action.primary", "sizing.standard_button_height"],
+    viewportZones: ["Use once at the terminal edge of a focal surface or workflow section."],
+    layerPlan: ["Capsule base.", "Leading direction or context cue.", "Centered action label.", "Contrasting terminal circular control."],
+    geometryRules: ["The terminal control is inset inside the capsule and nearly matches its height.", "Use asymmetric internal spacing so the label remains optically centered."],
+    positioningRules: ["Anchor the capsule to the lower boundary of the focal construction."],
+    tokenBindings: { radius: "radii.pill", action: "color.action.primary", height: "sizing.standard_button_height" },
+    signatureDetail: "Derived from the Neo Mint showcase action capsule with an embedded directional endpoint.",
+    antiPatterns: ["Do not use the construction for every button.", "Do not place a detached floating arrow beside a normal button."],
+  }),
+  grammar({
+    id: "showcase-custom-gauge-stage",
+    label: "Showcase Custom Gauge Stage",
+    version: 1,
+    category: "data",
+    summary: "A gauge or progress visualization is custom-drawn as the main object of a stage and paired with a strong semantic value.",
+    compatibleRoles: ["finance", "health", "progress", "care", "performance", "dashboard"],
+    contentTags: ["progress", "completion", "score", "expenses", "adherence", "readiness", "status"],
+    craftTags: ["showcase-derived", "gauge", "focal", "custom", "data"],
+    requiredTokenRoles: ["color.action.primary", "border_widths.hairline", "radii.featured"],
+    viewportZones: ["Give the gauge a dedicated focal field with enough height to be immediately legible."],
+    layerPlan: ["Focal stage.", "Quiet gauge track.", "Active arc or segmented geometry.", "Central value and semantic label.", "Related action below or embedded."],
+    geometryRules: ["Construct the gauge with SVG paths or deliberate HTML arcs, including a meaningful inactive track.", "Use one active progression and no decorative duplicate rings."],
+    positioningRules: ["Center the semantic value inside or directly beneath the plotted geometry.", "Keep annotations outside the arc's active stroke."],
+    tokenBindings: { active: "color.action.primary", edge: "border_widths.hairline", stageRadius: "radii.featured" },
+    dataVisualization: "Build a real SVG arc, segmented semicircle, or ring with an explicit progress ratio and readable track contrast.",
+    signatureDetail: "Derived from showcase focal gauges that behave as layout objects, not small dashboard widgets.",
+    antiPatterns: ["Do not substitute a generic circular percentage ring when the stage supports a more expressive semicircle or segmented path.", "Do not place several gauges side by side."],
+  }),
 ];
 
 const normalizedWords = (value: string) => new Set(
@@ -431,6 +542,20 @@ const containsPhrase = (input: string, phrase: string) => {
   const normalizedInput = ` ${input.toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim()} `;
   const normalizedPhrase = phrase.toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
   return normalizedPhrase.length > 0 && normalizedInput.includes(` ${normalizedPhrase} `);
+};
+
+const conflictsWithExplicitConstraint = (item: SpatialCraftGrammar, input: string) => {
+  const normalized = input.toLowerCase();
+  const required = new Set(item.requiredTokenRoles);
+  if (/\b(?:no|without|avoid)\s+(?:any\s+)?gradients?\b/.test(normalized)
+    && Array.from(required).some((path) => path.startsWith("gradients."))) return true;
+  if (/\b(?:no|without|avoid)\s+(?:any\s+)?(?:glass|glassmorphism|blur)\b/.test(normalized)
+    && (required.has("color.surface.glass") || Array.from(required).some((path) => path.startsWith("effects.") && path.includes("blur")))) return true;
+  if (/\b(?:no|without|avoid)\s+(?:any\s+)?(?:shadows?|elevation)\b/.test(normalized)
+    && Array.from(required).some((path) => path.startsWith("shadows."))) return true;
+  if (/\b(?:no|without|avoid)\s+(?:any\s+)?glow\b/.test(normalized)
+    && (required.has("shadows.glow") || required.has("gradients.accent_glow"))) return true;
+  return false;
 };
 
 const overlapCount = (input: Set<string>, values: string[]) => values.reduce((score, value) => {
@@ -450,6 +575,7 @@ const blueprintText = (blueprint?: ProjectCraftBlueprint | null) => blueprint
       blueprint.navigationIntent,
       blueprint.signatureConstructions.join(" "),
       blueprint.layoutPrinciples.join(" "),
+      (blueprint.preferredCraftIds ?? []).join(" "),
       blueprint.preferredCraftTags.join(" "),
     ].join(" ")
   : "";
@@ -458,19 +584,22 @@ const scoreGrammar = ({
   grammar: item,
   input,
   preferredTags,
+  preferredIds,
 }: {
   grammar: SpatialCraftGrammar;
   input: string;
   preferredTags: Set<string>;
+  preferredIds: Set<string>;
 }) => {
   const inputWords = normalizedWords(input);
   const roleScore = overlapCount(inputWords, item.compatibleRoles) * 6;
   const contentScore = overlapCount(inputWords, item.contentTags) * 5;
   const craftScore = overlapCount(inputWords, item.craftTags) * 4;
   const preferredScore = item.craftTags.filter((tag) => preferredTags.has(tag)).length * 8;
+  const preferredIdScore = preferredIds.has(item.id) ? 40 : 0;
   const phraseScore = [...item.compatibleRoles, ...item.contentTags].filter((term) => containsPhrase(input, term)).length * 3;
   const avoidScore = (item.avoidTags ?? []).filter((term) => containsPhrase(input, term)).length * 12;
-  return roleScore + contentScore + craftScore + preferredScore + phraseScore - avoidScore;
+  return roleScore + contentScore + craftScore + preferredScore + preferredIdScore + phraseScore - avoidScore;
 };
 
 const rankGrammars = ({
@@ -482,8 +611,10 @@ const rankGrammars = ({
 }) => {
   const combined = `${input} ${blueprintText(blueprint)}`.trim();
   const preferredTags = new Set((blueprint?.preferredCraftTags ?? []).map((tag) => tag.toLowerCase()));
+  const preferredIds = new Set(blueprint?.preferredCraftIds ?? []);
   return SPATIAL_CRAFT_GRAMMARS
-    .map((item) => ({ item, score: scoreGrammar({ grammar: item, input: combined, preferredTags }) }))
+    .filter((item) => !conflictsWithExplicitConstraint(item, input))
+    .map((item) => ({ item, score: scoreGrammar({ grammar: item, input: combined, preferredTags, preferredIds }) }))
     .sort((first, second) => second.score - first.score || first.item.id.localeCompare(second.item.id));
 };
 
@@ -505,6 +636,49 @@ export const shortlistProjectCraftGrammars = (prompt: string) => boundedByCatego
   rankGrammars({ input: prompt }),
   MAX_PROJECT_CRAFT_CANDIDATES,
 );
+
+export function findSpatialCraftGrammar(id: string) {
+  return SPATIAL_CRAFT_GRAMMARS.find((item) => item.id === id) ?? null;
+}
+
+export const normalizeProjectCraftBlueprint = (
+  blueprint: ProjectCraftBlueprint,
+  fallbackIds: string[] = [],
+): ProjectCraftBlueprint => {
+  const rawIds = [
+    ...(blueprint.preferredCraftIds ?? []),
+    ...blueprint.preferredCraftTags,
+    ...blueprint.signatureConstructions,
+  ];
+  const selectedIds = Array.from(new Set(rawIds
+    .map((value) => value.trim().toLowerCase())
+    .filter((value) => Boolean(findSpatialCraftGrammar(value)))))
+    .slice(0, UNIQUE_CRAFT_ID_LIMIT);
+  const resolvedIds = (selectedIds.length > 0
+    ? selectedIds
+    : fallbackIds.filter((id) => Boolean(findSpatialCraftGrammar(id))))
+    .slice(0, UNIQUE_CRAFT_ID_LIMIT);
+  const selected = resolvedIds
+    .map(findSpatialCraftGrammar)
+    .filter((item): item is SpatialCraftGrammar => Boolean(item));
+  if (selected.length === 0) {
+    return {
+      ...blueprint,
+      preferredCraftIds: [],
+      preferredCraftTags: [],
+      requiredTokenRoles: [],
+    };
+  }
+  return {
+    ...blueprint,
+    preferredCraftIds: selected.map((item) => item.id),
+    preferredCraftTags: Array.from(new Set(selected.flatMap((item) => item.craftTags))).slice(0, 12),
+    requiredTokenRoles: Array.from(new Set(selected.flatMap((item) => item.requiredTokenRoles))).slice(0, 24),
+    signatureConstructions: blueprint.signatureConstructions.length > 0
+      ? blueprint.signatureConstructions.slice(0, 4)
+      : selected.map((item) => item.summary).slice(0, 4),
+  };
+};
 
 export const shortlistScreenCraftGrammars = ({
   prompt,
@@ -532,10 +706,14 @@ export const shortlistScreenCraftGrammars = ({
 };
 
 export const formatCompactCraftCatalog = (items: SpatialCraftGrammar[]) => items
-  .map((item) => `- ${item.id} [${item.category}]: ${item.summary} Best for ${item.compatibleRoles.join(", ")}.`)
+  .map((item) => [
+    `- ${item.id} [${item.category}]: ${item.summary}`,
+    `Best for ${item.compatibleRoles.join(", ")}.`,
+    `Construction: ${item.geometryRules[0]} ${item.positioningRules[0]}`,
+    `Avoid: ${item.antiPatterns[0]}`,
+    `Live roles: ${item.requiredTokenRoles.join(", ")}.`,
+  ].join(" "))
   .join("\n");
-
-export const findSpatialCraftGrammar = (id: string) => SPATIAL_CRAFT_GRAMMARS.find((item) => item.id === id) ?? null;
 
 export const normalizeCraftSelection = (value: unknown): SpatialCraftSelection | null => {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;

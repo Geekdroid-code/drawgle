@@ -697,7 +697,7 @@ const countOnlyFallback = async ({
       import("@/lib/ai/model-policy"),
     ]);
     const ai = createGeminiClient();
-    const policy = geminiPolicyForTask("project_planning", {
+    const policy = geminiPolicyForTask("reference_analysis", {
       responseMimeType: "application/json",
       temperature: 0,
     });
@@ -783,7 +783,7 @@ export async function analyzeReferenceImageForScope({
     ]);
     const ai = createGeminiClient();
     const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
-    const policy = geminiPolicyForTask("project_planning", {
+    const policy = geminiPolicyForTask("reference_analysis", {
       systemInstruction: isStyleReferenceMode(resolvedReferenceMode)
         ? referenceAnalysisStyleInstruction
         : referenceAnalysisRecreateInstruction,
