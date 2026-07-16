@@ -68,12 +68,55 @@ const normalizeText = (value: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
+const normalizeConstraintText = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9.;,]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const isNegatedMatch = (input: string, matchIndex: number) => {
+  const clauseStart = Math.max(input.lastIndexOf(".", matchIndex - 1), input.lastIndexOf(";", matchIndex - 1)) + 1;
+  const prefix = input.slice(clauseStart, matchIndex);
+  const negations = [...prefix.matchAll(/\b(?:no|not|without|avoid|exclude|do not|dont)\b/g)];
+  const lastNegation = negations.at(-1);
+  if (!lastNegation || lastNegation.index === undefined) return false;
+
+  const afterNegation = prefix.slice(lastNegation.index + lastNegation[0].length);
+  if (afterNegation.length > 100) return false;
+  return !/(?:,\s*|\b(?:but|however|instead)\b[^,.;]{0,20}\b)(?:use|with|choose|make|prefer|switch|apply|include)\b/.test(
+    afterNegation,
+  );
+};
+
+const hasPositivePattern = (input: string, pattern: RegExp) => {
+  const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
+  for (const match of input.matchAll(new RegExp(pattern.source, flags))) {
+    if (!isNegatedMatch(input, match.index ?? 0)) {
+      return true;
+    }
+  }
+  return false;
+};
+
 export function extractExplicitStyleConstraints(prompt: string): ExplicitStyleConstraints {
-  const input = normalizeText(prompt);
-  const hasDark = /\b(?:dark|dark mode|black canvas|deep charcoal)\b/.test(input);
-  const hasLight = /\b(?:light|light mode|white canvas|clean white)\b/.test(input);
-  const hasDense = /\b(?:dense|data dense|information dense|compact layout|compact density)\b/.test(input);
-  const hasAiry = /\b(?:airy|spacious|generous whitespace|lots of whitespace)\b/.test(input);
+  const input = normalizeConstraintText(prompt);
+  const hasDark = hasPositivePattern(
+    input,
+    /\b(?:dark mode|dark theme|dark (?:ui|interface|background|canvas|surface)|black (?:background|canvas|surface)|deep charcoal (?:background|canvas|surface)|dark(?:\s+|,\s*)(?!(?:brown|blue|green|red|navy|purple|pink|orange|yellow|gold|bronze|chocolate|typography|text|icons?|accents?|photography|photos?|images?)\b)(?:[a-z0-9]+\s+){0,3}(?:app|application|dashboard|wallet|interface|ui|screen|experience))\b/,
+  );
+  const hasLight = hasPositivePattern(
+    input,
+    /\b(?:light mode|light theme|light (?:ui|interface|background|canvas|surface)|white (?:background|canvas|surface)|off white (?:background|canvas|surface)|cream (?:background|canvas|surface)|ivory (?:background|canvas|surface)|light(?:\s+|,\s*)(?!(?:blue|green|red|navy|purple|pink|orange|yellow|gold|bronze|brown|typography|text|icons?|accents?|photography|photos?|images?)\b)(?:[a-z0-9]+\s+){0,3}(?:app|application|dashboard|wallet|interface|ui|screen|experience))\b/,
+  );
+  const hasDense = hasPositivePattern(
+    input,
+    /\b(?:dense|data dense|information dense|compact layout|compact density)\b/,
+  );
+  const hasAiry = hasPositivePattern(
+    input,
+    /\b(?:airy|spacious|generous whitespace|lots of whitespace)\b/,
+  );
 
   return {
     theme: hasDark === hasLight ? "unspecified" : hasDark ? "dark" : "light",
@@ -82,14 +125,21 @@ export function extractExplicitStyleConstraints(prompt: string): ExplicitStyleCo
 }
 
 export function promptExplicitlyRequestsTerm(prompt: string, term: string) {
-  const input = normalizeText(prompt);
+  const input = normalizeConstraintText(prompt);
   const normalizedTerm = normalizeText(term);
   if (!normalizedTerm) return false;
+  const termTokens = normalizedTerm.split(" ");
+  const lastToken = termTokens.at(-1)!;
+  if (!lastToken.endsWith("s")) {
+    termTokens[termTokens.length - 1] = `${lastToken}s?`;
+  }
 
-  const pattern = new RegExp(`(?:^|\\s)${normalizedTerm.replace(/ /g, "\\s+")}(?:$|\\s)`, "g");
+  const pattern = new RegExp(
+    `(?:^|[\\s.,;])${termTokens.join("\\s+")}(?:$|[\\s.,;])`,
+    "g",
+  );
   for (const match of input.matchAll(pattern)) {
-    const prefix = input.slice(Math.max(0, (match.index ?? 0) - 24), match.index ?? 0);
-    if (!/\b(?:no|not|without|avoid|exclude)\s*$/.test(prefix)) {
+    if (!isNegatedMatch(input, match.index ?? 0)) {
       return true;
     }
   }
@@ -112,7 +162,9 @@ export function isReferenceCompatibleWithPrompt(
   if (constraints.density !== "unspecified" && profile.density !== constraints.density) {
     return false;
   }
-  return !profile.incompatibleWith.some((term) => promptExplicitlyRequestsTerm(prompt, term));
+  const stableConstraintTerms = new Set(["light", "dark", "mixed", "airy", "balanced", "dense"]);
+  return !profile.incompatibleWith.some((term) =>
+    !stableConstraintTerms.has(term) && promptExplicitlyRequestsTerm(prompt, term));
 }
 
 export function normalizeEmbedding(values: ArrayLike<number>) {

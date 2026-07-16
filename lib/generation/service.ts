@@ -10,7 +10,12 @@ import { hasApprovedDesignTokens, normalizeDesignTokens } from "@/lib/design-tok
 import { applyEdits } from "@/lib/diff-engine";
 import { buildScopedEditContext } from "@/lib/generation/block-index";
 import { filterMeaningfulStateVariants } from "@/lib/agent/state-variant-guardrails";
-import { inferSemanticCategory, VISUAL_ASSET_SEMANTIC_CATEGORIES } from "@/lib/generation/asset-semantics";
+import {
+  inferSemanticCategory,
+  normalizePlannerReusePolicy,
+  normalizePlannerSemanticCategory,
+  VISUAL_ASSET_SEMANTIC_CATEGORIES,
+} from "@/lib/generation/asset-semantics";
 import { formatDesignStyleContract, getDesignStylePack, summarizeDesignStyle } from "@/lib/generation/design-styles";
 import { createNavigationArchitecture, deriveRequiresBottomNav, resolveScreenChromePolicy } from "@/lib/navigation";
 import {
@@ -227,6 +232,19 @@ const normalizeAssetRole = (value: unknown) => {
   return "section_photo";
 };
 
+const normalizePlannerSemanticTags = (value: unknown) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    return value.split(/[,|]/).map((tag) => tag.trim()).filter(Boolean);
+  }
+  return [];
+};
+
+const normalizePlannerUserAssetId = (value: unknown) =>
+  typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+    ? value
+    : undefined;
+
 const normalizeAspectRatio = (value: unknown) => {
   if (typeof value !== "string") return "free";
   const v = value.toLowerCase().trim().replace(/\s+/g, "");
@@ -239,7 +257,7 @@ const normalizeAspectRatio = (value: unknown) => {
 
 
 const AssetNeedSchema = z.object({
-  id: z.string().trim().min(1).max(80),
+  id: z.string().trim().min(1).max(80).optional(),
   screenName: z.string().trim().min(1).max(100).optional(),
   role: z.preprocess(normalizeAssetRole, z.enum([
     "hero_cutout",
@@ -255,15 +273,24 @@ const AssetNeedSchema = z.object({
   assetType: z.preprocess(normalizeAssetType, z.enum(["transparent_png", "photo", "illustration", "icon_like"])),
   sourcePreference: AssetNeedSourcePreferenceSchema,
   desiredAspectRatio: z.preprocess(normalizeAspectRatio, z.enum(["1:1", "4:5", "5:4", "16:9", "free"])),
-  transparentBackground: z.boolean(),
-  placementHint: z.string().trim().min(1).max(500),
+  transparentBackground: z.preprocess((value) => coerceBooleanish(value) ?? false, z.boolean()),
+  placementHint: z.string().trim().min(1).max(500).default("Use this asset in the planned image region."),
   priority: z.preprocess(normalizeAssetPriority, z.enum(["critical", "supporting", "optional"])),
   reuseKey: z.string().trim().min(1).max(160).optional(),
-  semanticCategory: z.enum(VISUAL_ASSET_SEMANTIC_CATEGORIES).optional(),
-  semanticTags: z.array(z.string().trim().min(1).max(80)).max(8).default([]).optional(),
+  semanticCategory: z.preprocess(
+    normalizePlannerSemanticCategory,
+    z.enum(VISUAL_ASSET_SEMANTIC_CATEGORIES).optional(),
+  ),
+  semanticTags: z.preprocess(
+    normalizePlannerSemanticTags,
+    z.array(z.string().trim().min(1).max(80)).max(8).default([]),
+  ).optional(),
   slotCount: z.coerce.number().int().min(1).max(12).default(1).optional(),
-  reusePolicy: z.enum(["repeat", "distinct"]).default("repeat").optional(),
-  userAssetId: z.string().uuid().optional(),
+  reusePolicy: z.preprocess(
+    normalizePlannerReusePolicy,
+    z.enum(["repeat", "distinct"]),
+  ).optional(),
+  userAssetId: z.preprocess(normalizePlannerUserAssetId, z.string().uuid().optional()),
   origin: z.enum(["reference_visible", "user_explicit", "planner_inferred", "heuristic_inferred"]).optional(),
 });
 
@@ -1796,13 +1823,13 @@ const ensureBuilderGradeScreenBriefs = ({
     };
   });
 
-const normalizeScreenAssetNeeds = (screenName: string, value: unknown): NonNullable<ScreenPlan["assetNeeds"]> => {
+export const normalizeScreenAssetNeeds = (screenName: string, value: unknown): NonNullable<ScreenPlan["assetNeeds"]> => {
   if (!Array.isArray(value)) {
     return [];
   }
 
   return value
-    .map((item): NonNullable<ScreenPlan["assetNeeds"]>[number] | null => {
+    .map((item, index): NonNullable<ScreenPlan["assetNeeds"]>[number] | null => {
       const input = isRecord(item)
         ? {
             ...item,
@@ -1827,6 +1854,10 @@ const normalizeScreenAssetNeeds = (screenName: string, value: unknown): NonNulla
 
       return {
         ...parsed.data,
+        id: parsed.data.id ?? roadmapSlug(
+          `${screenName}-${parsed.data.role}-${index + 1}`,
+          `asset-${index + 1}`,
+        ),
         screenName,
         reuseKey: parsed.data.reuseKey ?? `${parsed.data.role}-${parsed.data.subject}`,
         semanticCategory: parsed.data.semanticCategory ?? inferSemanticCategory(parsed.data.subject, parsed.data.role),

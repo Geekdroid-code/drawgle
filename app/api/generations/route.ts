@@ -475,7 +475,7 @@ export async function POST(request: Request) {
         image: promptImage,
         referenceMode: promptImage
           ? payload.imageReferenceMode === "style" ? "user_style" : "user_recreate"
-          : isExistingProjectRequest ? "user_style" : "curated_style",
+          : isExistingProjectRequest ? "user_style" : "internal_style",
         planningMode: "project",
       });
       scopeContract = preflight.scopeContract;

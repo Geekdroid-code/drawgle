@@ -169,14 +169,15 @@ const parseJsonResponse = <T>(text: string): T => {
   }
 };
 
-const normalizeReferenceMode = (referenceMode?: ReferenceMode | null): Exclude<ReferenceMode, "internal_style"> => {
+const normalizeReferenceMode = (referenceMode?: ReferenceMode | null): ReferenceMode => {
   if (referenceMode === "user_style") return "user_style";
-  if (referenceMode === "curated_style" || referenceMode === "internal_style") return "curated_style";
+  if (referenceMode === "curated_style") return "curated_style";
+  if (referenceMode === "internal_style") return "internal_style";
   return "user_recreate";
 };
 
 const isStyleReferenceMode = (referenceMode?: ReferenceMode | null) =>
-  normalizeReferenceMode(referenceMode) !== "user_recreate";
+  referenceMode === "user_style" || referenceMode === "curated_style";
 
 const toInlineImage = (image?: PromptImagePayload | null) => {
   if (!image) {

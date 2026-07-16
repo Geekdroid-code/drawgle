@@ -75,12 +75,52 @@ describe("curated style embedding selection", () => {
       .toEqual({ theme: "dark", density: "dense" });
     expect(extractExplicitStyleConstraints("Create the app without deciding light or dark mode."))
       .toEqual({ theme: "unspecified", density: "unspecified" });
+    expect(extractExplicitStyleConstraints("Use a light interface, but do not make the layout dense."))
+      .toEqual({ theme: "light", density: "unspecified" });
+  });
+
+  it("does not confuse typography or accent colors with the app theme", () => {
+    const skincarePrompt = "I need a luxury skincare routine app. Use an off-white background, sharp photography, dark brown typography and very subtle bronze details.";
+    expect(extractExplicitStyleConstraints(skincarePrompt))
+      .toEqual({ theme: "light", density: "unspecified" });
+    expect(extractExplicitStyleConstraints("Build a dark crypto wallet with white typography."))
+      .toEqual({ theme: "dark", density: "unspecified" });
+    expect(extractExplicitStyleConstraints("Create a light dashboard with dark navy text and black icons."))
+      .toEqual({ theme: "light", density: "unspecified" });
+    expect(extractExplicitStyleConstraints("Use black typography on a white background."))
+      .toEqual({ theme: "light", density: "unspecified" });
+    expect(extractExplicitStyleConstraints("Create a dark chocolate bakery app with product photography."))
+      .toEqual({ theme: "unspecified", density: "unspecified" });
+    expect(extractExplicitStyleConstraints("Do not use dark mode; use an off-white background."))
+      .toEqual({ theme: "light", density: "unspecified" });
+  });
+
+  it("does not reintroduce theme false positives through incompatible tags", () => {
+    const cosmetics = CURATED_STYLE_REFERENCES.find(
+      (candidate) => candidate.id === "cosmetics-ecommerce-minimal-light",
+    )!;
+    const prompt = "Use an off-white background with dark brown typography and subtle bronze accents.";
+
+    expect(cosmetics.selectionProfile.incompatibleWith).toContain("dark");
+    expect(isReferenceCompatibleWithPrompt(cosmetics, prompt)).toBe(true);
   });
 
   it("does not treat a negated term as a requested incompatibility", () => {
     expect(promptExplicitlyRequestsTerm("Use glassmorphism", "glassmorphism")).toBe(true);
     expect(promptExplicitlyRequestsTerm("Use no glassmorphism", "glassmorphism")).toBe(false);
     expect(promptExplicitlyRequestsTerm("Avoid heavy shadows", "heavy-shadows")).toBe(false);
+    expect(promptExplicitlyRequestsTerm(
+      "Avoid glassmorphism, heavy shadows, and neon accents.",
+      "heavy-shadows",
+    )).toBe(false);
+    expect(promptExplicitlyRequestsTerm(
+      "Avoid glassmorphism, heavy shadows, and neon accents.",
+      "neon-accent",
+    )).toBe(false);
+    expect(promptExplicitlyRequestsTerm(
+      "Avoid glassmorphism, but use neon accents.",
+      "neon-accent",
+    )).toBe(true);
   });
 
   it("rejects explicit theme, density, and authored incompatibility conflicts", () => {

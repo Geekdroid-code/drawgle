@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { isSemanticallyCompatible } from "@/lib/generation/asset-semantics";
+import {
+  isSemanticallyCompatible,
+  normalizePlannerReusePolicy,
+  normalizePlannerSemanticCategory,
+} from "@/lib/generation/asset-semantics";
 import type { AssetRequirement } from "@/lib/types";
 
 const requirement = (input: Partial<AssetRequirement> = {}): AssetRequirement => ({
@@ -38,6 +42,16 @@ const compatible = (need: AssetRequirement, asset: {
 });
 
 describe("deterministic visual asset semantics", () => {
+  it("normalizes planner vocabulary instead of rejecting the complete screen plan", () => {
+    expect(normalizePlannerSemanticCategory("skincare-products")).toBe("beauty");
+    expect(normalizePlannerSemanticCategory("cosmetics")).toBe("beauty");
+    expect(normalizePlannerSemanticCategory("catalog-product")).toBe("generic_product");
+    expect(normalizePlannerSemanticCategory("unknown-domain-label")).toBeUndefined();
+    expect(normalizePlannerReusePolicy("different image for every card")).toBe("distinct");
+    expect(normalizePlannerReusePolicy("shared across cards")).toBe("repeat");
+    expect(normalizePlannerReusePolicy(undefined)).toBe("repeat");
+  });
+
   it("accepts berry for berry or fruit requirements", () => {
     const berry = { subject: "Berry", tags: ["berry", "fruit", "produce"] };
     expect(compatible(requirement(), berry)).toBe(true);

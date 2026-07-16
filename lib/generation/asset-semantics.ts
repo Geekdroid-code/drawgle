@@ -37,7 +37,7 @@ const CATEGORY_PATTERNS: Array<[VisualAssetSemanticCategory, RegExp]> = [
   ["food", /\b(bakery|berries|berry|beverages?|breakfast|burgers?|cake|cereal|cheeseburger|chicken|cookies?|dessert|drinks?|food|fries|fruits?|gnocchi|grocery|ice ?cream|mango|meal|papaya|pastr(?:y|ies)|pineapple|recipe|restaurant|taco|vegetables?)\b/i],
   ["electronics", /\b(audio|cameras?|cctv|computers?|devices?|earbuds?|headphones?|homepod|laptops?|phones?|smart ?speaker|speakers?|technology|televisions?|tv)\b/i],
   ["vehicle", /\b(automobile|bicycle|bike|cars?|motorcycle|scooter|sedan|taxi|truck|van|vehicle)\b/i],
-  ["beauty", /\b(beauty|cosmetic|makeup|perfume|skincare)\b/i],
+  ["beauty", /\b(beauty|cosmetics?|makeup|perfume|skincare)\b/i],
   ["fashion", /\b(bag|clothing|dress|fashion|jacket|shirt|shoe|sneaker|streetwear|top|watch)\b/i],
   ["fitness", /\b(athlete|biceps|chest|dumbbell|exercise|fitness|gym|muscle|runner|sports|torso|trainer|workout|yoga)\b/i],
   ["person", /\b(avatar|cleaner|face|female|founder|girl|headshot|human|male|man|member|people|person|portrait|profile|team|user|woman)\b/i],
@@ -88,6 +88,29 @@ export function inferSemanticCategory(
   if (role === "avatar") return "person";
   if (role === "product_cutout" || role === "product_photo") return "generic_product";
   return "other";
+}
+
+export function normalizePlannerSemanticCategory(
+  value: unknown,
+): VisualAssetSemanticCategory | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = normalizeSemanticToken(value);
+  if (!normalized) return undefined;
+  if ((VISUAL_ASSET_SEMANTIC_CATEGORIES as readonly string[]).includes(normalized)) {
+    return normalized as VisualAssetSemanticCategory;
+  }
+
+  const inferred = inferSemanticCategory(normalized.replace(/_/g, " "));
+  if (inferred !== "other") return inferred;
+  if (/\b(product|merchandise|item|catalog)\b/i.test(value)) return "generic_product";
+  return undefined;
+}
+
+export function normalizePlannerReusePolicy(value: unknown): "repeat" | "distinct" {
+  if (typeof value !== "string") return "repeat";
+  const normalized = value.toLowerCase().trim();
+  if (/\b(distinct|different|unique|individual|vary|varied)\b/.test(normalized)) return "distinct";
+  return "repeat";
 }
 
 export function normalizeSemanticTags(values: string[], category: VisualAssetSemanticCategory) {

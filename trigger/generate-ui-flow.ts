@@ -1781,7 +1781,7 @@ export const generateUiFlowTask = task({
 
       if (!match) {
         referenceMode = "internal_style";
-        referenceSource = "curated";
+        referenceSource = null;
       } else {
         logger.info("[CURATED STYLE REFERENCE] selected", {
           referenceId: match.reference.id,
@@ -1817,20 +1817,22 @@ export const generateUiFlowTask = task({
             ? "Using the existing project's screens, charter, and design tokens as visual direction."
             : referencePolicy === "explicit_style"
               ? `Using the explicitly selected design style${referenceId ? `: ${referenceId}` : ""}.`
-              : `Matched internal style reference${referenceId ? `: ${referenceId}` : ""}.`,
+              : referenceId
+                ? `Matched internal style reference: ${referenceId}.`
+                : "No curated reference passed the confidence checks; using prompt-only design direction.",
     );
     await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
     const scopePreflight = payload.scopeContract
       ? payload.referenceAnalysis ?? reusableProjectReferenceDna?.analysis
         ? {
-            scopeContract: payload.scopeContract,
+            scopeContract: { ...payload.scopeContract, referenceMode },
             referenceAnalysis: payload.referenceAnalysis ?? reusableProjectReferenceDna?.analysis ?? null,
             referenceAnalysisResult: null,
           }
         : payload.projectCharter || existingCharter
           ? {
-              scopeContract: payload.scopeContract,
+              scopeContract: { ...payload.scopeContract, referenceMode },
               referenceAnalysis: null as ReferenceAnalysis | null,
               referenceAnalysisResult: null,
             }
@@ -1840,7 +1842,7 @@ export const generateUiFlowTask = task({
             referenceMode,
             llmLog: (label, data) => logger.info(label, data),
           }).then((referenceAnalysisResult) => ({
-            scopeContract: payload.scopeContract!,
+            scopeContract: { ...payload.scopeContract!, referenceMode },
             referenceAnalysis: referenceAnalysisResult.analysis,
             referenceAnalysisResult,
           }))

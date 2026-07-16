@@ -171,8 +171,118 @@ const normalizeRequirement = (screen: ScreenPlan, need: AssetRequirement): Asset
   return parsed.success ? { ...parsed.data, reuseKey: stableReuseKey(parsed.data) } : null;
 };
 
-export async function planVisualAssets({
+const hasPositiveImageryRequest = (value: string) => {
+  const input = compact(value).toLowerCase();
+  const pattern = /\b(?:photo|photos|photography|photographic|product imagery|hero image|hero visual|progress image|portrait|illustration|illustrations)\b/g;
+  for (const match of input.matchAll(pattern)) {
+    const prefix = input.slice(Math.max(0, (match.index ?? 0) - 28), match.index ?? 0);
+    if (!/\b(?:no|not|without|avoid|exclude|do not|dont)\b[^.;,]{0,24}$/.test(prefix)) return true;
+  }
+  return false;
+};
+
+const hasNegativeImageryRequest = (value: string) =>
+  /\b(?:no|not|without|avoid|exclude|do not|dont)\b[^.;,]{0,24}\b(?:photo|photos|photography|photographic|product imagery|hero image|portrait|illustration|illustrations)\b/i.test(
+    compact(value).toLowerCase(),
+  );
+
+const inferHeuristicAssetRole = (
+  screen: ScreenPlan,
+  description: string,
+): VisualAssetRole => {
+  if (/\b(?:avatar|portrait|profile photo|headshot)\b/i.test(description)) return "avatar";
+  if (/\b(?:product image|product photo|product hero|product card|product thumbnail)\b/i.test(description)
+    || /\bproduct\b/i.test(screen.name)) {
+    return "product_photo";
+  }
+  if (/\b(?:full bleed|full-bleed|background photo|hero photography|hero image|banner)\b/i.test(description)) {
+    return "background_photo";
+  }
+  return "section_photo";
+};
+
+const inferHeuristicAspectRatio = (
+  description: string,
+): AssetRequirement["desiredAspectRatio"] => {
+  if (/\b(?:1\s*:\s*1|square)\b/i.test(description)) return "1:1";
+  if (/\b(?:3\s*:\s*4|4\s*:\s*5|portrait)\b/i.test(description)) return "4:5";
+  if (/\b(?:16\s*:\s*9|wide|landscape|banner)\b/i.test(description)) return "16:9";
+  return "free";
+};
+
+const inferExplicitImageryRequirements = ({
+  prompt,
   screens,
+  charter,
+  referenceMode,
+  existingScreenNames,
+}: {
+  prompt: string;
+  screens: ScreenPlan[];
+  charter?: ProjectCharter | null;
+  referenceMode?: string | null;
+  existingScreenNames: Set<string>;
+}) => {
+  if (hasNegativeImageryRequest(prompt)) return [] as AssetRequirement[];
+  const userExplicitImagery = hasPositiveImageryRequest(prompt);
+  const projectDirection = [
+    prompt,
+    charter?.creativeDirection?.styleEssence,
+    charter?.creativeDirection?.signatureMoments?.join(" "),
+    charter?.imageReferenceSummary,
+  ].filter(Boolean).join(" ");
+  if (!hasPositiveImageryRequest(projectDirection)) return [] as AssetRequirement[];
+
+  const requirements: AssetRequirement[] = [];
+  for (const screen of screens) {
+    if (requirements.length >= 4 || existingScreenNames.has(screen.name)) continue;
+    const plannerDescription = screen.description.split("Shared product family requirements:")[0];
+    if (!hasPositiveImageryRequest(plannerDescription)) continue;
+
+    const role = inferHeuristicAssetRole(screen, plannerDescription);
+    const subject = compact(
+      `${prompt.slice(0, 180)} ${screen.name} premium ${role.replace(/_/g, " ")}`,
+    ).slice(0, 260);
+    const semanticCategory = inferSemanticCategory(subject, role);
+    const requirement: AssetRequirement = {
+      id: slugify(`${screen.name}-${role}-explicit-imagery`),
+      screenName: screen.name,
+      role,
+      subject,
+      assetType: /illustration/i.test(`${prompt} ${plannerDescription}`) ? "illustration" : "photo",
+      sourcePreference: "internal_library",
+      desiredAspectRatio: inferHeuristicAspectRatio(plannerDescription),
+      transparentBackground: false,
+      placementHint: compact(
+        `Use as the ${role.replace(/_/g, " ")} described by the approved screen brief: ${plannerDescription.slice(0, 220)}`,
+      ).slice(0, 500),
+      priority: /\b(?:hero|full bleed|full-bleed|must preserve|required)\b/i.test(plannerDescription)
+        ? "critical"
+        : "supporting",
+      reuseKey: slugify(`${semanticCategory}-${screen.name}-${role}`),
+      semanticCategory,
+      semanticTags: normalizeSemanticTags(
+        [semanticCategory, screen.name, charter?.appType ?? ""],
+        semanticCategory,
+      ).slice(0, 8),
+      slotCount: 1,
+      reusePolicy: "repeat",
+      origin: userExplicitImagery
+        ? "user_explicit"
+        : referenceMode === "user_recreate" || referenceMode === "user_style" || referenceMode === "curated_style"
+          ? "reference_visible"
+          : "heuristic_inferred",
+    };
+    requirements.push(requirement);
+  }
+  return requirements;
+};
+
+export async function planVisualAssets({
+  prompt,
+  screens,
+  charter,
+  referenceMode,
   llmLog,
 }: {
   prompt: string;
@@ -197,8 +307,23 @@ export async function planVisualAssets({
     }
   }
 
+  const heuristicRequirements = inferExplicitImageryRequirements({
+    prompt,
+    screens,
+    charter,
+    referenceMode,
+    existingScreenNames: new Set(requirements.map((requirement) => requirement.screenName)),
+  });
+  for (const requirement of heuristicRequirements) {
+    const key = `${requirement.screenName}:${requirement.role}:${semanticRequirementKey(requirement)}:${requirement.reusePolicy}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    requirements.push(requirement);
+  }
+
   llmLog?.("[visual-assets] Planner asset groups normalized", {
     requirementCount: requirements.length,
+    heuristicRequirementCount: heuristicRequirements.length,
     screenCount: screens.length,
     totalExpectedUses: requirements.reduce((sum, requirement) => sum + requirement.slotCount, 0),
   });
