@@ -1839,7 +1839,7 @@ export const comparisonPages: ComparisonPageData[] = [
     heroTitle:
       "Drawgle vs. ScreensDesign: Research-Backed Conversion Screens or Build-Ready Mobile Product UI?",
     sonicBoomSummary:
-      "ScreensDesign is not just another AI UI generator. Its public pitch starts one step earlier, at pattern research: study 2,450 top iOS apps, watch their onboarding and paywall flows, inspect revenue signals, then generate your own screens from the patterns that convert. That makes it unusually strong for subscription app teams trying to improve monetization and onboarding. Drawgle is solving a wider product problem. It is less about turning App Store growth patterns into new paywalls and more about building an entire mobile product that can leave the canvas as production-ready code in the framework the team ships. So this comparison is really about specialization: conversion-screen research and fast monetization design versus broader mobile product design with a clearer engineering path.",
+      "ScreensDesign specializes in conversion-focused iOS research and paywall or onboarding patterns; Drawgle covers broader mobile product UI with a clearer implementation handoff.",
     quickVerdict: {
       competitorTitle: "Choose ScreensDesign if your highest-priority work is onboarding, paywalls, and monetization research:",
       competitorDescription:
@@ -3427,7 +3427,7 @@ export const comparisonPages: ComparisonPageData[] = [
     heroTitle:
       "Drawgle vs. UXMagic: Multimodal Design Copilot or Build-Ready Premium Mobile UI?",
     sonicBoomSummary:
-      "UXMagic sits in a different lane from tools like Visily or Uizard. It is not only a wireframing assistant, and it is not only a Figma plugin. Its public surface is built around a broad multimodal workflow: start from a text prompt, a screenshot, a sketch, a live URL, or an imported Figma file; generate high-fidelity UI and flows; apply a style guide; edit sections in isolation; then export to Figma or hand off HTML and React. That makes UXMagic appealing to agencies, freelancers, and product teams that want one AI-assisted design workspace covering many entry points and many handoff routes. Drawgle is narrower and more opinionated. It focuses only on mobile product UI, keeps the quality bar centered on premium app output, and names the implementation frameworks explicitly. So this comparison is really about breadth versus focus: a flexible multimodal design copilot that feeds many workflows versus a tighter mobile builder with a clearer path to the actual app codebase.",
+      "UXMagic is a broad multimodal design copilot with Figma and web handoffs; Drawgle is a focused mobile UI builder with a tighter path to implementation.",
     quickVerdict: {
       competitorTitle: "Choose UXMagic if your team wants one AI workspace that accepts almost any starting point:",
       competitorDescription:
