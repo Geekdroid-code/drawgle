@@ -1749,10 +1749,11 @@ export const generateUiFlowTask = task({
       referenceMode = "user_style";
       referenceSource = "project_memory";
     } else {
-      const match = matchCuratedStyleReference({
+      const match = await matchCuratedStyleReference({
         prompt: payload.prompt,
         planningMode: payload.planningMode ?? "project",
         existingCharter,
+        llmLog: (label, data) => logger.info(label, data),
       });
 
       if (!match) {

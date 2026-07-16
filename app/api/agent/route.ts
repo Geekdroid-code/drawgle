@@ -1937,7 +1937,7 @@ export async function POST(request: Request) {
       } else if (!referenceImage && referencePolicy === "project_memory") {
         referenceMode = "user_style";
       } else if (!referenceImage) {
-        const match = matchCuratedStyleReference({
+        const match = await matchCuratedStyleReference({
           prompt: generationPrompt,
           planningMode: "single-screen",
           existingCharter: projectCharter,

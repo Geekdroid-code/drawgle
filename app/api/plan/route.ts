@@ -136,7 +136,7 @@ export async function POST(req: Request) {
     } else if (!referenceImage && hasExistingProjectVisualMemory) {
       referenceMode = "user_style";
     } else if (!referenceImage) {
-      const match = matchCuratedStyleReference({
+      const match = await matchCuratedStyleReference({
         prompt: payload.prompt,
         planningMode: payload.planningMode as PlanningMode,
         existingCharter,
