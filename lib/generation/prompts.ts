@@ -464,7 +464,7 @@ Use 16px as the production baseline for mobile screen_margin. Deviate only when 
 Create one disciplined visual language for the whole app. Do not hand the builder a menu of different radii, border widths, or shadow strengths to choose from per screen.
 For shape and elevation, prefer a single standard surface radius, a single standard border width, and a single standard surface shadow. A pill radius may exist only as a controlled exception for chips, segmented controls, or capsule CTAs.
 
-REQUIRED JSON SCHEMA:
+ REQUIRED JSON SCHEMA:
 {
   "system_schema": "mobile_universal_core",
   "meta": {
