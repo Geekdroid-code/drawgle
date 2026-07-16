@@ -42,8 +42,8 @@ export const plans: Plan[] = [
       { name: "600 AI generation credits/mo", icon: "check", iconColor: "text-emerald-500" },
       { name: "Build ~30 screens per month", icon: "check", iconColor: "text-emerald-500" },
       { name: "Free blueprint brief planner", icon: "check", iconColor: "text-emerald-500" },
-      { name: "Agent-ready HTML & design context", icon: "check", iconColor: "text-emerald-500" },
-      { name: "Figma design system matching", icon: "check", iconColor: "text-emerald-500" },
+      { name: "Tailwind HTML and Agent Pack exports", icon: "check", iconColor: "text-emerald-500" },
+      { name: "Screenshot and style-reference workflows", icon: "check", iconColor: "text-emerald-500" },
     ],
   },
   {
@@ -61,8 +61,8 @@ export const plans: Plan[] = [
       { name: "2,400 AI generation credits/mo", icon: "check", iconColor: "text-indigo-500" },
       { name: "Build ~120 screens per month", icon: "check", iconColor: "text-indigo-500" },
       { name: "Style reference image matching", icon: "check", iconColor: "text-indigo-500" },
-      { name: "Priority AI generation speed", icon: "check", iconColor: "text-indigo-500" },
-      { name: "All Starter features included", icon: "check", iconColor: "text-indigo-500" },
+      { name: "Shared design tokens and navigation", icon: "check", iconColor: "text-indigo-500" },
+      { name: "All editor and export features", icon: "check", iconColor: "text-indigo-500" },
     ],
   },
   {
@@ -78,8 +78,8 @@ export const plans: Plan[] = [
       { name: "8,000 AI generation credits/mo", icon: "check", iconColor: "text-violet-500" },
       { name: "Build ~400 screens per month", icon: "check", iconColor: "text-violet-500" },
       { name: "Multi-screen system planning", icon: "check", iconColor: "text-violet-500" },
-      { name: "Project Agent Packs & Beta Scaffolds", icon: "check", iconColor: "text-violet-500" },
-      { name: "Priority developer support", icon: "check", iconColor: "text-violet-500" },
+      { name: "Tailwind HTML and Agent Pack exports", icon: "check", iconColor: "text-violet-500" },
+      { name: "Shared design tokens and navigation", icon: "check", iconColor: "text-violet-500" },
     ],
   },
 ];

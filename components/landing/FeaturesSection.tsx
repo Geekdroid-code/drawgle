@@ -15,13 +15,13 @@ import {
 
 const capabilities = [
   {
-    title: "Change one color. Update the whole app",
+    title: "Control the shared design-token map",
     description:
       "Adjust a color, font, spacing value, corner radius, or shadow once. Every connected screen updates live without regenerating your work.",
     icon: SlidersHorizontal,
   },
   {
-    title: "Click exactly what you want to change",
+    title: "Refine selected component styling",
     description:
       "Select a card, button, section, or navigation item and describe the improvement. Drawgle edits that part while preserving everything around it.",
     icon: MousePointer2,
@@ -39,13 +39,13 @@ const capabilities = [
     icon: Palette,
   },
   {
-    title: "Design a complete app, not disconnected pages",
+    title: "Build a connected mobile product",
     description:
       "Generate multiple screens with shared navigation and one consistent visual language, so dashboards, details, and flows feel like the same product.",
     icon: Route,
   },
   {
-    title: "Your app remembers what it is becoming",
+    title: "Preserve project context across iterations",
     description:
       "Drawgle keeps your audience, goals, features, visual direction, and earlier decisions in context when you add or refine screens later.",
     icon: MessageSquareText,
@@ -63,9 +63,9 @@ const capabilities = [
     icon: Check,
   },
   {
-    title: "Export clean, agent-ready code",
+    title: "Export implementation-ready HTML and Agent Packs",
     description:
-      "Get production-ready Tailwind HTML, CSS variables for design tokens, and implementation context ready to hand off directly to coding agents like Cursor or Copilot.",
+      "Download standalone Tailwind HTML plus a structured Agent Pack with design tokens, assets, screens, a manifest, and implementation instructions.",
     icon: Download,
   },
 ];
@@ -176,12 +176,12 @@ export function FeaturesSection() {
 
         <div className="mx-auto mb-12 max-w-3xl text-left sm:text-center md:mb-20">
           <h2 className="font-pixel-square text-[36px] font-semibold leading-[1.05] tracking-tight text-white sm:text-5xl md:text-6xl">
-            Total control.
-            <span className="block text-[#1b7fcc] mt-2">Every design feature at your fingertips.</span>
+            Modern mobile UI,
+            <span className="block text-[#1b7fcc] mt-2">built as a coherent visual system.</span>
           </h2>
           <p className="mx-auto mt-6 max-w-2xl text-sm leading-6 text-white/45 sm:text-base">
-            We built the editor to feel like a real design engineering workspace. Tweak styles, edit
-            code structures, sync tokens, and export templates without the bloat.
+            Control layer order, component containment, mobile spacing, typography roles, surface
+            hierarchy, radii, borders, shadows, shared navigation, and design-token mapping.
           </p>
         </div>
 

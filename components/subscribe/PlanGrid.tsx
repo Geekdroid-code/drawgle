@@ -92,8 +92,8 @@ export default function PlanGrid({ plans, subscription, isAuthenticated }: PlanG
         `${credits.toLocaleString()} AI generation credits/mo`,
         `Build ~${screens} screens per month`,
         'Free blueprint brief planner',
-        'Agent-ready HTML & design context',
-        'Figma design system matching',
+        'Tailwind HTML and Agent Pack exports',
+        'Screenshot and style-reference workflows',
       ]
     }
     if (name === 'pro') {
@@ -101,8 +101,8 @@ export default function PlanGrid({ plans, subscription, isAuthenticated }: PlanG
         `${credits.toLocaleString()} AI generation credits/mo`,
         `Build ~${screens} screens per month`,
         'Style reference image matching',
-        'Priority AI generation speed',
-        'All Starter features included',
+        'Shared design tokens and navigation',
+        'All editor and export features',
       ]
     }
     // Studio / Pro Agency fallback
@@ -110,8 +110,8 @@ export default function PlanGrid({ plans, subscription, isAuthenticated }: PlanG
       `${credits.toLocaleString()} AI generation credits/mo`,
       `Build ~${screens} screens per month`,
       'Multi-screen system planning',
-      'Project Agent Packs & Beta Scaffolds',
-      'Priority developer support',
+      'Tailwind HTML and Agent Pack exports',
+      'Shared design tokens and navigation',
     ]
   }
 

@@ -57,7 +57,6 @@ const comparisonFeatures = [
     items: [
       { name: "Monthly AI Credits", starter: "600 credits", pro: "2,400 credits", studio: "8,000 credits" },
       { name: "Approximate Screens", starter: "~30 screens", pro: "~120 screens", studio: "~400 screens" },
-      { name: "Generation Speed", starter: "Standard", pro: "Priority", studio: "Ultra-Priority" },
       { name: "Screenshot Re-creation (Image to UI)", starter: true, pro: true, studio: true },
       { name: "Style Reference Mode (Mood / Style Ref)", starter: true, pro: true, studio: true },
     ],
@@ -67,7 +66,7 @@ const comparisonFeatures = [
     items: [
       { name: "Point-and-Click Visual Overrides", starter: true, pro: true, studio: true },
       { name: "Global Token Sync (Colors, Spacing, Radius)", starter: true, pro: true, studio: true },
-      { name: "Pre-designed Style Presets", starter: "10 Curated", pro: "10 Curated", studio: "Custom + 10 Curated" },
+      { name: "Curated Style References", starter: true, pro: true, studio: true },
       { name: "User Image Asset Uploads", starter: true, pro: true, studio: true },
     ],
   },
@@ -77,8 +76,8 @@ const comparisonFeatures = [
       { name: "Clean Tailwind HTML/CSS Export", starter: true, pro: true, studio: true },
       { name: "Design System CSS Variables", starter: true, pro: true, studio: true },
       { name: "Agent Handoff Pack (Cursor/Copilot Context)", starter: true, pro: true, studio: true },
-      { name: "Agent Handoff Pack (All Screens + Implementation Context)", starter: false, pro: true, studio: true },
-      { name: "Full Commercial Code License", starter: true, pro: true, studio: true },
+      { name: "Agent Pack (Screens + Implementation Context)", starter: true, pro: true, studio: true },
+      { name: "Commercial Use Permitted Under Terms", starter: true, pro: true, studio: true },
     ],
   },
 ];
@@ -90,7 +89,7 @@ const faqs = [
   },
   {
     question: "What is the 'Agent Handoff Pack' and how do I use it with Cursor or Copilot?",
-    answer: "When you export a screen, you can download a zip file containing the clean HTML/Tailwind code, a JSON design token manifest, and a `.drawgle/handoff.md` file. You drop this folder directly into your codebase. Downstream AI editors like Cursor, Copilot, or Claude can read the markdown instruction guide and implement the design tokens and pages perfectly into your actual repository.",
+    answer: "The Agent Pack is a zip containing screen HTML, design tokens, assets, a project manifest, Design.md, `.drawgle/handoff.md`, and agent skill instructions. Add it to your repository so coding agents such as Cursor, Copilot, Claude Code, or Codex can use the approved mobile UI as implementation context.",
   },
   {
     question: "Can I edit the generated code in my browser before exporting?",
@@ -98,7 +97,7 @@ const faqs = [
   },
   {
     question: "What are AI credits and how are they charged?",
-    answer: "Generating a brand new full page from a prompt or screenshot uses roughly 15-20 credits. Making a surgical, visual adjustment on a selected button or card uses only 2-4 credits. Starter includes 600 credits (~30 screens), Pro includes 2,400 credits (~120 screens), and Studio includes 8,000 credits (~400 screens).",
+    answer: "A new parent screen costs 20 credits. Selected edits cost 3 credits for a small component, 10 for a medium container, or 15 for a large section; full-screen and navigation edits cost 20 credits. Starter includes 600 credits (~30 screens), Pro includes 2,400 credits (~120 screens), and Studio includes 8,000 credits (~400 screens).",
   },
   {
     question: "Can I upgrade, downgrade, or cancel anytime?",
@@ -268,7 +267,7 @@ export default function PricingPage() {
 
               <div className="max-w-xl lg:justify-self-end">
                 <p className="text-sm leading-6 text-black/55 sm:text-base sm:leading-7">
-                  Honest answers to help you choose the right billing tier and understand credit limits, framework exports, and commercial licensing.
+                  Honest answers about credit limits, editable mobile UI, Tailwind HTML, Agent Pack exports, billing, and commercial use.
                 </p>
                 <a
                   href="mailto:support@drawgle.com"
@@ -300,10 +299,10 @@ export default function PricingPage() {
           <div className="max-w-4xl mx-auto px-4 text-center">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 text-emerald-800 text-xs font-semibold mb-4 border border-emerald-100">
               <Shield className="h-4 w-4 shrink-0 text-emerald-600" />
-              100% Safe & Secure Checkout
+              Secure checkout via Dodo Payments
             </div>
             <p className="text-sm text-gray-500 max-w-md mx-auto leading-relaxed">
-              All payment transactions are secured and securely processed. You can cancel or upgrade your plan instantly from your account.
+              Subscription payments are processed by Dodo Payments. You can cancel or change your plan from your account.
             </p>
           </div>
         </section>

@@ -7,11 +7,11 @@ import PublicHeader from "@/components/landing/Header";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { publishedComparisonPages } from "@/lib/compare/pages";
 import { buildMetadata } from "@/lib/seo/metadata";
-import { breadcrumbListSchema, webPageSchema } from "@/lib/seo/schema";
+import { breadcrumbListSchema, itemListSchema, webPageSchema } from "@/lib/seo/schema";
 
-const title = "Best AI Mobile UI Design Tool Alternatives";
+const title = "Best Mobile UI Design and Prototyping Tool Alternatives";
 const description =
-  "Looking for the best AI mobile UI design tool alternative? Compare Drawgle with other AI mobile app builders using features, pricing, and clean code export quality.";
+  "Compare Drawgle with AI UI generators, design platforms, wireframing tools, app builders, and prototyping software using source-backed workflow, pricing, and handoff analysis.";
 
 export const metadata: Metadata = buildMetadata({
   title,
@@ -33,6 +33,11 @@ export default function AlternativesIndexPage() {
             { name: "Home", path: "/" },
             { name: "Alternatives", path: "/alternatives" },
           ]),
+          itemListSchema({
+            name: "Drawgle product comparisons",
+            path: "/alternatives",
+            items: publishedComparisonPages.map((page) => `${page.competitor.name} alternative`),
+          }),
         ]}
       />
       <PublicHeader />
@@ -43,10 +48,10 @@ export default function AlternativesIndexPage() {
             Drawgle Alternatives
           </div>
           <h1 className="font-pixel-square text-[42px] font-semibold leading-[1.04] tracking-tight text-black sm:text-6xl">
-            Best AI mobile UI builder alternatives.
+            Mobile UI design alternatives, compared honestly.
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-sm leading-6 text-black/55 sm:text-base">
-            Compare Drawgle with other AI mobile UI design tools on workflow fit, styling control, and code export quality.
+            Compare AI UI generators, design platforms, wireframing tools, app builders, and prototyping software by the job each product actually does best.
           </p>
         </section>
 
@@ -64,7 +69,7 @@ export default function AlternativesIndexPage() {
                 {page.competitor.name} Alternative
               </h2>
               <p className="mt-4 text-sm leading-6 text-black/55">
-                Looking for the best {page.competitor.name} alternative? Compare Drawgle vs {page.competitor.name} features, pricing, and code quality.
+                {page.sonicBoomSummary}
               </p>
               <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-[#1b7fcc]">
                 View comparison

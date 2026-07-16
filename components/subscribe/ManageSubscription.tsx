@@ -110,8 +110,8 @@ export default function ManageSubscription({ subscription, plans, userEmail }: M
                     { name: `${credits.toLocaleString()} AI generation credits/mo`, icon: 'check' },
                     { name: `Build ~${screens} screens per month`, icon: 'check' },
                     { name: 'Free blueprint brief planner', icon: 'check' },
-                    { name: 'Agent-ready HTML & design context', icon: 'check' },
-                    { name: 'Figma design system matching', icon: 'check' },
+                    { name: 'Tailwind HTML and Agent Pack exports', icon: 'check' },
+                    { name: 'Screenshot and style-reference workflows', icon: 'check' },
                 ]
             }
             if (lower === 'pro') {
@@ -119,8 +119,8 @@ export default function ManageSubscription({ subscription, plans, userEmail }: M
                     { name: `${credits.toLocaleString()} AI generation credits/mo`, icon: 'check' },
                     { name: `Build ~${screens} screens per month`, icon: 'check' },
                     { name: 'Style reference image matching', icon: 'check' },
-                    { name: 'Priority AI generation speed', icon: 'check' },
-                    { name: 'All Starter features included', icon: 'check' },
+                    { name: 'Shared design tokens and navigation', icon: 'check' },
+                    { name: 'All editor and export features', icon: 'check' },
                 ]
             }
             // Studio / Pro Agency fallback
@@ -128,8 +128,8 @@ export default function ManageSubscription({ subscription, plans, userEmail }: M
                 { name: `${credits.toLocaleString()} AI generation credits/mo`, icon: 'check' },
                 { name: `Build ~${screens} screens per month`, icon: 'check' },
                 { name: 'Multi-screen system planning', icon: 'check' },
-                { name: 'Project Agent Packs & Beta Scaffolds', icon: 'check' },
-                { name: 'Priority developer support', icon: 'check' },
+                { name: 'Tailwind HTML and Agent Pack exports', icon: 'check' },
+                { name: 'Shared design tokens and navigation', icon: 'check' },
             ]
         }
 
@@ -201,7 +201,7 @@ export default function ManageSubscription({ subscription, plans, userEmail }: M
             paymentMethod: 'Card on file',
             status,
         }
-    }, [currentPlanDisplay, subscription.status, nextBillingDateStr, planEndsDateStr, localCancelAtPeriodEnd, subscription.plan_name])
+    }, [currentPlanDisplay, subscription.status, subscription.price_snapshot, subscription.currency_snapshot, nextBillingDateStr, planEndsDateStr, localCancelAtPeriodEnd, subscription.plan_name])
 
     const onCancel = useCallback(async () => {
         if (!subscription.subscription_id) return

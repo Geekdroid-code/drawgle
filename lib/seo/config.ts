@@ -1,9 +1,9 @@
 export const siteConfig = {
   name: "Drawgle",
   baseUrl: "https://drawgle.com",
-  defaultTitle: "Drawgle - AI Mobile UI Design Tool",
+  defaultTitle: "AI Mobile App UI Designer for Modern Apps | Drawgle",
   defaultDescription:
-    "Design premium mobile app interfaces, then export agent-ready HTML, design tokens, and implementation context for your coding workflow.",
+    "Drawgle is an AI mobile app UI designer that turns prompts, screenshots, and references into editable mobile screens with shared design tokens and agent-ready HTML.",
   supportEmail: "support@drawgle.com",
   creatorHandle: "@9to5_Dad",
   sameAs: ["https://x.com/9to5_Dad"],
@@ -11,30 +11,32 @@ export const siteConfig = {
     path: "og-image.webp",
     width: 1200,
     height: 630,
-    alt: "Drawgle - AI Mobile UI Design Tool",
+    alt: "Drawgle AI mobile app UI designer",
   },
   keywords: [
+    "AI mobile app UI designer",
     "AI mobile UI design",
     "app UI generator",
-    "image to UI",
+    "screenshot to editable UI",
     "mobile app design",
+    "mobile design tokens",
     "agent-ready UI handoff",
     "HTML Tailwind export",
   ],
   publicRoutes: [
     {
       path: "/",
-      title: "Drawgle - AI Mobile UI Design Tool",
+      title: "AI Mobile App UI Designer for Modern Apps | Drawgle",
       description:
-        "Design premium mobile app interfaces, then export agent-ready HTML, design tokens, and implementation context for your coding workflow.",
+        "Drawgle is an AI mobile app UI designer that turns prompts, screenshots, and references into editable mobile screens with shared design tokens and agent-ready HTML.",
       changeFrequency: "weekly",
       priority: 1,
     },
     {
       path: "/pricing",
-      title: "Pricing - Simple plans for builders",
+      title: "AI Mobile UI Designer Pricing | Drawgle",
       description:
-        "Choose the perfect plan to turn prompts and screenshots into clean, exportable Tailwind HTML code with complete design token control.",
+        "Compare Drawgle plans for prompt-to-UI generation, screenshot reconstruction, editable design tokens, Tailwind HTML, and Agent Pack exports.",
       changeFrequency: "weekly",
       priority: 0.9,
     },

@@ -20,12 +20,13 @@ export function CTASection() {
             </div>
 
             <h2 className="font-pixel-square text-[40px] font-semibold leading-[1.02] tracking-tight text-white sm:text-5xl md:text-[64px]">
-              Stop sketching.
-              <span className="block text-[#1b7fcc] mt-2">Start shipping real UIs.</span>
+              Design modern mobile UI.
+              <span className="block text-[#1b7fcc] mt-2">Hand it off with context.</span>
             </h2>
 
             <p className="mx-auto mt-6 max-w-2xl text-sm leading-6 text-white/50 sm:text-base sm:leading-7">
-              Don&apos;t spend another week wrestling with Figma designs or writing boilerplate CSS from scratch. Build your first screen flow in seconds and export clean Tailwind HTML immediately.
+              Move from a product brief or screenshot to an editable screen flow, then export
+              Tailwind HTML, shared design tokens, and structured implementation instructions.
             </p>
 
             <Link

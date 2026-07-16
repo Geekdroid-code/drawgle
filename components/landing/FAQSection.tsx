@@ -2,6 +2,11 @@ import { ArrowUpRight, Plus } from "lucide-react";
 
 export const homeFaqs = [
   {
+    question: "What is an AI mobile app UI designer?",
+    answer:
+      "An AI mobile app UI designer turns a product brief or visual reference into mobile interface screens. Drawgle adds shared design tokens, navigation context, editable screen structure, and developer handoff files so the result can continue beyond a static mockup.",
+  },
+  {
     question: "What does Drawgle actually create?",
     answer:
       "Drawgle turns a plain-language brief into polished, editable mobile app screens. It can design individual screens or a connected multi-screen product while keeping the same visual language throughout.",
@@ -37,14 +42,19 @@ export const homeFaqs = [
       "Yes. The first result is a starting point, not a flattened export. You can continue adding screens, replacing images, changing the design system, and refining individual details on the same canvas.",
   },
   {
-    question: "Can I start from one of the curated designs?",
+    question: "Can Drawgle create polished modern mobile app designs?",
     answer:
-      "Yes. Fork creates an editable copy of the complete curated project. Remix applies its reusable visual style to your own app brief, without copying the source product's features.",
+      "Drawgle plans component construction, mobile spacing, typography roles, surface hierarchy, visual layering, navigation, and shared design tokens before building each screen. Generated output remains editable and should be reviewed before implementation.",
   },
   {
     question: "Does Drawgle generate real app structure or disconnected mockups?",
     answer:
       "Drawgle is built for complete mobile products. It can maintain shared navigation, screen relationships, project context, and reusable visual decisions across the app rather than producing isolated pages.",
+  },
+  {
+    question: "How does Drawgle hand designs to developers?",
+    answer:
+      "Drawgle exports standalone Tailwind HTML and a structured Agent Pack containing screen files, design tokens, assets, a manifest, Design.md, and implementation instructions for coding agents.",
   },
   {
     question: "Do I need design or coding experience?",
@@ -104,8 +114,8 @@ export default function FAQSection() {
 
           <div className="max-w-xl lg:justify-self-end">
             <p className="text-sm leading-6 text-black/55 sm:text-base sm:leading-7">
-              Clear answers about how Drawgle turns references, prompts, and product ideas into coherent,
-              editable mobile UI.
+              Direct answers about AI mobile app UI design, screenshot reconstruction, design
+              tokens, editable screens, and developer handoff.
             </p>
             <a
               href="mailto:support@drawgle.com"
@@ -119,13 +129,13 @@ export default function FAQSection() {
 
         <div className="grid lg:grid-cols-2 lg:gap-x-14">
           <div>
-            {homeFaqs.slice(0, 5).map((faq, index) => (
+            {homeFaqs.slice(0, 6).map((faq, index) => (
               <FAQItem key={faq.question} {...faq} index={index} />
             ))}
           </div>
           <div>
-            {homeFaqs.slice(5).map((faq, index) => (
-              <FAQItem key={faq.question} {...faq} index={index + 5} />
+            {homeFaqs.slice(6).map((faq, index) => (
+              <FAQItem key={faq.question} {...faq} index={index + 6} />
             ))}
           </div>
         </div>

@@ -4,7 +4,6 @@ import { motion } from "motion/react";
 import {
   Check,
   Code2,
-  Figma,
   Layers3,
   RefreshCw,
   Sparkles,
@@ -15,14 +14,14 @@ const stages = [
   { label: "Prompt", icon: Sparkles },
   { label: "Refine", icon: RefreshCw },
   { label: "Systemize", icon: Layers3 },
-  { label: "Ship", icon: Code2 },
+  { label: "Handoff", icon: Code2 },
 ];
 
 const drawgleJourney = [
   { title: "Clean blueprint", detail: "A structured scope checklist before building", mood: "happy" },
   { title: "Pinpoint edits", detail: "Refining exact elements instead of full regenerations", mood: "calm" },
   { title: "Global tokens", detail: "Central styling rules that scale dynamically", mood: "spark" },
-  { title: "Production-ready", detail: "Clean, semantic Tailwind HTML you'll actually use", mood: "done" },
+  { title: "Implementation-ready", detail: "Semantic Tailwind HTML and structured handoff context", mood: "done" },
 ];
 
 const genericJourney = [
@@ -30,6 +29,13 @@ const genericJourney = [
   { title: "AI design drift", detail: "Revisions rewrite and break existing styling", mood: "sad" },
   { title: "CSS spaghetti", detail: "Manually patching inline styles and bloated markup", mood: "lost" },
   { title: "The binary bin", detail: "Throwing it away and rewriting it yourself", mood: "flat" },
+];
+
+const handoffRows = [
+  { stage: "Product brief", output: "Connected screen plan and navigation model", evidence: "Editable project workspace" },
+  { stage: "Visual system", output: "Shared colors, typography, spacing, radii, shadows, and layout tokens", evidence: "Token editor and CSS variables" },
+  { stage: "Screen construction", output: "Structured, editable mobile HTML", evidence: "Live canvas and standalone Tailwind HTML" },
+  { stage: "Developer handoff", output: "Screens, assets, design context, manifest, and instructions", evidence: "Downloadable Agent Pack" },
 ];
 
 function Face({ mood, active }: { mood: string; active: boolean }) {
@@ -157,17 +163,16 @@ export default function MethodComparison() {
       <div className="mx-auto max-w-[1060px]">
         <div className="mx-auto mb-12 max-w-3xl text-center md:mb-16">
           <div className="mb-5 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#1b7fcc]">
-            <Figma className="h-3.5 w-3.5" />
+            <Layers3 className="h-3.5 w-3.5" />
             The Real Workflow
           </div>
           <h2 className="font-pixel-square text-[34px] font-semibold leading-[1.08] tracking-tight text-black sm:text-5xl md:text-6xl">
-            Break the cycle of
-            <span className="block text-[#1b7fcc] mt-2">rebuilding AI code from scratch.</span>
+            From mobile UI brief
+            <span className="block text-[#1b7fcc] mt-2">to implementation-ready handoff.</span>
           </h2>
           <p className="mx-auto mt-6 max-w-3xl text-sm leading-relaxed text-gray-500 sm:text-base md:text-lg">
-            Most AI UI generators are one-off toys. The second you ask for changes, they lose your
-            styles or write messy, unchangeable markup. Drawgle keeps a single source of design
-            truth.
+            Drawgle keeps the screen plan, structured component construction, design-token map,
+            navigation model, and export context connected throughout the mobile UI workflow.
           </p>
         </div>
 
@@ -200,6 +205,34 @@ export default function MethodComparison() {
               <X className="h-3 w-3" strokeWidth={3} />
             </span>
             Building with generic AI
+          </div>
+
+          <div className="mt-12 overflow-x-auto rounded-[22px] border border-gray-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
+            <table className="w-full min-w-[760px] border-collapse text-left">
+              <caption className="border-b border-gray-200 px-6 py-5 text-left text-sm font-semibold text-gray-900">
+                Verified Drawgle workflow and output formats
+              </caption>
+              <thead className="bg-gray-50 text-[11px] uppercase tracking-[0.12em] text-gray-500">
+                <tr>
+                  <th className="px-6 py-4 font-bold">Workflow stage</th>
+                  <th className="px-6 py-4 font-bold">Verified Drawgle output</th>
+                  <th className="px-6 py-4 font-bold">Workspace or export evidence</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 text-sm text-gray-600">
+                {handoffRows.map((row) => (
+                  <tr key={row.stage}>
+                    <th scope="row" className="px-6 py-5 font-semibold text-gray-900">
+                      {row.stage}
+                    </th>
+                    <td className="px-6 py-5">
+                      <strong className="font-semibold text-gray-800">{row.output}</strong>
+                    </td>
+                    <td className="px-6 py-5">{row.evidence}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>

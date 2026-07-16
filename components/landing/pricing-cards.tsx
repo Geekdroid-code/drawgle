@@ -5,12 +5,6 @@ import Image from "next/image"
 import Link from "next/link"
 
 export default function PricingCards() {
-  const proLaunchOffer = {
-    price: "$21.75",
-    originalPrice: "$29",
-    limit: "2 claimed / 8 remaining",
-    savings: "25% off",
-  }
 
   const LightCheckIcon = ({ className }: { className?: string }) => (
     <svg
@@ -43,28 +37,28 @@ export default function PricingCards() {
   const starterFeatures = [
     "600 AI credits per month",
     "Generate ~30 full screens",
-    "Standard build speeds",
-    "AI-powered element edits",
-    "Agent-ready HTML & design context",
-    "Full commercial license"
+    "20 credits per new parent screen",
+    "Screenshot reconstruction and style references",
+    "Tailwind HTML and Agent Pack exports",
+    "Commercial use permitted under the Terms"
   ]
 
   const proFeatures = [
     "2,400 AI credits per month",
     "Generate ~120 full screens",
-    "Priority generation speed",
-    "Advanced screen layout options",
-    "Full commercial license",
-    "Premium customer support"
+    "All editor and export features",
+    "Shared design tokens and navigation",
+    "Selected element and region edits",
+    "Commercial use permitted under the Terms"
   ]
 
   const studioFeatures = [
     "8,000 AI credits per month",
     "Generate ~400 full screens",
-    "Ultra-priority processing",
-    "Agency & team collaboration",
-    "Custom design system presets",
-    "Dedicated account manager"
+    "High-volume multi-screen planning",
+    "Shared design tokens and navigation",
+    "Tailwind HTML and Agent Pack exports",
+    "Commercial use permitted under the Terms"
   ]
 
   return (
@@ -73,11 +67,12 @@ export default function PricingCards() {
       <div className="w-full max-w-6xl mx-auto">
         <div className="text-center mb-16">
           <h2 className="font-pixel-square text-4xl sm:text-6xl max-w-4xl mx-auto font-bold leading-[1.1] mb-4 font-[var(--font-inter-tight)]">
-            Fair pricing. <br />
-            <span className="text-[#1b7fcccc]">Start designing for less than a lunch.</span>
+            Choose monthly design capacity. <br />
+            <span className="text-[#1b7fcccc]">The same editable workflow at every tier.</span>
           </h2>
           <p className="text-lg md:text-xl text-gray-600 max-w-3xl mx-auto leading-tight mb-4">
-            Pick a plan that fits your build speed. No hidden fees, cancel anytime. Whether you are validating a weekend project or building app flows for clients, choose the tier that matches your design volume.
+            Every plan includes prompt-to-UI, screenshot reconstruction, design-token editing,
+            Tailwind HTML, and Agent Pack exports. Plans differ by monthly credit capacity.
           </p>
         </div>
         
@@ -99,9 +94,11 @@ export default function PricingCards() {
               <Link href="/login" className="block text-center w-full group relative bg-[#1b7fcccc] hover:bg-[#1b7fcccc]/90 text-white rounded-md overflow-hidden cursor-pointer pr-12 py-4 font-semibold text-base shadow-[0_4px_20px_-5px_rgba(0,0,0,0.2)] transition-colors">
                 Start Building Now
                 <div className="bg-white rounded-sm p-3 absolute right-1 top-1/2 -translate-y-1/2">
-                  <img
+                  <Image
                     src="/arrow.svg"
-                    alt="arrow-right"
+                    alt=""
+                    width={16}
+                    height={16}
                     className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1"
                   />
                 </div>
@@ -138,33 +135,27 @@ export default function PricingCards() {
               <span className="absolute -top-4 left-1/2 h-3 -translate-x-1/2 border-l border-dashed border-gray-400" />
             </div>
             <div className="bg-gray-800 rounded-2xl p-8 mb-2 flex-shrink-0">
-              <div className="mb-5 flex items-center justify-between gap-3 rounded-md border border-white/10 bg-white/[0.04] px-3 py-2">
-                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#8bc8f4]">Launch offer</span>
-                <span className="whitespace-nowrap text-xs font-semibold text-white">{proLaunchOffer.limit}</span>
-              </div>
               <div className="flex items-center gap-2 mb-3">
                 <h3 className="font-pixel-square text-3xl font-bold text-white tracking-tight">Pro</h3>
-                <span className="bg-[#1b7fcccc] text-white text-xs font-semibold px-2.5 py-0.5 rounded-full">{proLaunchOffer.savings}</span>
+                <span className="bg-[#1b7fcccc] text-white text-xs font-semibold px-2.5 py-0.5 rounded-full">Best value</span>
               </div>
               <p className="text-gray-300 text-sm leading-relaxed min-h-[60px] mb-6">
-                The sweet spot for serious builders. Lock in launch savings while only 8 Pro seats remain.
+                Higher monthly capacity for active builders producing larger mobile UI projects.
               </p>
               <div className="mb-6">
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                  <span className="text-5xl font-bold text-white tracking-tighter">{proLaunchOffer.price}</span>
+                  <span className="text-5xl font-bold text-white tracking-tighter">$29</span>
                   <span className="text-gray-400 text-sm font-semibold">/ month</span>
-                  <span className="text-sm font-semibold text-gray-500 line-through">{proLaunchOffer.originalPrice}</span>
                 </div>
-                <p className="mt-2 text-xs font-medium text-[#8bc8f4]">
-                  Only 8 launch seats remain. Standard Pro pricing resumes once all 10 are claimed.
-                </p>
               </div>
               <Link href="/login" className="block text-center w-full group relative bg-white hover:bg-white/90 text-black rounded-md overflow-hidden cursor-pointer pr-12 py-4 font-semibold text-base shadow-[0_4px_20px_-5px_rgba(0,0,0,0.2)] transition-colors">
                 Choose Pro Plan
                 <div className="bg-[#1b7fcccc] rounded-sm p-3 absolute right-1 top-1/2 -translate-y-1/2">
-                  <img
+                  <Image
                     src="/arrow.svg"
-                    alt="arrow-right"
+                    alt=""
+                    width={16}
+                    height={16}
                     className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1 brightness-0 invert"
                   />
                 </div>
@@ -184,10 +175,6 @@ export default function PricingCards() {
                   <span className="text-gray-300">Generates:</span>
                   <span className="font-semibold text-white">~120 full screens/mo</span>
                 </div>
-                <div className="flex items-center justify-between text-sm mt-2">
-                  <span className="text-gray-300">Launch Window:</span>
-                  <span className="font-semibold text-[#1b7fcccc]">First 10 seats only</span>
-                </div>
               </div>
             </div>
           </div>
@@ -197,10 +184,10 @@ export default function PricingCards() {
             <div className="bg-white rounded-2xl p-8 mb-2 flex-shrink-0">
               <div className="flex items-center gap-2 mb-3">
                 <h3 className="font-pixel-square text-3xl font-bold text-gray-900 tracking-tight">Studio</h3>
-                <span className="bg-gray-100 text-gray-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">For Teams</span>
+                <span className="bg-gray-100 text-gray-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">High capacity</span>
               </div>
               <p className="text-gray-600 text-sm leading-relaxed min-h-[60px] mb-6">
-                The anchor for product agencies, hyper-active teams, and development studios looking for maximum design output.
+                High monthly generation capacity for agencies, studios, and builders managing larger mobile UI workloads.
               </p>
               <div className="flex items-baseline mb-6">
                 <span className="text-5xl font-bold text-gray-900 tracking-tighter">$79</span>
@@ -209,9 +196,11 @@ export default function PricingCards() {
               <Link href="/login" className="block text-center w-full group relative bg-[#1b7fcccc] hover:bg-[#1b7fcccc]/90 text-white rounded-md overflow-hidden cursor-pointer pr-12 py-4 font-semibold text-base shadow-[0_4px_20px_-5px_rgba(0,0,0,0.2)] transition-colors">
                 Choose Studio Plan
                 <div className="bg-white rounded-sm p-3 absolute right-1 top-1/2 -translate-y-1/2">
-                  <img
+                  <Image
                     src="/arrow.svg"
-                    alt="arrow-right"
+                    alt=""
+                    width={16}
+                    height={16}
                     className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1"
                   />
                 </div>

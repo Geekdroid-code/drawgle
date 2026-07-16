@@ -9,7 +9,6 @@ import PricingCards from '@/components/landing/pricing-cards'
 import FAQSection, { homeFaqs } from '@/components/landing/FAQSection'
 import { CTASection } from '@/components/landing/CTASection'
 import  Footer  from '@/components/landing/MainFooter'
-import TestimonialSection from "@/components/landing/Testimonial";
 import HookSection from "@/components/landing/HookSection";
 import { JsonLd } from '@/components/seo/JsonLd'
 import { siteConfig } from '@/lib/seo/config'
@@ -43,7 +42,6 @@ export default function Home() {
         <AppShowcase />
         <NewHowItWorks />
         <MethodComparison />
-        <TestimonialSection />
         <PricingCards />
         <FeaturesSection />
         <FAQSection />

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import {
   ImageIcon,
   MessageSquareText,
@@ -13,31 +14,31 @@ import { Button } from "@/components/ui/button";
 const possibilities = [
   {
     icon: MessageSquareText,
-    title: "Prompt to screen flows",
+    title: "Plan connected mobile screen flows",
     description:
-      "Define your project brief in plain English. Drawgle designs the app's structure, sets up standard navigation tabs, and populates responsive mobile views.",
-    detail: "Connected navigation flows",
+      "Describe the product in plain English. Drawgle plans the screen structure, shared navigation, and product context before building the initial mobile views.",
+    detail: "Product brief, screen plan, and navigation model",
   },
   {
     icon: ImageIcon,
-    title: "Clone layouts or borrow vibes",
+    title: "Rebuild screenshots as editable UI",
     description:
-      "Upload a screenshot. Rebuild its layout structure directly as editable Tailwind UI, or just inherit its colors, typography, and mood for your own features.",
-    detail: "Structural cloning & style reference",
+      "Use an uploaded screenshot as structural evidence, or use a visual reference only for typography, surfaces, spacing, and material direction.",
+    detail: "Screenshot reconstruction and style references",
   },
   {
     icon: Palette,
-    title: "Style rules that scale with you",
+    title: "Map design tokens across every screen",
     description:
-      "Adjust any color, border radius, or spacing token once. Drawgle propagates it instantly to every page, keeping your branding consistent automatically.",
-    detail: "Centralized design system token overrides",
+      "Adjust shared colors, typography, spacing, radii, shadows, and mobile layout tokens from one design-system source of truth.",
+    detail: "Shared token map and CSS variables",
   },
   {
     icon: MousePointer2,
-    title: "Point-and-click edits",
+    title: "Refine selected component styling",
     description:
-      "Tweak layouts by selecting components on the live canvas. Change text, upload custom images, delete elements, or prompt AI for targeted changes.",
-    detail: "Canvas editor & custom image uploads",
+      "Select a card, button, section, image, or navigation element and make a scoped change without replacing the surrounding screen.",
+    detail: "Targeted canvas edits and image replacement",
   },
 ];
 
@@ -48,18 +49,18 @@ export default function HookSection() {
         <div className="mx-auto mb-12 max-w-3xl text-center md:mb-16">
           <div className="mb-5 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#1b7fcc]">
             <Sparkles className="h-3.5 w-3.5" />
-            What you can do with Drawgle
+            How Drawgle works
           </div>
           <h2 className="font-pixel-square text-[34px] font-semibold leading-[1.0] tracking-tight text-black sm:text-5xl md:text-6xl">
-            Beautiful mobile UIs
+            How an AI mobile app UI designer
             <span className="block text-[#1b7fcc] mt-2">
-               that actually match your codebase.
+               creates a coherent product.
             </span>
           </h2>
           <p className="mx-auto mt-6 max-w-3xl text-sm leading-relaxed text-gray-500 sm:text-base md:text-lg">
-            Drawgle doesn&apos;t generate flat mockups or messy, unchangeable templates. It plans your
-            app&apos;s pages, builds clean Tailwind code, and exposes a real design token editor so
-            revisions take seconds, not hours.
+            Drawgle combines product planning, structured component construction, design-token
+            mapping, mobile layout spacing, and targeted editing so generated screens remain
+            consistent and editable after the first result.
           </p>
         </div>
 
@@ -96,9 +97,11 @@ export default function HookSection() {
             <Button className="group relative cursor-pointer overflow-hidden rounded-md border border-[#1b7fcc]/40 bg-[#1b7fcc] py-5 pr-12 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-2px_3px_rgba(0,0,0,0.28)] hover:bg-[#1975bd] sm:py-6">
               <span className="sm:px-2">Design Your UI</span>
               <span className="absolute right-1 top-1/2 -translate-y-1/2 rounded-sm bg-white p-2 shadow-[inset_0_-1px_2px_rgba(0,0,0,0.12)] sm:p-3">
-                <img
+                <Image
                   src="/arrow.svg"
                   alt=""
+                  width={16}
+                  height={16}
                   className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1"
                 />
               </span>

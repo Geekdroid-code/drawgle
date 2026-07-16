@@ -40,6 +40,7 @@ export function organizationSchema(): JsonLd {
     name: siteConfig.name,
     url: siteConfig.baseUrl,
     email: siteConfig.supportEmail,
+    logo: absoluteUrl("/android-chrome-512x512.png"),
     sameAs: siteConfig.sameAs,
   };
 }
@@ -58,26 +59,69 @@ export function websiteSchema(): JsonLd {
 }
 
 export function webApplicationSchema(): JsonLd {
+  const organizationId = `${siteConfig.baseUrl}/#organization`;
+
   return {
     "@context": "https://schema.org",
     "@type": "WebApplication",
     "@id": `${siteConfig.baseUrl}/#web-application`,
     name: siteConfig.name,
     url: siteConfig.baseUrl,
+    image: absoluteUrl("/og-image.webp"),
     applicationCategory: "DesignApplication",
-    operatingSystem: "Web",
-    browserRequirements: "Requires a modern web browser.",
+    applicationSubCategory: "AI mobile app UI designer",
+    operatingSystem: "Cloud/Web",
+    browserRequirements: "Requires a modern web browser with JavaScript enabled.",
     description: siteConfig.defaultDescription,
+    featureList: [
+      "Prompt-to-screen mobile UI generation",
+      "Screenshot-to-editable-UI reconstruction",
+      "Visual style reference generation",
+      "Shared design tokens across screens",
+      "Shared navigation and multi-screen project context",
+      "Targeted element and region editing",
+      "Standalone Tailwind HTML export",
+      "Agent Pack export with design tokens, assets, screens, and implementation context",
+    ],
     offers: {
       "@type": "Offer",
+      name: `${siteConfig.name} ${siteConfig.pricing[0].name}`,
       price: siteConfig.pricing[0].price,
       priceCurrency: siteConfig.pricing[0].currency,
       url: absoluteUrl("/pricing"),
       availability: "https://schema.org/InStock",
+      itemOffered: {
+        "@id": `${siteConfig.baseUrl}/#web-application`,
+      },
+    },
+    author: {
+      "@id": organizationId,
     },
     publisher: {
-      "@id": `${siteConfig.baseUrl}/#organization`,
+      "@id": organizationId,
     },
+    about: [
+      {
+        "@type": "DefinedTerm",
+        name: "User interface",
+        sameAs: "https://www.wikidata.org/wiki/Q47146",
+      },
+      {
+        "@type": "DefinedTerm",
+        name: "User interface design",
+        sameAs: "https://www.wikidata.org/wiki/Q135707",
+      },
+      {
+        "@type": "DefinedTerm",
+        name: "Artificial intelligence",
+        sameAs: "https://www.wikidata.org/wiki/Q11660",
+      },
+      {
+        "@type": "DefinedTerm",
+        name: "Product design",
+        sameAs: "https://www.wikidata.org/wiki/Q1043226",
+      },
+    ],
   };
 }
 

@@ -11,6 +11,13 @@ import { cn } from "@/lib/utils";
 
 const FEATURE_LABELS: Record<string, string> = {
   "Export to 5 Frameworks": "HTML/Tailwind + Agent Pack Export",
+  "Figma design system matching": "Screenshot and style-reference workflows",
+  "Priority generation speed": "Higher monthly generation capacity",
+  "Priority AI generation speed": "Higher monthly generation capacity",
+  "Project Agent Packs & Beta Scaffolds": "Project Agent Packs",
+  "Ultra-priority processing": "High monthly generation capacity",
+  "Agency & team collaboration": "High-volume multi-screen planning",
+  "Dedicated account manager": "Tailwind HTML and Agent Pack exports",
 };
 
 const FEATURE_TOOLTIPS: Record<string, string> = {
@@ -21,9 +28,9 @@ const FEATURE_TOOLTIPS: Record<string, string> = {
   "Live Design Tokens Sync": "Extract and sync precise color, typography, and spacing tokens dynamically.",
   "AI-powered Screen Editing": "Prompt the AI to modify, iterate, or fix specific parts of your screen instantly.",
   "Manual UI Adjustments": "Take full manual control over the generated code for pixel-perfect tweaks.",
-  "Priority generation speed": "Skip the queue with prioritized AI rendering for instant results.",
+  "Priority generation speed": "Higher plan credit capacity supports more monthly generation work.",
   "Advanced multi-screen systems": "Plan and generate entire cohesive user flows with shared context.",
-  "Direct team collaboration support": "Invite team members to view, edit, and collaborate on your design systems."
+  "Direct team collaboration support": "Plan larger multi-screen systems with shared project context."
 };
 
 type PlanRow = {

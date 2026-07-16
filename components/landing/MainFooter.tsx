@@ -26,6 +26,7 @@ export default function Footer() {
     ],
     Resources: [
       { href: '/alternatives', label: 'Alternatives' },
+      { href: '/editorial-policy', label: 'Comparison Editorial Policy' },
       { href: '/alternatives/sleek-design', label: 'Sleek.design Alternative' },
       { href: '/alternatives/google-stitch', label: 'Google Stitch Alternative' },
       { href: '/alternatives/app-alchemy', label: 'AppAlchemy Alternative' },

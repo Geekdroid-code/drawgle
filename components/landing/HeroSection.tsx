@@ -17,10 +17,10 @@ const caveat = Caveat({
 });
 
 const placeholderPhrases = [
-  "Build a modern SaaS pricing page with dark mode...",
-  "Design a minimal blog post layout with elegant typography...",
-  "Create a futuristic crypto dashboard with charts...",
-  "Generate a clean e-commerce product page...",
+  "Design a modern fintech mobile dashboard...",
+  "Create a premium habit-tracking app flow...",
+  "Rebuild this mobile UI screenshot as editable screens...",
+  "Generate a polished food-delivery mobile app...",
 ];
 
 const initialDemoNote = "Watch it live before you give your money to us";
@@ -116,21 +116,42 @@ export function HeroSection() {
                   <Sparkles size={8} className="text-[#75b9ed]" />
                 </span>
                 <span className="text-[10px] font-semibold tracking-[0.04em] text-gray-200">
-                  Native mobile UI, ready to ship
+                  AI mobile app UI designer
                 </span>
             </div>
             
 <h1 className="text-[32px] sm:text-6xl max-w-4xl mx-auto font-semibold leading-none mb-4 font-pixel-square">
-  <span className="text-white">Ship beautiful App UIs</span>
+  <span className="text-white">Design modern mobile app UI</span>
   <br />
   <span className="relative mt-2 inline-block text-[#1b7fcc]">
-    at the speed of thought
+    that stays editable
     
   </span>
 </h1>
 
             <p className="text-md sm:text-lg text-gray-300 max-w-3xl mx-auto mb-8">
-Drawgle turns prompts into premium mobile UI, then hands agent-ready HTML, design tokens, and implementation context to the coding tools already inside your repository.            </p>
+              Drawgle turns prompts, screenshots, and visual references into polished mobile app
+              screens with shared design tokens, navigation, and agent-ready implementation context.
+            </p>
+
+            <ul className="mx-auto grid max-w-4xl gap-2 text-left text-xs leading-5 text-white/65 sm:grid-cols-2 sm:text-sm">
+              <li className="rounded-xl border border-white/10 bg-white/[0.035] px-4 py-3">
+                <strong className="text-white">Prompt to screen flow:</strong>{" "}
+                plan connected mobile screens from a product brief.
+              </li>
+              <li className="rounded-xl border border-white/10 bg-white/[0.035] px-4 py-3">
+                <strong className="text-white">Screenshot reconstruction:</strong>{" "}
+                rebuild visible structure as editable UI.
+              </li>
+              <li className="rounded-xl border border-white/10 bg-white/[0.035] px-4 py-3">
+                <strong className="text-white">Design-system continuity:</strong>{" "}
+                keep tokens, navigation, and visual decisions aligned.
+              </li>
+              <li className="rounded-xl border border-white/10 bg-white/[0.035] px-4 py-3">
+                <strong className="text-white">Developer handoff:</strong>{" "}
+                export Tailwind HTML and a structured Agent Pack.
+              </li>
+            </ul>
           </div>
 
           {/* Premium Prompt Box */}
@@ -195,9 +216,11 @@ Drawgle turns prompts into premium mobile UI, then hands agent-ready HTML, desig
               >
                 <span className="sm:px-2">Design Your UI</span>
                 <div className="bg-white rounded-sm p-2 sm:p-3 absolute right-1 top-1/2 -translate-y-1/2 shadow-[inset_0_-1px_2px_rgba(0,0,0,0.12)]">
-                  <img
+                  <Image
                     src="/arrow.svg"
-                    alt="arrow-right"
+                    alt=""
+                    width={16}
+                    height={16}
                     className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1"
                   />
                 </div>
@@ -256,43 +279,9 @@ Drawgle turns prompts into premium mobile UI, then hands agent-ready HTML, desig
               </AnimatePresence>
             </p>
           </div>
-          <div className="flex flex-col items-center space-y-2 pt-2">
-            <div className="flex items-center space-x-2">
-              <div className="flex -space-x-2">
-                <img
-                  src="/content/sachin.webp"
-                  alt="User profile photo"
-                  className="w-8 h-8 rounded-full border-2 border-white object-cover"
-                />
-                <img
-                  src="/content/sumesh.webp"
-                  alt="User profile photo"
-                  className="w-8 h-8 rounded-full border-2 border-white object-cover"
-                />
-                <img
-                  src="/content/manoj.jpg"
-                  alt="User profile photo"
-                  className="w-8 h-8 rounded-full border-2 border-white object-cover"
-                />
-                <img
-                  src="/content/emma-thopmson.jpg"
-                  alt="User profile photo"
-                  className="w-8 h-8 rounded-full border-2 border-white object-cover"
-                />
-                <div className="w-8 h-8 rounded-full bg-gray-900 border-2 border-white flex items-center justify-center">
-                  <span className="text-white text-xs font-bold">15+</span>
-                </div>
-              </div>
-              <div className="flex text-yellow-400">
-                {[...Array(5)].map((_, i) => (
-                  <span key={i} className="text-lg">
-                    ★
-                  </span>
-                ))}
-              </div>
-            </div>
-            <p className="text-gray-400 text-md">Starting at $9 ONLY</p>
-          </div>
+          <p className="pt-2 text-sm font-medium text-gray-400">
+            Plans start at $9/month. New parent screens use 20 credits each.
+          </p>
         </div>
       </div>
     </section>

@@ -1,3 +1,6 @@
+import { phase2ComparisonPages } from "@/lib/compare/phase2-pages";
+import { phase3ComparisonPages } from "@/lib/compare/phase3-pages";
+
 export type ComparisonStatus = "published" | "draft";
 
 export type ComparisonSource = {
@@ -44,6 +47,7 @@ export type ComparisonPageData = {
   };
   heroTitle: string;
   sonicBoomSummary: string;
+  researchDisclosure?: string;
   quickVerdict: {
     competitorTitle: string;
     competitorDescription: string;
@@ -236,6 +240,8 @@ const uxMagicSources: ComparisonSource[] = [
 ];
 
 export const comparisonPages: ComparisonPageData[] = [
+  ...phase2ComparisonPages,
+  ...phase3ComparisonPages,
   {
     slug: "sleek-design",
     status: "published",

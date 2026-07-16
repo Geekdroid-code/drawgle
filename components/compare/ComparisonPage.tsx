@@ -27,17 +27,20 @@ export function ComparisonPage({ page }: { page: ComparisonPageData }) {
         <section className="w-full max-w-5xl mx-auto px-6 mb-16">
           <div className="text-center mb-10 max-w-3xl mx-auto">
             <h1 className="font-pixel-square text-3xl md:text-5xl text-stone-900 leading-[1.1] mb-4 tracking-tight font-semibold">
-              Best {page.competitor.name} Alternative: Drawgle vs {page.competitor.name} 2026 Comparison
+              {page.heroTitle}
             </h1>
+            <p className="mx-auto mb-4 max-w-2xl text-sm leading-relaxed text-stone-600 md:text-base">
+              {page.sonicBoomSummary}
+            </p>
             <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-stone-400">
-              <span>
+              <time dateTime={page.metadata.modifiedDate}>
                 Updated{" "}
                 {new Date(page.metadata.modifiedDate).toLocaleDateString("en-US", {
                   month: "long",
                   day: "numeric",
                   year: "numeric",
                 })}
-              </span>
+              </time>
               <span className="text-stone-300">•</span>
               <span>Reviewed by Drawgle Editorial</span>
             </div>
@@ -71,6 +74,43 @@ export function ComparisonPage({ page }: { page: ComparisonPageData }) {
             </div>
           </div>
         </section>
+
+        {/* Section 2: Scannable comparison table */}
+        {allRows.length > 0 && (
+          <section className="w-full max-w-5xl mx-auto px-6 mb-16">
+            <SectionHeader index="02" label="Drawgle vs. Competitor At a Glance" />
+            <div className="overflow-x-auto rounded-lg border border-stone-200 bg-white">
+              <table className="w-full min-w-[760px] border-collapse text-left">
+                <thead>
+                  <tr className="border-b border-stone-200 bg-stone-50">
+                    <th className="w-[26%] px-5 py-4 text-xs font-bold uppercase tracking-wider text-stone-500">Decision factor</th>
+                    <th className="w-[30%] px-5 py-4 text-xs font-bold uppercase tracking-wider text-stone-500">{page.competitor.name}</th>
+                    <th className="w-[30%] px-5 py-4 text-xs font-bold uppercase tracking-wider text-[#1b7fcc]">Drawgle</th>
+                    <th className="w-[14%] px-5 py-4 text-center text-xs font-bold uppercase tracking-wider text-stone-500">Best fit</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-100">
+                  {allRows.map((item) => (
+                    <tr key={item.title} className="align-top">
+                      <th scope="row" className="px-5 py-4 text-sm font-semibold leading-relaxed text-stone-900">{item.title}</th>
+                      <td className="px-5 py-4 text-sm leading-relaxed text-stone-600">{item.shortCompetitor}</td>
+                      <td className="px-5 py-4 text-sm font-medium leading-relaxed text-stone-900">{item.shortDrawgle}</td>
+                      <td className="px-5 py-4 text-center text-xs font-bold">
+                        {item.winner === "drawgle" ? (
+                          <span className="text-[#1b7fcc]">Drawgle</span>
+                        ) : item.winner === "competitor" ? (
+                          <span className="text-stone-700">{page.competitor.name}</span>
+                        ) : (
+                          <span className="text-stone-400">Depends</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
 
         {/* Section 1a: The Single Home for All Feature Comparisons */}
         {page.premiumMoat && allRows.length > 0 && (
@@ -157,7 +197,7 @@ export function ComparisonPage({ page }: { page: ComparisonPageData }) {
 
         {/* Section 1b: Methodology */}
         {page.methodology && (
-          <section className="w-full max-w-5xl mx-auto px-6 mb-16">
+          <section id="methodology" className="w-full max-w-5xl mx-auto px-6 mb-16 scroll-mt-28">
             <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
               <div className="bg-stone-50 px-6 py-4 border-b border-stone-200">
                 <h2 className="font-pixel-square text-sm font-semibold text-stone-900">
@@ -166,6 +206,14 @@ export function ComparisonPage({ page }: { page: ComparisonPageData }) {
               </div>
               <div className="p-6 space-y-5">
                 <p className="text-sm text-stone-600 leading-relaxed">{page.methodology.summary}</p>
+                <div className="rounded-md border border-stone-200 bg-stone-50 px-4 py-3 text-xs leading-relaxed text-stone-500">
+                  <span className="font-semibold text-stone-700">Evidence basis: </span>
+                  {page.researchDisclosure ??
+                    "This editorial comparison uses publicly available product pages, pricing pages, documentation, and release material. It does not claim a paid-account benchmark unless the methodology explicitly says so."}{" "}
+                  <Link href="/editorial-policy" className="font-semibold text-[#1b7fcc] hover:underline">
+                    Read our comparison policy.
+                  </Link>
+                </div>
                 <ul className="grid md:grid-cols-2 gap-3">
                   {page.methodology.checks.map((item, idx) => (
                     <li key={idx} className="flex items-start gap-2 text-sm text-stone-600">
@@ -281,17 +329,14 @@ export function ComparisonPage({ page }: { page: ComparisonPageData }) {
                 </div>
               </div>
 
-              <div className="bg-white rounded-lg border-2 border-[#1b7fcc] overflow-hidden shadow-md relative">
-                <div className="absolute top-0 right-0 bg-[#1b7fcc] text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg uppercase tracking-wider">
-                  Our Pick
-                </div>
+              <div className="bg-white rounded-lg border border-[#1b7fcc]/30 overflow-hidden">
                 <div className="px-6 py-5 border-b border-[#1b7fcc]/15 bg-[#1b7fcc]/[0.04] flex items-center gap-3">
                   <div className="w-10 h-10 rounded bg-[#1b7fcc]/15 flex items-center justify-center text-[#1b7fcc] font-bold text-lg border border-[#1b7fcc]/20">
                     D
                   </div>
                   <div>
                     <h3 className="font-pixel-square text-lg font-semibold text-stone-900">Drawgle</h3>
-                    <span className="text-sm font-medium text-[#1b7fcc]">Best for production-ready code</span>
+                    <span className="text-sm font-medium text-[#1b7fcc]">Mobile UI generation and agent handoff</span>
                   </div>
                 </div>
                 <div className="divide-y divide-stone-100">
@@ -476,7 +521,7 @@ export function ComparisonPage({ page }: { page: ComparisonPageData }) {
                   href={page.finalVerdict.competitorCta.href}
                   className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-md bg-white border border-stone-200 text-stone-700 text-sm font-semibold hover:bg-stone-50 transition-colors"
                   target={page.finalVerdict.competitorCta.href.startsWith("http") ? "_blank" : undefined}
-                  rel={page.finalVerdict.competitorCta.href.startsWith("http") ? "nofollow sponsored noopener noreferrer" : undefined}
+                  rel={page.finalVerdict.competitorCta.href.startsWith("http") ? "noopener noreferrer" : undefined}
                 >
                   {page.finalVerdict.competitorCta.label}
                   <ArrowRight className="w-4 h-4" />
@@ -488,24 +533,26 @@ export function ComparisonPage({ page }: { page: ComparisonPageData }) {
         {/* Sources (minimalist authority footer) */}
         {page.sources && page.sources.length > 0 && (
           <footer className="w-full max-w-5xl mx-auto px-6">
-            <div className="border-t border-stone-200 pt-6 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xs text-stone-500">
-              <span className="uppercase tracking-widest font-semibold text-stone-400">Sources</span>
-              <span className="text-stone-300">·</span>
-              {page.sources.map((source, idx) => (
-                <span key={idx} className="inline-flex items-baseline">
-                  <Link
-                    href={source.href}
-                    target="_blank"
-                    rel="nofollow sponsored noopener noreferrer"
-                    className="text-stone-500 hover:text-[#1b7fcc] underline-offset-2 hover:underline"
-                  >
-                    {source.label}
-                  </Link>
-                  {idx < page.sources.length - 1 && (
-                    <span className="text-stone-300 ml-2">·</span>
-                  )}
-                </span>
-              ))}
+            <div className="border-t border-stone-200 pt-6 text-xs text-stone-500">
+              <h2 className="mb-4 uppercase tracking-widest font-semibold text-stone-400">First-party sources</h2>
+              <ol className="space-y-3">
+                {page.sources.map((source, idx) => (
+                  <li key={source.href} className="grid grid-cols-[24px_minmax(0,1fr)] gap-2 leading-relaxed">
+                    <span className="font-mono text-stone-300">[{idx + 1}]</span>
+                    <span>
+                      <Link
+                        href={source.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-semibold text-stone-600 underline decoration-stone-300 underline-offset-2 hover:text-[#1b7fcc]"
+                      >
+                        {source.label}
+                      </Link>
+                      {source.note ? <span className="text-stone-500"> — {source.note}</span> : null}
+                    </span>
+                  </li>
+                ))}
+              </ol>
             </div>
           </footer>
         )}

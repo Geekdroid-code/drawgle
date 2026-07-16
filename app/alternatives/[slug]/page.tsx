@@ -33,18 +33,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     return {};
   }
 
-  const dynamicTitle = `Best ${page.competitor.name} Alternative (2026) — Drawgle vs ${page.competitor.name}`;
-  const dynamicDescription = `Looking for the best ${page.competitor.name} alternative? Compare Drawgle vs ${page.competitor.name} features, pricing, and code quality. Discover why developers switch for multi-screen UI systems.`;
 
   return buildMetadata({
-    title: dynamicTitle,
-    description: dynamicDescription,
+    title: page.metadata.title,
+    description: page.metadata.description,
     path: `/alternatives/${page.slug}`,
     image: {
       path: "/bg-image.webp",
       width: 1200,
       height: 630,
-      alt: dynamicTitle,
+      alt: page.metadata.title,
     },
   });
 }
@@ -58,8 +56,6 @@ export default async function CompetitorComparisonPage({ params }: PageProps) {
   }
 
   const path = `/alternatives/${page.slug}`;
-  const dynamicTitle = `Best ${page.competitor.name} Alternative (2026) — Drawgle vs ${page.competitor.name}`;
-  const dynamicDescription = `Looking for the best ${page.competitor.name} alternative? Compare Drawgle vs ${page.competitor.name} features, pricing, and code quality. Discover why developers switch for multi-screen UI systems.`;
 
   return (
     <>
@@ -67,13 +63,13 @@ export default async function CompetitorComparisonPage({ params }: PageProps) {
         data={[
           webPageSchema({
             path,
-            name: dynamicTitle,
-            description: dynamicDescription,
+            name: page.metadata.title,
+            description: page.metadata.description,
           }),
           articleSchema({
             path,
-            headline: dynamicTitle,
-            description: dynamicDescription,
+            headline: page.metadata.title,
+            description: page.metadata.description,
             publishedDate: page.metadata.publishedDate,
             modifiedDate: page.metadata.modifiedDate,
           }),
@@ -85,7 +81,7 @@ export default async function CompetitorComparisonPage({ params }: PageProps) {
           faqPageSchema(page.faqs),
           itemListSchema({
             path,
-            name: `${dynamicTitle} comparison criteria`,
+            name: `${page.metadata.title} comparison criteria`,
             items: page.comparisonRows.map((row) => row.title),
           }),
         ]}
