@@ -31,12 +31,6 @@ const genericJourney = [
   { title: "The binary bin", detail: "Throwing it away and rewriting it yourself", mood: "flat" },
 ];
 
-const handoffRows = [
-  { stage: "Product brief", output: "Connected screen plan and navigation model", evidence: "Editable project workspace" },
-  { stage: "Visual system", output: "Shared colors, typography, spacing, radii, shadows, and layout tokens", evidence: "Token editor and CSS variables" },
-  { stage: "Screen construction", output: "Structured, editable mobile HTML", evidence: "Live canvas and standalone Tailwind HTML" },
-  { stage: "Developer handoff", output: "Screens, assets, design context, manifest, and instructions", evidence: "Downloadable Agent Pack" },
-];
 
 function Face({ mood, active }: { mood: string; active: boolean }) {
   const eyeClass = active ? "bg-current" : "bg-gray-500";
@@ -219,19 +213,6 @@ export default function MethodComparison() {
                   <th className="px-6 py-4 font-bold">Workspace or export evidence</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 text-sm text-gray-600">
-                {handoffRows.map((row) => (
-                  <tr key={row.stage}>
-                    <th scope="row" className="px-6 py-5 font-semibold text-gray-900">
-                      {row.stage}
-                    </th>
-                    <td className="px-6 py-5">
-                      <strong className="font-semibold text-gray-800">{row.output}</strong>
-                    </td>
-                    <td className="px-6 py-5">{row.evidence}</td>
-                  </tr>
-                ))}
-              </tbody>
             </table>
           </div>
         </div>
