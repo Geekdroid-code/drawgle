@@ -15,7 +15,9 @@ import {
   extractExplicitStyleConstraints,
   isReferenceCompatibleWithPrompt,
   normalizeEmbedding,
+  promptExplicitlyRejectsTerm,
   promptExplicitlyRequestsTerm,
+  referenceCompatibilityConflicts,
   rankCuratedStyleReferencesByEmbedding,
   selectCuratedStyleReferenceByEmbedding,
   type CuratedStyleEmbeddingEntry,
@@ -121,6 +123,20 @@ describe("curated style embedding selection", () => {
       "Avoid glassmorphism, but use neon accents.",
       "neon-accent",
     )).toBe(true);
+    expect(promptExplicitlyRejectsTerm("Avoid glassmorphism and heavy shadows.", "glassmorphism"))
+      .toBe(true);
+  });
+
+  it("rejects references dominated by a geometry the user says must not dominate", () => {
+    const cosmetics = CURATED_STYLE_REFERENCES.find(
+      (candidate) => candidate.id === "cosmetics-ecommerce-minimal-light",
+    )!;
+    const prompt = "Use sharp photography and edge-to-edge sections. Don't make everything rounded.";
+
+    expect(cosmetics.selectionProfile.geometries).toEqual(["rounded", "pill-shaped"]);
+    expect(referenceCompatibilityConflicts(cosmetics, prompt))
+      .toContain("dominant-geometries:rounded");
+    expect(isReferenceCompatibleWithPrompt(cosmetics, prompt)).toBe(false);
   });
 
   it("rejects explicit theme, density, and authored incompatibility conflicts", () => {
@@ -151,7 +167,7 @@ describe("curated style embedding selection", () => {
       .toEqual(darkReferences.map((reference) => reference.id));
   });
 
-  it("accepts a strong winner and fails closed for weak or ambiguous matches", () => {
+  it("accepts the best compatible winner even when the runner-up is close", () => {
     const darkReferences = CURATED_STYLE_REFERENCES.filter(
       (reference) => reference.selectionProfile.theme === "dark",
     ).slice(0, 2);
@@ -176,6 +192,88 @@ describe("curated style embedding selection", () => {
       prompt: "Create a dark interface",
       queryVector,
       entries: buildEntries(0.78, 0.77),
-    }).match).toBeNull();
+    }).match?.reference.id).toBe(darkReferences[0].id);
+  });
+
+  it("reports an explicit constraint conflict when every candidate is incompatible", () => {
+    const roundedLightReferences = CURATED_STYLE_REFERENCES.filter(
+      (reference) =>
+        reference.selectionProfile.theme === "light"
+        && reference.selectionProfile.geometries.length > 0
+        && reference.selectionProfile.geometries.every((geometry) =>
+          geometry === "rounded" || geometry === "pill-shaped"),
+    ).slice(0, 2);
+    const result = selectCuratedStyleReferenceByEmbedding({
+      prompt: "Create a light app, but don't make everything rounded.",
+      queryVector,
+      entries: [
+        { reference: roundedLightReferences[0], vector: vectorWithSimilarity(0.80) },
+        { reference: roundedLightReferences[1], vector: vectorWithSimilarity(0.79) },
+      ],
+    });
+
+    expect(result.match).toBeNull();
+    expect(result.rejectionReason).toBe("constraint_conflict");
+    expect(result.conflicts).toContain("dominant-geometries:rounded");
+  });
+
+  it("keeps the audited skincare prompt away from dark and all-rounded references", () => {
+    const dark = CURATED_STYLE_REFERENCES.find(
+      (reference) => reference.id === "security-vault-glass-dark",
+    )!;
+    const allRounded = CURATED_STYLE_REFERENCES.find(
+      (reference) => reference.id === "cosmetics-ecommerce-minimal-light",
+    )!;
+    const mixedGeometry = CURATED_STYLE_REFERENCES.find(
+      (reference) => reference.id === "longevity-health-tracker-light",
+    )!;
+    const result = selectCuratedStyleReferenceByEmbedding({
+      prompt: "I need 2 screens for a luxury skincare routine app. Use an off-white background, sharp photography, dark brown typography and subtle bronze details. Cards should mostly be edge-to-edge sections separated by whitespace. Please don't make everything beige, rounded and feminine.",
+      queryVector,
+      entries: [
+        { reference: dark, vector: vectorWithSimilarity(0.90) },
+        { reference: allRounded, vector: vectorWithSimilarity(0.82) },
+        { reference: mixedGeometry, vector: vectorWithSimilarity(0.75) },
+      ],
+    });
+
+    expect(result.match?.reference.id).toBe(mixedGeometry.id);
+    expect(result.rejectionReason).toBeNull();
+  });
+
+  it("chooses the strongest compatible candidate after excluding a conflicting winner", () => {
+    const rounded = CURATED_STYLE_REFERENCES.find(
+      (reference) =>
+        reference.selectionProfile.theme === "light"
+        && reference.selectionProfile.geometries.length > 0
+        && reference.selectionProfile.geometries.every((geometry) =>
+          geometry === "rounded" || geometry === "pill-shaped"),
+    )!;
+    const mixed = CURATED_STYLE_REFERENCES.find(
+      (reference) =>
+        reference.selectionProfile.theme === "light"
+        && reference.selectionProfile.geometries.includes("mixed"),
+    )!;
+    const prompt = "Create a light editorial app, but don't make everything rounded.";
+    const farFallback = selectCuratedStyleReferenceByEmbedding({
+      prompt,
+      queryVector,
+      entries: [
+        { reference: rounded, vector: vectorWithSimilarity(0.78) },
+        { reference: mixed, vector: vectorWithSimilarity(0.70) },
+      ],
+    });
+    const closeFallback = selectCuratedStyleReferenceByEmbedding({
+      prompt,
+      queryVector,
+      entries: [
+        { reference: rounded, vector: vectorWithSimilarity(0.78) },
+        { reference: mixed, vector: vectorWithSimilarity(0.76) },
+      ],
+    });
+
+    expect(farFallback.match?.reference.id).toBe(mixed.id);
+    expect(farFallback.rejectionReason).toBeNull();
+    expect(closeFallback.match?.reference.id).toBe(mixed.id);
   });
 });

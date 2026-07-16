@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import { planVisualAssets } from "@/lib/generation/visual-assets";
+import {
+  planVisualAssets,
+  rankStockCandidates,
+  shouldQueryPixabayFallback,
+  stockSearchQuery,
+} from "@/lib/generation/visual-assets";
 import type { AssetRequirement, ScreenPlan } from "@/lib/types";
 
 const requirement = (screenName: string, id: string, slotCount = 1): AssetRequirement => ({
@@ -126,5 +131,115 @@ describe("visual asset planning groups", () => {
     });
 
     expect(planned).toEqual([]);
+  });
+
+  it("normalizes explicit skincare photography into critical domain-specific distinct assets", async () => {
+    const planned = await planVisualAssets({
+      prompt: "Use sharp editorial skincare photography throughout the luxury routine app.",
+      screens: [{
+        name: "Product Library",
+        type: "root",
+        description: "A shelf of four different skincare products with full-width product photography.",
+        assetNeeds: [{
+          id: "product-shelf-items",
+          screenName: "Product Library",
+          role: "section_photo",
+          subject: "Minimalist skincare bottles with white labels",
+          assetType: "photo",
+          sourcePreference: "stock",
+          desiredAspectRatio: "1:1",
+          transparentBackground: false,
+          placementHint: "Four square product image blocks",
+          priority: "supporting",
+          reuseKey: "skincare-product-shots",
+          semanticCategory: "generic_product",
+          semanticTags: ["luxury", "packaging"],
+          slotCount: 4,
+          reusePolicy: "repeat",
+          origin: "planner_inferred",
+        }],
+      }],
+    });
+
+    expect(planned).toHaveLength(1);
+    expect(planned[0]).toMatchObject({
+      semanticCategory: "beauty",
+      reusePolicy: "distinct",
+      slotCount: 4,
+      priority: "critical",
+      origin: "user_explicit",
+    });
+  });
+
+  it("normalizes an opaque full-bleed hero photo into a background role", async () => {
+    const planned = await planVisualAssets({
+      prompt: "Use sharp hero photography.",
+      screens: [{
+        name: "Daily Protocol",
+        type: "root",
+        description: "A full-bleed photographic header.",
+        assetNeeds: [{
+          ...requirement("Daily Protocol", "hero"),
+          role: "hero_cutout",
+          subject: "Luxury skincare serum bottle",
+          placementHint: "Full-bleed header with object-cover",
+          desiredAspectRatio: "16:9",
+          priority: "critical",
+          semanticCategory: "beauty",
+        }],
+      }],
+    });
+
+    expect(planned[0]).toMatchObject({
+      role: "background_photo",
+      origin: "user_explicit",
+      priority: "critical",
+    });
+  });
+
+  it("builds a short domain-focused stock query and rejects generic bottle matches", () => {
+    const skincare: AssetRequirement = {
+      ...requirement("Products", "skincare-products"),
+      role: "product_photo",
+      subject: "Luxury skincare serum bottle",
+      semanticCategory: "beauty",
+      semanticTags: ["skincare", "serum"],
+    };
+    const query = stockSearchQuery(skincare);
+    const ranked = rankStockCandidates(skincare, [
+      {
+        provider: "pexels",
+        providerAssetId: "perfume",
+        imageUrl: "https://images.example/perfume.jpg",
+        sourceUrl: null,
+        description: "Close-up photo of water drops on a bottle",
+        tags: ["bottle", "water"],
+        attribution: null,
+        license: "Pexels",
+        width: 1200,
+        height: 900,
+      },
+      {
+        provider: "pixabay",
+        providerAssetId: "serum",
+        imageUrl: "https://images.example/serum.jpg",
+        sourceUrl: null,
+        description: "Skincare serum cosmetic product bottle",
+        tags: ["skincare", "serum", "cosmetic"],
+        attribution: null,
+        license: "Pixabay",
+        width: 1200,
+        height: 1200,
+      },
+    ]);
+
+    expect(query.length).toBeLessThanOrEqual(100);
+    expect(query).toContain("skincare");
+    expect(ranked.map((candidate) => candidate.providerAssetId)).toEqual(["serum"]);
+  });
+
+  it("uses Pixabay only when qualified Pexels results cannot fill the requirement", () => {
+    expect(shouldQueryPixabayFallback(4, 4)).toBe(false);
+    expect(shouldQueryPixabayFallback(2, 4)).toBe(true);
   });
 });

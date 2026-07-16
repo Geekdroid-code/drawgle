@@ -518,7 +518,7 @@ const ScreenBriefsSchema = z.object({
 
 type ParsedCreativeDirection = z.infer<typeof CreativeDirectionSchema>;
 
-const compileProjectRoadmap = ({
+export const compileProjectRoadmap = ({
   rawRoadmap,
   screens,
   navigationPlan,
@@ -530,7 +530,7 @@ const compileProjectRoadmap = ({
   scopeContract?: GenerationScopeContract | null;
 }) => {
   const parsed = ProjectRoadmapSchema.safeParse(rawRoadmap);
-  const plannedItems: ProjectRoadmapItem[] = parsed.success
+  const parsedItems: ProjectRoadmapItem[] = parsed.success
     ? parsed.data.items.map((item, index) => ({
         stableKey: item.stable_key,
         kind: "screen",
@@ -546,7 +546,39 @@ const compileProjectRoadmap = ({
         dependencyKeys: item.dependency_keys ?? [],
       }))
     : [];
-  for (const scopedScreen of scopeContract?.screens ?? []) {
+  const exactScopedParents = Boolean(
+    scopeContract?.finalScreenCount
+    && (
+      scopeContract.countSource === "prompt_count"
+      || scopeContract.countSource === "named_screens"
+      || scopeContract.countSource === "planning_mode"
+    ),
+  );
+  const plannedItems: ProjectRoadmapItem[] = exactScopedParents
+    ? screens.map((screen, index) => {
+        const existing = parsedItems.find((item) =>
+          item.stableKey === (screen.roadmapStableKey ?? screenRoadmapKey(screen.name))
+          || normalizeScreenName(item.name) === normalizeScreenName(screen.name))
+          ?? parsedItems[index];
+        return {
+          ...(existing ?? {
+            kind: "screen" as const,
+            priority: "required" as const,
+            status: "planned" as const,
+            source: "prompt" as const,
+            explicitlyRequested: true,
+            tranche: 1,
+            dependencyKeys: [],
+          }),
+          stableKey: screen.roadmapStableKey ?? screenRoadmapKey(screen.name),
+          screenType: screen.type,
+          name: screen.name,
+          description: existing?.description ?? screen.description,
+          sequence: index,
+        };
+      })
+    : parsedItems;
+  for (const scopedScreen of exactScopedParents ? [] : scopeContract?.screens ?? []) {
     const stableKey = screenRoadmapKey(scopedScreen.name);
     if (plannedItems.some((item) => item.stableKey === stableKey || normalizeScreenName(item.name) === normalizeScreenName(scopedScreen.name))) {
       continue;
@@ -573,11 +605,13 @@ const compileProjectRoadmap = ({
     : scopeContract?.finalScreenCount ?? null;
   const roadmap = buildProjectRoadmap({
     screens,
-    navigationPlan,
+    navigationPlan: exactScopedParents ? null : navigationPlan,
     requestedParentCount,
     plannedItems,
   });
-  const scopedInitialKeys = scopeContract?.screens?.length && (
+  const scopedInitialKeys = exactScopedParents
+    ? screens.slice(0, 5).map((screen) => screen.roadmapStableKey ?? screenRoadmapKey(screen.name))
+    : scopeContract?.screens?.length && (
     scopeContract.countSource === "prompt_count"
     || scopeContract.countSource === "named_screens"
     || scopeContract.countSource === "planning_mode"
@@ -1319,7 +1353,7 @@ const enforceScreenCountContract = ({
   return { screens, enforcement: "none" };
 };
 
-const reconcileScreensWithScope = ({
+export const reconcileScreensWithScope = ({
   prompt,
   screens,
   planningMode,
@@ -1332,6 +1366,7 @@ const reconcileScreensWithScope = ({
 }) => {
   const sections = parseExplicitScreenSections(prompt);
   const scopedScreens = scopeContract?.screens ?? [];
+  const isGenericScopedName = (name: string) => /^screen\s+\d+$/i.test(name.trim());
 
   if (planningMode === "single-screen") {
     const required = scopedScreens[0];
@@ -1360,11 +1395,16 @@ const reconcileScreensWithScope = ({
           type: fallbackType,
           stateVariants: candidate?.stateVariants ?? [],
         };
+    const resolvedName = isGenericScopedName(required.name)
+      && candidate
+      && !isGenericScopedName(candidate.name)
+      ? candidate.name
+      : required.name;
 
     return [{
       ...resolved,
-      name: required.name,
-      roadmapStableKey: screenRoadmapKey(required.name),
+      name: resolvedName,
+      roadmapStableKey: candidate?.roadmapStableKey ?? screenRoadmapKey(resolvedName),
     } satisfies ScreenPlan];
   }
 
@@ -1374,16 +1414,23 @@ const reconcileScreensWithScope = ({
       const section = sections.find((candidate) => candidate.index === required.index);
       const existing = screens.find((screen) => normalizeScreenName(screen.name) === normalizeScreenName(required.name))
         ?? screens[index];
+      const resolvedName = isGenericScopedName(required.name)
+        && existing
+        && !isGenericScopedName(existing.name)
+        ? existing.name
+        : required.name;
       if (section) {
         return {
           ...screenPlanFromExplicitSection(section, index, forceNoPersistentNav, existing),
-          name: required.name,
+          name: resolvedName,
+          roadmapStableKey: existing?.roadmapStableKey ?? screenRoadmapKey(resolvedName),
         };
       }
       return {
         ...(existing ?? fallbackScreenPlan(`${required.name}. ${prompt}`)),
-        name: required.name,
+        name: resolvedName,
         type: existing?.type ?? (index === 0 && !/onboarding|authentication|login|signup|welcome/i.test(required.kind) ? "root" : "detail"),
+        roadmapStableKey: existing?.roadmapStableKey ?? screenRoadmapKey(resolvedName),
       } satisfies ScreenPlan;
     });
   }

@@ -36,6 +36,20 @@ export type CuratedStyleReferenceMatch = RankedCuratedStyleReference & {
   catalogHash: string;
 };
 
+export type CuratedStyleSelectionDiagnostics = {
+  selector: "embedding-v1";
+  model: string;
+  catalogHash: string;
+  queryChunks: number;
+  referenceId: string | null;
+  topCandidateId: string | null;
+  similarity: number | null;
+  runnerUp: { referenceId: string; similarity: number } | null;
+  constraints: ExplicitStyleConstraints;
+  rejectionReason: string | null;
+  conflicts: string[];
+};
+
 export type RuntimeIndexEntry = CuratedStyleEmbeddingEntry;
 
 export type RuntimeIndex = {
@@ -137,6 +151,7 @@ export async function matchCuratedStyleReference(input: {
   planningMode?: PlanningMode;
   existingCharter?: ProjectCharter | null;
   llmLog?: LlmLogFn;
+  onSelection?: (diagnostics: CuratedStyleSelectionDiagnostics) => void;
 }): Promise<CuratedStyleReferenceMatch | null> {
   const prompt = input.prompt.trim();
   if (!prompt) return null;
@@ -164,7 +179,7 @@ export async function matchCuratedStyleReference(input: {
     const runnerUp = selection.runnerUp;
     const rejectionReason = match ? null : selection.rejectionReason;
 
-    input.llmLog?.("[CURATED STYLE SELECTION] resolved", {
+    const diagnostics: CuratedStyleSelectionDiagnostics = {
       selector: "embedding-v1",
       model: CURATED_STYLE_EMBEDDING_MODEL,
       catalogHash: index.catalogHash,
@@ -177,7 +192,10 @@ export async function matchCuratedStyleReference(input: {
       ),
       constraints: extractExplicitStyleConstraints(prompt),
       rejectionReason,
-    });
+      conflicts: selection.conflicts,
+    };
+    input.llmLog?.("[CURATED STYLE SELECTION] resolved", diagnostics);
+    input.onSelection?.(diagnostics);
     return match;
   } catch (error) {
     console.warn("[curated-style-reference] Embedding query failed", error);

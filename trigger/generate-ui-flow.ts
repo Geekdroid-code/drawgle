@@ -10,6 +10,7 @@ import {
   loadCuratedStyleReferenceImage,
   matchCuratedStyleReference,
 } from "@/lib/generation/curated-style-references";
+import type { CuratedStyleSelectionDiagnostics } from "@/lib/generation/curated-style-selection";
 import { getDesignStylePack, isDesignStyleId, summarizeDesignStyle } from "@/lib/generation/design-styles";
 import { CURATED_STYLE_EMBEDDING_MODEL } from "@/lib/generation/curated-style-index-core";
 import { indexScreenCode } from "@/lib/generation/block-index";
@@ -26,6 +27,7 @@ import {
   buildScreenHealthError,
   detectScreenHealth,
   hasGenerationCompleteSentinel,
+  hydrateScreenAssetSlots,
   isBlockingScreenHealthFailure,
   normalizeStaticDrawgleHtml,
   screenStatusForHealth,
@@ -207,6 +209,10 @@ type GenerationAttemptDiagnostics = {
   localNavigationReasons: string[];
   localNavigationCandidates: string[];
   assetSanitizedMisuseCount: number;
+  assetRepairedMetadataCount: number;
+  assetHydratedCount: number;
+  assetPlaceholderUseCount: number;
+  assetOutcomes: Record<string, unknown>;
   assetSanitizationWarnings: string[];
   htmlNormalized: boolean;
   htmlParseErrors: string[];
@@ -274,6 +280,10 @@ const buildAttemptDiagnostics = ({
     localNavigationReasons: [],
     localNavigationCandidates: [],
     assetSanitizedMisuseCount: 0,
+    assetRepairedMetadataCount: 0,
+    assetHydratedCount: 0,
+    assetPlaceholderUseCount: 0,
+    assetOutcomes: {},
     assetSanitizationWarnings: [],
     htmlNormalized: false,
     htmlParseErrors: [],
@@ -1376,13 +1386,21 @@ export const buildScreenTask = task({
       });
     }
 
-    const assetSanitization = sanitizeScreenAssetUsage({
+    const assetHydration = hydrateScreenAssetSlots({
       code: finalized.code,
+      assetManifest: payload.assetManifest,
+    });
+    const assetSanitization = sanitizeScreenAssetUsage({
+      code: assetHydration.code,
       assetManifest: payload.assetManifest,
     });
     const latestAttempt = attempts.at(-1);
     if (latestAttempt) {
       latestAttempt.assetSanitizedMisuseCount = assetSanitization.sanitizedMisuseCount;
+      latestAttempt.assetRepairedMetadataCount = assetSanitization.repairedMetadataCount;
+      latestAttempt.assetHydratedCount = assetHydration.hydratedAssetCount;
+      latestAttempt.assetPlaceholderUseCount = assetHydration.placeholderUseCount;
+      latestAttempt.assetOutcomes = assetHydration.outcomes;
       latestAttempt.assetSanitizationWarnings = assetSanitization.warnings;
     }
     const code = assetSanitization.code;
@@ -1419,9 +1437,11 @@ export const buildScreenTask = task({
       attempts,
       health,
       assetPolicy,
+      assetHydration,
       assetSanitization: {
         changed: assetSanitization.changed,
         sanitizedMisuseCount: assetSanitization.sanitizedMisuseCount,
+        repairedMetadataCount: assetSanitization.repairedMetadataCount,
         warnings: assetSanitization.warnings,
         invalidUrls: assetSanitization.invalidUrls,
         roleMismatches: assetSanitization.roleMismatches,
@@ -1448,7 +1468,11 @@ export const buildScreenTask = task({
 
     if (!assetPolicy.valid) {
       await appendScreenBuildDiagnostics(admin, payload.generationRunId, payload.screenId, attempts);
-      const policyReason = `Generated screen did not use required critical visual assets: ${assetPolicy.missingRequiredUrls.slice(0, 4).join(", ")}`;
+      const missingAssetDetails = [
+        ...assetPolicy.missingCriticalSlotIds.map((requirementId) => `slot:${requirementId}`),
+        ...assetPolicy.missingRequiredUrls.map((url) => `url:${url}`),
+      ].slice(0, 4);
+      const policyReason = `Generated screen did not satisfy required critical visual assets: ${missingAssetDetails.join(", ")}`;
       return failAfterSavingGeneratedCode({
         error: `[screen_generation:invalid_image_url] ${policyReason}`,
         code,
@@ -1513,6 +1537,15 @@ export const buildScreenTask = task({
       screenId: payload.screenId,
       status: screenStatus,
       sanitizedMisuseCount: assetSanitization.sanitizedMisuseCount,
+      repairedMetadataCount: assetSanitization.repairedMetadataCount,
+      hydratedAssetCount: assetHydration.hydratedAssetCount,
+      placeholderUseCount: assetHydration.placeholderUseCount,
+      usedResolvedAssetCount: assetPolicy.resolvedAssetUseCount,
+      ignoredResolvedAssetIds: assetPolicy.ignoredResolvedAssetIds,
+      assetOutcomes: {
+        hydration: assetHydration.outcomes,
+        usesByRequirement: assetPolicy.usesByRequirement,
+      },
     };
   },
 });
@@ -1739,6 +1772,7 @@ export const generateUiFlowTask = task({
     let referenceSource: ReferenceSource | null = null;
     let referenceId: string | null = null;
     let referenceCatalogHash: string | null = null;
+    const curatedStyleSelectionDiagnostics: CuratedStyleSelectionDiagnostics[] = [];
 
     if (referencePolicy === "user_upload") {
       referenceMode = payload.imageReferenceMode === "style" ? "user_style" : "user_recreate";
@@ -1777,6 +1811,9 @@ export const generateUiFlowTask = task({
         planningMode: payload.planningMode ?? "project",
         existingCharter,
         llmLog: (label, data) => logger.info(label, data),
+        onSelection: (diagnostics) => {
+          curatedStyleSelectionDiagnostics.push(diagnostics);
+        },
       });
 
       if (!match) {
@@ -1796,6 +1833,7 @@ export const generateUiFlowTask = task({
         referenceCatalogHash = curatedImage ? match.catalogHash : null;
       }
     }
+    const curatedStyleSelectionDiagnostic = curatedStyleSelectionDiagnostics[0] ?? null;
     const reusableProjectReferenceDna = projectReferenceDna && (
       referencePolicy === "project_reference"
       || referencePolicy === "project_memory"
@@ -1819,7 +1857,9 @@ export const generateUiFlowTask = task({
               ? `Using the explicitly selected design style${referenceId ? `: ${referenceId}` : ""}.`
               : referenceId
                 ? `Matched internal style reference: ${referenceId}.`
-                : "No curated reference passed the confidence checks; using prompt-only design direction.",
+                : curatedStyleSelectionDiagnostic?.rejectionReason === "constraint_conflict"
+                  ? "No curated reference satisfied the user's explicit design constraints; using prompt-only design direction."
+                  : "No curated reference passed the confidence checks; using prompt-only design direction.",
     );
     await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
@@ -1871,14 +1911,20 @@ export const generateUiFlowTask = task({
       referenceSource,
       referenceId,
       referenceCatalogHash,
-      curatedStyleSelection: referenceId && referenceCatalogHash
-        ? {
-            selector: "embedding-v1",
-            model: CURATED_STYLE_EMBEDDING_MODEL,
-            catalogHash: referenceCatalogHash,
-            referenceId,
-          }
-        : null,
+      curatedStyleSelection: curatedStyleSelectionDiagnostic ? {
+        ...curatedStyleSelectionDiagnostic,
+        appliedReferenceId: referenceId,
+        applied: Boolean(referenceId && referenceCatalogHash),
+      } : (
+        referenceId && referenceCatalogHash
+          ? {
+              selector: "embedding-v1",
+              model: CURATED_STYLE_EMBEDDING_MODEL,
+              catalogHash: referenceCatalogHash,
+              referenceId,
+            }
+          : null
+      ),
       designStyle: summarizeDesignStyle(designStyle),
       scopeContract,
       referenceDnaCache: reusableProjectReferenceDna
@@ -2308,6 +2354,12 @@ export const generateUiFlowTask = task({
       apiCalls: assetDiagnostics.reduce((sum, item) => sum + item.apiCallCount, 0),
       r2Writes: assetDiagnostics.reduce((sum, item) => sum + item.r2WriteCount, 0),
       sanitizerActions: 0,
+      repairedMetadataCount: 0,
+      hydratedAssetCount: 0,
+      postBuildPlaceholderCount: 0,
+      usedResolvedAssetCount: 0,
+      ignoredResolvedAssetCount: 0,
+      resolvedToUsedRate: 0,
     };
 
     await mergeGenerationRunMetadata(admin, payload.generationRunId, {
@@ -2416,6 +2468,12 @@ export const generateUiFlowTask = task({
     let successfulStateVariants = 0;
     let failedStateVariants = 0;
     let sanitizerActions = 0;
+    let repairedMetadataCount = 0;
+    let hydratedAssetCount = 0;
+    let postBuildPlaceholderCount = 0;
+    let usedResolvedAssetCount = 0;
+    const ignoredResolvedAssetIds = new Set<string>();
+    const postBuildAssetOutcomes: Record<string, unknown> = {};
     const successfulRoadmapItemIds = new Set<string>();
 
     if (retryOnlyStateVariants && payload.retryContext?.parentScreenId) {
@@ -2605,8 +2663,26 @@ export const generateUiFlowTask = task({
 
         // Wait for this screen to complete before moving to the next one.
         const result = await runs.poll(handle.id, { pollIntervalMs: 2000 });
-        const buildOutput = result?.output as { sanitizedMisuseCount?: number } | undefined;
+        const buildOutput = result?.output as {
+          sanitizedMisuseCount?: number;
+          repairedMetadataCount?: number;
+          hydratedAssetCount?: number;
+          placeholderUseCount?: number;
+          usedResolvedAssetCount?: number;
+          ignoredResolvedAssetIds?: string[];
+          assetOutcomes?: Record<string, unknown>;
+        } | undefined;
         sanitizerActions += buildOutput?.sanitizedMisuseCount ?? 0;
+        repairedMetadataCount += buildOutput?.repairedMetadataCount ?? 0;
+        hydratedAssetCount += buildOutput?.hydratedAssetCount ?? 0;
+        postBuildPlaceholderCount += buildOutput?.placeholderUseCount ?? 0;
+        usedResolvedAssetCount += buildOutput?.usedResolvedAssetCount ?? 0;
+        for (const assetId of buildOutput?.ignoredResolvedAssetIds ?? []) {
+          ignoredResolvedAssetIds.add(assetId);
+        }
+        if (buildOutput?.assetOutcomes) {
+          postBuildAssetOutcomes[screenPlan.name] = buildOutput.assetOutcomes;
+        }
 
         if (result?.status === "COMPLETED") {
           const { data: completedScreen } = await admin
@@ -2876,7 +2952,16 @@ export const generateUiFlowTask = task({
       assetLaunchMetrics: {
         ...assetLaunchMetrics,
         sanitizerActions,
+        repairedMetadataCount,
+        hydratedAssetCount,
+        postBuildPlaceholderCount,
+        usedResolvedAssetCount,
+        ignoredResolvedAssetCount: ignoredResolvedAssetIds.size,
+        resolvedToUsedRate: resolvedAssetCount > 0
+          ? Math.min(1, usedResolvedAssetCount / resolvedAssetCount)
+          : 0,
       },
+      postBuildAssetOutcomes,
     });
 
     await settleProjectStatus(admin, payload.projectId, finishedStatus === "completed");

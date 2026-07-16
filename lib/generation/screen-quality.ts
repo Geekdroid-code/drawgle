@@ -520,7 +520,15 @@ const isAllowedInlineSvg = (url: string) => /^data:image\/svg\+xml/i.test(url);
 const assetPlaceholder = ($: ReturnType<typeof load>, element: Parameters<ReturnType<typeof load>>[0], asset?: ScreenAssetManifest) => {
   const $element = $(element);
   const replacement = $("<div></div>");
-  for (const attribute of ["class", "style", "width", "height", "data-drawgle-id"]) {
+  for (const attribute of [
+    "class",
+    "style",
+    "width",
+    "height",
+    "data-drawgle-id",
+    "data-asset-requirement-id",
+    "data-asset-slot-index",
+  ]) {
     const value = $element.attr(attribute);
     if (value) replacement.attr(attribute, value);
   }
@@ -536,6 +544,220 @@ const assetPlaceholder = ($: ReturnType<typeof load>, element: Parameters<Return
   $element.replaceWith(replacement);
 };
 
+const assetManifestByRequirement = (manifest: ScreenAssetManifest[]) => {
+  const grouped = new Map<string, ScreenAssetManifest[]>();
+  for (const asset of manifest) {
+    grouped.set(asset.requirementId, [...(grouped.get(asset.requirementId) ?? []), asset]);
+  }
+  for (const assets of grouped.values()) {
+    assets.sort((left, right) =>
+      (left.slotIndex ?? 0) - (right.slotIndex ?? 0)
+      || left.id.localeCompare(right.id));
+  }
+  return grouped;
+};
+
+const expectedRequirementUses = (assets: ScreenAssetManifest[]) => {
+  const first = assets[0];
+  if (!first) return 0;
+  return first.reusePolicy === "repeat"
+    ? Math.max(1, first.expectedUses)
+    : Math.max(1, assets.length);
+};
+
+const placeholderLabel = (asset: ScreenAssetManifest) => {
+  const label = asset.alt.trim();
+  return label.length > 48 ? `${label.slice(0, 45).trim()}...` : label;
+};
+
+const applyAssetImageMetadata = (
+  $image: ReturnType<ReturnType<typeof load>>,
+  asset: ScreenAssetManifest,
+) => {
+  const styleWithoutAssetPositioning = ($image.attr("style") ?? "")
+    .replace(/(?:^|;)\s*object-(?:fit|position)\s*:[^;]*/gi, "")
+    .replace(/^;+|;+$/g, "")
+    .trim();
+  $image
+    .attr("src", asset.variantUrl || asset.url || "")
+    .attr("alt", asset.alt)
+    .attr("width", String(asset.width))
+    .attr("height", String(asset.height))
+    .attr("data-asset-requirement-id", asset.requirementId)
+    .attr("data-asset-role", asset.role)
+    .attr("data-asset-id", asset.id)
+    .attr("data-asset-provider", asset.provider)
+    .attr("data-asset-source", asset.source)
+    .attr("data-asset-fit", asset.objectFit)
+    .attr("data-asset-position", asset.objectPosition)
+    .attr("data-asset-critical", asset.critical ? "true" : "false")
+    .attr("loading", asset.critical ? "eager" : "lazy")
+    .attr("decoding", "async")
+    .removeClass("object-contain object-cover")
+    .addClass(`w-full h-full ${asset.objectFit === "contain" ? "object-contain" : "object-cover"}`)
+    .attr(
+      "style",
+      `${styleWithoutAssetPositioning ? `${styleWithoutAssetPositioning}; ` : ""}object-fit: ${asset.objectFit}; object-position: ${asset.objectPosition};`,
+    );
+  if (asset.slotIndex == null) $image.removeAttr("data-asset-slot-index");
+  else $image.attr("data-asset-slot-index", String(asset.slotIndex));
+  for (const [attribute, value] of [
+    ["data-asset-license", asset.license],
+    ["data-asset-attribution", asset.attribution],
+    ["data-asset-source-url", asset.sourceUrl],
+  ] as const) {
+    if (value) $image.attr(attribute, value);
+    else $image.removeAttr(attribute);
+  }
+  return $image;
+};
+
+export function hydrateScreenAssetSlots({
+  code,
+  assetManifest = [],
+}: {
+  code: string;
+  assetManifest?: ScreenAssetManifest[] | null;
+}) {
+  const manifest = assetManifest ?? [];
+  const byRequirement = assetManifestByRequirement(manifest);
+  const $ = load(code, {}, false);
+  const usedDistinctAssetIds = new Set<string>();
+  const outcomes: Record<string, {
+    expected: number;
+    slots: number;
+    hydrated: number;
+    placeholders: number;
+  }> = {};
+  let hydratedAssetCount = 0;
+  let placeholderUseCount = 0;
+
+  for (const [requirementId, assets] of byRequirement) {
+    outcomes[requirementId] = {
+      expected: expectedRequirementUses(assets),
+      slots: 0,
+      hydrated: 0,
+      placeholders: 0,
+    };
+  }
+
+  $("[data-asset-slot][data-asset-requirement-id]").each((_, element) => {
+    const $slot = $(element);
+    const requirementId = ($slot.attr("data-asset-requirement-id") ?? "").trim();
+    const assets = byRequirement.get(requirementId) ?? [];
+    if (assets.length === 0) return;
+
+    const declaredRole = ($slot.attr("data-asset-role") ?? "").trim();
+    const rawSlotIndex = ($slot.attr("data-asset-slot-index") ?? "").trim();
+    const slotIndex = rawSlotIndex && /^\d+$/.test(rawSlotIndex)
+      ? Number(rawSlotIndex)
+      : null;
+    const first = assets[0];
+    const asset = first.reusePolicy === "distinct"
+      ? (
+          (slotIndex == null ? null : assets.find((candidate) => candidate.slotIndex === slotIndex))
+          ?? assets.find((candidate) => !usedDistinctAssetIds.has(candidate.id))
+          ?? null
+        )
+      : first;
+    if (!asset) return;
+
+    const outcome = outcomes[requirementId];
+    outcome.slots += 1;
+    $slot
+      .attr("data-asset-role", asset.role)
+      .attr("data-asset-slot-index", String(asset.slotIndex ?? slotIndex ?? 0));
+
+    if (asset.placeholder || !asset.url) {
+      const $placeholder = $slot.is("img, source, image")
+        ? $("<div></div>")
+            .attr("class", $slot.attr("class") ?? undefined)
+            .attr("style", $slot.attr("style") ?? undefined)
+            .attr("data-asset-slot", "true")
+            .attr("data-asset-requirement-id", asset.requirementId)
+            .attr("data-asset-role", asset.role)
+            .attr("data-asset-slot-index", String(asset.slotIndex ?? slotIndex ?? 0))
+        : $slot;
+      if ($placeholder[0] !== $slot[0]) $slot.replaceWith($placeholder);
+      $placeholder
+        .empty()
+        .attr("role", "img")
+        .attr("aria-label", asset.alt || "Image unavailable")
+        .attr("data-asset-provider", asset.provider)
+        .attr("data-asset-source", asset.source)
+        .attr("data-asset-placeholder", "true")
+        .addClass("bg-slate-100 border border-slate-200 flex items-center justify-center text-center");
+      const label = placeholderLabel(asset);
+      if (asset.role === "avatar" && asset.semanticCategory === "person") {
+        $placeholder.text(label.charAt(0).toUpperCase() || "?");
+      } else {
+        $placeholder.append(
+          $("<span></span>")
+            .addClass("px-3 text-xs text-slate-500")
+            .text(label || "Image unavailable"),
+        );
+      }
+      placeholderUseCount += 1;
+      outcome.placeholders += 1;
+      return;
+    }
+
+    const useExistingImageSlot = $slot.is("img");
+    const replaceNonContainerSlot = $slot.is("source, image");
+    const $image = applyAssetImageMetadata(useExistingImageSlot ? $slot : $("<img>"), {
+      ...asset,
+      slotIndex: asset.slotIndex ?? slotIndex ?? 0,
+    });
+
+    if (useExistingImageSlot) {
+      $image
+        .removeAttr("data-asset-slot")
+        .removeAttr("role")
+        .removeAttr("aria-label")
+        .removeAttr("data-asset-placeholder")
+        .attr("data-asset-hydrated", "true");
+    } else if (replaceNonContainerSlot) {
+      $image.attr("data-asset-hydrated", "true");
+      $slot.replaceWith($image);
+    } else {
+      $slot
+        .empty()
+        .removeAttr("role")
+        .removeAttr("aria-label")
+        .removeAttr("data-asset-placeholder")
+        .attr("data-asset-hydrated", "true")
+        .append($image);
+    }
+    hydratedAssetCount += 1;
+    outcome.hydrated += 1;
+    if (asset.reusePolicy === "distinct") usedDistinctAssetIds.add(asset.id);
+    if (declaredRole && declaredRole !== asset.role) {
+      $slot.attr("data-asset-role-repaired-from", declaredRole);
+    }
+  });
+
+  const missingCriticalSlotIds = Array.from(byRequirement.entries())
+    .filter(([, assets]) => assets.some((asset) => asset.critical))
+    .filter(([requirementId, assets]) => {
+      const directUses = $(
+        `img[data-asset-requirement-id="${requirementId}"], `
+        + `svg image[data-asset-requirement-id="${requirementId}"], `
+        + `[style*='url('][data-asset-requirement-id="${requirementId}"]`,
+      ).filter((_, element) => $(element).closest("[data-asset-slot]").length === 0).length;
+      return (outcomes[requirementId]?.slots ?? 0) + directUses < expectedRequirementUses(assets);
+    })
+    .map(([requirementId]) => requirementId);
+
+  return {
+    code: $.html(),
+    changed: hydratedAssetCount > 0 || placeholderUseCount > 0,
+    hydratedAssetCount,
+    placeholderUseCount,
+    missingCriticalSlotIds,
+    outcomes,
+  };
+}
+
 export function sanitizeScreenAssetUsage({
   code,
   assetManifest = [],
@@ -544,7 +766,7 @@ export function sanitizeScreenAssetUsage({
   assetManifest?: ScreenAssetManifest[] | null;
 }) {
   const manifest = assetManifest ?? [];
-  const byRequirement = new Map(manifest.map((asset) => [asset.requirementId, asset]));
+  const byRequirement = assetManifestByRequirement(manifest);
   const allowedByUrl = new Map<string, ScreenAssetManifest[]>();
   for (const asset of manifest) {
     for (const url of [asset.url, asset.variantUrl]) {
@@ -560,6 +782,7 @@ export function sanitizeScreenAssetUsage({
   const missingMetadata: string[] = [];
   const distinctUrlUses = new Map<string, number>();
   let sanitizedMisuseCount = 0;
+  let repairedMetadataCount = 0;
 
   $("img").each((_, element) => {
     const $image = $(element);
@@ -569,7 +792,9 @@ export function sanitizeScreenAssetUsage({
     const requirementId = ($image.attr("data-asset-requirement-id") ?? "").trim();
     const declaredRole = ($image.attr("data-asset-role") ?? "").trim();
     const matchedCandidate = candidates.find((candidate) => candidate.requirementId === requirementId);
-    const asset = matchedCandidate ?? (requirementId ? byRequirement.get(requirementId) : candidates.length === 1 ? candidates[0] : undefined);
+    const requirementAssets = requirementId ? byRequirement.get(requirementId) ?? [] : [];
+    const asset = matchedCandidate
+      ?? (requirementAssets.length === 1 ? requirementAssets[0] : candidates.length === 1 ? candidates[0] : undefined);
     const context = [$image.attr("class"), $image.attr("id"), $image.attr("alt")]
       .concat($image.parents().slice(0, 3).map((__, parent) => `${$(parent).attr("class") ?? ""} ${$(parent).attr("id") ?? ""}`).get())
       .filter(Boolean)
@@ -577,12 +802,31 @@ export function sanitizeScreenAssetUsage({
     const avatarContext = /\b(avatar|author|headshot|member|profile|user)\b/i.test(context);
     const invalid = candidates.length === 0;
     const metadataMissing = !requirementId || !declaredRole;
-    const roleMismatch = Boolean(asset && (declaredRole !== asset.role || (avatarContext && asset.role !== "avatar")));
+    const hardRoleMismatch = Boolean(asset && avatarContext && asset.role !== "avatar");
+    const repairable = Boolean(!invalid && candidates.length === 1 && asset && !hardRoleMismatch);
+
+    if (repairable && asset) {
+      const beforeRepair = $image.toString();
+      applyAssetImageMetadata($image, asset);
+      const metadataChanged = beforeRepair !== $image.toString();
+      if (metadataChanged) {
+        repairedMetadataCount += 1;
+      }
+      const distinctReuse = asset.reusePolicy === "distinct" && (distinctUrlUses.get(src) ?? 0) > 0;
+      if (!distinctReuse) {
+        if (asset.reusePolicy === "distinct") {
+          distinctUrlUses.set(src, (distinctUrlUses.get(src) ?? 0) + 1);
+        }
+        return;
+      }
+    }
+
+    const roleMismatch = Boolean(asset && (declaredRole !== asset.role || hardRoleMismatch));
     const requirementMismatch = Boolean(requirementId && !matchedCandidate);
-    const distinctReuse = Boolean(matchedCandidate?.reusePolicy === "distinct" && (distinctUrlUses.get(src) ?? 0) > 0);
+    const distinctReuse = Boolean(asset?.reusePolicy === "distinct" && (distinctUrlUses.get(src) ?? 0) > 0);
 
     if (!invalid && !metadataMissing && !roleMismatch && !requirementMismatch && !distinctReuse) {
-      if (matchedCandidate?.reusePolicy === "distinct") distinctUrlUses.set(src, (distinctUrlUses.get(src) ?? 0) + 1);
+      if (asset?.reusePolicy === "distinct") distinctUrlUses.set(src, (distinctUrlUses.get(src) ?? 0) + 1);
       return;
     }
     sanitizedMisuseCount += 1;
@@ -631,11 +875,23 @@ export function sanitizeScreenAssetUsage({
       const url = String(doubleQuoted ?? singleQuoted ?? bare ?? "").trim();
       if (!url || isAllowedInlineSvg(url)) return match;
       const assets = allowedByUrl.get(url) ?? [];
-      const allowedBackground = assets.some((asset) =>
-        asset.requirementId === requirementId &&
-        asset.role === declaredRole &&
-        (asset.role === "background_photo" || asset.role === "map_texture"));
-      if (allowedBackground) return match;
+      const uniqueAsset = assets.length === 1 ? assets[0] : null;
+      const matchedAsset = assets.find((asset) =>
+        asset.requirementId === requirementId && asset.role === declaredRole);
+      const asset = matchedAsset ?? uniqueAsset;
+      const allowedBackground = Boolean(
+        asset && (asset.role === "background_photo" || asset.role === "map_texture"),
+      );
+      if (allowedBackground && asset) {
+        if (requirementId !== asset.requirementId || declaredRole !== asset.role) {
+          $element
+            .attr("data-asset-requirement-id", asset.requirementId)
+            .attr("data-asset-role", asset.role)
+            .attr("data-asset-id", asset.id);
+          repairedMetadataCount += 1;
+        }
+        return match;
+      }
       sanitizedMisuseCount += 1;
       if (assets.length === 0) invalidUrls.push(url);
       else if (!requirementId || !declaredRole) missingMetadata.push(url);
@@ -665,8 +921,9 @@ export function sanitizeScreenAssetUsage({
 
   return {
     code: $.html(),
-    changed: sanitizedMisuseCount > 0,
+    changed: sanitizedMisuseCount > 0 || repairedMetadataCount > 0,
     sanitizedMisuseCount,
+    repairedMetadataCount,
     warnings,
     invalidUrls: Array.from(new Set(invalidUrls)),
     roleMismatches,
@@ -727,11 +984,16 @@ export function validateScreenAssetPolicy({
   const imageRefs = extractImageReferences(code);
   const $ = load(code, {}, false);
   const usesByRequirement = new Map<string, number>();
-  $("img[data-asset-requirement-id], svg image[data-asset-requirement-id], source[data-asset-requirement-id], [style*='url('][data-asset-requirement-id]").each((_, element) => {
+  $("img[data-asset-requirement-id], svg image[data-asset-requirement-id], source[data-asset-requirement-id], [style*='url('][data-asset-requirement-id], [data-asset-placeholder='true'][data-asset-requirement-id]").each((_, element) => {
     const requirementId = ($(element).attr("data-asset-requirement-id") ?? "").trim();
     if (requirementId) usesByRequirement.set(requirementId, (usesByRequirement.get(requirementId) ?? 0) + 1);
   });
   const usedUrls = new Set(imageRefs.map((ref) => ref.url));
+  const usedApprovedUrls = Array.from(usedUrls).filter((url) => allowedUrls.has(url));
+  const ignoredResolvedAssetIds = manifest
+    .filter((asset) => !asset.placeholder && asset.url && !usedUrls.has(asset.url))
+    .map((asset) => asset.id);
+  const placeholderUseCount = $("[data-asset-placeholder='true'][data-asset-requirement-id]").length;
   const invalidUrls = imageRefs.map((ref) => ref.url).filter((url, index, urls) => {
     const ref = imageRefs.find((candidate) => candidate.url === url);
     if (!ref || urls.indexOf(url) !== index) return false;
@@ -748,6 +1010,11 @@ export function validateScreenAssetPolicy({
     )
     .map((asset) => asset.url)
     .filter((url): url is string => Boolean(url));
+  const missingCriticalSlotIds = Array.from(assetManifestByRequirement(manifest).entries())
+    .filter(([, assets]) => assets.some((asset) => asset.critical))
+    .filter(([requirementId, assets]) =>
+      (usesByRequirement.get(requirementId) ?? 0) < expectedRequirementUses(assets))
+    .map(([requirementId]) => requirementId);
 
   const warnings = invalidUrls.map((url) => `Generated screen used unapproved external image URL: ${url}`);
   for (const asset of manifest) {
@@ -765,7 +1032,7 @@ export function validateScreenAssetPolicy({
       warnings.push(`Distinct asset requirement ${requirementId} used ${actualUrls.size} of ${requiredUrls.size} resolved identities.`);
     }
   }
-  const blocking = missingRequiredUrls.length > 0;
+  const blocking = missingRequiredUrls.length > 0 || missingCriticalSlotIds.length > 0;
 
   return {
     valid: !blocking,
@@ -773,6 +1040,11 @@ export function validateScreenAssetPolicy({
     warnings,
     invalidUrls,
     missingRequiredUrls,
+    missingCriticalSlotIds,
+    usedApprovedUrls,
+    ignoredResolvedAssetIds,
+    resolvedAssetUseCount: usedApprovedUrls.length,
+    placeholderUseCount,
     usesByRequirement: Object.fromEntries(usesByRequirement),
   };
 }

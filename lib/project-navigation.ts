@@ -396,6 +396,32 @@ export function normalizeNavigationPlan({
   const seenRoles = new Set<string>();
   const generatedScreenNames = new Set<string>();
   const normalizedItems: NavigationPlanItem[] = [];
+  const meaningfulTerms = (value: string) => new Set(
+    value
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((term) =>
+        term.length >= 4
+        && !["screen", "page", "view", "primary", "destination"].includes(term)),
+  );
+  const inferScreenForNavigationItem = (label: string, role: string) => {
+    const itemTerms = meaningfulTerms(`${label} ${role}`);
+    return screens
+      .filter((screen) =>
+        screen.type === "root"
+        && !shouldForceImmersiveScreen(screen)
+        && !generatedScreenNames.has(screen.name.toLowerCase()))
+      .map((screen) => {
+        const screenTerms = meaningfulTerms(`${screen.name} ${screen.description}`);
+        let score = 0;
+        for (const term of itemTerms) if (screenTerms.has(term)) score += 1;
+        return { screen, score };
+      })
+      .filter(({ score }) => score >= 2)
+      .sort((left, right) =>
+        right.score - left.score
+        || left.screen.name.localeCompare(right.screen.name))[0]?.screen ?? null;
+  };
 
   for (const [index, rawItem] of navigationPlan.items.slice(0, MAX_SHARED_NAV_ITEMS).entries()) {
     const label = (rawItem.label ?? "").trim().slice(0, 18);
@@ -419,7 +445,9 @@ export function normalizeNavigationPlan({
           return comparable === candidate || candidate.includes(comparable) || comparable.includes(candidate);
         })
       : null;
-    const matchedScreen = matchedByName ?? plannedScreenForItem.get(rawItem.id) ?? null;
+    const matchedScreen = matchedByName
+      ?? plannedScreenForItem.get(rawItem.id)
+      ?? inferScreenForNavigationItem(label, role);
     const validGeneratedScreen = matchedScreen &&
       matchedScreen.type === "root" &&
       !shouldForceImmersiveScreen(matchedScreen) &&

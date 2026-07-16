@@ -211,9 +211,9 @@ function LoginPageContent() {
   };
 
   return (
-    <main className="bg-white pt-24 text-black sm:pt-28">
-      <div className="grid min-h-[calc(100dvh-7rem)] w-full lg:grid-cols-2">
-        <section className="flex min-h-[calc(100dvh-7rem)] flex-col justify-center border-black/[0.09] px-5 py-12 sm:px-10 lg:border-r lg:px-14">
+    <main className="bg-white text-black">
+      <div className="grid min-h-[100dvh] w-full lg:grid-cols-2">
+        <section className="flex min-h-[100dvh] flex-col justify-center border-black/[0.09] px-5 py-12 sm:px-10 lg:border-r lg:px-14">
           <div className="mx-auto flex w-full max-w-[410px] flex-col justify-center">
             <div className="mb-5">
               <div className="mb-2.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-[#1b7fcc]">
@@ -397,8 +397,8 @@ function LoginPageContent() {
 
 function LoginPageFallback() {
   return (
-    <main className="bg-white pt-24 sm:pt-28">
-      <div className="grid min-h-[calc(100dvh-7rem)] w-full lg:grid-cols-2">
+    <main className="bg-white">
+      <div className="grid min-h-[100dvh] w-full lg:grid-cols-2">
         <div className="flex items-center justify-center border-r border-black/[0.09] p-8">
           <div className="w-full max-w-[430px] space-y-4">
             <div className="h-10 w-56 bg-black/[0.05]" />
@@ -505,8 +505,8 @@ function ShowcasePanel() {
   ];
 
   return (
-    <aside className="relative hidden min-h-[calc(100dvh-7rem)] overflow-hidden border-l border-black/[0.09] bg-[#f3f3ef] lg:flex lg:flex-col">
-      <div className="relative z-10 px-10 pb-5 pt-10 xl:px-14 xl:pt-12">
+    <aside className="relative hidden min-h-[100dvh] overflow-hidden border-l border-black/[0.09] bg-[#f3f3ef] lg:flex lg:flex-col">
+      <div className="relative z-10 px-10 pb-5 pt-28 xl:px-14">
         <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#1b7fcc]">
           Designed with Drawgle
         </div>

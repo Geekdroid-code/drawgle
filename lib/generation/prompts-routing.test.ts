@@ -10,7 +10,7 @@ import {
   plannerScreenBriefStepInstruction,
 } from "@/lib/generation/prompts";
 import type { GenerationPromptMode } from "@/lib/generation/prompt-routing";
-import type { ScreenPlan } from "@/lib/types";
+import type { ScreenAssetManifest, ScreenPlan } from "@/lib/types";
 
 const modes: GenerationPromptMode[] = ["recreate", "style", "prompt"];
 
@@ -203,5 +203,39 @@ describe("state-scoped prompt construction", () => {
     expect(prompt).toContain("MODE CONTRACT: PROMPT_ONLY");
     expect(prompt).not.toContain("When a style reference image is attached");
     expect(prompt).not.toContain("prioritize its exact original structure and material choices");
+  });
+
+  it("gives every builder an exact deterministic asset-slot contract", () => {
+    const asset: ScreenAssetManifest = {
+      id: "asset-one",
+      requirementId: "skincare-hero",
+      role: "background_photo",
+      url: "https://assets.example/skincare.webp",
+      width: 1200,
+      height: 800,
+      hasAlpha: false,
+      alt: "Luxury skincare serum",
+      placementHint: "Full-bleed hero",
+      objectFit: "cover",
+      objectPosition: "center",
+      source: "stock",
+      provider: "pexels",
+      critical: true,
+      visibility: "public_reusable",
+      semanticCategory: "beauty",
+      semanticTags: ["skincare", "serum"],
+      reusePolicy: "repeat",
+      expectedUses: 1,
+    };
+
+    for (const instruction of [
+      buildRecreateScreenInstruction({ ...screenInput, assetManifest: [asset] }),
+      buildStyleScreenInstruction({ ...screenInput, assetManifest: [asset] }),
+      buildPromptScreenInstruction({ ...screenInput, assetManifest: [asset] }),
+    ]) {
+      expect(instruction).toContain("requirementId=skincare-hero");
+      expect(instruction).toContain('data-asset-slot="true"');
+      expect(instruction).not.toContain(asset.url);
+    }
   });
 });

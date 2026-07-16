@@ -8,7 +8,6 @@ export const CURATED_STYLE_EMBEDDING_MODEL = "gemini-embedding-001";
 export const CURATED_STYLE_EMBEDDING_DIMENSIONS = 768;
 export const CURATED_STYLE_INDEX_VERSION = 1;
 export const CURATED_STYLE_MIN_SIMILARITY = 0.55;
-export const CURATED_STYLE_MIN_MARGIN = 0.015;
 
 export type CuratedStyleIndexEntry = {
   id: string;
@@ -71,6 +70,7 @@ const normalizeText = (value: string) =>
 const normalizeConstraintText = (value: string) =>
   value
     .toLowerCase()
+    .replace(/don['’]t/g, "dont")
     .replace(/[^a-z0-9.;,]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -97,6 +97,20 @@ const hasPositivePattern = (input: string, pattern: RegExp) => {
     }
   }
   return false;
+};
+
+const catalogTermPattern = (term: string) => {
+  const normalizedTerm = normalizeText(term);
+  if (!normalizedTerm) return null;
+  const termTokens = normalizedTerm.split(" ");
+  const lastToken = termTokens.at(-1)!;
+  if (!lastToken.endsWith("s")) {
+    termTokens[termTokens.length - 1] = `${lastToken}s?`;
+  }
+  return new RegExp(
+    `(?:^|[\\s.,;])${termTokens.join("\\s+")}(?:$|[\\s.,;])`,
+    "g",
+  );
 };
 
 export function extractExplicitStyleConstraints(prompt: string): ExplicitStyleConstraints {
@@ -126,18 +140,8 @@ export function extractExplicitStyleConstraints(prompt: string): ExplicitStyleCo
 
 export function promptExplicitlyRequestsTerm(prompt: string, term: string) {
   const input = normalizeConstraintText(prompt);
-  const normalizedTerm = normalizeText(term);
-  if (!normalizedTerm) return false;
-  const termTokens = normalizedTerm.split(" ");
-  const lastToken = termTokens.at(-1)!;
-  if (!lastToken.endsWith("s")) {
-    termTokens[termTokens.length - 1] = `${lastToken}s?`;
-  }
-
-  const pattern = new RegExp(
-    `(?:^|[\\s.,;])${termTokens.join("\\s+")}(?:$|[\\s.,;])`,
-    "g",
-  );
+  const pattern = catalogTermPattern(term);
+  if (!pattern) return false;
   for (const match of input.matchAll(pattern)) {
     if (!isNegatedMatch(input, match.index ?? 0)) {
       return true;
@@ -146,25 +150,99 @@ export function promptExplicitlyRequestsTerm(prompt: string, term: string) {
   return false;
 }
 
-export function isReferenceCompatibleWithPrompt(
+export function promptExplicitlyRejectsTerm(prompt: string, term: string) {
+  const input = normalizeConstraintText(prompt);
+  const pattern = catalogTermPattern(term);
+  if (!pattern) return false;
+  for (const match of input.matchAll(pattern)) {
+    if (isNegatedMatch(input, match.index ?? 0)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+const promptRejectsDominantTerm = (prompt: string, term: string) => {
+  const input = normalizeConstraintText(prompt);
+  const normalizedTerm = normalizeText(term);
+  if (!normalizedTerm) return false;
+  return new RegExp(
+    `\\b(?:do not|dont|not)\\b[^.;]{0,36}\\b(?:everything|all|everywhere|entirely|mostly)\\b[^.;]{0,36}\\b${normalizedTerm.replace(/ /g, "\\s+")}s?\\b`,
+  ).test(input);
+};
+
+const roundedGeometry = (value: string) =>
+  /^(?:rounded|pill-shaped|circular|circular-gauges|circular-nodes)$/i.test(value);
+
+const profileTermGroups = (reference: CuratedStyleReference) => {
+  const profile = reference.selectionProfile;
+  return {
+    compositions: profile.compositions,
+    materials: profile.materials,
+    geometries: profile.geometries,
+    navigation: profile.navigation,
+    colorCharacter: profile.colorCharacter,
+    typographyCharacter: profile.typographyCharacter,
+    moods: profile.moods,
+    assetBias: [profile.assetBias],
+  };
+};
+
+export function referenceCompatibilityConflicts(
   reference: CuratedStyleReference,
   prompt: string,
   constraints = extractExplicitStyleConstraints(prompt),
 ) {
   const profile = reference.selectionProfile;
+  const conflicts: string[] = [];
   if (
     constraints.theme !== "unspecified"
     && profile.theme !== "mixed"
     && profile.theme !== constraints.theme
   ) {
-    return false;
+    conflicts.push(`theme:${profile.theme}`);
   }
   if (constraints.density !== "unspecified" && profile.density !== constraints.density) {
-    return false;
+    conflicts.push(`density:${profile.density}`);
   }
+
   const stableConstraintTerms = new Set(["light", "dark", "mixed", "airy", "balanced", "dense"]);
-  return !profile.incompatibleWith.some((term) =>
-    !stableConstraintTerms.has(term) && promptExplicitlyRequestsTerm(prompt, term));
+  for (const term of profile.incompatibleWith) {
+    if (!stableConstraintTerms.has(term) && promptExplicitlyRequestsTerm(prompt, term)) {
+      conflicts.push(`incompatible:${term}`);
+    }
+  }
+
+  for (const [field, values] of Object.entries(profileTermGroups(reference))) {
+    for (const value of values) {
+      if (!promptExplicitlyRejectsTerm(prompt, value)) continue;
+      const dominanceOnly = promptRejectsDominantTerm(prompt, value);
+      if (!dominanceOnly) {
+        conflicts.push(`${field}:${value}`);
+        continue;
+      }
+      if (
+        field === "geometries"
+        && roundedGeometry(value)
+        && profile.geometries.length > 0
+        && profile.geometries.every(roundedGeometry)
+      ) {
+        conflicts.push(`dominant-${field}:rounded`);
+      } else if (values.every((candidate) => normalizeText(candidate) === normalizeText(value))) {
+        conflicts.push(`dominant-${field}:${value}`);
+      }
+    }
+  }
+
+  return Array.from(new Set(conflicts));
+}
+
+export function isReferenceCompatibleWithPrompt(
+  reference: CuratedStyleReference,
+  prompt: string,
+  constraints = extractExplicitStyleConstraints(prompt),
+) {
+  return referenceCompatibilityConflicts(reference, prompt, constraints).length === 0;
 }
 
 export function normalizeEmbedding(values: ArrayLike<number>) {
@@ -258,17 +336,37 @@ export function selectCuratedStyleReferenceByEmbedding({
   queryVector: Float32Array;
   entries: CuratedStyleEmbeddingEntry[];
 }) {
+  const rankedAll = entries
+    .map(({ reference, vector }) => ({
+      reference,
+      similarity: cosineSimilarityNormalized(queryVector, vector),
+    }))
+    .sort((left, right) =>
+      right.similarity - left.similarity
+      || left.reference.id.localeCompare(right.reference.id));
   const ranked = rankCuratedStyleReferencesByEmbedding({ prompt, queryVector, entries });
   const best = ranked[0] ?? null;
   const runnerUp = ranked[1] ?? null;
   if (!best) {
-    return { match: null, best, runnerUp, rejectionReason: "no_compatible_reference" as const };
+    const topCandidate = rankedAll[0] ?? null;
+    return {
+      match: null,
+      best: topCandidate,
+      runnerUp: rankedAll[1] ?? null,
+      rejectionReason: "constraint_conflict" as const,
+      conflicts: topCandidate
+        ? referenceCompatibilityConflicts(topCandidate.reference, prompt)
+        : [],
+    };
   }
   if (best.similarity < CURATED_STYLE_MIN_SIMILARITY) {
-    return { match: null, best, runnerUp, rejectionReason: "below_similarity_threshold" as const };
+    return {
+      match: null,
+      best,
+      runnerUp,
+      rejectionReason: "below_similarity_threshold" as const,
+      conflicts: [],
+    };
   }
-  if (runnerUp && best.similarity - runnerUp.similarity < CURATED_STYLE_MIN_MARGIN) {
-    return { match: null, best, runnerUp, rejectionReason: "insufficient_margin" as const };
-  }
-  return { match: best, best, runnerUp, rejectionReason: null };
+  return { match: best, best, runnerUp, rejectionReason: null, conflicts: [] };
 }

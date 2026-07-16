@@ -148,24 +148,70 @@ const createDiagnostic = (requirement: AssetRequirement, startedAt: number): Ass
   r2WriteCount: 0,
 });
 
-const normalizeRequirement = (screen: ScreenPlan, need: AssetRequirement): AssetRequirement | null => {
+const shouldUseDistinctAssets = (
+  screen: ScreenPlan,
+  need: AssetRequirement,
+  normalizedRole: VisualAssetRole,
+) => {
+  if ((need.slotCount ?? 1) <= 1) return false;
+  const context = `${need.subject} ${need.placementHint} ${screen.name} ${screen.description}`;
+  if (/\b(?:same|single)\b[^.;]{0,36}\b(?:repeat|repeated|reused|across)\b/i.test(context)) return false;
+  if (normalizedRole === "avatar") return true;
+  if (!["product_photo", "product_cutout", "section_photo"].includes(normalizedRole)) return false;
+  return /\b(?:different|distinct|varied|individual|multiple|collection|catalog|inventory|shelf|products|bottles|items|people|members|providers|destinations)\b/i.test(
+    context,
+  );
+};
+
+const normalizeRequirement = (
+  screen: ScreenPlan,
+  need: AssetRequirement,
+  userExplicitImagery: boolean,
+): AssetRequirement | null => {
   const screenName = resolveRequirementScreenName([screen], need.screenName || screen.name);
   if (!screenName) return null;
   const roleContext = `${need.id} ${need.subject} ${need.placementHint}`;
   const inferredCategory = inferSemanticCategory(roleContext, need.role);
-  const normalizedRole = need.role !== "hero_cutout" && /\b(avatar|headshot|profile portrait|profile photo|user portrait)\b/i.test(roleContext)
+  const normalizedRole: VisualAssetRole = need.role !== "hero_cutout" && /\b(avatar|headshot|profile portrait|profile photo|user portrait)\b/i.test(roleContext)
     ? "avatar"
-    : need.role;
+    : need.role === "hero_cutout"
+      && need.assetType === "photo"
+      && !need.transparentBackground
+      && /\b(?:full bleed|full-bleed|background|header|banner|object-cover)\b/i.test(roleContext)
+        ? "background_photo"
+        : need.role;
+  const normalizedCategory = (
+    !need.semanticCategory
+    || need.semanticCategory === "other"
+    || (
+      need.semanticCategory === "generic_product"
+      && inferredCategory !== "generic_product"
+      && inferredCategory !== "other"
+    )
+  )
+    ? inferredCategory
+    : need.semanticCategory;
+  const reusePolicy = shouldUseDistinctAssets(screen, need, normalizedRole)
+    ? "distinct"
+    : need.reusePolicy ?? "repeat";
   const candidate = {
     ...need,
     role: normalizedRole,
     screenName,
-    semanticCategory: !need.semanticCategory || need.semanticCategory === "other" ? inferredCategory : need.semanticCategory,
-    semanticTags: normalizeSemanticTags(need.semanticTags ?? [], !need.semanticCategory || need.semanticCategory === "other" ? inferredCategory : need.semanticCategory).slice(0, 8),
+    semanticCategory: normalizedCategory,
+    semanticTags: normalizeSemanticTags(
+      [...(need.semanticTags ?? []), screen.name, need.subject],
+      normalizedCategory,
+    ).slice(0, 8),
     slotCount: need.slotCount ?? 1,
-    reusePolicy: need.reusePolicy ?? "repeat",
+    reusePolicy,
     reuseKey: need.reuseKey || `${need.role}-${need.subject}`,
-    origin: need.origin ?? (need.sourcePreference === "user_upload" ? "user_explicit" : "planner_inferred"),
+    priority: userExplicitImagery && ["photo", "illustration"].includes(need.assetType)
+      ? "critical"
+      : need.priority,
+    origin: userExplicitImagery && ["photo", "illustration"].includes(need.assetType)
+      ? "user_explicit"
+      : need.origin ?? (need.sourcePreference === "user_upload" ? "user_explicit" : "planner_inferred"),
   } satisfies AssetRequirement;
   const parsed = AssetRequirementSchema.safeParse(candidate);
   return parsed.success ? { ...parsed.data, reuseKey: stableReuseKey(parsed.data) } : null;
@@ -223,7 +269,9 @@ const inferExplicitImageryRequirements = ({
   referenceMode?: string | null;
   existingScreenNames: Set<string>;
 }) => {
-  if (hasNegativeImageryRequest(prompt)) return [] as AssetRequirement[];
+  if (hasNegativeImageryRequest(prompt) && !hasPositiveImageryRequest(prompt)) {
+    return [] as AssetRequirement[];
+  }
   const userExplicitImagery = hasPositiveImageryRequest(prompt);
   const projectDirection = [
     prompt,
@@ -295,10 +343,11 @@ export async function planVisualAssets({
 }): Promise<AssetRequirement[]> {
   const requirements: AssetRequirement[] = [];
   const seen = new Set<string>();
+  const userExplicitImagery = hasPositiveImageryRequest(prompt);
 
   for (const screen of screens) {
     for (const need of (screen.assetNeeds ?? []).slice(0, 4)) {
-      const normalized = normalizeRequirement(screen, need);
+      const normalized = normalizeRequirement(screen, need, userExplicitImagery);
       if (!normalized) continue;
       const key = `${normalized.screenName}:${normalized.role}:${semanticRequirementKey(normalized)}:${normalized.reusePolicy}`;
       if (seen.has(key)) continue;
@@ -660,16 +709,50 @@ type StockCandidate = {
   height: number | null;
 };
 
-const stockSearchQuery = (requirement: AssetRequirement) => {
-  const categoryHint: Partial<Record<VisualAssetSemanticCategory, string>> = {
-    person: "person portrait",
-    animal: "pet animal",
-    electronics: "technology",
-    fitness: "fitness workout",
-    place: "travel destination",
-    generic_product: "retail product",
-  };
-  return compact([requirement.subject, categoryHint[requirement.semanticCategory], ...requirement.semanticTags].filter(Boolean).join(" ")).slice(0, 100);
+const STOCK_CATEGORY_TERMS: Partial<Record<VisualAssetSemanticCategory, readonly string[]>> = {
+  person: ["person", "portrait", "face", "headshot"],
+  animal: ["animal", "pet", "dog", "cat"],
+  food: ["food", "meal", "restaurant", "bakery", "dessert"],
+  fashion: ["fashion", "clothing", "shoe", "bag", "watch"],
+  electronics: ["technology", "device", "phone", "laptop", "audio"],
+  vehicle: ["vehicle", "car", "bike", "scooter"],
+  fitness: ["fitness", "workout", "athlete", "gym"],
+  beauty: ["skincare", "skin", "cosmetic", "beauty", "serum", "cream", "lotion"],
+  home: ["interior", "furniture", "home", "room"],
+  place: ["travel", "destination", "city", "hotel"],
+  nature: ["nature", "landscape", "forest", "ocean", "mountain"],
+  generic_product: ["retail", "product", "merchandise"],
+};
+
+const STOCK_ROLE_TERMS: Partial<Record<VisualAssetRole, readonly string[]>> = {
+  avatar: ["portrait"],
+  product_photo: ["product photography"],
+  product_cutout: ["isolated product"],
+  section_photo: ["editorial photography"],
+  background_photo: ["editorial background"],
+};
+
+const STOCK_PRODUCT_TERMS: Partial<Record<VisualAssetSemanticCategory, readonly string[]>> = {
+  beauty: ["product", "bottle", "serum", "cream", "lotion", "cosmetic", "skincare", "packaging"],
+  food: ["food", "meal", "dish", "pastry", "cake", "cookie", "dessert", "drink"],
+  fashion: ["fashion", "clothing", "shoe", "bag", "watch", "apparel"],
+  electronics: ["device", "phone", "laptop", "headphone", "speaker", "camera"],
+  fitness: ["equipment", "dumbbell", "shoe", "gear"],
+  generic_product: ["product", "item", "merchandise", "packaging"],
+};
+
+export const stockSearchQuery = (requirement: AssetRequirement) => {
+  const subjectTokens = Array.from(semanticTokens([requirement.subject])).slice(0, 7);
+  const categoryTerms = STOCK_CATEGORY_TERMS[requirement.semanticCategory] ?? [];
+  const categoryTerm = categoryTerms.find((term) =>
+    semanticTokens([requirement.subject, ...requirement.semanticTags]).has(normalizeSemanticTags([term], requirement.semanticCategory)[0]))
+    ?? categoryTerms[0];
+  const roleTerm = STOCK_ROLE_TERMS[requirement.role]?.[0];
+  return compact(
+    [categoryTerm, ...subjectTokens, roleTerm]
+      .filter(Boolean)
+      .join(" "),
+  ).slice(0, 100);
 };
 
 const pexelsCandidates = async (
@@ -746,8 +829,18 @@ const pixabayCandidates = async (
   });
 };
 
-const rankStockCandidates = (requirement: AssetRequirement, candidates: StockCandidate[]) => {
+export const rankStockCandidates = (requirement: AssetRequirement, candidates: StockCandidate[]) => {
   const required = expandSemanticTags(semanticTokens([requirement.subject, ...requirement.semanticTags]));
+  const categoryTerms = STOCK_CATEGORY_TERMS[requirement.semanticCategory] ?? [];
+  const categoryAnchors = semanticTokens([
+    ...categoryTerms,
+    requirement.semanticCategory,
+  ]);
+  const productRole = ["product_photo", "product_cutout"].includes(requirement.role)
+    || (requirement.role === "section_photo" && Boolean(STOCK_PRODUCT_TERMS[requirement.semanticCategory]));
+  const productAnchors = semanticTokens([
+    ...(STOCK_PRODUCT_TERMS[requirement.semanticCategory] ?? ["product", "item"]),
+  ]);
   const targetRatio = requirement.desiredAspectRatio === "1:1" ? 1
     : requirement.desiredAspectRatio === "4:5" ? 4 / 5
       : requirement.desiredAspectRatio === "5:4" ? 5 / 4
@@ -755,15 +848,38 @@ const rankStockCandidates = (requirement: AssetRequirement, candidates: StockCan
           : null;
   return candidates
     .map((candidate) => {
-      const subjectScore = semanticOverlap(required, semanticTokens([candidate.description, ...candidate.tags]));
+      const candidateTokens = semanticTokens([candidate.description, ...candidate.tags]);
+      const subjectScore = semanticOverlap(required, candidateTokens);
+      const categoryScore = categoryAnchors.size > 0
+        ? semanticOverlap(categoryAnchors, candidateTokens)
+        : subjectScore;
+      const productScore = productRole
+        ? semanticOverlap(productAnchors, candidateTokens)
+        : 1;
       const ratio = candidate.width && candidate.height ? candidate.width / candidate.height : null;
       const aspectScore = targetRatio && ratio ? Math.max(0, 3 - Math.abs(Math.log(ratio / targetRatio)) * 3) : 0;
-      return { candidate, subjectScore, score: subjectScore * 10 + aspectScore };
+      const resolutionScore = candidate.width && candidate.height
+        ? Math.min(2, Math.min(candidate.width, candidate.height) / 800)
+        : 0;
+      return {
+        candidate,
+        subjectScore,
+        categoryScore,
+        productScore,
+        score: subjectScore * 10 + categoryScore * 12 + productScore * 4 + aspectScore + resolutionScore,
+      };
     })
-    .filter((entry) => entry.subjectScore > 0)
+    .filter((entry) =>
+      entry.subjectScore > 0
+      && entry.categoryScore > 0
+      && entry.productScore > 0
+      && (!entry.candidate.width || !entry.candidate.height || Math.min(entry.candidate.width, entry.candidate.height) >= 640))
     .sort((left, right) => right.score - left.score || left.candidate.providerAssetId.localeCompare(right.candidate.providerAssetId))
     .map((entry) => entry.candidate);
 };
+
+export const shouldQueryPixabayFallback = (qualifiedPexelsCount: number, desiredCount: number) =>
+  qualifiedPexelsCount < desiredCount;
 
 const resolveStockAssets = async ({
   admin,
@@ -784,13 +900,16 @@ const resolveStockAssets = async ({
     reuseKey: stableReuseKey(requirement),
   };
   const pexels = rankStockCandidates(stockRequirement, await pexelsCandidates(stockRequirement, count, diagnostic));
-  const pixabay = pexels.length >= count
-    ? []
-    : rankStockCandidates(stockRequirement, await pixabayCandidates(stockRequirement, count - pexels.length, diagnostic));
-  const candidates = [...pexels, ...pixabay];
-  const selected = candidates.slice(0, count);
+  const pixabay = shouldQueryPixabayFallback(pexels.length, count)
+    ? rankStockCandidates(stockRequirement, await pixabayCandidates(stockRequirement, count - pexels.length, diagnostic))
+    : [];
+  const candidates = [...pexels, ...pixabay].filter((candidate, index, all) =>
+    all.findIndex((other) =>
+      other.provider === candidate.provider
+      && other.providerAssetId === candidate.providerAssetId) === index);
   const assets: VisualAssetRow[] = [];
-  for (const candidate of selected) {
+  for (const candidate of candidates) {
+    if (assets.length >= count) break;
     try {
       const bytes = await fetchRemoteBytes(candidate.imageUrl);
       const saved = await saveNormalizedAsset({
@@ -809,7 +928,11 @@ const resolveStockAssets = async ({
         visibility: "public_reusable",
         diagnostic,
       });
-      assets.push(saved.asset);
+      if (!assets.some((asset) => asset.id === saved.asset.id || (
+        asset.content_hash && saved.asset.content_hash && asset.content_hash === saved.asset.content_hash
+      ))) {
+        assets.push(saved.asset);
+      }
     } catch (error) {
       console.warn("[visual-assets] Stock candidate persistence failed", {
         provider: candidate.provider,
@@ -842,6 +965,28 @@ const resolveUserUpload = async ({
     .maybeSingle();
   if (error) throw error;
   return data as UserImageAssetRow | null;
+};
+
+const dedupeResolvedAssets = (assets: VisualAssetRow[]) => {
+  const ids = new Set<string>();
+  const contentHashes = new Set<string>();
+  const providerIds = new Set<string>();
+  return assets.filter((asset) => {
+    const providerKey = asset.provider_asset_id
+      ? `${asset.provider}:${asset.provider_asset_id}`
+      : null;
+    if (
+      ids.has(asset.id)
+      || (asset.content_hash ? contentHashes.has(asset.content_hash) : false)
+      || (providerKey ? providerIds.has(providerKey) : false)
+    ) {
+      return false;
+    }
+    ids.add(asset.id);
+    if (asset.content_hash) contentHashes.add(asset.content_hash);
+    if (providerKey) providerIds.add(providerKey);
+    return true;
+  });
 };
 
 const resolveRequirement = async ({
@@ -877,22 +1022,30 @@ const resolveRequirement = async ({
   const cacheKey = `${requirement.sourcePreference}:${semanticRequirementKey(requirement)}:${requirement.reusePolicy}:${desiredCount}`;
   const memoryAssets = memoryCache.get(cacheKey);
   if (memoryAssets?.length) {
+    const uniqueMemoryAssets = dedupeResolvedAssets(memoryAssets).slice(0, desiredCount);
     diagnostic.cacheHit = true;
     diagnostic.selectedVia = "cache";
-    diagnostic.selectedSource = memoryAssets[0].source as VisualAssetSource;
-    diagnostic.selectedAssetId = memoryAssets[0].id;
-    diagnostic.candidateCount = memoryAssets.length;
+    diagnostic.selectedSource = uniqueMemoryAssets[0].source as VisualAssetSource;
+    diagnostic.selectedAssetId = uniqueMemoryAssets[0].id;
+    diagnostic.candidateCount = uniqueMemoryAssets.length;
     diagnostic.durationMs = Date.now() - startedAt;
+    const manifests = uniqueMemoryAssets.map((asset, index) =>
+      manifestFromAsset(asset, requirement, requirement.reusePolicy === "distinct" ? index : undefined));
+    if (requirement.reusePolicy === "distinct") {
+      for (let index = manifests.length; index < desiredCount; index++) {
+        manifests.push(placeholderManifest(requirement, "No additional distinct semantic match found.", index));
+      }
+    }
     return {
-      manifests: memoryAssets.map((asset, index) => manifestFromAsset(asset, requirement, requirement.reusePolicy === "distinct" ? index : undefined)),
-      assetIds: memoryAssets.map((asset) => asset.id),
+      manifests,
+      assetIds: uniqueMemoryAssets.map((asset) => asset.id),
       diagnostic,
     };
   }
 
   const cached = await findCachedStockAssets({ admin, ownerId, projectId, requirement, limit: desiredCount });
   diagnostic.candidateCount += cached.candidateCount;
-  let assets: VisualAssetRow[] = cached.assets;
+  let assets: VisualAssetRow[] = dedupeResolvedAssets(cached.assets);
   if (assets.length) {
     diagnostic.selectedVia = "cache";
     diagnostic.cacheHit = true;
@@ -901,18 +1054,18 @@ const resolveRequirement = async ({
   if (assets.length < desiredCount) {
     const curated = await findCuratedAssets({ admin, ownerId, projectId, requirement, limit: desiredCount - assets.length });
     diagnostic.candidateCount += curated.candidateCount;
-    assets = [...assets, ...curated.assets.filter((candidate) => !assets.some((asset) => asset.id === candidate.id))];
+    assets = dedupeResolvedAssets([...assets, ...curated.assets]);
     if (curated.assets.length && !diagnostic.selectedVia) diagnostic.selectedVia = "curated";
   }
 
   if (assets.length < desiredCount) {
     const stock = await resolveStockAssets({ admin, requirement, count: desiredCount - assets.length, diagnostic });
     diagnostic.candidateCount += stock.candidateCount;
-    assets = [...assets, ...stock.assets.filter((candidate) => !assets.some((asset) => asset.id === candidate.id))];
+    assets = dedupeResolvedAssets([...assets, ...stock.assets]);
     if (stock.assets.length && !diagnostic.selectedVia) diagnostic.selectedVia = "stock";
   }
 
-  assets = assets.slice(0, desiredCount);
+  assets = dedupeResolvedAssets(assets).slice(0, desiredCount);
   if (assets.length) memoryCache.set(cacheKey, assets);
   diagnostic.selectedAssetId = assets[0]?.id ?? null;
   diagnostic.selectedSource = (assets[0]?.source as VisualAssetSource | undefined) ?? "placeholder";

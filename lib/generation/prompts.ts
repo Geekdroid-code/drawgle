@@ -698,12 +698,13 @@ const buildScreenLayoutContract = (screenPlan?: ScreenPlan | null) => {
 const formatAssetManifestLine = (asset: ScreenAssetManifest, index: number) => {
   const fields = [
     `#${index + 1}`,
+    `requirementId=${compactPromptField(asset.requirementId)}`,
+    `assetId=${compactPromptField(asset.id)}`,
     `role=${compactPromptField(asset.role)}`,
     `category=${compactPromptField(asset.semanticCategory)}`,
     `tags=${compactPromptField(asset.semanticTags.join(","))}`,
     `critical=${asset.critical ? "true" : "false"}`,
     `placeholder=${asset.placeholder ? "true" : "false"}`,
-    `url=${compactPromptField(asset.variantUrl || asset.url)}`,
     `fit=${compactPromptField(asset.objectFit)}`,
     `pos=${compactPromptField(asset.objectPosition)}`,
     `size=${asset.width}x${asset.height}`,
@@ -733,13 +734,15 @@ const buildAssetManifestContract = (assetManifest?: ScreenAssetManifest[] | null
   const placeholders = assetManifest.filter((asset) => asset.placeholder);
 
   return [
-    realAssets.length > 0 ? "Use only listed bitmap URLs. Never invent/search image URLs." : "No approved bitmap URLs; render listed placeholders as CSS only.",
+    realAssets.length > 0
+      ? "Resolved bitmap assets are available. Do not write their URLs; Drawgle hydrates declared asset slots after generation."
+      : "No resolved bitmap URLs are available; declare the required slots and Drawgle will render intentional placeholders.",
     "Use each entry only for its declared role and semantic category. Avatar assets are avatars only; product/hero/decorative assets must never become profile photos.",
-    "Every bitmap <img> must include data-asset-requirement-id and data-asset-role. The requirement id and role must exactly match the manifest entry used by that UI slot.",
-    "For reuse=repeat, use the same approved URL in every compatible repeated slot up to expectedUses; a correct repeated image is preferred over empty placeholders. For reuse=distinct, use each slotIndex entry at most once and never duplicate one identity.",
-    "Critical non-placeholder entries must appear in returned HTML. Use the exact listed URL, meaningful alt text, size, fit, alpha, and placement hint.",
-    "Placeholder entries: CSS surface + border/radius + Lucide icon + aspect ratio + short alt/role label; no img tag and no fake product/person/object artwork.",
-    "Transparent cutouts use object-contain. Photos use object-cover unless hint says otherwise.",
+    "For every required visual use, output an EMPTY container element (div or figure, never img/source/svg image) with data-asset-slot=\"true\", the exact data-asset-requirement-id, and exact data-asset-role. Do not output src, srcset, CSS url(...), or an invented image.",
+    "Example: <div class=\"w-full aspect-square overflow-hidden\" data-asset-slot=\"true\" data-asset-requirement-id=\"EXACT_ID\" data-asset-role=\"product_photo\"></div>.",
+    "For reuse=repeat, output expectedUses compatible slots with the same requirement id. For reuse=distinct, output one slot per listed entry and include its exact data-asset-slot-index.",
+    "Critical entries must have the complete required slot count. Omitting a critical slot is a blocking builder-contract failure.",
+    "Place overlay copy outside the empty asset-slot element so deterministic hydration cannot remove it.",
     `Manifest summary: total=${assetManifest.length}; urls=${realAssets.length}; placeholders=${placeholders.length}.`,
     "Manifest entries:",
     ...assetManifest.map(formatAssetManifestLine),
@@ -1071,7 +1074,7 @@ ${buildSharedNavigationContract({ navigationInstruction, navigationPlan, screenP
 - Allow vertical scrolling for long content; do not clip required bottom content with overflow-hidden.
 - Main content should normally use px-[var(--dg-mobile-layout-screen-margin)] and gap-[var(--dg-mobile-layout-section-gap)] unless the brief requires full-bleed media/maps.
 - Final self-audit: no horizontal overflow, nav overlap, clipped CTA, unreadable/empty chart, blank visual panel, text-icon collision, or random spacing drift.
-- Image URLs: use only APPROVED VISUAL ASSET MANIFEST URLs. Inline data:image/svg+xml is allowed only for simple vector geometry.
+- Bitmap assets: declare only APPROVED VISUAL ASSET MANIFEST slots. Never write remote bitmap URLs. Inline data:image/svg+xml is allowed only for simple vector geometry.
 - End with sentinel on its own final line: ${DRAWGLE_GENERATION_COMPLETE_SENTINEL}`;
 };
 
