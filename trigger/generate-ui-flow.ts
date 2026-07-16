@@ -32,7 +32,7 @@ import {
   validateScreenAssetPolicy,
   validateStaticDrawgleHtml,
 } from "@/lib/generation/screen-quality";
-import { buildNavigationShellCode, buildScreenStream, extractCode, fallbackProjectCharter, generateDesignFoundation, planUiFlow } from "@/lib/generation/service";
+import { buildNavigationShellCode, buildScreenStream, extractCode, fallbackProjectCharter, generateDesignTokens, planUiFlow } from "@/lib/generation/service";
 import { screenBuildOutputTokenBudget } from "@/lib/generation/screen-budget";
 import { analyzeReferenceImageForScope, preflightGenerationScope } from "@/lib/generation/scope-contract";
 import { planVisualAssets, resolveProjectAssets } from "@/lib/generation/visual-assets";
@@ -40,7 +40,6 @@ import { shouldAttachReferenceImage } from "@/lib/generation/reference-image";
 import { loadStoredPromptImage } from "@/lib/generation/prompt-reference-storage";
 import { resolveGenerationReferencePolicy } from "@/lib/generation/reference-policy";
 import { resolveProjectReferenceDna } from "@/lib/generation/reference-dna";
-import { shouldEnableSpatialCraft } from "@/lib/generation/spatial-craft-routing";
 import {
   bindReservationToScreen,
   captureGenerationCredit,
@@ -1647,8 +1646,6 @@ export const generateUiFlowTask = task({
       .eq("id", payload.projectId)
       .maybeSingle();
     const existingCharter = (existingProject?.project_charter as ProjectCharter | null) ?? null;
-    let foundationCreativeDirection = payload.projectCharter?.creativeDirection ?? existingCharter?.creativeDirection ?? null;
-    let craftBlueprint = payload.projectCharter?.craftBlueprint ?? existingCharter?.craftBlueprint ?? null;
     const projectReferenceDna = resolveProjectReferenceDna(payload.projectCharter ?? existingCharter)?.dna ?? null;
     if (!designTokens && existingProject?.design_tokens) {
       designTokens = existingProject.design_tokens as DesignTokens;
@@ -1832,18 +1829,6 @@ export const generateUiFlowTask = task({
         });
     const scopeContract = scopePreflight.scopeContract;
     const referenceAnalysis = scopePreflight.referenceAnalysis;
-    const isNewProject = !existingCharter
-      && !payload.projectCharter
-      && (payload.planningMode ?? "project") !== "single-screen";
-    // Spatial Craft is a planning/build capability, not a prompt-only reference mode.
-    // Keep it off only for literal screenshot recreation, where the pixels own the
-    // construction. Style references and published presets still need an explicit
-    // construction contract or they collapse into the builder's generic defaults.
-    const enableSpatialCraft = shouldEnableSpatialCraft({
-      referenceMode,
-      isNewProject,
-      craftBlueprint,
-    });
 
     await updateGenerationRun(admin, payload.generationRunId, {
       requested_screen_count: scopeContract.finalScreenCount ?? null,
@@ -1896,21 +1881,15 @@ export const generateUiFlowTask = task({
         },
       );
 
-      const designFoundation = await generateDesignFoundation({
+      designTokens = await generateDesignTokens({
         prompt: payload.prompt,
         image: promptImage,
         referenceMode,
         referenceId,
         designStyle,
         referenceAnalysis,
-        enableSpatialCraft,
         llmLog: (label, data) => logger.info(label, data),
       });
-      designTokens = designFoundation.designTokens;
-      if (enableSpatialCraft) {
-        foundationCreativeDirection = designFoundation.creativeDirection;
-        craftBlueprint = designFoundation.craftBlueprint;
-      }
 
       await updateProject(admin, payload.projectId, {
         design_tokens: designTokens as never,
@@ -1918,10 +1897,6 @@ export const generateUiFlowTask = task({
 
       await mergeGenerationRunMetadata(admin, payload.generationRunId, {
         designTokenSnapshot: designTokens,
-        ...(enableSpatialCraft ? {
-          creativeDirection: foundationCreativeDirection,
-          craftBlueprint,
-        } : {}),
       });
 
       
@@ -1943,7 +1918,7 @@ export const generateUiFlowTask = task({
       setJournalPhase(generationJournal, "design", "completed", "Using the approved project design tokens.");
       await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
     }
-    const requestedCharterBase = payload.projectCharter ?? existingCharter ?? (
+    const requestedCharter = payload.projectCharter ?? existingCharter ?? (
       payload.plannedScreens && payload.plannedScreens.length > 0
         ? fallbackProjectCharter({
             prompt: payload.prompt,
@@ -1956,13 +1931,6 @@ export const generateUiFlowTask = task({
           })
         : null
     );
-    const requestedCharter = requestedCharterBase
-      ? {
-          ...requestedCharterBase,
-          creativeDirection: foundationCreativeDirection ?? requestedCharterBase.creativeDirection,
-          craftBlueprint: craftBlueprint ?? requestedCharterBase.craftBlueprint,
-        }
-      : null;
 
     logger.info("Assembled project context", {
       generationRunId: payload.generationRunId,
@@ -2009,9 +1977,6 @@ export const generateUiFlowTask = task({
           referenceAnalysis,
           referenceDna: reusableProjectReferenceDna,
           screenFamilyContract: reusableProjectReferenceDna?.screenFamilyContract,
-          creativeDirection: foundationCreativeDirection,
-          craftBlueprint,
-          enableSpatialCraft,
           projectContext: planningContext,
           existingCharter: requestedCharter,
           existingNavigationPlan: payload.navigationPlan ?? null,
@@ -2246,8 +2211,6 @@ export const generateUiFlowTask = task({
 	        roadmapPriority: screenPlan.roadmapPriority ?? null,
 	        explicitlyRequested: screenPlan.explicitlyRequested ?? false,
 	        stateVariants: screenPlan.stateVariants ?? [],
-	        craftSelection: screenPlan.craftSelection ?? null,
-	        spatialContract: screenPlan.spatialContract ?? null,
 	      })),
 	      roadmap: projectRoadmap,
 	      initialBatchItemKeys: plan.initialBatchItemKeys ?? plan.screens.map((screen) => screen.roadmapStableKey).filter(Boolean),

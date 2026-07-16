@@ -133,8 +133,8 @@ const DRAWGLE_STYLE_PROPERTY_CONFIGS_RAW = [
   { property: "box-shadow", label: "Shadow", group: "Effects", valueKind: "shadow", tokenScopes: ["shadows."], classUtilityFamily: "box-shadow", previewMode: "text", riskLevel: "safe" },
   { property: "opacity", label: "Opacity", group: "Effects", valueKind: "number", tokenScopes: ["opacities."], classUtilityFamily: "opacity", previewMode: "slider", riskLevel: "safe" },
   { property: "transform", label: "Transform", group: "Effects", valueKind: "css-function", classUtilityFamily: "transform", previewMode: "text", riskLevel: "high" },
-  { property: "filter", label: "Filter", group: "Effects", valueKind: "css-function", tokenScopes: ["effects."], classUtilityFamily: "filter", previewMode: "text", riskLevel: "high" },
-  { property: "backdrop-filter", label: "Backdrop", group: "Effects", valueKind: "css-function", tokenScopes: ["effects."], classUtilityFamily: "backdrop-filter", previewMode: "text", riskLevel: "high" },
+  { property: "filter", label: "Filter", group: "Effects", valueKind: "css-function", classUtilityFamily: "filter", previewMode: "text", riskLevel: "high" },
+  { property: "backdrop-filter", label: "Backdrop", group: "Effects", valueKind: "css-function", classUtilityFamily: "backdrop-filter", previewMode: "text", riskLevel: "high" },
 ] as const satisfies readonly DrawgleStyleControlConfig[];
 
 export type DrawgleStyleProperty = typeof DRAWGLE_STYLE_PROPERTY_CONFIGS_RAW[number]["property"];

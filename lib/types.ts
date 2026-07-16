@@ -195,9 +195,6 @@ export interface DesignColorTokens {
     card?: string;
     bottom_sheet?: string;
     modal?: string;
-    inset?: string;
-    raised?: string;
-    glass?: string;
     [key: string]: JsonValue | undefined;
   };
   text?: {
@@ -283,18 +280,12 @@ export interface DesignSizingTokens {
 
 export interface DesignRadiiTokens {
   app?: string;
-  control?: string;
-  card?: string;
-  featured?: string;
-  sheet?: string;
   pill?: string;
   [key: string]: JsonValue | undefined;
 }
 
 export interface DesignBorderWidthTokens {
-  hairline?: string;
   standard?: string;
-  emphasis?: string;
   [key: string]: JsonValue | undefined;
 }
 
@@ -302,10 +293,6 @@ export interface DesignShadowTokens {
   none?: string;
   surface?: string;
   overlay?: string;
-  inset?: string;
-  raised?: string;
-  floating?: string;
-  glow?: string;
   [key: string]: JsonValue | undefined;
 }
 
@@ -314,22 +301,6 @@ export interface DesignGradientTokens {
   action_primary?: string;
   surface_highlight?: string;
   accent_ring?: string;
-  atmosphere?: string;
-  edge_light?: string;
-  accent_glow?: string;
-  [key: string]: JsonValue | undefined;
-}
-
-export interface DesignEffectTokens {
-  surface_blur?: string;
-  overlay_blur?: string;
-  edge_highlight_opacity?: string;
-  [key: string]: JsonValue | undefined;
-}
-
-export interface DesignIconographyTokens {
-  stroke_width?: string;
-  well_size?: string;
   [key: string]: JsonValue | undefined;
 }
 
@@ -369,8 +340,6 @@ export interface DesignTokenValues {
   border_widths?: DesignBorderWidthTokens;
   shadows?: DesignShadowTokens;
   gradients?: DesignGradientTokens;
-  effects?: DesignEffectTokens;
-  iconography?: DesignIconographyTokens;
   navigation?: DesignNavigationTokens;
   elevation?: Record<string, string>;
   opacities?: Record<string, string>;
@@ -442,46 +411,6 @@ export interface CreativeDirection {
   signatureMoments: string[];
   motionTone: string;
   avoid: string[];
-}
-
-export type SpatialCraftCategory = "macro" | "component" | "data" | "lighting" | "navigation";
-
-export interface ProjectCraftBlueprint {
-  version: 1;
-  compositionIntent: string;
-  layerStrategy: string;
-  geometryIntent: string;
-  lightingIntent: string;
-  elevationIntent: string;
-  borderIntent: string;
-  dataVisualizationIntent: string;
-  navigationIntent: string;
-  signatureConstructions: string[];
-  layoutPrinciples: string[];
-  /** Validated construction grammar ids selected from the bounded server catalog. */
-  preferredCraftIds?: string[];
-  preferredCraftTags: string[];
-  requiredTokenRoles: string[];
-  avoid: string[];
-}
-
-export interface SpatialCraftSelection {
-  macroId: string | null;
-  supportingIds: string[];
-  rationale: string;
-}
-
-export interface SpatialConstructionContract {
-  version: 1;
-  grammarIds: string[];
-  viewportZones: string[];
-  layerPlan: string[];
-  geometryRules: string[];
-  positioningRules: string[];
-  tokenBindings: Record<string, string>;
-  dataVisualization: string | null;
-  signatureDetail: string | null;
-  antiPatterns: string[];
 }
 
 export interface ProjectCharterReferenceScreen {
@@ -612,7 +541,6 @@ export interface ProjectCharter {
   keyFeatures: string[];
   designRationale: string;
   creativeDirection?: CreativeDirection | null;
-  craftBlueprint?: ProjectCraftBlueprint | null;
   designStyle?: ProjectDesignStyleSummary | null;
   referenceScreens?: ProjectCharterReferenceScreen[];
   designSystemSignals?: ProjectCharterDesignSystemSignals | null;
@@ -702,8 +630,6 @@ export interface ScreenPlan {
   explicitlyRequested?: boolean;
   stateVariants?: ScreenStateVariantPlan[];
   layoutContract?: ScreenLayoutContract | null;
-  craftSelection?: SpatialCraftSelection | null;
-  spatialContract?: SpatialConstructionContract | null;
   chromePolicy?: ScreenChromePolicy | null;
   navigationItemId?: string | null;
   assetNeeds?: AssetRequirement[];

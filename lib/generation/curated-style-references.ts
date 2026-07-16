@@ -340,9 +340,14 @@ export function matchCuratedStyleReference({
     return best;
   }
 
-  // Low-confidence prompts intentionally stay image-free. A universal reference
-  // silently biases unrelated products toward whichever domain owns the fallback.
-  return null;
+  const fallback = CURATED_STYLE_REFERENCES.find((reference) => reference.fallback) ?? CURATED_STYLE_REFERENCES[0];
+  return fallback
+    ? {
+        reference: fallback,
+        score: best?.score ?? 0,
+        matchedTags: best?.matchedTags ?? [],
+      }
+    : null;
 }
 
 const mimeTypeForPath = (path: string) => {
