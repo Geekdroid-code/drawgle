@@ -24,14 +24,16 @@ import {
 import {
   buildRecreateScreenInstruction,
   buildStyleScreenInstruction,
+  buildPromptScreenInstruction,
   buildEditSystemInstruction,
-  creativeDirectionInstruction,
-  designInstruction,
+  buildCreativeDirectionInstruction,
+  buildDesignInstruction,
   plannerBlueprintStepInstruction,
   plannerScreenBriefStepInstruction,
   buildNavigationArchitectureContract,
   buildSharedNavigationContract,
 } from "@/lib/generation/prompts";
+import { resolveGenerationPromptMode } from "@/lib/generation/prompt-routing";
 import { appendRequiredAnchors, DRAWGLE_GENERATION_COMPLETE_SENTINEL, extractRequiredAnchors, normalizeStaticDrawgleHtml, stripGenerationCompleteSentinel, validateSourceCompletion } from "@/lib/generation/screen-quality";
 import { buildRepairSurroundingContext, type RepairTarget } from "@/lib/generation/screen-repair";
 import { createProjectReferenceDna } from "@/lib/generation/reference-dna";
@@ -2284,14 +2286,20 @@ async function generateCreativeDirection({
 }): Promise<ParsedCreativeDirection | null> {
   try {
     const ai = createGeminiClient();
+    const inlineImage = toInlineImage(image);
+    const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
+    const promptMode = resolveGenerationPromptMode({
+      referenceMode: resolvedReferenceMode,
+      hasImage: Boolean(inlineImage),
+      hasDesignStyle: Boolean(designStyle),
+      hasReferenceAnalysis: Boolean(referenceAnalysis),
+    });
     const policy = geminiPolicyForTask("project_planning", {
-      systemInstruction: creativeDirectionInstruction,
+      systemInstruction: buildCreativeDirectionInstruction(promptMode),
       responseMimeType: "application/json",
       temperature: 0.35,
     });
     const parts: Array<Record<string, unknown>> = [];
-    const inlineImage = toInlineImage(image);
-    const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
     const designStyleContract = formatDesignStyleContract(designStyle);
 
     if (designStyleContract) {
@@ -2532,7 +2540,13 @@ export async function planUiFlow({
     });
   }
 
-  const plannerMode = resolvedReferenceMode === "user_recreate" ? "recreate" : "style";
+  const plannerMode = resolveGenerationPromptMode({
+    referenceMode: resolvedReferenceMode,
+    hasImage: Boolean(toInlineImage(image)),
+    hasDesignStyle: Boolean(resolvedDesignStyle),
+    hasReferenceAnalysis: Boolean(referenceAnalysis),
+    hasProjectVisualMemory: Boolean(providedReferenceDna || existingCharter?.referenceDna),
+  });
   const policy = geminiPolicyForTask("project_planning", {
     systemInstruction: plannerBlueprintStepInstruction(plannerMode),
     responseMimeType: "application/json",
@@ -3039,13 +3053,9 @@ export async function generateDesignTokens({
 }) {
   try {
     const ai = createGeminiClient();
-    const policy = geminiPolicyForTask("design_tokens", {
-      systemInstruction: designInstruction,
-      responseMimeType: "application/json",
-      temperature: 0.35,
-    });
     const parts: Array<Record<string, unknown>> = [];
     const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
+    const inlineImage = toInlineImage(image);
     const designStyleContract = formatDesignStyleContract(designStyle);
     const referenceAnalysis = providedReferenceAnalysis !== undefined
       ? providedReferenceAnalysis
@@ -3055,6 +3065,17 @@ export async function generateDesignTokens({
           referenceMode: resolvedReferenceMode,
           llmLog,
         })).analysis;
+    const promptMode = resolveGenerationPromptMode({
+      referenceMode: resolvedReferenceMode,
+      hasImage: Boolean(inlineImage),
+      hasDesignStyle: Boolean(designStyle),
+      hasReferenceAnalysis: Boolean(referenceAnalysis),
+    });
+    const policy = geminiPolicyForTask("design_tokens", {
+      systemInstruction: buildDesignInstruction(promptMode),
+      responseMimeType: "application/json",
+      temperature: 0.35,
+    });
     const creativeDirection = (await generateCreativeDirection({
       prompt,
       image,
@@ -3063,7 +3084,6 @@ export async function generateDesignTokens({
       designStyle,
     })) ?? fallbackCreativeDirection({ prompt, referenceAnalysis });
 
-    const inlineImage = toInlineImage(image);
     if (designStyleContract) {
       parts.push({
         text: `${designStyleContract}\nToken rule: adapt the token seed to this product domain and audience. Preserve the style's geometry, density, typography mood, and component intent. Do not blindly copy seed colors when the product domain requires a more suitable accent.`,
@@ -3178,9 +3198,18 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
     });
   }
 
-  const buildInstruction = resolvedReferenceMode === "user_recreate"
+  const promptMode = resolveGenerationPromptMode({
+    referenceMode: resolvedReferenceMode,
+    hasImage: Boolean(inlineImage),
+    hasDesignStyle: Boolean(input.designStyle),
+    hasReferenceAnalysis: false,
+    hasProjectVisualMemory: input.referenceSource === "project_memory" || input.referenceSource === "project_upload",
+  });
+  const buildInstruction = promptMode === "recreate"
     ? buildRecreateScreenInstruction
-    : buildStyleScreenInstruction;
+    : promptMode === "style"
+      ? buildStyleScreenInstruction
+      : buildPromptScreenInstruction;
   const systemInstruction = buildInstruction({
     designTokens: input.designTokens,
     designStyle: input.designStyle,
