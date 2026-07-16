@@ -7,10 +7,10 @@ import type { ScreenBlockIndex } from "@/lib/types";
 
 export const SCREEN_EMBEDDING_DIMENSIONS = 768;
 
-const EMBEDDING_MODEL = "gemini-embedding-001";
+export const EMBEDDING_MODEL = "gemini-embedding-001";
 const MAX_EMBEDDING_INPUT_CHARS = 12000;
 
-type EmbeddingTaskType = "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY";
+export type EmbeddingTaskType = "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY";
 
 const collapseWhitespace = (value: string) => value.replace(/\s+/g, " ").trim();
 
@@ -72,28 +72,36 @@ export const buildScreenSummaryLocally = (
   ].filter(Boolean).join(" ");
 };
 
-export async function generateEmbedding(text: string, taskType: EmbeddingTaskType): Promise<number[]> {
-  const content = truncate(collapseWhitespace(text), MAX_EMBEDDING_INPUT_CHARS);
-
-  if (!content) {
-    throw new Error("Embedding input cannot be empty.");
+export async function generateEmbeddings(
+  texts: readonly string[],
+  taskType: EmbeddingTaskType,
+): Promise<number[][]> {
+  const contents = texts.map((text) => truncate(collapseWhitespace(text), MAX_EMBEDDING_INPUT_CHARS));
+  if (contents.length === 0 || contents.some((content) => !content)) {
+    throw new Error("Embedding inputs cannot be empty.");
   }
-
   const ai = createGeminiClient();
   const response = await ai.models.embedContent({
     model: EMBEDDING_MODEL,
-    contents: [content],
+    contents,
     config: {
       taskType,
       outputDimensionality: SCREEN_EMBEDDING_DIMENSIONS,
     },
   });
-
-  const values = response.embeddings?.[0]?.values;
-
-  if (!values || values.length !== SCREEN_EMBEDDING_DIMENSIONS) {
-    throw new Error(`Expected a ${SCREEN_EMBEDDING_DIMENSIONS}-dimension embedding response.`);
+  const embeddings = response.embeddings ?? [];
+  if (embeddings.length !== contents.length) {
+    throw new Error(`Expected ${contents.length} embedding responses, received ${embeddings.length}.`);
   }
+  return embeddings.map((embedding) => {
+    const values = embedding.values;
+    if (!values || values.length !== SCREEN_EMBEDDING_DIMENSIONS) {
+      throw new Error(`Expected a ${SCREEN_EMBEDDING_DIMENSIONS}-dimension embedding response.`);
+    }
+    return values;
+  });
+}
 
-  return values;
+export async function generateEmbedding(text: string, taskType: EmbeddingTaskType): Promise<number[]> {
+  return (await generateEmbeddings([text], taskType))[0];
 }

@@ -119,6 +119,7 @@ export async function POST(req: Request) {
         : "user_recreate"
       : null;
     let referenceId: string | null = null;
+    let referenceCatalogHash: string | null = null;
 
     const hasExistingProjectVisualMemory = Boolean(
       payload.projectId
@@ -135,21 +136,25 @@ export async function POST(req: Request) {
       referenceId = designStyle.id;
     } else if (!referenceImage && hasExistingProjectVisualMemory) {
       referenceMode = "user_style";
-    } else if (!referenceImage) {
+    } else if (!referenceImage && !payload.projectId && payload.planningMode === "project") {
       const match = await matchCuratedStyleReference({
         prompt: payload.prompt,
         planningMode: payload.planningMode as PlanningMode,
         existingCharter,
+        llmLog: (label, data) => console.info(label, data),
       });
 
       if (match) {
         const curatedImage = await loadCuratedStyleReferenceImage(match.reference);
         referenceImage = curatedImage;
         referenceMode = curatedImage ? "curated_style" : "internal_style";
-        referenceId = match.reference.id;
+        referenceId = curatedImage ? match.reference.id : null;
+        referenceCatalogHash = curatedImage ? match.catalogHash : null;
       } else {
         referenceMode = "internal_style";
       }
+    } else if (!referenceImage) {
+      referenceMode = "internal_style";
     }
 
     const providedScopeContract = (payload.scopeContract ?? null) as GenerationScopeContract | null;
@@ -190,6 +195,7 @@ export async function POST(req: Request) {
       image: referenceImage,
       referenceMode,
       referenceId,
+      referenceCatalogHash,
       designStyle,
       designTokens: (payload.designTokens ?? stylePreset?.tokenSeed ?? null) as DesignTokens | null,
       scopeContract: scopePreflight.scopeContract,

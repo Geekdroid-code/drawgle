@@ -12,17 +12,17 @@ import type { PromptImagePayload } from "@/lib/types";
 
 export { CURATED_STYLE_REFERENCES } from "@/lib/generation/curated-style-catalog";
 export {
-  classifyCuratedStyleSelectionIntent,
-  inferCuratedStyleSelectionIntent,
   matchCuratedStyleReference,
-  rankCuratedStyleReferences,
-  selectCuratedStyleReference,
 } from "@/lib/generation/curated-style-selection";
 export type {
   CuratedStyleReferenceMatch,
-  CuratedStyleSelectionIntent,
   RankedCuratedStyleReference,
 } from "@/lib/generation/curated-style-selection";
+
+export function getCuratedStyleReferenceById(referenceId?: string | null) {
+  if (!referenceId) return null;
+  return CURATED_STYLE_REFERENCES.find((reference) => reference.id === referenceId) ?? null;
+}
 
 const mimeTypeForPath = (path: string) => {
   switch (extname(path).toLowerCase()) {

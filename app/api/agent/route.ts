@@ -20,7 +20,6 @@ import { indexScreenCode } from "@/lib/generation/block-index";
 import { persistProjectMessageMemoryPair } from "@/lib/generation/message-memory";
 import { findRepairTarget } from "@/lib/generation/screen-repair";
 import { assembleProjectContext } from "@/lib/generation/context";
-import { loadCuratedStyleReferenceImage, matchCuratedStyleReference } from "@/lib/generation/curated-style-references";
 import { findLatestProjectPromptImagePath, loadStoredPromptImage } from "@/lib/generation/prompt-reference-storage";
 import { resolveGenerationReferencePolicy } from "@/lib/generation/reference-policy";
 import { resolveProjectReferenceDna, selectProjectReferenceImagePath } from "@/lib/generation/reference-dna";
@@ -1937,20 +1936,7 @@ export async function POST(request: Request) {
       } else if (!referenceImage && referencePolicy === "project_memory") {
         referenceMode = "user_style";
       } else if (!referenceImage) {
-        const match = await matchCuratedStyleReference({
-          prompt: generationPrompt,
-          planningMode: "single-screen",
-          existingCharter: projectCharter,
-        });
-
-        if (match) {
-          const curatedImage = await loadCuratedStyleReferenceImage(match.reference);
-          referenceImage = curatedImage;
-          referenceMode = curatedImage ? "curated_style" : "internal_style";
-          referenceId = match.reference.id;
-        } else {
-          referenceMode = "internal_style";
-        }
+        referenceMode = "internal_style";
       }
       const plan = await planUiFlow({
         prompt: generationPrompt,

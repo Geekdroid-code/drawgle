@@ -7,7 +7,6 @@ export type GeminiTaskType =
   | "router"
   | "chat"
   | "draft_plan"
-  | "style_selection"
   | "project_planning"
   | "design_tokens"
   | "navigation_build"
@@ -75,10 +74,6 @@ const policyByTask: Record<GeminiTaskType, GeminiModelPolicy> = {
   draft_plan: {
     model: ROUTER_MODEL,
     config: routerModelConfig(4096, "low"),
-  },
-  style_selection: {
-    model: ROUTER_MODEL,
-    config: routerModelConfig(900, "minimal"),
   },
   project_planning: {
     model: PROJECT_PLANNER_MODEL,

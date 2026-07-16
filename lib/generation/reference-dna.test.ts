@@ -98,6 +98,8 @@ describe("project reference DNA", () => {
       screenFamilyContract: family,
       referenceMode: "user_style",
       sourceImagePath: "owner/prompt-images/reference.webp",
+      sourceReferenceId: "crypto-wallet-glowing-dark",
+      sourceReferenceCatalogHash: "catalog-hash",
       createdAt: "2026-07-14T00:00:00.000Z",
     });
 
@@ -105,6 +107,8 @@ describe("project reference DNA", () => {
     expect(dna.schemaVersion).toBe(1);
     expect(dna.analysis).toBe(analysis);
     expect(dna.sourceImagePath).toBe("owner/prompt-images/reference.webp");
+    expect(dna.sourceReferenceId).toBe("crypto-wallet-glowing-dark");
+    expect(dna.sourceReferenceCatalogHash).toBe("catalog-hash");
   });
 
   it("prefers persisted DNA over reconstructing legacy charter fields", () => {

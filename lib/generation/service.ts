@@ -2358,6 +2358,7 @@ export async function planUiFlow({
   image,
   referenceMode,
   referenceId,
+  referenceCatalogHash,
   designStyle,
   designTokens,
   scopeContract,
@@ -2374,6 +2375,7 @@ export async function planUiFlow({
   image?: PromptImagePayload | null;
   referenceMode?: ReferenceMode | null;
   referenceId?: string | null;
+  referenceCatalogHash?: string | null;
   designStyle?: DesignStylePack | null;
   designTokens?: DesignTokens | null;
   scopeContract?: GenerationScopeContract | null;
@@ -2472,6 +2474,8 @@ export async function planUiFlow({
           analysis: referenceAnalysis,
           screenFamilyContract,
           referenceMode: resolvedReferenceMode,
+          sourceReferenceId: referenceId ?? null,
+          sourceReferenceCatalogHash: referenceCatalogHash ?? null,
         })
       : null);
   const withReferenceDna = (charter: ProjectCharter): ProjectCharter =>

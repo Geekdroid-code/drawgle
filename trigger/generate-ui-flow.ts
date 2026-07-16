@@ -5,8 +5,13 @@ import { logger, runs, streams, task } from "@trigger.dev/sdk";
 import { ensureDrawgleIds } from "@/lib/drawgle-dom";
 import { geminiPolicyForTask } from "@/lib/ai/model-policy";
 import { cleanErrorMessage } from "@/lib/ai/error-handler";
-import { loadCuratedStyleReferenceImage, matchCuratedStyleReference } from "@/lib/generation/curated-style-references";
+import {
+  getCuratedStyleReferenceById,
+  loadCuratedStyleReferenceImage,
+  matchCuratedStyleReference,
+} from "@/lib/generation/curated-style-references";
 import { getDesignStylePack, isDesignStyleId, summarizeDesignStyle } from "@/lib/generation/design-styles";
+import { CURATED_STYLE_EMBEDDING_MODEL } from "@/lib/generation/curated-style-index-core";
 import { indexScreenCode } from "@/lib/generation/block-index";
 import { assembleProjectContext } from "@/lib/generation/context";
 import {
@@ -1733,6 +1738,7 @@ export const generateUiFlowTask = task({
     let referenceMode: ReferenceMode = "user_recreate";
     let referenceSource: ReferenceSource | null = null;
     let referenceId: string | null = null;
+    let referenceCatalogHash: string | null = null;
 
     if (referencePolicy === "user_upload") {
       referenceMode = payload.imageReferenceMode === "style" ? "user_style" : "user_recreate";
@@ -1748,6 +1754,23 @@ export const generateUiFlowTask = task({
       promptImage = null;
       referenceMode = "user_style";
       referenceSource = "project_memory";
+    } else if (projectReferenceDna?.sourceReferenceId) {
+      const persistedReference = getCuratedStyleReferenceById(projectReferenceDna.sourceReferenceId);
+      const curatedImage = persistedReference
+        ? await loadCuratedStyleReferenceImage(persistedReference)
+        : null;
+      promptImage = curatedImage;
+      referenceMode = curatedImage ? "curated_style" : "internal_style";
+      referenceSource = "curated";
+      referenceId = curatedImage ? persistedReference?.id ?? null : null;
+      referenceCatalogHash = curatedImage
+        ? projectReferenceDna.sourceReferenceCatalogHash ?? null
+        : null;
+      if (!curatedImage) {
+        logger.warn("[CURATED STYLE REFERENCE] Persisted reference could not be reused.", {
+          referenceId: projectReferenceDna.sourceReferenceId,
+        });
+      }
     } else {
       const match = await matchCuratedStyleReference({
         prompt: payload.prompt,
@@ -1762,14 +1785,15 @@ export const generateUiFlowTask = task({
       } else {
         logger.info("[CURATED STYLE REFERENCE] selected", {
           referenceId: match.reference.id,
-          score: match.score,
-          matchedTags: match.matchedTags,
+          similarity: match.similarity,
+          runnerUp: match.runnerUp,
         });
         const curatedImage = await loadCuratedStyleReferenceImage(match.reference);
         promptImage = curatedImage;
         referenceMode = curatedImage ? "curated_style" : "internal_style";
         referenceSource = "curated";
-        referenceId = match.reference.id;
+        referenceId = curatedImage ? match.reference.id : null;
+        referenceCatalogHash = curatedImage ? match.catalogHash : null;
       }
     }
     const reusableProjectReferenceDna = projectReferenceDna && (
@@ -1844,6 +1868,15 @@ export const generateUiFlowTask = task({
       referenceMode,
       referenceSource,
       referenceId,
+      referenceCatalogHash,
+      curatedStyleSelection: referenceId && referenceCatalogHash
+        ? {
+            selector: "embedding-v1",
+            model: CURATED_STYLE_EMBEDDING_MODEL,
+            catalogHash: referenceCatalogHash,
+            referenceId,
+          }
+        : null,
       designStyle: summarizeDesignStyle(designStyle),
       scopeContract,
       referenceDnaCache: reusableProjectReferenceDna
@@ -1972,6 +2005,7 @@ export const generateUiFlowTask = task({
           image: promptImage,
           referenceMode,
           referenceId,
+          referenceCatalogHash,
           designStyle,
           designTokens,
           scopeContract,

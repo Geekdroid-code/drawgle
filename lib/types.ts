@@ -450,6 +450,8 @@ export interface ProjectReferenceDna {
   source: "image_analysis" | "legacy_reconstruction";
   referenceMode: ReferenceMode;
   sourceImagePath?: string | null;
+  sourceReferenceId?: string | null;
+  sourceReferenceCatalogHash?: string | null;
   createdAt: string;
   analysis: ReferenceAnalysis;
   screenFamilyContract: ScreenFamilyContract;

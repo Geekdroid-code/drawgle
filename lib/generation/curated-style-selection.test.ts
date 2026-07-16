@@ -1,181 +1,141 @@
+import { Buffer } from "node:buffer";
+
 import { describe, expect, it } from "vitest";
 
 import {
-  inferCuratedStyleSelectionIntent,
-  rankCuratedStyleReferences,
-  selectCuratedStyleReference,
-  type CuratedStyleSelectionIntent,
-} from "@/lib/generation/curated-style-selection";
-import { CURATED_STYLE_REFERENCES } from "@/lib/generation/curated-style-catalog";
+  assertCuratedStyleCatalog,
+  CURATED_STYLE_REFERENCES,
+} from "@/lib/generation/curated-style-catalog";
+import {
+  buildCuratedStyleRetrievalDocument,
+  chunkCuratedStyleQuery,
+  CURATED_STYLE_EMBEDDING_DIMENSIONS,
+  CURATED_STYLE_EMBEDDING_MODEL,
+  CURATED_STYLE_INDEX_VERSION,
+  extractExplicitStyleConstraints,
+  isReferenceCompatibleWithPrompt,
+  normalizeEmbedding,
+  promptExplicitlyRequestsTerm,
+  rankCuratedStyleReferencesByEmbedding,
+  selectCuratedStyleReferenceByEmbedding,
+  type CuratedStyleEmbeddingEntry,
+} from "@/lib/generation/curated-style-index-core";
+import curatedStyleIndexJson from "@/lib/generation/generated/curated-style-embeddings.json";
 
-const intent = (overrides: Partial<CuratedStyleSelectionIntent>): CuratedStyleSelectionIntent => ({
-  explicitStyleStrength: "none",
-  theme: "unspecified",
-  productArchetypes: [],
-  interactionArchetypes: [],
-  compositionNeeds: [],
-  materials: [],
-  geometries: [],
-  navigation: "unspecified",
-  density: "unspecified",
-  assetBias: "unspecified",
-  colorCharacter: [],
-  typographyCharacter: [],
-  moods: [],
-  mustAvoid: [],
-  ...overrides,
-});
+const vectorWithSimilarity = (similarity: number) => {
+  const vector = new Float32Array(CURATED_STYLE_EMBEDDING_DIMENSIONS);
+  vector[0] = similarity;
+  vector[1] = Math.sqrt(1 - similarity ** 2);
+  return normalizeEmbedding(vector);
+};
 
-describe("curated style selection", () => {
-  it("keeps catalog ids unique and every reference fully authored", () => {
-    const ids = CURATED_STYLE_REFERENCES.map((reference) => reference.id);
-    expect(new Set(ids).size).toBe(ids.length);
-    for (const reference of CURATED_STYLE_REFERENCES) {
-      expect(reference.imageUrl).toBeTruthy();
-      expect(reference.styleIntent.length).toBeGreaterThan(40);
-      expect(reference.selectionProfile.productArchetypes.length).toBeGreaterThan(0);
-      expect(reference.selectionProfile.interactionArchetypes.length).toBeGreaterThan(0);
-      expect(reference.selectionProfile.compositions.length).toBeGreaterThan(0);
-      expect(reference.selectionProfile.materials.length).toBeGreaterThan(0);
-      expect(reference.selectionProfile.geometries.length).toBeGreaterThan(0);
-      expect(reference.selectionProfile.colorCharacter.length).toBeGreaterThan(0);
-      expect(reference.selectionProfile.typographyCharacter.length).toBeGreaterThan(0);
+const queryVector = vectorWithSimilarity(1);
+
+describe("curated style embedding selection", () => {
+  it("keeps the expanded catalogue valid and fully represented in the generated index", () => {
+    expect(CURATED_STYLE_REFERENCES.length).toBeGreaterThanOrEqual(56);
+    expect(() => assertCuratedStyleCatalog(CURATED_STYLE_REFERENCES)).not.toThrow();
+    expect(curatedStyleIndexJson.version).toBe(CURATED_STYLE_INDEX_VERSION);
+    expect(curatedStyleIndexJson.model).toBe(CURATED_STYLE_EMBEDDING_MODEL);
+    expect(curatedStyleIndexJson.dimensions).toBe(CURATED_STYLE_EMBEDDING_DIMENSIONS);
+    expect(curatedStyleIndexJson.entries).toHaveLength(CURATED_STYLE_REFERENCES.length);
+    expect(new Set(curatedStyleIndexJson.entries.map((entry) => entry.id)).size)
+      .toBe(CURATED_STYLE_REFERENCES.length);
+
+    for (const entry of curatedStyleIndexJson.entries) {
+      expect(Buffer.from(entry.vector, "base64").byteLength)
+        .toBe(CURATED_STYLE_EMBEDDING_DIMENSIONS * Float32Array.BYTES_PER_ELEMENT);
     }
   });
 
-  it("selects the dark health analytics reference for a sleep dashboard", () => {
-    const match = selectCuratedStyleReference(intent({
-      explicitStyleStrength: "partial",
-      theme: "dark",
-      productArchetypes: ["health-analytics"],
-      interactionArchetypes: ["metric-dashboard", "timeline-history", "status-overview"],
-      compositionNeeds: ["data-dense", "dominant-metric-hero"],
-      materials: ["high-contrast"],
-      density: "dense",
-      assetBias: "data",
-      moods: ["calm", "clinical"],
-      mustAvoid: ["soft-elevated"],
-    }));
+  it("builds retrieval text from authored visual metadata without URLs or negative tags", () => {
+    const reference = CURATED_STYLE_REFERENCES.find(
+      (candidate) => candidate.id === "finance-light-soft-banking-home",
+    )!;
+    const document = buildCuratedStyleRetrievalDocument(reference);
 
-    expect(match?.reference.id).toBe("fitness-kalo-progress-dark");
+    expect(document).toContain(reference.styleIntent);
+    expect(document).toContain("Suitable product archetypes");
+    expect(document).not.toContain(reference.imageUrl);
+    expect(document).not.toContain("incompatible");
+    expect(document).not.toContain("professional");
   });
 
-  it("selects the photo-led asymmetric storefront for luxury ecommerce", () => {
-    const match = selectCuratedStyleReference(intent({
-      explicitStyleStrength: "strong",
-      theme: "light",
-      productArchetypes: ["consumer-commerce"],
-      interactionArchetypes: ["catalog-discovery", "product-detail"],
-      compositionNeeds: ["asymmetric", "full-bleed-media", "editorial-flow"],
-      materials: ["photographic", "layered"],
-      assetBias: "product",
-      colorCharacter: ["vivid-accent"],
-      typographyCharacter: ["display-led"],
-      moods: ["premium", "bold"],
-      mustAvoid: ["data-dense"],
-    }));
+  it("preserves a long submitted prompt in at most two embedding chunks", () => {
+    const prompt = Array.from({ length: 600 }, (_, index) => `requirement-${index}`).join(" ");
+    const chunks = chunkCuratedStyleQuery(prompt);
 
-    expect(match?.reference.id).toBe("sneaker-ecom-futuristic-light");
+    expect(chunks).toHaveLength(2);
+    expect(chunks.join(" ")).toBe(prompt);
+    expect(chunks.every((chunk) => chunk.length <= 5000)).toBe(true);
   });
 
-  it("selects the intended references for unambiguous product archetypes", () => {
-    const crypto = selectCuratedStyleReference(intent({
-      explicitStyleStrength: "partial",
-      theme: "dark",
-      productArchetypes: ["trading"],
-      interactionArchetypes: ["transaction-flow", "form-workflow"],
-      compositionNeeds: ["split-plane"],
-      assetBias: "control",
-      moods: ["serious"],
-    }));
-    const smartHome = selectCuratedStyleReference(intent({
-      explicitStyleStrength: "partial",
-      theme: "dark",
-      productArchetypes: ["device-control"],
-      interactionArchetypes: ["control-panel", "status-overview"],
-      compositionNeeds: ["bento-grid"],
-      materials: ["tactile", "glass"],
-      assetBias: "control",
-    }));
-    const password = selectCuratedStyleReference(intent({
-      productArchetypes: ["security-utility"],
-      interactionArchetypes: ["status-overview", "monitoring"],
-      compositionNeeds: ["dominant-metric-hero", "stacked-list"],
-      assetBias: "data",
-      moods: ["calm", "trustworthy"],
-    }));
-
-    expect(crypto?.reference.id).toBe("crypto-dark-exchange-payment");
-    expect(smartHome?.reference.id).toBe("smart-home-iot-tactile-dark");
-    expect(password?.reference.id).toBe("security-watchtower-light-score");
+  it("extracts only stable explicit theme and density constraints", () => {
+    expect(extractExplicitStyleConstraints("Build a dark, information-dense monitoring dashboard."))
+      .toEqual({ theme: "dark", density: "dense" });
+    expect(extractExplicitStyleConstraints("Create the app without deciding light or dark mode."))
+      .toEqual({ theme: "unspecified", density: "unspecified" });
   });
 
-  it("returns no image when the library has no confident spatial match", () => {
-    const university = selectCuratedStyleReference(intent({
-      productArchetypes: ["education"],
-      interactionArchetypes: ["schedule", "status-overview"],
-      compositionNeeds: ["stacked-list", "data-dense"],
-      density: "dense",
-      assetBias: "text",
-      moods: ["focused", "professional"],
-    }));
-    const writing = selectCuratedStyleReference(intent({
-      productArchetypes: ["editorial-content"],
-      interactionArchetypes: ["text-workspace"],
-      compositionNeeds: ["editorial-flow", "edge-to-edge"],
-      assetBias: "text",
-      moods: ["serious", "professional"],
-      mustAvoid: ["soft-elevated", "floating-dock"],
-    }));
-    const music = selectCuratedStyleReference(intent({
-      explicitStyleStrength: "partial",
-      theme: "dark",
-      productArchetypes: ["media"],
-      interactionArchetypes: ["media-player"],
-      compositionNeeds: ["full-bleed-media", "edge-to-edge"],
-      materials: ["atmospheric"],
-      assetBias: "mixed",
-    }));
-    const projectManagement = selectCuratedStyleReference(intent({
-      productArchetypes: ["productivity"],
-      interactionArchetypes: ["metric-dashboard"],
-      compositionNeeds: ["data-dense"],
-      density: "dense",
-      moods: ["professional"],
-    }));
-
-    expect(university).toBeNull();
-    expect(writing).toBeNull();
-    expect(music).toBeNull();
-    expect(projectManagement).toBeNull();
+  it("does not treat a negated term as a requested incompatibility", () => {
+    expect(promptExplicitlyRequestsTerm("Use glassmorphism", "glassmorphism")).toBe(true);
+    expect(promptExplicitlyRequestsTerm("Use no glassmorphism", "glassmorphism")).toBe(false);
+    expect(promptExplicitlyRequestsTerm("Avoid heavy shadows", "heavy-shadows")).toBe(false);
   });
 
-  it("rejects explicit contradictions and never uses a universal fallback", () => {
-    const strongDarkEditorial = intent({
-      explicitStyleStrength: "strong",
-      theme: "dark",
-      productArchetypes: ["editorial-content"],
-      interactionArchetypes: ["text-workspace"],
-      compositionNeeds: ["editorial-flow"],
-      materials: ["flat"],
-      geometries: ["sharp"],
-      assetBias: "text",
-      mustAvoid: ["rounded", "soft-elevated", "floating-dock"],
+  it("rejects explicit theme, density, and authored incompatibility conflicts", () => {
+    const finance = CURATED_STYLE_REFERENCES.find(
+      (candidate) => candidate.id === "finance-light-soft-banking-home",
+    )!;
+
+    expect(isReferenceCompatibleWithPrompt(finance, "A dark personal finance app")).toBe(false);
+    expect(isReferenceCompatibleWithPrompt(finance, "An airy personal finance app")).toBe(false);
+    expect(isReferenceCompatibleWithPrompt(finance, "A professional personal finance app")).toBe(false);
+    expect(isReferenceCompatibleWithPrompt(finance, "A friendly personal finance app")).toBe(true);
+  });
+
+  it("ranks compatible candidates by cosine similarity", () => {
+    const darkReferences = CURATED_STYLE_REFERENCES.filter(
+      (reference) => reference.selectionProfile.theme === "dark",
+    ).slice(0, 2);
+    const ranked = rankCuratedStyleReferencesByEmbedding({
+      prompt: "Create a dark interface",
+      queryVector,
+      entries: [
+        { reference: darkReferences[0], vector: vectorWithSimilarity(0.82) },
+        { reference: darkReferences[1], vector: vectorWithSimilarity(0.71) },
+      ],
     });
-    const ranked = rankCuratedStyleReferences(strongDarkEditorial);
 
-    expect(selectCuratedStyleReference(strongDarkEditorial)).toBeNull();
-    expect(ranked.find((candidate) => candidate.reference.id === "finance-light-soft-banking-home")?.score).toBe(0);
+    expect(ranked.map((candidate) => candidate.reference.id))
+      .toEqual(darkReferences.map((reference) => reference.id));
   });
 
-  it("keeps realistic natural-language fallback prompts safe", () => {
-    const selectPrompt = (prompt: string) => selectCuratedStyleReference(inferCuratedStyleSelectionIntent(prompt));
+  it("accepts a strong winner and fails closed for weak or ambiguous matches", () => {
+    const darkReferences = CURATED_STYLE_REFERENCES.filter(
+      (reference) => reference.selectionProfile.theme === "dark",
+    ).slice(0, 2);
+    const buildEntries = (best: number, runnerUp: number): CuratedStyleEmbeddingEntry[] => [
+        { reference: darkReferences[0], vector: vectorWithSimilarity(best) },
+        { reference: darkReferences[1], vector: vectorWithSimilarity(runnerUp) },
+      ];
 
-    expect(selectPrompt("Build a dark sleep tracking app with readiness score, sleep stages timeline, recovery analytics and dense clinical data.")?.reference.id)
-      .toBe("fitness-kalo-progress-dark");
-    expect(selectPrompt("Build a luxury light ecommerce app with large product photography, editorial asymmetry, bold styling and product discovery.")?.reference.id)
-      .toBe("sneaker-ecom-futuristic-light");
-    expect(selectPrompt("Create a university student app with classes, exam schedule, assignment deadlines and a focused information-dense home.")).toBeNull();
-    expect(selectPrompt("Create a serious editorial writing workspace for professional authors with edge-to-edge text and no cards.")).toBeNull();
+    expect(selectCuratedStyleReferenceByEmbedding({
+      prompt: "Create a dark interface",
+      queryVector,
+      entries: buildEntries(0.78, 0.70),
+    }).match?.reference.id).toBe(darkReferences[0].id);
+
+    expect(selectCuratedStyleReferenceByEmbedding({
+      prompt: "Create a dark interface",
+      queryVector,
+      entries: buildEntries(0.54, 0.40),
+    }).match).toBeNull();
+
+    expect(selectCuratedStyleReferenceByEmbedding({
+      prompt: "Create a dark interface",
+      queryVector,
+      entries: buildEntries(0.78, 0.77),
+    }).match).toBeNull();
   });
 });

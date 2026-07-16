@@ -67,6 +67,12 @@ export const isProjectReferenceDna = (value: unknown): value is ProjectReference
     && record.schemaVersion === PROJECT_REFERENCE_DNA_SCHEMA_VERSION
     && (record.source === "image_analysis" || record.source === "legacy_reconstruction")
     && isReferenceMode(record.referenceMode)
+    && (record.sourceReferenceId === undefined || record.sourceReferenceId === null || nonEmptyString(record.sourceReferenceId))
+    && (
+      record.sourceReferenceCatalogHash === undefined
+      || record.sourceReferenceCatalogHash === null
+      || nonEmptyString(record.sourceReferenceCatalogHash)
+    )
     && nonEmptyString(record.createdAt)
     && isReferenceAnalysis(record.analysis)
     && isScreenFamilyContract(record.screenFamilyContract),
@@ -165,6 +171,8 @@ export function createProjectReferenceDna({
   referenceMode,
   source = "image_analysis",
   sourceImagePath = null,
+  sourceReferenceId = null,
+  sourceReferenceCatalogHash = null,
   createdAt = new Date().toISOString(),
 }: {
   analysis: ReferenceAnalysis;
@@ -172,6 +180,8 @@ export function createProjectReferenceDna({
   referenceMode: ReferenceMode;
   source?: ProjectReferenceDna["source"];
   sourceImagePath?: string | null;
+  sourceReferenceId?: string | null;
+  sourceReferenceCatalogHash?: string | null;
   createdAt?: string;
 }): ProjectReferenceDna {
   return {
@@ -179,6 +189,8 @@ export function createProjectReferenceDna({
     source,
     referenceMode,
     sourceImagePath,
+    sourceReferenceId,
+    sourceReferenceCatalogHash,
     createdAt,
     analysis,
     screenFamilyContract,
