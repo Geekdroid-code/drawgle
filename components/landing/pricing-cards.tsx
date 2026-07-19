@@ -67,8 +67,8 @@ export default function PricingCards() {
       <div className="w-full max-w-6xl mx-auto">
         <div className="text-center mb-16">
           <h2 className="font-pixel-square text-4xl sm:text-6xl max-w-4xl mx-auto font-bold leading-[1.1] mb-4 font-[var(--font-inter-tight)]">
-            Choose monthly design capacity. <br />
-            <span className="text-[#1b7fcccc]">The same editable workflow at every tier.</span>
+            Unthrottled creative power.<br />
+            <span className="text-[#1b7fcccc]">Zero feature gates.</span>
           </h2>
           <p className="text-lg md:text-xl text-gray-600 max-w-3xl mx-auto leading-tight mb-4">
             Every plan includes prompt-to-UI, screenshot reconstruction, design-token editing,
