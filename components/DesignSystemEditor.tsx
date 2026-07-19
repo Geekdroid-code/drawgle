@@ -308,7 +308,10 @@ export function DesignSystemEditor({
   const radiusPill = tokens.radii?.pill || "9999px";
   const shadowSurface = tokens.shadows?.surface || "0 12px 32px rgba(15, 23, 42, 0.14)";
   const borderStandard = tokens.border_widths?.standard || "1px";
-  const fontFamily = tokens.typography?.font_family?.trim() || undefined;
+  const headingFontFamily = tokens.typography?.heading_font_family?.trim() || undefined;
+  const bodyFontFamily = tokens.typography?.body_font_family?.trim() || undefined;
+  const primaryFontName = (value?: string) => value?.split(",")[0]?.replace(/["']/g, "").trim().toLowerCase() ?? "";
+  const typographyPairValid = Boolean(headingFontFamily && bodyFontFamily && primaryFontName(headingFontFamily) !== primaryFontName(bodyFontFamily));
   const navigationSurface = tokens.navigation?.surface || cardBg;
   const navigationContent = tokens.navigation?.content || primaryText;
   const navigationMuted = tokens.navigation?.muted_content || lowText;
@@ -461,13 +464,34 @@ export function DesignSystemEditor({
 
             {activeTab === "type" ? (
               <div className="grid gap-4">
-                <TokenGroup label="Font Stack" panel={isPanel}>
-                  <FontFamilyField
-                    value={tokens.typography?.font_family || ""}
-                    recommendations={recommendedFonts}
-                    onChange={(nextValue) => handleUpdateToken(["typography", "font_family"], nextValue)}
-                    panel={isPanel}
-                  />
+                <TokenGroup label="Font Pair" panel={isPanel}>
+                  <div className="grid gap-3">
+                    <div className="grid gap-1.5">
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 ml-4">Heading font</span>
+                      <FontFamilyField
+                        value={tokens.typography?.heading_font_family || ""}
+                        recommendations={recommendedFonts}
+                        onChange={(nextValue) => handleUpdateToken(["typography", "heading_font_family"], nextValue)}
+                        panel={isPanel}
+                      />
+                    </div>
+                    <div className="grid gap-1.5">
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 ml-4">Body font</span>
+                      <FontFamilyField
+                        value={tokens.typography?.body_font_family || ""}
+                        recommendations={recommendedFonts}
+                        onChange={(nextValue) => handleUpdateToken(["typography", "body_font_family"], nextValue)}
+                        panel={isPanel}
+                      />
+                    </div>
+                    <div className="rounded-xl border border-slate-950/[0.08] bg-white p-3 dark:border-white/10 dark:bg-[#15171c]">
+                      <div style={{ fontFamily: headingFontFamily }} className="text-lg font-bold text-slate-950 dark:text-white">Heading hierarchy</div>
+                      <div style={{ fontFamily: bodyFontFamily }} className="mt-1 text-sm text-slate-500">Body copy, metrics, controls, tabs, and navigation labels.</div>
+                      {!typographyPairValid ? (
+                        <div className="mt-2 text-xs font-medium text-rose-600">Choose two different primary families so the heading/body hierarchy remains explicit.</div>
+                      ) : null}
+                    </div>
+                  </div>
                 </TokenGroup>
                 {isPanel ? (
                   <TokenGroup label="Type Scale" panel>
@@ -669,7 +693,8 @@ export function DesignSystemEditor({
             radiusPill={radiusPill}
             shadowSurface={shadowSurface}
             borderStandard={borderStandard}
-            fontFamily={fontFamily}
+            headingFontFamily={headingFontFamily}
+            bodyFontFamily={bodyFontFamily}
             tokens={tokens}
           />
         </section>
@@ -1888,7 +1913,8 @@ function PhonePreview({
   radiusPill,
   shadowSurface,
   borderStandard,
-  fontFamily,
+  headingFontFamily,
+  bodyFontFamily,
   tokens,
 }: {
   primaryBg: string;
@@ -1913,13 +1939,14 @@ function PhonePreview({
   radiusPill: string;
   shadowSurface: string;
   borderStandard: string;
-  fontFamily?: string;
+  headingFontFamily?: string;
+  bodyFontFamily?: string;
   tokens: NonNullable<DesignTokens["tokens"]>;
 }) {
   return (
     <div
       className="relative flex aspect-[9/18] h-[min(100%,clamp(360px,68dvh,560px))] max-h-full w-auto max-w-[min(78vw,280px)] flex-col overflow-hidden rounded-[clamp(22px,7vw,30px)] border border-slate-950/[0.12] bg-white shadow-[0_24px_60px_-42px_rgba(15,23,42,0.75)]"
-      style={{ backgroundColor: primaryBg, color: primaryText, fontFamily }}
+      style={{ backgroundColor: primaryBg, color: primaryText, fontFamily: bodyFontFamily }}
     >
       <div className="flex items-center justify-between px-[7%] pt-[7%]">
         <div className="h-[clamp(20px,6vw,28px)] w-[clamp(20px,6vw,28px)] rounded-full" style={{ backgroundColor: secondaryBg, border: `${borderStandard} solid ${borderDivider}` }} />
@@ -1934,6 +1961,7 @@ function PhonePreview({
             fontSize: `clamp(18px, 5.4vw, ${tokens.typography?.screen_title?.size || "24px"})`,
             fontWeight: Number(tokens.typography?.screen_title?.weight ?? 800),
             lineHeight: "1.12",
+            fontFamily: headingFontFamily,
           }}
         >
           Preview

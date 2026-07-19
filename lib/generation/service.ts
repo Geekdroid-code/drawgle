@@ -654,7 +654,8 @@ const DesignTokensSchema = z
         border: StringRecordSchema.optional(),
       }).partial().passthrough().optional(),
       typography: z.object({
-        font_family: z.string().optional(),
+        heading_font_family: z.string().optional(),
+        body_font_family: z.string().optional(),
         nav_title: TypographyScaleSchema.optional(),
         screen_title: TypographyScaleSchema.optional(),
         hero_title: TypographyScaleSchema.optional(),
@@ -740,6 +741,32 @@ const buildApprovedDesignTokens = (candidate: unknown, screenMargin = "16px"): D
     next.tokens.mobile_layout = {
       ...(next.tokens.mobile_layout ?? {}),
       screen_margin: screenMargin,
+    };
+
+    const typography = next.tokens.typography ?? {};
+    const primaryFamily = (value?: string) => value
+      ?.split(",")[0]
+      ?.replace(/["']/g, "")
+      .trim()
+      .toLowerCase() ?? "";
+    const recommendedFonts = next.meta?.recommendedFonts?.filter((value) => value.trim()) ?? [];
+    const heading = typography.heading_font_family?.trim()
+      || (recommendedFonts[0] ? `"${recommendedFonts[0]}", sans-serif` : '"Manrope", sans-serif');
+    const bodyCandidate = typography.body_font_family?.trim();
+    const compatibleBody = bodyCandidate && primaryFamily(bodyCandidate) !== primaryFamily(heading)
+      ? bodyCandidate
+      : recommendedFonts
+        .find((family) => primaryFamily(family) !== primaryFamily(heading));
+    const body = compatibleBody
+      ? (compatibleBody.includes(",") ? compatibleBody : `"${compatibleBody}", sans-serif`)
+      : primaryFamily(heading) === "inter"
+        ? 'system-ui, sans-serif'
+        : '"Inter", system-ui, sans-serif';
+
+    next.tokens.typography = {
+      ...typography,
+      heading_font_family: heading,
+      body_font_family: body,
     };
   }
 
@@ -1839,10 +1866,30 @@ const salvageProjectCharterFromRawPlan = ({
   });
 };
 
-const hasBuilderGradeBrief = (description: string) => {
-  const markers = ["Visual Goal:", "Layout:", "Hierarchy:", "Key Components:", "Visual Styling:"];
-  return markers.filter((marker) => description.includes(marker)).length >= 3;
+const BUILDER_BRIEF_MARKERS = [
+  "Reference DNA:",
+  "Visual Goal:",
+  "Layout Anatomy:",
+  "Key Components:",
+  "Visual Styling:",
+  "Interaction Notes:",
+  "Must Preserve:",
+] as const;
+
+const hasBuilderGradeBrief = (description: string) =>
+  BUILDER_BRIEF_MARKERS.every((marker) => description.includes(marker));
+
+/** True when a plan is a suggestion seed / not builder-grade (must be planned before build). */
+export const screenPlanNeedsBuildEnrichment = (screen: ScreenPlan): boolean => {
+  const description = screen.description?.replace(/\s+/g, " ").trim() ?? "";
+  if (description.length < 700) return true;
+  if (!hasBuilderGradeBrief(description)) return true;
+  return false;
 };
+
+export const screenPlansNeedBuildEnrichment = (screens: ScreenPlan[]): boolean =>
+  screens.some(screenPlanNeedsBuildEnrichment);
+
 
 const ensureBuilderGradeScreenBriefs = ({
   screens,
@@ -2433,6 +2480,229 @@ export const extractCode = (text: string) => {
 
   return text.replace(/^```html\n/i, "").replace(/\n```$/, "").trim();
 };
+
+/**
+ * Full screen-brief planning step (same quality bar as project-creation planning).
+ * Uses existing charter/nav/tokens as fixed blueprint. Seeds only lock name/type identity.
+ * Always runs when force=true (canvas add-screen). Otherwise skips builder-grade plans.
+ */
+export async function planScreenBriefsForBuild({
+  screens,
+  prompt,
+  charter,
+  navigationArchitecture,
+  navigationPlan,
+  designTokens,
+  designStyle,
+  projectContext,
+  planningMode = "single-screen",
+  referenceMode,
+  force = false,
+  llmLog,
+  repairAttempt = 0,
+}: {
+  screens: ScreenPlan[];
+  prompt: string;
+  charter: ProjectCharter;
+  navigationArchitecture: NavigationArchitecture;
+  navigationPlan?: NavigationPlan | null;
+  designTokens?: DesignTokens | null;
+  designStyle?: DesignStylePack | null;
+  projectContext?: string | null;
+  planningMode?: PlanningMode;
+  referenceMode?: ReferenceMode | null;
+  force?: boolean;
+  llmLog?: LlmLogFn;
+  repairAttempt?: number;
+}): Promise<{ screens: ScreenPlan[]; planned: boolean }> {
+  if (!screens.length) {
+    return { screens, planned: false };
+  }
+  if (!force && !screenPlansNeedBuildEnrichment(screens)) {
+    return { screens, planned: false };
+  }
+
+  const ai = createGeminiClient();
+  const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
+  const plannerMode = resolveGenerationPromptMode({
+    referenceMode: resolvedReferenceMode,
+    hasImage: false,
+    hasDesignStyle: Boolean(designStyle ?? charter.designStyle),
+    hasReferenceAnalysis: Boolean(charter.referenceDna?.analysis),
+    hasProjectVisualMemory: true,
+  });
+  const resolvedDesignStyle = designStyle ?? getDesignStylePack(charter.designStyle?.id) ?? null;
+  const designStyleContract = formatDesignStyleContract(resolvedDesignStyle);
+  const tokenContext = designTokens && hasApprovedDesignTokens(designTokens)
+    ? buildTokenPromptContext(designTokens)
+    : null;
+
+  const blueprint = {
+    requires_bottom_nav: Boolean(navigationPlan?.enabled),
+    navigation_architecture: navigationArchitecture,
+    navigation_plan: navigationPlan ?? undefined,
+    charter: {
+      originalPrompt: charter.originalPrompt || prompt,
+      imageReferenceSummary: charter.imageReferenceSummary ?? null,
+      appType: charter.appType || "Mobile product",
+      targetAudience: charter.targetAudience || "Primary users",
+      navigationModel: charter.navigationModel || navigationArchitecture.primaryNavigation,
+      keyFeatures: charter.keyFeatures?.length ? charter.keyFeatures : [prompt.slice(0, 200)],
+      designRationale: charter.designRationale || "Use the approved project design system.",
+      creativeDirection: charter.creativeDirection ?? null,
+    },
+  };
+
+  const seedScreens = screens.map((screen) => ({
+    name: screen.name,
+    type: screen.type,
+    suggestion: screen.description,
+    chrome: screen.chromePolicy?.chrome ?? null,
+    roadmap_stable_key: screen.roadmapStableKey ?? screenRoadmapKey(screen.name),
+  }));
+
+  const parts: Array<Record<string, unknown>> = [
+    {
+      text: [
+        `User request:\n${prompt}`,
+        projectContext?.trim() ? `Project context:\n${projectContext.trim()}` : null,
+        designStyleContract ? `Design style contract:\n${designStyleContract}` : null,
+        tokenContext ? `Design tokens:\n${tokenContext}` : null,
+        "SCREEN PLANNING TASK: Reference direction, design system, and project blueprint already exist for this project.",
+        "Create builder-ready screen briefs for ONLY the locked screens below. Treat suggestion text as intent only — expand into full construction briefs.",
+        "Keep names and types. Fill all seven description labels, layout_contract, and asset_needs (use [] only when no bitmaps are needed).",
+        `Locked screens:\n${JSON.stringify(seedScreens, null, 2)}`,
+      ].filter(Boolean).join("\n\n"),
+    },
+    {
+      text: `Approved Project Blueprint:\n${JSON.stringify(blueprint, null, 2)}`,
+    },
+    {
+      text: planningMode === "single-screen"
+        ? `Initial batch contract:\nReturn exactly ${screens.length} screen brief${screens.length === 1 ? "" : "s"} matching the locked screen name${screens.length === 1 ? "" : "s"} in order. Do not substitute other roadmap screens.`
+        : `Initial batch contract:\nReturn screen briefs only for the locked screens, in that exact order.`,
+    },
+  ];
+
+  const screenPolicy = geminiPolicyForTask("project_planning", {
+    systemInstruction: plannerScreenBriefStepInstruction(plannerMode),
+    responseMimeType: "application/json",
+    temperature: 0.15,
+  });
+
+  llmLog?.("[LLM INPUT] plan-screen-briefs-for-build", {
+    model: screenPolicy.model,
+    planningMode,
+    force,
+    screenCount: screens.length,
+    screenNames: screens.map((screen) => screen.name),
+  });
+
+  try {
+    const screenResponse = await ai.models.generateContent({
+      model: screenPolicy.model,
+      contents: { parts },
+      config: screenPolicy.config,
+    });
+
+    if (llmLog && screenResponse.usageMetadata) {
+      llmLog("[TOKEN USAGE] plan-screen-briefs-for-build", screenResponse.usageMetadata as Record<string, unknown>);
+    }
+
+    const rawScreenBriefs = parseJsonResponse<unknown>(screenResponse.text || "{}");
+    const rawScreenItems = extractRawScreenArray(rawScreenBriefs);
+    const plannedRaw = rawScreenItems.length > 0
+      ? rawScreenItems
+      : (isRecord(rawScreenBriefs) && Array.isArray(rawScreenBriefs.screens) ? rawScreenBriefs.screens : []);
+
+    const rawContractsComplete = plannedRaw.length === screens.length && plannedRaw.every((item) => {
+      if (!isRecord(item)) return false;
+      const rawLayoutContract = item.layout_contract ?? item.layoutContract;
+      const rawAssetNeeds = item.asset_needs ?? item.assetNeeds;
+      return isRecord(rawLayoutContract) && Array.isArray(rawAssetNeeds);
+    });
+    if (!rawContractsComplete) {
+      throw new Error("Screen planner omitted a required layout_contract or explicit asset_needs array.");
+    }
+
+const plannedScreens = plannedRaw
+      .map((item) => coerceScreenPlanFromRawItem(item))
+      .filter((item): item is ScreenPlan => Boolean(item))
+      .map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture }));
+
+    if (plannedScreens.length === 0) {
+      llmLog?.("[plan-screen-briefs-for-build] no usable briefs returned", { rawCount: plannedRaw.length });
+      return { screens, planned: false };
+    }
+
+    const byName = new Map(plannedScreens.map((screen) => [screenRoadmapKey(screen.name), screen]));
+    const merged = screens.map((original, index) => {
+      const key = screenRoadmapKey(original.name);
+      const upgrade = byName.get(key) ?? plannedScreens[index] ?? null;
+      if (!upgrade) return original;
+
+      // Prefer planner output; seed descriptions are intentionally short suggestions.
+      return resolvePlannedScreen({
+        screenPlan: {
+          ...original,
+          description: upgrade.description || original.description,
+          layoutContract: upgrade.layoutContract ?? original.layoutContract ?? null,
+          assetNeeds: upgrade.assetNeeds ?? [],
+          stateVariants: (upgrade.stateVariants?.length ?? 0) > 0
+            ? upgrade.stateVariants
+            : original.stateVariants ?? [],
+          chromePolicy: upgrade.chromePolicy ?? original.chromePolicy ?? null,
+        },
+        navigationArchitecture,
+      });
+    });
+
+    const invalidScreens = merged.filter((screen) =>
+      screenPlanNeedsBuildEnrichment(screen)
+      || !screen.layoutContract
+      || !Array.isArray(screen.assetNeeds));
+    if (merged.length !== screens.length || invalidScreens.length > 0) {
+      throw new Error(
+        `Screen planner returned ${merged.length}/${screens.length} complete briefs; ${invalidScreens.length} failed the builder-grade contract.`,
+      );
+    }
+
+llmLog?.("[plan-screen-briefs-for-build] complete", {
+      screens: merged.map((screen) => ({
+        name: screen.name,
+        descriptionChars: screen.description.length,
+        assetNeeds: screen.assetNeeds?.length ?? 0,
+        builderGrade: hasBuilderGradeBrief(screen.description),
+      })),
+    });
+
+    return { screens: merged, planned: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    llmLog?.("[plan-screen-briefs-for-build] failed", {
+      error: message,
+      repairAttempt,
+    });
+    if (repairAttempt < 1) {
+      return planScreenBriefsForBuild({
+        screens,
+        prompt: `${prompt}\n\nPLANNER REPAIR: The first brief failed strict validation: ${message}. Return every locked screen with all seven labeled description sections, a complete layout_contract, and an explicit asset_needs array.`,
+        charter,
+        navigationArchitecture,
+        navigationPlan,
+        designTokens,
+        designStyle,
+        projectContext,
+        planningMode,
+        referenceMode,
+        force: true,
+        llmLog,
+        repairAttempt: repairAttempt + 1,
+      });
+    }
+    throw new Error(`Screen planning failed before build: ${message}`);
+  }
+}
 
 export async function planUiFlow({
   prompt,

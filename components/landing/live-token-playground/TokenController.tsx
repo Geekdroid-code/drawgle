@@ -173,31 +173,24 @@ function ColorsPanel({ tokens, setTokens }: { tokens: PlaygroundTokens; setToken
 function TypePanel({ tokens, setTokens }: { tokens: PlaygroundTokens; setTokens: (mutate: (draft: PlaygroundTokens) => void) => void }) {
   return (
     <div className="grid gap-4">
-      <TokenGroup title="Font Stack">
-        <div className="p-4">
-          <label className="text-sm font-bold text-slate-900">Primary font</label>
-          <p className="mt-1 text-xs text-slate-500">Accepts a font name or CSS font stack</p>
-          <input
-            value={tokens.fontFamily}
-            onChange={(event) => setTokens((draft) => {
-              draft.fontFamily = event.target.value;
-            })}
-            className="mt-3 h-10 w-full rounded-[10px] border border-slate-200 bg-white px-3 font-mono text-xs text-slate-900 outline-none"
-          />
-          <div className="mt-3 flex flex-wrap gap-2">
-            {["Space Grotesk", "Inter", "SF Mono"].map((font) => (
-              <button
-                key={font}
-                type="button"
-                className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600"
-                onClick={() => setTokens((draft) => {
-                  draft.fontFamily = font === "SF Mono" ? "'SF Mono', 'JetBrains Mono', monospace" : `'${font}', sans-serif`;
-                })}
-              >
-                {font}
-              </button>
-            ))}
-          </div>
+<TokenGroup title="Font Pair">
+        <div className="grid gap-3 p-4">
+          <label className="grid gap-1 text-sm font-bold text-slate-900">
+            Heading font
+            <input
+              value={tokens.headingFontFamily}
+              onChange={(event) => setTokens((draft) => { draft.headingFontFamily = event.target.value; })}
+              className="h-10 w-full rounded-[10px] border border-slate-200 bg-white px-3 font-mono text-xs font-normal text-slate-900 outline-none"
+            />
+          </label>
+          <label className="grid gap-1 text-sm font-bold text-slate-900">
+            Body font
+            <input
+              value={tokens.bodyFontFamily}
+              onChange={(event) => setTokens((draft) => { draft.bodyFontFamily = event.target.value; })}
+              className="h-10 w-full rounded-[10px] border border-slate-200 bg-white px-3 font-mono text-xs font-normal text-slate-900 outline-none"
+            />
+          </label>
         </div>
       </TokenGroup>
 

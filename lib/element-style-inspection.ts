@@ -399,7 +399,7 @@ const propertyTokenPrefixes = (property: DrawgleStyleProperty) => {
 };
 
 export const getTokenReferencesForStyleProperty = (property: DrawgleStyleProperty, tokenRefs: DrawgleTokenReferenceLike[]) => {
-  if (property === "font-family") return tokenRefs.filter((token) => token.path === "typography.font_family");
+  if (property === "font-family") return tokenRefs.filter((token) => token.path === "typography.heading_font_family" || token.path === "typography.body_font_family");
   if (property === "font-size") return tokenRefs.filter((token) => token.path.startsWith("typography.") && token.path.endsWith(".size"));
   if (property === "font-weight") return tokenRefs.filter((token) => token.path.startsWith("typography.") && token.path.endsWith(".weight"));
   if (property === "line-height") return tokenRefs.filter((token) => token.path.startsWith("typography.") && token.path.endsWith(".line_height"));

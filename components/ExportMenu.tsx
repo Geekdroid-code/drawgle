@@ -13,6 +13,7 @@ import {
   FileDown,
   FolderArchive,
   Sparkles,
+  X,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -297,9 +298,20 @@ export function ExportMenu({
                 Building
               </span>
             ) : null}
-            <span className="rounded-full bg-[#f3f4f6] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500 ring-1 ring-slate-950/[0.06] dark:bg-white/[0.06] dark:text-slate-300 dark:ring-white/[0.08]">
+            <span className="hidden rounded-full bg-[#f3f4f6] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500 ring-1 ring-slate-950/[0.06] dark:bg-white/[0.06] dark:text-slate-300 dark:ring-white/[0.08] sm:inline-flex">
               HTML / Agent
             </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Close export"
+              title="Close"
+              onClick={() => onOpenChange(false)}
+              className="size-9 rounded-xl text-slate-500 hover:bg-slate-950/[0.06] hover:text-slate-950 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </Button>
           </div>
         </div>
 

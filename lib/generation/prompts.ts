@@ -530,7 +530,8 @@ For shape and elevation, prefer a single standard surface radius, a single stand
       "border": { "divider": "HEX", "focused": "HEX" }
     },
     "typography": {
-      "font_family": "CSS font family string",
+      "heading_font_family": "CSS font stack used only for headings",
+      "body_font_family": "Different compatible CSS font stack used for all non-heading text",
       "nav_title": { "size": "px", "weight": "number", "line_height": "px" },
       "screen_title": { "size": "px", "weight": "number", "line_height": "px" },
       "hero_title": { "size": "px", "weight": "number", "line_height": "px" },
@@ -568,7 +569,8 @@ For shape and elevation, prefer a single standard surface radius, a single stand
 }
 
 Rules:
-- recommendedFonts should be a short list of fonts that fit the direction, not a generic grab bag.
+- recommendedFonts should be a short list of fonts that fit the direction, beginning with the selected heading and body families.
+- heading_font_family and body_font_family are mandatory and must use different primary font families. Never place both selected families into one universal stack.
 - spacing and mobile_layout must be chosen intentionally from the approved evidence, but should still read as one consistent rhythm system across the product. screen_margin defaults to 16px and needs explicit measured evidence to be larger.
 - radii, border_widths, and shadows must define one coherent app-wide geometry/elevation language, not multiple interchangeable options.
 - Use radii.app for outer cards, sheets, panels, inputs, and navigation shells.
@@ -643,7 +645,8 @@ const buildStrictDesignContract = (designTokens?: DesignTokens | null) => {
   const buttonHeight = resolveToken(designTokens, "sizing.standard_button_height", "52px");
   const inputHeight = resolveToken(designTokens, "sizing.standard_input_height", "48px");
   const textHigh = resolveToken(designTokens, "color.text.high_emphasis", "#111827");
-  const fontFamily = resolveToken(designTokens, "typography.font_family", "sans-serif");
+  const headingFontFamily = resolveToken(designTokens, "typography.heading_font_family", "sans-serif");
+  const bodyFontFamily = resolveToken(designTokens, "typography.body_font_family", "sans-serif");
 
   return [
     `- Outer surface radius: ${appRadius} (cards, sheets, panels, fields, and navigation shells)`,
@@ -658,7 +661,8 @@ const buildStrictDesignContract = (designTokens?: DesignTokens | null) => {
     `- Standard button height: ${buttonHeight}`,
     `- Standard input height: ${inputHeight}`,
     `- Primary text color: ${textHigh}`,
-    `- Font family: ${fontFamily}`,
+    `- Heading font family: ${headingFontFamily} (titles only)`,
+    `- Body font family: ${bodyFontFamily} (metrics, copy, controls, labels, and all remaining text)`,
   ].join("\n");
 };
 
@@ -672,6 +676,8 @@ const buildTypographyRoleContract = () => [
   "- Use typography.supporting for supporting copy, subtitles, and secondary descriptions.",
   "- Use typography.caption for metadata, helper text, timestamps, micro-labels, and small status text.",
   "- Use typography.button_label for all button labels, pill actions, segmented controls, and tappable navigation labels.",
+  "- Font families are strict: nav_title, screen_title, hero_title, and section_title use typography.heading_font_family; every other text role uses typography.body_font_family.",
+  "- Never use the heading family for metrics, body copy, controls, button labels, tabs, captions, or navigation labels. Never invent a third font family.",
   "- Do not substitute hero_title for screen_title. Do not invent ad hoc text sizes or font weights outside these semantic roles unless the UI truly requires a one-off chart annotation.",
 ].join("\n");
 
@@ -946,7 +952,6 @@ const buildScreenInstruction = ({
   navigationPlan,
   assetManifest,
 }: Pick<BuildScreenInput, "designTokens" | "designStyle" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }, mode: GenerationPromptMode) => {
-  const fontFamily = resolveToken(designTokens, "typography.font_family", "sans-serif");
   const safeTop = resolveToken(designTokens, "mobile_layout.safe_area_top", "16px");
   const safeBottom = resolveToken(designTokens, "mobile_layout.safe_area_bottom", "16px");
   const minTouch = resolveToken(designTokens, "sizing.min_touch_target", "48px");
@@ -1066,7 +1071,8 @@ ${navigationPlan?.enabled ? `SHARED NAVIGATION CONTRACT:
 ${buildSharedNavigationContract({ navigationInstruction, navigationPlan, screenPlan })}
 
 ` : ""}OUTPUT RULES:
-- Root element MUST be exactly: <div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden" style="font-family: var(--dg-typography-font-family, ${fontFamily})">
+- Root element MUST be exactly: <div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden">
+- Typography family lock: nav_title, screen_title, hero_title, and section_title use var(--dg-typography-heading-font-family). Metrics, body, supporting text, captions, buttons, controls, tabs, and navigation labels use var(--dg-typography-body-font-family). Use the matching dg-type-* class and never add inline font-family declarations or arbitrary font-family utilities.
 - Safe areas: top container pt-[${safeTop}]. Without shared navigation, bottom content may use pb-[${safeBottom}]. With shared navigation, use only the renderer-owned dg-shared-nav-clearance marker described above.
 - Clickable controls: min-h-[${minTouch}].
 - Text colors: use token classes/vars such as dg-text-high or text-[var(--dg-color-text-high-emphasis)] (current high text ${textHigh}).

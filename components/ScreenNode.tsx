@@ -14,7 +14,7 @@ import { DRAWGLE_STYLE_PROPERTY_CONFIGS, type DrawgleStyleValueMap } from "@/lib
 import { normalizeSharedNavigationClearanceMarkup } from "@/lib/navigation-clearance";
 import { deleteScreen } from "@/lib/supabase/queries";
 import { hasSharedNavigation } from "@/lib/project-navigation";
-import { buildDrawgleTokenCss, buildGoogleFontAssetLinks, buildGoogleFontHref } from "@/lib/token-runtime";
+import { buildDrawgleTokenCss, buildGoogleFontAssetLinks, buildGoogleFontHref, normalizeLegacyTypographyFontMarkup } from "@/lib/token-runtime";
 import { useRealtimeRunWithStreams } from "@trigger.dev/react-hooks";
 import {
   SCREEN_FRAME_HEIGHT,
@@ -610,8 +610,8 @@ export function ScreenNode({
   const displayCode = useMemo(
     () => {
       const withoutLocalNavigation = sharedNavigationActive
-        ? stripSharedNavigationMarkup(rawDisplayCode)
-        : rawDisplayCode;
+        ? stripSharedNavigationMarkup(normalizeLegacyTypographyFontMarkup(rawDisplayCode))
+        : normalizeLegacyTypographyFontMarkup(rawDisplayCode);
       const clearanceNormalized = normalizeSharedNavigationClearanceMarkup({
         code: withoutLocalNavigation,
         enabled: sharedNavigationActive,
@@ -621,7 +621,7 @@ export function ScreenNode({
     [rawDisplayCode, sharedNavigationActive],
   );
   const navigationShellCode = sharedNavigationActive
-    ? ensureDrawgleIds(resolveScreenNavigationCode(screen, projectNavigation), "dg-nav").code
+    ? ensureDrawgleIds(normalizeLegacyTypographyFontMarkup(resolveScreenNavigationCode(screen, projectNavigation)), "dg-nav").code
     : "";
   const lastNonEmptyDisplayCodeRef = useRef(displayCode.trim() ? displayCode : "");
   const lastNonEmptyNavigationCodeRef = useRef(navigationShellCode.trim() ? navigationShellCode : "");

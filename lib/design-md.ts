@@ -83,7 +83,8 @@ const buildPublicDesignTokens = (designTokens?: DesignTokens | null): PublicToke
   const mobileLayout = tokens?.mobile_layout;
   const radii = tokens?.radii;
   const shadows = tokens?.shadows;
-  const fontFamily = toPublicString(typography?.font_family) ?? "System UI";
+  const headingFontFamily = toPublicString(typography?.heading_font_family) ?? "System UI";
+  const bodyFontFamily = toPublicString(typography?.body_font_family) ?? "System UI";
   const frontmatter: PublicTokenFrontmatter = {};
 
   const colors = compactRecord([
@@ -107,14 +108,14 @@ const buildPublicDesignTokens = (designTokens?: DesignTokens | null): PublicToke
   }
 
   const typographyStyles = {
-    "display-lg": buildPublicTypographyStyle(typography?.hero_title, fontFamily),
-    "headline-md": buildPublicTypographyStyle(typography?.screen_title, fontFamily),
-    "headline-sm": buildPublicTypographyStyle(typography?.section_title, fontFamily),
-    "metric-lg": buildPublicTypographyStyle(typography?.metric_value, fontFamily),
-    "body-md": buildPublicTypographyStyle(typography?.body, fontFamily),
-    "body-sm": buildPublicTypographyStyle(typography?.supporting, fontFamily),
-    "label-md": buildPublicTypographyStyle(typography?.button_label, fontFamily),
-    "label-sm": buildPublicTypographyStyle(typography?.caption, fontFamily),
+    "display-lg": buildPublicTypographyStyle(typography?.hero_title, headingFontFamily),
+    "headline-md": buildPublicTypographyStyle(typography?.screen_title, headingFontFamily),
+    "headline-sm": buildPublicTypographyStyle(typography?.section_title, headingFontFamily),
+    "metric-lg": buildPublicTypographyStyle(typography?.metric_value, bodyFontFamily),
+    "body-md": buildPublicTypographyStyle(typography?.body, bodyFontFamily),
+    "body-sm": buildPublicTypographyStyle(typography?.supporting, bodyFontFamily),
+    "label-md": buildPublicTypographyStyle(typography?.button_label, bodyFontFamily),
+    "label-sm": buildPublicTypographyStyle(typography?.caption, bodyFontFamily),
   };
   const publicTypography = Object.fromEntries(
     Object.entries(typographyStyles).filter(([, value]) => isNonEmptyRecord(value)),

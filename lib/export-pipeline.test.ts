@@ -23,7 +23,7 @@ const designTokens: DesignTokens = {
       action: { primary: "#5EE1A2", on_primary_text: "#08110C", secondary: "#303030" },
       border: { divider: "#333333", focused: "#5EE1A2" },
     },
-    typography: { font_family: "Inter" },
+    typography: { heading_font_family: "Manrope", body_font_family: "Inter" },
     mobile_layout: { screen_margin: "20px", section_gap: "24px", element_gap: "12px" },
     radii: { app: "22px", inner: "15px", pill: "9999px" },
   },

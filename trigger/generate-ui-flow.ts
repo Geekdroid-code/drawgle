@@ -40,7 +40,16 @@ import {
   validateScreenAssetPolicy,
   validateStaticDrawgleHtml,
 } from "@/lib/generation/screen-quality";
-import { buildNavigationShellCode, buildScreenStream, extractCode, fallbackProjectCharter, generateDesignTokens, planUiFlow } from "@/lib/generation/service";
+import {
+  buildNavigationShellCode,
+  buildScreenStream,
+  extractCode,
+  fallbackProjectCharter,
+  generateDesignTokens,
+  planScreenBriefsForBuild,
+  planUiFlow,
+  screenPlansNeedBuildEnrichment,
+} from "@/lib/generation/service";
 import { screenBuildOutputTokenBudget } from "@/lib/generation/screen-budget";
 import { analyzeReferenceImageForScope, preflightGenerationScope } from "@/lib/generation/scope-contract";
 import { planVisualAssets, resolveProjectAssets } from "@/lib/generation/visual-assets";
@@ -83,7 +92,7 @@ import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
 import { getGenerationEngineVersion } from "@/lib/env/server";
 import { enrichScreenMemoryTask } from "@/trigger/enrich-screen-memory";
 import type { Database, ProjectScreenRoadmapRow } from "@/lib/supabase/database.types";
-import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationReferencePolicy, GenerationRetryContext, GenerationScopeContract, ImageReferenceMode, LlmProviderEvent, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, ProjectRoadmap, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenBaseStatePlan, ScreenPlan, ScreenStateVariantPlan } from "@/lib/types";
+import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationReferencePolicy, GenerationRetryContext, GenerationScopeContract, ImageReferenceMode, LlmProviderEvent, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, ProjectRoadmap, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenBaseStatePlan, ScreenPlan, ScreenPlanningSeed, ScreenStateVariantPlan } from "@/lib/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -99,6 +108,7 @@ type GenerateUiFlowPayload = {
   designStyleId?: string | null;
   stylePresetSlug?: string | null;
   plannedScreens?: ScreenPlan[] | null;
+  screenPlanningSeeds?: ScreenPlanningSeed[] | null;
   requiresBottomNav?: boolean;
   navigationArchitecture?: NavigationArchitecture | null;
   navigationPlan?: NavigationPlan | null;
@@ -1857,7 +1867,7 @@ export const generateUiFlowTask = task({
     const reusableProjectReferenceDna = projectReferenceDna && (
       referencePolicy === "project_reference"
       || referencePolicy === "project_memory"
-      || Boolean(payload.plannedScreens?.length)
+      || Boolean(payload.plannedScreens?.length || payload.screenPlanningSeeds?.length)
     )
       ? projectReferenceDna
       : null;
@@ -2021,7 +2031,7 @@ export const generateUiFlowTask = task({
       await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
     }
     const requestedCharter = payload.projectCharter ?? existingCharter ?? (
-      payload.plannedScreens && payload.plannedScreens.length > 0
+      (payload.plannedScreens && payload.plannedScreens.length > 0) || (payload.screenPlanningSeeds && payload.screenPlanningSeeds.length > 0)
         ? fallbackProjectCharter({
             prompt: payload.prompt,
             image: referenceMode === "user_recreate" ? promptImage : null,
@@ -2041,33 +2051,62 @@ export const generateUiFlowTask = task({
       approxTokens: Math.round(planningContext.length / 4),
     });
 
-    setJournalPhase(generationJournal, "blueprint", "active", "Choosing navigation scope and project structure.");
-    setJournalPhase(generationJournal, "screens", "active", "Drafting builder-ready screen briefs.");
+    const planningMode = payload.planningMode ?? "project";
+    const planningSeeds = payload.screenPlanningSeeds ?? [];
+    const legacyPlannedScreens = payload.plannedScreens ?? [];
+    const seedScreens: ScreenPlan[] = planningSeeds.length > 0
+      ? planningSeeds.map((seed) => ({
+          name: seed.name,
+          type: seed.type,
+          description: seed.summary,
+          roadmapStableKey: seed.roadmapStableKey ?? null,
+          stateVariants: [],
+          assetNeeds: [],
+        }))
+      : legacyPlannedScreens;
+    const hasSeedScreens = seedScreens.length > 0;
+    const hasPlanningSeeds = planningSeeds.length > 0;
+    // New approval payloads are always intent-only seeds. Legacy compact plans are
+    // also upgraded before build, while old builder-grade retry payloads stay compatible.
+    const shouldPlanScreenBriefsFromSeeds = hasPlanningSeeds
+      || (legacyPlannedScreens.length > 0 && screenPlansNeedBuildEnrichment(legacyPlannedScreens));
+
+    if (hasSeedScreens) {
+      setJournalPhase(generationJournal, "blueprint", "completed", "Using existing project structure.");
+      if (shouldPlanScreenBriefsFromSeeds) {
+        setJournalPhase(generationJournal, "screens", "active", "Drafting builder-ready screen briefs.");
+      } else {
+        setJournalPhase(generationJournal, "screens", "completed", `Using approved plan for ${seedScreens.length} screen${seedScreens.length === 1 ? "" : "s"}.`);
+      }
+    } else {
+      setJournalPhase(generationJournal, "blueprint", "active", "Choosing navigation scope and project structure.");
+      setJournalPhase(generationJournal, "screens", "active", "Drafting builder-ready screen briefs.");
+    }
     await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
-    const plan = payload.plannedScreens && payload.plannedScreens.length > 0
+    let plan = hasSeedScreens
       ? {
           requiresBottomNav: Boolean(payload.navigationPlan?.enabled),
           navigationArchitecture: requestedNavigationArchitecture,
           navigationPlan: normalizeNavigationPlan({
             navigationPlan: payload.navigationPlan,
-            screens: payload.plannedScreens,
+            screens: seedScreens,
             navigationArchitecture: requestedNavigationArchitecture,
             requiresBottomNav: deriveRequiresBottomNav(requestedNavigationArchitecture),
-            strictScreenLinks: (payload.planningMode ?? "project") !== "single-screen",
+            strictScreenLinks: planningMode !== "single-screen",
           }),
           charter: requestedCharter!,
-          screens: payload.plannedScreens,
+          screens: seedScreens,
           scopeContract,
           screenCountContract: null,
           screenCountEnforcement: "none" as const,
           intentContract: null,
-	          screenFamilyContract: null,
-	          roadmap: payload.projectRoadmap ?? undefined,
-	          initialBatchItemKeys: payload.initialBatchItemKeys ?? undefined,
-	          requestedParentCount: payload.projectRoadmap?.requestedParentCount ?? null,
-	          remainingUnplannedCount: payload.projectRoadmap?.remainingUnplannedCount ?? 0,
-	        }
+          screenFamilyContract: null,
+          roadmap: payload.projectRoadmap ?? undefined,
+          initialBatchItemKeys: payload.initialBatchItemKeys ?? undefined,
+          requestedParentCount: payload.projectRoadmap?.requestedParentCount ?? null,
+          remainingUnplannedCount: payload.projectRoadmap?.remainingUnplannedCount ?? 0,
+        }
       : await planUiFlow({
           prompt: payload.prompt,
           image: promptImage,
@@ -2083,11 +2122,52 @@ export const generateUiFlowTask = task({
           projectContext: planningContext,
           existingCharter: requestedCharter,
           existingNavigationPlan: payload.navigationPlan ?? null,
-          planningMode: payload.planningMode ?? "project",
+          planningMode,
           llmLog: (label, data) => logger.info(label, data),
         });
+
+    if (shouldPlanScreenBriefsFromSeeds) {
+      if (!requestedCharter) {
+        throw new Error("Add-screen planning requires the existing project charter before any build can begin.");
+      }
+      const plannedBriefs = await planScreenBriefsForBuild({
+        screens: plan.screens,
+        prompt: payload.prompt,
+        charter: requestedCharter,
+        navigationArchitecture: plan.navigationArchitecture,
+        navigationPlan: plan.navigationPlan,
+        designTokens,
+        designStyle,
+        projectContext: planningContext,
+        planningMode,
+        referenceMode,
+        force: true,
+        llmLog: (label, data) => logger.info(label, data),
+      });
+      plan = {
+        ...plan,
+        screens: plannedBriefs.screens,
+        navigationPlan: normalizeNavigationPlan({
+          navigationPlan: plan.navigationPlan,
+          screens: plannedBriefs.screens,
+          navigationArchitecture: plan.navigationArchitecture,
+          requiresBottomNav: deriveRequiresBottomNav(plan.navigationArchitecture),
+          strictScreenLinks: planningMode !== "single-screen",
+        }),
+      };
+      setJournalPhase(
+        generationJournal,
+        "screens",
+        "completed",
+        plannedBriefs.planned
+          ? `Planned ${plan.screens.length} builder-ready screen${plan.screens.length === 1 ? "" : "s"}.`
+          : `Prepared ${plan.screens.length} screen${plan.screens.length === 1 ? "" : "s"} for build.`,
+      );
+      await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
+    }
 	    if (
       !payload.plannedScreens?.length
+      && !payload.screenPlanningSeeds?.length
       && plan.charter.referenceDna
       && !plan.charter.referenceDna.sourceImagePath
       && payload.imagePath
@@ -2428,7 +2508,7 @@ export const generateUiFlowTask = task({
     };
     await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
-    const shouldSendBuildContext = Boolean(payload.plannedScreens?.length) || (payload.planningMode ?? "project") === "single-screen";
+    const shouldSendBuildContext = Boolean(payload.plannedScreens?.length || payload.screenPlanningSeeds?.length) || (payload.planningMode ?? "project") === "single-screen";
     const buildContext = shouldSendBuildContext ? compactBuildContext(planningContext) : null;
 
     const baseScreenPlans: ScreenPlan[] = plan.screens.length > 0 ? plan.screens : [{

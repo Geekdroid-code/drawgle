@@ -190,12 +190,15 @@ const normalizeTypography = (value: unknown): DesignTokenValues["typography"] | 
     return undefined;
   }
 
-  const fontFamily = pickFirstString(value.font_family);
+  // font_family is accepted only as legacy input. Canonical tokens expose
+  // explicit heading/body roles so consumers cannot treat one font as universal.
+  const legacyFontFamily = pickFirstString(value.font_family);
+  const headingFontFamily = pickFirstString(value.heading_font_family, legacyFontFamily);
+  const bodyFontFamily = pickFirstString(value.body_font_family, legacyFontFamily);
   const next: NonNullable<DesignTokenValues["typography"]> = {};
 
-  if (fontFamily) {
-    next.font_family = fontFamily;
-  }
+  if (headingFontFamily) next.heading_font_family = headingFontFamily;
+  if (bodyFontFamily) next.body_font_family = bodyFontFamily;
 
   const roleSources = {
     nav_title: pickFirstRecord(value.nav_title, value.title_main, DEFAULT_TYPOGRAPHY.nav_title),

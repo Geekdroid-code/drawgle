@@ -19,11 +19,10 @@ import { applyDeterministicEdits, ensureDrawgleIds, type DeterministicEditOperat
 import { indexScreenCode } from "@/lib/generation/block-index";
 import { persistProjectMessageMemoryPair } from "@/lib/generation/message-memory";
 import { findRepairTarget } from "@/lib/generation/screen-repair";
-import { assembleProjectContext } from "@/lib/generation/context";
-import { findLatestProjectPromptImagePath, loadStoredPromptImage } from "@/lib/generation/prompt-reference-storage";
+import { findLatestProjectPromptImagePath } from "@/lib/generation/prompt-reference-storage";
 import { resolveGenerationReferencePolicy } from "@/lib/generation/reference-policy";
+import { createNavigationArchitecture } from "@/lib/navigation";
 import { resolveProjectReferenceDna, selectProjectReferenceImagePath } from "@/lib/generation/reference-dna";
-import { planUiFlow } from "@/lib/generation/service";
 import { readScreenPlanProposal, readScreenStateProposal, type AgentStepMetadata, type ScreenStateProposalMetadata } from "@/lib/agent/message-metadata";
 import { approveScreenPlanProposal, ScreenPlanApprovalError } from "@/lib/agent/screen-plan-approval";
 import { findExactPlannedStateCandidate, resolveScreenStateProposal } from "@/lib/agent/screen-state-proposal";
@@ -43,8 +42,8 @@ import {
   type ProjectCharter,
   type ProjectMessage,
   type PromptImagePayload,
-  type ReferenceMode,
   type ScreenPlan,
+  type ScreenPlanningSeed,
 } from "@/lib/types";
 import type { generateUiFlowTask } from "@/trigger/generate-ui-flow";
 import type { modifyScreenTask } from "@/trigger/modify-screen";
@@ -311,9 +310,37 @@ const buildProposalStep = (screenPlan: ScreenPlan): AgentStepMetadata => ({
   processLines: [
     `Screen type: ${screenPlan.type}`,
     screenPlan.chromePolicy?.chrome ? `Chrome: ${screenPlan.chromePolicy.chrome}` : "Chrome: project default",
-    "Review this plan before I build it.",
+    "Approve to run full screen planning and asset resolution, then build.",
   ],
 });
+
+const conciseSuggestionSummary = (role: string | null | undefined, instruction: string) => {
+  const source = role?.trim() || instruction.trim();
+  const sentences = source.replace(/\s+/g, " ").split(/(?<=[.!?])\s+/).filter(Boolean).slice(0, 2);
+  return (sentences.join(" ") || "A new screen that follows the existing project direction.").slice(0, 240);
+};
+
+const inferSuggestionName = (routerName: string | null | undefined, instruction: string) => {
+  if (routerName?.trim()) return routerName.trim().slice(0, 80);
+  const cleaned = instruction
+    .replace(/\b(?:please|can you|could you|i want to|we need to|create|design|build|add|make|generate)\b/gi, " ")
+    .replace(/\b(?:a|an|the|new)\b/gi, " ")
+    .replace(/[^a-zA-Z0-9\s-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const phrase = cleaned.match(/^(.{2,60}?\b(?:screen|page|dashboard|view|flow)\b)/i)?.[1]
+    ?? cleaned.split(/\b(?:with|where|that|for users|so users)\b/i)[0]
+    ?? "";
+  const words = phrase.trim().split(/\s+/).filter(Boolean).slice(0, 6);
+  return words.length > 0
+    ? words.map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(" ")
+    : "New Screen";
+};
+
+const inferSuggestionType = (name: string, role: string | null | undefined): ScreenPlanningSeed["type"] =>
+  /\b(home|dashboard|overview|library|inbox|feed|search|profile|root|tab)\b/i.test(`${name} ${role ?? ""}`)
+    ? "root"
+    : "detail";
 
 const buildAgentProgressStep = ({
   status = "thinking",
@@ -1777,7 +1804,7 @@ export async function POST(request: Request) {
     }
 
     if (routerDecision.action === "draft_new_screen_plan") {
-      const generationPrompt = routerDecision.instruction?.trim() || prompt;
+      const generationPrompt = prompt.trim() || routerDecision.instruction?.trim() || "Create a new screen.";
 
       if (activeGeneration) {
         const message = "A screen generation is already running. Let that finish, then ask me for the next screen.";
@@ -1820,13 +1847,10 @@ export async function POST(request: Request) {
         return NextResponse.json({ intent: "chat_response", message, routerDecision }, { status: 409 });
       }
 
-      const designTokens = project.design_tokens
-        ? normalizeDesignTokens(project.design_tokens as DesignTokens)
-        : null;
-      let projectCharter = (project.project_charter as ProjectCharter | null) ?? null;
+      const projectCharter = (project.project_charter as ProjectCharter | null) ?? null;
       const planningAck = whiteLabelAgentMessage(
         prompt,
-        "Got it. I'm turning that into a brand-fit screen plan now.",
+        "Got it. I prepared a short screen suggestion for approval. Full planning begins only after Build.",
       );
       const ackMessage = await insertProjectMessage(admin, {
         projectId: payload.projectId,
@@ -1844,148 +1868,81 @@ export async function POST(request: Request) {
       });
       await updateAgentProgress({
         step: buildAgentProgressStep({
-          title: "Drafting the screen plan",
-          detail: "Choosing the screen role, layout hierarchy, and brand-fit details.",
-          processLines: [...progressLines(), "Drafting the screen plan."],
+          title: "Preparing a screen suggestion",
+          detail: "Using the existing router result. Full screen planning and assets begin only after approval.",
+          processLines: [...progressLines(), "Prepared a short intent-only suggestion."],
         }),
         metadata: routerMetadata,
       });
-      const planningContext = await assembleProjectContext({
+
+      const uploadedImagePath = await uploadPromptImage({
         admin,
-        projectId: payload.projectId,
-        userPrompt: generationPrompt,
+        ownerId: user.id,
+        image: payload.image ?? null,
       });
-      const cachedReferenceDna = payload.image
-        ? null
-        : resolveProjectReferenceDna(projectCharter);
-      const latestProjectImagePath = payload.image || cachedReferenceDna?.dna.sourceImagePath
-        ? null
-        : await findLatestProjectPromptImagePath({
-            admin,
-            projectId: payload.projectId,
-            ownerId: user.id,
-          });
-      const inheritedImagePath = selectProjectReferenceImagePath({
-        dna: cachedReferenceDna?.dna,
-        latestImagePath: latestProjectImagePath,
+      const inheritedImagePath = projectCharter?.referenceDna?.sourceImagePath
+        ?? await findLatestProjectPromptImagePath({
+          admin,
+          projectId: payload.projectId,
+          ownerId: user.id,
+        });
+      const imagePath = uploadedImagePath ?? inheritedImagePath;
+      const suggestionName = inferSuggestionName(routerDecision.screenSuggestion?.name, generationPrompt);
+      const suggestionSummary = conciseSuggestionSummary(routerDecision.screenSuggestion?.role, generationPrompt);
+      const suggestionType = inferSuggestionType(suggestionName, routerDecision.screenSuggestion?.role);
+      const screenPlan: ScreenPlan = {
+        name: suggestionName,
+        type: suggestionType,
+        description: suggestionSummary,
+        stateVariants: [],
+        assetNeeds: [],
+      };
+      const planningSeed: ScreenPlanningSeed = {
+        name: suggestionName,
+        type: suggestionType,
+        summary: suggestionSummary,
+        prompt: generationPrompt,
+      };
+      const stateVariants = [];
+      const baseState = null;
+      const selectedStateVariantIds: string[] = [];
+      const requiresBottomNav = Boolean(navigationPlan?.enabled);
+      const navigationArchitecture = createNavigationArchitecture({
+        navigationArchitecture: projectCharter?.navigationArchitecture,
+        requiresBottomNav,
       });
-      const plannerReferenceDna = cachedReferenceDna
-        ? {
-            ...cachedReferenceDna.dna,
-            sourceImagePath: cachedReferenceDna.dna.sourceImagePath ?? inheritedImagePath,
-          }
-        : null;
-      const inheritedReferenceImage = inheritedImagePath && !plannerReferenceDna
-        ? await loadStoredPromptImage(admin, inheritedImagePath).catch((error) => {
-            console.warn("Failed to load the project's persisted reference image; using project memory.", {
-              projectId: payload.projectId,
-              imagePath: inheritedImagePath,
-              error,
-            });
-            return null;
-          })
-        : null;
-      if (
-        projectCharter
-        && plannerReferenceDna
-        && (
-          cachedReferenceDna?.cacheSource === "legacy_reconstruction"
-          || projectCharter.referenceDna?.sourceImagePath !== plannerReferenceDna.sourceImagePath
-        )
-      ) {
-        const upgradedCharter: ProjectCharter = {
-          ...projectCharter,
-          referenceDna: plannerReferenceDna,
-        };
-        const { error: referenceDnaUpdateError } = await admin
-          .from("projects")
-          .update({ project_charter: upgradedCharter as never, updated_at: now() })
-          .eq("id", payload.projectId)
-          .eq("owner_id", user.id);
-        if (referenceDnaUpdateError) {
-          console.warn("Failed to persist reconstructed project reference DNA; continuing with in-memory DNA.", {
-            projectId: payload.projectId,
-            error: referenceDnaUpdateError,
-          });
-        } else {
-          projectCharter = upgradedCharter;
-        }
-      }
-      let referenceImage = payload.image ?? inheritedReferenceImage;
-      const hasExistingProjectVisualMemory = Boolean(
-        designTokens?.tokens
-        || projectCharter
-        || navigationPlan?.items?.length
-        || planningContext.includes("RELEVANT EXISTING SCREENS"),
-      );
+      const resolvedNavigationPlan: NavigationPlan = navigationPlan ?? {
+        version: 2,
+        decision: "none",
+        evidence: { source: null, reason: "The project has no shared navigation plan." },
+        design: null,
+        enabled: false,
+        kind: "none",
+        items: [],
+        visualBrief: "No shared navigation is required.",
+        screenChrome: [{ screenName: suggestionName, chrome: navigationArchitecture.detailChrome, navigationItemId: null }],
+      };
       const referencePolicy = resolveGenerationReferencePolicy({
         hasCurrentUserImage: Boolean(payload.image),
         hasProjectReferenceImage: Boolean(inheritedImagePath),
         hasExplicitStyle: false,
-        isExistingProject: hasExistingProjectVisualMemory,
+        isExistingProject: true,
       });
       const effectiveImageReferenceMode: ImageReferenceMode = payload.image
         ? payload.imageReferenceMode
         : inheritedImagePath
           ? "style"
           : payload.imageReferenceMode;
-      let referenceMode: ReferenceMode | null = referenceImage
-        ? effectiveImageReferenceMode === "style"
-          ? "user_style"
-          : "user_recreate"
-        : null;
-      let referenceId: string | null = null;
-
-      if (!referenceImage && plannerReferenceDna) {
-        referenceMode = "user_style";
-      } else if (!referenceImage && referencePolicy === "project_memory") {
-        referenceMode = "user_style";
-      } else if (!referenceImage) {
-        referenceMode = "internal_style";
-      }
-      const plan = await planUiFlow({
-        prompt: generationPrompt,
-        image: referenceImage,
-        referenceMode,
-        referenceId,
-        designTokens,
-        referenceAnalysis: plannerReferenceDna?.analysis,
-        referenceDna: plannerReferenceDna,
-        screenFamilyContract: plannerReferenceDna?.screenFamilyContract,
-        projectContext: planningContext,
-        existingCharter: projectCharter,
-        existingNavigationPlan: navigationPlan,
-        planningMode: "single-screen",
-      });
-      const screenPlan = plan.screens[0] ?? {
-        name: "New Screen",
-        type: "root" as const,
-        description: generationPrompt,
-      };
-      const uploadedImagePath = await uploadPromptImage({
-        admin,
-        ownerId: user.id,
-        image: payload.image ?? null,
-      });
-      const imagePath = uploadedImagePath ?? inheritedImagePath;
-      const stateVariants = screenPlan.stateVariants ?? [];
-      const baseState = stateVariants.length > 0
-        ? { stateKey: "base", stateLabel: "Base" }
-        : null;
-      const selectedStateVariantIds = stateVariants
-        .filter((variant) => variant.defaultSelected)
-        .map((variant) => variant.id);
       const proposalMetadata = {
         prompt: generationPrompt,
         screenPlan,
-        requiresBottomNav: plan.requiresBottomNav,
-        navigationArchitecture: plan.navigationArchitecture,
-        navigationPlan: plan.navigationPlan,
+        planningSeed,
+        requiresBottomNav,
+        navigationArchitecture,
+        navigationPlan: resolvedNavigationPlan,
         imagePath,
         imageReferenceMode: effectiveImageReferenceMode,
         referencePolicy,
-        referenceDnaCacheHit: Boolean(plannerReferenceDna),
-        referenceDnaCacheSource: cachedReferenceDna?.cacheSource ?? null,
         baseState,
         stateVariants,
         selectedStateVariantIds,
@@ -1994,8 +1951,8 @@ export async function POST(request: Request) {
       };
       const stateCount = stateVariants.length;
       const proposalText = stateCount > 0
-        ? `I drafted a plan for ${screenPlan.name} with ${stateCount} optional state${stateCount === 1 ? "" : "s"}. Review it, then choose what to build on the canvas.`
-        : `I drafted a plan for ${screenPlan.name}. Review it, then I can build it on the canvas.`;
+        ? `Suggested next screen: ${screenPlan.name}, with ${stateCount} optional state${stateCount === 1 ? "" : "s"}. Approve to plan the full brief, resolve assets, and build.`
+        : `Suggested next screen: ${screenPlan.name}. Approve to plan the full brief, resolve assets, and build.`;
       const proposalBaseMetadata = {
         ...routerMetadata,
         serverReconciliation: {
@@ -2007,7 +1964,7 @@ export async function POST(request: Request) {
       await updateAgentProgress({
         step: buildAgentProgressStep({
           status: "completed",
-          title: "Plan ready for review",
+          title: "Suggestion ready",
           detail: `Prepared ${screenPlan.name} for approval.`,
           processLines: [...progressLines(), "Prepared the approval card."],
         }),

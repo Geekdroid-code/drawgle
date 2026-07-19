@@ -134,6 +134,10 @@ export type AgentRouterDecision = {
   sourceReferences?: ScreenRegionReference[];
   toolTrace?: AgentToolTrace[];
   modelCallCount?: number;
+  screenSuggestion?: {
+    name: string | null;
+    role: string | null;
+  } | null;
   stateProposal?: {
     parentScreenName: string | null;
     existingRoadmapItemId: string | null;
@@ -430,12 +434,6 @@ const parseToolDecision = (input: AgentRouterInput, call: FunctionCall): AgentRo
   const reason = args.reason?.trim() || `Gemini selected ${name}.`;
 
   if (name === "draft_new_screen_plan") {
-    const namedInstruction = [
-      instruction,
-      args.screenName ? `Screen name: ${args.screenName}.` : null,
-      args.screenRole ? `Screen role: ${args.screenRole}.` : null,
-    ].filter(Boolean).join("\n");
-
     return {
       action: "draft_new_screen_plan",
       executionIntent: "plan",
@@ -443,7 +441,11 @@ const parseToolDecision = (input: AgentRouterInput, call: FunctionCall): AgentRo
       reason,
       responseMessage: args.responseMessage ?? null,
       clarificationQuestion: null,
-      instruction: namedInstruction || instruction,
+      instruction,
+      screenSuggestion: {
+        name: args.screenName?.trim() || null,
+        role: args.screenRole?.trim() || null,
+      },
       targetType: "none",
       targetScreenId: null,
       selectedElementDrawgleId: null,

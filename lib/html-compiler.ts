@@ -1,6 +1,6 @@
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { buildDrawgleTailwindConfigScript } from "@/lib/drawgle-html-runtime";
-import { flattenDesignTokensToCssVariables } from "@/lib/token-runtime";
+import { flattenDesignTokensToCssVariables, normalizeLegacyTypographyFontMarkup } from "@/lib/token-runtime";
 import type { DesignTokens } from "@/lib/types";
 
 const DRAWGLE_TO_NORMALIZED_VAR = new Map<string, string>([
@@ -75,8 +75,9 @@ const DRAWGLE_TO_NORMALIZED_VAR = new Map<string, string>([
   ["--dg-opacities-transparent", "--opacity-transparent"],
   ["--dg-opacities-scrim-overlay", "--opacity-scrim-overlay"],
   
-  // Typography font
-  ["--dg-typography-font-family", "--font-body"],
+  // Typography families
+  ["--dg-typography-heading-font-family", "--font-heading"],
+  ["--dg-typography-body-font-family", "--font-body"],
 ]);
 
 function normalizeVarName(varName: string): string {
@@ -321,6 +322,7 @@ function stylePropertyToTailwind(property: string, value: string, varMap: Map<st
     case "font-family": {
       const val = resolveValueToVariable(value, 'other', varMap);
       if (val === "var(--font-body)") return "font-sans";
+      if (val === "var(--font-heading)") return "font-heading";
       const primary = val.split(",")[0]?.trim().replace(/^['"]|['"]$/g, "").replace(/\s+/g, "_");
       if (primary) {
         return `font-['${primary}']`;
@@ -915,17 +917,19 @@ export function compileHtmlForProduction(
     return html;
   }
 
+  const normalizedHtml = normalizeLegacyTypographyFontMarkup(html);
+
   // 1. Flatten active design tokens into CSS variables map, with live CSS
   // taking precedence when the visual editor is passing a fresher token sheet.
   const varMap = buildProductionVariableMap(designTokens, tokenCss);
 
   // 2. Parse the HTML using DOMParser
   if (typeof DOMParser === "undefined") {
-    return html;
+    return normalizedHtml;
   }
 
   const parser = new DOMParser();
-  const doc = parser.parseFromString(html, "text/html");
+  const doc = parser.parseFromString(normalizedHtml, "text/html");
 
   // 3. Compile all elements in body
   const rootElements = Array.from(doc.body.children);

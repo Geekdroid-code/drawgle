@@ -103,4 +103,19 @@ describe("bounded project agent loop", () => {
       stateRole: "overlay",
     });
   });
-});
+
+  it("preserves router screen identity without rewriting the user instruction", async () => {
+    mocks.generateContent.mockResolvedValueOnce({
+      functionCalls: [{ id: "screen-1", name: "draft_new_screen_plan", args: {
+        instruction: "Add a detailed subscription comparison screen with annual billing.",
+        screenName: "Plan Comparison",
+        screenRole: "Compare monthly and annual plans before checkout.",
+        reason: "The user requested a new screen.",
+      } }],
+    });
+    const decision = await routeAgentPrompt({ ...input(), prompt: "Add a detailed subscription comparison screen with annual billing." });
+    expect(decision.action).toBe("draft_new_screen_plan");
+    expect(decision.instruction).toBe("Add a detailed subscription comparison screen with annual billing.");
+    expect(decision.screenSuggestion).toEqual({ name: "Plan Comparison", role: "Compare monthly and annual plans before checkout." });
+    expect(mocks.generateContent).toHaveBeenCalledTimes(1);
+  });});

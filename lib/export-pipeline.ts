@@ -14,7 +14,7 @@ import {
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { normalizeSharedNavigationClearanceMarkup } from "@/lib/navigation-clearance";
 import { resolveProjectNavigationShell } from "@/lib/project-navigation";
-import { buildDrawgleTokenCss, buildGoogleFontAssetLinks } from "@/lib/token-runtime";
+import { buildDrawgleTokenCss, buildGoogleFontAssetLinks, normalizeLegacyTypographyFontMarkup } from "@/lib/token-runtime";
 import type {
   DesignTokens,
   ProjectData,
@@ -75,6 +75,7 @@ export function cleanExportName(value: string, fallback = "Screen") {
 
 export function sanitizeHtmlForExport(html: string) {
   if (!html) return "";
+  html = normalizeLegacyTypographyFontMarkup(html);
 
   // Extract <style> blocks to prevent attribute selectors inside CSS from being stripped
   const styleBlocks: string[] = [];

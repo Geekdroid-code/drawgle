@@ -537,6 +537,7 @@ export function transpileToReactNative(root: TranspileNode): string {
       const textTint = styles.textColorToken ? toRNThemeToken(styles.textColorToken, "") : `'${styles.textColor}'`;
       
       let out = `${getIndent()}<Text style={{\n`;
+      out += `${getIndent()}  fontFamily: AppTheme.typography.${styles.fontFamilyRole === "heading" ? "headingFontFamily" : "bodyFontFamily"},\n`;
       if (styles.fontSize !== undefined) {
         out += `${getIndent()}  fontSize: ${styles.fontSize},\n`;
       }

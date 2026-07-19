@@ -201,20 +201,7 @@ export default function MethodComparison() {
             Building with generic AI
           </div>
 
-          <div className="mt-12 overflow-x-auto rounded-[22px] border border-gray-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
-            <table className="w-full min-w-[760px] border-collapse text-left">
-              <caption className="border-b border-gray-200 px-6 py-5 text-left text-sm font-semibold text-gray-900">
-                Verified Drawgle workflow and output formats
-              </caption>
-              <thead className="bg-gray-50 text-[11px] uppercase tracking-[0.12em] text-gray-500">
-                <tr>
-                  <th className="px-6 py-4 font-bold">Workflow stage</th>
-                  <th className="px-6 py-4 font-bold">Verified Drawgle output</th>
-                  <th className="px-6 py-4 font-bold">Workspace or export evidence</th>
-                </tr>
-              </thead>
-            </table>
-          </div>
+         
         </div>
       </div>
     </section>

@@ -38,16 +38,24 @@ const GENERIC_FONT_FAMILIES = new Set([
   "fangsong",
 ]);
 
-const TYPOGRAPHY_TOKEN_KEYS = [
+const HEADING_TYPOGRAPHY_TOKEN_KEYS = [
   "nav_title",
   "screen_title",
   "hero_title",
   "section_title",
+] as const;
+
+const BODY_TYPOGRAPHY_TOKEN_KEYS = [
   "metric_value",
   "body",
   "supporting",
   "caption",
   "button_label",
+] as const;
+
+const TYPOGRAPHY_TOKEN_KEYS = [
+  ...HEADING_TYPOGRAPHY_TOKEN_KEYS,
+  ...BODY_TYPOGRAPHY_TOKEN_KEYS,
 ] as const;
 
 const kebab = (value: string) => value.replace(/_/g, "-").replace(/[^a-zA-Z0-9-]/g, "-").toLowerCase();
@@ -117,48 +125,62 @@ const parseFontFamilyList = (fontFamily?: string | null) => {
     .filter(Boolean);
 };
 
-export const getPrimaryGoogleFontFamily = (designTokens?: DesignTokens | null) => {
-  const normalized = normalizeDesignTokens(designTokens ?? {});
-  const family = parseFontFamilyList(normalized.tokens?.typography?.font_family)[0];
-  if (!family) {
-    return null;
-  }
+const validGoogleFontFamily = (fontFamily?: string | null) => {
+  const family = parseFontFamilyList(fontFamily)[0];
+  if (!family) return null;
 
   const lowerFamily = family.toLowerCase();
-  if (GENERIC_FONT_FAMILIES.has(lowerFamily) || lowerFamily.startsWith("var(")) {
-    return null;
-  }
-
-  if (!/^[\p{L}\p{N} ._-]+$/u.test(family)) {
-    return null;
-  }
-
-  return family;
+  if (GENERIC_FONT_FAMILIES.has(lowerFamily) || lowerFamily.startsWith("var(")) return null;
+  return /^[\p{L}\p{N} ._-]+$/u.test(family) ? family : null;
 };
 
-export const buildGoogleFontHref = (designTokens?: DesignTokens | null) => {
+export const getPrimaryGoogleFontFamilies = (designTokens?: DesignTokens | null) => {
   const normalized = normalizeDesignTokens(designTokens ?? {});
-  const family = getPrimaryGoogleFontFamily(normalized);
-  if (!family) {
-    return null;
-  }
+  return {
+    heading: validGoogleFontFamily(normalized.tokens?.typography?.heading_font_family),
+    body: validGoogleFontFamily(normalized.tokens?.typography?.body_font_family),
+  };
+};
 
+const typographyWeights = (
+  designTokens: DesignTokens,
+  keys: readonly (typeof TYPOGRAPHY_TOKEN_KEYS)[number][],
+) => {
   const weights = new Set<string>();
-  for (const key of TYPOGRAPHY_TOKEN_KEYS) {
-    const weight = normalized.tokens?.typography?.[key]?.weight;
+  for (const key of keys) {
+    const weight = designTokens.tokens?.typography?.[key]?.weight;
     const numericWeight = Number.parseInt(String(weight ?? ""), 10);
     if (Number.isFinite(numericWeight)) {
       weights.add(String(Math.min(1000, Math.max(1, numericWeight))));
     }
   }
-
-  const weightList = Array.from(weights).sort((first, second) => Number(first) - Number(second));
-  const encodedFamily = family.trim().replace(/\s+/g, "+");
-  const axis = weightList.length ? `:wght@${weightList.join(";")}` : "";
-
-  return `https://fonts.googleapis.com/css2?family=${encodedFamily}${axis}&display=swap`;
+  return weights;
 };
 
+export const buildGoogleFontHref = (designTokens?: DesignTokens | null) => {
+  const normalized = normalizeDesignTokens(designTokens ?? {});
+  const families = getPrimaryGoogleFontFamilies(normalized);
+  const familyWeights = new Map<string, Set<string>>();
+
+  const addFamily = (family: string | null, weights: Set<string>) => {
+    if (!family) return;
+    const existing = familyWeights.get(family) ?? new Set<string>();
+    weights.forEach((weight) => existing.add(weight));
+    familyWeights.set(family, existing);
+  };
+
+  addFamily(families.heading, typographyWeights(normalized, HEADING_TYPOGRAPHY_TOKEN_KEYS));
+  addFamily(families.body, typographyWeights(normalized, BODY_TYPOGRAPHY_TOKEN_KEYS));
+  if (familyWeights.size === 0) return null;
+
+  const familyQueries = Array.from(familyWeights.entries()).map(([family, weights]) => {
+    const weightList = Array.from(weights).sort((first, second) => Number(first) - Number(second));
+    const encodedFamily = family.trim().replace(/\s+/g, "+");
+    return `family=${encodedFamily}${weightList.length ? `:wght@${weightList.join(";")}` : ""}`;
+  });
+
+  return `https://fonts.googleapis.com/css2?${familyQueries.join("&")}&display=swap`;
+};
 export const buildGoogleFontAssetLinks = (designTokens?: DesignTokens | null) => {
   const href = buildGoogleFontHref(designTokens);
   if (!href) {
@@ -217,9 +239,9 @@ export function getDrawgleTokenReferences(designTokens?: DesignTokens | null): D
   });
 }
 
-const typographyClass = (name: string, tokenKey: string) => `
+const typographyClass = (name: string, tokenKey: string, role: "heading" | "body") => `
 .dg-type-${name} {
-  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-family: var(--dg-typography-${role}-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
   font-size: var(--dg-type-${tokenKey}-size);
   font-weight: var(--dg-type-${tokenKey}-weight);
   line-height: var(--dg-type-${tokenKey}-line-height);
@@ -265,7 +287,8 @@ const buildCompatibilityAliasVariables = () => `
   --dg-gradient-app-background: var(--dg-gradients-app-background, linear-gradient(180deg, var(--dg-color-background-primary, #ffffff) 0%, var(--dg-color-background-secondary, #f5f5f5) 100%));
   --dg-gradient-surface-highlight: var(--dg-gradients-surface-highlight, linear-gradient(145deg, var(--dg-color-surface-card, #ffffff) 0%, var(--dg-color-background-surface-elevated, #f5f5f5) 100%));
   --dg-gradient-accent-ring: var(--dg-gradients-accent-ring, linear-gradient(135deg, var(--dg-color-action-primary, #2563eb) 0%, var(--dg-color-action-secondary, #0f172a) 100%));
-  --font-body: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  --font-heading: var(--dg-typography-heading-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  --font-body: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
 ${TYPOGRAPHY_TOKEN_KEYS.map((key) => {
   const name = key.replace(/_/g, "-");
   return `  --${name}-size: var(--dg-type-${name}-size);
@@ -288,6 +311,23 @@ ${buildCompatibilityAliasVariables()}
 #root {
   --dg-preview-background: var(--dg-color-background-primary, #ffffff);
   background: var(--dg-preview-background);
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+}
+
+:where(#root, #drawgle-export-root) h1,
+:where(#root, #drawgle-export-root) h2,
+:where(#root, #drawgle-export-root) h3,
+:where(#root, #drawgle-export-root) h4,
+:where(#root, #drawgle-export-root) h5,
+:where(#root, #drawgle-export-root) h6 {
+  font-family: var(--dg-typography-heading-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+}
+
+:where(#root, #drawgle-export-root) button,
+:where(#root, #drawgle-export-root) input,
+:where(#root, #drawgle-export-root) textarea,
+:where(#root, #drawgle-export-root) select {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
 }
 
 .dg-bg-primary { background-color: var(--dg-color-background-primary); }
@@ -323,15 +363,15 @@ ${buildCompatibilityAliasVariables()}
 .dg-screen-padding { padding-left: var(--dg-mobile-layout-screen-margin); padding-right: var(--dg-mobile-layout-screen-margin); }
 .dg-section-gap { gap: var(--dg-mobile-layout-section-gap); }
 .dg-element-gap { gap: var(--dg-mobile-layout-element-gap); }
-${typographyClass("nav-title", "nav-title")}
-${typographyClass("screen-title", "screen-title")}
-${typographyClass("hero-title", "hero-title")}
-${typographyClass("section-title", "section-title")}
-${typographyClass("metric-value", "metric-value")}
-${typographyClass("body", "body")}
-${typographyClass("supporting", "supporting")}
-${typographyClass("caption", "caption")}
-${typographyClass("button-label", "button-label")}
+${typographyClass("nav-title", "nav-title", "heading")}
+${typographyClass("screen-title", "screen-title", "heading")}
+${typographyClass("hero-title", "hero-title", "heading")}
+${typographyClass("section-title", "section-title", "heading")}
+${typographyClass("metric-value", "metric-value", "body")}
+${typographyClass("body", "body", "body")}
+${typographyClass("supporting", "supporting", "body")}
+${typographyClass("caption", "caption", "body")}
+${typographyClass("button-label", "button-label", "body")}
 `.trim();
 }
 
@@ -365,13 +405,15 @@ const pickTokenReferences = (
 
 // Raw groups sent verbatim — each value is unique and semantically meaningful by name.
 // spacing, opacities, z_index are intentionally excluded; the semantic map replaces them.
-// typography.font_family is excluded — it is already emitted in buildVisualSystemConstraints.
+// Typography family roles are included explicitly so the builder sees the strict split.
 const compactVisualTokenPrefixes = [
   "color.background",
   "color.surface",
   "color.text",
   "color.action",
   "color.border",
+  "typography.heading_font_family",
+  "typography.body_font_family",
   "typography.nav_title",
   "typography.screen_title",
   "typography.section_title",
@@ -515,19 +557,21 @@ const buildRadiusValueToVariableMap = (designTokens?: DesignTokens | null) => {
   return map;
 };
 
+export const normalizeLegacyTypographyFontMarkup = (code: string) =>
+  code.replace(/--dg-typography-font-family\b/g, "--dg-typography-body-font-family");
 const arbitraryValueRegex = /\b(bg|text|border|ring|from|via|to|stroke|fill)-\[#([0-9a-fA-F]{3,8})\]/g;
 const roundedValueRegex = /\brounded-\[([^\]]+)\]/g;
 const spacingValueRegex = /\b(p|px|py|pt|pr|pb|pl|m|mx|my|mt|mr|mb|ml|gap|space-x|space-y)-\[([^\]]+)\]/g;
 
 export function tokenizeStaticDrawgleHtml(code: string, designTokens?: DesignTokens | null) {
-  if (!code.trim() || !designTokens?.tokens) {
-    return { code, changed: false };
+  const normalizedLegacyCode = normalizeLegacyTypographyFontMarkup(code);
+  if (!normalizedLegacyCode.trim() || !designTokens?.tokens) {
+    return { code: normalizedLegacyCode, changed: normalizedLegacyCode !== code };
   }
 
   const valueToVariable = buildValueToVariableMap(designTokens);
   const radiusValueToVariable = buildRadiusValueToVariableMap(designTokens);
-  let nextCode = code;
-
+  let nextCode = normalizedLegacyCode;
   nextCode = nextCode.replace(arbitraryValueRegex, (match, prefix: string, hex: string) => {
     const variableName = valueToVariable.get(normalizeComparableValue(`#${hex}`));
     return variableName ? `${prefix}-[var(${variableName})]` : match;

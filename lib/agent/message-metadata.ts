@@ -1,6 +1,6 @@
 import { isMeaningfulStateVariantForContext } from "@/lib/agent/state-variant-guardrails";
 import { isGenerationReferencePolicy } from "@/lib/generation/reference-policy";
-import type { GenerationReferencePolicy, ImageReferenceMode, NavigationArchitecture, NavigationPlan, ScreenBaseStatePlan, ScreenPlan, ScreenStateVariantPlan } from "@/lib/types";
+import type { GenerationReferencePolicy, ImageReferenceMode, NavigationArchitecture, NavigationPlan, ScreenBaseStatePlan, ScreenPlan, ScreenPlanningSeed, ScreenStateVariantPlan } from "@/lib/types";
 
 export type AgentStepStatus = "queued" | "thinking" | "editing" | "completed" | "failed";
 
@@ -52,13 +52,14 @@ export type ScreenStateProposalMetadata = {
     editInstruction: string;
   };
   expiresAt: string;
-  status?: "pending" | "approved" | "expired";
+  status?: "pending" | "approved" | "expired" | "dismissed";
   approvedGenerationRunId?: string | null;
 };
 
 export type ScreenPlanProposalMetadata = {
   prompt: string;
   screenPlan: ScreenPlan;
+  planningSeed: ScreenPlanningSeed;
   requiresBottomNav: boolean;
   navigationArchitecture: NavigationArchitecture;
   navigationPlan: NavigationPlan;
@@ -191,6 +192,19 @@ const isScreenPlan = (value: unknown): value is ScreenPlan => {
   );
 };
 
+const asScreenPlanningSeed = (value: unknown, fallbackPlan: ScreenPlan, prompt: string): ScreenPlanningSeed => {
+  const record = asRecord(value);
+  const name = asString(record?.name) ?? fallbackPlan.name;
+  const type = record?.type === "root" || record?.type === "detail" ? record.type : fallbackPlan.type;
+  return {
+    name,
+    type,
+    summary: asString(record?.summary) ?? fallbackPlan.description,
+    prompt: asString(record?.prompt) ?? prompt,
+    roadmapStableKey: asString(record?.roadmapStableKey) ?? fallbackPlan.roadmapStableKey ?? null,
+  };
+};
+
 const isNavigationArchitecture = (value: unknown): value is NavigationArchitecture => {
   const record = asRecord(value);
   return Boolean(record && typeof record.kind === "string" && typeof record.primaryNavigation === "string");
@@ -272,6 +286,7 @@ export function readScreenPlanProposal(metadata: Record<string, unknown>): Scree
   return {
     prompt,
     screenPlan: proposal.screenPlan,
+    planningSeed: asScreenPlanningSeed(proposal.planningSeed, proposal.screenPlan, prompt),
     requiresBottomNav,
     navigationArchitecture: proposal.navigationArchitecture,
     navigationPlan: proposal.navigationPlan,
@@ -311,9 +326,13 @@ export function readScreenStateProposal(metadata: Record<string, unknown>): Scre
   }
 
   const proposalRecord = proposal as Record<string, unknown>;
-  const status = proposalRecord.status === "approved" || proposalRecord.status === "expired" || proposalRecord.status === "pending"
-    ? proposalRecord.status
-    : "pending";
+  const status =
+    proposalRecord.status === "approved" ||
+    proposalRecord.status === "expired" ||
+    proposalRecord.status === "pending" ||
+    proposalRecord.status === "dismissed"
+      ? proposalRecord.status
+      : "pending";
 
   return {
     version: 1,

@@ -33,6 +33,7 @@ import {
   type ProjectRoadmap,
   type ReferenceAnalysis,
   type ScreenPlan,
+  type ScreenPlanningSeed,
 } from "@/lib/types";
 import type { generateUiFlowTask } from "@/trigger/generate-ui-flow";
 
@@ -127,6 +128,13 @@ const requestSchema = z.object({
     .max(5)
     .nullable()
     .optional(),
+screenPlanningSeeds: z.array(z.object({
+    name: z.string().trim().min(1).max(100),
+    type: z.enum(["root", "detail"]),
+    summary: z.string().trim().min(1).max(400),
+    prompt: z.string().max(10000),
+    roadmapStableKey: z.string().trim().min(1).max(100).nullable().optional(),
+  })).min(1).max(5).nullable().optional(),
   requiresBottomNav: z.boolean().optional(),
   navigationArchitecture: z.object({
     kind: z.enum(["bottom-tabs-app", "hierarchical", "single-screen"]),
@@ -369,9 +377,23 @@ export async function POST(request: Request) {
       const sourceMetadata = sourceRun.metadata && typeof sourceRun.metadata === "object" && !Array.isArray(sourceRun.metadata)
         ? sourceRun.metadata as Record<string, unknown>
         : {};
+const sourcePlanningSeeds = Array.isArray(sourceMetadata.screenPlanningSeeds)
+        ? sourceMetadata.screenPlanningSeeds as unknown as ScreenPlanningSeed[]
+        : [];
+      const sourcePlannedScreens = Array.isArray(sourceMetadata.plannedScreens)
+        ? sourceMetadata.plannedScreens as unknown as ScreenPlan[]
+        : sourcePlanningSeeds.map((seed) => ({
+            name: seed.name,
+            type: seed.type,
+            description: seed.summary,
+            roadmapStableKey: seed.roadmapStableKey ?? null,
+            stateVariants: [],
+            assetNeeds: [],
+          }));
+
       const retryScope = determineGenerationRetryScope({
         sourceGenerationRunId: sourceRun.id,
-        plannedScreens: Array.isArray(sourceMetadata.plannedScreens) ? sourceMetadata.plannedScreens as unknown as ScreenPlan[] : null,
+        plannedScreens: sourcePlannedScreens.length > 0 ? sourcePlannedScreens : null,
         stateVariants: Array.isArray(sourceMetadata.stateVariants) ? sourceMetadata.stateVariants as never : [],
         selectedStateVariantIds: Array.isArray(sourceMetadata.selectedStateVariantIds)
           ? sourceMetadata.selectedStateVariantIds.filter((value): value is string => typeof value === "string")
@@ -492,6 +514,7 @@ export async function POST(request: Request) {
       ? normalizeDesignTokens(payload.designTokens as DesignTokens)
       : null;
     let plannedScreens = (payload.plannedScreens ?? null) as ScreenPlan[] | null;
+    let screenPlanningSeeds = (payload.screenPlanningSeeds ?? null) as ScreenPlanningSeed[] | null;
     const projectRoadmap = (payload.roadmap ?? null) as ProjectRoadmap | null;
     const initialReferenceImagePath = !isExistingProjectRequest && promptImage && normalizedReference
       ? `${ownerId}/prompt-images/${normalizedReference.sha256}.webp`
@@ -698,6 +721,7 @@ export async function POST(request: Request) {
           navigationArchitecture,
           navigationPlan,
           plannedScreens,
+          screenPlanningSeeds,
           planningMode: payload.planningMode ?? null,
           baseState: payload.baseState ?? null,
           stateVariants: payload.stateVariants ?? [],
@@ -756,6 +780,7 @@ export async function POST(request: Request) {
         stylePresetSlug: stylePreset?.slug ?? null,
         designTokens,
         plannedScreens,
+        screenPlanningSeeds,
         scopeContract,
         referenceAnalysis,
         requiresBottomNav: payload.requiresBottomNav,

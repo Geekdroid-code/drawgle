@@ -16,7 +16,7 @@ const designTokens: DesignTokens = {
       action: { primary: "#183E2D", on_primary_text: "#FFFFFF", secondary: "#DCEAE2" },
       border: { divider: "#DCE5E0", focused: "#4C9A70" },
     },
-    typography: { font_family: "Inter" },
+    typography: { heading_font_family: "Manrope", body_font_family: "Inter" },
     mobile_layout: { screen_margin: "20px", section_gap: "24px", element_gap: "12px" },
     radii: { app: "24px", pill: "9999px" },
     shadows: { surface: "0 14px 40px rgba(20,33,27,.10)", overlay: "0 20px 55px rgba(20,33,27,.16)" },

@@ -40,7 +40,8 @@ export const DESIGN_STYLE_PACKS: DesignStylePack[] = [
           border: { divider: "#e5e9f0", focused: "#2563eb" },
         },
         typography: {
-          font_family: "Inter, system-ui, sans-serif",
+          heading_font_family: "Manrope, system-ui, sans-serif",
+          body_font_family: "Inter, system-ui, sans-serif",
           nav_title: { size: "17px", weight: 750, line_height: "22px" },
           screen_title: { size: "26px", weight: 800, line_height: "32px" },
           hero_title: { size: "34px", weight: 820, line_height: "40px" },
@@ -115,7 +116,8 @@ export const DESIGN_STYLE_PACKS: DesignStylePack[] = [
           border: { divider: "#252b36", focused: "#8ab4ff" },
         },
         typography: {
-          font_family: "Inter, system-ui, sans-serif",
+          heading_font_family: "Manrope, system-ui, sans-serif",
+          body_font_family: "Inter, system-ui, sans-serif",
           nav_title: { size: "17px", weight: 760, line_height: "22px" },
           screen_title: { size: "25px", weight: 820, line_height: "31px" },
           hero_title: { size: "33px", weight: 850, line_height: "39px" },
@@ -190,7 +192,8 @@ export const DESIGN_STYLE_PACKS: DesignStylePack[] = [
           border: { divider: "#e5ded4", focused: "#151412" },
         },
         typography: {
-          font_family: "Newsreader, Georgia, serif",
+          heading_font_family: "Newsreader, Georgia, serif",
+          body_font_family: "Inter, system-ui, sans-serif",
           nav_title: { size: "17px", weight: 650, line_height: "22px" },
           screen_title: { size: "30px", weight: 700, line_height: "35px" },
           hero_title: { size: "42px", weight: 720, line_height: "46px" },
@@ -265,7 +268,8 @@ export const DESIGN_STYLE_PACKS: DesignStylePack[] = [
           border: { divider: "#ead8c8", focused: "#c16836" },
         },
         typography: {
-          font_family: "Nunito Sans, Inter, system-ui, sans-serif",
+          heading_font_family: "Nunito Sans, system-ui, sans-serif",
+          body_font_family: "Inter, system-ui, sans-serif",
           nav_title: { size: "17px", weight: 800, line_height: "22px" },
           screen_title: { size: "27px", weight: 850, line_height: "33px" },
           hero_title: { size: "36px", weight: 850, line_height: "42px" },
@@ -341,7 +345,8 @@ export const DESIGN_STYLE_PACKS: DesignStylePack[] = [
           border: { divider: "#111111", focused: "#111111" },
         },
         typography: {
-          font_family: "Space Grotesk, Inter, system-ui, sans-serif",
+          heading_font_family: "Space Grotesk, system-ui, sans-serif",
+          body_font_family: "Inter, system-ui, sans-serif",
           nav_title: { size: "17px", weight: 800, line_height: "22px" },
           screen_title: { size: "29px", weight: 900, line_height: "34px" },
           hero_title: { size: "40px", weight: 900, line_height: "43px" },
@@ -416,7 +421,8 @@ export const DESIGN_STYLE_PACKS: DesignStylePack[] = [
           border: { divider: "#373127", focused: "#d6b56d" },
         },
         typography: {
-          font_family: "Cormorant Garamond, Georgia, serif",
+          heading_font_family: "Cormorant Garamond, Georgia, serif",
+          body_font_family: "Inter, system-ui, sans-serif",
           nav_title: { size: "18px", weight: 650, line_height: "23px" },
           screen_title: { size: "31px", weight: 700, line_height: "36px" },
           hero_title: { size: "44px", weight: 700, line_height: "47px" },
@@ -492,7 +498,8 @@ export const DESIGN_STYLE_PACKS: DesignStylePack[] = [
           border: { divider: "#16313b", focused: "#20f7ff" },
         },
         typography: {
-          font_family: "Space Grotesk, Inter, system-ui, sans-serif",
+          heading_font_family: "Space Grotesk, system-ui, sans-serif",
+          body_font_family: "Inter, system-ui, sans-serif",
           nav_title: { size: "17px", weight: 800, line_height: "22px" },
           screen_title: { size: "27px", weight: 850, line_height: "32px" },
           hero_title: { size: "36px", weight: 900, line_height: "41px" },
@@ -567,7 +574,8 @@ export const DESIGN_STYLE_PACKS: DesignStylePack[] = [
           border: { divider: "#ffffff99", focused: "#4f46e5" },
         },
         typography: {
-          font_family: "Inter, system-ui, sans-serif",
+          heading_font_family: "Manrope, system-ui, sans-serif",
+          body_font_family: "Inter, system-ui, sans-serif",
           nav_title: { size: "17px", weight: 750, line_height: "22px" },
           screen_title: { size: "26px", weight: 800, line_height: "32px" },
           hero_title: { size: "35px", weight: 820, line_height: "41px" },
@@ -643,7 +651,8 @@ export const DESIGN_STYLE_PACKS: DesignStylePack[] = [
           border: { divider: "#eee5c9", focused: "#f02d8f" },
         },
         typography: {
-          font_family: "Nunito Sans, Inter, system-ui, sans-serif",
+          heading_font_family: "Nunito Sans, system-ui, sans-serif",
+          body_font_family: "Inter, system-ui, sans-serif",
           nav_title: { size: "17px", weight: 850, line_height: "22px" },
           screen_title: { size: "28px", weight: 900, line_height: "33px" },
           hero_title: { size: "38px", weight: 900, line_height: "42px" },
@@ -718,7 +727,8 @@ export const DESIGN_STYLE_PACKS: DesignStylePack[] = [
           border: { divider: "#dfe5ee", focused: "#155eef" },
         },
         typography: {
-          font_family: "IBM Plex Sans, Inter, system-ui, sans-serif",
+          heading_font_family: "IBM Plex Sans, system-ui, sans-serif",
+          body_font_family: "Inter, system-ui, sans-serif",
           nav_title: { size: "16px", weight: 750, line_height: "21px" },
           screen_title: { size: "24px", weight: 800, line_height: "30px" },
           hero_title: { size: "32px", weight: 820, line_height: "38px" },

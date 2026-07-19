@@ -9,7 +9,8 @@ export function buildDrawgleTailwindConfigScript(): string {
         theme: {
           extend: {
             fontFamily: {
-              sans: ["var(--font-body, var(--dg-typography-font-family))", "-apple-system", "BlinkMacSystemFont", "sans-serif"]
+              sans: ["var(--font-body, var(--dg-typography-body-font-family))", "-apple-system", "BlinkMacSystemFont", "sans-serif"],
+              heading: ["var(--font-heading, var(--dg-typography-heading-font-family))", "-apple-system", "BlinkMacSystemFont", "sans-serif"]
             },
             colors: {
               background: "var(--background, var(--dg-color-background-primary))",
@@ -92,7 +93,7 @@ export function buildDrawgleExportRuntimeCss(
 ${tokenCss}
 html, body { margin: 0; min-height: 100%; }
 body {
-  font-family: var(--dg-typography-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
   background: var(--dg-color-background-primary, #ffffff);
   color: var(--dg-color-text-high-emphasis, #111827);
 }

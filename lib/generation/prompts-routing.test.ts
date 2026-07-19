@@ -78,12 +78,13 @@ describe("state-scoped prompt construction", () => {
     expect(prompt).not.toContain("MODE CONTRACT: STYLE_REFERENCE");
   });
 
-  it("keeps the complete legacy design-token schema and discipline in every mode", () => {
+  it("keeps the complete design-token schema and discipline in every mode", () => {
     const commonRules = [
       "comprehensive, production-grade Design Token System",
       '"system_schema": "mobile_universal_core"',
       '"recommendedFonts"',
-      '"font_family"',
+      '"heading_font_family"',
+      '"body_font_family"',
       '"screen_margin"',
       '"radii"',
       '"shadows"',

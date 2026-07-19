@@ -609,6 +609,7 @@ export function transpileToFlutter(root: TranspileNode): string {
       const baseStyle = getFlutterTypographyStyle(node.classes);
       
       let styleProperties: string[] = [];
+      styleProperties.push(`fontFamily: AppTheme.${styles.fontFamilyRole === "heading" ? "headingFontFamily" : "bodyFontFamily"}`);
       if (!baseStyle && styles.fontSize !== undefined) {
         styleProperties.push(`fontSize: ${styles.fontSize}.0`);
       }

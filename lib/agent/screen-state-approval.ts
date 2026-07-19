@@ -78,6 +78,9 @@ export async function approveScreenStateProposal({
     : {};
   const proposal = readScreenStateProposal(proposalMetadata);
   if (!proposal) throw new ScreenStateApprovalError("That message does not contain a buildable screen state.", 400);
+  if (proposal.status === "dismissed") {
+    throw new ScreenStateApprovalError("That screen state was dismissed.", 409);
+  }
   if (proposal.status === "approved" || proposal.approvedGenerationRunId) {
     throw new ScreenStateApprovalError("That screen state has already been approved.", 409, proposal.approvedGenerationRunId ?? null);
   }

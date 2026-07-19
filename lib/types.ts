@@ -230,7 +230,8 @@ export interface DesignTypographyScale {
 }
 
 export interface DesignTypographyTokens {
-  font_family?: string;
+  heading_font_family?: string;
+  body_font_family?: string;
   nav_title?: DesignTypographyScale;
   screen_title?: DesignTypographyScale;
   hero_title?: DesignTypographyScale;
@@ -621,6 +622,14 @@ export interface CreditReservationSummary {
   releasedCredits: number;
   outputCount: number;
   availableBalance?: number | null;
+}
+
+export interface ScreenPlanningSeed {
+  name: string;
+  type: 'root' | 'detail';
+  summary: string;
+  prompt: string;
+  roadmapStableKey?: string | null;
 }
 
 export interface ScreenPlan {

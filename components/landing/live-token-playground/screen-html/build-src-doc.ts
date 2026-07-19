@@ -17,6 +17,11 @@ __TOKEN_CSS__
     background: var(--dg-color-background-primary);
   }
 
+  h1, h2, h3, h4, h5, h6,
+  .dg-type-nav-title, .dg-type-screen-title, .dg-type-hero-title, .dg-type-section-title {
+    font-family: var(--dg-typography-heading-font-family) !important;
+  }
+
   #drawgle-export-root,
   #drawgle-export-root > .w-full {
     min-height: 100vh;
@@ -57,6 +62,7 @@ __TOKEN_CSS__
 export function buildProject2SrcDoc(html: string, tokens: PlaygroundTokens) {
   const runtimeCss = RUNTIME_CSS.replace("__TOKEN_CSS__", tokenCssText(tokens));
 
-  return html.replace("</head>", `<style id="drawgle-landing-token-overrides">${runtimeCss}</style></head>`);
+  const normalizedHtml = html.replace(/--dg-typography-font-family\\b/g, "--dg-typography-body-font-family");
+  return normalizedHtml.replace("</head>", `<style id="drawgle-landing-token-overrides">${runtimeCss}</style></head>`);
 }
 

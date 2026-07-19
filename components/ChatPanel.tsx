@@ -38,6 +38,9 @@ import {
   type ScreenStateProposalMetadata,
   type ThinkingSummaryMetadata,
 } from "@/lib/agent/message-metadata";
+import { createClient } from "@/lib/supabase/client";
+import { updateProjectMessage } from "@/lib/supabase/queries";
+import { cn } from "@/lib/utils";
 import type {
   GenerationRunData,
   GenerationJournalMetadata,
@@ -88,7 +91,7 @@ type ConversationItem =
   | { id: string; kind: "assistant"; content: string; timestamp?: string; isError?: boolean }
   | { id: string; kind: "thinking"; summary: ThinkingSummaryMetadata; timestamp?: string; live?: boolean }
   | { id: string; kind: "generation_journal"; journal: GenerationJournalMetadata; timestamp?: string }
-  | { id: string; kind: "screen_suggestions"; recommendation: RoadmapBuildRecommendation; timestamp?: string }
+  | { id: string; kind: "screen_suggestions"; recommendation: RoadmapBuildRecommendation; messageId: string; timestamp?: string }
   | { id: string; kind: "action"; step: AgentStepMetadata; sourceContent?: string; retryRun?: GenerationRunData; proposal?: ScreenPlanProposalMetadata | null; stateProposal?: ScreenStateProposalMetadata | null; proposalMessageId?: string | null; timestamp?: string };
 
 type ChatWorkspaceTab = "chat" | "design" | "design-md";
@@ -134,8 +137,12 @@ const getMessageActivityKey = (message: ProjectMessage) =>
 const getMessageClientTurnId = (message: ProjectMessage) =>
   getMetadataString(message.metadata, "clientTurnId");
 
+const isRoadmapRecommendationDismissed = (metadata: Record<string, unknown>) =>
+  metadataRecord(metadata.roadmapRecommendation).dismissed === true;
+
 const readRoadmapRecommendation = (metadata: Record<string, unknown>): RoadmapBuildRecommendation | null => {
   const value = metadataRecord(metadata.roadmapRecommendation);
+  if (value.dismissed === true) return null;
   if (
     value.version === 2 &&
     (value.kind === "parent_batch" || value.kind === "state_batch") &&
@@ -432,20 +439,38 @@ const liveGenerationStep = (generationRun: GenerationRunData, screens: ScreenDat
   const stats = getRunStats(generationRun, screens);
   const target = stats.firstBuildingScreen?.name ?? null;
   const status = generationRun.status === "queued" ? "queued" : "editing";
+  const progressDetail = stats.totalScreens > 1
+    ? `${stats.readyScreens}/${stats.totalScreens} ready${stats.failedScreens > 0 ? `, ${stats.failedScreens} failed` : ""}`
+    : null;
 
   return {
     kind: "generation",
     status,
-    title: target ? `Building ${target}` : generationRun.status === "planning" ? "Planning screens" : "Building screens",
-    detail: stats.totalScreens > 0 ? `${stats.readyScreens}/${stats.totalScreens} ready${stats.failedScreens > 0 ? `, ${stats.failedScreens} failed` : ""}` : generationRun.error ?? null,
+    title: target
+      ? `Building ${target}`
+      : generationRun.status === "planning"
+        ? "Planning screens"
+        : generationRun.status === "queued"
+          ? "Queued"
+          : "Building screens",
+    detail: progressDetail ?? generationRun.error ?? null,
     targetLabel: target,
-    processLines: [
-      generationRun.status === "queued" ? "Queued the screen generation." : null,
-      generationRun.status === "planning" ? "Translating your prompt into screen structure." : null,
-      generationRun.status === "building" ? "Rendering the mobile UI on the canvas." : null,
-    ].filter((line): line is string => Boolean(line)),
+    processLines: null,
   };
 };
+
+const isBusyStepStatus = (status?: AgentStepMetadata["status"] | null) =>
+  status === "queued" || status === "thinking" || status === "editing";
+
+const conversationHasLiveWork = (items: ConversationItem[]) =>
+  items.some((item) => {
+    if (item.kind === "action") return isBusyStepStatus(item.step.status);
+    if (item.kind === "generation_journal") {
+      return item.journal.status === "queued" || item.journal.status === "planning" || item.journal.status === "building";
+    }
+    if (item.kind === "thinking") return Boolean(item.live);
+    return false;
+  });
 
 function buildConversationItems({
   messages,
@@ -511,7 +536,10 @@ function buildConversationItems({
     screens.filter((screen) => screen.status === "ready" && screen.roadmapItemId).map((screen) => screen.roadmapItemId!),
   );
   const latestSuggestionMessageId = contextualSuggestionsEnabled
-    ? [...messages].reverse().find((message) => readRoadmapRecommendation(message.metadata))?.id ?? null
+    ? [...messages].reverse().find((message) => {
+      const meta = metadataRecord(message.metadata.roadmapRecommendation);
+      return Boolean(meta.version);
+    })?.id ?? null
     : null;
 
   for (const message of messages) {
@@ -586,6 +614,7 @@ function buildConversationItems({
         id: `screen-suggestions-${message.id}`,
         kind: "screen_suggestions",
         recommendation: roadmapRecommendation,
+        messageId: message.id,
         timestamp: message.timestamp,
       });
       continue;
@@ -816,9 +845,9 @@ function buildConversationItems({
       step: {
         kind: "generation",
         status: "editing",
-        title: "Planning the next screen",
-        detail: screenPlan.prompt,
-        processLines: ["Creating a focused screen plan from your request."],
+        title: "Planning screens",
+        detail: null,
+        processLines: null,
       },
     });
   } else if (screenPlan?.status === "ready") {
@@ -849,11 +878,23 @@ function buildConversationItems({
   }
 
   if (generationRun && isActiveGenerationRun(generationRun)) {
-    items.push({
-      id: `live-generation-${generationRun.id}-${generationRun.status}`,
-      kind: "action",
-      step: liveGenerationStep(generationRun, screens),
+    const hasBusyGenerationSurface = items.some((item) => {
+      if (item.kind === "generation_journal") {
+        return item.journal.generationRunId === generationRun.id &&
+          (item.journal.status === "queued" || item.journal.status === "planning" || item.journal.status === "building");
+      }
+      if (item.kind !== "action") return false;
+      if (!isBusyStepStatus(item.step.status)) return false;
+      return item.step.kind === "generation" || item.step.kind === "edit" || item.step.kind === "proposal";
     });
+
+    if (!hasBusyGenerationSurface) {
+      items.push({
+        id: `live-generation-${generationRun.id}-${generationRun.status}`,
+        kind: "action",
+        step: liveGenerationStep(generationRun, screens),
+      });
+    }
   }
 
   const latestRetryRun = [...generationRuns]
@@ -877,6 +918,38 @@ function buildConversationItems({
           processLines: [latestRetryRun.error],
         },
       });
+    }
+  }
+
+  // Keep a single live status after the latest user turn (no stacked loaders).
+  let lastUserIndex = -1;
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    if (items[index].kind === "user") {
+      lastUserIndex = index;
+      break;
+    }
+  }
+  let keptBusyAction = false;
+  let keptBusyJournal = false;
+  for (let index = items.length - 1; index > lastUserIndex; index -= 1) {
+    const item = items[index];
+    if (item.kind === "generation_journal") {
+      const journalBusy = item.journal.status === "queued" || item.journal.status === "planning" || item.journal.status === "building";
+      if (journalBusy) {
+        if (keptBusyJournal || keptBusyAction) {
+          items.splice(index, 1);
+        } else {
+          keptBusyJournal = true;
+        }
+      }
+      continue;
+    }
+    if (item.kind === "action" && isBusyStepStatus(item.step.status)) {
+      if (keptBusyAction || keptBusyJournal) {
+        items.splice(index, 1);
+      } else {
+        keptBusyAction = true;
+      }
     }
   }
 
@@ -1011,11 +1084,15 @@ function UserBubble({ content, image }: { content: string; image?: PromptImagePa
 function ContextualScreenSuggestions({
   recommendation,
   disabled,
+  dismissing,
   onBuild,
+  onDismiss,
 }: {
   recommendation: RoadmapBuildRecommendation;
   disabled?: boolean;
+  dismissing?: boolean;
   onBuild: (recommendation: RoadmapBuildRecommendation, selectedItemIds: string[]) => void;
+  onDismiss?: () => void;
 }) {
   const selectionKey = recommendation.items.map((item) => item.roadmapItemId).join(":");
   const [selection, setSelection] = useState({ key: selectionKey, ids: [recommendation.items[0]?.roadmapItemId].filter(Boolean) as string[] });
@@ -1032,40 +1109,93 @@ function ContextualScreenSuggestions({
       };
     });
   };
-  const label = selectedIds.length === 1 ? "Build selected screen" : `Build ${selectedIds.length} selected screens`;
+  const isStateBatch = recommendation.kind === "state_batch";
+  const buildLabel = selectedIds.length === 0
+    ? "Select to build"
+    : selectedIds.length === 1
+      ? isStateBatch ? "Build state" : "Build screen"
+      : `Build ${selectedIds.length} ${isStateBatch ? "states" : "screens"}`;
+  const busy = Boolean(disabled || dismissing);
 
   return (
-    <div className="mx-5 my-3 rounded-[8px] border border-slate-200 bg-white px-4 py-3 shadow-sm">
-      <div className="flex items-start gap-2.5">
-        <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
-        <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-semibold leading-5 text-slate-900">{recommendation.title}</p>
-          <div className="mt-2 space-y-1">
-            {recommendation.items.map((item) => (
-              <label key={item.roadmapItemId} className="flex cursor-pointer items-start gap-2 rounded-[6px] px-1 py-1.5 hover:bg-slate-950/[0.03]">
-                <input
-                  type="checkbox"
-                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 accent-slate-950"
-                  checked={selectedSet.has(item.roadmapItemId)}
-                  onChange={() => toggle(item.roadmapItemId)}
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[12px] font-semibold leading-5 text-slate-800">{item.name}</span>
-                  {item.parentName ? <span className="block text-[10px] font-medium text-slate-400">For {item.parentName}</span> : null}
-                  <span className="block text-[11px] leading-4 text-slate-500">{item.description}</span>
-                </span>
-              </label>
-            ))}
+    <div className="mx-4 my-2 overflow-hidden rounded-2xl border border-slate-950/[0.08] bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+      <div className="border-b border-slate-950/[0.05] bg-slate-950/[0.02] px-3.5 py-2.5">
+        <div className="flex items-center gap-2">
+          <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-slate-950 text-white">
+            <Sparkles className="h-3 w-3" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[12px] font-semibold tracking-[-0.01em] text-slate-900">
+              {recommendation.title}
+            </p>
+            <p className="text-[10px] font-medium text-slate-400">
+              {isStateBatch ? "Suggested state" : "Suggested next"} · optional
+            </p>
           </div>
+        </div>
+      </div>
+
+      <div className="space-y-1 p-2">
+        {recommendation.items.map((item) => {
+          const selected = selectedSet.has(item.roadmapItemId);
+          return (
+            <button
+              key={item.roadmapItemId}
+              type="button"
+              disabled={busy}
+              onClick={() => toggle(item.roadmapItemId)}
+              className={cn(
+                "flex w-full items-start gap-2.5 rounded-xl px-2.5 py-2 text-left transition",
+                selected
+                  ? "bg-slate-950/[0.05] ring-1 ring-slate-950/[0.08]"
+                  : "hover:bg-slate-950/[0.03]",
+                busy && "opacity-60",
+              )}
+            >
+              <span
+                className={cn(
+                  "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] border transition",
+                  selected
+                    ? "border-slate-950 bg-slate-950 text-white"
+                    : "border-slate-300 bg-white",
+                )}
+              >
+                {selected ? <Check className="h-2.5 w-2.5" strokeWidth={3} /> : null}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[12px] font-semibold leading-5 text-slate-900">{item.name}</span>
+                {item.parentName ? (
+                  <span className="mt-0.5 block text-[10px] font-medium uppercase tracking-[0.08em] text-slate-400">
+                    {item.parentName}
+                  </span>
+                ) : null}
+                <span className="mt-0.5 block text-[11px] leading-4 text-slate-500">{item.description}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="flex items-center gap-2 border-t border-slate-950/[0.05] px-3 py-2.5">
+        {onDismiss ? (
           <Button
             type="button"
-            className="mt-3 h-8 rounded-full px-3 text-[11px] font-semibold"
-            disabled={disabled || selectedIds.length === 0}
-            onClick={() => onBuild(recommendation, selectedIds)}
+            variant="ghost"
+            className="h-8 rounded-full px-3 text-[11px] font-semibold text-slate-500 hover:bg-slate-950/[0.04] hover:text-slate-800"
+            disabled={busy}
+            onClick={onDismiss}
           >
-            {label}
+            {dismissing ? "Dismissing…" : "Not now"}
           </Button>
-        </div>
+        ) : null}
+        <Button
+          type="button"
+          className="ml-auto h-8 rounded-full bg-slate-950 px-3.5 text-[11px] font-semibold text-white hover:bg-slate-800"
+          disabled={busy || selectedIds.length === 0}
+          onClick={() => onBuild(recommendation, selectedIds)}
+        >
+          {buildLabel}
+        </Button>
       </div>
     </div>
   );
@@ -1078,9 +1208,11 @@ function ActionCard({
   proposal,
   stateProposal,
   proposalMessageId,
+  dismissingState,
   onRetryGeneration,
   onApproveScreenPlan,
   onApproveScreenState,
+  onDismissScreenState,
 }: {
   step: AgentStepMetadata;
   retryRun?: GenerationRunData;
@@ -1088,11 +1220,13 @@ function ActionCard({
   proposal?: ScreenPlanProposalMetadata | null;
   stateProposal?: ScreenStateProposalMetadata | null;
   proposalMessageId?: string | null;
+  dismissingState?: boolean;
   onRetryGeneration?: (run: GenerationRunData) => void;
   onApproveScreenPlan?: (proposalMessageId: string, selectedStateVariantIds?: string[]) => void;
   onApproveScreenState?: (proposalMessageId: string) => void;
+  onDismissScreenState?: (proposalMessageId: string) => void;
 }) {
-  const busy = step.status === "queued" || step.status === "thinking" || step.status === "editing";
+  const busy = isBusyStepStatus(step.status);
   const failed = step.status === "failed";
   const pendingProposal = isProposalPending(proposal);
   const pendingStateProposal = isStateProposalPending(stateProposal);
@@ -1129,7 +1263,6 @@ function ActionCard({
     ? `Build ${selectedBuildCount} screen${selectedBuildCount === 1 ? "" : "s"}`
     : "Build screen";
 
-
   const toggleStateVariant = (variantId: string) => {
     setStateVariantSelection((current) => {
       const activeIds =
@@ -1143,29 +1276,49 @@ function ActionCard({
     });
   };
 
-  const rawProcessLines = step.processLines?.length ? step.processLines : step.detail ? [step.detail] : [];
-  const processLines = rawProcessLines.filter((line) => {
-    const cleanLine = line.trim().toLowerCase();
-    return (
-      cleanLine !== step.title.trim().toLowerCase() &&
-      cleanLine !== statusCopy(step.status).toLowerCase()
-    );
-  });
+  const statusLabel = statusCopy(step.status);
+  const titleLower = step.title.trim().toLowerCase();
+  const detailLower = step.detail?.trim().toLowerCase() ?? "";
+  const isGenericBusyNoise = (text: string) => {
+    const clean = text.trim().toLowerCase().replace(/\.+$/, "");
+    if (!clean) return true;
+    if (clean === titleLower || clean === statusLabel.toLowerCase()) return true;
+    if (clean === `${titleLower}...` || clean.startsWith(`${titleLower} `)) return true;
+    if (/^(queued|in progress|thinking|working|building|planning)(\s|$|\.\.\.)/i.test(clean) && clean.length < 48) return true;
+    if (/^(queued the screen generation|translating your prompt|rendering the mobile ui|applying the (requested )?ui edit)/i.test(clean)) return true;
+    if (step.targetLabel && clean === `working on ${step.targetLabel.toLowerCase()}`) return true;
+    if (step.targetLabel && clean === `editing ${step.targetLabel.toLowerCase()}`) return true;
+    if (step.targetLabel && clean === `building ${step.targetLabel.toLowerCase()}`) return true;
+    return false;
+  };
 
+  const rawProcessLines = step.processLines?.length ? step.processLines : [];
+  const processLines = rawProcessLines.filter((line) => !isGenericBusyNoise(line));
   const hasDistinctDetail = Boolean(
     step.detail &&
-    step.detail.trim().toLowerCase() !== step.title.trim().toLowerCase() &&
-    step.detail.trim().toLowerCase() !== statusCopy(step.status).toLowerCase()
+    !isGenericBusyNoise(step.detail) &&
+    detailLower !== titleLower &&
+    detailLower !== statusLabel.toLowerCase(),
+  );
+  const showBusyProcess = false;
+  const hasBodyContent = Boolean(
+    styleDiff ||
+    pendingProposal ||
+    pendingStateProposal ||
+    proposal?.status === "approved" ||
+    stateProposal?.status === "approved" ||
+    stateProposal?.status === "dismissed" ||
+    retryRun ||
+    (!busy && (hasDistinctDetail || processLines.length > 0)),
   );
 
-  const fallbackDetail = !hasDistinctDetail && busy
-    ? (step.targetLabel ? `Working on ${step.targetLabel}.` : statusCopy(step.status))
-    : null;
+  const liveTitle = busy
+    ? (step.title.replace(/\.\.\.$/, "").trim() || "Working")
+    : step.title;
 
   return (
-    <div className="px-5 py-3 w-full min-w-0 overflow-hidden">
+    <div className="px-5 py-2.5 w-full min-w-0 overflow-hidden">
       <div className="flex flex-col font-ui leading-normal min-w-0 w-full">
-        {/* Header timeline node */}
         <div className="flex flex-row items-center transition-colors rounded-lg duration-150 min-w-0 w-full">
           <div className="w-[20px] flex justify-center shrink-0">
             <div className="pt-0.5">
@@ -1179,32 +1332,42 @@ function ActionCard({
             </div>
           </div>
           <div className="flex-1 min-w-0 pl-2.5">
-            <div className="flex items-center gap-2 py-0.5 text-sm text-left text-slate-800 font-semibold w-full min-w-0">
-              <span className="min-w-0 flex-1 break-words whitespace-normal leading-tight">{step.title}</span>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-100/80 px-1.5 py-0.5 rounded shrink-0">
-                {statusCopy(step.status)}
-              </span>
-            </div>
+            {busy ? (
+              <div className="flex min-w-0 items-center gap-2 py-0.5">
+                <AgentThinkingIndicator
+                  label={`${liveTitle}...`}
+                  className="min-w-0 text-slate-700 font-semibold"
+                  hideBall
+                />
+                {hasDistinctDetail ? (
+                  <span className="shrink-0 text-[11px] font-medium text-slate-400">{step.detail}</span>
+                ) : null}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 py-0.5 text-sm text-left text-slate-800 font-semibold w-full min-w-0">
+                <span className="min-w-0 flex-1 break-words whitespace-normal leading-tight">{step.title}</span>
+                {failed ? (
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded shrink-0">
+                    {statusLabel}
+                  </span>
+                ) : null}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Detailed timeline path */}
+        {hasBodyContent ? (
         <div className="flex flex-row min-w-0 w-full">
           <div className="w-[20px] flex justify-center shrink-0">
-            <div className={`w-[1px] h-full duration-150 bg-slate-200 ${(busy && processLines.length > 0) || styleDiff || hasDistinctDetail || fallbackDetail ? "min-h-[20px]" : "min-h-[8px]"}`} />
+            <div className="w-[1px] h-full min-h-[12px] duration-150 bg-slate-200" />
           </div>
           <div className="flex-1 min-w-0 pl-2.5">
-            {hasDistinctDetail ? (
+            {!busy && hasDistinctDetail ? (
               <div className="text-[12px] text-slate-500 leading-relaxed pt-1 pr-4 break-words whitespace-normal font-medium">
                 {step.detail}
               </div>
-            ) : fallbackDetail ? (
-              <div className="text-[12px] text-slate-500 leading-relaxed pt-1 pr-4 break-words whitespace-normal">
-                {fallbackDetail}
-              </div>
             ) : null}
 
-            {/* Style Diff Block */}
             {styleDiff ? (
               <div className="mt-3 rounded-xl border border-slate-200/80 bg-slate-900 px-3.5 py-3 font-mono text-[11px] leading-relaxed text-slate-300 shadow-sm overflow-hidden select-text">
                 <div className="text-[10px] font-sans font-bold uppercase tracking-wider text-slate-500 mb-2">Style Adjustments</div>
@@ -1235,21 +1398,20 @@ function ActionCard({
               </div>
             ) : null}
 
-            {/* Execution / Technical Logs */}
-            {busy && processLines.length > 0 ? (
-              <div className="mt-3 space-y-2.5 pl-1.5 min-w-0 w-full animate-pulse">
+            {showBusyProcess && busy && processLines.length > 0 ? (
+              <div className="mt-2 space-y-2 pl-0.5 min-w-0 w-full">
                 {processLines.map((line, index) => (
-                  <div key={`${line}-${index}`} className="flex items-start gap-2 text-[11px] leading-relaxed text-slate-600 min-w-0 w-full">
-                    <div className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500 animate-ping" />
+                  <div key={`${line}-${index}`} className="flex items-start gap-2 text-[11px] leading-relaxed text-slate-500 min-w-0 w-full">
+                    <div className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-slate-300" />
                     <span className="min-w-0 flex-1 break-words whitespace-normal">{line}</span>
                   </div>
                 ))}
               </div>
             ) : !busy && processLines.length > 0 ? (
-              <details className="mt-3 group/details">
+              <details className="mt-2 group/details">
                 <summary className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 hover:text-slate-800 cursor-pointer select-none outline-none">
                   <ChevronDown className="h-3.5 w-3.5 transition-transform duration-200 group-open/details:rotate-180 text-slate-400 group-hover/details:text-slate-600" />
-                  <span>Show execution steps</span>
+                  <span>Show steps</span>
                 </summary>
                 <div className="mt-2 space-y-2 pl-1.5 min-w-0 w-full">
                   {processLines.map((line, index) => (
@@ -1304,14 +1466,27 @@ function ActionCard({
             ) : null}
 
             {pendingStateProposal && proposalMessageId && onApproveScreenState ? (
-              <Button
-                type="button"
-                className="mt-3 h-8 rounded-full px-3 text-[11px] font-semibold"
-                onClick={() => onApproveScreenState(proposalMessageId)}
-                disabled={retryDisabled}
-              >
-                Build state
-              </Button>
+              <div className="mt-3 flex items-center gap-2">
+                {onDismissScreenState ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="h-8 rounded-full px-3 text-[11px] font-semibold text-slate-500 hover:bg-slate-950/[0.04] hover:text-slate-800"
+                    onClick={() => onDismissScreenState(proposalMessageId)}
+                    disabled={retryDisabled || dismissingState}
+                  >
+                    {dismissingState ? "Dismissing…" : "Not now"}
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  className="h-8 rounded-full bg-slate-950 px-3 text-[11px] font-semibold text-white hover:bg-slate-800"
+                  onClick={() => onApproveScreenState(proposalMessageId)}
+                  disabled={retryDisabled || dismissingState}
+                >
+                  Build state
+                </Button>
+              </div>
             ) : null}
 
             {proposal?.status === "approved" ? (
@@ -1320,6 +1495,10 @@ function ActionCard({
 
             {stateProposal?.status === "approved" ? (
               <div className="mt-3 text-[11px] font-semibold text-emerald-600">Approved for build</div>
+            ) : null}
+
+            {stateProposal?.status === "dismissed" ? (
+              <div className="mt-3 text-[11px] font-medium text-slate-400">Dismissed</div>
             ) : null}
 
             {retryRun && onRetryGeneration ? (
@@ -1335,6 +1514,7 @@ function ActionCard({
             ) : null}
           </div>
         </div>
+        ) : null}
       </div>
     </div>
   );
@@ -1729,6 +1909,8 @@ export function ChatPanel({
   const [pendingTurn, setPendingTurn] = useState<PendingTurn | null>(null);
   const [pendingTick, setPendingTick] = useState(0);
   const [activeTab, setActiveTab] = useState<ChatWorkspaceTab>("chat");
+  const [dismissingSuggestionId, setDismissingSuggestionId] = useState<string | null>(null);
+  const [dismissingStateId, setDismissingStateId] = useState<string | null>(null);
   const isGenerationActive = isActiveGenerationRun(generationRun);
   const hasAlert = Boolean(queueError || screenPlan?.status === "error");
   const isBusy = isGenerationActive || isQueueing || screenPlan?.status === "planning" || Boolean(pendingTurn);
@@ -1749,6 +1931,16 @@ export function ChatPanel({
     },
     [contextualSuggestionsEnabled, generationRun, generationRuns, messages, pendingTick, pendingTurn, queueError, screenPlan, screens],
   );
+
+  const hasLiveConversationWork = conversationHasLiveWork(conversationItems);
+  const showFooterBusy = isBusy && !hasLiveConversationWork;
+  const busyLabel = pendingTurn
+    ? "Reading your prompt..."
+    : screenPlan?.status === "planning"
+      ? "Planning screens..."
+      : isQueueing
+        ? "Queueing..."
+        : "Working...";
 
   let collapsedEyebrow = "Drawgle";
   let collapsedTitle = project.name;
@@ -1779,6 +1971,67 @@ export function ChatPanel({
       window.setTimeout(() => {
         setPendingTurn((current) => current?.id === turn.id ? null : current);
       }, 350);
+    }
+  };
+
+  const handleDismissRoadmapSuggestion = async (messageId: string) => {
+    const message = messages.find((entry) => entry.id === messageId);
+    if (!message || isRoadmapRecommendationDismissed(message.metadata)) return;
+
+    setDismissingSuggestionId(messageId);
+    try {
+      const supabase = createClient();
+      const recommendation = metadataRecord(message.metadata.roadmapRecommendation);
+      await updateProjectMessage(supabase, {
+        messageId,
+        metadata: {
+          ...message.metadata,
+          roadmapRecommendation: {
+            ...recommendation,
+            dismissed: true,
+          },
+        },
+      });
+    } catch (error) {
+      console.error("Failed to dismiss suggestion", error);
+    } finally {
+      setDismissingSuggestionId((current) => current === messageId ? null : current);
+    }
+  };
+
+  const handleDismissScreenState = async (proposalMessageId: string) => {
+    const message = messages.find((entry) => entry.id === proposalMessageId);
+    if (!message) return;
+    const proposal = readScreenStateProposal(message.metadata);
+    if (!proposal || proposal.status !== "pending") return;
+
+    setDismissingStateId(proposalMessageId);
+    try {
+      const supabase = createClient();
+      const existingStep = readAgentStep(message.metadata);
+      await updateProjectMessage(supabase, {
+        messageId: proposalMessageId,
+        metadata: {
+          ...message.metadata,
+          screenStateProposal: {
+            ...proposal,
+            status: "dismissed",
+          },
+          ...(existingStep
+            ? {
+              agentStep: {
+                ...existingStep,
+                status: "completed" as const,
+                detail: existingStep.detail || "State suggestion dismissed.",
+              },
+            }
+            : {}),
+        },
+      });
+    } catch (error) {
+      console.error("Failed to dismiss screen state", error);
+    } finally {
+      setDismissingStateId((current) => current === proposalMessageId ? null : current);
     }
   };
 
@@ -1917,7 +2170,9 @@ export function ChatPanel({
                           <ContextualScreenSuggestions
                             recommendation={item.recommendation}
                             disabled={retryDisabled || isBusy}
+                            dismissing={dismissingSuggestionId === item.messageId}
                             onBuild={onBuildRoadmapRecommendation}
+                            onDismiss={() => void handleDismissRoadmapSuggestion(item.messageId)}
                           />
                         </motion.div>
                       );
@@ -1933,9 +2188,11 @@ export function ChatPanel({
                             proposal={item.proposal}
                             stateProposal={item.stateProposal}
                             proposalMessageId={item.proposalMessageId}
+                            dismissingState={Boolean(item.proposalMessageId && dismissingStateId === item.proposalMessageId)}
                             onRetryGeneration={onRetryGeneration}
                             onApproveScreenPlan={onApproveScreenPlan}
                             onApproveScreenState={onApproveScreenState}
+                            onDismissScreenState={handleDismissScreenState}
                           />
                         </motion.div>
                       );
@@ -1949,38 +2206,14 @@ export function ChatPanel({
                   })
                 )}
               </AnimatePresence>
-              {isBusy && (
-                <div className="mx-1 px-4 transition-all animate-pulse">
-                  <div className="flex items-center gap-3">
-                    <AgentBall className="h-5 w-5 shrink-0" active />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">
-                        Drawgle is active
-                      </div>
-                      <div className="mt-1">
-                        <AgentThinkingIndicator
-                          label={
-                            pendingTurn
-                              ? "Reading your prompt and selected context..."
-                              : screenPlan?.status === "planning"
-                                ? "Drafting focused screen structures..."
-                                : isGenerationActive && generationRun
-                                  ? `Building: ${generationRun.status === "planning"
-                                    ? "Planning screens"
-                                    : "Rendering mobile UI on canvas"
-                                  }...`
-                                  : isQueueing
-                                    ? "Queueing generation job..."
-                                    : "Polishing style rules and visual details..."
-                          }
-                          className="text-slate-600 font-semibold"
-                          hideBall={true}
-                        />
-                      </div>
-                    </div>
-                  </div>
+              {showFooterBusy ? (
+                <div className="px-5 py-2">
+                  <AgentThinkingIndicator
+                    label={busyLabel}
+                    className="text-slate-500"
+                  />
                 </div>
-              )}
+              ) : null}
               <div ref={messagesEndRef} />
             </div>
             <div className="dg-chat-footer shrink-0 px-2 py-2">

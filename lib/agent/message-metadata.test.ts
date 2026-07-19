@@ -28,6 +28,13 @@ describe("screen plan proposal metadata", () => {
     const proposal = readScreenPlanProposal(baseProposal());
 
     expect(proposal?.screenPlan.name).toBe("Dashboard");
+    expect(proposal?.planningSeed).toEqual({
+      name: "Dashboard",
+      type: "root",
+      summary: "A dashboard screen",
+      prompt: "Create a dashboard",
+      roadmapStableKey: null,
+    });
     expect(proposal?.baseState).toBeNull();
     expect(proposal?.stateVariants).toEqual([]);
     expect(proposal?.selectedStateVariantIds).toEqual([]);

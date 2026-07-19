@@ -46,7 +46,8 @@ export type ShadowToken = {
 
 export type PlaygroundTokens = {
   colors: Record<ColorTokenKey, string>;
-  fontFamily: string;
+  headingFontFamily: string;
+  bodyFontFamily: string;
   type: Record<TypeTokenKey, TypeScaleToken>;
   spacing: Record<SpacingTokenKey, number>;
   layout: Record<LayoutTokenKey, number>;
@@ -74,7 +75,8 @@ export const DARK_PROJECT2_TOKENS: PlaygroundTokens = {
     borderDivider: "#262626",
     borderFocused: "#D4FF5E",
   },
-  fontFamily: "'Space Grotesk', 'JetBrains Mono', sans-serif",
+  headingFontFamily: "'Space Grotesk', sans-serif",
+  bodyFontFamily: "'JetBrains Mono', monospace",
   type: {
     navTitle: { size: 18, weight: 700, lineHeight: 24, sample: "Today" },
     screenTitle: { size: 28, weight: 800, lineHeight: 32, sample: "Leaderboard" },
@@ -247,7 +249,8 @@ export function tokenCssVariables(tokens: PlaygroundTokens) {
     "--dg-spacing-xs": `${tokens.spacing.xs}px`,
     "--dg-spacing-xxl": `${tokens.spacing.xxl}px`,
     "--dg-spacing-xxs": `${tokens.spacing.xxs}px`,
-    "--dg-typography-font-family": tokens.fontFamily,
+    "--dg-typography-heading-font-family": tokens.headingFontFamily,
+    "--dg-typography-body-font-family": tokens.bodyFontFamily,
     "--dg-type-nav-title-size": `${tokens.type.navTitle.size}px`,
     "--dg-type-nav-title-weight": tokens.type.navTitle.weight,
     "--dg-type-nav-title-line-height": `${tokens.type.navTitle.lineHeight}px`,

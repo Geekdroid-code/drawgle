@@ -360,6 +360,7 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       const textVal = node.children[0] as string;
       let textCode = `${getIndent()}Text("${textVal.replace(/"/g, '\\"')}")\n`;
       let fontStr = "";
+      const fontFamily = styles.fontFamilyRole === "heading" ? "AppTheme.headingFontFamily" : "AppTheme.bodyFontFamily";
       if (node.classes.includes("dg-type-screen-title")) fontStr = ".largeTitle";
       else if (node.classes.includes("dg-type-section-title")) fontStr = ".title2";
       else if (node.classes.includes("dg-type-card-title")) fontStr = ".headline";
@@ -367,10 +368,10 @@ export function transpileToSwiftUI(root: TranspileNode): string {
       else if (node.classes.includes("dg-type-caption")) fontStr = ".caption";
       else if (node.classes.includes("dg-type-metadata")) fontStr = ".caption2";
 
-      if (fontStr) {
+if (styles.fontSize !== undefined) {
+        textCode += `${getIndent()}    .font(.custom(${fontFamily}, size: ${styles.fontSize}))\n`;
+      } else if (fontStr) {
         textCode += `${getIndent()}    .font(${fontStr})\n`;
-      } else if (styles.fontSize !== undefined) {
-        textCode += `${getIndent()}    .font(.system(size: ${styles.fontSize}))\n`;
       }
       if (styles.fontWeight !== undefined) {
         if (styles.fontWeight === "heavy") textCode += `${getIndent()}    .fontWeight(.heavy)\n`;
