@@ -402,6 +402,7 @@ function resolveCssVariable(varName: string, varMap?: Map<string, string>): stri
   if (varKey === "--dg-mobile-layout-section-gap") return "24px";
   if (varKey === "--dg-mobile-layout-element-gap") return "16px";
   if (varKey === "--dg-radii-app") return "18px";
+  if (varKey === "--dg-radii-inner") return "12px";
   if (varKey === "--dg-radii-pill") return "9999px";
   if (varKey === "--dg-sizing-bottom-nav-height") return "80px";
   if (varKey === "--dg-mobile-layout-safe-area-top") return "16px";
@@ -565,6 +566,7 @@ export function getStyleTokenKey(varName: string): string | undefined {
     case "--dg-color-border-subtle": return "borderDivider";
     case "--dg-color-border-strong": return "borderDivider";
     case "--dg-radii-app": return "borderRadiusApp";
+    case "--dg-radii-inner": return "borderRadiusInner";
     case "--dg-radii-pill": return "borderRadiusPill";
     case "--dg-mobile-layout-screen-margin": return "screenPadding";
     case "--dg-mobile-layout-section-gap": return "sectionGap";
@@ -1286,6 +1288,10 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>, c
     if (c === "dg-radius-app") {
       borderRadius = parsePixel(varMap.get("--dg-radii-app") || "18px");
       borderRadiusToken = "borderRadiusApp";
+    }
+    if (c === "dg-radius-inner") {
+      borderRadius = parsePixel(varMap.get("--dg-radii-inner") || "12px");
+      borderRadiusToken = "borderRadiusInner";
     }
     if (c === "dg-radius-pill") {
       borderRadius = parsePixel(varMap.get("--dg-radii-pill") || "9999px");
@@ -2188,6 +2194,7 @@ export function generateTokenHeaderComment(designTokens?: DesignTokens | null): 
 
   const radii = {
     app: map.get("--dg-radii-app") || "18px",
+    inner: map.get("--dg-radii-inner") || "12px",
     pill: map.get("--dg-radii-pill") || "9999px",
   };
 
@@ -2197,7 +2204,7 @@ export function generateTokenHeaderComment(designTokens?: DesignTokens | null): 
     elementGap: map.get("--dg-mobile-layout-element-gap") || "16px",
   };
 
-  return {
+  const outputs = {
     swift: `//\n//  DesignTokens.swift\n//  Drawgle Auto-generated\n//\n\nimport SwiftUI\n\nstruct AppTheme {\n    static let backgroundPrimary = Color(hex: "${colors.bgPrimary}")\n    static let backgroundSecondary = Color(hex: "${colors.bgSecondary}")\n    static let surfaceCard = Color(hex: "${colors.surfaceCard}")\n    static let actionPrimary = Color(hex: "${colors.actionPrimary}")\n    static let actionOnPrimary = Color(hex: "${colors.actionOnPrimary}")\n    static let textHigh = Color(hex: "${colors.textHigh}")\n    static let textMedium = Color(hex: "${colors.textMedium}")\n    static let textLow = Color(hex: "${colors.textLow}")\n    static let borderDivider = Color(hex: "${colors.borderDivider}")\n    \n    static let borderRadiusApp: CGFloat = ${parseFloat(radii.app)}\n    static let borderRadiusPill: CGFloat = 9999.0\n    \n    static let screenPadding: CGFloat = ${parseFloat(layout.screenPadding)}\n    static let sectionGap: CGFloat = ${parseFloat(layout.sectionGap)}\n    static let elementGap: CGFloat = ${parseFloat(layout.elementGap)}\n}\n\nextension Color {\n    init(hex: String) {\n        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)\n        var int: UInt64 = 0\n        Scanner(string: hex).scanHexInt64(&int)\n        let a, r, g, b: UInt64\n        switch hex.count {\n        case 3: // RGB (12-bit)\n            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)\n        case 6: // RGB (24-bit)\n            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)\n        case 8: // ARGB (32-bit)\n            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)\n        default:\n            (a, r, g, b) = (255, 0, 0, 0)\n        }\n        self.init(\n            .sRGB,\n            red: Double(r) / 255,\n            green: Double(g) / 255,\n            blue:  Double(b) / 255,\n            opacity: Double(a) / 255\n        )\n    }\n}\n`,
 
     compose: `/*\n * AppTheme.kt\n * Drawgle Auto-generated\n */\n\npackage com.drawgle.theme\n\nimport androidx.compose.ui.graphics.Color\nimport androidx.compose.ui.unit.dp\n\nobject AppTheme {\n    val BackgroundPrimary = Color(0xFF${cleanHexColor(colors.bgPrimary)})\n    val BackgroundSecondary = Color(0xFF${cleanHexColor(colors.bgSecondary)})\n    val SurfaceCard = Color(0xFF${cleanHexColor(colors.surfaceCard)})\n    val ActionPrimary = Color(0xFF${cleanHexColor(colors.actionPrimary)})\n    val ActionOnPrimary = Color(0xFF${cleanHexColor(colors.actionOnPrimary)})\n    val TextHigh = Color(0xFF${cleanHexColor(colors.textHigh)})\n    val TextMedium = Color(0xFF${cleanHexColor(colors.textMedium)})\n    val TextLow = Color(0xFF${cleanHexColor(colors.textLow)})\n    val BorderDivider = Color(0xFF${cleanHexColor(colors.borderDivider)})\n    \n    val BorderRadiusApp = ${parseFloat(radii.app)}.dp\n    val BorderRadiusPill = 9999.dp\n    \n    val ScreenPadding = ${parseFloat(layout.screenPadding)}.dp\n    val SectionGap = ${parseFloat(layout.sectionGap)}.dp\n    val ElementGap = ${parseFloat(layout.elementGap)}.dp\n}\n`,
@@ -2205,6 +2212,25 @@ export function generateTokenHeaderComment(designTokens?: DesignTokens | null): 
     rn: `//\n// AppTheme.js\n// Drawgle Auto-generated\n//\n\nexport const AppTheme = {\n  colors: {\n    backgroundPrimary: '${colors.bgPrimary}',\n    backgroundSecondary: '${colors.bgSecondary}',\n    surfaceCard: '${colors.surfaceCard}',\n    actionPrimary: '${colors.actionPrimary}',\n    actionOnPrimary: '${colors.actionOnPrimary}',\n    textHigh: '${colors.textHigh}',\n    textMedium: '${colors.textMedium}',\n    textLow: '${colors.textLow}',\n    borderDivider: '${colors.borderDivider}',\n  },\n  radii: {\n    app: ${parseFloat(radii.app)},\n    pill: 9999,\n  },\n  layout: {\n    screenPadding: ${parseFloat(layout.screenPadding)},\n    sectionGap: ${parseFloat(layout.sectionGap)},\n    elementGap: ${parseFloat(layout.elementGap)},\n  }\n};\n`,
 
     flutter: `//\n// app_theme.dart\n// Drawgle Auto-generated\n//\n\nimport 'package:flutter/material.dart';\n\nclass AppTheme {\n  static const Color backgroundPrimary = Color(0xFF${cleanHexColor(colors.bgPrimary)});\n  static const Color backgroundSecondary = Color(0xFF${cleanHexColor(colors.bgSecondary)});\n  static const Color surfaceCard = Color(0xFF${cleanHexColor(colors.surfaceCard)});\n  static const Color actionPrimary = Color(0xFF${cleanHexColor(colors.actionPrimary)});\n  static const Color actionOnPrimary = Color(0xFF${cleanHexColor(colors.actionOnPrimary)});\n  static const Color textHigh = Color(0xFF${cleanHexColor(colors.textHigh)});\n  static const Color textMedium = Color(0xFF${cleanHexColor(colors.textMedium)});\n  static const Color textLow = Color(0xFF${cleanHexColor(colors.textLow)});\n  static const Color borderDivider = Color(0xFF${cleanHexColor(colors.borderDivider)});\n  \n  static const double borderRadiusApp = ${parseFloat(radii.app)};\n  static const double borderRadiusPill = 9999.0;\n  \n  static const double screenPadding = ${parseFloat(layout.screenPadding)};\n  static const double sectionGap = ${parseFloat(layout.sectionGap)};\n  static const double elementGap = ${parseFloat(layout.elementGap)};\n}\n`
+  };
+
+  return {
+    swift: outputs.swift.replace(
+      "    static let borderRadiusPill: CGFloat = 9999.0",
+      `    static let borderRadiusInner: CGFloat = ${parseFloat(radii.inner)}\n    static let borderRadiusPill: CGFloat = 9999.0`,
+    ),
+    compose: outputs.compose.replace(
+      "    val BorderRadiusPill = 9999.dp",
+      `    val BorderRadiusInner = ${parseFloat(radii.inner)}.dp\n    val BorderRadiusPill = 9999.dp`,
+    ),
+    rn: outputs.rn.replace(
+      "    pill: 9999,",
+      `    inner: ${parseFloat(radii.inner)},\n    pill: 9999,`,
+    ),
+    flutter: outputs.flutter.replace(
+      "  static const double borderRadiusPill = 9999.0;",
+      `  static const double borderRadiusInner = ${parseFloat(radii.inner)};\n  static const double borderRadiusPill = 9999.0;`,
+    ),
   };
 }
 
@@ -2232,6 +2258,9 @@ function getCssVarNameFromToken(token: string): string | undefined {
     case "textMedium": return "--dg-color-text-medium-emphasis";
     case "textLow": return "--dg-color-text-low-emphasis";
     case "borderDivider": return "--dg-color-border-divider";
+    case "borderRadiusApp": return "--dg-radii-app";
+    case "borderRadiusInner": return "--dg-radii-inner";
+    case "borderRadiusPill": return "--dg-radii-pill";
     default: return undefined;
   }
 }

@@ -29,6 +29,7 @@ import {
   hasGenerationCompleteSentinel,
   hydrateScreenAssetSlots,
   isBlockingScreenHealthFailure,
+  normalizeSharedNavigationClearanceHtml,
   normalizeStaticDrawgleHtml,
   screenStatusForHealth,
   sanitizeStaticDrawgleHtml,
@@ -214,6 +215,10 @@ type GenerationAttemptDiagnostics = {
   assetPlaceholderUseCount: number;
   assetOutcomes: Record<string, unknown>;
   assetSanitizationWarnings: string[];
+  navigationClearanceOwner: string | null;
+  navigationClearanceLegacyPaddingReplacedCount: number;
+  navigationClearanceSpacerRemovedCount: number;
+  navigationClearanceAmbiguousOwnerCount: number;
   htmlNormalized: boolean;
   htmlParseErrors: string[];
 };
@@ -285,6 +290,10 @@ const buildAttemptDiagnostics = ({
     assetPlaceholderUseCount: 0,
     assetOutcomes: {},
     assetSanitizationWarnings: [],
+    navigationClearanceOwner: null,
+    navigationClearanceLegacyPaddingReplacedCount: 0,
+    navigationClearanceSpacerRemovedCount: 0,
+    navigationClearanceAmbiguousOwnerCount: 0,
     htmlNormalized: false,
     htmlParseErrors: [],
   };
@@ -1350,16 +1359,27 @@ export const buildScreenTask = task({
       const sanitizedCode = sanitizeScreenCodeForSharedNavigation(sourceCode, payload.screenPlan, {
         projectNavigationEnabled: Boolean(payload.navigationPlan?.enabled),
       });
-      const tokenizedCode = tokenizeStaticDrawgleHtml(sanitizedCode, payload.designTokens).code;
+      const clearanceNormalization = normalizeSharedNavigationClearanceHtml({
+        code: sanitizedCode,
+        enabled: Boolean(
+          payload.navigationPlan?.enabled &&
+          (payload.screenPlan.chromePolicy?.showPrimaryNavigation || payload.screenPlan.navigationItemId),
+        ),
+      });
+      const tokenizedCode = tokenizeStaticDrawgleHtml(clearanceNormalization.code, payload.designTokens).code;
       const code = ensureDrawgleIds(tokenizedCode).code;
       const tokenDrift = detectTokenDrift(code, { scope: "screen" });
-      return { code, tokenDrift };
+      return { code, tokenDrift, clearanceDiagnostics: clearanceNormalization.diagnostics };
     };
 
     let finalized = finalizeGeneratedCode(extractedCode);
     attempts[attempts.length - 1] = {
       ...attempts[attempts.length - 1],
       tokenDriftWarnings: finalized.tokenDrift.warnings,
+      navigationClearanceOwner: finalized.clearanceDiagnostics.ownerSelector,
+      navigationClearanceLegacyPaddingReplacedCount: finalized.clearanceDiagnostics.legacyPaddingReplacedCount,
+      navigationClearanceSpacerRemovedCount: finalized.clearanceDiagnostics.spacerRemovedCount,
+      navigationClearanceAmbiguousOwnerCount: finalized.clearanceDiagnostics.ambiguousOwnerCount,
     };
 
     if (finalized.tokenDrift.hasSevereDrift) {

@@ -12,6 +12,8 @@ import {
   transpileToSwiftUI,
 } from "@/lib/mobile-transpiler";
 import { normalizeDesignTokens } from "@/lib/design-tokens";
+import { normalizeSharedNavigationClearanceMarkup } from "@/lib/navigation-clearance";
+import { resolveProjectNavigationShell } from "@/lib/project-navigation";
 import { buildDrawgleTokenCss, buildGoogleFontAssetLinks } from "@/lib/token-runtime";
 import type {
   DesignTokens,
@@ -106,10 +108,10 @@ export function resolveScreenNavigationCode(
   screen: ScreenData,
   projectNavigation?: ProjectNavigationData | null,
 ) {
-  if (!projectNavigation?.shellCode || !screen.chromePolicy?.showPrimaryNavigation) {
+  if (!screen.chromePolicy?.showPrimaryNavigation) {
     return "";
   }
-  return projectNavigation.shellCode;
+  return resolveProjectNavigationShell(projectNavigation);
 }
 
 const NAV_SPACER_PATTERN = /<!--\s*(?:floating\s+dock|bottom\s+nav|navigation)[\s\S]*?placeholder[\s\S]*?-->\s*<div\b[^>]*(?:h-\[[^\]]*(?:8[0-9]|9[0-9]|1[0-9]{2})px\]|height\s*:\s*(?:8[0-9]|9[0-9]|1[0-9]{2})px)[^>]*>\s*<\/div>/gi;
@@ -142,8 +144,12 @@ const isLikelySharedNavigationElement = (element: Element) => {
   return looksFixedBottom && looksNavigation;
 };
 
-const stripSharedNavigationMarkup = (code: string) => {
-  const withoutKnownSpacer = code.replace(NAV_SPACER_PATTERN, "");
+const stripSharedNavigationMarkup = (code: string, navigationActive = true) => {
+  const clearanceNormalized = normalizeSharedNavigationClearanceMarkup({
+    code,
+    enabled: navigationActive,
+  }).code;
+  const withoutKnownSpacer = clearanceNormalized.replace(NAV_SPACER_PATTERN, "");
 
   if (typeof DOMParser !== "undefined") {
     const parser = new DOMParser();
@@ -199,7 +205,7 @@ export function buildCompiledExportSnapshot({
   // used by the canvas. Do not rewrite classes here; class compilation is lossy
   // for arbitrary Tailwind utilities and can drift from the preview.
   const isNavActive = !!navigationCode;
-  const screenCode = isNavActive ? stripSharedNavigationMarkup(screen.code) : screen.code;
+  const screenCode = isNavActive ? stripSharedNavigationMarkup(screen.code, true) : screen.code;
 
   const cleanScreen = sanitizeHtmlForExport(screenCode);
   const cleanNavigation = sanitizeHtmlForExport(navigationCode);
@@ -483,8 +489,9 @@ No root instruction files are included or overwritten.
     ".claude/skills/drawgle-ui-handoff/SKILL.md": AGENT_SKILL,
   };
 
-  if (context.projectNavigation?.shellCode?.trim()) {
-    files[".drawgle/navigation.html"] = sanitizeHtmlForExport(context.projectNavigation.shellCode);
+  const resolvedProjectNavigationShell = resolveProjectNavigationShell(context.projectNavigation);
+  if (resolvedProjectNavigationShell.trim()) {
+    files[".drawgle/navigation.html"] = sanitizeHtmlForExport(resolvedProjectNavigationShell);
   }
 
   for (const [index, screen] of context.screens.entries()) {
@@ -561,7 +568,7 @@ export function buildNativeScaffoldFiles({
   try {
     const exportTokenCss = tokenCss?.trim() || buildDrawgleTokenCss(designTokens);
     const screenAst = parseScaffoldTree({
-      html: stripSharedNavigationMarkup(screen.code),
+      html: stripSharedNavigationMarkup(screen.code, Boolean(navigationCode)),
       designTokens,
       tokenCss: exportTokenCss,
     });

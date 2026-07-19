@@ -126,8 +126,10 @@ const buildPublicDesignTokens = (designTokens?: DesignTokens | null): PublicToke
 
   const rounded = compactRecord([
     ["sm", "8px"],
-    ["md", "12px"],
+    ["md", radii?.inner ?? "12px"],
     ["lg", radii?.app],
+    ["outer", radii?.app],
+    ["inner", radii?.inner],
     ["full", radii?.pill],
   ]);
 

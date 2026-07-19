@@ -25,7 +25,7 @@ const designTokens: DesignTokens = {
     },
     typography: { font_family: "Inter" },
     mobile_layout: { screen_margin: "20px", section_gap: "24px", element_gap: "12px" },
-    radii: { app: "22px", pill: "9999px" },
+    radii: { app: "22px", inner: "15px", pill: "9999px" },
   },
 };
 
@@ -215,6 +215,56 @@ describe("export pipeline", () => {
     expect(homeHtml).not.toContain("Insights Tab");
   });
 
+  it("regenerates V2 navigation and normalizes legacy clearance in previews and exports", () => {
+    const v2Navigation: ProjectNavigationData = {
+      ...projectNavigation,
+      plan: {
+        ...projectNavigation.plan,
+        version: 2,
+        decision: "project-native",
+        evidence: { source: "product-architecture", reason: "Peer finance destinations" },
+        design: {
+          anatomy: "floating-dock",
+          width: "content",
+          labels: "always",
+          activeTreatment: "icon-fill",
+          surface: "solid",
+          radiusPx: 31,
+          safeAreaOffsetPx: 12,
+          itemGapPx: 4,
+          iconSizePx: 20,
+          border: true,
+          elevation: "low",
+          centerActionItemId: null,
+        },
+      },
+      shellCode: "<nav>STALE V2 SHELL</nav>",
+    };
+    const legacyScreen: ScreenData = {
+      ...screens[0],
+      code: [
+        '<main class="overflow-y-auto pb-[calc(var(--dg-mobile-layout-safe-area-bottom)+112px)]">',
+        "<section>Home balance</section>",
+        '<div class="h-[calc(var(--dg-mobile-layout-safe-area-bottom)+96px)]" aria-label="bottom navigation spacer"></div>',
+        "</main>",
+      ].join(""),
+    };
+    const files = buildAgentPackFiles({
+      context: {
+        ...context,
+        screens: [legacyScreen],
+        projectNavigation: v2Navigation,
+      },
+    });
+
+    expect(files[".drawgle/navigation.html"]).not.toContain("STALE V2 SHELL");
+    expect(files[".drawgle/navigation.html"]).toContain("--dg-navigation-visual-height");
+    expect(files[".drawgle/navigation.html"]).toContain("var(--dg-radii-inner");
+    expect(files[".drawgle/screens/home.html"]).toContain("dg-shared-nav-clearance");
+    expect(files[".drawgle/screens/home.html"]).not.toContain("112px");
+    expect(files[".drawgle/screens/home.html"]).not.toContain("96px");
+  });
+
   it("creates native scaffold ZIPs with separate React Native screen, nav, shell, and theme files", () => {
     const result = buildNativeScaffoldZip({
       screen: screens[0],
@@ -231,6 +281,7 @@ describe("export pipeline", () => {
     expect(zip["src/navigation/AppShell.tsx"]).toBeTruthy();
     expect(strFromU8(zip["src/screens/HomeScreen.tsx"])).not.toContain("DrawgleBottomNavigation");
     expect(strFromU8(zip["src/navigation/AppShell.tsx"])).toContain("activeTab");
+    expect(strFromU8(zip["src/theme/AppTheme.ts"])).toContain("inner:");
   });
 
   it("creates native scaffold ZIPs with separate Flutter screen, nav, shell, and theme files", () => {
@@ -249,6 +300,7 @@ describe("export pipeline", () => {
     expect(zip["lib/navigation/app_shell.dart"]).toBeTruthy();
     expect(strFromU8(zip["lib/screens/home_screen.dart"])).not.toContain("DrawgleBottomNavigation");
     expect(strFromU8(zip["lib/navigation/app_shell.dart"])).toContain("activeTab");
+    expect(strFromU8(zip["lib/theme/app_theme.dart"])).toContain("borderRadiusInner");
   });
   it("exports generated and planned destination metadata explicitly", () => {
     const files = buildAgentPackFiles({

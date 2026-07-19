@@ -33,13 +33,13 @@ export const phase2ComparisonPages: ComparisonPageData[] = [
       productUrl: "https://www.magicpath.ai/",
     },
     metadata: {
-      title: "Best MagicPath Alternative (2026): Drawgle vs MagicPath",
+      title: "Best MagicPath Alternative for AI Mobile UI Generation in 2026 | Drawgle",
       description:
         "Compare Drawgle and MagicPath for mobile UI generation, React code export, Figma workflows, AI-agent collaboration, pricing, and developer handoff.",
       publishedDate: "2026-07-17",
       modifiedDate: "2026-07-17",
     },
-    heroTitle: "Drawgle vs MagicPath: Mobile UI System or Collaborative Agent Canvas?",
+    heroTitle: "Best MagicPath alternative for AI Mobile UI Generation",
     sonicBoomSummary:
       "MagicPath is the stronger general-purpose choice for editable Figma roundtrips, multiplayer agent work, and real React source; Drawgle is the narrower choice for mobile-only generation and framework-neutral implementation context.",
     researchDisclosure: publicSourceDisclosure,
@@ -386,13 +386,13 @@ export const phase2ComparisonPages: ComparisonPageData[] = [
       productUrl: "https://tapui.app/",
     },
     metadata: {
-      title: "Best TapUI Alternative (2026): Drawgle vs TapUI",
+      title: "Best TapUI Alternative for AI Mobile App UI Design in 2026 | Drawgle",
       description:
         "Compare Drawgle and TapUI for AI mobile screen generation, pricing, editing, Figma claims, code handoff, screenshot recreation, and product workflow fit.",
       publishedDate: "2026-07-17",
       modifiedDate: "2026-07-17",
     },
-    heroTitle: "Drawgle vs TapUI: Which AI Mobile UI Generator Fits the Work After Ideation?",
+    heroTitle: "Best TapUI Alternative for AI Mobile App UI Design",
     sonicBoomSummary:
       "TapUI is an accessible prompt-to-mobile-screen generator with a free tier and high generation allowances; Drawgle is the stronger fit when screenshots, shared tokens, selected edits, and explicit developer handoff matter.",
     researchDisclosure:
@@ -734,13 +734,13 @@ export const phase2ComparisonPages: ComparisonPageData[] = [
       productUrl: "https://www.bravostudio.app/",
     },
     metadata: {
-      title: "Best Bravo Studio Alternative (2026): Drawgle vs Bravo",
-      description:
+          title: "Best Bravo Studio Alternative for AI Mobile App UI Design in 2026 | Drawgle",
+          description:
         "Compare Drawgle and Bravo Studio for Figma-to-app publishing, Bravo MCP React Native source, backend features, mobile UI generation, pricing, and code ownership.",
       publishedDate: "2026-07-17",
       modifiedDate: "2026-07-17",
     },
-    heroTitle: "Drawgle vs Bravo Studio: Generate the Mobile UI or Publish the App?",
+    heroTitle: "Best Bravo Studio Alternative for AI Mobile App UI Design",
     sonicBoomSummary:
       "Bravo Studio is the stronger choice when a finished Figma design must become a working, publishable app; Drawgle is the stronger choice when the team still needs to generate, rebuild, and systematize the mobile UI before implementation.",
     researchDisclosure: publicSourceDisclosure,

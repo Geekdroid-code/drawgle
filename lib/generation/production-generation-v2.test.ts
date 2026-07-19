@@ -7,7 +7,7 @@ import { normalizeReferenceAnalysis, parsePromptScreenIntent, resolveGenerationS
 import { shouldAttachReferenceImage } from "@/lib/generation/reference-image";
 import { screenBuildOutputTokenBudget } from "@/lib/generation/screen-budget";
 import { renderDeterministicNavigationShell } from "@/lib/project-navigation";
-import { buildDrawgleTokenCss } from "@/lib/token-runtime";
+import { buildDrawgleTokenCss, tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
 import type { NavigationPlan, PromptImagePayload } from "@/lib/types";
 
 const image: PromptImagePayload = { data: "dGVzdA==", mimeType: "image/png" };
@@ -21,6 +21,36 @@ describe("production generation V2 contracts", () => {
   it("uses a 16px content rail across every built-in design style", () => {
     expect(DESIGN_STYLE_PACKS.every((style) => style.tokenSeed.tokens?.mobile_layout?.screen_margin === "16px")).toBe(true);
     expect(buildDrawgleTokenCss(null)).toContain("--screen-margin: var(--dg-mobile-layout-screen-margin, 16px)");
+  });
+  it("derives and validates a backward-compatible inner radius hierarchy", () => {
+    const legacy = normalizeDesignTokens({
+      tokens: { radii: { app: "24px", pill: "9999px" } },
+    });
+    expect(legacy.tokens?.radii).toMatchObject({ app: "24px", inner: "16px", pill: "9999px" });
+
+    const invalid = normalizeDesignTokens({
+      tokens: { radii: { app: "18px", inner: "18px", pill: "9999px" } },
+    });
+    expect(invalid.tokens?.radii?.inner).toBe("12px");
+
+    const sharp = normalizeDesignTokens({
+      tokens: { radii: { app: "0px", inner: "0px", pill: "9999px" } },
+    });
+    expect(sharp.tokens?.radii).toMatchObject({ app: "0px", inner: "0px" });
+  });
+  it("tokenizes equal numeric spacing and radius values by CSS property role", () => {
+    const tokens = normalizeDesignTokens({
+      tokens: {
+        spacing: { md: "16px" },
+        radii: { app: "24px", inner: "16px", pill: "9999px" },
+      },
+    });
+    const result = tokenizeStaticDrawgleHtml(
+      '<div class="rounded-[16px] p-[16px]"></div>',
+      tokens,
+    ).code;
+    expect(result).toContain("rounded-[var(--dg-radii-inner)]");
+    expect(result).toContain("p-[var(--dg-spacing-md)]");
   });
   it("adds enumerated screen groups instead of trusting the first number", () => {
     const scope = parsePromptScreenIntent("Must have 2 step thoughtfully planned onboarding screen, one login/signup screen and 1 home screen.");

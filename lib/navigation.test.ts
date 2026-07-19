@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { applyDeleteElement, applyDuplicateElement } from "@/lib/drawgle-dom";
 import { normalizeReferenceAnalysis } from "@/lib/generation/scope-contract";
+import { normalizeSharedNavigationClearanceHtml } from "@/lib/generation/screen-quality";
 import { resolveScreenChromePolicy } from "@/lib/navigation";
 import {
   applyReferenceNavigationRolesToScreens,
@@ -235,7 +236,61 @@ describe("Production Navigation V2", () => {
       expect(validateNavigationShell(shell, plan)).toBe(true);
       expect(shell).toContain('data-navigation-anatomy="' + anatomy + '"');
       expect(shell.match(/data-nav-item-id=/g)).toHaveLength(count);
+      expect(shell).toContain("--dg-navigation-visual-height:clamp(64px");
+      expect(shell).toContain("border-radius:var(--dg-radii-app,");
+      expect(shell).toContain("border-radius:var(--dg-radii-inner,");
+      expect(shell).toContain("border-radius:var(--dg-radii-pill,9999px)");
+      expect(shell).toContain(`--dg-navigation-overlap-buffer:${anatomy === "center-action-dock" ? 16 : 8}px`);
     }
+  });
+
+  it("repairs the duplicate clearance structure from project 66e193d9 without exposing a second band", () => {
+    const source = [
+      '<div class="min-h-screen dg-bg-primary">',
+      '  <section class="bg-white overflow-y-auto pb-[calc(var(--dg-sizing-bottom-nav-height)+24px)]"><div>Transactions</div></section>',
+      '  <!-- Bottom navigation clearance spacer -->',
+      '  <div class="h-[var(--dg-sizing-bottom-nav-height)] shrink-0"></div>',
+      "</div>",
+    ].join("\n");
+    const normalized = normalizeSharedNavigationClearanceHtml({ code: source, enabled: true });
+
+    expect(normalized.diagnostics.spacerRemovedCount).toBe(1);
+    expect(normalized.diagnostics.legacyPaddingReplacedCount).toBe(1);
+    expect(normalized.code).toContain('class="bg-white overflow-y-auto dg-shared-nav-clearance"');
+    expect(normalized.code).toContain('data-drawgle-nav-clearance-owner="true"');
+    expect(normalized.code).not.toContain("h-[var(--dg-sizing-bottom-nav-height)]");
+    expect(normalized.code).not.toContain("pb-[calc(");
+    expect(normalized.code.match(/data-drawgle-nav-clearance-owner="true"/g)).toHaveLength(1);
+
+    const normalizedAgain = normalizeSharedNavigationClearanceHtml({
+      code: normalized.code,
+      enabled: true,
+    });
+    expect(normalizedAgain.code).toBe(normalized.code);
+    expect(normalizedAgain.diagnostics.changed).toBe(false);
+  });
+
+  it("repairs the safe-area spacer structure from project 894fe207 while preserving real content", () => {
+    const source = [
+      '<main class="min-h-screen overflow-y-auto pb-[calc(var(--dg-mobile-layout-safe-area-bottom)+112px)]">',
+      "  <section>Payment history</section>",
+      '  <div class="h-[calc(var(--dg-mobile-layout-safe-area-bottom)+96px)]" aria-label="bottom navigation spacer"></div>',
+      '  <div class="h-8" data-purpose="decorative breathing room"></div>',
+      "</main>",
+    ].join("\n");
+    const normalized = normalizeSharedNavigationClearanceHtml({ code: source, enabled: true });
+
+    expect(normalized.code).toContain("Payment history");
+    expect(normalized.code).toContain('class="h-8"');
+    expect(normalized.code).not.toContain("112px");
+    expect(normalized.code).not.toContain("96px");
+    expect(normalized.code.match(/dg-shared-nav-clearance/g)).toHaveLength(1);
+    expect(normalized.diagnostics.spacerRemovedCount).toBe(1);
+  });
+
+  it("leaves screens without shared navigation unchanged", () => {
+    const source = '<main class="pb-[calc(var(--dg-mobile-layout-safe-area-bottom)+112px)]">Detail</main>';
+    expect(normalizeSharedNavigationClearanceHtml({ code: source, enabled: false }).code).toBe(source);
   });
 
   it("removes a high-confidence dock but preserves a single contextual CTA", () => {

@@ -33,13 +33,13 @@ export const phase3ComparisonPages: ComparisonPageData[] = [
       productUrl: "https://aaply.app/",
     },
     metadata: {
-      title: "Best Aaply Alternative (2026): Drawgle vs Aaply",
+      title: "Best Aaply Alternative for Mobile UX Planning and AI Mobile UI Generation in 2026 | Drawgle",
       description:
         "Compare Drawgle and Aaply for mobile wireframing, UX flow planning, templates, Figma export, AI screen generation, pricing, and developer handoff.",
       publishedDate: "2026-07-17",
       modifiedDate: "2026-07-17",
     },
-    heroTitle: "Drawgle vs Aaply: Plan the Mobile Journey or Generate the Final UI?",
+    heroTitle: "Best Aaply Alternative for Mobile UX Planning and AI Mobile UI Generation",
     sonicBoomSummary:
       "Aaply is the stronger pre-design tool for low-fidelity mobile flows and Figma handoff; Drawgle is the stronger next-stage tool for high-fidelity generation, screenshot rebuilding, shared visual systems, and implementation context.",
     researchDisclosure: publicSourceDisclosure,
@@ -374,13 +374,13 @@ export const phase3ComparisonPages: ComparisonPageData[] = [
       productUrl: "https://penpot.app/",
     },
     metadata: {
-      title: "Best Penpot Alternative (2026): Drawgle vs Penpot",
+      title: "Best Penpot Alternative for AI Mobile UI Generation in 2026 | Drawgle",
       description:
         "Compare Drawgle and Penpot for AI mobile UI generation, open-source design, self-hosting, design systems, developer inspect, MCP workflows, pricing, and collaboration.",
       publishedDate: "2026-07-17",
       modifiedDate: "2026-07-17",
     },
-    heroTitle: "Drawgle vs Penpot: Specialized AI Mobile UI or Open-Source Design Platform?",
+    heroTitle: "Best Penpot Alternative for AI Mobile UI Generation",
     sonicBoomSummary:
       "Penpot is the stronger long-term design platform for open-source ownership, self-hosting, collaboration, design systems, and inspect/MCP workflows; Drawgle is the faster specialist for generating mobile screens from prompts, screenshots, and references.",
     researchDisclosure: publicSourceDisclosure,
@@ -745,13 +745,13 @@ export const phase3ComparisonPages: ComparisonPageData[] = [
       productUrl: "https://proto.io/",
     },
     metadata: {
-      title: "Best Proto.io Alternative (2026): Drawgle vs Proto.io",
+      title: "Best Proto.io Alternative for AI Mobile UI Generation in 2026 | Drawgle",
       description:
         "Compare Drawgle and Proto.io for AI mobile UI generation, advanced prototyping, animations, gestures, user testing, HTML export, pricing, and developer handoff.",
       publishedDate: "2026-07-17",
       modifiedDate: "2026-07-17",
     },
-    heroTitle: "Drawgle vs Proto.io: Generate Mobile UI or Prototype Every Interaction?",
+    heroTitle: "Best Proto.io Alternative for AI Mobile UI Generation",
     sonicBoomSummary:
       "Proto.io is the stronger choice for high-fidelity interactions, gestures, animation, stakeholder review, and user testing; Drawgle is the stronger choice for generating the screen system itself and carrying it into implementation.",
     researchDisclosure: publicSourceDisclosure,
@@ -1112,13 +1112,13 @@ export const phase3ComparisonPages: ComparisonPageData[] = [
       productUrl: "https://marvelapp.com/",
     },
     metadata: {
-      title: "Best Marvel Alternative (2026): Drawgle vs Marvel",
+      title: "Best Marvel Alternative for AI Mobile UI Generation in 2026 | Drawgle",
       description:
         "Compare Drawgle and Marvel for AI mobile UI generation, prototyping, user testing, developer handoff, collaboration, device support, pricing, and workflow fit.",
       publishedDate: "2026-07-17",
       modifiedDate: "2026-07-17",
     },
-    heroTitle: "Drawgle vs Marvel: AI Mobile UI Generation or Collaborative Prototyping?",
+    heroTitle: "Best Marvel Alternative for AI Mobile UI Generation",
     sonicBoomSummary:
       "Marvel is the stronger collaborative platform for design, interactive prototypes, recorded user testing, stakeholder feedback, and conventional developer handoff; Drawgle is the stronger specialist for generating or rebuilding the mobile screens themselves.",
     researchDisclosure: publicSourceDisclosure,

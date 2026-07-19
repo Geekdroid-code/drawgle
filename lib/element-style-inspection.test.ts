@@ -22,6 +22,12 @@ const tokenRefs: DrawgleTokenReferenceLike[] = [
     value: "22px",
   },
   {
+    name: "--dg-radii-inner",
+    path: "radii.inner",
+    label: "Inner radius",
+    value: "15px",
+  },
+  {
     name: "--dg-gradients-action-primary",
     path: "gradients.action_primary",
     label: "Gradients / Action Primary",
@@ -80,5 +86,17 @@ describe("element style inspection", () => {
       family: "transform",
       className: "[transform:translateX(10px)]",
     });
+  });
+
+  it("recognizes the inner radius utility as a live token binding", () => {
+    const resolved = resolveStyleInspection({
+      tagName: "button",
+      classList: ["dg-radius-inner"],
+      inlineStyle: {},
+      computedStyle: { "border-radius": "15px" },
+    }, tokenRefs);
+    const radius = resolved?.properties.find((property) => property.property === "border-radius");
+    expect(radius?.tokenName).toBe("--dg-radii-inner");
+    expect(radius?.source).toBe("token");
   });
 });

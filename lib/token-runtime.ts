@@ -245,6 +245,7 @@ const buildCompatibilityAliasVariables = () => `
   --tint-purple: var(--dg-color-functional-tints-purple-base, #F9F5FF);
   --surface-muted: var(--dg-color-background-secondary, #F5F5F5);
   --radius: var(--dg-radii-app, 16px);
+  --radius-inner: var(--dg-radii-inner, 12px);
   --radius-pill: var(--dg-radii-pill, 9999px);
   --screen-margin: var(--dg-mobile-layout-screen-margin, 16px);
   --section-gap: var(--dg-mobile-layout-section-gap, 24px);
@@ -312,7 +313,11 @@ ${buildCompatibilityAliasVariables()}
 .dg-border-divider { border-color: var(--dg-color-border-divider); }
 .dg-border-focused { border-color: var(--dg-color-border-focused); }
 .dg-radius-app { border-radius: var(--dg-radii-app); }
+.dg-radius-inner { border-radius: var(--dg-radii-inner); }
 .dg-radius-pill { border-radius: var(--dg-radii-pill); }
+.dg-shared-nav-clearance {
+  padding-bottom: var(--dg-navigation-clearance, 0px) !important;
+}
 .dg-shadow-surface { box-shadow: var(--dg-shadows-surface); }
 .dg-shadow-overlay { box-shadow: var(--dg-shadows-overlay); }
 .dg-screen-padding { padding-left: var(--dg-mobile-layout-screen-margin); padding-right: var(--dg-mobile-layout-screen-margin); }
@@ -339,8 +344,9 @@ export function buildTokenUsageGuide(designTokens?: DesignTokens | null) {
 
   return [
     "Use Drawgle's live project tokens for canonical styling.",
-    "Prefer these utility classes when they match the intended role: dg-bg-primary, dg-bg-secondary, dg-surface-card, dg-surface-bottom-sheet, dg-text-high, dg-text-medium, dg-text-low, dg-action-primary, dg-gradient-action-primary, dg-gradient-app-background, dg-gradient-surface-highlight, dg-gradient-accent-ring, dg-border-divider, dg-radius-app, dg-radius-pill, dg-shadow-surface, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-metric-value, dg-type-body, dg-type-caption, dg-type-button-label.",
-    "For token values without a named utility, use Tailwind arbitrary values with CSS variables, for example bg-[var(--dg-color-action-primary)], [background-image:var(--dg-gradient-action-primary)], text-[var(--dg-color-text-high-emphasis)], rounded-[var(--dg-radii-app)], shadow-[var(--dg-shadows-surface)].",
+    "Prefer these utility classes when they match the intended role: dg-bg-primary, dg-bg-secondary, dg-surface-card, dg-surface-bottom-sheet, dg-text-high, dg-text-medium, dg-text-low, dg-action-primary, dg-gradient-action-primary, dg-gradient-app-background, dg-gradient-surface-highlight, dg-gradient-accent-ring, dg-border-divider, dg-radius-app, dg-radius-inner, dg-radius-pill, dg-shadow-surface, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-metric-value, dg-type-body, dg-type-caption, dg-type-button-label.",
+    "Use dg-radius-app for outer cards, sheets, panels, and navigation surfaces; dg-radius-inner for nested cards, inset panels, segmented tabs, and active navigation items; and dg-radius-pill only for true capsules and circles.",
+    "For token values without a named utility, use Tailwind arbitrary values with CSS variables, for example bg-[var(--dg-color-action-primary)], [background-image:var(--dg-gradient-action-primary)], text-[var(--dg-color-text-high-emphasis)], rounded-[var(--dg-radii-inner)], shadow-[var(--dg-shadows-surface)].",
     "Use token gradients for canonical gradient fills. Use raw hex, raw pixels, and custom gradients only for deliberate one-off visual details such as charts, maps, illustrations, or non-system accent marks.",
     variableList ? `Available token variables:\n${variableList}` : null,
   ].filter(Boolean).join("\n");
@@ -450,6 +456,7 @@ export function buildTokenPromptContext(
       "color.action.secondary",
       "color.text.high_emphasis",
       "radii.app",
+      "radii.inner",
       "shadows.surface",
     ]);
 
@@ -465,8 +472,9 @@ export function buildTokenPromptContext(
 
     return [
       "TOKEN CONTEXT: Approved project design tokens — use these for every visual decision.",
-      "Prefer utility classes when the semantic role matches: dg-bg-primary, dg-bg-secondary, dg-surface-card, dg-surface-bottom-sheet, dg-surface-modal, dg-text-high, dg-text-medium, dg-text-low, dg-action-primary, dg-action-secondary, dg-gradient-action-primary, dg-gradient-app-background, dg-gradient-surface-highlight, dg-gradient-accent-ring, dg-border-divider, dg-border-focused, dg-radius-app, dg-radius-pill, dg-shadow-surface, dg-shadow-overlay, dg-type-nav-title, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-metric-value, dg-type-body, dg-type-supporting, dg-type-caption, dg-type-button-label.",
-      "For token values without a named utility, use CSS variables in Tailwind arbitrary classes, e.g. bg-[var(--dg-color-action-primary)], [background-image:var(--dg-gradient-action-primary)], p-[var(--dg-spacing-md)], rounded-[var(--dg-radii-app)], shadow-[var(--dg-shadows-surface)], opacity-[var(--dg-opacities-disabled)].",
+      "Prefer utility classes when the semantic role matches: dg-bg-primary, dg-bg-secondary, dg-surface-card, dg-surface-bottom-sheet, dg-surface-modal, dg-text-high, dg-text-medium, dg-text-low, dg-action-primary, dg-action-secondary, dg-gradient-action-primary, dg-gradient-app-background, dg-gradient-surface-highlight, dg-gradient-accent-ring, dg-border-divider, dg-border-focused, dg-radius-app, dg-radius-inner, dg-radius-pill, dg-shadow-surface, dg-shadow-overlay, dg-type-nav-title, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-metric-value, dg-type-body, dg-type-supporting, dg-type-caption, dg-type-button-label.",
+      "Radius roles are strict: app is the outer surface radius, inner is the smaller nested/inset radius, and pill is only for true capsules or circles.",
+      "For token values without a named utility, use CSS variables in Tailwind arbitrary classes, e.g. bg-[var(--dg-color-action-primary)], [background-image:var(--dg-gradient-action-primary)], p-[var(--dg-spacing-md)], rounded-[var(--dg-radii-inner)], shadow-[var(--dg-shadows-surface)], opacity-[var(--dg-opacities-disabled)].",
       "Token gradients are canonical fills for expressive actions, app backgrounds, surface highlights, and accent rings. Use custom gradients only for deliberate one-off visual details such as charts, maps, illustrations, and special effects.",
       filteredReferences.length > 0 ? `Project token variables:\n${formatTokenReferences(filteredReferences, 200)}` : null,
       semanticMap,
@@ -496,6 +504,17 @@ const buildValueToVariableMap = (designTokens?: DesignTokens | null) => {
   return map;
 };
 
+const buildRadiusValueToVariableMap = (designTokens?: DesignTokens | null) => {
+  const map = new Map<string, string>();
+  for (const variable of flattenDesignTokensToCssVariables(designTokens)) {
+    if (!variable.name.startsWith("--dg-radii-")) continue;
+    const comparable = normalizeComparableValue(variable.value);
+    if (!comparable || map.has(comparable)) continue;
+    map.set(comparable, variable.name);
+  }
+  return map;
+};
+
 const arbitraryValueRegex = /\b(bg|text|border|ring|from|via|to|stroke|fill)-\[#([0-9a-fA-F]{3,8})\]/g;
 const roundedValueRegex = /\brounded-\[([^\]]+)\]/g;
 const spacingValueRegex = /\b(p|px|py|pt|pr|pb|pl|m|mx|my|mt|mr|mb|ml|gap|space-x|space-y)-\[([^\]]+)\]/g;
@@ -506,6 +525,7 @@ export function tokenizeStaticDrawgleHtml(code: string, designTokens?: DesignTok
   }
 
   const valueToVariable = buildValueToVariableMap(designTokens);
+  const radiusValueToVariable = buildRadiusValueToVariableMap(designTokens);
   let nextCode = code;
 
   nextCode = nextCode.replace(arbitraryValueRegex, (match, prefix: string, hex: string) => {
@@ -514,7 +534,7 @@ export function tokenizeStaticDrawgleHtml(code: string, designTokens?: DesignTok
   });
 
   nextCode = nextCode.replace(roundedValueRegex, (match, value: string) => {
-    const variableName = valueToVariable.get(normalizeComparableValue(value));
+    const variableName = radiusValueToVariable.get(normalizeComparableValue(value));
     return variableName?.startsWith("--dg-radii-") ? `rounded-[var(${variableName})]` : match;
   });
 

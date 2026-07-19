@@ -27,6 +27,7 @@ const DRAWGLE_TO_NORMALIZED_VAR = new Map<string, string>([
   
   // Radii
   ["--dg-radii-app", "--radius"],
+  ["--dg-radii-inner", "--radius-inner"],
   ["--dg-radii-pill", "--radius-pill"],
   
   // Layout
@@ -329,6 +330,7 @@ function stylePropertyToTailwind(property: string, value: string, varMap: Map<st
     case "border-radius": {
       const val = resolveValueToVariable(value, 'radius', varMap);
       if (val === "var(--radius)") return "rounded-lg";
+      if (val === "var(--radius-inner)") return "rounded-md";
       if (val === "9999px" || val === "var(--radius-pill)") return "rounded-full";
       return `rounded-[${formatArbitraryValue(val)}]`;
     }
@@ -745,6 +747,8 @@ function compileElement(element: Element, varMap: Map<string, string>) {
       nextClassList.push("border-primary");
     } else if (cls === "dg-radius-app") {
       nextClassList.push("rounded-lg");
+    } else if (cls === "dg-radius-inner") {
+      nextClassList.push("rounded-md");
     } else if (cls === "dg-radius-pill") {
       nextClassList.push("rounded-full");
     } else if (cls === "dg-shadow-surface") {
@@ -862,6 +866,8 @@ function compileElement(element: Element, varMap: Map<string, string>) {
       simplifiedClassList.push("border-primary");
     } else if (cls === "rounded-[var(--radius)]") {
       simplifiedClassList.push("rounded-lg");
+    } else if (cls === "rounded-[var(--radius-inner)]") {
+      simplifiedClassList.push("rounded-md");
     } else if (cls === "rounded-[var(--radius-pill)]") {
       simplifiedClassList.push("rounded-full");
     } else if (cls === "shadow-[var(--shadow-surface)]") {

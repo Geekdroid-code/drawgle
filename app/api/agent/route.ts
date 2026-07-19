@@ -734,7 +734,12 @@ const classifyDeterministicTokenStyleIntent = ({
   }
 
   if (/\b(radius|rounded|corner|corners)\b/i.test(prompt)) {
-    addTokenStyle("border-radius", /\b(pill|capsule|fully rounded)\b/i.test(prompt) ? "radii.pill" : "radii.app");
+    const radiusToken = /\b(pill|capsule|fully rounded|circle|circular)\b/i.test(prompt)
+      ? "radii.pill"
+      : /\b(inner|nested|inset|inside|segmented|active tab|active item|tab item)\b/i.test(prompt)
+        ? "radii.inner"
+        : "radii.app";
+    addTokenStyle("border-radius", radiusToken);
   }
 
   if (/\b(shadow|elevation)\b/i.test(prompt)) {

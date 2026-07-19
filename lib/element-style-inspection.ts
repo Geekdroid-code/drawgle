@@ -243,6 +243,7 @@ const TOKEN_CLASS_MAP: Partial<Record<DrawgleStyleProperty, Record<string, strin
   },
   "border-radius": {
     "dg-radius-app": "--dg-radii-app",
+    "dg-radius-inner": "--dg-radii-inner",
     "dg-radius-pill": "--dg-radii-pill",
   },
   "box-shadow": {

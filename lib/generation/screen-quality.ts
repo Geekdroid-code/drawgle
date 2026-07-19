@@ -1,5 +1,14 @@
 import { load } from "cheerio";
 
+import {
+  hasNavigationClearanceSignal,
+  isLegacyNavigationClearanceAttributes,
+  SHARED_NAV_CLEARANCE_ATTRIBUTE,
+  SHARED_NAV_CLEARANCE_CLASS,
+  stripLegacyNavigationPaddingClasses,
+  stripLegacyNavigationPaddingStyle,
+  type NavigationClearanceNormalizationDiagnostics,
+} from "@/lib/navigation-clearance";
 import type { ScreenAssetManifest, ScreenPlan, ScreenStatus } from "@/lib/types";
 
 export const REQUIRED_ANCHORS_LABEL = "Required screen anchors:";
@@ -60,6 +69,160 @@ const parseHtmlFragment = (code: string) => {
     code: ($.root().html() ?? "").trim(),
   };
 };
+
+const emptyNavigationSpacer = ($: ReturnType<typeof load>, element: any) => {
+  const node = $(element);
+  if (node.text().trim() || node.children().length > 0) return false;
+  return isLegacyNavigationClearanceAttributes({
+    className: node.attr("class"),
+    id: node.attr("id"),
+    style: node.attr("style"),
+    dataRole: [
+      node.attr("data-role"),
+      node.attr("data-purpose"),
+      node.attr("aria-label"),
+    ].filter(Boolean).join(" "),
+  });
+};
+
+const clearanceOwnerSelector = ($: ReturnType<typeof load>, element: any) => {
+  const node = $(element);
+  const tag = element?.tagName ?? element?.name ?? "element";
+  const id = node.attr("id");
+  const drawgleId = node.attr("data-drawgle-id");
+  if (id) return `${tag}#${id}`;
+  if (drawgleId) return `${tag}[data-drawgle-id="${drawgleId}"]`;
+  return tag;
+};
+
+export function normalizeSharedNavigationClearanceHtml({
+  code,
+  enabled,
+}: {
+  code: string;
+  enabled: boolean;
+}): { code: string; diagnostics: NavigationClearanceNormalizationDiagnostics } {
+  const unchangedDiagnostics: NavigationClearanceNormalizationDiagnostics = {
+    changed: false,
+    ownerAdded: false,
+    ownerSelector: null,
+    legacyPaddingReplacedCount: 0,
+    spacerRemovedCount: 0,
+    ambiguousOwnerCount: 0,
+  };
+  if (!enabled || !code.trim()) return { code, diagnostics: unchangedDiagnostics };
+
+  const $ = load(code, {}, false);
+  const allElements = $("*").toArray();
+  const spacerElements = new Set<any>();
+  const relatedComments: any[] = [];
+
+  for (const node of $.root().contents().add($("*").contents()).toArray()) {
+    if (node.type !== "comment" || !hasNavigationClearanceSignal((node as any).data ?? "")) continue;
+    relatedComments.push(node);
+    let sibling = (node as any).nextSibling;
+    while (sibling && sibling.type === "text" && !String((sibling as any).data ?? "").trim()) {
+      sibling = sibling.nextSibling;
+    }
+    if (sibling?.type === "tag" && emptyNavigationSpacer($, sibling)) spacerElements.add(sibling);
+  }
+
+  for (const element of allElements) {
+    if (emptyNavigationSpacer($, element)) spacerElements.add(element);
+  }
+
+  const canonicalOwners = allElements.filter((element) => {
+    const node = $(element);
+    return node.attr(SHARED_NAV_CLEARANCE_ATTRIBUTE) === "true" ||
+      (node.attr("class") ?? "").split(/\s+/).includes(SHARED_NAV_CLEARANCE_CLASS);
+  });
+  const legacyPaddingOwners = allElements.filter((element) => {
+    if (spacerElements.has(element)) return false;
+    const node = $(element);
+    const classWithoutCanonical = (node.attr("class") ?? "")
+      .split(/\s+/)
+      .filter((entry) => entry !== SHARED_NAV_CLEARANCE_CLASS)
+      .join(" ");
+    return hasNavigationClearanceSignal(`${classWithoutCanonical} ${node.attr("style") ?? ""}`);
+  });
+  const mainScrollOwners = allElements.filter((element) => {
+    if ((element as any).tagName !== "main" && (element as any).name !== "main") return false;
+    return /overflow-y-auto|overflow-auto|overflow-y:\s*auto/i.test(`${$(element).attr("class") ?? ""} ${$(element).attr("style") ?? ""}`);
+  });
+  const scrollOwners = allElements.filter((element) =>
+    /overflow-y-auto|overflow-auto|overflow-y:\s*auto/i.test(`${$(element).attr("class") ?? ""} ${$(element).attr("style") ?? ""}`),
+  );
+  const mainOwners = allElements.filter((element) => (element as any).tagName === "main" || (element as any).name === "main");
+  const rootElement = $.root().children().first().get(0);
+  const ownerCandidates = [
+    ...canonicalOwners,
+    ...legacyPaddingOwners,
+    ...mainScrollOwners,
+    ...scrollOwners,
+    ...mainOwners,
+    ...(rootElement ? [rootElement] : []),
+  ].filter((element, index, values) => Boolean(element) && values.indexOf(element) === index && !spacerElements.has(element));
+  const owner = ownerCandidates[0];
+  const ownerHadCompleteMarker = Boolean(owner && (() => {
+    const node = $(owner);
+    return (node.attr("class") ?? "").split(/\s+/).includes(SHARED_NAV_CLEARANCE_CLASS) &&
+      node.attr(SHARED_NAV_CLEARANCE_ATTRIBUTE) === "true";
+  })());
+
+  let legacyPaddingReplacedCount = 0;
+  let markerChanged = false;
+  for (const element of [...canonicalOwners, ...legacyPaddingOwners].filter((entry, index, values) => values.indexOf(entry) === index)) {
+    const isOwner = element === owner;
+    const node = $(element);
+    const currentClass = node.attr("class") ?? "";
+    const currentStyle = node.attr("style") ?? "";
+    const nextClass = stripLegacyNavigationPaddingClasses(currentClass)
+      .split(/\s+/)
+      .filter(Boolean)
+      .filter((entry) => isOwner || entry !== SHARED_NAV_CLEARANCE_CLASS)
+      .join(" ");
+    const nextStyle = stripLegacyNavigationPaddingStyle(currentStyle);
+    if (legacyPaddingOwners.includes(element) && (nextClass !== currentClass || nextStyle !== currentStyle)) {
+      legacyPaddingReplacedCount += 1;
+    }
+    if (!isOwner && canonicalOwners.includes(element)) markerChanged = true;
+    if (nextClass) node.attr("class", nextClass); else node.removeAttr("class");
+    if (nextStyle) node.attr("style", nextStyle); else node.removeAttr("style");
+    if (!isOwner) node.removeAttr(SHARED_NAV_CLEARANCE_ATTRIBUTE);
+  }
+
+  for (const comment of relatedComments) $(comment).remove();
+  for (const spacer of spacerElements) $(spacer).remove();
+
+  let ownerAdded = false;
+  if (owner) {
+    const node = $(owner);
+    const classNames = new Set((node.attr("class") ?? "").split(/\s+/).filter(Boolean));
+    ownerAdded = !ownerHadCompleteMarker;
+    classNames.add(SHARED_NAV_CLEARANCE_CLASS);
+    node.attr("class", Array.from(classNames).join(" "));
+    node.attr(SHARED_NAV_CLEARANCE_ATTRIBUTE, "true");
+  }
+
+  const changed = spacerElements.size > 0 ||
+    relatedComments.length > 0 ||
+    legacyPaddingReplacedCount > 0 ||
+    markerChanged ||
+    ownerAdded;
+  const normalizedCode = changed ? ($.root().html() ?? "").trim() : code;
+
+  return {
+    code: normalizedCode,
+    diagnostics: {
+      changed,
+      ownerAdded,
+      ownerSelector: owner ? clearanceOwnerSelector($, owner) : null,
+      legacyPaddingReplacedCount,
+      spacerRemovedCount: spacerElements.size,
+      ambiguousOwnerCount: Math.max(0, ownerCandidates.length - 1),
+    },
+  };
+}
 
 const isIncompleteParseError = (error: HtmlParseError) => error.code.startsWith("eof-");
 

@@ -128,6 +128,9 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
   const navItems = navigationPlan.items.slice(0, MAX_SHARED_NAV_ITEMS);
   const design = normalizeNavigationDesignContract(navigationPlan.design, navigationPlan.visualBrief);
   const itemCount = navItems.length;
+  const radiusDelta = Math.min(8, Math.max(4, Math.round(design.radiusPx / 3)));
+  const legacyInnerRadiusPx = design.radiusPx === 0 ? 0 : Math.max(0, design.radiusPx - radiusDelta);
+  const overlapBufferPx = design.anatomy === "center-action-dock" ? 16 : 8;
   const contentWidth = Math.min(356, itemCount * 70 + 32);
   const width = design.width === "full"
     ? "calc(100% - 24px)"
@@ -179,14 +182,15 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
   }).join("\n");
 
   return [
-    `<nav data-drawgle-primary-nav data-navigation-version="${navigationPlan.version ?? 1}" data-navigation-anatomy="${design.anatomy}" class="dg-nav-shell" aria-label="Primary navigation">`,
+    `<nav data-drawgle-primary-nav data-navigation-version="${navigationPlan.version ?? 1}" data-navigation-anatomy="${design.anatomy}" data-navigation-clearance-owner="renderer" class="dg-nav-shell" aria-label="Primary navigation">`,
     "<style>",
-    `[data-drawgle-primary-nav].dg-nav-shell{box-sizing:border-box;width:${width};max-width:100%;margin:0 auto calc(${design.safeAreaOffsetPx}px + env(safe-area-inset-bottom,0px));padding:7px;border-radius:${design.radiusPx}px;background:${background};border:${border};box-shadow:${shadow};${blur}pointer-events:auto;}`,
-    `[data-drawgle-primary-nav] .dg-nav-shell-inner{display:grid;grid-template-columns:repeat(${itemCount},minmax(0,1fr));align-items:end;gap:${design.itemGapPx}px;}`,
-    "[data-drawgle-primary-nav] .dg-nav-item{position:relative;appearance:none;border:0;background:transparent;color:var(--dg-navigation-muted-content,var(--dg-color-text-low-emphasis,#94a3b8));min-width:0;height:50px;padding:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-radius:14px;font-family:var(--dg-typography-font-family,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif);font-size:10px;line-height:1;font-weight:650;letter-spacing:0;cursor:pointer;}",
+    `:root{--dg-navigation-visual-height:clamp(64px,var(--dg-sizing-bottom-nav-height,72px),88px);--dg-effective-safe-area-bottom:max(env(safe-area-inset-bottom,0px),var(--dg-mobile-layout-safe-area-bottom,0px));--dg-navigation-safe-offset:${design.safeAreaOffsetPx}px;--dg-navigation-overlap-buffer:${overlapBufferPx}px;--dg-navigation-clearance:calc(var(--dg-navigation-visual-height) + var(--dg-navigation-safe-offset) + var(--dg-effective-safe-area-bottom) + var(--dg-navigation-overlap-buffer));}`,
+    `[data-drawgle-primary-nav].dg-nav-shell{box-sizing:border-box;width:${width};max-width:100%;min-height:var(--dg-navigation-visual-height);margin:0 auto calc(var(--dg-navigation-safe-offset) + var(--dg-effective-safe-area-bottom));padding:var(--dg-spacing-xs,8px);border-radius:var(--dg-radii-app,${design.radiusPx}px);background:${background};border:${border};box-shadow:${shadow};${blur}pointer-events:auto;}`,
+    `[data-drawgle-primary-nav] .dg-nav-shell-inner{display:grid;grid-template-columns:repeat(${itemCount},minmax(0,1fr));align-items:stretch;gap:${design.itemGapPx}px;min-height:calc(var(--dg-navigation-visual-height) - var(--dg-spacing-xs,8px) - var(--dg-spacing-xs,8px));}`,
+    `[data-drawgle-primary-nav] .dg-nav-item{position:relative;appearance:none;border:0;background:transparent;color:var(--dg-navigation-muted-content,var(--dg-color-text-low-emphasis,#94a3b8));min-width:0;min-height:var(--dg-sizing-min-touch-target,48px);padding:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-radius:var(--dg-radii-inner,${legacyInnerRadiusPx}px);font-family:var(--dg-typography-font-family,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);font-size:10px;line-height:1;font-weight:650;letter-spacing:0;cursor:pointer;}`,
     "[data-drawgle-primary-nav] .dg-nav-item[data-availability=\"planned\"]{cursor:default;}",
     "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"]{color:var(--dg-navigation-content,var(--dg-color-action-primary,#111827));}",
-    `[data-drawgle-primary-nav] .dg-nav-icon{display:flex;height:${design.iconSizePx + 10}px;width:${design.iconSizePx + 10}px;align-items:center;justify-content:center;border-radius:999px;background:transparent;color:currentColor;}`,
+    `[data-drawgle-primary-nav] .dg-nav-icon{display:flex;height:${design.iconSizePx + 10}px;width:${design.iconSizePx + 10}px;align-items:center;justify-content:center;border-radius:var(--dg-radii-pill,9999px);background:transparent;color:currentColor;}`,
     `[data-drawgle-primary-nav] .dg-nav-icon svg{height:${design.iconSizePx}px;width:${design.iconSizePx}px;stroke-width:2;}`,
     `[data-drawgle-primary-nav] .dg-nav-label{max-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:currentColor;${labelCss}}`,
     activeOnlyCss,
@@ -201,6 +205,14 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
   ].filter(Boolean).join("\n");
 }
 
+export function resolveProjectNavigationShell(projectNavigation?: ProjectNavigationData | null) {
+  if (!projectNavigation?.plan.enabled) return "";
+  if (projectNavigation.plan.version === 2) {
+    return renderDeterministicNavigationShell(projectNavigation.plan);
+  }
+  return projectNavigation.shellCode ?? "";
+}
+
 export function hasSharedNavigation({
   screen,
   projectNavigation,
@@ -210,7 +222,7 @@ export function hasSharedNavigation({
 }) {
   return Boolean(
     projectNavigation?.plan.enabled &&
-    projectNavigation.shellCode &&
+    resolveProjectNavigationShell(projectNavigation) &&
     screen.chromePolicy?.showPrimaryNavigation &&
     screen.navigationItemId,
   );

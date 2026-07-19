@@ -674,6 +674,7 @@ const DesignTokensSchema = z
       sizing: StringRecordSchema.optional(),
       radii: z.object({
         app: z.string().optional(),
+        inner: z.string().optional(),
         pill: z.string().optional(),
       }).passthrough().optional(),
       border_widths: z.object({
@@ -1196,7 +1197,9 @@ const buildScreenFamilyContract = ({
       : creativeDirection?.styleEssence ?? referenceAnalysis?.overallVisualStyle ?? "Maintain one coherent mobile product visual system across all generated screens.",
     surfaces: signals?.surfaces ?? designStyle?.creativeDirectionSeed.surfaceLanguage ?? [
       tokenColor?.surface?.card ? `Use card surfaces from approved tokens such as ${tokenColor.surface.card}.` : "Use one shared card/surface language.",
-      tokenRadius?.app ? `Preserve the approved app radius ${tokenRadius.app}.` : "Keep radius, shadow, border, and elevation consistent across screens.",
+      tokenRadius?.app
+        ? `Preserve the approved outer radius ${tokenRadius.app} and inner radius ${tokenRadius.inner ?? "derived from the outer radius"}.`
+        : "Keep outer/inner radius hierarchy, shadow, border, and elevation consistent across screens.",
     ].join(" "),
     typography: signals?.typography ?? designStyle?.creativeDirectionSeed.typographyMood ?? "Use the same type scale, weight rhythm, label casing, and hierarchy across every screen.",
     spacing: signals?.spacingLogic ?? signals?.density ?? designStyle?.densityRules.join(" ") ?? "Keep screen-edge padding, card padding, vertical rhythm, and grid gaps consistent with the reference/design tokens.",

@@ -61,6 +61,44 @@ const isRecord = (value: unknown): value is UnknownRecord => Boolean(value) && t
 
 const pickFirstString = (...values: unknown[]) => values.find((value): value is string => typeof value === "string" && value.trim().length > 0)?.trim();
 
+const parsePixelValue = (value: unknown) => {
+  if (typeof value !== "string") return null;
+  const match = value.trim().match(/^(-?\d+(?:\.\d+)?)px$/i);
+  if (!match) return null;
+  const numeric = Number(match[1]);
+  return Number.isFinite(numeric) ? numeric : null;
+};
+
+const formatPixelValue = (value: number) => `${Math.round(value * 100) / 100}px`;
+
+const normalizeRadiusHierarchy = (value: UnknownRecord) => {
+  const rawApp = pickFirstString(
+    value.app,
+    value.lg,
+    value.md,
+    value.xl,
+    value.sm,
+    value.sharp,
+    DEFAULT_APP_RADIUS,
+  );
+  const parsedApp = parsePixelValue(rawApp);
+  const app = Math.min(48, Math.max(0, parsedApp ?? 18));
+  const suppliedInner = parsePixelValue(value.inner);
+  const delta = Math.min(8, Math.max(4, Math.round(app / 3)));
+  const derivedInner = app === 0 ? 0 : Math.max(0, app - delta);
+  const inner = suppliedInner !== null &&
+    suppliedInner >= 0 &&
+    (app === 0 ? suppliedInner === 0 : suppliedInner < app)
+    ? suppliedInner
+    : derivedInner;
+
+  return {
+    app: formatPixelValue(app),
+    inner: formatPixelValue(inner),
+    pill: pickFirstString(value.pill, DEFAULT_PILL_RADIUS) ?? DEFAULT_PILL_RADIUS,
+  };
+};
+
 const uniqueStrings = (values: string[]) => {
   const seen = new Set<string>();
   const next: string[] = [];
@@ -194,6 +232,7 @@ const enforcePlatformConstraints = (tokens: DesignTokenValues | undefined) => {
     isGradientValue(legacyGradients.action_primary) ? legacyGradients.action_primary : undefined,
     buildActionGradient(next),
   );
+  const normalizedRadii = normalizeRadiusHierarchy(legacyRadii);
 
   next.mobile_layout = {
     ...(next.mobile_layout ?? {}),
@@ -209,19 +248,9 @@ const enforcePlatformConstraints = (tokens: DesignTokenValues | undefined) => {
   };
   next.radii = {
     ...(legacyRadii as DesignTokenValues["radii"]),
-    app: pickFirstString(
-      legacyRadii.app,
-      legacyRadii.lg,
-      legacyRadii.md,
-      legacyRadii.xl,
-      legacyRadii.sm,
-      legacyRadii.sharp,
-      DEFAULT_APP_RADIUS,
-    ),
-    pill: pickFirstString(
-      legacyRadii.pill,
-      DEFAULT_PILL_RADIUS,
-    ),
+    app: normalizedRadii.app,
+    inner: normalizedRadii.inner,
+    pill: normalizedRadii.pill,
   };
   next.border_widths = {
     ...(legacyBorderWidths as DesignTokenValues["border_widths"]),

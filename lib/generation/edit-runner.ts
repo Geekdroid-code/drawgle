@@ -24,6 +24,7 @@ import {
   buildScreenHealthError,
   detectScreenHealth,
   isBlockingScreenHealthFailure,
+  normalizeSharedNavigationClearanceHtml,
   normalizeStaticDrawgleHtml,
   screenStatusForHealth,
   stripGenerationCompleteSentinel,
@@ -1104,7 +1105,15 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
     const strippedCode = stripGenerationCompleteSentinel(code);
     const normalized = normalizeStaticDrawgleHtml(strippedCode);
     const safeCode = normalized.valid ? normalized.code : strippedCode;
-    return ensureDrawgleIds(tokenizeStaticDrawgleHtml(sanitizeScreenCodeForSharedNavigation(safeCode, screenPlanForSave), designTokens).code).code;
+    const navigationSafeCode = sanitizeScreenCodeForSharedNavigation(safeCode, screenPlanForSave);
+    const clearanceNormalization = normalizeSharedNavigationClearanceHtml({
+      code: navigationSafeCode,
+      enabled: Boolean(
+        screenPlanForSave.chromePolicy?.showPrimaryNavigation ||
+        screenPlanForSave.navigationItemId,
+      ),
+    });
+    return ensureDrawgleIds(tokenizeStaticDrawgleHtml(clearanceNormalization.code, designTokens).code).code;
   };
   const health = detectScreenHealth({ code: screenCode, screenPrompt });
   const selectedRegionStaticHealth = regionReplacementTarget

@@ -280,6 +280,7 @@ export interface DesignSizingTokens {
 
 export interface DesignRadiiTokens {
   app?: string;
+  inner?: string;
   pill?: string;
   [key: string]: JsonValue | undefined;
 }

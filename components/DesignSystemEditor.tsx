@@ -304,6 +304,7 @@ export function DesignSystemEditor({
   const cardBg = tokens.color?.surface?.card || "#ffffff";
   const borderDivider = tokens.color?.border?.divider || "#e5e7eb";
   const radius = tokens.radii?.app || "18px";
+  const radiusInner = tokens.radii?.inner || "12px";
   const radiusPill = tokens.radii?.pill || "9999px";
   const shadowSurface = tokens.shadows?.surface || "0 12px 32px rgba(15, 23, 42, 0.14)";
   const borderStandard = tokens.border_widths?.standard || "1px";
@@ -319,7 +320,7 @@ export function DesignSystemEditor({
   const deepUpdate = (mutator: (draft: DesignTokens) => void) => {
     const draft = normalizeDesignTokens(value);
     mutator(draft);
-    onChange(draft);
+    onChange(normalizeDesignTokens(draft));
   };
 
   const handleUpdateToken = (path: string[], nextValue: string) => {
@@ -576,13 +577,22 @@ export function DesignSystemEditor({
               <div className={`grid gap-4 ${isPanel ? "" : "xl:grid-cols-2"}`}>
                 <TokenGroup label="Corner Geometry" panel={isPanel}>
                   <ShapeMetricRow
-                    label="App radius"
+                    label="Outer surface radius"
                     value={tokens.radii?.app || ""}
                     min={0}
                     max={48}
                     preview="radius"
                     panel={isPanel}
                     onChange={(nextValue) => handleUpdateToken(["radii", "app"], nextValue)}
+                  />
+                  <ShapeMetricRow
+                    label="Inner container radius"
+                    value={tokens.radii?.inner || ""}
+                    min={0}
+                    max={47}
+                    preview="radius"
+                    panel={isPanel}
+                    onChange={(nextValue) => handleUpdateToken(["radii", "inner"], nextValue)}
                   />
                   <ShapeMetricRow
                     label="Pill radius"
@@ -592,6 +602,11 @@ export function DesignSystemEditor({
                     preview="pill"
                     panel={isPanel}
                     onChange={(nextValue) => handleUpdateToken(["radii", "pill"], nextValue)}
+                  />
+                  <RadiusHierarchyPreview
+                    outerRadius={radius}
+                    innerRadius={radiusInner}
+                    panel={isPanel}
                   />
                 </TokenGroup>
                 <TokenGroup label="Elevation" panel={isPanel}>
@@ -650,6 +665,7 @@ export function DesignSystemEditor({
             cardBg={cardBg}
             borderDivider={borderDivider}
             radius={radius}
+            radiusInner={radiusInner}
             radiusPill={radiusPill}
             shadowSurface={shadowSurface}
             borderStandard={borderStandard}
@@ -1498,6 +1514,36 @@ function ShapeMetricRow({
   );
 }
 
+function RadiusHierarchyPreview({
+  outerRadius,
+  innerRadius,
+  panel = false,
+}: {
+  outerRadius: string;
+  innerRadius: string;
+  panel?: boolean;
+}) {
+  return (
+    <div className={`${panel ? "bg-white px-3 py-3 dark:bg-[#1b1e25]" : "col-span-full rounded-[12px] border border-slate-950/[0.06] bg-white p-3"} flex items-center gap-3`}>
+      <div className="min-w-0 flex-1">
+        <div className="text-[12px] font-semibold text-slate-800 dark:text-[#e7ebf3]">Nested radius relationship</div>
+        <div className="mt-0.5 text-[11px] leading-4 text-slate-500 dark:text-[#8f98aa]">
+          Inner containers stay visually inside the outer surface.
+        </div>
+      </div>
+      <div
+        className="flex h-16 w-24 shrink-0 items-center justify-center border border-slate-950/[0.08] bg-[#eef1f5] p-2 dark:border-white/[0.10] dark:bg-[#252a34]"
+        style={{ borderRadius: outerRadius }}
+      >
+        <div
+          className="h-full w-full border border-slate-950/[0.08] bg-white shadow-sm dark:border-white/[0.10] dark:bg-[#171a21]"
+          style={{ borderRadius: innerRadius }}
+        />
+      </div>
+    </div>
+  );
+}
+
 function ShapePreview({ value, variant, compact = false }: { value: number; variant: "radius" | "pill" | "border"; compact?: boolean }) {
   if (variant === "border") {
     return (
@@ -1838,6 +1884,7 @@ function PhonePreview({
   cardBg,
   borderDivider,
   radius,
+  radiusInner,
   radiusPill,
   shadowSurface,
   borderStandard,
@@ -1862,6 +1909,7 @@ function PhonePreview({
   cardBg: string;
   borderDivider: string;
   radius: string;
+  radiusInner: string;
   radiusPill: string;
   shadowSurface: string;
   borderStandard: string;
@@ -1962,7 +2010,15 @@ function PhonePreview({
           style={{ backgroundColor: navigationSurface, border: `${borderStandard} solid ${navigationBorder}`, borderRadius: radius, boxShadow: navigationShadow }}
         >
           {[0, 1, 2, 3].map((item) => (
-            <div key={item} className="flex h-8 items-center justify-center rounded-full" style={{ backgroundColor: item === 0 ? navigationActiveSurface : "transparent", color: item === 0 ? navigationActiveContent : item === 1 ? navigationContent : navigationMuted }}>
+            <div
+              key={item}
+              className="flex h-8 items-center justify-center"
+              style={{
+                backgroundColor: item === 0 ? navigationActiveSurface : "transparent",
+                color: item === 0 ? navigationActiveContent : item === 1 ? navigationContent : navigationMuted,
+                borderRadius: radiusInner,
+              }}
+            >
               <span className="h-2 w-2 rounded-full bg-current" />
             </div>
           ))}

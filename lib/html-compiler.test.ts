@@ -28,19 +28,20 @@ const designTokens: DesignTokens = {
       screen_title: { size: "24px", weight: 700, line_height: "30px" },
     },
     mobile_layout: { screen_margin: "20px", section_gap: "24px", element_gap: "12px" },
-    radii: { app: "22px", pill: "9999px" },
+    radii: { app: "22px", inner: "15px", pill: "9999px" },
     opacities: { disabled: "0.38" },
   },
 };
 
 describe("HTML production compiler", () => {
   it("resolves custom dg- helper classes to their resolved variables", () => {
-    const rawHtml = `<div class="dg-bg-primary dg-text-high dg-radius-app dg-element-gap"></div>`;
+    const rawHtml = `<div class="dg-bg-primary dg-text-high dg-radius-app dg-element-gap"><span class="dg-radius-inner"></span></div>`;
     const compiled = compileHtmlForProduction(rawHtml, designTokens);
 
     expect(compiled).toContain("bg-background");
     expect(compiled).toContain("text-foreground");
     expect(compiled).toContain("rounded-lg");
+    expect(compiled).toContain("rounded-md");
     expect(compiled).toContain("gap-[var(--element-gap)]");
   });
 

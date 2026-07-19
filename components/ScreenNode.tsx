@@ -11,6 +11,7 @@ import { buildDrawgleTailwindConfigScript } from "@/lib/drawgle-html-runtime";
 import { createClient } from "@/lib/supabase/client";
 import { ensureDrawgleIds, stripDrawgleIds, type DrawgleBoundingRect, type DrawgleEditableMetadata } from "@/lib/drawgle-dom";
 import { DRAWGLE_STYLE_PROPERTY_CONFIGS, type DrawgleStyleValueMap } from "@/lib/element-style-inspection";
+import { normalizeSharedNavigationClearanceMarkup } from "@/lib/navigation-clearance";
 import { deleteScreen } from "@/lib/supabase/queries";
 import { hasSharedNavigation } from "@/lib/project-navigation";
 import { buildDrawgleTokenCss, buildGoogleFontAssetLinks, buildGoogleFontHref } from "@/lib/token-runtime";
@@ -607,10 +608,21 @@ export function ScreenNode({
   const rawDisplayCode = streamedCode ?? safeCode;
   const sharedNavigationActive = hasSharedNavigation({ screen, projectNavigation });
   const displayCode = useMemo(
-    () => ensureDrawgleIds(sharedNavigationActive ? stripSharedNavigationMarkup(rawDisplayCode) : rawDisplayCode).code,
+    () => {
+      const withoutLocalNavigation = sharedNavigationActive
+        ? stripSharedNavigationMarkup(rawDisplayCode)
+        : rawDisplayCode;
+      const clearanceNormalized = normalizeSharedNavigationClearanceMarkup({
+        code: withoutLocalNavigation,
+        enabled: sharedNavigationActive,
+      }).code;
+      return ensureDrawgleIds(clearanceNormalized).code;
+    },
     [rawDisplayCode, sharedNavigationActive],
   );
-  const navigationShellCode = sharedNavigationActive ? ensureDrawgleIds(projectNavigation?.shellCode ?? "", "dg-nav").code : "";
+  const navigationShellCode = sharedNavigationActive
+    ? ensureDrawgleIds(resolveScreenNavigationCode(screen, projectNavigation), "dg-nav").code
+    : "";
   const lastNonEmptyDisplayCodeRef = useRef(displayCode.trim() ? displayCode : "");
   const lastNonEmptyNavigationCodeRef = useRef(navigationShellCode.trim() ? navigationShellCode : "");
   const activeNavigationItemId = sharedNavigationActive ? screen.navigationItemId ?? "" : "";

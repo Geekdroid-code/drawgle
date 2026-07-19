@@ -250,13 +250,13 @@ export const comparisonPages: ComparisonPageData[] = [
       productUrl: "https://sleek.design/",
     },
     metadata: {
-      title: "Drawgle vs Sleek.design (2026): AI Mobile UI Builder Comparison",
+      title: "Best Sleek.design alternative for AI Mobile App UI Design in 2026 | Drawgle",
       description:
         "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       publishedDate: "2026-07-01",
       modifiedDate: "2026-07-05",
     },
-    heroTitle: "Drawgle vs. Sleek.design: 2026 Comparison for Mobile UI Builders",
+    heroTitle: "Best Sleek.design alternative for AI Mobile App UI Design",
     sonicBoomSummary:
       "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
     quickVerdict: {
@@ -627,14 +627,14 @@ export const comparisonPages: ComparisonPageData[] = [
       productUrl: "https://stitch.withgoogle.com/",
     },
     metadata: {
-      title: "Drawgle vs Google Stitch (2026): Vibe Design vs Production Code",
+      title: "Best Google Stitch alternative for AI Mobile App UI Design in 2026 | Drawgle",
       description:
         "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       publishedDate: "2026-07-01",
       modifiedDate: "2026-07-05",
     },
     heroTitle:
-      "Drawgle vs. Google Stitch: A Free Google Labs Experiment vs. a 2026 Mobile Product",
+      "Best Google Stitch alternative for AI Mobile App UI Design",
     sonicBoomSummary:
       "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
     quickVerdict: {
@@ -1023,14 +1023,14 @@ export const comparisonPages: ComparisonPageData[] = [
       productUrl: "https://appalchemy.ai/",
     },
     metadata: {
-      title: "Drawgle vs App Alchemy (2026): AI Mobile App Design Comparison",
+      title: "Best AppAlchemy Alternative for Mobile App UI Design in 2026 | Drawgle",
       description:
         "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       publishedDate: "2026-07-05",
       modifiedDate: "2026-07-05",
     },
     heroTitle:
-      "Drawgle vs. App Alchemy: Fast Mobile Mockups or Build-Ready Mobile UI?",
+      "Best AppAlchemy Alternative for Mobile App UI Design",
     sonicBoomSummary:
       "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
     quickVerdict: {
@@ -1430,14 +1430,14 @@ export const comparisonPages: ComparisonPageData[] = [
       productUrl: "https://www.floow.design/",
     },
     metadata: {
-      title: "Drawgle vs floow.design (2026): AI Mobile Design Tool Comparison",
+      title: "Best floow.design Alternative for Mobile App UI Design in 2026 | Drawgle",
       description:
         "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       publishedDate: "2026-07-05",
       modifiedDate: "2026-07-05",
     },
     heroTitle:
-      "Drawgle vs. floow.design: Mobile-First AI Design Handoff vs. Build-Ready Mobile Output",
+      "floow.design alternative for Mobile App UI Design",
     sonicBoomSummary:
       "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
     quickVerdict: {
@@ -1837,7 +1837,7 @@ export const comparisonPages: ComparisonPageData[] = [
       modifiedDate: "2026-07-05",
     },
     heroTitle:
-      "Drawgle vs. ScreensDesign: Research-Backed Conversion Screens or Build-Ready Mobile Product UI?",
+      "ScreensDesign alternative for Mobile App UI Design",
     sonicBoomSummary:
       "ScreensDesign specializes in conversion-focused iOS research and paywall or onboarding patterns; Drawgle covers broader mobile product UI with a clearer implementation handoff.",
     quickVerdict: {
@@ -2218,14 +2218,14 @@ export const comparisonPages: ComparisonPageData[] = [
       productUrl: "https://www.visily.ai/",
     },
     metadata: {
-      title: "Drawgle vs Visily (2026): AI Mobile UI Builder vs Wireframing Tool",
+      title: "Best Visily alternative for Mobile App UI Design | Drawgle",
       description:
         "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       publishedDate: "2026-07-05",
       modifiedDate: "2026-07-05",
     },
     heroTitle:
-      "Drawgle vs. Visily: Non-Designer Wireframes or Build-Ready Premium Mobile UI?",
+      "Best Visily alternative for Mobile App UI Design",
     sonicBoomSummary:
       "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
     quickVerdict: {
@@ -2618,14 +2618,14 @@ export const comparisonPages: ComparisonPageData[] = [
       productUrl: "https://uizard.io/",
     },
     metadata: {
-      title: "Drawgle vs Uizard (2026): AI Mobile UI Builder vs AI Prototyping Tool",
+      title: "Best Uizard alternative for AI Mobile UI Design in 2026 | Drawgle",
       description:
         "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       publishedDate: "2026-07-05",
       modifiedDate: "2026-07-05",
     },
     heroTitle:
-      "Drawgle vs. Uizard: AI Product Prototypes or Build-Ready Premium Mobile UI?",
+      "Best Uizard alternative for AI Mobile UI Design",
     sonicBoomSummary:
       "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
     quickVerdict: {
@@ -3018,14 +3018,14 @@ export const comparisonPages: ComparisonPageData[] = [
       productUrl: "https://uxpilot.ai/",
     },
     metadata: {
-      title: "Drawgle vs UX Pilot (2026): AI Mobile UI Builder vs Figma AI Design Tool",
+      title: "Best UX Pilot alternative for AI Mobile UI Design | Drawgle",
       description:
         "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       publishedDate: "2026-07-05",
       modifiedDate: "2026-07-05",
     },
     heroTitle:
-      "Drawgle vs. UX Pilot: Figma-Native AI Design System Workflow or Build-Ready Mobile Output?",
+      "Best UX Pilot alternative for AI Mobile UI Design",
     sonicBoomSummary:
       "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
     quickVerdict: {
@@ -3418,14 +3418,14 @@ export const comparisonPages: ComparisonPageData[] = [
       productUrl: "https://uxmagic.ai/",
     },
     metadata: {
-      title: "Drawgle vs UXMagic (2026): AI Mobile UI Builder vs Multimodal Design Copilot",
+      title: "Best UXMagic alternative for Mobile App UI Design in 2026 | Drawgle",
       description:
         "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       publishedDate: "2026-07-05",
       modifiedDate: "2026-07-05",
     },
     heroTitle:
-      "Drawgle vs. UXMagic: Multimodal Design Copilot or Build-Ready Premium Mobile UI?",
+      "Best UXMagic alternative for AI Mobile UI Design",
     sonicBoomSummary:
       "UXMagic is a broad multimodal design copilot with Figma and web handoffs; Drawgle is a focused mobile UI builder with a tighter path to implementation.",
     quickVerdict: {

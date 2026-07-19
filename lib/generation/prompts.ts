@@ -18,12 +18,12 @@ Non-negotiable output discipline:
 - Return strictly valid JSON only.
 - Build one coherent product architecture before describing screens.
 - Keep one spacing scale, typography hierarchy, surface language, icon rhythm, and navigation family across every screen.
-- Treat a 390px mobile viewport as the working mental canvas. Reserve bottom navigation clearance when primary navigation is active.
+- Treat a 390px mobile viewport as the working mental canvas. The renderer owns shared-navigation clearance; screen plans must not invent spacer heights or padding formulas.
 - Do not plan text, cards, maps, charts, nav shells, or CTAs that cannot fit the viewport.
 - Do not make each screen feel like a different app. Distinct compositions are allowed; inconsistent padding, line-height, card radii, and nav rhythm are not.
 - Every screen brief must include these labels inside description: Reference DNA, Visual Goal, Layout Anatomy, Key Components, Visual Styling, Interaction Notes, Must Preserve.
 - Every screen must also include layout_contract: six compact, app-specific construction rules that define viewport budget, focal hierarchy, macro/micro spacing, component density, CTA weight, and anti-patterns.
-- Each screen brief must be builder-ready, not a product summary. Describe background layer, content rail, parent-child containment, spacing, edge treatment, type roles, nav clearance, and overflow/wrapping policy.
+- Each screen brief must be builder-ready, not a product summary. Describe background layer, content rail, parent-child containment, spacing, edge treatment, type roles, and overflow/wrapping policy.
 - COMPOSITIONAL DIRECTION: Push past generic list layouts. Define the specific spatial orchestration required by the approved evidence: note intentional depth, structural asymmetry, and varying visual density.
 - Creative direction is the product-wide art-direction thesis. Do not water it down into generic product language.
 - Current project context is continuity evidence. Preserve existing product architecture, approved navigation architecture, approved navigation plan, naming, and design language unless the user explicitly asks to redesign them.
@@ -275,13 +275,13 @@ Rules:
 - Screen existence: obey explicit N and Screen Count Contract above visible tabs, inferred sections, and navigation item count. Screen briefs decide what exists. Treat navigation tabs, bottom tabs, segmented controls, settings rows, menu labels, and similar UI as elements unless the user/scope explicitly asks for those destinations as screens.
 - Preserve prompt-named screens and order.
 - Architecture/chrome: use the approved blueprint as fixed architecture. Root screens are peer primary destinations. Onboarding, splash, checkout, tracking, map, detail, modal, confirmation, login/signup/register/auth, chat/messaging/assistant are detail/immersive. chrome_policy must match role; these screens must not show primary bottom navigation.
-- Renderer-owned navigation: when the blueprint has shared primary navigation, do not describe its bottom dock/tab-bar/nav-pill anatomy inside any screen description. Say only that the screen reserves bottom clearance for the renderer-owned shared nav. Bottom navigation from approved evidence belongs to navigation_plan/design, not to screen content.
+- Renderer-owned navigation: when the blueprint has shared primary navigation, do not describe its bottom dock/tab-bar/nav-pill anatomy, spacer, clearance height, or padding formula inside any screen description. Bottom navigation from approved evidence belongs to navigation_plan/design, not to screen content.
 - Description quality: each description should usually be 900-1800 chars, include all seven labels, and be detailed enough for the builder without seeing the image. Write as a construction brief from background forward through layout, containment, components, typography, materials, depth/edges, imagery/charts/maps, interaction states, and must-preserve construction cues.
 - layout_contract is not prose decoration. It is the compact architecture the builder must obey before writing HTML: no generic stacked blocks, no empty chart/card shells, no oversized CTA unless action priority demands it, no primitive chip grids with large macro gaps and cramped internal padding.
 - Component specificity: name concrete structures/states when relevant: headers, hero regions, surfaces, containers, lists, rows, sheets, charts, progress rings, segmented controls, tabs, chips, icon buttons, badges, avatar stacks, maps, media areas, text groups, and CTA placement.
 - Material specificity: call out typography, imagery, chart geometry, background, rounded shapes, elevation, edge treatment, inner/outer borders, highlight edges, bevels, glass/frosting, and must-preserve composition cues. Avoid weak phrases like "clean dashboard" or "stats cards" unless immediately followed by exact anatomy.
 - Copy/anatomy: preserve real copy when it anchors layout; use placeholders only for volatile names, numbers, and dates. Do not duplicate anatomy across screens unless the approved product shell or evidence clearly reuses it.
-- Viewport fit: include a 390px fit note, bottom-nav clearance when applicable, and how the screen avoids overflow, text collision, clipped nav, and bottom overlap. Shared-bottom-nav screens must reserve a clear bottom content zone; never place final rows, CTAs, cards, or map callouts under the nav shell.
+- Viewport fit: include a 390px fit note and how the screen avoids overflow and text collision. On shared-navigation screens, the renderer supplies the bottom content clearance; the plan must not assign a numeric value or spacer.
 - Asset planning: plan bitmap groups in asset_needs; use [] when none. Declare subject, semanticCategory, semanticTags, type, priority, placementHint, slotCount, and reusePolicy. Eight similar image-bearing cards are one need with slotCount=8 and reusePolicy=repeat, not eight needs. Use distinct for different people or explicitly different named products.
 - Asset sourcePreference: internal_library for transparent foreground cutouts; stock for non-transparent photos/textures; user_upload only for explicit user-owned logo/product/brand/person/private image. Never output "ai_generated"; placeholders are resolved later. Do not request bitmaps for icons, decorative blobs, CSS gradients, HTML/CSS charts, simple cards, or generic chrome.
 - State proposals: state_variants are optional local states of the same route shell, not destinations. Suggest at most three meaningful states opened by visible controls: modal/dialog/sheet/popover, active tab with a distinct content body, filtered/search results, selected detail panel, or a concrete form flow. Never use onboarding, auth, profile/settings routes, checkout, navigation destinations, theme/dark mode, hover/focus styling, or generic loading/empty states as local paid states. Set explicitly_requested and default_selected true only when the user prompt explicitly requires that visible state, except for the additional recreate-mode evidence rule above. Every edit_instruction must preserve the parent shell, navigation, tokens, typography, spacing, and overall layout.
@@ -544,7 +544,7 @@ For shape and elevation, prefer a single standard surface radius, a single stand
     "spacing": { "none": "0px", "xxs": "px", "xs": "px", "sm": "px", "md": "px", "lg": "px", "xl": "px", "xxl": "px" },
     "mobile_layout": { "screen_margin": "px", "safe_area_top": "16px", "safe_area_bottom": "16px", "section_gap": "px", "element_gap": "px" },
     "sizing": { "min_touch_target": "48px", "standard_button_height": "px", "standard_input_height": "px", "icon_small": "px", "icon_standard": "px", "bottom_nav_height": "px" },
-    "radii": { "app": "px", "pill": "9999px" },
+    "radii": { "app": "px", "inner": "px smaller than app", "pill": "9999px" },
     "border_widths": { "standard": "px" },
     "shadows": { "none": "none", "surface": "shadow string", "overlay": "shadow string" },
     "gradients": {
@@ -571,7 +571,9 @@ Rules:
 - recommendedFonts should be a short list of fonts that fit the direction, not a generic grab bag.
 - spacing and mobile_layout must be chosen intentionally from the approved evidence, but should still read as one consistent rhythm system across the product. screen_margin defaults to 16px and needs explicit measured evidence to be larger.
 - radii, border_widths, and shadows must define one coherent app-wide geometry/elevation language, not multiple interchangeable options.
-- Use radii.app for standard cards, buttons, inputs, sheets, and navigation surfaces. Use radii.pill only for capsule-shaped controls when the composition genuinely calls for them.
+- Use radii.app for outer cards, sheets, panels, inputs, and navigation shells.
+- Use radii.inner for nested cards, inset panels, segmented tabs, and active navigation items. It must be smaller than radii.app unless both are 0px in a sharp system.
+- Use radii.pill only for true capsules and circular wells.
 - Use border_widths.standard as the default border weight across the app.
 - Use shadows.surface for standard elevated surfaces and shadows.overlay only for stronger overlays like sheets or floating panels.
 - Use gradients as first-class material tokens when the approved evidence or creative direction uses gradient depth. Provide app_background, action_primary, surface_highlight, and accent_ring values as complete CSS gradient strings. Keep them disciplined and role-based, not a grab bag of decorative effects.
@@ -630,6 +632,7 @@ const resolveToken = (
 
 const buildStrictDesignContract = (designTokens?: DesignTokens | null) => {
   const appRadius = resolveToken(designTokens, "radii.app", "18px");
+  const innerRadius = resolveToken(designTokens, "radii.inner", "12px");
   const pillRadius = resolveToken(designTokens, "radii.pill", "9999px");
   const standardBorder = resolveToken(designTokens, "border_widths.standard", "1px");
   const surfaceShadow = resolveToken(designTokens, "shadows.surface", "0 12px 32px rgba(15,23,42,0.14)");
@@ -643,8 +646,9 @@ const buildStrictDesignContract = (designTokens?: DesignTokens | null) => {
   const fontFamily = resolveToken(designTokens, "typography.font_family", "sans-serif");
 
   return [
-    `- Standard app radius: ${appRadius}`,
-    `- Pill radius: ${pillRadius} (use only for chips, segmented controls, or deliberate capsule CTAs)`,
+    `- Outer surface radius: ${appRadius} (cards, sheets, panels, fields, and navigation shells)`,
+    `- Inner container radius: ${innerRadius} (nested cards, inset panels, segmented tabs, and active navigation items)`,
+    `- Pill radius: ${pillRadius} (use only for true capsules and circular wells)`,
     `- Standard border width: ${standardBorder}`,
     `- Standard surface shadow: ${surfaceShadow}`,
     `- Overlay shadow: ${overlayShadow}`,
@@ -804,7 +808,8 @@ export const buildSharedNavigationContract = ({
     `Screen activeNav=${screenPlan.navigationItemId ?? "none"}. Items=${navigationPlan.items.map((item) => `${item.label}(${item.icon})`).join(", ")}.`,
     navigationPlan.visualBrief ? `Visual brief=${navigationPlan.visualBrief}` : null,
     "Do not output <nav>, <footer>, bottom tabs, tab bars, docks, or persistent primary navigation markup.",
-    "Build only screen content above the shell; reserve bottom clearance on the main scroll/content wrapper: calc(var(--dg-mobile-layout-safe-area-bottom) + 96px) or equivalent Tailwind pb value.",
+    "Build only screen content. Mark exactly one actual main scroll/content wrapper with class=\"dg-shared-nav-clearance\" and data-drawgle-nav-clearance-owner=\"true\".",
+    "The renderer owns the clearance value. Do not calculate bottom padding, emit a navigation spacer, or add an empty sibling for safe-area clearance.",
     "If the screen has local/top navigation, keep it visually consistent with the shared shell family.",
   ].filter(Boolean).join("\n");
 };
@@ -891,8 +896,8 @@ ${sharedNavContract}
 Additional rules:
 1. Prefer Drawgle token utility classes and CSS variables for canonical styling. Do not freeze token values as raw hex/pixels when a project token variable exists.
 2. Do not invent new radii, border widths, or shadow recipes. Reuse the approved contract exactly.
-3. Use the standard app radius for default cards, buttons, fields, nav containers, and panels.
-4. Use the pill radius only when the current UI already contains capsule controls or the requested change explicitly requires them.
+3. Use the outer app radius for cards, fields, navigation shells, sheets, and panels.
+4. Use the inner radius for nested cards, inset panels, segmented tabs, and active navigation items. Use the pill radius only for true capsules and circular wells.
 5. Preserve the existing navigation family unless the user explicitly asks to redesign navigation.
 6. Preserve typography role consistency. Do not introduce arbitrary text sizes or weights when an existing semantic text role already fits.
 7. If the current code already violates the contract, move it toward the approved values while completing the requested edit instead of drifting further away.
@@ -1025,15 +1030,15 @@ Mentally plan spatial orchestration before writing HTML.
 Preflight checklist: establish viewport budget (header, focal center, nav clearance), build flexible containers for real text wraps, and strictly contrast micro-groupings (tight gaps) with macro-sections (section-gap tokens).
 Use one horizontal rail across the app, normally px-[var(--dg-mobile-layout-screen-margin)] unless the brief explicitly calls for full-bleed media.
 Use one vertical rhythm from the tokens: major sections use gap-[var(--dg-mobile-layout-section-gap)], card internals use p-[var(--dg-spacing-md)] or a clearly tighter token, and small icon/label groups use gap-[var(--dg-spacing-xs)].
-If shared bottom navigation is injected, reserve at least 96px plus the bottom safe area at the bottom of the screen content. Put this clearance on the scroll/main content container, not by drawing a fake nav.
+If shared bottom navigation is injected, mark exactly one real scroll/main content wrapper with dg-shared-nav-clearance and data-drawgle-nav-clearance-owner="true". The renderer supplies its padding; never add a manual bottom-padding formula or empty spacer.
 Every compact card, list row, chip row, and nav-adjacent area must be designed for real text: use min-w-0 on flex text groups, truncate or wrap intentionally, avoid fixed heights that cannot contain the copy, and never let labels collide with icons, badges, prices, or chevrons.
 Every chart, map, gauge, progress ring, or visual panel must contain visible constructed geometry. Do not leave blank chart cards, empty axes, empty map panels, or placeholder rectangles.
 If a row/card contains more than two text lines plus controls, increase its height, simplify the copy, or move secondary metadata into a separate line so the surface breathes.
 
 CRITICAL INSTRUCTION 1: LIVE DESIGN TOKENS
 You MUST use Drawgle live token utility classes and CSS variables for canonical colors, typography, spacing, sizing, radii, borders, and shadows.
-Preferred examples: dg-bg-primary, dg-surface-card, dg-text-high, dg-text-medium, dg-action-primary, dg-border-divider, dg-radius-app, dg-radius-pill, dg-shadow-surface, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-body, dg-type-caption.
-For token values without a named utility, use Tailwind arbitrary values with CSS variables, e.g. bg-[var(--dg-color-action-primary)], [background-image:var(--dg-gradient-action-primary)], p-[var(--dg-spacing-md)], rounded-[var(--dg-radii-app)].
+Preferred examples: dg-bg-primary, dg-surface-card, dg-text-high, dg-text-medium, dg-action-primary, dg-border-divider, dg-radius-app, dg-radius-inner, dg-radius-pill, dg-shadow-surface, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-body, dg-type-caption.
+For token values without a named utility, use Tailwind arbitrary values with CSS variables, e.g. bg-[var(--dg-color-action-primary)], [background-image:var(--dg-gradient-action-primary)], p-[var(--dg-spacing-md)], rounded-[var(--dg-radii-app)]. Outer surfaces use radii.app, nested/inset surfaces use radii.inner, and only true capsules/circular wells use radii.pill.
 Do NOT freeze project token values as raw hex or raw pixels when a token variable exists. Token gradients are canonical for expressive CTAs, app backgrounds, surface highlights, and accent rings. Raw/custom gradients are allowed only for deliberate one-off art details such as charts, maps, illustrations, or non-system lighting effects.
 Do NOT default to generic Tailwind palette values (e.g., bg-gray-900) if a design token exists for that purpose.
 Do NOT invent additional radius tiers, border widths, or shadow strengths. Use one geometry/elevation language across the entire screen.
@@ -1062,7 +1067,7 @@ ${buildSharedNavigationContract({ navigationInstruction, navigationPlan, screenP
 
 ` : ""}OUTPUT RULES:
 - Root element MUST be exactly: <div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden" style="font-family: var(--dg-typography-font-family, ${fontFamily})">
-- Safe areas: top container pt-[${safeTop}], bottom/content pb-[${safeBottom}] unless shared nav requires larger clearance.
+- Safe areas: top container pt-[${safeTop}]. Without shared navigation, bottom content may use pb-[${safeBottom}]. With shared navigation, use only the renderer-owned dg-shared-nav-clearance marker described above.
 - Clickable controls: min-h-[${minTouch}].
 - Text colors: use token classes/vars such as dg-text-high or text-[var(--dg-color-text-high-emphasis)] (current high text ${textHigh}).
 - Token lock: major app surfaces, backgrounds, cards, text, actions, nav-adjacent regions, radii, shadows, and spacing must use dg-* utilities or var(--dg-*). Do not use bg-white, bg-gray-*, text-black, raw hex/rgb, or arbitrary px values for system styling when an approved token role exists.

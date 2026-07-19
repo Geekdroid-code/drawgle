@@ -43,8 +43,8 @@ export function buildDrawgleTailwindConfigScript(): string {
             },
             borderRadius: {
               lg: "var(--radius, var(--dg-radii-app))",
-              md: "calc(var(--radius, var(--dg-radii-app)) - 2px)",
-              sm: "calc(var(--radius, var(--dg-radii-app)) - 4px)"
+              md: "var(--radius-inner, var(--dg-radii-inner))",
+              sm: "max(0px, calc(var(--radius-inner, var(--dg-radii-inner)) - 4px))"
             },
             spacing: {
               "screen-margin": "var(--screen-margin, var(--dg-mobile-layout-screen-margin))",
