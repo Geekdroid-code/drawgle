@@ -99,4 +99,44 @@ describe("element style inspection", () => {
     expect(radius?.tokenName).toBe("--dg-radii-inner");
     expect(radius?.source).toBe("token");
   });
+
+  it("prefers stable border measurements over device-pixel-snapped values", () => {
+    const resolved = resolveStyleInspection({
+      tagName: "div",
+      classList: ["border"],
+      inlineStyle: {},
+      computedStyle: {
+        "border-width": "0.761905px",
+        "border-top-width": "0.761905px",
+        "border-right-width": "0.761905px",
+        "border-bottom-width": "0.761905px",
+        "border-left-width": "0.761905px",
+      },
+      stableComputedStyle: {
+        "border-width": "1px",
+        "border-top-width": "1px",
+        "border-right-width": "1px",
+        "border-bottom-width": "1px",
+        "border-left-width": "1px",
+      },
+    }, tokenRefs);
+
+    expect(resolved?.properties.find((property) => property.property === "border-width")?.computedValue).toBe("1px");
+    expect(resolved?.properties.find((property) => property.property === "border-top-width")?.computedValue).toBe("1px");
+  });
+
+  it("only assigns directional border utilities to the sides they affect", () => {
+    const resolved = resolveStyleInspection({
+      tagName: "div",
+      classList: ["border-t-2", "border-x-4"],
+      inlineStyle: {},
+      computedStyle: {},
+    }, tokenRefs);
+
+    expect(resolved?.properties.find((property) => property.property === "border-width")?.classBinding).toBeNull();
+    expect(resolved?.properties.find((property) => property.property === "border-top-width")?.classBinding).toBe("border-t-2");
+    expect(resolved?.properties.find((property) => property.property === "border-right-width")?.classBinding).toBe("border-x-4");
+    expect(resolved?.properties.find((property) => property.property === "border-bottom-width")?.classBinding).toBeNull();
+    expect(resolved?.properties.find((property) => property.property === "border-left-width")?.classBinding).toBe("border-x-4");
+  });
 });

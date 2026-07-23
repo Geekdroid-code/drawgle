@@ -1780,6 +1780,54 @@ export function ScreenNode({
             }
 
             var INSPECTED_STYLE_PROPERTIES = ${styleInspectionProperties};
+            var PIXEL_SNAPPED_STYLE_PROPERTIES = [
+              'border-width',
+              'border-top-width',
+              'border-right-width',
+              'border-bottom-width',
+              'border-left-width'
+            ];
+
+            function normalizeStablePixelValue(value) {
+              var match = String(value || '').trim().match(/^(-?\\d+(?:\\.\\d+)?)px$/i);
+              if (!match) return String(value || '').trim();
+              var amount = Number(match[1]);
+              if (!Number.isFinite(amount)) return String(value || '').trim();
+              var rounded = Math.round(amount * 1000) / 1000;
+              return (Object.is(rounded, -0) ? 0 : rounded) + 'px';
+            }
+
+            function buildStableComputedStylePayload(el) {
+              if (!el || !el.style) return {};
+
+              var previousZoom = el.style.getPropertyValue('zoom');
+              var previousZoomPriority = el.style.getPropertyPriority('zoom');
+              var elementZoom = Number.parseFloat(window.getComputedStyle(el).zoom || '1');
+              var baseZoom = Number.isFinite(elementZoom) && elementZoom > 0 ? elementZoom : 1;
+              var stableComputedStyle = {};
+
+              try {
+                // Chromium snaps borders to physical pixels before serializing
+                // getComputedStyle(). Magnifying the target only for this
+                // synchronous read makes the error negligible without painting
+                // or changing viewport/container-query selection.
+                el.style.setProperty('zoom', String(baseZoom * 10000), 'important');
+                var magnifiedStyle = window.getComputedStyle(el);
+                PIXEL_SNAPPED_STYLE_PROPERTIES.forEach(function(property) {
+                  stableComputedStyle[property] = normalizeStablePixelValue(
+                    magnifiedStyle.getPropertyValue(property)
+                  );
+                });
+              } finally {
+                if (previousZoom) {
+                  el.style.setProperty('zoom', previousZoom, previousZoomPriority);
+                } else {
+                  el.style.removeProperty('zoom');
+                }
+              }
+
+              return stableComputedStyle;
+            }
 
             function buildStyleInspectionPayload(el) {
               var style = window.getComputedStyle(el);
@@ -1798,6 +1846,7 @@ export function ScreenNode({
                 }),
                 inlineStyle: inlineStyle,
                 computedStyle: computedStyle,
+                stableComputedStyle: buildStableComputedStylePayload(el),
               };
             }
 

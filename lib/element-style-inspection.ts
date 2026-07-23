@@ -148,6 +148,11 @@ export type DrawgleRawStyleInspection = {
   classList: string[];
   inlineStyle: DrawgleStyleValueMap;
   computedStyle: DrawgleStyleValueMap;
+  /**
+   * Computed values sampled at a high internal zoom to avoid Chromium's
+   * device-pixel snapping. Currently populated for border widths only.
+   */
+  stableComputedStyle?: DrawgleStyleValueMap;
 };
 
 export type DrawgleResolvedStyleProperty = {
@@ -262,6 +267,7 @@ const arbitraryTokenClassPatterns: Array<[DrawgleStyleProperty[], RegExp]> = [
   [["background-image"], /^bg-\[var\((--dg-gradients-[^)]+)\)\]$/],
   [["color"], /^text-\[var\((--dg-[^)]+)\)\]$/],
   [["border-color"], /^border-\[var\((--dg-[^)]+)\)\]$/],
+  [["border-width", "border-top-width", "border-right-width", "border-bottom-width", "border-left-width"], /^border(?:-[trblxy])?-\[var\((--dg-border-widths-[^)]+)\)\]$/],
   [["border-radius", "border-top-left-radius", "border-top-right-radius", "border-bottom-right-radius", "border-bottom-left-radius"], /^rounded(?:-[trbl]{1,2})?-\[var\((--dg-[^)]+)\)\]$/],
   [["box-shadow"], /^shadow-\[var\((--dg-[^)]+)\)\]$/],
   [["gap"], /^gap-\[var\((--dg-[^)]+)\)\]$/],
@@ -314,6 +320,19 @@ const isBorderColorClass = (className: string) => {
 
 const startsWithAny = (className: string, prefixes: string[]) =>
   prefixes.some((prefix) => className === prefix.replace(/-$/, "") || className.startsWith(prefix));
+
+const borderWidthClassAffectsProperty = (property: DrawgleStyleProperty, className: string) => {
+  const match = className.match(/^border(?:-([trblxy]))?(?:-\d+|-\[[^\]]+\])?$/i);
+  if (!match) return false;
+
+  const direction = match[1]?.toLowerCase() ?? null;
+  if (property === "border-width") return direction === null;
+  if (property === "border-top-width") return direction === null || direction === "t" || direction === "y";
+  if (property === "border-right-width") return direction === null || direction === "r" || direction === "x";
+  if (property === "border-bottom-width") return direction === null || direction === "b" || direction === "y";
+  if (property === "border-left-width") return direction === null || direction === "l" || direction === "x";
+  return false;
+};
 
 export const classNameMatchesUtilityFamily = (family: DrawgleClassUtilityFamily, className: string) => {
   if (family === "text-color") return isTextColorClass(className);
@@ -378,6 +397,8 @@ const findClassTokenBinding = (property: DrawgleStyleProperty, classList: string
   for (const className of classList) {
     for (const [properties, pattern] of arbitraryTokenClassPatterns) {
       if (!properties.includes(property)) continue;
+      if (getStylePropertyConfig(property)?.classUtilityFamily === "border-width"
+        && !borderWidthClassAffectsProperty(property, className)) continue;
       const match = className.match(pattern);
       if (match?.[1]) return { classBinding: className, tokenName: match[1] };
     }
@@ -386,6 +407,7 @@ const findClassTokenBinding = (property: DrawgleStyleProperty, classList: string
   const family = getStylePropertyConfig(property)?.classUtilityFamily;
   if (family) {
     for (const className of classList) {
+      if (family === "border-width" && !borderWidthClassAffectsProperty(property, className)) continue;
       if (classNameMatchesUtilityFamily(family, className)) return { classBinding: className, tokenName: null };
     }
   }
@@ -426,7 +448,8 @@ export const resolveStyleInspection = (rawInspection: DrawgleRawStyleInspection 
     const controlConfig: DrawgleStyleControlConfig = config;
     const property = config.property;
     const inlineValue = normalizeCssValue(rawInspection.inlineStyle?.[property]);
-    const computedValue = normalizeCssValue(rawInspection.computedStyle?.[property]);
+    const stableComputedValue = normalizeCssValue(rawInspection.stableComputedStyle?.[property]);
+    const computedValue = stableComputedValue || normalizeCssValue(rawInspection.computedStyle?.[property]);
     const inlineTokenName = tokenVariableNameFromValue(inlineValue);
     const classTokenBinding = findClassTokenBinding(property, classList);
     const fallbackToken = inlineTokenName ? null : classTokenBinding.tokenName ? null : findMatchingToken(property, computedValue, tokenRefs);

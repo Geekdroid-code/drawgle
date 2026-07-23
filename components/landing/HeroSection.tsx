@@ -17,10 +17,10 @@ const caveat = Caveat({
 });
 
 const placeholderPhrases = [
-  "Build a modern SaaS pricing page with dark mode...",
-  "Design a minimal blog post layout with elegant typography...",
-  "Create a futuristic crypto dashboard with charts...",
-  "Generate a clean e-commerce product page...",
+  "Build a fitness tracking app with dark mode...",
+  "Design a modern mobile app for snickers store...",
+  "Create a sleek video sharing app in premium ios style...",
+  "Generate a premium mobile app for recipe sharing...",
 ];
 
 const initialDemoNote = "Watch it live before you give your money to us";

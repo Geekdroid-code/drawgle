@@ -839,7 +839,13 @@ function SelectedElementInspectorSidebar({
 
   const getPropertyDraftValue = (property: DrawgleResolvedStyleProperty) => {
     const draft = styleDrafts[property.property] ?? initialDraftForProperty(property);
-    if (draft.mode === "token") return property.computedValue || `var(${draft.value})`;
+    const activeTokenName = draft.mode === "token" ? draft.value : property.tokenName;
+    const activeToken = activeTokenName
+      ? getTokenReferencesForStyleProperty(property.property, tokenRefs)
+          .find((token) => token.name === activeTokenName)
+      : null;
+    if (draft.mode === "token") return activeToken?.value || property.computedValue || `var(${draft.value})`;
+    if (draft.mode === "inherit" && property.status === "linked" && activeToken) return activeToken.value;
     if (draft.mode === "custom") return draft.value;
     return property.inlineValue || property.computedValue || "";
   };

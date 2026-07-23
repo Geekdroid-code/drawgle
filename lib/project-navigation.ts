@@ -585,7 +585,11 @@ export function validateNavigationShell(shellCode: string, navigationPlan: Navig
 const summarizeCandidate = (value: string) => value.replace(/\s+/g, " ").trim().slice(0, 320);
 
 const PRIMARY_NAV_WORD_PATTERN = /bottom\s+(?:nav|navigation)|tab\s*bar|footer\s*nav|navigation\s+(?:dock|pill|bar|surface|shell)|floating\s+(?:dock|nav|navigation|tab)|dock\s+navigation|shared\s+shell\s+simulation|data-nav-item-id|data-drawgle-primary-nav/i;
-const FIXED_BOTTOM_PATTERN = /\b(?:fixed|sticky|absolute|bottom-0|bottom-\[|inset-x-0)\b|position\s*:\s*fixed|bottom\s*:/i;
+const POSITIONED_PATTERN = /\b(?:fixed|sticky|absolute)\b|position\s*:\s*(?:fixed|sticky|absolute)/i;
+const BOTTOM_EDGE_PATTERN = /\bbottom-(?:0|px|full|\d+(?:\.\d+)?|\[[^\]]+\])(?=\s|["'])|bottom\s*:/i;
+
+const isBottomPositioned = (value: string) =>
+  POSITIONED_PATTERN.test(value) && BOTTOM_EDGE_PATTERN.test(value);
 
 const countNavLikeChildren = (block: string) => {
   const actionCount = (block.match(/<(?:button|a)\b/gi) ?? []).length;
@@ -597,10 +601,12 @@ const countNavLikeChildren = (block: string) => {
 const looksLikePrimaryBottomNavigationBlock = (block: string) => {
   const { actionCount, iconCount, labelCount } = countNavLikeChildren(block);
   const explicitNavWords = PRIMARY_NAV_WORD_PATTERN.test(block);
-  const looksFixedBottom = FIXED_BOTTOM_PATTERN.test(block);
+  const looksFixedBottom = isBottomPositioned(block);
 
   if (explicitNavWords && actionCount >= 2) return true;
-  if (looksFixedBottom && actionCount >= 2 && (iconCount >= 2 || labelCount >= 2)) return true;
+  // Geometry alone is deliberately conservative: contextual action bars and
+  // positioned control overlays can also contain multiple buttons and labels.
+  if (looksFixedBottom && actionCount >= 3 && iconCount >= 3 && labelCount >= 2) return true;
   return false;
 };
 
@@ -622,7 +628,10 @@ export function detectLocalNavigationMarkup(code: string) {
   for (const match of withoutStyles.matchAll(/<(nav|footer)\b[\s\S]*?<\/\1>/gi)) {
     const snippet = match[0];
     const actionCount = (snippet.match(/<(?:button|a)\b/gi) ?? []).length;
-    if (PRIMARY_NAV_WORD_PATTERN.test(snippet) || (FIXED_BOTTOM_PATTERN.test(snippet) && actionCount >= 2)) {
+    const semanticBottomNav = match[1].toLowerCase() === "nav" &&
+      isBottomPositioned(snippet) &&
+      actionCount >= 2;
+    if (semanticBottomNav || looksLikePrimaryBottomNavigationBlock(snippet)) {
       push(`${match[1].toLowerCase()}_primary_navigation`, snippet);
     }
   }
@@ -653,7 +662,7 @@ const findBalancedFixedBottomDivBlocks = (code: string) => {
   const openDivPattern = /<div\b[^>]*>/gi;
   for (let match = openDivPattern.exec(code); match; match = openDivPattern.exec(code)) {
     const openTag = match[0];
-    if (!FIXED_BOTTOM_PATTERN.test(openTag)) continue;
+    if (!isBottomPositioned(openTag)) continue;
     const removed = removeBalancedDivAt(code, match.index);
     if (removed) blocks.push(removed.block);
   }
@@ -667,7 +676,7 @@ const removeHighConfidenceFixedBottomNavigationDivs = (code: string) => {
 
   for (let match = openDivPattern.exec(next); match; match = openDivPattern.exec(next)) {
     const openTag = match[0];
-    if (!FIXED_BOTTOM_PATTERN.test(openTag)) continue;
+    if (!isBottomPositioned(openTag)) continue;
     const removed = removeBalancedDivAt(next, match.index);
     if (!removed || !looksLikePrimaryBottomNavigationBlock(removed.block)) continue;
     removals.push({ start: match.index, end: removed.end });
@@ -696,18 +705,20 @@ export function sanitizeScreenCodeForSharedNavigation(
     const divStart = sanitized.indexOf("<div", afterComment);
     if (divStart < 0) continue;
     const openEnd = sanitized.indexOf(">", divStart);
-    if (openEnd < 0 || !FIXED_BOTTOM_PATTERN.test(sanitized.slice(divStart, openEnd + 1))) continue;
+    if (openEnd < 0 || !isBottomPositioned(sanitized.slice(divStart, openEnd + 1))) continue;
     const removed = removeBalancedDivAt(sanitized, divStart);
-    if (removed && looksLikePrimaryBottomNavigationBlock(removed.block)) {
+    if (removed && looksLikePrimaryBottomNavigationBlock(`${comment[0]}${removed.block}`)) {
       sanitized = sanitized.slice(0, commentStart) + sanitized.slice(removed.end);
     }
   }
 
   sanitized = sanitized
-    .replace(/<(nav|footer)\b[\s\S]*?<\/\1>/gi, (match) => {
+    .replace(/<(nav|footer)\b[\s\S]*?<\/\1>/gi, (match, tagName: string) => {
       const actionCount = (match.match(/<(?:button|a)\b/gi) ?? []).length;
-      const highConfidence = PRIMARY_NAV_WORD_PATTERN.test(match) ||
-        (FIXED_BOTTOM_PATTERN.test(match) && actionCount >= 2);
+      const semanticBottomNav = tagName.toLowerCase() === "nav" &&
+        isBottomPositioned(match) &&
+        actionCount >= 2;
+      const highConfidence = semanticBottomNav || looksLikePrimaryBottomNavigationBlock(match);
       return highConfidence ? "" : match;
     });
 

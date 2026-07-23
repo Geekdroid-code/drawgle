@@ -311,6 +311,90 @@ describe("Production Navigation V2", () => {
     expect(detectLocalNavigationMarkup(sanitizedCta).hasLocalNavigation).toBe(false);
   });
 
+  it("preserves an absolute vehicle-control overlay with multiple icon buttons", () => {
+    const screen: ScreenPlan = {
+      name: "Remote Controls / Vehicle Interaction",
+      type: "root",
+      description: "A car surrounded by six remote control nodes.",
+      navigationItemId: "controls",
+      chromePolicy: { chrome: "bottom-tabs", showPrimaryNavigation: true, showsBackButton: false },
+    };
+    const controls = [
+      ["car-front", "Frunk"],
+      ["car", "Trunk"],
+      ["lightbulb", "Flash"],
+      ["megaphone", "Horn"],
+      ["lock", "Driver Door"],
+      ["lock", "Passenger Door"],
+    ].map(([icon, label]) =>
+      `<button type="button"><i data-lucide="${icon}"></i><span>${label}</span></button>`,
+    ).join("");
+    const source = [
+      '<main class="min-h-screen">',
+      '  <section class="relative h-[420px]">',
+      '    <img alt="Top-down vehicle">',
+      `    <div class="absolute inset-0">${controls}</div>`,
+      "  </section>",
+      "</main>",
+    ].join("");
+
+    const sanitized = sanitizeScreenCodeForSharedNavigation(source, screen, {
+      projectNavigationEnabled: true,
+    });
+
+    expect(sanitized).toContain('class="absolute inset-0"');
+    expect(sanitized).toContain("Frunk");
+    expect(sanitized).toContain("Passenger Door");
+    expect((sanitized.match(/<button/g) ?? [])).toHaveLength(6);
+    expect(detectLocalNavigationMarkup(sanitized).hasLocalNavigation).toBe(false);
+  });
+
+  it("still removes a bottom-anchored multi-button navigation dock", () => {
+    const screen: ScreenPlan = {
+      name: "Dashboard",
+      type: "root",
+      description: "Dashboard",
+      navigationItemId: "home",
+      chromePolicy: { chrome: "bottom-tabs", showPrimaryNavigation: true, showsBackButton: false },
+    };
+    const source = [
+      "<main>Dashboard</main>",
+      '<div class="absolute inset-x-0 bottom-4">',
+      '  <button><i data-lucide="home"></i><span>Home</span></button>',
+      '  <button><i data-lucide="settings"></i><span>Settings</span></button>',
+      '  <button><i data-lucide="user"></i><span>Profile</span></button>',
+      "</div>",
+    ].join("");
+
+    expect(sanitizeScreenCodeForSharedNavigation(source, screen, {
+      projectNavigationEnabled: true,
+    })).toBe("<main>Dashboard</main>");
+  });
+
+  it("preserves a bottom-anchored contextual action bar", () => {
+    const screen: ScreenPlan = {
+      name: "Trip Planning",
+      type: "root",
+      description: "Plan a vehicle trip.",
+      navigationItemId: "trips",
+      chromePolicy: { chrome: "bottom-tabs", showPrimaryNavigation: true, showsBackButton: false },
+    };
+    const source = [
+      "<main>Trip details</main>",
+      '<footer class="fixed inset-x-0 bottom-0">',
+      '  <button><i data-lucide="x"></i><span>Cancel</span></button>',
+      '  <button><i data-lucide="send"></i><span>Send to car</span></button>',
+      "</footer>",
+    ].join("");
+
+    const sanitized = sanitizeScreenCodeForSharedNavigation(source, screen, {
+      projectNavigationEnabled: true,
+    });
+
+    expect(sanitized).toBe(source);
+    expect(detectLocalNavigationMarkup(sanitized).hasLocalNavigation).toBe(false);
+  });
+
   it("keeps project 6f5db1c9-0a24-445c-b37a-b0fe0fdae29f readable as V1 until explicit repair", () => {
     const stored = parseStoredNavigationPlan({
       enabled: true,
