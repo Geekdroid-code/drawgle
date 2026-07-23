@@ -49,12 +49,12 @@ export default function HookSection() {
         <div className="mx-auto mb-12 max-w-3xl text-center md:mb-16">
           <div className="mb-5 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#1b7fcc]">
             <Sparkles className="h-3.5 w-3.5" />
-            How Drawgle works
+            The Process
           </div>
           <h2 className="font-pixel-square text-[34px] font-semibold leading-[1.0] tracking-tight text-black sm:text-5xl md:text-6xl">
-            How an AI mobile app UI designer
+            How Drawgle mobile app 
             <span className="block text-[#1b7fcc] mt-2">
-               creates a coherent product.
+               UI Designer Works
             </span>
           </h2>
           <p className="mx-auto mt-6 max-w-3xl text-sm leading-relaxed text-gray-500 sm:text-base md:text-lg">
