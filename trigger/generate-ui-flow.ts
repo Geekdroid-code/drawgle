@@ -14,7 +14,9 @@ import type { CuratedStyleSelectionDiagnostics } from "@/lib/generation/curated-
 import { getDesignStylePack, isDesignStyleId, summarizeDesignStyle } from "@/lib/generation/design-styles";
 import { CURATED_STYLE_EMBEDDING_MODEL } from "@/lib/generation/curated-style-index-core";
 import { indexScreenCode } from "@/lib/generation/block-index";
+import { buildFirstScreenPriorityBatches } from "@/lib/generation/build-scheduler";
 import { assembleProjectContext } from "@/lib/generation/context";
+import { transitionGenerationJournalPhase as setJournalPhase } from "@/lib/generation/journal";
 import {
   buildStateVariantEditActivityKey,
   buildStateVariantEditInstruction,
@@ -92,7 +94,7 @@ import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
 import { getGenerationEngineVersion } from "@/lib/env/server";
 import { enrichScreenMemoryTask } from "@/trigger/enrich-screen-memory";
 import type { Database, ProjectScreenRoadmapRow } from "@/lib/supabase/database.types";
-import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationReferencePolicy, GenerationRetryContext, GenerationScopeContract, ImageReferenceMode, LlmProviderEvent, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, ProjectRoadmap, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenBaseStatePlan, ScreenPlan, ScreenPlanningSeed, ScreenStateVariantPlan } from "@/lib/types";
+import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationPreviewMetadata, GenerationReferencePolicy, GenerationRetryContext, GenerationScopeContract, ImageReferenceMode, LlmProviderEvent, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, ProjectRoadmap, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenBaseStatePlan, ScreenPlan, ScreenPlanningSeed, ScreenStateVariantPlan } from "@/lib/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -122,6 +124,7 @@ type GenerateUiFlowPayload = {
   retryContext?: GenerationRetryContext | null;
   projectRoadmap?: ProjectRoadmap | null;
   initialBatchItemKeys?: string[] | null;
+  isNewProject?: boolean;
 };
 
 type BuildScreenTaskPayload = {
@@ -145,6 +148,7 @@ type BuildScreenTaskPayload = {
   assetManifest?: ScreenAssetManifest[];
   projectCharter?: ProjectCharter | null;
   projectContext?: string | null;
+  isFirstScreen?: boolean;
 };
 
 
@@ -197,6 +201,39 @@ const collectFinishReasons = (chunk: unknown, finishReasons: Set<string>) => {
 };
 
 type GeminiUsageMetadata = Record<string, number>;
+
+type PerformanceAiUsage = {
+  modelCalls: number;
+  tokens: Record<string, number>;
+  byStage: Record<string, { modelCalls: number; tokens: Record<string, number> }>;
+};
+
+const createPerformanceAiUsage = (): PerformanceAiUsage => ({
+  modelCalls: 0,
+  tokens: {},
+  byStage: {},
+});
+
+const recordPerformanceAiUsage = (
+  usage: PerformanceAiUsage,
+  stage: string,
+  raw: Record<string, unknown>,
+) => {
+  const numericUsage = Object.fromEntries(
+    Object.entries(raw).filter((entry): entry is [string, number] =>
+      typeof entry[1] === "number" && Number.isFinite(entry[1]),
+    ),
+  );
+  if (Object.keys(numericUsage).length === 0) return;
+  usage.modelCalls += 1;
+  const stageUsage = usage.byStage[stage] ?? { modelCalls: 0, tokens: {} };
+  stageUsage.modelCalls += 1;
+  for (const [key, value] of Object.entries(numericUsage)) {
+    usage.tokens[key] = (usage.tokens[key] ?? 0) + value;
+    stageUsage.tokens[key] = (stageUsage.tokens[key] ?? 0) + value;
+  }
+  usage.byStage[stage] = stageUsage;
+};
 
 type GenerationAttemptDiagnostics = {
   attempt: number;
@@ -417,6 +454,47 @@ async function mergeGenerationRunMetadata(
     } as never,
   });
 }
+
+const metadataRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+
+async function mergeGenerationPerformance(
+  admin: AdminClient,
+  generationRunId: string,
+  patch: Record<string, unknown>,
+) {
+  const { data, error } = await admin
+    .from("generation_runs")
+    .select("metadata")
+    .eq("id", generationRunId)
+    .maybeSingle();
+  if (error) throw error;
+
+  const metadata = metadataRecord(data?.metadata);
+  const current = metadataRecord(metadata.performanceV1);
+  const currentStages = metadataRecord(current.stages);
+  const patchStages = metadataRecord(patch.stages);
+  await updateGenerationRun(admin, generationRunId, {
+    metadata: {
+      ...metadata,
+      performanceV1: {
+        version: 1,
+        ...current,
+        ...patch,
+        stages: { ...currentStages, ...patchStages },
+      },
+    } as never,
+  });
+}
+
+const performanceStage = (startedAt: string, startedMs: number) => ({
+  startedAt,
+  completedAt: now(),
+  durationMs: Math.max(0, Date.now() - startedMs),
+});
+
 
 async function reserveScreenSlots(admin: AdminClient, projectId: string, slotCount: number) {
   const { data, error } = await admin.rpc("reserve_screen_slots", {
@@ -879,7 +957,7 @@ function createGenerationJournal(generationRunId: string): GenerationJournalMeta
     detail: "Turning the brief into a buildable mobile UI plan.",
     activePhase: "brief",
     phases: [
-      { id: "brief", label: "Brief received", status: "active" },
+      { id: "brief", label: "Brief received", status: "active", startedAt: now() },
       { id: "reference", label: "Reference direction", status: "pending" },
       { id: "design", label: "Design system", status: "pending" },
       { id: "blueprint", label: "Project blueprint", status: "pending" },
@@ -890,18 +968,6 @@ function createGenerationJournal(generationRunId: string): GenerationJournalMeta
     screens: [],
     assetSummary: null,
   };
-}
-
-function setJournalPhase(
-  journal: GenerationJournalMetadata,
-  phaseId: string,
-  status: GenerationJournalMetadata["phases"][number]["status"],
-  detail?: string | null,
-) {
-  journal.phases = journal.phases.map((phase) =>
-    phase.id === phaseId ? { ...phase, status, detail: detail ?? phase.detail ?? null } : phase,
-  );
-  journal.activePhase = status === "completed" || status === "failed" ? journal.activePhase : phaseId;
 }
 
 function journalPhaseForError(message: string) {
@@ -950,7 +1016,11 @@ const logProviderEvent = (event: LlmProviderEvent) => {
   logger.info(label, event);
 };
 
-async function collectScreenBuild(input: BuildScreenTaskPayload, screenPlan: ScreenPlan) {
+async function collectScreenBuild(
+  input: BuildScreenTaskPayload,
+  screenPlan: ScreenPlan,
+  onFirstChunk?: () => void | Promise<void>,
+) {
   let rawText = "";
   const finishReasons = new Set<string>();
   const usageMetadata: GeminiUsageMetadata = {};
@@ -996,7 +1066,12 @@ async function collectScreenBuild(input: BuildScreenTaskPayload, screenPlan: Scr
     }),
   );
 
+  let receivedFirstChunk = false;
   for await (const chunk of codeStream) {
+    if (!receivedFirstChunk) {
+      receivedFirstChunk = true;
+      await onFirstChunk?.();
+    }
     rawText += chunk;
   }
 
@@ -1111,7 +1186,12 @@ export const buildScreenTask = task({
         ...metadata,
       });
 
-      return { screenId: payload.screenId, status: "failed" as const, error };
+      return {
+        screenId: payload.screenId,
+        status: "failed" as const,
+        error,
+        usageByAttempt: attempts.map((attempt) => attempt.usageMetadata).filter(Boolean),
+      };
     };
 
     const failAfterSavingGeneratedCode = async ({
@@ -1145,7 +1225,12 @@ export const buildScreenTask = task({
         ...metadata,
       });
 
-      return { screenId: payload.screenId, status: "failed" as const, error };
+      return {
+        screenId: payload.screenId,
+        status: "failed" as const,
+        error,
+        usageByAttempt: attempts.map((attempt) => attempt.usageMetadata).filter(Boolean),
+      };
     };
 
     const buildPayload: BuildScreenTaskPayload = {
@@ -1156,7 +1241,13 @@ export const buildScreenTask = task({
 
     // Pipe the first Gemini async generator so the frontend can subscribe
     // via useRealtimeRunWithStreams and render partial HTML in real time.
-    let build = await collectScreenBuild(buildPayload, payload.screenPlan);
+    let build = await collectScreenBuild(buildPayload, payload.screenPlan, payload.isFirstScreen
+      ? async () => {
+          await mergeGenerationPerformance(admin, payload.generationRunId, {
+            firstStreamChunkAt: now(),
+          });
+        }
+      : undefined);
     let extractedCode = build.extractedCode;
     let completion = validateSourceCompletion({
       code: extractedCode,
@@ -1576,6 +1667,7 @@ export const buildScreenTask = task({
         hydration: assetHydration.outcomes,
         usesByRequirement: assetPolicy.usesByRequirement,
       },
+      usageByAttempt: attempts.map((attempt) => attempt.usageMetadata).filter(Boolean),
     };
   },
 });
@@ -1619,6 +1711,7 @@ export const generateUiFlowTask = task({
     await mergeGenerationRunMetadata(admin, payload.generationRunId, {
       returnedCredits,
       creditSettlement: "failure_cleanup",
+      generationPreview: null,
     });
 
     // Mark any placeholder screens from this run as failed so they
@@ -1627,7 +1720,7 @@ export const generateUiFlowTask = task({
       .from("screens")
       .select("id, name")
       .eq("generation_run_id", payload.generationRunId)
-      .eq("status", "building");
+      .in("status", ["queued", "building"]);
 
     if ((stuckScreens ?? []).length > 0) {
       const stuckScreenIds = (stuckScreens ?? []).map((screen) => screen.id);
@@ -1646,7 +1739,7 @@ export const generateUiFlowTask = task({
         updated_at: now(),
       })
       .eq("generation_run_id", payload.generationRunId)
-      .eq("status", "building");
+      .in("status", ["queued", "building"]);
     await settleProjectStatus(admin, payload.projectId, false);
 
     await Promise.all((stuckScreens ?? []).map((screen) =>
@@ -1706,6 +1799,18 @@ export const generateUiFlowTask = task({
     const generationEngineVersion = getGenerationEngineVersion();
     const admin = createAdminClient();
     const generationJournal = createGenerationJournal(payload.generationRunId);
+    const aiUsage = createPerformanceAiUsage();
+    const llmLogFor = (stage: string) => (label: string, data: Record<string, unknown>) => {
+      logger.info(label, data);
+      if (label.startsWith("[TOKEN USAGE]")) {
+        recordPerformanceAiUsage(aiUsage, stage, data);
+      }
+    };
+    const taskStartedAt = now();
+    await mergeGenerationPerformance(admin, payload.generationRunId, {
+      taskStartedAt,
+      queueWaitMeasuredAt: taskStartedAt,
+    });
 
     let designTokens = payload.designTokens ?? null;
     const { data: existingProject } = await admin
@@ -1756,22 +1861,28 @@ export const generateUiFlowTask = task({
     setJournalPhase(generationJournal, "brief", "completed", "Received the project brief and queued planning.");
     await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
-    const [storedPromptImage, planningContext] = await Promise.all([
-      loadStoredPromptImage(admin, payload.imagePath).catch((error) => {
-        if (payload.referencePolicy !== "project_reference") throw error;
-        logger.warn("[PROJECT REFERENCE] Stored project upload could not be loaded; continuing with project memory.", {
-          projectId: payload.projectId,
-          imagePath: payload.imagePath,
-          error,
-        });
-        return null;
-      }),
-      assembleProjectContext({
-        admin,
+    const contextStartedAt = now();
+    const contextStartedMs = Date.now();
+    const referenceStartedAt = now();
+    const referenceStartedMs = Date.now();
+    const planningContextPromise = assembleProjectContext({
+      admin,
+      projectId: payload.projectId,
+      userPrompt: payload.prompt,
+      retrieveScreenMemory: payload.isNewProject !== true,
+    }).then((value) => ({
+      value,
+      stage: performanceStage(contextStartedAt, contextStartedMs),
+    }));
+    const storedPromptImage = await loadStoredPromptImage(admin, payload.imagePath).catch((error) => {
+      if (payload.referencePolicy !== "project_reference") throw error;
+      logger.warn("[PROJECT REFERENCE] Stored project upload could not be loaded; continuing with project memory.", {
         projectId: payload.projectId,
-        userPrompt: payload.prompt,
-      }),
-    ]);
+        imagePath: payload.imagePath,
+        error,
+      });
+      return null;
+    });
     const publishedStylePreset = !storedPromptImage
       ? await resolvePublishedStylePreset(payload.stylePresetSlug)
       : null;
@@ -1787,7 +1898,7 @@ export const generateUiFlowTask = task({
       hasCurrentUserImage: Boolean(storedPromptImage) && !hasInheritedProjectImage,
       hasProjectReferenceImage: Boolean(storedPromptImage) && hasInheritedProjectImage,
       hasExplicitStyle: Boolean(designStyle),
-      isExistingProject: payload.planningMode === "single-screen" || planningContext.includes("RELEVANT EXISTING SCREENS"),
+      isExistingProject: payload.isNewProject !== true,
       requestedPolicy: payload.referencePolicy,
     });
     if (referencePolicy === "project_reference" && !storedPromptImage) {
@@ -1840,7 +1951,7 @@ export const generateUiFlowTask = task({
         prompt: payload.prompt,
         planningMode: payload.planningMode ?? "project",
         existingCharter,
-        llmLog: (label, data) => logger.info(label, data),
+        llmLog: llmLogFor("reference"),
         onSelection: (diagnostics) => {
           curatedStyleSelectionDiagnostics.push(diagnostics);
         },
@@ -1863,6 +1974,15 @@ export const generateUiFlowTask = task({
         referenceCatalogHash = curatedImage ? match.catalogHash : null;
       }
     }
+    const planningContextResult = await planningContextPromise;
+    const planningContext = planningContextResult.value;
+    await mergeGenerationPerformance(admin, payload.generationRunId, {
+      stages: {
+        context: planningContextResult.stage,
+        reference: performanceStage(referenceStartedAt, referenceStartedMs),
+      },
+    });
+
     const curatedStyleSelectionDiagnostic = curatedStyleSelectionDiagnostics[0] ?? null;
     const reusableProjectReferenceDna = projectReferenceDna && (
       referencePolicy === "project_reference"
@@ -1893,6 +2013,8 @@ export const generateUiFlowTask = task({
     );
     await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
+    const scopeStartedAt = now();
+    const scopeStartedMs = Date.now();
     const scopePreflight = payload.scopeContract
       ? payload.referenceAnalysis ?? reusableProjectReferenceDna?.analysis
         ? {
@@ -1910,7 +2032,7 @@ export const generateUiFlowTask = task({
             prompt: payload.prompt,
             image: promptImage,
             referenceMode,
-            llmLog: (label, data) => logger.info(label, data),
+            llmLog: llmLogFor("reference"),
           }).then((referenceAnalysisResult) => ({
             scopeContract: { ...payload.scopeContract!, referenceMode },
             referenceAnalysis: referenceAnalysisResult.analysis,
@@ -1922,10 +2044,14 @@ export const generateUiFlowTask = task({
           referenceMode,
           planningMode: payload.planningMode ?? "project",
           cachedReferenceAnalysis: reusableProjectReferenceDna?.analysis,
-          llmLog: (label, data) => logger.info(label, data),
+          llmLog: llmLogFor("scope"),
         });
     const scopeContract = scopePreflight.scopeContract;
     const referenceAnalysis = scopePreflight.referenceAnalysis;
+    await mergeGenerationPerformance(admin, payload.generationRunId, {
+      stages: { scope: performanceStage(scopeStartedAt, scopeStartedMs) },
+    });
+
 
     await updateGenerationRun(admin, payload.generationRunId, {
       requested_screen_count: scopeContract.finalScreenCount ?? null,
@@ -1977,6 +2103,8 @@ export const generateUiFlowTask = task({
         : null,
     });
 
+    const designStartedAt = now();
+    const designStartedMs = Date.now();
     if (!designTokens) {
       setJournalPhase(generationJournal, "design", "active", "Extracting the visual system and token direction.");
       await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
@@ -2000,7 +2128,7 @@ export const generateUiFlowTask = task({
         referenceId,
         designStyle,
         referenceAnalysis,
-        llmLog: (label, data) => logger.info(label, data),
+        llmLog: llmLogFor("design"),
       });
 
       await updateProject(admin, payload.projectId, {
@@ -2030,6 +2158,10 @@ export const generateUiFlowTask = task({
       setJournalPhase(generationJournal, "design", "completed", "Using the approved project design tokens.");
       await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
     }
+    await mergeGenerationPerformance(admin, payload.generationRunId, {
+      stages: { design: performanceStage(designStartedAt, designStartedMs) },
+    });
+
     const requestedCharter = payload.projectCharter ?? existingCharter ?? (
       (payload.plannedScreens && payload.plannedScreens.length > 0) || (payload.screenPlanningSeeds && payload.screenPlanningSeeds.length > 0)
         ? fallbackProjectCharter({
@@ -2070,6 +2202,10 @@ export const generateUiFlowTask = task({
     // also upgraded before build, while old builder-grade retry payloads stay compatible.
     const shouldPlanScreenBriefsFromSeeds = hasPlanningSeeds
       || (legacyPlannedScreens.length > 0 && screenPlansNeedBuildEnrichment(legacyPlannedScreens));
+    const blueprintStartedAt = now();
+    const blueprintStartedMs = Date.now();
+    let screenBriefsStartedAt: string | null = shouldPlanScreenBriefsFromSeeds ? now() : null;
+    let screenBriefsStartedMs: number | null = shouldPlanScreenBriefsFromSeeds ? Date.now() : null;
 
     if (hasSeedScreens) {
       setJournalPhase(generationJournal, "blueprint", "completed", "Using existing project structure.");
@@ -2080,9 +2216,33 @@ export const generateUiFlowTask = task({
       }
     } else {
       setJournalPhase(generationJournal, "blueprint", "active", "Choosing navigation scope and project structure.");
-      setJournalPhase(generationJournal, "screens", "active", "Drafting builder-ready screen briefs.");
     }
     await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
+    if (hasSeedScreens) {
+      generationJournal.screens = seedScreens.map((screen) => ({
+        name: screen.name,
+        type: screen.type,
+        description: screen.description,
+        status: shouldPlanScreenBriefsFromSeeds ? "briefing" : "planned",
+      }));
+      const generationPreview: GenerationPreviewMetadata = {
+        version: 1,
+        stage: shouldPlanScreenBriefsFromSeeds ? "screen_briefs" : "asset_resolution",
+        screens: seedScreens.map((screen, index) => ({
+          stableKey: screen.roadmapStableKey ?? screenRoadmapKey(screen.name),
+          roadmapItemId: screen.roadmapItemId ?? null,
+          name: screen.name,
+          type: screen.type,
+          index,
+        })),
+        updatedAt: now(),
+      };
+      await mergeGenerationRunMetadata(admin, payload.generationRunId, { generationPreview });
+      await mergeGenerationPerformance(admin, payload.generationRunId, {
+        blueprintPreviewAt: generationPreview.updatedAt,
+        stages: { blueprint: performanceStage(blueprintStartedAt, blueprintStartedMs) },
+      });
+    }
 
     let plan = hasSeedScreens
       ? {
@@ -2123,7 +2283,42 @@ export const generateUiFlowTask = task({
           existingCharter: requestedCharter,
           existingNavigationPlan: payload.navigationPlan ?? null,
           planningMode,
-          llmLog: (label, data) => logger.info(label, data),
+          onProgress: async (event) => {
+            if (event.type === "blueprint_ready") {
+              screenBriefsStartedAt = now();
+              screenBriefsStartedMs = Date.now();
+              setJournalPhase(
+                generationJournal,
+                "blueprint",
+                "completed",
+                `Project structure is ready for ${event.screens.length} screen${event.screens.length === 1 ? "" : "s"}.`,
+              );
+              setJournalPhase(
+                generationJournal,
+                "screens",
+                "active",
+                "Writing builder-ready briefs for every planned screen.",
+              );
+              generationJournal.screens = event.screens.map((screen) => ({
+                name: screen.name,
+                type: screen.type,
+                status: "briefing",
+              }));
+              const generationPreview: GenerationPreviewMetadata = {
+                version: 1,
+                stage: "screen_briefs",
+                screens: event.screens,
+                updatedAt: now(),
+              };
+              await mergeGenerationRunMetadata(admin, payload.generationRunId, { generationPreview });
+              await mergeGenerationPerformance(admin, payload.generationRunId, {
+                blueprintPreviewAt: generationPreview.updatedAt,
+                stages: { blueprint: performanceStage(blueprintStartedAt, blueprintStartedMs) },
+              });
+              await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
+            }
+          },
+          llmLog: llmLogFor("blueprint"),
         });
 
     if (shouldPlanScreenBriefsFromSeeds) {
@@ -2142,7 +2337,7 @@ export const generateUiFlowTask = task({
         planningMode,
         referenceMode,
         force: true,
-        llmLog: (label, data) => logger.info(label, data),
+        llmLog: llmLogFor("screenBriefs"),
       });
       plan = {
         ...plan,
@@ -2165,6 +2360,14 @@ export const generateUiFlowTask = task({
       );
       await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
     }
+    if (screenBriefsStartedAt && screenBriefsStartedMs !== null) {
+      await mergeGenerationPerformance(admin, payload.generationRunId, {
+        stages: {
+          briefs: performanceStage(screenBriefsStartedAt, screenBriefsStartedMs),
+        },
+      });
+    }
+
 	    if (
       !payload.plannedScreens?.length
       && !payload.screenPlanningSeeds?.length
@@ -2347,7 +2550,7 @@ export const generateUiFlowTask = task({
         referenceId,
         designStyle,
         projectCharter: plan.charter,
-        llmLog: (label, data) => logger.info(label, data),
+        llmLog: llmLogFor("navigation"),
       });
       const navigationShellCode = ensureDrawgleIds(tokenizeStaticDrawgleHtml(rawNavigationShellCode, designTokens).code, "dg-nav").code;
 
@@ -2410,8 +2613,23 @@ export const generateUiFlowTask = task({
       screenFamilyContract: plan.screenFamilyContract ?? null,
       plannedScreenCount: plan.screens.length,
       navigationEnabled: plan.navigationPlan.enabled,
+      generationPreview: {
+        version: 1,
+        stage: "asset_resolution",
+        screens: plan.screens.map((screenPlan, index) => ({
+          stableKey: screenPlan.roadmapStableKey ?? screenRoadmapKey(screenPlan.name),
+          roadmapItemId: screenPlan.roadmapItemId ?? null,
+          name: screenPlan.name,
+          type: screenPlan.type,
+          index,
+        })),
+        updatedAt: now(),
+      } satisfies GenerationPreviewMetadata,
     });
 
+    generationJournal.screens = generationJournal.screens?.map((screen) =>
+      screen.status === "ready" || screen.status === "failed" ? screen : { ...screen, status: "preparing_assets" },
+    );
     setJournalPhase(generationJournal, "assets", "active", "Resolving curated assets, stock photos, or simple placeholders.");
     await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
@@ -2427,6 +2645,8 @@ export const generateUiFlowTask = task({
       },
     );
 
+    const assetPlanningStartedAt = now();
+    const assetPlanningStartedMs = Date.now();
     const assetRequirements = retryOnlyStateVariants ? [] : await planVisualAssets({
       prompt: payload.prompt,
       screens: plan.screens,
@@ -2434,8 +2654,15 @@ export const generateUiFlowTask = task({
       designTokens,
       referenceMode,
       intentContract: plan.intentContract ?? null,
-      llmLog: (label, data) => logger.info(label, data),
+      llmLog: llmLogFor("assetPlanning"),
     });
+    await mergeGenerationPerformance(admin, payload.generationRunId, {
+      stages: { assetPlanning: performanceStage(assetPlanningStartedAt, assetPlanningStartedMs) },
+    });
+    const assetResolutionStartedAt = now();
+    const assetResolutionStartedMs = Date.now();
+    let lastAssetJournalPostMs = 0;
+
     const projectAssetManifest: ProjectAssetManifest = retryOnlyStateVariants
       ? { requirements: [], assetsByScreen: {}, failures: [], diagnostics: [] }
       : await resolveProjectAssets({
@@ -2444,8 +2671,30 @@ export const generateUiFlowTask = task({
           projectId: payload.projectId,
           generationRunId: payload.generationRunId,
           requirements: assetRequirements,
+          onProgress: async (progress) => {
+            const timestampMs = Date.now();
+            const shouldPost = progress.completed === 1
+              || progress.completed === progress.total
+              || timestampMs - lastAssetJournalPostMs >= 1000;
+            if (!shouldPost) return;
+            lastAssetJournalPostMs = timestampMs;
+            const failureSuffix = progress.failures > 0 ? ` ${progress.failures} failed.` : "";
+            const detail = `Resolved ${progress.completed} of ${progress.total} asset requirement${progress.total === 1 ? "" : "s"}.${failureSuffix}`;
+            setJournalPhase(generationJournal, "assets", "active", detail);
+            generationJournal.assetSummary = {
+              requested: progress.total,
+              resolved: progress.resolved,
+              placeholders: progress.placeholders,
+              failures: progress.failures,
+            };
+            await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
+          },
         });
     const assetDiagnostics = projectAssetManifest.diagnostics ?? [];
+    await mergeGenerationPerformance(admin, payload.generationRunId, {
+      stages: { assetResolution: performanceStage(assetResolutionStartedAt, assetResolutionStartedMs) },
+    });
+
     const requirementCount = Math.max(assetRequirements.length, 1);
     const assetLaunchMetrics = {
       curatedHitRate: assetDiagnostics.filter((item) => item.selectedVia === "curated").length / requirementCount,
@@ -2507,6 +2756,7 @@ export const generateUiFlowTask = task({
       requested: assetRequirements.length,
       resolved: resolvedAssetCount,
       placeholders: placeholderAssetCount,
+      failures: projectAssetManifest.failures?.length ?? 0,
     };
     await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
@@ -2556,6 +2806,23 @@ export const generateUiFlowTask = task({
       requires_bottom_nav: plan.requiresBottomNav,
       requested_screen_count: plannedOutputCount,
     });
+    const buildStartedAt = now();
+    const buildStartedMs = Date.now();
+    await mergeGenerationRunMetadata(admin, payload.generationRunId, {
+      generationPreview: {
+        version: 1,
+        stage: "building",
+        screens: plan.screens.map((screenPlan, index) => ({
+          stableKey: screenPlan.roadmapStableKey ?? screenRoadmapKey(screenPlan.name),
+          roadmapItemId: screenPlan.roadmapItemId ?? null,
+          name: screenPlan.name,
+          type: screenPlan.type,
+          index,
+        })),
+        updatedAt: buildStartedAt,
+      } satisfies GenerationPreviewMetadata,
+    });
+    await mergeGenerationPerformance(admin, payload.generationRunId, { buildStartedAt });
     generationJournal.status = "building";
     setJournalPhase(generationJournal, "build", "active", `Building ${plannedOutputCount} screen${plannedOutputCount === 1 ? "" : "s"} on the canvas.`);
     await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
@@ -2577,6 +2844,25 @@ export const generateUiFlowTask = task({
     const ignoredResolvedAssetIds = new Set<string>();
     const postBuildAssetOutcomes: Record<string, unknown> = {};
     const successfulRoadmapItemIds = new Set<string>();
+    const readyParentScreenIds = new Map<string, string>();
+    let settlementQueue: Promise<void> = Promise.resolve();
+    let journalWriteQueue: Promise<void> = Promise.resolve();
+    const postGenerationJournalSerial = () => {
+      const snapshot = structuredClone(generationJournal);
+      journalWriteQueue = journalWriteQueue.then(() =>
+        postGenerationJournal(admin, payload.projectId, payload.ownerId, snapshot),
+      );
+      return journalWriteQueue;
+    };
+    const serializeSettlement = <T,>(operation: () => Promise<T>): Promise<T> => {
+      const result = settlementQueue.then(operation, operation);
+      settlementQueue = result.then(
+        () => undefined,
+        () => undefined,
+      );
+      return result;
+    };
+
 
     if (retryOnlyStateVariants && payload.retryContext?.parentScreenId) {
       for (const stateGroup of selectedStateGroups) {
@@ -2596,8 +2882,10 @@ export const generateUiFlowTask = task({
       }
     }
 
-    for (let index = 0; index < screenPlans.length; index++) {
-      const screenPlan = screenPlans[index];
+    const screenEntries = screenPlans.map((screenPlan, index) => ({ screenPlan, index }));
+    const screenBatches = buildFirstScreenPriorityBatches(screenEntries, 2);
+    for (const batch of screenBatches) {
+      await Promise.all(batch.map(async ({ screenPlan, index }) => {
       const parentRoadmapStableKey = screenPlan.roadmapStableKey ?? screenRoadmapKey(screenPlan.name);
       const outputKey = generationOutputKey(payload.generationRunId, "screen", parentRoadmapStableKey);
       const selectedStateGroup = selectedStateGroups.find((group) =>
@@ -2617,9 +2905,9 @@ export const generateUiFlowTask = task({
           referenceMode,
         });
         generationJournal.screens = generationJournal.screens?.map((screen) =>
-          screen.name === screenPlan.name ? { ...screen, status: "building" } : screen,
+          screen.name === screenPlan.name ? { ...screen, status: "queued" } : screen,
         );
-        await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
+        await postGenerationJournalSerial();
 
         if (reusableScreenId) {
           const { error: resetError } = await admin
@@ -2636,7 +2924,7 @@ export const generateUiFlowTask = task({
               code: buildPlaceholderCode(screenPlan.name, designTokens),
               chrome_policy: (screenPlan.chromePolicy ?? null) as never,
               navigation_item_id: screenPlan.navigationItemId ?? null,
-              status: "building",
+              status: "queued",
               error: null,
               trigger_run_id: null,
               stream_public_token: null,
@@ -2649,6 +2937,40 @@ export const generateUiFlowTask = task({
           rowInserted = true;
         }
 
+
+        if (!reusableScreenId) {
+          const { error: placeholderInsertError } = await admin.from("screens").insert({
+            id: screenId,
+            owner_id: payload.ownerId,
+            project_id: payload.projectId,
+            generation_run_id: payload.generationRunId,
+            roadmap_item_id: screenPlan.roadmapItemId ?? null,
+            parent_screen_id: null,
+            state_key: hasSelectedStateVariants ? payload.baseState?.stateKey ?? "base" : null,
+            state_label: hasSelectedStateVariants ? payload.baseState?.stateLabel ?? "Base" : null,
+            state_role: hasSelectedStateVariants ? "base" : null,
+            name: screenPlan.name,
+            prompt: screenPlan.description,
+            code: buildPlaceholderCode(screenPlan.name, designTokens),
+            chrome_policy: (screenPlan.chromePolicy ?? null) as never,
+            navigation_item_id: screenPlan.navigationItemId ?? null,
+            status: "queued",
+            trigger_run_id: null,
+            stream_public_token: null,
+            position_x: reservedSlots[index]?.position_x ?? 4800 + index * 450,
+            position_y: reservedSlots[index]?.position_y ?? 4600,
+            sort_index: reservedSlots[index]?.sort_index ?? index,
+            created_at: now(),
+            updated_at: now(),
+          });
+          if (placeholderInsertError) {
+            throw new Error(`Failed to insert queued screen "${screenPlan.name}": ${placeholderInsertError.message}`);
+          }
+        }
+        rowInserted = true;
+        if (index === 0) {
+          await mergeGenerationPerformance(admin, payload.generationRunId, { firstScreenRowAt: now() });
+        }
         const handle = await (buildScreenTask as any).trigger(
           {
             generationRunId: payload.generationRunId,
@@ -2671,68 +2993,45 @@ export const generateUiFlowTask = task({
             assetManifest: projectAssetManifest.assetsByScreen[screenPlan.name] ?? [],
             projectCharter: plan.charter,
             projectContext: buildContext,
+            isFirstScreen: index === 0,
           },
           {
             concurrencyKey: `project-${payload.projectId}`,
           },
         );
 
-        const screenRow = {
-            id: screenId,
-            owner_id: payload.ownerId,
-            project_id: payload.projectId,
-            generation_run_id: payload.generationRunId,
-            roadmap_item_id: screenPlan.roadmapItemId ?? null,
-            parent_screen_id: null,
-            state_key: hasSelectedStateVariants ? payload.baseState?.stateKey ?? "base" : null,
-            state_label: hasSelectedStateVariants ? payload.baseState?.stateLabel ?? "Base" : null,
-            state_role: hasSelectedStateVariants ? "base" : null,
-            name: screenPlan.name,
-            prompt: screenPlan.description,
-            code: buildPlaceholderCode(screenPlan.name, designTokens),
-            chrome_policy: (screenPlan.chromePolicy ?? null) as never,
-            navigation_item_id: screenPlan.navigationItemId ?? null,
+        const { error: triggerBindError } = await admin
+          .from("screens")
+          .update({
             status: "building",
             trigger_run_id: handle.id,
             stream_public_token: handle.publicAccessToken ?? null,
-            position_x: reservedSlots[index]?.position_x ?? 4800 + index * 450,
-            position_y: reservedSlots[index]?.position_y ?? 4600,
-            sort_index: reservedSlots[index]?.sort_index ?? index,
-            created_at: now(),
             updated_at: now(),
-          };
-        const { error: insertError } = reusableScreenId
-          ? await admin
-              .from("screens")
-              .update({
-                trigger_run_id: handle.id,
-                stream_public_token: handle.publicAccessToken ?? null,
-                updated_at: now(),
-              })
-              .eq("id", reusableScreenId)
-              .eq("project_id", payload.projectId)
-              .eq("owner_id", payload.ownerId)
-          : await admin.from("screens").insert(screenRow);
-
-        if (insertError) {
-          throw new Error(`Failed to insert placeholder for "${screenPlan.name}": ${insertError.message}`);
+          })
+          .eq("id", screenId)
+          .eq("project_id", payload.projectId)
+          .eq("owner_id", payload.ownerId);
+        if (triggerBindError) {
+          throw new Error(`Failed to bind screen builder for "${screenPlan.name}": ${triggerBindError.message}`);
         }
+        generationJournal.screens = generationJournal.screens?.map((screen) =>
+          screen.name === screenPlan.name ? { ...screen, status: "building" } : screen,
+        );
+        await postGenerationJournalSerial();
 
-        rowInserted = true;
-
-        await bindReservationToScreen({
+        await serializeSettlement(() => bindReservationToScreen({
           admin,
           ownerId: payload.ownerId,
           generationRunId: payload.generationRunId,
           outputKey,
           screenId,
-        });
-        await markRoadmapItemForScreen({
+        }));
+        await serializeSettlement(() => markRoadmapItemForScreen({
           admin,
           roadmapItemId: screenPlan.roadmapItemId,
           screenId,
           status: "building",
-        });
+        }));
 
         const { error: usageScreenError } = await admin
           .from("project_asset_usages")
@@ -2773,7 +3072,11 @@ export const generateUiFlowTask = task({
           usedResolvedAssetCount?: number;
           ignoredResolvedAssetIds?: string[];
           assetOutcomes?: Record<string, unknown>;
+          usageByAttempt?: Array<Record<string, unknown>>;
         } | undefined;
+        for (const usageMetadata of buildOutput?.usageByAttempt ?? []) {
+          recordPerformanceAiUsage(aiUsage, "build", usageMetadata);
+        }
         sanitizerActions += buildOutput?.sanitizedMisuseCount ?? 0;
         repairedMetadataCount += buildOutput?.repairedMetadataCount ?? 0;
         hydratedAssetCount += buildOutput?.hydratedAssetCount ?? 0;
@@ -2797,22 +3100,22 @@ export const generateUiFlowTask = task({
             failedScreens += 1;
             const completedScreenError = completedScreen?.error
               ?? "Screen builder completed without a durably saved ready screen.";
-            await releaseGenerationCredit({
+            await serializeSettlement(() => releaseGenerationCredit({
               admin,
               ownerId: payload.ownerId,
               generationRunId: payload.generationRunId,
               outputKey,
               reason: completedScreenError,
-            }).catch((creditError) => logger.error("Failed to release rejected screen credit", {
+            })).catch((creditError) => logger.error("Failed to release rejected screen credit", {
               outputKey,
               error: creditError,
             }));
-            await markRoadmapItemForScreen({
+            await serializeSettlement(() => markRoadmapItemForScreen({
               admin,
               roadmapItemId: screenPlan.roadmapItemId,
               screenId,
               status: "failed",
-            }).catch((roadmapError) => logger.error("Failed to settle rejected screen roadmap item", {
+            })).catch((roadmapError) => logger.error("Failed to settle rejected screen roadmap item", {
               outputKey,
               error: roadmapError,
             }));
@@ -2829,7 +3132,7 @@ export const generateUiFlowTask = task({
             generationJournal.screens = generationJournal.screens?.map((screen) =>
               screen.name === screenPlan.name ? { ...screen, status: "failed" } : screen,
             );
-            await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
+            await postGenerationJournalSerial();
 
             await postStatusMessage(
               admin,
@@ -2847,24 +3150,28 @@ export const generateUiFlowTask = task({
             );
           } else {
             successfulScreens += 1;
+            if (index === 0) {
+              await mergeGenerationPerformance(admin, payload.generationRunId, { firstReadyAt: now() });
+            }
             if (screenPlan.roadmapItemId) successfulRoadmapItemIds.add(screenPlan.roadmapItemId);
-            await captureGenerationCredit({
+            readyParentScreenIds.set(parentRoadmapStableKey, screenId);
+            await serializeSettlement(() => captureGenerationCredit({
               admin,
               ownerId: payload.ownerId,
               generationRunId: payload.generationRunId,
               outputKey,
               screenId,
-            }).catch((creditError) => logger.error("Screen was saved but credit capture will need reconciliation", {
+            })).catch((creditError) => logger.error("Screen was saved but credit capture will need reconciliation", {
               outputKey,
               screenId,
               error: creditError,
             }));
-            await markRoadmapItemForScreen({
+            await serializeSettlement(() => markRoadmapItemForScreen({
               admin,
               roadmapItemId: screenPlan.roadmapItemId,
               screenId,
               status: "ready",
-            }).catch((roadmapError) => logger.error("Screen was saved but roadmap settlement failed", {
+            })).catch((roadmapError) => logger.error("Screen was saved but roadmap settlement failed", {
               outputKey,
               screenId,
               error: roadmapError,
@@ -2872,7 +3179,7 @@ export const generateUiFlowTask = task({
             generationJournal.screens = generationJournal.screens?.map((screen) =>
               screen.name === screenPlan.name ? { ...screen, status: "ready" } : screen,
             );
-            await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
+            await postGenerationJournalSerial();
 
             await postStatusMessage(
               admin,
@@ -2887,47 +3194,33 @@ export const generateUiFlowTask = task({
               },
               screenId,
             );
-            if (selectedStateGroup?.variants.length) {
-              const variantResult = await buildStateVariantsForParent({
-                admin,
-                payload,
-                parentScreenId: screenId,
-                parentRoadmapStableKey,
-                variants: selectedStateGroup.variants,
-              });
-              successfulStateVariants += variantResult.successfulVariants;
-              failedStateVariants += variantResult.failedVariants;
-              successfulScreens += variantResult.successfulVariants;
-              failedScreens += variantResult.failedVariants;
-              variantResult.successfulRoadmapItemIds.forEach((id) => successfulRoadmapItemIds.add(id));
-            }
           }
         } else {
           failedScreens += 1;
           const message = result?.error?.message ?? "Unknown error";
-          await releaseGenerationCredit({
+          await serializeSettlement(() => releaseGenerationCredit({
             admin,
             ownerId: payload.ownerId,
             generationRunId: payload.generationRunId,
             outputKey,
             reason: message,
-          }).catch((creditError) => logger.error("Failed to release unsuccessful screen credit", {
+          })).catch((creditError) => logger.error("Failed to release unsuccessful screen credit", {
             outputKey,
             error: creditError,
           }));
-          await markRoadmapItemForScreen({
+          await serializeSettlement(() => markRoadmapItemForScreen({
             admin,
             roadmapItemId: screenPlan.roadmapItemId,
             screenId,
             status: "failed",
-          }).catch((roadmapError) => logger.error("Failed to settle unsuccessful screen roadmap item", {
+          })).catch((roadmapError) => logger.error("Failed to settle unsuccessful screen roadmap item", {
             outputKey,
             error: roadmapError,
           }));
           generationJournal.screens = generationJournal.screens?.map((screen) =>
             screen.name === screenPlan.name ? { ...screen, status: "failed" } : screen,
           );
-          await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
+          await postGenerationJournalSerial();
           await admin
             .from("screens")
             .update({
@@ -2957,24 +3250,24 @@ export const generateUiFlowTask = task({
         failedScreens += 1;
         const rawMessage = screenError instanceof Error ? screenError.message : String(screenError);
         const message = cleanErrorMessage(rawMessage);
-        await releaseGenerationCredit({
+        await serializeSettlement(() => releaseGenerationCredit({
           admin,
           ownerId: payload.ownerId,
           generationRunId: payload.generationRunId,
           outputKey,
           reason: message,
-        }).catch((creditError) => logger.error("Failed to release screen credit", { outputKey, error: creditError }));
-        await markRoadmapItemForScreen({
+        })).catch((creditError) => logger.error("Failed to release screen credit", { outputKey, error: creditError }));
+        await serializeSettlement(() => markRoadmapItemForScreen({
           admin,
           roadmapItemId: screenPlan.roadmapItemId,
           screenId: rowInserted ? screenId : null,
           status: "failed",
-        }).catch((roadmapError) => logger.error("Failed to mark screen roadmap item", { outputKey, error: roadmapError }));
+        })).catch((roadmapError) => logger.error("Failed to mark screen roadmap item", { outputKey, error: roadmapError }));
         logger.error("Failed to build screen", { screenName: screenPlan.name, error: screenError });
         generationJournal.screens = generationJournal.screens?.map((screen) =>
           screen.name === screenPlan.name ? { ...screen, status: "failed" } : screen,
         );
-        await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
+        await postGenerationJournalSerial();
 
         if (rowInserted) {
           await admin
@@ -3002,6 +3295,30 @@ export const generateUiFlowTask = task({
           },
           rowInserted ? screenId : undefined,
         );
+      }
+      }));
+    }
+    await journalWriteQueue;
+    await settlementQueue;
+
+    if (!retryOnlyStateVariants) {
+      for (const stateGroup of selectedStateGroups) {
+        const parentRoadmapStableKey = stateGroup.parent.roadmapStableKey
+          ?? screenRoadmapKey(stateGroup.parent.name);
+        const parentScreenId = readyParentScreenIds.get(parentRoadmapStableKey);
+        if (!parentScreenId || stateGroup.variants.length === 0) continue;
+        const variantResult = await buildStateVariantsForParent({
+          admin,
+          payload,
+          parentScreenId,
+          parentRoadmapStableKey,
+          variants: stateGroup.variants,
+        });
+        successfulStateVariants += variantResult.successfulVariants;
+        failedStateVariants += variantResult.failedVariants;
+        successfulScreens += variantResult.successfulVariants;
+        failedScreens += variantResult.failedVariants;
+        variantResult.successfulRoadmapItemIds.forEach((id) => successfulRoadmapItemIds.add(id));
       }
     }
 
@@ -3064,6 +3381,15 @@ export const generateUiFlowTask = task({
           : 0,
       },
       postBuildAssetOutcomes,
+      generationPreview: null,
+    });
+
+    await mergeGenerationPerformance(admin, payload.generationRunId, {
+      completedAt: now(),
+      stages: { build: performanceStage(buildStartedAt, buildStartedMs) },
+      modelCalls: aiUsage.modelCalls,
+      tokenUsage: aiUsage.tokens,
+      usageByStage: aiUsage.byStage,
     });
 
     await settleProjectStatus(admin, payload.projectId, finishedStatus === "completed");

@@ -947,7 +947,7 @@ export interface GenerationJournalScreen {
   chrome?: ScreenChromeKind | null;
   navigationItemId?: string | null;
   assetNeedCount?: number;
-  status?: "planned" | "queued" | "building" | "ready" | "failed";
+  status?: "briefing" | "planned" | "preparing_assets" | "queued" | "building" | "ready" | "failed";
 }
 
 export interface GenerationJournalMetadata {
@@ -962,14 +962,37 @@ export interface GenerationJournalMetadata {
     label: string;
     status: "pending" | "active" | "completed" | "failed";
     detail?: string | null;
+    startedAt?: string | null;
+    completedAt?: string | null;
   }>;
   screens?: GenerationJournalScreen[];
   assetSummary?: {
     requested: number;
     resolved: number;
     placeholders: number;
+    failures?: number;
   } | null;
 }
+
+export interface GenerationPreviewScreen {
+  stableKey: string;
+  roadmapItemId?: string | null;
+  name: string;
+  type: ScreenPlan["type"];
+  index: number;
+}
+
+export interface GenerationPreviewMetadata {
+  version: 1;
+  stage: "screen_briefs" | "asset_resolution" | "building";
+  screens: GenerationPreviewScreen[];
+  updatedAt: string;
+}
+
+export type UiFlowPlanningProgress = {
+  type: "blueprint_ready";
+  screens: GenerationPreviewScreen[];
+};
 
 export type PlanningMode = "project" | "single-screen";
 

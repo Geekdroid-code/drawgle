@@ -232,7 +232,7 @@ const isInternalGenerationActivity = (activityKey: string | null) =>
 
 const JOURNAL_PHASE_STATUSES = new Set(["pending", "active", "completed", "failed"]);
 const JOURNAL_STATUSES = new Set(["queued", "planning", "building", "completed", "failed"]);
-const JOURNAL_SCREEN_STATUSES = new Set(["planned", "queued", "building", "ready", "failed"]);
+const JOURNAL_SCREEN_STATUSES = new Set(["briefing", "planned", "preparing_assets", "queued", "building", "ready", "failed"]);
 
 const readGenerationJournal = (metadata: Record<string, unknown>): GenerationJournalMetadata | null => {
   const journal = metadataRecord(metadata.generationJournal);
@@ -253,6 +253,8 @@ const readGenerationJournal = (metadata: Record<string, unknown>): GenerationJou
       label,
       status: status as GenerationJournalMetadata["phases"][number]["status"],
       detail: typeof phase.detail === "string" ? phase.detail : null,
+      startedAt: typeof phase.startedAt === "string" ? phase.startedAt : null,
+      completedAt: typeof phase.completedAt === "string" ? phase.completedAt : null,
     }];
   });
   if (!phases.length) return null;
@@ -287,6 +289,7 @@ const readGenerationJournal = (metadata: Record<string, unknown>): GenerationJou
       requested: assetSummaryRecord.requested,
       resolved: typeof assetSummaryRecord.resolved === "number" ? assetSummaryRecord.resolved : 0,
       placeholders: typeof assetSummaryRecord.placeholders === "number" ? assetSummaryRecord.placeholders : 0,
+      failures: typeof assetSummaryRecord.failures === "number" ? assetSummaryRecord.failures : 0,
     }
     : null;
 
@@ -1521,6 +1524,8 @@ function ActionCard({
 }
 
 const journalScreenStatusCopy = (status?: NonNullable<GenerationJournalMetadata["screens"]>[number]["status"]) => {
+  if (status === "briefing") return "Writing brief";
+  if (status === "preparing_assets") return "Preparing assets";
   if (status === "ready") return "Ready";
   if (status === "failed") return "Failed";
   if (status === "building") return "Building";
@@ -1668,7 +1673,7 @@ function GenerationJournalCard({ journal }: { journal: GenerationJournalMetadata
 
             {journal.assetSummary ? (
               <div className="mt-4 rounded-[12px] bg-slate-950/[0.04] px-3 py-2 text-[11px] leading-5 text-slate-600">
-                Assets: {journal.assetSummary.requested} requested, {journal.assetSummary.resolved} resolved, {journal.assetSummary.placeholders} placeholder{journal.assetSummary.placeholders === 1 ? "" : "s"}.
+                Assets: {journal.assetSummary.requested} requested, {journal.assetSummary.resolved} resolved, {journal.assetSummary.placeholders} placeholder{journal.assetSummary.placeholders === 1 ? "" : "s"}, {journal.assetSummary.failures ?? 0} failed.
               </div>
             ) : null}
           </div>

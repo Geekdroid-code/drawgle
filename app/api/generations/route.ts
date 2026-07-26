@@ -7,7 +7,7 @@ import { z } from "zod";
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { getDesignStylePack, isDesignStyleId, summarizeDesignStyle } from "@/lib/generation/design-styles";
 import { VISUAL_ASSET_SEMANTIC_CATEGORIES } from "@/lib/generation/asset-semantics";
-import { preflightGenerationScope } from "@/lib/generation/scope-contract";
+import { parsePromptScreenIntent, preflightGenerationScope } from "@/lib/generation/scope-contract";
 import { normalizeReferenceImage } from "@/lib/generation/reference-image";
 import { findLatestProjectPromptImagePath } from "@/lib/generation/prompt-reference-storage";
 import { isGenerationReferencePolicy, resolveGenerationReferencePolicy } from "@/lib/generation/reference-policy";
@@ -297,6 +297,7 @@ const deriveProjectName = (prompt: string, explicitName?: string) => {
 };
 
 export async function POST(request: Request) {
+  const requestAcceptedAt = now();
   const supabase = await createClient();
   const admin = createAdminClient();
 
@@ -485,13 +486,19 @@ const sourcePlanningSeeds = Array.isArray(sourceMetadata.screenPlanningSeeds)
     const generationEngineVersion = getGenerationEngineVersion();
     const normalizedReference = payload.image ? await normalizeReferenceImage(payload.image) : null;
     const promptImage = normalizedReference?.image ?? null;
+    const deterministicPromptIntent = parsePromptScreenIntent(payload.prompt);
+    const canDeferImagePreflight = Boolean(promptImage) && (
+      payload.imageReferenceMode === "recreate"
+      || deterministicPromptIntent.promptScreenCount !== null
+      || deterministicPromptIntent.namedScreenCount !== null
+    );
     const stylePreset = !promptImage ? await resolvePublishedStylePreset(payload.stylePresetSlug) : null;
     const designStyle = stylePreset?.stylePack ?? (isDesignStyleId(payload.designStyleId) && !promptImage
       ? getDesignStylePack(payload.designStyleId)
       : null);
     let scopeContract = (payload.scopeContract ?? null) as GenerationScopeContract | null;
     let referenceAnalysis: ReferenceAnalysis | null = null;
-    if (!scopeContract && generationEngineVersion === "v2") {
+    if (!scopeContract && generationEngineVersion === "v2" && !canDeferImagePreflight) {
       const preflight = await preflightGenerationScope({
         prompt: payload.prompt,
         image: promptImage,
@@ -711,6 +718,11 @@ const sourcePlanningSeeds = Array.isArray(sourceMetadata.screenPlanningSeeds)
           generationEngineVersion,
           requestedFrom: payload.sourceGenerationRunId ? "retry" : "nextjs-route",
           sourceGenerationRunId: payload.sourceGenerationRunId ?? null,
+          isNewProject: !isExistingProjectRequest,
+          performanceV1: {
+            version: 1,
+            requestAcceptedAt,
+          },
           requestedImageReferenceMode: effectiveImageReferenceMode,
           referencePolicy,
           requestedDesignStyleId: designStyle?.id ?? null,
@@ -793,6 +805,7 @@ const sourcePlanningSeeds = Array.isArray(sourceMetadata.screenPlanningSeeds)
         retryContext,
         projectRoadmap,
         initialBatchItemKeys: payload.initialBatchItemKeys ?? [],
+        isNewProject: !isExistingProjectRequest,
       },
       {
         concurrencyKey: ownerId,

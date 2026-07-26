@@ -1110,23 +1110,34 @@ const recordUsage = async ({
   if (error) console.warn("[visual-assets] Failed to record usage", { requirementId: requirement.id, assetId, error });
 };
 
+export type ProjectAssetResolutionProgress = {
+  completed: number;
+  total: number;
+  resolved: number;
+  placeholders: number;
+  failures: number;
+};
+
 export async function resolveProjectAssets({
   admin,
   ownerId,
   projectId,
   generationRunId,
   requirements,
+  onProgress,
 }: {
   admin: AdminClient;
   ownerId: string;
   projectId: string;
   generationRunId: string;
   requirements: AssetRequirement[];
+  onProgress?: (progress: ProjectAssetResolutionProgress) => void | Promise<void>;
 }): Promise<ProjectAssetManifest> {
   const assetsByScreen: ProjectAssetManifest["assetsByScreen"] = {};
   const failures: NonNullable<ProjectAssetManifest["failures"]> = [];
   const diagnostics: NonNullable<ProjectAssetManifest["diagnostics"]> = [];
   const memoryCache = new Map<string, VisualAssetRow[]>();
+  let completed = 0;
 
   for (const requirement of requirements) {
     try {
@@ -1170,6 +1181,25 @@ export async function resolveProjectAssets({
         placeholderManifest(requirement, reason),
       ];
       console.warn("[visual-assets] Requirement failed", { requirementId: requirement.id, error: reason });
+    }
+    completed += 1;
+    if (onProgress) {
+      const manifests = Object.values(assetsByScreen).flat();
+      try {
+        await onProgress({
+          completed,
+          total: requirements.length,
+          resolved: manifests.filter((asset) => !asset.placeholder && asset.url).length,
+          placeholders: manifests.filter((asset) => asset.placeholder).length,
+          failures: failures.length,
+        });
+      } catch (error) {
+        console.warn("[visual-assets] Progress callback failed", {
+          completed,
+          total: requirements.length,
+          error,
+        });
+      }
     }
   }
 

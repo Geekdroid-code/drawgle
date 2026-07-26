@@ -87,6 +87,7 @@ import type {
   ScreenBlockIndex,
   ScreenPlan,
   ScreenStateVariantPlan,
+  UiFlowPlanningProgress,
 } from "@/lib/types";
 
 const normalizeScreenType = (value: unknown) => {
@@ -2599,12 +2600,14 @@ async function generateCreativeDirection({
   referenceMode,
   referenceAnalysis,
   designStyle,
+  llmLog,
 }: {
   prompt: string;
   image?: PromptImagePayload | null;
   referenceMode?: ReferenceMode | null;
   referenceAnalysis?: ReferenceAnalysis | null;
   designStyle?: DesignStylePack | null;
+  llmLog?: (label: string, data: Record<string, unknown>) => void;
 }): Promise<ParsedCreativeDirection | null> {
   try {
     const ai = createGeminiClient();
@@ -2658,6 +2661,10 @@ async function generateCreativeDirection({
       contents: { parts },
       config: policy.config,
     });
+
+    if (llmLog && response.usageMetadata) {
+      llmLog("[TOKEN USAGE] creative-direction", response.usageMetadata as Record<string, unknown>);
+    }
 
     const rawDirection = parseJsonResponse<unknown>(response.text || "{}");
     const parsed = CreativeDirectionSchema.safeParse(rawDirection);
@@ -2927,6 +2934,7 @@ export async function planUiFlow({
   existingNavigationPlan,
   planningMode = "project",
   llmLog,
+  onProgress,
 }: {
   prompt: string;
   image?: PromptImagePayload | null;
@@ -2944,6 +2952,7 @@ export async function planUiFlow({
   existingNavigationPlan?: NavigationPlan | null;
   planningMode?: PlanningMode;
   llmLog?: LlmLogFn;
+  onProgress?: (event: UiFlowPlanningProgress) => void | Promise<void>;
 }): Promise<PlannedUiFlow> {
   const ai = createGeminiClient();
   const parts: Array<Record<string, unknown>> = [];
@@ -3019,6 +3028,7 @@ export async function planUiFlow({
         referenceMode: resolvedReferenceMode,
         referenceAnalysis,
         designStyle: resolvedDesignStyle,
+        llmLog,
       });
   const resolvedCreativeDirection = projectContext?.trim()
     ? null
@@ -3248,15 +3258,16 @@ export async function planUiFlow({
     }
   }
 
+  let selectedBlueprintKeys: string[] = [];
   if (parsedBlueprint.success && parsedBlueprint.data.roadmap) {
     const scopeOwnsBatchSelection = resolvedScopeContract.screens?.length
       && (resolvedScopeContract.countSource === "prompt_count"
         || resolvedScopeContract.countSource === "named_screens"
         || planningMode === "single-screen");
-    const selectedKeys = scopeOwnsBatchSelection
+    selectedBlueprintKeys = scopeOwnsBatchSelection
       ? (resolvedScopeContract.screens ?? []).slice(0, INITIAL_PROJECT_SCREEN_LIMIT).map((screen) => screenRoadmapKey(screen.name))
       : parsedBlueprint.data.roadmap.initial_batch_keys.slice(0, INITIAL_PROJECT_SCREEN_LIMIT);
-    const selectedNames = selectedKeys.flatMap((key) => {
+    const selectedNames = selectedBlueprintKeys.flatMap((key) => {
       const roadmapItem = parsedBlueprint.data.roadmap?.items.find((item) => item.stable_key === key);
       if (roadmapItem) return [roadmapItem.name];
       const scopedScreen = resolvedScopeContract?.screens?.find((screen) => screenRoadmapKey(screen.name) === key);
@@ -3272,6 +3283,30 @@ export async function planUiFlow({
       };
     }
   }
+  if (parsedBlueprint.success && onProgress) {
+    const roadmapItems = parsedBlueprint.data.roadmap?.items ?? [];
+    const previewKeys = selectedBlueprintKeys.length > 0
+      ? selectedBlueprintKeys
+      : (resolvedScopeContract.screens ?? [])
+          .slice(0, INITIAL_PROJECT_SCREEN_LIMIT)
+          .map((screen) => screenRoadmapKey(screen.name));
+    const previewScreens = previewKeys.flatMap((stableKey, index) => {
+      const roadmapItem = roadmapItems.find((item) => item.stable_key === stableKey);
+      const scopedScreen = resolvedScopeContract.screens?.find((screen) => screenRoadmapKey(screen.name) === stableKey);
+      const name = roadmapItem?.name ?? scopedScreen?.name;
+      if (!name) return [];
+      return [{
+        stableKey,
+        name,
+        type: roadmapItem?.type ?? ("detail" as const),
+        index,
+      }];
+    });
+    if (previewScreens.length > 0) {
+      await onProgress({ type: "blueprint_ready", screens: previewScreens });
+    }
+  }
+
 
   let rawPlan: unknown = rawBlueprint;
   let parsed = PlanSchema.safeParse(rawPlan);
@@ -3723,6 +3758,7 @@ export async function generateDesignTokens({
       referenceAnalysis,
       referenceMode: resolvedReferenceMode,
       designStyle,
+      llmLog,
     })) ?? fallbackCreativeDirection({ prompt, referenceAnalysis });
 
     if (designStyleContract) {

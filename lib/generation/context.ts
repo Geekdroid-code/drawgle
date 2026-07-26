@@ -472,12 +472,14 @@ export async function assembleProjectContext({
   userPrompt,
   matchCount = DEFAULT_MATCH_COUNT,
   matchThreshold = DEFAULT_MATCH_THRESHOLD,
+  retrieveScreenMemory = true,
 }: {
   admin?: AdminClient;
   projectId: string;
   userPrompt: string;
   matchCount?: number;
   matchThreshold?: number;
+  retrieveScreenMemory?: boolean;
 }): Promise<string> {
   const client = admin ?? createAdminClient();
 
@@ -508,29 +510,33 @@ export async function assembleProjectContext({
   let matches: MatchedScreen[] = [];
   const queryText = userPrompt.trim() || charter?.originalPrompt || project.prompt || "Extend this product with a coherent new screen.";
 
-  try {
-    const queryEmbedding = await generateEmbedding(queryText, "RETRIEVAL_QUERY");
-    const { data, error } = await client.rpc("match_screens", {
-      query_embedding: queryEmbedding,
-      p_project_id: projectId,
-      match_threshold: matchThreshold,
-      match_count: matchCount,
-    });
+  if (retrieveScreenMemory) {
+    try {
+      const queryEmbedding = await generateEmbedding(queryText, "RETRIEVAL_QUERY");
+      const { data, error } = await client.rpc("match_screens", {
+        query_embedding: queryEmbedding,
+        p_project_id: projectId,
+        match_threshold: matchThreshold,
+        match_count: matchCount,
+      });
 
-    if (error) {
-      throw error;
+      if (error) {
+        throw error;
+      }
+
+      matches = data ?? [];
+    } catch (error) {
+      console.error("Failed to retrieve related screens", error);
     }
-
-    matches = data ?? [];
-  } catch (error) {
-    console.error("Failed to retrieve related screens", error);
   }
 
-  const styleMemoryScreens = await fetchCanonicalStyleScreens({
-    client,
-    projectId,
-    matches,
-  });
+  const styleMemoryScreens = retrieveScreenMemory
+    ? await fetchCanonicalStyleScreens({
+        client,
+        projectId,
+        matches,
+      })
+    : [];
   const canonicalVisualSystem = formatCanonicalVisualSystem(styleMemoryScreens);
   const navigationPlanSummary = formatNavigationPlan(navigationPlan);
 

@@ -33,7 +33,7 @@ import {
 } from "@/lib/canvas-interactions";
 import { createClient } from "@/lib/supabase/client";
 import { updateScreenPosition } from "@/lib/supabase/queries";
-import type { DesignTokens, ProjectNavigationData, ScreenData } from "@/lib/types";
+import type { DesignTokens, GenerationPreviewMetadata, ProjectNavigationData, ScreenData } from "@/lib/types";
 import { CanvasToolDock } from "./CanvasToolDock";
 import {
   ScreenNode,
@@ -130,6 +130,52 @@ type ScreenCanvasNodeData = {
 
 type ScreenCanvasNode = Node<ScreenCanvasNodeData, "screen">;
 
+type PlannedCanvasNodeData = {
+  screen: GenerationPreviewMetadata["screens"][number];
+  stage: GenerationPreviewMetadata["stage"];
+};
+
+type PlannedCanvasNode = Node<PlannedCanvasNodeData, "planned">;
+type CanvasNode = ScreenCanvasNode | PlannedCanvasNode;
+
+const plannedStageCopy: Record<GenerationPreviewMetadata["stage"], string> = {
+  screen_briefs: "Writing screen brief",
+  asset_resolution: "Preparing project assets",
+  building: "Waiting for screen builder",
+};
+
+const PlannedCanvasNodeView = memo(({ data }: NodeProps<PlannedCanvasNode>) => (
+  <div
+    className="pointer-events-none select-none"
+    style={{
+      width: SCREEN_FRAME_WIDTH + SCREEN_VISUAL_INSETS.left + SCREEN_VISUAL_INSETS.right,
+      height: SCREEN_FRAME_HEIGHT + SCREEN_VISUAL_INSETS.top + SCREEN_VISUAL_INSETS.bottom,
+      paddingTop: NODE_TOP_PADDING,
+      paddingRight: SCREEN_VISUAL_INSETS.right,
+      paddingBottom: SCREEN_VISUAL_INSETS.bottom,
+      paddingLeft: SCREEN_VISUAL_INSETS.left,
+    }}
+  >
+    <div className="mb-2 flex items-center justify-between px-1 text-[11px] font-semibold text-slate-500">
+      <span>{data.screen.name}</span>
+      <span className="font-medium text-slate-400">Planned</span>
+    </div>
+    <div className="flex h-[744px] w-[343px] flex-col overflow-hidden rounded-[32px] border border-dashed border-slate-300 bg-white/75 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)] backdrop-blur-sm">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-indigo-500">{plannedStageCopy[data.stage]}</div>
+      <div className="mt-3 text-xl font-semibold tracking-tight text-slate-800">{data.screen.name}</div>
+      <div className="mt-1 text-xs capitalize text-slate-400">{data.screen.type} screen</div>
+      <div className="mt-8 h-36 animate-pulse rounded-[22px] bg-slate-100" />
+      <div className="mt-5 h-3 w-3/4 animate-pulse rounded-full bg-slate-100" />
+      <div className="mt-3 h-3 w-1/2 animate-pulse rounded-full bg-slate-100" />
+      <div className="mt-8 grid grid-cols-2 gap-3">
+        <div className="h-28 animate-pulse rounded-[18px] bg-slate-100" />
+        <div className="h-28 animate-pulse rounded-[18px] bg-slate-100" />
+      </div>
+    </div>
+  </div>
+));
+PlannedCanvasNodeView.displayName = "PlannedCanvasNodeView";
+
 const ScreenCanvasNodeView = memo(({ data, dragging }: NodeProps<ScreenCanvasNode>) => {
   const nodeHeight = data.height ?? SCREEN_FRAME_HEIGHT;
   const screenId = data.screen.id;
@@ -176,7 +222,7 @@ const ScreenCanvasNodeView = memo(({ data, dragging }: NodeProps<ScreenCanvasNod
 });
 ScreenCanvasNodeView.displayName = "ScreenCanvasNodeView";
 
-const nodeTypes = { screen: ScreenCanvasNodeView };
+const nodeTypes = { screen: ScreenCanvasNodeView, planned: PlannedCanvasNodeView };
 
 const getNodePosition = (screen: Pick<ScreenData, "x" | "y">) => ({
   x: screen.x - SCREEN_VISUAL_INSETS.left,
@@ -200,6 +246,7 @@ export type CanvasViewportController = {
 
 type CanvasStageProps = {
   screens: ScreenData[];
+  generationPreview?: GenerationPreviewMetadata | null;
   projectNavigation?: ProjectNavigationData | null;
   designTokens?: DesignTokens | null;
   selectedScreen?: ScreenData | null;
@@ -241,6 +288,7 @@ export function CanvasStage(props: CanvasStageProps) {
 
 function CanvasStageContent({
   screens,
+  generationPreview,
   projectNavigation,
   designTokens,
   selectedScreen,
@@ -268,7 +316,7 @@ function CanvasStageContent({
   onScreenSourceNeeded,
 }: CanvasStageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const flowRef = useRef<ReactFlowInstance<ScreenCanvasNode> | null>(null);
+  const flowRef = useRef<ReactFlowInstance<CanvasNode> | null>(null);
   const knownScreenIdsRef = useRef<Set<string>>(new Set());
   const hydratedScreenIdsRef = useRef(false);
   const initialFitCompletedRef = useRef(false);
@@ -291,11 +339,11 @@ function CanvasStageContent({
   const [workspaceInsets, setWorkspaceInsets] =
     useState<CanvasViewportInsets>(EMPTY_CANVAS_INSETS);
   const [flowInstance, setFlowInstance] =
-    useState<ReactFlowInstance<ScreenCanvasNode> | null>(null);
+    useState<ReactFlowInstance<CanvasNode> | null>(null);
   const [viewportState, setViewportState] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
-  const [nodes, setNodes, onNodesChange] = useNodesState<ScreenCanvasNode>([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<CanvasNode>([]);
   const [screenHeights, setScreenHeights] = useState<Record<string, number>>({});
 
   const handleContentHeightChange = useCallback((screenId: string, height: number) => {
@@ -513,7 +561,7 @@ function CanvasStageContent({
     setNodes((currentNodes) => {
       const currentById = new Map(currentNodes.map((node) => [node.id, node]));
       const nextPersistedPositions = new Map<string, { x: number; y: number }>();
-      const nextNodes: ScreenCanvasNode[] = screens.map((screen) => {
+      const nextNodes: CanvasNode[] = screens.map((screen) => {
         const current = currentById.get(screen.id);
         const selected = selectedScreen?.id === screen.id;
         const persistedPosition = { x: screen.x, y: screen.y };
@@ -546,7 +594,7 @@ function CanvasStageContent({
           onScreenSourceNeeded: handleScreenSourceNeeded,
         };
 
-        if (current) {
+        if (current?.type === "screen") {
           const dragOwnsPosition = dragTransactionRef.current?.screenId === screen.id;
           const persistedPositionChanged =
             !previousPersistedPosition ||
@@ -584,11 +632,31 @@ function CanvasStageContent({
         };
       });
       persistedPositionsRef.current = nextPersistedPositions;
-      return nextNodes;
+      const previewBaseX = screens.length > 0
+        ? Math.max(...screens.map((screen) => screen.x)) + 450
+        : 4800;
+      const previewBaseY = screens[0]?.y ?? 4600;
+      const previewNodes: PlannedCanvasNode[] = (generationPreview?.screens ?? []).map((screen, index) => ({
+        id: `generation-preview:${screen.stableKey}`,
+        type: "planned",
+        position: {
+          x: previewBaseX + index * 450 - SCREEN_VISUAL_INSETS.left,
+          y: previewBaseY - SCREEN_VISUAL_INSETS.top,
+        },
+        draggable: false,
+        selectable: false,
+        data: { screen, stage: generationPreview?.stage ?? "screen_briefs" },
+        style: {
+          width: SCREEN_FRAME_WIDTH + SCREEN_VISUAL_INSETS.left + SCREEN_VISUAL_INSETS.right,
+          height: SCREEN_FRAME_HEIGHT + SCREEN_VISUAL_INSETS.top + SCREEN_VISUAL_INSETS.bottom,
+        },
+      }));
+      return [...nextNodes, ...previewNodes];
     });
   }, [
     designTokens,
     disabled,
+    generationPreview,
     handleCanvasNavigation,
     handleContentHeightChange,
     handleDeleteSelectedElement,
@@ -713,7 +781,7 @@ function CanvasStageContent({
   }, [activeTool, changeTool, controller, selectedScreen]);
 
   const handleNodesChange = useCallback(
-    (changes: NodeChange<ScreenCanvasNode>[]) => {
+    (changes: NodeChange<CanvasNode>[]) => {
       onNodesChange(changes);
     },
     [onNodesChange],
@@ -725,7 +793,7 @@ function CanvasStageContent({
       className="relative h-full w-full dg-dashed-grid-bg select-none"
       style={{ cursor: isPanning ? "grabbing" : isPanToolActive ? "grab" : "default" }}
     >
-      <ReactFlow<ScreenCanvasNode>
+      <ReactFlow<CanvasNode>
         nodes={nodes}
         edges={[]}
         nodeTypes={nodeTypes}
@@ -736,12 +804,14 @@ function CanvasStageContent({
           setViewportState(instance.getViewport());
         }}
         onNodeClick={(_, node) => {
+          if (node.type !== "screen") return;
           if (activeTool === "pointer" && !isTemporaryPan) {
             const screen = screens.find((candidate) => candidate.id === node.id) ?? null;
             onSelectScreen?.(screen);
           }
         }}
         onNodeDragStart={(_, node) => {
+          if (node.type !== "screen") return;
           if (activeTool !== "pointer" || disabled || readOnly || isTemporaryPan) return;
           dragTransactionRef.current = {
             screenId: node.id,
@@ -749,6 +819,7 @@ function CanvasStageContent({
           };
         }}
         onNodeDragStop={(_, node) => {
+          if (node.type !== "screen") return;
           const transaction = dragTransactionRef.current;
           dragTransactionRef.current = null;
           if (!transaction || transaction.screenId !== node.id || activeTool !== "pointer" || readOnly) return;

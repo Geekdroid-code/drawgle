@@ -50,6 +50,7 @@ import { useProject } from "@/hooks/use-project";
 import { useProjectNavigation } from "@/hooks/use-project-navigation";
 import { useScreens } from "@/hooks/use-screens";
 import { hasApprovedDesignTokens, normalizeDesignTokens } from "@/lib/design-tokens";
+import { filterPendingGenerationPreview, readGenerationPreview } from "@/lib/generation-preview";
 import { createClient } from "@/lib/supabase/client";
 import { deleteScreen, insertProjectMessage, updateProjectFields } from "@/lib/supabase/queries";
 import { getDrawgleTokenReferences, buildDrawgleTokenCss, buildGoogleFontAssetLinks } from "@/lib/token-runtime";
@@ -1609,6 +1610,12 @@ export function ProjectShell({
   const { screens, refreshScreens, loadScreenSource } = useScreens(initialProject.id, initialScreens);
   const { projectNavigation } = useProjectNavigation(initialProject.id, initialProjectNavigation);
   const { generationRun, generationRuns, refreshGenerationRuns } = useGenerationRuns(initialProject.id, initialGenerationRuns);
+  const generationPreview = useMemo(() => filterPendingGenerationPreview(
+    readGenerationPreview(generationRun?.metadata?.generationPreview),
+    screens,
+    generationRun?.id ?? null,
+  ), [generationRun?.id, generationRun?.metadata, screens]);
+
   const [canvasTool, setCanvasTool] = useState<CanvasTool>("pointer");
   const [selectedScreen, setSelectedScreen] = useState<ScreenData | null>(null);
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
@@ -2648,6 +2655,7 @@ export function ProjectShell({
             screens={screens}
             projectNavigation={projectNavigation}
             designTokens={effectiveDesignTokens}
+            generationPreview={generationPreview}
             selectedScreen={selectedScreen}
             mobileBottomReserve={mobilePromptReserve}
             tool={canvasTool}

@@ -5,6 +5,7 @@ vi.mock("server-only", () => ({}));
 import {
   planVisualAssets,
   rankStockCandidates,
+  resolveProjectAssets,
   shouldQueryPixabayFallback,
   stockSearchQuery,
 } from "@/lib/generation/visual-assets";
@@ -29,6 +30,36 @@ const requirement = (screenName: string, id: string, slotCount = 1): AssetRequir
 });
 
 describe("visual asset planning groups", () => {
+  it("reports monotonic global resolution progress without changing requirement order", async () => {
+    const requirements = [
+      { ...requirement("Home", "home-photo"), sourcePreference: "user_upload" as const },
+      { ...requirement("Details", "details-photo"), sourcePreference: "user_upload" as const },
+    ];
+    const progress: Array<{ completed: number; total: number; placeholders: number; failures: number }> = [];
+
+    const manifest = await resolveProjectAssets({
+      admin: {} as never,
+      ownerId: "owner-1",
+      projectId: "project-1",
+      generationRunId: "run-1",
+      requirements,
+      onProgress: (update) => {
+        progress.push({
+          completed: update.completed,
+          total: update.total,
+          placeholders: update.placeholders,
+          failures: update.failures,
+        });
+      },
+    });
+
+    expect(manifest.requirements.map((item) => item.id)).toEqual(["home-photo", "details-photo"]);
+    expect(progress).toEqual([
+      { completed: 1, total: 2, placeholders: 1, failures: 1 },
+      { completed: 2, total: 2, placeholders: 2, failures: 2 },
+    ]);
+  });
+
   it("keeps an eight-card repeat group as one resolution requirement", async () => {
     const screens: ScreenPlan[] = [{
       name: "Bakery",

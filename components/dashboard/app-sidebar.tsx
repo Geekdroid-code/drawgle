@@ -17,7 +17,6 @@ import {
   Trash2,
 } from "lucide-react";
 
-import { AgentBall } from "@/components/AgentBall";
 import { DrawgleLogo } from "@/components/DrawgleLogo";
 import { NavUser } from "@/components/dashboard/nav-user";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";

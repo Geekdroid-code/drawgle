@@ -458,12 +458,25 @@ const normalizeSemanticPromptIntent = (raw: unknown, prompt: string): PromptScre
 export async function analyzePromptScreenIntent({
   prompt,
   llmLog,
+  planningMode = "project",
 }: {
   prompt: string;
+  planningMode?: PlanningMode;
   llmLog?: LlmLogFn;
 }): Promise<PromptScreenIntent> {
   const deterministic = parsePromptScreenIntent(prompt);
-  if (!prompt.trim() || deterministic.namedScreenCount) return deterministic;
+  if (planningMode === "single-screen") {
+    return deterministic.promptScreenCount === null
+      ? { ...deterministic, promptScreenCount: 1 }
+      : deterministic;
+  }
+  if (
+    !prompt.trim()
+    || deterministic.promptScreenCount !== null
+    || deterministic.allScreensRequested
+  ) {
+    return deterministic;
+  }
 
   try {
     const [{ createGeminiClient }, { geminiPolicyForTask }] = await Promise.all([
@@ -998,7 +1011,9 @@ export async function preflightGenerationScope({
       }
     : null;
   const [promptIntent, referenceAnalysisResult] = await Promise.all([
-    useSemanticScope ? analyzePromptScreenIntent({ prompt, llmLog }) : Promise.resolve(parsePromptScreenIntent(prompt)),
+    useSemanticScope
+      ? analyzePromptScreenIntent({ prompt, planningMode, llmLog })
+      : Promise.resolve(parsePromptScreenIntent(prompt)),
     cachedReferenceAnalysisResult
       ? Promise.resolve(cachedReferenceAnalysisResult)
       : analyzeReferenceImageForScope({ prompt, image, referenceMode, llmLog }),
