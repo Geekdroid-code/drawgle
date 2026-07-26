@@ -24,7 +24,7 @@ Non-negotiable output discipline:
 - Do not make each screen feel like a different app. Distinct compositions are allowed; inconsistent padding, line-height, card radii, and nav rhythm are not.
 - Every screen brief must include these labels inside description: Reference DNA, Visual Goal, Layout Anatomy, Key Components, Visual Styling, Interaction Notes, Must Preserve.
 - Every screen must also include layout_contract: six compact, app-specific construction rules that define viewport budget, focal hierarchy, macro/micro spacing, component density, CTA weight, and anti-patterns.
-- Every screen must include reference_transfer. It records which evidence owns layout, which visual invariants transfer, which motifs may be adapted, and which source anatomy is forbidden.
+- Every screen must include reference_transfer. It records which evidence owns layout, which visual invariants transfer, which semantic composition principles are preserved/reinterpreted/rejected after target-role suitability checks, the premium craft targets, and which source anatomy is forbidden.
 - Each screen brief must be builder-ready, not a product summary. Describe background layer, content rail, parent-child containment, spacing, edge treatment, type roles, and overflow/wrapping policy.
 - COMPOSITIONAL DIRECTION: Push past generic list layouts. Define the specific spatial orchestration required by the approved evidence: note intentional depth, structural asymmetry, and varying visual density.
 - Creative direction is the product-wide art-direction thesis. Do not water it down into generic product language.
@@ -138,6 +138,17 @@ const plannerScreensJsonContract = `Return JSON with this exact top-level shape:
         "preserve": ["Portable material, token, typography, icon, or density invariant"],
         "adapt": ["A source cue that genuinely serves this screen's task"],
         "reject": ["Concrete source layout, component arrangement, or decorative motif that does not serve this screen"],
+        "target_capabilities": ["The target screen jobs from the supplied capability vocabulary"],
+        "semantic_decisions": [
+          {
+            "primitive_id": "Exact id from the semantic composition library",
+            "decision": "preserve | reinterpret | reject",
+            "rationale": "Why the primitive does or does not serve this screen's actual job",
+            "adaptation": "Target-native use of the principle, or null when rejected",
+            "quality_targets": ["Observable craft requirement that preserves why the principle felt premium"]
+          }
+        ],
+        "premium_quality_targets": ["Concrete hierarchy, rhythm, depth, spacing, or component-craft bar for this screen"],
         "rationale": "Why this transfer creates family resemblance without cloning"
       },
       "chrome_policy": {
@@ -270,7 +281,7 @@ Rules:
 - Preserve prompt-named screens and order.
 - Architecture/chrome: use the approved blueprint as fixed architecture. Root screens are peer primary destinations. Onboarding, splash, checkout, tracking, map, detail, modal, confirmation, login/signup/register/auth, chat/messaging/assistant are detail/immersive. chrome_policy must match role; these screens must not show primary bottom navigation.
 - Renderer-owned navigation: when the blueprint has shared primary navigation, do not describe its bottom dock/tab-bar/nav-pill anatomy, spacer, clearance height, or padding formula inside any screen description. Bottom navigation from approved evidence belongs to navigation_plan/design, not to screen content.
-- Reference provenance: reference_transfer is a decision record, not decorative metadata. Preserve only portable invariants; adapt only cues with a functional reason; reject source anatomy that belongs to another screen job. reject overrides any conflicting phrase in Description or existing project memory.
+- Reference provenance: reference_transfer is a decision record, not decorative metadata. Evaluate every supplied semantic primitive against the target screen capability. Preserve or reinterpret the principle only when its purpose serves the target; reject it otherwise. Preserve why it worked (hierarchy, rhythm, disclosure, depth, comparison), never its coordinates or object topology. reject overrides any conflicting phrase in Description or existing project memory.
 - Cross-screen differentiation: family resemblance comes from tokens, type, material, icon, spacing, and interaction tone. Each route must have a task-native information architecture and dominant composition; never turn a previous screen's cards, connector, hero, chart, or decorative scaffold into a universal shell.
 - Description quality: each description should usually be 900-1800 chars, include all seven labels, and be detailed enough for the builder without seeing the image. Write as a construction brief from background forward through layout, containment, components, typography, materials, depth/edges, imagery/charts/maps, interaction states, and must-preserve construction cues.
 - layout_contract is not prose decoration. It is the compact architecture the builder must obey before writing HTML: no generic stacked blocks, no empty chart/card shells, no oversized CTA unless action priority demands it, no primitive chip grids with large macro gaps and cramped internal padding.
@@ -364,6 +375,22 @@ Return strictly valid JSON in this format after inspecting the image with an exp
       "spacingRules": ["Portable spacing principle: macro section gaps versus micro internal padding/gaps, including bad ratios to avoid."],
       "componentRules": ["Portable component construction principle: chip rows, cards, lists, forms, charts, nav, or CTA treatment."],
       "antiPatterns": ["Reference-specific failure mode to avoid when applying this visual DNA elsewhere."]
+    }
+  ],
+  "semanticCompositionPrimitives": [
+    {
+      "id": "short stable id",
+      "kind": "progressive-sequence | focal-anchor | layered-depth | editorial-rhythm | spatial-cluster | data-comparison | immersive-canvas | anchored-action | content-stream | modular-workspace | split-context | reveal-on-demand",
+      "label": "Human-readable principle",
+      "purpose": "The user-perception or task problem this composition solves",
+      "sourceEvidence": "Why the observed composition works, without coordinates, object counts, or section order",
+      "transferableTraits": ["Abstract relationship or hierarchy mechanic"],
+      "suitableFor": ["onboarding | sequential-workflow | conversation | data-monitoring | exploration | transaction | form-entry | editorial-reading | spatial-navigation | media-immersive | profile-configuration | collection-browsing | detail-inspection | search-discovery | status-feedback"],
+      "avoidFor": ["Target capabilities where this principle would be forced or misleading"],
+      "adaptationGuidance": "How to reinvent the principle with target-native content and geometry",
+      "qualityDetails": ["Observable craft condition required to preserve the premium effect"],
+      "strength": "primary | supporting | accent",
+      "sourceScreenIndex": 1
     }
   ],
   "primaryNavigation": {
@@ -465,6 +492,22 @@ Return strictly valid JSON in this format:
       "antiPatterns": ["Reference-specific failure mode to avoid when applying this visual DNA elsewhere."]
     }
   ],
+  "semanticCompositionPrimitives": [
+    {
+      "id": "short stable id",
+      "kind": "progressive-sequence | focal-anchor | layered-depth | editorial-rhythm | spatial-cluster | data-comparison | immersive-canvas | anchored-action | content-stream | modular-workspace | split-context | reveal-on-demand",
+      "label": "Human-readable principle",
+      "purpose": "The user-perception or task problem this composition solves",
+      "sourceEvidence": "Why the observed composition works, without coordinates, object counts, or section order",
+      "transferableTraits": ["Abstract relationship or hierarchy mechanic"],
+      "suitableFor": ["onboarding | sequential-workflow | conversation | data-monitoring | exploration | transaction | form-entry | editorial-reading | spatial-navigation | media-immersive | profile-configuration | collection-browsing | detail-inspection | search-discovery | status-feedback"],
+      "avoidFor": ["Target capabilities where this principle would be forced or misleading"],
+      "adaptationGuidance": "How to reinvent the principle with target-native content and geometry",
+      "qualityDetails": ["Observable craft condition required to preserve the premium effect"],
+      "strength": "primary | supporting | accent",
+      "sourceScreenIndex": 1
+    }
+  ],
   "designSystemSignals": {
     "palette": "Reusable palette and accent behavior",
     "typography": "Reusable font personality, scale, and emphasis behavior",
@@ -480,6 +523,7 @@ Return strictly valid JSON in this format:
 }
 
 Rules:
+- Extract 2-6 semanticCompositionPrimitives that explain why the reference composition feels intentional. Each must name its functional purpose, suitability and anti-suitability, adaptation logic, and observable quality details. Do not encode exact section order, coordinates, literal component counts, or source-domain objects in a primitive.
 - Batch selection: return detailed briefs only for roadmap.initial_batch_keys, in that exact order, with the matching roadmap_stable_key. Never replace a selected roadmap item with an unselected one.
 - Return exactly one screenReferences entry for every visible phone screen or app frame counted by screenCountEstimate. boundingBox uses normalized 0-1 image coordinates.
 - Extract material quality, shadows, radii, blur/glass, typography character, icon weight, color rhythm, polish, micro-shapes, navigation treatment, component craftsmanship, spacing density, and viewport fit constraints.

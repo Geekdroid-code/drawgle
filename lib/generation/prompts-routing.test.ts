@@ -8,6 +8,7 @@ import {
   buildStyleScreenInstruction,
   plannerBlueprintStepInstruction,
   plannerScreenBriefStepInstruction,
+  referenceAnalysisStyleInstruction,
 } from "@/lib/generation/prompts";
 import type { GenerationPromptMode } from "@/lib/generation/prompt-routing";
 import type { ScreenAssetManifest, ScreenPlan } from "@/lib/types";
@@ -206,6 +207,54 @@ describe("state-scoped prompt construction", () => {
     expect(prompt).toContain("MODE CONTRACT: PROMPT_ONLY");
     expect(prompt).not.toContain("When a style reference image is attached");
     expect(prompt).not.toContain("prioritize its exact original structure and material choices");
+  });
+
+  it("carries suitability decisions and premium craft targets through planner and builder prompts", () => {
+    const planner = plannerScreenBriefStepInstruction("style");
+    expect(planner).toContain("semantic_decisions");
+    expect(planner).toContain("premium_quality_targets");
+    expect(planner).toContain("Evaluate every supplied semantic primitive");
+    expect(referenceAnalysisStyleInstruction).toContain("semanticCompositionPrimitives");
+    expect(referenceAnalysisStyleInstruction).toContain("Extract 2-6");
+
+    const instruction = buildStyleScreenInstruction({
+      ...screenInput,
+      screenPlan: {
+        ...screenPlan,
+        name: "Chat Interface",
+        referenceTransfer: {
+          layoutSource: "screen-purpose",
+          preserve: ["Electric-blue emphasis on charcoal surfaces."],
+          adapt: ["Use restrained plane hierarchy around conversation state."],
+          reject: ["progressive-sequence: Ordinary conversation has no staged dependency."],
+          rationale: "The user job owns layout while approved craft and suitable principles transfer.",
+          targetCapabilities: ["conversation"],
+          semanticDecisions: [{
+            primitiveId: "progressive-sequence-screen-1",
+            decision: "reject",
+            suitabilityScore: 20,
+            targetCapability: "conversation",
+            rationale: "Progression would force onboarding anatomy into a continuous conversation.",
+            adaptation: null,
+            qualityTargets: [],
+          }, {
+            primitiveId: "layered-depth-screen-1",
+            decision: "preserve",
+            suitabilityScore: 75,
+            targetCapability: "conversation",
+            rationale: "Plane hierarchy clarifies authorship and system state.",
+            adaptation: "Use depth for message ownership and transient tool state, with new chat-native geometry.",
+            qualityTargets: ["Limit elevation to a small, legible set of planes."],
+          }],
+          premiumQualityTargets: ["Limit elevation to a small, legible set of planes."],
+        },
+      },
+    });
+
+    expect(instruction).toContain("Semantic composition decisions");
+    expect(instruction).toContain("progressive-sequence-screen-1: REJECT");
+    expect(instruction).toContain("layered-depth-screen-1: PRESERVE");
+    expect(instruction).toContain("Premium quality targets");
   });
 
   it("gives every builder an exact deterministic asset-slot contract", () => {

@@ -2,6 +2,10 @@ import {
   referenceAnalysisRecreateInstruction,
   referenceAnalysisStyleInstruction,
 } from "@/lib/generation/prompts";
+import {
+  ensureSemanticCompositionPrimitives,
+  normalizeSemanticCompositionPrimitives,
+} from "@/lib/generation/semantic-inspiration";
 import type {
   GenerationScopeContract,
   GenerationScopeCountSource,
@@ -627,7 +631,7 @@ export const normalizeReferenceAnalysis = (raw: unknown): ReferenceAnalysisResul
     };
   }
 
-  const analysis: ReferenceAnalysis = {
+  const analysis: ReferenceAnalysis = ensureSemanticCompositionPrimitives({
     overallVisualStyle: textField(raw, ["overallVisualStyle", "overall_visual_style", "visualStyle", "visual_style"], "Reference visual style was not described by the model.", 3000),
     screenCountEstimate,
     screenReferences: screenReferences.length > 0
@@ -656,7 +660,10 @@ export const normalizeReferenceAnalysis = (raw: unknown): ReferenceAnalysisResul
       spacingLogic: textField(signals, ["spacingLogic", "spacing_logic", "spacingDensity", "spacing_density"], "Use visible macro and micro spacing logic from the reference.", 1200),
       antiPatterns: textField(signals, ["antiPatterns", "anti_patterns", "avoid"], "Avoid flattening the reference into generic stacked cards or token-only mimicry.", 1200),
     },
-  };
+    semanticCompositionPrimitives: normalizeSemanticCompositionPrimitives(
+      readField(raw, ["semanticCompositionPrimitives", "semantic_composition_primitives", "compositionPrimitives", "composition_primitives"]),
+    ),
+  });
 
   return {
     analysis,

@@ -312,9 +312,18 @@ const ScreenLayoutContractSchema = z.object({
 const ReferenceTransferContractSchema = z.object({
   layout_source: z.enum(["reference", "screen-purpose"]),
   preserve: z.array(z.string().trim().min(1).max(500)).max(8).default([]),
-  adapt: z.array(z.string().trim().min(1).max(500)).max(6).default([]),
-  reject: z.array(z.string().trim().min(1).max(500)).max(8).default([]),
+  adapt: z.array(z.string().trim().min(1).max(700)).max(10).default([]),
+  reject: z.array(z.string().trim().min(1).max(700)).max(12).default([]),
   rationale: z.string().trim().min(1).max(800),
+  target_capabilities: z.array(z.string().trim().min(1).max(80)).max(4).default([]).optional(),
+  semantic_decisions: z.array(z.object({
+    primitive_id: z.string().trim().min(1).max(100),
+    decision: z.enum(["preserve", "reinterpret", "reject"]),
+    rationale: z.string().trim().min(1).max(600),
+    adaptation: z.string().trim().min(1).max(700).nullable().optional(),
+    quality_targets: z.array(z.string().trim().min(1).max(500)).max(5).default([]).optional(),
+  })).max(10).default([]).optional(),
+  premium_quality_targets: z.array(z.string().trim().min(1).max(500)).max(10).default([]).optional(),
 }).optional();
 
 const ScreenStateVariantSchema = z.object({
@@ -1224,6 +1233,8 @@ const ensureReferenceTransferContracts = ({
     value: screen.referenceTransfer,
     mode,
     screenName: screen.name,
+    screenDescription: screen.description,
+    screenType: screen.type,
     referenceAnalysis,
   }),
 }));
@@ -2030,6 +2041,8 @@ const ensureBuilderGradeScreenBriefs = ({
       value: screen.referenceTransfer,
       mode,
       screenName: screen.name,
+      screenDescription: screen.description,
+      screenType: screen.type,
       referenceAnalysis,
     });
     if (hasBuilderGradeBrief(screen.description)) {
@@ -2215,15 +2228,31 @@ const rawReferenceTransfer = (value: unknown, screenName: string): ScreenPlan["r
         adapt: value.adapt,
         reject: value.reject,
         rationale: value.rationale,
+        target_capabilities: value.targetCapabilities,
+        semantic_decisions: value.semanticDecisions,
+        premium_quality_targets: value.premiumQualityTargets,
       }
     : value;
   const parsed = ReferenceTransferContractSchema.safeParse(input);
   if (!parsed.success || !parsed.data) return null;
-  return normalizeReferenceTransferContract({
-    value: parsed.data,
-    mode: parsed.data.layout_source === "reference" ? "recreate" : "style",
-    screenName,
-  });
+  return {
+    layoutSource: parsed.data.layout_source,
+    preserve: parsed.data.preserve,
+    adapt: parsed.data.adapt,
+    reject: parsed.data.reject,
+    rationale: parsed.data.rationale,
+    targetCapabilities: [],
+    semanticDecisions: (parsed.data.semantic_decisions ?? []).map((decision) => ({
+      primitiveId: decision.primitive_id,
+      decision: decision.decision,
+      suitabilityScore: 0,
+      targetCapability: "exploration",
+      rationale: decision.rationale,
+      adaptation: decision.adaptation ?? null,
+      qualityTargets: decision.quality_targets ?? [],
+    })),
+    premiumQualityTargets: parsed.data.premium_quality_targets ?? [],
+  };
 };
 
 const coerceScreenPlanFromRawItem = (item: unknown): ScreenPlan | null => {

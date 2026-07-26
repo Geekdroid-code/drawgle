@@ -659,6 +659,62 @@ export interface ScreenLayoutContract {
   antiPatterns: string[];
 }
 
+export type ScreenSemanticCapability =
+  | "onboarding"
+  | "sequential-workflow"
+  | "conversation"
+  | "data-monitoring"
+  | "exploration"
+  | "transaction"
+  | "form-entry"
+  | "editorial-reading"
+  | "spatial-navigation"
+  | "media-immersive"
+  | "profile-configuration"
+  | "collection-browsing"
+  | "detail-inspection"
+  | "search-discovery"
+  | "status-feedback";
+
+export type SemanticCompositionPrimitiveKind =
+  | "progressive-sequence"
+  | "focal-anchor"
+  | "layered-depth"
+  | "editorial-rhythm"
+  | "spatial-cluster"
+  | "data-comparison"
+  | "immersive-canvas"
+  | "anchored-action"
+  | "content-stream"
+  | "modular-workspace"
+  | "split-context"
+  | "reveal-on-demand";
+
+export interface SemanticCompositionPrimitive {
+  id: string;
+  kind: SemanticCompositionPrimitiveKind;
+  label: string;
+  purpose: string;
+  sourceEvidence: string;
+  transferableTraits: string[];
+  suitableFor: ScreenSemanticCapability[];
+  avoidFor: ScreenSemanticCapability[];
+  adaptationGuidance: string;
+  qualityDetails: string[];
+  strength: "primary" | "supporting" | "accent";
+  sourceScreenIndex?: number;
+}
+
+export interface SemanticTransferDecision {
+  primitiveId: string;
+  decision: "preserve" | "reinterpret" | "reject";
+  suitabilityScore: number;
+  targetCapability: ScreenSemanticCapability;
+  rationale: string;
+  adaptation: string | null;
+  qualityTargets: string[];
+}
+
 /**
  * Makes reference provenance explicit instead of letting "style" silently
  * become "copy this screen". The planner owns the choices; the builder must
@@ -670,6 +726,9 @@ export interface ReferenceTransferContract {
   adapt: string[];
   reject: string[];
   rationale: string;
+  targetCapabilities: ScreenSemanticCapability[];
+  semanticDecisions: SemanticTransferDecision[];
+  premiumQualityTargets: string[];
 }
 
 export interface ScreenBaseStatePlan {
@@ -761,6 +820,7 @@ export interface ReferenceAnalysis {
   screenReferences: ReferenceScreenAnalysis[];
   designSystemSignals: ReferenceDesignSystemSignals;
   primaryNavigation?: ReferenceNavigationEvidence | null;
+  semanticCompositionPrimitives?: SemanticCompositionPrimitive[];
 }
 
 export interface ReferenceAnalysisResult {

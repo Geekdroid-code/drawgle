@@ -1,7 +1,14 @@
+import {
+  buildSemanticTransferPlan,
+  classifyScreenCapabilities,
+  ensureSemanticCompositionPrimitives,
+  formatSemanticCompositionLibrary,
+} from "@/lib/generation/semantic-inspiration";
 import type {
   CreativeDirection,
   ReferenceAnalysis,
   ReferenceTransferContract,
+  SemanticTransferDecision,
 } from "@/lib/types";
 
 export type ReferenceTransferMode = "recreate" | "style" | "prompt";
@@ -41,29 +48,34 @@ const stringArray = (value: unknown, limit: number) =>
       : [],
     limit,
   );
-const SOURCE_ANATOMY_CUE_PATTERN = /\b(layout|section order|object position|connector|spine|hero scaffold|card (?:stack|arrangement|topology)|component topology|grid placement|panel placement)\b/i;
+
+const SOURCE_ANATOMY_CUE_PATTERN = /\b(layout|section order|object position|connector|spine|hero scaffold|connected cards?|card (?:stack|arrangement|topology)|component topology|grid placement|panel placement|exact geometry)\b|\b(?:stack|row|grid|cluster|connect(?:ed|ing)?)\b.{0,40}\b(cards?|modules?|panels?)\b|\b(cards?|modules?|panels?)\b.{0,40}\b(?:stack|row|grid|cluster|connect(?:ed|ing)?)\b/i;
 const STRUCTURAL_COPY_PATTERN = /\b(copy|clone|same|exact|point[\s-]to[\s-]point)\b.*\b(layout|composition|anatomy|screen|reference)\b/i;
 
-
 export function buildPortableReferenceContext(referenceAnalysis: ReferenceAnalysis) {
-  const signals = referenceAnalysis.designSystemSignals;
+  const analysis = ensureSemanticCompositionPrimitives(referenceAnalysis);
+  const signals = analysis.designSystemSignals;
   const craftCues = unique(
-    referenceAnalysis.screenReferences.flatMap((screen) => screen.stylingCues)
-      .filter((cue) => !SOURCE_ANATOMY_CUE_PATTERN.test(cue)),
-    8,
+    analysis.screenReferences.flatMap((screen) => [
+      ...screen.stylingCues,
+      ...(screen.spacingRules ?? []),
+      ...(screen.componentRules ?? []),
+    ]).filter((cue) => !SOURCE_ANATOMY_CUE_PATTERN.test(cue)),
+    10,
   );
 
   return [
     "PORTABLE REFERENCE INVARIANTS",
-    "The source screenshot's layout, section order, object positions, role-specific components, and decorative composition are intentionally excluded.",
+    "The source screenshot's coordinates, section order, object positions, role-specific components, and literal decorative anatomy are excluded. Its design intelligence is preserved below as visual invariants, craft recipes, and function-tested composition principles.",
     `Palette: ${signals.palette}`,
     `Typography: ${signals.typography}`,
     `Surfaces/materials: ${signals.surfaces}`,
     `Iconography: ${signals.iconography}`,
     `Density: ${signals.density}`,
     `Motion tone: ${signals.motionTone}`,
-    craftCues.length ? `Portable craft cues: ${craftCues.join("; ")}` : null,
+    craftCues.length ? `Portable craft recipes: ${craftCues.join("; ")}` : null,
     signals.antiPatterns ? `Avoid: ${signals.antiPatterns}` : null,
+    formatSemanticCompositionLibrary(analysis),
   ].filter(Boolean).join("\n");
 }
 
@@ -76,6 +88,10 @@ export function toPortableCreativeDirection(
   creativeDirection?: CreativeDirection | null,
 ): CreativeDirection | null {
   if (!creativeDirection) return null;
+  const portablePrinciples = creativeDirection.compositionPrinciples
+    .filter((principle) => !SOURCE_ANATOMY_CUE_PATTERN.test(principle) && !STRUCTURAL_COPY_PATTERN.test(principle));
+  const portableMoments = creativeDirection.signatureMoments
+    .filter((moment) => !SOURCE_ANATOMY_CUE_PATTERN.test(moment) && !STRUCTURAL_COPY_PATTERN.test(moment));
 
   return {
     ...creativeDirection,
@@ -88,26 +104,53 @@ export function toPortableCreativeDirection(
       creativeDirection.surfaceLanguage,
       "Use the approved material, edge, depth, and elevation language without source-specific arrangements.",
     ),
-    compositionPrinciples: [
+    compositionPrinciples: unique([
+      ...portablePrinciples,
       "Derive each screen's information architecture and dominant composition from that screen's user job.",
       "Keep product-wide spacing, typography, material, color, and icon decisions consistent while varying screen anatomy.",
-      "Reuse a compositional motif only when it has a functional role on the target screen.",
-    ],
-    signatureMoments: [
-      "Invent one screen-purpose-specific focal moment instead of repeating a previous screen's hero or decorative scaffold.",
-    ],
+      "Reuse a compositional principle only when its purpose is suitable for the target screen.",
+    ], 7),
+    signatureMoments: unique([
+      ...portableMoments,
+      "Invent one screen-purpose-specific focal moment from an approved semantic composition principle.",
+    ], 5),
   };
 }
+
+const emptySemanticPlan = ({
+  screenName,
+  screenDescription,
+  screenType,
+}: {
+  screenName: string;
+  screenDescription?: string;
+  screenType?: "root" | "detail";
+}) => ({
+  targetCapabilities: classifyScreenCapabilities({ name: screenName, description: screenDescription, type: screenType }),
+  semanticDecisions: [] as SemanticTransferDecision[],
+  premiumQualityTargets: [
+    "Create one dominant first read, then a visibly quieter supporting hierarchy; avoid equal-weight card repetition.",
+    "Make macro gaps between semantic groups clearly larger than micro gaps inside components.",
+  ],
+});
+
 export function createReferenceTransferContract({
   mode,
   screenName,
+  screenDescription = "",
+  screenType,
   referenceAnalysis,
 }: {
   mode: ReferenceTransferMode;
   screenName: string;
+  screenDescription?: string;
+  screenType?: "root" | "detail";
   referenceAnalysis?: ReferenceAnalysis | null;
 }): ReferenceTransferContract {
   const signals = referenceAnalysis?.designSystemSignals;
+  const semanticPlan = mode === "style" && referenceAnalysis
+    ? buildSemanticTransferPlan({ referenceAnalysis, screenName, screenDescription, screenType })
+    : emptySemanticPlan({ screenName, screenDescription, screenType });
 
   if (mode === "recreate") {
     return {
@@ -125,10 +168,13 @@ export function createReferenceTransferContract({
         "Do not invent unrelated sections or replace the observed composition with a generic app template.",
       ],
       rationale: "Image-to-UI mode makes the selected reference frame the structural authority.",
+      ...semanticPlan,
     };
   }
 
   if (mode === "style") {
+    const accepted = semanticPlan.semanticDecisions.filter((decision) => decision.decision !== "reject");
+    const rejected = semanticPlan.semanticDecisions.filter((decision) => decision.decision === "reject");
     return {
       layoutSource: "screen-purpose",
       preserve: unique([
@@ -138,15 +184,17 @@ export function createReferenceTransferContract({
         signals?.iconography,
         signals?.density,
       ], 5),
-      adapt: [
-        `Translate the material and emphasis hierarchy into a composition designed specifically for ${screenName}.`,
-        "Create a new focal moment from the target screen's primary user task.",
-      ],
-      reject: [
+      adapt: unique([
+        ...accepted.map((decision) => decision.adaptation),
+        `Translate the approved material and emphasis hierarchy into a composition designed specifically for ${screenName}.`,
+      ], 8),
+      reject: unique([
+        ...rejected.map((decision) => `${decision.primitiveId}: ${decision.rationale}`),
         "Do not reuse any reference screen's section order, object positions, or role-specific component arrangement.",
-        "Do not repeat a source decorative motif, connector, hero scaffold, or card topology unless the target screen functionally requires it.",
-      ],
-      rationale: "Style-reference mode inherits visual craft; the target screen's user job owns layout and information architecture.",
+        "Do not repeat a source decorative motif, connector, hero scaffold, or card topology unless a suitability decision explicitly approves its underlying function.",
+      ], 10),
+      rationale: "Style-reference mode transfers visual craft and suitable composition logic; the target screen's user job owns layout, geometry, and information architecture.",
+      ...semanticPlan,
     };
   }
 
@@ -160,23 +208,64 @@ export function createReferenceTransferContract({
       "Do not fall back to a generic dashboard, repeated equal-weight card stack, or unrelated app-category template.",
     ],
     rationale: "No structural reference exists; product intent is the only layout authority.",
+    ...semanticPlan,
   };
 }
+
+const mergePlannerSemanticDecisions = (
+  canonical: SemanticTransferDecision[],
+  value: unknown,
+) => {
+  const raw = Array.isArray(value) ? value.map(asRecord).filter(Boolean) as Record<string, unknown>[] : [];
+  return canonical.map((decision) => {
+    const planner = raw.find((item) => (item.primitive_id ?? item.primitiveId) === decision.primitiveId);
+    if (!planner || decision.decision === "reject") return decision;
+    const plannerDecision = planner.decision;
+    if (plannerDecision === "reject") {
+      return {
+        ...decision,
+        decision: "reject" as const,
+        adaptation: null,
+        qualityTargets: [],
+        rationale: compact(typeof planner.rationale === "string" ? planner.rationale : null, 500) ?? decision.rationale,
+      };
+    }
+    const plannerAdaptation = compact(typeof planner.adaptation === "string" ? planner.adaptation : null, 600);
+    const safeAdaptation = plannerAdaptation
+      && !SOURCE_ANATOMY_CUE_PATTERN.test(plannerAdaptation)
+      && !STRUCTURAL_COPY_PATTERN.test(plannerAdaptation)
+      ? plannerAdaptation
+      : decision.adaptation;
+    const plannerTargets = stringArray(planner.quality_targets ?? planner.qualityTargets, 5)
+      .filter((target) => !SOURCE_ANATOMY_CUE_PATTERN.test(target) && !STRUCTURAL_COPY_PATTERN.test(target));
+    return {
+      ...decision,
+      adaptation: safeAdaptation,
+      qualityTargets: unique([...plannerTargets, ...decision.qualityTargets], 5),
+    };
+  });
+};
 
 export function normalizeReferenceTransferContract({
   value,
   mode,
   screenName,
+  screenDescription = "",
+  screenType,
   referenceAnalysis,
 }: {
   value: unknown;
   mode: ReferenceTransferMode;
   screenName: string;
+  screenDescription?: string;
+  screenType?: "root" | "detail";
   referenceAnalysis?: ReferenceAnalysis | null;
 }): ReferenceTransferContract {
   const fallback = createReferenceTransferContract({
     mode,
     screenName,
+    screenDescription,
+    screenType,
     referenceAnalysis,
   });
   const record = asRecord(value);
@@ -184,8 +273,11 @@ export function normalizeReferenceTransferContract({
 
   const expectedLayoutSource = mode === "recreate" ? "reference" : "screen-purpose";
   const preserve = stringArray(record.preserve, 8);
-  const adapt = stringArray(record.adapt, 6);
-  const reject = stringArray(record.reject, 8);
+  const adapt = stringArray(record.adapt, 8);
+  const reject = stringArray(record.reject, 10);
+  const approvedAdapt = mode === "style"
+    ? adapt.filter((item) => !SOURCE_ANATOMY_CUE_PATTERN.test(item) && !STRUCTURAL_COPY_PATTERN.test(item))
+    : adapt;
   const rationale = compact(
     typeof record.rationale === "string" ? record.rationale : null,
     600,
@@ -193,15 +285,40 @@ export function normalizeReferenceTransferContract({
   const approvedPreserve = mode === "style"
     ? preserve.filter((item) => !SOURCE_ANATOMY_CUE_PATTERN.test(item))
     : preserve;
+  const semanticDecisions = mode === "style"
+    ? mergePlannerSemanticDecisions(
+        fallback.semanticDecisions,
+        record.semantic_decisions ?? record.semanticDecisions,
+      )
+    : fallback.semanticDecisions;
+  const premiumQualityTargets = mode === "style"
+    ? unique([
+        ...stringArray(record.premium_quality_targets ?? record.premiumQualityTargets, 8)
+          .filter((target) => !SOURCE_ANATOMY_CUE_PATTERN.test(target) && !STRUCTURAL_COPY_PATTERN.test(target)),
+        ...semanticDecisions.flatMap((decision) => decision.qualityTargets),
+        ...fallback.premiumQualityTargets,
+      ], 10)
+    : fallback.premiumQualityTargets;
 
   return {
     layoutSource: expectedLayoutSource,
     preserve: approvedPreserve.length ? approvedPreserve : fallback.preserve,
-    adapt: adapt.length ? adapt : fallback.adapt,
-    reject: unique([...reject, ...fallback.reject], 8),
+    adapt: unique([
+      ...semanticDecisions.filter((decision) => decision.decision !== "reject").map((decision) => decision.adaptation),
+      ...approvedAdapt,
+      ...fallback.adapt,
+    ], 10),
+    reject: unique([
+      ...semanticDecisions.filter((decision) => decision.decision === "reject").map((decision) => `${decision.primitiveId}: ${decision.rationale}`),
+      ...reject,
+      ...fallback.reject,
+    ], 12),
     rationale: mode === "style" && rationale && (SOURCE_ANATOMY_CUE_PATTERN.test(rationale) || STRUCTURAL_COPY_PATTERN.test(rationale))
       ? fallback.rationale
       : rationale ?? fallback.rationale,
+    targetCapabilities: fallback.targetCapabilities,
+    semanticDecisions,
+    premiumQualityTargets,
   };
 }
 
@@ -210,9 +327,17 @@ export function formatReferenceTransferContract(contract?: ReferenceTransferCont
 
   return [
     `- Layout authority: ${contract.layoutSource}`,
-    contract.preserve.length ? `- Preserve: ${contract.preserve.join(" | ")}` : "- Preserve: product-approved tokens and explicit user constraints.",
-    contract.adapt.length ? `- Adapt: ${contract.adapt.join(" | ")}` : null,
-    contract.reject.length ? `- Reject: ${contract.reject.join(" | ")}` : null,
+    contract.targetCapabilities.length ? `- Target capabilities: ${contract.targetCapabilities.join(", ")}` : null,
+    contract.preserve.length ? `- Preserve visual invariants: ${contract.preserve.join(" | ")}` : "- Preserve: product-approved tokens and explicit user constraints.",
+    contract.semanticDecisions.length ? [
+      "- Semantic composition decisions:",
+      ...contract.semanticDecisions.map((decision) =>
+        `  - ${decision.primitiveId}: ${decision.decision.toUpperCase()} (${decision.suitabilityScore}/100 for ${decision.targetCapability}). ${decision.rationale}${decision.adaptation ? ` Adaptation: ${decision.adaptation}` : ""}`,
+      ),
+    ].join("\n") : null,
+    contract.adapt.length ? `- Approved adaptations: ${contract.adapt.join(" | ")}` : null,
+    contract.reject.length ? `- Rejected transfer: ${contract.reject.join(" | ")}` : null,
+    contract.premiumQualityTargets.length ? `- Premium quality targets: ${contract.premiumQualityTargets.join(" | ")}` : null,
     `- Rationale: ${contract.rationale}`,
   ].filter(Boolean).join("\n");
 }
