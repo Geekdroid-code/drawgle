@@ -12,7 +12,12 @@ export const shouldAttachReferenceImage = ({
   engineVersion: "v1" | "v2";
   image?: PromptImagePayload | null;
   referenceMode?: ReferenceMode | null;
-}) => engineVersion === "v2" ? Boolean(image) : referenceMode === "user_recreate" && Boolean(image);
+}) => {
+  void engineVersion;
+  // Style images are consumed by analysis/art direction/token stages. Sending
+  // them again to the final builder turns visual influence into layout copying.
+  return referenceMode === "user_recreate" && Boolean(image);
+};
 
 export async function normalizeReferenceImage(image: PromptImagePayload): Promise<{
   image: PromptImagePayload;

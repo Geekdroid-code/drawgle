@@ -39,6 +39,12 @@ import {
   buildSharedNavigationContract,
 } from "@/lib/generation/prompts";
 import { resolveGenerationPromptMode } from "@/lib/generation/prompt-routing";
+import {
+  buildPortableReferenceContext,
+  normalizeReferenceTransferContract,
+  toPortableCreativeDirection,
+  type ReferenceTransferMode,
+} from "@/lib/generation/reference-transfer";
 import { appendRequiredAnchors, DRAWGLE_GENERATION_COMPLETE_SENTINEL, extractRequiredAnchors, normalizeStaticDrawgleHtml, stripGenerationCompleteSentinel, validateSourceCompletion } from "@/lib/generation/screen-quality";
 import { buildRepairSurroundingContext, type RepairTarget } from "@/lib/generation/screen-repair";
 import { createProjectReferenceDna } from "@/lib/generation/reference-dna";
@@ -303,6 +309,14 @@ const ScreenLayoutContractSchema = z.object({
   anti_patterns: z.array(z.string().trim().min(1).max(260)).max(8).default([]).optional(),
 });
 
+const ReferenceTransferContractSchema = z.object({
+  layout_source: z.enum(["reference", "screen-purpose"]),
+  preserve: z.array(z.string().trim().min(1).max(500)).max(8).default([]),
+  adapt: z.array(z.string().trim().min(1).max(500)).max(6).default([]),
+  reject: z.array(z.string().trim().min(1).max(500)).max(8).default([]),
+  rationale: z.string().trim().min(1).max(800),
+}).optional();
+
 const ScreenStateVariantSchema = z.object({
   id: z.string().trim().min(1).max(80),
   state_key: z.string().trim().min(1).max(80),
@@ -322,6 +336,7 @@ const ScreenPlanSchema = z.object({
   roadmap_stable_key: z.string().trim().min(1).max(100).optional(),
   state_variants: z.array(ScreenStateVariantSchema).max(3).default([]).optional(),
   layout_contract: ScreenLayoutContractSchema.optional(),
+  reference_transfer: ReferenceTransferContractSchema,
   chrome_policy: z.object({
     chrome: ScreenChromeKindSchema,
     show_primary_navigation: BooleanishSchema.optional(),
@@ -1195,33 +1210,86 @@ const intentContractJson = (contract: GenerationIntentContract): JsonValue => ({
   visibleNavigationHandling: contract.visibleNavigationHandling,
 });
 
+const ensureReferenceTransferContracts = ({
+  screens,
+  mode,
+  referenceAnalysis,
+}: {
+  screens: ScreenPlan[];
+  mode: ReferenceTransferMode;
+  referenceAnalysis?: ReferenceAnalysis | null;
+}) => screens.map((screen) => ({
+  ...screen,
+  referenceTransfer: normalizeReferenceTransferContract({
+    value: screen.referenceTransfer,
+    mode,
+    screenName: screen.name,
+    referenceAnalysis,
+  }),
+}));
+
 const buildScreenFamilyContract = ({
   referenceAnalysis,
   creativeDirection,
   designTokens,
   designStyle,
   intentContract,
+  mode,
 }: {
   referenceAnalysis: ReferenceAnalysis | null;
   creativeDirection?: CreativeDirection | null;
   designTokens?: DesignTokens | null;
   designStyle?: DesignStylePack | null;
   intentContract: GenerationIntentContract;
+  mode: ReferenceTransferMode;
 }): ScreenFamilyContract => {
   const tokenColor = designTokens?.tokens?.color;
   const tokenRadius = designTokens?.tokens?.radii;
   const signals = referenceAnalysis?.designSystemSignals;
+  const portableStyleMode = mode === "style";
   const styleRules = designStyle
-    ? [
-        ...designStyle.layoutGrammar.slice(0, 3),
-        ...designStyle.componentRecipes.slice(0, 3),
-        ...designStyle.densityRules.slice(0, 2),
-      ]
+    ? portableStyleMode
+      ? [
+          ...designStyle.densityRules.slice(0, 3),
+          ...designStyle.antiPatterns.slice(0, 3).map((rule) => `Avoid: ${rule}`),
+        ]
+      : [
+          ...designStyle.layoutGrammar.slice(0, 3),
+          ...designStyle.componentRecipes.slice(0, 3),
+          ...designStyle.densityRules.slice(0, 2),
+        ]
     : [];
+  const portableCraftCues = referenceAnalysis?.screenReferences
+    .flatMap((screen) => screen.stylingCues)
+    .filter(Boolean)
+    .slice(0, 4) ?? [];
+  const summary = designStyle
+    ? `${designStyle.label}: ${designStyle.premiumIntent}`
+    : portableStyleMode && signals
+      ? `A portable visual system defined by ${signals.palette} ${signals.typography} ${signals.surfaces}`
+      : creativeDirection?.styleEssence ?? referenceAnalysis?.overallVisualStyle ?? "Maintain one coherent mobile product visual system across all generated screens.";
+  const consistencyRules = portableStyleMode
+    ? [
+        ...styleRules,
+        ...(signals?.antiPatterns ? [`Avoid: ${signals.antiPatterns}`] : []),
+        ...portableCraftCues,
+        "Share visual invariants across screens, but derive every screen's layout and component topology from its own user job.",
+        "Never reuse a previous screen's connector, hero scaffold, card arrangement, or decorative composition as a project-wide shell.",
+      ]
+    : [
+        ...styleRules,
+        ...(creativeDirection?.compositionPrinciples ?? []).slice(0, 4),
+        ...(signals?.layoutGrammar ? [signals.layoutGrammar] : []),
+        ...(signals?.componentGrammar ? [signals.componentGrammar] : []),
+        ...(signals?.antiPatterns ? [`Avoid: ${signals.antiPatterns}`] : []),
+        ...(referenceAnalysis?.screenReferences[0]?.compositionRules ?? []).slice(0, 2),
+        ...(referenceAnalysis?.screenReferences[0]?.componentRules ?? []).slice(0, 2),
+        ...(referenceAnalysis?.screenReferences[0]?.stylingCues ?? []).slice(0, 2),
+        "Every planned screen must look like it belongs to the same product family while keeping a screen-specific composition.",
+      ];
+
   return {
-    summary: designStyle
-      ? `${designStyle.label}: ${designStyle.premiumIntent}`
-      : creativeDirection?.styleEssence ?? referenceAnalysis?.overallVisualStyle ?? "Maintain one coherent mobile product visual system across all generated screens.",
+    summary,
     surfaces: signals?.surfaces ?? designStyle?.creativeDirectionSeed.surfaceLanguage ?? [
       tokenColor?.surface?.card ? `Use card surfaces from approved tokens such as ${tokenColor.surface.card}.` : "Use one shared card/surface language.",
       tokenRadius?.app
@@ -1234,20 +1302,9 @@ const buildScreenFamilyContract = ({
       ? "Visible navigation from a one-screen recreate reference is static visual chrome inside that screen, not shared project navigation."
       : designStyle?.navigationRecipes.join(" ") ?? "Shared navigation, when present, is derived from the approved screen slate and must not create additional screens.",
     imagery: designStyle?.assetAndImageryRules.join(" ") ?? "Use bitmap imagery only when it is visible in the reference, explicitly requested, or truly required by the screen purpose; otherwise use CSS, icons, charts, and text structure.",
-    consistencyRules: [
-      ...styleRules,
-      ...(creativeDirection?.compositionPrinciples ?? []).slice(0, 4),
-      ...(signals?.layoutGrammar ? [signals.layoutGrammar] : []),
-      ...(signals?.componentGrammar ? [signals.componentGrammar] : []),
-      ...(signals?.antiPatterns ? [`Avoid: ${signals.antiPatterns}`] : []),
-      ...(referenceAnalysis?.screenReferences[0]?.compositionRules ?? []).slice(0, 2),
-      ...(referenceAnalysis?.screenReferences[0]?.componentRules ?? []).slice(0, 2),
-      ...(referenceAnalysis?.screenReferences[0]?.stylingCues ?? []).slice(0, 2),
-      "Every planned screen must look like it belongs to the same product family while keeping a screen-specific composition.",
-    ].slice(0, 8),
+    consistencyRules: consistencyRules.slice(0, 8),
   };
 };
-
 const formatScreenFamilyContract = (contract: ScreenFamilyContract) => [
   "Screen family contract:",
   `- Summary: ${contract.summary}`,
@@ -1595,16 +1652,84 @@ const navigationBlueprintIssues = (navigationPlan?: ParsedNavigationPlan | null)
   }
   return issues;
 };
+
+const NON_ROOT_NAVIGATION_AREA_PATTERN = /\b(onboarding|splash|welcome|login|sign[\s-]?up|register|auth|checkout|confirmation|detail|chat|assistant|conversation|camera|player|tracking|modal)\b/i;
+
+export const enforceNavigationEvidencePolicy = ({
+  navigationPlan,
+  roadmap,
+  prompt,
+  mode,
+}: {
+  navigationPlan?: ParsedNavigationPlan | null;
+  roadmap?: z.infer<typeof ProjectRoadmapSchema> | null;
+  prompt: string;
+  mode: ReferenceTransferMode;
+}): ParsedNavigationPlan | undefined => {
+  if (!navigationPlan || navigationPlan.decision === "none") {
+    return navigationPlan ?? undefined;
+  }
+
+  const claimedExplicitEvidence = navigationPlan.evidence.source === "explicit-prompt"
+    && !hasExplicitNavigationRequest(prompt);
+  const claimedStyleReferenceArchitecture = navigationPlan.evidence.source === "reference"
+    && mode !== "recreate";
+
+  if (!claimedExplicitEvidence && !claimedStyleReferenceArchitecture) {
+    return navigationPlan;
+  }
+
+  const peerRootAreas = (roadmap?.items ?? []).filter((item) =>
+    item.type === "root" && !NON_ROOT_NAVIGATION_AREA_PATTERN.test(`${item.name} ${item.summary}`),
+  );
+  const hasProductArchitectureEvidence = peerRootAreas.length >= 3
+    && navigationPlan.items.length >= 3;
+
+  if (hasProductArchitectureEvidence) {
+    return {
+      ...navigationPlan,
+      decision: "project-native",
+      evidence: {
+        source: "product-architecture",
+        reason: `Persistent navigation is justified by peer root product areas: ${peerRootAreas.slice(0, 5).map((item) => item.name).join(", ")}.`,
+      },
+      enabled: true,
+      kind: "bottom-tabs",
+    };
+  }
+
+  const reason = claimedExplicitEvidence
+    ? "Persistent navigation was removed because the user did not explicitly request it and the roadmap did not establish at least three peer root product areas."
+    : "Persistent navigation was removed because a style reference supplies visual craft, not product information architecture.";
+
+  return {
+    version: 2,
+    decision: "none",
+    evidence: { source: null, reason },
+    enabled: false,
+    kind: "none",
+    items: [],
+    design: null,
+    visual_brief: "No persistent primary navigation. Use screen-purpose-specific chrome.",
+    screen_chrome: navigationPlan.screen_chrome.map((entry) => ({
+      ...entry,
+      chrome: entry.chrome === "bottom-tabs" ? "top-bar" : entry.chrome,
+      navigation_item_id: null,
+    })),
+  };
+};
 const fallbackScreensFromReference = ({
   prompt,
   planningMode,
   referenceAnalysis,
+  mode,
 }: {
   prompt: string;
   planningMode: PlanningMode;
   referenceAnalysis: ReferenceAnalysis | null;
+  mode: ReferenceTransferMode;
 }) => {
-  if (planningMode === "single-screen") {
+  if (planningMode === "single-screen" || mode !== "recreate") {
     return [fallbackScreenPlan(prompt)];
   }
 
@@ -1894,32 +2019,51 @@ export const screenPlansNeedBuildEnrichment = (screens: ScreenPlan[]): boolean =
 const ensureBuilderGradeScreenBriefs = ({
   screens,
   referenceAnalysis,
+  mode,
 }: {
   screens: ScreenPlan[];
   referenceAnalysis?: ReferenceAnalysis | null;
+  mode: ReferenceTransferMode;
 }) =>
   screens.map((screen, index) => {
+    const referenceTransfer = normalizeReferenceTransferContract({
+      value: screen.referenceTransfer,
+      mode,
+      screenName: screen.name,
+      referenceAnalysis,
+    });
     if (hasBuilderGradeBrief(screen.description)) {
-      return screen;
+      return { ...screen, referenceTransfer };
     }
 
     const referenceScreen = referenceAnalysis?.screenReferences[index];
     if (!referenceScreen) {
-      return screen;
+      return { ...screen, referenceTransfer };
     }
 
-    const enrichedDescription = [
-      `Reference DNA: Rebuild this as a premium Drawgle screen using reference screen ${referenceScreen.index} (${referenceScreen.suggestedRole}) as the strongest visual and structural cue.`,
-      buildStructuredScreenDescription(referenceScreen),
-      `Planner Brief:\n${screen.description}`,
-    ].join("\n\n").slice(0, 8000);
+    const enrichedDescription = mode === "recreate"
+      ? [
+          `Reference DNA: Rebuild this as a premium Drawgle screen using reference screen ${referenceScreen.index} (${referenceScreen.suggestedRole}) as the strongest visual and structural cue.`,
+          buildStructuredScreenDescription(referenceScreen),
+          `Planner Brief:\n${screen.description}`,
+        ].join("\n\n").slice(0, 8000)
+      : [
+          "Reference DNA: Preserve only the approved palette, typography, materials, iconography, and density; source anatomy is not a layout template.",
+          `Visual Goal: Design ${screen.name} around its primary user task and product content model.`,
+          "Layout Anatomy: Invent a task-native hierarchy and dominant composition; do not repeat the reference screen's section order, connector/decorative scaffold, hero structure, or card topology.",
+          "Key Components: Use only components required by this screen's workflow, with project-consistent construction and states.",
+          `Visual Styling: ${referenceAnalysis?.designSystemSignals.surfaces ?? "Use approved project surfaces."} ${referenceAnalysis?.designSystemSignals.typography ?? "Use approved project typography."}`,
+          "Interaction Notes: Make controls and feedback native to this screen's workflow instead of imitating source interactions.",
+          "Must Preserve: Approved tokens, type roles, spacing rhythm, icon weight, material quality, and readable 390px viewport fit.",
+          `Planner Brief:\n${screen.description}`,
+        ].join("\n\n").slice(0, 8000);
 
     return {
       ...screen,
       description: enrichedDescription,
+      referenceTransfer,
     };
   });
-
 export const normalizeScreenAssetNeeds = (screenName: string, value: unknown): NonNullable<ScreenPlan["assetNeeds"]> => {
   if (!Array.isArray(value)) {
     return [];
@@ -2063,6 +2207,25 @@ const normalizeScreenStateVariants = (
   return filterMeaningfulStateVariants(normalized, { screenPlan }).slice(0, 3);
 };
 
+const rawReferenceTransfer = (value: unknown, screenName: string): ScreenPlan["referenceTransfer"] => {
+  const input = isRecord(value) && typeof value.layoutSource === "string"
+    ? {
+        layout_source: value.layoutSource,
+        preserve: value.preserve,
+        adapt: value.adapt,
+        reject: value.reject,
+        rationale: value.rationale,
+      }
+    : value;
+  const parsed = ReferenceTransferContractSchema.safeParse(input);
+  if (!parsed.success || !parsed.data) return null;
+  return normalizeReferenceTransferContract({
+    value: parsed.data,
+    mode: parsed.data.layout_source === "reference" ? "recreate" : "style",
+    screenName,
+  });
+};
+
 const coerceScreenPlanFromRawItem = (item: unknown): ScreenPlan | null => {
   const parsed = ScreenPlanSchema.safeParse(item);
   if (parsed.success) {
@@ -2076,6 +2239,7 @@ const coerceScreenPlanFromRawItem = (item: unknown): ScreenPlan | null => {
       roadmapStableKey: parsed.data.roadmap_stable_key ?? screenRoadmapKey(parsed.data.name),
       stateVariants: normalizeScreenStateVariants(parsed.data.state_variants, base),
       layoutContract: normalizeScreenLayoutContract(parsed.data.layout_contract),
+      referenceTransfer: rawReferenceTransfer(parsed.data.reference_transfer, parsed.data.name),
       assetNeeds: normalizeScreenAssetNeeds(parsed.data.name, parsed.data.asset_needs),
       chromePolicy: parsed.data.chrome_policy
         ? {
@@ -2141,6 +2305,7 @@ const coerceScreenPlanFromRawItem = (item: unknown): ScreenPlan | null => {
       { name, type: normalizedType, description },
     ),
     layoutContract: normalizeScreenLayoutContract(item),
+    referenceTransfer: rawReferenceTransfer(item.reference_transfer ?? item.referenceTransfer, name),
     assetNeeds,
     chromePolicy: parsedChromePolicy
       ? {
@@ -2414,7 +2579,7 @@ async function generateCreativeDirection({
 }): Promise<ParsedCreativeDirection | null> {
   try {
     const ai = createGeminiClient();
-    const inlineImage = toInlineImage(image);
+    const inlineImage = normalizeReferenceMode(referenceMode) === "user_recreate" ? toInlineImage(image) : null;
     const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
     const promptMode = resolveGenerationPromptMode({
       referenceMode: resolvedReferenceMode,
@@ -2453,7 +2618,9 @@ async function generateCreativeDirection({
 
     if (referenceAnalysis) {
       parts.push({
-        text: `${referenceAnalysisLabel(resolvedReferenceMode)}:\n${formatReferenceAnalysis(referenceAnalysis)}`,
+        text: promptMode === "style"
+          ? buildPortableReferenceContext(referenceAnalysis)
+          : `${referenceAnalysisLabel(resolvedReferenceMode)}:\n${formatReferenceAnalysis(referenceAnalysis)}`,
       });
     }
 
@@ -2549,7 +2716,9 @@ export async function planScreenBriefsForBuild({
       navigationModel: charter.navigationModel || navigationArchitecture.primaryNavigation,
       keyFeatures: charter.keyFeatures?.length ? charter.keyFeatures : [prompt.slice(0, 200)],
       designRationale: charter.designRationale || "Use the approved project design system.",
-      creativeDirection: charter.creativeDirection ?? null,
+      creativeDirection: plannerMode === "style"
+        ? toPortableCreativeDirection(charter.creativeDirection)
+        : charter.creativeDirection ?? null,
     },
   };
 
@@ -2570,7 +2739,7 @@ export async function planScreenBriefsForBuild({
         tokenContext ? `Design tokens:\n${tokenContext}` : null,
         "SCREEN PLANNING TASK: Reference direction, design system, and project blueprint already exist for this project.",
         "Create builder-ready screen briefs for ONLY the locked screens below. Treat suggestion text as intent only — expand into full construction briefs.",
-        "Keep names and types. Fill all seven description labels, layout_contract, and asset_needs (use [] only when no bitmaps are needed).",
+        "Keep names and types. Fill all seven description labels, layout_contract, reference_transfer, and asset_needs (use [] only when no bitmaps are needed).",
         `Locked screens:\n${JSON.stringify(seedScreens, null, 2)}`,
       ].filter(Boolean).join("\n\n"),
     },
@@ -2619,13 +2788,14 @@ export async function planScreenBriefsForBuild({
       if (!isRecord(item)) return false;
       const rawLayoutContract = item.layout_contract ?? item.layoutContract;
       const rawAssetNeeds = item.asset_needs ?? item.assetNeeds;
-      return isRecord(rawLayoutContract) && Array.isArray(rawAssetNeeds);
+      const rawReferenceTransfer = item.reference_transfer ?? item.referenceTransfer;
+      return isRecord(rawLayoutContract) && isRecord(rawReferenceTransfer) && Array.isArray(rawAssetNeeds);
     });
     if (!rawContractsComplete) {
-      throw new Error("Screen planner omitted a required layout_contract or explicit asset_needs array.");
+      throw new Error("Screen planner omitted a required layout_contract, reference_transfer, or explicit asset_needs array.");
     }
 
-const plannedScreens = plannedRaw
+    const plannedScreens = plannedRaw
       .map((item) => coerceScreenPlanFromRawItem(item))
       .filter((item): item is ScreenPlan => Boolean(item))
       .map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture }));
@@ -2647,6 +2817,7 @@ const plannedScreens = plannedRaw
           ...original,
           description: upgrade.description || original.description,
           layoutContract: upgrade.layoutContract ?? original.layoutContract ?? null,
+          referenceTransfer: upgrade.referenceTransfer ?? original.referenceTransfer ?? null,
           assetNeeds: upgrade.assetNeeds ?? [],
           stateVariants: (upgrade.stateVariants?.length ?? 0) > 0
             ? upgrade.stateVariants
@@ -2657,18 +2828,24 @@ const plannedScreens = plannedRaw
       });
     });
 
-    const invalidScreens = merged.filter((screen) =>
+    const mergedWithTransfer = ensureReferenceTransferContracts({
+      screens: merged,
+      mode: plannerMode,
+      referenceAnalysis: charter.referenceDna?.analysis,
+    });
+    const invalidScreens = mergedWithTransfer.filter((screen) =>
       screenPlanNeedsBuildEnrichment(screen)
       || !screen.layoutContract
+      || !screen.referenceTransfer
       || !Array.isArray(screen.assetNeeds));
-    if (merged.length !== screens.length || invalidScreens.length > 0) {
+    if (mergedWithTransfer.length !== screens.length || invalidScreens.length > 0) {
       throw new Error(
-        `Screen planner returned ${merged.length}/${screens.length} complete briefs; ${invalidScreens.length} failed the builder-grade contract.`,
+        `Screen planner returned ${mergedWithTransfer.length}/${screens.length} complete briefs; ${invalidScreens.length} failed the builder-grade contract.`,
       );
     }
 
-llmLog?.("[plan-screen-briefs-for-build] complete", {
-      screens: merged.map((screen) => ({
+    llmLog?.("[plan-screen-briefs-for-build] complete", {
+      screens: mergedWithTransfer.map((screen) => ({
         name: screen.name,
         descriptionChars: screen.description.length,
         assetNeeds: screen.assetNeeds?.length ?? 0,
@@ -2676,7 +2853,7 @@ llmLog?.("[plan-screen-briefs-for-build] complete", {
       })),
     });
 
-    return { screens: merged, planned: true };
+    return { screens: mergedWithTransfer, planned: true };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     llmLog?.("[plan-screen-briefs-for-build] failed", {
@@ -2686,7 +2863,7 @@ llmLog?.("[plan-screen-briefs-for-build] complete", {
     if (repairAttempt < 1) {
       return planScreenBriefsForBuild({
         screens,
-        prompt: `${prompt}\n\nPLANNER REPAIR: The first brief failed strict validation: ${message}. Return every locked screen with all seven labeled description sections, a complete layout_contract, and an explicit asset_needs array.`,
+        prompt: `${prompt}\n\nPLANNER REPAIR: The first brief failed strict validation: ${message}. Return every locked screen with all seven labeled description sections, a complete layout_contract, reference_transfer, and an explicit asset_needs array.`,
         charter,
         navigationArchitecture,
         navigationPlan,
@@ -2792,6 +2969,13 @@ export async function planUiFlow({
     explicitScreenSections,
     scopeContract: resolvedScopeContract,
   });
+  const plannerMode = resolveGenerationPromptMode({
+    referenceMode: resolvedReferenceMode,
+    hasImage: Boolean(toInlineImage(image)),
+    hasDesignStyle: Boolean(resolvedDesignStyle),
+    hasReferenceAnalysis: Boolean(referenceAnalysis),
+    hasProjectVisualMemory: Boolean(providedReferenceDna || existingCharter?.referenceDna),
+  });
   const forceFiniteFlowWithoutPersistentNav = looksLikeFiniteFlowWithoutPersistentNav(prompt, explicitScreenSections);
   const fallbackRequiresBottomNav = screenCountContract.disableSharedNavigation ? false : inferLegacyRequiresBottomNav({
     prompt,
@@ -2810,15 +2994,28 @@ export async function planUiFlow({
   const resolvedCreativeDirection = projectContext?.trim()
     ? null
     : creativeDirection ?? fallbackCreativeDirection({ prompt, referenceAnalysis });
-  const screenFamilyContract = providedScreenFamilyContract
-    ?? providedReferenceDna?.screenFamilyContract
-    ?? buildScreenFamilyContract({
-      referenceAnalysis,
-      creativeDirection: resolvedCreativeDirection,
-      designTokens,
-      designStyle: resolvedDesignStyle,
-      intentContract,
-    });
+  const planningCreativeDirection = plannerMode === "style"
+    ? toPortableCreativeDirection(resolvedCreativeDirection)
+    : resolvedCreativeDirection;
+  const screenFamilyContract = plannerMode === "style"
+    ? buildScreenFamilyContract({
+        referenceAnalysis,
+        creativeDirection: planningCreativeDirection,
+        designTokens,
+        designStyle: resolvedDesignStyle,
+        intentContract,
+        mode: plannerMode,
+      })
+    : providedScreenFamilyContract
+      ?? providedReferenceDna?.screenFamilyContract
+      ?? buildScreenFamilyContract({
+        referenceAnalysis,
+        creativeDirection: planningCreativeDirection,
+        designTokens,
+        designStyle: resolvedDesignStyle,
+        intentContract,
+        mode: plannerMode,
+      });
   const referenceDna = providedReferenceDna
     ?? (referenceAnalysis
       ? createProjectReferenceDna({
@@ -2867,13 +3064,15 @@ export async function planUiFlow({
 
   if (referenceAnalysis) {
     parts.push({
-      text: `${referenceAnalysisLabel(resolvedReferenceMode)}:\n${formatReferenceAnalysis(referenceAnalysis)}`,
+      text: plannerMode === "style"
+        ? buildPortableReferenceContext(referenceAnalysis)
+        : `${referenceAnalysisLabel(resolvedReferenceMode)}:\n${formatReferenceAnalysis(referenceAnalysis)}`,
     });
   }
 
-  if (resolvedCreativeDirection) {
+  if (planningCreativeDirection) {
     parts.push({
-      text: `Creative Direction:\n${formatCreativeDirection(resolvedCreativeDirection)}`,
+      text: `Creative Direction:\n${formatCreativeDirection(planningCreativeDirection)}`,
     });
   }
 
@@ -2895,13 +3094,6 @@ export async function planUiFlow({
     });
   }
 
-  const plannerMode = resolveGenerationPromptMode({
-    referenceMode: resolvedReferenceMode,
-    hasImage: Boolean(toInlineImage(image)),
-    hasDesignStyle: Boolean(resolvedDesignStyle),
-    hasReferenceAnalysis: Boolean(referenceAnalysis),
-    hasProjectVisualMemory: Boolean(providedReferenceDna || existingCharter?.referenceDna),
-  });
   const policy = geminiPolicyForTask("project_planning", {
     systemInstruction: plannerBlueprintStepInstruction(plannerMode),
     responseMimeType: "application/json",
@@ -2975,6 +3167,53 @@ export async function planUiFlow({
           issues: repairedBlueprint.success
             ? navigationBlueprintIssues(repairedBlueprint.data.navigation_plan)
             : repairedBlueprint.error.issues.map((issue) => issue.path.join(".") + ": " + issue.message),
+        });
+      }
+    }
+  }
+
+  if (parsedBlueprint.success) {
+    const evidenceAdjustedNavigation = enforceNavigationEvidencePolicy({
+      navigationPlan: parsedBlueprint.data.navigation_plan,
+      roadmap: parsedBlueprint.data.roadmap,
+      prompt,
+      mode: plannerMode,
+    });
+    if (JSON.stringify(evidenceAdjustedNavigation) !== JSON.stringify(parsedBlueprint.data.navigation_plan)) {
+      const navigationEnabled = Boolean(
+        evidenceAdjustedNavigation
+        && evidenceAdjustedNavigation.decision !== "none"
+        && evidenceAdjustedNavigation.evidence.source,
+      );
+      const evidenceAdjustedBlueprint = {
+        ...parsedBlueprint.data,
+        requires_bottom_nav: navigationEnabled,
+        navigation_plan: evidenceAdjustedNavigation,
+        navigation_architecture: navigationEnabled
+          ? parsedBlueprint.data.navigation_architecture
+          : {
+              kind: "hierarchical" as const,
+              primary_navigation: "none" as const,
+              root_chrome: "top-bar" as const,
+              detail_chrome: "top-bar-back" as const,
+              consistency_rules: ["Use task-specific top chrome and explicit back navigation for detail screens."],
+              rationale: evidenceAdjustedNavigation?.evidence.reason ?? "No positive persistent-navigation evidence was provided.",
+            },
+        charter: {
+          ...parsedBlueprint.data.charter,
+          navigationModel: navigationEnabled
+            ? parsedBlueprint.data.charter.navigationModel
+            : "Hierarchical screen-specific chrome without persistent primary navigation.",
+        },
+      };
+      const validatedEvidenceAdjustedBlueprint = ProjectBlueprintSchema.safeParse(evidenceAdjustedBlueprint);
+      if (validatedEvidenceAdjustedBlueprint.success) {
+        rawBlueprint = evidenceAdjustedBlueprint;
+        parsedBlueprint = validatedEvidenceAdjustedBlueprint;
+        llmLog?.("[navigation:v2] evidence policy adjusted blueprint", {
+          enabled: navigationEnabled,
+          source: evidenceAdjustedNavigation?.evidence.source ?? null,
+          reason: evidenceAdjustedNavigation?.evidence.reason ?? null,
         });
       }
     }
@@ -3109,6 +3348,7 @@ export async function planUiFlow({
           prompt,
           planningMode,
           referenceAnalysis,
+          mode: plannerMode,
         }).map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture }));
     const reconciledScreens = reconcileScreensWithScope({
       prompt,
@@ -3144,11 +3384,18 @@ export async function planUiFlow({
       screenFamilyContract,
       screens: ensureBuilderGradeScreenBriefs({
         referenceAnalysis,
-        screens: navigationAwareScreens,
+        mode: plannerMode,
+        screens: ensureReferenceTransferContracts({
+          screens: navigationAwareScreens,
+          mode: plannerMode,
+          referenceAnalysis,
+        }),
       }),
     });
     const suppliedNavigationPlan = salvaged.navigationPlan ?? (planningMode === "single-screen" ? existingNavigationPlan : null);
-    const referenceNavigationPlan = deriveReferenceNavigationPlan({ screens, referenceAnalysis });
+    const referenceNavigationPlan = plannerMode === "recreate"
+      ? deriveReferenceNavigationPlan({ screens, referenceAnalysis })
+      : null;
     const navigationCandidate = suppliedNavigationPlan && (
       suppliedNavigationPlan.enabled
       || (suppliedNavigationPlan.version === 2 && suppliedNavigationPlan.decision !== "none")
@@ -3290,6 +3537,7 @@ export async function planUiFlow({
       explicitlyRequested: roadmapItem?.explicitly_requested ?? false,
       stateVariants: normalizeScreenStateVariants(screenPlan.state_variants, base),
       layoutContract: normalizeScreenLayoutContract(screenPlan.layout_contract),
+      referenceTransfer: rawReferenceTransfer(screenPlan.reference_transfer, screenPlan.name),
       assetNeeds: normalizeScreenAssetNeeds(screenPlan.name, screenPlan.asset_needs),
       chromePolicy: screenPlan.chrome_policy
         ? {
@@ -3311,6 +3559,7 @@ export async function planUiFlow({
       type: screenPlan.type,
       description: screenPlan.description,
       layoutContract: screenPlan.layoutContract ?? null,
+      referenceTransfer: screenPlan.referenceTransfer ?? null,
       assetNeeds: screenPlan.assetNeeds ?? [],
       chromePolicy: screenPlan.chromePolicy ?? null,
     },
@@ -3329,6 +3578,7 @@ export async function planUiFlow({
         type: screenPlan.type,
         description: screenPlan.description,
         layoutContract: screenPlan.layoutContract ?? null,
+        referenceTransfer: screenPlan.referenceTransfer ?? null,
         assetNeeds: screenPlan.assetNeeds ?? [],
         chromePolicy: screenPlan.chromePolicy ?? null,
       },
@@ -3341,11 +3591,18 @@ export async function planUiFlow({
     screenFamilyContract,
     screens: ensureBuilderGradeScreenBriefs({
       referenceAnalysis,
-      screens: navigationAwareScreens,
+      mode: plannerMode,
+      screens: ensureReferenceTransferContracts({
+        screens: navigationAwareScreens,
+        mode: plannerMode,
+        referenceAnalysis,
+      }),
     }),
   });
   const suppliedNavigationPlan = toNavigationPlan(parsed.data.navigation_plan) ?? (planningMode === "single-screen" ? existingNavigationPlan : null);
-  const referenceNavigationPlan = deriveReferenceNavigationPlan({ screens, referenceAnalysis });
+  const referenceNavigationPlan = plannerMode === "recreate"
+    ? deriveReferenceNavigationPlan({ screens, referenceAnalysis })
+    : null;
   const navigationCandidate = suppliedNavigationPlan && (
     suppliedNavigationPlan.enabled
     || (suppliedNavigationPlan.version === 2 && suppliedNavigationPlan.decision !== "none")
@@ -3462,7 +3719,9 @@ export async function generateDesignTokens({
 
     if (referenceAnalysis) {
       parts.push({
-        text: `${referenceAnalysisLabel(resolvedReferenceMode)}:\n${formatReferenceAnalysis(referenceAnalysis)}`,
+        text: promptMode === "style"
+          ? buildPortableReferenceContext(referenceAnalysis)
+          : `${referenceAnalysisLabel(resolvedReferenceMode)}:\n${formatReferenceAnalysis(referenceAnalysis)}`,
       });
     }
 

@@ -6,6 +6,7 @@ import type { NavigationPlan, ProjectCharter, ProjectMessage } from "@/lib/types
 
 import { generateEmbedding } from "@/lib/generation/embeddings";
 import { formatProjectReferenceDnaForPrompt, resolveProjectReferenceDna } from "@/lib/generation/reference-dna";
+import { toPortableCreativeDirection } from "@/lib/generation/reference-transfer";
 import { formatCanonicalVisualSystem, type ScreenStyleMemoryInput } from "@/lib/generation/screen-style-memory";
 import { createNavigationArchitecture, deriveRequiresBottomNav } from "@/lib/navigation";
 
@@ -14,14 +15,14 @@ type MatchedScreen = Database["public"]["Functions"]["match_screens"]["Returns"]
 
 const DEFAULT_MATCH_COUNT = 5;
 const DEFAULT_MATCH_THRESHOLD = 0.55;
-const formatCharter = (charter: ProjectCharter) => [
+const formatCharter = (charter: ProjectCharter, portableReference = false) => [
   `Original intent: ${charter.originalPrompt}`,
-  charter.imageReferenceSummary ? `Image reference: ${charter.imageReferenceSummary}` : null,
+  !portableReference && charter.imageReferenceSummary ? `Image reference: ${charter.imageReferenceSummary}` : null,
   `App type: ${charter.appType}`,
   `Audience: ${charter.targetAudience}`,
   `Navigation model: ${charter.navigationModel}`,
   `Key features: ${charter.keyFeatures.join(", ")}`,
-  `Design rationale: ${charter.designRationale}`,
+  !portableReference ? `Design rationale: ${charter.designRationale}` : null,
 ]
   .filter(Boolean)
   .join("\n");
@@ -95,7 +96,7 @@ const formatMatches = (matches: MatchedScreen[]) =>
         ? `${Math.round(match.similarity * 100)}%`
         : "n/a";
 
-      return `${index + 1}. ${match.name} (${similarity} match)\n${match.summary}`;
+      return `${index + 1}. ${match.name} (${similarity} match; retrieve for product continuity, not layout reuse)`;
     })
     .join("\n\n");
 
@@ -496,6 +497,7 @@ export async function assembleProjectContext({
 
   const charter = (project.project_charter as ProjectCharter | null) ?? null;
   const referenceDna = resolveProjectReferenceDna(charter)?.dna ?? null;
+  const portableReferenceMemory = Boolean(referenceDna && referenceDna.referenceMode !== "user_recreate");
   const { data: projectNavigation } = await client
     .from("project_navigation")
     .select("plan")
@@ -534,7 +536,7 @@ export async function assembleProjectContext({
 
   const sections = [
     charter ? `PROJECT CHARTER
-${formatCharter(charter)}` : null,
+${formatCharter(charter, portableReferenceMemory)}` : null,
     charter?.navigationArchitecture
       ? `NAVIGATION ARCHITECTURE
 ${formatNavigationArchitecture(charter)}`
@@ -545,7 +547,7 @@ ${navigationPlanSummary}`
       : null,
     charter?.creativeDirection
       ? `CREATIVE DIRECTION
-${formatCreativeDirection(charter.creativeDirection)}`
+${formatCreativeDirection(portableReferenceMemory ? toPortableCreativeDirection(charter.creativeDirection)! : charter.creativeDirection)}`
       : null,
     referenceDna
       ? `PROJECT REFERENCE DNA
@@ -564,6 +566,7 @@ ${formatMatches(matches)}`
   }
 
   return [
+    "Existing screens are identity and product-continuity evidence only. Their summaries, section order, component topology, and decorative scaffolds are not reusable layout instructions.",
     "Use this project memory to stay consistent with the existing product.",
     "Do not duplicate a retrieved screen unless the user explicitly asked to replace or rework it.",
     ...sections,

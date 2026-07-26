@@ -647,6 +647,7 @@ export interface ScreenPlan {
   assetNeeds?: AssetRequirement[];
   referenceScreenIndex?: number | null;
   referenceScreenCount?: number | null;
+  referenceTransfer?: ReferenceTransferContract | null;
 }
 
 export interface ScreenLayoutContract {
@@ -656,6 +657,19 @@ export interface ScreenLayoutContract {
   componentDensity: string;
   ctaPolicy: string;
   antiPatterns: string[];
+}
+
+/**
+ * Makes reference provenance explicit instead of letting "style" silently
+ * become "copy this screen". The planner owns the choices; the builder must
+ * treat `reject` as higher priority than prose in the screen brief.
+ */
+export interface ReferenceTransferContract {
+  layoutSource: "reference" | "screen-purpose";
+  preserve: string[];
+  adapt: string[];
+  reject: string[];
+  rationale: string;
 }
 
 export interface ScreenBaseStatePlan {

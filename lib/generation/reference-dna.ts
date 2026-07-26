@@ -1,3 +1,5 @@
+import { buildPortableReferenceContext } from "@/lib/generation/reference-transfer";
+
 import type {
   ProjectCharter,
   ProjectReferenceDna,
@@ -230,6 +232,9 @@ export function selectProjectReferenceImagePath({
 }
 
 export function formatProjectReferenceDnaForPrompt(dna: ProjectReferenceDna) {
+  if (dna.referenceMode !== "user_recreate") {
+    return buildPortableReferenceContext(dna.analysis);
+  }
   const referenceScreens = dna.analysis.screenReferences.slice(0, 3).map((screen) =>
     `${screen.index}. ${screen.suggestedRole}: ${screen.layoutSummary} Components: ${screen.components.slice(0, 8).join(", ")}.`,
   );

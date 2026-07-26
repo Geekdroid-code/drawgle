@@ -19,7 +19,6 @@ import {
 
 import { AgentBall } from "@/components/AgentBall";
 import { DrawgleLogo } from "@/components/DrawgleLogo";
-import { NavSecondary } from "@/components/dashboard/nav-secondary";
 import { NavUser } from "@/components/dashboard/nav-user";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { PreviewShareDialog } from "@/components/PreviewShareDialog";
@@ -44,13 +43,6 @@ import type { AuthenticatedUser, ProjectData } from "@/lib/types";
 const DAY_IN_MS = 86_400_000;
 const PROJECT_GROUP_ORDER = ["Today", "Yesterday", "Last 7 days", "Earlier"] as const;
 
-const navSecondary = [
-  {
-    title: "Billing",
-    url: "/billing",
-    icon: CreditCard,
-  },
-];
 
 const startOfLocalDay = (value: string) => {
   const date = new Date(value);
@@ -478,7 +470,6 @@ export function AppSidebar({
       </SidebarHeader>
       <SidebarContent>
         <ProjectGroups userId={user.id} initialProjects={initialProjects} />
-        <NavSecondary items={navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
         <CreditsCard userId={user.id} />

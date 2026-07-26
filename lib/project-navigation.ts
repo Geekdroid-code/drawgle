@@ -42,21 +42,95 @@ const visualBriefAnatomy = (brief: string): NavigationDesignContract["anatomy"] 
 
 export function defaultNavigationDesignContract(visualBrief = ""): NavigationDesignContract {
   const anatomy = visualBriefAnatomy(visualBrief);
-  return {
-    anatomy,
-    width: anatomy === "fixed-tab-rail" ? "inset" : "content",
-    labels: anatomy === "compact-icon-rail" ? "hidden" : "always",
-    activeTreatment: anatomy === "fixed-tab-rail" ? "tint" : "icon-fill",
-    surface: anatomy === "glass-dock" ? "glass" : "solid",
-    radiusPx: anatomy === "fixed-tab-rail" ? 18 : 28,
-    safeAreaOffsetPx: 12,
-    itemGapPx: 4,
-    iconSizePx: 20,
-    border: true,
-    elevation: anatomy === "fixed-tab-rail" ? "none" : "low",
-    centerActionItemId: null,
+  const contracts: Record<NavigationDesignContract["anatomy"], NavigationDesignContract> = {
+    "fixed-tab-rail": {
+      anatomy: "fixed-tab-rail",
+      width: "full",
+      labels: "always",
+      activeTreatment: "underline",
+      surface: "solid",
+      radiusPx: 0,
+      safeAreaOffsetPx: 4,
+      itemGapPx: 0,
+      iconSizePx: 20,
+      border: true,
+      elevation: "none",
+      centerActionItemId: null,
+    },
+    "floating-dock": {
+      anatomy: "floating-dock",
+      width: "content",
+      labels: "always",
+      activeTreatment: "icon-fill",
+      surface: "solid",
+      radiusPx: 28,
+      safeAreaOffsetPx: 12,
+      itemGapPx: 4,
+      iconSizePx: 20,
+      border: true,
+      elevation: "low",
+      centerActionItemId: null,
+    },
+    "glass-dock": {
+      anatomy: "glass-dock",
+      width: "inset",
+      labels: "active-only",
+      activeTreatment: "compact-chip",
+      surface: "glass",
+      radiusPx: 24,
+      safeAreaOffsetPx: 16,
+      itemGapPx: 8,
+      iconSizePx: 21,
+      border: true,
+      elevation: "medium",
+      centerActionItemId: null,
+    },
+    "compact-icon-rail": {
+      anatomy: "compact-icon-rail",
+      width: "content",
+      labels: "hidden",
+      activeTreatment: "tint",
+      surface: "translucent",
+      radiusPx: 32,
+      safeAreaOffsetPx: 16,
+      itemGapPx: 6,
+      iconSizePx: 22,
+      border: true,
+      elevation: "low",
+      centerActionItemId: null,
+    },
+    "center-action-dock": {
+      anatomy: "center-action-dock",
+      width: "inset",
+      labels: "always",
+      activeTreatment: "tint",
+      surface: "solid",
+      radiusPx: 22,
+      safeAreaOffsetPx: 14,
+      itemGapPx: 4,
+      iconSizePx: 20,
+      border: true,
+      elevation: "medium",
+      centerActionItemId: null,
+    },
   };
+
+  return contracts[anatomy];
 }
+
+const isLegacySchemaExampleDesign = (design: NavigationDesignContract) =>
+  design.anatomy === "floating-dock"
+  && design.width === "content"
+  && design.labels === "always"
+  && design.activeTreatment === "icon-fill"
+  && design.surface === "solid"
+  && design.radiusPx === 28
+  && design.safeAreaOffsetPx === 12
+  && design.itemGapPx === 4
+  && design.iconSizePx === 20
+  && design.border === true
+  && design.elevation === "low"
+  && !design.centerActionItemId;
 
 export function normalizeNavigationDesignContract(
   design: NavigationDesignContract | null | undefined,
@@ -65,6 +139,11 @@ export function normalizeNavigationDesignContract(
   const fallback = defaultNavigationDesignContract(visualBrief);
   if (!design) return fallback;
 
+  // Early V2 plans frequently echoed the sole JSON example verbatim. When the
+  // accompanying brief contains a real anatomy signal, let that evidence win.
+  const candidate = isLegacySchemaExampleDesign(design) && fallback.anatomy !== "floating-dock"
+    ? fallback
+    : design;
   const anatomies = new Set<NavigationDesignContract["anatomy"]>([
     "fixed-tab-rail",
     "floating-dock",
@@ -79,23 +158,22 @@ export function normalizeNavigationDesignContract(
   const elevations = new Set<NavigationDesignContract["elevation"]>(["none", "low", "medium"]);
 
   return {
-    anatomy: anatomies.has(design.anatomy) ? design.anatomy : fallback.anatomy,
-    width: widths.has(design.width) ? design.width : fallback.width,
-    labels: labels.has(design.labels) ? design.labels : fallback.labels,
-    activeTreatment: activeTreatments.has(design.activeTreatment) ? design.activeTreatment : fallback.activeTreatment,
-    surface: surfaces.has(design.surface) ? design.surface : fallback.surface,
-    radiusPx: clampNumber(design.radiusPx, 0, 36, fallback.radiusPx),
-    safeAreaOffsetPx: clampNumber(design.safeAreaOffsetPx, 4, 28, fallback.safeAreaOffsetPx),
-    itemGapPx: clampNumber(design.itemGapPx, 0, 16, fallback.itemGapPx),
-    iconSizePx: clampNumber(design.iconSizePx, 16, 26, fallback.iconSizePx),
-    border: typeof design.border === "boolean" ? design.border : fallback.border,
-    elevation: elevations.has(design.elevation) ? design.elevation : fallback.elevation,
-    centerActionItemId: typeof design.centerActionItemId === "string" && design.centerActionItemId.trim()
-      ? slugify(design.centerActionItemId, "")
+    anatomy: anatomies.has(candidate.anatomy) ? candidate.anatomy : fallback.anatomy,
+    width: widths.has(candidate.width) ? candidate.width : fallback.width,
+    labels: labels.has(candidate.labels) ? candidate.labels : fallback.labels,
+    activeTreatment: activeTreatments.has(candidate.activeTreatment) ? candidate.activeTreatment : fallback.activeTreatment,
+    surface: surfaces.has(candidate.surface) ? candidate.surface : fallback.surface,
+    radiusPx: clampNumber(candidate.radiusPx, 0, 36, fallback.radiusPx),
+    safeAreaOffsetPx: clampNumber(candidate.safeAreaOffsetPx, 4, 28, fallback.safeAreaOffsetPx),
+    itemGapPx: clampNumber(candidate.itemGapPx, 0, 16, fallback.itemGapPx),
+    iconSizePx: clampNumber(candidate.iconSizePx, 16, 26, fallback.iconSizePx),
+    border: typeof candidate.border === "boolean" ? candidate.border : fallback.border,
+    elevation: elevations.has(candidate.elevation) ? candidate.elevation : fallback.elevation,
+    centerActionItemId: typeof candidate.centerActionItemId === "string" && candidate.centerActionItemId.trim()
+      ? slugify(candidate.centerActionItemId, "")
       : null,
   };
 }
-
 const disabledNavigationPlan = (
   screens: ScreenPlan[],
   reason: string,
@@ -129,50 +207,128 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
   const design = normalizeNavigationDesignContract(navigationPlan.design, navigationPlan.visualBrief);
   const itemCount = navItems.length;
   const radiusDelta = Math.min(8, Math.max(4, Math.round(design.radiusPx / 3)));
-  const legacyInnerRadiusPx = design.radiusPx === 0 ? 0 : Math.max(0, design.radiusPx - radiusDelta);
-  const overlapBufferPx = design.anatomy === "center-action-dock" ? 16 : 8;
+  const innerRadiusPx = design.radiusPx === 0 ? 0 : Math.max(0, design.radiusPx - radiusDelta);
+  const overlapBufferPx = design.anatomy === "center-action-dock" ? 20 : 8;
   const contentWidth = Math.min(356, itemCount * 70 + 32);
-  const width = design.width === "full"
-    ? "calc(100% - 24px)"
+  const requestedWidth = design.width === "full"
+    ? "100%"
     : design.width === "inset"
       ? "calc(100% - 32px)"
       : `min(${contentWidth}px,calc(100% - 32px))`;
+  const centerActionItemId = design.anatomy === "center-action-dock"
+    ? design.centerActionItemId ?? navItems[Math.floor(itemCount / 2)]?.id ?? null
+    : null;
+
+  const anatomyLayout = (() => {
+    switch (design.anatomy) {
+      case "fixed-tab-rail":
+        return {
+          key: "attached-edge-rail",
+          width: "100%",
+          height: "68px",
+          margin: "0 auto calc(var(--dg-navigation-safe-offset) + var(--dg-effective-safe-area-bottom))",
+          padding: "7px 12px 5px",
+          radius: "0",
+          innerDisplay: `grid;grid-template-columns:repeat(${itemCount},minmax(0,1fr))`,
+          itemDirection: "column",
+          itemPadding: "4px 6px",
+          iconBox: design.iconSizePx + 6,
+        };
+      case "glass-dock":
+        return {
+          key: "inset-glass-ribbon",
+          width: design.width === "content" ? requestedWidth : "calc(100% - 40px)",
+          height: "66px",
+          margin: "0 auto calc(var(--dg-navigation-safe-offset) + var(--dg-effective-safe-area-bottom))",
+          padding: "7px",
+          radius: `var(--dg-radii-app,${design.radiusPx}px)`,
+          innerDisplay: "flex",
+          itemDirection: "row",
+          itemPadding: "6px 9px",
+          iconBox: design.iconSizePx + 6,
+        };
+      case "compact-icon-rail":
+        return {
+          key: "compact-icon-capsule",
+          width: `min(${Math.min(308, itemCount * 54 + 20)}px,calc(100% - 40px))`,
+          height: "58px",
+          margin: "0 auto calc(var(--dg-navigation-safe-offset) + var(--dg-effective-safe-area-bottom))",
+          padding: "5px",
+          radius: "var(--dg-radii-pill,9999px)",
+          innerDisplay: "flex;justify-content:center",
+          itemDirection: "row",
+          itemPadding: "4px",
+          iconBox: 42,
+        };
+      case "center-action-dock":
+        return {
+          key: "lifted-center-action",
+          width: design.width === "content" ? requestedWidth : "calc(100% - 28px)",
+          height: "70px",
+          margin: "0 auto calc(var(--dg-navigation-safe-offset) + var(--dg-effective-safe-area-bottom))",
+          padding: "7px 10px",
+          radius: `var(--dg-radii-app,${design.radiusPx}px)`,
+          innerDisplay: `grid;grid-template-columns:repeat(${itemCount},minmax(0,1fr))`,
+          itemDirection: "column",
+          itemPadding: "4px",
+          iconBox: design.iconSizePx + 8,
+        };
+      default:
+        return {
+          key: "floating-content-dock",
+          width: requestedWidth,
+          height: "72px",
+          margin: "0 auto calc(var(--dg-navigation-safe-offset) + var(--dg-effective-safe-area-bottom))",
+          padding: "8px",
+          radius: `var(--dg-radii-app,${design.radiusPx}px)`,
+          innerDisplay: `grid;grid-template-columns:repeat(${itemCount},minmax(0,1fr))`,
+          itemDirection: "column",
+          itemPadding: "4px",
+          iconBox: design.iconSizePx + 10,
+        };
+    }
+  })();
+
   const background = design.surface === "glass"
-    ? "color-mix(in srgb,var(--dg-navigation-surface,var(--dg-color-surface-card,#fff)) 78%,transparent)"
+    ? "color-mix(in srgb,var(--dg-navigation-surface,var(--dg-color-surface-card,#fff)) 76%,transparent)"
     : design.surface === "translucent"
-      ? "color-mix(in srgb,var(--dg-navigation-surface,var(--dg-color-surface-card,#fff)) 90%,transparent)"
+      ? "color-mix(in srgb,var(--dg-navigation-surface,var(--dg-color-surface-card,#fff)) 88%,transparent)"
       : "var(--dg-navigation-surface,var(--dg-color-surface-card,#fff))";
-  const blur = design.surface === "glass" ? "backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);" : "";
+  const blur = design.surface === "glass"
+    ? "backdrop-filter:blur(18px) saturate(1.15);-webkit-backdrop-filter:blur(18px) saturate(1.15);"
+    : "";
   const shadow = design.elevation === "medium"
-    ? "var(--dg-navigation-shadow,0 12px 28px rgba(15,23,42,.14))"
+    ? "var(--dg-navigation-shadow,0 14px 34px rgba(15,23,42,.16))"
     : design.elevation === "low"
       ? "var(--dg-navigation-shadow,0 6px 18px rgba(15,23,42,.09))"
       : "none";
-  const border = design.border
-    ? "1px solid color-mix(in srgb,var(--dg-navigation-border,var(--dg-color-border-divider,#e5e7eb)) 72%,transparent)"
-    : "0";
+  const borderValue = "1px solid color-mix(in srgb,var(--dg-navigation-border,var(--dg-color-border-divider,#e5e7eb)) 72%,transparent)";
+  const borderCss = design.anatomy === "fixed-tab-rail"
+    ? `border:0;${design.border ? `border-top:${borderValue};` : ""}`
+    : `border:${design.border ? borderValue : "0"};`;
   const labelCss = design.labels === "hidden"
     ? "display:none;"
     : design.labels === "active-only"
-      ? "visibility:hidden;"
+      ? "display:none;"
       : "";
   const activeOnlyCss = design.labels === "active-only"
-    ? "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"] .dg-nav-label{visibility:visible;}"
+    ? "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"] .dg-nav-label{display:block;}"
     : "";
   const activeCss = design.activeTreatment === "underline"
-    ? "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"]::after{content:\"\";position:absolute;bottom:2px;width:18px;height:2px;border-radius:2px;background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));}"
+    ? "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"]::after{content:\"\";position:absolute;left:24%;right:24%;bottom:-1px;height:3px;border-radius:3px 3px 0 0;background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));}"
     : design.activeTreatment === "compact-chip"
       ? "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"]{background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));color:var(--dg-navigation-active-content,var(--dg-color-action-on-primary-text,#fff));}"
       : design.activeTreatment === "tint"
-        ? "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"]{color:var(--dg-navigation-content,var(--dg-color-action-primary,#111827));}"
+        ? "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"]{color:var(--dg-navigation-content,var(--dg-color-action-primary,#111827));background:color-mix(in srgb,var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827)) 10%,transparent);}"
         : "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"] .dg-nav-icon{background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));color:var(--dg-navigation-active-content,var(--dg-color-action-on-primary-text,#fff));}";
+
   const items = navItems.map((item) => {
     const generated = item.availability !== "planned" && Boolean(item.linkedScreenName);
     const id = escapeAttribute(item.id);
     const label = escapeHtml(item.label);
     const icon = escapeAttribute(slugify(item.icon, "circle"));
     const linkedScreen = generated && item.linkedScreenName ? ` data-linked-screen-name="${escapeAttribute(item.linkedScreenName)}"` : "";
-    const centerAction = design.anatomy === "center-action-dock" && design.centerActionItemId === item.id;
+    const centerAction = centerActionItemId === item.id;
     return [
       `<button type="button" class="dg-nav-item${centerAction ? " dg-nav-item-center-action" : ""}" data-nav-item-id="${id}" data-nav-availability="${generated ? "generated" : "planned"}" data-active="false" aria-label="${escapeAttribute(item.label)}"${generated ? "" : ' aria-disabled="true" tabindex="-1"'}${linkedScreen}>`,
       `  <span class="dg-nav-icon"><i data-lucide="${icon}"></i></span>`,
@@ -182,21 +338,21 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
   }).join("\n");
 
   return [
-    `<nav data-drawgle-primary-nav data-navigation-version="${navigationPlan.version ?? 1}" data-navigation-anatomy="${design.anatomy}" data-navigation-clearance-owner="renderer" class="dg-nav-shell" aria-label="Primary navigation">`,
+    `<nav data-drawgle-primary-nav data-navigation-version="${navigationPlan.version ?? 1}" data-navigation-anatomy="${design.anatomy}" data-navigation-layout="${anatomyLayout.key}" data-navigation-clearance-owner="renderer" class="dg-nav-shell" aria-label="Primary navigation">`,
     "<style>",
-    `:root{--dg-navigation-visual-height:clamp(64px,var(--dg-sizing-bottom-nav-height,72px),88px);--dg-effective-safe-area-bottom:max(env(safe-area-inset-bottom,0px),var(--dg-mobile-layout-safe-area-bottom,0px));--dg-navigation-safe-offset:${design.safeAreaOffsetPx}px;--dg-navigation-overlap-buffer:${overlapBufferPx}px;--dg-navigation-clearance:calc(var(--dg-navigation-visual-height) + var(--dg-navigation-safe-offset) + var(--dg-effective-safe-area-bottom) + var(--dg-navigation-overlap-buffer));}`,
-    `[data-drawgle-primary-nav].dg-nav-shell{box-sizing:border-box;width:${width};max-width:100%;min-height:var(--dg-navigation-visual-height);margin:0 auto calc(var(--dg-navigation-safe-offset) + var(--dg-effective-safe-area-bottom));padding:var(--dg-spacing-xs,8px);border-radius:var(--dg-radii-app,${design.radiusPx}px);background:${background};border:${border};box-shadow:${shadow};${blur}pointer-events:auto;}`,
-    `[data-drawgle-primary-nav] .dg-nav-shell-inner{display:grid;grid-template-columns:repeat(${itemCount},minmax(0,1fr));align-items:stretch;gap:${design.itemGapPx}px;min-height:calc(var(--dg-navigation-visual-height) - var(--dg-spacing-xs,8px) - var(--dg-spacing-xs,8px));}`,
-    `[data-drawgle-primary-nav] .dg-nav-item{position:relative;appearance:none;border:0;background:transparent;color:var(--dg-navigation-muted-content,var(--dg-color-text-low-emphasis,#94a3b8));min-width:0;min-height:var(--dg-sizing-min-touch-target,48px);padding:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-radius:var(--dg-radii-inner,${legacyInnerRadiusPx}px);font-family:var(--dg-typography-body-font-family,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);font-size:10px;line-height:1;font-weight:650;letter-spacing:0;cursor:pointer;}`,
+    `:root{--dg-navigation-visual-height:clamp(64px,var(--dg-sizing-bottom-nav-height,72px),88px);--dg-navigation-anatomy-height:${anatomyLayout.height};--dg-effective-safe-area-bottom:max(env(safe-area-inset-bottom,0px),var(--dg-mobile-layout-safe-area-bottom,0px));--dg-navigation-safe-offset:${design.safeAreaOffsetPx}px;--dg-navigation-overlap-buffer:${overlapBufferPx}px;--dg-navigation-clearance:calc(var(--dg-navigation-visual-height) + var(--dg-navigation-safe-offset) + var(--dg-effective-safe-area-bottom) + var(--dg-navigation-overlap-buffer));}`,
+    `[data-drawgle-primary-nav].dg-nav-shell{box-sizing:border-box;width:${anatomyLayout.width};max-width:100%;min-height:var(--dg-navigation-anatomy-height);margin:${anatomyLayout.margin};padding:${anatomyLayout.padding};border-radius:${anatomyLayout.radius};background:${background};${borderCss}box-shadow:${shadow};${blur}pointer-events:auto;}`,
+    `[data-drawgle-primary-nav] .dg-nav-shell-inner{display:${anatomyLayout.innerDisplay};align-items:stretch;gap:${design.itemGapPx}px;min-height:calc(var(--dg-navigation-anatomy-height) - 12px);}`,
+    `[data-drawgle-primary-nav] .dg-nav-item{position:relative;appearance:none;border:0;background:transparent;color:var(--dg-navigation-muted-content,var(--dg-color-text-low-emphasis,#94a3b8));min-width:0;min-height:var(--dg-sizing-min-touch-target,48px);padding:${anatomyLayout.itemPadding};display:flex;flex:1 1 0;flex-direction:${anatomyLayout.itemDirection};align-items:center;justify-content:center;gap:${anatomyLayout.itemDirection === "row" ? 7 : 3}px;border-radius:var(--dg-radii-inner,${innerRadiusPx}px);font-family:var(--dg-typography-body-font-family,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);font-size:10px;line-height:1;font-weight:650;letter-spacing:0;cursor:pointer;}`,
     "[data-drawgle-primary-nav] .dg-nav-item[data-availability=\"planned\"]{cursor:default;}",
     "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"]{color:var(--dg-navigation-content,var(--dg-color-action-primary,#111827));}",
-    `[data-drawgle-primary-nav] .dg-nav-icon{display:flex;height:${design.iconSizePx + 10}px;width:${design.iconSizePx + 10}px;align-items:center;justify-content:center;border-radius:var(--dg-radii-pill,9999px);background:transparent;color:currentColor;}`,
+    `[data-drawgle-primary-nav] .dg-nav-icon{display:flex;height:${anatomyLayout.iconBox}px;width:${anatomyLayout.iconBox}px;flex:0 0 ${anatomyLayout.iconBox}px;align-items:center;justify-content:center;border-radius:var(--dg-radii-pill,9999px);background:transparent;color:currentColor;}`,
     `[data-drawgle-primary-nav] .dg-nav-icon svg{height:${design.iconSizePx}px;width:${design.iconSizePx}px;stroke-width:2;}`,
-    `[data-drawgle-primary-nav] .dg-nav-label{max-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:currentColor;${labelCss}}`,
+    `[data-drawgle-primary-nav] .dg-nav-label{max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:currentColor;${labelCss}}`,
     activeOnlyCss,
     activeCss,
-    "[data-drawgle-primary-nav] .dg-nav-item-center-action{transform:translateY(-8px);}",
-    "[data-drawgle-primary-nav] .dg-nav-item-center-action .dg-nav-icon{height:42px;width:42px;background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));color:var(--dg-navigation-active-content,var(--dg-color-action-on-primary-text,#fff));}",
+    "[data-drawgle-primary-nav] .dg-nav-item-center-action{transform:translateY(-14px);overflow:visible;}",
+    "[data-drawgle-primary-nav] .dg-nav-item-center-action .dg-nav-icon{height:48px;width:48px;flex-basis:48px;border:5px solid var(--dg-navigation-surface,var(--dg-color-surface-card,#fff));box-shadow:0 8px 20px rgba(15,23,42,.16);background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));color:var(--dg-navigation-active-content,var(--dg-color-action-on-primary-text,#fff));}",
     "</style>",
     '<div class="dg-nav-shell-inner">',
     items,
@@ -204,7 +360,6 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
     "</nav>",
   ].filter(Boolean).join("\n");
 }
-
 export function resolveProjectNavigationShell(projectNavigation?: ProjectNavigationData | null) {
   if (!projectNavigation?.plan.enabled) return "";
   if (projectNavigation.plan.version === 2) {

@@ -148,7 +148,7 @@ describe("project reference DNA", () => {
     expect(resolveProjectReferenceDna(incomplete)).toBeNull();
   });
 
-  it("formats the visual rules needed by downstream builders", () => {
+  it("formats style DNA as portable craft without source anatomy", () => {
     const dna = createProjectReferenceDna({
       analysis,
       screenFamilyContract: family,
@@ -158,8 +158,21 @@ describe("project reference DNA", () => {
 
     expect(prompt).toContain(`Palette: ${analysis.designSystemSignals.palette}`);
     expect(prompt).toContain(`Typography: ${analysis.designSystemSignals.typography}`);
-    expect(prompt).toContain(`Layout grammar: ${analysis.designSystemSignals.layoutGrammar}`);
     expect(prompt).toContain(`Avoid: ${analysis.designSystemSignals.antiPatterns}`);
+    expect(prompt).not.toContain(analysis.designSystemSignals.layoutGrammar!);
+    expect(prompt).not.toContain(analysis.screenReferences[0].layoutSummary);
+    expect(prompt).not.toContain("feature panel, metric cards");
+  });
+
+  it("keeps source anatomy only for explicit recreate DNA", () => {
+    const dna = createProjectReferenceDna({
+      analysis,
+      screenFamilyContract: family,
+      referenceMode: "user_recreate",
+    });
+    const prompt = formatProjectReferenceDnaForPrompt(dna);
+
+    expect(prompt).toContain(`Layout grammar: ${analysis.designSystemSignals.layoutGrammar}`);
     expect(prompt).toContain("Dashboard: Greeting, feature hero");
   });
 

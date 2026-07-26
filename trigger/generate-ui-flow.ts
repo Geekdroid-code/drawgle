@@ -2387,6 +2387,8 @@ export const generateUiFlowTask = task({
         type: screenPlan.type,
         description: screenPlan.description,
         chromePolicy: screenPlan.chromePolicy ?? null,
+        layoutContract: screenPlan.layoutContract ?? null,
+        referenceTransfer: screenPlan.referenceTransfer ?? null,
 	        navigationItemId: screenPlan.navigationItemId ?? null,
 	        assetNeeds: screenPlan.assetNeeds ?? [],
 	        roadmapStableKey: screenPlan.roadmapStableKey ?? null,

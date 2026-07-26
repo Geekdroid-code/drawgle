@@ -113,8 +113,9 @@ describe("production generation V2 contracts", () => {
     expect(result.validationIssues).toContain("screenCountEstimate must equal the number of screenReferences entries.");
   });
 
-  it("attaches style references only on the V2 path", () => {
-    expect(shouldAttachReferenceImage({ engineVersion: "v2", image, referenceMode: "user_style" })).toBe(true);
+  it("keeps style references out of the final screen builder", () => {
+    expect(shouldAttachReferenceImage({ engineVersion: "v2", image, referenceMode: "user_style" })).toBe(false);
+    expect(shouldAttachReferenceImage({ engineVersion: "v2", image, referenceMode: "curated_style" })).toBe(false);
     expect(shouldAttachReferenceImage({ engineVersion: "v1", image, referenceMode: "user_style" })).toBe(false);
     expect(shouldAttachReferenceImage({ engineVersion: "v1", image, referenceMode: "user_recreate" })).toBe(true);
   });

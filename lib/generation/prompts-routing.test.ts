@@ -162,7 +162,7 @@ describe("state-scoped prompt construction", () => {
     expect(recreate).toContain("MODE: USER_RECREATE");
     expect(recreate).toContain("recreate mode needs at least 3 reference-traceable cues");
     expect(style).toContain("MODE: STYLE_REFERENCE");
-    expect(style).toContain("style mode needs at least 3 borrowed style cues");
+    expect(style).toContain("style mode needs at least 3 borrowed visual invariants");
     expect(prompt).toContain("MODE: PROMPT_ONLY");
     expect(prompt).toContain("prompt-only mode needs at least 3 concrete cues");
     expect(prompt).not.toContain("recreate mode needs");

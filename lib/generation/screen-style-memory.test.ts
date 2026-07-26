@@ -19,7 +19,9 @@ describe('screen style memory', () => {
     expect(memory).toContain('dg-bg-primary');
     expect(memory).toContain('dg-surface-card');
     expect(memory).toContain('var(--dg-spacing-md)');
-    expect(memory).toContain('Root/classes:');
+    expect(memory).toContain('Material classes:');
+    expect(memory).not.toContain('Premium task dashboard.');
+    expect(memory).not.toMatch(/Material classes:.*(?:flex|gap-|p-\[)/);
   });
 
   it('surfaces raw fallback colors as evidence to map back to tokens', () => {
@@ -43,5 +45,6 @@ describe('screen style memory', () => {
     expect(formatted).toContain('CANONICAL VISUAL SYSTEM FROM EXISTING SCREENS');
     expect(formatted).toContain('style continuity evidence only');
     expect(formatted).toContain('Token utilities:');
+    expect(formatted).toContain('Layout classes, screen summaries');
   });
 });

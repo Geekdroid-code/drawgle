@@ -2,6 +2,7 @@ import { createNavigationArchitecture, resolveScreenChromePolicy } from "@/lib/n
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { formatDesignStyleContract } from "@/lib/generation/design-styles";
 import type { GenerationPromptMode } from "@/lib/generation/prompt-routing";
+import { formatReferenceTransferContract } from "@/lib/generation/reference-transfer";
 import { DRAWGLE_GENERATION_COMPLETE_SENTINEL } from "@/lib/generation/screen-quality";
 import { buildTokenPromptContext } from "@/lib/token-runtime";
 import type { BuildScreenInput, DesignTokens, NavigationArchitecture, ScreenAssetManifest, ScreenPlan, NavigationPlan } from "@/lib/types";
@@ -23,6 +24,7 @@ Non-negotiable output discipline:
 - Do not make each screen feel like a different app. Distinct compositions are allowed; inconsistent padding, line-height, card radii, and nav rhythm are not.
 - Every screen brief must include these labels inside description: Reference DNA, Visual Goal, Layout Anatomy, Key Components, Visual Styling, Interaction Notes, Must Preserve.
 - Every screen must also include layout_contract: six compact, app-specific construction rules that define viewport budget, focal hierarchy, macro/micro spacing, component density, CTA weight, and anti-patterns.
+- Every screen must include reference_transfer. It records which evidence owns layout, which visual invariants transfer, which motifs may be adapted, and which source anatomy is forbidden.
 - Each screen brief must be builder-ready, not a product summary. Describe background layer, content rail, parent-child containment, spacing, edge treatment, type roles, and overflow/wrapping policy.
 - COMPOSITIONAL DIRECTION: Push past generic list layouts. Define the specific spatial orchestration required by the approved evidence: note intentional depth, structural asymmetry, and varying visual density.
 - Creative direction is the product-wide art-direction thesis. Do not water it down into generic product language.
@@ -31,62 +33,26 @@ Non-negotiable output discipline:
 
 const plannerBlueprintJsonContract = `Return JSON with this exact top-level shape:
 {
-  "requires_bottom_nav": true,
+  "requires_bottom_nav": false,
   "navigation_architecture": {
-    "kind": "bottom-tabs-app",
-    "primary_navigation": "bottom-tabs",
-    "root_chrome": "bottom-tabs",
+    "kind": "hierarchical",
+    "primary_navigation": "none",
+    "root_chrome": "top-bar",
     "detail_chrome": "top-bar-back",
     "consistency_rules": ["Rule 1", "Rule 2"],
     "rationale": "Why this navigation structure fits the product"
   },
   "navigation_plan": {
     "version": 2,
-    "decision": "project-native",
+    "decision": "none",
     "evidence": {
-      "source": "explicit-prompt",
-      "reason": "Positive evidence that persistent primary navigation belongs in this product."
+      "source": null,
+      "reason": "No positive evidence for persistent primary navigation."
     },
-    "items": [
-      {
-        "id": "rides",
-        "label": "Rides",
-        "icon": "car",
-        "role": "Book and monitor rides",
-        "availability": "generated",
-        "linked_screen_name": "Ride Dashboard"
-      },
-      {
-        "id": "activity",
-        "label": "Activity",
-        "icon": "clock-3",
-        "role": "Review trip history and receipts",
-        "availability": "planned",
-        "linked_screen_name": null
-      }
-    ],
-    "design": {
-      "anatomy": "floating-dock",
-      "width": "content",
-      "labels": "always",
-      "active_treatment": "icon-fill",
-      "surface": "solid",
-      "radius_px": 28,
-      "safe_area_offset_px": 12,
-      "item_gap_px": 4,
-      "icon_size_px": 20,
-      "border": true,
-      "elevation": "low",
-      "center_action_item_id": null
-    },
-    "visual_brief": "Project-specific navigation anatomy and reference measurements.",
-    "screen_chrome": [
-      {
-        "screen_name": "Ride Dashboard",
-        "chrome": "bottom-tabs",
-        "navigation_item_id": "rides"
-      }
-    ]
+    "items": [],
+    "design": null,
+    "visual_brief": "Why navigation is absent or the project-specific anatomy when enabled.",
+    "screen_chrome": []
   },
   "roadmap": {
     "requested_parent_count": 12,
@@ -133,6 +99,22 @@ const plannerBlueprintJsonContract = `Return JSON with this exact top-level shap
       "avoid": ["Pattern to avoid 1", "Pattern to avoid 2"]
     }
   }
+}
+
+When navigation is enabled, design is REQUIRED and must use this shape:
+{
+  "anatomy": "fixed-tab-rail | floating-dock | glass-dock | compact-icon-rail | center-action-dock",
+  "width": "content | inset | full",
+  "labels": "always | active-only | hidden",
+  "active_treatment": "icon-fill | tint | underline | compact-chip",
+  "surface": "solid | translucent | glass",
+  "radius_px": "integer 0-36 chosen from the project geometry",
+  "safe_area_offset_px": "integer 4-28",
+  "item_gap_px": "integer 0-16",
+  "icon_size_px": "integer 16-26",
+  "border": "boolean",
+  "elevation": "none | low | medium",
+  "center_action_item_id": "matching item id only for a true center action, otherwise null"
 }`;
 
 const plannerScreensJsonContract = `Return JSON with this exact top-level shape:
@@ -150,6 +132,13 @@ const plannerScreensJsonContract = `Return JSON with this exact top-level shape:
         "component_density": "How chips, rows, forms, cards, charts, and controls should pack content",
         "cta_policy": "Primary/secondary action weight, placement, size, and when not to overpower content",
         "anti_patterns": ["Specific bad layout habit to avoid for this screen"]
+      },
+      "reference_transfer": {
+        "layout_source": "screen-purpose",
+        "preserve": ["Portable material, token, typography, icon, or density invariant"],
+        "adapt": ["A source cue that genuinely serves this screen's task"],
+        "reject": ["Concrete source layout, component arrangement, or decorative motif that does not serve this screen"],
+        "rationale": "Why this transfer creates family resemblance without cloning"
       },
       "chrome_policy": {
         "chrome": "bottom-tabs",
@@ -207,6 +196,8 @@ The reference is visual inspiration only. It may be uploaded by the user or sele
 Use reference analysis for material quality, shadows, radii, blur/glass, typography character, icon weight, color rhythm, nav treatment, polish, micro-shapes, and component craftsmanship.
 Do not preserve exact section order, object positions, domain content, data values, or full screenshot anatomy.
 Plan screen anatomy from the user prompt, existing project context, charter, and navigation needs.
+The target screen's user job is the only layout authority. Existing screens and references provide visual-system continuity, never a reusable page template.
+If reference evidence and the requested screen have different jobs, reject the source composition instead of forcing it into the new screen.
 Use reference analysis to increase specificity and preserve the strongest useful cues instead of rewriting them as generic app language.`;
   }
 
@@ -249,11 +240,14 @@ Blueprint rules:
 - Navigation requires positive evidence: an explicit prompt request or a clearly described product architecture with peer root areas. Screen count and app category are never sufficient.
 - Explicit no-navigation intent and finite immersive flows always use decision "none", evidence.source null, no items, and design null.
 ${plannerBlueprintModeRules(mode)}
+- evidence.source "explicit-prompt" is legal only when the user literally requested tabs, a dock, a tab bar, or persistent primary navigation. A request for N screens is not navigation evidence.
 - Use decision "project-native" only for clear peer root product areas. Supply 3-5 unique meaningful destinations, defaulting to 4.
 - A requested root screen uses availability "generated" and links to its exact screen name. Future product destinations use availability "planned" and linked_screen_name null; they do not create screens.
 - Never fabricate generic Home/Search/Profile filler. Every destination label and role must be specific to the requested product.
 - Never use onboarding, splash, auth, chat, camera, player, checkout, confirmation, modal, transient tracking, or detail screens as primary destinations.
 - screen_chrome assigns an active navigation_item_id only to generated root destinations. Planned destinations are never active.
+- When navigation is enabled, choose its anatomy by contrasting at least two viable families against product frequency, reachability, label length, content density, brand material, and current screen language. Do not copy the JSON schema example or reuse a floating pill by habit.
+- visual_brief must state why the chosen anatomy fits this product and why the most obvious alternative was rejected. The renderer uses design as a real construction contract.
 - Use Lucide icon names. Select one supported design anatomy and provide bounded measurements; the renderer, not the builder, owns navigation HTML.
 - charter.navigationModel must match navigation_architecture. keyFeatures must be durable product capabilities, not screen names.
 - charter.designRationale and creativeDirection.compositionPrinciples must be executable layout rules: viewport budget, screen-edge padding, horizontal rail, section rhythm, card/content padding, typography discipline, bottom-safe content stop points, dense-row vs spacious-hero usage, wrapping/truncation, and overflow avoidance.
@@ -262,7 +256,7 @@ ${plannerBlueprintModeRules(mode)}
 const plannerScreenModeRule = (mode: GenerationPromptMode) => mode === "recreate"
   ? `- Mode cues: recreate mode needs at least 3 reference-traceable cues, including one layer/containment/depth cue when visible. In recreate collages, map visible screens left-to-right unless instructed otherwise. A visible structural-reference state may set explicitly_requested and default_selected true. If shared navigation is enabled, nav treatment is renderer-owned and must not appear as screen anatomy.`
   : mode === "style"
-    ? `- Mode cues: style mode needs at least 3 borrowed style cues from material, typography, edge/depth, iconography, or micro-shapes, while layout stays driven by the prompt and blueprint. If shared navigation is enabled, nav treatment is renderer-owned and must not appear as screen anatomy.`
+    ? `- Mode cues: style mode needs at least 3 borrowed visual invariants from material, typography, edge/depth, iconography, or density. reference_transfer.layout_source MUST be "screen-purpose". Put source-only section order, component topology, hero scaffolds, connector/decorative systems, and object positions in reject unless the target screen's task independently requires them. If shared navigation is enabled, nav treatment is renderer-owned and must not appear as screen anatomy.`
     : `- Mode cues: prompt-only mode needs at least 3 concrete cues traceable to the user brief and Creative Direction, including one product-specific composition or component-construction decision. Do not claim that any cue was observed in an image.`;
 
 export const plannerScreenBriefStepInstruction = (mode: GenerationPromptMode) => `${buildPlannerModeInstruction(mode)}
@@ -276,6 +270,8 @@ Rules:
 - Preserve prompt-named screens and order.
 - Architecture/chrome: use the approved blueprint as fixed architecture. Root screens are peer primary destinations. Onboarding, splash, checkout, tracking, map, detail, modal, confirmation, login/signup/register/auth, chat/messaging/assistant are detail/immersive. chrome_policy must match role; these screens must not show primary bottom navigation.
 - Renderer-owned navigation: when the blueprint has shared primary navigation, do not describe its bottom dock/tab-bar/nav-pill anatomy, spacer, clearance height, or padding formula inside any screen description. Bottom navigation from approved evidence belongs to navigation_plan/design, not to screen content.
+- Reference provenance: reference_transfer is a decision record, not decorative metadata. Preserve only portable invariants; adapt only cues with a functional reason; reject source anatomy that belongs to another screen job. reject overrides any conflicting phrase in Description or existing project memory.
+- Cross-screen differentiation: family resemblance comes from tokens, type, material, icon, spacing, and interaction tone. Each route must have a task-native information architecture and dominant composition; never turn a previous screen's cards, connector, hero, chart, or decorative scaffold into a universal shell.
 - Description quality: each description should usually be 900-1800 chars, include all seven labels, and be detailed enough for the builder without seeing the image. Write as a construction brief from background forward through layout, containment, components, typography, materials, depth/edges, imagery/charts/maps, interaction states, and must-preserve construction cues.
 - layout_contract is not prose decoration. It is the compact architecture the builder must obey before writing HTML: no generic stacked blocks, no empty chart/card shells, no oversized CTA unless action priority demands it, no primitive chip grids with large macro gaps and cramped internal padding.
 - Component specificity: name concrete structures/states when relevant: headers, hero regions, surfaces, containers, lists, rows, sheets, charts, progress rings, segmented controls, tabs, chips, icon buttons, badges, avatar stacks, maps, media areas, text groups, and CTA placement.
@@ -1012,6 +1008,7 @@ Screen Name: ${screenPlan.name}
 Screen Type: ${screenPlan.type}
 Screen Description: ${screenDescription}
 ${screenLayoutContract ? `SCREEN LAYOUT CONTRACT:\n${screenLayoutContract}` : ""}
+${screenPlan.referenceTransfer ? `REFERENCE TRANSFER CONTRACT (higher priority than conflicting screen-description or memory prose):\n${formatReferenceTransferContract(screenPlan.referenceTransfer)}` : ""}
 ${mode === "recreate" && screenPlan.referenceScreenIndex && screenPlan.referenceScreenCount && screenPlan.referenceScreenCount > 1
       ? `Reference Target: Build visible reference screen ${screenPlan.referenceScreenIndex} of ${screenPlan.referenceScreenCount}, mapped left-to-right unless the screen brief says otherwise.`
       : ""}
@@ -1021,6 +1018,10 @@ ${modeInstruction}
 
 CRITICAL INSTRUCTION 0: SCREEN SPEC FIDELITY
 Treat Screen Description as a concrete implementation spec, not loose inspiration.
+Before using it, reconcile it against REFERENCE TRANSFER CONTRACT. If a brief or project-memory phrase asks for a rejected source motif, the reject rule wins: redesign that region from the target screen's user task while preserving the approved visual invariants.
+In style mode, family resemblance MUST come from tokens, typography, materials, iconography, density, and interaction tone, not repeated section order, card topology, connector lines, hero scaffolds, or decorative geometry from another screen.
+The target screen's content model owns composition: conversations should be designed as conversations, forms as forms, editorial feeds as reading systems, maps as spatial tools, and dashboards as decision surfaces.
+
 If it describes relative placement, overlap, floating surfaces, nested containment, bottom sheets, large typography, map backgrounds, charts, progress rings, segmented controls, avatar stacks, icon/text groups, edge treatments, bevels, glass/frosting, or CTA construction, you MUST recreate those details faithfully.
 Do NOT flatten a highly specific composition into a generic dashboard, generic card layout, or evenly stacked block layout.
 

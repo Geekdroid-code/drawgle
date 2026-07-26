@@ -10,6 +10,7 @@ import {
   createFallbackNavigationPlan,
   deriveReferenceNavigationPlan,
   detectLocalNavigationMarkup,
+  normalizeNavigationDesignContract,
   normalizeNavigationPlan,
   parseStoredNavigationPlan,
   renderDeterministicNavigationShell,
@@ -235,13 +236,41 @@ describe("Production Navigation V2", () => {
       const shell = renderDeterministicNavigationShell(plan);
       expect(validateNavigationShell(shell, plan)).toBe(true);
       expect(shell).toContain('data-navigation-anatomy="' + anatomy + '"');
+      expect(shell).toContain(`data-navigation-layout="${({
+        "fixed-tab-rail": "attached-edge-rail",
+        "floating-dock": "floating-content-dock",
+        "glass-dock": "inset-glass-ribbon",
+        "compact-icon-rail": "compact-icon-capsule",
+        "center-action-dock": "lifted-center-action",
+      } as Record<NavigationAnatomy, string>)[anatomy]}"`);
       expect(shell.match(/data-nav-item-id=/g)).toHaveLength(count);
       expect(shell).toContain("--dg-navigation-visual-height:clamp(64px");
-      expect(shell).toContain("border-radius:var(--dg-radii-app,");
       expect(shell).toContain("border-radius:var(--dg-radii-inner,");
       expect(shell).toContain("border-radius:var(--dg-radii-pill,9999px)");
-      expect(shell).toContain(`--dg-navigation-overlap-buffer:${anatomy === "center-action-dock" ? 16 : 8}px`);
+      expect(shell).toContain(`--dg-navigation-overlap-buffer:${anatomy === "center-action-dock" ? 20 : 8}px`);
+      if (anatomy === "fixed-tab-rail") expect(shell).toContain("width:100%;");
+      if (anatomy === "compact-icon-rail") expect(shell).toContain("--dg-navigation-anatomy-height:58px");
+      if (anatomy === "glass-dock") expect(shell).toContain("backdrop-filter:blur(18px)");
+      if (anatomy === "center-action-dock") expect(shell).toContain("dg-nav-item-center-action");
     }
+  });
+
+  it("reconciles the legacy schema-example dock with stronger visual-brief evidence", () => {
+    const legacyExample = design("floating-dock");
+    legacyExample.radiusPx = 28;
+
+    expect(normalizeNavigationDesignContract(legacyExample, "A frosted glass ribbon with active-only labels")).toMatchObject({
+      anatomy: "glass-dock",
+      width: "inset",
+      labels: "active-only",
+      surface: "glass",
+    });
+    expect(normalizeNavigationDesignContract(legacyExample, "A full-width attached tab rail with an underline")).toMatchObject({
+      anatomy: "fixed-tab-rail",
+      width: "full",
+      activeTreatment: "underline",
+      radiusPx: 0,
+    });
   });
 
   it("repairs the duplicate clearance structure from project 66e193d9 without exposing a second band", () => {
