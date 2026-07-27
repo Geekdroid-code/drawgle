@@ -129,7 +129,7 @@ export default async function SubscribePage() {
             {/* Live updates for webhook-driven lifecycle changes */}
             <RealtimeSubscriptionSync userId={user?.id} />
 
-            <div className="w-full max-w-4xl px-4 flex flex-col gap-10 items-center">
+            <div className="w-full max-w-6xl px-4 flex flex-col gap-10 items-center">
                 {/* 1. Subscription Management Cockpit (Active Subscribers Only) */}
                 {isActive && subscriptionSummary && (
                     <div className="w-full">

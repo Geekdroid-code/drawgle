@@ -202,7 +202,7 @@ export default function PlanGrid({ plans, subscription, isAuthenticated }: PlanG
                   {isActive ? (
                     <Button
                       variant="outline"
-                      className="h-10 w-full cursor-not-allowed select-none border-[#1b7fcc]/40 bg-[var(--dg-surface-muted)] text-xs font-bold uppercase tracking-wider text-[#1b7fcc] opacity-80 dark:text-[#38bdf8]"
+                      className="h-10 w-full cursor-not-allowed sm:w-full select-none border-[#1b7fcc]/40 bg-[var(--dg-surface-muted)] text-xs font-bold uppercase tracking-wider text-[#1b7fcc] opacity-80 dark:text-[#38bdf8]"
                       disabled
                     >
                       Current Plan
