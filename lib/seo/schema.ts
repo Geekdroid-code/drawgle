@@ -85,11 +85,10 @@ export function webApplicationSchema(): JsonLd {
     ],
     offers: {
       "@type": "Offer",
-      name: `${siteConfig.name} ${siteConfig.pricing[0].name}`,
+      name: `${siteConfig.name} ${siteConfig.pricing[0].name} monthly subscription`,
       price: siteConfig.pricing[0].price,
       priceCurrency: siteConfig.pricing[0].currency,
       url: absoluteUrl("/pricing"),
-      availability: "https://schema.org/InStock",
       itemOffered: {
         "@id": `${siteConfig.baseUrl}/#web-application`,
       },
@@ -178,12 +177,11 @@ export function offerCatalogSchema(): JsonLd {
     url: absoluteUrl("/pricing"),
     itemListElement: siteConfig.pricing.map((plan) => ({
       "@type": "Offer",
-      name: plan.name,
+      name: `${siteConfig.name} ${plan.name} monthly subscription`,
       description: plan.description,
       price: plan.price,
       priceCurrency: plan.currency,
       url: absoluteUrl(plan.url),
-      availability: "https://schema.org/InStock",
       itemOffered: {
         "@type": "Service",
         name: `${siteConfig.name} ${plan.name}`,

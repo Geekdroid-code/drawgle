@@ -18,10 +18,10 @@ export default function AppShowcase() {
             <div>
               <div className="mb-5 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#1b7fcc]" />
-                Templates & Presets
+                Mobile UI templates and style presets
               </div>
               <h2 className="max-w-[880px] font-pixel-square text-[36px] font-semibold leading-[1.03] tracking-tight sm:text-5xl md:text-[54px] xl:text-[60px]">
-                Don&apos;t start from scratch.
+                Don't start from scratch.
                 <br />
                 <span className="text-white/45">Fork layouts or remix design styles.</span>
               </h2>
@@ -29,15 +29,13 @@ export default function AppShowcase() {
 
             <div>
               <p className="max-w-md text-sm leading-6 text-white/55 sm:text-base">
-                Kickstart your project by borrowing real app flows. Click &apos;Fork&apos; on any card to copy
-                its page layouts, or &apos;Remix&apos; to start a new project with its colors, typography, and
-                shadows pre-loaded.
+                Fork a showcase project to reuse its screen layouts, or remix only its colors, typography, radii, and shadows as the starting design system for a new app.
               </p>
               <Link
                 href="/showcase"
                 className="group mt-5 inline-flex items-center gap-2 text-sm font-semibold text-white transition-opacity hover:opacity-75"
               >
-                Explore all screens
+                Explore all templates
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </Link>
             </div>
@@ -109,7 +107,7 @@ export default function AppShowcase() {
 
           <div className="flex flex-col items-center justify-between gap-4 px-5 py-5 sm:flex-row sm:px-7">
             <p className="text-center text-xs leading-5 text-black/45 sm:text-left sm:text-sm">
-              All layouts are live-rendered, interactive, and ready to export into clean Tailwind CSS and HTML.
+              Each showcase flow is rendered from HTML and can be forked, remixed, or exported as standalone Tailwind HTML.
             </p>
             <Link
               href="/showcase"

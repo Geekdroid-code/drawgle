@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 const possibilities = [
   {
     icon: MessageSquareText,
-    title: "Plan connected mobile screen flows",
+    title: "Describe the app and screen flow",
     description:
       "Describe the product in plain English. Drawgle plans the screen structure, shared navigation, and product context before building the initial mobile views.",
     detail: "Product brief, screen plan, and navigation model",
@@ -24,21 +24,21 @@ const possibilities = [
     title: "Rebuild screenshots as editable UI",
     description:
       "Use an uploaded screenshot as structural evidence, or use a visual reference only for typography, surfaces, spacing, and material direction.",
-    detail: "Screenshot reconstruction and style references",
+    detail: "Prompt, screenshot, or reference",
   },
   {
     icon: Palette,
-    title: "Map design tokens across every screen",
+    title: "Build with one shared design system",
     description:
-      "Adjust shared colors, typography, spacing, radii, shadows, and mobile layout tokens from one design-system source of truth.",
+      "Keep colors, typography, spacing, radius, shadows, and navigation connected across every generated screen.",
     detail: "Shared token map and CSS variables",
   },
   {
     icon: MousePointer2,
-    title: "Refine selected component styling",
+    title: "Refine the Design and export",
     description:
-      "Select a card, button, section, image, or navigation element and make a scoped change without replacing the surrounding screen.",
-    detail: "Targeted canvas edits and image replacement",
+      "Edit a selected element without regenerating the full screen, then export HTML and an Agent Pack for development.",
+    detail: "Selected edits and developer export",
   },
 ];
 
@@ -47,20 +47,17 @@ export default function HookSection() {
     <section className="relative overflow-hidden bg-[#F7F5F3] px-4 py-20 sm:py-24 md:px-6 md:py-28">
       <div className="relative mx-auto max-w-[1060px]">
         <div className="mx-auto mb-12 max-w-3xl text-center md:mb-16">
-          <div className="mb-5 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#1b7fcc]">
-            <Sparkles className="h-3.5 w-3.5" />
-            The Process
+          <div className="mb-5 inline-flex items-center gap-2 text-[11px] font-bold uppercase  text-[#1b7fcc]">
+            Idea to UI in seconds
           </div>
           <h2 className="font-pixel-square text-[34px] font-semibold leading-[1.0] tracking-tight text-black sm:text-5xl md:text-6xl">
-            How Drawgle mobile app 
+            How Drawgle Mobile App
             <span className="block text-[#1b7fcc] mt-2">
-               UI Designer Works
+              UI Designer Works
             </span>
           </h2>
           <p className="mx-auto mt-6 max-w-3xl text-sm leading-relaxed text-gray-500 sm:text-base md:text-lg">
-            Drawgle combines product planning, structured component construction, design-token
-            mapping, mobile layout spacing, and targeted editing so generated screens remain
-            consistent and editable after the first result.
+            Start from a prompt, screenshot, or style reference. Drawgle plans the screen flow, builds structured UI, keeps shared design tokens in sync, and lets you refine one element without regenerating the entire screen.
           </p>
         </div>
 
@@ -95,7 +92,7 @@ export default function HookSection() {
           </p>
           <Link href="/project/new" className="inline-block">
             <Button className="group relative cursor-pointer overflow-hidden rounded-md border border-[#1b7fcc]/40 bg-[#1b7fcc] py-5 pr-12 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-2px_3px_rgba(0,0,0,0.28)] hover:bg-[#1975bd] sm:py-6">
-              <span className="sm:px-2">Design Your UI</span>
+              <span className="sm:px-2">Design Your UI Now</span>
               <span className="absolute right-1 top-1/2 -translate-y-1/2 rounded-sm bg-white p-2 shadow-[inset_0_-1px_2px_rgba(0,0,0,0.12)] sm:p-3">
                 <Image
                   src="/arrow.svg"

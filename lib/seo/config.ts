@@ -1,9 +1,9 @@
 export const siteConfig = {
   name: "Drawgle",
   baseUrl: "https://drawgle.com",
-  defaultTitle: "AI Mobile App UI Designer for Modern Apps | Drawgle",
+  defaultTitle: "AI Mobile App Designer | Design App UIs in Minutes",
   defaultDescription:
-    "Drawgle is an AI mobile app UI designer that turns prompts, screenshots, and references into editable mobile screens with shared design tokens and agent-ready HTML.",
+    "AI mobile app designer for devs who can't design. Turn text or screenshots into Premium Mobile UIs. Export clean Tailwind HTML + Agent Packs.",
   supportEmail: "support@drawgle.com",
   creatorHandle: "@9to5_Dad",
   sameAs: ["https://x.com/9to5_Dad"],
@@ -26,9 +26,9 @@ export const siteConfig = {
   publicRoutes: [
     {
       path: "/",
-      title: "AI Mobile App UI Designer for Modern Apps | Drawgle",
+      title: "AI Mobile App Designer for Editable UI | Drawgle",
       description:
-        "Drawgle is an AI mobile app UI designer that turns prompts, screenshots, and references into editable mobile screens with shared design tokens and agent-ready HTML.",
+        "Design editable mobile app UI from prompts, screenshots, or visual references. Keep screens consistent with shared tokens and export Tailwind HTML plus an Agent Pack.",
       changeFrequency: "weekly",
       priority: 1,
     },

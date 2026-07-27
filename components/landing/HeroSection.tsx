@@ -116,7 +116,7 @@ export function HeroSection() {
                   <Sparkles size={8} className="text-[#75b9ed]" />
                 </span>
                 <span className="text-[10px] font-semibold tracking-[0.04em] text-gray-200">
-                  Native mobile UI, ready to ship
+                  AI Mobile App UI Designer
                 </span>
             </div>
             
@@ -130,7 +130,8 @@ export function HeroSection() {
 </h1>
 
             <p className="text-md sm:text-lg text-gray-300 max-w-3xl mx-auto mb-8">
-Drawgle turns prompts into premium mobile UI, then hands agent-ready HTML, design tokens, and implementation context to the coding tools already inside your repository.            </p>
+              Drawgle turns prompts into premium mobile UI, then hands agent-ready HTML, design tokens, and implementation context to the coding tools already inside your repository.
+            </p>
           </div>
 
           {/* Premium Prompt Box */}

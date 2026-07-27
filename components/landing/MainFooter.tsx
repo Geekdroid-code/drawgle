@@ -26,22 +26,20 @@ export default function Footer() {
     ],
     Resources: [
       { href: '/alternatives', label: 'Alternatives' },
-      { href: '/editorial-policy', label: 'Comparison Editorial Policy' },
       { href: '/alternatives/sleek-design', label: 'Sleek.design Alternative' },
       { href: '/alternatives/google-stitch', label: 'Google Stitch Alternative' },
       { href: '/alternatives/app-alchemy', label: 'AppAlchemy Alternative' },
       { href: '/alternatives/floow-design', label: 'floow.design Alternative' },
       { href: '/alternatives/screensdesign', label: 'ScreensDesign Alternative' },
-      { href: '/alternatives/visily', label: 'Visily Alternative' },
-      { href: '/alternatives/uizard', label: 'Uizard Alternative' },
-      { href: '/alternatives/ux-pilot', label: 'UX Pilot Alternative' },
-      { href: '/alternatives/ux-magic', label: 'UXMagic Alternative' },
+      { href: '/alternatives', label: 'All comparisons' },
+
     ],
 
     Legal: [
       { href: '/terms', label: 'Terms of Service' },
       { href: '/privacy-policy', label: 'Privacy Policy' },
       { href: '/refunds-policy', label: 'Refunds Policy' },
+      { href: '/editorial-policy', label: 'Editorial Policy' },
     ],
   };
 
@@ -59,7 +57,7 @@ export default function Footer() {
             </Link>
             
             <p className="text-gray-600 text-sm mt-2 max-w-[200px] mx-auto md:mx-0">
-              Ship beautiful UIs at the speed of thought.
+              AI mobile app design from first prompt to developer handoff.
             </p>
           </div>
 

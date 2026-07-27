@@ -20,27 +20,26 @@ export function CTASection() {
             </div>
 
             <h2 className="font-pixel-square text-[40px] font-semibold leading-[1.02] tracking-tight text-white sm:text-5xl md:text-[64px]">
-              Design modern mobile UI.
-              <span className="block text-[#1b7fcc] mt-2">Hand it off with context.</span>
+              Turn your app idea
+              <span className="mt-2 block text-[#1b7fcc]">into editable mobile UI.</span>
             </h2>
 
             <p className="mx-auto mt-6 max-w-2xl text-sm leading-6 text-white/50 sm:text-base sm:leading-7">
-              Move from a product brief or screenshot to an editable screen flow, then export
-              Tailwind HTML, shared design tokens, and structured implementation instructions.
+              Start from a prompt, screenshot, or reference. Refine the screen flow visually, then export Tailwind HTML, shared design tokens, assets, and implementation instructions.
             </p>
 
             <Link
               href="/project/new"
               className="group relative mt-9 inline-flex min-h-12 items-center justify-center overflow-hidden rounded-md border border-[#5ba8e2]/40 bg-[#1b7fcc] py-3 pl-6 pr-16 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-2px_3px_rgba(0,0,0,0.28)] transition-colors hover:bg-[#1975bd]"
             >
-              Design Your First Screen
+              Design your first app screen
               <span className="absolute right-1 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-sm bg-white text-[#1b7fcc] shadow-[inset_0_-1px_2px_rgba(0,0,0,0.1)]">
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </span>
             </Link>
 
             <p className="mt-5 text-[11px] font-medium tracking-wide text-white/30">
-              No complex prompting. Tweak everything visually in the canvas.
+              No design or coding experience is required to get started. Review generated output before implementation.
             </p>
           </div>
         </div>

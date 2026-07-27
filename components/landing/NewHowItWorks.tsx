@@ -256,14 +256,14 @@ export default function DescribeToDesign() {
       <div className="relative flex flex-col items-center text-center mb-6 px-4">
         <h2 className="text-[32px] sm:text-6xl tracking-tight max-w-4xl mx-auto font-semibold leading-[1.1] font-pixel-square">
           <span className="text-white">
-            Iterate and refine UIs
+            Edit and refine mobile UI
           </span> <br className="hidden sm:block" />
           <span className="text-[#55a9e8]">
-            without opening Figma
+            without starting over
           </span>
         </h2>
         <p className="text-md sm:text-lg text-white/45 max-w-2xl mx-auto mt-6 mb-2">
-          Stop settling for generic templates. Drawgle acts as your personal design engineer—simply click any component, describe what you want, and watch it perfect your UI line by line.
+          Select a card, button, section, image, or navigation element and describe the change. Drawgle updates that selection while preserving the rest of the screen and its shared design system.
         </p>
       </div>
 
@@ -279,7 +279,7 @@ export default function DescribeToDesign() {
             ) : (
               <div className="w-4 h-4 rounded-full border border-white/15 bg-white/[0.04]"></div>
             )}
-            Select any UI detail
+            Select a UI element
           </div>
 
           <SvgDivider complete={currentStep >= 2} />
@@ -293,7 +293,7 @@ export default function DescribeToDesign() {
             ) : (
               <div className="w-4 h-4 rounded-full border border-white/15 bg-white/[0.04]"></div>
             )}
-            Refine with system tokens
+            Refine it with shared tokens
           </div>
 
           <SvgDivider complete={currentStep >= 4} />
@@ -307,7 +307,7 @@ export default function DescribeToDesign() {
             ) : (
               <div className="w-4 h-4 rounded-full border border-white/15 bg-white/[0.04]"></div>
             )}
-            Apply consistently everywhere
+            Keep the design system consistent
           </div>
         </div>
 

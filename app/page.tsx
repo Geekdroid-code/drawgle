@@ -13,7 +13,7 @@ import HookSection from "@/components/landing/HookSection";
 import { JsonLd } from '@/components/seo/JsonLd'
 import { siteConfig } from '@/lib/seo/config'
 import { buildMetadata } from '@/lib/seo/metadata'
-import { breadcrumbListSchema, faqPageSchema, webPageSchema } from '@/lib/seo/schema'
+import { breadcrumbListSchema, faqPageSchema, webApplicationSchema, webPageSchema } from '@/lib/seo/schema'
 
 export const metadata: Metadata = buildMetadata({
   title: siteConfig.publicRoutes[0].title,
@@ -31,6 +31,7 @@ export default function Home() {
             name: siteConfig.publicRoutes[0].title,
             description: siteConfig.publicRoutes[0].description,
           }),
+          webApplicationSchema(),
           breadcrumbListSchema([{ name: 'Home', path: '/' }]),
           faqPageSchema(homeFaqs),
         ]}

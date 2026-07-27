@@ -37,7 +37,7 @@ export const phase3ComparisonPages: ComparisonPageData[] = [
       description:
         "Compare Drawgle and Aaply for mobile wireframing, UX flow planning, templates, Figma export, AI screen generation, pricing, and developer handoff.",
       publishedDate: "2026-07-17",
-      modifiedDate: "2026-07-17",
+      modifiedDate: "2026-07-27",
     },
     heroTitle: "Best Aaply Alternative for Mobile UX Planning and AI Mobile UI Generation",
     sonicBoomSummary:
@@ -378,7 +378,7 @@ export const phase3ComparisonPages: ComparisonPageData[] = [
       description:
         "Compare Drawgle and Penpot for AI mobile UI generation, open-source design, self-hosting, design systems, developer inspect, MCP workflows, pricing, and collaboration.",
       publishedDate: "2026-07-17",
-      modifiedDate: "2026-07-17",
+      modifiedDate: "2026-07-27",
     },
     heroTitle: "Best Penpot Alternative for AI Mobile UI Generation",
     sonicBoomSummary:
@@ -749,7 +749,7 @@ export const phase3ComparisonPages: ComparisonPageData[] = [
       description:
         "Compare Drawgle and Proto.io for AI mobile UI generation, advanced prototyping, animations, gestures, user testing, HTML export, pricing, and developer handoff.",
       publishedDate: "2026-07-17",
-      modifiedDate: "2026-07-17",
+      modifiedDate: "2026-07-27",
     },
     heroTitle: "Best Proto.io Alternative for AI Mobile UI Generation",
     sonicBoomSummary:
@@ -1116,7 +1116,7 @@ export const phase3ComparisonPages: ComparisonPageData[] = [
       description:
         "Compare Drawgle and Marvel for AI mobile UI generation, prototyping, user testing, developer handoff, collaboration, device support, pricing, and workflow fit.",
       publishedDate: "2026-07-17",
-      modifiedDate: "2026-07-17",
+      modifiedDate: "2026-07-27",
     },
     heroTitle: "Best Marvel Alternative for AI Mobile UI Generation",
     sonicBoomSummary:

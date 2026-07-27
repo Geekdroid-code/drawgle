@@ -2,65 +2,76 @@ import { ArrowUpRight, Plus } from "lucide-react";
 
 export const homeFaqs = [
   {
-    question: "What is an AI mobile app UI designer?",
+    question: "What is an AI mobile app designer?",
     answer:
-      "An AI mobile app UI designer turns a product brief or visual reference into mobile interface screens. Drawgle adds shared design tokens, navigation context, editable screen structure, and developer handoff files so the result can continue beyond a static mockup.",
+      "An AI mobile app designer turns a product brief or visual reference into editable mobile interface screens. Drawgle adds shared design tokens, navigation context, editable screen structure, and developer handoff files so the result can continue beyond a static mockup.",
   },
   {
-    question: "What does Drawgle actually create?",
+    question: "How does Drawgle turn a text prompt into mobile app UI?",
     answer:
-      "Drawgle turns a plain-language brief into polished, editable mobile app screens. It can design individual screens or a connected multi-screen product while keeping the same visual language throughout.",
+      "Describe the app, audience, visual direction, and screens you need in plain language. Drawgle uses that brief to plan the flow, create a shared design system, and generate connected mobile screens that remain editable.",
   },
   {
-    question: "Can I start from an existing screenshot?",
+    question: "Can AI design a complete multi-screen mobile app flow?",
     answer:
-      "Yes. Upload a UI screenshot and Drawgle can rebuild its structure as an editable screen. You can then change the content, visual direction, components, and layout instead of being stuck with a flat image.",
+      "Yes. Drawgle can plan and generate a set of related screens instead of treating every screen as an isolated mockup. The flow can share navigation, product context, and design tokens across dashboards, detail views, forms, onboarding, and other screens.",
   },
   {
-    question: "Can I use another interface only as a style reference?",
+    question: "Can Drawgle rebuild a screenshot as editable UI?",
     answer:
-      "Yes. A style reference transfers the visual qualities you like, such as typography, spacing, surfaces, color mood, and component treatment, without copying the original product or its features.",
+      "Yes. Upload a UI screenshot and Drawgle rebuilds its layout as editable mobile screens with live HTML, design tokens, and components you can refine.",
   },
   {
-    question: "Will all of my app screens look consistent?",
+    question: "What is the difference between screenshot recreation and a style reference?",
     answer:
-      "That is a core part of Drawgle. Your project keeps a shared design system, navigation model, product context, and visual direction so new screens feel like they belong to the same app.",
+      "Screenshot recreation rebuilds the reference layout as editable UI. Style-reference mode uses only the visual direction—such as typography, color, surfaces, and spacing—to create an original layout for your own product.",
   },
   {
-    question: "Can I change one part without regenerating everything?",
+    question: "Can it keep a multi-screen app visually consistent?",
+    answer:
+      "Yes. Drawgle connects every screen to one shared design system for colors, typography, spacing, radii, shadows, and navigation context.",
+  },
+  {
+    question: "Can I edit one element without regenerating a screen?",
     answer:
       "Yes. Select a card, button, section, image, or navigation element and describe the exact change. Drawgle refines that selection while preserving the rest of the screen.",
   },
   {
-    question: "What happens when I update a design token?",
+    question: "Can I design mobile app UI without Figma or coding experience?",
     answer:
-      "Changing a shared token, such as a color, radius, spacing value, or shadow, updates every connected screen that uses it. This lets you refine the whole product without repeating the same edit screen by screen.",
+      "Yes. You can start with a plain-language brief, edit the generated screens visually, and adjust shared design tokens without writing code or preparing a Figma file first. Designers and developers can still use the exported files in their later workflow.",
   },
   {
-    question: "Are the generated screens editable?",
+    question: "What does Drawgle export for developers?",
     answer:
-      "Yes. The first result is a starting point, not a flattened export. You can continue adding screens, replacing images, changing the design system, and refining individual details on the same canvas.",
+      "Drawgle exports standalone Tailwind HTML and an Agent Pack containing screen files, design tokens, assets, navigation context, and implementation instructions for coding agents.",
   },
   {
-    question: "Can Drawgle create polished modern mobile app designs?",
+    question: "Can I use Drawgle designs with Cursor, Claude Code, Copilot, or Codex?",
     answer:
-      "Drawgle plans component construction, mobile spacing, typography roles, surface hierarchy, visual layering, navigation, and shared design tokens before building each screen. Generated output remains editable and should be reviewed before implementation.",
+      "Yes. The Agent Pack gives coding agents the approved screens, design tokens, assets, navigation context, and implementation instructions they need as reference inside your repository. The coding agent still implements the application in your chosen stack.",
   },
   {
-    question: "Does Drawgle generate real app structure or disconnected mockups?",
+    question: "Does Drawgle export editable Figma layers?",
     answer:
-      "Drawgle is built for complete mobile products. It can maintain shared navigation, screen relationships, project context, and reusable visual decisions across the app rather than producing isolated pages.",
+      "No. Drawgle currently keeps designs editable in its own visual canvas and exports standalone Tailwind HTML plus an Agent Pack. If native Figma layers are required for your workflow, Drawgle does not currently replace that part of Figma.",
   },
   {
-    question: "How does Drawgle hand designs to developers?",
+    question: "Does Drawgle generate React Native, Flutter, SwiftUI, or Kotlin code?",
     answer:
-      "Drawgle exports standalone Tailwind HTML and a structured Agent Pack containing screen files, design tokens, assets, a manifest, Design.md, and implementation instructions for coding agents.",
+      "Not as a production source-code export. Drawgle exports Tailwind HTML and structured implementation context rather than a finished React Native, Flutter, SwiftUI, or Kotlin application. Your developer or coding agent translates the approved design into the target framework.",
   },
   {
-    question: "Do I need design or coding experience?",
+    question: "Is Drawgle an AI app builder or a mobile UI design tool?",
     answer:
-      "No. You can describe what you want in normal language and refine it visually. Drawgle handles the underlying design system and screen structure while keeping the result editable for deeper control.",
+      "Drawgle is an AI mobile UI design tool. It helps you plan, generate, edit, and hand off mobile app screens, but it does not build the backend, connect production data, or publish an app to the App Store or Google Play.",
   },
+  {
+    question: "Does Drawgle export a production iOS or Android app?",
+    answer:
+      "Drawgle does not export a finished production iOS or Android application. It exports standalone Tailwind HTML plus an Agent Pack containing screens, design tokens, assets, navigation context, and implementation instructions. Developers or coding agents use those approved design artifacts as context inside the target repository.",
+  },
+
 ];
 
 function FAQItem({
@@ -95,6 +106,8 @@ function FAQItem({
 }
 
 export default function FAQSection() {
+  const faqColumnBreak = Math.ceil(homeFaqs.length / 2);
+
   return (
     <section className="relative overflow-hidden border-y border-black/[0.07] bg-[#f8f8f6] px-4 py-20 sm:px-6 sm:py-28">
    
@@ -107,15 +120,14 @@ export default function FAQSection() {
               Questions, answered
             </div>
             <h2 className="max-w-xl font-pixel-square text-[34px] font-semibold leading-[1.05] tracking-tight text-black sm:text-5xl">
-              Everything you need
-              <span className="block text-[#1b7fcc]">before you start.</span>
+              Questions about mobile
+              <span className="block text-[#1b7fcc]">app UI design.</span>
             </h2>
           </div>
 
           <div className="max-w-xl lg:justify-self-end">
             <p className="text-sm leading-6 text-black/55 sm:text-base sm:leading-7">
-              Direct answers about AI mobile app UI design, screenshot reconstruction, design
-              tokens, editable screens, and developer handoff.
+              How prompts, screenshots, visual references, editing, shared design tokens, multi-screen flows, and developer exports work in Drawgle.
             </p>
             <a
               href="mailto:support@drawgle.com"
@@ -129,13 +141,13 @@ export default function FAQSection() {
 
         <div className="grid lg:grid-cols-2 lg:gap-x-14">
           <div>
-            {homeFaqs.slice(0, 6).map((faq, index) => (
+            {homeFaqs.slice(0, faqColumnBreak).map((faq, index) => (
               <FAQItem key={faq.question} {...faq} index={index} />
             ))}
           </div>
           <div>
-            {homeFaqs.slice(6).map((faq, index) => (
-              <FAQItem key={faq.question} {...faq} index={index + 6} />
+            {homeFaqs.slice(faqColumnBreak).map((faq, index) => (
+              <FAQItem key={faq.question} {...faq} index={index + faqColumnBreak} />
             ))}
           </div>
         </div>

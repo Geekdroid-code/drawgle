@@ -82,10 +82,10 @@ export default function PricingCards() {
             <div className="bg-white rounded-2xl p-8 mb-2 flex-shrink-0">
               <div className="flex items-center gap-2 mb-3">
                 <h3 className="font-pixel-square text-3xl font-bold text-gray-900 tracking-tight">Starter</h3>
-                <span className="bg-gray-100 text-gray-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">Friction Killer</span>
+                <span className="bg-gray-100 text-gray-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">Good for trying out</span>
               </div>
               <p className="text-gray-600 text-sm leading-relaxed min-h-[60px] mb-6">
-                Perfect for upgrading your digital identity, validating concepts, and skeptical developers looking to get started.
+                For founders and developers validating an app concept or designing a smaller mobile screen set.
               </p>
               <div className="flex items-baseline mb-6">
                 <span className="text-5xl font-bold text-gray-900 tracking-tighter">$9</span>

@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { siteConfig } from "@/lib/seo/config";
 import { buildMetadata } from "@/lib/seo/metadata";
-import { organizationSchema, webApplicationSchema, websiteSchema } from "@/lib/seo/schema";
+import { organizationSchema, websiteSchema } from "@/lib/seo/schema";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 const geistPixelSquare = GeistPixelSquare;
@@ -25,7 +25,7 @@ export default function RootLayout({children}: {children: React.ReactNode}) {
     <html lang="en" className={cn("font-sans", geist.variable, geistPixelSquare.variable)}>
       <head>
         <meta name="google-site-verification" content="49PXdY-HAHFpO0MJS7UIQlLOJ9t4q0Et6a97Fj2BKvE" />
-        <JsonLd data={[organizationSchema(), websiteSchema(), webApplicationSchema()]} />
+        <JsonLd data={[organizationSchema(), websiteSchema()]} />
       </head>
       <body>
         <Script async src="https://www.googletagmanager.com/gtag/js?id=G-L2Z678EBMX" />

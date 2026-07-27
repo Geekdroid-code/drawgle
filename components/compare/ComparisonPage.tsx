@@ -24,7 +24,7 @@ export function ComparisonPage({ page }: { page: ComparisonPageData }) {
     <div className="relative min-h-screen w-full flex flex-col bg-stone-50/20 text-stone-900">
       <main className="flex-grow flex flex-col items-center w-full relative pt-24 pb-24 z-10">
         {/* Section 1: Quick Verdict Header */}
-        <section className="w-full max-w-5xl mx-auto px-6 mb-16">
+        <section className="w-full max-w-5xl mx-auto px-6 mb-16 py-6">
           <div className="text-center mb-10 max-w-3xl mx-auto">
             <h1 className="font-pixel-square text-3xl md:text-5xl text-stone-900 leading-[1.1] mb-4 tracking-tight font-semibold">
               {page.heroTitle}
@@ -42,7 +42,7 @@ export function ComparisonPage({ page }: { page: ComparisonPageData }) {
                 })}
               </time>
               <span className="text-stone-300">•</span>
-              <span>Reviewed by Drawgle Editorial</span>
+              <span>Reviewed by Drawgle Editorial Team</span>
             </div>
           </div>
 

@@ -15,37 +15,37 @@ import {
 
 const capabilities = [
   {
-    title: "Control the shared design-token map",
+    title: "Update shared design tokens once",
     description:
       "Adjust a color, font, spacing value, corner radius, or shadow once. Every connected screen updates live without regenerating your work.",
     icon: SlidersHorizontal,
   },
   {
-    title: "Refine selected component styling",
+    title: "Edit a selected element in place",
     description:
       "Select a card, button, section, or navigation item and describe the improvement. Drawgle edits that part while preserving everything around it.",
     icon: MousePointer2,
   },
   {
-    title: "Recreate a screenshot into editable UI",
+    title: "Rebuild a screenshot as editable UI",
     description:
       "Upload a UI screenshot when you want its layout rebuilt as a real, editable screen instead of receiving a flattened image.",
     icon: ImageIcon,
   },
   {
-    title: "Borrow the style, not the product",
+    title: "Use an interface as a style reference",
     description:
       "Use any interface as visual inspiration. Drawgle carries over its mood, surfaces, typography, and rhythm while designing your own app and features.",
     icon: Palette,
   },
   {
-    title: "Build a connected mobile product",
+    title: "Design connected mobile screen flows",
     description:
       "Generate multiple screens with shared navigation and one consistent visual language, so dashboards, details, and flows feel like the same product.",
     icon: Route,
   },
   {
-    title: "Preserve project context across iterations",
+    title: "Keep product context across iterations",
     description:
       "Drawgle keeps your audience, goals, features, visual direction, and earlier decisions in context when you add or refine screens later.",
     icon: MessageSquareText,
@@ -57,13 +57,13 @@ const capabilities = [
     icon: ImageIcon,
   },
   {
-    title: "Keep the result editable after generation",
+    title: "Keep generated screens editable",
     description:
       "The first output is a starting point, not a dead export. Continue adding screens, changing the system, and refining details on the same canvas.",
     icon: Check,
   },
   {
-    title: "Export implementation-ready HTML and Agent Packs",
+    title: "Export Tailwind HTML and an Agent Pack",
     description:
       "Download standalone Tailwind HTML plus a structured Agent Pack with design tokens, assets, screens, a manifest, and implementation instructions.",
     icon: Download,
@@ -176,12 +176,11 @@ export function FeaturesSection() {
 
         <div className="mx-auto mb-12 max-w-3xl text-left sm:text-center md:mb-20">
           <h2 className="font-pixel-square text-[36px] font-semibold leading-[1.05] tracking-tight text-white sm:text-5xl md:text-6xl">
-            Modern mobile UI,
-            <span className="block text-[#1b7fcc] mt-2">built as a coherent visual system.</span>
+            Keep every mobile screen
+            <span className="block text-[#1b7fcc] mt-2">visually consistent.</span>
           </h2>
           <p className="mx-auto mt-6 max-w-2xl text-sm leading-6 text-white/45 sm:text-base">
-            Control layer order, component containment, mobile spacing, typography roles, surface
-            hierarchy, radii, borders, shadows, shared navigation, and design-token mapping.
+            Use one shared system for colors, type, spacing, radii, shadows, layout, and navigation. Update it once to keep connected mobile screens aligned.
           </p>
         </div>
 

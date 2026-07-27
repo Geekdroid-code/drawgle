@@ -254,7 +254,7 @@ export const comparisonPages: ComparisonPageData[] = [
       description:
         "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       publishedDate: "2026-07-01",
-      modifiedDate: "2026-07-05",
+      modifiedDate: "2026-07-27",
     },
     heroTitle: "Best Sleek.design alternative for AI Mobile App UI Design",
     sonicBoomSummary:
@@ -631,7 +631,7 @@ export const comparisonPages: ComparisonPageData[] = [
       description:
         "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
       publishedDate: "2026-07-01",
-      modifiedDate: "2026-07-05",
+      modifiedDate: "2026-07-27",
     },
     heroTitle:
       "Best Google Stitch alternative for AI Mobile App UI Design",
@@ -1026,8 +1026,8 @@ export const comparisonPages: ComparisonPageData[] = [
       title: "Best AppAlchemy Alternative for Mobile App UI Design in 2026 | Drawgle",
       description:
         "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
-      publishedDate: "2026-07-05",
-      modifiedDate: "2026-07-05",
+      publishedDate: "2026-07-27",
+      modifiedDate: "2026-07-27",
     },
     heroTitle:
       "Best AppAlchemy Alternative for Mobile App UI Design",
@@ -1433,8 +1433,8 @@ export const comparisonPages: ComparisonPageData[] = [
       title: "Best floow.design Alternative for Mobile App UI Design in 2026 | Drawgle",
       description:
         "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
-      publishedDate: "2026-07-05",
-      modifiedDate: "2026-07-05",
+      publishedDate: "2026-07-27",
+      modifiedDate: "2026-07-27",
     },
     heroTitle:
       "floow.design alternative for Mobile App UI Design",
@@ -1833,8 +1833,8 @@ export const comparisonPages: ComparisonPageData[] = [
       title: "Drawgle vs ScreensDesign (2026): AI Mobile App Design Comparison",
       description:
         "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
-      publishedDate: "2026-07-05",
-      modifiedDate: "2026-07-05",
+      publishedDate: "2026-07-27",
+      modifiedDate: "2026-07-27",
     },
     heroTitle:
       "ScreensDesign alternative for Mobile App UI Design",
@@ -2221,8 +2221,8 @@ export const comparisonPages: ComparisonPageData[] = [
       title: "Best Visily alternative for Mobile App UI Design | Drawgle",
       description:
         "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
-      publishedDate: "2026-07-05",
-      modifiedDate: "2026-07-05",
+      publishedDate: "2026-07-27",
+      modifiedDate: "2026-07-27",
     },
     heroTitle:
       "Best Visily alternative for Mobile App UI Design",
@@ -2621,8 +2621,8 @@ export const comparisonPages: ComparisonPageData[] = [
       title: "Best Uizard alternative for AI Mobile UI Design in 2026 | Drawgle",
       description:
         "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
-      publishedDate: "2026-07-05",
-      modifiedDate: "2026-07-05",
+      publishedDate: "2026-07-27",
+      modifiedDate: "2026-07-27",
     },
     heroTitle:
       "Best Uizard alternative for AI Mobile UI Design",
@@ -3021,8 +3021,8 @@ export const comparisonPages: ComparisonPageData[] = [
       title: "Best UX Pilot alternative for AI Mobile UI Design | Drawgle",
       description:
         "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
-      publishedDate: "2026-07-05",
-      modifiedDate: "2026-07-05",
+      publishedDate: "2026-07-27",
+      modifiedDate: "2026-07-27",
     },
     heroTitle:
       "Best UX Pilot alternative for AI Mobile UI Design",
@@ -3421,8 +3421,8 @@ export const comparisonPages: ComparisonPageData[] = [
       title: "Best UXMagic alternative for Mobile App UI Design in 2026 | Drawgle",
       description:
         "Drawgle exports high-fidelity standalone HTML and structured Agent Packs for implementation in the developer's chosen codebase.",
-      publishedDate: "2026-07-05",
-      modifiedDate: "2026-07-05",
+      publishedDate: "2026-07-27",
+      modifiedDate: "2026-07-27",
     },
     heroTitle:
       "Best UXMagic alternative for AI Mobile UI Design",

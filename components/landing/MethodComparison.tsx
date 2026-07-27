@@ -18,17 +18,17 @@ const stages = [
 ];
 
 const drawgleJourney = [
-  { title: "Clean blueprint", detail: "A structured scope checklist before building", mood: "happy" },
-  { title: "Pinpoint edits", detail: "Refining exact elements instead of full regenerations", mood: "calm" },
-  { title: "Global tokens", detail: "Central styling rules that scale dynamically", mood: "spark" },
-  { title: "Implementation-ready", detail: "Semantic Tailwind HTML and structured handoff context", mood: "done" },
+  { title: "Clean Blueprint", detail: "A structured scope checklist before building", mood: "happy" },
+  { title: "Selected-element edits", detail: "Refining exact elements instead of full regenerations", mood: "calm" },
+  { title: "Shared design tokens", detail: "Central styling rules that scale dynamically", mood: "spark" },
+  { title: "HTML and Agent Pack export", detail: "Semantic Tailwind HTML and structured handoff context", mood: "done" },
 ];
 
 const genericJourney = [
-  { title: "Vague guess", detail: "A random layout that doesn't fit your spec", mood: "blank" },
-  { title: "AI design drift", detail: "Revisions rewrite and break existing styling", mood: "sad" },
-  { title: "CSS spaghetti", detail: "Manually patching inline styles and bloated markup", mood: "lost" },
-  { title: "The binary bin", detail: "Throwing it away and rewriting it yourself", mood: "flat" },
+  { title: "One-shot first draft", detail: "A random layout that doesn't fit your spec", mood: "blank" },
+  { title: "Style drift across revisions", detail: "Revisions rewrite and break existing styling", mood: "sad" },
+  { title: "Manual CSS cleanup", detail: "Manually patching inline styles and bloated markup", mood: "lost" },
+  { title: "Rebuild before handoff", detail: "Throwing it away and rewriting it yourself", mood: "flat" },
 ];
 
 
@@ -156,17 +156,15 @@ export default function MethodComparison() {
     <section className="relative overflow-hidden bg-[#FAFAFA] px-4 py-20 md:px-6 md:py-28">
       <div className="mx-auto max-w-[1060px]">
         <div className="mx-auto mb-12 max-w-3xl text-center md:mb-16">
-          <div className="mb-5 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#1b7fcc]">
-            <Layers3 className="h-3.5 w-3.5" />
-            The Real Workflow
+          <div className="mb-5 inline-flex items-center gap-2 text-[11px] font-bold uppercase text-[#1b7fcc]">
+            Drawgle workflow
           </div>
           <h2 className="font-pixel-square text-[34px] font-semibold leading-[1.08] tracking-tight text-black sm:text-5xl md:text-6xl">
-            From mobile UI brief
-            <span className="block text-[#1b7fcc] mt-2">to implementation-ready handoff.</span>
+            From mobile UI design
+            <span className="block text-[#1b7fcc] mt-2">to developer handoff.</span>
           </h2>
           <p className="mx-auto mt-6 max-w-3xl text-sm leading-relaxed text-gray-500 sm:text-base md:text-lg">
-            Drawgle keeps the screen plan, structured component construction, design-token map,
-            navigation model, and export context connected throughout the mobile UI workflow.
+            Keep the screen plan, navigation, design tokens, and export context together from the first prompt through developer handoff instead of passing along disconnected mockups.
           </p>
         </div>
 

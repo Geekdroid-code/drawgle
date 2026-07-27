@@ -37,7 +37,7 @@ export const phase2ComparisonPages: ComparisonPageData[] = [
       description:
         "Compare Drawgle and MagicPath for mobile UI generation, React code export, Figma workflows, AI-agent collaboration, pricing, and developer handoff.",
       publishedDate: "2026-07-17",
-      modifiedDate: "2026-07-17",
+      modifiedDate: "2026-07-27",
     },
     heroTitle: "Best MagicPath alternative for AI Mobile UI Generation",
     sonicBoomSummary:
@@ -390,7 +390,7 @@ export const phase2ComparisonPages: ComparisonPageData[] = [
       description:
         "Compare Drawgle and TapUI for AI mobile screen generation, pricing, editing, Figma claims, code handoff, screenshot recreation, and product workflow fit.",
       publishedDate: "2026-07-17",
-      modifiedDate: "2026-07-17",
+      modifiedDate: "2026-07-27",
     },
     heroTitle: "Best TapUI Alternative for AI Mobile App UI Design",
     sonicBoomSummary:
@@ -738,7 +738,7 @@ export const phase2ComparisonPages: ComparisonPageData[] = [
           description:
         "Compare Drawgle and Bravo Studio for Figma-to-app publishing, Bravo MCP React Native source, backend features, mobile UI generation, pricing, and code ownership.",
       publishedDate: "2026-07-17",
-      modifiedDate: "2026-07-17",
+      modifiedDate: "2026-07-27",
     },
     heroTitle: "Best Bravo Studio Alternative for AI Mobile App UI Design",
     sonicBoomSummary:
