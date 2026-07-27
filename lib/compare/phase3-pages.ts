@@ -738,7 +738,7 @@ export const phase3ComparisonPages: ComparisonPageData[] = [
     },
   },
   {
-    slug: "proto-io",
+    slug: "proto",
     status: "published",
     competitor: {
       name: "Proto.io",
