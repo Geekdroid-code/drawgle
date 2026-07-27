@@ -121,7 +121,7 @@ export function HeroSection() {
             </div>
             
 <h1 className="text-[32px] sm:text-6xl max-w-4xl mx-auto font-semibold leading-none mb-4 font-pixel-square">
-  <span className="text-white">Ship beautiful App UIs</span>
+  <span className="text-white">Design premium Mobile UIs</span>
   <br />
   <span className="relative mt-2 inline-block text-[#1b7fcc]">
     at the speed of thought
