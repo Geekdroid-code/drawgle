@@ -21,7 +21,7 @@ export default function AppShowcase() {
                 Mobile UI templates and style presets
               </div>
               <h2 className="max-w-[880px] font-pixel-square text-[36px] font-semibold leading-[1.03] tracking-tight sm:text-5xl md:text-[54px] xl:text-[60px]">
-                Don't start from scratch.
+                Don&apos;t start from scratch.
                 <br />
                 <span className="text-white/45">Fork layouts or remix design styles.</span>
               </h2>

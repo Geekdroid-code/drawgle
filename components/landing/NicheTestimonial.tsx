@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import Image from "next/image"
 import { Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
@@ -37,9 +38,11 @@ const NicheTestimonialCard: React.FC<NicheTestimonialCardProps> = ({ quote, name
         &ldquo;{quote}&rdquo;
       </blockquote>
       <div className="flex items-center">
-        <img
+        <Image
           src={avatar || "/placeholder.svg"}
           alt={name}
+          width={40}
+          height={40}
           className="h-10 w-10 rounded-full object-cover mr-3"
         />
         <div>
@@ -108,9 +111,11 @@ export default function NicheTestimonialSection({ testimonials, title, subtitle 
               >
                 Transform Your Photos Now
                 <div className="bg-white rounded-sm p-3 absolute right-1 top-1/2 -translate-y-1/2">
-                    <img
+                    <Image
                       src="/arrow.svg"
                       alt="arrow-right"
+                      width={16}
+                      height={16}
                       className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1"
                     />
                   </div>

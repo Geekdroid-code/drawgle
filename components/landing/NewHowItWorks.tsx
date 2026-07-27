@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { Settings, ArrowRight, Check, Activity, Flame, ChevronRight, MapPin, Trophy, ChevronLeft, ShoppingBag, Home, Search, Heart, Code, Play, Loader, Smartphone, User, Menu } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -484,7 +485,9 @@ export default function DescribeToDesign() {
                               </button>
                             </div>
                             <div className="absolute -right-[15%] top-[15%] w-[200px] h-[150px] pointer-events-none z-20">
-                              <img src="https://static.vecteezy.com/system/resources/previews/058/272/032/non_2x/sleek-and-minimalist-running-shoe-with-transparent-design-free-png.png" alt="Running Shoe" className="w-full h-full object-contain drop-shadow-xl" />
+                              {/* This external demo asset is intentionally rendered without Next image optimization. */}
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src="https://static.vecteezy.com/system/resources/previews/058/272/032/non_2x/sleek-and-minimalist-running-shoe-with-transparent-design-free-png.png" alt="Running shoe" className="w-full h-full object-contain drop-shadow-xl" />
                             </div>
                           </motion.div>
                         )}
@@ -531,12 +534,12 @@ export default function DescribeToDesign() {
                           >
                              {currentStep === 3 && <PrecisionFrame label="selected.component" detail="product grid" />}
                              <div className="bg-[#FAFAFA] border border-gray-100 rounded-2xl p-4 flex flex-col items-center text-center">
-                                <img src="/assets/shoes2.webp" className="w-[100px] h-[80px] object-contain mb-2" />
+                                <Image src="/assets/shoes2.webp" alt="Aero Glide running shoe" width={100} height={80} className="w-[100px] h-[80px] object-contain mb-2" />
                                 <div className="text-[14px] font-semibold text-black">Aero Glide</div>
                                 <div className="text-[14px] font-bold text-gray-500 mt-1">$120</div>
                              </div>
                              <div className="bg-[#FAFAFA] border border-gray-100 rounded-2xl p-4 flex flex-col items-center text-center">
-                                <img src="/assets/shoes1.webp" className="w-[100px] h-[80px] object-contain mb-2" />
+                                <Image src="/assets/shoes1.webp" alt="Stratus X running shoe" width={100} height={80} className="w-[100px] h-[80px] object-contain mb-2" />
                                 <div className="text-[14px] font-semibold text-black">Stratus X</div>
                                 <div className="text-[14px] font-bold text-gray-500 mt-1">$145</div>
                              </div>
@@ -554,7 +557,7 @@ export default function DescribeToDesign() {
                                   <span className="bg-black text-white text-[9px] px-2 py-1 rounded-md font-bold">NEW</span>
                                   <Heart size={14} className="text-gray-300" />
                                 </div>
-                                <img src="/assets/shoes2.webp" className="w-[100px] h-[70px] object-contain mx-auto my-1" />
+                                <Image src="/assets/shoes2.webp" alt="Aero Glide running shoe" width={100} height={70} className="w-[100px] h-[70px] object-contain mx-auto my-1" />
                                 <div className="text-[14px] font-bold text-black leading-tight mt-1">Aero Glide</div>
                                 <div className="text-[11px] font-medium text-gray-400 mt-0.5">Road Running</div>
                                 <div className="text-[15px] font-black text-black mt-1">$120</div>
@@ -564,7 +567,7 @@ export default function DescribeToDesign() {
                                   <span className="bg-black text-white text-[9px] px-2 py-1 rounded-md font-bold opacity-0">NEW</span>
                                   <Heart size={14} className="text-gray-300" />
                                 </div>
-                                <img src="/assets/shoes1.webp" className="w-[100px] h-[70px] object-contain mx-auto my-1" />
+                                <Image src="/assets/shoes1.webp" alt="Stratus X running shoe" width={100} height={70} className="w-[100px] h-[70px] object-contain mx-auto my-1" />
                                 <div className="text-[14px] font-bold text-black leading-tight mt-1">Stratus X</div>
                                 <div className="text-[11px] font-medium text-gray-400 mt-0.5">Trail Running</div>
                                 <div className="text-[15px] font-black text-black mt-1">$145</div>

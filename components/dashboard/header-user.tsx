@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   BadgeCheck,
@@ -34,7 +34,7 @@ export function HeaderUser({ user }: HeaderUserProps) {
   const { balance: creditBalance } = useCreditManager(user.id);
   const [isSigningOut, setIsSigningOut] = useState(false);
 
-  const handleSignOut = async () => {
+  const handleSignOut = useCallback(async () => {
     setIsSigningOut(true);
 
     try {
@@ -47,7 +47,7 @@ export function HeaderUser({ user }: HeaderUserProps) {
       console.error("Failed to sign out", error);
       setIsSigningOut(false);
     }
-  };
+  }, [router]);
 
   const menuItems = useMemo(
     () => [
@@ -75,7 +75,7 @@ export function HeaderUser({ user }: HeaderUserProps) {
         variant: "destructive" as const,
       },
     ],
-    [isSigningOut, router],
+    [handleSignOut, isSigningOut, router],
   );
 
   return (

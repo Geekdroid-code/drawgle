@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
 import type React from "react"
@@ -234,9 +235,11 @@ function Header() {
             >
               Start designing
               <div className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md bg-white p-[10px]">
-              <img
+              <Image
                 src="/arrow.svg"
                 alt="arrow-right"
+                width={12}
+                height={12}
                 className="w-3 h-3 transition-transform duration-200 group-hover:translate-x-1"
               />
               </div>
@@ -272,9 +275,11 @@ function Header() {
                 >
                   Start designing
                   <div className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md bg-white p-3">
-                    <img
+                    <Image
                       src="/arrow.svg"
                       alt="arrow-right"
+                      width={16}
+                      height={16}
                       className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1"
                     />
                   </div>

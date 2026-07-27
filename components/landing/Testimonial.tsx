@@ -216,9 +216,11 @@ export default function TestimonialSection() {
             <Button className="group relative cursor-pointer overflow-hidden rounded-md border border-[#1b7fcc]/40 bg-[#1b7fcc] py-5 pr-12 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-2px_3px_rgba(0,0,0,0.28)] hover:bg-[#1975bd] sm:py-6">
               <span className="sm:px-2">Design Your UI</span>
               <span className="absolute right-1 top-1/2 -translate-y-1/2 rounded-sm bg-white p-2 shadow-[inset_0_-1px_2px_rgba(0,0,0,0.12)] sm:p-3">
-                <img
+                <Image
                   src="/arrow.svg"
                   alt=""
+                  width={16}
+                  height={16}
                   className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1"
                 />
               </span>

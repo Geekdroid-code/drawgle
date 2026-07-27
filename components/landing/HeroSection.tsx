@@ -196,9 +196,11 @@ export function HeroSection() {
               >
                 <span className="sm:px-2">Design Your UI</span>
                 <div className="bg-white rounded-sm p-2 sm:p-3 absolute right-1 top-1/2 -translate-y-1/2 shadow-[inset_0_-1px_2px_rgba(0,0,0,0.12)]">
-                  <img
+                  <Image
                     src="/arrow.svg"
                     alt="arrow-right"
+                    width={16}
+                    height={16}
                     className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1"
                   />
                 </div>
@@ -260,24 +262,32 @@ export function HeroSection() {
           <div className="flex flex-col items-center space-y-2 pt-2">
             <div className="flex items-center space-x-2">
               <div className="flex -space-x-2">
-                <img
+                <Image
                   src="/content/sachin.webp"
                   alt="User profile photo"
+                  width={32}
+                  height={32}
                   className="w-8 h-8 rounded-full border-2 border-white object-cover"
                 />
-                <img
+                <Image
                   src="/content/sumesh.webp"
                   alt="User profile photo"
+                  width={32}
+                  height={32}
                   className="w-8 h-8 rounded-full border-2 border-white object-cover"
                 />
-                <img
+                <Image
                   src="/content/manoj.jpg"
                   alt="User profile photo"
+                  width={32}
+                  height={32}
                   className="w-8 h-8 rounded-full border-2 border-white object-cover"
                 />
-                <img
+                <Image
                   src="/content/emma-thopmson.jpg"
                   alt="User profile photo"
+                  width={32}
+                  height={32}
                   className="w-8 h-8 rounded-full border-2 border-white object-cover"
                 />
                 <div className="w-8 h-8 rounded-full bg-gray-900 border-2 border-white flex items-center justify-center">

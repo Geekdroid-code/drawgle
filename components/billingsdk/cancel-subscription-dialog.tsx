@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -63,6 +63,14 @@ export function CancelSubscriptionDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const handleDialogClose = useCallback(() => {
+    setIsOpen(false);
+    setShowConfirmation(false);
+    setError(null);
+    setIsLoading(false);
+    onDialogClose?.();
+  }, [onDialogClose]);
+
   const handleContinueCancellation = () => {
     setShowConfirmation(true);
     setError(null);
@@ -100,14 +108,6 @@ export function CancelSubscriptionDialog({
     }
   };
 
-  const handleDialogClose = () => {
-    setIsOpen(false);
-    setShowConfirmation(false);
-    setError(null);
-    setIsLoading(false);
-    onDialogClose?.();
-  };
-
   const handleGoBack = () => {
     setShowConfirmation(false);
     setError(null);
@@ -126,7 +126,7 @@ export function CancelSubscriptionDialog({
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen]);
+  }, [handleDialogClose, isOpen]);
 
   return (
     <Dialog
