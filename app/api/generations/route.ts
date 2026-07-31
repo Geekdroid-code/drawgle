@@ -238,6 +238,10 @@ screenPlanningSeeds: z.array(z.object({
 const retryCoordinatesSchema = z.object({
   projectId: z.string().uuid(),
   sourceGenerationRunId: z.string().uuid(),
+  /** Optional subset of screen names to retry (case-insensitive). */
+  targetScreenNames: z.array(z.string().trim().min(1).max(160)).max(20).optional(),
+  /** Optional subset of existing failed/queued screen IDs to retry. */
+  targetScreenIds: z.array(z.string().uuid()).max(20).optional(),
 });
 type GenerationRequest = z.infer<typeof requestSchema>;
 
@@ -362,8 +366,32 @@ export async function POST(request: Request) {
       }
       if (navigationResult.error) throw navigationResult.error;
       if (screensResult.error) throw screensResult.error;
-      if (sourceRunResult.data.status !== "failed" && sourceRunResult.data.status !== "canceled") {
-        return NextResponse.json({ error: "Only failed or canceled generations can be retried." }, { status: 409 });
+
+      const sourceScreens = screensResult.data ?? [];
+      const baseScreens = sourceScreens.filter((screen) => !screen.parent_screen_id);
+      const failedBaseCount = baseScreens.filter((screen) => screen.status === "failed").length;
+      const readyBaseCount = baseScreens.filter((screen) => screen.status === "ready").length;
+      const activeBaseCount = baseScreens.filter((screen) => screen.status === "building" || screen.status === "queued").length;
+      const runStatus = sourceRunResult.data.status;
+      const isTerminalFailure = runStatus === "failed" || runStatus === "canceled";
+      const isPartialCompletion = runStatus === "completed" && failedBaseCount > 0;
+      const isIncompleteCompletion =
+        runStatus === "completed" &&
+        typeof sourceRunResult.data.requested_screen_count === "number" &&
+        sourceRunResult.data.requested_screen_count > readyBaseCount;
+
+      if (activeBaseCount > 0 || runStatus === "queued" || runStatus === "planning" || runStatus === "building") {
+        return NextResponse.json({
+          error: "This generation is still running. Wait for it to finish before retrying.",
+          code: "retry_run_active",
+        }, { status: 409 });
+      }
+
+      if (!isTerminalFailure && !isPartialCompletion && !isIncompleteCompletion) {
+        return NextResponse.json({
+          error: "Only failed, canceled, or partially completed generations can be retried.",
+          code: "retry_run_not_retryable",
+        }, { status: 409 });
       }
 
       await releaseGenerationCreditRemainder({
@@ -378,7 +406,7 @@ export async function POST(request: Request) {
       const sourceMetadata = sourceRun.metadata && typeof sourceRun.metadata === "object" && !Array.isArray(sourceRun.metadata)
         ? sourceRun.metadata as Record<string, unknown>
         : {};
-const sourcePlanningSeeds = Array.isArray(sourceMetadata.screenPlanningSeeds)
+      const sourcePlanningSeeds = Array.isArray(sourceMetadata.screenPlanningSeeds)
         ? sourceMetadata.screenPlanningSeeds as unknown as ScreenPlanningSeed[]
         : [];
       const sourcePlannedScreens = Array.isArray(sourceMetadata.plannedScreens)
@@ -392,6 +420,21 @@ const sourcePlanningSeeds = Array.isArray(sourceMetadata.screenPlanningSeeds)
             assetNeeds: [],
           }));
 
+      const requestedTargetNames = new Set(
+        (retryCoordinates.data.targetScreenNames ?? [])
+          .map((name) => name.trim().toLowerCase().replace(/\s+/g, " "))
+          .filter(Boolean),
+      );
+      for (const screenId of retryCoordinates.data.targetScreenIds ?? []) {
+        const matched = sourceScreens.find((screen) => screen.id === screenId);
+        if (matched?.name) {
+          requestedTargetNames.add(matched.name.trim().toLowerCase().replace(/\s+/g, " "));
+        }
+      }
+      const targetScreenNames = requestedTargetNames.size > 0
+        ? Array.from(requestedTargetNames)
+        : null;
+
       const retryScope = determineGenerationRetryScope({
         sourceGenerationRunId: sourceRun.id,
         plannedScreens: sourcePlannedScreens.length > 0 ? sourcePlannedScreens : null,
@@ -399,7 +442,8 @@ const sourcePlanningSeeds = Array.isArray(sourceMetadata.screenPlanningSeeds)
         selectedStateVariantIds: Array.isArray(sourceMetadata.selectedStateVariantIds)
           ? sourceMetadata.selectedStateVariantIds.filter((value): value is string => typeof value === "string")
           : [],
-        screens: screensResult.data ?? [],
+        screens: sourceScreens,
+        targetScreenNames,
       });
 
       if (!retryScope.hasWork) {

@@ -27,6 +27,8 @@ import { Button } from "@/components/ui/button";
 import { PremiumSegmentedTabs, PremiumTabPanel } from "@/components/ui/premium-segmented-tabs";
 import { useProjectMessages } from "@/hooks/use-project-messages";
 import { hasApprovedDesignTokens } from "@/lib/design-tokens";
+import { cleanErrorMessage } from "@/lib/errors/user-facing";
+import { generationRunHasRetryableWork } from "@/lib/generation/retry-scope";
 import {
   readAgentStep,
   readAgentUi,
@@ -714,8 +716,17 @@ function buildConversationItems({
       });
       const retryableAssociatedRun = normalizedStep.status === "failed"
         && run
-        && (run.status === "failed" || run.status === "canceled")
         && !retriedRunIds.has(run.id)
+        && generationRunHasRetryableWork({
+          runStatus: run.status,
+          screens: screens
+            .filter((screen) => screen.generationRunId === run.id)
+            .map((screen) => ({
+              status: screen.status ?? "failed",
+              parent_screen_id: screen.parentScreenId ?? null,
+            })),
+          requestedScreenCount: run.requestedScreenCount ?? null,
+        })
         ? run
         : null;
       if (
@@ -808,12 +819,13 @@ function buildConversationItems({
     }
 
     if (message.content.trim()) {
+      const isError = message.messageType === "error" || ui?.variant === "error";
       items.push({
         id: `assistant-${message.id}`,
         kind: "assistant",
-        content: message.content,
+        content: isError ? cleanErrorMessage(message.content) : message.content,
         timestamp: message.timestamp,
-        isError: message.messageType === "error" || ui?.variant === "error",
+        isError,
       });
     }
   }
@@ -1032,9 +1044,10 @@ function ThinkingRow({ summary, id, live = false }: { summary: ThinkingSummaryMe
 
 function AssistantMessage({ content, isError }: { content: string; isError?: boolean }) {
   const [copied, setCopied] = useState(false);
+  const displayContent = isError ? cleanErrorMessage(content) : content;
 
   const handleCopy = async () => {
-    await navigator.clipboard?.writeText(content).catch(() => undefined);
+    await navigator.clipboard?.writeText(displayContent).catch(() => undefined);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1200);
   };
@@ -1048,7 +1061,7 @@ function AssistantMessage({ content, isError }: { content: string; isError?: boo
             strong: ({ children }) => <strong className="font-semibold text-slate-950">{children}</strong>,
           }}
         >
-          {content}
+          {displayContent}
         </ReactMarkdown>
       </div>
       <div className="flex justify-start pt-3 opacity-0 transition group-hover:opacity-100">
@@ -1216,6 +1229,7 @@ function ActionCard({
   onApproveScreenPlan,
   onApproveScreenState,
   onDismissScreenState,
+  screens,
 }: {
   step: AgentStepMetadata;
   retryRun?: GenerationRunData;
@@ -1224,15 +1238,28 @@ function ActionCard({
   stateProposal?: ScreenStateProposalMetadata | null;
   proposalMessageId?: string | null;
   dismissingState?: boolean;
-  onRetryGeneration?: (run: GenerationRunData) => void;
+  onRetryGeneration?: (
+    run: GenerationRunData,
+    options?: { targetScreenNames?: string[]; targetScreenIds?: string[] },
+  ) => void;
   onApproveScreenPlan?: (proposalMessageId: string, selectedStateVariantIds?: string[]) => void;
   onApproveScreenState?: (proposalMessageId: string) => void;
   onDismissScreenState?: (proposalMessageId: string) => void;
+  screens?: ScreenData[];
 }) {
   const busy = isBusyStepStatus(step.status);
   const failed = step.status === "failed";
   const pendingProposal = isProposalPending(proposal);
   const pendingStateProposal = isStateProposalPending(stateProposal);
+  const failedScreensForRun = useMemo(() => {
+    if (!retryRun || !screens?.length) return [] as ScreenData[];
+    return screens.filter(
+      (screen) =>
+        screen.generationRunId === retryRun.id &&
+        screen.status === "failed" &&
+        !screen.parentScreenId,
+    );
+  }, [retryRun, screens]);
   const styleDiff = (step as any).styleDiff as string | undefined;
   const stateVariants = useMemo(() => proposal?.stateVariants ?? [], [proposal]);
   const defaultStateVariantIds = useMemo(() => {
@@ -1505,15 +1532,43 @@ function ActionCard({
             ) : null}
 
             {retryRun && onRetryGeneration ? (
-              <Button
-                type="button"
-                variant="outline"
-                className="mt-3 h-7 rounded-full bg-white px-2.5 text-[10px]"
-                disabled={retryDisabled}
-                onClick={() => onRetryGeneration(retryRun)}
-              >
-                Retry
-              </Button>
+              <div className="mt-3 space-y-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-7 rounded-full bg-white px-2.5 text-[10px]"
+                  disabled={retryDisabled}
+                  onClick={() => onRetryGeneration(retryRun)}
+                >
+                  {failedScreensForRun.length > 1
+                    ? `Retry all failed (${failedScreensForRun.length})`
+                    : failedScreensForRun.length === 1
+                      ? "Retry failed screen"
+                      : "Retry"}
+                </Button>
+                {failedScreensForRun.length > 1 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {failedScreensForRun.map((screen) => (
+                      <Button
+                        key={screen.id}
+                        type="button"
+                        variant="ghost"
+                        className="h-7 max-w-full truncate rounded-full px-2.5 text-[10px] font-medium text-slate-600 hover:bg-slate-950/[0.04] hover:text-slate-900"
+                        disabled={retryDisabled}
+                        title={`Retry ${screen.name}`}
+                        onClick={() =>
+                          onRetryGeneration(retryRun, {
+                            targetScreenIds: [screen.id],
+                            targetScreenNames: [screen.name],
+                          })
+                        }
+                      >
+                        Retry {screen.name}
+                      </Button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
             ) : null}
           </div>
         </div>
@@ -1559,13 +1614,47 @@ function JournalPhaseMark({ status }: { status: GenerationJournalMetadata["phase
   return <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />;
 }
 
-function GenerationJournalCard({ journal }: { journal: GenerationJournalMetadata }) {
+function GenerationJournalCard({
+  journal,
+  screens = [],
+  retryDisabled,
+  onRetryGeneration,
+}: {
+  journal: GenerationJournalMetadata;
+  screens?: ScreenData[];
+  retryDisabled?: boolean;
+  onRetryGeneration?: (
+    run: GenerationRunData,
+    options?: { targetScreenNames?: string[]; targetScreenIds?: string[] },
+  ) => void;
+}) {
   const [expanded, setExpanded] = useState(journal.status !== "completed");
   const [expandedScreens, setExpandedScreens] = useState<Record<number, boolean>>({});
   const busy = journal.status === "queued" || journal.status === "planning" || journal.status === "building";
   const failed = journal.status === "failed";
   const activePhase = journal.phases.find((phase) => phase.status === "active") ?? null;
   const detail = activePhase?.detail ?? journal.detail ?? (busy ? "Working through the plan and build steps." : null);
+  const failedScreensForRun = useMemo(() => {
+    if (!journal.generationRunId) return [] as ScreenData[];
+    return screens.filter(
+      (screen) =>
+        screen.generationRunId === journal.generationRunId &&
+        screen.status === "failed" &&
+        !screen.parentScreenId,
+    );
+  }, [journal.generationRunId, screens]);
+  const canRetryJournal = Boolean(
+    journal.generationRunId &&
+      onRetryGeneration &&
+      !busy &&
+      (failed || failedScreensForRun.length > 0),
+  );
+  const retryRunStub = journal.generationRunId
+    ? ({
+        id: journal.generationRunId,
+        prompt: "Retry failed screens",
+      } as GenerationRunData)
+    : null;
 
   return (
     <div className="px-3 py-2">
@@ -1582,7 +1671,7 @@ function GenerationJournalCard({ journal }: { journal: GenerationJournalMetadata
               ) : null}
             </div>
             <div className="flex h-5 w-5 shrink-0 items-center justify-center">
-              <AgentMark busy={busy} failed={failed} />
+              <AgentMark busy={busy} failed={failed || failedScreensForRun.length > 0} />
             </div>
           </div>
 
@@ -1884,7 +1973,10 @@ export function ChatPanel({
   retryDisabled?: boolean;
   screenPlan?: ScreenPlanState | null;
   isBuilding?: boolean;
-  onRetryGeneration?: (run: GenerationRunData) => void;
+  onRetryGeneration?: (
+    run: GenerationRunData,
+    options?: { targetScreenNames?: string[]; targetScreenIds?: string[] },
+  ) => void;
   onApproveScreenPlan?: (proposalMessageId: string, selectedStateVariantIds?: string[]) => void;
   onApproveScreenState?: (proposalMessageId: string) => void;
   onBuildRoadmapRecommendation?: (recommendation: RoadmapBuildRecommendation, selectedItemIds: string[]) => void;
@@ -2163,7 +2255,12 @@ export function ChatPanel({
                     if (item.kind === "generation_journal") {
                       return (
                         <motion.div key={item.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
-                          <GenerationJournalCard journal={item.journal} />
+                          <GenerationJournalCard
+                            journal={item.journal}
+                            screens={screens}
+                            retryDisabled={retryDisabled}
+                            onRetryGeneration={onRetryGeneration}
+                          />
                         </motion.div>
                       );
                     }
@@ -2198,6 +2295,7 @@ export function ChatPanel({
                             onApproveScreenPlan={onApproveScreenPlan}
                             onApproveScreenState={onApproveScreenState}
                             onDismissScreenState={handleDismissScreenState}
+                            screens={screens}
                           />
                         </motion.div>
                       );

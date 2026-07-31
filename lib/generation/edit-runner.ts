@@ -31,6 +31,8 @@ import {
   validateSourceCompletion,
   validateStaticDrawgleHtml,
 } from "@/lib/generation/screen-quality";
+import { buildScreenPersistPatch, sanitizeScreenCodeForPersist } from "@/lib/generation/persist-safe";
+import { cleanUnknownError, USER_FACING_PERSIST_FAILED_ERROR } from "@/lib/ai/error-handler";
 import { findRepairTarget, replaceSourceRegion, type RepairTarget } from "@/lib/generation/screen-repair";
 import {
   applyNavigationDesignEdit,
@@ -341,7 +343,32 @@ const hashSelectedEditText = (value: string) =>
   createHash("sha256").update(value).digest("hex");
 
 const errorMessage = (error: unknown, fallback: string) =>
-  error instanceof Error && error.message ? error.message : fallback;
+  cleanUnknownError(error, fallback);
+
+const persistScreenCode = async (
+  admin: AdminClient,
+  screenId: string,
+  code: string,
+  health: ReturnType<typeof detectScreenHealth>,
+) => {
+  const sanitized = sanitizeScreenCodeForPersist(code);
+  const patch = buildScreenPersistPatch({
+    code: sanitized.value,
+    status: screenStatusForHealth(health),
+    error: buildScreenHealthError(health),
+    blockIndex: indexScreenCode(sanitized.value),
+  });
+  const { error: updateError } = await admin
+    .from("screens")
+    .update(patch)
+    .eq("id", screenId);
+
+  if (updateError) {
+    throw new Error(cleanUnknownError(updateError, USER_FACING_PERSIST_FAILED_ERROR));
+  }
+
+  return sanitized.value;
+};
 
 const buildSelectedElementFailureDiagnostics = ({
   drawgleId,
@@ -870,7 +897,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
           .eq("id", projectNavigation.id);
 
         if (updateError) {
-          throw updateError;
+          throw new Error(cleanUnknownError(updateError, USER_FACING_PERSIST_FAILED_ERROR));
         }
       }
 
@@ -955,7 +982,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
         .eq("id", projectNavigation.id);
 
       if (updateError) {
-        throw updateError;
+        throw new Error(cleanUnknownError(updateError, USER_FACING_PERSIST_FAILED_ERROR));
       }
     }
 
@@ -1449,20 +1476,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
     }
 
     if (editChanged) {
-      const { error: updateError } = await admin
-        .from("screens")
-        .update({
-          code: nextCode,
-          block_index: indexScreenCode(nextCode) as never,
-          status: screenStatusForHealth(nextHealth),
-          error: buildScreenHealthError(nextHealth),
-          updated_at: now(),
-        })
-        .eq("id", screen.id);
-
-      if (updateError) {
-        throw updateError;
-      }
+      await persistScreenCode(admin, screen.id, nextCode, nextHealth);
     }
 
     let designSummary: any = null;
@@ -1586,20 +1600,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
     const nextHealth = detectScreenHealth({ code: nextCode, screenPrompt });
 
     if (!isBlockingScreenHealthFailure(nextHealth)) {
-      const { error: updateError } = await admin
-        .from("screens")
-        .update({
-          code: nextCode,
-          block_index: indexScreenCode(nextCode) as never,
-          status: screenStatusForHealth(nextHealth),
-          error: buildScreenHealthError(nextHealth),
-          updated_at: now(),
-        })
-        .eq("id", screen.id);
-
-      if (updateError) {
-        throw updateError;
-      }
+      await persistScreenCode(admin, screen.id, nextCode, nextHealth);
     }
 
     const fullResponse = !isBlockingScreenHealthFailure(nextHealth)
@@ -1693,20 +1694,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
     const repairCanBeSaved = nextCode !== screenCode && !isBlockingScreenHealthFailure(nextHealth);
 
     if (repairCanBeSaved) {
-      const { error: updateError } = await admin
-        .from("screens")
-        .update({
-          code: nextCode,
-          block_index: indexScreenCode(nextCode) as never,
-          status: screenStatusForHealth(nextHealth),
-          error: buildScreenHealthError(nextHealth),
-          updated_at: now(),
-        })
-        .eq("id", screen.id);
-
-      if (updateError) {
-        throw updateError;
-      }
+      await persistScreenCode(admin, screen.id, nextCode, nextHealth);
     }
 
     const fullResponse = nextCode === screenCode
@@ -1955,20 +1943,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
     return { targetType: "screen" as const, screenId: screen.id, changed: false, message: blockedContent };
   }
 
-  const { error: updateError } = await admin
-    .from("screens")
-    .update({
-      code: nextCode,
-      block_index: indexScreenCode(nextCode) as never,
-      status: screenStatusForHealth(nextHealth),
-      error: buildScreenHealthError(nextHealth),
-      updated_at: now(),
-    })
-    .eq("id", screen.id);
-
-  if (updateError) {
-    throw updateError;
-  }
+  await persistScreenCode(admin, screen.id, nextCode, nextHealth);
 
   const visibleEditContent = `Applied changes to ${screen.name}.`;
   const modelMessage = await upsertActivityMessage(admin, editActivityKey, {

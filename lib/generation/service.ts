@@ -2677,11 +2677,37 @@ async function generateCreativeDirection({
 
 export const extractCode = (text: string) => {
   const match = text.match(/```(?:html)?\n([\s\S]*?)\n```/i);
-  if (match) {
-    return match[1].trim();
-  }
+  const extracted = match
+    ? match[1].trim()
+    : text.replace(/^```html\n/i, "").replace(/\n```$/, "").trim();
 
-  return text.replace(/^```html\n/i, "").replace(/\n```$/, "").trim();
+  // Strip characters that break PostgREST JSON bodies (null bytes / lone surrogates).
+  // Lazy import avoided — keep this pure and hot-path safe.
+  let output = "";
+  for (let index = 0; index < extracted.length; index += 1) {
+    const codeUnit = extracted.charCodeAt(index);
+    if (codeUnit === 0) continue;
+    if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) {
+      const next = extracted.charCodeAt(index + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        output += extracted[index] + extracted[index + 1];
+        index += 1;
+        continue;
+      }
+      output += "\uFFFD";
+      continue;
+    }
+    if (codeUnit >= 0xdc00 && codeUnit <= 0xdfff) {
+      output += "\uFFFD";
+      continue;
+    }
+    if (codeUnit < 0x20 && codeUnit !== 0x09 && codeUnit !== 0x0a && codeUnit !== 0x0d) {
+      continue;
+    }
+    if (codeUnit === 0x7f) continue;
+    output += extracted[index];
+  }
+  return output;
 };
 
 /**

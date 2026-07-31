@@ -4,7 +4,8 @@ import { logger, runs, streams, task } from "@trigger.dev/sdk";
 
 import { ensureDrawgleIds } from "@/lib/drawgle-dom";
 import { geminiPolicyForTask } from "@/lib/ai/model-policy";
-import { cleanErrorMessage } from "@/lib/ai/error-handler";
+import { cleanErrorMessage, cleanUnknownError, isPersistJsonError, USER_FACING_PERSIST_FAILED_ERROR } from "@/lib/ai/error-handler";
+import { buildScreenPersistPatch, sanitizeScreenCodeForPersist, sanitizeTextForJson } from "@/lib/generation/persist-safe";
 import {
   getCuratedStyleReferenceById,
   loadCuratedStyleReferenceImage,
@@ -178,10 +179,16 @@ const buildPlaceholderCode = (screenName: string, designTokens?: DesignTokens | 
   </div>`;
 };
 
-const buildErrorCode = (message: string) => `<div class="min-h-screen w-full flex flex-col items-center justify-center gap-3 bg-red-50 text-red-700 px-6 text-center">
+const buildErrorCode = (message: string) => {
+  const userMessage = cleanErrorMessage(message);
+  return `<div class="min-h-screen w-full flex flex-col items-center justify-center gap-3 bg-red-50 text-red-700 px-6 text-center">
   <div class="text-lg font-semibold">Generation failed</div>
-  <div class="text-sm leading-6">${escapeHtml(message)}</div>
+  <div class="text-sm leading-6">${escapeHtml(userMessage)}</div>
 </div>`;
+};
+
+const toUserFacingScreenError = (error: unknown) =>
+  cleanUnknownError(error, USER_FACING_PERSIST_FAILED_ERROR);
 
 const collectFinishReasons = (chunk: unknown, finishReasons: Set<string>) => {
   if (!chunk || typeof chunk !== "object") {
@@ -366,18 +373,22 @@ const appendScreenBuildDiagnostics = async (
 };
 
 const humanizeScreenBuildFailure = (screenName: string, error?: string | null) => {
-  const message = error ?? "";
+  const message = cleanErrorMessage(error ?? "");
 
-  if (/missing_completion_sentinel|max_tokens|needs_regeneration|incomplete|trailing_open_tag|unclosed_comment|unclosed_root/i.test(message)) {
-    return `${screenName} could not be built because the generated HTML was incomplete.`;
+  if (/incomplete|could not be finished because the generated layout was incomplete/i.test(message)) {
+    return `${screenName} could not be built because the generated layout was incomplete.`;
   }
 
-  if (/invalid_image_url|asset_policy|critical visual assets|required critical visual assets/i.test(message)) {
-    return `${screenName} was generated but did not satisfy the required visual asset policy.`;
+  if (/visual assets|asset policy/i.test(message)) {
+    return `${screenName} was generated but did not satisfy the required visual assets.`;
   }
 
-  if (/static_html|structurally|jsx|script|duplicate|tag_imbalance|invalid/i.test(message)) {
-    return `${screenName} could not be built because the generated HTML was structurally invalid.`;
+  if (/invalid|structurally/i.test(message) && !/could not be saved/i.test(message)) {
+    return `${screenName} could not be built because the generated layout was invalid.`;
+  }
+
+  if (/could not be saved|retry/i.test(message)) {
+    return `${screenName} was generated but could not be saved. Please retry.`;
   }
 
   return `${screenName} could not be built. Try regenerating this screen.`;
@@ -1167,29 +1178,31 @@ export const buildScreenTask = task({
       error: string;
       metadata?: Record<string, unknown>;
     }) => {
+      const userError = toUserFacingScreenError(error);
       const failureCode = buildErrorCode("This preview could not be finalized. Use Retry to rebuild the screen.");
+      const failurePatch = buildScreenPersistPatch({
+        code: failureCode,
+        status: "failed",
+        error: userError,
+        blockIndex: indexScreenCode(failureCode),
+      });
       await admin
         .from("screens")
-        .update({
-          code: failureCode,
-          block_index: indexScreenCode(failureCode) as never,
-          status: "failed",
-          error,
-          updated_at: new Date().toISOString(),
-        })
+        .update(failurePatch)
         .eq("id", payload.screenId);
 
       logger.warn("Screen generation output was rejected before save", {
         screenId: payload.screenId,
         screenName: payload.screenPlan.name,
-        error,
+        error: userError,
+        rawError: error,
         ...metadata,
       });
 
       return {
         screenId: payload.screenId,
         status: "failed" as const,
-        error,
+        error: userError,
         usageByAttempt: attempts.map((attempt) => attempt.usageMetadata).filter(Boolean),
       };
     };
@@ -1205,32 +1218,42 @@ export const buildScreenTask = task({
       blockIndex: ReturnType<typeof indexScreenCode>;
       metadata?: Record<string, unknown>;
     }) => {
+      const userError = toUserFacingScreenError(error);
+      const failurePatch = buildScreenPersistPatch({
+        code,
+        status: "failed",
+        error: userError,
+        blockIndex,
+        chromePolicy: payload.screenPlan.chromePolicy ?? null,
+        navigationItemId: payload.screenPlan.navigationItemId ?? null,
+      });
       await admin
         .from("screens")
-        .update({
-          code,
-          block_index: blockIndex as never,
-          chrome_policy: (payload.screenPlan.chromePolicy ?? null) as never,
-          navigation_item_id: payload.screenPlan.navigationItemId ?? null,
-          status: "failed",
-          error,
-          updated_at: new Date().toISOString(),
-        })
+        .update(failurePatch)
         .eq("id", payload.screenId);
 
       logger.warn("Screen generation output was saved with blocking diagnostics", {
         screenId: payload.screenId,
         screenName: payload.screenPlan.name,
-        error,
+        error: userError,
+        rawError: error,
         ...metadata,
       });
 
       return {
         screenId: payload.screenId,
         status: "failed" as const,
-        error,
+        error: userError,
         usageByAttempt: attempts.map((attempt) => attempt.usageMetadata).filter(Boolean),
       };
+    };
+
+    const persistScreenRow = async (patch: Record<string, unknown>) => {
+      const { error: updateError } = await admin
+        .from("screens")
+        .update(patch)
+        .eq("id", payload.screenId);
+      return updateError;
     };
 
     const buildPayload: BuildScreenTaskPayload = {
@@ -1524,7 +1547,7 @@ export const buildScreenTask = task({
       latestAttempt.assetOutcomes = assetHydration.outcomes;
       latestAttempt.assetSanitizationWarnings = assetSanitization.warnings;
     }
-    const code = assetSanitization.code;
+    let code = assetSanitization.code;
     const localNavigation = payload.navigationPlan?.enabled
       ? detectLocalNavigationMarkup(code)
       : { hasLocalNavigation: false, reasons: [], candidates: [] };
@@ -1549,7 +1572,7 @@ export const buildScreenTask = task({
 
     const health = detectScreenHealth({ code, screenPrompt: payload.screenPlan.description });
     const assetPolicy = validateScreenAssetPolicy({ code, assetManifest: payload.assetManifest });
-    const blockIndex = indexScreenCode(code);
+    let blockIndex = indexScreenCode(code);
     const screenStatus = screenStatusForHealth(health);
 
     logger.info("Screen generation diagnostics", {
@@ -1616,28 +1639,119 @@ export const buildScreenTask = task({
       });
     }
     // Persist the final code directly so the parent only polls for status.
-    const { error: updateError } = await admin
-      .from("screens")
-      .update({
-        code,
-        summary: generationEngineVersion === "v2"
-          ? buildScreenSummaryLocally(payload.screenPlan.name, code, payload.screenPlan.description, blockIndex)
-          : undefined,
-        block_index: blockIndex as never,
-        chrome_policy: (payload.screenPlan.chromePolicy ?? null) as never,
-        navigation_item_id: payload.screenPlan.navigationItemId ?? null,
-        status: screenStatus,
-        error: buildScreenHealthError(health),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", payload.screenId);
+    const summary =
+      generationEngineVersion === "v2"
+        ? buildScreenSummaryLocally(payload.screenPlan.name, code, payload.screenPlan.description, blockIndex)
+        : undefined;
+    const healthError = buildScreenHealthError(health);
+    const codeSanitize = sanitizeScreenCodeForPersist(code);
+    if (codeSanitize.changed) {
+      logger.warn("Sanitized screen code before persist", {
+        screenId: payload.screenId,
+        removedNullBytes: codeSanitize.removedNullBytes,
+        fixedLoneSurrogates: codeSanitize.fixedLoneSurrogates,
+        removedControlChars: codeSanitize.removedControlChars,
+        originalLength: code.length,
+        sanitizedLength: codeSanitize.value.length,
+      });
+      code = codeSanitize.value;
+      blockIndex = indexScreenCode(code);
+    }
 
-    if (updateError) {
-      logger.error("Failed to persist screen code", {
+    let persistPatch = buildScreenPersistPatch({
+      code,
+      status: screenStatus,
+      error: healthError,
+      summary,
+      blockIndex,
+      chromePolicy: payload.screenPlan.chromePolicy ?? null,
+      navigationItemId: payload.screenPlan.navigationItemId ?? null,
+    });
+
+    let updateError = await persistScreenRow(persistPatch);
+
+    // Retry once with a deeper sanitize if PostgREST rejected the JSON body.
+    if (updateError && isPersistJsonError(updateError)) {
+      logger.warn("Retrying screen persist after JSON body rejection", {
         screenId: payload.screenId,
         error: updateError,
       });
-      throw updateError;
+      const retrySanitize = sanitizeScreenCodeForPersist(code);
+      code = retrySanitize.value;
+      // Drop block_index on retry — large/odd indexes can rarely break body encoding.
+      blockIndex = indexScreenCode(code);
+      persistPatch = buildScreenPersistPatch({
+        code,
+        status: screenStatus,
+        error: healthError,
+        summary: summary ? sanitizeTextForJson(summary).value : summary,
+        blockIndex: null,
+        chromePolicy: payload.screenPlan.chromePolicy ?? null,
+        navigationItemId: payload.screenPlan.navigationItemId ?? null,
+      });
+      updateError = await persistScreenRow(persistPatch);
+    }
+
+    if (updateError) {
+      const userError = toUserFacingScreenError(updateError);
+      logger.error("Failed to persist screen code", {
+        screenId: payload.screenId,
+        error: updateError,
+        userError,
+        codeLength: code.length,
+        isPersistJsonError: isPersistJsonError(updateError),
+      });
+
+      // Last resort: keep generated HTML when possible so refresh doesn't wipe a good preview.
+      const fallbackPatch = buildScreenPersistPatch({
+        code,
+        status: "failed",
+        error: userError,
+        blockIndex: null,
+        chromePolicy: payload.screenPlan.chromePolicy ?? null,
+        navigationItemId: payload.screenPlan.navigationItemId ?? null,
+      });
+      const fallbackError = await persistScreenRow(fallbackPatch);
+      if (fallbackError) {
+        const placeholder = buildErrorCode(userError);
+        await persistScreenRow(
+          buildScreenPersistPatch({
+            code: placeholder,
+            status: "failed",
+            error: userError,
+            blockIndex: indexScreenCode(placeholder),
+          }),
+        );
+      }
+
+      // Always keep diagnostics for failed persists.
+      const latestAttempt = attempts.at(-1);
+      if (latestAttempt) {
+        latestAttempt.qualityWarnings = Array.from(
+          new Set([
+            ...latestAttempt.qualityWarnings,
+            `persist_failed:${userError}`,
+          ]),
+        );
+      }
+      await appendScreenBuildDiagnostics(admin, payload.generationRunId, payload.screenId, attempts);
+
+      return {
+        screenId: payload.screenId,
+        status: "failed" as const,
+        error: userError,
+        sanitizedMisuseCount: assetSanitization.sanitizedMisuseCount,
+        repairedMetadataCount: assetSanitization.repairedMetadataCount,
+        hydratedAssetCount: assetHydration.hydratedAssetCount,
+        placeholderUseCount: assetHydration.placeholderUseCount,
+        usedResolvedAssetCount: assetPolicy.resolvedAssetUseCount,
+        ignoredResolvedAssetIds: assetPolicy.ignoredResolvedAssetIds,
+        assetOutcomes: {
+          hydration: assetHydration.outcomes,
+          usesByRequirement: assetPolicy.usesByRequirement,
+        },
+        usageByAttempt: attempts.map((attempt) => attempt.usageMetadata).filter(Boolean),
+      };
     }
 
     await appendScreenBuildDiagnostics(admin, payload.generationRunId, payload.screenId, attempts);
@@ -1747,7 +1861,7 @@ export const generateUiFlowTask = task({
         admin,
         payload.projectId,
         payload.ownerId,
-        `${screen.name} failed`,
+        humanizeScreenBuildFailure(screen.name, message),
         "error",
         {
           generationRunId: payload.generationRunId,
@@ -3098,8 +3212,10 @@ export const generateUiFlowTask = task({
 
           if (completedScreen?.status !== "ready") {
             failedScreens += 1;
-            const completedScreenError = completedScreen?.error
-              ?? "Screen builder completed without a durably saved ready screen.";
+            const completedScreenError = toUserFacingScreenError(
+              completedScreen?.error
+                ?? "Screen builder completed without a durably saved ready screen.",
+            );
             await serializeSettlement(() => releaseGenerationCredit({
               admin,
               ownerId: payload.ownerId,
@@ -3119,14 +3235,25 @@ export const generateUiFlowTask = task({
               outputKey,
               error: roadmapError,
             }));
+            // Only overwrite code when the child left placeholder/empty content.
+            // Never clobber generated HTML with a raw technical error card.
+            const { data: failedRow } = await admin
+              .from("screens")
+              .select("code")
+              .eq("id", screenId)
+              .maybeSingle();
+            const existingCode = typeof failedRow?.code === "string" ? failedRow.code : "";
+            const looksLikeGeneratedHtml =
+              existingCode.includes("data-drawgle-id") ||
+              (existingCode.includes("<div") && !existingCode.includes("Generation failed"));
+            const failurePatch = buildScreenPersistPatch({
+              code: looksLikeGeneratedHtml ? existingCode : buildErrorCode(completedScreenError),
+              status: "failed",
+              error: completedScreenError,
+            });
             await admin
               .from("screens")
-              .update({
-                status: "failed",
-                error: completedScreenError,
-                code: buildErrorCode(completedScreenError),
-                updated_at: now(),
-              })
+              .update(failurePatch)
               .eq("id", screenId)
               .neq("status", "ready");
             generationJournal.screens = generationJournal.screens?.map((screen) =>
@@ -3197,7 +3324,7 @@ export const generateUiFlowTask = task({
           }
         } else {
           failedScreens += 1;
-          const message = result?.error?.message ?? "Unknown error";
+          const message = toUserFacingScreenError(result?.error?.message ?? result?.error ?? "Unknown error");
           await serializeSettlement(() => releaseGenerationCredit({
             admin,
             ownerId: payload.ownerId,
@@ -3221,21 +3348,31 @@ export const generateUiFlowTask = task({
             screen.name === screenPlan.name ? { ...screen, status: "failed" } : screen,
           );
           await postGenerationJournalSerial();
+          const { data: failedRow } = await admin
+            .from("screens")
+            .select("code")
+            .eq("id", screenId)
+            .maybeSingle();
+          const existingCode = typeof failedRow?.code === "string" ? failedRow.code : "";
+          const looksLikeGeneratedHtml =
+            existingCode.includes("data-drawgle-id") ||
+            (existingCode.includes("<div") && !existingCode.includes("Generation failed"));
           await admin
             .from("screens")
-            .update({
-              code: buildErrorCode(message),
-              status: "failed",
-              error: message,
-              updated_at: now(),
-            })
+            .update(
+              buildScreenPersistPatch({
+                code: looksLikeGeneratedHtml ? existingCode : buildErrorCode(message),
+                status: "failed",
+                error: message,
+              }),
+            )
             .eq("id", screenId);
 
           await postStatusMessage(
             admin,
             payload.projectId,
             payload.ownerId,
-            `${screenPlan.name} failed`,
+            humanizeScreenBuildFailure(screenPlan.name, message),
             "error",
             {
               generationRunId: payload.generationRunId,
@@ -3249,7 +3386,7 @@ export const generateUiFlowTask = task({
       } catch (screenError) {
         failedScreens += 1;
         const rawMessage = screenError instanceof Error ? screenError.message : String(screenError);
-        const message = cleanErrorMessage(rawMessage);
+        const message = toUserFacingScreenError(rawMessage);
         await serializeSettlement(() => releaseGenerationCredit({
           admin,
           ownerId: payload.ownerId,
@@ -3270,14 +3407,24 @@ export const generateUiFlowTask = task({
         await postGenerationJournalSerial();
 
         if (rowInserted) {
+          const { data: failedRow } = await admin
+            .from("screens")
+            .select("code")
+            .eq("id", screenId)
+            .maybeSingle();
+          const existingCode = typeof failedRow?.code === "string" ? failedRow.code : "";
+          const looksLikeGeneratedHtml =
+            existingCode.includes("data-drawgle-id") ||
+            (existingCode.includes("<div") && !existingCode.includes("Generation failed"));
           await admin
             .from("screens")
-            .update({
-              code: buildErrorCode(message),
-              status: "failed",
-              error: message,
-              updated_at: now(),
-            })
+            .update(
+              buildScreenPersistPatch({
+                code: looksLikeGeneratedHtml ? existingCode : buildErrorCode(message),
+                status: "failed",
+                error: message,
+              }),
+            )
             .eq("id", screenId);
         }
 

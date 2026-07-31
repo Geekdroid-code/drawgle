@@ -758,6 +758,8 @@ export interface GenerationRetryContext {
   reuseScreenIdsByName?: Record<string, string>;
   parentScreenId?: string | null;
   reuseStateVariantIdsByKey?: Record<string, string>;
+  /** Explicit subset of screen names selected for retry (optional). */
+  targetScreenNames?: string[];
 }
 
 export interface ReferenceScreenAnalysis {

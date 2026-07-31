@@ -80,4 +80,65 @@ describe("generation retry scope", () => {
 
     expect(scope.hasWork).toBe(false);
   });
+
+  it("retries only the explicit target screen subset", () => {
+    const scope = determineGenerationRetryScope({
+      sourceGenerationRunId: "run-5",
+      plannedScreens: plans,
+      stateVariants: [],
+      selectedStateVariantIds: [],
+      screens: [
+        { id: "failed-dashboard", name: "Dashboard", status: "failed", parent_screen_id: null, state_key: null },
+        { id: "failed-detail", name: "Task Detail", status: "failed", parent_screen_id: null, state_key: null },
+      ],
+      targetScreenNames: ["Dashboard"],
+    });
+
+    expect(scope.context.mode).toBe("missing_screens");
+    expect(scope.plannedScreens?.map((plan) => plan.name)).toEqual(["Dashboard"]);
+    expect(scope.context.reuseScreenIdsByName).toEqual({ dashboard: "failed-dashboard" });
+    expect(scope.context.targetScreenNames).toEqual(["Dashboard"]);
+    expect(scope.hasWork).toBe(true);
+  });
+
+  it("ignores ready targets when an explicit subset is requested", () => {
+    const scope = determineGenerationRetryScope({
+      sourceGenerationRunId: "run-6",
+      plannedScreens: plans,
+      stateVariants: [],
+      selectedStateVariantIds: [],
+      screens: [
+        { id: "ready-dashboard", name: "Dashboard", status: "ready", parent_screen_id: null, state_key: null },
+        { id: "failed-detail", name: "Task Detail", status: "failed", parent_screen_id: null, state_key: null },
+      ],
+      targetScreenNames: ["Dashboard"],
+    });
+
+    expect(scope.hasWork).toBe(false);
+  });
+});
+
+describe("generationRunHasRetryableWork", () => {
+  it("allows retry for completed runs with failed screens", async () => {
+    const { generationRunHasRetryableWork } = await import("@/lib/generation/retry-scope");
+    expect(generationRunHasRetryableWork({
+      runStatus: "completed",
+      screens: [
+        { status: "ready", parent_screen_id: null },
+        { status: "failed", parent_screen_id: null },
+      ],
+      requestedScreenCount: 2,
+    })).toBe(true);
+  });
+
+  it("blocks retry while screens are still building", async () => {
+    const { generationRunHasRetryableWork } = await import("@/lib/generation/retry-scope");
+    expect(generationRunHasRetryableWork({
+      runStatus: "completed",
+      screens: [
+        { status: "ready", parent_screen_id: null },
+        { status: "building", parent_screen_id: null },
+      ],
+    })).toBe(false);
+  });
 });

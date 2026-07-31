@@ -2,7 +2,7 @@
 
 import type { DesignTokens, ProjectNavigationData, ScreenData } from "@/lib/types";
 import { useState, useRef, useEffect, useMemo, useCallback, memo } from "react";
-import { MoreHorizontal, Download, Trash2, Edit2, Smartphone, MousePointerClick, Crosshair, Code, Copy, Check, LoaderCircle } from "lucide-react";
+import { MoreHorizontal, Download, Trash2, Edit2, Smartphone, MousePointerClick, Crosshair, Code, Copy, Check, LoaderCircle, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PremiumDropdown } from "@/components/ui/premium-dropdown";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -22,6 +22,7 @@ import {
   type CanvasNavigationMessage,
   type CanvasTool,
 } from "@/lib/canvas-interactions";
+import { cleanErrorMessage } from "@/lib/errors/user-facing";
 
 /** Data sent from the iframe when the user clicks an element in selection mode. */
 export interface SelectedElementInfo {
@@ -98,6 +99,7 @@ function ScreenLabelBar({
   onExport,
   onDelete,
   onShowCode,
+  onRetry,
   readOnly,
 }: {
   screen: ScreenData;
@@ -108,6 +110,7 @@ function ScreenLabelBar({
   onExport: () => void;
   onDelete: () => void;
   onShowCode: () => void;
+  onRetry?: () => void;
   readOnly?: boolean;
 }) {
   return (
@@ -203,7 +206,7 @@ function ScreenLabelBar({
         {/* Interact / drag mode toggle — only visible when selected.
             Double-clicking the phone body is the primary way to enter this
             mode; the button here is a power-user shortcut. */}
-        {isSelected && (
+        {isSelected && screen.status !== "failed" && (
           <Button
             variant="ghost"
             size="icon"
@@ -219,27 +222,47 @@ function ScreenLabelBar({
           </Button>
         )}
 
+        {!readOnly && screen.status === "failed" && onRetry ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1 rounded-lg px-2 text-[11px] font-semibold text-red-600 opacity-100 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-500/10 dark:hover:text-red-300"
+            title="Retry this screen"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRetry();
+            }}
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Retry
+          </Button>
+        ) : null}
+
         {!readOnly ? (
           <>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 rounded-lg text-[var(--dg-text)] opacity-90 hover:bg-[var(--dg-surface-muted)] hover:text-[var(--dg-text)] hover:opacity-100 dark:text-[#d8dde7] dark:hover:bg-white/10"
-              title="View clean code"
-              onClick={onShowCode}
-            >
-              <Code className="w-3.5 h-3.5" />
-            </Button>
+            {screen.status !== "failed" ? (
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 rounded-lg text-[var(--dg-text)] opacity-90 hover:bg-[var(--dg-surface-muted)] hover:text-[var(--dg-text)] hover:opacity-100 dark:text-[#d8dde7] dark:hover:bg-white/10"
+                  title="View clean code"
+                  onClick={onShowCode}
+                >
+                  <Code className="w-3.5 h-3.5" />
+                </Button>
 
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 rounded-lg text-[var(--dg-text)] opacity-90 hover:bg-[var(--dg-surface-muted)] hover:text-[var(--dg-text)] hover:opacity-100 dark:text-[#d8dde7] dark:hover:bg-white/10"
-              title="Export code"
-              onClick={onExport}
-            >
-              <Download className="w-3.5 h-3.5" />
-            </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 rounded-lg text-[var(--dg-text)] opacity-90 hover:bg-[var(--dg-surface-muted)] hover:text-[var(--dg-text)] hover:opacity-100 dark:text-[#d8dde7] dark:hover:bg-white/10"
+                  title="Export code"
+                  onClick={onExport}
+                >
+                  <Download className="w-3.5 h-3.5" />
+                </Button>
+              </>
+            ) : null}
 
             <PremiumDropdown
               align="end"
@@ -254,6 +277,19 @@ function ScreenLabelBar({
                 </Button>
               }
               items={[
+                ...(screen.status === "failed" && onRetry
+                  ? [
+                      {
+                        id: "retry",
+                        label: "Retry screen",
+                        icon: RotateCcw,
+                        onClick: (e: { stopPropagation: () => void }) => {
+                          e.stopPropagation();
+                          onRetry();
+                        },
+                      },
+                    ]
+                  : []),
                 {
                   id: "delete",
                   label: "Delete",
@@ -521,6 +557,7 @@ export function ScreenNode({
   onContentHeightChange,
   onDeleteSelectedElement,
   onDuplicateSelectedElement,
+  onRetryScreen,
   readOnly,
 }: {
   screen: ScreenData;
@@ -547,10 +584,36 @@ export function ScreenNode({
   onContentHeightChange?: (screenId: string, height: number) => void;
   onDeleteSelectedElement?: (screenId: string, drawgleId: string) => void;
   onDuplicateSelectedElement?: (screenId: string, drawgleId: string) => void;
+  /** Retry a failed screen generation. */
+  onRetryScreen?: (screen: ScreenData) => void;
   readOnly?: boolean;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const safeCode = typeof screen.code === "string" ? screen.code : "";
+  const userFacingError = useMemo(
+    () => (screen.error ? cleanErrorMessage(screen.error) : null),
+    [screen.error],
+  );
+  // Never paint raw SDK/PostgREST payloads inside the phone frame.
+  const canvasSafeCode = useMemo(() => {
+    if (screen.status !== "failed") return safeCode;
+    const looksTechnical =
+      /pgrst\d+/i.test(safeCode) ||
+      /"code"\s*:\s*"PGRST/i.test(safeCode) ||
+      /Empty or invalid json/i.test(safeCode) ||
+      (safeCode.includes("Generation failed") &&
+        (safeCode.includes("{") || safeCode.includes("PGRST") || safeCode.includes("postgrest")));
+    if (!looksTechnical) return safeCode;
+    const message = userFacingError ?? "Something went wrong while designing your screen. Please try again.";
+    return `<div class="min-h-screen w-full flex flex-col items-center justify-center gap-3 bg-red-50 text-red-700 px-6 text-center">
+  <div class="text-lg font-semibold">Generation failed</div>
+  <div class="text-sm leading-6">${message
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")}</div>
+</div>`;
+  }, [safeCode, screen.status, userFacingError]);
 
   // ── "Interact mode" lets the user scroll/tap the iframe content.
   // It is only active while the screen is selected.
@@ -601,11 +664,11 @@ export function ScreenNode({
     return stripFences(chunks.join(""));
   }, [triggerStreams]);
   const hasStreamedBuildCode = Boolean(streamedCode?.trim());
-  const showBuildPreloader = isBuilding && !hasStreamedBuildCode && !hasMeaningfulRenderableCode(safeCode);
+  const showBuildPreloader = isBuilding && !hasStreamedBuildCode && !hasMeaningfulRenderableCode(canvasSafeCode);
   const showSourcePreloader = screen.sourceLoaded === false && screen.status !== "failed";
   const showBuildFinalizing = isBuilding && hasStreamedBuildCode;
 
-  const rawDisplayCode = streamedCode ?? safeCode;
+  const rawDisplayCode = streamedCode ?? canvasSafeCode;
   const sharedNavigationActive = hasSharedNavigation({ screen, projectNavigation });
   const displayCode = useMemo(
     () => {
@@ -2241,6 +2304,7 @@ export function ScreenNode({
         onExport={handleExportCode}
         onDelete={handleDelete}
         onShowCode={() => setIsCodeOpen(true)}
+        onRetry={onRetryScreen ? () => onRetryScreen(screen) : undefined}
         readOnly={readOnly}
       />
 

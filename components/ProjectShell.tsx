@@ -1565,6 +1565,8 @@ async function enqueueGeneration(input: {
   imageReferenceMode?: ImageReferenceMode;
   designTokens?: DesignTokens | null;
   sourceGenerationRunId?: string;
+  targetScreenNames?: string[];
+  targetScreenIds?: string[];
   plannedScreens?: ScreenPlan[] | null;
   requiresBottomNav?: boolean;
   navigationArchitecture?: NavigationArchitecture | null;
@@ -1580,7 +1582,12 @@ async function enqueueGeneration(input: {
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ clientRequestId: input.clientRequestId ?? crypto.randomUUID(), ...input }),
+    body: JSON.stringify({
+      clientRequestId: input.clientRequestId ?? crypto.randomUUID(),
+      ...input,
+      targetScreenNames: input.targetScreenNames?.length ? input.targetScreenNames : undefined,
+      targetScreenIds: input.targetScreenIds?.length ? input.targetScreenIds : undefined,
+    }),
   });
 
   const payload = await response.json().catch(() => ({}));
@@ -1846,6 +1853,8 @@ export function ProjectShell({
     imageReferenceMode?: ImageReferenceMode;
     designTokens?: DesignTokens | null;
     sourceGenerationRunId?: string;
+    targetScreenNames?: string[];
+    targetScreenIds?: string[];
     plannedScreens?: ScreenPlan[] | null;
     requiresBottomNav?: boolean;
     navigationArchitecture?: NavigationArchitecture | null;
@@ -1873,6 +1882,8 @@ export function ProjectShell({
         imageReferenceMode: input.imageReferenceMode ?? "recreate",
         designTokens: input.designTokens ?? null,
         sourceGenerationRunId: input.sourceGenerationRunId,
+        targetScreenNames: input.targetScreenNames,
+        targetScreenIds: input.targetScreenIds,
         plannedScreens: input.plannedScreens ?? null,
         requiresBottomNav: input.requiresBottomNav,
         navigationArchitecture: input.navigationArchitecture ?? null,
@@ -1908,14 +1919,43 @@ export function ProjectShell({
     }
   };
 
-  const handleRetryGeneration = async (run: GenerationRunData) => {
+  const handleRetryGeneration = async (
+    run: GenerationRunData,
+    options?: {
+      targetScreenNames?: string[];
+      targetScreenIds?: string[];
+    },
+  ) => {
     if (!project || isCanvasInteractionLocked) {
       return;
     }
 
+    const targetCount = options?.targetScreenIds?.length ?? options?.targetScreenNames?.length ?? 0;
     await queueGenerationRequest({
-      prompt: run.prompt,
+      prompt: targetCount > 0 ? "Retry failed screens" : run.prompt,
       sourceGenerationRunId: run.id,
+      targetScreenNames: options?.targetScreenNames,
+      targetScreenIds: options?.targetScreenIds,
+    });
+  };
+
+  const handleRetryScreen = async (screen: ScreenData) => {
+    if (!project || isCanvasInteractionLocked) return;
+    if (screen.status !== "failed" || !screen.generationRunId) {
+      setQueueError("Only failed screens can be retried.");
+      return;
+    }
+
+    const sourceRun =
+      generationRuns.find((run) => run.id === screen.generationRunId) ??
+      ({
+        id: screen.generationRunId,
+        prompt: screen.prompt || "Retry failed screen",
+      } as GenerationRunData);
+
+    await handleRetryGeneration(sourceRun, {
+      targetScreenIds: [screen.id],
+      targetScreenNames: [screen.name],
     });
   };
 
@@ -2680,6 +2720,7 @@ export function ProjectShell({
             onDeleteSelectedElement={handleDeleteSelectedElement}
             onDuplicateSelectedElement={handleDuplicateSelectedElement}
             onScreenSourceNeeded={loadScreenSource}
+            onRetryScreen={handleRetryScreen}
             onExportCode={(...exportArgs) => {
               const screenName = exportArgs[2];
               const matchedScreen = screens.find((s) => s.name === screenName);
