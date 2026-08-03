@@ -9,6 +9,7 @@ import {
   getOpenRouterProviders,
   getOpenRouterScreenBuildModel,
   getOpenRouterScreenBuildReasoning,
+  getOpenRouterScreenEditorReasoning,
   getOpenRouterSort,
   getOpenRouterStreamTimeouts,
   getScreenBuilderProvider,
@@ -261,6 +262,9 @@ export async function* generateScreenBuilderContentStream({
     const providerPreferences = openRouterProviderPreferences();
     const timeouts = getOpenRouterStreamTimeouts();
     const apiKey = getOpenRouterApiKey();
+    const reasoning = task === "selected_region_edit"
+      ? getOpenRouterScreenEditorReasoning()
+      : getOpenRouterScreenBuildReasoning();
 
     onProviderEvent?.({
       event: "openrouter:request_prepared",
@@ -292,7 +296,7 @@ export async function* generateScreenBuilderContentStream({
           temperature: temperature ?? null,
           maxTokens,
           provider: providerPreferences,
-          reasoning: getOpenRouterScreenBuildReasoning(),
+          reasoning,
           timeouts,
           onEvent: onProviderEvent,
           onChunk: (chunk) => onResponseChunk?.(adaptOpenRouterChunk(chunk)),
