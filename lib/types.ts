@@ -184,6 +184,8 @@ export type ReferenceSource = "user_upload" | "project_upload" | "project_memory
 
 export type ReferenceMode = "user_recreate" | "user_style" | "curated_style" | "internal_style";
 
+export type GenerationPromptMode = "recreate" | "style" | "prompt";
+
 export interface DesignColorTokens {
   background?: {
     primary?: string;
@@ -1155,6 +1157,7 @@ export interface LlmInputSnapshot {
   systemInstruction: string;
   userParts: string[];
   hasImage: boolean;
+  promptMode: GenerationPromptMode;
   referenceMode?: ReferenceMode;
   referenceSource?: ReferenceSource | null;
   referenceId?: string | null;
@@ -1167,6 +1170,7 @@ export interface BuildScreenInput {
   designTokens?: DesignTokens | null;
   prompt: string;
   image?: PromptImagePayload | null;
+  promptMode: GenerationPromptMode;
   referenceMode?: ReferenceMode;
   referenceSource?: ReferenceSource | null;
   referenceId?: string | null;

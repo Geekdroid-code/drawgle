@@ -3,7 +3,11 @@ import { describe, expect, it } from "vitest";
 import { applyDeleteElement, applyDuplicateElement } from "@/lib/drawgle-dom";
 import { normalizeReferenceAnalysis } from "@/lib/generation/scope-contract";
 import { normalizeSharedNavigationClearanceHtml } from "@/lib/generation/screen-quality";
-import { resolveScreenChromePolicy } from "@/lib/navigation";
+import {
+  createNavigationArchitecture,
+  reconcileNavigationArchitectureWithPlan,
+  resolveScreenChromePolicy,
+} from "@/lib/navigation";
 import {
   applyReferenceNavigationRolesToScreens,
   applyNavigationDesignEdit,
@@ -67,6 +71,38 @@ describe("Production Navigation V2", () => {
     const screens: ScreenPlan[] = [{ name: "Dashboard", type: "root", description: "Focused dashboard" }];
     expect(createFallbackNavigationPlan({ screens, navigationArchitecture: architecture, requiresBottomNav: true }).enabled).toBe(false);
     expect(normalizeNavigationPlan({ screens, navigationArchitecture: architecture, requiresBottomNav: true }).items).toEqual([]);
+  });
+
+  it("keeps architecture aligned with the final normalized navigation decision", () => {
+    const canonicalBottomTabs = createNavigationArchitecture({
+      navigationArchitecture: {
+        ...architecture,
+        kind: "hierarchical",
+        primaryNavigation: "bottom-tabs",
+        rootChrome: "top-bar",
+      },
+    });
+    expect(canonicalBottomTabs).toMatchObject({
+      kind: "bottom-tabs-app",
+      primaryNavigation: "bottom-tabs",
+      rootChrome: "bottom-tabs",
+    });
+
+    const disabledPlan = createFallbackNavigationPlan({
+      screens: [{ name: "Dashboard", type: "root", description: "Focused dashboard" }],
+      navigationArchitecture: canonicalBottomTabs,
+      requiresBottomNav: true,
+    });
+    const reconciled = reconcileNavigationArchitectureWithPlan({
+      navigationArchitecture: canonicalBottomTabs,
+      navigationPlan: disabledPlan,
+    });
+    expect(disabledPlan.enabled).toBe(false);
+    expect(reconciled).toMatchObject({
+      kind: "hierarchical",
+      primaryNavigation: "none",
+      rootChrome: "top-bar",
+    });
   });
 
   it("supports one generated taxi screen and three planned product destinations", () => {

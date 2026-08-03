@@ -114,6 +114,56 @@ const malformedNavigationBlueprint = {
   },
 };
 
+const completeScreenBrief = ({
+  name,
+  stableKey,
+  visualGoal,
+  components,
+}: {
+  name: string;
+  stableKey: string;
+  visualGoal: string;
+  components: string;
+}) => ({
+  name,
+  type: "root",
+  roadmap_stable_key: stableKey,
+  description: [
+    "Reference DNA: Preserve the approved charcoal material system, electric-blue emphasis, restrained border contrast, compact icon wells, disciplined typography, and dense but readable support-workspace rhythm. Treat these as visual-system invariants only; the source screenshot does not supply this screen's section order, hero scaffold, card topology, or domain content.",
+    `Visual Goal: ${visualGoal} Establish one unmistakable first read, then a quieter supporting hierarchy that helps an agent decide what to do next without scanning equal-weight cards.`,
+    `Layout Anatomy: Use a 390px task-native mobile composition with a compact top context region, a dominant working surface, and secondary controls grouped by their actual workflow relationship. The content rail scrolls vertically when needed, preserves deliberate macro-versus-micro spacing, and leaves renderer-owned navigation clearance untouched. ${components}`,
+    `Key Components: ${components} Every row and control has min-width protection, intentional wrapping or truncation, visible state feedback, and enough height for real support copy. Avoid empty visual shells, decorative metric grids, and generic dashboard modules that do not advance this screen's job.`,
+    "Visual Styling: Use layered charcoal surfaces with a small, legible elevation set, electric-blue focus and selection cues, quiet neutral metadata, crisp Lucide-weight iconography, and the approved outer/inner/pill radius roles. Preserve readable contrast and material depth without copying reference coordinates or literal decorative geometry.",
+    "Interaction Notes: Keep the primary action obvious but subordinate to ongoing work until commitment is required. Selection, filtering, search, and drill-in states must preserve context, expose clear feedback, and never introduce a second primary navigation shell inside screen content.",
+    "Must Preserve: Maintain the target task as layout authority, one dominant first read, strong macro/micro spacing contrast, real-content resilience, 390px viewport fit, safe scrolling, renderer-owned shared-navigation clearance, token-backed styling, and zero source-domain or source-layout cloning.",
+  ].join("\n"),
+  layout_contract: {
+    viewport_plan: "Compact top context, flexible working surface, vertical scroll when required, and renderer-owned bottom navigation clearance.",
+    focal_hierarchy: "The current support task dominates; filters and metadata remain visibly quieter.",
+    section_rhythm: "Use large gaps between workflow regions and tight gaps inside rows, labels, and control groups.",
+    component_density: "Favor information-dense but readable rows with explicit wrapping and minimum touch targets.",
+    cta_policy: "Use one peak-emphasis action only when the workflow has a true commitment step.",
+    anti_patterns: ["No equal-weight dashboard card grid.", "No copied source hero or connector scaffold."],
+  },
+  reference_transfer: {
+    layout_source: "screen-purpose",
+    preserve: ["Charcoal material depth", "Electric-blue emphasis", "Compact icon rhythm"],
+    adapt: ["Translate the approved hierarchy and density into the target support workflow."],
+    reject: ["Source section order", "Source hero scaffold", "Source card topology"],
+    rationale: "The support task owns layout while portable visual craft creates family resemblance.",
+    target_capabilities: ["conversation"],
+    semantic_decisions: [],
+    premium_quality_targets: ["Create one dominant first read and a quieter supporting hierarchy."],
+  },
+  chrome_policy: {
+    chrome: "bottom-tabs",
+    show_primary_navigation: true,
+    shows_back_button: false,
+  },
+  asset_needs: [],
+  state_variants: [],
+});
+
 describe("planner contract resilience", () => {
   beforeEach(() => {
     generateContent.mockReset();
@@ -166,30 +216,24 @@ describe("planner contract resilience", () => {
       .mockResolvedValueOnce({
         text: JSON.stringify({
           screens: [
-            {
+            completeScreenBrief({
               name: "Support Inbox",
-              type: "root",
-              roadmap_stable_key: "screen:support-inbox",
-              description: "Reference DNA: Preserve the approved dark material system.\nVisual Goal: Triage active support conversations.\nLayout Anatomy: Prioritized conversation queue beside status filters.\nKey Components: Queue rows, urgency markers, ownership badges, and search.\nVisual Styling: Dense charcoal surfaces with electric-blue focus states.\nInteraction Notes: Selecting a row opens the active conversation.\nMust Preserve: Fast scanning and clear escalation priority.",
-              asset_needs: [],
-              state_variants: [],
-            },
-            {
+              stableKey: "screen:support-inbox",
+              visualGoal: "Triage active support conversations by urgency, ownership, and waiting time.",
+              components: "Use a conversation queue, urgency markers, ownership badges, search, and compact status filters.",
+            }),
+            completeScreenBrief({
               name: "Knowledge Search",
-              type: "root",
-              roadmap_stable_key: "screen:knowledge-search",
-              description: "Reference DNA: Preserve the approved dark material system.\nVisual Goal: Find reliable support answers quickly.\nLayout Anatomy: Search-led hierarchy with ranked answer previews.\nKey Components: Query field, source filters, answer cards, and copy actions.\nVisual Styling: Quiet charcoal reading surfaces with blue relevance cues.\nInteraction Notes: Refine results without losing the current query.\nMust Preserve: Source confidence and readable answer hierarchy.",
-              asset_needs: [],
-              state_variants: [],
-            },
-            {
+              stableKey: "screen:knowledge-search",
+              visualGoal: "Find approved support answers quickly and understand their source confidence.",
+              components: "Use a query field, source filters, ranked answer previews, confidence metadata, and copy actions.",
+            }),
+            completeScreenBrief({
               name: "Resolution Activity",
-              type: "root",
-              roadmap_stable_key: "screen:resolution-activity",
-              description: "Reference DNA: Preserve the approved dark material system.\nVisual Goal: Review case outcomes and escalations.\nLayout Anatomy: Chronological resolution ledger with outcome summaries.\nKey Components: Activity timeline, outcome badges, agent labels, and filters.\nVisual Styling: Structured charcoal rows with restrained semantic colors.\nInteraction Notes: Filter activity and open a completed case.\nMust Preserve: Audit clarity and distinct outcome states.",
-              asset_needs: [],
-              state_variants: [],
-            },
+              stableKey: "screen:resolution-activity",
+              visualGoal: "Review escalations, outcomes, and recently resolved cases as an auditable activity stream.",
+              components: "Use a chronological activity ledger, outcome badges, agent labels, filters, and case drill-in affordances.",
+            }),
           ],
         }),
       });
@@ -208,6 +252,31 @@ describe("planner contract resilience", () => {
       "Resolution Activity",
     ]);
     expect(plan.screens.map((screen) => screen.name)).not.toContain("Screen 1");
+    expect(plan.screens.every((screen) => !screen.description.includes("Planner Brief"))).toBe(true);
+  });
+
+  it("repairs weak screen briefs once and then fails before build", async () => {
+    const weakScreens = {
+      screens: [{
+        name: "Support Inbox",
+        type: "root",
+        description: "A short support inbox summary.",
+        asset_needs: [],
+      }],
+    };
+    generateContent
+      .mockResolvedValueOnce({ text: JSON.stringify(malformedNavigationBlueprint) })
+      .mockResolvedValueOnce({ text: JSON.stringify(weakScreens) })
+      .mockResolvedValueOnce({ text: JSON.stringify(weakScreens) });
+
+    await expect(planUiFlow({
+      prompt: "Build an AI assistant for support chat with 3 core screens",
+      referenceMode: "user_style",
+      scopeContract: promptCountScope,
+      projectContext: "New project; no prior screens exist.",
+    })).rejects.toThrow("no builder-grade screen briefs after one repair attempt");
+
+    expect(generateContent).toHaveBeenCalledTimes(3);
   });
 
   it("fails safely instead of manufacturing generic screens after a bounded repair", async () => {

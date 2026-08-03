@@ -101,22 +101,26 @@ export function classifyScreenCapabilities({
   description?: string;
   type?: "root" | "detail";
 }): ScreenSemanticCapability[] {
-  const haystack = `${name} ${description ?? ""}`.toLowerCase();
+  const taskSections = Array.from((description ?? "").matchAll(
+    /(?:^|\n)(?:Visual Goal|Key Components):\s*([\s\S]*?)(?=\n(?:Reference DNA|Visual Goal|Layout Anatomy|Key Components|Visual Styling|Interaction Notes|Must Preserve):|$)/gi,
+  )).map((match) => match[1].trim());
+  const taskDescription = taskSections.length > 0 ? taskSections.join(" ") : description ?? "";
+  const haystack = `${name} ${taskDescription}`.toLowerCase();
   const matches: ScreenSemanticCapability[] = [];
   const add = (capability: ScreenSemanticCapability, pattern: RegExp) => {
     if (pattern.test(haystack)) matches.push(capability);
   };
 
-  add("onboarding", /\b(onboard|welcome|intro|getting started|setup journey|first run)\b/);
+  add("onboarding", /\b(onboard(?:ing)?|welcome|intro|getting started|setup journey|first run)\b/);
   add("conversation", /\b(chat|conversation|message|messaging|assistant|inbox|thread)\b/);
   add("data-monitoring", /\b(dashboard|analytics|metric|monitor|insight|report|log|telemetry|performance)\b/);
-  add("spatial-navigation", /\b(map|route|location|nearby|navigation|geospatial)\b/);
+  add("spatial-navigation", /\b(map|location|nearby|geospatial|directions|wayfinding|(?:trip|delivery|travel) route)\b/);
   add("media-immersive", /\b(player|camera|video|music|media|immersive|gallery viewer)\b/);
   add("form-entry", /\b(form|create|edit|compose|apply|checkout details|enter|input|verification)\b/);
   add("transaction", /\b(checkout|payment|purchase|booking|order|transfer|subscribe|confirm)\b/);
-  add("profile-configuration", /\b(profile|settings|preferences|account|configuration)\b/);
+  add("profile-configuration", /\b(profile|settings|preferences|configuration|manage account|account (?:security|preferences|settings|details))\b/);
   add("search-discovery", /\b(search|discover|find|browse|explore|results)\b/);
-  add("collection-browsing", /\b(catalog|library|collection|feed|list|inventory|products)\b/);
+  add("collection-browsing", /\b(catalog|library|collection|feed|inventory|product (?:catalog|grid|list|results))\b/);
   add("editorial-reading", /\b(article|story|news|reader|guide|detail copy|editorial)\b/);
   add("sequential-workflow", /\b(step|stage|progress|workflow|pipeline|wizard|timeline|process|deployment|review flow)\b/);
   add("status-feedback", /\b(status|success|error|empty state|loading|processing|complete|result)\b/);
@@ -514,4 +518,4 @@ export function formatSemanticCompositionLibrary(referenceAnalysis: ReferenceAna
       `  Craft bar: ${primitive.qualityDetails.join("; ")}`,
     ].filter(Boolean).join("\n")),
   ].join("\n");
-}
+}

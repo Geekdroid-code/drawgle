@@ -1,5 +1,6 @@
 import type {
   NavigationArchitecture,
+  NavigationPlan,
   PrimaryNavigationKind,
   ScreenChromeKind,
   ScreenChromePolicy,
@@ -136,11 +137,43 @@ export function createNavigationArchitecture({
     normalized.rootChrome = "bottom-tabs";
   }
 
+  if (normalized.primaryNavigation === "bottom-tabs") {
+    normalized.kind = "bottom-tabs-app";
+  }
+
   if (normalized.detailChrome === "bottom-tabs") {
     normalized.detailChrome = "top-bar-back";
   }
 
   return normalized;
+}
+
+export function reconcileNavigationArchitectureWithPlan({
+  navigationArchitecture,
+  navigationPlan,
+}: {
+  navigationArchitecture?: NavigationArchitecture | null;
+  navigationPlan: NavigationPlan;
+}): NavigationArchitecture {
+  const current = createNavigationArchitecture({ navigationArchitecture });
+  const enabled = navigationPlan.enabled && navigationPlan.kind === "bottom-tabs";
+
+  return createNavigationArchitecture({
+    navigationArchitecture: enabled
+      ? {
+          ...current,
+          kind: "bottom-tabs-app",
+          primaryNavigation: "bottom-tabs",
+          rootChrome: "bottom-tabs",
+        }
+      : {
+          ...current,
+          kind: current.kind === "single-screen" ? "single-screen" : "hierarchical",
+          primaryNavigation: "none",
+          rootChrome: current.rootChrome === "bottom-tabs" ? "top-bar" : current.rootChrome,
+        },
+    requiresBottomNav: enabled,
+  });
 }
 
 export function deriveRequiresBottomNav(navigationArchitecture?: NavigationArchitecture | null) {

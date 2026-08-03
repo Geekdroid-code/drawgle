@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildSemanticTransferPlan,
+  classifyScreenCapabilities,
   ensureSemanticCompositionPrimitives,
   formatSemanticCompositionLibrary,
 } from "@/lib/generation/semantic-inspiration";
@@ -39,6 +40,28 @@ const onboardingReference: ReferenceAnalysis = {
 };
 
 describe("semantic inspiration suitability", () => {
+  it("classifies target work from task-bearing brief sections instead of style and navigation boilerplate", () => {
+    const capabilities = classifyScreenCapabilities({
+      name: "Support Inbox",
+      type: "root",
+      description: [
+        "Reference DNA: Preserve the reference account-card material and dashboard polish.",
+        "Visual Goal: Triage active customer support conversations by urgency and ownership.",
+        "Layout Anatomy: Use a conversation queue with a focused reading surface.",
+        "Key Components: Message threads, agent ownership badges, reply state, and search.",
+        "Visual Styling: Keep a compact list rhythm and premium card edges.",
+        "Interaction Notes: Shared navigation is renderer-owned.",
+        "Must Preserve: Maintain project navigation consistency and account for safe-area clearance.",
+      ].join("\n"),
+    });
+
+    expect(capabilities).toContain("conversation");
+    expect(capabilities).not.toContain("spatial-navigation");
+    expect(capabilities).not.toContain("profile-configuration");
+    expect(capabilities).not.toContain("collection-browsing");
+    expect(capabilities).not.toContain("data-monitoring");
+  });
+
   it("derives reusable principles for legacy reference DNA", () => {
     const enriched = ensureSemanticCompositionPrimitives(onboardingReference);
     const kinds = enriched.semanticCompositionPrimitives?.map((primitive) => primitive.kind);
@@ -158,4 +181,4 @@ describe("semantic inspiration suitability", () => {
     });
     expect(result.analysis?.semanticCompositionPrimitives?.[0].sourceEvidence).not.toContain("Three cards");
   });
-});
+});

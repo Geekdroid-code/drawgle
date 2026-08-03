@@ -1,6 +1,6 @@
-import type { ReferenceMode } from "@/lib/types";
+import type { GenerationPromptMode, ReferenceMode } from "@/lib/types";
 
-export type GenerationPromptMode = "recreate" | "style" | "prompt";
+export type { GenerationPromptMode } from "@/lib/types";
 
 /**
  * Selects the prompt contract from application state. The LLM never decides

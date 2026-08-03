@@ -554,7 +554,7 @@ Treat these as platform constraints, not stylistic variables: safe_area_top, saf
 Treat these as dynamic design variables that should change when the approved evidence changes: spacing rhythm, section gaps, radii, border widths, shadow depth, surface contrast, font recommendations, and typography hierarchy.
 Use 16px as the production baseline for mobile screen_margin. Deviate only when the user explicitly requests another margin or the approved evidence contains clear measured screen-edge padding; vague words such as airy, spacious, premium, or generous are not evidence for a larger margin. Never enlarge the outer margin merely to create whitespace because it squeezes the usable content rail.
 Create one disciplined visual language for the whole app. Do not hand the builder a menu of different radii, border widths, or shadow strengths to choose from per screen.
-For shape and elevation, prefer a single standard surface radius, a single standard border width, and a single standard surface shadow. A pill radius may exist only as a controlled exception for chips, segmented controls, or capsule CTAs.
+For shape and elevation, use one outer surface radius, one smaller inner/inset radius, a single standard border width, and a single standard surface shadow. A pill radius may exist only as a controlled exception for chips, segmented controls, or capsule CTAs.
 
  REQUIRED JSON SCHEMA:
 {
@@ -852,6 +852,7 @@ export const buildSharedNavigationContract = ({
 
   return [
     "Drawgle renders the shared navigation shell outside this screen.",
+    navigationInstruction,
     `Screen activeNav=${screenPlan.navigationItemId ?? "none"}. Items=${navigationPlan.items.map((item) => `${item.label}(${item.icon})`).join(", ")}.`,
     navigationPlan.visualBrief ? `Visual brief=${navigationPlan.visualBrief}` : null,
     "Do not output <nav>, <footer>, bottom tabs, tab bars, docks, or persistent primary navigation markup.",
@@ -929,7 +930,6 @@ export const buildEditSystemInstruction = ({
 STRICT DESIGN CONTRACT:
 ${buildStrictDesignContract(designTokens)}
 
-TOKEN CONTEXT:
 ${buildTokenPromptContext(designTokens, "compact_visual")}
 
 NAVIGATION ARCHITECTURE CONTRACT:
@@ -977,8 +977,11 @@ const stripRendererOwnedNavigationFromBrief = (description: string) => {
   const navAnatomyPattern = /\b(?:bottom[-\s]*(?:tabs?|nav(?:igation)?|bar)|tab\s*bar|footer\s*nav(?:igation)?|floating\s+(?:dock|nav(?:igation)?|tab)|navigation\s+(?:dock|pill|bar|surface|shell)|dock\s+navigation|shared\s+shell\s+simulation|primary\s+navigation\s+shell)\b/i;
   const protectedLines = description
     .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line && !navAnatomyPattern.test(line));
+    .flatMap((line) => line
+      .trim()
+      .split(/(?<=[.;])\s+|\s+\|\s+/)
+      .map((clause) => clause.trim())
+      .filter((clause) => clause && !navAnatomyPattern.test(clause)));
 
   const sanitized = protectedLines.join("\n").trim();
   return sanitized || description;
@@ -1034,10 +1037,9 @@ const buildScreenInstruction = ({
     ].join(" ")
     : mode === "style"
       ? [
-        "MODE CONTRACT: STYLE_REFERENCE. The application has confirmed reusable visual evidence from an attached image, approved style contract, or project reference memory.",
-        "Build from the screen brief, charter, navigation plan, creative direction, and tokens.",
-        "When a style reference image is attached, inspect it directly as visual evidence and preserve its material quality, shadows, radii, typography character, color rhythm, icon weight, navigation feel, component construction, density, and illustration character.",
-        "Use the written reference analysis as a construction contract, but prefer observable image evidence when prose is vague.",
+        "MODE CONTRACT: STYLE_REFERENCE. The application has confirmed reusable visual evidence from an uploaded reference, approved style contract, or project reference memory.",
+        "The raw style image has already been analyzed and is intentionally not attached to this builder invocation, preventing accidental layout cloning.",
+        "Build from the validated screen brief, reference-transfer contract, charter, navigation plan, creative direction, and tokens; do not invent source anatomy that these portable contracts do not provide.",
         "Do not clone a curated or uploaded style screenshot's domain content, section order, object positions, or full layout anatomy.",
       ].join(" ")
       : [
@@ -1064,8 +1066,11 @@ ${modeInstruction}
 CRITICAL INSTRUCTION 0: SCREEN SPEC FIDELITY
 Treat Screen Description as a concrete implementation spec, not loose inspiration.
 Before using it, reconcile it against REFERENCE TRANSFER CONTRACT. If a brief or project-memory phrase asks for a rejected source motif, the reject rule wins: redesign that region from the target screen's user task while preserving the approved visual invariants.
-In style mode, family resemblance MUST come from tokens, typography, materials, iconography, density, and interaction tone, not repeated section order, card topology, connector lines, hero scaffolds, or decorative geometry from another screen.
-The target screen's content model owns composition: conversations should be designed as conversations, forms as forms, editorial feeds as reading systems, maps as spatial tools, and dashboards as decision surfaces.
+${mode === "style"
+  ? "Family resemblance MUST come from tokens, typography, materials, iconography, density, and interaction tone, not repeated section order, card topology, connector lines, hero scaffolds, or decorative geometry from another screen. The target screen's content model owns composition: conversations are designed as conversations, forms as forms, editorial feeds as reading systems, maps as spatial tools, and dashboards as decision surfaces."
+  : mode === "recreate"
+    ? "The structural reference and its transfer contract own composition; adapt only the copy and product details permitted by the brief."
+    : "The user brief and target screen's content model own composition; do not imply that any detail was observed in an image."}
 
 If it describes relative placement, overlap, floating surfaces, nested containment, bottom sheets, large typography, map backgrounds, charts, progress rings, segmented controls, avatar stacks, icon/text groups, edge treatments, bevels, glass/frosting, or CTA construction, you MUST recreate those details faithfully.
 Do NOT flatten a highly specific composition into a generic dashboard, generic card layout, or evenly stacked block layout.
@@ -1110,7 +1115,6 @@ ${buildNavigationArchitectureContract({
 APPROVED VISUAL ASSET MANIFEST:
 ${buildAssetManifestContract(assetManifest)}
 
-TOKEN CONTEXT:
 ${buildTokenPromptContext(designTokens, "compact_visual")}
 
 ${navigationPlan?.enabled ? `SHARED NAVIGATION CONTRACT:
@@ -1143,5 +1147,8 @@ export const buildStyleScreenInstruction = (input: Pick<BuildScreenInput, "desig
 
 export const buildPromptScreenInstruction = (input: Pick<BuildScreenInput, "designTokens" | "designStyle" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }) =>
   buildScreenInstruction(input, "prompt");
+
+export const buildScreenInstructionForMode = (input: Pick<BuildScreenInput, "designTokens" | "designStyle" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest" | "promptMode"> & { screenPlan: ScreenPlan; prompt?: string | null }) =>
+  buildScreenInstruction(input, input.promptMode);
 
 export const buildSystemInstruction = buildRecreateScreenInstruction;

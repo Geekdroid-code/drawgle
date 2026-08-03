@@ -5,6 +5,7 @@ import {
   buildDesignInstruction,
   buildPromptScreenInstruction,
   buildRecreateScreenInstruction,
+  buildScreenInstructionForMode,
   buildStyleScreenInstruction,
   plannerBlueprintStepInstruction,
   plannerScreenBriefStepInstruction,
@@ -92,7 +93,8 @@ describe("state-scoped prompt construction", () => {
       '"gradients"',
       '"navigation"',
       "Use 16px as the production baseline",
-      "single standard surface radius",
+      "one outer surface radius",
+      "one smaller inner/inset radius",
       "Use radii.app for outer cards",
       "Use radii.inner for nested cards",
       "Use radii.pill only for true capsules",
@@ -182,7 +184,6 @@ describe("state-scoped prompt construction", () => {
       "STRICT DESIGN CONTRACT",
       "NAVIGATION ARCHITECTURE CONTRACT",
       "APPROVED VISUAL ASSET MANIFEST",
-      "TOKEN CONTEXT",
       "OUTPUT RULES",
       "Do NOT flatten a highly specific composition",
       "Every chart, map, gauge, progress ring, or visual panel must contain visible constructed geometry",
@@ -203,10 +204,24 @@ describe("state-scoped prompt construction", () => {
     expect(recreate).toContain("MODE CONTRACT: IMAGE_TO_UI");
     expect(recreate).toContain("prioritize its exact original structure and material choices");
     expect(style).toContain("MODE CONTRACT: STYLE_REFERENCE");
+    expect(style).toContain("raw style image has already been analyzed and is intentionally not attached");
     expect(style).toContain("Do not clone a curated or uploaded style screenshot's domain content");
+    expect(style).not.toContain("prioritize its exact original structure and material choices");
     expect(prompt).toContain("MODE CONTRACT: PROMPT_ONLY");
     expect(prompt).not.toContain("When a style reference image is attached");
     expect(prompt).not.toContain("prioritize its exact original structure and material choices");
+  });
+
+  it("uses the explicit resolved style mode even when no raw image reaches the builder", () => {
+    const instruction = buildScreenInstructionForMode({
+      ...screenInput,
+      promptMode: "style",
+    });
+
+    expect(instruction).toContain("MODE CONTRACT: STYLE_REFERENCE");
+    expect(instruction).toContain("raw style image has already been analyzed and is intentionally not attached");
+    expect(instruction).not.toContain("MODE CONTRACT: IMAGE_TO_UI");
+    expect(instruction).not.toContain("MODE CONTRACT: PROMPT_ONLY");
   });
 
   it("carries suitability decisions and premium craft targets through planner and builder prompts", () => {

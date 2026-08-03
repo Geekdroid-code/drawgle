@@ -57,6 +57,7 @@ import { screenBuildOutputTokenBudget } from "@/lib/generation/screen-budget";
 import { analyzeReferenceImageForScope, preflightGenerationScope } from "@/lib/generation/scope-contract";
 import { planVisualAssets, resolveProjectAssets } from "@/lib/generation/visual-assets";
 import { shouldAttachReferenceImage } from "@/lib/generation/reference-image";
+import { resolveGenerationPromptMode } from "@/lib/generation/prompt-routing";
 import { loadStoredPromptImage } from "@/lib/generation/prompt-reference-storage";
 import { resolveGenerationReferencePolicy } from "@/lib/generation/reference-policy";
 import { resolveProjectReferenceDna } from "@/lib/generation/reference-dna";
@@ -95,7 +96,7 @@ import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
 import { getGenerationEngineVersion } from "@/lib/env/server";
 import { enrichScreenMemoryTask } from "@/trigger/enrich-screen-memory";
 import type { Database, ProjectScreenRoadmapRow } from "@/lib/supabase/database.types";
-import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationPreviewMetadata, GenerationReferencePolicy, GenerationRetryContext, GenerationScopeContract, ImageReferenceMode, LlmProviderEvent, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, ProjectRoadmap, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenBaseStatePlan, ScreenPlan, ScreenPlanningSeed, ScreenStateVariantPlan } from "@/lib/types";
+import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationPreviewMetadata, GenerationPromptMode, GenerationReferencePolicy, GenerationRetryContext, GenerationScopeContract, ImageReferenceMode, LlmProviderEvent, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, ProjectRoadmap, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenBaseStatePlan, ScreenPlan, ScreenPlanningSeed, ScreenStateVariantPlan } from "@/lib/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -136,6 +137,7 @@ type BuildScreenTaskPayload = {
   prompt: string;
   designTokens?: DesignTokens | null;
   image?: PromptImagePayload | null;
+  promptMode: GenerationPromptMode;
   referenceMode?: ReferenceMode;
   referenceSource?: ReferenceSource | null;
   referenceId?: string | null;
@@ -1044,6 +1046,7 @@ async function collectScreenBuild(
       designStyle: input.designStyle,
       prompt: input.prompt,
       image: input.image,
+      promptMode: input.promptMode,
       referenceMode: input.referenceMode,
       referenceSource: input.referenceSource,
       referenceId: input.referenceId,
@@ -1063,6 +1066,7 @@ async function collectScreenBuild(
         logger.info(`[LLM INPUT] ${snapshot.screenName}`, {
           model: snapshot.model,
           hasImage: snapshot.hasImage,
+          promptMode: snapshot.promptMode,
           referenceMode: snapshot.referenceMode,
           referenceSource: snapshot.referenceSource,
           referenceId: snapshot.referenceId,
@@ -1106,6 +1110,7 @@ async function collectNonStreamingScreenBuild(input: BuildScreenTaskPayload, scr
     designStyle: input.designStyle,
     prompt: input.prompt,
     image: input.image,
+    promptMode: input.promptMode,
     referenceMode: input.referenceMode,
     referenceSource: input.referenceSource,
     referenceId: input.referenceId,
@@ -1125,6 +1130,7 @@ async function collectNonStreamingScreenBuild(input: BuildScreenTaskPayload, scr
       logger.info(`[LLM INPUT] ${snapshot.screenName}`, {
         model: snapshot.model,
         hasImage: snapshot.hasImage,
+        promptMode: snapshot.promptMode,
         referenceMode: snapshot.referenceMode,
         referenceSource: snapshot.referenceSource,
         referenceId: snapshot.referenceId,
@@ -2162,6 +2168,18 @@ export const generateUiFlowTask = task({
         });
     const scopeContract = scopePreflight.scopeContract;
     const referenceAnalysis = scopePreflight.referenceAnalysis;
+    const promptMode = resolveGenerationPromptMode({
+      referenceMode,
+      hasImage: Boolean(promptImage),
+      hasDesignStyle: Boolean(designStyle),
+      hasReferenceAnalysis: Boolean(referenceAnalysis),
+      hasProjectVisualMemory: Boolean(
+        reusableProjectReferenceDna
+        || projectReferenceDna
+        || referenceSource === "project_memory"
+        || referenceSource === "project_upload"
+      ),
+    });
     await mergeGenerationPerformance(admin, payload.generationRunId, {
       stages: { scope: performanceStage(scopeStartedAt, scopeStartedMs) },
     });
@@ -2178,6 +2196,7 @@ export const generateUiFlowTask = task({
       requestedStylePresetSlug: publishedStylePreset?.slug ?? null,
       requestedStylePresetVersion: publishedStylePreset?.version ?? null,
       referenceMode,
+      promptMode,
       referenceSource,
       referenceId,
       referenceCatalogHash,
@@ -3094,6 +3113,7 @@ export const generateUiFlowTask = task({
             prompt: payload.prompt,
             designTokens,
             image: attachReferenceImage ? promptImage : null,
+            promptMode,
             referenceMode,
             referenceSource,
             referenceId,
