@@ -125,7 +125,7 @@ export const getOpenRouterScreenBuildReasoning = () => {
     effort:
       effort && ["minimal", "low", "medium", "high", "xhigh", "max"].includes(effort)
         ? (effort as "minimal" | "low" | "medium" | "high" | "xhigh" | "max")
-        : ("low" as const),
+        : ("medium" as const),
     max_tokens: Number.isFinite(maxTokens) && maxTokens && maxTokens > 0 ? maxTokens : undefined,
     exclude: excludeRaw === "true" ? true : undefined,
   };
