@@ -310,8 +310,19 @@ const ScreenLayoutContractSchema = z.object({
   anti_patterns: z.array(z.string().trim().min(1).max(260)).max(8).default([]).optional(),
 });
 
+const normalizeReferenceLayoutSource = (value: unknown) => {
+  if (typeof value !== "string") return value;
+  const normalized = value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  if (/reference|source|recreate/.test(normalized)) return "reference";
+  if (/screen|target|purpose|product|task/.test(normalized)) return "screen-purpose";
+  return value;
+};
+
 const ReferenceTransferContractSchema = z.object({
-  layout_source: z.enum(["reference", "screen-purpose"]),
+  layout_source: z.preprocess(
+    normalizeReferenceLayoutSource,
+    z.enum(["reference", "screen-purpose"]),
+  ),
   preserve: z.array(z.string().trim().min(1).max(500)).max(8).default([]),
   adapt: z.array(z.string().trim().min(1).max(700)).max(10).default([]),
   reject: z.array(z.string().trim().min(1).max(700)).max(12).default([]),
@@ -471,7 +482,80 @@ const NavigationDesignContractSchema = z.object({
   ),
 }).nullable().optional();
 
-const NavigationPlanSchema = z.object({
+const NavigationItemSchema = z.preprocess((value) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const item = value as Record<string, unknown>;
+  const label = typeof item.label === "string" ? item.label.trim() : "";
+  return {
+    ...item,
+    role: item.role ?? item.purpose ?? item.description ?? (label ? `${label} destination` : undefined),
+    linked_screen_name: item.linked_screen_name ?? item.linkedScreenName,
+  };
+}, z.object({
+  id: z.string().trim().min(1).max(80),
+  label: z.string().trim().min(1).max(40),
+  icon: z.string().trim().min(1).max(80),
+  role: z.string().trim().min(1).max(240),
+  availability: z.preprocess((value) => {
+    if (typeof value !== "string") return value;
+    return /generated|ready|built|existing/i.test(value) ? "generated" : "planned";
+  }, z.enum(["generated", "planned"]).optional()),
+  linked_screen_name: z.preprocess(
+    (value) => typeof value === "string" && !value.trim() ? null : value,
+    z.string().trim().min(1).max(100).nullable().optional(),
+  ),
+}));
+
+const NavigationScreenChromeSchema = z.object({
+  screen_name: z.string().trim().min(1).max(100),
+  chrome: ScreenChromeKindSchema,
+  navigation_item_id: z.string().trim().min(1).max(80).nullable().optional(),
+});
+
+const normalizeNavigationScreenChrome = (
+  value: unknown,
+  linkedScreenNamesByItemId: ReadonlyMap<string, string>,
+) => {
+  if (!Array.isArray(value)) return value;
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
+    const item = entry as Record<string, unknown>;
+    const navigationItemId = item.navigation_item_id ?? item.navigationItemId;
+    const screenName = item.screen_name
+      ?? item.screenName
+      ?? item.screen
+      ?? item.name
+      ?? (typeof navigationItemId === "string" ? linkedScreenNamesByItemId.get(navigationItemId) : undefined);
+    if (typeof screenName !== "string" || !screenName.trim()) return [];
+    return [{
+      ...item,
+      screen_name: screenName,
+      navigation_item_id: navigationItemId,
+    }];
+  });
+};
+
+const normalizeNavigationPlanInput = (value: unknown) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const plan = value as Record<string, unknown>;
+  const items = Array.isArray(plan.items) ? plan.items : [];
+  const linkedScreenNamesByItemId = new Map<string, string>();
+  for (const item of items) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const record = item as Record<string, unknown>;
+    const id = record.id;
+    const linkedScreenName = record.linked_screen_name ?? record.linkedScreenName;
+    if (typeof id === "string" && typeof linkedScreenName === "string" && linkedScreenName.trim()) {
+      linkedScreenNamesByItemId.set(id, linkedScreenName);
+    }
+  }
+  return {
+    ...plan,
+    screen_chrome: normalizeNavigationScreenChrome(plan.screen_chrome, linkedScreenNamesByItemId),
+  };
+};
+
+const NavigationPlanSchema = z.preprocess(normalizeNavigationPlanInput, z.object({
   version: z.preprocess((value) => Number(value), z.literal(2)),
   decision: z.preprocess(normalizeNavigationDecision, z.enum(["none", "project-native", "reference-derived"])),
   evidence: z.object({
@@ -480,28 +564,11 @@ const NavigationPlanSchema = z.object({
   }),
   enabled: BooleanishSchema.optional(),
   kind: NavigationPlanKindSchema.optional(),
-  items: z.array(z.object({
-    id: z.string().trim().min(1).max(80),
-    label: z.string().trim().min(1).max(40),
-    icon: z.string().trim().min(1).max(80),
-    role: z.string().trim().min(1).max(240),
-    availability: z.preprocess((value) => {
-      if (typeof value !== "string") return value;
-      return /generated|ready|built|existing/i.test(value) ? "generated" : "planned";
-    }, z.enum(["generated", "planned"]).optional()),
-    linked_screen_name: z.preprocess(
-      (value) => typeof value === "string" && !value.trim() ? null : value,
-      z.string().trim().min(1).max(100).nullable().optional(),
-    ),
-  })).max(5).default([]),
+  items: z.array(NavigationItemSchema).max(5).default([]),
   design: NavigationDesignContractSchema,
   visual_brief: z.string().trim().min(1).max(1600).optional(),
-  screen_chrome: z.array(z.object({
-    screen_name: z.string().trim().min(1).max(100),
-    chrome: ScreenChromeKindSchema,
-    navigation_item_id: z.string().trim().min(1).max(80).nullable().optional(),
-  })).default([]),
-}).optional();
+  screen_chrome: z.array(NavigationScreenChromeSchema).default([]),
+})).optional();
 type ParsedNavigationPlan = NonNullable<z.infer<typeof NavigationPlanSchema>>;
 
 const CreativeDirectionSchema = z.object({
@@ -540,6 +607,9 @@ const ProjectBlueprintSchema = PlanSchema.omit({ screens: true });
 const ScreenBriefsSchema = z.object({
   screens: z.array(ScreenPlanSchema).min(1).max(5),
 });
+
+export const parsePlannerProjectBlueprint = (value: unknown) =>
+  ProjectBlueprintSchema.safeParse(value);
 
 type ParsedCreativeDirection = z.infer<typeof CreativeDirectionSchema>;
 
@@ -1139,7 +1209,7 @@ const compileGenerationIntentContract = ({
   };
 };
 
-const buildScreenCountContract = ({
+export const buildScreenCountContract = ({
   intentContract,
   explicitScreenSections,
   scopeContract,
@@ -1156,11 +1226,17 @@ const buildScreenCountContract = ({
           ? explicitScreenSections.length > 0 ? "named_screens" : "prompt_count"
           : intentContract.source === "reference_image" ? "reference_image" : "open_project";
 
+    const namedScreens = explicitScreenSections.length > 0
+      ? explicitScreenSections.map((section) => section.name)
+      : scopeContract?.countSource === "named_screens"
+        ? scopeContract.screens?.map((screen) => screen.name)
+        : undefined;
+
     return {
       exactCount: intentContract.exactScreenCount,
       source,
       reason: intentContract.reason,
-      namedScreens: scopeContract?.screens?.map((screen) => screen.name) ?? explicitScreenSections.map((section) => section.name),
+      namedScreens,
       referenceScreenCount: intentContract.referenceScreenCount,
       disableSharedNavigation: !intentContract.allowSharedNavigation,
       maxScreens: intentContract.maxInitialScreens ?? null,
@@ -1730,36 +1806,6 @@ export const enforceNavigationEvidencePolicy = ({
     })),
   };
 };
-const fallbackScreensFromReference = ({
-  prompt,
-  planningMode,
-  referenceAnalysis,
-  mode,
-}: {
-  prompt: string;
-  planningMode: PlanningMode;
-  referenceAnalysis: ReferenceAnalysis | null;
-  mode: ReferenceTransferMode;
-}) => {
-  if (planningMode === "single-screen" || mode !== "recreate") {
-    return [fallbackScreenPlan(prompt)];
-  }
-
-  if (!referenceAnalysis || referenceAnalysis.screenReferences.length === 0) {
-    return [fallbackScreenPlan(prompt)];
-  }
-
-  const screens = referenceAnalysis.screenReferences
-    .slice(0, 8)
-    .map((referenceScreen, index) => ({
-      name: humanizeReferenceRole(referenceScreen.suggestedRole, referenceScreen.index),
-      type: index === 0 ? "root" : "detail",
-      description: buildStructuredScreenDescription(referenceScreen),
-    })) satisfies ScreenPlan[];
-
-  return screens.length > 0 ? screens : [fallbackScreenPlan(prompt)];
-};
-
 export const fallbackProjectCharter = ({
   prompt,
   image,
@@ -3191,8 +3237,80 @@ export async function planUiFlow({
     llmLog(`[TOKEN USAGE] plan-ui-flow-blueprint`, response.usageMetadata as Record<string, unknown>);
   }
 
-  let rawBlueprint = parseJsonResponse<unknown>(response.text || "{}");
-  let parsedBlueprint = ProjectBlueprintSchema.safeParse(rawBlueprint);
+  const initialBlueprintText = response.text || "{}";
+  let rawBlueprint: unknown = {};
+  let blueprintJsonError: string | null = null;
+  try {
+    rawBlueprint = parseJsonResponse<unknown>(initialBlueprintText);
+  } catch (error) {
+    blueprintJsonError = error instanceof Error ? error.message : String(error);
+  }
+  let parsedBlueprint = parsePlannerProjectBlueprint(rawBlueprint);
+
+  if (!parsedBlueprint.success) {
+    const initialIssues = [
+      ...(blueprintJsonError ? [`root: ${blueprintJsonError}`] : []),
+      ...parsedBlueprint.error.issues.map((issue) => `${issue.path.join(".") || "root"}: ${issue.message}`),
+    ];
+    llmLog?.("[planUiFlow] blueprint schema repair requested", {
+      issues: initialIssues,
+    });
+
+    const structuralRepairResponse = await ai.models.generateContent({
+      model: policy.model,
+      contents: {
+        parts: [
+          ...parts,
+          {
+            text: [
+              "PROJECT BLUEPRINT STRUCTURE REPAIR. Return the complete project blueprint JSON without screens.",
+              "The prior response failed the required schema: " + initialIssues.join("; ") + ".",
+              "Preserve all valid product decisions, charter content, roadmap items, and navigation evidence.",
+              "Every navigation item requires id, label, icon, role, availability, and linked_screen_name.",
+              "Every screen_chrome entry requires screen_name, chrome, and navigation_item_id.",
+              "Do not add a screens field in this blueprint step.",
+              "Invalid response: " + initialBlueprintText.slice(0, 24000),
+            ].join("\n"),
+          },
+        ],
+      },
+      config: policy.config,
+    });
+    if (llmLog && structuralRepairResponse.usageMetadata) {
+      llmLog(
+        "[TOKEN USAGE] plan-ui-flow-blueprint-schema-repair",
+        structuralRepairResponse.usageMetadata as Record<string, unknown>,
+      );
+    }
+
+    let repairedRaw: unknown = {};
+    let repairedJsonError: string | null = null;
+    try {
+      repairedRaw = parseJsonResponse<unknown>(structuralRepairResponse.text || "{}");
+    } catch (error) {
+      repairedJsonError = error instanceof Error ? error.message : String(error);
+    }
+    const repairedBlueprint = parsePlannerProjectBlueprint(repairedRaw);
+    if (repairedBlueprint.success) {
+      rawBlueprint = repairedRaw;
+      parsedBlueprint = repairedBlueprint;
+      llmLog?.("[planUiFlow] blueprint schema repair accepted", {
+        initialIssues,
+      });
+    } else {
+      const repairedIssues = [
+        ...(repairedJsonError ? [`root: ${repairedJsonError}`] : []),
+        ...repairedBlueprint.error.issues.map((issue) => `${issue.path.join(".") || "root"}: ${issue.message}`),
+      ];
+      llmLog?.("[planUiFlow] blueprint schema repair rejected", {
+        initialIssues,
+        repairedIssues,
+      });
+      throw new Error(
+        `Project blueprint failed schema validation after one repair attempt: ${repairedIssues.join("; ")}`,
+      );
+    }
+  }
 
   if (parsedBlueprint.success) {
     const navigationIssues = navigationBlueprintIssues(parsedBlueprint.data.navigation_plan);
@@ -3223,7 +3341,7 @@ export async function planUiFlow({
         llmLog("[TOKEN USAGE] plan-ui-flow-navigation-repair", repairResponse.usageMetadata as Record<string, unknown>);
       }
       const repairedRaw = parseJsonResponse<unknown>(repairResponse.text || "{}");
-      const repairedBlueprint = ProjectBlueprintSchema.safeParse(repairedRaw);
+      const repairedBlueprint = parsePlannerProjectBlueprint(repairedRaw);
       if (repairedBlueprint.success && navigationBlueprintIssues(repairedBlueprint.data.navigation_plan).length === 0) {
         rawBlueprint = repairedRaw;
         parsedBlueprint = repairedBlueprint;
@@ -3271,7 +3389,7 @@ export async function planUiFlow({
             : "Hierarchical screen-specific chrome without persistent primary navigation.",
         },
       };
-      const validatedEvidenceAdjustedBlueprint = ProjectBlueprintSchema.safeParse(evidenceAdjustedBlueprint);
+      const validatedEvidenceAdjustedBlueprint = parsePlannerProjectBlueprint(evidenceAdjustedBlueprint);
       if (validatedEvidenceAdjustedBlueprint.success) {
         rawBlueprint = evidenceAdjustedBlueprint;
         parsedBlueprint = validatedEvidenceAdjustedBlueprint;
@@ -3384,16 +3502,85 @@ export async function planUiFlow({
       llmLog(`[TOKEN USAGE] plan-ui-flow-screen-briefs`, screenResponse.usageMetadata as Record<string, unknown>);
     }
 
-    const rawScreenBriefs = parseJsonResponse<unknown>(screenResponse.text || "{}");
-    const rawScreenItems = extractRawScreenArray(rawScreenBriefs);
-    const parsedScreenBriefs = ScreenBriefsSchema.safeParse(
-      rawScreenItems.length > 0 ? { screens: rawScreenItems } : rawScreenBriefs,
-    );
+    const parseScreenBriefResponse = (text: string) => {
+      let raw: unknown = {};
+      let jsonError: string | null = null;
+      try {
+        raw = parseJsonResponse<unknown>(text || "{}");
+      } catch (error) {
+        jsonError = error instanceof Error ? error.message : String(error);
+      }
+      const items = extractRawScreenArray(raw);
+      const result = ScreenBriefsSchema.safeParse(items.length > 0 ? { screens: items } : raw);
+      return { raw, items, result, jsonError };
+    };
+
+    const initialScreenText = screenResponse.text || "{}";
+    let screenBriefResult = parseScreenBriefResponse(initialScreenText);
+    if (!screenBriefResult.result.success) {
+      const initialIssues = [
+        ...(screenBriefResult.jsonError ? [`root: ${screenBriefResult.jsonError}`] : []),
+        ...screenBriefResult.result.error.issues.map((issue) => `${issue.path.join(".") || "root"}: ${issue.message}`),
+      ];
+      llmLog?.("[planUiFlow] screen brief schema repair requested", {
+        issues: initialIssues,
+        rawScreenCount: screenBriefResult.items.length,
+      });
+      const screenRepairResponse = await ai.models.generateContent({
+        model: screenPolicy.model,
+        contents: {
+          parts: [
+            ...screenParts,
+            {
+              text: [
+                "SCREEN BRIEF STRUCTURE REPAIR. Return the complete screens JSON and nothing else.",
+                "The prior response failed the required schema: " + initialIssues.join("; ") + ".",
+                "Preserve the approved blueprint, exact roadmap.initial_batch_keys order, and every valid product decision.",
+                "Return every required screen with a product-specific name and purpose, all seven description sections, layout_contract, reference_transfer, chrome_policy, asset_needs, and state_variants.",
+                "Invalid response: " + initialScreenText.slice(0, 24000),
+              ].join("\n"),
+            },
+          ],
+        },
+        config: screenPolicy.config,
+      });
+      if (llmLog && screenRepairResponse.usageMetadata) {
+        llmLog(
+          "[TOKEN USAGE] plan-ui-flow-screen-briefs-schema-repair",
+          screenRepairResponse.usageMetadata as Record<string, unknown>,
+        );
+      }
+      const repairedScreenBriefs = parseScreenBriefResponse(screenRepairResponse.text || "{}");
+      if (repairedScreenBriefs.result.success) {
+        screenBriefResult = repairedScreenBriefs;
+        llmLog?.("[planUiFlow] screen brief schema repair accepted", {
+          screenCount: repairedScreenBriefs.result.data.screens.length,
+        });
+      } else {
+        const repairedIssues = [
+          ...(repairedScreenBriefs.jsonError ? [`root: ${repairedScreenBriefs.jsonError}`] : []),
+          ...repairedScreenBriefs.result.error.issues.map((issue) => `${issue.path.join(".") || "root"}: ${issue.message}`),
+        ];
+        llmLog?.("[planUiFlow] screen brief schema repair rejected", {
+          initialIssues,
+          repairedIssues,
+          rawScreenCount: repairedScreenBriefs.items.length,
+        });
+        if (repairedScreenBriefs.items.length > 0) {
+          screenBriefResult = repairedScreenBriefs;
+        } else if (screenBriefResult.items.length === 0) {
+          throw new Error(
+            `Screen planner returned no usable screen briefs after one repair attempt: ${repairedIssues.join("; ")}`,
+          );
+        }
+      }
+    }
+
     rawPlan = {
       ...parsedBlueprint.data,
-      screens: parsedScreenBriefs.success
-        ? parsedScreenBriefs.data.screens
-        : rawScreenItems,
+      screens: screenBriefResult.result.success
+        ? screenBriefResult.result.data.screens
+        : screenBriefResult.items,
     };
     parsed = PlanSchema.safeParse(rawPlan);
   }
@@ -3421,6 +3608,11 @@ export async function planUiFlow({
     // the full plan schema failed (e.g. a charter field was too long).
     // -------------------------------------------------------------------
     const salvaged = salvageScreensFromRawPlan(rawPlan);
+    if (salvaged.screens.length === 0) {
+      throw new Error(
+        `Screen planner produced no recoverable screens after schema repair: ${validationIssues.join("; ")}`,
+      );
+    }
 
     const navigationArchitecture = screenCountContract.disableSharedNavigation || forceFiniteFlowWithoutPersistentNav
       ? createNavigationArchitecture({ requiresBottomNav: false })
@@ -3431,15 +3623,9 @@ export async function planUiFlow({
           lockToExistingArchitecture: Boolean(projectContext?.trim() && existingCharter?.navigationArchitecture),
         });
 
-    const salvageSource = salvaged.screens.length > 0 ? "salvaged" : "fallback";
-    const rawScreens = salvaged.screens.length > 0
-      ? salvaged.screens.map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture }))
-      : fallbackScreensFromReference({
-          prompt,
-          planningMode,
-          referenceAnalysis,
-          mode: plannerMode,
-        }).map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture }));
+    const salvageSource = "salvaged";
+    const rawScreens = salvaged.screens
+      .map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture }));
     const reconciledScreens = reconcileScreensWithScope({
       prompt,
       screens: rawScreens,

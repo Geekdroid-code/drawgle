@@ -253,10 +253,11 @@ Blueprint rules:
 ${plannerBlueprintModeRules(mode)}
 - evidence.source "explicit-prompt" is legal only when the user literally requested tabs, a dock, a tab bar, or persistent primary navigation. A request for N screens is not navigation evidence.
 - Use decision "project-native" only for clear peer root product areas. Supply 3-5 unique meaningful destinations, defaulting to 4.
+- Every navigation item must include all six keys: id, label, icon, role, availability, and linked_screen_name. role is a concise product-specific purpose, not a duplicate of label.
 - A requested root screen uses availability "generated" and links to its exact screen name. Future product destinations use availability "planned" and linked_screen_name null; they do not create screens.
 - Never fabricate generic Home/Search/Profile filler. Every destination label and role must be specific to the requested product.
 - Never use onboarding, splash, auth, chat, camera, player, checkout, confirmation, modal, transient tracking, or detail screens as primary destinations.
-- screen_chrome assigns an active navigation_item_id only to generated root destinations. Planned destinations are never active.
+- Every screen_chrome entry must include screen_name, chrome, and navigation_item_id. screen_name must exactly match a roadmap item name. screen_chrome assigns an active navigation_item_id only to generated root destinations; planned destinations are never active.
 - When navigation is enabled, choose its anatomy by contrasting at least two viable families against product frequency, reachability, label length, content density, brand material, and current screen language. Do not copy the JSON schema example or reuse a floating pill by habit.
 - visual_brief must state why the chosen anatomy fits this product and why the most obvious alternative was rejected. The renderer uses design as a real construction contract.
 - Use Lucide icon names. Select one supported design anatomy and provide bounded measurements; the renderer, not the builder, owns navigation HTML.
