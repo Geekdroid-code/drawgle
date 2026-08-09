@@ -112,6 +112,67 @@ export function assertJsonSerializable(value: unknown, label = "payload"): void 
   }
 }
 
+type PersistErrorShape = {
+  code?: unknown;
+  message?: unknown;
+  details?: unknown;
+  hint?: unknown;
+};
+
+/**
+ * Detect the deployment-order case where application code knows about the
+ * optional QA telemetry column but PostgREST has not observed the migration.
+ * Keep this exact: unrelated schema or persistence failures must still surface.
+ */
+export function isMissingQualityDiagnosticsColumnError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as PersistErrorShape;
+  const code = typeof candidate.code === "string" ? candidate.code : "";
+  const description = [candidate.message, candidate.details, candidate.hint]
+    .filter((value): value is string => typeof value === "string")
+    .join(" ");
+
+  return (code === "PGRST204" || code === "42703")
+    && /quality_diagnostics/i.test(description);
+}
+
+export type OptionalQualityDiagnosticsPersistResult<TError> = {
+  error: TError | null;
+  qualityDiagnosticsPersisted: boolean;
+};
+
+/**
+ * Persist a screen patch while treating quality_diagnostics as the optional
+ * telemetry it is. A missing-column response retries the same write once with
+ * only that field removed; it never retries a builder call or hides other DB
+ * errors.
+ */
+export async function persistWithOptionalQualityDiagnostics<TError>(
+  patch: Record<string, unknown>,
+  persist: (nextPatch: Record<string, unknown>) => Promise<{ error: TError | null }>,
+): Promise<OptionalQualityDiagnosticsPersistResult<TError>> {
+  const first = await persist(patch);
+  if (
+    !first.error
+    || !Object.prototype.hasOwnProperty.call(patch, "quality_diagnostics")
+    || !isMissingQualityDiagnosticsColumnError(first.error)
+  ) {
+    return {
+      error: first.error,
+      qualityDiagnosticsPersisted: !first.error
+        && Object.prototype.hasOwnProperty.call(patch, "quality_diagnostics"),
+    };
+  }
+
+  const fallbackPatch = { ...patch };
+  delete fallbackPatch.quality_diagnostics;
+  const fallback = await persist(fallbackPatch);
+  return {
+    error: fallback.error,
+    qualityDiagnosticsPersisted: false,
+  };
+}
+
 /**
  * Build a screens update patch with only defined keys and JSON-safe strings.
  */

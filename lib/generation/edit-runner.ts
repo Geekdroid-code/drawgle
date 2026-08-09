@@ -31,7 +31,11 @@ import {
   validateSourceCompletion,
   validateStaticDrawgleHtml,
 } from "@/lib/generation/screen-quality";
-import { buildScreenPersistPatch, sanitizeScreenCodeForPersist } from "@/lib/generation/persist-safe";
+import {
+  buildScreenPersistPatch,
+  persistWithOptionalQualityDiagnostics,
+  sanitizeScreenCodeForPersist,
+} from "@/lib/generation/persist-safe";
 import { buildBuilderProjectContract } from "@/lib/generation/builder-product-contract";
 import { buildStaticScreenQualityDiagnostics, normalizeGeneratedUiContracts } from "@/lib/generation/ui-contract-normalizer";
 import { cleanUnknownError, USER_FACING_PERSIST_FAILED_ERROR } from "@/lib/ai/error-handler";
@@ -363,10 +367,16 @@ const persistScreenCode = async (
     blockIndex: indexScreenCode(sanitized.value),
     qualityDiagnostics: buildStaticScreenQualityDiagnostics(sanitized.value, normalized.report),
   });
-  const { error: updateError } = await admin
-    .from("screens")
-    .update(patch)
-    .eq("id", screenId);
+  const { error: updateError } = await persistWithOptionalQualityDiagnostics(
+    patch,
+    async (nextPatch) => {
+      const { error } = await admin
+        .from("screens")
+        .update(nextPatch)
+        .eq("id", screenId);
+      return { error };
+    },
+  );
 
   if (updateError) {
     throw new Error(cleanUnknownError(updateError, USER_FACING_PERSIST_FAILED_ERROR));

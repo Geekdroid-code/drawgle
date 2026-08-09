@@ -4,6 +4,7 @@ import { tasks } from "@trigger.dev/sdk";
 import { applyDeterministicEdits, ensureDrawgleIds, type DeterministicEditOperation, type DrawgleElementTargetType } from "@/lib/drawgle-dom";
 import { indexScreenCode } from "@/lib/generation/block-index";
 import { buildStaticScreenQualityDiagnostics, normalizeGeneratedUiContracts } from "@/lib/generation/ui-contract-normalizer";
+import { persistWithOptionalQualityDiagnostics } from "@/lib/generation/persist-safe";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
@@ -161,17 +162,23 @@ export async function POST(req: Request) {
     const nextCode = tokenizeStaticDrawgleHtml(normalized.code, designTokens).code;
     const qualityDiagnostics = buildStaticScreenQualityDiagnostics(nextCode, normalized.report);
 
-    const { error: updateError } = await admin
-      .from("screens")
-      .update({
+    const { error: updateError } = await persistWithOptionalQualityDiagnostics(
+      {
         code: nextCode,
-        quality_diagnostics: qualityDiagnostics as never,
-        block_index: indexScreenCode(nextCode) as never,
+        quality_diagnostics: qualityDiagnostics,
+        block_index: indexScreenCode(nextCode),
         status: "ready",
         error: null,
         updated_at: new Date().toISOString(),
-      })
-      .eq("id", screen.id);
+      },
+      async (patch) => {
+        const { error } = await admin
+          .from("screens")
+          .update(patch)
+          .eq("id", screen.id);
+        return { error };
+      },
+    );
 
     if (updateError) {
       throw updateError;

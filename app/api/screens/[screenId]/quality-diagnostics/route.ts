@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { hashUiCode } from "@/lib/generation/ui-contract-normalizer";
+import { isMissingQualityDiagnosticsColumnError } from "@/lib/generation/persist-safe";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { ScreenQualityDiagnosticsV1 } from "@/lib/types";
@@ -45,7 +46,7 @@ export async function POST(request: Request, context: { params: Promise<{ screen
   const admin = createAdminClient();
   const { data: screen, error } = await admin
     .from("screens")
-    .select("id, code, quality_diagnostics")
+    .select("id, code")
     .eq("id", screenId)
     .eq("owner_id", user.id)
     .maybeSingle();
@@ -55,7 +56,20 @@ export async function POST(request: Request, context: { params: Promise<{ screen
     return NextResponse.json({ ignored: true, reason: "stale_code_hash" }, { status: 202 });
   }
 
-  const existing = screen.quality_diagnostics as unknown as ScreenQualityDiagnosticsV1 | null;
+  const { data: telemetryRow, error: telemetryReadError } = await admin
+    .from("screens")
+    .select("quality_diagnostics")
+    .eq("id", screenId)
+    .eq("owner_id", user.id)
+    .maybeSingle();
+  if (isMissingQualityDiagnosticsColumnError(telemetryReadError)) {
+    return NextResponse.json({ ignored: true, reason: "telemetry_schema_unavailable" }, { status: 202 });
+  }
+  if (telemetryReadError) {
+    return NextResponse.json({ error: "Unable to read quality diagnostics." }, { status: 500 });
+  }
+
+  const existing = telemetryRow?.quality_diagnostics as unknown as ScreenQualityDiagnosticsV1 | null;
   if (
     existing?.version === 1
     && existing.codeHash === parsed.data.codeHash
@@ -86,6 +100,9 @@ export async function POST(request: Request, context: { params: Promise<{ screen
     .update({ quality_diagnostics: next as never })
     .eq("id", screenId)
     .eq("owner_id", user.id);
+  if (isMissingQualityDiagnosticsColumnError(updateError)) {
+    return NextResponse.json({ ignored: true, reason: "telemetry_schema_unavailable" }, { status: 202 });
+  }
   if (updateError) return NextResponse.json({ error: "Unable to store quality diagnostics." }, { status: 500 });
   return NextResponse.json({ saved: true });
 }

@@ -70,6 +70,7 @@ The normalized per-screen description and layout contract go to the builder. Raw
 - Unknown variables, ambiguous artistic containers, truncation risks, and residual token drift are saved as warnings. They do not trigger a paid builder retry or fail a usable screen.
 - Blank, unsafe, malformed, structurally broken, or genuinely unrenderable output still follows the existing failure gates.
 - Owner previews report bounded rendered measurements after Tailwind and fonts are ready. Public/read-only previews never write telemetry; source HTML, prompts, image data, and full text content are never sent.
+- QA telemetry is an optional side effect, never a screen-persistence dependency. If the telemetry migration or PostgREST schema cache is unavailable, the same screen write is retried once without `quality_diagnostics`; normal screen reads do not select the optional field.
 - `DRAWGLE_UI_CONTRACT_REPAIR_ENABLED=false` changes the normalizer to diagnostics-only mode without removing telemetry.
 
 ## 2026-08-09 — Deterministic UI Contract and Runtime QA Hardening
@@ -180,6 +181,40 @@ Diagnostics now store provider, requested builder model, actual attempted/comple
 ### Verification
 
 Pure diagnostics tests cover a Luna request and an OpenRouter fallback to a different model.
+
+## 2026-08-09 — Optional QA Schema Compatibility Hotfix
+
+### Symptom
+
+Production builders completed and returned usable HTML, but every screen was marked failed while saving. PostgREST returned `PGRST204` because `screens.quality_diagnostics` was not yet present in its schema cache.
+
+### Root cause
+
+The hardening release described the new diagnostics column as nullable and non-blocking, but the generated-screen write included it unconditionally. Deploying application and Trigger code before the database migration therefore made optional telemetry a mandatory dependency. Core screen reads also selected the optional field, creating the same deployment-order risk on read paths. The repository's GitHub workflow deploys Trigger tasks only; it does not apply Supabase migrations, so pushing the migration file could not create the production column.
+
+### Change
+
+- Screen persistence now recognizes only the exact missing-`quality_diagnostics` schema error and retries the same database write once with that telemetry field omitted.
+- The retry reuses the already generated HTML and does not call the builder again, consume model budget, downgrade status, or hide unrelated database errors.
+- Initial generation, builder edits, deterministic element edits, and agent-driven direct edits share the compatibility behavior.
+- Core screen queries no longer select optional QA telemetry. The owner-only telemetry endpoint returns an accepted/ignored response while its schema is unavailable.
+- The migration explicitly asks PostgREST to reload its schema cache after adding the column.
+- Pre-persistence logs no longer claim a screen was saved before the database write succeeds.
+
+### Safety invariants
+
+- Missing optional telemetry can never fail a usable paid screen.
+- Only `PGRST204`/`42703` errors naming `quality_diagnostics` activate the fallback; permission, ownership, constraint, connectivity, and other schema failures still surface.
+- The original patch is not mutated, and only the telemetry field is removed from the retry.
+
+### Verification
+
+- Regression coverage reproduces the exact production `PGRST204` message, confirms the second patch retains screen code/status/index data, and confirms unrelated failures are neither hidden nor retried.
+- Focused tests, typecheck, lint, and production build results are recorded in the implementation handoff.
+
+### Rollout and rollback
+
+Deploy this code independently of the migration; it is safe before or after the column exists. The migration should still be applied to enable stored QA telemetry. Rolling application code back remains safe while the nullable column exists.
 
 ## Future Entry Template
 

@@ -18,6 +18,7 @@ import { isProjectAgentV2Enabled } from "@/lib/env/server";
 import { applyDeterministicEdits, ensureDrawgleIds, type DeterministicEditOperation, type DrawgleImageTargetMeta } from "@/lib/drawgle-dom";
 import { indexScreenCode } from "@/lib/generation/block-index";
 import { buildStaticScreenQualityDiagnostics, normalizeGeneratedUiContracts } from "@/lib/generation/ui-contract-normalizer";
+import { persistWithOptionalQualityDiagnostics } from "@/lib/generation/persist-safe";
 import { persistProjectMessageMemoryPair } from "@/lib/generation/message-memory";
 import { findRepairTarget } from "@/lib/generation/screen-repair";
 import { findLatestProjectPromptImagePath } from "@/lib/generation/prompt-reference-storage";
@@ -2185,17 +2186,24 @@ export async function POST(request: Request) {
       const qualityDiagnostics = buildStaticScreenQualityDiagnostics(nextCode, normalized.report);
       const changed = nextCode !== currentCode;
 
-      await admin
-        .from("screens")
-        .update({
+      const imageReplacementPersist = await persistWithOptionalQualityDiagnostics(
+        {
           code: nextCode,
-          quality_diagnostics: qualityDiagnostics as never,
-          block_index: indexScreenCode(nextCode) as never,
+          quality_diagnostics: qualityDiagnostics,
+          block_index: indexScreenCode(nextCode),
           status: "ready",
           error: null,
           updated_at: now(),
-        })
-        .eq("id", screen.id);
+        },
+        async (patch) => {
+          const { error } = await admin
+            .from("screens")
+            .update(patch)
+            .eq("id", screen.id);
+          return { error };
+        },
+      );
+      if (imageReplacementPersist.error) throw imageReplacementPersist.error;
 
       if (changed) {
         await tasks.trigger<typeof enrichScreenMemoryTask>(
@@ -2698,17 +2706,24 @@ export async function POST(request: Request) {
           : `No material token style changes were applied to ${screen.name}.`;
 
         if (changed) {
-          await admin
-            .from("screens")
-            .update({
+          const styleEditPersist = await persistWithOptionalQualityDiagnostics(
+            {
               code: nextCode,
-              quality_diagnostics: qualityDiagnostics as never,
-              block_index: indexScreenCode(nextCode) as never,
+              quality_diagnostics: qualityDiagnostics,
+              block_index: indexScreenCode(nextCode),
               status: "ready",
               error: null,
               updated_at: now(),
-            })
-            .eq("id", screen.id);
+            },
+            async (patch) => {
+              const { error } = await admin
+                .from("screens")
+                .update(patch)
+                .eq("id", screen.id);
+              return { error };
+            },
+          );
+          if (styleEditPersist.error) throw styleEditPersist.error;
           await tasks.trigger<typeof enrichScreenMemoryTask>(
             "enrich-screen-memory",
             { screenId: screen.id },

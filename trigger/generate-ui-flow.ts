@@ -5,7 +5,12 @@ import { logger, runs, streams, task } from "@trigger.dev/sdk";
 import { ensureDrawgleIds } from "@/lib/drawgle-dom";
 import { geminiPolicyForTask } from "@/lib/ai/model-policy";
 import { cleanErrorMessage, cleanUnknownError, isPersistJsonError, USER_FACING_PERSIST_FAILED_ERROR } from "@/lib/ai/error-handler";
-import { buildScreenPersistPatch, sanitizeScreenCodeForPersist, sanitizeTextForJson } from "@/lib/generation/persist-safe";
+import {
+  buildScreenPersistPatch,
+  persistWithOptionalQualityDiagnostics,
+  sanitizeScreenCodeForPersist,
+  sanitizeTextForJson,
+} from "@/lib/generation/persist-safe";
 import { resolveBuilderProviderIdentity } from "@/lib/generation/builder-diagnostics";
 import { buildStaticScreenQualityDiagnostics, normalizeGeneratedUiContracts } from "@/lib/generation/ui-contract-normalizer";
 import {
@@ -1339,11 +1344,26 @@ export const buildScreenTask = task({
     };
 
     const persistScreenRow = async (patch: Record<string, unknown>) => {
-      const { error: updateError } = await admin
-        .from("screens")
-        .update(patch)
-        .eq("id", payload.screenId);
-      return updateError;
+      const result = await persistWithOptionalQualityDiagnostics(
+        patch,
+        async (nextPatch) => {
+          const { error } = await admin
+            .from("screens")
+            .update(nextPatch)
+            .eq("id", payload.screenId);
+          return { error };
+        },
+      );
+      if (
+        Object.prototype.hasOwnProperty.call(patch, "quality_diagnostics")
+        && !result.qualityDiagnosticsPersisted
+        && !result.error
+      ) {
+        logger.warn("Screen saved without optional quality diagnostics because telemetry schema is unavailable", {
+          screenId: payload.screenId,
+        });
+      }
+      return result.error;
     };
 
     const buildPayload: BuildScreenTaskPayload = {
@@ -1613,7 +1633,7 @@ export const buildScreenTask = task({
       });
     }
     if (finalized.tokenDrift.warnings.length > 0) {
-      logger.warn("Screen build saved with token drift diagnostics", {
+      logger.warn("Screen build contains token drift diagnostics", {
         screenId: payload.screenId,
         screenName: payload.screenPlan.name,
         warnings: finalized.tokenDrift.warnings.slice(0, 12),
@@ -1621,7 +1641,7 @@ export const buildScreenTask = task({
     }
 
     if (quality.warnings.length > 0 || quality.missingAnchors.length > 0) {
-      logger.warn("Screen build saved with soft quality diagnostics", {
+      logger.warn("Screen build contains soft quality diagnostics", {
         screenId: payload.screenId,
         screenName: payload.screenPlan.name,
         warnings: quality.warnings,
