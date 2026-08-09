@@ -7,7 +7,7 @@ import { z } from "zod";
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { getDesignStylePack, isDesignStyleId, summarizeDesignStyle } from "@/lib/generation/design-styles";
 import { VISUAL_ASSET_SEMANTIC_CATEGORIES } from "@/lib/generation/asset-semantics";
-import { parsePromptScreenIntent, preflightGenerationScope } from "@/lib/generation/scope-contract";
+import { deferNewProjectScopeConfirmation, parsePromptScreenIntent, preflightGenerationScope } from "@/lib/generation/scope-contract";
 import { normalizeReferenceImage } from "@/lib/generation/reference-image";
 import { findLatestProjectPromptImagePath } from "@/lib/generation/prompt-reference-storage";
 import { isGenerationReferencePolicy, resolveGenerationReferencePolicy } from "@/lib/generation/reference-policy";
@@ -551,7 +551,7 @@ export async function POST(request: Request) {
           : isExistingProjectRequest ? "user_style" : "internal_style",
         planningMode: "project",
       });
-      scopeContract = preflight.scopeContract;
+      scopeContract = deferNewProjectScopeConfirmation(preflight.scopeContract, isExistingProjectRequest);
       referenceAnalysis = preflight.referenceAnalysis;
       if (scopeContract.requiresConfirmation) {
         return NextResponse.json({

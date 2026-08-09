@@ -1435,6 +1435,21 @@ export function resolveGenerationScopeContract({
   };
 }
 
+export const deferNewProjectScopeConfirmation = (
+  contract: GenerationScopeContract,
+  isExistingProject: boolean,
+): GenerationScopeContract => {
+  if (isExistingProject || !contract.requiresConfirmation) return contract;
+  return {
+    ...contract,
+    requiresConfirmation: false,
+    diagnostics: [
+      ...contract.diagnostics,
+      "New-project scope clarification was deferred to the canvas; the authoritative blueprint selects the initial batch.",
+    ],
+  };
+};
+
 export async function preflightGenerationScope({
   prompt,
   image,

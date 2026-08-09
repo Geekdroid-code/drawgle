@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   analyzePromptScreenIntent,
+  deferNewProjectScopeConfirmation,
   hasExplicitFiniteScreenScopeSyntax,
   normalizeReferenceAnalysis,
   resolveGenerationScopeContract,
@@ -73,6 +74,49 @@ describe("generation scope reference provenance", () => {
     });
 
     expect(contract.referenceMode).toBe("curated_style");
+  });
+
+  it("never blocks new-project entry for a normal open-ended product brief", () => {
+    const ambiguousContract = resolveGenerationScopeContract({
+      prompt: "Build a premium on-demand mobile car washing app where people can book a detailer to come to their home or office. Users should pick a service, pick a time slot, select their location on a map, and pay.",
+      image: null,
+      referenceMode: "internal_style",
+      planningMode: "project",
+      referenceAnalysisResult: null,
+      promptIntent: {
+        promptScreenCount: null,
+        namedScreenCount: null,
+        allScreensRequested: false,
+        source: null,
+        confidence: "low",
+        requiresConfirmation: true,
+        diagnostics: [],
+        ambiguities: ["Features were described without a finite screen list."],
+        groups: [],
+        screens: [],
+      },
+    });
+
+    expect(ambiguousContract.requiresConfirmation).toBe(true);
+    const entryContract = deferNewProjectScopeConfirmation(ambiguousContract, false);
+    expect(entryContract.requiresConfirmation).toBe(false);
+    expect(entryContract.ambiguities).toEqual(ambiguousContract.ambiguities);
+    expect(entryContract.diagnostics.at(-1)).toContain("deferred to the canvas");
+  });
+
+  it("keeps confirmation available for existing-project chat workflows", () => {
+    const contract = {
+      ...resolveGenerationScopeContract({
+        prompt: "Add the booking flow.",
+        image: null,
+        referenceMode: "user_style",
+        planningMode: "project",
+        referenceAnalysisResult: null,
+      }),
+      requiresConfirmation: true,
+    };
+
+    expect(deferNewProjectScopeConfirmation(contract, true)).toBe(contract);
   });
 });
 

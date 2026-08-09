@@ -5,7 +5,7 @@ import { assembleProjectContext } from "@/lib/generation/context";
 import { loadCuratedStyleReferenceImage, matchCuratedStyleReference } from "@/lib/generation/curated-style-references";
 import { getDesignStylePack, isDesignStyleId } from "@/lib/generation/design-styles";
 import { planUiFlow } from "@/lib/generation/service";
-import { analyzeReferenceImageForScope, preflightGenerationScope } from "@/lib/generation/scope-contract";
+import { analyzeReferenceImageForScope, deferNewProjectScopeConfirmation, preflightGenerationScope } from "@/lib/generation/scope-contract";
 import { normalizeReferenceImage } from "@/lib/generation/reference-image";
 import { resolveProjectReferenceDna } from "@/lib/generation/reference-dna";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -182,11 +182,15 @@ export async function POST(req: Request) {
           cachedReferenceAnalysis: cachedReferenceDna?.dna.analysis,
         });
 
-    if (!providedScopeContract && scopePreflight.scopeContract.requiresConfirmation) {
+    const resolvedScopeContract = providedScopeContract
+      ? scopePreflight.scopeContract
+      : deferNewProjectScopeConfirmation(scopePreflight.scopeContract, Boolean(payload.projectId));
+
+    if (!providedScopeContract && resolvedScopeContract.requiresConfirmation) {
       return NextResponse.json({
         error: "Please confirm the interpreted screen scope before planning.",
         code: "scope_confirmation_required",
-        scopeContract: scopePreflight.scopeContract,
+        scopeContract: resolvedScopeContract,
       }, { status: 409 });
     }
 
@@ -198,7 +202,7 @@ export async function POST(req: Request) {
       referenceCatalogHash,
       designStyle,
       designTokens: (payload.designTokens ?? stylePreset?.tokenSeed ?? null) as DesignTokens | null,
-      scopeContract: scopePreflight.scopeContract,
+      scopeContract: resolvedScopeContract,
       referenceAnalysis: scopePreflight.referenceAnalysis,
       referenceDna: cachedReferenceDna?.dna,
       screenFamilyContract: cachedReferenceDna?.dna.screenFamilyContract,

@@ -84,6 +84,7 @@ The normalized per-screen description and layout contract go to the builder. Raw
 
 ### Progressive planning, assets, and billing
 
+- `/project/new` never blocks a normal open-ended app brief with a screen-scope confirmation modal. Low-confidence or non-finite scope remains diagnostic context and is resolved by the authoritative blueprint after redirect. Existing-project/add-screen ambiguity may still be clarified through the canvas chat workflow.
 - New multi-screen projects first produce one authoritative `ProjectBlueprintPlanV1`: charter, navigation, screen-family rules, roadmap, and ordered screen seeds. It intentionally contains no detailed screen topology.
 - The detailed planner briefs only the first seed initially. As soon as that brief and its reserved screen row are ready, Drawgle triggers the user-selected builder. Only after that trigger does one bounded call brief every remaining seed.
 - Screen 1 keeps exclusive scheduler priority. Later parent screens retain the existing concurrency of two. Single-screen, add-screen, retry, and state-only paths retain their compatibility flow.
@@ -134,6 +135,13 @@ New projects waited for every detailed screen brief and every project asset befo
 - Focused planner, prompt/asset-contract, visual-asset, scheduler, and credit tests cover the extracted contracts and compatibility behavior.
 - Typecheck verifies both the legacy and progressive orchestration branches.
 - Production latency targets require at least 20 representative deployed runs and must be evaluated from the new performance timestamps; local unit tests do not claim production timing.
+
+## 2026-08-09 — New-Project Scope Confirmation Removed
+
+- Symptom: an ordinary product prompt describing booking, service selection, time, map location, and payment was blocked on `/project/new` because it did not enumerate a finite screen list.
+- Root cause: semantic scope uncertainty was incorrectly treated as a required pre-payment confirmation, and `ProjectLobby` rendered the server’s 409 as a page-level modal.
+- Change: new-project scope uncertainty is now preserved as planner diagnostics and deferred to the canvas; the blueprint chooses the bounded initial batch. The lobby modal and its client retry state were removed.
+- Invariant: explicit screen counts and names remain authoritative. Existing-project/add-screen requests may still request clarification through the canvas workflow. This does not relax the eight-output or credit-reservation limits.
 
 ## 2026-08-09 — Deterministic UI Contract and Runtime QA Hardening
 
