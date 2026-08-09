@@ -161,6 +161,17 @@ describe("ScreenNode element selection messaging", () => {
     expect(iframe?.getAttribute("srcdoc")).toContain("payload.allowClassNamePreview === true && typeof payload.className === 'string'");
   });
 
+  it("keeps generated HTML hidden until Tailwind utilities are actually computed", () => {
+    const { container } = render(<ScreenNode screen={screen} />);
+    const srcDoc = container.querySelector("iframe")?.getAttribute("srcdoc") ?? "";
+
+    expect(srcDoc).toContain("html:not([data-drawgle-style-ready]) #root");
+    expect(srcDoc).toContain("function isTailwindCssApplied()");
+    expect(srcDoc).toContain("if (styleRuntimeReady && isTailwindCssApplied())");
+    expect(srcDoc).not.toContain("if (window.tailwind && !window.__drawgleTailwindLoadFailed)");
+    expect(srcDoc).toContain("Preview styling could not load. Refresh to retry; the saved screen is safe.");
+  });
+
   it("persists one bounded rendered-quality report per code hash and viewport", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: true } as Response);
     const { container } = render(<ScreenNode screen={screen} />);

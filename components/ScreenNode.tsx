@@ -1146,6 +1146,23 @@ export function ScreenNode({
           #drawgle-navigation-host { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; pointer-events: none; width: 100%; }
           #drawgle-navigation-host:empty { display: none; }
           #drawgle-navigation-host [data-drawgle-primary-nav] { pointer-events: auto; }
+          html:not([data-drawgle-style-ready]) #root,
+          html[data-drawgle-style-ready="degraded"] #root { visibility: hidden; }
+          #drawgle-style-runtime-gate {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 32px;
+            box-sizing: border-box;
+            background: var(--dg-color-background-primary, #f8fafc);
+            color: var(--dg-color-text-medium-emphasis, #64748b);
+            font: 600 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            text-align: center;
+            z-index: 2147483647;
+          }
+          html[data-drawgle-style-ready="ready"] #drawgle-style-runtime-gate { display: none; }
           .__drawgle-hover-outline { outline: 2px solid rgba(20,184,166,0.8) !important; outline-offset: -1px; cursor: crosshair !important; }
           .__drawgle-selected-outline { outline: 2.5px solid #0d9488 !important; outline-offset: -1px; }
 
@@ -1166,6 +1183,7 @@ export function ScreenNode({
         <style id="drawgle-project-tokens">${initialTokenCss}</style>
       </head>
       <body>
+        <div id="drawgle-style-runtime-gate" role="status">Preparing preview styles…</div>
         <div id="root" data-has-navigation="${initialNavigationCode ? "true" : "false"}">
           <div id="drawgle-screen-content"></div>
           <div id="drawgle-navigation-host"></div>
@@ -1189,14 +1207,21 @@ export function ScreenNode({
 
           function setStyleRuntimePending() {
             if (tailwindRuntimeDegraded) return;
-            if (document.documentElement.hasAttribute('data-drawgle-style-ready')) return;
             document.documentElement.removeAttribute('data-drawgle-style-ready');
+            var gate = document.getElementById('drawgle-style-runtime-gate');
+            if (gate) gate.textContent = 'Preparing preview styles…';
           }
 
           function markStyleRuntimeReady(mode) {
             styleRuntimeReady = true;
             window.requestAnimationFrame(function() {
-              document.documentElement.setAttribute('data-drawgle-style-ready', mode || 'ready');
+              var state = mode || 'ready';
+              document.documentElement.setAttribute('data-drawgle-style-ready', state);
+              var gate = document.getElementById('drawgle-style-runtime-gate');
+              if (gate && state === 'degraded') {
+                gate.textContent = 'Preview styling could not load. Refresh to retry; the saved screen is safe.';
+              }
+              window.parent.postMessage({ type: 'drawgleStyleRuntimeState', state: state }, '*');
               scheduleRenderedQualityAudit(renderRevision);
             });
           }
@@ -1382,36 +1407,38 @@ export function ScreenNode({
           }
 
           function ensureTailwindReady(callback) {
-            if (styleRuntimeReady) {
+            if (styleRuntimeReady && isTailwindCssApplied()) {
               callback();
               return;
             }
 
-            var attempts = 0;
-            var startedAt = Date.now();
+            var retryCount = 0;
+            var overallStartedAt = Date.now();
+            var phaseStartedAt = overallStartedAt;
             function check() {
-              if (window.tailwind && !window.__drawgleTailwindLoadFailed) {
-                window.setTimeout(function() {
-                  styleRuntimeReady = true;
-                  tailwindRuntimeDegraded = false;
-                  callback();
-                }, 0);
+              if (isTailwindCssApplied()) {
+                styleRuntimeReady = true;
+                tailwindRuntimeDegraded = false;
+                callback();
                 return;
               }
 
-              if (attempts < 2) {
-                attempts += 1;
+              if (Date.now() - phaseStartedAt < 1600) {
+                window.setTimeout(check, 80);
+                return;
+              }
+
+              if (retryCount < 2) {
+                retryCount += 1;
                 window.__drawgleTailwindLoadFailed = false;
+                phaseStartedAt = Date.now();
                 loadScriptOnce(
-                  'drawgle-tailwind-cdn-retry-' + attempts,
+                  'drawgle-tailwind-cdn-retry-' + retryCount,
                   'https://cdn.tailwindcss.com',
                   function() {
                     if (typeof window.__drawgleApplyTailwindConfig === 'function') window.__drawgleApplyTailwindConfig();
-                    window.setTimeout(function() {
-                      styleRuntimeReady = true;
-                      tailwindRuntimeDegraded = false;
-                      callback();
-                    }, 0);
+                    phaseStartedAt = Date.now();
+                    window.setTimeout(check, 50);
                   },
                   function() {
                     window.setTimeout(check, 160);
@@ -1420,7 +1447,7 @@ export function ScreenNode({
                 return;
               }
 
-              if (Date.now() - startedAt < 2500) {
+              if (Date.now() - overallStartedAt < 8000) {
                 window.setTimeout(check, 120);
                 return;
               }
@@ -1788,17 +1815,12 @@ export function ScreenNode({
             var revision = ++renderRevision;
             currentQualityCodeHash = payload.qualityCodeHash || '';
             currentQualityShapePolicy = payload.qualityShapePolicy || initialQualityShapePolicy;
-            var wasStyleReady = document.documentElement.hasAttribute('data-drawgle-style-ready');
             setStyleRuntimePending();
             applyGoogleFontHref(payload.googleFontHref || '');
             applyDesignTokenCss(payload.tokenCss || '');
             renderScreenContent(payload.code || '');
             renderNavigation(payload.navigationCode || '', payload.activeNavigationItemId || '');
-            if (wasStyleReady || tailwindRuntimeDegraded) {
-              markStyleRuntimeReady(tailwindRuntimeDegraded ? 'degraded' : 'ready');
-            } else {
-              waitForRenderedStylesReady(revision);
-            }
+            waitForRenderedStylesReady(revision);
             if (interactionModeActive) focusScreenContentHost();
             setupResizeObserver();
             window.requestAnimationFrame(function() {

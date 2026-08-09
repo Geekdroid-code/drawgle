@@ -202,6 +202,37 @@ describe("visual asset planning groups", () => {
     });
   });
 
+  it("treats an explicitly requested image grid as user-owned imagery", async () => {
+    const planned = await planVisualAssets({
+      prompt: "Show my saved plants as a 2-column image grid.",
+      screens: [{
+        name: "Home",
+        type: "root",
+        description: "A two-column collection of plant images.",
+        assetNeeds: [{
+          id: "plant-grid",
+          screenName: "Home",
+          role: "product_cutout",
+          subject: "Indoor plants in ceramic pots",
+          assetType: "transparent_png",
+          sourcePreference: "stock",
+          desiredAspectRatio: "1:1",
+          transparentBackground: false,
+          placementHint: "Inside the image grid cards",
+          priority: "supporting",
+          reuseKey: "plant-grid",
+          semanticCategory: "nature",
+          semanticTags: ["plants", "indoor"],
+          slotCount: 4,
+          reusePolicy: "distinct",
+          origin: "planner_inferred",
+        }],
+      }],
+    });
+
+    expect(planned[0]).toMatchObject({ origin: "user_explicit", priority: "critical" });
+  });
+
   it("normalizes an opaque full-bleed hero photo into a background role", async () => {
     const planned = await planVisualAssets({
       prompt: "Use sharp hero photography.",
@@ -267,6 +298,31 @@ describe("visual asset planning groups", () => {
     expect(query.length).toBeLessThanOrEqual(100);
     expect(query).toContain("skincare");
     expect(ranked.map((candidate) => candidate.providerAssetId)).toEqual(["serum"]);
+  });
+
+  it("does not require commerce vocabulary for a nature cutout", () => {
+    const plant: AssetRequirement = {
+      ...requirement("Home", "plant-grid"),
+      role: "product_cutout",
+      subject: "Monstera plant in a ceramic pot",
+      semanticCategory: "nature",
+      semanticTags: ["monstera", "plant", "indoor"],
+    };
+
+    const ranked = rankStockCandidates(plant, [{
+      provider: "pexels",
+      providerAssetId: "monstera",
+      imageUrl: "https://images.example/monstera.jpg",
+      sourceUrl: null,
+      description: "Green monstera house plant in a ceramic pot",
+      tags: ["monstera", "plant", "nature", "indoor"],
+      attribution: null,
+      license: "Pexels",
+      width: 1200,
+      height: 1200,
+    }]);
+
+    expect(ranked.map((candidate) => candidate.providerAssetId)).toEqual(["monstera"]);
   });
 
   it("uses Pixabay only when qualified Pexels results cannot fill the requirement", () => {

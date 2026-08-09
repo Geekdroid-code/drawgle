@@ -206,10 +206,10 @@ const normalizeRequirement = (
     slotCount: need.slotCount ?? 1,
     reusePolicy,
     reuseKey: need.reuseKey || `${need.role}-${need.subject}`,
-    priority: userExplicitImagery && ["photo", "illustration"].includes(need.assetType)
+    priority: userExplicitImagery && need.assetType !== "icon_like"
       ? "critical"
       : need.priority,
-    origin: userExplicitImagery && ["photo", "illustration"].includes(need.assetType)
+    origin: userExplicitImagery && need.assetType !== "icon_like"
       ? "user_explicit"
       : need.origin ?? (need.sourcePreference === "user_upload" ? "user_explicit" : "planner_inferred"),
   } satisfies AssetRequirement;
@@ -219,7 +219,7 @@ const normalizeRequirement = (
 
 const hasPositiveImageryRequest = (value: string) => {
   const input = compact(value).toLowerCase();
-  const pattern = /\b(?:photo|photos|photography|photographic|product imagery|hero image|hero visual|progress image|portrait|illustration|illustrations)\b/g;
+  const pattern = /\b(?:image|images|image grid|photo|photos|photography|photographic|product imagery|hero image|hero visual|progress image|portrait|illustration|illustrations)\b/g;
   for (const match of input.matchAll(pattern)) {
     const prefix = input.slice(Math.max(0, (match.index ?? 0) - 28), match.index ?? 0);
     if (!/\b(?:no|not|without|avoid|exclude|do not|dont)\b[^.;,]{0,24}$/.test(prefix)) return true;
@@ -228,7 +228,7 @@ const hasPositiveImageryRequest = (value: string) => {
 };
 
 const hasNegativeImageryRequest = (value: string) =>
-  /\b(?:no|not|without|avoid|exclude|do not|dont)\b[^.;,]{0,24}\b(?:photo|photos|photography|photographic|product imagery|hero image|portrait|illustration|illustrations)\b/i.test(
+  /\b(?:no|not|without|avoid|exclude|do not|dont)\b[^.;,]{0,24}\b(?:image|images|photo|photos|photography|photographic|product imagery|hero image|portrait|illustration|illustrations)\b/i.test(
     compact(value).toLowerCase(),
   );
 
@@ -836,8 +836,11 @@ export const rankStockCandidates = (requirement: AssetRequirement, candidates: S
     ...categoryTerms,
     requirement.semanticCategory,
   ]);
-  const productRole = ["product_photo", "product_cutout"].includes(requirement.role)
-    || (requirement.role === "section_photo" && Boolean(STOCK_PRODUCT_TERMS[requirement.semanticCategory]));
+  const hasCategoryProductVocabulary = Boolean(STOCK_PRODUCT_TERMS[requirement.semanticCategory]);
+  const productRole = hasCategoryProductVocabulary && (
+    ["product_photo", "product_cutout"].includes(requirement.role)
+    || requirement.role === "section_photo"
+  );
   const productAnchors = semanticTokens([
     ...(STOCK_PRODUCT_TERMS[requirement.semanticCategory] ?? ["product", "item"]),
   ]);

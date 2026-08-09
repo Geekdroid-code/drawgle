@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   analyzePromptScreenIntent,
+  hasExplicitFiniteScreenScopeSyntax,
   normalizeReferenceAnalysis,
   resolveGenerationScopeContract,
 } from "@/lib/generation/scope-contract";
@@ -33,6 +34,17 @@ describe("generation scope reference provenance", () => {
 
     expect(intent.promptScreenCount).toBe(1);
     expect(llmCalls).toBe(0);
+  });
+
+  it("does not treat grid columns plus descriptive screen behavior as a finite project count", () => {
+    const prompt = "Create a mobile app UI for a plant care assistant app. Home screen should show my saved plants as a 2-column image grid. Tapping a plant opens a screen showing its watering schedule.";
+
+    expect(hasExplicitFiniteScreenScopeSyntax(prompt)).toBe(false);
+  });
+
+  it("retains direct bounded screen requests", () => {
+    expect(hasExplicitFiniteScreenScopeSyntax("Create a home screen and a plant details screen.")).toBe(true);
+    expect(hasExplicitFiniteScreenScopeSyntax("Build the following screens: Home, Plant Details, Settings.")).toBe(true);
   });
 
   it("preserves prompt-only internal style instead of labeling it as curated style", () => {

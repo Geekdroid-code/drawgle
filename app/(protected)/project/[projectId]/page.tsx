@@ -50,6 +50,7 @@ export default async function ProjectPage({
 
   if (screensError) {
     console.error("Failed to fetch project screens", screensError);
+    throw new Error("Drawgle could not load this project's screens. Refresh to retry.");
   }
 
   if (generationRunsError) {

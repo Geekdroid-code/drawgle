@@ -45,6 +45,13 @@ The normalized per-screen description and layout contract go to the builder. Raw
 - It contains product identity, the current target screen and named regions, product-owned navigation, screen-family rules, and the approved component-shape policy.
 - It never contains raw planner/roadmap JSON, `Planner Brief`, another screen's detailed topology, reference-domain content, or a duplicated original prompt.
 
+### Prompt scope and image requirements
+
+- Numbers describing layout anatomy (for example, a 2-column grid), quantities, cards, images, rows, and steps inside one screen never become screen counts.
+- Descriptive mentions such as "the home shows..." and "tapping an item opens..." are product requirements, not automatically the complete finite project scope.
+- A prompt caps generation to a named screen set only when it uses direct bounded screen language or explicit finite terms such as `only`, `exactly`, `following`, or `screens:`.
+- Explicit image/image-grid requests make compatible non-icon asset requirements critical and user-owned. Stock-photo semantic matching uses category-specific vocabulary; nature imagery is not required to contain commerce words such as `product` or `item`.
+
 ### Motif locality
 
 - Global material rules may apply across the project.
@@ -71,6 +78,8 @@ The normalized per-screen description and layout contract go to the builder. Raw
 - Blank, unsafe, malformed, structurally broken, or genuinely unrenderable output still follows the existing failure gates.
 - Owner previews report bounded rendered measurements after Tailwind and fonts are ready. Public/read-only previews never write telemetry; source HTML, prompts, image data, and full text content are never sent.
 - QA telemetry is an optional side effect, never a screen-persistence dependency. If the telemetry migration or PostgREST schema cache is unavailable, the same screen write is retried once without `quality_diagnostics`; normal screen reads do not select the optional field.
+- A failed screen query is an unavailable workspace, never an empty project. The project route stops and offers a retry instead of replacing persisted screens with an empty canvas.
+- Generated iframe content remains hidden behind a style-runtime gate until a computed-style probe confirms Tailwind utilities are active. A Tailwind JavaScript global alone is not considered proof that CSS exists; bounded CDN retries run before a visible degraded-state message.
 - `DRAWGLE_UI_CONTRACT_REPAIR_ENABLED=false` changes the normalizer to diagnostics-only mode without removing telemetry.
 
 ## 2026-08-09 — Deterministic UI Contract and Runtime QA Hardening
@@ -215,6 +224,43 @@ The hardening release described the new diagnostics column as nullable and non-b
 ### Rollout and rollback
 
 Deploy this code independently of the migration; it is safe before or after the column exists. The migration should still be applied to enable stored QA telemetry. Rolling application code back remains safe while the nullable column exists.
+
+## 2026-08-09 — Scope, Preview Styling, and Asset Retrieval Reliability
+
+### Symptom
+
+A plant-care prompt mentioned a `2-column image grid`, described a Home screen and a Plant Details screen, and produced only those two screens. During streaming, raw HTML appeared without utility styling. After refresh, the canvas appeared empty even though generation reported success. Plant-photo requirements resolved entirely to placeholders.
+
+### Root cause
+
+- The semantic scope interpreter correctly ignored the grid's `2`, but incorrectly promoted descriptive Home/Details behavior into the complete finite project scope without explicit bounded-screen language.
+- Both screen rows and complete generated HTML remained in production. The deployed project reader selected the optional, not-yet-migrated `quality_diagnostics` column; its failed query was converted to `[]`, falsely presenting a blank canvas.
+- The iframe readiness path trusted `window.tailwind`, but Drawgle's config bootstrap can create that object before Tailwind has generated CSS. The pending-state function also left an earlier ready flag in place during rerenders, exposing raw HTML.
+- Nature requirements using a product-card role were subjected to commerce-vocabulary matching. Valid plant photographs did not contain generic words such as `product` or `item`, so every candidate was rejected as `no_semantic_match`.
+
+### Change
+
+- Added a deterministic finite-scope gate after semantic interpretation. Layout quantities remain local anatomy, and screen descriptions remain open-ended unless the user directly requests a bounded screen set.
+- Project screen-query failures now enter a retryable route error state rather than rendering an empty project.
+- The preview hides generated content until a computed Tailwind probe passes, reruns readiness for every render payload, retries CDN loading within a bounded window, and reports a safe degraded state without exposing an unstyled skeleton.
+- Plain image/image-grid requests are recognized as explicit imagery. Category-specific product vocabulary is enforced only when that category actually defines such vocabulary, allowing semantically matching nature imagery to qualify.
+
+### Safety invariants
+
+- Direct requests such as `Create a Home screen and a Plant Details screen` and explicitly finite lists remain bounded.
+- Persisted screens are never represented as absent merely because their read failed.
+- A failed styling runtime does not mutate or delete saved HTML.
+- Stock candidates must still pass subject/category semantic matching; the change removes an inapplicable commerce gate rather than accepting arbitrary photos.
+
+### Verification
+
+- Regression tests cover the reported plant prompt, direct bounded screen syntax, explicit image-grid ownership, and a Monstera nature candidate without commerce terminology.
+- ScreenNode coverage verifies the computed-style gate and rejects the former Tailwind-global readiness shortcut.
+- Production database inspection confirmed both reported screen IDs, ready statuses, and non-empty HTML remained stored.
+
+### Rollout and rollback
+
+Deploy the web application as well as Trigger tasks. A Trigger-only GitHub Action deployment cannot update the project reader or iframe runtime. The changes require no database migration and do not rewrite existing screens.
 
 ## Future Entry Template
 

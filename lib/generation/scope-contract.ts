@@ -545,6 +545,28 @@ export function parsePromptScreenIntent(prompt: string): PromptScreenIntent {
   };
 }
 
+/**
+ * Semantic interpretation may discover screen-shaped requirements, but those
+ * mentions are not automatically a complete project scope. Require finite
+ * language or a direct build/create request for the screen list before an LLM
+ * result is allowed to cap the initial project.
+ */
+export function hasExplicitFiniteScreenScopeSyntax(prompt: string): boolean {
+  const normalized = prompt.replace(/\s+/g, " ").trim();
+  if (!normalized) return false;
+  if (/\b(?:only|exactly|just)\b[^.!?\n]{0,80}\b(?:screens?|pages?|views?)\b/i.test(normalized)) return true;
+  if (/\b(?:the\s+)?(?:following|these)\b[^.!?\n]{0,40}\b(?:screens?|pages?|views?)\b/i.test(normalized)) return true;
+  if (/\b(?:screens?|pages?|views?)\s*:/i.test(normalized)) return true;
+
+  const directScreenRequest = new RegExp(
+    `\\b(?:${ACTION_WORDS}|need|want)\\b(?:\\s+(?:me|an?|the|my|one|single|[a-z][a-z-]*)){0,6}\\s+(?:${SCREEN_NOUNS})\\b`,
+    "i",
+  );
+  return normalized
+    .split(/[.!?\n]+/)
+    .some((clause) => directScreenRequest.test(clause.trim()));
+}
+
 const normalizeSemanticPromptIntent = (raw: unknown, prompt: string): PromptScreenIntent | null => {
   if (!isRecord(raw)) return null;
   const explicitFiniteScope = raw.explicitFiniteScope === true || raw.explicit_finite_scope === true;
@@ -590,6 +612,23 @@ const normalizeSemanticPromptIntent = (raw: unknown, prompt: string): PromptScre
       confidence,
       ambiguities,
       requiresConfirmation: confidence === "low" || ambiguities.length > 0,
+    };
+  }
+
+  if (!hasExplicitFiniteScreenScopeSyntax(prompt)) {
+    return {
+      promptScreenCount: null,
+      namedScreenCount: null,
+      source: null,
+      allScreensRequested: false,
+      diagnostics: [
+        "Semantic scope interpreter found screen requirements, but the prompt did not define them as the complete finite project scope.",
+      ],
+      groups: [],
+      screens: [],
+      confidence: "high",
+      ambiguities: [],
+      requiresConfirmation: false,
     };
   }
 
@@ -656,7 +695,8 @@ export async function analyzePromptScreenIntent({
       "Parent screen groups are additive. totalCount is the sum of groups whose surfaceKind is screen.",
       "A combined destination counts once unless the user explicitly requests separate destinations.",
       "A modal, sheet, picker, popover, active-tab body, confirmation, or other local variation of the same route uses surfaceKind state and names its parent; it does not increase totalCount.",
-      "Do not treat version numbers, dimensions, product quantities, card counts, steps inside one non-screen workflow, or reference-image panel counts as prompt screen totals.",
+      "Do not treat version numbers, dimensions, grid column or row counts, product quantities, image/card/item counts, steps inside one non-screen workflow, or reference-image panel counts as prompt screen totals.",
+      "Mentioning a home, detail, or other screen while describing app behavior does not make those examples the complete finite project scope. Require explicit bounded language such as exactly/only/following/these screens, a screen list, or a direct request to build the named screen set.",
       "If the user requests an app but does not enumerate a finite screen set, set explicitFiniteScope false and return no groups.",
       `User prompt: ${JSON.stringify(prompt.trim())}`,
     ].join("\n");
