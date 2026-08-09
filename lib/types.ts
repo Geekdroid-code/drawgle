@@ -727,6 +727,11 @@ export interface ScreenPlanningSeed {
   summary: string;
   prompt: string;
   roadmapStableKey?: string | null;
+  roadmapPriority?: ProjectRoadmapPriority;
+  explicitlyRequested?: boolean;
+  dependencyKeys?: string[];
+  referenceScreenIndex?: number | null;
+  referenceScreenCount?: number | null;
 }
 
 export interface ScreenPlan {
@@ -1202,6 +1207,24 @@ export interface PlannedUiFlow {
   remainingUnplannedCount?: number;
 }
 
+export interface ProjectBlueprintPlanV1 {
+  version: 1;
+  requiresBottomNav: boolean;
+  navigationArchitecture: NavigationArchitecture;
+  navigationPlan: NavigationPlan;
+  charter: ProjectCharter;
+  screenSeeds: ScreenPlanningSeed[];
+  scopeContract: GenerationScopeContract;
+  screenCountContract: ScreenCountContract;
+  screenCountEnforcement: ScreenCountEnforcement;
+  intentContract: GenerationIntentContract;
+  screenFamilyContract: ScreenFamilyContract;
+  roadmap: ProjectRoadmap;
+  initialBatchItemKeys: string[];
+  requestedParentCount: number | null;
+  remainingUnplannedCount: number;
+}
+
 export interface GenerationJournalScreen {
   name: string;
   type?: ScreenPlan["type"] | null;
@@ -1444,6 +1467,7 @@ export interface BuildScreenInput {
   requiresBottomNav: boolean;
   navigationArchitecture?: NavigationArchitecture | null;
   navigationPlan?: NavigationPlan | null;
+  assetRequirements?: AssetRequirement[];
   assetManifest?: ScreenAssetManifest[];
   productContract?: BuilderProjectContractV1 | null;
   projectContext?: string | null;

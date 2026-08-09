@@ -82,6 +82,59 @@ The normalized per-screen description and layout contract go to the builder. Raw
 - Generated iframe content remains hidden behind a style-runtime gate until a computed-style probe confirms Tailwind utilities are active. A Tailwind JavaScript global alone is not considered proof that CSS exists; bounded CDN retries run before a visible degraded-state message.
 - `DRAWGLE_UI_CONTRACT_REPAIR_ENABLED=false` changes the normalizer to diagnostics-only mode without removing telemetry.
 
+### Progressive planning, assets, and billing
+
+- New multi-screen projects first produce one authoritative `ProjectBlueprintPlanV1`: charter, navigation, screen-family rules, roadmap, and ordered screen seeds. It intentionally contains no detailed screen topology.
+- The detailed planner briefs only the first seed initially. As soon as that brief and its reserved screen row are ready, Drawgle triggers the user-selected builder. Only after that trigger does one bounded call brief every remaining seed.
+- Screen 1 keeps exclusive scheduler priority. Later parent screens retain the existing concurrency of two. Single-screen, add-screen, retry, and state-only paths retain their compatibility flow.
+- Asset requirements resolve inside each child screen build. The builder streams styled empty slots while lookup runs; persistence waits for deterministic hydration, URL sanitization, and the existing critical-asset gate.
+- Asset searches abort after 5 seconds, downloads after 8 seconds, and each requirement receives a 15-second budget. At most two requirements resolve concurrently per screen.
+- Parent-screen credits are reserved from the blueprint before any builder starts. State variants discovered by the remaining brief tranche are appended atomically and idempotently; insufficient optional-state credits skip only those states.
+- A later planning failure never rolls back a ready first screen. Outstanding reservations are released by normal run settlement.
+- `DRAWGLE_PROGRESSIVE_FIRST_SCREEN_ENABLED=false` restores the all-screen planning and project-wide asset-resolution path for new runs.
+
+## 2026-08-09 — Progressive First-Screen Generation
+
+### Symptom
+
+New projects waited for every detailed screen brief and every project asset before inserting or building the first screen. Production telemetry showed roughly 90 seconds before the first builder, 119 seconds before first streamed HTML, and 137 seconds before the first ready screen; slow remaining briefs or stock providers blocked screen 1 even when its own contract was ready.
+
+### Root cause
+
+- `planUiFlow()` combined the validated project blueprint with one all-screen detailed-planning call.
+- Parent orchestration resolved the full project asset manifest before creating the first queued screen row.
+- The existing scheduler already prioritized screen 1, but it received work only after both global barriers completed.
+- The original credit RPC treated the first reservation manifest as immutable, so later-discovered state variants could not be billed safely.
+
+### Change
+
+- Added `planProjectBlueprint()` and ordered `ScreenPlanningSeed` output while keeping `planUiFlow()` as a compatibility wrapper.
+- Added a bounded two-tranche planner: first seed, then one remaining-seed batch started only after the first builder trigger.
+- Moved asset resolution into `build-screen`, added pending-slot builder instructions, bounded provider latency, and hydrated assets before ready persistence.
+- Added `append_generation_credit_reservations(...)` and `appendGenerationCredits()` for atomic incremental state reservations.
+- Added blueprint/brief/builder timestamps and per-screen asset timing to generation metadata.
+
+### Invariants and failure behavior
+
+- Blueprint screen identity/order, product purpose, navigation destinations, and family rules remain authoritative in both tranches.
+- There is no provisional low-quality builder, per-screen planner fan-out, visual-refinement pass, or asset-hydration LLM call.
+- Critical imagery still blocks only its own screen; supporting timeouts remain warnings/placeholders.
+- If the first brief is invalid after its bounded repair, the first valid remaining brief is promoted. If remaining planning fails after handoff, completed screen 1 survives and unfinished roadmap credits are released.
+- Planner model ownership remains Gemini; builder provider/model ownership remains user-selected Gemini or Luna/OpenRouter.
+
+### Rollout and rollback
+
+1. Apply `20260809000300_append_generation_credit_reservations.sql` and reload PostgREST schema.
+2. Deploy Trigger tasks and the web application together.
+3. Smoke-test with `DRAWGLE_PROGRESSIVE_FIRST_SCREEN_ENABLED=false`, then enable the default progressive path.
+4. Roll back instantly with the flag; the additive database function is harmless if left installed.
+
+### Verification
+
+- Focused planner, prompt/asset-contract, visual-asset, scheduler, and credit tests cover the extracted contracts and compatibility behavior.
+- Typecheck verifies both the legacy and progressive orchestration branches.
+- Production latency targets require at least 20 representative deployed runs and must be evaluated from the new performance timestamps; local unit tests do not claim production timing.
+
 ## 2026-08-09 — Deterministic UI Contract and Runtime QA Hardening
 
 ### Symptom

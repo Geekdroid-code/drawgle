@@ -12,7 +12,7 @@ import {
   referenceAnalysisStyleInstruction,
 } from "@/lib/generation/prompts";
 import type { GenerationPromptMode } from "@/lib/generation/prompt-routing";
-import type { ScreenAssetManifest, ScreenPlan } from "@/lib/types";
+import type { AssetRequirement, ScreenAssetManifest, ScreenPlan } from "@/lib/types";
 
 const modes: GenerationPromptMode[] = ["recreate", "style", "prompt"];
 
@@ -305,5 +305,36 @@ describe("state-scoped prompt construction", () => {
       expect(instruction).toContain('data-asset-slot="true"');
       expect(instruction).not.toContain(asset.url);
     }
+  });
+
+  it("lets a builder stream styled pending slots without exposing or inventing URLs", () => {
+    const pending: AssetRequirement = {
+      id: "plant-grid",
+      screenName: "Dashboard",
+      role: "product_photo",
+      subject: "saved indoor plants",
+      assetType: "photo",
+      sourcePreference: "stock",
+      desiredAspectRatio: "1:1",
+      transparentBackground: false,
+      placementHint: "Two-column saved plant grid",
+      priority: "critical",
+      reuseKey: "saved-plants",
+      semanticCategory: "nature",
+      semanticTags: ["plant", "indoor"],
+      slotCount: 4,
+      reusePolicy: "distinct",
+    };
+    const instruction = buildPromptScreenInstruction({
+      ...screenInput,
+      assetRequirements: [pending],
+      assetManifest: [],
+    });
+
+    expect(instruction).toContain("Asset resolution is running concurrently");
+    expect(instruction).toContain("requirementId=plant-grid");
+    expect(instruction).toContain("slotCount=4");
+    expect(instruction).toContain("data-asset-slot-index");
+    expect(instruction).not.toContain("https://");
   });
 });

@@ -74,6 +74,7 @@ import type {
   NavigationPlan,
   PlanningMode,
   PlannedUiFlow,
+  ProjectBlueprintPlanV1,
   PromptImagePayload,
   ProjectCharter,
   ProjectRoadmapItem,
@@ -87,6 +88,7 @@ import type {
   ScreenLayoutRegion,
   ScreenBlockIndex,
   ScreenPlan,
+  ScreenPlanningSeed,
   ScreenStateVariantPlan,
   UiFlowPlanningProgress,
 } from "@/lib/types";
@@ -3167,25 +3169,7 @@ export async function planScreenBriefsForBuild({
   }
 }
 
-export async function planUiFlow({
-  prompt,
-  image,
-  referenceMode,
-  referenceId,
-  referenceCatalogHash,
-  designStyle,
-  designTokens,
-  scopeContract,
-  referenceAnalysis: providedReferenceAnalysis,
-  referenceDna: providedReferenceDna,
-  screenFamilyContract: providedScreenFamilyContract,
-  projectContext,
-  existingCharter,
-  existingNavigationPlan,
-  planningMode = "project",
-  llmLog,
-  onProgress,
-}: {
+type PlanUiFlowInput = {
   prompt: string;
   image?: PromptImagePayload | null;
   referenceMode?: ReferenceMode | null;
@@ -3203,7 +3187,27 @@ export async function planUiFlow({
   planningMode?: PlanningMode;
   llmLog?: LlmLogFn;
   onProgress?: (event: UiFlowPlanningProgress) => void | Promise<void>;
-}): Promise<PlannedUiFlow> {
+};
+
+async function planUiFlowInternal({
+  prompt,
+  image,
+  referenceMode,
+  referenceId,
+  referenceCatalogHash,
+  designStyle,
+  designTokens,
+  scopeContract,
+  referenceAnalysis: providedReferenceAnalysis,
+  referenceDna: providedReferenceDna,
+  screenFamilyContract: providedScreenFamilyContract,
+  projectContext,
+  existingCharter,
+  existingNavigationPlan,
+  planningMode = "project",
+  llmLog,
+  onProgress,
+}: PlanUiFlowInput, blueprintOnly = false): Promise<PlannedUiFlow | ProjectBlueprintPlanV1> {
   const ai = createGeminiClient();
   const parts: Array<Record<string, unknown>> = [];
   const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
@@ -3583,8 +3587,8 @@ export async function planUiFlow({
   let selectedBlueprintKeys: string[] = [];
   if (parsedBlueprint.success && parsedBlueprint.data.roadmap) {
     const scopeOwnsBatchSelection = resolvedScopeContract.screens?.length
-      && (resolvedScopeContract.countSource === "prompt_count"
-        || resolvedScopeContract.countSource === "named_screens"
+      && (resolvedScopeContract.countSource === "named_screens"
+        || (resolvedScopeContract.countSource === "prompt_count" && Boolean(screenCountContract.namedScreens?.length))
         || planningMode === "single-screen");
     selectedBlueprintKeys = scopeOwnsBatchSelection
       ? (resolvedScopeContract.screens ?? []).slice(0, INITIAL_PROJECT_SCREEN_LIMIT).map((screen) => screenRoadmapKey(screen.name))
@@ -3627,6 +3631,153 @@ export async function planUiFlow({
     if (previewScreens.length > 0) {
       await onProgress({ type: "blueprint_ready", screens: previewScreens });
     }
+  }
+
+  if (blueprintOnly && parsedBlueprint.success) {
+    const roadmapItems = parsedBlueprint.data.roadmap?.items ?? [];
+    const orderedKeys = selectedBlueprintKeys.length > 0
+      ? selectedBlueprintKeys
+      : roadmapItems.slice(0, INITIAL_PROJECT_SCREEN_LIMIT).map((item) => item.stable_key);
+    const scopedScreens = resolvedScopeContract.screens ?? [];
+    const seedScreens = orderedKeys.flatMap((stableKey, index): ScreenPlan[] => {
+      const roadmapItem = roadmapItems.find((item) => item.stable_key === stableKey);
+      const scopedScreen = scopedScreens.find((screen) => screenRoadmapKey(screen.name) === stableKey);
+      const name = roadmapItem?.name ?? scopedScreen?.name;
+      if (!name) return [];
+      return [{
+        name,
+        type: roadmapItem?.type ?? (index === 0 ? "root" : "detail"),
+        description: roadmapItem?.summary
+          ?? `Create the explicitly requested ${scopedScreen?.kind ?? "product"} screen named ${name}.`,
+        roadmapStableKey: stableKey,
+        roadmapPriority: roadmapItem?.priority ?? "required",
+        explicitlyRequested: roadmapItem?.explicitly_requested ?? Boolean(scopedScreen),
+        assetNeeds: [],
+      }];
+    });
+
+    if (seedScreens.length === 0) {
+      throw new Error("Project blueprint did not contain a buildable initial screen seed.");
+    }
+
+    const adjustedContract = { ...screenCountContract };
+    let navigationArchitecture = adjustedContract.disableSharedNavigation || forceFiniteFlowWithoutPersistentNav
+      ? createNavigationArchitecture({ requiresBottomNav: false })
+      : coerceNavigationArchitecture({
+          parsedNavigationArchitecture: parsedBlueprint.data.navigation_architecture ?? null,
+          existingNavigationArchitecture: existingCharter?.navigationArchitecture,
+          requiresBottomNav: parsedBlueprint.data.requires_bottom_nav ?? fallbackRequiresBottomNav,
+          lockToExistingArchitecture: Boolean(projectContext?.trim() && existingCharter?.navigationArchitecture),
+        });
+    const enforced = enforceScreenCountContract({
+      screens: seedScreens,
+      contract: adjustedContract,
+      prompt,
+      referenceAnalysis,
+    });
+    const chromeAwareSeeds = applyReferenceNavigationRolesToScreens(
+      enforced.screens.map((screen) => resolvePlannedScreen({ screenPlan: screen, navigationArchitecture })),
+      referenceAnalysis,
+    );
+    const suppliedNavigationPlan = toNavigationPlan(parsedBlueprint.data.navigation_plan)
+      ?? (planningMode === "single-screen" ? existingNavigationPlan : null);
+    const referenceNavigationPlan = plannerMode === "recreate"
+      ? deriveReferenceNavigationPlan({ screens: chromeAwareSeeds, referenceAnalysis })
+      : null;
+    const navigationCandidate = suppliedNavigationPlan && (
+      suppliedNavigationPlan.enabled
+      || (suppliedNavigationPlan.version === 2 && suppliedNavigationPlan.decision !== "none")
+    )
+      ? suppliedNavigationPlan
+      : referenceNavigationPlan;
+    const navigationPlan = normalizeNavigationPlan({
+      navigationPlan: adjustedContract.disableSharedNavigation || forceFiniteFlowWithoutPersistentNav
+        ? null
+        : navigationCandidate,
+      screens: chromeAwareSeeds,
+      navigationArchitecture,
+      requiresBottomNav: deriveRequiresBottomNav(navigationArchitecture),
+      strictScreenLinks: planningMode !== "single-screen",
+    });
+    navigationArchitecture = reconcileNavigationArchitectureWithPlan({
+      navigationArchitecture,
+      navigationPlan,
+    });
+    const plannedSeeds = attachReferenceScreenTargets({
+      screens: applyNavigationPlanToScreens(chromeAwareSeeds, navigationPlan),
+      referenceMode: resolvedReferenceMode,
+      scopeContract: resolvedScopeContract,
+    });
+    const roadmapResult = compileProjectRoadmap({
+      rawRoadmap: parsedBlueprint.data.roadmap,
+      screens: plannedSeeds,
+      navigationPlan,
+      scopeContract: resolvedScopeContract,
+    });
+    const charter = withReferenceDna(enrichProjectCharter({
+      base: {
+        ...parsedBlueprint.data.charter,
+        creativeDirection: parsedBlueprint.data.charter.creativeDirection ?? resolvedCreativeDirection,
+        designStyle: summarizeDesignStyle(resolvedDesignStyle) ?? existingCharter?.designStyle ?? null,
+        navigationArchitecture,
+      },
+      source: "planner",
+      referenceAnalysis,
+      referenceMode: resolvedReferenceMode,
+      designStyle: resolvedDesignStyle,
+      navigationArchitecture,
+      diagnostics: {
+        source: "planner",
+        rawPlanKeys: isRecord(rawBlueprint) ? Object.keys(rawBlueprint) : [],
+        rawScreenCount: plannedSeeds.length,
+        recoveredScreens: plannedSeeds.length,
+        scopeContract: resolvedScopeContract as unknown as JsonValue,
+        screenCountContract: screenCountContractJson(adjustedContract),
+        intentContract: intentContractJson(intentContract),
+        screenFamilyContract: screenFamilyContract as unknown as JsonValue,
+        screenCountEnforcement: enforced.enforcement,
+        notes: ["Detailed screen topology is intentionally deferred to the bounded screen-brief planner."],
+      },
+    }));
+    const byStableKey = new Map(plannedSeeds.map((screen) => [
+      screen.roadmapStableKey ?? screenRoadmapKey(screen.name),
+      screen,
+    ]));
+    const screenSeeds: ScreenPlanningSeed[] = roadmapResult.initialBatchItemKeys.flatMap((stableKey) => {
+      const screen = byStableKey.get(stableKey);
+      const roadmapItem = roadmapResult.roadmap.items.find((item) => item.stableKey === stableKey && item.kind === "screen");
+      if (!screen || !roadmapItem) return [];
+      return [{
+        name: screen.name,
+        type: screen.type,
+        summary: roadmapItem.description,
+        prompt: `Create ${screen.name}. ${roadmapItem.description}`,
+        roadmapStableKey: stableKey,
+        roadmapPriority: roadmapItem.priority,
+        explicitlyRequested: roadmapItem.explicitlyRequested,
+        dependencyKeys: roadmapItem.dependencyKeys,
+        referenceScreenIndex: screen.referenceScreenIndex ?? null,
+        referenceScreenCount: screen.referenceScreenCount ?? null,
+      }];
+    });
+
+    return {
+      version: 1,
+      requiresBottomNav: navigationPlan.enabled,
+      navigationArchitecture,
+      navigationPlan,
+      charter,
+      screenSeeds,
+      scopeContract: resolvedScopeContract,
+      screenCountContract: adjustedContract,
+      screenCountEnforcement: enforced.enforcement,
+      intentContract,
+      screenFamilyContract,
+      roadmap: roadmapResult.roadmap,
+      initialBatchItemKeys: roadmapResult.initialBatchItemKeys,
+      requestedParentCount: roadmapResult.roadmap.requestedParentCount,
+      remainingUnplannedCount: roadmapResult.roadmap.remainingUnplannedCount,
+    };
   }
 
 
@@ -4104,6 +4255,14 @@ export async function planUiFlow({
   };
 }
 
+export async function planUiFlow(input: PlanUiFlowInput): Promise<PlannedUiFlow> {
+  return planUiFlowInternal(input, false) as Promise<PlannedUiFlow>;
+}
+
+export async function planProjectBlueprint(input: PlanUiFlowInput): Promise<ProjectBlueprintPlanV1> {
+  return planUiFlowInternal(input, true) as Promise<ProjectBlueprintPlanV1>;
+}
+
 export async function generateDesignTokens({
   prompt,
   image,
@@ -4324,6 +4483,7 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
     requiresBottomNav: input.requiresBottomNav,
     navigationArchitecture: input.navigationArchitecture,
     navigationPlan: input.navigationPlan,
+    assetRequirements: input.assetRequirements,
     assetManifest: input.assetManifest,
     promptMode,
   });

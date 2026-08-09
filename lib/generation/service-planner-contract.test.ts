@@ -13,6 +13,7 @@ vi.mock("@/lib/ai/gemini", () => ({
 import {
   buildScreenCountContract,
   parsePlannerProjectBlueprint,
+  planProjectBlueprint,
   planUiFlow,
 } from "@/lib/generation/service";
 import type {
@@ -253,6 +254,32 @@ describe("planner contract resilience", () => {
     ]);
     expect(plan.screens.map((screen) => screen.name)).not.toContain("Screen 1");
     expect(plan.screens.every((screen) => !screen.description.includes("Planner Brief"))).toBe(true);
+  });
+
+  it("returns ordered planning seeds without invoking the detailed screen planner", async () => {
+    generateContent.mockResolvedValueOnce({ text: JSON.stringify(malformedNavigationBlueprint) });
+
+    const blueprint = await planProjectBlueprint({
+      prompt: "Build an AI assistant for support chat with 3 core screens",
+      referenceMode: "user_style",
+      scopeContract: promptCountScope,
+      projectContext: "New project; no prior screens exist.",
+    });
+
+    expect(generateContent).toHaveBeenCalledTimes(1);
+    expect(blueprint.version).toBe(1);
+    expect(blueprint.screenSeeds.map((seed) => seed.name)).toEqual([
+      "Support Inbox",
+      "Knowledge Search",
+      "Resolution Activity",
+    ]);
+    expect(blueprint.screenSeeds[0]).toMatchObject({
+      roadmapStableKey: "screen:support-inbox",
+      roadmapPriority: "core",
+      explicitlyRequested: true,
+      dependencyKeys: [],
+    });
+    expect(blueprint.screenSeeds.every((seed) => !seed.summary.includes("Layout Anatomy:"))).toBe(true);
   });
 
   it("repairs weak screen briefs once and then fails before build", async () => {

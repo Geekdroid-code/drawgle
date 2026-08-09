@@ -43,15 +43,22 @@ designInstruction
   |
   v
 plannerBlueprintStepInstruction
-  -> creates charter + navigation architecture/plan
+  -> creates charter + navigation architecture/plan + ordered screen seeds
   |
   v
 plannerScreenBriefStepInstruction
-  -> creates screen briefs
+  -> creates the first builder-ready brief
   |
   v
 buildRecreateScreenInstruction / buildStyleScreenInstruction
-  -> builds final static HTML for one screen
+  -> starts the selected builder for screen 1
+  |
+  +--> one remaining-screen brief batch runs concurrently
+  +--> that screen's asset resolution runs concurrently with HTML streaming
+  |
+  v
+deterministic asset-slot hydration + validation
+  -> persists the ready screen
 ```
 
 ## Prompt Map
@@ -82,6 +89,10 @@ Style Reference builds may attach the source image to the final builder as guard
 Every initial build, retry, add-screen build, and supported edit also receives `BuilderProjectContractV1`: compact product identity, current screen purpose/regions/chrome, product-owned destinations, screen-family rules, and shape policy. It excludes raw planner output, roadmap JSON, `Planner Brief`, other screens' detailed layouts, reference-domain content, and duplicated prompt text.
 
 Before persistence, generated and edited HTML passes through deterministic UI contract normalization. Exact aliases and confident standard-control roles may be repaired; unresolved cosmetic drift is saved with diagnostics and never causes a CSS-only builder retry. After Tailwind and fonts are ready, the iframe performs non-blocking rendered checks and posts only issue enums, stable Drawgle IDs, hashes, viewport size, and numeric measurements.
+
+For new multi-screen projects, `planProjectBlueprint()` is the architecture boundary. Its ordered seeds lock screen identity/order, root/detail relationships, product purpose, navigation semantics, and screen-family rules without defining detailed topology. The first seed is briefed alone. After its real builder is triggered, `planScreenBriefsForBuild()` is called once for all remaining seeds; it cannot replace blueprint identities or navigation ownership. The compatibility `planUiFlow()` still performs blueprint plus all-screen briefs for flag-disabled and legacy callers.
+
+The final builder may receive pending `assetRequirements` instead of a resolved URL manifest. It must output styled empty elements with exact `data-asset-slot`, `data-asset-requirement-id`, and `data-asset-role` attributes and may never invent a URL. Resolution overlaps streaming; only deterministic hydration, sanitization, and critical-asset validation happen before ready persistence. `DRAWGLE_PROGRESSIVE_FIRST_SCREEN_ENABLED=false` restores the previous all-screen planning/project-wide asset path.
 
 ### 1. Reference Analysis
 

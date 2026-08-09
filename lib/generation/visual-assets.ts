@@ -52,6 +52,30 @@ type ResolvedRequirement = {
   diagnostic: AssetResolutionDiagnostic;
 };
 
+export const ASSET_PROVIDER_SEARCH_TIMEOUT_MS = 5_000;
+export const ASSET_DOWNLOAD_TIMEOUT_MS = 8_000;
+export const ASSET_REQUIREMENT_BUDGET_MS = 15_000;
+export const ASSET_REQUIREMENT_CONCURRENCY = 2;
+
+const fetchWithTimeout = async (
+  input: string | URL,
+  init: RequestInit = {},
+  timeoutMs: number,
+  parentSignal?: AbortSignal,
+) => {
+  const controller = new AbortController();
+  const abortFromParent = () => controller.abort(parentSignal?.reason);
+  if (parentSignal?.aborted) abortFromParent();
+  parentSignal?.addEventListener("abort", abortFromParent, { once: true });
+  const timeout = setTimeout(() => controller.abort(new Error(`Asset request exceeded ${timeoutMs}ms.`)), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+    parentSignal?.removeEventListener("abort", abortFromParent);
+  }
+};
+
 const VisualAssetRoleSchema = z.enum([
   "hero_cutout",
   "product_cutout",
@@ -572,8 +596,8 @@ const findCachedStockAssets = async ({
   return { assets, candidateCount: data?.length ?? 0 };
 };
 
-const fetchRemoteBytes = async (url: string) => {
-  const response = await fetch(url);
+const fetchRemoteBytes = async (url: string, signal?: AbortSignal) => {
+  const response = await fetchWithTimeout(url, {}, ASSET_DOWNLOAD_TIMEOUT_MS, signal);
   if (!response.ok) throw new Error(`Failed to fetch stock image (${response.status}).`);
   return new Uint8Array(await response.arrayBuffer());
 };
@@ -759,6 +783,7 @@ const pexelsCandidates = async (
   requirement: AssetRequirement,
   count: number,
   diagnostic: AssetResolutionDiagnostic,
+  signal?: AbortSignal,
 ): Promise<StockCandidate[]> => {
   const apiKey = getOptionalPexelsApiKey();
   if (!apiKey) return [];
@@ -767,7 +792,7 @@ const pexelsCandidates = async (
   url.searchParams.set("per_page", String(Math.max(8, Math.min(24, count * 3))));
   url.searchParams.set("orientation", requirement.desiredAspectRatio === "4:5" ? "portrait" : requirement.desiredAspectRatio === "16:9" || requirement.desiredAspectRatio === "5:4" ? "landscape" : "square");
   diagnostic.apiCallCount += 1;
-  const response = await fetch(url, { headers: { Authorization: apiKey } });
+  const response = await fetchWithTimeout(url, { headers: { Authorization: apiKey } }, ASSET_PROVIDER_SEARCH_TIMEOUT_MS, signal);
   if (!response.ok) return [];
   const payload = await response.json() as {
     photos?: Array<{ id: number; width?: number; height?: number; alt?: string; photographer?: string; photographer_url?: string; url?: string; src?: Record<string, string> }>;
@@ -794,6 +819,7 @@ const pixabayCandidates = async (
   requirement: AssetRequirement,
   count: number,
   diagnostic: AssetResolutionDiagnostic,
+  signal?: AbortSignal,
 ): Promise<StockCandidate[]> => {
   const apiKey = getOptionalPixabayApiKey();
   if (!apiKey) return [];
@@ -805,7 +831,7 @@ const pixabayCandidates = async (
   url.searchParams.set("per_page", String(Math.max(8, Math.min(24, count * 3))));
   url.searchParams.set("safesearch", "true");
   diagnostic.apiCallCount += 1;
-  const response = await fetch(url);
+  const response = await fetchWithTimeout(url, {}, ASSET_PROVIDER_SEARCH_TIMEOUT_MS, signal);
   if (!response.ok) return [];
   const payload = await response.json() as {
     hits?: Array<{ id: number; imageWidth?: number; imageHeight?: number; largeImageURL?: string; webformatURL?: string; tags?: string; user?: string; pageURL?: string }>;
@@ -889,11 +915,13 @@ const resolveStockAssets = async ({
   requirement,
   count,
   diagnostic,
+  signal,
 }: {
   admin: AdminClient;
   requirement: AssetRequirement;
   count: number;
   diagnostic: AssetResolutionDiagnostic;
+  signal?: AbortSignal;
 }) => {
   if (requirement.semanticCategory === "logo") return { assets: [] as VisualAssetRow[], candidateCount: 0 };
   const stockRequirement: AssetRequirement = {
@@ -902,9 +930,9 @@ const resolveStockAssets = async ({
     transparentBackground: false,
     reuseKey: stableReuseKey(requirement),
   };
-  const pexels = rankStockCandidates(stockRequirement, await pexelsCandidates(stockRequirement, count, diagnostic));
+  const pexels = rankStockCandidates(stockRequirement, await pexelsCandidates(stockRequirement, count, diagnostic, signal));
   const pixabay = shouldQueryPixabayFallback(pexels.length, count)
-    ? rankStockCandidates(stockRequirement, await pixabayCandidates(stockRequirement, count - pexels.length, diagnostic))
+    ? rankStockCandidates(stockRequirement, await pixabayCandidates(stockRequirement, count - pexels.length, diagnostic, signal))
     : [];
   const candidates = [...pexels, ...pixabay].filter((candidate, index, all) =>
     all.findIndex((other) =>
@@ -912,9 +940,10 @@ const resolveStockAssets = async ({
       && other.providerAssetId === candidate.providerAssetId) === index);
   const assets: VisualAssetRow[] = [];
   for (const candidate of candidates) {
+    if (signal?.aborted) throw signal.reason ?? new Error("Asset requirement aborted.");
     if (assets.length >= count) break;
     try {
-      const bytes = await fetchRemoteBytes(candidate.imageUrl);
+      const bytes = await fetchRemoteBytes(candidate.imageUrl, signal);
       const saved = await saveNormalizedAsset({
         admin,
         ownerId: null,
@@ -998,12 +1027,14 @@ const resolveRequirement = async ({
   projectId,
   requirement,
   memoryCache,
+  signal,
 }: {
   admin: AdminClient;
   ownerId: string;
   projectId: string;
   requirement: AssetRequirement;
   memoryCache: Map<string, VisualAssetRow[]>;
+  signal?: AbortSignal;
 }): Promise<ResolvedRequirement> => {
   const startedAt = Date.now();
   const diagnostic = createDiagnostic(requirement, startedAt);
@@ -1062,7 +1093,7 @@ const resolveRequirement = async ({
   }
 
   if (assets.length < desiredCount) {
-    const stock = await resolveStockAssets({ admin, requirement, count: desiredCount - assets.length, diagnostic });
+    const stock = await resolveStockAssets({ admin, requirement, count: desiredCount - assets.length, diagnostic, signal });
     diagnostic.candidateCount += stock.candidateCount;
     assets = dedupeResolvedAssets([...assets, ...stock.assets]);
     if (stock.assets.length && !diagnostic.selectedVia) diagnostic.selectedVia = "stock";
@@ -1141,10 +1172,24 @@ export async function resolveProjectAssets({
   const diagnostics: NonNullable<ProjectAssetManifest["diagnostics"]> = [];
   const memoryCache = new Map<string, VisualAssetRow[]>();
   let completed = 0;
+  let nextRequirementIndex = 0;
 
-  for (const requirement of requirements) {
+  const resolveOne = async (requirement: AssetRequirement) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(new Error(`Asset requirement exceeded ${ASSET_REQUIREMENT_BUDGET_MS}ms.`)),
+      ASSET_REQUIREMENT_BUDGET_MS,
+    );
     try {
-      const resolved = await resolveRequirement({ admin, ownerId, projectId, requirement, memoryCache });
+      const resolved = await resolveRequirement({
+        admin,
+        ownerId,
+        projectId,
+        requirement,
+        memoryCache,
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) throw controller.signal.reason;
       diagnostics.push(resolved.diagnostic);
       assetsByScreen[requirement.screenName] = [
         ...(assetsByScreen[requirement.screenName] ?? []),
@@ -1184,6 +1229,8 @@ export async function resolveProjectAssets({
         placeholderManifest(requirement, reason),
       ];
       console.warn("[visual-assets] Requirement failed", { requirementId: requirement.id, error: reason });
+    } finally {
+      clearTimeout(timeout);
     }
     completed += 1;
     if (onProgress) {
@@ -1204,7 +1251,24 @@ export async function resolveProjectAssets({
         });
       }
     }
-  }
+  };
+
+  const worker = async () => {
+    while (true) {
+      const index = nextRequirementIndex;
+      nextRequirementIndex += 1;
+      const requirement = requirements[index];
+      if (!requirement) return;
+      await resolveOne(requirement);
+    }
+  };
+
+  await Promise.all(
+    Array.from(
+      { length: Math.min(ASSET_REQUIREMENT_CONCURRENCY, requirements.length) },
+      () => worker(),
+    ),
+  );
 
   return { requirements, assetsByScreen, failures, diagnostics };
 }

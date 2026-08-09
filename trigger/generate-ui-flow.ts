@@ -58,6 +58,7 @@ import {
   fallbackProjectCharter,
   generateDesignTokens,
   planScreenBriefsForBuild,
+  planProjectBlueprint,
   planUiFlow,
   screenPlansNeedBuildEnrichment,
 } from "@/lib/generation/service";
@@ -71,6 +72,7 @@ import { resolveGenerationReferencePolicy } from "@/lib/generation/reference-pol
 import { resolveProjectReferenceDna } from "@/lib/generation/reference-dna";
 import {
   bindReservationToScreen,
+  appendGenerationCredits,
   captureGenerationCredit,
   CreditReservationError,
   generationOutputKey,
@@ -102,10 +104,10 @@ import { tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
 import { detectTokenDrift } from "@/lib/token-drift";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
-import { getGenerationEngineVersion, getScreenBuilderProvider } from "@/lib/env/server";
+import { getGenerationEngineVersion, getScreenBuilderProvider, isProgressiveFirstScreenEnabled } from "@/lib/env/server";
 import { enrichScreenMemoryTask } from "@/trigger/enrich-screen-memory";
 import type { Database, ProjectScreenRoadmapRow } from "@/lib/supabase/database.types";
-import type { BuilderProjectContractV1, DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationPreviewMetadata, GenerationPromptMode, GenerationReferencePolicy, GenerationRetryContext, GenerationScopeContract, ImageReferenceMode, LlmProviderEvent, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, ProjectRoadmap, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceImageRole, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenBaseStatePlan, ScreenPlan, ScreenPlanningSeed, ScreenStateVariantPlan } from "@/lib/types";
+import type { AssetRequirement, BuilderProjectContractV1, DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationPreviewMetadata, GenerationPromptMode, GenerationReferencePolicy, GenerationRetryContext, GenerationScopeContract, ImageReferenceMode, LlmProviderEvent, NavigationArchitecture, NavigationPlan, PlannedUiFlow, PlanningMode, ProjectAssetManifest, ProjectRoadmap, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceImageRole, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenBaseStatePlan, ScreenPlan, ScreenPlanningSeed, ScreenStateVariantPlan } from "@/lib/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -142,6 +144,7 @@ type BuildScreenTaskPayload = {
   generationRunId: string;
   screenId: string;
   projectId: string;
+  ownerId: string;
   screenPlan: ScreenPlan;
   prompt: string;
   designTokens?: DesignTokens | null;
@@ -160,6 +163,7 @@ type BuildScreenTaskPayload = {
   requiresBottomNav: boolean;
   navigationArchitecture?: NavigationArchitecture | null;
   navigationPlan?: NavigationPlan | null;
+  assetRequirements?: AssetRequirement[];
   assetManifest?: ScreenAssetManifest[];
   projectCharter?: ProjectCharter | null;
   productContract?: BuilderProjectContractV1 | null;
@@ -1099,6 +1103,7 @@ async function collectScreenBuild(
       requiresBottomNav: input.requiresBottomNav,
       navigationArchitecture: input.navigationArchitecture,
       navigationPlan: input.navigationPlan,
+      assetRequirements: input.assetRequirements,
       assetManifest: input.assetManifest,
       productContract: input.productContract,
       projectContext: input.projectContext,
@@ -1192,6 +1197,7 @@ async function collectNonStreamingScreenBuild(input: BuildScreenTaskPayload, scr
     requiresBottomNav: input.requiresBottomNav,
     navigationArchitecture: input.navigationArchitecture,
     navigationPlan: input.navigationPlan,
+    assetRequirements: input.assetRequirements,
     assetManifest: input.assetManifest,
     productContract: input.productContract,
     projectContext: input.projectContext,
@@ -1371,16 +1377,82 @@ export const buildScreenTask = task({
       projectContext: compactBuildContext(payload.projectContext),
     };
     const attempts: GenerationAttemptDiagnostics[] = [];
+    const pendingAssetRequirements = payload.assetRequirements
+      ?? (payload.assetManifest?.length
+        ? []
+        : await planVisualAssets({
+            prompt: payload.prompt,
+            screens: [payload.screenPlan],
+            charter: payload.projectCharter,
+            designTokens: payload.designTokens,
+            referenceMode: payload.referenceMode,
+          }));
+    buildPayload.assetRequirements = pendingAssetRequirements;
+    const assetResolutionStartedAt = now();
+    const assetResolutionStartedMs = Date.now();
+    const assetResolutionPromise: Promise<ProjectAssetManifest> = payload.assetManifest?.length
+      ? Promise.resolve({
+          requirements: pendingAssetRequirements,
+          assetsByScreen: { [payload.screenPlan.name]: payload.assetManifest },
+          failures: [],
+          diagnostics: [],
+        })
+      : resolveProjectAssets({
+          admin,
+          ownerId: payload.ownerId,
+          projectId: payload.projectId,
+          generationRunId: payload.generationRunId,
+          requirements: pendingAssetRequirements,
+        });
 
     // Pipe the first Gemini async generator so the frontend can subscribe
     // via useRealtimeRunWithStreams and render partial HTML in real time.
-    let build = await collectScreenBuild(buildPayload, payload.screenPlan, payload.isFirstScreen
-      ? async () => {
-          await mergeGenerationPerformance(admin, payload.generationRunId, {
-            firstStreamChunkAt: now(),
-          });
-        }
-      : undefined);
+    let build: Awaited<ReturnType<typeof collectScreenBuild>>;
+    try {
+      build = await collectScreenBuild(buildPayload, payload.screenPlan, payload.isFirstScreen
+        ? async () => {
+            await mergeGenerationPerformance(admin, payload.generationRunId, {
+              firstStreamChunkAt: now(),
+            });
+          }
+        : undefined);
+    } catch (error) {
+      await assetResolutionPromise.catch((assetError) => {
+        logger.warn("Asset resolution also failed after builder stream failure", {
+          screenId: payload.screenId,
+          error: assetError,
+        });
+      });
+      throw error;
+    }
+    const resolvedAssets = await assetResolutionPromise;
+    const resolvedAssetManifest = resolvedAssets.assetsByScreen[payload.screenPlan.name] ?? [];
+    const assetResolutionDurationMs = Math.max(0, Date.now() - assetResolutionStartedMs);
+    const { error: assetUsageBindError } = await admin
+      .from("project_asset_usages")
+      .update({ screen_id: payload.screenId })
+      .eq("project_id", payload.projectId)
+      .eq("generation_run_id", payload.generationRunId)
+      .eq("screen_name", payload.screenPlan.name)
+      .is("screen_id", null);
+    if (assetUsageBindError) {
+      logger.warn("Failed to bind per-screen visual asset usages", {
+        screenId: payload.screenId,
+        error: assetUsageBindError,
+      });
+    }
+    await mergeGenerationPerformance(admin, payload.generationRunId, {
+      screenAssets: {
+        [payload.screenId]: {
+          screenName: payload.screenPlan.name,
+          startedAt: assetResolutionStartedAt,
+          completedAt: now(),
+          durationMs: assetResolutionDurationMs,
+          requirementCount: pendingAssetRequirements.length,
+          failureCount: resolvedAssets.failures?.length ?? 0,
+        },
+      },
+    });
     let extractedCode = build.extractedCode;
     let completion = validateSourceCompletion({
       code: extractedCode,
@@ -1651,11 +1723,11 @@ export const buildScreenTask = task({
 
     const assetHydration = hydrateScreenAssetSlots({
       code: finalized.code,
-      assetManifest: payload.assetManifest,
+      assetManifest: resolvedAssetManifest,
     });
     const assetSanitization = sanitizeScreenAssetUsage({
       code: assetHydration.code,
-      assetManifest: payload.assetManifest,
+      assetManifest: resolvedAssetManifest,
     });
     const latestAttempt = attempts.at(-1);
     if (latestAttempt) {
@@ -1690,7 +1762,7 @@ export const buildScreenTask = task({
     }
 
     const health = detectScreenHealth({ code, screenPrompt: payload.screenPlan.description });
-    const assetPolicy = validateScreenAssetPolicy({ code, assetManifest: payload.assetManifest });
+    const assetPolicy = validateScreenAssetPolicy({ code, assetManifest: resolvedAssetManifest });
     let blockIndex = indexScreenCode(code);
     const screenStatus = screenStatusForHealth(health);
 
@@ -1871,6 +1943,12 @@ export const buildScreenTask = task({
           hydration: assetHydration.outcomes,
           usesByRequirement: assetPolicy.usesByRequirement,
         },
+        assetResolution: {
+          requirements: pendingAssetRequirements,
+          failures: resolvedAssets.failures ?? [],
+          diagnostics: resolvedAssets.diagnostics ?? [],
+          durationMs: assetResolutionDurationMs,
+        },
         usageByAttempt: attempts.map((attempt) => attempt.usageMetadata).filter(Boolean),
       };
     }
@@ -1901,6 +1979,12 @@ export const buildScreenTask = task({
       assetOutcomes: {
         hydration: assetHydration.outcomes,
         usesByRequirement: assetPolicy.usesByRequirement,
+      },
+      assetResolution: {
+        requirements: pendingAssetRequirements,
+        failures: resolvedAssets.failures ?? [],
+        diagnostics: resolvedAssets.diagnostics ?? [],
+        durationMs: assetResolutionDurationMs,
       },
       usageByAttempt: attempts.map((attempt) => attempt.usageMetadata).filter(Boolean),
     };
@@ -2495,8 +2579,14 @@ export const generateUiFlowTask = task({
       });
     }
 
-    let plan = hasSeedScreens
-      ? {
+    const progressiveFirstScreen = isProgressiveFirstScreenEnabled()
+      && !hasSeedScreens
+      && planningMode === "project";
+    let remainingBriefsStarter: (() => Promise<ScreenPlan[]>) | null = null;
+    let plan: PlannedUiFlow;
+
+    if (hasSeedScreens) {
+      plan = {
           requiresBottomNav: Boolean(payload.navigationPlan?.enabled),
           navigationArchitecture: requestedNavigationArchitecture,
           navigationPlan: normalizeNavigationPlan({
@@ -2509,16 +2599,174 @@ export const generateUiFlowTask = task({
           charter: requestedCharter!,
           screens: seedScreens,
           scopeContract,
-          screenCountContract: null,
+          screenCountContract: undefined,
           screenCountEnforcement: "none" as const,
-          intentContract: null,
-          screenFamilyContract: null,
+          intentContract: undefined,
+          screenFamilyContract: undefined,
           roadmap: payload.projectRoadmap ?? undefined,
           initialBatchItemKeys: payload.initialBatchItemKeys ?? undefined,
           requestedParentCount: payload.projectRoadmap?.requestedParentCount ?? null,
           remainingUnplannedCount: payload.projectRoadmap?.remainingUnplannedCount ?? 0,
-        }
-      : await planUiFlow({
+        };
+    } else if (progressiveFirstScreen) {
+      const blueprint = await planProjectBlueprint({
+        prompt: payload.prompt,
+        image: promptImage,
+        referenceMode,
+        referenceId,
+        referenceCatalogHash,
+        designStyle,
+        designTokens,
+        scopeContract,
+        referenceAnalysis,
+        referenceDna: reusableProjectReferenceDna,
+        screenFamilyContract: reusableProjectReferenceDna?.screenFamilyContract,
+        projectContext: planningContext,
+        existingCharter: requestedCharter,
+        existingNavigationPlan: payload.navigationPlan ?? null,
+        planningMode,
+        onProgress: async (event) => {
+          if (event.type !== "blueprint_ready") return;
+          const blueprintReadyAt = now();
+          setJournalPhase(generationJournal, "blueprint", "completed", `Project structure is ready for ${event.screens.length} screen${event.screens.length === 1 ? "" : "s"}.`);
+          setJournalPhase(generationJournal, "screens", "active", `Briefing ${event.screens[0]?.name ?? "the first screen"} first.`);
+          generationJournal.screens = event.screens.map((screen) => ({
+            name: screen.name,
+            type: screen.type,
+            status: "briefing",
+          }));
+          await mergeGenerationRunMetadata(admin, payload.generationRunId, {
+            generationPreview: {
+              version: 1,
+              stage: "screen_briefs",
+              screens: event.screens,
+              updatedAt: blueprintReadyAt,
+            } satisfies GenerationPreviewMetadata,
+          });
+          await mergeGenerationPerformance(admin, payload.generationRunId, {
+            blueprintReadyAt,
+            blueprintPreviewAt: blueprintReadyAt,
+            stages: { blueprint: performanceStage(blueprintStartedAt, blueprintStartedMs) },
+          });
+          await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
+        },
+        llmLog: llmLogFor("blueprint"),
+      });
+      const seedPlans: ScreenPlan[] = blueprint.screenSeeds.map((seed) => ({
+        name: seed.name,
+        type: seed.type,
+        description: seed.summary,
+        roadmapStableKey: seed.roadmapStableKey ?? screenRoadmapKey(seed.name),
+        roadmapPriority: seed.roadmapPriority,
+        explicitlyRequested: seed.explicitlyRequested,
+        referenceScreenIndex: seed.referenceScreenIndex ?? null,
+        referenceScreenCount: seed.referenceScreenCount ?? null,
+        stateVariants: [],
+        assetNeeds: [],
+      }));
+      if (seedPlans.length === 0) throw new Error("The project blueprint did not return an initial screen seed.");
+      const firstBriefStartedAt = now();
+      const firstBriefStartedMs = Date.now();
+      await mergeGenerationPerformance(admin, payload.generationRunId, { firstBriefStartedAt });
+      let firstBrief: ScreenPlan;
+      let remainingAlreadyPlanned = false;
+      try {
+        const firstResult = await planScreenBriefsForBuild({
+          screens: [seedPlans[0]],
+          prompt: payload.prompt,
+          charter: blueprint.charter,
+          navigationArchitecture: blueprint.navigationArchitecture,
+          navigationPlan: blueprint.navigationPlan,
+          designTokens,
+          designStyle,
+          projectContext: planningContext,
+          planningMode,
+          referenceMode,
+          force: true,
+          llmLog: llmLogFor("firstScreenBrief"),
+        });
+        firstBrief = firstResult.screens[0];
+      } catch (error) {
+        if (seedPlans.length === 1) throw error;
+        logger.warn("First screen brief failed; promoting the first valid remaining brief", {
+          screenName: seedPlans[0].name,
+          error,
+        });
+        const promoted = await planScreenBriefsForBuild({
+          screens: seedPlans.slice(1),
+          prompt: payload.prompt,
+          charter: blueprint.charter,
+          navigationArchitecture: blueprint.navigationArchitecture,
+          navigationPlan: blueprint.navigationPlan,
+          designTokens,
+          designStyle,
+          projectContext: planningContext,
+          planningMode,
+          referenceMode,
+          force: true,
+          llmLog: llmLogFor("promotedScreenBriefs"),
+        });
+        seedPlans.splice(0, seedPlans.length, ...promoted.screens);
+        firstBrief = seedPlans[0];
+        remainingAlreadyPlanned = true;
+      }
+      const firstBriefReadyAt = now();
+      await mergeGenerationPerformance(admin, payload.generationRunId, {
+        firstBriefReadyAt,
+        stages: { firstBrief: performanceStage(firstBriefStartedAt, firstBriefStartedMs) },
+      });
+      plan = {
+        requiresBottomNav: blueprint.requiresBottomNav,
+        navigationArchitecture: blueprint.navigationArchitecture,
+        navigationPlan: normalizeNavigationPlan({
+          navigationPlan: blueprint.navigationPlan,
+          screens: [firstBrief, ...seedPlans.slice(1)],
+          navigationArchitecture: blueprint.navigationArchitecture,
+          requiresBottomNav: blueprint.requiresBottomNav,
+          strictScreenLinks: true,
+        }),
+        charter: blueprint.charter,
+        screens: [firstBrief, ...seedPlans.slice(1)],
+        scopeContract: blueprint.scopeContract,
+        screenCountContract: blueprint.screenCountContract,
+        screenCountEnforcement: blueprint.screenCountEnforcement,
+        intentContract: blueprint.intentContract,
+        screenFamilyContract: blueprint.screenFamilyContract,
+        roadmap: blueprint.roadmap,
+        initialBatchItemKeys: blueprint.initialBatchItemKeys,
+        requestedParentCount: blueprint.requestedParentCount,
+        remainingUnplannedCount: blueprint.remainingUnplannedCount,
+      };
+      const remainingSeeds = seedPlans.slice(1);
+      if (remainingSeeds.length > 0 && !remainingAlreadyPlanned) {
+        remainingBriefsStarter = async () => {
+          const remainingBriefsStartedAt = now();
+          const remainingBriefsStartedMs = Date.now();
+          await mergeGenerationPerformance(admin, payload.generationRunId, { remainingBriefsStartedAt });
+          const result = await planScreenBriefsForBuild({
+            screens: remainingSeeds,
+            prompt: payload.prompt,
+            charter: blueprint.charter,
+            navigationArchitecture: blueprint.navigationArchitecture,
+            navigationPlan: blueprint.navigationPlan,
+            designTokens,
+            designStyle,
+            projectContext: planningContext,
+            planningMode,
+            referenceMode,
+            force: true,
+            llmLog: llmLogFor("remainingScreenBriefs"),
+          });
+          const remainingBriefsReadyAt = now();
+          await mergeGenerationPerformance(admin, payload.generationRunId, {
+            remainingBriefsReadyAt,
+            stages: { remainingBriefs: performanceStage(remainingBriefsStartedAt, remainingBriefsStartedMs) },
+          });
+          return result.screens;
+        };
+      }
+    } else {
+      plan = await planUiFlow({
           prompt: payload.prompt,
           image: promptImage,
           referenceMode,
@@ -2571,8 +2819,9 @@ export const generateUiFlowTask = task({
           },
           llmLog: llmLogFor("blueprint"),
         });
+    }
 
-    if (shouldPlanScreenBriefsFromSeeds) {
+    if (shouldPlanScreenBriefsFromSeeds && !progressiveFirstScreen) {
       if (!requestedCharter) {
         throw new Error("Add-screen planning requires the existing project charter before any build can begin.");
       }
@@ -2664,7 +2913,7 @@ export const generateUiFlowTask = task({
 	      navigationPlan: plan.navigationPlan,
 	      requestedParentCount: plan.requestedParentCount ?? plan.scopeContract?.finalScreenCount ?? scopeContract?.finalScreenCount ?? null,
 	    });
-	    const projectRoadmap = buildProjectRoadmap({
+	    let projectRoadmap = buildProjectRoadmap({
 	      screens: plan.screens,
 	      navigationPlan: plan.navigationPlan,
 	      requestedParentCount: roadmapSeed.requestedParentCount,
@@ -2710,7 +2959,7 @@ export const generateUiFlowTask = task({
 	    const parentOutputs = retryOnlyStateVariants ? [] : plan.screens;
 	    const stateCapacity = Math.max(0, MAX_TOTAL_OUTPUTS_PER_RUN - parentOutputs.length);
 	    let remainingStateCapacity = stateCapacity;
-	    const selectedStateGroups = stateGroups.map((group) => {
+	    let selectedStateGroups = stateGroups.map((group) => {
 	      const variants = group.variants.slice(0, remainingStateCapacity);
 	      remainingStateCapacity -= variants.length;
 	      return { ...group, variants };
@@ -2790,15 +3039,22 @@ export const generateUiFlowTask = task({
       "completed",
       plan.navigationPlan.enabled ? "Shared navigation is planned for this project." : "No shared navigation is needed for this run.",
     );
-    setJournalPhase(generationJournal, "screens", "completed", `Planned ${plan.screens.length} screen${plan.screens.length === 1 ? "" : "s"}.`);
-    generationJournal.screens = plan.screens.map((screenPlan) => ({
+    setJournalPhase(
+      generationJournal,
+      "screens",
+      progressiveFirstScreen && remainingBriefsStarter ? "active" : "completed",
+      progressiveFirstScreen && remainingBriefsStarter
+        ? `First brief ready; ${Math.max(0, plan.screens.length - 1)} remaining screen${plan.screens.length === 2 ? "" : "s"} will be planned during the first build.`
+        : `Planned ${plan.screens.length} screen${plan.screens.length === 1 ? "" : "s"}.`,
+    );
+    generationJournal.screens = plan.screens.map((screenPlan, index) => ({
       name: screenPlan.name,
       type: screenPlan.type,
       description: screenPlan.description,
       chrome: screenPlan.chromePolicy?.chrome ?? null,
       navigationItemId: screenPlan.navigationItemId ?? null,
       assetNeedCount: screenPlan.assetNeeds?.length ?? 0,
-      status: "planned",
+      status: progressiveFirstScreen && remainingBriefsStarter && index > 0 ? "briefing" : "planned",
     }));
     await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
@@ -2877,7 +3133,7 @@ export const generateUiFlowTask = task({
       navigationEnabled: plan.navigationPlan.enabled,
       generationPreview: {
         version: 1,
-        stage: "asset_resolution",
+        stage: progressiveFirstScreen ? "screen_briefs" : "asset_resolution",
         screens: plan.screens.map((screenPlan, index) => ({
           stableKey: screenPlan.roadmapStableKey ?? screenRoadmapKey(screenPlan.name),
           roadmapItemId: screenPlan.roadmapItemId ?? null,
@@ -2890,12 +3146,21 @@ export const generateUiFlowTask = task({
     });
 
     generationJournal.screens = generationJournal.screens?.map((screen) =>
-      screen.status === "ready" || screen.status === "failed" ? screen : { ...screen, status: "preparing_assets" },
+      screen.status === "ready" || screen.status === "failed" || progressiveFirstScreen
+        ? screen
+        : { ...screen, status: "preparing_assets" },
     );
-    setJournalPhase(generationJournal, "assets", "active", "Resolving curated assets, stock photos, or simple placeholders.");
+    setJournalPhase(
+      generationJournal,
+      "assets",
+      progressiveFirstScreen ? "completed" : "active",
+      progressiveFirstScreen
+        ? "Each screen resolves its own assets concurrently with HTML streaming."
+        : "Resolving curated assets, stock photos, or simple placeholders.",
+    );
     await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
-    await postStatusMessage(
+    if (!progressiveFirstScreen) await postStatusMessage(
       admin,
       payload.projectId,
       payload.ownerId,
@@ -2909,7 +3174,7 @@ export const generateUiFlowTask = task({
 
     const assetPlanningStartedAt = now();
     const assetPlanningStartedMs = Date.now();
-    const assetRequirements = retryOnlyStateVariants ? [] : await planVisualAssets({
+    const assetRequirements = retryOnlyStateVariants || progressiveFirstScreen ? [] : await planVisualAssets({
       prompt: payload.prompt,
       screens: plan.screens,
       charter: plan.charter,
@@ -2925,7 +3190,7 @@ export const generateUiFlowTask = task({
     const assetResolutionStartedMs = Date.now();
     let lastAssetJournalPostMs = 0;
 
-    const projectAssetManifest: ProjectAssetManifest = retryOnlyStateVariants
+    const projectAssetManifest: ProjectAssetManifest = retryOnlyStateVariants || progressiveFirstScreen
       ? { requirements: [], assetsByScreen: {}, failures: [], diagnostics: [] }
       : await resolveProjectAssets({
           admin,
@@ -2991,7 +3256,9 @@ export const generateUiFlowTask = task({
       .flat()
       .filter((asset) => asset.placeholder)
       .length;
-    const assetStatusTitle = assetRequirements.length === 0
+    const assetStatusTitle = progressiveFirstScreen
+      ? "Visual assets will resolve during each screen build"
+      : assetRequirements.length === 0
       ? "No bitmap assets requested by planner"
       : resolvedAssetCount === 0 && placeholderAssetCount > 0
         ? "Bitmap assets requested, no match found, placeholders used"
@@ -2999,7 +3266,7 @@ export const generateUiFlowTask = task({
           ? `Resolved ${resolvedAssetCount} visual asset${resolvedAssetCount === 1 ? "" : "s"}, using ${placeholderAssetCount} placeholder${placeholderAssetCount === 1 ? "" : "s"}`
           : `Resolved ${resolvedAssetCount} visual asset${resolvedAssetCount === 1 ? "" : "s"}`;
 
-    await postStatusMessage(
+    if (!progressiveFirstScreen) await postStatusMessage(
       admin,
       payload.projectId,
       payload.ownerId,
@@ -3014,7 +3281,7 @@ export const generateUiFlowTask = task({
       },
     );
     setJournalPhase(generationJournal, "assets", "completed", assetStatusTitle);
-    generationJournal.assetSummary = {
+    generationJournal.assetSummary = progressiveFirstScreen ? undefined : {
       requested: assetRequirements.length,
       resolved: resolvedAssetCount,
       placeholders: placeholderAssetCount,
@@ -3038,10 +3305,10 @@ export const generateUiFlowTask = task({
           referenceScreenCount: screenPlan.referenceScreenCount ?? referenceTargetCount,
         }))
       : baseScreenPlans;
-    const screenPlans = retryOnlyStateVariants ? [] : resolvedScreenPlans;
+    let screenPlans = retryOnlyStateVariants ? [] : resolvedScreenPlans;
 
-	    const stateVariantCount = selectedStateGroups.reduce((total, group) => total + group.variants.length, 0);
-	    const plannedOutputCount = screenPlans.length + stateVariantCount;
+	    let stateVariantCount = selectedStateGroups.reduce((total, group) => total + group.variants.length, 0);
+	    let plannedOutputCount = screenPlans.length + stateVariantCount;
 
     await postStatusMessage(
       admin,
@@ -3105,6 +3372,7 @@ export const generateUiFlowTask = task({
     let usedResolvedAssetCount = 0;
     const ignoredResolvedAssetIds = new Set<string>();
     const postBuildAssetOutcomes: Record<string, unknown> = {};
+    const perScreenAssetResolution: Record<string, unknown> = {};
     const successfulRoadmapItemIds = new Set<string>();
     const readyParentScreenIds = new Map<string, string>();
     let settlementQueue: Promise<void> = Promise.resolve();
@@ -3144,9 +3412,11 @@ export const generateUiFlowTask = task({
       }
     }
 
+    let remainingBriefsPromise: Promise<ScreenPlan[]> | null = null;
     const screenEntries = screenPlans.map((screenPlan, index) => ({ screenPlan, index }));
-    const screenBatches = buildFirstScreenPriorityBatches(screenEntries, 2);
-    for (const batch of screenBatches) {
+    let screenBatches = buildFirstScreenPriorityBatches(screenEntries, 2);
+    for (let batchIndex = 0; batchIndex < screenBatches.length; batchIndex += 1) {
+      const batch = screenBatches[batchIndex];
       await Promise.all(batch.map(async ({ screenPlan, index }) => {
       const parentRoadmapStableKey = screenPlan.roadmapStableKey ?? screenRoadmapKey(screenPlan.name);
       const outputKey = generationOutputKey(payload.generationRunId, "screen", parentRoadmapStableKey);
@@ -3248,6 +3518,7 @@ export const generateUiFlowTask = task({
             generationRunId: payload.generationRunId,
             screenId,
             projectId: payload.projectId,
+            ownerId: payload.ownerId,
             screenPlan,
             prompt: payload.prompt,
             designTokens,
@@ -3270,6 +3541,7 @@ export const generateUiFlowTask = task({
             requiresBottomNav: plan.requiresBottomNav,
             navigationArchitecture: plan.navigationArchitecture,
             navigationPlan: plan.navigationPlan,
+            assetRequirements: progressiveFirstScreen ? undefined : [],
             assetManifest: projectAssetManifest.assetsByScreen[screenPlan.name] ?? [],
             projectCharter: plan.charter,
             productContract: buildBuilderProjectContract({
@@ -3286,6 +3558,20 @@ export const generateUiFlowTask = task({
             concurrencyKey: `project-${payload.projectId}`,
           },
         );
+        if (index === 0) {
+          const firstBuilderTriggeredAt = now();
+          await mergeGenerationPerformance(admin, payload.generationRunId, { firstBuilderTriggeredAt });
+          if (remainingBriefsStarter && !remainingBriefsPromise) {
+            remainingBriefsPromise = remainingBriefsStarter();
+            setJournalPhase(
+              generationJournal,
+              "screens",
+              "active",
+              `Building ${screenPlan.name} while planning ${Math.max(0, screenPlans.length - 1)} remaining screen${screenPlans.length === 2 ? "" : "s"}.`,
+            );
+            await postGenerationJournalSerial();
+          }
+        }
 
         const { error: triggerBindError } = await admin
           .from("screens")
@@ -3359,6 +3645,7 @@ export const generateUiFlowTask = task({
           usedResolvedAssetCount?: number;
           ignoredResolvedAssetIds?: string[];
           assetOutcomes?: Record<string, unknown>;
+          assetResolution?: Record<string, unknown>;
           usageByAttempt?: Array<Record<string, unknown>>;
         } | undefined;
         for (const usageMetadata of buildOutput?.usageByAttempt ?? []) {
@@ -3374,6 +3661,9 @@ export const generateUiFlowTask = task({
         }
         if (buildOutput?.assetOutcomes) {
           postBuildAssetOutcomes[screenPlan.name] = buildOutput.assetOutcomes;
+        }
+        if (buildOutput?.assetResolution) {
+          perScreenAssetResolution[screenPlan.name] = buildOutput.assetResolution;
         }
 
         if (result?.status === "COMPLETED") {
@@ -3617,6 +3907,131 @@ export const generateUiFlowTask = task({
         );
       }
       }));
+
+      const pendingRemainingBriefs = remainingBriefsPromise as Promise<ScreenPlan[]> | null;
+      if (batchIndex === 0 && pendingRemainingBriefs) {
+        try {
+          const remainingScreens: ScreenPlan[] = await pendingRemainingBriefs;
+          screenPlans = [screenPlans[0], ...remainingScreens];
+          projectRoadmap = buildProjectRoadmap({
+            screens: screenPlans,
+            navigationPlan: plan.navigationPlan,
+            requestedParentCount: projectRoadmap.requestedParentCount,
+            tranche: projectRoadmap.tranche,
+            plannedItems: projectRoadmap.items,
+          });
+          const refreshedRoadmapRows = await persistProjectRoadmap({
+            admin,
+            projectId: payload.projectId,
+            ownerId: payload.ownerId,
+            roadmap: projectRoadmap,
+          }) as ProjectScreenRoadmapRow[];
+          const refreshedRoadmapByKey = new Map(refreshedRoadmapRows.map((item) => [item.stable_key, item]));
+          screenPlans = screenPlans.map((screenPlan) => {
+            const stableKey = screenPlan.roadmapStableKey ?? screenRoadmapKey(screenPlan.name);
+            return {
+              ...screenPlan,
+              roadmapStableKey: stableKey,
+              roadmapItemId: refreshedRoadmapByKey.get(stableKey)?.id ?? screenPlan.roadmapItemId ?? null,
+              stateVariants: (screenPlan.stateVariants ?? []).map((variant) => {
+                const variantStableKey = variant.roadmapStableKey ?? stateRoadmapKey(stableKey, variant.stateKey);
+                return {
+                  ...variant,
+                  roadmapStableKey: variantStableKey,
+                  roadmapItemId: refreshedRoadmapByKey.get(variantStableKey)?.id ?? variant.roadmapItemId ?? null,
+                };
+              }),
+            };
+          });
+          const alreadySelectedVariantIds = new Set(selectedStateGroups.flatMap((group) => group.variants.map((variant) => variant.id)));
+          let remainingVariantCapacity = Math.max(
+            0,
+            MAX_TOTAL_OUTPUTS_PER_RUN - screenPlans.length - alreadySelectedVariantIds.size,
+          );
+          const discoveredStateGroups = screenPlans.slice(1).flatMap((parent) => {
+            const variants = (parent.stateVariants ?? [])
+              .filter((variant) => !alreadySelectedVariantIds.has(variant.id))
+              .filter((variant) => variant.defaultSelected || variant.explicitlyRequested)
+              .slice(0, remainingVariantCapacity);
+            remainingVariantCapacity -= variants.length;
+            return variants.length > 0 ? [{ parent, variants }] : [];
+          });
+          if (discoveredStateGroups.length > 0) {
+            const appendOutputs = discoveredStateGroups.flatMap((group) => group.variants.map((variant) => ({
+              outputKey: generationOutputKey(
+                payload.generationRunId,
+                "state",
+                variant.roadmapStableKey ?? stateRoadmapKey(group.parent.roadmapStableKey ?? screenRoadmapKey(group.parent.name), variant.stateKey),
+              ),
+              outputKind: "state" as const,
+              amount: STATE_GENERATION_CREDIT_COST,
+              roadmapItemId: variant.roadmapItemId ?? null,
+              metadata: { screenName: group.parent.name, stateLabel: variant.stateLabel },
+            })));
+            try {
+              const appended = await appendGenerationCredits({
+                admin,
+                ownerId: payload.ownerId,
+                projectId: payload.projectId,
+                generationRunId: payload.generationRunId,
+                outputs: appendOutputs,
+              });
+              reservationSummary = {
+                ...reservationSummary,
+                reservedCredits: reservationSummary.reservedCredits + appended.reservedCredits,
+                outputCount: reservationSummary.outputCount + appended.outputCount,
+                availableBalance: appended.availableBalance,
+              };
+              selectedStateGroups = [...selectedStateGroups, ...discoveredStateGroups];
+              stateVariantCount = selectedStateGroups.reduce((total, group) => total + group.variants.length, 0);
+              plannedOutputCount = screenPlans.length + stateVariantCount;
+            } catch (error) {
+              if (!(error instanceof CreditReservationError) || error.code !== "insufficient_credits") throw error;
+              logger.warn("Skipping optional state variants because incremental credits are unavailable", {
+                generationRunId: payload.generationRunId,
+                variantCount: appendOutputs.length,
+              });
+            }
+          }
+          plan.screens = screenPlans;
+          plan.navigationPlan = normalizeNavigationPlan({
+            navigationPlan: plan.navigationPlan,
+            screens: screenPlans,
+            navigationArchitecture: plan.navigationArchitecture,
+            requiresBottomNav: plan.requiresBottomNav,
+            strictScreenLinks: true,
+          });
+          const remainingEntries = screenPlans.slice(1).map((screenPlan, offset) => ({
+            screenPlan,
+            index: offset + 1,
+          }));
+          const remainingBatches: typeof screenBatches = [];
+          for (let index = 0; index < remainingEntries.length; index += 2) {
+            remainingBatches.push(remainingEntries.slice(index, index + 2));
+          }
+          screenBatches = [screenBatches[0], ...remainingBatches];
+          generationJournal.screens = generationJournal.screens?.map((screen) => {
+            const planned = remainingScreens.find((item) => item.name === screen.name);
+            return planned ? { ...screen, description: planned.description, status: "planned" } : screen;
+          });
+          setJournalPhase(generationJournal, "screens", "completed", `Planned ${screenPlans.length} builder-ready screens.`);
+          await mergeGenerationRunMetadata(admin, payload.generationRunId, {
+            plannedScreens: screenPlans,
+            plannedScreenCount: screenPlans.length,
+          });
+          await postGenerationJournalSerial();
+        } catch (error) {
+          logger.error("Remaining screen planning failed after first builder handoff", {
+            generationRunId: payload.generationRunId,
+            error,
+          });
+          screenPlans = screenPlans.slice(0, 1);
+          plan.screens = screenPlans;
+          screenBatches = [screenBatches[0]];
+          setJournalPhase(generationJournal, "screens", "failed", "The first screen was retained; remaining screen briefs can be retried.");
+          await postGenerationJournalSerial();
+        }
+      }
     }
     await journalWriteQueue;
     await settlementQueue;
@@ -3701,6 +4116,7 @@ export const generateUiFlowTask = task({
           : 0,
       },
       postBuildAssetOutcomes,
+      perScreenAssetResolution,
       generationPreview: null,
     });
 

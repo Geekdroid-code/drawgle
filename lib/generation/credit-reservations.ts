@@ -92,6 +92,54 @@ export async function reserveGenerationCredits({
   };
 }
 
+export async function appendGenerationCredits({
+  admin,
+  ownerId,
+  projectId,
+  generationRunId,
+  outputs,
+}: {
+  admin: AdminClient;
+  ownerId: string;
+  projectId: string;
+  generationRunId: string;
+  outputs: CreditReservationOutput[];
+}) {
+  if (outputs.length === 0 || outputs.length > MAX_TOTAL_OUTPUTS_PER_RUN) {
+    throw new CreditReservationError(
+      `An incremental reservation must contain between 1 and ${MAX_TOTAL_OUTPUTS_PER_RUN} outputs.`,
+      "reservation_failed",
+    );
+  }
+  const manifest = outputs.map((output) => ({
+    outputKey: output.outputKey,
+    outputKind: output.outputKind,
+    amount: output.amount ?? SCREEN_GENERATION_CREDIT_COST,
+    roadmapItemId: output.roadmapItemId ?? null,
+    metadata: output.metadata ?? {},
+  }));
+  const { data, error } = await admin.rpc("append_generation_credit_reservations", {
+    input_owner_id: ownerId,
+    input_project_id: projectId,
+    input_generation_run_id: generationRunId,
+    input_outputs: manifest as never,
+  });
+  if (error) {
+    const insufficient = /insufficient credits/i.test(error.message);
+    throw new CreditReservationError(
+      error.message,
+      insufficient ? "insufficient_credits" : "reservation_failed",
+    );
+  }
+  const result = (data ?? {}) as ReservationRpcResult;
+  return {
+    reservedCredits: Number(result.reservedCredits ?? 0),
+    outputCount: Number(result.outputCount ?? 0),
+    availableBalance: result.availableBalance == null ? null : Number(result.availableBalance),
+    idempotent: Boolean(result.idempotent),
+  };
+}
+
 export async function bindReservationToScreen({
   admin,
   ownerId,

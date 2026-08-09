@@ -50,6 +50,9 @@ export const getGenerationEngineVersion = (): "v1" | "v2" =>
 export const isStyleReferenceCalibrationEnabled = () =>
   process.env.DRAWGLE_STYLE_REFERENCE_CALIBRATION_ENABLED !== "false";
 
+export const isProgressiveFirstScreenEnabled = () =>
+  process.env.DRAWGLE_PROGRESSIVE_FIRST_SCREEN_ENABLED !== "false";
+
 export const isProjectAgentV2Enabled = (projectId: string) => {
   const allowlist = new Set(
     (process.env.DRAWGLE_AGENT_V2_PROJECT_ALLOWLIST ?? "")

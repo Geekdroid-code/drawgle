@@ -887,6 +887,15 @@ export interface Database {
         };
         Returns: Json;
       };
+      append_generation_credit_reservations: {
+        Args: {
+          input_owner_id: string;
+          input_project_id: string;
+          input_generation_run_id: string;
+          input_outputs: Json;
+        };
+        Returns: Json;
+      };
       capture_generation_credit: {
         Args: {
           input_owner_id: string;

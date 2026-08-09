@@ -5,7 +5,7 @@ import type { GenerationPromptMode } from "@/lib/generation/prompt-routing";
 import { formatReferenceTransferContract } from "@/lib/generation/reference-transfer";
 import { DRAWGLE_GENERATION_COMPLETE_SENTINEL } from "@/lib/generation/screen-quality";
 import { buildTokenPromptContext } from "@/lib/token-runtime";
-import type { BuildScreenInput, DesignTokens, NavigationArchitecture, ScreenAssetManifest, ScreenPlan, NavigationPlan } from "@/lib/types";
+import type { AssetRequirement, BuildScreenInput, DesignTokens, NavigationArchitecture, ScreenAssetManifest, ScreenPlan, NavigationPlan } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // PLANNER — UX Architect
@@ -928,6 +928,29 @@ const buildAssetManifestContract = (assetManifest?: ScreenAssetManifest[] | null
   ].filter(Boolean).join("\n");
 };
 
+const buildPendingAssetRequirementsContract = (assetRequirements?: AssetRequirement[] | null) => {
+  if (!assetRequirements?.length) return null;
+  return [
+    "Asset resolution is running concurrently. Build the complete styled structure now and reserve deterministic empty slots; Drawgle will hydrate them before this screen becomes ready.",
+    "Do not invent or write any URL, src, srcset, CSS url(...), data image, or external placeholder.",
+    "For every required use, output an EMPTY div or figure with data-asset-slot=\"true\", the exact data-asset-requirement-id, and exact data-asset-role.",
+    "For reuse=repeat, output slotCount compatible slots with the same requirement id. For reuse=distinct, add data-asset-slot-index from 0 through slotCount-1.",
+    "Critical requirements must have every declared slot. Supporting requirements may retain an intentional placeholder when resolution times out.",
+    "Pending requirements:",
+    ...assetRequirements.map((requirement, index) => [
+      `#${index + 1}`,
+      `requirementId=${compactPromptField(requirement.id)}`,
+      `role=${compactPromptField(requirement.role)}`,
+      `subject=${compactPromptField(requirement.subject)}`,
+      `placement=${compactPromptField(requirement.placementHint)}`,
+      `aspect=${requirement.desiredAspectRatio}`,
+      `slotCount=${requirement.slotCount}`,
+      `reuse=${requirement.reusePolicy}`,
+      `critical=${requirement.priority === "critical" ? "true" : "false"}`,
+    ].join(" | ")),
+  ].join("\n");
+};
+
 export const buildNavigationArchitectureContract = ({
   navigationArchitecture,
   screenPlan,
@@ -1126,14 +1149,15 @@ const buildScreenInstruction = ({
   requiresBottomNav,
   navigationArchitecture,
   navigationPlan,
+  assetRequirements,
   assetManifest,
-}: Pick<BuildScreenInput, "designTokens" | "designStyle" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }, mode: GenerationPromptMode) => {
+}: Pick<BuildScreenInput, "designTokens" | "designStyle" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetRequirements" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }, mode: GenerationPromptMode) => {
   const safeTop = resolveToken(designTokens, "mobile_layout.safe_area_top", "16px");
   const safeBottom = resolveToken(designTokens, "mobile_layout.safe_area_bottom", "16px");
   const minTouch = resolveToken(designTokens, "sizing.min_touch_target", "48px");
   const textHigh = resolveToken(designTokens, "color.text.high_emphasis", "#000000");
   const resolvedNavigationArchitecture = createNavigationArchitecture({ navigationArchitecture, requiresBottomNav });
-  const hasAssetEntries = Boolean(assetManifest?.length);
+  const hasAssetEntries = Boolean(assetManifest?.length || assetRequirements?.length);
   const designStyleContract = formatDesignStyleContract(designStyle);
   const chartBuildInstruction = hasChartBuildIntent({ screenPlan, prompt }) ? `${CHART_BUILD_RULE}\n` : "";
   const screenLayoutContract = buildScreenLayoutContract(screenPlan);
@@ -1246,7 +1270,7 @@ ${buildNavigationArchitectureContract({
       })}
 
 APPROVED VISUAL ASSET MANIFEST:
-${buildAssetManifestContract(assetManifest)}
+${buildPendingAssetRequirementsContract(assetRequirements) ?? buildAssetManifestContract(assetManifest)}
 
 ${buildTokenPromptContext(designTokens, "compact_visual")}
 
@@ -1272,16 +1296,16 @@ ${buildSharedNavigationContract({ navigationInstruction, navigationPlan, screenP
 - End with sentinel on its own final line: ${DRAWGLE_GENERATION_COMPLETE_SENTINEL}`;
 };
 
-export const buildRecreateScreenInstruction = (input: Pick<BuildScreenInput, "designTokens" | "designStyle" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }) =>
+export const buildRecreateScreenInstruction = (input: Pick<BuildScreenInput, "designTokens" | "designStyle" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetRequirements" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }) =>
   buildScreenInstruction(input, "recreate");
 
-export const buildStyleScreenInstruction = (input: Pick<BuildScreenInput, "designTokens" | "designStyle" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }) =>
+export const buildStyleScreenInstruction = (input: Pick<BuildScreenInput, "designTokens" | "designStyle" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetRequirements" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }) =>
   buildScreenInstruction(input, "style");
 
-export const buildPromptScreenInstruction = (input: Pick<BuildScreenInput, "designTokens" | "designStyle" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }) =>
+export const buildPromptScreenInstruction = (input: Pick<BuildScreenInput, "designTokens" | "designStyle" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetRequirements" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }) =>
   buildScreenInstruction(input, "prompt");
 
-export const buildScreenInstructionForMode = (input: Pick<BuildScreenInput, "designTokens" | "designStyle" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest" | "promptMode"> & { screenPlan: ScreenPlan; prompt?: string | null }) =>
+export const buildScreenInstructionForMode = (input: Pick<BuildScreenInput, "designTokens" | "designStyle" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetRequirements" | "assetManifest" | "promptMode"> & { screenPlan: ScreenPlan; prompt?: string | null }) =>
   buildScreenInstruction(input, input.promptMode);
 
 export const buildSystemInstruction = buildRecreateScreenInstruction;
