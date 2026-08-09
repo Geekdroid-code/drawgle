@@ -50,7 +50,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
-    "dodopayments": "^2.32.0",
+    "dodopayments": "^2.45.1",
     "fflate": "^0.8.3",
     "framer-motion": "^12.38.0",
     "geist": "^1.7.2",

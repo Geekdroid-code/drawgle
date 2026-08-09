@@ -1,16 +1,27 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
 
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { GENERATION_V2_BENCHMARK_CASES } from "@/lib/generation/benchmark-cases";
 import { DESIGN_STYLE_PACKS } from "@/lib/generation/design-styles";
 import { normalizeReferenceAnalysis, parsePromptScreenIntent, resolveGenerationScopeContract } from "@/lib/generation/scope-contract";
-import { shouldAttachReferenceImage } from "@/lib/generation/reference-image";
+import { resolveReferenceImageAttachment, shouldAttachReferenceImage } from "@/lib/generation/reference-image";
 import { screenBuildOutputTokenBudget } from "@/lib/generation/screen-budget";
+import { buildApprovedDesignTokens } from "@/lib/generation/service";
 import { renderDeterministicNavigationShell } from "@/lib/project-navigation";
 import { buildDrawgleTokenCss, tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
-import type { NavigationPlan, PromptImagePayload } from "@/lib/types";
+import type { NavigationPlan, PromptImagePayload, ReferenceTransferContract } from "@/lib/types";
 
 const image: PromptImagePayload = { data: "dGVzdA==", mimeType: "image/png" };
+const calibrationContract: ReferenceTransferContract = {
+  version: 2,
+  layoutSource: "screen-purpose",
+  preserve: [], adapt: [], reject: [], rationale: "Target layout owns structure.",
+  targetCapabilities: [], semanticDecisions: [], premiumQualityTargets: [],
+  visualInvariants: [], compositionAdaptations: [], localMotifs: [], forbiddenLiteralTransfers: [],
+};
+const calibrationRegions = [{ id: "main-content", purpose: "Primary product content", contentKind: "focal" as const }];
 
 describe("production generation V2 contracts", () => {
   it("keeps the offline release corpus at sixty representative cases", () => {
@@ -113,11 +124,44 @@ describe("production generation V2 contracts", () => {
     expect(result.validationIssues).toContain("screenCountEstimate must equal the number of screenReferences entries.");
   });
 
-  it("keeps style references out of the final screen builder", () => {
+  it("excludes device geometry and projects trusted app measurements into token roles", () => {
+    const result = normalizeReferenceAnalysis({
+      overallVisualStyle: "Compact restrained mobile UI",
+      screenCountEstimate: 1,
+      screenReferences: [{ index: 1, suggestedRole: "Root" }],
+      designSystemSignals: { typography: "System sans-serif; exact family is not identifiable." },
+      geometryProfile: { measurements: [
+        { role: "outer-surface-radius", minPx: 38, maxPx: 42, confidence: "high", sourceScreenIndexes: [1], scope: "screen-local", sourceLayer: "device-mockup", note: "phone shell corner" },
+        { role: "outer-surface-radius", minPx: 15, maxPx: 17, confidence: "high", sourceScreenIndexes: [1], scope: "component-family", sourceLayer: "app-ui", note: "group surface" },
+        { role: "inner-surface-radius", minPx: 9, maxPx: 11, confidence: "high", sourceScreenIndexes: [1], scope: "component-family", sourceLayer: "app-ui", note: "nested row" },
+        { role: "screen-rail", minPx: 19, maxPx: 21, confidence: "high", sourceScreenIndexes: [1], scope: "project-global", sourceLayer: "app-ui", note: "content rail" },
+      ] },
+    });
+    expect(result.analysis?.geometryProfile?.measurements).toHaveLength(3);
+    expect(result.diagnostics.join(" ")).toContain("Excluded device/mockup geometry");
+
+    const tokens = buildApprovedDesignTokens({
+      tokens: {
+        mobile_layout: { screen_margin: "16px" },
+        radii: { app: "28px", inner: "20px", pill: "9999px" },
+        typography: { heading_font_family: '"Gilroy", sans-serif', body_font_family: '"Gilroy", sans-serif' },
+      },
+    }, null, result.analysis);
+    expect(tokens.tokens?.mobile_layout?.screen_margin).toBe("20px");
+    expect(tokens.tokens?.radii).toMatchObject({ app: "16px", inner: "10px" });
+    expect(tokens.tokens?.typography?.heading_font_family).toContain("-apple-system");
+    expect(tokens.tokens?.typography?.heading_font_family).not.toContain("Gilroy");
+  });
+
+  it("attaches style images only behind a valid calibration contract", () => {
+    for (const referenceMode of ["user_style", "curated_style", "internal_style"] as const) {
+      const decision = resolveReferenceImageAttachment({ image, referenceMode, referenceTransfer: calibrationContract, screenLayoutRegions: calibrationRegions, featureEnabled: true });
+      expect(decision).toMatchObject({ attach: true, role: "style-calibration", calibrationContractVersion: 2 });
+    }
     expect(shouldAttachReferenceImage({ engineVersion: "v2", image, referenceMode: "user_style" })).toBe(false);
-    expect(shouldAttachReferenceImage({ engineVersion: "v2", image, referenceMode: "curated_style" })).toBe(false);
-    expect(shouldAttachReferenceImage({ engineVersion: "v1", image, referenceMode: "user_style" })).toBe(false);
-    expect(shouldAttachReferenceImage({ engineVersion: "v1", image, referenceMode: "user_recreate" })).toBe(true);
+    expect(resolveReferenceImageAttachment({ image, referenceMode: "user_style", referenceTransfer: calibrationContract, screenLayoutRegions: calibrationRegions, featureEnabled: false })).toMatchObject({ attach: false, role: null, featureEnabled: false });
+    expect(resolveReferenceImageAttachment({ image, referenceMode: "user_style", referenceTransfer: calibrationContract, featureEnabled: true })).toMatchObject({ attach: false, role: null });
+    expect(resolveReferenceImageAttachment({ image, referenceMode: "user_recreate" })).toMatchObject({ attach: true, role: "structural-reference" });
   });
 
   it("caps simple screens lower while preserving room for dense screens", () => {

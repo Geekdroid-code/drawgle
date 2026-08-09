@@ -77,6 +77,8 @@ buildRecreateScreenInstruction / buildStyleScreenInstruction
 
 ## What Each Stage Receives
 
+Style Reference builds may attach the source image to the final builder as guarded `style-calibration` evidence. This is not Image-to-UI structure: the version-2 transfer contract and named target regions remain authoritative, and source-local motifs are legal only in approved regions with the same function. Set `DRAWGLE_STYLE_REFERENCE_CALIBRATION_ENABLED=false` to use the analysis-only fallback.
+
 ### 1. Reference Analysis
 
 Function:

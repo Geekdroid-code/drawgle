@@ -161,7 +161,7 @@ screenPlanningSeeds: z.array(z.object({
       chrome: z.enum(["bottom-tabs", "top-bar", "top-bar-back", "modal-sheet", "immersive"]),
       navigationItemId: z.string().trim().min(1).max(80).nullable().optional(),
     })),
-  }).nullable().optional(),
+  }).passthrough().nullable().optional(),
   projectCharter: z
     .object({
       originalPrompt: z.string().trim().min(1).max(10000),

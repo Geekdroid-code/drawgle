@@ -126,14 +126,19 @@ const plannerScreensJsonContract = `Return JSON with this exact top-level shape:
 	      "roadmap_stable_key": "screen:short-name",
 	      "description": "Reference DNA: ...\\nVisual Goal: ...\\nLayout Anatomy: ...\\nKey Components: ...\\nVisual Styling: ...\\nInteraction Notes: ...\\nMust Preserve: ...",
       "layout_contract": {
+        "version": 2,
         "viewport_plan": "Header/content/nav budget and scroll behavior in one sentence",
         "focal_hierarchy": "What dominates first, second, third, and how scale/contrast/position creates that",
         "section_rhythm": "Macro spacing between sections versus micro spacing inside groups",
         "component_density": "How chips, rows, forms, cards, charts, and controls should pack content",
         "cta_policy": "Primary/secondary action weight, placement, size, and when not to overpower content",
-        "anti_patterns": ["Specific bad layout habit to avoid for this screen"]
+        "anti_patterns": ["Specific bad layout habit to avoid for this screen"],
+        "regions": [
+          { "id": "stable-region-id", "purpose": "What target-screen job this region performs", "content_kind": "header | focal | chart | list | form | media | action | supporting | other" }
+        ]
       },
       "reference_transfer": {
+        "version": 2,
         "layout_source": "screen-purpose",
         "preserve": ["Portable material, token, typography, icon, or density invariant"],
         "adapt": ["A source cue that genuinely serves this screen's task"],
@@ -149,6 +154,14 @@ const plannerScreensJsonContract = `Return JSON with this exact top-level shape:
           }
         ],
         "premium_quality_targets": ["Concrete hierarchy, rhythm, depth, spacing, or component-craft bar for this screen"],
+        "visual_invariants": ["Project-wide material, type, density, edge, or icon rule"],
+        "composition_adaptations": [
+          { "principle": "Portable relationship, never source coordinates", "target_region_ids": ["stable-region-id"], "functional_purpose": "Why this serves the target task" }
+        ],
+        "local_motifs": [
+          { "motif_id": "source motif id", "decision": "allow-local | reject", "target_region_ids": ["stable-region-id"], "required_function": "Equivalent target function", "repetition": "once | per-approved-region", "rationale": "Why locality is safe or why transfer is rejected" }
+        ],
+        "forbidden_literal_transfers": ["Source text, values, branding, coordinates, section order, and unrelated anatomy"],
         "rationale": "Why this transfer creates family resemblance without cloning"
       },
       "chrome_policy": {
@@ -285,7 +298,7 @@ Rules:
 - Reference provenance: reference_transfer is a decision record, not decorative metadata. Evaluate every supplied semantic primitive against the target screen capability. Preserve or reinterpret the principle only when its purpose serves the target; reject it otherwise. Preserve why it worked (hierarchy, rhythm, disclosure, depth, comparison), never its coordinates or object topology. reject overrides any conflicting phrase in Description or existing project memory.
 - Cross-screen differentiation: family resemblance comes from tokens, type, material, icon, spacing, and interaction tone. Each route must have a task-native information architecture and dominant composition; never turn a previous screen's cards, connector, hero, chart, or decorative scaffold into a universal shell.
 - Description quality: each description should usually be 900-1800 chars, include all seven labels, and be detailed enough for the builder without seeing the image. Write as a construction brief from background forward through layout, containment, components, typography, materials, depth/edges, imagery/charts/maps, interaction states, and must-preserve construction cues.
-- layout_contract is not prose decoration. It is the compact architecture the builder must obey before writing HTML: no generic stacked blocks, no empty chart/card shells, no oversized CTA unless action priority demands it, no primitive chip grids with large macro gaps and cramped internal padding.
+- layout_contract is not prose decoration. It is the compact architecture the builder must obey before writing HTML. Give every target region a stable id and functional content_kind; reference_transfer may approve a source motif only inside one of these named regions: no generic stacked blocks, empty chart/card shells, oversized CTA unless action priority demands it, or primitive chip grids with large macro gaps and cramped internal padding.
 - Component specificity: name concrete structures/states when relevant: headers, hero regions, surfaces, containers, lists, rows, sheets, charts, progress rings, segmented controls, tabs, chips, icon buttons, badges, avatar stacks, maps, media areas, text groups, and CTA placement.
 - Material specificity: call out typography, imagery, chart geometry, background, rounded shapes, elevation, edge treatment, inner/outer borders, highlight edges, bevels, glass/frosting, and must-preserve composition cues. Avoid weak phrases like "clean dashboard" or "stats cards" unless immediately followed by exact anatomy.
 - Copy/anatomy: preserve real copy when it anchors layout; use placeholders only for volatile names, numbers, and dates. Do not duplicate anatomy across screens unless the approved product shell or evidence clearly reuses it.
@@ -408,11 +421,70 @@ Return strictly valid JSON in this format after inspecting the image with an exp
     "activeState": "Observed active icon, label, fill, indicator, and contrast treatment.",
     "elevation": "Observed border, shadow, blur, or attached-surface treatment.",
     "safeAreaRelationship": "Observed distance from bottom edge and home indicator.",
+    "visibleOnScreenIndexes": [1],
+    "absentOnScreenIndexes": [2, 3],
+    "rootDetailPattern": "Bottom navigation appears on a root screen while detail screens use contextual top/back chrome.",
+    "appearance": {
+      "primary": {
+        "containerHeightPx": 58,
+        "maxWidthPx": 280,
+        "horizontalInsetPx": 20,
+        "horizontalPaddingPx": 8,
+        "verticalPaddingPx": 6,
+        "radiusPx": 28,
+        "safeAreaOffsetPx": 12,
+        "itemGapPx": 4,
+        "iconSizePx": 20,
+        "labelSizePx": 11,
+        "labelWeight": 500,
+        "blurPx": 0,
+        "borderWidthPx": 1,
+        "itemLayout": "stacked",
+        "activeIndicatorWidthPx": 30,
+        "activeIndicatorHeightPx": 30,
+        "activeIndicatorRadiusPx": 15
+      },
+      "contextualChrome": {
+        "heightPx": 48,
+        "horizontalInsetPx": 16,
+        "controlSizePx": 34,
+        "controlRadiusPx": 17,
+        "controlGapPx": 8,
+        "iconSizePx": 18,
+        "titleAlignment": "center",
+        "surface": "transparent",
+        "border": true,
+        "elevation": "none"
+      }
+    },
     "activeItemByScreen": [
       { "screenIndex": 1, "itemIndex": 1 },
       { "screenIndex": 2, "itemIndex": 2 }
     ]
   },
+  "geometryProfile": {
+    "measurements": [
+      {
+        "role": "screen-rail | outer-surface-radius | inner-surface-radius | row-radius | icon-well-size | icon-well-radius | pill-radius | row-height | section-gap | internal-gap | button-height | navigation-height | navigation-inset | navigation-bottom-offset | navigation-icon-size | other",
+        "minPx": 16,
+        "maxPx": 20,
+        "confidence": "high | medium | low",
+        "sourceScreenIndexes": [1, 2],
+        "scope": "project-global | component-family | screen-local",
+        "sourceLayer": "app-ui | device-mockup",
+        "note": "What was measured and where; device/mockup measurements are observation-only and never become app tokens."
+      }
+    ]
+  },
+  "motifs": [
+    {
+      "id": "stable-source-motif-id",
+      "description": "A local visual detail such as dotted chart grid lines",
+      "functionalPurpose": "Supports reading values inside a chart",
+      "sourceScreenIndexes": [1],
+      "scope": "global-material | component-local | screen-local-decoration"
+    }
+  ],
   "designSystemSignals": {
     "palette": "Dominant palette and accent usage: which colors are functional (action, success, warning), which are decorative, and where each appears",
     "typography": "Observed font personality, scale, weight range, and emphasis patterns, including any optical adjustments (tracking, leading, tabular nums, weight pairing)",
@@ -458,8 +530,12 @@ Rules:
 - Arrangement: explain row/column/grid/stack/absolute/floating layout, alignment, gaps, padding, insets, overlap, clipping, anchors, top/middle/bottom regions, proportions, active states, icon/label treatment, repeated motifs, and parent-child rebuild structure. Use approximate px-like values when helpful; do not invent false precision.
 - Material/depth: describe overlap, layering, floating surfaces, bottom sheets, tabs, charts, gauges, avatar stacks, map regions, large type, image cutouts, control bars, CTA construction, shadow color/blur/spread, border visibility, surface finish, and light interaction. Avoid vague labels like "soft shadow", "modern glass", or "modern UI" unless immediately explained by observable anatomy.
 - Navigation: populate primaryNavigation from visible evidence only. Capture item count/order, labels, icon meaning, repeated-shell evidence, per-screen active item, supported anatomy, geometry, label rhythm, active-state shape, elevation, and safe-area relationship. Use present false when no persistent primary navigation is visible.
+- Contextual navigation is evidence too: record exactly which screens show primary navigation and which use top/back controls. Do not discard a visible root dock merely because detail screens intentionally omit it.
+- Geometry: populate geometryProfile with component-role measurements. Measure the app UI only. Mark device frames, phone-shell corners, status bars, home indicators, collage gutters, and mockup backgrounds as sourceLayer device-mockup so they can never become card, spacing, or navigation tokens.
+- Motif locality: record decorative or constructed motifs separately from global design invariants. State their functional purpose and whether they are global material, component-local, or screen-local decoration. A dotted chart grid is component-local chart evidence, not a project background rule.
 - Charts/maps/media: name constructed geometry such as bars, route curves, grid blocks, pins, sheets, overlays, legends, rings, gauges, crops/cutouts; capture container height, padding, clipping, bounds, labels/axes, and breathing room to avoid empty or clipped visuals.
 - Truthfulness/placeholders: do not invent hidden screens, unseen features, backend behavior, or micro-details. Use placeholders only for volatile literal values; preserve visible layout anchors that affect composition.
+- Typography truthfulness: never name a font family unless it is visibly identifiable with high confidence. Otherwise describe its character and use platform/system fallback language.
 - Detail budget: length follows visual density. Rich references need detailed implementationNotes, stylingCues, and components; minimal references stay shorter but precise.
 - Goal: capture screen anatomy, layer stack, edge behavior, and construction logic so the next builder can recreate faithfully without seeing the image or flattening the design.`;
 
@@ -742,6 +818,10 @@ const buildScreenLayoutContract = (screenPlan?: ScreenPlan | null) => {
     `- Section rhythm: ${contract.sectionRhythm}`,
     `- Component density: ${contract.componentDensity}`,
     `- CTA policy: ${contract.ctaPolicy}`,
+    contract.regions?.length ? [
+      "- Target regions (the only legal targets for local reference motifs):",
+      ...contract.regions.map((region) => `  - ${region.id} [${region.contentKind}]: ${region.purpose}`),
+    ].join("\n") : null,
     contract.antiPatterns.length ? `- Avoid: ${contract.antiPatterns.join(" | ")}` : null,
   ].filter(Boolean).join("\n");
 };
@@ -828,6 +908,10 @@ export const buildNavigationArchitectureContract = ({
         : "hidden";
 
     lines.push(`- This screen: chrome=${screenChrome.chrome}; primaryNav=${primaryNavPolicy}; back=${screenChrome.showsBackButton ? "yes" : "no"}.`);
+    const contextual = navigationPlan?.appearance?.contextualChrome;
+    if (contextual && screenChrome.chrome !== "bottom-tabs") {
+      lines.push(`- Contextual chrome appearance: height=${contextual.heightPx}px; inset=${contextual.horizontalInsetPx}px; control=${contextual.controlSizePx}px/${contextual.controlRadiusPx}px radius; gap=${contextual.controlGapPx}px; icon=${contextual.iconSizePx}px; title=${contextual.titleAlignment}; surface=${contextual.surface}; border=${contextual.border}; elevation=${contextual.elevation}. Use this recipe for target-native top/back controls without copying reference labels or actions.`);
+    }
   }
 
   if (normalizedArchitecture.consistencyRules.length > 0) {
@@ -1038,8 +1122,8 @@ const buildScreenInstruction = ({
     : mode === "style"
       ? [
         "MODE CONTRACT: STYLE_REFERENCE. The application has confirmed reusable visual evidence from an uploaded reference, approved style contract, or project reference memory.",
-        "The raw style image has already been analyzed and is intentionally not attached to this builder invocation, preventing accidental layout cloning.",
-        "Build from the validated screen brief, reference-transfer contract, charter, navigation plan, creative direction, and tokens; do not invent source anatomy that these portable contracts do not provide.",
+        "When a guarded style-calibration image is attached, inspect it only inside the version-2 reference-transfer contract. It is optical evidence, never layout authority.",
+        "Build from the validated screen brief, target-region layout contract, product-owned navigation semantics, reference-transfer contract, creative direction, and tokens. The image may refine approved craft but cannot introduce source anatomy or unplanned regions.",
         "Do not clone a curated or uploaded style screenshot's domain content, section order, object positions, or full layout anatomy.",
       ].join(" ")
       : [
@@ -1065,6 +1149,7 @@ ${modeInstruction}
 
 CRITICAL INSTRUCTION 0: SCREEN SPEC FIDELITY
 Treat Screen Description as a concrete implementation spec, not loose inspiration.
+Priority order: explicit user/product requirements; target layout regions and navigation semantics; approved reference-transfer calibration; design tokens and creative direction; then raw image observation only where the calibration contract permits it.
 Before using it, reconcile it against REFERENCE TRANSFER CONTRACT. If a brief or project-memory phrase asks for a rejected source motif, the reject rule wins: redesign that region from the target screen's user task while preserving the approved visual invariants.
 ${mode === "style"
   ? "Family resemblance MUST come from tokens, typography, materials, iconography, density, and interaction tone, not repeated section order, card topology, connector lines, hero scaffolds, or decorative geometry from another screen. The target screen's content model owns composition: conversations are designed as conversations, forms as forms, editorial feeds as reading systems, maps as spatial tools, and dashboards as decision surfaces."

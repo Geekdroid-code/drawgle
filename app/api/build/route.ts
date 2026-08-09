@@ -1,6 +1,7 @@
 import { buildScreenStream } from "@/lib/generation/service";
 import { getDesignStylePack, isDesignStyleId } from "@/lib/generation/design-styles";
 import { resolveGenerationPromptMode } from "@/lib/generation/prompt-routing";
+import { resolveReferenceImageAttachment } from "@/lib/generation/reference-image";
 import type { ReferenceMode } from "@/lib/types";
 import { NextResponse } from "next/server";
 
@@ -19,6 +20,12 @@ export async function POST(req: Request) {
       hasDesignStyle: Boolean(designStyle),
       hasReferenceAnalysis: false,
     });
+    const referenceAttachment = resolveReferenceImageAttachment({
+      image,
+      referenceMode,
+      referenceTransfer: screenPlan?.referenceTransfer,
+      screenLayoutRegions: screenPlan?.layoutContract?.regions,
+    });
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -28,7 +35,9 @@ export async function POST(req: Request) {
             designTokens,
             designStyle,
             prompt,
-            image: promptMode === "recreate" ? image : null,
+            image: referenceAttachment.attach ? image : null,
+            referenceImageRole: referenceAttachment.role,
+            referenceAttachmentReason: referenceAttachment.reason,
             promptMode,
             referenceMode,
             requiresBottomNav,

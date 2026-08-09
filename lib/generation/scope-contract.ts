@@ -534,6 +534,82 @@ const normalizeBoundingBox = (value: unknown) => {
   return { x, y, width: Math.min(width, 1 - x), height: Math.min(height, 1 - y) };
 };
 
+const finiteNumber = (value: unknown) => {
+  const numeric = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+};
+
+const normalizeReferenceGeometryProfile = (raw: unknown, diagnostics: string[]): NonNullable<ReferenceAnalysis["geometryProfile"]> => {
+  const record = isRecord(raw) ? raw : {};
+  const measurements = Array.isArray(record.measurements) ? record.measurements.filter(isRecord) : [];
+  const roles = new Set([
+    "screen-rail", "outer-surface-radius", "inner-surface-radius", "row-radius", "icon-well-size",
+    "icon-well-radius", "pill-radius", "row-height", "section-gap", "internal-gap", "button-height",
+    "navigation-height", "navigation-inset", "navigation-bottom-offset", "navigation-icon-size", "other",
+  ]);
+  const scopes = new Set(["project-global", "component-family", "screen-local"]);
+  const confidenceValues = new Set(["high", "medium", "low"]);
+  const normalized = measurements.flatMap((measurement) => {
+    const sourceLayer = measurement.sourceLayer === "device-mockup" || measurement.source_layer === "device-mockup"
+      ? "device-mockup" as const
+      : "app-ui" as const;
+    if (sourceLayer === "device-mockup") {
+      diagnostics.push(`Excluded device/mockup geometry measurement: ${textField(measurement, ["note"], "unlabeled measurement", 160)}`);
+      return [];
+    }
+    const min = finiteNumber(readField(measurement, ["minPx", "min_px", "valuePx", "value_px"]));
+    const max = finiteNumber(readField(measurement, ["maxPx", "max_px", "valuePx", "value_px"]));
+    if (min === null || max === null || min < 0 || max < min || max > 1000) return [];
+    const rawRole = String(readField(measurement, ["role"]) ?? "other");
+    const rawScope = String(readField(measurement, ["scope"]) ?? "screen-local");
+    const rawConfidence = String(readField(measurement, ["confidence"]) ?? "low");
+    const sourceIndexes = readField(measurement, ["sourceScreenIndexes", "source_screen_indexes"]);
+    return [{
+      role: (roles.has(rawRole) ? rawRole : "other") as NonNullable<ReferenceAnalysis["geometryProfile"]>["measurements"][number]["role"],
+      minPx: Math.round(min),
+      maxPx: Math.round(max),
+      confidence: (confidenceValues.has(rawConfidence) ? rawConfidence : "low") as "high" | "medium" | "low",
+      sourceScreenIndexes: Array.isArray(sourceIndexes)
+        ? sourceIndexes.map(clampScopeScreenCount).filter((value): value is number => Boolean(value)).slice(0, 12)
+        : [],
+      scope: (scopes.has(rawScope) ? rawScope : "screen-local") as "project-global" | "component-family" | "screen-local",
+      sourceLayer,
+      note: textField(measurement, ["note", "description"], "Observed app UI measurement.", 400),
+    }];
+  });
+
+  const midpoint = (role: string) => normalized.find((item) => item.role === role && item.confidence === "high")
+    ? normalized.filter((item) => item.role === role && item.confidence === "high")
+      .reduce((sum, item) => sum + (item.minPx + item.maxPx) / 2, 0) / normalized.filter((item) => item.role === role && item.confidence === "high").length
+    : null;
+  const outer = midpoint("outer-surface-radius");
+  const inner = midpoint("inner-surface-radius");
+  if (outer !== null && inner !== null && outer < inner) diagnostics.push("Reference geometry warning: outer surface radius is smaller than inner surface radius.");
+  const macro = midpoint("section-gap");
+  const micro = midpoint("internal-gap");
+  if (macro !== null && micro !== null && macro <= micro) diagnostics.push("Reference geometry warning: section gap does not exceed internal gap.");
+
+  return { measurements: normalized, diagnostics: diagnostics.filter((item) => item.startsWith("Reference geometry")) };
+};
+
+const normalizeReferenceMotifs = (raw: unknown): NonNullable<ReferenceAnalysis["motifs"]> => {
+  if (!Array.isArray(raw)) return [];
+  const scopes = new Set(["global-material", "component-local", "screen-local-decoration"]);
+  return raw.filter(isRecord).slice(0, 12).map((motif, index) => {
+    const sourceIndexes = readField(motif, ["sourceScreenIndexes", "source_screen_indexes"]);
+    const rawScope = String(readField(motif, ["scope"]) ?? "screen-local-decoration");
+    return {
+      id: textField(motif, ["id"], `motif-${index + 1}`, 100).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || `motif-${index + 1}`,
+      description: textField(motif, ["description"], "Unspecified source-local motif.", 500),
+      functionalPurpose: textField(motif, ["functionalPurpose", "functional_purpose", "purpose"], "Decorative source detail without a proven target function.", 500),
+      sourceScreenIndexes: Array.isArray(sourceIndexes)
+        ? sourceIndexes.map(clampScopeScreenCount).filter((value): value is number => Boolean(value)).slice(0, 12)
+        : [],
+      scope: (scopes.has(rawScope) ? rawScope : "screen-local-decoration") as "global-material" | "component-local" | "screen-local-decoration",
+    };
+  });
+};
+
 export const normalizeReferenceAnalysis = (raw: unknown): ReferenceAnalysisResult => {
   const diagnostics: string[] = [];
   const validationIssues: string[] = [];
@@ -612,6 +688,15 @@ export const normalizeReferenceAnalysis = (raw: unknown): ReferenceAnalysisResul
               itemIndex: clampScopeScreenCount(readField(entry, ["itemIndex", "item_index"])),
             }))
           : [],
+        visibleOnScreenIndexes: (() => {
+          const values = readField(primaryNavigationRecord, ["visibleOnScreenIndexes", "visible_on_screen_indexes"]);
+          return Array.isArray(values) ? values.map(clampScopeScreenCount).filter((value): value is number => Boolean(value)).slice(0, 12) : [];
+        })(),
+        absentOnScreenIndexes: (() => {
+          const values = readField(primaryNavigationRecord, ["absentOnScreenIndexes", "absent_on_screen_indexes"]);
+          return Array.isArray(values) ? values.map(clampScopeScreenCount).filter((value): value is number => Boolean(value)).slice(0, 12) : [];
+        })(),
+        rootDetailPattern: textField(primaryNavigationRecord, ["rootDetailPattern", "root_detail_pattern"], "Navigation visibility by root/detail role was not described.", 600),
       }
     : null;
   const rawCount = readField(raw, ["screenCountEstimate", "screen_count_estimate", "visibleScreenCount", "visible_screen_count", "screenCount", "screen_count"]);
@@ -676,6 +761,11 @@ export const normalizeReferenceAnalysis = (raw: unknown): ReferenceAnalysisResul
     semanticCompositionPrimitives: normalizeSemanticCompositionPrimitives(
       readField(raw, ["semanticCompositionPrimitives", "semantic_composition_primitives", "compositionPrimitives", "composition_primitives"]),
     ),
+    geometryProfile: normalizeReferenceGeometryProfile(
+      readField(raw, ["geometryProfile", "geometry_profile", "geometry"]),
+      diagnostics,
+    ),
+    motifs: normalizeReferenceMotifs(readField(raw, ["motifs", "localMotifs", "local_motifs"])),
   });
 
   return {

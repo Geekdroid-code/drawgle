@@ -10,6 +10,7 @@ import {
 } from "@/lib/navigation";
 import {
   applyReferenceNavigationRolesToScreens,
+  applyReferenceNavigationAppearance,
   applyNavigationDesignEdit,
   createFallbackNavigationPlan,
   deriveReferenceNavigationPlan,
@@ -199,6 +200,62 @@ describe("Production Navigation V2", () => {
     ]);
     expect(normalized.screenChrome.map((entry) => entry.navigationItemId)).toEqual([null, "home", "lessons"]);
     expect(renderDeterministicNavigationShell(normalized).match(/<nav\b[^>]*data-drawgle-primary-nav/g)).toHaveLength(1);
+  });
+
+  it("skins product-owned destinations from a root-only reference dock without copying its labels", () => {
+    const referenceAnalysis = normalizeReferenceAnalysis({
+      overallVisualStyle: "Compact white finance UI",
+      screenCountEstimate: 3,
+      screenReferences: [
+        { index: 1, suggestedRole: "Root" },
+        { index: 2, suggestedRole: "Detail" },
+        { index: 3, suggestedRole: "Detail" },
+      ],
+      primaryNavigation: {
+        present: true,
+        repeatedAcrossScreens: false,
+        itemCount: 4,
+        items: [
+          { label: "Finance Home", icon: "house" },
+          { label: "Stats", icon: "chart" },
+          { label: "Calendar", icon: "calendar" },
+          { label: "Profile", icon: "user" },
+        ],
+        anatomy: "floating-dock",
+        labels: "always",
+        visibleOnScreenIndexes: [1],
+        absentOnScreenIndexes: [2, 3],
+      },
+      geometryProfile: { measurements: [
+        { role: "navigation-height", minPx: 55, maxPx: 57, confidence: "high", sourceScreenIndexes: [1], scope: "component-family", sourceLayer: "app-ui", note: "floating root dock" },
+        { role: "navigation-inset", minPx: 19, maxPx: 21, confidence: "high", sourceScreenIndexes: [1], scope: "component-family", sourceLayer: "app-ui", note: "dock inset" },
+        { role: "navigation-icon-size", minPx: 17, maxPx: 19, confidence: "high", sourceScreenIndexes: [1], scope: "component-family", sourceLayer: "app-ui", note: "dock icons" },
+      ] },
+      designSystemSignals: {},
+    }).analysis!;
+    const productPlan = normalizeNavigationPlan({
+      navigationPlan: v2Plan([
+        { id: "catalog", label: "Catalog", icon: "layout-grid", role: "Browse sneaker catalog", linkedScreenName: "Sneaker Catalog" },
+        { id: "search", label: "Search", icon: "search", role: "Search sneakers", linkedScreenName: "Search Discovery" },
+        { id: "saved", label: "Saved", icon: "heart", role: "Review saved sneakers", linkedScreenName: null },
+        { id: "account", label: "Account", icon: "user", role: "Manage sneaker account", linkedScreenName: "User Profile" },
+      ]),
+      screens: [
+        { name: "Sneaker Catalog", type: "root", description: "Catalog" },
+        { name: "Search Discovery", type: "root", description: "Search" },
+        { name: "User Profile", type: "root", description: "Profile" },
+      ],
+      navigationArchitecture: architecture,
+    });
+    const styled = applyReferenceNavigationAppearance({ navigationPlan: productPlan, referenceAnalysis });
+    expect(styled.version).toBe(3);
+    expect(styled.appearance?.source).toBe("reference");
+    expect(styled.items.map((item) => item.label)).toEqual(["Catalog", "Search", "Saved", "Account"]);
+    expect(styled.items.map((item) => item.label)).not.toContain("Finance Home");
+    const shell = renderDeterministicNavigationShell(styled);
+    expect(shell).toContain('data-navigation-layout="contract-driven"');
+    expect(shell).toContain("--dg-navigation-anatomy-height:56px");
+    expect(shell).toContain("calc(100% - 40px)");
   });
 
   it("rejects duplicate and filler destinations instead of collapsing to one item", () => {

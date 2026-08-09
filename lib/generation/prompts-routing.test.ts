@@ -204,7 +204,8 @@ describe("state-scoped prompt construction", () => {
     expect(recreate).toContain("MODE CONTRACT: IMAGE_TO_UI");
     expect(recreate).toContain("prioritize its exact original structure and material choices");
     expect(style).toContain("MODE CONTRACT: STYLE_REFERENCE");
-    expect(style).toContain("raw style image has already been analyzed and is intentionally not attached");
+    expect(style).toContain("When a guarded style-calibration image is attached");
+    expect(style).toContain("It is optical evidence, never layout authority");
     expect(style).toContain("Do not clone a curated or uploaded style screenshot's domain content");
     expect(style).not.toContain("prioritize its exact original structure and material choices");
     expect(prompt).toContain("MODE CONTRACT: PROMPT_ONLY");
@@ -219,7 +220,7 @@ describe("state-scoped prompt construction", () => {
     });
 
     expect(instruction).toContain("MODE CONTRACT: STYLE_REFERENCE");
-    expect(instruction).toContain("raw style image has already been analyzed and is intentionally not attached");
+    expect(instruction).toContain("When a guarded style-calibration image is attached");
     expect(instruction).not.toContain("MODE CONTRACT: IMAGE_TO_UI");
     expect(instruction).not.toContain("MODE CONTRACT: PROMPT_ONLY");
   });

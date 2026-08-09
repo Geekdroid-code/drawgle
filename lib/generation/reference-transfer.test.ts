@@ -39,6 +39,13 @@ const analysis: ReferenceAnalysis = {
     antiPatterns: "Avoid soft gradients.",
   },
   primaryNavigation: null,
+  motifs: [{
+    id: "dotted-chart-grid",
+    description: "Dotted horizontal chart grid lines",
+    functionalPurpose: "Help compare values inside a chart plot",
+    sourceScreenIndexes: [1],
+    scope: "component-local",
+  }],
 };
 
 describe("reference transfer boundary", () => {
@@ -60,8 +67,40 @@ describe("reference transfer boundary", () => {
     });
 
     expect(contract.layoutSource).toBe("screen-purpose");
+    expect(contract.version).toBe(2);
     expect(contract.preserve.join(" ")).toContain("electric blue");
     expect(contract.reject.join(" ")).toMatch(/connector|hero scaffold|card topology/i);
+  });
+
+  it("allows a component-local motif only in a matching named target region", () => {
+    const chartContract = createReferenceTransferContract({
+      mode: "style",
+      screenName: "Performance",
+      screenDescription: "A performance chart with supporting rows.",
+      referenceAnalysis: analysis,
+      screenLayoutRegions: [
+        { id: "performance-plot", purpose: "Chart plot for comparing performance values", contentKind: "chart" },
+        { id: "activity-list", purpose: "Recent activity rows", contentKind: "list" },
+      ],
+    });
+    expect(chartContract.localMotifs).toContainEqual(expect.objectContaining({
+      motifId: "dotted-chart-grid",
+      decision: "allow-local",
+      targetRegionIds: ["performance-plot"],
+    }));
+
+    const profileContract = createReferenceTransferContract({
+      mode: "style",
+      screenName: "Profile",
+      screenDescription: "Profile settings and preferences.",
+      referenceAnalysis: analysis,
+      screenLayoutRegions: [{ id: "settings-list", purpose: "Profile settings rows", contentKind: "list" }],
+    });
+    expect(profileContract.localMotifs).toContainEqual(expect.objectContaining({
+      motifId: "dotted-chart-grid",
+      decision: "reject",
+      targetRegionIds: [],
+    }));
   });
 
   it("overrides a planner attempt to make a style reference structural", () => {

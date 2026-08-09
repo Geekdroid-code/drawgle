@@ -83,6 +83,7 @@ import type {
   ScreenCountContract,
   ScreenCountEnforcement,
   ScreenFamilyContract,
+  ScreenLayoutRegion,
   ScreenBlockIndex,
   ScreenPlan,
   ScreenStateVariantPlan,
@@ -301,12 +302,18 @@ const AssetNeedSchema = z.object({
 });
 
 const ScreenLayoutContractSchema = z.object({
+  version: z.preprocess((value) => value == null ? 2 : Number(value), z.union([z.literal(1), z.literal(2)])).optional(),
   viewport_plan: z.string().trim().min(1).max(500),
   focal_hierarchy: z.string().trim().min(1).max(500),
   section_rhythm: z.string().trim().min(1).max(500),
   component_density: z.string().trim().min(1).max(500),
   cta_policy: z.string().trim().min(1).max(500),
   anti_patterns: z.array(z.string().trim().min(1).max(260)).max(8).default([]).optional(),
+  regions: z.array(z.object({
+    id: z.string().trim().min(1).max(80),
+    purpose: z.string().trim().min(1).max(400),
+    content_kind: z.enum(["header", "focal", "chart", "list", "form", "media", "action", "supporting", "other"]),
+  })).min(1).max(12).optional(),
 });
 
 const normalizeReferenceLayoutSource = (value: unknown) => {
@@ -318,6 +325,7 @@ const normalizeReferenceLayoutSource = (value: unknown) => {
 };
 
 const ReferenceTransferContractValueSchema = z.object({
+  version: z.preprocess((value) => value == null ? 2 : Number(value), z.union([z.literal(1), z.literal(2)])).optional(),
   layout_source: z.preprocess(
     normalizeReferenceLayoutSource,
     z.enum(["reference", "screen-purpose"]),
@@ -335,6 +343,21 @@ const ReferenceTransferContractValueSchema = z.object({
     quality_targets: z.array(z.string().trim().min(1).max(500)).max(5).default([]).optional(),
   })).max(10).default([]).optional(),
   premium_quality_targets: z.array(z.string().trim().min(1).max(500)).max(10).default([]).optional(),
+  visual_invariants: z.array(z.string().trim().min(1).max(500)).max(10).default([]).optional(),
+  composition_adaptations: z.array(z.object({
+    principle: z.string().trim().min(1).max(700),
+    target_region_ids: z.array(z.string().trim().min(1).max(80)).max(6).default([]),
+    functional_purpose: z.string().trim().min(1).max(500),
+  })).max(8).default([]).optional(),
+  local_motifs: z.array(z.object({
+    motif_id: z.string().trim().min(1).max(100),
+    decision: z.enum(["allow-local", "reject"]),
+    target_region_ids: z.array(z.string().trim().min(1).max(80)).max(6).default([]),
+    required_function: z.string().trim().min(1).max(500),
+    repetition: z.enum(["once", "per-approved-region"]),
+    rationale: z.string().trim().min(1).max(600),
+  })).max(12).default([]).optional(),
+  forbidden_literal_transfers: z.array(z.string().trim().min(1).max(700)).max(12).default([]).optional(),
 });
 
 const ReferenceTransferContractSchema = ReferenceTransferContractValueSchema.optional();
@@ -865,7 +888,22 @@ const validScreenMarginToken = (value: unknown) => {
     : null;
 };
 
-const buildApprovedDesignTokens = (candidate: unknown, measuredMargin?: string | null): DesignTokens => {
+const trustedGeometryValue = (referenceAnalysis: ReferenceAnalysis | null | undefined, role: string) => {
+  const values = (referenceAnalysis?.geometryProfile?.measurements ?? [])
+    .filter((measurement) => measurement.role === role && measurement.confidence === "high" && measurement.sourceLayer === "app-ui")
+    .map((measurement) => (measurement.minPx + measurement.maxPx) / 2)
+    .sort((left, right) => left - right);
+  if (!values.length) return null;
+  const middle = Math.floor(values.length / 2);
+  const median = values.length % 2 ? values[middle] : (values[middle - 1] + values[middle]) / 2;
+  return `${Math.round(median)}px`;
+};
+
+export const buildApprovedDesignTokens = (
+  candidate: unknown,
+  measuredMargin?: string | null,
+  referenceAnalysis?: ReferenceAnalysis | null,
+): DesignTokens => {
   if (!isRecord(candidate)) {
     throw new Error("Design generation did not return a valid mobile_universal_core token object.");
   }
@@ -877,12 +915,19 @@ const buildApprovedDesignTokens = (candidate: unknown, measuredMargin?: string |
 
   if (next.tokens) {
     const screenMargin = measuredMargin
+      ?? trustedGeometryValue(referenceAnalysis, "screen-rail")
       ?? generatedMargin
       ?? validScreenMarginToken(next.tokens.mobile_layout?.screen_margin)
       ?? "16px";
     next.tokens.mobile_layout = {
       ...(next.tokens.mobile_layout ?? {}),
       screen_margin: screenMargin,
+      ...(trustedGeometryValue(referenceAnalysis, "section-gap")
+        ? { section_gap: trustedGeometryValue(referenceAnalysis, "section-gap")! }
+        : {}),
+      ...(trustedGeometryValue(referenceAnalysis, "internal-gap")
+        ? { element_gap: trustedGeometryValue(referenceAnalysis, "internal-gap")! }
+        : {}),
     };
 
     const typography = next.tokens.typography ?? {};
@@ -892,23 +937,56 @@ const buildApprovedDesignTokens = (candidate: unknown, measuredMargin?: string |
       .trim()
       .toLowerCase() ?? "";
     const recommendedFonts = next.meta?.recommendedFonts?.filter((value) => value.trim()) ?? [];
-    const heading = typography.heading_font_family?.trim()
+    let heading = typography.heading_font_family?.trim()
       || (recommendedFonts[0] ? `"${recommendedFonts[0]}", sans-serif` : '"Manrope", sans-serif');
     const bodyCandidate = typography.body_font_family?.trim();
     const compatibleBody = bodyCandidate && primaryFamily(bodyCandidate) !== primaryFamily(heading)
       ? bodyCandidate
       : recommendedFonts
         .find((family) => primaryFamily(family) !== primaryFamily(heading));
-    const body = compatibleBody
+    let body = compatibleBody
       ? (compatibleBody.includes(",") ? compatibleBody : `"${compatibleBody}", sans-serif`)
       : primaryFamily(heading) === "inter"
         ? 'system-ui, sans-serif'
         : '"Inter", system-ui, sans-serif';
+    if (referenceAnalysis) {
+      const typographyEvidence = referenceAnalysis.designSystemSignals.typography.toLowerCase();
+      const headingName = primaryFamily(heading);
+      const bodyName = primaryFamily(body);
+      if (headingName && !typographyEvidence.includes(headingName)) {
+        heading = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+      }
+      if (bodyName && !typographyEvidence.includes(bodyName)) {
+        body = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+      }
+    }
 
     next.tokens.typography = {
       ...typography,
       heading_font_family: heading,
       body_font_family: body,
+    };
+
+    next.tokens.radii = {
+      ...(next.tokens.radii ?? {}),
+      ...(trustedGeometryValue(referenceAnalysis, "outer-surface-radius")
+        ? { app: trustedGeometryValue(referenceAnalysis, "outer-surface-radius")! }
+        : {}),
+      ...(trustedGeometryValue(referenceAnalysis, "inner-surface-radius")
+        ? { inner: trustedGeometryValue(referenceAnalysis, "inner-surface-radius")! }
+        : {}),
+    };
+    next.tokens.sizing = {
+      ...(next.tokens.sizing ?? {}),
+      ...(trustedGeometryValue(referenceAnalysis, "button-height")
+        ? { standard_button_height: trustedGeometryValue(referenceAnalysis, "button-height")! }
+        : {}),
+      ...(trustedGeometryValue(referenceAnalysis, "navigation-height")
+        ? { bottom_nav_height: trustedGeometryValue(referenceAnalysis, "navigation-height")! }
+        : {}),
+      ...(trustedGeometryValue(referenceAnalysis, "navigation-icon-size")
+        ? { icon_standard: trustedGeometryValue(referenceAnalysis, "navigation-icon-size")! }
+        : {}),
     };
   }
 
@@ -1360,6 +1438,7 @@ const ensureReferenceTransferContracts = ({
     screenDescription: screen.description,
     screenType: screen.type,
     referenceAnalysis,
+    screenLayoutRegions: screen.layoutContract?.regions ?? [],
   }),
 }));
 
@@ -2128,6 +2207,7 @@ const ensureBuilderGradeScreenBriefs = ({
       screenDescription: screen.description,
       screenType: screen.type,
       referenceAnalysis,
+      screenLayoutRegions: screen.layoutContract?.regions ?? [],
     });
     if (hasBuilderGradeBrief(screen.description)) {
       return { ...screen, referenceTransfer };
@@ -2225,6 +2305,21 @@ const extractRawScreenArray = (value: unknown): unknown[] => {
   return isRecord(value.data) ? extractRawScreenArray(value.data) : [];
 };
 
+const deriveScreenLayoutRegions = (description: string): ScreenLayoutRegion[] => {
+  const candidates: ScreenLayoutRegion[] = [
+    { id: "header", purpose: "Screen title and contextual controls", contentKind: "header" },
+    { id: "focal", purpose: "The screen's dominant first-read content", contentKind: "focal" },
+  ];
+  const lower = description.toLowerCase();
+  if (/chart|graph|plot|axis|bars?|data visual/.test(lower)) candidates.push({ id: "data-visual", purpose: "Task-relevant chart or data visualization", contentKind: "chart" });
+  if (/list|rows?|feed|ledger|table|collection|catalog/.test(lower)) candidates.push({ id: "primary-list", purpose: "Task-relevant repeated content or rows", contentKind: "list" });
+  if (/form|fields?|input|search|filter/.test(lower)) candidates.push({ id: "input-region", purpose: "Task-relevant form, search, or input controls", contentKind: "form" });
+  if (/image|photo|media|video|product visual|illustration/.test(lower)) candidates.push({ id: "media-region", purpose: "Task-relevant media", contentKind: "media" });
+  if (/button|cta|checkout|submit|action/.test(lower)) candidates.push({ id: "primary-action", purpose: "Primary task action", contentKind: "action" });
+  candidates.push({ id: "supporting", purpose: "Secondary information supporting the screen's task", contentKind: "supporting" });
+  return candidates;
+};
+
 const normalizeScreenLayoutContract = (value: unknown): ScreenPlan["layoutContract"] => {
   const raw = isRecord(value) && isRecord(value.layout_contract)
     ? value.layout_contract
@@ -2239,6 +2334,12 @@ const normalizeScreenLayoutContract = (value: unknown): ScreenPlan["layoutContra
         component_density: raw.componentDensity,
         cta_policy: raw.ctaPolicy,
         anti_patterns: Array.isArray(raw.antiPatterns) ? raw.antiPatterns : [],
+        version: raw.version,
+        regions: Array.isArray(raw.regions) ? raw.regions.map((region) => isRecord(region) ? {
+          id: region.id,
+          purpose: region.purpose,
+          content_kind: region.contentKind,
+        } : region) : undefined,
       }
     : raw;
   const parsed = ScreenLayoutContractSchema.safeParse(normalizedRaw);
@@ -2247,12 +2348,23 @@ const normalizeScreenLayoutContract = (value: unknown): ScreenPlan["layoutContra
   }
 
   return {
+    version: parsed.data.version ?? 2,
     viewportPlan: parsed.data.viewport_plan,
     focalHierarchy: parsed.data.focal_hierarchy,
     sectionRhythm: parsed.data.section_rhythm,
     componentDensity: parsed.data.component_density,
     ctaPolicy: parsed.data.cta_policy,
     antiPatterns: parsed.data.anti_patterns ?? [],
+    regions: parsed.data.regions?.map((region) => ({
+      id: region.id,
+      purpose: region.purpose,
+      contentKind: region.content_kind,
+    })) ?? deriveScreenLayoutRegions([
+      parsed.data.viewport_plan,
+      parsed.data.focal_hierarchy,
+      parsed.data.component_density,
+      parsed.data.cta_policy,
+    ].join(" ")),
   };
 };
 
@@ -2304,11 +2416,17 @@ const rawReferenceTransfer = (value: unknown, screenName: string): ScreenPlan["r
         target_capabilities: value.targetCapabilities,
         semantic_decisions: value.semanticDecisions,
         premium_quality_targets: value.premiumQualityTargets,
+        version: value.version,
+        visual_invariants: value.visualInvariants,
+        composition_adaptations: value.compositionAdaptations,
+        local_motifs: value.localMotifs,
+        forbidden_literal_transfers: value.forbiddenLiteralTransfers,
       }
     : value;
   const parsed = ReferenceTransferContractSchema.safeParse(input);
   if (!parsed.success || !parsed.data) return null;
   return {
+    version: parsed.data.version ?? 2,
     layoutSource: parsed.data.layout_source,
     preserve: parsed.data.preserve,
     adapt: parsed.data.adapt,
@@ -2325,6 +2443,21 @@ const rawReferenceTransfer = (value: unknown, screenName: string): ScreenPlan["r
       qualityTargets: decision.quality_targets ?? [],
     })),
     premiumQualityTargets: parsed.data.premium_quality_targets ?? [],
+    visualInvariants: parsed.data.visual_invariants ?? [],
+    compositionAdaptations: (parsed.data.composition_adaptations ?? []).map((item) => ({
+      principle: item.principle,
+      targetRegionIds: item.target_region_ids,
+      functionalPurpose: item.functional_purpose,
+    })),
+    localMotifs: (parsed.data.local_motifs ?? []).map((item) => ({
+      motifId: item.motif_id,
+      decision: item.decision,
+      targetRegionIds: item.target_region_ids,
+      requiredFunction: item.required_function,
+      repetition: item.repetition,
+      rationale: item.rationale,
+    })),
+    forbiddenLiteralTransfers: parsed.data.forbidden_literal_transfers ?? [],
   };
 };
 
@@ -2630,6 +2763,9 @@ const formatReferenceAnalysis = (referenceAnalysis: ReferenceAnalysis) => {
         `- Elevation: ${navigationEvidence.elevation}`,
         `- Safe Area: ${navigationEvidence.safeAreaRelationship}`,
         `- Active Items By Screen: ${navigationEvidence.activeItemByScreen.map((entry) => `screen ${entry.screenIndex} -> item ${entry.itemIndex ?? "unknown"}`).join("; ") || "None"}`,
+        `- Visible On Screens: ${navigationEvidence.visibleOnScreenIndexes?.join(", ") || "not recorded"}`,
+        `- Absent On Screens: ${navigationEvidence.absentOnScreenIndexes?.join(", ") || "not recorded"}`,
+        `- Root/Detail Pattern: ${navigationEvidence.rootDetailPattern ?? "not recorded"}`,
       ].join("\n")
     : "Primary Navigation Evidence: not provided.";
 
@@ -2647,6 +2783,16 @@ const formatReferenceAnalysis = (referenceAnalysis: ReferenceAnalysis) => {
     referenceAnalysis.designSystemSignals.componentGrammar ? `- Component Grammar: ${referenceAnalysis.designSystemSignals.componentGrammar}` : null,
     referenceAnalysis.designSystemSignals.spacingLogic ? `- Spacing Logic: ${referenceAnalysis.designSystemSignals.spacingLogic}` : null,
     referenceAnalysis.designSystemSignals.antiPatterns ? `- Avoid: ${referenceAnalysis.designSystemSignals.antiPatterns}` : null,
+    referenceAnalysis.geometryProfile?.measurements.length ? [
+      "Measured App Geometry:",
+      ...referenceAnalysis.geometryProfile.measurements.map((measurement) =>
+        `- ${measurement.role}: ${measurement.minPx}-${measurement.maxPx}px; confidence=${measurement.confidence}; scope=${measurement.scope}; screens=${measurement.sourceScreenIndexes.join(",") || "unknown"}. ${measurement.note}`,
+      ),
+    ].join("\n") : "Measured App Geometry: no trusted structured measurements; use generated token fallbacks.",
+    referenceAnalysis.motifs?.length ? [
+      "Reference Motifs (locality is mandatory):",
+      ...referenceAnalysis.motifs.map((motif) => `- ${motif.id} [${motif.scope}]: ${motif.description}; function=${motif.functionalPurpose}`),
+    ].join("\n") : null,
     "",
     "Screen Breakdown:",
     screenSections,
@@ -4068,14 +4214,14 @@ export async function generateDesignTokens({
     });
 
     if (!parsed.success) {
-      return buildApprovedDesignTokens(rawTokens, screenMargin);
+      return buildApprovedDesignTokens(rawTokens, screenMargin, referenceAnalysis);
     }
 
     return buildApprovedDesignTokens(parsed.data as {
       system_schema?: string;
       meta?: DesignTokenMetadata;
       tokens?: DesignTokenValues;
-    }, screenMargin);
+    }, screenMargin, referenceAnalysis);
   } catch (error) {
     console.error("Failed to generate design tokens", error);
     throw error instanceof Error
@@ -4093,20 +4239,39 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
   if (input.promptMode === "recreate" && !inlineImage) {
     throw new Error("Recreate builder mode requires an attached structural reference image.");
   }
-  if (input.promptMode !== "recreate" && inlineImage) {
-    throw new Error("Style and prompt-only builder modes must not receive a raw reference image.");
+  if (input.promptMode === "recreate" && inlineImage && input.referenceImageRole !== "structural-reference") {
+    throw new Error("Recreate builder images must be explicitly marked as structural-reference evidence.");
   }
-  if (inlineImage) {
+  if (input.promptMode === "style" && inlineImage && (
+    input.referenceImageRole !== "style-calibration"
+    || input.screenPlan.referenceTransfer?.version !== 2
+    || input.screenPlan.referenceTransfer.layoutSource !== "screen-purpose"
+  )) {
+    throw new Error("Style builder images require an explicit style-calibration role and version-2 screen-purpose transfer contract.");
+  }
+  if (input.promptMode === "prompt" && inlineImage) {
+    throw new Error("Prompt-only builder mode must not receive a reference image.");
+  }
+  if (inlineImage && input.referenceImageRole === "style-calibration") {
+    parts.push({
+      text: [
+        "STYLE CALIBRATION EVIDENCE — NON-STRUCTURAL.",
+        styleReferenceInstruction,
+        "The target regions and version-2 reference-transfer contract in the system instruction are already locked. The image may refine only approved visual invariants, optical density, proportion, type relationships, material restraint, control construction, and region-scoped motifs.",
+        "Never add a component, information region, decorative system, text, value, brand, or domain object merely because it appears in the image. A local motif is legal only in the target region named by its allow-local rule.",
+        `Reference id: ${input.referenceId ?? "style-reference"}.`,
+      ].join(" "),
+    });
+    parts.push(inlineImage);
+  } else if (inlineImage) {
     parts.push(inlineImage);
     parts.push({
-      text: isStyleReferenceMode(resolvedReferenceMode)
-        ? `${styleReferenceInstruction} Reference id: ${input.referenceId ?? "user-upload"}.`
-        : [
-            userRecreateReferenceInstruction,
-            referenceScreenIndex && referenceScreenCount && referenceScreenCount > 1
-              ? `Target Reference Screen: Build visible screen ${referenceScreenIndex} of ${referenceScreenCount} from the uploaded image. Map visible screens left-to-right unless the prompt or screen brief says otherwise. Do not merge the other visible screens into this output.`
-              : null,
-          ].filter(Boolean).join(" "),
+      text: [
+        userRecreateReferenceInstruction,
+        referenceScreenIndex && referenceScreenCount && referenceScreenCount > 1
+          ? `Target Reference Screen: Build visible screen ${referenceScreenIndex} of ${referenceScreenCount} from the uploaded image. Map visible screens left-to-right unless the prompt or screen brief says otherwise. Do not merge the other visible screens into this output.`
+          : null,
+      ].filter(Boolean).join(" "),
     });
   }
 
@@ -4156,6 +4321,9 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
         .map((p) => (typeof p.text === "string" ? p.text : "[image]"))
         .filter(Boolean),
       hasImage: Boolean(toInlineImage(input.image)),
+      referenceImageRole: input.referenceImageRole ?? null,
+      referenceAttachmentReason: input.referenceAttachmentReason ?? null,
+      calibrationContractVersion: input.screenPlan.referenceTransfer?.version ?? null,
       promptMode,
       referenceMode: resolvedReferenceMode,
       referenceSource: input.referenceSource ?? null,

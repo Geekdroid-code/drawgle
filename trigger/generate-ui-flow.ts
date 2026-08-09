@@ -6,6 +6,7 @@ import { ensureDrawgleIds } from "@/lib/drawgle-dom";
 import { geminiPolicyForTask } from "@/lib/ai/model-policy";
 import { cleanErrorMessage, cleanUnknownError, isPersistJsonError, USER_FACING_PERSIST_FAILED_ERROR } from "@/lib/ai/error-handler";
 import { buildScreenPersistPatch, sanitizeScreenCodeForPersist, sanitizeTextForJson } from "@/lib/generation/persist-safe";
+import { resolveBuilderProviderIdentity } from "@/lib/generation/builder-diagnostics";
 import {
   getCuratedStyleReferenceById,
   loadCuratedStyleReferenceImage,
@@ -56,7 +57,7 @@ import {
 import { screenBuildOutputTokenBudget } from "@/lib/generation/screen-budget";
 import { analyzeReferenceImageForScope, preflightGenerationScope } from "@/lib/generation/scope-contract";
 import { planVisualAssets, resolveProjectAssets } from "@/lib/generation/visual-assets";
-import { shouldAttachReferenceImage } from "@/lib/generation/reference-image";
+import { resolveReferenceImageAttachment } from "@/lib/generation/reference-image";
 import { resolveGenerationPromptMode } from "@/lib/generation/prompt-routing";
 import { loadStoredPromptImage } from "@/lib/generation/prompt-reference-storage";
 import { resolveGenerationReferencePolicy } from "@/lib/generation/reference-policy";
@@ -83,6 +84,7 @@ import {
 } from "@/lib/generation/project-roadmap";
 import { createNavigationArchitecture, deriveRequiresBottomNav } from "@/lib/navigation";
 import {
+  applyReferenceNavigationAppearance,
   applyNavigationPlanToScreens,
   detectLocalNavigationMarkup,
   indexNavigationShell,
@@ -93,10 +95,10 @@ import { tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
 import { detectTokenDrift } from "@/lib/token-drift";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
-import { getGenerationEngineVersion } from "@/lib/env/server";
+import { getGenerationEngineVersion, getScreenBuilderProvider } from "@/lib/env/server";
 import { enrichScreenMemoryTask } from "@/trigger/enrich-screen-memory";
 import type { Database, ProjectScreenRoadmapRow } from "@/lib/supabase/database.types";
-import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationPreviewMetadata, GenerationPromptMode, GenerationReferencePolicy, GenerationRetryContext, GenerationScopeContract, ImageReferenceMode, LlmProviderEvent, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, ProjectRoadmap, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenBaseStatePlan, ScreenPlan, ScreenPlanningSeed, ScreenStateVariantPlan } from "@/lib/types";
+import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationPreviewMetadata, GenerationPromptMode, GenerationReferencePolicy, GenerationRetryContext, GenerationScopeContract, ImageReferenceMode, LlmProviderEvent, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, ProjectRoadmap, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceImageRole, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenBaseStatePlan, ScreenPlan, ScreenPlanningSeed, ScreenStateVariantPlan } from "@/lib/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -137,6 +139,9 @@ type BuildScreenTaskPayload = {
   prompt: string;
   designTokens?: DesignTokens | null;
   image?: PromptImagePayload | null;
+  referenceImageRole?: ReferenceImageRole | null;
+  referenceAttachmentReason?: string | null;
+  referenceGeometryConfidence?: string | null;
   promptMode: GenerationPromptMode;
   referenceMode?: ReferenceMode;
   referenceSource?: ReferenceSource | null;
@@ -250,6 +255,16 @@ type GenerationAttemptDiagnostics = {
   retryReason: "initial" | "completion_retry" | "structural_retry";
   streamed: boolean;
   model: string;
+  provider: string;
+  requestedModel: string;
+  actualModel: string;
+  fallbackUsed: boolean;
+  hasImage: boolean;
+  referenceImageRole: ReferenceImageRole | null;
+  referenceAttachmentReason: string | null;
+  calibrationContractVersion: number | null;
+  navigationAppearanceSource: "reference" | "project-native" | null;
+  referenceGeometryConfidence: string | null;
   maxOutputTokens: number | null;
   finishReasons: string[];
   usageMetadata: GeminiUsageMetadata | null;
@@ -317,15 +332,23 @@ const buildAttemptDiagnostics = ({
   tokenDrift?: ReturnType<typeof detectTokenDrift> | null;
   sanitizedCodes?: string[];
 }): GenerationAttemptDiagnostics => {
-  const policy = geminiPolicyForTask("screen_build");
-
   return {
     attempt,
     task: "screen_build",
     retryReason,
     streamed,
-    model: policy.model,
-    maxOutputTokens: build.maxOutputTokens ?? (typeof policy.config.maxOutputTokens === "number" ? policy.config.maxOutputTokens : null),
+    model: build.providerDiagnostics.actualModel,
+    provider: build.providerDiagnostics.provider,
+    requestedModel: build.providerDiagnostics.requestedModel,
+    actualModel: build.providerDiagnostics.actualModel,
+    fallbackUsed: build.providerDiagnostics.fallbackUsed,
+    hasImage: build.providerDiagnostics.hasImage,
+    referenceImageRole: build.providerDiagnostics.referenceImageRole,
+    referenceAttachmentReason: build.providerDiagnostics.referenceAttachmentReason,
+    calibrationContractVersion: build.providerDiagnostics.calibrationContractVersion,
+    navigationAppearanceSource: build.providerDiagnostics.navigationAppearanceSource,
+    referenceGeometryConfidence: build.providerDiagnostics.referenceGeometryConfidence,
+    maxOutputTokens: build.maxOutputTokens ?? null,
     finishReasons: build.finishReasons,
     usageMetadata: Object.keys(build.usageMetadata).length > 0 ? build.usageMetadata : null,
     rawLength: build.rawText.length,
@@ -1037,6 +1060,17 @@ async function collectScreenBuild(
   let rawText = "";
   const finishReasons = new Set<string>();
   const usageMetadata: GeminiUsageMetadata = {};
+  const provider = getScreenBuilderProvider();
+  const attemptedModels = new Set<string>();
+  let requestedModel = "unknown";
+  let actualModel = "unknown";
+  const captureProviderEvent = (event: LlmProviderEvent) => {
+    logProviderEvent(event);
+    if (typeof event.model === "string" && event.model.trim()) {
+      attemptedModels.add(event.model);
+      actualModel = event.model;
+    }
+  };
 
   const { stream: codeStream } = await streams.pipe(
     "code",
@@ -1046,6 +1080,8 @@ async function collectScreenBuild(
       designStyle: input.designStyle,
       prompt: input.prompt,
       image: input.image,
+      referenceImageRole: input.referenceImageRole,
+      referenceAttachmentReason: input.referenceAttachmentReason,
       promptMode: input.promptMode,
       referenceMode: input.referenceMode,
       referenceSource: input.referenceSource,
@@ -1057,15 +1093,21 @@ async function collectScreenBuild(
       navigationPlan: input.navigationPlan,
       assetManifest: input.assetManifest,
       projectContext: input.projectContext,
-      onProviderEvent: logProviderEvent,
+      onProviderEvent: captureProviderEvent,
       onResponseChunk: (chunk) => {
         collectFinishReasons(chunk, finishReasons);
         collectUsageMetadata(chunk, usageMetadata);
       },
       onLlmInput: (snapshot) => {
+        requestedModel = snapshot.model;
+        if (actualModel === "unknown") actualModel = snapshot.model;
+        attemptedModels.add(snapshot.model);
         logger.info(`[LLM INPUT] ${snapshot.screenName}`, {
           model: snapshot.model,
           hasImage: snapshot.hasImage,
+          referenceImageRole: snapshot.referenceImageRole ?? null,
+          referenceAttachmentReason: snapshot.referenceAttachmentReason ?? null,
+          calibrationContractVersion: snapshot.calibrationContractVersion ?? null,
           promptMode: snapshot.promptMode,
           referenceMode: snapshot.referenceMode,
           referenceSource: snapshot.referenceSource,
@@ -1096,6 +1138,15 @@ async function collectScreenBuild(
     finishReasons: Array.from(finishReasons),
     usageMetadata,
     maxOutputTokens: screenBuildOutputTokenBudget(screenPlan),
+    providerDiagnostics: {
+      ...resolveBuilderProviderIdentity({ provider, requestedModel, observedModels: attemptedModels }),
+      hasImage: Boolean(input.image),
+      referenceImageRole: input.referenceImageRole ?? null,
+      referenceAttachmentReason: input.referenceAttachmentReason ?? null,
+      calibrationContractVersion: screenPlan.referenceTransfer?.version ?? null,
+      navigationAppearanceSource: input.navigationPlan?.appearance?.source ?? null,
+      referenceGeometryConfidence: input.referenceGeometryConfidence ?? null,
+    },
   };
 }
 
@@ -1103,6 +1154,17 @@ async function collectNonStreamingScreenBuild(input: BuildScreenTaskPayload, scr
   let rawText = "";
   const finishReasons = new Set<string>();
   const usageMetadata: GeminiUsageMetadata = {};
+  const provider = getScreenBuilderProvider();
+  const attemptedModels = new Set<string>();
+  let requestedModel = "unknown";
+  let actualModel = "unknown";
+  const captureProviderEvent = (event: LlmProviderEvent) => {
+    logProviderEvent(event);
+    if (typeof event.model === "string" && event.model.trim()) {
+      attemptedModels.add(event.model);
+      actualModel = event.model;
+    }
+  };
 
   for await (const chunk of buildScreenStream({
     screenPlan,
@@ -1110,6 +1172,8 @@ async function collectNonStreamingScreenBuild(input: BuildScreenTaskPayload, scr
     designStyle: input.designStyle,
     prompt: input.prompt,
     image: input.image,
+    referenceImageRole: input.referenceImageRole,
+    referenceAttachmentReason: input.referenceAttachmentReason,
     promptMode: input.promptMode,
     referenceMode: input.referenceMode,
     referenceSource: input.referenceSource,
@@ -1121,15 +1185,21 @@ async function collectNonStreamingScreenBuild(input: BuildScreenTaskPayload, scr
     navigationPlan: input.navigationPlan,
     assetManifest: input.assetManifest,
     projectContext: input.projectContext,
-    onProviderEvent: logProviderEvent,
+    onProviderEvent: captureProviderEvent,
     onResponseChunk: (responseChunk) => {
       collectFinishReasons(responseChunk, finishReasons);
       collectUsageMetadata(responseChunk, usageMetadata);
     },
     onLlmInput: (snapshot) => {
+      requestedModel = snapshot.model;
+      if (actualModel === "unknown") actualModel = snapshot.model;
+      attemptedModels.add(snapshot.model);
       logger.info(`[LLM INPUT] ${snapshot.screenName}`, {
         model: snapshot.model,
         hasImage: snapshot.hasImage,
+        referenceImageRole: snapshot.referenceImageRole ?? null,
+        referenceAttachmentReason: snapshot.referenceAttachmentReason ?? null,
+        calibrationContractVersion: snapshot.calibrationContractVersion ?? null,
         promptMode: snapshot.promptMode,
         referenceMode: snapshot.referenceMode,
         referenceSource: snapshot.referenceSource,
@@ -1152,6 +1222,15 @@ async function collectNonStreamingScreenBuild(input: BuildScreenTaskPayload, scr
     finishReasons: Array.from(finishReasons),
     usageMetadata,
     maxOutputTokens: screenBuildOutputTokenBudget(screenPlan),
+    providerDiagnostics: {
+      ...resolveBuilderProviderIdentity({ provider, requestedModel, observedModels: attemptedModels }),
+      hasImage: Boolean(input.image),
+      referenceImageRole: input.referenceImageRole ?? null,
+      referenceAttachmentReason: input.referenceAttachmentReason ?? null,
+      calibrationContractVersion: screenPlan.referenceTransfer?.version ?? null,
+      navigationAppearanceSource: input.navigationPlan?.appearance?.source ?? null,
+      referenceGeometryConfidence: input.referenceGeometryConfidence ?? null,
+    },
   };
 }
 
@@ -2525,6 +2604,11 @@ export const generateUiFlowTask = task({
 	          ? "style_reference"
 	          : "prompt");
 	    plan.charter = { ...plan.charter, projectOrigin };
+	    plan.navigationPlan = applyReferenceNavigationAppearance({
+	      navigationPlan: plan.navigationPlan,
+	      referenceAnalysis,
+	    });
+	    plan.requiresBottomNav = plan.navigationPlan.enabled;
 	    plan.screens = applyNavigationPlanToScreens(plan.screens, plan.navigationPlan);
 	    if (payload.stateVariants?.length && plan.screens.length === 1) {
 	      plan.screens[0] = { ...plan.screens[0], stateVariants: payload.stateVariants };
@@ -3032,10 +3116,20 @@ export const generateUiFlowTask = task({
       let rowInserted = false;
 
       try {
-        const attachReferenceImage = shouldAttachReferenceImage({
+        const referenceAttachment = resolveReferenceImageAttachment({
           engineVersion: generationEngineVersion,
           image: promptImage,
           referenceMode,
+          referenceTransfer: screenPlan.referenceTransfer,
+          screenLayoutRegions: screenPlan.layoutContract?.regions,
+        });
+        logger.info("Reference image builder attachment resolved", {
+          screenName: screenPlan.name,
+          attached: referenceAttachment.attach,
+          role: referenceAttachment.role,
+          reason: referenceAttachment.reason,
+          calibrationContractVersion: referenceAttachment.calibrationContractVersion,
+          featureEnabled: referenceAttachment.featureEnabled,
         });
         generationJournal.screens = generationJournal.screens?.map((screen) =>
           screen.name === screenPlan.name ? { ...screen, status: "queued" } : screen,
@@ -3112,7 +3206,14 @@ export const generateUiFlowTask = task({
             screenPlan,
             prompt: payload.prompt,
             designTokens,
-            image: attachReferenceImage ? promptImage : null,
+            image: referenceAttachment.attach ? promptImage : null,
+            referenceImageRole: referenceAttachment.role,
+            referenceAttachmentReason: referenceAttachment.reason,
+            referenceGeometryConfidence: referenceAnalysis?.geometryProfile
+              ? (["high", "medium", "low"] as const)
+                  .map((confidence) => `${confidence}=${referenceAnalysis.geometryProfile!.measurements.filter((item) => item.confidence === confidence).length}`)
+                  .join(",")
+              : null,
             promptMode,
             referenceMode,
             referenceSource,

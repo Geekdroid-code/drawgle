@@ -7,7 +7,10 @@ import {
 import type {
   CreativeDirection,
   ReferenceAnalysis,
+  ReferenceCompositionAdaptation,
+  ReferenceLocalMotifRule,
   ReferenceTransferContract,
+  ScreenLayoutRegion,
   SemanticTransferDecision,
 } from "@/lib/types";
 
@@ -63,6 +66,12 @@ export function buildPortableReferenceContext(referenceAnalysis: ReferenceAnalys
     ]).filter((cue) => !SOURCE_ANATOMY_CUE_PATTERN.test(cue)),
     10,
   );
+  const measuredGeometry = analysis.geometryProfile?.measurements
+    .filter((measurement) => measurement.confidence === "high" && measurement.sourceLayer === "app-ui")
+    .map((measurement) => `${measurement.role}=${measurement.minPx}-${measurement.maxPx}px (${measurement.scope})`)
+    .slice(0, 16) ?? [];
+  const motifPolicy = (analysis.motifs ?? []).map((motif) =>
+    `${motif.id} is ${motif.scope}; function=${motif.functionalPurpose}; never treat it as project-wide anatomy unless scope is global-material.`);
 
   return [
     "PORTABLE REFERENCE INVARIANTS",
@@ -74,6 +83,8 @@ export function buildPortableReferenceContext(referenceAnalysis: ReferenceAnalys
     `Density: ${signals.density}`,
     `Motion tone: ${signals.motionTone}`,
     craftCues.length ? `Portable craft recipes: ${craftCues.join("; ")}` : null,
+    measuredGeometry.length ? `Trusted app-UI measurements: ${measuredGeometry.join("; ")}` : null,
+    motifPolicy.length ? `Motif locality evidence: ${motifPolicy.join("; ")}` : null,
     signals.antiPatterns ? `Avoid: ${signals.antiPatterns}` : null,
     formatSemanticCompositionLibrary(analysis),
   ].filter(Boolean).join("\n");
@@ -134,18 +145,86 @@ const emptySemanticPlan = ({
   ],
 });
 
+const regionMatchesPurpose = (region: ScreenLayoutRegion, purpose: string) => {
+  const text = `${purpose} ${region.purpose}`.toLowerCase();
+  if (/chart|graph|plot|axis|grid line|data visual/.test(text)) return region.contentKind === "chart";
+  if (/list|row|ledger|feed|table|collection/.test(text)) return region.contentKind === "list";
+  if (/form|field|input|entry/.test(text)) return region.contentKind === "form";
+  if (/media|image|photo|video|illustration/.test(text)) return region.contentKind === "media";
+  if (/button|action|cta|control/.test(text)) return region.contentKind === "action";
+  return false;
+};
+
+const buildLocalMotifRules = (
+  referenceAnalysis: ReferenceAnalysis | null | undefined,
+  regions: ScreenLayoutRegion[],
+): ReferenceLocalMotifRule[] => (referenceAnalysis?.motifs ?? []).slice(0, 12).map((motif) => {
+  const targetRegionIds = regions
+    .filter((region) => regionMatchesPurpose(region, `${motif.description} ${motif.functionalPurpose}`))
+    .map((region) => region.id);
+  const allowed = targetRegionIds.length > 0 && motif.scope !== "global-material";
+  return {
+    motifId: motif.id,
+    decision: allowed ? "allow-local" : "reject",
+    targetRegionIds: allowed ? targetRegionIds : [],
+    requiredFunction: motif.functionalPurpose,
+    repetition: "per-approved-region",
+    rationale: allowed
+      ? "The target has a named region with the same functional purpose; keep the motif inside that region only."
+      : motif.scope === "global-material"
+        ? "Project-wide material evidence belongs in visual invariants, not in a repeatable local-motif rule."
+        : "No target region independently requires this source-local motif, so it must not transfer.",
+  };
+});
+
+const regionsForCapability = (regions: ScreenLayoutRegion[], capability: string) => {
+  const capabilityText = capability.toLowerCase();
+  const preferredKinds = /monitor|analytic|metric|insight/.test(capabilityText)
+    ? ["chart", "focal", "supporting"]
+    : /search|filter|discover/.test(capabilityText)
+      ? ["form", "list", "focal"]
+      : /collection|catalog|feed|ledger|history/.test(capabilityText)
+        ? ["list", "focal", "supporting"]
+        : /transaction|checkout|form|entry|edit/.test(capabilityText)
+          ? ["form", "action", "supporting"]
+          : /detail|inspect|summary/.test(capabilityText)
+            ? ["focal", "supporting", "action"]
+            : ["focal", "supporting", "list", "form", "action", "chart", "media"];
+  const ranked = preferredKinds.flatMap((kind) => regions.filter((region) => region.contentKind === kind));
+  const uniqueRegions = ranked.filter((region, index) => ranked.findIndex((candidate) => candidate.id === region.id) === index);
+  return uniqueRegions.length ? uniqueRegions.slice(0, 2) : regions.filter((region) => region.contentKind !== "header").slice(0, 2);
+};
+
+const buildCompositionAdaptations = (
+  decisions: SemanticTransferDecision[],
+  regions: ScreenLayoutRegion[],
+): ReferenceCompositionAdaptation[] => decisions
+  .filter((decision) => decision.decision !== "reject" && decision.adaptation)
+  .slice(0, 8)
+  .flatMap((decision) => {
+    const targetRegions = regionsForCapability(regions, decision.targetCapability);
+    if (!targetRegions.length) return [];
+    return [{
+      principle: decision.adaptation ?? decision.rationale,
+      targetRegionIds: targetRegions.map((region) => region.id),
+      functionalPurpose: decision.rationale,
+    }];
+  });
+
 export function createReferenceTransferContract({
   mode,
   screenName,
   screenDescription = "",
   screenType,
   referenceAnalysis,
+  screenLayoutRegions = [],
 }: {
   mode: ReferenceTransferMode;
   screenName: string;
   screenDescription?: string;
   screenType?: "root" | "detail";
   referenceAnalysis?: ReferenceAnalysis | null;
+  screenLayoutRegions?: ScreenLayoutRegion[];
 }): ReferenceTransferContract {
   const signals = referenceAnalysis?.designSystemSignals;
   const semanticPlan = mode === "style" && referenceAnalysis
@@ -154,6 +233,7 @@ export function createReferenceTransferContract({
 
   if (mode === "recreate") {
     return {
+      version: 2,
       layoutSource: "reference",
       preserve: unique([
         referenceAnalysis?.overallVisualStyle,
@@ -169,6 +249,15 @@ export function createReferenceTransferContract({
       ],
       rationale: "Image-to-UI mode makes the selected reference frame the structural authority.",
       ...semanticPlan,
+      visualInvariants: unique([
+        referenceAnalysis?.overallVisualStyle,
+        signals?.surfaces,
+        signals?.typography,
+        signals?.spacingLogic ?? signals?.density,
+      ], 8),
+      compositionAdaptations: [],
+      localMotifs: [],
+      forbiddenLiteralTransfers: ["Unseen source content and unrelated product-domain details."],
     };
   }
 
@@ -176,6 +265,7 @@ export function createReferenceTransferContract({
     const accepted = semanticPlan.semanticDecisions.filter((decision) => decision.decision !== "reject");
     const rejected = semanticPlan.semanticDecisions.filter((decision) => decision.decision === "reject");
     return {
+      version: 2,
       layoutSource: "screen-purpose",
       preserve: unique([
         signals?.palette,
@@ -195,10 +285,25 @@ export function createReferenceTransferContract({
       ], 10),
       rationale: "Style-reference mode transfers visual craft and suitable composition logic; the target screen's user job owns layout, geometry, and information architecture.",
       ...semanticPlan,
+      visualInvariants: unique([
+        signals?.palette,
+        signals?.typography,
+        signals?.surfaces,
+        signals?.iconography,
+        signals?.density,
+      ], 8),
+      compositionAdaptations: buildCompositionAdaptations(semanticPlan.semanticDecisions, screenLayoutRegions),
+      localMotifs: buildLocalMotifRules(referenceAnalysis, screenLayoutRegions),
+      forbiddenLiteralTransfers: [
+        "Source text, values, names, branding, and domain-specific content.",
+        "Exact coordinates, section order, object positions, and full-screen anatomy.",
+        "Any decorative motif outside an explicitly approved target region.",
+      ],
     };
   }
 
   return {
+    version: 2,
     layoutSource: "screen-purpose",
     preserve: [],
     adapt: [
@@ -209,6 +314,10 @@ export function createReferenceTransferContract({
     ],
     rationale: "No structural reference exists; product intent is the only layout authority.",
     ...semanticPlan,
+    visualInvariants: [],
+    compositionAdaptations: [],
+    localMotifs: [],
+    forbiddenLiteralTransfers: ["Invented reference evidence or source-specific anatomy."],
   };
 }
 
@@ -253,6 +362,7 @@ export function normalizeReferenceTransferContract({
   screenDescription = "",
   screenType,
   referenceAnalysis,
+  screenLayoutRegions = [],
 }: {
   value: unknown;
   mode: ReferenceTransferMode;
@@ -260,6 +370,7 @@ export function normalizeReferenceTransferContract({
   screenDescription?: string;
   screenType?: "root" | "detail";
   referenceAnalysis?: ReferenceAnalysis | null;
+  screenLayoutRegions?: ScreenLayoutRegion[];
 }): ReferenceTransferContract {
   const fallback = createReferenceTransferContract({
     mode,
@@ -267,6 +378,7 @@ export function normalizeReferenceTransferContract({
     screenDescription,
     screenType,
     referenceAnalysis,
+    screenLayoutRegions,
   });
   const record = asRecord(value);
   if (!record) return fallback;
@@ -299,8 +411,39 @@ export function normalizeReferenceTransferContract({
         ...fallback.premiumQualityTargets,
       ], 10)
     : fallback.premiumQualityTargets;
+  const validRegionIds = new Set(screenLayoutRegions.map((region) => region.id));
+  const plannerComposition = Array.isArray(record.composition_adaptations ?? record.compositionAdaptations)
+    ? (record.composition_adaptations ?? record.compositionAdaptations as unknown[])
+    : [];
+  const compositionAdaptations = (plannerComposition as unknown[]).flatMap((item) => {
+    const entry = asRecord(item);
+    if (!entry) return [];
+    const principle = compact(typeof entry.principle === "string" ? entry.principle : null, 700);
+    const functionalPurpose = compact(typeof (entry.functional_purpose ?? entry.functionalPurpose) === "string"
+      ? String(entry.functional_purpose ?? entry.functionalPurpose)
+      : null, 500);
+    const rawTargets = entry.target_region_ids ?? entry.targetRegionIds;
+    const targetRegionIds = Array.isArray(rawTargets)
+      ? rawTargets.filter((target): target is string => typeof target === "string" && validRegionIds.has(target)).slice(0, 6)
+      : [];
+    if (!principle || !functionalPurpose || !targetRegionIds.length || SOURCE_ANATOMY_CUE_PATTERN.test(principle) || STRUCTURAL_COPY_PATTERN.test(principle)) return [];
+    return [{ principle, functionalPurpose, targetRegionIds }];
+  });
+  const plannerMotifs = Array.isArray(record.local_motifs ?? record.localMotifs)
+    ? (record.local_motifs ?? record.localMotifs as unknown[])
+    : [];
+  const plannerMotifDecisions = new Map((plannerMotifs as unknown[]).flatMap((item) => {
+    const entry = asRecord(item);
+    const id = entry && typeof (entry.motif_id ?? entry.motifId) === "string" ? String(entry.motif_id ?? entry.motifId) : null;
+    const decision = entry?.decision === "reject" ? "reject" as const : entry?.decision === "allow-local" ? "allow-local" as const : null;
+    return id && decision ? [[id, decision] as const] : [];
+  }));
+  const localMotifs = (fallback.localMotifs ?? []).map((motif) => plannerMotifDecisions.get(motif.motifId) === "reject"
+    ? { ...motif, decision: "reject" as const, targetRegionIds: [], rationale: "Planner rejected this motif for the target screen; rejection overrides source evidence." }
+    : motif);
 
   return {
+    version: 2,
     layoutSource: expectedLayoutSource,
     preserve: approvedPreserve.length ? approvedPreserve : fallback.preserve,
     adapt: unique([
@@ -319,6 +462,16 @@ export function normalizeReferenceTransferContract({
     targetCapabilities: fallback.targetCapabilities,
     semanticDecisions,
     premiumQualityTargets,
+    visualInvariants: unique([
+      ...stringArray(record.visual_invariants ?? record.visualInvariants, 10).filter((item) => !SOURCE_ANATOMY_CUE_PATTERN.test(item)),
+      ...(fallback.visualInvariants ?? []),
+    ], 10),
+    compositionAdaptations: [...compositionAdaptations, ...(fallback.compositionAdaptations ?? [])].slice(0, 8),
+    localMotifs,
+    forbiddenLiteralTransfers: unique([
+      ...stringArray(record.forbidden_literal_transfers ?? record.forbiddenLiteralTransfers, 12),
+      ...(fallback.forbiddenLiteralTransfers ?? []),
+    ], 12),
   };
 }
 
@@ -326,6 +479,7 @@ export function formatReferenceTransferContract(contract?: ReferenceTransferCont
   if (!contract) return "";
 
   return [
+    `- Contract version: ${contract.version ?? 1}`,
     `- Layout authority: ${contract.layoutSource}`,
     contract.targetCapabilities.length ? `- Target capabilities: ${contract.targetCapabilities.join(", ")}` : null,
     contract.preserve.length ? `- Preserve visual invariants: ${contract.preserve.join(" | ")}` : "- Preserve: product-approved tokens and explicit user constraints.",
@@ -338,6 +492,10 @@ export function formatReferenceTransferContract(contract?: ReferenceTransferCont
     contract.adapt.length ? `- Approved adaptations: ${contract.adapt.join(" | ")}` : null,
     contract.reject.length ? `- Rejected transfer: ${contract.reject.join(" | ")}` : null,
     contract.premiumQualityTargets.length ? `- Premium quality targets: ${contract.premiumQualityTargets.join(" | ")}` : null,
+    contract.visualInvariants?.length ? `- Exact visual invariants: ${contract.visualInvariants.join(" | ")}` : null,
+    contract.compositionAdaptations?.length ? `- Region-scoped composition: ${contract.compositionAdaptations.map((item) => `${item.targetRegionIds.join(",") || "no approved region"}: ${item.principle}`).join(" | ")}` : null,
+    contract.localMotifs?.length ? `- Local motif policy: ${contract.localMotifs.map((item) => `${item.motifId}=${item.decision}${item.targetRegionIds.length ? ` only in ${item.targetRegionIds.join(",")}` : ""}`).join(" | ")}` : null,
+    contract.forbiddenLiteralTransfers?.length ? `- Forbidden literal transfer: ${contract.forbiddenLiteralTransfers.join(" | ")}` : null,
     `- Rationale: ${contract.rationale}`,
   ].filter(Boolean).join("\n");
 }

@@ -186,6 +186,16 @@ export type ReferenceMode = "user_recreate" | "user_style" | "curated_style" | "
 
 export type GenerationPromptMode = "recreate" | "style" | "prompt";
 
+export type ReferenceImageRole = "structural-reference" | "style-calibration";
+
+export interface ReferenceImageAttachmentDecision {
+  attach: boolean;
+  role: ReferenceImageRole | null;
+  reason: string;
+  calibrationContractVersion: number | null;
+  featureEnabled: boolean;
+}
+
 export interface DesignColorTokens {
   background?: {
     primary?: string;
@@ -505,6 +515,39 @@ export interface NavigationDesignContract {
   border: boolean;
   elevation: "none" | "low" | "medium";
   centerActionItemId?: string | null;
+  containerHeightPx?: number;
+  maxWidthPx?: number | null;
+  horizontalInsetPx?: number;
+  horizontalPaddingPx?: number;
+  verticalPaddingPx?: number;
+  labelSizePx?: number;
+  labelWeight?: number;
+  blurPx?: number;
+  borderWidthPx?: number;
+  itemLayout?: "stacked" | "inline" | "icon-only";
+  activeIndicatorWidthPx?: number | null;
+  activeIndicatorHeightPx?: number | null;
+  activeIndicatorRadiusPx?: number | null;
+}
+
+export interface ContextualChromeAppearanceContract {
+  heightPx: number;
+  horizontalInsetPx: number;
+  controlSizePx: number;
+  controlRadiusPx: number;
+  controlGapPx: number;
+  iconSizePx: number;
+  titleAlignment: "leading" | "center";
+  surface: "transparent" | "solid" | "translucent" | "glass";
+  border: boolean;
+  elevation: "none" | "low" | "medium";
+}
+
+export interface NavigationAppearanceContract {
+  source: "reference" | "project-native";
+  primary: NavigationDesignContract | null;
+  contextualChrome: ContextualChromeAppearanceContract | null;
+  rationale: string;
 }
 
 export interface NavigationPlanItem {
@@ -523,13 +566,14 @@ export interface NavigationPlanScreenChrome {
 }
 
 export interface NavigationPlan {
-  version?: 1 | 2;
+  version?: 1 | 2 | 3;
   decision?: NavigationDecision;
   evidence?: {
     source: NavigationEvidenceSource | null;
     reason: string;
   };
   design?: NavigationDesignContract | null;
+  appearance?: NavigationAppearanceContract | null;
   enabled: boolean;
   kind: NavigationPlanKind;
   items: NavigationPlanItem[];
@@ -653,12 +697,20 @@ export interface ScreenPlan {
 }
 
 export interface ScreenLayoutContract {
+  version?: 1 | 2;
   viewportPlan: string;
   focalHierarchy: string;
   sectionRhythm: string;
   componentDensity: string;
   ctaPolicy: string;
   antiPatterns: string[];
+  regions?: ScreenLayoutRegion[];
+}
+
+export interface ScreenLayoutRegion {
+  id: string;
+  purpose: string;
+  contentKind: "header" | "focal" | "chart" | "list" | "form" | "media" | "action" | "supporting" | "other";
 }
 
 export type ScreenSemanticCapability =
@@ -723,6 +775,7 @@ export interface SemanticTransferDecision {
  * treat `reject` as higher priority than prose in the screen brief.
  */
 export interface ReferenceTransferContract {
+  version?: 1 | 2;
   layoutSource: "reference" | "screen-purpose";
   preserve: string[];
   adapt: string[];
@@ -731,6 +784,25 @@ export interface ReferenceTransferContract {
   targetCapabilities: ScreenSemanticCapability[];
   semanticDecisions: SemanticTransferDecision[];
   premiumQualityTargets: string[];
+  visualInvariants?: string[];
+  compositionAdaptations?: ReferenceCompositionAdaptation[];
+  localMotifs?: ReferenceLocalMotifRule[];
+  forbiddenLiteralTransfers?: string[];
+}
+
+export interface ReferenceCompositionAdaptation {
+  principle: string;
+  targetRegionIds: string[];
+  functionalPurpose: string;
+}
+
+export interface ReferenceLocalMotifRule {
+  motifId: string;
+  decision: "allow-local" | "reject";
+  targetRegionIds: string[];
+  requiredFunction: string;
+  repetition: "once" | "per-approved-region";
+  rationale: string;
 }
 
 export interface ScreenBaseStatePlan {
@@ -817,6 +889,52 @@ export interface ReferenceNavigationEvidence {
   elevation: string;
   safeAreaRelationship: string;
   activeItemByScreen: Array<{ screenIndex: number; itemIndex: number | null }>;
+  visibleOnScreenIndexes?: number[];
+  absentOnScreenIndexes?: number[];
+  rootDetailPattern?: string;
+  appearance?: NavigationAppearanceContract | null;
+}
+
+export type ReferenceGeometryRole =
+  | "screen-rail"
+  | "outer-surface-radius"
+  | "inner-surface-radius"
+  | "row-radius"
+  | "icon-well-size"
+  | "icon-well-radius"
+  | "pill-radius"
+  | "row-height"
+  | "section-gap"
+  | "internal-gap"
+  | "button-height"
+  | "navigation-height"
+  | "navigation-inset"
+  | "navigation-bottom-offset"
+  | "navigation-icon-size"
+  | "other";
+
+export interface ReferenceGeometryMeasurement {
+  role: ReferenceGeometryRole;
+  minPx: number;
+  maxPx: number;
+  confidence: "high" | "medium" | "low";
+  sourceScreenIndexes: number[];
+  scope: "project-global" | "component-family" | "screen-local";
+  sourceLayer: "app-ui" | "device-mockup";
+  note: string;
+}
+
+export interface ReferenceGeometryProfile {
+  measurements: ReferenceGeometryMeasurement[];
+  diagnostics: string[];
+}
+
+export interface ReferenceMotifEvidence {
+  id: string;
+  description: string;
+  functionalPurpose: string;
+  sourceScreenIndexes: number[];
+  scope: "global-material" | "component-local" | "screen-local-decoration";
 }
 export interface ReferenceAnalysis {
   overallVisualStyle: string;
@@ -825,6 +943,8 @@ export interface ReferenceAnalysis {
   designSystemSignals: ReferenceDesignSystemSignals;
   primaryNavigation?: ReferenceNavigationEvidence | null;
   semanticCompositionPrimitives?: SemanticCompositionPrimitive[];
+  geometryProfile?: ReferenceGeometryProfile;
+  motifs?: ReferenceMotifEvidence[];
 }
 
 export interface ReferenceAnalysisResult {
@@ -1157,6 +1277,9 @@ export interface LlmInputSnapshot {
   systemInstruction: string;
   userParts: string[];
   hasImage: boolean;
+  referenceImageRole?: ReferenceImageRole | null;
+  referenceAttachmentReason?: string | null;
+  calibrationContractVersion?: number | null;
   promptMode: GenerationPromptMode;
   referenceMode?: ReferenceMode;
   referenceSource?: ReferenceSource | null;
@@ -1170,6 +1293,8 @@ export interface BuildScreenInput {
   designTokens?: DesignTokens | null;
   prompt: string;
   image?: PromptImagePayload | null;
+  referenceImageRole?: ReferenceImageRole | null;
+  referenceAttachmentReason?: string | null;
   promptMode: GenerationPromptMode;
   referenceMode?: ReferenceMode;
   referenceSource?: ReferenceSource | null;

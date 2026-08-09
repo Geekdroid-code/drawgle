@@ -172,6 +172,86 @@ export function normalizeNavigationDesignContract(
     centerActionItemId: typeof candidate.centerActionItemId === "string" && candidate.centerActionItemId.trim()
       ? slugify(candidate.centerActionItemId, "")
       : null,
+    containerHeightPx: clampNumber(candidate.containerHeightPx, 44, 120, fallback.containerHeightPx ?? 68),
+    maxWidthPx: typeof candidate.maxWidthPx === "number" && Number.isFinite(candidate.maxWidthPx)
+      ? clampNumber(candidate.maxWidthPx, 160, 390, 320)
+      : null,
+    horizontalInsetPx: clampNumber(candidate.horizontalInsetPx, 0, 48, fallback.horizontalInsetPx ?? 16),
+    horizontalPaddingPx: clampNumber(candidate.horizontalPaddingPx, 0, 32, fallback.horizontalPaddingPx ?? 8),
+    verticalPaddingPx: clampNumber(candidate.verticalPaddingPx, 0, 24, fallback.verticalPaddingPx ?? 6),
+    labelSizePx: clampNumber(candidate.labelSizePx, 9, 16, fallback.labelSizePx ?? 11),
+    labelWeight: clampNumber(candidate.labelWeight, 400, 800, fallback.labelWeight ?? 500),
+    blurPx: clampNumber(candidate.blurPx, 0, 40, fallback.blurPx ?? 0),
+    borderWidthPx: clampNumber(candidate.borderWidthPx, 0, 4, fallback.borderWidthPx ?? 1),
+    itemLayout: candidate.itemLayout === "inline" || candidate.itemLayout === "icon-only" ? candidate.itemLayout : "stacked",
+    activeIndicatorWidthPx: typeof candidate.activeIndicatorWidthPx === "number" ? clampNumber(candidate.activeIndicatorWidthPx, 2, 100, 30) : null,
+    activeIndicatorHeightPx: typeof candidate.activeIndicatorHeightPx === "number" ? clampNumber(candidate.activeIndicatorHeightPx, 2, 100, 30) : null,
+    activeIndicatorRadiusPx: typeof candidate.activeIndicatorRadiusPx === "number" ? clampNumber(candidate.activeIndicatorRadiusPx, 0, 50, 15) : null,
+  };
+}
+
+const trustedReferenceMeasurement = (referenceAnalysis: ReferenceAnalysis, role: string) => {
+  const values = (referenceAnalysis.geometryProfile?.measurements ?? [])
+    .filter((measurement) => measurement.role === role && measurement.confidence !== "low" && measurement.sourceLayer === "app-ui")
+    .map((measurement) => (measurement.minPx + measurement.maxPx) / 2)
+    .sort((left, right) => left - right);
+  if (!values.length) return null;
+  return Math.round(values[Math.floor(values.length / 2)]);
+};
+
+export function applyReferenceNavigationAppearance({
+  navigationPlan,
+  referenceAnalysis,
+}: {
+  navigationPlan: NavigationPlan;
+  referenceAnalysis?: ReferenceAnalysis | null;
+}): NavigationPlan {
+  if (!navigationPlan.enabled || navigationPlan.kind === "none") return navigationPlan;
+  const visualBrief = navigationPlan.visualBrief || "Product-owned navigation.";
+  const base = normalizeNavigationDesignContract(navigationPlan.appearance?.primary ?? navigationPlan.design, visualBrief);
+  const referenceEvidence = referenceAnalysis?.primaryNavigation;
+  const useReference = Boolean(referenceAnalysis && referenceEvidence?.present);
+  const measured = (role: string, fallback: number) => referenceAnalysis
+    ? trustedReferenceMeasurement(referenceAnalysis, role) ?? fallback
+    : fallback;
+  const primary = useReference && referenceAnalysis && referenceEvidence
+    ? normalizeNavigationDesignContract({
+        ...base,
+        anatomy: referenceEvidence.anatomy ?? base.anatomy,
+        labels: referenceEvidence.labels ?? base.labels,
+        surface: /glass|frost|blur/i.test(`${referenceEvidence.geometry} ${referenceEvidence.elevation}`) ? "glass" : base.surface,
+        containerHeightPx: measured("navigation-height", base.containerHeightPx ?? 68),
+        horizontalInsetPx: measured("navigation-inset", base.horizontalInsetPx ?? 16),
+        safeAreaOffsetPx: measured("navigation-bottom-offset", base.safeAreaOffsetPx),
+        iconSizePx: measured("navigation-icon-size", base.iconSizePx),
+        maxWidthPx: base.maxWidthPx ?? null,
+      }, visualBrief)
+    : base;
+  const contextualChrome = referenceAnalysis ? {
+    heightPx: measured("row-height", 48),
+    horizontalInsetPx: measured("screen-rail", 16),
+    controlSizePx: measured("icon-well-size", 36),
+    controlRadiusPx: measured("icon-well-radius", 18),
+    controlGapPx: measured("internal-gap", 8),
+    iconSizePx: measured("navigation-icon-size", 18),
+    titleAlignment: "center" as const,
+    surface: "transparent" as const,
+    border: true,
+    elevation: "none" as const,
+  } : null;
+
+  return {
+    ...navigationPlan,
+    version: 3,
+    design: primary,
+    appearance: {
+      source: useReference ? "reference" : "project-native",
+      primary,
+      contextualChrome,
+      rationale: useReference
+        ? "Product destinations are preserved while visible reference navigation supplies appearance only."
+        : "No usable reference navigation appearance was visible; use the product-native planned design.",
+    },
   };
 }
 const disabledNavigationPlan = (
@@ -204,11 +284,12 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
   }
 
   const navItems = navigationPlan.items.slice(0, MAX_SHARED_NAV_ITEMS);
-  const design = normalizeNavigationDesignContract(navigationPlan.design, navigationPlan.visualBrief);
+  const isV3 = navigationPlan.version === 3 && Boolean(navigationPlan.appearance?.primary);
+  const design = normalizeNavigationDesignContract(navigationPlan.appearance?.primary ?? navigationPlan.design, navigationPlan.visualBrief);
   const itemCount = navItems.length;
   const radiusDelta = Math.min(8, Math.max(4, Math.round(design.radiusPx / 3)));
   const innerRadiusPx = design.radiusPx === 0 ? 0 : Math.max(0, design.radiusPx - radiusDelta);
-  const overlapBufferPx = design.anatomy === "center-action-dock" ? 20 : 8;
+  const overlapBufferPx = isV3 ? Math.max(4, design.safeAreaOffsetPx) : design.anatomy === "center-action-dock" ? 20 : 8;
   const contentWidth = Math.min(356, itemCount * 70 + 32);
   const requestedWidth = design.width === "full"
     ? "100%"
@@ -219,7 +300,22 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
     ? design.centerActionItemId ?? navItems[Math.floor(itemCount / 2)]?.id ?? null
     : null;
 
-  const anatomyLayout = (() => {
+  const anatomyLayout = isV3 ? {
+    key: "contract-driven",
+    width: design.width === "full"
+      ? "100%"
+      : `min(${design.maxWidthPx ?? contentWidth}px,calc(100% - ${(design.horizontalInsetPx ?? 16) * 2}px))`,
+    height: `${design.containerHeightPx ?? 68}px`,
+    margin: "0 auto calc(var(--dg-navigation-safe-offset) + var(--dg-effective-safe-area-bottom))",
+    padding: `${design.verticalPaddingPx ?? 6}px ${design.horizontalPaddingPx ?? 8}px`,
+    radius: `${design.radiusPx}px`,
+    innerDisplay: design.itemLayout === "stacked"
+      ? `grid;grid-template-columns:repeat(${itemCount},minmax(0,1fr))`
+      : "flex;justify-content:center",
+    itemDirection: design.itemLayout === "inline" ? "row" : "column",
+    itemPadding: "0",
+    iconBox: design.activeIndicatorWidthPx ?? design.iconSizePx,
+  } : (() => {
     switch (design.anatomy) {
       case "fixed-tab-rail":
         return {
@@ -294,15 +390,16 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
     : design.surface === "translucent"
       ? "color-mix(in srgb,var(--dg-navigation-surface,var(--dg-color-surface-card,#fff)) 88%,transparent)"
       : "var(--dg-navigation-surface,var(--dg-color-surface-card,#fff))";
+  const blurAmount = isV3 ? design.blurPx ?? 0 : 18;
   const blur = design.surface === "glass"
-    ? "backdrop-filter:blur(18px) saturate(1.15);-webkit-backdrop-filter:blur(18px) saturate(1.15);"
+    ? `backdrop-filter:blur(${blurAmount}px) saturate(1.15);-webkit-backdrop-filter:blur(${blurAmount}px) saturate(1.15);`
     : "";
   const shadow = design.elevation === "medium"
     ? "var(--dg-navigation-shadow,0 14px 34px rgba(15,23,42,.16))"
     : design.elevation === "low"
       ? "var(--dg-navigation-shadow,0 6px 18px rgba(15,23,42,.09))"
       : "none";
-  const borderValue = "1px solid color-mix(in srgb,var(--dg-navigation-border,var(--dg-color-border-divider,#e5e7eb)) 72%,transparent)";
+  const borderValue = `${isV3 ? design.borderWidthPx ?? 1 : 1}px solid color-mix(in srgb,var(--dg-navigation-border,var(--dg-color-border-divider,#e5e7eb)) 72%,transparent)`;
   const borderCss = design.anatomy === "fixed-tab-rail"
     ? `border:0;${design.border ? `border-top:${borderValue};` : ""}`
     : `border:${design.border ? borderValue : "0"};`;
@@ -314,13 +411,16 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
   const activeOnlyCss = design.labels === "active-only"
     ? "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"] .dg-nav-label{display:block;}"
     : "";
+  const activeWidth = design.activeIndicatorWidthPx ?? 30;
+  const activeHeight = design.activeIndicatorHeightPx ?? 30;
+  const activeRadius = design.activeIndicatorRadiusPx ?? innerRadiusPx;
   const activeCss = design.activeTreatment === "underline"
     ? "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"]::after{content:\"\";position:absolute;left:24%;right:24%;bottom:-1px;height:3px;border-radius:3px 3px 0 0;background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));}"
     : design.activeTreatment === "compact-chip"
-      ? "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"]{background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));color:var(--dg-navigation-active-content,var(--dg-color-action-on-primary-text,#fff));}"
+      ? `[data-drawgle-primary-nav] .dg-nav-item[data-active="true"]{background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));color:var(--dg-navigation-active-content,var(--dg-color-action-on-primary-text,#fff));border-radius:${activeRadius}px;}`
       : design.activeTreatment === "tint"
         ? "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"]{color:var(--dg-navigation-content,var(--dg-color-action-primary,#111827));background:color-mix(in srgb,var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827)) 10%,transparent);}"
-        : "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"] .dg-nav-icon{background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));color:var(--dg-navigation-active-content,var(--dg-color-action-on-primary-text,#fff));}";
+        : `[data-drawgle-primary-nav] .dg-nav-item[data-active="true"] .dg-nav-icon{width:${activeWidth}px;height:${activeHeight}px;border-radius:${activeRadius}px;background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));color:var(--dg-navigation-active-content,var(--dg-color-action-on-primary-text,#fff));}`;
 
   const items = navItems.map((item) => {
     const generated = item.availability !== "planned" && Boolean(item.linkedScreenName);
@@ -348,7 +448,7 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
     "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"]{color:var(--dg-navigation-content,var(--dg-color-action-primary,#111827));}",
     `[data-drawgle-primary-nav] .dg-nav-icon{display:flex;height:${anatomyLayout.iconBox}px;width:${anatomyLayout.iconBox}px;flex:0 0 ${anatomyLayout.iconBox}px;align-items:center;justify-content:center;border-radius:var(--dg-radii-pill,9999px);background:transparent;color:currentColor;}`,
     `[data-drawgle-primary-nav] .dg-nav-icon svg{height:${design.iconSizePx}px;width:${design.iconSizePx}px;stroke-width:2;}`,
-    `[data-drawgle-primary-nav] .dg-nav-label{max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:currentColor;${labelCss}}`,
+    `[data-drawgle-primary-nav] .dg-nav-label{max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:currentColor;font-size:${isV3 ? design.labelSizePx ?? 11 : 12}px;font-weight:${isV3 ? design.labelWeight ?? 500 : 500};${labelCss}}`,
     activeOnlyCss,
     activeCss,
     "[data-drawgle-primary-nav] .dg-nav-item-center-action{transform:translateY(-14px);overflow:visible;}",
@@ -362,7 +462,7 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
 }
 export function resolveProjectNavigationShell(projectNavigation?: ProjectNavigationData | null) {
   if (!projectNavigation?.plan.enabled) return "";
-  if (projectNavigation.plan.version === 2) {
+  if (projectNavigation.plan.version === 2 || projectNavigation.plan.version === 3) {
     return renderDeterministicNavigationShell(projectNavigation.plan);
   }
   return projectNavigation.shellCode ?? "";
@@ -533,16 +633,16 @@ export function normalizeNavigationPlan({
     return disabledNavigationPlan(screens, "Planner supplied no positive navigation evidence.");
   }
 
-  const isV2 = navigationPlan.version === 2;
-  const decision = isV2
+  const isTyped = navigationPlan.version === 2 || navigationPlan.version === 3;
+  const decision = isTyped
     ? navigationPlan.decision ?? "none"
     : navigationPlan.enabled
       ? "project-native"
       : "none";
-  const evidence = isV2
+  const evidence = isTyped
     ? navigationPlan.evidence ?? { source: null, reason: "Missing Navigation V2 evidence." }
     : { source: "product-architecture" as const, reason: "Existing V1 project navigation preserved for compatibility." };
-  const requestedEnabled = navigationPlan.enabled && decision !== "none" && (!isV2 || Boolean(evidence.source));
+  const requestedEnabled = navigationPlan.enabled && decision !== "none" && (!isTyped || Boolean(evidence.source));
 
   if (!requestedEnabled) {
     return disabledNavigationPlan(screens, evidence.reason, evidence);
@@ -622,7 +722,7 @@ export function normalizeNavigationPlan({
       ? matchedScreen
       : null;
 
-    if (!validGeneratedScreen && !isV2 && strictScreenLinks) continue;
+    if (!validGeneratedScreen && !isTyped && strictScreenLinks) continue;
 
     seenIds.add(id);
     seenLabels.add(labelKey);
@@ -639,7 +739,7 @@ export function normalizeNavigationPlan({
     });
   }
 
-  const minimumItems = decision === "project-native" && isV2
+  const minimumItems = decision === "project-native" && isTyped
     ? PROJECT_NATIVE_MIN_ITEMS
     : LEGACY_MIN_SHARED_NAV_ITEMS;
   const validCount = normalizedItems.length >= minimumItems && normalizedItems.length <= MAX_SHARED_NAV_ITEMS;
@@ -665,10 +765,16 @@ export function normalizeNavigationPlan({
 
   const visualBrief = navigationPlan.visualBrief?.trim().slice(0, 1600) || "Typed project navigation.";
   return {
-    version: isV2 ? 2 : 1,
+    version: navigationPlan.version === 3 ? 3 : isTyped ? 2 : 1,
     decision,
     evidence,
-    design: isV2 ? normalizeNavigationDesignContract(navigationPlan.design, visualBrief) : navigationPlan.design ?? null,
+    design: isTyped ? normalizeNavigationDesignContract(navigationPlan.appearance?.primary ?? navigationPlan.design, visualBrief) : navigationPlan.design ?? null,
+    appearance: navigationPlan.version === 3 && navigationPlan.appearance
+      ? {
+          ...navigationPlan.appearance,
+          primary: normalizeNavigationDesignContract(navigationPlan.appearance.primary ?? navigationPlan.design, visualBrief),
+        }
+      : null,
     enabled: true,
     kind: "bottom-tabs",
     items: normalizedItems,
@@ -718,7 +824,7 @@ export function applyNavigationPlanToScreens(screens: ScreenPlan[], navigationPl
 
 export function validateNavigationShell(shellCode: string, navigationPlan: NavigationPlan) {
   if (!navigationPlan.enabled || navigationPlan.kind === "none") return shellCode.trim().length === 0;
-  const minimumItems = navigationPlan.version === 2 && navigationPlan.decision === "project-native"
+  const minimumItems = (navigationPlan.version === 2 || navigationPlan.version === 3) && navigationPlan.decision === "project-native"
     ? PROJECT_NATIVE_MIN_ITEMS
     : LEGACY_MIN_SHARED_NAV_ITEMS;
   if (navigationPlan.items.length < minimumItems || navigationPlan.items.length > MAX_SHARED_NAV_ITEMS) return false;
@@ -882,7 +988,7 @@ export function sanitizeScreenCodeForSharedNavigation(
   return sanitized;
 }
 export function applyNavigationDesignEdit(navigationPlan: NavigationPlan, prompt: string): NavigationPlan {
-  if (navigationPlan.version !== 2 || !navigationPlan.enabled) return navigationPlan;
+  if ((navigationPlan.version !== 2 && navigationPlan.version !== 3) || !navigationPlan.enabled) return navigationPlan;
 
   const normalizedPrompt = prompt.toLowerCase();
   const current = normalizeNavigationDesignContract(navigationPlan.design, navigationPlan.visualBrief);
@@ -929,6 +1035,9 @@ export function applyNavigationDesignEdit(navigationPlan: NavigationPlan, prompt
   return {
     ...navigationPlan,
     design: normalizeNavigationDesignContract(next, navigationPlan.visualBrief),
+    appearance: navigationPlan.version === 3 && navigationPlan.appearance
+      ? { ...navigationPlan.appearance, primary: normalizeNavigationDesignContract(next, navigationPlan.visualBrief) }
+      : navigationPlan.appearance,
     items,
   };
 }
@@ -942,7 +1051,7 @@ export function parseStoredNavigationPlan(value: unknown): NavigationPlan {
 
   const rawItems = Array.isArray(value.items) ? value.items.filter(isRecord).slice(0, MAX_SHARED_NAV_ITEMS) : [];
   const rawChrome = Array.isArray(value.screenChrome) ? value.screenChrome.filter(isRecord) : [];
-  const version = value.version === 2 ? 2 : 1;
+  const version = value.version === 3 ? 3 : value.version === 2 ? 2 : 1;
   const decision = value.decision === "project-native" || value.decision === "reference-derived" || value.decision === "none"
     ? value.decision
     : value.enabled === true
@@ -968,7 +1077,7 @@ export function parseStoredNavigationPlan(value: unknown): NavigationPlan {
       availability: item.availability === "planned" || !linkedScreenName ? "planned" : "generated",
     }];
   });
-  const minimumItems = version === 2 && decision === "project-native"
+  const minimumItems = (version === 2 || version === 3) && decision === "project-native"
     ? PROJECT_NATIVE_MIN_ITEMS
     : LEGACY_MIN_SHARED_NAV_ITEMS;
   const enabled = version === 1
@@ -981,8 +1090,8 @@ export function parseStoredNavigationPlan(value: unknown): NavigationPlan {
 
   return {
     version,
-    decision: version === 2 ? decision : undefined,
-    evidence: version === 2
+    decision: version === 2 || version === 3 ? decision : undefined,
+    evidence: version === 2 || version === 3
       ? {
           source: evidenceSource,
           reason: typeof evidenceRecord?.reason === "string" && evidenceRecord.reason.trim()
@@ -990,8 +1099,20 @@ export function parseStoredNavigationPlan(value: unknown): NavigationPlan {
             : "Stored Navigation V2 evidence was not described.",
         }
       : undefined,
-    design: version === 2 && isRecord(value.design)
+    design: (version === 2 || version === 3) && isRecord(value.design)
       ? normalizeNavigationDesignContract(value.design as unknown as NavigationDesignContract, typeof value.visualBrief === "string" ? value.visualBrief : "")
+      : null,
+    appearance: version === 3 && isRecord(value.appearance)
+      ? {
+          source: value.appearance.source === "reference" ? "reference" : "project-native",
+          primary: isRecord(value.appearance.primary)
+            ? normalizeNavigationDesignContract(value.appearance.primary as unknown as NavigationDesignContract, typeof value.visualBrief === "string" ? value.visualBrief : "")
+            : null,
+          contextualChrome: isRecord(value.appearance.contextualChrome)
+            ? value.appearance.contextualChrome as unknown as NonNullable<NavigationPlan["appearance"]>["contextualChrome"]
+            : null,
+          rationale: typeof value.appearance.rationale === "string" ? value.appearance.rationale.slice(0, 1200) : "Stored Navigation V3 appearance.",
+        }
       : null,
     enabled,
     kind: enabled ? "bottom-tabs" : "none",
