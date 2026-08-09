@@ -27,6 +27,7 @@ const identity = (row: ProjectScreenRoadmapRow) => roadmapIdentityFingerprint(
   row.kind === "state" ? row.state_key ?? row.state_label ?? row.name : row.name,
 );
 
+
 const pickSurvivor = (rows: ProjectScreenRoadmapRow[]) => rows.slice().sort((left, right) =>
   Number(Boolean(right.generated_screen_id)) - Number(Boolean(left.generated_screen_id))
   || statusRank[left.status] - statusRank[right.status]
