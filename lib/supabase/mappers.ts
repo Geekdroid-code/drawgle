@@ -23,6 +23,7 @@ import type {
   ProjectCharter,
   ProjectData,
   ScreenData,
+  ScreenQualityDiagnosticsV1,
 } from "@/lib/types";
 
 export function mapAuthenticatedUser(user: User): AuthenticatedUser {
@@ -65,6 +66,7 @@ export function mapScreenRow(row: ScreenRow): ScreenData {
     prompt: row.prompt,
     summary: row.summary,
     blockIndex: (row.block_index as ScreenBlockIndex | null) ?? null,
+    qualityDiagnostics: (row.quality_diagnostics as ScreenQualityDiagnosticsV1 | null) ?? null,
     chromePolicy: (row.chrome_policy as ScreenChromePolicy | null) ?? null,
     navigationItemId: row.navigation_item_id,
     parentScreenId: row.parent_screen_id,

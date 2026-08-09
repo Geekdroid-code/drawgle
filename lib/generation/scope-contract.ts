@@ -13,6 +13,7 @@ import type {
   PromptImagePayload,
   ReferenceAnalysis,
   ReferenceAnalysisResult,
+  NavigationAppearanceContract,
   ReferenceMode,
   PlanningMode,
   ScreenScopeGroup,
@@ -39,6 +40,166 @@ const ACTION_WORDS = "build|create|generate|make|design|recreate|convert|copy|re
 const MAX_SCOPE_COUNT = 200;
 const MAX_MATERIALIZED_SCOPE_SCREENS = 24;
 const MAX_INITIAL_VISIBLE_SCREENS = 5;
+
+const REFERENCE_ANALYSIS_RESPONSE_JSON_SCHEMA = {
+  type: "object",
+  required: ["overallVisualStyle", "screenCountEstimate", "screenReferences", "primaryNavigation", "geometryProfile", "motifs", "designSystemSignals"],
+  properties: {
+    overallVisualStyle: { type: "string" },
+    screenCountEstimate: { type: "integer", minimum: 1, maximum: 12 },
+    screenReferences: {
+      type: "array",
+      minItems: 1,
+      maxItems: 12,
+      items: {
+        type: "object",
+        required: ["index", "suggestedRole", "layoutSummary", "visualHierarchy", "components", "stylingCues"],
+        properties: {
+          index: { type: "integer", minimum: 1, maximum: 12 },
+          suggestedRole: { type: "string" },
+          layoutSummary: { type: "string" },
+          visualHierarchy: { type: "string" },
+          components: { type: "array", items: { type: "string" } },
+          stylingCues: { type: "array", items: { type: "string" } },
+          interactionCues: { type: "array", items: { type: "string" } },
+          copyPatterns: { type: "array", items: { type: "string" } },
+          implementationNotes: { type: "array", items: { type: "string" } },
+          compositionRules: { type: "array", items: { type: "string" } },
+          spacingRules: { type: "array", items: { type: "string" } },
+          componentRules: { type: "array", items: { type: "string" } },
+          antiPatterns: { type: "array", items: { type: "string" } },
+        },
+        additionalProperties: true,
+      },
+    },
+    primaryNavigation: {
+      type: "object",
+      required: ["present", "itemCount", "items", "visibleOnScreenIndexes", "absentOnScreenIndexes", "appearance"],
+      properties: {
+        present: { type: "boolean" },
+        itemCount: { type: "integer", minimum: 0, maximum: 5 },
+        items: {
+          type: "array",
+          maxItems: 5,
+          items: {
+            type: "object",
+            required: ["label", "icon"],
+            properties: { label: { anyOf: [{ type: "string" }, { type: "null" }] }, icon: { type: "string" } },
+            additionalProperties: false,
+          },
+        },
+        visibleOnScreenIndexes: { type: "array", items: { type: "integer" } },
+        absentOnScreenIndexes: { type: "array", items: { type: "integer" } },
+        appearance: {
+          anyOf: [{
+            type: "object",
+            required: ["primary", "contextualChrome"],
+            properties: {
+              primary: {
+                type: "object",
+                required: ["anatomy", "width", "labels", "activeTreatment", "surface", "border", "elevation", "itemLayout"],
+                properties: {
+                  anatomy: { type: "string", enum: ["fixed-tab-rail", "floating-dock", "glass-dock", "compact-icon-rail", "center-action-dock"] },
+                  width: { type: "string", enum: ["content", "inset", "full"] },
+                  labels: { type: "string", enum: ["always", "active-only", "hidden"] },
+                  activeTreatment: { type: "string", enum: ["icon-fill", "tint", "underline", "compact-chip"] },
+                  surface: { type: "string", enum: ["solid", "translucent", "glass"] },
+                  radiusPx: { type: "number", minimum: 0, maximum: 60 },
+                  safeAreaOffsetPx: { type: "number", minimum: 0, maximum: 40 },
+                  itemGapPx: { type: "number", minimum: 0, maximum: 24 },
+                  iconSizePx: { type: "number", minimum: 12, maximum: 36 },
+                  border: { type: "boolean" },
+                  elevation: { type: "string", enum: ["none", "low", "medium"] },
+                  centerActionItemId: { anyOf: [{ type: "string" }, { type: "null" }] },
+                  containerHeightPx: { type: "number", minimum: 40, maximum: 120 },
+                  maxWidthPx: { anyOf: [{ type: "number", minimum: 140, maximum: 390 }, { type: "null" }] },
+                  horizontalInsetPx: { type: "number", minimum: 0, maximum: 60 },
+                  horizontalPaddingPx: { type: "number", minimum: 0, maximum: 40 },
+                  verticalPaddingPx: { type: "number", minimum: 0, maximum: 30 },
+                  labelSizePx: { type: "number", minimum: 8, maximum: 18 },
+                  labelWeight: { type: "number", minimum: 300, maximum: 900 },
+                  blurPx: { type: "number", minimum: 0, maximum: 50 },
+                  borderWidthPx: { type: "number", minimum: 0, maximum: 5 },
+                  itemLayout: { type: "string", enum: ["stacked", "inline", "icon-only"] },
+                  activeIndicatorWidthPx: { type: "number", minimum: 2, maximum: 120 },
+                  activeIndicatorHeightPx: { type: "number", minimum: 2, maximum: 120 },
+                  activeIndicatorRadiusPx: { type: "number", minimum: 0, maximum: 60 },
+                },
+                additionalProperties: false,
+              },
+              contextualChrome: {
+                anyOf: [{
+                  type: "object",
+                  required: ["heightPx", "horizontalInsetPx", "controlSizePx", "controlRadiusPx", "controlGapPx", "iconSizePx", "titleAlignment", "surface", "border", "elevation"],
+                  properties: {
+                    heightPx: { type: "number", minimum: 36, maximum: 100 },
+                    horizontalInsetPx: { type: "number", minimum: 0, maximum: 48 },
+                    controlSizePx: { type: "number", minimum: 28, maximum: 64 },
+                    controlRadiusPx: { type: "number", minimum: 0, maximum: 32 },
+                    controlGapPx: { type: "number", minimum: 0, maximum: 24 },
+                    iconSizePx: { type: "number", minimum: 12, maximum: 32 },
+                    titleAlignment: { type: "string", enum: ["leading", "center"] },
+                    surface: { type: "string", enum: ["transparent", "solid", "translucent", "glass"] },
+                    border: { type: "boolean" },
+                    elevation: { type: "string", enum: ["none", "low", "medium"] },
+                  },
+                  additionalProperties: false,
+                }, { type: "null" }],
+              },
+            },
+            additionalProperties: false,
+          }, { type: "null" }],
+        },
+      },
+      additionalProperties: true,
+    },
+    geometryProfile: {
+      type: "object",
+      required: ["measurements"],
+      properties: {
+        measurements: {
+          type: "array",
+          maxItems: 32,
+          items: {
+            type: "object",
+            required: ["role", "minPx", "maxPx", "confidence", "sourceScreenIndexes", "scope", "sourceLayer", "note"],
+            properties: {
+              role: { type: "string", enum: ["screen-rail", "outer-surface-radius", "inner-surface-radius", "row-radius", "icon-well-size", "icon-well-radius", "pill-radius", "row-height", "section-gap", "internal-gap", "button-height", "navigation-height", "navigation-inset", "navigation-bottom-offset", "navigation-icon-size", "other"] },
+              minPx: { type: "number", minimum: 0, maximum: 500 },
+              maxPx: { type: "number", minimum: 0, maximum: 500 },
+              confidence: { type: "string", enum: ["high", "medium", "low"] },
+              sourceScreenIndexes: { type: "array", items: { type: "integer", minimum: 1, maximum: 12 } },
+              scope: { type: "string", enum: ["project-global", "component-family", "screen-local"] },
+              sourceLayer: { type: "string", enum: ["app-ui", "device-mockup"] },
+              note: { type: "string" },
+            },
+            additionalProperties: false,
+          },
+        },
+      },
+      additionalProperties: true,
+    },
+    motifs: {
+      type: "array",
+      maxItems: 12,
+      items: {
+        type: "object",
+        required: ["id", "description", "functionalPurpose", "sourceScreenIndexes", "scope"],
+        properties: {
+          id: { type: "string" },
+          description: { type: "string" },
+          functionalPurpose: { type: "string" },
+          sourceScreenIndexes: { type: "array", items: { type: "integer", minimum: 1, maximum: 12 } },
+          scope: { type: "string", enum: ["global-material", "component-local", "screen-local-decoration"] },
+        },
+        additionalProperties: false,
+      },
+    },
+    designSystemSignals: { type: "object", additionalProperties: true },
+    semanticCompositionPrimitives: { type: "array", maxItems: 8, items: { type: "object", additionalProperties: true } },
+  },
+  additionalProperties: true,
+} as const;
 
 type PromptScreenIntent = {
   promptScreenCount: number | null;
@@ -610,6 +771,136 @@ const normalizeReferenceMotifs = (raw: unknown): NonNullable<ReferenceAnalysis["
   });
 };
 
+const boundedNumber = (record: Record<string, unknown>, keys: string[], min: number, max: number, fallback: number) => {
+  const value = finiteNumber(readField(record, keys));
+  return value === null ? fallback : Math.round(Math.min(max, Math.max(min, value)));
+};
+
+const hasFiniteField = (record: Record<string, unknown>, keys: string[]) =>
+  finiteNumber(readField(record, keys)) !== null;
+
+const enumField = <T extends string>(record: Record<string, unknown>, keys: string[], allowed: readonly T[], fallback: T) => {
+  const value = readField(record, keys);
+  return typeof value === "string" && allowed.includes(value as T) ? value as T : fallback;
+};
+
+const normalizeReferenceNavigationAppearance = (raw: unknown): NavigationAppearanceContract | null => {
+  if (!isRecord(raw)) return null;
+  const primaryRecord = isRecord(raw.primary) ? raw.primary : raw;
+  const contextualRecord = isRecord(raw.contextualChrome ?? raw.contextual_chrome)
+    ? (raw.contextualChrome ?? raw.contextual_chrome) as Record<string, unknown>
+    : null;
+  const measuredFields = [
+    [["radiusPx", "radius_px"], "radiusPx"],
+    [["safeAreaOffsetPx", "safe_area_offset_px"], "safeAreaOffsetPx"],
+    [["itemGapPx", "item_gap_px"], "itemGapPx"],
+    [["iconSizePx", "icon_size_px"], "iconSizePx"],
+    [["containerHeightPx", "container_height_px"], "containerHeightPx"],
+    [["maxWidthPx", "max_width_px"], "maxWidthPx"],
+    [["horizontalInsetPx", "horizontal_inset_px"], "horizontalInsetPx"],
+    [["horizontalPaddingPx", "horizontal_padding_px"], "horizontalPaddingPx"],
+    [["verticalPaddingPx", "vertical_padding_px"], "verticalPaddingPx"],
+    [["labelSizePx", "label_size_px"], "labelSizePx"],
+    [["labelWeight", "label_weight"], "labelWeight"],
+    [["blurPx", "blur_px"], "blurPx"],
+    [["borderWidthPx", "border_width_px"], "borderWidthPx"],
+    [["activeIndicatorWidthPx", "active_indicator_width_px"], "activeIndicatorWidthPx"],
+    [["activeIndicatorHeightPx", "active_indicator_height_px"], "activeIndicatorHeightPx"],
+    [["activeIndicatorRadiusPx", "active_indicator_radius_px"], "activeIndicatorRadiusPx"],
+  ].filter(([keys]) => hasFiniteField(primaryRecord, keys as string[])).map(([, name]) => name as string);
+  const primary = {
+    anatomy: enumField(primaryRecord, ["anatomy"], ["fixed-tab-rail", "floating-dock", "glass-dock", "compact-icon-rail", "center-action-dock"] as const, "floating-dock"),
+    width: enumField(primaryRecord, ["width"], ["content", "inset", "full"] as const, "inset"),
+    labels: enumField(primaryRecord, ["labels"], ["always", "active-only", "hidden"] as const, "always"),
+    activeTreatment: enumField(primaryRecord, ["activeTreatment", "active_treatment"], ["icon-fill", "tint", "underline", "compact-chip"] as const, "tint"),
+    surface: enumField(primaryRecord, ["surface"], ["solid", "translucent", "glass"] as const, "solid"),
+    radiusPx: boundedNumber(primaryRecord, ["radiusPx", "radius_px"], 0, 60, 18),
+    safeAreaOffsetPx: boundedNumber(primaryRecord, ["safeAreaOffsetPx", "safe_area_offset_px"], 0, 40, 12),
+    itemGapPx: boundedNumber(primaryRecord, ["itemGapPx", "item_gap_px"], 0, 24, 6),
+    iconSizePx: boundedNumber(primaryRecord, ["iconSizePx", "icon_size_px"], 12, 36, 20),
+    border: primaryRecord.border !== false,
+    elevation: enumField(primaryRecord, ["elevation"], ["none", "low", "medium"] as const, "low"),
+    centerActionItemId: typeof readField(primaryRecord, ["centerActionItemId", "center_action_item_id"]) === "string"
+      ? String(readField(primaryRecord, ["centerActionItemId", "center_action_item_id"]))
+      : null,
+    containerHeightPx: boundedNumber(primaryRecord, ["containerHeightPx", "container_height_px"], 40, 120, 64),
+    maxWidthPx: boundedNumber(primaryRecord, ["maxWidthPx", "max_width_px"], 140, 390, 320),
+    horizontalInsetPx: boundedNumber(primaryRecord, ["horizontalInsetPx", "horizontal_inset_px"], 0, 60, 16),
+    horizontalPaddingPx: boundedNumber(primaryRecord, ["horizontalPaddingPx", "horizontal_padding_px"], 0, 40, 8),
+    verticalPaddingPx: boundedNumber(primaryRecord, ["verticalPaddingPx", "vertical_padding_px"], 0, 30, 6),
+    labelSizePx: boundedNumber(primaryRecord, ["labelSizePx", "label_size_px"], 8, 18, 11),
+    labelWeight: boundedNumber(primaryRecord, ["labelWeight", "label_weight"], 300, 900, 500),
+    blurPx: boundedNumber(primaryRecord, ["blurPx", "blur_px"], 0, 50, 0),
+    borderWidthPx: boundedNumber(primaryRecord, ["borderWidthPx", "border_width_px"], 0, 5, 1),
+    itemLayout: primaryRecord.itemLayout === "inline" || primaryRecord.item_layout === "inline"
+      ? "inline" as const
+      : primaryRecord.itemLayout === "icon-only" || primaryRecord.item_layout === "icon-only"
+        ? "icon-only" as const
+        : "stacked" as const,
+    activeIndicatorWidthPx: boundedNumber(primaryRecord, ["activeIndicatorWidthPx", "active_indicator_width_px"], 2, 120, 30),
+    activeIndicatorHeightPx: boundedNumber(primaryRecord, ["activeIndicatorHeightPx", "active_indicator_height_px"], 2, 120, 30),
+    activeIndicatorRadiusPx: boundedNumber(primaryRecord, ["activeIndicatorRadiusPx", "active_indicator_radius_px"], 0, 60, 15),
+  };
+  const hasCompleteContextualGeometry = contextualRecord
+    ? [
+        ["heightPx", "height_px"],
+        ["horizontalInsetPx", "horizontal_inset_px"],
+        ["controlSizePx", "control_size_px"],
+        ["controlRadiusPx", "control_radius_px"],
+        ["controlGapPx", "control_gap_px"],
+        ["iconSizePx", "icon_size_px"],
+      ].every((keys) => hasFiniteField(contextualRecord, keys))
+    : false;
+  const contextualChrome = contextualRecord && hasCompleteContextualGeometry ? {
+    heightPx: boundedNumber(contextualRecord, ["heightPx", "height_px"], 36, 100, 48),
+    horizontalInsetPx: boundedNumber(contextualRecord, ["horizontalInsetPx", "horizontal_inset_px"], 0, 48, 16),
+    controlSizePx: boundedNumber(contextualRecord, ["controlSizePx", "control_size_px"], 28, 64, 36),
+    controlRadiusPx: boundedNumber(contextualRecord, ["controlRadiusPx", "control_radius_px"], 0, 32, 18),
+    controlGapPx: boundedNumber(contextualRecord, ["controlGapPx", "control_gap_px"], 0, 24, 8),
+    iconSizePx: boundedNumber(contextualRecord, ["iconSizePx", "icon_size_px"], 12, 32, 18),
+    titleAlignment: contextualRecord.titleAlignment === "leading" || contextualRecord.title_alignment === "leading" ? "leading" as const : "center" as const,
+    surface: (contextualRecord.surface === "solid" || contextualRecord.surface === "translucent" || contextualRecord.surface === "glass"
+      ? contextualRecord.surface
+      : "transparent") as "solid" | "translucent" | "glass" | "transparent",
+    border: contextualRecord.border !== false,
+    elevation: (contextualRecord.elevation === "medium" || contextualRecord.elevation === "low" ? contextualRecord.elevation : "none") as "none" | "low" | "medium",
+  } : null;
+  return {
+    source: "reference" as const,
+    evidenceSource: "structured-reference" as const,
+    evidenceConfidence: measuredFields.length >= 4 ? "high" as const : measuredFields.length > 0 ? "medium" as const : "low" as const,
+    geometryOwner: measuredFields.length > 0 ? "reference-measurements" as const : "project-tokens" as const,
+    measuredFields,
+    primary,
+    contextualChrome,
+    rationale: measuredFields.length > 0
+      ? "Structured reference appearance with explicitly reported measurements."
+      : "Structured qualitative appearance; project tokens retain geometry ownership.",
+  };
+};
+
+const evidenceDiagnostics = (raw: Record<string, unknown>, analysis: ReferenceAnalysis) => {
+  const geometryPresent = Object.prototype.hasOwnProperty.call(raw, "geometryProfile") || Object.prototype.hasOwnProperty.call(raw, "geometry_profile");
+  const motifsPresent = Object.prototype.hasOwnProperty.call(raw, "motifs");
+  const navigationPresent = Object.prototype.hasOwnProperty.call(raw, "primaryNavigation") || Object.prototype.hasOwnProperty.call(raw, "primary_navigation");
+  const measurementCount = analysis.geometryProfile?.measurements.length ?? 0;
+  const geometry = !geometryPresent ? "missing" as const : measurementCount >= 3 ? "complete" as const : measurementCount > 0 ? "partial" as const : "partial" as const;
+  const navigation = !navigationPresent || !analysis.primaryNavigation
+    ? "missing" as const
+    : !analysis.primaryNavigation.present
+      ? "confirmed-absent" as const
+      : analysis.primaryNavigation.appearance?.primary
+        ? "visible-complete" as const
+        : "visible-partial" as const;
+  const motifs = motifsPresent ? "complete" as const : "missing" as const;
+  const visualEvidenceConfidence = geometry === "complete" && motifs === "complete" && (navigation === "visible-complete" || navigation === "confirmed-absent")
+    ? "high" as const
+    : geometry !== "missing" && navigation !== "missing" && motifs === "complete"
+      ? "medium" as const
+      : "low" as const;
+  return { evidenceCompleteness: { geometry, navigation, motifs }, visualEvidenceConfidence };
+};
+
 export const normalizeReferenceAnalysis = (raw: unknown): ReferenceAnalysisResult => {
   const diagnostics: string[] = [];
   const validationIssues: string[] = [];
@@ -697,6 +988,7 @@ export const normalizeReferenceAnalysis = (raw: unknown): ReferenceAnalysisResul
           return Array.isArray(values) ? values.map(clampScopeScreenCount).filter((value): value is number => Boolean(value)).slice(0, 12) : [];
         })(),
         rootDetailPattern: textField(primaryNavigationRecord, ["rootDetailPattern", "root_detail_pattern"], "Navigation visibility by root/detail role was not described.", 600),
+        appearance: normalizeReferenceNavigationAppearance(readField(primaryNavigationRecord, ["appearance"])),
       }
     : null;
   const rawCount = readField(raw, ["screenCountEstimate", "screen_count_estimate", "visibleScreenCount", "visible_screen_count", "screenCount", "screen_count"]);
@@ -767,12 +1059,17 @@ export const normalizeReferenceAnalysis = (raw: unknown): ReferenceAnalysisResul
     ),
     motifs: normalizeReferenceMotifs(readField(raw, ["motifs", "localMotifs", "local_motifs"])),
   });
+  const evidence = evidenceDiagnostics(raw, analysis);
+  const scopeConfidence = validationIssues.length === 0 ? "high" as const : "medium" as const;
 
   return {
     analysis,
     screenCountEstimate,
     screenReferenceCount,
-    confidence: validationIssues.length === 0 ? "high" : "medium",
+    confidence: scopeConfidence,
+    scopeConfidence,
+    visualEvidenceConfidence: evidence.visualEvidenceConfidence,
+    evidenceCompleteness: evidence.evidenceCompleteness,
     source: validationIssues.length === 0 ? "full_analysis" : "salvaged_analysis",
     diagnostics,
     validationIssues,
@@ -899,6 +1196,7 @@ export async function analyzeReferenceImageForScope({
         ? referenceAnalysisStyleInstruction
         : referenceAnalysisRecreateInstruction,
       responseMimeType: "application/json",
+      responseJsonSchema: REFERENCE_ANALYSIS_RESPONSE_JSON_SCHEMA,
       temperature: 0.1,
     });
     const promptPartText = prompt.trim()
@@ -917,13 +1215,40 @@ export async function analyzeReferenceImageForScope({
       userParts: ["[image]", promptPartText],
     });
 
-    const response = await ai.models.generateContent({
+    let response = await ai.models.generateContent({
       model: policy.model,
       contents: { parts },
       config: policy.config,
     });
-    const rawAnalysis = parseJsonResponse<unknown>(response.text || "{}");
-    const normalized = normalizeReferenceAnalysis(rawAnalysis);
+    let rawAnalysis = parseJsonResponse<unknown>(response.text || "{}");
+    let normalized = normalizeReferenceAnalysis(rawAnalysis);
+
+    if (!normalized.screenCountEstimate || normalized.visualEvidenceConfidence === "low") {
+      const retryParts = [...parts, {
+        text: "The previous response omitted required visual evidence. Re-inspect the same image and return the complete schema, especially primaryNavigation.appearance, geometryProfile.measurements, and motifs. Use explicit absence values instead of omitting fields.",
+      }];
+      llmLog?.("[LLM INPUT] reference-analysis-repair", {
+        model: policy.model,
+        referenceMode: resolvedReferenceMode,
+        missingEvidence: normalized.evidenceCompleteness ?? null,
+      });
+      try {
+        response = await ai.models.generateContent({ model: policy.model, contents: { parts: retryParts }, config: policy.config });
+        rawAnalysis = parseJsonResponse<unknown>(response.text || "{}");
+        const repaired = normalizeReferenceAnalysis(rawAnalysis);
+        const repairImprovedEvidence = repaired.visualEvidenceConfidence !== "low"
+          && normalized.visualEvidenceConfidence === "low";
+        if (repaired.screenCountEstimate && (!normalized.screenCountEstimate || repairImprovedEvidence)) normalized = repaired;
+      } catch (repairError) {
+        normalized = {
+          ...normalized,
+          diagnostics: [
+            ...normalized.diagnostics,
+            `Bounded visual-evidence repair failed; preserved the first analysis: ${repairError instanceof Error ? repairError.message : "unknown error"}`,
+          ],
+        };
+      }
+    }
 
     if (normalized.screenCountEstimate) {
       return normalized;

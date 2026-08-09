@@ -176,6 +176,7 @@ export interface Database {
           summary: string | null;
           embedding: number[] | null;
           block_index: Json | null;
+          quality_diagnostics: Json | null;
           chrome_policy: Json | null;
           navigation_item_id: string | null;
           parent_screen_id: string | null;
@@ -204,6 +205,7 @@ export interface Database {
           summary?: string | null;
           embedding?: number[] | null;
           block_index?: Json | null;
+          quality_diagnostics?: Json | null;
           chrome_policy?: Json | null;
           navigation_item_id?: string | null;
           parent_screen_id?: string | null;
@@ -232,6 +234,7 @@ export interface Database {
           summary?: string | null;
           embedding?: number[] | null;
           block_index?: Json | null;
+          quality_diagnostics?: Json | null;
           chrome_policy?: Json | null;
           navigation_item_id?: string | null;
           parent_screen_id?: string | null;

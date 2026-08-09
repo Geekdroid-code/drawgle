@@ -6,9 +6,10 @@ import { createGeminiClient } from "@/lib/ai/gemini";
 import { generateScreenBuilderContent, generateScreenBuilderContentStream } from "@/lib/ai/provider";
 import { geminiPolicyForTask } from "@/lib/ai/model-policy";
 import { getOpenRouterScreenBuildModel, getScreenBuilderProvider, getScreenEditorModel } from "@/lib/env/server";
-import { hasApprovedDesignTokens, normalizeDesignTokens } from "@/lib/design-tokens";
+import { deriveComponentShapePolicy, hasApprovedDesignTokens, normalizeDesignTokens } from "@/lib/design-tokens";
 import { applyEdits } from "@/lib/diff-engine";
 import { buildScopedEditContext } from "@/lib/generation/block-index";
+import { buildBuilderProjectContract, formatBuilderProjectContract } from "@/lib/generation/builder-product-contract";
 import { filterMeaningfulStateVariants } from "@/lib/agent/state-variant-guardrails";
 import {
   inferSemanticCategory,
@@ -804,6 +805,11 @@ const DesignTokensSchema = z
         text: StringRecordSchema.optional(),
         action: StringRecordSchema.optional(),
         border: StringRecordSchema.optional(),
+        status: z.record(z.string(), z.object({
+          foreground: z.string().optional(),
+          surface: z.string().optional(),
+          border: z.string().optional(),
+        }).passthrough()).optional(),
       }).partial().passthrough().optional(),
       typography: z.object({
         heading_font_family: z.string().optional(),
@@ -4213,15 +4219,28 @@ export async function generateDesignTokens({
       referenceAnalysis,
     });
 
-    if (!parsed.success) {
-      return buildApprovedDesignTokens(rawTokens, screenMargin, referenceAnalysis);
-    }
-
-    return buildApprovedDesignTokens(parsed.data as {
+    const approved = !parsed.success
+      ? buildApprovedDesignTokens(rawTokens, screenMargin, referenceAnalysis)
+      : buildApprovedDesignTokens(parsed.data as {
       system_schema?: string;
       meta?: DesignTokenMetadata;
       tokens?: DesignTokenValues;
     }, screenMargin, referenceAnalysis);
+    const referenceText = referenceAnalysis
+      ? [
+          referenceAnalysis.designSystemSignals.componentGrammar,
+          ...referenceAnalysis.screenReferences.flatMap((screen) => [
+            ...screen.stylingCues,
+            ...(screen.componentRules ?? []),
+            ...(screen.implementationNotes ?? []),
+          ]),
+        ].filter(Boolean).join(" ")
+      : "";
+    approved.meta = {
+      ...(approved.meta ?? {}),
+      componentShapePolicy: deriveComponentShapePolicy({ prompt, referenceText, designStyle }),
+    };
+    return approved;
   } catch (error) {
     console.error("Failed to generate design tokens", error);
     throw error instanceof Error
@@ -4282,6 +4301,12 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
       "Return the full screen once, with no commentary, no markdown, and no abbreviated sections.",
     ].join("\n"),
   });
+
+  if (input.productContract) {
+    parts.push({
+      text: formatBuilderProjectContract(input.productContract),
+    });
+  }
 
   const compactProjectContext = input.projectContext?.trim().slice(0, 6000);
   if (compactProjectContext) {
@@ -4377,6 +4402,7 @@ export async function* editScreenStream({
   requiresBottomNav,
   llmLog,
   onResponseChunk,
+  productContract,
 }: {
   messages: Array<Pick<Message, "role" | "content">>;
   screenCode: string;
@@ -4393,19 +4419,20 @@ export async function* editScreenStream({
   requiresBottomNav?: boolean;
   llmLog?: LlmLogFn;
   onResponseChunk?: (chunk: unknown) => void;
+  productContract?: import("@/lib/types").BuilderProjectContractV1 | null;
 }) {
   const history = messages.map((message) => ({
     role: message.role === "model" ? "model" : "user",
     parts: [{ text: message.content }],
   }));
 
-  const systemInstruction = buildEditSystemInstruction({
+  const systemInstruction = [buildEditSystemInstruction({
     designTokens,
     navigationArchitecture,
     screenPlan,
     navigationPlan,
     requiresBottomNav,
-  });
+  }), productContract ? formatBuilderProjectContract(productContract) : null].filter(Boolean).join("\n\n");
 
   const latestUserPrompt = [...messages].reverse().find((message) => message.role === "user")?.content ?? "";
 
@@ -4706,6 +4733,13 @@ export async function buildSourceRegionReplacementCode({
     `User edit request: ${userPrompt.trim() || "Improve the selected region."}`,
     `Original screen brief:\n${screenPrompt || "No original screen prompt was saved."}`,
     projectCharter?.creativeDirection ? `Creative direction:\n${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
+    projectCharter && screenPlan ? formatBuilderProjectContract(buildBuilderProjectContract({
+      charter: projectCharter,
+      screenFamily: projectCharter.referenceDna?.screenFamilyContract,
+      screenPlan,
+      navigationPlan,
+      designTokens,
+    })) : null,
     `Navigation architecture:\n${JSON.stringify(navigationArchitecture ?? null, null, 2)}`,
     `Token context:\n${buildTokenPromptContext(designTokens, "compact_visual")}`,
     `Source target reason: ${repairTarget.reason}`,
@@ -4777,10 +4811,7 @@ export async function buildFullScreenReconstructionCode({
   navigationPlan?: NavigationPlan | null;
   llmLog?: LlmLogFn;
 }) {
-  const rebuildPromptContext = [userPrompt, projectCharter?.originalPrompt]
-    .map((value) => value?.trim())
-    .filter(Boolean)
-    .join("\n");
+  const rebuildPromptContext = userPrompt?.trim() || "Reconstruct the saved target screen without changing its product role.";
   const systemInstruction = [
     buildStyleScreenInstruction({
       designTokens,
@@ -4800,7 +4831,13 @@ export async function buildFullScreenReconstructionCode({
 
   const userText = [
     `User request: ${userPrompt?.trim() || "Reconstruct the broken screen as production-ready static HTML."}`,
-    projectCharter?.originalPrompt ? `Original project prompt:\n${projectCharter.originalPrompt}` : null,
+    projectCharter ? formatBuilderProjectContract(buildBuilderProjectContract({
+      charter: projectCharter,
+      screenFamily: projectCharter.referenceDna?.screenFamilyContract,
+      screenPlan,
+      navigationPlan,
+      designTokens,
+    })) : null,
     projectCharter?.creativeDirection ? `Creative direction:\n${formatCreativeDirection(projectCharter.creativeDirection)}` : null,
     [
       "Current broken source, for visual/content intent only. Do not preserve invalid JSX, duplicated fragments, scripts, or broken structure:",

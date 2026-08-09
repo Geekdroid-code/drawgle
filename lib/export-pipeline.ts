@@ -221,8 +221,8 @@ export function buildCompiledExportSnapshot({
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    ${buildDrawgleTailwindConfigScript()}
     <script src="https://cdn.tailwindcss.com"><\/script>
+    ${buildDrawgleTailwindConfigScript()}
     <script src="https://unpkg.com/lucide@latest"><\/script>
     ${cleanGoogleFont}
     <style>
@@ -268,8 +268,8 @@ export function buildScreenOnlyHtmlExport(input: Parameters<typeof buildCompiled
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    ${buildDrawgleTailwindConfigScript()}
     <script src="https://cdn.tailwindcss.com"><\/script>
+    ${buildDrawgleTailwindConfigScript()}
     <script src="https://unpkg.com/lucide@latest"><\/script>
     ${snapshot.googleFontAssetLinks}
     <style>

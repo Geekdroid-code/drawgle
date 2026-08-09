@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   analyzePromptScreenIntent,
+  normalizeReferenceAnalysis,
   resolveGenerationScopeContract,
 } from "@/lib/generation/scope-contract";
 
@@ -60,5 +61,86 @@ describe("generation scope reference provenance", () => {
     });
 
     expect(contract.referenceMode).toBe("curated_style");
+  });
+});
+
+describe("reference visual evidence diagnostics", () => {
+  const base = {
+    overallVisualStyle: "Restrained utility UI",
+    screenCountEstimate: 1,
+    screenReferences: [{
+      index: 1,
+      suggestedRole: "Home",
+      layoutSummary: "Compact summary and list",
+      visualHierarchy: "Summary before rows",
+      components: ["summary", "rows"],
+      stylingCues: ["thin borders"],
+    }],
+    designSystemSignals: {
+      palette: "Neutral",
+      typography: "System sans",
+      surfaces: "Pale cards",
+      iconography: "Outline",
+      density: "Compact",
+      motionTone: "Quiet",
+    },
+  };
+
+  it("does not call missing structured visual evidence high confidence", () => {
+    const result = normalizeReferenceAnalysis(base);
+    expect(result.confidence).toBe("high");
+    expect(result.scopeConfidence).toBe("high");
+    expect(result.visualEvidenceConfidence).toBe("low");
+    expect(result.evidenceCompleteness).toMatchObject({ geometry: "missing", navigation: "missing", motifs: "missing" });
+  });
+
+  it("treats explicitly absent navigation as complete evidence", () => {
+    const result = normalizeReferenceAnalysis({
+      ...base,
+      primaryNavigation: { present: false, repeatedAcrossScreens: false, itemCount: 0, items: [] },
+      geometryProfile: { measurements: [] },
+      motifs: [],
+    });
+    expect(result.evidenceCompleteness?.navigation).toBe("confirmed-absent");
+    expect(result.visualEvidenceConfidence).toBe("medium");
+  });
+
+  it("preserves qualitative navigation appearance without claiming omitted measurements", () => {
+    const result = normalizeReferenceAnalysis({
+      ...base,
+      primaryNavigation: {
+        present: true,
+        repeatedAcrossScreens: false,
+        itemCount: 3,
+        items: [],
+        appearance: {
+          primary: {
+            anatomy: "glass-dock",
+            width: "content",
+            labels: "active-only",
+            activeTreatment: "compact-chip",
+            surface: "glass",
+            border: true,
+            elevation: "medium",
+            itemLayout: "inline",
+            blurPx: 18,
+          },
+          contextualChrome: null,
+        },
+      },
+      geometryProfile: { measurements: [] },
+      motifs: [],
+    });
+
+    expect(result.analysis?.primaryNavigation?.appearance?.primary).toMatchObject({
+      anatomy: "glass-dock",
+      width: "content",
+      labels: "active-only",
+      activeTreatment: "compact-chip",
+      surface: "glass",
+      blurPx: 18,
+    });
+    expect(result.analysis?.primaryNavigation?.appearance?.measuredFields).toEqual(["blurPx"]);
+    expect(result.analysis?.primaryNavigation?.appearance?.geometryOwner).toBe("reference-measurements");
   });
 });

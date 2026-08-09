@@ -1,4 +1,6 @@
 import type {
+  DesignComponentShapePolicy,
+  DesignStylePack,
   DesignTokenMetadata,
   DesignTokenValues,
   DesignTokens,
@@ -12,6 +14,18 @@ const DEFAULT_BORDER_WIDTH = "1px";
 const DEFAULT_SURFACE_SHADOW = "0 12px 32px rgba(15,23,42,0.14)";
 const DEFAULT_OVERLAY_SHADOW = "0 -4px 24px rgba(15,23,42,0.18)";
 const DEFAULT_ACTION_GRADIENT_ANGLE = "135deg";
+const DEFAULT_SHAPE_POLICY: DesignComponentShapePolicy = {
+  version: 1,
+  field: "app",
+  standardButton: "inner",
+  primaryCta: "inner",
+  segmentedContainer: "app",
+  segmentedItem: "inner",
+  nestedSurface: "inner",
+  iconWell: "pill",
+  evidenceSource: "default",
+  rationale: "Use the canonical component-role radius hierarchy.",
+};
 const DEFAULT_TYPOGRAPHY = {
   nav_title: { size: "17px", weight: 700, line_height: "22px" },
   screen_title: { size: "24px", weight: 800, line_height: "30px" },
@@ -60,6 +74,8 @@ const deepClone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const isRecord = (value: unknown): value is UnknownRecord => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
 const pickFirstString = (...values: unknown[]) => values.find((value): value is string => typeof value === "string" && value.trim().length > 0)?.trim();
+const pickEnum = <T extends string>(allowed: readonly T[], fallback: T, value: unknown): T =>
+  typeof value === "string" && allowed.includes(value as T) ? value as T : fallback;
 
 const parsePixelValue = (value: unknown) => {
   if (typeof value !== "string") return null;
@@ -67,6 +83,121 @@ const parsePixelValue = (value: unknown) => {
   if (!match) return null;
   const numeric = Number(match[1]);
   return Number.isFinite(numeric) ? numeric : null;
+};
+
+const parseHex = (value: unknown) => {
+  if (typeof value !== "string") return null;
+  const hex = value.trim().match(/^#([0-9a-f]{6})$/i)?.[1];
+  if (!hex) return null;
+  return [0, 2, 4].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16));
+};
+
+const relativeLuminance = (value: unknown) => {
+  const rgb = parseHex(value);
+  if (!rgb) return null;
+  const channels = rgb.map((channel) => {
+    const normalized = channel / 255;
+    return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+  });
+  return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+};
+
+const contrastRatio = (foreground: unknown, surface: unknown) => {
+  const foregroundLuminance = relativeLuminance(foreground);
+  const surfaceLuminance = relativeLuminance(surface);
+  if (foregroundLuminance === null || surfaceLuminance === null) return null;
+  const lighter = Math.max(foregroundLuminance, surfaceLuminance);
+  const darker = Math.min(foregroundLuminance, surfaceLuminance);
+  return (lighter + 0.05) / (darker + 0.05);
+};
+
+const accessibleForeground = (foreground: string, surface: string, fallback: string) => {
+  if ((contrastRatio(foreground, surface) ?? 0) >= 4.5) return foreground;
+  if ((contrastRatio(fallback, surface) ?? 0) >= 4.5) return fallback;
+  return (contrastRatio("#111827", surface) ?? 0) >= (contrastRatio("#FFFFFF", surface) ?? 0)
+    ? "#111827"
+    : "#FFFFFF";
+};
+
+const statusFallbacks = (dark: boolean) => dark
+  ? {
+      success: { foreground: "#86EFAC", surface: "#14532D", border: "#166534" },
+      warning: { foreground: "#FDE68A", surface: "#78350F", border: "#92400E" },
+      danger: { foreground: "#FCA5A5", surface: "#7F1D1D", border: "#991B1B" },
+      info: { foreground: "#93C5FD", surface: "#1E3A8A", border: "#1E40AF" },
+    }
+  : {
+      success: { foreground: "#166534", surface: "#DCFCE7", border: "#86EFAC" },
+      warning: { foreground: "#92400E", surface: "#FEF3C7", border: "#FCD34D" },
+      danger: { foreground: "#991B1B", surface: "#FEE2E2", border: "#FCA5A5" },
+      info: { foreground: "#1E40AF", surface: "#DBEAFE", border: "#93C5FD" },
+    };
+
+const normalizeStatusColors = (tokens: DesignTokenValues) => {
+  const backgroundLuminance = relativeLuminance(tokens.color?.background?.primary);
+  const fallback = statusFallbacks(backgroundLuminance !== null && backgroundLuminance < 0.24);
+  const incoming = isRecord(tokens.color?.status) ? tokens.color?.status as UnknownRecord : {};
+  return Object.fromEntries(Object.entries(fallback).map(([role, defaults]) => {
+    const candidate = isRecord(incoming[role]) ? incoming[role] : {};
+    const surface = pickFirstString(candidate.surface, defaults.surface) ?? defaults.surface;
+    const foreground = pickFirstString(candidate.foreground, defaults.foreground) ?? defaults.foreground;
+    return [role, {
+      foreground: accessibleForeground(foreground, surface, defaults.foreground),
+      surface,
+      border: pickFirstString(candidate.border, defaults.border),
+    }];
+  }));
+};
+
+const normalizeShapePolicy = (value: unknown): DesignComponentShapePolicy => {
+  if (!isRecord(value)) return deepClone(DEFAULT_SHAPE_POLICY);
+  return {
+    ...DEFAULT_SHAPE_POLICY,
+    primaryCta: value.primaryCta === "pill" ? "pill" : "inner",
+    segmentedItem: value.segmentedItem === "pill" ? "pill" : "inner",
+    evidenceSource: value.evidenceSource === "user" || value.evidenceSource === "reference" || value.evidenceSource === "design-style"
+      ? value.evidenceSource
+      : "default",
+    rationale: pickFirstString(value.rationale, DEFAULT_SHAPE_POLICY.rationale) ?? DEFAULT_SHAPE_POLICY.rationale,
+  };
+};
+
+const explicitPillEvidence = (value: string) =>
+  /\b(?:pill|capsule)[-\s\w]{0,36}\b(?:button|cta|call to action|primary action)\b|\b(?:button|cta|call to action|primary action)[-\s\w]{0,36}\b(?:pill|capsule)\b/i.test(value);
+
+const explicitSegmentedPillEvidence = (value: string) =>
+  /\b(?:pill|capsule)[-\s\w]{0,36}\b(?:segment|segmented|tab)\b|\b(?:segment|segmented|tab)[-\s\w]{0,36}\b(?:pill|capsule)\b/i.test(value);
+
+export const deriveComponentShapePolicy = ({
+  prompt = "",
+  referenceText = "",
+  designStyle,
+}: {
+  prompt?: string;
+  referenceText?: string;
+  designStyle?: DesignStylePack | null;
+}): DesignComponentShapePolicy => {
+  const styleText = [
+    ...(designStyle?.componentRecipes ?? []),
+    ...(designStyle?.layoutGrammar ?? []),
+  ].join(" ");
+  const evidence = explicitPillEvidence(prompt)
+    ? { source: "user" as const, text: prompt }
+    : explicitPillEvidence(referenceText)
+      ? { source: "reference" as const, text: referenceText }
+      : explicitPillEvidence(styleText)
+        ? { source: "design-style" as const, text: styleText }
+        : null;
+  const segmentedEvidence = explicitSegmentedPillEvidence(`${prompt} ${referenceText} ${styleText}`);
+  return {
+    ...DEFAULT_SHAPE_POLICY,
+    primaryCta: evidence ? "pill" : "inner",
+    segmentedItem: segmentedEvidence ? "pill" : "inner",
+    evidenceSource: evidence?.source ?? "default",
+    rationale: evidence
+      ? `Explicit ${evidence.source} evidence links capsule geometry to a primary action.`
+      : DEFAULT_SHAPE_POLICY.rationale,
+  };
 };
 
 const formatPixelValue = (value: number) => `${Math.round(value * 100) / 100}px`;
@@ -158,12 +289,9 @@ const sanitizeMetadata = (value: unknown): DesignTokenMetadata | undefined => {
   }
 
   const recommendedFonts = sanitizeStringArray(value.recommendedFonts);
+  const componentShapePolicy = normalizeShapePolicy(value.componentShapePolicy);
 
-  if (!recommendedFonts.length) {
-    return undefined;
-  }
-
-  const next: DesignTokenMetadata = {};
+  const next: DesignTokenMetadata = { componentShapePolicy };
 
   if (recommendedFonts.length > 0) {
     next.recommendedFonts = recommendedFonts;
@@ -293,6 +421,28 @@ const enforcePlatformConstraints = (tokens: DesignTokenValues | undefined) => {
     active_content: pickFirstString(legacyNavigation.active_content, next.color?.action?.on_primary_text, "#ffffff"),
     border: pickFirstString(legacyNavigation.border, next.color?.border?.divider, "#e5e7eb"),
     shadow: pickFirstString(legacyNavigation.shadow, legacyShadows.surface, DEFAULT_SURFACE_SHADOW),
+    anatomy: pickEnum(["fixed-tab-rail", "floating-dock", "glass-dock", "compact-icon-rail", "center-action-dock"] as const, "floating-dock", legacyNavigation.anatomy),
+    width: pickEnum(["content", "inset", "full"] as const, "inset", legacyNavigation.width),
+    labels: pickEnum(["always", "active-only", "hidden"] as const, "always", legacyNavigation.labels),
+    active_treatment: pickEnum(["icon-fill", "tint", "underline", "compact-chip"] as const, "tint", legacyNavigation.active_treatment),
+    surface_material: pickEnum(["solid", "translucent", "glass"] as const, "solid", legacyNavigation.surface_material),
+    container_height: pickFirstString(legacyNavigation.container_height, next.sizing?.bottom_nav_height, "68px"),
+    max_width: pickFirstString(legacyNavigation.max_width, "356px"),
+    safe_area_offset: pickFirstString(legacyNavigation.safe_area_offset, next.mobile_layout?.safe_area_bottom, "16px"),
+    horizontal_inset: pickFirstString(legacyNavigation.horizontal_inset, next.mobile_layout?.screen_margin, "16px"),
+    horizontal_padding: pickFirstString(legacyNavigation.horizontal_padding, next.spacing?.xs, "8px"),
+    vertical_padding: pickFirstString(legacyNavigation.vertical_padding, next.spacing?.xxs, "4px"),
+    item_gap: pickFirstString(legacyNavigation.item_gap, next.mobile_layout?.element_gap, "8px"),
+    icon_size: pickFirstString(legacyNavigation.icon_size, next.sizing?.icon_standard, "20px"),
+    label_size: pickFirstString(legacyNavigation.label_size, next.typography?.caption?.size, "11px"),
+    label_weight: pickFirstString(legacyNavigation.label_weight, String(next.typography?.caption?.weight ?? "500")),
+    backdrop_blur: pickFirstString(legacyNavigation.backdrop_blur, "0px"),
+    active_indicator_width: pickFirstString(legacyNavigation.active_indicator_width, next.sizing?.min_touch_target, "48px"),
+    active_indicator_height: pickFirstString(legacyNavigation.active_indicator_height, next.sizing?.min_touch_target, "48px"),
+  };
+  next.color = {
+    ...(next.color ?? {}),
+    status: normalizeStatusColors(next),
   };
   if (actionGradient) {
     next.gradients = {
@@ -367,11 +517,15 @@ const mergeMetadata = (base: DesignTokenMetadata | undefined, incoming: unknown)
   }
 
   const recommendedFonts = sanitized.recommendedFonts ?? base.recommendedFonts;
+  const componentShapePolicy = sanitized.componentShapePolicy ?? base.componentShapePolicy;
 
   const next: DesignTokenMetadata = {};
 
   if (recommendedFonts?.length) {
     next.recommendedFonts = recommendedFonts;
+  }
+  if (componentShapePolicy) {
+    next.componentShapePolicy = componentShapePolicy;
   }
 
   return Object.keys(next).length > 0 ? next : undefined;

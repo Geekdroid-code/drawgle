@@ -123,6 +123,7 @@ export function buildScreenPersistPatch(input: {
   blockIndex?: unknown;
   chromePolicy?: unknown;
   navigationItemId?: string | null;
+  qualityDiagnostics?: unknown;
   updatedAt?: string;
 }): Record<string, unknown> {
   const codeSanitized = sanitizeScreenCodeForPersist(input.code);
@@ -149,6 +150,9 @@ export function buildScreenPersistPatch(input: {
   }
   if (input.navigationItemId !== undefined) {
     patch.navigation_item_id = input.navigationItemId ?? null;
+  }
+  if (input.qualityDiagnostics !== undefined) {
+    patch.quality_diagnostics = input.qualityDiagnostics ?? null;
   }
 
   // Deep-clone via JSON to drop non-serializable values (undefined nested, bigint, etc.)

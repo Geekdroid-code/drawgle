@@ -75,6 +75,15 @@ const hasMeaningfulRenderableCode = (code: string) => {
 const serializeForInlineScript = (value: string | null | undefined) =>
   JSON.stringify(value ?? "").replace(/</g, "\\u003c");
 
+const hashUiCodeForClient = (code: string) => {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < code.length; index += 1) {
+    hash ^= code.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `fnv1a-${(hash >>> 0).toString(16).padStart(8, "0")}`;
+};
+
 const stripSharedNavigationMarkup = (code: string) =>
   code
     .replace(/<!--\s*(?:floating\s+dock|bottom\s+nav|navigation)[\s\S]*?placeholder[\s\S]*?-->\s*<div\b[^>]*(?:h-\[[^\]]*(?:8[0-9]|9[0-9]|1[0-9]{2})px\]|height\s*:\s*(?:8[0-9]|9[0-9]|1[0-9]{2})px)[^>]*>\s*<\/div>/gi, "")
@@ -692,6 +701,14 @@ export function ScreenNode({
   const tokenCss = useMemo(() => buildDrawgleTokenCss(designTokens), [designTokens]);
   const googleFontHref = useMemo(() => buildGoogleFontHref(designTokens), [designTokens]);
   const googleFontAssetLinks = useMemo(() => buildGoogleFontAssetLinks(designTokens), [designTokens]);
+  const qualityCodeHash = isBuilding || !safeCode.trim() ? "" : hashUiCodeForClient(safeCode);
+  const qualityShapePolicy = useMemo(() => ({
+    field: designTokens?.meta?.componentShapePolicy?.field ?? "app",
+    standardButton: designTokens?.meta?.componentShapePolicy?.standardButton ?? "inner",
+    primaryCta: designTokens?.meta?.componentShapePolicy?.primaryCta ?? "inner",
+    segmentedContainer: designTokens?.meta?.componentShapePolicy?.segmentedContainer ?? "app",
+    segmentedItem: designTokens?.meta?.componentShapePolicy?.segmentedItem ?? "inner",
+  }), [designTokens]);
   const styleInspectionProperties = useMemo(
     () => JSON.stringify(DRAWGLE_STYLE_PROPERTY_CONFIGS.map((config) => config.property)),
     [],
@@ -703,8 +720,11 @@ export function ScreenNode({
     tokenCss,
     googleFontHref,
     googleFontAssetLinks,
+    qualityCodeHash,
+    qualityShapePolicy,
   }));
   const iframeReadyRef = useRef(false);
+  const reportedQualityRef = useRef(new Set<string>());
 
   const postCurrentRenderState = useCallback((force = false) => {
     const iframe = iframeRef.current;
@@ -725,10 +745,12 @@ export function ScreenNode({
         activeNavigationItemId,
         tokenCss,
         googleFontHref,
+        qualityCodeHash,
+        qualityShapePolicy,
       },
       "*",
     );
-  }, [activeNavigationItemId, displayCode, googleFontHref, navigationShellCode, sharedNavigationActive, tokenCss]);
+  }, [activeNavigationItemId, displayCode, googleFontHref, navigationShellCode, qualityCodeHash, qualityShapePolicy, sharedNavigationActive, tokenCss]);
 
   const handleExportCode = useCallback(() => {
     const cleanScreenCode = stripDrawgleIds(displayCode.trim() ? displayCode : lastNonEmptyDisplayCodeRef.current);
@@ -812,6 +834,30 @@ export function ScreenNode({
         return;
       }
 
+      if (event.data?.type === "drawgleQualityDiagnostics") {
+        if (readOnly || typeof event.data.codeHash !== "string" || !Array.isArray(event.data.issues)) return;
+        const width = Number(event.data.viewport?.width);
+        const height = Number(event.data.viewport?.height);
+        const reportKey = `${event.data.codeHash}:${width}x${height}`;
+        if (reportedQualityRef.current.has(reportKey)) return;
+        reportedQualityRef.current.add(reportKey);
+        void fetch(`/api/screens/${screen.id}/quality-diagnostics`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            version: 1,
+            codeHash: event.data.codeHash,
+            viewport: { width, height },
+            issues: event.data.issues,
+          }),
+        }).then((response) => {
+          if (!response.ok) reportedQualityRef.current.delete(reportKey);
+        }).catch(() => {
+          reportedQualityRef.current.delete(reportKey);
+        });
+        return;
+      }
+
       if (event.data?.type !== "drawgleIframeReady") return;
       iframeReadyRef.current = true;
       postCurrentRenderState(true);
@@ -832,7 +878,7 @@ export function ScreenNode({
 
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [isInteractModeActive, postCurrentRenderState, selectedDrawgleId, selectionMode, syncIframeInteractionMode, screen.id, onContentHeightChange]);
+  }, [isInteractModeActive, postCurrentRenderState, readOnly, selectedDrawgleId, selectionMode, syncIframeInteractionMode, screen.id, onContentHeightChange]);
 
   // ── Escape key exits interact mode
   useEffect(() => {
@@ -1039,6 +1085,8 @@ export function ScreenNode({
     const initialTokenCss = bootstrapContent.tokenCss;
     const initialGoogleFontHref = bootstrapContent.googleFontHref;
     const initialGoogleFontAssetLinks = bootstrapContent.googleFontAssetLinks;
+    const initialQualityCodeHash = bootstrapContent.qualityCodeHash;
+    const initialQualityShapePolicy = bootstrapContent.qualityShapePolicy;
 
     return `
     <!DOCTYPE html>
@@ -1046,8 +1094,8 @@ export function ScreenNode({
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        ${buildDrawgleTailwindConfigScript()}
         <script id="drawgle-tailwind-cdn" src="https://cdn.tailwindcss.com" onerror="window.__drawgleTailwindLoadFailed = true"><\/script>
+        ${buildDrawgleTailwindConfigScript()}
         <script src="https://unpkg.com/lucide@latest"><\/script>
         ${initialGoogleFontAssetLinks}
         <style>
@@ -1128,11 +1176,16 @@ export function ScreenNode({
           var initialActiveNavigationItemId = ${serializeForInlineScript(initialActiveNavigationItemId)};
           var initialTokenCss = ${serializeForInlineScript(initialTokenCss)};
           var initialGoogleFontHref = ${serializeForInlineScript(initialGoogleFontHref)};
+          var initialQualityCodeHash = ${serializeForInlineScript(initialQualityCodeHash)};
+          var initialQualityShapePolicy = JSON.parse(${serializeForInlineScript(JSON.stringify(initialQualityShapePolicy))});
           var styleRuntimeReady = false;
           var tailwindRuntimeDegraded = false;
           var renderRevision = 0;
           var queuedRenderPayload = null;
           var pendingSelectedDrawgleId = null;
+          var currentQualityCodeHash = initialQualityCodeHash;
+          var currentQualityShapePolicy = initialQualityShapePolicy;
+          var lastQualityAuditKey = '';
 
           function setStyleRuntimePending() {
             if (tailwindRuntimeDegraded) return;
@@ -1144,6 +1197,116 @@ export function ScreenNode({
             styleRuntimeReady = true;
             window.requestAnimationFrame(function() {
               document.documentElement.setAttribute('data-drawgle-style-ready', mode || 'ready');
+              scheduleRenderedQualityAudit(renderRevision);
+            });
+          }
+
+          function qualityDrawgleId(element) {
+            if (!element || !element.closest) return null;
+            var owned = element.closest('[data-drawgle-id]');
+            return owned ? owned.getAttribute('data-drawgle-id') : null;
+          }
+
+          function qualityRadius(element) {
+            return element ? parseFloat(window.getComputedStyle(element).borderTopLeftRadius || '0') || 0 : 0;
+          }
+
+          function qualityTokenPx(role) {
+            return parseFloat(window.getComputedStyle(document.documentElement).getPropertyValue('--dg-radii-' + role) || '0') || 0;
+          }
+
+          function runRenderedQualityAudit(revision) {
+            if (!currentQualityCodeHash || revision !== renderRevision) return;
+            var viewport = { width: Math.round(document.documentElement.clientWidth), height: Math.round(document.documentElement.clientHeight) };
+            var auditKey = currentQualityCodeHash + ':' + viewport.width + 'x' + viewport.height;
+            if (auditKey === lastQualityAuditKey) return;
+            lastQualityAuditKey = auditKey;
+            var issues = [];
+            var seen = {};
+            function add(code, element, measured) {
+              var drawgleId = qualityDrawgleId(element);
+              var key = code + ':' + (drawgleId || 'root');
+              if (seen[key] || issues.length >= 32) return;
+              seen[key] = true;
+              issues.push({ code: code, drawgleId: drawgleId, measured: measured });
+            }
+
+            if (document.documentElement.scrollWidth > document.documentElement.clientWidth + 1) {
+              add('horizontal_overflow', null, { scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth });
+            }
+
+            document.querySelectorAll('h1,h2,h3,h4,h5,h6,button,[role="tab"],[data-drawgle-primary-nav] .dg-nav-label').forEach(function(element) {
+              var computed = window.getComputedStyle(element);
+              var clipsX = computed.overflowX === 'hidden' || computed.overflowX === 'clip' || computed.whiteSpace === 'nowrap';
+              var lineClamp = computed.getPropertyValue('-webkit-line-clamp');
+              var clipsY = computed.overflowY === 'hidden' || computed.overflowY === 'clip' || (lineClamp && lineClamp !== 'none');
+              var horizontalTruncation = clipsX && element.scrollWidth > element.clientWidth + 1;
+              var verticalTruncation = clipsY && element.scrollHeight > element.clientHeight + 1;
+              if (horizontalTruncation || verticalTruncation) {
+                add('critical_text_truncation', element, {
+                  scrollWidth: element.scrollWidth,
+                  clientWidth: element.clientWidth,
+                  scrollHeight: element.scrollHeight,
+                  clientHeight: element.clientHeight
+                });
+              }
+            });
+
+            document.querySelectorAll('*').forEach(function(element) {
+              var source = (element.getAttribute('class') || '') + ';' + (element.getAttribute('style') || '');
+              if (!/gap[^; ]*[^;]*var\\(--dg-/i.test(source)) return;
+              var style = window.getComputedStyle(element);
+              var gap = parseFloat(style.gap || style.rowGap || '0') || 0;
+              if (gap <= 0) add('collapsed_token_gap', element, { gap: gap });
+            });
+
+            document.querySelectorAll('[role="tablist"]').forEach(function(parent) {
+              var parentRadius = qualityRadius(parent);
+              parent.querySelectorAll('[role="tab"]').forEach(function(tab) {
+                var childRadius = qualityRadius(tab);
+                if (parentRadius > 0 && childRadius >= parentRadius) {
+                  add('nested_radius_violation', tab, { parentRadius: parentRadius, childRadius: childRadius });
+                }
+              });
+            });
+
+            document.querySelectorAll('input,textarea,select').forEach(function(control) {
+              var expected = qualityTokenPx(currentQualityShapePolicy.field || 'app');
+              var actual = qualityRadius(control);
+              if (expected > 0 && Math.abs(actual - expected) > 1) add('field_radius_mismatch', control, { expected: expected, actual: actual });
+            });
+
+            document.querySelectorAll('button,[role="button"]').forEach(function(control) {
+              var text = (control.textContent || '').replace(/\\s+/g, ' ').trim();
+              var iconOnly = !text || (control.getAttribute('aria-label') && text.length <= 2);
+              if (!iconOnly) {
+                var isPrimary = control.getAttribute('data-action-role') === 'primary'
+                  || /\\bdg-(?:action|gradient-action)-primary\\b/.test(control.getAttribute('class') || '')
+                  || control.getAttribute('type') === 'submit';
+                var role = isPrimary ? (currentQualityShapePolicy.primaryCta || 'inner') : (currentQualityShapePolicy.standardButton || 'inner');
+                var expected = qualityTokenPx(role);
+                var actual = qualityRadius(control);
+                if (expected > 0 && Math.abs(actual - expected) > 1) add('button_radius_mismatch', control, { expected: expected, actual: actual });
+              }
+              var rect = control.getBoundingClientRect();
+              if (rect.width > 0 && rect.height > 0 && (rect.width < 44 || rect.height < 44)) {
+                add('undersized_control', control, { width: Math.round(rect.width), height: Math.round(rect.height) });
+              }
+            });
+
+            if (tailwindRuntimeDegraded || document.documentElement.getAttribute('data-drawgle-style-ready') === 'degraded') {
+              add('style_runtime_degraded', null, {});
+            }
+            window.parent.postMessage({ type: 'drawgleQualityDiagnostics', version: 1, codeHash: currentQualityCodeHash, viewport: viewport, issues: issues }, '*');
+          }
+
+          function scheduleRenderedQualityAudit(revision) {
+            if (!currentQualityCodeHash) return;
+            var fontsReady = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+            Promise.resolve(fontsReady).catch(function() {}).then(function() {
+              window.requestAnimationFrame(function() {
+                window.requestAnimationFrame(function() { runRenderedQualityAudit(revision); });
+              });
             });
           }
 
@@ -1243,6 +1406,7 @@ export function ScreenNode({
                   'drawgle-tailwind-cdn-retry-' + attempts,
                   'https://cdn.tailwindcss.com',
                   function() {
+                    if (typeof window.__drawgleApplyTailwindConfig === 'function') window.__drawgleApplyTailwindConfig();
                     window.setTimeout(function() {
                       styleRuntimeReady = true;
                       tailwindRuntimeDegraded = false;
@@ -1622,6 +1786,8 @@ export function ScreenNode({
 
           function applyRenderPayload(payload) {
             var revision = ++renderRevision;
+            currentQualityCodeHash = payload.qualityCodeHash || '';
+            currentQualityShapePolicy = payload.qualityShapePolicy || initialQualityShapePolicy;
             var wasStyleReady = document.documentElement.hasAttribute('data-drawgle-style-ready');
             setStyleRuntimePending();
             applyGoogleFontHref(payload.googleFontHref || '');
@@ -1648,6 +1814,8 @@ export function ScreenNode({
             activeNavigationItemId: initialActiveNavigationItemId,
             tokenCss: initialTokenCss,
             googleFontHref: initialGoogleFontHref,
+            qualityCodeHash: initialQualityCodeHash,
+            qualityShapePolicy: initialQualityShapePolicy,
             selectedDrawgleId: null,
           };
 
@@ -2223,6 +2391,8 @@ export function ScreenNode({
                   activeNavigationItemId: event.data.activeNavigationItemId || '',
                   tokenCss: event.data.tokenCss || '',
                   googleFontHref: event.data.googleFontHref || '',
+                  qualityCodeHash: event.data.qualityCodeHash || '',
+                  qualityShapePolicy: event.data.qualityShapePolicy || initialQualityShapePolicy,
                   selectedDrawgleId: selectedBeforeRender,
                 };
                 pendingSelectedDrawgleId = selectedBeforeRender;
@@ -2276,6 +2446,8 @@ export function ScreenNode({
     bootstrapContent.navigationShellCode,
     bootstrapContent.screenCode,
     bootstrapContent.tokenCss,
+    bootstrapContent.qualityCodeHash,
+    bootstrapContent.qualityShapePolicy,
     styleInspectionProperties,
   ]);
 

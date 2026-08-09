@@ -3,6 +3,7 @@ import { tasks } from "@trigger.dev/sdk";
 
 import { applyDeterministicEdits, ensureDrawgleIds, type DeterministicEditOperation, type DrawgleElementTargetType } from "@/lib/drawgle-dom";
 import { indexScreenCode } from "@/lib/generation/block-index";
+import { buildStaticScreenQualityDiagnostics, normalizeGeneratedUiContracts } from "@/lib/generation/ui-contract-normalizer";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
@@ -114,7 +115,8 @@ export async function POST(req: Request) {
         operations,
         prefix: "dg-nav",
       });
-      const nextCode = tokenizeStaticDrawgleHtml(editedCode, designTokens).code;
+      const normalized = normalizeGeneratedUiContracts({ code: editedCode, designTokens });
+      const nextCode = tokenizeStaticDrawgleHtml(normalized.code, designTokens).code;
 
       const { error: updateError } = await admin
         .from("project_navigation")
@@ -155,12 +157,15 @@ export async function POST(req: Request) {
       drawgleId,
       operations,
     });
-    const nextCode = tokenizeStaticDrawgleHtml(editedCode, designTokens).code;
+    const normalized = normalizeGeneratedUiContracts({ code: editedCode, designTokens });
+    const nextCode = tokenizeStaticDrawgleHtml(normalized.code, designTokens).code;
+    const qualityDiagnostics = buildStaticScreenQualityDiagnostics(nextCode, normalized.report);
 
     const { error: updateError } = await admin
       .from("screens")
       .update({
         code: nextCode,
+        quality_diagnostics: qualityDiagnostics as never,
         block_index: indexScreenCode(nextCode) as never,
         status: "ready",
         error: null,

@@ -171,7 +171,8 @@ describe("export pipeline", () => {
 
     expect(html.indexOf("tailwind.config")).toBeGreaterThan(-1);
     expect(html.indexOf("https://cdn.tailwindcss.com")).toBeGreaterThan(-1);
-    expect(html.indexOf("tailwind.config")).toBeLessThan(html.indexOf("https://cdn.tailwindcss.com"));
+    expect(html.indexOf("https://cdn.tailwindcss.com")).toBeLessThan(html.indexOf("tailwind.config"));
+    expect(html).toContain("window.__drawgleApplyTailwindConfig");
     expect(html).toContain("dg-surface-card bg-[var(--dg-color-background-secondary)] rounded-[var(--dg-radii-app)] text-screen-title");
     expect(html).toContain("--dg-color-surface-card: #202020;");
     expect(html).toContain("--surface-muted: var(--dg-color-background-secondary, #F5F5F5);");

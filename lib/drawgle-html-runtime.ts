@@ -5,7 +5,9 @@ type ExportRuntimeCssOptions = {
 export function buildDrawgleTailwindConfigScript(): string {
   return `
     <script>
-      tailwind.config = {
+      window.__drawgleApplyTailwindConfig = function() {
+        window.tailwind = window.tailwind || {};
+        window.tailwind.config = {
         theme: {
           extend: {
             fontFamily: {
@@ -80,7 +82,9 @@ export function buildDrawgleTailwindConfigScript(): string {
             }
           }
         }
+        };
       };
+      window.__drawgleApplyTailwindConfig();
     </script>
   `.trim();
 }

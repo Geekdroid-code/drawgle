@@ -79,6 +79,10 @@ buildRecreateScreenInstruction / buildStyleScreenInstruction
 
 Style Reference builds may attach the source image to the final builder as guarded `style-calibration` evidence. This is not Image-to-UI structure: the version-2 transfer contract and named target regions remain authoritative, and source-local motifs are legal only in approved regions with the same function. Set `DRAWGLE_STYLE_REFERENCE_CALIBRATION_ENABLED=false` to use the analysis-only fallback.
 
+Every initial build, retry, add-screen build, and supported edit also receives `BuilderProjectContractV1`: compact product identity, current screen purpose/regions/chrome, product-owned destinations, screen-family rules, and shape policy. It excludes raw planner output, roadmap JSON, `Planner Brief`, other screens' detailed layouts, reference-domain content, and duplicated prompt text.
+
+Before persistence, generated and edited HTML passes through deterministic UI contract normalization. Exact aliases and confident standard-control roles may be repaired; unresolved cosmetic drift is saved with diagnostics and never causes a CSS-only builder retry. After Tailwind and fonts are ready, the iframe performs non-blocking rendered checks and posts only issue enums, stable Drawgle IDs, hashes, viewport size, and numeric measurements.
+
 ### 1. Reference Analysis
 
 Function:
@@ -116,6 +120,10 @@ This is where the system should learn:
 - card style
 - shadows/radii
 - typography feel
+
+Both analysis modes use the same required JSON schema through Gemini `responseJsonSchema`. `primaryNavigation` (including explicit `present: false`), `primaryNavigation.appearance`, `geometryProfile.measurements`, `motifs` (including `[]`), and `designSystemSignals` cannot be omitted. One bounded retry repairs an invalid or missing-evidence response; it is not a second builder pass.
+
+Reference diagnostics keep `scopeConfidence` separate from `visualEvidenceConfidence` and record geometry/navigation/motif completeness. Curated fallback may contribute coarse catalog anatomy/material hints, but never fabricated measurements.
 
 ## 2. Creative Direction
 
@@ -184,6 +192,9 @@ These tokens later control:
 - radius
 - shadows
 - mobile safe areas
+- semantic success/warning/danger/info colors
+- project-native navigation geometry and material
+- one evidence-gated component radius-role policy
 
 ## 4. Planning
 
@@ -234,6 +245,8 @@ navigationPlan
 ```
 
 This call should decide app architecture, not final screen HTML.
+
+Planner-authored transfer decisions may reject or refine a canonical semantic primitive, but target region IDs are recomputed deterministically. Navigation/chrome primitives never enter content-region transfer, and missing compatible regions mean rejection rather than broad fallback.
 
 ### 4B. Screen Brief Call
 

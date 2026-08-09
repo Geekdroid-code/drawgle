@@ -123,6 +123,48 @@ describe("reference transfer boundary", () => {
     expect(contract.rationale).toContain("user job owns layout");
   });
 
+  it("recomputes region assignments and ignores planner-authored unrelated mappings", () => {
+    const withPrimitive: ReferenceAnalysis = {
+      ...analysis,
+      semanticCompositionPrimitives: [{
+        id: "anchored-action",
+        kind: "anchored-action",
+        label: "Anchored action",
+        purpose: "Keep the submit action reachable during form entry",
+        sourceEvidence: "A local submit action",
+        transferableTraits: ["reachable action"],
+        suitableFor: ["form-entry"],
+        avoidFor: [],
+        adaptationGuidance: "Anchor the target submit action",
+        qualityDetails: ["clear separation"],
+        strength: "primary",
+      }],
+    };
+    const contract = normalizeReferenceTransferContract({
+      mode: "style",
+      screenName: "Create Payment Link",
+      screenDescription: "Form entry with a final submit action",
+      referenceAnalysis: withPrimitive,
+      screenLayoutRegions: [
+        { id: "fields", purpose: "Payment form fields", contentKind: "form" },
+        { id: "submit", purpose: "Submit payment link action", contentKind: "action" },
+      ],
+      value: {
+        compositionAdaptations: [{
+          sourcePrimitiveId: "anchored-action",
+          principle: "Put it in the fields",
+          targetRegionIds: ["fields"],
+          functionalPurpose: "Planner-selected form placement",
+        }],
+      },
+    });
+    expect(contract.compositionAdaptations).toEqual([expect.objectContaining({
+      sourcePrimitiveId: "anchored-action",
+      sourcePrimitiveKind: "anchored-action",
+      targetRegionIds: ["submit"],
+    })]);
+  });
+
   it("removes source composition and signature moments from saved art direction", () => {
     const direction: CreativeDirection = {
       conceptName: "Neural Spine",

@@ -1,4 +1,4 @@
-import { act, cleanup, render } from "@testing-library/react";
+import { act, cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ScreenData } from "@/lib/types";
@@ -27,6 +27,7 @@ const screen: ScreenData = {
 describe("ScreenNode element selection messaging", () => {
   afterEach(() => {
     triggerState.streams = null;
+    vi.restoreAllMocks();
     cleanup();
   });
 
@@ -158,5 +159,48 @@ describe("ScreenNode element selection messaging", () => {
     const iframe = container.querySelector("iframe");
 
     expect(iframe?.getAttribute("srcdoc")).toContain("payload.allowClassNamePreview === true && typeof payload.className === 'string'");
+  });
+
+  it("persists one bounded rendered-quality report per code hash and viewport", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: true } as Response);
+    const { container } = render(<ScreenNode screen={screen} />);
+    const iframe = container.querySelector("iframe");
+    const payload = {
+      type: "drawgleQualityDiagnostics",
+      codeHash: "fnv1a-12345678",
+      viewport: { width: 390, height: 844 },
+      issues: [{ code: "horizontal_overflow", drawgleId: null, measured: { scrollWidth: 400 } }],
+    };
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", { source: iframe!.contentWindow, data: payload }));
+      window.dispatchEvent(new MessageEvent("message", { source: iframe!.contentWindow, data: payload }));
+    });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/screens/selection-screen/quality-diagnostics",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("never writes rendered-quality telemetry from read-only previews", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: true } as Response);
+    const { container } = render(<ScreenNode screen={screen} readOnly />);
+    const iframe = container.querySelector("iframe");
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        source: iframe!.contentWindow,
+        data: {
+          type: "drawgleQualityDiagnostics",
+          codeHash: "fnv1a-12345678",
+          viewport: { width: 390, height: 844 },
+          issues: [],
+        },
+      }));
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

@@ -7,6 +7,7 @@ import { geminiPolicyForTask } from "@/lib/ai/model-policy";
 import { cleanErrorMessage, cleanUnknownError, isPersistJsonError, USER_FACING_PERSIST_FAILED_ERROR } from "@/lib/ai/error-handler";
 import { buildScreenPersistPatch, sanitizeScreenCodeForPersist, sanitizeTextForJson } from "@/lib/generation/persist-safe";
 import { resolveBuilderProviderIdentity } from "@/lib/generation/builder-diagnostics";
+import { buildStaticScreenQualityDiagnostics, normalizeGeneratedUiContracts } from "@/lib/generation/ui-contract-normalizer";
 import {
   getCuratedStyleReferenceById,
   loadCuratedStyleReferenceImage,
@@ -17,6 +18,7 @@ import { getDesignStylePack, isDesignStyleId, summarizeDesignStyle } from "@/lib
 import { CURATED_STYLE_EMBEDDING_MODEL } from "@/lib/generation/curated-style-index-core";
 import { indexScreenCode } from "@/lib/generation/block-index";
 import { buildFirstScreenPriorityBatches } from "@/lib/generation/build-scheduler";
+import { buildBuilderProjectContract } from "@/lib/generation/builder-product-contract";
 import { assembleProjectContext } from "@/lib/generation/context";
 import { transitionGenerationJournalPhase as setJournalPhase } from "@/lib/generation/journal";
 import {
@@ -98,7 +100,7 @@ import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
 import { getGenerationEngineVersion, getScreenBuilderProvider } from "@/lib/env/server";
 import { enrichScreenMemoryTask } from "@/trigger/enrich-screen-memory";
 import type { Database, ProjectScreenRoadmapRow } from "@/lib/supabase/database.types";
-import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationPreviewMetadata, GenerationPromptMode, GenerationReferencePolicy, GenerationRetryContext, GenerationScopeContract, ImageReferenceMode, LlmProviderEvent, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, ProjectRoadmap, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceImageRole, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenBaseStatePlan, ScreenPlan, ScreenPlanningSeed, ScreenStateVariantPlan } from "@/lib/types";
+import type { BuilderProjectContractV1, DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationPreviewMetadata, GenerationPromptMode, GenerationReferencePolicy, GenerationRetryContext, GenerationScopeContract, ImageReferenceMode, LlmProviderEvent, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, ProjectRoadmap, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceImageRole, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenBaseStatePlan, ScreenPlan, ScreenPlanningSeed, ScreenStateVariantPlan } from "@/lib/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -155,6 +157,7 @@ type BuildScreenTaskPayload = {
   navigationPlan?: NavigationPlan | null;
   assetManifest?: ScreenAssetManifest[];
   projectCharter?: ProjectCharter | null;
+  productContract?: BuilderProjectContractV1 | null;
   projectContext?: string | null;
   isFirstScreen?: boolean;
 };
@@ -1092,6 +1095,7 @@ async function collectScreenBuild(
       navigationArchitecture: input.navigationArchitecture,
       navigationPlan: input.navigationPlan,
       assetManifest: input.assetManifest,
+      productContract: input.productContract,
       projectContext: input.projectContext,
       onProviderEvent: captureProviderEvent,
       onResponseChunk: (chunk) => {
@@ -1184,6 +1188,7 @@ async function collectNonStreamingScreenBuild(input: BuildScreenTaskPayload, scr
     navigationArchitecture: input.navigationArchitecture,
     navigationPlan: input.navigationPlan,
     assetManifest: input.assetManifest,
+    productContract: input.productContract,
     projectContext: input.projectContext,
     onProviderEvent: captureProviderEvent,
     onResponseChunk: (responseChunk) => {
@@ -1575,10 +1580,19 @@ export const buildScreenTask = task({
           (payload.screenPlan.chromePolicy?.showPrimaryNavigation || payload.screenPlan.navigationItemId),
         ),
       });
-      const tokenizedCode = tokenizeStaticDrawgleHtml(clearanceNormalization.code, payload.designTokens).code;
+      const contractNormalization = normalizeGeneratedUiContracts({
+        code: clearanceNormalization.code,
+        designTokens: payload.designTokens,
+      });
+      const tokenizedCode = tokenizeStaticDrawgleHtml(contractNormalization.code, payload.designTokens).code;
       const code = ensureDrawgleIds(tokenizedCode).code;
       const tokenDrift = detectTokenDrift(code, { scope: "screen" });
-      return { code, tokenDrift, clearanceDiagnostics: clearanceNormalization.diagnostics };
+      return {
+        code,
+        tokenDrift,
+        contractReport: contractNormalization.report,
+        clearanceDiagnostics: clearanceNormalization.diagnostics,
+      };
     };
 
     let finalized = finalizeGeneratedCode(extractedCode);
@@ -1751,6 +1765,7 @@ export const buildScreenTask = task({
       blockIndex,
       chromePolicy: payload.screenPlan.chromePolicy ?? null,
       navigationItemId: payload.screenPlan.navigationItemId ?? null,
+      qualityDiagnostics: buildStaticScreenQualityDiagnostics(code, finalized.contractReport),
     });
 
     let updateError = await persistScreenRow(persistPatch);
@@ -1773,6 +1788,7 @@ export const buildScreenTask = task({
         blockIndex: null,
         chromePolicy: payload.screenPlan.chromePolicy ?? null,
         navigationItemId: payload.screenPlan.navigationItemId ?? null,
+        qualityDiagnostics: buildStaticScreenQualityDiagnostics(code, finalized.contractReport),
       });
       updateError = await persistScreenRow(persistPatch);
     }
@@ -2307,6 +2323,9 @@ export const generateUiFlowTask = task({
         ? {
             source: scopePreflight.referenceAnalysisResult.source,
             confidence: scopePreflight.referenceAnalysisResult.confidence,
+            scopeConfidence: scopePreflight.referenceAnalysisResult.scopeConfidence ?? scopePreflight.referenceAnalysisResult.confidence,
+            visualEvidenceConfidence: scopePreflight.referenceAnalysisResult.visualEvidenceConfidence ?? "low",
+            evidenceCompleteness: scopePreflight.referenceAnalysisResult.evidenceCompleteness ?? null,
             screenCountEstimate: scopePreflight.referenceAnalysisResult.screenCountEstimate,
             screenReferenceCount: scopePreflight.referenceAnalysisResult.screenReferenceCount,
             diagnostics: scopePreflight.referenceAnalysisResult.diagnostics,
@@ -2604,9 +2623,15 @@ export const generateUiFlowTask = task({
 	          ? "style_reference"
 	          : "prompt");
 	    plan.charter = { ...plan.charter, projectOrigin };
+	    const curatedNavigationFallback = referenceSource === "curated"
+	      ? getCuratedStyleReferenceById(referenceId)
+	      : null;
 	    plan.navigationPlan = applyReferenceNavigationAppearance({
 	      navigationPlan: plan.navigationPlan,
 	      referenceAnalysis,
+	      curatedNavigationTags: curatedNavigationFallback?.selectionProfile.navigation ?? [],
+	      curatedMaterialTags: curatedNavigationFallback?.selectionProfile.materials ?? [],
+	      designTokens,
 	    });
 	    plan.requiresBottomNav = plan.navigationPlan.enabled;
 	    plan.screens = applyNavigationPlanToScreens(plan.screens, plan.navigationPlan);
@@ -3227,6 +3252,13 @@ export const generateUiFlowTask = task({
             navigationPlan: plan.navigationPlan,
             assetManifest: projectAssetManifest.assetsByScreen[screenPlan.name] ?? [],
             projectCharter: plan.charter,
+            productContract: buildBuilderProjectContract({
+              charter: plan.charter,
+              screenFamily: plan.screenFamilyContract,
+              screenPlan,
+              navigationPlan: plan.navigationPlan,
+              designTokens,
+            }),
             projectContext: buildContext,
             isFirstScreen: index === 0,
           },

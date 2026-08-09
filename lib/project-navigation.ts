@@ -9,6 +9,7 @@ import type {
   ReferenceAnalysis,
   ScreenData,
   ScreenPlan,
+  DesignTokens,
 } from "@/lib/types";
 
 const LEGACY_MIN_SHARED_NAV_ITEMS = 2;
@@ -199,58 +200,147 @@ const trustedReferenceMeasurement = (referenceAnalysis: ReferenceAnalysis, role:
   return Math.round(values[Math.floor(values.length / 2)]);
 };
 
+const tokenPx = (value: unknown) => {
+  if (typeof value !== "string") return null;
+  const match = value.trim().match(/^(-?\d+(?:\.\d+)?)px$/);
+  return match ? Number(match[1]) : null;
+};
+
 export function applyReferenceNavigationAppearance({
   navigationPlan,
   referenceAnalysis,
+  curatedNavigationTags = [],
+  curatedMaterialTags = [],
+  designTokens,
 }: {
   navigationPlan: NavigationPlan;
   referenceAnalysis?: ReferenceAnalysis | null;
+  curatedNavigationTags?: string[];
+  curatedMaterialTags?: string[];
+  designTokens?: DesignTokens | null;
 }): NavigationPlan {
   if (!navigationPlan.enabled || navigationPlan.kind === "none") return navigationPlan;
   const visualBrief = navigationPlan.visualBrief || "Product-owned navigation.";
   const base = normalizeNavigationDesignContract(navigationPlan.appearance?.primary ?? navigationPlan.design, visualBrief);
   const referenceEvidence = referenceAnalysis?.primaryNavigation;
   const useReference = Boolean(referenceAnalysis && referenceEvidence?.present);
+  const useCuratedFallback = !useReference && curatedNavigationTags.length > 0;
   const measured = (role: string, fallback: number) => referenceAnalysis
     ? trustedReferenceMeasurement(referenceAnalysis, role) ?? fallback
     : fallback;
+  const structuredPrimary = referenceEvidence?.appearance?.primary;
+  const projectNavigationTokens = designTokens?.tokens?.navigation;
+  const projectTokenPrimary = projectNavigationTokens ? normalizeNavigationDesignContract({
+    ...base,
+    anatomy: projectNavigationTokens.anatomy ?? base.anatomy,
+    width: projectNavigationTokens.width ?? base.width,
+    labels: projectNavigationTokens.labels ?? base.labels,
+    activeTreatment: projectNavigationTokens.active_treatment ?? base.activeTreatment,
+    surface: projectNavigationTokens.surface_material ?? base.surface,
+    containerHeightPx: tokenPx(projectNavigationTokens.container_height) ?? base.containerHeightPx,
+    maxWidthPx: tokenPx(projectNavigationTokens.max_width) ?? base.maxWidthPx,
+    safeAreaOffsetPx: tokenPx(projectNavigationTokens.safe_area_offset) ?? base.safeAreaOffsetPx,
+    horizontalInsetPx: tokenPx(projectNavigationTokens.horizontal_inset) ?? base.horizontalInsetPx,
+    horizontalPaddingPx: tokenPx(projectNavigationTokens.horizontal_padding) ?? base.horizontalPaddingPx,
+    verticalPaddingPx: tokenPx(projectNavigationTokens.vertical_padding) ?? base.verticalPaddingPx,
+    itemGapPx: tokenPx(projectNavigationTokens.item_gap) ?? base.itemGapPx,
+    iconSizePx: tokenPx(projectNavigationTokens.icon_size) ?? base.iconSizePx,
+    labelSizePx: tokenPx(projectNavigationTokens.label_size) ?? base.labelSizePx,
+    labelWeight: Number(projectNavigationTokens.label_weight) || base.labelWeight,
+    blurPx: tokenPx(projectNavigationTokens.backdrop_blur) ?? base.blurPx,
+    activeIndicatorWidthPx: tokenPx(projectNavigationTokens.active_indicator_width) ?? base.activeIndicatorWidthPx,
+    activeIndicatorHeightPx: tokenPx(projectNavigationTokens.active_indicator_height) ?? base.activeIndicatorHeightPx,
+  }, visualBrief) : base;
+  const curatedAnatomy: NavigationDesignContract["anatomy"] = curatedNavigationTags.some((tag) => /fab/.test(tag))
+    ? "center-action-dock"
+    : curatedNavigationTags.some((tag) => /fixed-tabs|bottom-tab-bar|bottom-nav-bar/.test(tag))
+      ? "fixed-tab-rail"
+      : "floating-dock";
+  const curatedSurface: NavigationDesignContract["surface"] = curatedMaterialTags.some((tag) => /glass|frost|blur/.test(tag))
+    ? "glass"
+    : curatedMaterialTags.some((tag) => /translucent/.test(tag)) ? "translucent" : base.surface;
   const primary = useReference && referenceAnalysis && referenceEvidence
     ? normalizeNavigationDesignContract({
         ...base,
-        anatomy: referenceEvidence.anatomy ?? base.anatomy,
-        labels: referenceEvidence.labels ?? base.labels,
-        surface: /glass|frost|blur/i.test(`${referenceEvidence.geometry} ${referenceEvidence.elevation}`) ? "glass" : base.surface,
+        ...(structuredPrimary ?? {}),
+        anatomy: referenceEvidence.anatomy ?? structuredPrimary?.anatomy ?? base.anatomy,
+        labels: referenceEvidence.labels ?? structuredPrimary?.labels ?? base.labels,
+        surface: structuredPrimary?.surface
+          ?? (/glass|frost|blur/i.test(`${referenceEvidence.geometry} ${referenceEvidence.elevation}`) ? "glass" : base.surface),
         containerHeightPx: measured("navigation-height", base.containerHeightPx ?? 68),
         horizontalInsetPx: measured("navigation-inset", base.horizontalInsetPx ?? 16),
         safeAreaOffsetPx: measured("navigation-bottom-offset", base.safeAreaOffsetPx),
         iconSizePx: measured("navigation-icon-size", base.iconSizePx),
         maxWidthPx: base.maxWidthPx ?? null,
       }, visualBrief)
-    : base;
-  const contextualChrome = referenceAnalysis ? {
-    heightPx: measured("row-height", 48),
-    horizontalInsetPx: measured("screen-rail", 16),
-    controlSizePx: measured("icon-well-size", 36),
-    controlRadiusPx: measured("icon-well-radius", 18),
-    controlGapPx: measured("internal-gap", 8),
-    iconSizePx: measured("navigation-icon-size", 18),
+    : useCuratedFallback
+      ? normalizeNavigationDesignContract({
+          ...base,
+          anatomy: curatedAnatomy,
+          surface: curatedSurface === "glass" && !(base.blurPx && base.blurPx > 0) ? "translucent" : curatedSurface,
+        }, visualBrief)
+      : projectTokenPrimary;
+  const geometryMeasurementFields = referenceAnalysis
+    ? (referenceAnalysis.geometryProfile?.measurements ?? [])
+        .filter((measurement) => measurement.confidence !== "low" && measurement.sourceLayer === "app-ui" && measurement.role.startsWith("navigation"))
+        .map((measurement) => ({
+          "navigation-height": "containerHeightPx",
+          "navigation-inset": "horizontalInsetPx",
+          "navigation-bottom-offset": "safeAreaOffsetPx",
+          "navigation-icon-size": "iconSizePx",
+        }[measurement.role] ?? measurement.role))
+    : [];
+  const measuredFields = Array.from(new Set([
+    ...(referenceEvidence?.appearance?.measuredFields ?? []),
+    ...geometryMeasurementFields,
+  ]));
+  const safePrimary = primary.surface === "glass" && !(primary.blurPx && primary.blurPx > 0)
+    ? { ...primary, surface: "translucent" as const, blurPx: 0 }
+    : primary;
+  const contextualMeasurement = referenceAnalysis ? {
+    heightPx: trustedReferenceMeasurement(referenceAnalysis, "row-height"),
+    horizontalInsetPx: trustedReferenceMeasurement(referenceAnalysis, "screen-rail"),
+    controlSizePx: trustedReferenceMeasurement(referenceAnalysis, "icon-well-size"),
+    controlRadiusPx: trustedReferenceMeasurement(referenceAnalysis, "icon-well-radius"),
+    controlGapPx: trustedReferenceMeasurement(referenceAnalysis, "internal-gap"),
+    iconSizePx: trustedReferenceMeasurement(referenceAnalysis, "navigation-icon-size"),
+  } : null;
+  const hasCompleteContextualMeasurement = contextualMeasurement
+    && Object.values(contextualMeasurement).every((value) => typeof value === "number");
+  const contextualChrome = referenceEvidence?.appearance?.contextualChrome ?? (hasCompleteContextualMeasurement ? {
+    heightPx: contextualMeasurement.heightPx!,
+    horizontalInsetPx: contextualMeasurement.horizontalInsetPx!,
+    controlSizePx: contextualMeasurement.controlSizePx!,
+    controlRadiusPx: contextualMeasurement.controlRadiusPx!,
+    controlGapPx: contextualMeasurement.controlGapPx!,
+    iconSizePx: contextualMeasurement.iconSizePx!,
     titleAlignment: "center" as const,
     surface: "transparent" as const,
     border: true,
     elevation: "none" as const,
-  } : null;
+  } : null);
 
   return {
     ...navigationPlan,
     version: 3,
-    design: primary,
+    design: safePrimary,
     appearance: {
-      source: useReference ? "reference" : "project-native",
-      primary,
+      source: useReference || useCuratedFallback ? "reference" : "project-native",
+      evidenceSource: useReference ? "structured-reference" : useCuratedFallback ? "curated-catalog" : "project-native",
+      evidenceConfidence: useReference
+        ? structuredPrimary && measuredFields.length >= 2 ? "high" : "medium"
+        : "medium",
+      geometryOwner: useReference && measuredFields.length > 0
+        ? "reference-measurements"
+        : "project-tokens",
+      measuredFields,
+      primary: safePrimary,
       contextualChrome,
       rationale: useReference
         ? "Product destinations are preserved while visible reference navigation supplies appearance only."
-        : "No usable reference navigation appearance was visible; use the product-native planned design.",
+        : useCuratedFallback
+          ? "Structured extraction was incomplete; curated tags select coarse anatomy/material while project tokens own every dimension."
+        : "No usable reference navigation appearance was visible; project navigation tokens own the native appearance.",
     },
   };
 }
@@ -283,8 +373,11 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
     return "";
   }
 
-  const navItems = navigationPlan.items.slice(0, MAX_SHARED_NAV_ITEMS);
   const isV3 = navigationPlan.version === 3 && Boolean(navigationPlan.appearance?.primary);
+  const navItems = (isV3
+    ? navigationPlan.items.filter((item) => item.availability !== "planned" && Boolean(item.linkedScreenName))
+    : navigationPlan.items).slice(0, MAX_SHARED_NAV_ITEMS);
+  if (navItems.length < LEGACY_MIN_SHARED_NAV_ITEMS) return "";
   const design = normalizeNavigationDesignContract(navigationPlan.appearance?.primary ?? navigationPlan.design, navigationPlan.visualBrief);
   const itemCount = navItems.length;
   const radiusDelta = Math.min(8, Math.max(4, Math.round(design.radiusPx / 3)));
@@ -300,15 +393,26 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
     ? design.centerActionItemId ?? navItems[Math.floor(itemCount / 2)]?.id ?? null
     : null;
 
+  const referenceMeasuredFields = new Set(navigationPlan.appearance?.measuredFields ?? []);
+  const referenceOwnsGeometryField = (field: string) =>
+    navigationPlan.appearance?.geometryOwner === "reference-measurements" && referenceMeasuredFields.has(field);
+  const geometryValue = (token: string, field: string, measured: number | null | undefined, fallback: number) =>
+    referenceOwnsGeometryField(field) ? `${measured ?? fallback}px` : `var(${token},${measured ?? fallback}px)`;
+  const maxWidthValue = referenceOwnsGeometryField("maxWidthPx")
+    ? `${design.maxWidthPx ?? contentWidth}px`
+    : `var(--dg-navigation-max-width,${design.maxWidthPx ?? contentWidth}px)`;
+  const horizontalInsetValue = referenceOwnsGeometryField("horizontalInsetPx")
+    ? `${design.horizontalInsetPx ?? 16}px`
+    : `var(--dg-navigation-horizontal-inset,${design.horizontalInsetPx ?? 16}px)`;
   const anatomyLayout = isV3 ? {
     key: "contract-driven",
     width: design.width === "full"
       ? "100%"
-      : `min(${design.maxWidthPx ?? contentWidth}px,calc(100% - ${(design.horizontalInsetPx ?? 16) * 2}px))`,
-    height: `${design.containerHeightPx ?? 68}px`,
+      : `min(${maxWidthValue},calc(100% - (2 * ${horizontalInsetValue})))`,
+    height: geometryValue("--dg-navigation-container-height", "containerHeightPx", design.containerHeightPx, 68),
     margin: "0 auto calc(var(--dg-navigation-safe-offset) + var(--dg-effective-safe-area-bottom))",
-    padding: `${design.verticalPaddingPx ?? 6}px ${design.horizontalPaddingPx ?? 8}px`,
-    radius: `${design.radiusPx}px`,
+    padding: `${geometryValue("--dg-navigation-vertical-padding", "verticalPaddingPx", design.verticalPaddingPx, 6)} ${geometryValue("--dg-navigation-horizontal-padding", "horizontalPaddingPx", design.horizontalPaddingPx, 8)}`,
+    radius: referenceOwnsGeometryField("radiusPx") ? `${design.radiusPx}px` : "var(--dg-radii-app)",
     innerDisplay: design.itemLayout === "stacked"
       ? `grid;grid-template-columns:repeat(${itemCount},minmax(0,1fr))`
       : "flex;justify-content:center",
@@ -390,16 +494,20 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
     : design.surface === "translucent"
       ? "color-mix(in srgb,var(--dg-navigation-surface,var(--dg-color-surface-card,#fff)) 88%,transparent)"
       : "var(--dg-navigation-surface,var(--dg-color-surface-card,#fff))";
-  const blurAmount = isV3 ? design.blurPx ?? 0 : 18;
+  const blurAmount = isV3
+    ? geometryValue("--dg-navigation-backdrop-blur", "blurPx", design.blurPx, 0)
+    : "18px";
   const blur = design.surface === "glass"
-    ? `backdrop-filter:blur(${blurAmount}px) saturate(1.15);-webkit-backdrop-filter:blur(${blurAmount}px) saturate(1.15);`
+    ? `backdrop-filter:blur(${blurAmount}) saturate(1.15);-webkit-backdrop-filter:blur(${blurAmount}) saturate(1.15);`
     : "";
-  const shadow = design.elevation === "medium"
+  const shadow = isV3
+    ? "var(--dg-navigation-shadow,var(--dg-shadows-surface))"
+    : design.elevation === "medium"
     ? "var(--dg-navigation-shadow,0 14px 34px rgba(15,23,42,.16))"
     : design.elevation === "low"
       ? "var(--dg-navigation-shadow,0 6px 18px rgba(15,23,42,.09))"
       : "none";
-  const borderValue = `${isV3 ? design.borderWidthPx ?? 1 : 1}px solid color-mix(in srgb,var(--dg-navigation-border,var(--dg-color-border-divider,#e5e7eb)) 72%,transparent)`;
+  const borderValue = `${isV3 ? geometryValue("--dg-border-widths-standard", "borderWidthPx", design.borderWidthPx, 1) : "1px"} solid color-mix(in srgb,var(--dg-navigation-border,var(--dg-color-border-divider,#e5e7eb)) 72%,transparent)`;
   const borderCss = design.anatomy === "fixed-tab-rail"
     ? `border:0;${design.border ? `border-top:${borderValue};` : ""}`
     : `border:${design.border ? borderValue : "0"};`;
@@ -411,16 +519,22 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
   const activeOnlyCss = design.labels === "active-only"
     ? "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"] .dg-nav-label{display:block;}"
     : "";
-  const activeWidth = design.activeIndicatorWidthPx ?? 30;
-  const activeHeight = design.activeIndicatorHeightPx ?? 30;
-  const activeRadius = design.activeIndicatorRadiusPx ?? innerRadiusPx;
+  const activeWidth = isV3 ? geometryValue("--dg-navigation-active-indicator-width", "activeIndicatorWidthPx", design.activeIndicatorWidthPx, 30) : `${design.activeIndicatorWidthPx ?? 30}px`;
+  const activeHeight = isV3 ? geometryValue("--dg-navigation-active-indicator-height", "activeIndicatorHeightPx", design.activeIndicatorHeightPx, 30) : `${design.activeIndicatorHeightPx ?? 30}px`;
+  const activeRadius = isV3
+    ? referenceOwnsGeometryField("activeIndicatorRadiusPx") && design.activeIndicatorRadiusPx !== null && design.activeIndicatorRadiusPx !== undefined
+      ? `${design.activeIndicatorRadiusPx}px`
+      : "var(--dg-radii-inner)"
+    : `${design.activeIndicatorRadiusPx ?? innerRadiusPx}px`;
   const activeCss = design.activeTreatment === "underline"
-    ? "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"]::after{content:\"\";position:absolute;left:24%;right:24%;bottom:-1px;height:3px;border-radius:3px 3px 0 0;background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));}"
+    ? isV3
+      ? `[data-drawgle-primary-nav] .dg-nav-item[data-active="true"]::after{content:"";position:absolute;left:50%;bottom:0;width:${activeWidth};height:${activeHeight};transform:translateX(-50%);border-radius:${activeRadius} ${activeRadius} 0 0;background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));}`
+      : "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"]::after{content:\"\";position:absolute;left:24%;right:24%;bottom:-1px;height:3px;border-radius:3px 3px 0 0;background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));}"
     : design.activeTreatment === "compact-chip"
-      ? `[data-drawgle-primary-nav] .dg-nav-item[data-active="true"]{background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));color:var(--dg-navigation-active-content,var(--dg-color-action-on-primary-text,#fff));border-radius:${activeRadius}px;}`
+      ? `[data-drawgle-primary-nav] .dg-nav-item[data-active="true"]{background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));color:var(--dg-navigation-active-content,var(--dg-color-action-on-primary-text,#fff));border-radius:${activeRadius};}`
       : design.activeTreatment === "tint"
         ? "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"]{color:var(--dg-navigation-content,var(--dg-color-action-primary,#111827));background:color-mix(in srgb,var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827)) 10%,transparent);}"
-        : `[data-drawgle-primary-nav] .dg-nav-item[data-active="true"] .dg-nav-icon{width:${activeWidth}px;height:${activeHeight}px;border-radius:${activeRadius}px;background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));color:var(--dg-navigation-active-content,var(--dg-color-action-on-primary-text,#fff));}`;
+        : `[data-drawgle-primary-nav] .dg-nav-item[data-active="true"] .dg-nav-icon{width:${activeWidth};height:${activeHeight};border-radius:${activeRadius};background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));color:var(--dg-navigation-active-content,var(--dg-color-action-on-primary-text,#fff));}`;
 
   const items = navItems.map((item) => {
     const generated = item.availability !== "planned" && Boolean(item.linkedScreenName);
@@ -440,19 +554,23 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
   return [
     `<nav data-drawgle-primary-nav data-navigation-version="${navigationPlan.version ?? 1}" data-navigation-anatomy="${design.anatomy}" data-navigation-layout="${anatomyLayout.key}" data-navigation-clearance-owner="renderer" class="dg-nav-shell" aria-label="Primary navigation">`,
     "<style>",
-    `:root{--dg-navigation-visual-height:clamp(64px,var(--dg-sizing-bottom-nav-height,72px),88px);--dg-navigation-anatomy-height:${anatomyLayout.height};--dg-effective-safe-area-bottom:max(env(safe-area-inset-bottom,0px),var(--dg-mobile-layout-safe-area-bottom,0px));--dg-navigation-safe-offset:${design.safeAreaOffsetPx}px;--dg-navigation-overlap-buffer:${overlapBufferPx}px;--dg-navigation-clearance:calc(var(--dg-navigation-visual-height) + var(--dg-navigation-safe-offset) + var(--dg-effective-safe-area-bottom) + var(--dg-navigation-overlap-buffer));}`,
+    `:root{--dg-navigation-visual-height:clamp(64px,var(--dg-sizing-bottom-nav-height,72px),88px);--dg-navigation-anatomy-height:${anatomyLayout.height};--dg-effective-safe-area-bottom:max(env(safe-area-inset-bottom,0px),var(--dg-mobile-layout-safe-area-bottom,0px));--dg-navigation-safe-offset:${isV3 ? geometryValue("--dg-navigation-safe-area-offset", "safeAreaOffsetPx", design.safeAreaOffsetPx, 16) : `${design.safeAreaOffsetPx}px`};--dg-navigation-overlap-buffer:${overlapBufferPx}px;--dg-navigation-clearance:calc(var(--dg-navigation-visual-height) + var(--dg-navigation-safe-offset) + var(--dg-effective-safe-area-bottom) + var(--dg-navigation-overlap-buffer));}`,
     `[data-drawgle-primary-nav].dg-nav-shell{box-sizing:border-box;width:${anatomyLayout.width};max-width:100%;min-height:var(--dg-navigation-anatomy-height);margin:${anatomyLayout.margin};padding:${anatomyLayout.padding};border-radius:${anatomyLayout.radius};background:${background};${borderCss}box-shadow:${shadow};${blur}pointer-events:auto;}`,
-    `[data-drawgle-primary-nav] .dg-nav-shell-inner{display:${anatomyLayout.innerDisplay};align-items:stretch;gap:${design.itemGapPx}px;min-height:calc(var(--dg-navigation-anatomy-height) - 12px);}`,
-    `[data-drawgle-primary-nav] .dg-nav-item{position:relative;appearance:none;border:0;background:transparent;color:var(--dg-navigation-muted-content,var(--dg-color-text-low-emphasis,#94a3b8));min-width:0;min-height:var(--dg-sizing-min-touch-target,48px);padding:${anatomyLayout.itemPadding};display:flex;flex:1 1 0;flex-direction:${anatomyLayout.itemDirection};align-items:center;justify-content:center;gap:${anatomyLayout.itemDirection === "row" ? 7 : 3}px;border-radius:var(--dg-radii-inner,${innerRadiusPx}px);font-family:var(--dg-typography-body-font-family,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);font-size:10px;line-height:1;font-weight:650;letter-spacing:0;cursor:pointer;}`,
+    `[data-drawgle-primary-nav] .dg-nav-shell-inner{display:${anatomyLayout.innerDisplay};align-items:stretch;gap:${isV3 ? geometryValue("--dg-navigation-item-gap", "itemGapPx", design.itemGapPx, 4) : `${design.itemGapPx}px`};min-height:calc(var(--dg-navigation-anatomy-height) - var(--dg-spacing-xs,8px));}`,
+    `[data-drawgle-primary-nav] .dg-nav-item{position:relative;appearance:none;border:0;background:transparent;color:var(--dg-navigation-muted-content,var(--dg-color-text-low-emphasis,#94a3b8));min-width:0;min-height:var(--dg-sizing-min-touch-target,48px);padding:${anatomyLayout.itemPadding};display:flex;flex:1 1 0;flex-direction:${anatomyLayout.itemDirection};align-items:center;justify-content:center;gap:var(--dg-spacing-xxs,4px);border-radius:var(--dg-radii-inner,${innerRadiusPx}px);font-family:var(--dg-typography-body-font-family,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);font-size:var(--dg-navigation-label-size,11px);line-height:1;font-weight:var(--dg-navigation-label-weight,500);letter-spacing:0;cursor:pointer;}`,
     "[data-drawgle-primary-nav] .dg-nav-item[data-availability=\"planned\"]{cursor:default;}",
     "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"]{color:var(--dg-navigation-content,var(--dg-color-action-primary,#111827));}",
-    `[data-drawgle-primary-nav] .dg-nav-icon{display:flex;height:${anatomyLayout.iconBox}px;width:${anatomyLayout.iconBox}px;flex:0 0 ${anatomyLayout.iconBox}px;align-items:center;justify-content:center;border-radius:var(--dg-radii-pill,9999px);background:transparent;color:currentColor;}`,
-    `[data-drawgle-primary-nav] .dg-nav-icon svg{height:${design.iconSizePx}px;width:${design.iconSizePx}px;stroke-width:2;}`,
-    `[data-drawgle-primary-nav] .dg-nav-label{max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:currentColor;font-size:${isV3 ? design.labelSizePx ?? 11 : 12}px;font-weight:${isV3 ? design.labelWeight ?? 500 : 500};${labelCss}}`,
+    `[data-drawgle-primary-nav] .dg-nav-icon{display:flex;height:${isV3 ? activeWidth : `${anatomyLayout.iconBox}px`};width:${isV3 ? activeWidth : `${anatomyLayout.iconBox}px`};flex:0 0 ${isV3 ? activeWidth : `${anatomyLayout.iconBox}px`};align-items:center;justify-content:center;border-radius:var(--dg-radii-pill,9999px);background:transparent;color:currentColor;}`,
+    `[data-drawgle-primary-nav] .dg-nav-icon svg{height:${isV3 ? geometryValue("--dg-navigation-icon-size", "iconSizePx", design.iconSizePx, 20) : `${design.iconSizePx}px`};width:${isV3 ? geometryValue("--dg-navigation-icon-size", "iconSizePx", design.iconSizePx, 20) : `${design.iconSizePx}px`};stroke-width:2;}`,
+    `[data-drawgle-primary-nav] .dg-nav-label{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:currentColor;font-size:${isV3 ? geometryValue("--dg-navigation-label-size", "labelSizePx", design.labelSizePx, 11) : "12px"};font-weight:${isV3 ? `var(--dg-navigation-label-weight,${design.labelWeight ?? 500})` : "500"};${labelCss}}`,
     activeOnlyCss,
     activeCss,
-    "[data-drawgle-primary-nav] .dg-nav-item-center-action{transform:translateY(-14px);overflow:visible;}",
-    "[data-drawgle-primary-nav] .dg-nav-item-center-action .dg-nav-icon{height:48px;width:48px;flex-basis:48px;border:5px solid var(--dg-navigation-surface,var(--dg-color-surface-card,#fff));box-shadow:0 8px 20px rgba(15,23,42,.16);background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));color:var(--dg-navigation-active-content,var(--dg-color-action-on-primary-text,#fff));}",
+    isV3
+      ? "[data-drawgle-primary-nav] .dg-nav-item-center-action{transform:translateY(calc(-1 * var(--dg-navigation-vertical-padding,var(--dg-spacing-xs,8px))));overflow:visible;}"
+      : "[data-drawgle-primary-nav] .dg-nav-item-center-action{transform:translateY(-14px);overflow:visible;}",
+    isV3
+      ? `[data-drawgle-primary-nav] .dg-nav-item-center-action .dg-nav-icon{height:${activeHeight};width:${activeWidth};flex-basis:${activeWidth};border:var(--dg-border-widths-standard,1px) solid var(--dg-navigation-surface,var(--dg-color-surface-card,#fff));box-shadow:var(--dg-navigation-shadow,var(--dg-shadows-surface));background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));color:var(--dg-navigation-active-content,var(--dg-color-action-on-primary-text,#fff));}`
+      : "[data-drawgle-primary-nav] .dg-nav-item-center-action .dg-nav-icon{height:48px;width:48px;flex-basis:48px;border:5px solid var(--dg-navigation-surface,var(--dg-color-surface-card,#fff));box-shadow:0 8px 20px rgba(15,23,42,.16);background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));color:var(--dg-navigation-active-content,var(--dg-color-action-on-primary-text,#fff));}",
     "</style>",
     '<div class="dg-nav-shell-inner">',
     items,
@@ -787,12 +905,15 @@ export function normalizeNavigationPlan({
         screenPlan: screen,
         navigationArchitecture: createNavigationArchitecture({ navigationArchitecture }),
       });
+      const explicitChrome = screen.chromePolicy?.chrome ?? planned?.chrome ?? null;
       const chrome = forcedImmersive
         ? "immersive"
+        : explicitChrome && explicitChrome !== "bottom-tabs"
+          ? explicitChrome
         : screen.type === "root" && matchingItem
           ? "bottom-tabs"
-          : planned?.chrome ?? fallbackPolicy.chrome;
-      const suppressesNav = chrome === "immersive" || chrome === "modal-sheet";
+          : explicitChrome ?? fallbackPolicy.chrome;
+      const suppressesNav = chrome !== "bottom-tabs";
       return {
         screenName: screen.name,
         chrome,
@@ -810,13 +931,16 @@ export function applyNavigationPlanToScreens(screens: ScreenPlan[], navigationPl
       showPrimaryNavigation: Boolean(screenChrome?.navigationItemId),
       showsBackButton: screen.type === "detail" && screenChrome?.chrome !== "modal-sheet",
     };
+    const resolvedChrome = screenChrome?.chrome ?? existingPolicy.chrome;
+    const showPrimaryNavigation = resolvedChrome === "bottom-tabs" && Boolean(screenChrome?.navigationItemId);
     return {
       ...screen,
       navigationItemId: screenChrome?.navigationItemId ?? null,
       chromePolicy: {
         ...existingPolicy,
-        chrome: screenChrome?.chrome ?? existingPolicy.chrome,
-        showPrimaryNavigation: Boolean(screenChrome?.navigationItemId),
+        chrome: resolvedChrome,
+        showPrimaryNavigation,
+        showsBackButton: resolvedChrome === "top-bar-back",
       },
     };
   });
@@ -832,7 +956,9 @@ export function validateNavigationShell(shellCode: string, navigationPlan: Navig
   const navRootCount = (shellCode.match(/<nav\b[^>]*\bdata-drawgle-primary-nav\b/gi) ?? []).length;
   if (navRootCount !== 1 || /<\/?(?:html|head|body)\b/i.test(shellCode) || /<script\b/i.test(shellCode)) return false;
 
-  const expectedIds = navigationPlan.items.map((item) => item.id);
+  const expectedIds = (navigationPlan.version === 3
+    ? navigationPlan.items.filter((item) => item.availability !== "planned" && Boolean(item.linkedScreenName))
+    : navigationPlan.items).map((item) => item.id);
   const actualIds = Array.from(shellCode.matchAll(/\bdata-nav-item-id\s*=\s*(?:"([^"]+)"|'([^']+)')/gi))
     .map((match) => match[1] ?? match[2])
     .filter(Boolean);
@@ -1105,6 +1231,22 @@ export function parseStoredNavigationPlan(value: unknown): NavigationPlan {
     appearance: version === 3 && isRecord(value.appearance)
       ? {
           source: value.appearance.source === "reference" ? "reference" : "project-native",
+          evidenceSource: value.appearance.evidenceSource === "structured-reference"
+            || value.appearance.evidenceSource === "curated-catalog"
+            || value.appearance.evidenceSource === "project-native"
+            ? value.appearance.evidenceSource
+            : undefined,
+          evidenceConfidence: value.appearance.evidenceConfidence === "high"
+            || value.appearance.evidenceConfidence === "medium"
+            || value.appearance.evidenceConfidence === "low"
+            ? value.appearance.evidenceConfidence
+            : undefined,
+          geometryOwner: value.appearance.geometryOwner === "reference-measurements"
+            ? "reference-measurements"
+            : "project-tokens",
+          measuredFields: Array.isArray(value.appearance.measuredFields)
+            ? value.appearance.measuredFields.filter((item): item is string => typeof item === "string").slice(0, 24)
+            : [],
           primary: isRecord(value.appearance.primary)
             ? normalizeNavigationDesignContract(value.appearance.primary as unknown as NavigationDesignContract, typeof value.visualBrief === "string" ? value.visualBrief : "")
             : null,

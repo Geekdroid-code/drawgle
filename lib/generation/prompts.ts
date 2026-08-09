@@ -426,6 +426,14 @@ Return strictly valid JSON in this format after inspecting the image with an exp
     "rootDetailPattern": "Bottom navigation appears on a root screen while detail screens use contextual top/back chrome.",
     "appearance": {
       "primary": {
+        "anatomy": "floating-dock",
+        "width": "content",
+        "labels": "always",
+        "activeTreatment": "icon-fill",
+        "surface": "solid",
+        "border": true,
+        "elevation": "low",
+        "itemLayout": "stacked",
         "containerHeightPx": 58,
         "maxWidthPx": 280,
         "horizontalInsetPx": 20,
@@ -530,6 +538,8 @@ Rules:
 - Arrangement: explain row/column/grid/stack/absolute/floating layout, alignment, gaps, padding, insets, overlap, clipping, anchors, top/middle/bottom regions, proportions, active states, icon/label treatment, repeated motifs, and parent-child rebuild structure. Use approximate px-like values when helpful; do not invent false precision.
 - Material/depth: describe overlap, layering, floating surfaces, bottom sheets, tabs, charts, gauges, avatar stacks, map regions, large type, image cutouts, control bars, CTA construction, shadow color/blur/spread, border visibility, surface finish, and light interaction. Avoid vague labels like "soft shadow", "modern glass", or "modern UI" unless immediately explained by observable anatomy.
 - Navigation: populate primaryNavigation from visible evidence only. Capture item count/order, labels, icon meaning, repeated-shell evidence, per-screen active item, supported anatomy, geometry, label rhythm, active-state shape, elevation, and safe-area relationship. Use present false when no persistent primary navigation is visible.
+- Navigation precision: always report qualitative appearance fields when navigation is visible, but include numeric appearance fields only when they are visually measurable. Omit uncertain numeric fields instead of manufacturing precision; geometryProfile carries confidence and ranges.
+- Semantic composition: Extract 2-6 meaningful semanticCompositionPrimitives when visible composition supports them. Do not pad the array with generic or unsupported principles.
 - Contextual navigation is evidence too: record exactly which screens show primary navigation and which use top/back controls. Do not discard a visible root dock merely because detail screens intentionally omit it.
 - Geometry: populate geometryProfile with component-role measurements. Measure the app UI only. Mark device frames, phone-shell corners, status bars, home indicators, collage gutters, and mockup backgrounds as sourceLayer device-mockup so they can never become card, spacing, or navigation tokens.
 - Motif locality: record decorative or constructed motifs separately from global design invariants. State their functional purpose and whether they are global material, component-local, or screen-local decoration. A dotted chart grid is component-local chart evidence, not a project background rule.
@@ -544,7 +554,7 @@ export const referenceAnalysisRecreateInstruction = `${referenceAnalysisInstruct
 MODE LOCK: USER_RECREATE.
 This uploaded image is a structural reference. Extract visible layout anatomy, layer order, containment, spacing, depth, and component construction required to recreate the mobile screen ui faithfully.`;
 
-export const referenceAnalysisStyleInstruction = `You are a specialist in extracting reusable visual DNA from premium mobile UI screenshots.
+const legacyReferenceAnalysisStyleInstruction = `You are a specialist in extracting reusable visual DNA from premium mobile UI screenshots.
 This image is a STYLE REFERENCE only. It is not the user's requested layout.
 
 Return strictly valid JSON in this format:
@@ -616,6 +626,14 @@ Rules:
 - Identify what would make another product feel similarly premium without making it a clone.
 - The downstream planner and builder will create app-specific layouts from the user prompt, so your analysis must separate visual craft from layout template.`;
 
+void legacyReferenceAnalysisStyleInstruction;
+
+export const referenceAnalysisStyleInstruction = `${referenceAnalysisInstruction}
+
+MODE LOCK: STYLE_REFERENCE.
+The uploaded image is visual calibration evidence, not the target product layout. Populate the complete shared schema, including primaryNavigation, primaryNavigation.appearance, geometryProfile.measurements, and motifs. Use primaryNavigation.present=false and motifs=[] when those things are genuinely absent; never omit the fields.
+Transfer visual craft, measured component relationships, material construction, hierarchy mechanics, and navigation appearance only. Do not copy source text, values, branding, product-domain components, exact coordinates, section order, or full-screen anatomy.`;
+
 // ---------------------------------------------------------------------------
 // DESIGN — Art Director / Token System
 // ---------------------------------------------------------------------------
@@ -630,7 +648,7 @@ Treat these as platform constraints, not stylistic variables: safe_area_top, saf
 Treat these as dynamic design variables that should change when the approved evidence changes: spacing rhythm, section gaps, radii, border widths, shadow depth, surface contrast, font recommendations, and typography hierarchy.
 Use 16px as the production baseline for mobile screen_margin. Deviate only when the user explicitly requests another margin or the approved evidence contains clear measured screen-edge padding; vague words such as airy, spacious, premium, or generous are not evidence for a larger margin. Never enlarge the outer margin merely to create whitespace because it squeezes the usable content rail.
 Create one disciplined visual language for the whole app. Do not hand the builder a menu of different radii, border widths, or shadow strengths to choose from per screen.
-For shape and elevation, use one outer surface radius, one smaller inner/inset radius, a single standard border width, and a single standard surface shadow. A pill radius may exist only as a controlled exception for chips, segmented controls, or capsule CTAs.
+For shape and elevation, use one outer surface radius, one smaller inner/inset radius, a single standard border width, and a single standard surface shadow. A pill radius is reserved for chips, badges, avatars, circular icon wells, and only the explicitly evidence-approved exceptions supplied by the component shape policy.
 
  REQUIRED JSON SCHEMA:
 {
@@ -645,6 +663,12 @@ For shape and elevation, use one outer surface radius, one smaller inner/inset r
       "text": { "high_emphasis": "HEX", "medium_emphasis": "HEX", "low_emphasis": "HEX" },
       "action": { "primary": "HEX", "secondary": "HEX", "disabled": "HEX", "on_primary_text": "HEX" },
       "border": { "divider": "HEX", "focused": "HEX" }
+      ,"status": {
+        "success": { "foreground": "HEX", "surface": "HEX", "border": "HEX" },
+        "warning": { "foreground": "HEX", "surface": "HEX", "border": "HEX" },
+        "danger": { "foreground": "HEX", "surface": "HEX", "border": "HEX" },
+        "info": { "foreground": "HEX", "surface": "HEX", "border": "HEX" }
+      }
     },
     "typography": {
       "heading_font_family": "CSS font stack used only for headings",
@@ -679,6 +703,24 @@ For shape and elevation, use one outer surface radius, one smaller inner/inset r
       "active_content": "HEX content color on the active surface",
       "border": "HEX navigation border color",
       "shadow": "CSS box-shadow for the persistent navigation surface"
+      ,"anatomy": "fixed-tab-rail | floating-dock | glass-dock | compact-icon-rail | center-action-dock",
+      "width": "content | inset | full",
+      "labels": "always | active-only | hidden",
+      "active_treatment": "icon-fill | tint | underline | compact-chip",
+      "surface_material": "solid | translucent | glass",
+      "container_height": "px",
+      "max_width": "px or none",
+      "safe_area_offset": "px",
+      "horizontal_inset": "px",
+      "horizontal_padding": "px",
+      "vertical_padding": "px",
+      "item_gap": "px",
+      "icon_size": "px",
+      "label_size": "px",
+      "label_weight": "number",
+      "backdrop_blur": "px",
+      "active_indicator_width": "px",
+      "active_indicator_height": "px"
     },
     "opacities": { "transparent": "0", "disabled": "0.38", "scrim_overlay": "0.50", "pressed": "0.12", "opaque": "1" },
     "z_index": { "base": "0", "sticky_header": "10", "bottom_nav": "20", "bottom_sheet": "30", "modal_dialog": "40", "toast_snackbar": "50" }
@@ -691,8 +733,8 @@ Rules:
 - spacing and mobile_layout must be chosen intentionally from the approved evidence, but should still read as one consistent rhythm system across the product. screen_margin defaults to 16px and needs explicit measured evidence to be larger.
 - radii, border_widths, and shadows must define one coherent app-wide geometry/elevation language, not multiple interchangeable options.
 - Use radii.app for outer cards, sheets, panels, inputs, and navigation shells.
-- Use radii.inner for nested cards, inset panels, segmented tabs, and active navigation items. It must be smaller than radii.app unless both are 0px in a sharp system.
-- Use radii.pill only for true capsules and circular wells.
+- Use radii.inner for nested cards, inset panels, standard buttons, segmented items, and active navigation items. It must be smaller than radii.app unless both are 0px in a sharp system.
+- Use radii.pill for chips, badges, avatars, and circular icon wells. Primary CTAs and segmented items use it only when the deterministic component shape policy explicitly authorizes that role.
 - Use border_widths.standard as the default border weight across the app.
 - Use shadows.surface for standard elevated surfaces and shadows.overlay only for stronger overlays like sheets or floating panels.
 - Use gradients as first-class material tokens when the approved evidence or creative direction uses gradient depth. Provide app_background, action_primary, surface_highlight, and accent_ring values as complete CSS gradient strings. Keep them disciplined and role-based, not a grab bag of decorative effects.
@@ -750,6 +792,7 @@ const resolveToken = (
 };
 
 const buildStrictDesignContract = (designTokens?: DesignTokens | null) => {
+  const shapePolicy = normalizeDesignTokens(designTokens).meta?.componentShapePolicy;
   const appRadius = resolveToken(designTokens, "radii.app", "18px");
   const innerRadius = resolveToken(designTokens, "radii.inner", "12px");
   const pillRadius = resolveToken(designTokens, "radii.pill", "9999px");
@@ -769,6 +812,11 @@ const buildStrictDesignContract = (designTokens?: DesignTokens | null) => {
     `- Outer surface radius: ${appRadius} (cards, sheets, panels, fields, and navigation shells)`,
     `- Inner container radius: ${innerRadius} (nested cards, inset panels, segmented tabs, and active navigation items)`,
     `- Pill radius: ${pillRadius} (use only for true capsules and circular wells)`,
+    `- Field radius role: radii.${shapePolicy?.field ?? "app"}`,
+    `- Standard button radius role: radii.${shapePolicy?.standardButton ?? "inner"}`,
+    `- Primary CTA radius role: radii.${shapePolicy?.primaryCta ?? "inner"}`,
+    `- Segmented container/item radius roles: radii.${shapePolicy?.segmentedContainer ?? "app"} / radii.${shapePolicy?.segmentedItem ?? "inner"}`,
+    `- Shape evidence: ${shapePolicy?.evidenceSource ?? "default"}; ${shapePolicy?.rationale ?? "No explicit capsule exception was approved."}`,
     `- Standard border width: ${standardBorder}`,
     `- Standard surface shadow: ${surfaceShadow}`,
     `- Overlay shadow: ${overlayShadow}`,
@@ -1027,8 +1075,8 @@ ${sharedNavContract}
 Additional rules:
 1. Prefer Drawgle token utility classes and CSS variables for canonical styling. Do not freeze token values as raw hex/pixels when a project token variable exists.
 2. Do not invent new radii, border widths, or shadow recipes. Reuse the approved contract exactly.
-3. Use the outer app radius for cards, fields, navigation shells, sheets, and panels.
-4. Use the inner radius for nested cards, inset panels, segmented tabs, and active navigation items. Use the pill radius only for true capsules and circular wells.
+3. Follow the single component-role mapping in STRICT DESIGN CONTRACT; it owns fields, buttons, segmented controls, and primary CTA radii.
+4. Use the pill radius only for chips, badges, avatars, circular wells, and component roles explicitly marked pill by that contract.
 5. Preserve the existing navigation family unless the user explicitly asks to redesign navigation.
 6. Preserve typography role consistency. Do not introduce arbitrary text sizes or weights when an existing semantic text role already fits.
 7. If the current code already violates the contract, move it toward the approved values while completing the requested edit instead of drifting further away.
@@ -1179,7 +1227,7 @@ If a row/card contains more than two text lines plus controls, increase its heig
 CRITICAL INSTRUCTION 1: LIVE DESIGN TOKENS
 You MUST use Drawgle live token utility classes and CSS variables for canonical colors, typography, spacing, sizing, radii, borders, and shadows.
 Preferred examples: dg-bg-primary, dg-surface-card, dg-text-high, dg-text-medium, dg-action-primary, dg-border-divider, dg-radius-app, dg-radius-inner, dg-radius-pill, dg-shadow-surface, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-body, dg-type-caption.
-For token values without a named utility, use Tailwind arbitrary values with CSS variables, e.g. bg-[var(--dg-color-action-primary)], [background-image:var(--dg-gradient-action-primary)], p-[var(--dg-spacing-md)], rounded-[var(--dg-radii-app)]. Outer surfaces use radii.app, nested/inset surfaces use radii.inner, and only true capsules/circular wells use radii.pill.
+For token values without a named utility, use Tailwind arbitrary values with CSS variables, e.g. bg-[var(--dg-color-action-primary)], [background-image:var(--dg-gradient-action-primary)], p-[var(--dg-spacing-md)], rounded-[var(--dg-radii-app)]. The component-role mapping in STRICT DESIGN CONTRACT is authoritative; do not improvise per-screen radii.
 Do NOT freeze project token values as raw hex or raw pixels when a token variable exists. Token gradients are canonical for expressive CTAs, app backgrounds, surface highlights, and accent rings. Raw/custom gradients are allowed only for deliberate one-off art details such as charts, maps, illustrations, or non-system lighting effects.
 Do NOT default to generic Tailwind palette values (e.g., bg-gray-900) if a design token exists for that purpose.
 Do NOT invent additional radius tiers, border widths, or shadow strengths. Use one geometry/elevation language across the entire screen.

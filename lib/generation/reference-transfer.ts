@@ -11,6 +11,7 @@ import type {
   ReferenceLocalMotifRule,
   ReferenceTransferContract,
   ScreenLayoutRegion,
+  SemanticCompositionPrimitive,
   SemanticTransferDecision,
 } from "@/lib/types";
 
@@ -177,39 +178,98 @@ const buildLocalMotifRules = (
   };
 });
 
-const regionsForCapability = (regions: ScreenLayoutRegion[], capability: string) => {
-  const capabilityText = capability.toLowerCase();
-  const preferredKinds = /monitor|analytic|metric|insight/.test(capabilityText)
-    ? ["chart", "focal", "supporting"]
-    : /search|filter|discover/.test(capabilityText)
-      ? ["form", "list", "focal"]
-      : /collection|catalog|feed|ledger|history/.test(capabilityText)
-        ? ["list", "focal", "supporting"]
-        : /transaction|checkout|form|entry|edit/.test(capabilityText)
-          ? ["form", "action", "supporting"]
-          : /detail|inspect|summary/.test(capabilityText)
-            ? ["focal", "supporting", "action"]
-            : ["focal", "supporting", "list", "form", "action", "chart", "media"];
-  const ranked = preferredKinds.flatMap((kind) => regions.filter((region) => region.contentKind === kind));
-  const uniqueRegions = ranked.filter((region, index) => ranked.findIndex((candidate) => candidate.id === region.id) === index);
-  return uniqueRegions.length ? uniqueRegions.slice(0, 2) : regions.filter((region) => region.contentKind !== "header").slice(0, 2);
+const NAVIGATION_PRIMITIVE_PATTERN = /\b(?:navigation|bottom nav|tab bar|nav dock|floating dock|app chrome|back control)\b/i;
+
+const compatibleRegionsForPrimitive = (
+  primitive: SemanticCompositionPrimitive,
+  regions: ScreenLayoutRegion[],
+) => {
+  // The primitive kind already describes the source. Compatibility must be
+  // proven by the target region itself; including primitive purpose here made
+  // every region appear compatible whenever the source contained a keyword.
+  const purposeMatches = (region: ScreenLayoutRegion, pattern: RegExp) => pattern.test(region.purpose);
+  switch (primitive.kind) {
+    case "anchored-action":
+      return regions.filter((region) => region.contentKind === "action");
+    case "data-comparison":
+      return regions.filter((region) => region.contentKind === "chart" || purposeMatches(region, /\bcompar(?:e|ison|ative)|trend|metric\b/i));
+    case "content-stream":
+      return regions.filter((region) => region.contentKind === "list" || purposeMatches(region, /\bfeed|stream|timeline|activity|ledger|history\b/i));
+    case "immersive-canvas":
+      return regions.filter((region) => (region.contentKind === "media" || region.contentKind === "focal") && purposeMatches(region, /\bmedia|canvas|map|visual|preview|hero\b/i));
+    case "progressive-sequence":
+      return regions.filter((region) => purposeMatches(region, /\bstep|stage|progress|sequence|timeline|onboard\b/i));
+    case "focal-anchor":
+      return regions.filter((region) => region.contentKind === "focal");
+    case "reveal-on-demand":
+      return regions.filter((region) => purposeMatches(region, /\bexpand|reveal|disclos|accordion|details on demand\b/i));
+    case "editorial-rhythm":
+      return regions.filter((region) => purposeMatches(region, /\beditorial|article|story|reading|narrative\b/i));
+    case "layered-depth":
+      return regions.filter((region) => purposeMatches(region, /\blayer|overlay|sheet|depth|stacked context\b/i));
+    case "spatial-cluster":
+      return regions.filter((region) => ["focal", "media", "list"].includes(region.contentKind) && purposeMatches(region, /\bcluster|spatial|browse|collection|group\b/i));
+    case "modular-workspace":
+      return regions.filter((region) => ["supporting", "list", "form"].includes(region.contentKind) && purposeMatches(region, /\bmodule|workspace|tool|editor|dashboard\b/i));
+    case "split-context":
+      return regions.filter((region) => ["focal", "supporting"].includes(region.contentKind) && purposeMatches(region, /\bsplit|context|master|detail|comparison\b/i));
+    default:
+      return [];
+  }
 };
 
 const buildCompositionAdaptations = (
   decisions: SemanticTransferDecision[],
   regions: ScreenLayoutRegion[],
+  referenceAnalysis?: ReferenceAnalysis | null,
 ): ReferenceCompositionAdaptation[] => decisions
   .filter((decision) => decision.decision !== "reject" && decision.adaptation)
   .slice(0, 8)
   .flatMap((decision) => {
-    const targetRegions = regionsForCapability(regions, decision.targetCapability);
+    const primitive = referenceAnalysis?.semanticCompositionPrimitives?.find((candidate) => candidate.id === decision.primitiveId);
+    if (!primitive || NAVIGATION_PRIMITIVE_PATTERN.test(`${primitive.label} ${primitive.purpose} ${primitive.sourceEvidence}`)) return [];
+    const targetRegions = compatibleRegionsForPrimitive(primitive, regions).slice(0, 3);
     if (!targetRegions.length) return [];
     return [{
+      sourcePrimitiveId: primitive.id,
+      sourcePrimitiveKind: primitive.kind,
       principle: decision.adaptation ?? decision.rationale,
       targetRegionIds: targetRegions.map((region) => region.id),
       functionalPurpose: decision.rationale,
     }];
+  })
+  .filter((item, index, all) => {
+    const key = `${item.sourcePrimitiveId}|${[...item.targetRegionIds].sort().join(",")}`;
+    return all.findIndex((candidate) => `${candidate.sourcePrimitiveId}|${[...candidate.targetRegionIds].sort().join(",")}` === key) === index;
   });
+
+const enforceRegionCompatibility = (
+  decisions: SemanticTransferDecision[],
+  regions: ScreenLayoutRegion[],
+  referenceAnalysis?: ReferenceAnalysis | null,
+) => decisions.map((decision) => {
+  if (decision.decision === "reject") return decision;
+  const primitive = referenceAnalysis?.semanticCompositionPrimitives?.find((candidate) => candidate.id === decision.primitiveId);
+  if (!primitive) return { ...decision, decision: "reject" as const, adaptation: null, qualityTargets: [], rationale: "The source primitive could not be resolved safely." };
+  if (NAVIGATION_PRIMITIVE_PATTERN.test(`${primitive.label} ${primitive.purpose} ${primitive.sourceEvidence}`)) {
+    return { ...decision, decision: "reject" as const, adaptation: null, qualityTargets: [], rationale: "Navigation and chrome evidence is owned exclusively by NavigationAppearanceContract." };
+  }
+  if (compatibleRegionsForPrimitive(primitive, regions).length > 0) return decision;
+  if (primitive.kind === "editorial-rhythm" || primitive.kind === "layered-depth") {
+    return {
+      ...decision,
+      adaptation: null,
+      rationale: "No target region explicitly requires this composition; retain only its non-structural craft traits as visual invariants.",
+    };
+  }
+  return {
+    ...decision,
+    decision: "reject" as const,
+    adaptation: null,
+    qualityTargets: [],
+    rationale: "No named target region has both a compatible content kind and matching functional purpose.",
+  };
+});
 
 export function createReferenceTransferContract({
   mode,
@@ -227,9 +287,15 @@ export function createReferenceTransferContract({
   screenLayoutRegions?: ScreenLayoutRegion[];
 }): ReferenceTransferContract {
   const signals = referenceAnalysis?.designSystemSignals;
-  const semanticPlan = mode === "style" && referenceAnalysis
+  const rawSemanticPlan = mode === "style" && referenceAnalysis
     ? buildSemanticTransferPlan({ referenceAnalysis, screenName, screenDescription, screenType })
     : emptySemanticPlan({ screenName, screenDescription, screenType });
+  const semanticPlan = mode === "style"
+    ? {
+        ...rawSemanticPlan,
+        semanticDecisions: enforceRegionCompatibility(rawSemanticPlan.semanticDecisions, screenLayoutRegions, referenceAnalysis),
+      }
+    : rawSemanticPlan;
 
   if (mode === "recreate") {
     return {
@@ -291,8 +357,12 @@ export function createReferenceTransferContract({
         signals?.surfaces,
         signals?.iconography,
         signals?.density,
+        ...(referenceAnalysis?.semanticCompositionPrimitives ?? [])
+          .filter((primitive) => (primitive.kind === "editorial-rhythm" || primitive.kind === "layered-depth")
+            && !compatibleRegionsForPrimitive(primitive, screenLayoutRegions).length)
+          .flatMap((primitive) => primitive.transferableTraits),
       ], 8),
-      compositionAdaptations: buildCompositionAdaptations(semanticPlan.semanticDecisions, screenLayoutRegions),
+      compositionAdaptations: buildCompositionAdaptations(semanticPlan.semanticDecisions, screenLayoutRegions, referenceAnalysis),
       localMotifs: buildLocalMotifRules(referenceAnalysis, screenLayoutRegions),
       forbiddenLiteralTransfers: [
         "Source text, values, names, branding, and domain-specific content.",
@@ -339,7 +409,9 @@ const mergePlannerSemanticDecisions = (
         rationale: compact(typeof planner.rationale === "string" ? planner.rationale : null, 500) ?? decision.rationale,
       };
     }
-    const plannerAdaptation = compact(typeof planner.adaptation === "string" ? planner.adaptation : null, 600);
+    const plannerAdaptation = decision.adaptation
+      ? compact(typeof planner.adaptation === "string" ? planner.adaptation : null, 600)
+      : null;
     const safeAdaptation = plannerAdaptation
       && !SOURCE_ANATOMY_CUE_PATTERN.test(plannerAdaptation)
       && !STRUCTURAL_COPY_PATTERN.test(plannerAdaptation)
@@ -411,24 +483,9 @@ export function normalizeReferenceTransferContract({
         ...fallback.premiumQualityTargets,
       ], 10)
     : fallback.premiumQualityTargets;
-  const validRegionIds = new Set(screenLayoutRegions.map((region) => region.id));
-  const plannerComposition = Array.isArray(record.composition_adaptations ?? record.compositionAdaptations)
-    ? (record.composition_adaptations ?? record.compositionAdaptations as unknown[])
-    : [];
-  const compositionAdaptations = (plannerComposition as unknown[]).flatMap((item) => {
-    const entry = asRecord(item);
-    if (!entry) return [];
-    const principle = compact(typeof entry.principle === "string" ? entry.principle : null, 700);
-    const functionalPurpose = compact(typeof (entry.functional_purpose ?? entry.functionalPurpose) === "string"
-      ? String(entry.functional_purpose ?? entry.functionalPurpose)
-      : null, 500);
-    const rawTargets = entry.target_region_ids ?? entry.targetRegionIds;
-    const targetRegionIds = Array.isArray(rawTargets)
-      ? rawTargets.filter((target): target is string => typeof target === "string" && validRegionIds.has(target)).slice(0, 6)
-      : [];
-    if (!principle || !functionalPurpose || !targetRegionIds.length || SOURCE_ANATOMY_CUE_PATTERN.test(principle) || STRUCTURAL_COPY_PATTERN.test(principle)) return [];
-    return [{ principle, functionalPurpose, targetRegionIds }];
-  });
+  const compositionAdaptations = mode === "style"
+    ? buildCompositionAdaptations(semanticDecisions, screenLayoutRegions, referenceAnalysis)
+    : fallback.compositionAdaptations ?? [];
   const plannerMotifs = Array.isArray(record.local_motifs ?? record.localMotifs)
     ? (record.local_motifs ?? record.localMotifs as unknown[])
     : [];
@@ -466,7 +523,7 @@ export function normalizeReferenceTransferContract({
       ...stringArray(record.visual_invariants ?? record.visualInvariants, 10).filter((item) => !SOURCE_ANATOMY_CUE_PATTERN.test(item)),
       ...(fallback.visualInvariants ?? []),
     ], 10),
-    compositionAdaptations: [...compositionAdaptations, ...(fallback.compositionAdaptations ?? [])].slice(0, 8),
+    compositionAdaptations,
     localMotifs,
     forbiddenLiteralTransfers: unique([
       ...stringArray(record.forbidden_literal_transfers ?? record.forbiddenLiteralTransfers, 12),

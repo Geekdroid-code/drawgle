@@ -17,6 +17,7 @@ import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { isProjectAgentV2Enabled } from "@/lib/env/server";
 import { applyDeterministicEdits, ensureDrawgleIds, type DeterministicEditOperation, type DrawgleImageTargetMeta } from "@/lib/drawgle-dom";
 import { indexScreenCode } from "@/lib/generation/block-index";
+import { buildStaticScreenQualityDiagnostics, normalizeGeneratedUiContracts } from "@/lib/generation/ui-contract-normalizer";
 import { persistProjectMessageMemoryPair } from "@/lib/generation/message-memory";
 import { findRepairTarget } from "@/lib/generation/screen-repair";
 import { findLatestProjectPromptImagePath } from "@/lib/generation/prompt-reference-storage";
@@ -2179,13 +2180,16 @@ export async function POST(request: Request) {
         drawgleId: activeSelectionDrawgleId ?? "",
         operations,
       });
-      const nextCode = tokenizeStaticDrawgleHtml(editedCode, designTokens).code;
+      const normalized = normalizeGeneratedUiContracts({ code: editedCode, designTokens });
+      const nextCode = tokenizeStaticDrawgleHtml(normalized.code, designTokens).code;
+      const qualityDiagnostics = buildStaticScreenQualityDiagnostics(nextCode, normalized.report);
       const changed = nextCode !== currentCode;
 
       await admin
         .from("screens")
         .update({
           code: nextCode,
+          quality_diagnostics: qualityDiagnostics as never,
           block_index: indexScreenCode(nextCode) as never,
           status: "ready",
           error: null,
@@ -2643,7 +2647,8 @@ export async function POST(request: Request) {
           operations: deterministicStyleIntent.operations,
           prefix: "dg-nav",
         });
-        const nextCode = tokenizeStaticDrawgleHtml(editedCode, designTokens).code;
+        const normalized = normalizeGeneratedUiContracts({ code: editedCode, designTokens });
+        const nextCode = tokenizeStaticDrawgleHtml(normalized.code, designTokens).code;
         changed = nextCode !== currentCode;
         modelContent = changed
           ? "Updated selected navigation element with project tokens."
@@ -2684,7 +2689,9 @@ export async function POST(request: Request) {
           drawgleId: activeSelectionDrawgleId,
           operations: deterministicStyleIntent.operations,
         });
-        const nextCode = tokenizeStaticDrawgleHtml(editedCode, designTokens).code;
+        const normalized = normalizeGeneratedUiContracts({ code: editedCode, designTokens });
+        const nextCode = tokenizeStaticDrawgleHtml(normalized.code, designTokens).code;
+        const qualityDiagnostics = buildStaticScreenQualityDiagnostics(nextCode, normalized.report);
         changed = nextCode !== currentCode;
         modelContent = changed
           ? `Updated selected element in ${screen.name} with project tokens.`
@@ -2695,6 +2702,7 @@ export async function POST(request: Request) {
             .from("screens")
             .update({
               code: nextCode,
+              quality_diagnostics: qualityDiagnostics as never,
               block_index: indexScreenCode(nextCode) as never,
               status: "ready",
               error: null,

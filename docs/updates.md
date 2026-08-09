@@ -37,6 +37,13 @@ The normalized per-screen description and layout contract go to the builder. Raw
 - Phone shells, status bars, collage gutters, mockup backgrounds, and device corners are excluded from app tokens.
 - High-confidence app measurements may deterministically set matching token roles. Missing or low-confidence measurements retain the generated-token fallback.
 - A named font is accepted only when the reference analysis supports that family. Otherwise Style Reference runs use system-safe font stacks rather than an invented family.
+- Scope confidence and visual-evidence confidence are separate. A reliable visible-screen count cannot make missing geometry, motifs, or navigation appearance look high-confidence.
+
+### Builder continuity contract
+
+- Every initial build, retry, add-screen build, and supported edit receives one compact `BuilderProjectContractV1`.
+- It contains product identity, the current target screen and named regions, product-owned navigation, screen-family rules, and the approved component-shape policy.
+- It never contains raw planner/roadmap JSON, `Planner Brief`, another screen's detailed topology, reference-domain content, or a duplicated original prompt.
 
 ### Motif locality
 
@@ -52,6 +59,73 @@ The normalized per-screen description and layout contract go to the builder. Raw
 - A root dock remains valid appearance evidence even when detail reference screens intentionally omit it.
 - Version-3 navigation renders from an appearance recipe rather than an anatomy-specific dimension template.
 - Legacy version-1 and version-2 stored plans remain readable and render through their compatibility behavior.
+- New project-native V3 dimensions come from navigation/design tokens. Reference-owned dimensions come only from validated measurements. Curated catalog tags may select coarse anatomy/material but never invent pixel measurements.
+- Planned-but-unbuilt destinations remain in roadmap semantics and are not rendered as disabled V3 items.
+- Explicit back, modal, immersive, checkout, authentication, or finite-flow chrome suppresses the bottom dock.
+
+### UI contract repair and QA
+
+- `normalizeGeneratedUiContracts()` runs before token-drift diagnostics and persistence for generated screens and screen edits.
+- Exact known aliases and confident status/radius-role mistakes are repaired deterministically. There is no fuzzy token-name matching.
+- Unknown variables, ambiguous artistic containers, truncation risks, and residual token drift are saved as warnings. They do not trigger a paid builder retry or fail a usable screen.
+- Blank, unsafe, malformed, structurally broken, or genuinely unrenderable output still follows the existing failure gates.
+- Owner previews report bounded rendered measurements after Tailwind and fonts are ready. Public/read-only previews never write telemetry; source HTML, prompts, image data, and full text content are never sent.
+- `DRAWGLE_UI_CONTRACT_REPAIR_ENABLED=false` changes the normalizer to diagnostics-only mode without removing telemetry.
+
+## 2026-08-09 — Deterministic UI Contract and Runtime QA Hardening
+
+### Symptom
+
+Generated screens could silently lose spacing through unknown CSS variables, use different radii for the same control role, bypass semantic status colors, combine back chrome with a bottom dock, render the same generic navigation recipe, and miss visible truncation or collapsed layout. Tailwind configuration also executed before the CDN global existed.
+
+### Root cause
+
+- Style analysis did not consistently require navigation, geometry, and motif sections, while screen-count confidence was incorrectly reused as visual confidence.
+- Navigation appearance was normalized incompletely, planner-authored transfer-region mappings were trusted, and deterministic fallback mappings were appended a second time.
+- Builders had target screen briefs but no compact saved product/screen-family contract.
+- Radius instructions described overlapping exceptions without one evidence-owned role map.
+- Generated CSS had drift detection but no exact alias repair or unknown-variable registry.
+- V3 navigation still mixed appearance contracts with template dimensions and rendered planned destinations as disabled items.
+- The preview placed `tailwind.config` before the V3 Play CDN script and had no persisted rendered audit.
+
+### Change
+
+- Unified required reference-analysis evidence, added Gemini response schema validation, one bounded analysis repair, and separate scope/visual completeness diagnostics.
+- Added `BuilderProjectContractV1` to generation, retry, and edit builder paths.
+- Added semantic status roles, navigation tokens, and an evidence-gated `DesignComponentShapePolicy`.
+- Added exact deterministic CSS alias/status/radius normalization with warning-only residual drift.
+- Recomputed transfer-region assignments from primitive kind and target function; planner mappings can no longer create unrelated placements or duplicates.
+- Made V3 reference geometry measurement-owned and project-native geometry token-owned; removed disabled unbuilt destinations and enforced back/dock exclusivity.
+- Corrected Tailwind V3 script ordering with an idempotent config function used after initial and retry loads.
+- Added nullable `screens.quality_diagnostics`, bounded owner-only persistence, stale-hash rejection, and non-blocking iframe audits.
+
+### Repair, warn, and fail policy
+
+- Repair: exact known alias, clearly semantic status color, or confidently identified standard control radius.
+- Warn and save: unknown CSS variable, ambiguous radius role, raw non-semantic color, truncation risk, residual cosmetic drift, or rendered geometry warning.
+- Fail: only existing structural, safety, malformed-source, blank-output, required-asset, or unrenderable-health failures.
+- Never purchase another builder call solely for CSS/token drift.
+
+### Shape-policy invariants
+
+- Cards, panels, sheets, navigation shells, and fields use `radii.app`.
+- Nested surfaces, standard buttons, segmented items, and active navigation states use `radii.inner`.
+- Segmented containers use `radii.app`; chips, badges, avatars, and circular icon wells use `radii.pill`.
+- Primary CTAs or segmented items use pill geometry only when user, reference, or design-style evidence explicitly links that component role to a capsule.
+
+### Rollout and rollback
+
+- New generation and subsequent edits use repair plus diagnostics by default. Existing screens are not rewritten.
+- Set `DRAWGLE_UI_CONTRACT_REPAIR_ENABLED=false` for diagnostics-only behavior. The nullable JSONB column may remain during rollback.
+- Style calibration attachment and its independent kill switch are unchanged. V1/V2 navigation stays on its compatibility renderer.
+
+### Verification
+
+- Relevant Vitest run: 31 files and 227 tests passed.
+- `pnpm.cmd run typecheck` and the optimized Next.js production build passed.
+- Final lint completed with zero errors and one pre-existing `react-hooks/exhaustive-deps` warning in untouched `components/CanvasArea.tsx`.
+- The compiled canvas fixture reached `data-drawgle-style-ready="ready"` at the nominal 390x844 screen frame with Tailwind utilities applied, no `tailwind is not defined` error, no horizontal overflow, and no critical truncation after the audit's clipping check was corrected. The local browser backend clamped its attempted narrower override to the standard canvas width, so this handoff does not claim a narrower-frame visual result.
+- Live Gemini/Luna acceptance remains a deployment task requiring production credentials and generation budget; unit tests do not claim a visual score.
 
 ## 2026-08-09 — Guarded Style Reference Builder Image Restoration
 

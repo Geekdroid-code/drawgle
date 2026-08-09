@@ -231,6 +231,20 @@ export interface DesignColorTokens {
     focused?: string;
     [key: string]: JsonValue | undefined;
   };
+  status?: {
+    success?: DesignStatusColorRole;
+    warning?: DesignStatusColorRole;
+    danger?: DesignStatusColorRole;
+    info?: DesignStatusColorRole;
+    [key: string]: JsonValue | DesignStatusColorRole | undefined;
+  };
+  [key: string]: JsonValue | undefined;
+}
+
+export interface DesignStatusColorRole {
+  foreground?: string;
+  surface?: string;
+  border?: string;
   [key: string]: JsonValue | undefined;
 }
 
@@ -326,6 +340,24 @@ export interface DesignNavigationTokens {
   active_content?: string;
   border?: string;
   shadow?: string;
+  anatomy?: NavigationAnatomy;
+  width?: "content" | "inset" | "full";
+  labels?: "always" | "active-only" | "hidden";
+  active_treatment?: "icon-fill" | "tint" | "underline" | "compact-chip";
+  surface_material?: "solid" | "translucent" | "glass";
+  container_height?: string;
+  max_width?: string;
+  safe_area_offset?: string;
+  horizontal_inset?: string;
+  horizontal_padding?: string;
+  vertical_padding?: string;
+  item_gap?: string;
+  icon_size?: string;
+  label_size?: string;
+  label_weight?: string;
+  backdrop_blur?: string;
+  active_indicator_width?: string;
+  active_indicator_height?: string;
   [key: string]: JsonValue | undefined;
 }
 
@@ -363,6 +395,21 @@ export interface DesignTokenValues {
 
 export interface DesignTokenMetadata {
   recommendedFonts?: string[];
+  componentShapePolicy?: DesignComponentShapePolicy;
+  [key: string]: JsonValue | undefined;
+}
+
+export interface DesignComponentShapePolicy {
+  version: 1;
+  field: "app";
+  standardButton: "inner";
+  primaryCta: "inner" | "pill";
+  segmentedContainer: "app";
+  segmentedItem: "inner" | "pill";
+  nestedSurface: "inner";
+  iconWell: "pill";
+  evidenceSource: "default" | "user" | "reference" | "design-style";
+  rationale: string;
   [key: string]: JsonValue | undefined;
 }
 
@@ -545,6 +592,10 @@ export interface ContextualChromeAppearanceContract {
 
 export interface NavigationAppearanceContract {
   source: "reference" | "project-native";
+  evidenceSource?: "structured-reference" | "curated-catalog" | "project-native";
+  evidenceConfidence?: "high" | "medium" | "low";
+  geometryOwner?: "reference-measurements" | "project-tokens";
+  measuredFields?: string[];
   primary: NavigationDesignContract | null;
   contextualChrome: ContextualChromeAppearanceContract | null;
   rationale: string;
@@ -791,6 +842,8 @@ export interface ReferenceTransferContract {
 }
 
 export interface ReferenceCompositionAdaptation {
+  sourcePrimitiveId?: string;
+  sourcePrimitiveKind?: SemanticCompositionPrimitiveKind;
   principle: string;
   targetRegionIds: string[];
   functionalPurpose: string;
@@ -952,9 +1005,18 @@ export interface ReferenceAnalysisResult {
   screenCountEstimate: number | null;
   screenReferenceCount: number | null;
   confidence: "high" | "medium" | "low";
+  scopeConfidence?: "high" | "medium" | "low";
+  visualEvidenceConfidence?: "high" | "medium" | "low";
+  evidenceCompleteness?: ReferenceEvidenceDiagnostics;
   source: "full_analysis" | "salvaged_analysis" | "count_only" | "none";
   diagnostics: string[];
   validationIssues?: string[];
+}
+
+export interface ReferenceEvidenceDiagnostics {
+  geometry: "complete" | "partial" | "missing";
+  navigation: "visible-complete" | "visible-partial" | "confirmed-absent" | "missing";
+  motifs: "complete" | "missing";
 }
 
 export type GenerationScopeCountSource =
@@ -1033,6 +1095,82 @@ export interface ScreenFamilyContract {
   navigation: string;
   imagery: string;
   consistencyRules: string[];
+}
+
+export interface BuilderProjectContractV1 {
+  version: 1;
+  product: {
+    appType: string;
+    targetAudience: string;
+    purpose: string;
+    keyFeatures: string[];
+  };
+  screen: {
+    name: string;
+    type: "root" | "detail";
+    purpose: string;
+    regions: ScreenLayoutRegion[];
+    chromePolicy: ScreenChromePolicy | null;
+  };
+  navigation: {
+    enabled: boolean;
+    destinations: Array<{ id: string; label: string; role: string; linkedScreenName: string | null }>;
+    currentItemId: string | null;
+  };
+  family: ScreenFamilyContract | null;
+  componentShapePolicy: DesignComponentShapePolicy;
+}
+
+export type UiContractDiagnosticCode =
+  | "known_token_alias"
+  | "unknown_token_reference"
+  | "unknown_token_reference_with_fallback"
+  | "status_role_repaired"
+  | "raw_status_color"
+  | "radius_role_repaired"
+  | "ambiguous_radius_role"
+  | "critical_truncation_risk"
+  | "navigation_chrome_conflict";
+
+export interface UiContractDiagnostic {
+  code: UiContractDiagnosticCode;
+  selector: string | null;
+  detail: string;
+}
+
+export interface UiContractNormalizationReportV1 {
+  version: 1;
+  repairEnabled: boolean;
+  repairs: UiContractDiagnostic[];
+  warnings: UiContractDiagnostic[];
+}
+
+export type RenderedQualityIssueCode =
+  | "horizontal_overflow"
+  | "critical_text_truncation"
+  | "collapsed_token_gap"
+  | "nested_radius_violation"
+  | "field_radius_mismatch"
+  | "button_radius_mismatch"
+  | "undersized_control"
+  | "style_runtime_degraded";
+
+export interface RenderedQualityIssue {
+  code: RenderedQualityIssueCode;
+  drawgleId: string | null;
+  measured?: Record<string, number>;
+}
+
+export interface ScreenQualityDiagnosticsV1 {
+  version: 1;
+  codeHash: string;
+  disposition: "clean" | "warning";
+  static: UiContractNormalizationReportV1;
+  rendered?: {
+    checkedAt: string;
+    viewport: { width: number; height: number };
+    issues: RenderedQualityIssue[];
+  } | null;
 }
 
 export interface ScreenCountContract {
@@ -1185,6 +1323,7 @@ export interface ScreenData {
   prompt: string;
   summary?: string | null;
   blockIndex?: ScreenBlockIndex | null;
+  qualityDiagnostics?: ScreenQualityDiagnosticsV1 | null;
   chromePolicy?: ScreenChromePolicy | null;
   navigationItemId?: string | null;
   parentScreenId?: string | null;
@@ -1306,6 +1445,7 @@ export interface BuildScreenInput {
   navigationArchitecture?: NavigationArchitecture | null;
   navigationPlan?: NavigationPlan | null;
   assetManifest?: ScreenAssetManifest[];
+  productContract?: BuilderProjectContractV1 | null;
   projectContext?: string | null;
   onResponseChunk?: (chunk: unknown) => void;
   onProviderEvent?: (event: LlmProviderEvent) => void;

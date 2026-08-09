@@ -352,6 +352,10 @@ ${buildCompatibilityAliasVariables()}
 .dg-gradient-accent-ring { background-image: var(--dg-gradient-accent-ring); }
 .dg-border-divider { border-color: var(--dg-color-border-divider); }
 .dg-border-focused { border-color: var(--dg-color-border-focused); }
+.dg-status-success { color: var(--dg-color-status-success-foreground); background-color: var(--dg-color-status-success-surface); border-color: var(--dg-color-status-success-border); }
+.dg-status-warning { color: var(--dg-color-status-warning-foreground); background-color: var(--dg-color-status-warning-surface); border-color: var(--dg-color-status-warning-border); }
+.dg-status-danger { color: var(--dg-color-status-danger-foreground); background-color: var(--dg-color-status-danger-surface); border-color: var(--dg-color-status-danger-border); }
+.dg-status-info { color: var(--dg-color-status-info-foreground); background-color: var(--dg-color-status-info-surface); border-color: var(--dg-color-status-info-border); }
 .dg-radius-app { border-radius: var(--dg-radii-app); }
 .dg-radius-inner { border-radius: var(--dg-radii-inner); }
 .dg-radius-pill { border-radius: var(--dg-radii-pill); }
@@ -422,6 +426,7 @@ const compactVisualTokenPrefixes = [
   "color.text",
   "color.action",
   "color.border",
+  "color.status",
   "typography.heading_font_family",
   "typography.body_font_family",
   "typography.nav_title",

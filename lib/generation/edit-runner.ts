@@ -32,6 +32,8 @@ import {
   validateStaticDrawgleHtml,
 } from "@/lib/generation/screen-quality";
 import { buildScreenPersistPatch, sanitizeScreenCodeForPersist } from "@/lib/generation/persist-safe";
+import { buildBuilderProjectContract } from "@/lib/generation/builder-product-contract";
+import { buildStaticScreenQualityDiagnostics, normalizeGeneratedUiContracts } from "@/lib/generation/ui-contract-normalizer";
 import { cleanUnknownError, USER_FACING_PERSIST_FAILED_ERROR } from "@/lib/ai/error-handler";
 import { findRepairTarget, replaceSourceRegion, type RepairTarget } from "@/lib/generation/screen-repair";
 import {
@@ -350,13 +352,16 @@ const persistScreenCode = async (
   screenId: string,
   code: string,
   health: ReturnType<typeof detectScreenHealth>,
+  designTokens?: DesignTokens | null,
 ) => {
-  const sanitized = sanitizeScreenCodeForPersist(code);
+  const normalized = normalizeGeneratedUiContracts({ code, designTokens });
+  const sanitized = sanitizeScreenCodeForPersist(normalized.code);
   const patch = buildScreenPersistPatch({
     code: sanitized.value,
     status: screenStatusForHealth(health),
     error: buildScreenHealthError(health),
     blockIndex: indexScreenCode(sanitized.value),
+    qualityDiagnostics: buildStaticScreenQualityDiagnostics(sanitized.value, normalized.report),
   });
   const { error: updateError } = await admin
     .from("screens")
@@ -1064,6 +1069,13 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
     chromePolicy: resolvedChromePolicy,
     navigationItemId: resolvedNavigationItemId,
   };
+  const builderProjectContract = projectCharter ? buildBuilderProjectContract({
+    charter: projectCharter,
+    screenFamily: projectCharter.referenceDna?.screenFamilyContract,
+    screenPlan: screenPlanForSave,
+    navigationPlan: projectNavigationPlan,
+    designTokens,
+  }) : null;
   const screenCode = ensureDrawgleIds(typeof screen.code === "string" && screen.code.length > 0 ? screen.code : "").code;
   const candidateBlockIndex = screen.block_index as ScreenBlockIndex | null;
   const blockIndex = isScreenBlockIndexUsable(screenCode, candidateBlockIndex)
@@ -1476,7 +1488,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
     }
 
     if (editChanged) {
-      await persistScreenCode(admin, screen.id, nextCode, nextHealth);
+      await persistScreenCode(admin, screen.id, nextCode, nextHealth, designTokens);
     }
 
     let designSummary: any = null;
@@ -1600,7 +1612,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
     const nextHealth = detectScreenHealth({ code: nextCode, screenPrompt });
 
     if (!isBlockingScreenHealthFailure(nextHealth)) {
-      await persistScreenCode(admin, screen.id, nextCode, nextHealth);
+      await persistScreenCode(admin, screen.id, nextCode, nextHealth, designTokens);
     }
 
     const fullResponse = !isBlockingScreenHealthFailure(nextHealth)
@@ -1694,7 +1706,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
     const repairCanBeSaved = nextCode !== screenCode && !isBlockingScreenHealthFailure(nextHealth);
 
     if (repairCanBeSaved) {
-      await persistScreenCode(admin, screen.id, nextCode, nextHealth);
+      await persistScreenCode(admin, screen.id, nextCode, nextHealth, designTokens);
     }
 
     const fullResponse = nextCode === screenCode
@@ -1770,6 +1782,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
     screenPlan: screenPlanForSave,
     navigationPlan: projectNavigationPlan,
     requiresBottomNav: resolvedRequiresBottomNav,
+    productContract: builderProjectContract,
   }, llmLog);
   let nextCode = normalizeEditedCode(responseToApply);
 
@@ -1795,6 +1808,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
       screenPlan: screenPlanForSave,
       navigationPlan: projectNavigationPlan,
       requiresBottomNav: resolvedRequiresBottomNav,
+      productContract: builderProjectContract,
     }, llmLog);
 
     if (retryResponse.trim()) {
@@ -1943,7 +1957,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
     return { targetType: "screen" as const, screenId: screen.id, changed: false, message: blockedContent };
   }
 
-  await persistScreenCode(admin, screen.id, nextCode, nextHealth);
+  await persistScreenCode(admin, screen.id, nextCode, nextHealth, designTokens);
 
   const visibleEditContent = `Applied changes to ${screen.name}.`;
   const modelMessage = await upsertActivityMessage(admin, editActivityKey, {

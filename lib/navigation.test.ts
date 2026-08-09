@@ -255,7 +255,79 @@ describe("Production Navigation V2", () => {
     const shell = renderDeterministicNavigationShell(styled);
     expect(shell).toContain('data-navigation-layout="contract-driven"');
     expect(shell).toContain("--dg-navigation-anatomy-height:56px");
-    expect(shell).toContain("calc(100% - 40px)");
+    expect(shell).toContain("calc(100% - (2 * 20px))");
+    expect(shell).toContain("var(--dg-navigation-max-width");
+    expect(shell).not.toContain("Saved");
+    expect(shell).not.toContain("aria-disabled");
+  });
+
+  it("uses project token geometry for project-native V3 navigation", () => {
+    const productPlan = normalizeNavigationPlan({
+      navigationPlan: v2Plan([
+        { id: "home", label: "Home", icon: "home", role: "Home overview", linkedScreenName: "Home" },
+        { id: "search", label: "Search", icon: "search", role: "Search content", linkedScreenName: "Search" },
+        { id: "profile", label: "Profile", icon: "user", role: "Manage profile", linkedScreenName: "Profile" },
+      ]),
+      screens: [
+        { name: "Home", type: "root", description: "Home" },
+        { name: "Search", type: "root", description: "Search" },
+        { name: "Profile", type: "root", description: "Profile" },
+      ],
+      navigationArchitecture: architecture,
+    });
+    const styled = applyReferenceNavigationAppearance({
+      navigationPlan: productPlan,
+      designTokens: {
+        tokens: {
+          navigation: {
+            anatomy: "compact-icon-rail",
+            labels: "hidden",
+            active_treatment: "underline",
+            surface_material: "translucent",
+            container_height: "60px",
+            max_width: "300px",
+            horizontal_inset: "18px",
+          },
+        },
+      },
+    });
+    const shell = renderDeterministicNavigationShell(styled);
+    expect(styled.appearance?.geometryOwner).toBe("project-tokens");
+    expect(styled.appearance?.primary).toMatchObject({
+      anatomy: "compact-icon-rail",
+      labels: "hidden",
+      activeTreatment: "underline",
+      surface: "translucent",
+    });
+    expect(shell).toContain("var(--dg-navigation-container-height");
+    expect(shell).toContain("var(--dg-navigation-horizontal-inset");
+    expect(shell).toContain("border-radius:var(--dg-radii-inner)");
+  });
+
+  it("does not combine explicit back chrome with persistent navigation", () => {
+    const screens: ScreenPlan[] = [
+      { name: "Home", type: "root", description: "Home" },
+      {
+        name: "Create Link",
+        type: "root",
+        description: "Focused form flow",
+        chromePolicy: { chrome: "top-bar-back", showPrimaryNavigation: false, showsBackButton: true },
+      },
+      { name: "Clients", type: "root", description: "Clients" },
+    ];
+    const plan = normalizeNavigationPlan({
+      navigationPlan: v2Plan([
+        { id: "home", label: "Home", icon: "home", role: "Home overview", linkedScreenName: "Home" },
+        { id: "create", label: "Create", icon: "plus", role: "Create payment link", linkedScreenName: "Create Link" },
+        { id: "clients", label: "Clients", icon: "users", role: "Client list", linkedScreenName: "Clients" },
+      ]),
+      screens,
+      navigationArchitecture: architecture,
+    });
+    expect(plan.screenChrome.find((item) => item.screenName === "Create Link")).toMatchObject({
+      chrome: "top-bar-back",
+      navigationItemId: null,
+    });
   });
 
   it("rejects duplicate and filler destinations instead of collapsing to one item", () => {
