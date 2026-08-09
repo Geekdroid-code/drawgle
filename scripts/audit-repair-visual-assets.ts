@@ -133,7 +133,8 @@ const patchLegacyCode = ({
       .attr("aria-label", requirement.subject)
       .attr("data-asset-sanitized", "legacy-semantic-mismatch")
       .attr("data-asset-role", requirement.role)
-      .addClass("bg-slate-100 border border-slate-200");
+      .attr("data-asset-placeholder-style", "surface")
+      .addClass("dg-asset-placeholder");
     if (requirement.role === "avatar" && requirement.semanticCategory === "person") {
       placeholder.text(requirement.subject.charAt(0).toUpperCase());
     }

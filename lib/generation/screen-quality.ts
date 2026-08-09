@@ -696,15 +696,15 @@ const assetPlaceholder = ($: ReturnType<typeof load>, element: Parameters<Return
     if (value) replacement.attr(attribute, value);
   }
   replacement
-    .attr("role", "img")
-    .attr("aria-label", asset?.alt || $element.attr("alt") || "Image unavailable")
     .attr("data-asset-sanitized", "true")
-    .attr("data-asset-role", asset?.role ?? "unknown")
-    .addClass("bg-slate-100 border border-slate-200");
-  if (asset?.role === "avatar" && asset.semanticCategory === "person") {
-    replacement.text((asset.alt || "?").trim().charAt(0).toUpperCase());
-  }
+    .attr("data-asset-role", asset?.role ?? "unknown");
   $element.replaceWith(replacement);
+  applyPlaceholderPresentation(
+    replacement,
+    asset,
+    isChromelessPlaceholder($, replacement, asset),
+    $element.attr("alt"),
+  );
 };
 
 const assetManifestByRequirement = (manifest: ScreenAssetManifest[]) => {
@@ -728,9 +728,108 @@ const expectedRequirementUses = (assets: ScreenAssetManifest[]) => {
     : Math.max(1, assets.length);
 };
 
-const placeholderLabel = (asset: ScreenAssetManifest) => {
-  const label = asset.alt.trim();
-  return label.length > 48 ? `${label.slice(0, 45).trim()}...` : label;
+const TAILWIND_SPACING_STEP_PX = 4;
+const ICON_SCALE_MAX_PX = 64;
+const LEGACY_PLACEHOLDER_CLASSES = "bg-slate-100 border border-slate-200 flex items-center justify-center text-center";
+
+const parseLengthToken = (value: string) => {
+  const arbitrary = value.match(/^\[(\d+(?:\.\d+)?)(px|rem)\]$/);
+  if (arbitrary) return arbitrary[2] === "rem" ? Number(arbitrary[1]) * 16 : Number(arbitrary[1]);
+  if (/^\d+(?:\.\d+)?$/.test(value)) return Number(value) * TAILWIND_SPACING_STEP_PX;
+  return null;
+};
+
+const declaredBoxSizePx = (classAttribute: string, styleAttribute: string) => {
+  const sizes: number[] = [];
+  for (const token of classAttribute.split(/\s+/)) {
+    const match = token.match(/^(?:w|h|size|min-w|min-h)-(.+)$/);
+    const size = match ? parseLengthToken(match[1]) : null;
+    if (size != null) sizes.push(size);
+  }
+  for (const match of styleAttribute.matchAll(/(?:^|;)\s*(?:width|height)\s*:\s*(\d+(?:\.\d+)?)(px|rem)/gi)) {
+    sizes.push(match[2].toLowerCase() === "rem" ? Number(match[1]) * 16 : Number(match[1]));
+  }
+  return sizes.length > 0 ? Math.max(...sizes) : null;
+};
+
+const isFullBleedLayer = (classAttribute: string) => {
+  const tokens = classAttribute.split(/\s+/);
+  if (!tokens.includes("absolute")) return false;
+  if (tokens.includes("inset-0")) return true;
+  if (tokens.includes("inset-x-0") && tokens.includes("inset-y-0")) return true;
+  return ["top-0", "right-0", "bottom-0", "left-0"].every((token) => tokens.includes(token));
+};
+
+/**
+ * The builder already satisfied the visual natively (emoji glyph, icon, CSS art) and used the
+ * slot as an invisible backdrop layer beneath it. Painting chrome there destroys its own design.
+ */
+const hasVisibleSiblingContent = ($: ReturnType<typeof load>, $slot: ReturnType<ReturnType<typeof load>>) => {
+  const siblings = $slot.parent().children().toArray();
+  return siblings.some((sibling) => {
+    if (sibling === $slot[0]) return false;
+    const $sibling = $(sibling);
+    if ($sibling.is("[data-asset-slot]")) return false;
+    return ($sibling.text() ?? "").trim().length > 0
+      || $sibling.is("img, svg, canvas, video")
+      || $sibling.find("img, svg, canvas, video").length > 0;
+  });
+};
+
+const effectiveSlotSizePx = ($slot: ReturnType<ReturnType<typeof load>>) => {
+  const own = declaredBoxSizePx($slot.attr("class") ?? "", $slot.attr("style") ?? "");
+  if (own != null) return own;
+  if (!isFullBleedLayer($slot.attr("class") ?? "")) return null;
+  let $ancestor = $slot.parent();
+  for (let depth = 0; depth < 3 && $ancestor.length > 0; depth += 1) {
+    const size = declaredBoxSizePx($ancestor.attr("class") ?? "", $ancestor.attr("style") ?? "");
+    if (size != null) return size;
+    $ancestor = $ancestor.parent();
+  }
+  return null;
+};
+
+const rendersAvatarInitial = (asset?: ScreenAssetManifest) =>
+  asset?.role === "avatar" && asset.semanticCategory === "person";
+
+/**
+ * A placeholder occupies space; it never asserts appearance. Chrome is suppressed wherever it
+ * would read as damage rather than as an intentional pending region.
+ */
+const isChromelessPlaceholder = (
+  $: ReturnType<typeof load>,
+  $slot: ReturnType<ReturnType<typeof load>>,
+  asset?: ScreenAssetManifest,
+) => {
+  if (rendersAvatarInitial(asset)) return false;
+  if (isFullBleedLayer($slot.attr("class") ?? "") && hasVisibleSiblingContent($, $slot)) return true;
+  const size = effectiveSlotSizePx($slot);
+  return size != null && size <= ICON_SCALE_MAX_PX;
+};
+
+/**
+ * The manifest alt is the planner's requirement subject. It belongs in the accessibility tree,
+ * never as visible copy baked into saved or exported markup.
+ */
+const applyPlaceholderPresentation = (
+  $placeholder: ReturnType<ReturnType<typeof load>>,
+  asset: ScreenAssetManifest | undefined,
+  chromeless: boolean,
+  fallbackAlt?: string,
+) => {
+  $placeholder
+    .empty()
+    .attr("role", "img")
+    .attr("aria-label", asset?.alt || fallbackAlt || "Image unavailable")
+    .removeClass(LEGACY_PLACEHOLDER_CLASSES);
+  if (chromeless) {
+    $placeholder.attr("data-asset-placeholder-style", "chromeless");
+    return;
+  }
+  $placeholder.attr("data-asset-placeholder-style", "surface").addClass("dg-asset-placeholder");
+  if (rendersAvatarInitial(asset)) {
+    $placeholder.text((asset?.alt || "?").trim().charAt(0).toUpperCase() || "?");
+  }
 };
 
 const applyAssetImageMetadata = (
@@ -843,23 +942,10 @@ export function hydrateScreenAssetSlots({
         : $slot;
       if ($placeholder[0] !== $slot[0]) $slot.replaceWith($placeholder);
       $placeholder
-        .empty()
-        .attr("role", "img")
-        .attr("aria-label", asset.alt || "Image unavailable")
         .attr("data-asset-provider", asset.provider)
         .attr("data-asset-source", asset.source)
-        .attr("data-asset-placeholder", "true")
-        .addClass("bg-slate-100 border border-slate-200 flex items-center justify-center text-center");
-      const label = placeholderLabel(asset);
-      if (asset.role === "avatar" && asset.semanticCategory === "person") {
-        $placeholder.text(label.charAt(0).toUpperCase() || "?");
-      } else {
-        $placeholder.append(
-          $("<span></span>")
-            .addClass("px-3 text-xs text-slate-500")
-            .text(label || "Image unavailable"),
-        );
-      }
+        .attr("data-asset-placeholder", "true");
+      applyPlaceholderPresentation($placeholder, asset, isChromelessPlaceholder($, $placeholder, asset));
       placeholderUseCount += 1;
       outcome.placeholders += 1;
       return;

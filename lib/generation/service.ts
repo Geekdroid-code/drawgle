@@ -2137,6 +2137,18 @@ const ensureBuilderGradeScreenBriefs = ({
       `Screen brief for ${screen.name} is not builder-grade; repair must complete before build.`,
     );
   });
+const NATIVELY_RENDERED_SUBJECT = /\b(emoji|emojis|emoticon|emoticons|sticker|stickers|glyph|glyphs|icon|icons|iconography|pictogram|pictograms|favicon)\b/i;
+
+/**
+ * Emoji and icon-scale visuals are rendered natively by the builder. Routing them through asset
+ * resolution can only lose: it either lands unrelated stock photos in 24px markers, or it forces a
+ * placeholder into markup the builder already satisfied with a glyph. User-supplied assets are exempt.
+ */
+const isNativelyRenderedAssetNeed = (need: NonNullable<ScreenPlan["assetNeeds"]>[number]) => {
+  if (need.sourcePreference === "user_upload" || need.userAssetId) return false;
+  return need.assetType === "icon_like" || NATIVELY_RENDERED_SUBJECT.test(need.subject);
+};
+
 export const normalizeScreenAssetNeeds = (screenName: string, value: unknown): NonNullable<ScreenPlan["assetNeeds"]> => {
   if (!Array.isArray(value)) {
     return [];
@@ -2181,7 +2193,8 @@ export const normalizeScreenAssetNeeds = (screenName: string, value: unknown): N
         origin: parsed.data.origin ?? (parsed.data.sourcePreference === "user_upload" ? "user_explicit" : "planner_inferred"),
       };
     })
-    .filter((item): item is NonNullable<ScreenPlan["assetNeeds"]>[number] => Boolean(item));
+    .filter((item): item is NonNullable<ScreenPlan["assetNeeds"]>[number] => Boolean(item))
+    .filter((item) => !isNativelyRenderedAssetNeed(item));
 };
 
 const extractRawScreenArray = (value: unknown): unknown[] => {

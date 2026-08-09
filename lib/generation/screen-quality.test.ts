@@ -327,6 +327,72 @@ describe("screen asset slot hydration", () => {
       .toBe(true);
   });
 
+  const emojiPlaceholder: ScreenAssetManifest = {
+    ...repeatedProductManifest,
+    id: "placeholder:mood-emojis",
+    requirementId: "mood-emojis",
+    url: null,
+    provider: "placeholder",
+    source: "placeholder",
+    placeholder: true,
+    critical: false,
+    expectedUses: 1,
+    alt: "set of 3D rendered expressive emojis",
+  };
+
+  it("never renders the requirement subject as visible placeholder copy", () => {
+    const hydrated = hydrateScreenAssetSlots({
+      code: `<div class="w-full aspect-square" data-asset-slot="true" data-asset-requirement-id="mood-emojis" data-asset-role="product_cutout"></div>`,
+      assetManifest: [emojiPlaceholder],
+    });
+
+    expect(hydrated.code).toContain(`aria-label="set of 3D rendered expressive emojis"`);
+    expect(hydrated.code).not.toContain(">set of 3D rendered expressive emojis<");
+    expect(hydrated.code).not.toContain("bg-slate-100");
+    expect(hydrated.code).toContain("dg-asset-placeholder");
+    expect(hydrated.code).toContain(`data-asset-placeholder-style="surface"`);
+  });
+
+  it("stays chromeless when the builder used the slot as a backdrop under native content", () => {
+    const hydrated = hydrateScreenAssetSlots({
+      code: `<div class="relative w-[48px] h-[48px] flex items-center justify-center">
+        <div class="absolute inset-0" data-asset-slot="true" data-asset-requirement-id="mood-emojis" data-asset-role="product_cutout"></div>
+        <span class="relative z-10 text-[30px]" aria-hidden="true">&#128525;</span>
+      </div>`,
+      assetManifest: [emojiPlaceholder],
+    });
+
+    expect(hydrated.code).toContain(`data-asset-placeholder-style="chromeless"`);
+    expect(hydrated.code).not.toContain("dg-asset-placeholder");
+    expect(hydrated.code).not.toContain("bg-slate-100");
+  });
+
+  it("stays chromeless at icon scale where a bordered box is noise", () => {
+    const hydrated = hydrateScreenAssetSlots({
+      code: `<div class="w-6 h-6" data-asset-slot="true" data-asset-requirement-id="mood-emojis" data-asset-role="product_cutout"></div>`,
+      assetManifest: [emojiPlaceholder],
+    });
+
+    expect(hydrated.code).toContain(`data-asset-placeholder-style="chromeless"`);
+    expect(hydrated.code).not.toContain("dg-asset-placeholder");
+  });
+
+  it("keeps the avatar initial on a token surface at any size", () => {
+    const hydrated = hydrateScreenAssetSlots({
+      code: `<div class="w-10 h-10 rounded-full" data-asset-slot="true" data-asset-requirement-id="member-avatar" data-asset-role="avatar"></div>`,
+      assetManifest: [{
+        ...emojiPlaceholder,
+        requirementId: "member-avatar",
+        role: "avatar",
+        semanticCategory: "person",
+        alt: "Anna Grace portrait",
+      }],
+    });
+
+    expect(hydrated.code).toContain("dg-asset-placeholder");
+    expect(hydrated.code).toContain(">A<");
+  });
+
   it("blocks a critical requirement when the builder omits its slot", () => {
     const policy = validateScreenAssetPolicy({
       code: `<div class="min-h-screen">No media slot</div>`,

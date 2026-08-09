@@ -358,6 +358,16 @@ ${buildCompatibilityAliasVariables()}
 .dg-shared-nav-clearance {
   padding-bottom: var(--dg-navigation-clearance, 0px) !important;
 }
+.dg-asset-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background-color: var(--dg-color-background-secondary, #f5f5f5);
+  color: var(--dg-color-text-medium-emphasis, #6b7280);
+  box-shadow: inset 0 0 0 1px var(--dg-color-border-divider, #e5e7eb);
+  font-weight: 600;
+}
 .dg-shadow-surface { box-shadow: var(--dg-shadows-surface); }
 .dg-shadow-overlay { box-shadow: var(--dg-shadows-overlay); }
 .dg-screen-padding { padding-left: var(--dg-mobile-layout-screen-margin); padding-right: var(--dg-mobile-layout-screen-margin); }

@@ -36,4 +36,58 @@ describe("planner asset need recovery", () => {
     });
     expect(needs[0].id).toContain("product-cabinet-product-photo");
   });
+
+  it("drops natively rendered emoji and icon needs before they reach asset resolution", () => {
+    const needs = normalizeScreenAssetNeeds("Mood Input", [
+      {
+        role: "product_cutout",
+        subject: "set of 3D rendered expressive emojis",
+        asset_type: "illustration",
+        source_preference: "stock",
+        desired_aspect_ratio: "1:1",
+        transparent_background: true,
+        placement_hint: "Mood chips",
+        priority: "supporting",
+      },
+      {
+        role: "decorative_object",
+        subject: "navigation symbol set",
+        asset_type: "icon",
+        source_preference: "stock",
+        desired_aspect_ratio: "1:1",
+        transparent_background: true,
+        placement_hint: "Tab bar",
+        priority: "supporting",
+      },
+      {
+        role: "hero_cutout",
+        subject: "calm meditation scene at sunrise",
+        asset_type: "photo",
+        source_preference: "stock",
+        desired_aspect_ratio: "16:9",
+        transparent_background: false,
+        placement_hint: "Hero banner",
+        priority: "critical",
+      },
+    ]);
+
+    expect(needs).toHaveLength(1);
+    expect(needs[0].subject).toBe("calm meditation scene at sunrise");
+  });
+
+  it("keeps an emoji need the user supplied themselves", () => {
+    const needs = normalizeScreenAssetNeeds("Mood Input", [{
+      role: "product_cutout",
+      subject: "custom emoji pack",
+      asset_type: "transparent_png",
+      source_preference: "user_upload",
+      desired_aspect_ratio: "1:1",
+      transparent_background: true,
+      placement_hint: "Mood chips",
+      priority: "critical",
+    }]);
+
+    expect(needs).toHaveLength(1);
+    expect(needs[0].sourcePreference).toBe("user_upload");
+  });
 });

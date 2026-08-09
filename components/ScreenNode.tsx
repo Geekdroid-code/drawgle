@@ -1100,6 +1100,20 @@ export function ScreenNode({
           #drawgle-navigation-host [data-drawgle-primary-nav] { pointer-events: auto; }
           .__drawgle-hover-outline { outline: 2px solid rgba(20,184,166,0.8) !important; outline-offset: -1px; cursor: crosshair !important; }
           .__drawgle-selected-outline { outline: 2.5px solid #0d9488 !important; outline-offset: -1px; }
+
+          /* Editor-only pending-asset affordance. Never written into saved code or exports.
+             Uses outline + background-image so it costs no layout and needs no positioning context. */
+          [data-asset-placeholder="true"] {
+            outline: 1px dashed rgba(20, 184, 166, 0.55);
+            outline-offset: -1px;
+          }
+          [data-asset-placeholder-style="surface"] {
+            background-image: repeating-linear-gradient(
+              135deg,
+              rgba(20, 184, 166, 0.10) 0 6px,
+              transparent 6px 12px
+            );
+          }
         </style>
         <style id="drawgle-project-tokens">${initialTokenCss}</style>
       </head>
