@@ -19,10 +19,7 @@ export type {
   RankedCuratedStyleReference,
 } from "@/lib/generation/curated-style-selection";
 
-export function getCuratedStyleReferenceById(referenceId?: string | null) {
-  if (!referenceId) return null;
-  return CURATED_STYLE_REFERENCES.find((reference) => reference.id === referenceId) ?? null;
-}
+export { getCuratedStyleReferenceById } from "@/lib/generation/curated-style-catalog";
 
 const mimeTypeForPath = (path: string) => {
   switch (extname(path).toLowerCase()) {

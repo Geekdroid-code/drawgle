@@ -359,6 +359,11 @@ ${buildCompatibilityAliasVariables()}
 .dg-radius-app { border-radius: var(--dg-radii-app); }
 .dg-radius-inner { border-radius: var(--dg-radii-inner); }
 .dg-radius-pill { border-radius: var(--dg-radii-pill); }
+.dg-radius-inset-xxs { border-radius: var(--dg-radii-inset-xxs, var(--dg-radii-inner)); }
+.dg-radius-inset-xs { border-radius: var(--dg-radii-inset-xs, var(--dg-radii-inner)); }
+.dg-radius-inset-sm { border-radius: var(--dg-radii-inset-sm, var(--dg-radii-inner)); }
+.dg-radius-inset-md { border-radius: var(--dg-radii-inset-md, var(--dg-radii-inner)); }
+.dg-radius-inset-lg { border-radius: var(--dg-radii-inset-lg, var(--dg-radii-inner)); }
 .dg-shared-nav-clearance {
   padding-bottom: var(--dg-navigation-clearance, 0px) !important;
 }
@@ -398,8 +403,9 @@ export function buildTokenUsageGuide(designTokens?: DesignTokens | null) {
 
   return [
     "Use Drawgle's live project tokens for canonical styling.",
-    "Prefer these utility classes when they match the intended role: dg-bg-primary, dg-bg-secondary, dg-surface-card, dg-surface-bottom-sheet, dg-text-high, dg-text-medium, dg-text-low, dg-action-primary, dg-gradient-action-primary, dg-gradient-app-background, dg-gradient-surface-highlight, dg-gradient-accent-ring, dg-border-divider, dg-radius-app, dg-radius-inner, dg-radius-pill, dg-shadow-surface, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-metric-value, dg-type-body, dg-type-caption, dg-type-button-label.",
+    "Prefer these utility classes when they match the intended role: dg-bg-primary, dg-bg-secondary, dg-surface-card, dg-surface-bottom-sheet, dg-text-high, dg-text-medium, dg-text-low, dg-action-primary, dg-gradient-action-primary, dg-gradient-app-background, dg-gradient-surface-highlight, dg-gradient-accent-ring, dg-border-divider, dg-radius-app, dg-radius-inner, dg-radius-pill, dg-radius-inset-xs, dg-radius-inset-sm, dg-radius-inset-md, dg-shadow-surface, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-metric-value, dg-type-body, dg-type-caption, dg-type-button-label.",
     "Use dg-radius-app for outer cards, sheets, panels, and navigation surfaces; dg-radius-inner for nested cards, inset panels, segmented tabs, and active navigation items; and dg-radius-pill only for true capsules and circles.",
+    "CONCENTRIC RADIUS LAW: a nested surface's radius equals its parent's radius minus the gap between their edges. When you pad or inset a dg-radius-app container by a spacing step, its direct children use the matching dg-radius-inset-* class: --dg-spacing-xs padding pairs with dg-radius-inset-xs, --dg-spacing-md padding with dg-radius-inset-md, and so on. Never pair a large outer radius with an unrelated inner radius; the corners will not read as concentric.",
     "For token values without a named utility, use Tailwind arbitrary values with CSS variables, for example bg-[var(--dg-color-action-primary)], [background-image:var(--dg-gradient-action-primary)], text-[var(--dg-color-text-high-emphasis)], rounded-[var(--dg-radii-inner)], shadow-[var(--dg-shadows-surface)].",
     "Use token gradients for canonical gradient fills. Use raw hex, raw pixels, and custom gradients only for deliberate one-off visual details such as charts, maps, illustrations, or non-system accent marks.",
     variableList ? `Available token variables:\n${variableList}` : null,
@@ -529,8 +535,10 @@ export function buildTokenPromptContext(
 
     return [
       "TOKEN CONTEXT: Approved project design tokens — use these for every visual decision.",
-      "Prefer utility classes when the semantic role matches: dg-bg-primary, dg-bg-secondary, dg-surface-card, dg-surface-bottom-sheet, dg-surface-modal, dg-text-high, dg-text-medium, dg-text-low, dg-action-primary, dg-action-secondary, dg-gradient-action-primary, dg-gradient-app-background, dg-gradient-surface-highlight, dg-gradient-accent-ring, dg-border-divider, dg-border-focused, dg-radius-app, dg-radius-inner, dg-radius-pill, dg-shadow-surface, dg-shadow-overlay, dg-type-nav-title, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-metric-value, dg-type-body, dg-type-supporting, dg-type-caption, dg-type-button-label.",
+      "Prefer utility classes when the semantic role matches: dg-bg-primary, dg-bg-secondary, dg-surface-card, dg-surface-bottom-sheet, dg-surface-modal, dg-text-high, dg-text-medium, dg-text-low, dg-action-primary, dg-action-secondary, dg-gradient-action-primary, dg-gradient-app-background, dg-gradient-surface-highlight, dg-gradient-accent-ring, dg-border-divider, dg-border-focused, dg-radius-app, dg-radius-inner, dg-radius-pill, dg-radius-inset-xs, dg-radius-inset-sm, dg-radius-inset-md, dg-shadow-surface, dg-shadow-overlay, dg-type-nav-title, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-metric-value, dg-type-body, dg-type-supporting, dg-type-caption, dg-type-button-label.",
       "Radius roles are strict: app is the outer surface radius, inner is the smaller nested/inset radius, and pill is only for true capsules or circles.",
+      "CONCENTRIC RADIUS LAW: a nested surface's radius equals its parent's radius minus the gap between their edges. Pad a dg-radius-app container by --dg-spacing-xs and its children use dg-radius-inset-xs; pad by --dg-spacing-md and they use dg-radius-inset-md. dg-radius-inner is the value for a child inset by the standard element gap.",
+      "Never let a child's gap exceed the padding of the container holding it; content then reads as escaping its box.",
       "For token values without a named utility, use CSS variables in Tailwind arbitrary classes, e.g. bg-[var(--dg-color-action-primary)], [background-image:var(--dg-gradient-action-primary)], p-[var(--dg-spacing-md)], rounded-[var(--dg-radii-inner)], shadow-[var(--dg-shadows-surface)], opacity-[var(--dg-opacities-disabled)].",
       "Token gradients are canonical fills for expressive actions, app backgrounds, surface highlights, and accent rings. Use custom gradients only for deliberate one-off visual details such as charts, maps, illustrations, and special effects.",
       filteredReferences.length > 0 ? `Project token variables:\n${formatTokenReferences(filteredReferences, 200)}` : null,

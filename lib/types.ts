@@ -396,6 +396,12 @@ export interface DesignTokenValues {
 export interface DesignTokenMetadata {
   recommendedFonts?: string[];
   componentShapePolicy?: DesignComponentShapePolicy;
+  /** StyleCharterV1 — the reference's hand-authored constraints, kept for the planner and builder. */
+  styleCharter?: JsonValue;
+  /** TokenRelationshipReportV1 — what the relationship validator repaired. */
+  tokenRelationships?: JsonValue;
+  /** Where this run's reference analysis contradicted the curated catalog. */
+  charterConflicts?: string[];
   [key: string]: JsonValue | undefined;
 }
 
@@ -753,7 +759,7 @@ export interface ScreenPlan {
 }
 
 export interface ScreenLayoutContract {
-  version?: 1 | 2;
+  version?: 1 | 2 | 3;
   viewportPlan: string;
   focalHierarchy: string;
   sectionRhythm: string;
@@ -761,6 +767,56 @@ export interface ScreenLayoutContract {
   ctaPolicy: string;
   antiPatterns: string[];
   regions?: ScreenLayoutRegion[];
+  /** v3: the numeric vertical budget the builder must fit inside. */
+  viewportBudget?: ScreenViewportBudget | null;
+  /** v3: per-region arrangement and content budgets. */
+  regionContracts?: ScreenRegionContract[];
+}
+
+export type ScreenRegionPriority = "focal" | "primary" | "secondary";
+
+export interface ScreenViewportBudgetRegion {
+  id: string;
+  minHPx: number;
+  maxHPx: number;
+  priority: ScreenRegionPriority;
+}
+
+export interface ScreenViewportBudget {
+  frameHeightPx: number;
+  /** Regions expected to be visible without scrolling, in reading order. */
+  aboveFoldRegionIds: string[];
+  regions: ScreenViewportBudgetRegion[];
+}
+
+export type ScreenRegionArrangement =
+  | "single"
+  | "two-column"
+  | "three-column"
+  | "grid"
+  | "horizontal-scroll"
+  | "stacked-rows";
+
+/**
+ * `equal-height` means siblings share one baseline and one internal anatomy.
+ * `independent` is legal only for arrangements where items are not read as a
+ * set, such as a horizontal scroll rail.
+ */
+export type ScreenSiblingBalance = "equal-height" | "independent";
+
+export interface ScreenRegionCopyBudget {
+  titleMaxChars: number;
+  bodyMaxLines: number;
+}
+
+export interface ScreenRegionContract {
+  id: string;
+  arrangement: ScreenRegionArrangement;
+  siblingBalance: ScreenSiblingBalance;
+  itemCount: number;
+  /** One anatomy list shared by every item in the region. */
+  itemAnatomy: string[];
+  copyBudget?: ScreenRegionCopyBudget | null;
 }
 
 export interface ScreenLayoutRegion {
@@ -1135,7 +1191,32 @@ export type UiContractDiagnosticCode =
   | "radius_role_repaired"
   | "ambiguous_radius_role"
   | "critical_truncation_risk"
-  | "navigation_chrome_conflict";
+  | "navigation_chrome_conflict"
+  | "concentric_radius_repaired"
+  | "nested_gap_exceeds_padding";
+
+export type DesignCriticFindingCode =
+  | "sibling_imbalance"
+  | "decorative_dead_space"
+  | "fabricated_object_art"
+  | "raw_surface_color"
+  | "above_fold_budget_exceeded"
+  | "surface_text_contrast"
+  | "radius_vocabulary_drift";
+
+export interface DesignCriticFinding {
+  code: DesignCriticFindingCode;
+  selector: string | null;
+  detail: string;
+  severity: "high" | "medium";
+}
+
+export interface DesignCriticReportV1 {
+  version: 1;
+  findings: DesignCriticFinding[];
+  /** Count of findings at "high" severity, the signal a composition repair would key on. */
+  highSeverityCount: number;
+}
 
 export interface UiContractDiagnostic {
   code: UiContractDiagnosticCode;
@@ -1148,6 +1229,7 @@ export interface UiContractNormalizationReportV1 {
   repairEnabled: boolean;
   repairs: UiContractDiagnostic[];
   warnings: UiContractDiagnostic[];
+  critic?: DesignCriticReportV1 | null;
 }
 
 export type RenderedQualityIssueCode =

@@ -202,7 +202,41 @@ export const deriveComponentShapePolicy = ({
 
 const formatPixelValue = (value: number) => `${Math.round(value * 100) / 100}px`;
 
-const normalizeRadiusHierarchy = (value: UnknownRecord) => {
+/**
+ * Smallest radius a nested surface may keep. Below this the corner reads as
+ * square and the concentric relationship stops being legible.
+ */
+const MIN_INSET_RADIUS_PX = 4;
+
+/** Spacing steps that a nested surface is realistically inset by. */
+const INSET_SPACING_KEYS = ["xxs", "xs", "sm", "md", "lg"] as const;
+
+/**
+ * Concentric radius law: a nested surface's radius equals its parent's radius
+ * minus the gap between their edges. Two shapes sharing a center only look
+ * concentric when their curvature differs by exactly that gap.
+ *
+ * A single global `radii.inner` cannot satisfy this for more than one padding
+ * value, which is why generated screens kept pairing a 32px card with a 16px
+ * inset well at 8px padding — the inner curve read visibly tighter than its
+ * parent. These derived tokens give the builder one correct value per gap.
+ */
+export const concentricInsetRadius = (outerRadiusPx: number, gapPx: number) => {
+  if (outerRadiusPx <= 0) return 0;
+  return Math.max(MIN_INSET_RADIUS_PX, Math.round(outerRadiusPx - gapPx));
+};
+
+const buildInsetRadii = (appRadiusPx: number, spacing: UnknownRecord | undefined) => {
+  const entries: Array<[string, string]> = [];
+  for (const key of INSET_SPACING_KEYS) {
+    const gap = parsePixelValue(spacing?.[key]);
+    if (gap === null) continue;
+    entries.push([`inset_${key}`, formatPixelValue(concentricInsetRadius(appRadiusPx, gap))]);
+  }
+  return Object.fromEntries(entries);
+};
+
+const normalizeRadiusHierarchy = (value: UnknownRecord, standardInsetGapPx: number | null) => {
   const rawApp = pickFirstString(
     value.app,
     value.lg,
@@ -215,13 +249,28 @@ const normalizeRadiusHierarchy = (value: UnknownRecord) => {
   const parsedApp = parsePixelValue(rawApp);
   const app = Math.min(48, Math.max(0, parsedApp ?? 18));
   const suppliedInner = parsePixelValue(value.inner);
-  const delta = Math.min(8, Math.max(4, Math.round(app / 3)));
-  const derivedInner = app === 0 ? 0 : Math.max(0, app - delta);
-  const inner = suppliedInner !== null &&
-    suppliedInner >= 0 &&
-    (app === 0 ? suppliedInner === 0 : suppliedInner < app)
-    ? suppliedInner
-    : derivedInner;
+  const suppliedInnerIsSane = suppliedInner !== null
+    && suppliedInner >= 0
+    && (app === 0 ? suppliedInner === 0 : suppliedInner < app);
+
+  // `inner` means "the radius of a surface nested at the standard element gap".
+  // With a known gap the concentric law owns it, and an authored value survives
+  // only when it already satisfies that law within a 2px optical tolerance — a
+  // freely chosen inner radius is the single most common source of the "nested
+  // corner looks tighter than its parent" defect.
+  //
+  // Without a gap there is nothing to be concentric with, so the original
+  // proportional derivation stands and previously stored token sets keep their
+  // exact hierarchy.
+  const inner = (() => {
+    if (app === 0) return 0;
+    if (standardInsetGapPx === null) {
+      const delta = Math.min(8, Math.max(4, Math.round(app / 3)));
+      return suppliedInnerIsSane ? suppliedInner! : Math.max(0, app - delta);
+    }
+    const derived = concentricInsetRadius(app, standardInsetGapPx);
+    return suppliedInnerIsSane && Math.abs(suppliedInner! - derived) <= 2 ? suppliedInner! : derived;
+  })();
 
   return {
     app: formatPixelValue(app),
@@ -297,6 +346,19 @@ const sanitizeMetadata = (value: unknown): DesignTokenMetadata | undefined => {
     next.recommendedFonts = recommendedFonts;
   }
 
+  // Preserved verbatim: the style charter and its repair report are approved
+  // project evidence that the planner and builder read later. Sanitizing them
+  // here would silently drop the constraints they exist to carry.
+  if (isRecord(value.styleCharter)) {
+    next.styleCharter = value.styleCharter as DesignTokenMetadata["styleCharter"];
+  }
+  if (isRecord(value.tokenRelationships)) {
+    next.tokenRelationships = value.tokenRelationships as DesignTokenMetadata["tokenRelationships"];
+  }
+  if (Array.isArray(value.charterConflicts)) {
+    next.charterConflicts = value.charterConflicts.filter((entry): entry is string => typeof entry === "string");
+  }
+
   return next;
 };
 
@@ -363,7 +425,8 @@ const enforcePlatformConstraints = (tokens: DesignTokenValues | undefined) => {
     isGradientValue(legacyGradients.action_primary) ? legacyGradients.action_primary : undefined,
     buildActionGradient(next),
   );
-  const normalizedRadii = normalizeRadiusHierarchy(legacyRadii);
+  const standardInsetGapPx = parsePixelValue(next.mobile_layout?.element_gap);
+  const normalizedRadii = normalizeRadiusHierarchy(legacyRadii, standardInsetGapPx);
 
   next.mobile_layout = {
     ...(next.mobile_layout ?? {}),
@@ -382,6 +445,7 @@ const enforcePlatformConstraints = (tokens: DesignTokenValues | undefined) => {
     app: normalizedRadii.app,
     inner: normalizedRadii.inner,
     pill: normalizedRadii.pill,
+    ...buildInsetRadii(parsePixelValue(normalizedRadii.app) ?? 0, next.spacing),
   };
   next.border_widths = {
     ...(legacyBorderWidths as DesignTokenValues["border_widths"]),
@@ -518,6 +582,9 @@ const mergeMetadata = (base: DesignTokenMetadata | undefined, incoming: unknown)
 
   const recommendedFonts = sanitized.recommendedFonts ?? base.recommendedFonts;
   const componentShapePolicy = sanitized.componentShapePolicy ?? base.componentShapePolicy;
+  const styleCharter = sanitized.styleCharter ?? base.styleCharter;
+  const tokenRelationships = sanitized.tokenRelationships ?? base.tokenRelationships;
+  const charterConflicts = sanitized.charterConflicts ?? base.charterConflicts;
 
   const next: DesignTokenMetadata = {};
 
@@ -526,6 +593,15 @@ const mergeMetadata = (base: DesignTokenMetadata | undefined, incoming: unknown)
   }
   if (componentShapePolicy) {
     next.componentShapePolicy = componentShapePolicy;
+  }
+  if (styleCharter) {
+    next.styleCharter = styleCharter;
+  }
+  if (tokenRelationships) {
+    next.tokenRelationships = tokenRelationships;
+  }
+  if (charterConflicts?.length) {
+    next.charterConflicts = charterConflicts;
   }
 
   return Object.keys(next).length > 0 ? next : undefined;

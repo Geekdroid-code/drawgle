@@ -1,6 +1,8 @@
 import { createNavigationArchitecture, resolveScreenChromePolicy } from "@/lib/navigation";
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { formatDesignStyleContract } from "@/lib/generation/design-styles";
+import { formatLayoutBudgetContract } from "@/lib/generation/layout-budget";
+import { formatStyleCharterContract, type StyleCharterV1 } from "@/lib/generation/style-charter";
 import type { GenerationPromptMode } from "@/lib/generation/prompt-routing";
 import { formatReferenceTransferContract } from "@/lib/generation/reference-transfer";
 import { DRAWGLE_GENERATION_COMPLETE_SENTINEL } from "@/lib/generation/screen-quality";
@@ -23,7 +25,8 @@ Non-negotiable output discipline:
 - Do not plan text, cards, maps, charts, nav shells, or CTAs that cannot fit the viewport.
 - Do not make each screen feel like a different app. Distinct compositions are allowed; inconsistent padding, line-height, card radii, and nav rhythm are not.
 - Every screen brief must include these labels inside description: Reference DNA, Visual Goal, Layout Anatomy, Key Components, Visual Styling, Interaction Notes, Must Preserve.
-- Every screen must also include layout_contract: six compact, app-specific construction rules that define viewport budget, focal hierarchy, macro/micro spacing, component density, CTA weight, and anti-patterns.
+- Every screen must also include layout_contract: compact, app-specific construction rules covering viewport budget, focal hierarchy, macro/micro spacing, component density, CTA weight, and anti-patterns, plus the version-3 numeric viewport_budget and region_contracts.
+- Think spatially before you think descriptively. A screen brief that names components without assigning them vertical space and content budgets is not a plan; it is a wish list, and the builder will fill the gaps with decoration.
 - Every screen must include reference_transfer. It records which evidence owns layout, which visual invariants transfer, which semantic composition principles are preserved/reinterpreted/rejected after target-role suitability checks, the premium craft targets, and which source anatomy is forbidden.
 - Each screen brief must be builder-ready, not a product summary. Describe background layer, content rail, parent-child containment, spacing, edge treatment, type roles, and overflow/wrapping policy.
 - COMPOSITIONAL DIRECTION: Push past generic list layouts. Define the specific spatial orchestration required by the approved evidence: note intentional depth, structural asymmetry, and varying visual density.
@@ -126,7 +129,7 @@ const plannerScreensJsonContract = `Return JSON with this exact top-level shape:
 	      "roadmap_stable_key": "screen:short-name",
 	      "description": "Reference DNA: ...\\nVisual Goal: ...\\nLayout Anatomy: ...\\nKey Components: ...\\nVisual Styling: ...\\nInteraction Notes: ...\\nMust Preserve: ...",
       "layout_contract": {
-        "version": 2,
+        "version": 3,
         "viewport_plan": "Header/content/nav budget and scroll behavior in one sentence",
         "focal_hierarchy": "What dominates first, second, third, and how scale/contrast/position creates that",
         "section_rhythm": "Macro spacing between sections versus micro spacing inside groups",
@@ -135,6 +138,23 @@ const plannerScreensJsonContract = `Return JSON with this exact top-level shape:
         "anti_patterns": ["Specific bad layout habit to avoid for this screen"],
         "regions": [
           { "id": "stable-region-id", "purpose": "What target-screen job this region performs", "content_kind": "header | focal | chart | list | form | media | action | supporting | other" }
+        ],
+        "viewport_budget": {
+          "frame_height_px": 844,
+          "above_fold_region_ids": ["stable-region-id"],
+          "regions": [
+            { "id": "stable-region-id", "min_h_px": 220, "max_h_px": 320, "priority": "focal | primary | secondary" }
+          ]
+        },
+        "region_contracts": [
+          {
+            "id": "stable-region-id",
+            "arrangement": "single | two-column | three-column | grid | horizontal-scroll | stacked-rows",
+            "sibling_balance": "equal-height | independent",
+            "item_count": 2,
+            "item_anatomy": ["media 4:5", "eyebrow", "title", "body", "text-link"],
+            "copy_budget": { "title_max_chars": 22, "body_max_lines": 2 }
+          }
         ]
       },
       "reference_transfer": {
@@ -299,6 +319,13 @@ Rules:
 - Cross-screen differentiation: family resemblance comes from tokens, type, material, icon, spacing, and interaction tone. Each route must have a task-native information architecture and dominant composition; never turn a previous screen's cards, connector, hero, chart, or decorative scaffold into a universal shell.
 - Description quality: each description should usually be 900-1800 chars, include all seven labels, and be detailed enough for the builder without seeing the image. Write as a construction brief from background forward through layout, containment, components, typography, materials, depth/edges, imagery/charts/maps, interaction states, and must-preserve construction cues.
 - layout_contract is not prose decoration. It is the compact architecture the builder must obey before writing HTML. Give every target region a stable id and functional content_kind; reference_transfer may approve a source motif only inside one of these named regions: no generic stacked blocks, empty chart/card shells, oversized CTA unless action priority demands it, or primitive chip grids with large macro gaps and cramped internal padding.
+- SPATIAL ARITHMETIC (layout_contract v3). Prose alone is not a layout. Do the numbers:
+  - viewport_budget assigns every region a min_h_px and max_h_px against the 844px frame, and names which regions occupy the first fold. The above-fold minimums plus roughly 44px of top chrome (plus about 96px when shared navigation is enabled) must fit inside 844px. If they do not, move the lowest-priority region below the fold rather than shrinking everything.
+  - Every region whose min_h_px exceeds 120px must be carried by real content: media, a chart with visible marks, a list, a form, or a focal content cluster. A tall region with nothing in it is where decorative filler comes from. If you cannot name the content, lower the height.
+  - region_contracts declares how each region packs. Any two-column, three-column, or grid arrangement MUST use sibling_balance "equal-height", one shared item_anatomy list, and a copy_budget. Items in one row are read as a set; different media heights, different internal anatomy, or a vertical offset on one item makes the row rag.
+  - Use "independent" sibling balance only for horizontal-scroll rails, where items are not compared side by side.
+  - Set copy_budget from the real column width: a two-column card on a 390px frame holds roughly 22 title characters and two body lines, not a paragraph.
+  - Never describe an "asymmetric grid" without saying exactly what differs and why the target task needs it. Unexplained asymmetry becomes a ragged row.
 - Component specificity: name concrete structures/states when relevant: headers, hero regions, surfaces, containers, lists, rows, sheets, charts, progress rings, segmented controls, tabs, chips, icon buttons, badges, avatar stacks, maps, media areas, text groups, and CTA placement.
 - Material specificity: call out typography, imagery, chart geometry, background, rounded shapes, elevation, edge treatment, inner/outer borders, highlight edges, bevels, glass/frosting, and must-preserve composition cues. Avoid weak phrases like "clean dashboard" or "stats cards" unless immediately followed by exact anatomy.
 - Copy/anatomy: preserve real copy when it anchors layout; use placeholders only for volatile names, numbers, and dates. Do not duplicate anatomy across screens unless the approved product shell or evidence clearly reuses it.
@@ -808,10 +835,21 @@ const buildStrictDesignContract = (designTokens?: DesignTokens | null) => {
   const headingFontFamily = resolveToken(designTokens, "typography.heading_font_family", "sans-serif");
   const bodyFontFamily = resolveToken(designTokens, "typography.body_font_family", "sans-serif");
 
+  const insetRadii = ["xxs", "xs", "sm", "md", "lg"]
+    .map((step) => {
+      const value = resolveToken(designTokens, `radii.inset_${step}`, "");
+      const gap = resolveToken(designTokens, `spacing.${step}`, "");
+      return value && gap ? `radii.inset_${step}=${value} (for a child inset by spacing.${step}=${gap})` : null;
+    })
+    .filter(Boolean);
+
   return [
     `- Outer surface radius: ${appRadius} (cards, sheets, panels, fields, and navigation shells)`,
     `- Inner container radius: ${innerRadius} (nested cards, inset panels, segmented tabs, and active navigation items)`,
     `- Pill radius: ${pillRadius} (use only for true capsules and circular wells)`,
+    "- CONCENTRIC RADIUS LAW: a nested surface's radius = its parent's radius minus the gap between their edges. Pick the inset token that matches the padding or margin you actually applied.",
+    insetRadii.length ? `- Concentric inset radii: ${insetRadii.join("; ")}` : null,
+    "- Never place a child's gap wider than the padding of the surface containing it.",
     `- Field radius role: radii.${shapePolicy?.field ?? "app"}`,
     `- Standard button radius role: radii.${shapePolicy?.standardButton ?? "inner"}`,
     `- Primary CTA radius role: radii.${shapePolicy?.primaryCta ?? "inner"}`,
@@ -828,7 +866,7 @@ const buildStrictDesignContract = (designTokens?: DesignTokens | null) => {
     `- Primary text color: ${textHigh}`,
     `- Heading font family: ${headingFontFamily} (titles only)`,
     `- Body font family: ${bodyFontFamily} (metrics, copy, controls, labels, and all remaining text)`,
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 };
 
 const buildTypographyRoleContract = () => [
@@ -870,8 +908,18 @@ const buildScreenLayoutContract = (screenPlan?: ScreenPlan | null) => {
       "- Target regions (the only legal targets for local reference motifs):",
       ...contract.regions.map((region) => `  - ${region.id} [${region.contentKind}]: ${region.purpose}`),
     ].join("\n") : null,
+    formatLayoutBudgetContract({
+      budget: contract.viewportBudget,
+      regionContracts: contract.regionContracts,
+    }),
     contract.antiPatterns.length ? `- Avoid: ${contract.antiPatterns.join(" | ")}` : null,
   ].filter(Boolean).join("\n");
+};
+
+export const buildStyleCharterSection = (designTokens?: DesignTokens | null) => {
+  const charter = normalizeDesignTokens(designTokens).meta?.styleCharter as StyleCharterV1 | undefined;
+  const contract = formatStyleCharterContract(charter ?? null);
+  return contract ? `${contract}\nThese constraints outrank any conflicting phrase in the screen description, project memory, or attached image.` : "";
 };
 
 const formatAssetManifestLine = (asset: ScreenAssetManifest, index: number) => {
@@ -1085,6 +1133,8 @@ export const buildEditSystemInstruction = ({
 STRICT DESIGN CONTRACT:
 ${buildStrictDesignContract(designTokens)}
 
+${buildStyleCharterSection(designTokens)}
+
 ${buildTokenPromptContext(designTokens, "compact_visual")}
 
 NAVIGATION ARCHITECTURE CONTRACT:
@@ -1098,7 +1148,7 @@ ${sharedNavContract}
 Additional rules:
 1. Prefer Drawgle token utility classes and CSS variables for canonical styling. Do not freeze token values as raw hex/pixels when a project token variable exists.
 2. Do not invent new radii, border widths, or shadow recipes. Reuse the approved contract exactly.
-3. Follow the single component-role mapping in STRICT DESIGN CONTRACT; it owns fields, buttons, segmented controls, and primary CTA radii.
+3. Follow the single component-role mapping in STRICT DESIGN CONTRACT; it owns fields, buttons, segmented controls, and primary CTA radii. Nested surfaces follow the concentric radius law in that contract: parent radius minus the gap between their edges.
 4. Use the pill radius only for chips, badges, avatars, circular wells, and component roles explicitly marked pill by that contract.
 5. Preserve the existing navigation family unless the user explicitly asks to redesign navigation.
 6. Preserve typography role consistency. Do not introduce arbitrary text sizes or weights when an existing semantic text role already fits.
@@ -1248,6 +1298,14 @@ Every compact card, list row, chip row, and nav-adjacent area must be designed f
 Every chart, map, gauge, progress ring, or visual panel must contain visible constructed geometry. Do not leave blank chart cards, empty axes, empty map panels, or placeholder rectangles.
 If a row/card contains more than two text lines plus controls, increase its height, simplify the copy, or move secondary metadata into a separate line so the surface breathes.
 
+CRITICAL INSTRUCTION 0.8: SPATIAL ARITHMETIC BEFORE COMPOSITION
+Before writing any container, do the arithmetic the SCREEN LAYOUT CONTRACT gives you.
+- The frame is 390x844. Regions have declared minimum and maximum heights. Fit inside them by cutting copy or moving content below the fold; never by growing a region past its maximum.
+- Items sharing one row are read as a set. In an equal-height region every item uses the same media aspect ratio, the same element order, the same number of text lines, and the same internal padding. Use items-stretch or h-full so their bottoms align.
+- Never fake asymmetry by offsetting one card vertically, giving siblings different media heights, or splitting a two-column grid into unequal fractional tracks with different content in each.
+- Every region taller than 120px must be filled by real content: text, an approved asset slot, a chart with visible marks, or a control group. If you have nothing to put there, the region is too tall — shrink it. Do not fill it with abstract shapes, blurred circles, floating rounded rectangles, or centered decorative blobs.
+- Respect the copy budget. If a title exceeds its character budget, shorten the copy; do not shrink the type or let it wrap into a second line that its sibling does not have.
+
 CRITICAL INSTRUCTION 1: LIVE DESIGN TOKENS
 You MUST use Drawgle live token utility classes and CSS variables for canonical colors, typography, spacing, sizing, radii, borders, and shadows.
 Preferred examples: dg-bg-primary, dg-surface-card, dg-text-high, dg-text-medium, dg-action-primary, dg-border-divider, dg-radius-app, dg-radius-inner, dg-radius-pill, dg-shadow-surface, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-body, dg-type-caption.
@@ -1258,6 +1316,8 @@ Do NOT invent additional radius tiers, border widths, or shadow strengths. Use o
 
 STRICT DESIGN CONTRACT:
 ${buildStrictDesignContract(designTokens)}
+
+${buildStyleCharterSection(designTokens)}
 
 ${designStyleContract ? `STYLE CONTRACT:\n${designStyleContract}\n` : ""}
 

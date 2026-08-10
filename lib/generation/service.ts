@@ -33,12 +33,26 @@ import {
   buildEditSystemInstruction,
   buildCreativeDirectionInstruction,
   buildDesignInstruction,
+  buildStyleCharterSection,
   plannerBlueprintStepInstruction,
   plannerScreenBriefStepInstruction,
   buildNavigationArchitectureContract,
   buildSharedNavigationContract,
 } from "@/lib/generation/prompts";
 import { resolveGenerationPromptMode } from "@/lib/generation/prompt-routing";
+import {
+  resolveRegionContracts,
+  resolveViewportBudget,
+  type LayoutBudgetDiagnostic,
+} from "@/lib/generation/layout-budget";
+import {
+  buildStyleCharter,
+  diffCharterAgainstAnalysis,
+  formatStyleCharterContract,
+  type StyleCharterV1,
+} from "@/lib/generation/style-charter";
+import { validateTokenRelationships } from "@/lib/design-tokens-relationships";
+import { getCuratedStyleReferenceById } from "@/lib/generation/curated-style-catalog";
 import {
   buildPortableReferenceContext,
   normalizeReferenceTransferContract,
@@ -305,7 +319,7 @@ const AssetNeedSchema = z.object({
 });
 
 const ScreenLayoutContractSchema = z.object({
-  version: z.preprocess((value) => value == null ? 2 : Number(value), z.union([z.literal(1), z.literal(2)])).optional(),
+  version: z.preprocess((value) => value == null ? 2 : Number(value), z.union([z.literal(1), z.literal(2), z.literal(3)])).optional(),
   viewport_plan: z.string().trim().min(1).max(500),
   focal_hierarchy: z.string().trim().min(1).max(500),
   section_rhythm: z.string().trim().min(1).max(500),
@@ -317,6 +331,29 @@ const ScreenLayoutContractSchema = z.object({
     purpose: z.string().trim().min(1).max(400),
     content_kind: z.enum(["header", "focal", "chart", "list", "form", "media", "action", "supporting", "other"]),
   })).min(1).max(12).optional(),
+  // v3 spatial arithmetic. Optional so v1/v2 stored plans keep parsing; the
+  // layout-budget resolver derives anything the planner omits.
+  viewport_budget: z.object({
+    frame_height_px: z.coerce.number().optional(),
+    above_fold_region_ids: z.array(z.string().trim().min(1).max(80)).max(12).optional(),
+    regions: z.array(z.object({
+      id: z.string().trim().min(1).max(80),
+      min_h_px: z.coerce.number(),
+      max_h_px: z.coerce.number(),
+      priority: z.enum(["focal", "primary", "secondary"]).optional(),
+    })).max(12).optional(),
+  }).optional(),
+  region_contracts: z.array(z.object({
+    id: z.string().trim().min(1).max(80),
+    arrangement: z.enum(["single", "two-column", "three-column", "grid", "horizontal-scroll", "stacked-rows"]).optional(),
+    sibling_balance: z.enum(["equal-height", "independent"]).optional(),
+    item_count: z.coerce.number().optional(),
+    item_anatomy: z.array(z.string().trim().min(1).max(120)).max(10).optional(),
+    copy_budget: z.object({
+      title_max_chars: z.coerce.number(),
+      body_max_lines: z.coerce.number(),
+    }).nullish(),
+  })).max(12).optional(),
 });
 
 const normalizeReferenceLayoutSource = (value: unknown) => {
@@ -2328,7 +2365,13 @@ const deriveScreenLayoutRegions = (description: string): ScreenLayoutRegion[] =>
   return candidates;
 };
 
-const normalizeScreenLayoutContract = (value: unknown): ScreenPlan["layoutContract"] => {
+const normalizeScreenLayoutContract = (
+  value: unknown,
+  // Defaults to true because reserving dock clearance can only make the
+  // above-fold budget more conservative. Under-reserving would let the planner
+  // promise a fold that the renderer then covers with navigation.
+  navigationEnabled = true,
+): ScreenPlan["layoutContract"] => {
   const raw = isRecord(value) && isRecord(value.layout_contract)
     ? value.layout_contract
     : isRecord(value) && isRecord(value.layoutContract)
@@ -2355,24 +2398,63 @@ const normalizeScreenLayoutContract = (value: unknown): ScreenPlan["layoutContra
     return null;
   }
 
+  const regions = parsed.data.regions?.map((region) => ({
+    id: region.id,
+    purpose: region.purpose,
+    contentKind: region.content_kind,
+  })) ?? deriveScreenLayoutRegions([
+    parsed.data.viewport_plan,
+    parsed.data.focal_hierarchy,
+    parsed.data.component_density,
+    parsed.data.cta_policy,
+  ].join(" "));
+
+  // v3 is resolved for every plan, including v1/v2 stored plans, so the builder
+  // always receives a numeric budget instead of only prose.
+  const budgetDiagnostics: LayoutBudgetDiagnostic[] = [];
+  const viewportBudget = resolveViewportBudget({
+    supplied: parsed.data.viewport_budget
+      ? {
+          frameHeightPx: parsed.data.viewport_budget.frame_height_px,
+          aboveFoldRegionIds: parsed.data.viewport_budget.above_fold_region_ids,
+          regions: parsed.data.viewport_budget.regions?.map((region) => ({
+            id: region.id,
+            minHPx: region.min_h_px,
+            maxHPx: region.max_h_px,
+            priority: region.priority ?? "primary",
+          })),
+        }
+      : null,
+    regions,
+    navigationEnabled,
+    diagnostics: budgetDiagnostics,
+  });
+  const regionContracts = resolveRegionContracts({
+    supplied: parsed.data.region_contracts?.map((contract) => ({
+      id: contract.id,
+      arrangement: contract.arrangement,
+      siblingBalance: contract.sibling_balance,
+      itemCount: contract.item_count,
+      itemAnatomy: contract.item_anatomy,
+      copyBudget: contract.copy_budget
+        ? { titleMaxChars: contract.copy_budget.title_max_chars, bodyMaxLines: contract.copy_budget.body_max_lines }
+        : null,
+    })),
+    regions,
+    diagnostics: budgetDiagnostics,
+  });
+
   return {
-    version: parsed.data.version ?? 2,
+    version: 3,
     viewportPlan: parsed.data.viewport_plan,
     focalHierarchy: parsed.data.focal_hierarchy,
     sectionRhythm: parsed.data.section_rhythm,
     componentDensity: parsed.data.component_density,
     ctaPolicy: parsed.data.cta_policy,
     antiPatterns: parsed.data.anti_patterns ?? [],
-    regions: parsed.data.regions?.map((region) => ({
-      id: region.id,
-      purpose: region.purpose,
-      contentKind: region.content_kind,
-    })) ?? deriveScreenLayoutRegions([
-      parsed.data.viewport_plan,
-      parsed.data.focal_hierarchy,
-      parsed.data.component_density,
-      parsed.data.cta_policy,
-    ].join(" ")),
+    regions,
+    viewportBudget,
+    regionContracts,
   };
 };
 
@@ -2826,6 +2908,7 @@ async function generateCreativeDirection({
   referenceMode,
   referenceAnalysis,
   designStyle,
+  styleCharter,
   llmLog,
 }: {
   prompt: string;
@@ -2833,6 +2916,7 @@ async function generateCreativeDirection({
   referenceMode?: ReferenceMode | null;
   referenceAnalysis?: ReferenceAnalysis | null;
   designStyle?: DesignStylePack | null;
+  styleCharter?: StyleCharterV1 | null;
   llmLog?: (label: string, data: Record<string, unknown>) => void;
 }): Promise<ParsedCreativeDirection | null> {
   try {
@@ -2852,6 +2936,13 @@ async function generateCreativeDirection({
     });
     const parts: Array<Record<string, unknown>> = [];
     const designStyleContract = formatDesignStyleContract(designStyle);
+    const charterContract = formatStyleCharterContract(styleCharter);
+
+    if (charterContract) {
+      parts.push({
+        text: `${charterContract}\nArt direction rule: invent freely inside these constraints. A direction that breaks one of them is not a bolder direction, it is a direction for a different reference.`,
+      });
+    }
 
     if (designStyleContract) {
       parts.push({
@@ -3024,6 +3115,7 @@ export async function planScreenBriefsForBuild({
         `User request:\n${prompt}`,
         projectContext?.trim() ? `Project context:\n${projectContext.trim()}` : null,
         designStyleContract ? `Design style contract:\n${designStyleContract}` : null,
+        buildStyleCharterSection(designTokens) || null,
         tokenContext ? `Design tokens:\n${tokenContext}` : null,
         "SCREEN PLANNING TASK: Reference direction, design system, and project blueprint already exist for this project.",
         "Create builder-ready screen briefs for ONLY the locked screens below. Treat suggestion text as intent only — expand into full construction briefs.",
@@ -3370,6 +3462,10 @@ async function planUiFlowInternal({
   }
 
   if (designTokens?.tokens) {
+    const charterSection = buildStyleCharterSection(designTokens);
+    if (charterSection) {
+      parts.push({ text: charterSection });
+    }
     parts.push({
       text: `Approved Token Context:\n${buildTokenPromptContext(designTokens, "compact_visual")}`,
     });
@@ -4305,14 +4401,36 @@ export async function generateDesignTokens({
       responseMimeType: "application/json",
       temperature: 0.35,
     });
+    // The charter is built before creative direction so the art-direction step
+    // is constrained too. Without it, creative direction invents a palette and
+    // type voice, tokens faithfully convert that invention, and the reference
+    // the project was actually matched to never gets a vote.
+    const charter = buildStyleCharter({
+      prompt,
+      curatedReference: getCuratedStyleReferenceById(referenceId),
+      designStyle,
+      referenceAnalysis,
+    });
+    const charterContract = formatStyleCharterContract(charter);
+    const charterConflicts = diffCharterAgainstAnalysis(charter, referenceAnalysis);
+
     const creativeDirection = (await generateCreativeDirection({
       prompt,
       image,
       referenceAnalysis,
       referenceMode: resolvedReferenceMode,
       designStyle,
+      styleCharter: charter,
       llmLog,
     })) ?? fallbackCreativeDirection({ prompt, referenceAnalysis });
+
+    if (charterContract) {
+      parts.push({
+        text: charterConflicts.length > 0
+          ? `${charterContract}\nResolved conflicts with this run's image analysis:\n${charterConflicts.map((entry) => `  - ${entry}`).join("\n")}`
+          : charterContract,
+      });
+    }
 
     if (designStyleContract) {
       parts.push({
@@ -4399,6 +4517,32 @@ export async function generateDesignTokens({
       ...(approved.meta ?? {}),
       componentShapePolicy: deriveComponentShapePolicy({ prompt, referenceText, designStyle }),
     };
+
+    // Relationship repair runs last, on the already-normalized token set, so it
+    // sees the same values the builder will. Its output is re-normalized
+    // because changing a spacing step changes the derived concentric radii.
+    if (approved.tokens) {
+      const { tokens: relatedTokens, report } = validateTokenRelationships({
+        tokens: approved.tokens,
+        charter,
+      });
+      approved.tokens = normalizeDesignTokens({ ...approved, tokens: relatedTokens }).tokens;
+      approved.meta = {
+        ...(approved.meta ?? {}),
+        styleCharter: charter as unknown as JsonValue,
+        tokenRelationships: report as unknown as JsonValue,
+        charterConflicts,
+      };
+      if (llmLog) {
+        llmLog("[TOKEN RELATIONSHIPS] design-tokens", {
+          charterSource: charter.source,
+          referenceId: charter.referenceId,
+          conflicts: charterConflicts,
+          diagnostics: report.diagnostics,
+        });
+      }
+    }
+
     return approved;
   } catch (error) {
     console.error("Failed to generate design tokens", error);

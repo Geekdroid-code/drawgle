@@ -31,6 +31,37 @@ This file is the maintainer history for production generation behavior. Keep the
 
 The normalized per-screen description and layout contract go to the builder. Raw blueprint output and duplicated `Planner Brief` text do not.
 
+### Style charter
+
+- Every run resolves one `StyleCharterV1` before creative direction. Curated runs derive it from the reference's hand-authored `selectionProfile`; uploaded and prompt-only runs derive a weaker observational charter.
+- Precedence is explicit user prompt, then curated catalog, then per-run reference analysis. A model-generated analysis never vetoes a hand-authored catalog profile; disagreements are recorded on the token metadata.
+- The charter bounds surface elevation, shadow blur and alpha, glass and gradient permission, heading font class, base-color OKLCH band, accent chroma, and the section-gap band. It reaches creative direction, token generation, the planner, the builder, and edits.
+
+### Token relationships
+
+- Token sets are validated as a system after normalization and before persistence: surface/background hue and lightness relationship, charter conformance, spacing-scale coherence, layout-gap membership in that scale, macro/micro gap ratio, border width and divider visibility, type scale against the 844px frame, and the text contrast ramp.
+- High and medium emphasis text targets 4.5:1. Low emphasis targets 3:1 — raising it further collapses the emphasis ladder into two indistinguishable tiers.
+- Repairs are idempotent. `DRAWGLE_TOKEN_RELATIONSHIPS_ENABLED=false` makes them diagnostics-only.
+
+### Concentric geometry
+
+- A nested surface's radius equals its parent's radius minus the gap between their edges. `radii.inner` is derived from the element gap; `radii.inset_*` provides one correct value per spacing step, exposed as `dg-radius-inset-*`.
+- The normalizer walks real DOM nesting and repairs radii that violate the law, running after the role-based rules so a correct value is not rewritten back to the generic token. Interactive controls and primary CTAs keep their shape-policy radius.
+- A child gap wider than the padding of the surface containing it is a rhythm inversion and is corrected. `DRAWGLE_GEOMETRY_CONTRACT_ENABLED=false` makes both diagnostics-only.
+
+### Layout contract v3
+
+- Screen plans carry a numeric `viewportBudget` (per-region min/max heights, above-fold selection against the 844px frame) and `regionContracts` (arrangement, sibling balance, item count, shared item anatomy, copy budget).
+- Multi-column arrangements are forced to equal-height siblings with one shared anatomy and a copy budget; only horizontal-scroll rails may use independent heights.
+- A region reserving more than 120px must be carried by media, a chart, a list, a form, or a focal cluster, otherwise its minimum is clamped. Above-fold minimums that exceed the frame demote the lowest-priority region rather than shrinking everything.
+- Values are derived deterministically when the planner omits them; stored v1/v2 contracts keep parsing and gain derived v3 values. Nothing here fails a plan.
+
+### Design critic
+
+- Static composition checks run alongside contract normalization: sibling imbalance in a row, decorative dead space, CSS-fabricated object art, above-fold budget, raw palette surfaces, surface text contrast, and off-system radius drift.
+- Only raw palette surfaces are repaired. The rest warn into `quality_diagnostics` and never trigger a paid builder retry.
+- Correct concentric radii are not counted as radius drift; drift means radii chosen outside the token ladder.
+
 ### Geometry and typography
 
 - Reference analysis records component-role measurements with confidence, scope, source screens, and source layer.
@@ -93,6 +124,60 @@ The normalized per-screen description and layout contract go to the builder. Raw
 - Parent-screen credits are reserved from the blueprint before any builder starts. State variants discovered by the remaining brief tranche are appended atomically and idempotently; insufficient optional-state credits skip only those states.
 - A later planning failure never rolls back a ready first screen. Outstanding reservations are released by normal run settlement.
 - `DRAWGLE_PROGRESSIVE_FIRST_SCREEN_ENABLED=false` restores the all-screen planning and project-wide asset-resolution path for new runs.
+
+## 2026-08-10 — Design Brain: Charter, Token Relationships, Concentric Geometry, Layout Budget
+
+### Symptom
+
+A "premium cosmetics" project matched to the curated reference `cosmetics-ecommerce-minimal-light` produced screens that contradicted that reference in four ways and failed basic spatial craft. Observed in production project `6c6ff9da-1973-47d0-a3d3-78f3d1b4a996`:
+
+- Tokens used a serif heading family, a warm beige base, an inset-highlight plus drop-shadow surface, and a glass navigation dock at 20px blur. The catalog profile for that reference declares `geometric-sans`, `clean-base`, `matte`/`flat-layered`, and excludes `glassmorphism` and `heavy-shadows`.
+- `surface.card #FFFFFF` sat on `background.primary #F5F2ED` with a 0.038 lightness step and a 0.03-alpha shadow; a neutral card on a warm page read as an error rather than a layer.
+- `spacing` was `0/4/8/12/24/32/48/64` while `element_gap` was `16px`, so the most-used gap in the app was not a member of its own scale. `section_gap` was 3x `element_gap`. `border_widths.standard` was `0.75px`. `text.low_emphasis` was 2.6:1 on white.
+- A 32px card contained a 16px-radius surface inset by 8px. The concentric value is 24px, so every nested corner read tighter than the shell around it.
+- A two-card row used unequal fractional tracks, media wells of 212px and 158px, a manual 24px offset on one card, and `items-start`, then filled each media well with a CSS-drawn rectangle standing in for a product.
+
+### Root cause
+
+- `buildCuratedStyleRetrievalDocument()` was the only consumer of `selectionProfile`, and only to build the retrieval embedding. After a reference was selected its hand-authored profile was discarded, so creative direction invented a palette and type voice, token generation faithfully converted that invention, and the matched reference never constrained either.
+- `enforcePlatformConstraints()` validated token *shapes* (is this a px string, is `inner` below `app`) and never token *relationships*.
+- Radius normalization was role-based. A single global `radii.inner` cannot be correct for more than one nesting gap, and `normalizeGeneratedUiContracts()` had no view of nesting, so it could neither detect the mismatch nor avoid rewriting a correct value back to the generic token.
+- `layout_contract` v2 was five prose fields. No quantity in it described vertical space or content volume, so "asymmetric grid" reached the builder with no baseline, anatomy, or copy budget attached.
+- QA measured safety, completion, asset policy, and token naming. Nothing measured composition.
+
+### Change
+
+- Added `StyleCharterV1` (`lib/generation/style-charter.ts`). Curated `selectionProfile` tags become bounded constraints (elevation ceiling, shadow blur/alpha ceiling, glass and gradient permission, heading font class, base-color OKLCH band, accent chroma ceiling, section-gap band). Precedence is explicit user prompt, then curated catalog, then per-run reference analysis. Charter reaches creative direction, token generation, the builder, and the edit path; conflicts with the run's analysis are recorded, not silently resolved.
+- Added `validateTokenRelationships()` (`lib/design-tokens-relationships.ts`) and OKLCH/contrast math (`lib/color-math.ts`). Repairs surface/background hue and lightness relationships, charter conformance, spacing-scale coherence and membership, macro/micro gap ratio, border width and divider visibility, type scale against the viewport, and the full text contrast ramp.
+- Added the concentric radius law. `radii.inner` is derived from the element gap, and `radii.inset_xxs..inset_lg` are emitted per spacing step with matching `dg-radius-inset-*` utilities. `applyGeometryContract()` (`lib/generation/geometry-contract.ts`) walks real DOM nesting, repairs radii that violate the law, and flags child gaps wider than the padding containing them. It runs after the role-based rules so a correct concentric value is not undone.
+- Added layout contract v3 (`lib/generation/layout-budget.ts`): `viewport_budget` with per-region min/max heights and an above-fold selection, and `region_contracts` with arrangement, sibling balance, item anatomy, and copy budget. Resolved deterministically for every plan including stored v1/v2 contracts.
+- Added `runDesignCritic()` (`lib/generation/design-critic.ts`): sibling imbalance, decorative dead space, CSS-fabricated object art, above-fold budget, raw palette surfaces, surface text contrast, and off-system radius drift. Reported into `quality_diagnostics`.
+- Added `scoreDesignBenchmark()` (`lib/generation/design-benchmark.ts`) for per-rule pass rates over a screen set.
+
+### Safety invariants
+
+- The style image and the curated profile still never own target information architecture, screen count, or navigation destinations.
+- An explicit user request outranks the charter. A per-run reference analysis never does; where they disagree the catalog wins and the conflict is recorded.
+- Only exactly-known defects are repaired. Sibling imbalance, dead space, fabricated object art, and budget overruns warn and save.
+- No new model call, no visual-refinement pass, no per-screen design review. Every layer added here is deterministic.
+- No paid builder retry is triggered by any rule in this change, preserving the existing rule that CSS and token drift never purchase another builder call.
+- Token relationship repair is idempotent; re-normalizing a repaired token set produces no further changes.
+- Where no element gap is known, radius derivation falls back to the previous proportional behavior, so stored token sets keep their exact hierarchy.
+
+### Verification
+
+- Full Vitest run: 49 files, 355 tests passed. `lib/canvas-camera.test.ts` remains a pre-existing `node:test` file that vitest cannot collect; it passes 7/7 under `node:test` on a clean tree.
+- `pnpm run typecheck` clean. `pnpm run lint` reports zero errors and the one pre-existing `react-hooks/exhaustive-deps` warning in untouched `components/CanvasArea.tsx`.
+- Scored against the five real screens and stored tokens of project `6c6ff9da`: benchmark pass rate 70.0% on the shipped output, 82.5% after token relationship repair alone, and 95.6% after token plus geometry repair, with 19 concentric-radius and gap repairs applied across the five screens. The two remaining findings are the ragged two-card row and the CSS-drawn product shape — both plan-time defects that layout contract v3 addresses at the planner, and both correctly reported rather than silently rewritten.
+- Live Gemini/Luna acceptance for newly generated projects remains a deployment check; these numbers are replay against stored production output and do not claim a model-behavior result.
+
+### Rollout and rollback
+
+- No database migration. `screens.quality_diagnostics` is still absent in production, so critic output is dropped by the existing `PGRST204` compatibility path until `20260809000100_screen_quality_diagnostics.sql` is applied.
+- `DRAWGLE_TOKEN_RELATIONSHIPS_ENABLED=false` makes relationship checks diagnostics-only.
+- `DRAWGLE_GEOMETRY_CONTRACT_ENABLED=false` makes the concentric radius and gap rules diagnostics-only.
+- `DRAWGLE_UI_CONTRACT_REPAIR_ENABLED=false` continues to disable all normalizer repair including the two above.
+- Existing screens are never rewritten. Stored v1/v2 layout contracts keep parsing and gain derived v3 values.
 
 ## 2026-08-09 — Progressive First-Screen Generation
 

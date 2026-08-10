@@ -1,6 +1,8 @@
 import { load } from "cheerio";
 
 import { normalizeDesignTokens } from "@/lib/design-tokens";
+import { runDesignCritic } from "@/lib/generation/design-critic";
+import { applyGeometryContract } from "@/lib/generation/geometry-contract";
 import { flattenDesignTokensToCssVariables } from "@/lib/token-runtime";
 import type {
   DesignComponentShapePolicy,
@@ -203,6 +205,21 @@ export function normalizeGeneratedUiContracts({
     }
   });
 
+  // Runs after the role-based rules on purpose. Role assignment cannot see
+  // nesting, so a correct concentric radius would otherwise be rewritten back
+  // to the generic `radii.inner` by the rule above.
+  const geometryRepairEnabled = repairEnabled && process.env.DRAWGLE_GEOMETRY_CONTRACT_ENABLED !== "false";
+  for (const diagnostic of applyGeometryContract({ $, designTokens, repairEnabled: geometryRepairEnabled })) {
+    const entry: UiContractDiagnostic = {
+      code: diagnostic.code,
+      selector: diagnostic.selector,
+      detail: diagnostic.detail,
+    };
+    (diagnostic.severity === "repaired" ? repairs : warnings).push(entry);
+  }
+
+  const critic = runDesignCritic({ $, designTokens, repairEnabled });
+
   $(CRITICAL_SELECTOR).each((_, element) => {
     const classes = $(element).attr("class") ?? "";
     if (/\b(?:truncate|text-ellipsis|line-clamp-\d+)\b/.test(classes)) {
@@ -237,6 +254,7 @@ export function normalizeGeneratedUiContracts({
     repairEnabled,
     repairs: dedupeDiagnostics(repairs),
     warnings: dedupeDiagnostics(warnings),
+    critic,
   };
   return { code: normalizedCode, report };
 }
@@ -247,7 +265,7 @@ export const buildStaticScreenQualityDiagnostics = (
 ): ScreenQualityDiagnosticsV1 => ({
   version: 1,
   codeHash: hashUiCode(code),
-  disposition: report.warnings.length > 0 ? "warning" : "clean",
+  disposition: report.warnings.length > 0 || (report.critic?.findings.length ?? 0) > 0 ? "warning" : "clean",
   static: report,
   rendered: null,
 });

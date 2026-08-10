@@ -27,6 +27,16 @@ export type CuratedStyleReference = {
   selectionProfile: CuratedStyleSelectionProfile;
 };
 
+/**
+ * Pure catalog lookup. Lives here rather than in curated-style-references so
+ * that consumers which only need the hand-authored profile (the style charter,
+ * tests) do not have to pull in the server-only image loader.
+ */
+export function getCuratedStyleReferenceById(referenceId?: string | null) {
+  if (!referenceId) return null;
+  return CURATED_STYLE_REFERENCES.find((reference) => reference.id === referenceId) ?? null;
+}
+
 const TAG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 const assertTag = (value: string, path: string) => {

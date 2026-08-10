@@ -1,6 +1,23 @@
 # Design Brain Plan — Giving the Planner and Builder Spatial Judgment
 
-Status: proposal. Scope: `lib/generation/*`, `lib/design-tokens.ts`, `lib/token-runtime.ts`, `trigger/generate-ui-flow.ts`.
+Status: **implemented 2026-08-10** (Phases 1–6; Phase 0 partially blocked — see below). Scope: `lib/generation/*`, `lib/design-tokens.ts`, `lib/token-runtime.ts`, `lib/color-math.ts`.
+Shipped behavior and rollback switches are recorded in [updates.md](updates.md#2026-08-10--design-brain-charter-token-relationships-concentric-geometry-layout-budget). The diagnosis below is retained as the reasoning record.
+
+## 0. What shipped
+
+| Phase | Delivered in | State |
+|---|---|---|
+| 0 — measurement | — | **Blocked.** `screens.quality_diagnostics` confirmed absent in production; `SUPABASE_ACCESS_TOKEN` in `.env.local` returns 401, so the migration could not be applied from here. Analyzer serif hallucination confirmed instead from run metadata. |
+| 1 — style charter | `lib/generation/style-charter.ts` | Done |
+| 2 — token relationships | `lib/design-tokens-relationships.ts`, `lib/color-math.ts` | Done |
+| 3 — concentric geometry | `lib/design-tokens.ts`, `lib/token-runtime.ts`, `lib/generation/geometry-contract.ts` | Done |
+| 4 — layout contract v3 | `lib/generation/layout-budget.ts`, planner schema + prompts | Done |
+| 5 — design critic | `lib/generation/design-critic.ts` | Done |
+| 6 — benchmark + fixture | `lib/generation/design-benchmark.ts`, `design-brain-regression.test.ts` | Done |
+
+Replayed against the five real screens of project `6c6ff9da`: benchmark pass rate **70.0% → 82.5%** (token repair) **→ 95.6%** (token + geometry repair), with 19 concentric/gap repairs applied. The two remaining findings are the ragged two-card row and the CSS-drawn product shape — both correctly reported rather than rewritten, because both are plan-time defects that Phase 4 addresses at the planner.
+
+
 Evidence base: project `6c6ff9da-1973-47d0-a3d3-78f3d1b4a996` ("Create a Premium cosmetics ios mobile app"), curated reference `cosmetics-ecommerce-minimal-light`, 5 ready screens read from production.
 
 ## 1. Thesis
