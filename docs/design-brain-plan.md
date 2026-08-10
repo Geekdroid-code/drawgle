@@ -13,6 +13,7 @@ So the plan is not "write better prompts". It is: **move design judgment out of 
 
 ## 2. Diagnosis, with evidence
 
+
 ### F1 — The curated reference's own design metadata is discarded after retrieval
 
 `cosmetics-ecommerce-minimal-light.selectionProfile` (`lib/generation/curated-style-catalog.ts:1080`) states:
