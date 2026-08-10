@@ -125,6 +125,64 @@ The normalized per-screen description and layout contract go to the builder. Raw
 - A later planning failure never rolls back a ready first screen. Outstanding reservations are released by normal run settlement.
 - `DRAWGLE_PROGRESSIVE_FIRST_SCREEN_ENABLED=false` restores the all-screen planning and project-wide asset-resolution path for new runs.
 
+## 2026-08-10 — Reference Fidelity Restoration
+
+### Symptom
+
+Image-to-UI and Style Reference output degraded sharply. Generated screens read as generic card grids rather than the supplied reference. Navigation rendered during streaming and disappeared after refresh. Multi-screen requests delivered one screen while reporting a completed run.
+
+### Root cause
+
+Seven independent defects, spanning three releases. Only the fifth came from the Design Brain work.
+
+1. `REFERENCE_ANALYSIS_RESPONSE_JSON_SCHEMA` exceeded Gemini's structured-output complexity limits and was rejected with `400 INVALID_ARGUMENT`. Every Image-to-UI, Style Reference, and curated run therefore used the count-only fallback with no measured geometry, motifs, navigation appearance, or screen anatomy.
+2. `planScreenBriefsForBuild` hardcoded `hasImage: false`. `resolveGenerationPromptMode` returns `recreate` only when an image is present, so every Image-to-UI project was replanned as `style`, producing a transfer contract that forbade the anatomy the builder was simultaneously instructed to reproduce.
+3. `sanitizeScreenCodeForSharedNavigation` removed a screen's own navigation whenever the project plan was merely `enabled`, while `renderDeterministicNavigationShell` refuses to render unless at least two destinations are both generated and linked. Streaming showed the builder's navigation, persistence removed it, and the shell had nothing to put back.
+4. Product-architecture heuristics classified screens such as a charging session as immersive and suppressed navigation even when the structural reference visibly showed a dock on that screen.
+5. The style charter asserted authority over "the attached image", and the spatial-arithmetic rules (no asymmetry, fill every large region, obey the declared budget) applied in all modes, including exact recreation.
+6. `planScreenBriefsForBuild` threw for the whole tranche when any single brief failed the builder-grade contract. After the bounded repair the caller discarded every screen in the tranche and recorded no failure.
+7. `projectOrigin` was derived from `referenceDna`, so a failed reference analysis persisted an Image-to-UI project as `prompt` with no reference DNA, degrading later add-screen and edit runs.
+
+### Change
+
+- Reference analysis no longer sends the structured schema by default (`DRAWGLE_REFERENCE_ANALYSIS_SCHEMA_ENABLED=true` re-enables it), and any schema rejection now retries once without it instead of falling through to count-only.
+- The detailed screen planner reports structural-reference presence from the project's reference mode, so recreate survives into screen briefs and the transfer contract.
+- Added `resolveRenderableSharedNavigationItems` and `willRenderSharedNavigationShell`. Persistence consults them before removing local navigation, and bottom clearance is reserved only when the shell will actually render.
+- `normalizeNavigationPlan` links destinations to eligible root screens in declared order when term matching leaves fewer than two links. Generic destination labels no longer produce a plan where every destination is unlinked.
+- `resolveScreenChromePolicy` accepts `referenceNavigationVisible`; `referenceShowsNavigationOnScreen` derives it from the reference analysis in recreate mode. Visible evidence now owns chrome visibility.
+- The style charter renders a mode-specific authority statement: the structural reference outranks it in recreate, approved transfer evidence outranks it in style. Spatial-arithmetic rules are mode-gated and subordinate to visual evidence. Both sit behind `DRAWGLE_DESIGN_BRAIN_PROMPTS_ENABLED`.
+- `BuilderProjectContract.screen.purpose` carries a summarized one-line purpose instead of the full brief, which was byte-identical to the system prompt's `Screen Description`.
+- After the bounded repair, the planner returns the briefs that passed and reports `droppedScreenNames`; the trigger records them in run metadata so a partially delivered run cannot present as complete.
+- `projectOrigin` falls back to the requested reference mode rather than `prompt`.
+
+### Safety invariants
+
+- Reference evidence still never owns screen count, information architecture, or navigation destinations.
+- An explicit user request still outranks the style charter; a per-run reference analysis still never outranks the curated catalog.
+- Navigation is removed from saved HTML only when the shared shell will render in its place.
+- The first planning attempt still fails the whole tranche so the bounded repair keeps its chance at a complete set; partial acceptance applies only after that repair.
+- No additional model call, visual-refinement pass, or paid builder retry was introduced.
+
+### Verification
+
+- Full Vitest run: 50 files, 367 tests passed. `lib/canvas-camera.test.ts` remains a pre-existing `node:test` file vitest cannot collect.
+- `pnpm run typecheck`, `pnpm run lint` (zero errors, one pre-existing warning in untouched `components/CanvasArea.tsx`), and the production build all pass.
+- `lib/generation/pipeline-regression.test.ts` covers each defect, including the mode demotion, the strip-without-replacement case, ordered destination linking, mode-specific charter authority, brief de-duplication, and evidence-led chrome.
+- Replayed against three stored production projects. Finance: 1 of 4 destinations linked, shell does not render, local navigation now retained instead of stripped. Sneakers: stored plan claimed three links but only one screen exists, so the shell correctly declines. Calisthenics: three linked destinations, shell renders 5,574 characters and local navigation is stripped as intended.
+- Live Gemini/Luna acceptance for newly generated projects remains a deployment check; these results are replay against stored production state.
+
+### Rollout and rollback
+
+- No database migration.
+- `DRAWGLE_REFERENCE_ANALYSIS_SCHEMA_ENABLED=true` restores structured reference-analysis output.
+- `DRAWGLE_DESIGN_BRAIN_PROMPTS_ENABLED=false` removes the style charter and spatial-arithmetic blocks from every builder prompt.
+- `DRAWGLE_TOKEN_RELATIONSHIPS_ENABLED=false` and `DRAWGLE_GEOMETRY_CONTRACT_ENABLED=false` remain available for the token and geometry layers.
+- Existing screens and stored navigation plans are not rewritten. Projects generated before this change keep their stored plans; the navigation-linking improvement applies to new runs.
+
+### Known residual
+
+A stored navigation plan can still link a destination to a screen that was never generated, producing a dead tab. The partial-acceptance change reduces how often screens go missing, but reconciling stored plans against the final screen slate is a separate follow-up.
+
 ## 2026-08-10 — Design Brain: Charter, Token Relationships, Concentric Geometry, Layout Budget
 
 ### Symptom

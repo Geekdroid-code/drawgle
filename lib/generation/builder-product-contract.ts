@@ -21,6 +21,24 @@ const DEFAULT_SHAPE_POLICY: DesignComponentShapePolicy = {
   rationale: "Use the canonical component-role radius hierarchy.",
 };
 
+/**
+ * One-line purpose for the contract's screen identity block.
+ *
+ * This contract exists to carry *product continuity*, and the builder already
+ * receives the full brief as `Screen Description` in its system instruction.
+ * Passing `screenPlan.description` through verbatim sent the entire brief a
+ * second time — byte-for-byte identical, roughly 350 tokens per build — and
+ * contradicted this module's own rule that it is not a screen template.
+ */
+const summarizeScreenPurpose = (description: string) => {
+  const labelled = /(?:^|\n)\s*Visual Goal:\s*([^\n]+)/i.exec(description)?.[1]
+    ?? /(?:^|\n)\s*Reference DNA:\s*([^\n]+)/i.exec(description)?.[1]
+    ?? description.split(/\n/).find((line) => line.trim().length > 0)
+    ?? "";
+  const cleaned = labelled.replace(/\s+/g, " ").trim();
+  return cleaned.length > 220 ? `${cleaned.slice(0, 217).trimEnd()}...` : cleaned;
+};
+
 export function buildBuilderProjectContract({
   charter,
   screenFamily,
@@ -46,7 +64,7 @@ export function buildBuilderProjectContract({
     screen: {
       name: screenPlan.name,
       type: screenPlan.type,
-      purpose: screenPlan.description,
+      purpose: summarizeScreenPurpose(screenPlan.description),
       regions: screenPlan.layoutContract?.regions ?? [],
       chromePolicy: screenPlan.chromePolicy ?? null,
     },

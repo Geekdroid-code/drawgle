@@ -368,16 +368,39 @@ const disabledNavigationPlan = (
   })),
 });
 
-export function renderDeterministicNavigationShell(navigationPlan: NavigationPlan) {
+/**
+ * The items the shared shell would actually render, after the V3 rule that a
+ * destination must be generated and linked to a real screen.
+ */
+export function resolveRenderableSharedNavigationItems(navigationPlan: NavigationPlan) {
   if (!navigationPlan.enabled || navigationPlan.kind === "none" || navigationPlan.items.length < LEGACY_MIN_SHARED_NAV_ITEMS) {
-    return "";
+    return [];
   }
-
   const isV3 = navigationPlan.version === 3 && Boolean(navigationPlan.appearance?.primary);
   const navItems = (isV3
     ? navigationPlan.items.filter((item) => item.availability !== "planned" && Boolean(item.linkedScreenName))
     : navigationPlan.items).slice(0, MAX_SHARED_NAV_ITEMS);
-  if (navItems.length < LEGACY_MIN_SHARED_NAV_ITEMS) return "";
+  return navItems.length < LEGACY_MIN_SHARED_NAV_ITEMS ? [] : navItems;
+}
+
+/**
+ * Whether the renderer will actually produce a shared navigation shell.
+ *
+ * Persistence must consult this before removing a screen's own navigation.
+ * Stripping local navigation while the shell then declines to render is what
+ * produced the "nav appears during streaming, disappears after refresh"
+ * regression: the canvas showed the raw stream, the saved HTML had the
+ * navigation removed, and the deterministic shell had fewer than two eligible
+ * destinations to replace it with.
+ */
+export function willRenderSharedNavigationShell(navigationPlan?: NavigationPlan | null) {
+  return Boolean(navigationPlan) && resolveRenderableSharedNavigationItems(navigationPlan!).length > 0;
+}
+
+export function renderDeterministicNavigationShell(navigationPlan: NavigationPlan) {
+  const navItems = resolveRenderableSharedNavigationItems(navigationPlan);
+  if (navItems.length === 0) return "";
+  const isV3 = navigationPlan.version === 3 && Boolean(navigationPlan.appearance?.primary);
   const design = normalizeNavigationDesignContract(navigationPlan.appearance?.primary ?? navigationPlan.design, navigationPlan.visualBrief);
   const itemCount = navItems.length;
   const radiusDelta = Math.min(8, Math.max(4, Math.round(design.radiusPx / 3)));
@@ -857,6 +880,35 @@ export function normalizeNavigationPlan({
     });
   }
 
+  // Term-overlap matching needs two shared meaningful words, which a product
+  // whose destinations are named generically ("Home", "Search") never reaches
+  // against screens named for their domain ("Sneaker Feed"). The result was a
+  // plan where every destination stayed `planned` with a null linkedScreenName,
+  // so the V3 shell filtered all of them out and rendered nothing.
+  //
+  // When matching leaves too few links but eligible root screens exist, link
+  // the remaining destinations to them in declared order. Navigation pointing
+  // at the right screens in the planner's own order is strictly better than a
+  // product with no navigation at all.
+  if (generatedScreenNames.size < LEGACY_MIN_SHARED_NAV_ITEMS) {
+    const eligibleScreens = screens.filter((screen) =>
+      screen.type === "root"
+      && !shouldForceImmersiveScreen(screen)
+      && !generatedScreenNames.has(screen.name.toLowerCase()));
+
+    if (generatedScreenNames.size + eligibleScreens.length >= LEGACY_MIN_SHARED_NAV_ITEMS) {
+      let cursor = 0;
+      for (const item of normalizedItems) {
+        if (cursor >= eligibleScreens.length) break;
+        if (item.availability === "generated") continue;
+        const screen = eligibleScreens[cursor++];
+        item.availability = "generated";
+        item.linkedScreenName = screen.name;
+        generatedScreenNames.add(screen.name.toLowerCase());
+      }
+    }
+  }
+
   const minimumItems = decision === "project-native" && isTyped
     ? PROJECT_NATIVE_MIN_ITEMS
     : LEGACY_MIN_SHARED_NAV_ITEMS;
@@ -1079,9 +1131,18 @@ const removeHighConfidenceFixedBottomNavigationDivs = (code: string) => {
 export function sanitizeScreenCodeForSharedNavigation(
   code: string,
   screenPlan: ScreenPlan,
-  options: { projectNavigationEnabled?: boolean } = {},
+  options: { projectNavigationEnabled?: boolean; navigationPlan?: NavigationPlan | null } = {},
 ) {
   if (!options.projectNavigationEnabled && !screenPlan.chromePolicy?.showPrimaryNavigation && !screenPlan.navigationItemId) return code;
+
+  // Never remove a screen's own navigation unless the shared shell will really
+  // replace it. Enabling navigation is not the same as rendering it: the V3
+  // shell drops planned and unlinked destinations, so an "enabled" plan whose
+  // destinations are not yet generated renders nothing at all. Stripping in
+  // that state leaves the saved screen with no navigation whatsoever.
+  if (options.navigationPlan !== undefined && !willRenderSharedNavigationShell(options.navigationPlan)) {
+    return code;
+  }
 
   let sanitized = code;
   const commentPattern = /<!--[\s\S]*?(?:floating\s+dock|floating\s+navigation|bottom\s+nav|bottom\s+navigation|navigation\s+(?:dock|pill|bar|surface|shell)|tab\s+bar|dock\s+navigation|shared\s+shell\s+simulation|visual\s+mockup\s+for\s+screen\s+context)[\s\S]*?-->/gi;

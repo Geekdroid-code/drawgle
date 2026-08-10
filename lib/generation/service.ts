@@ -3060,7 +3060,7 @@ export async function planScreenBriefsForBuild({
   force?: boolean;
   llmLog?: LlmLogFn;
   repairAttempt?: number;
-}): Promise<{ screens: ScreenPlan[]; planned: boolean }> {
+}): Promise<{ screens: ScreenPlan[]; planned: boolean; droppedScreenNames?: string[] }> {
   if (!screens.length) {
     return { screens, planned: false };
   }
@@ -3070,9 +3070,16 @@ export async function planScreenBriefsForBuild({
 
   const ai = createGeminiClient();
   const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
+  // This step never carries the inline image itself, but the project's
+  // structural reference still owns each screen's anatomy and the builder does
+  // receive that image as `structural-reference`. Reporting "no inline image on
+  // this call" as "no image in this project" silently demoted every
+  // Image-to-UI project to style mode here, which then wrote a transfer
+  // contract forbidding the exact anatomy the builder was told to reproduce.
+  const hasStructuralReference = resolvedReferenceMode === "user_recreate";
   const plannerMode = resolveGenerationPromptMode({
     referenceMode: resolvedReferenceMode,
-    hasImage: false,
+    hasImage: hasStructuralReference,
     hasDesignStyle: Boolean(designStyle ?? charter.designStyle),
     hasReferenceAnalysis: Boolean(charter.referenceDna?.analysis),
     hasProjectVisualMemory: true,
@@ -3219,9 +3226,25 @@ export async function planScreenBriefsForBuild({
       || !screen.referenceTransfer
       || !Array.isArray(screen.assetNeeds));
     if (mergedWithTransfer.length !== screens.length || invalidScreens.length > 0) {
-      throw new Error(
-        `Screen planner returned ${mergedWithTransfer.length}/${screens.length} complete briefs; ${invalidScreens.length} failed the builder-grade contract.`,
-      );
+      const invalidNames = new Set(invalidScreens.map((screen) => screen.name));
+      const validScreens = mergedWithTransfer.filter((screen) => !invalidNames.has(screen.name));
+      const summary = `Screen planner returned ${mergedWithTransfer.length}/${screens.length} complete briefs; ${invalidScreens.length} failed the builder-grade contract.`;
+
+      // On the first attempt, fail the whole tranche so the bounded repair gets
+      // a chance to return a complete set.
+      //
+      // After the repair, keep whatever is usable. Previously one weak brief
+      // discarded every sibling in the tranche, so a five-screen request could
+      // end up delivering a single screen while still reporting success.
+      if (repairAttempt < 1 || validScreens.length === 0) {
+        throw new Error(summary);
+      }
+
+      llmLog?.("[plan-screen-briefs-for-build] partial", {
+        accepted: validScreens.map((screen) => screen.name),
+        dropped: [...invalidNames],
+      });
+      return { screens: validScreens, planned: true, droppedScreenNames: [...invalidNames] };
     }
 
     llmLog?.("[plan-screen-briefs-for-build] complete", {

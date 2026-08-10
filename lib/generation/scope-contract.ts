@@ -159,7 +159,7 @@ const REFERENCE_ANALYSIS_RESPONSE_JSON_SCHEMA = {
       properties: {
         measurements: {
           type: "array",
-          maxItems: 32,
+          maxItems: 12,
           items: {
             type: "object",
             required: ["role", "minPx", "maxPx", "confidence", "sourceScreenIndexes", "scope", "sourceLayer", "note"],
@@ -1231,12 +1231,21 @@ export async function analyzeReferenceImageForScope({
     ]);
     const ai = createGeminiClient();
     const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
+    // The structured response schema is opt-in because Gemini rejects this
+    // one with 400 INVALID_ARGUMENT: it exceeds the provider's complexity
+    // limits (geometryProfile.measurements alone is refused above ~14 items).
+    // Every rejected call fell through to the count-only fallback, so all
+    // reference runs silently lost measured geometry, motifs, navigation
+    // appearance, and screen anatomy. `normalizeReferenceAnalysis` already
+    // validates and repairs the same structure, so the schema was redundant
+    // belt-and-braces that only added a failure mode.
+    const schemaEnabled = process.env.DRAWGLE_REFERENCE_ANALYSIS_SCHEMA_ENABLED === "true";
     const policy = geminiPolicyForTask("project_planning", {
       systemInstruction: isStyleReferenceMode(resolvedReferenceMode)
         ? referenceAnalysisStyleInstruction
         : referenceAnalysisRecreateInstruction,
       responseMimeType: "application/json",
-      responseJsonSchema: REFERENCE_ANALYSIS_RESPONSE_JSON_SCHEMA,
+      ...(schemaEnabled ? { responseJsonSchema: REFERENCE_ANALYSIS_RESPONSE_JSON_SCHEMA } : {}),
       temperature: 0.1,
     });
     const promptPartText = prompt.trim()
@@ -1255,11 +1264,24 @@ export async function analyzeReferenceImageForScope({
       userParts: ["[image]", promptPartText],
     });
 
-    let response = await ai.models.generateContent({
-      model: policy.model,
-      contents: { parts },
-      config: policy.config,
-    });
+    // Self-healing: a provider that rejects the structured schema must not cost
+    // us the entire analysis. Retry once without it before giving up, so a
+    // future schema/complexity change degrades to a normal JSON call instead of
+    // silently demoting every reference run to count-only.
+    const generateAnalysis = async (requestParts: Array<Record<string, unknown>>) => {
+      try {
+        return await ai.models.generateContent({ model: policy.model, contents: { parts: requestParts }, config: policy.config });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const schemaRejected = schemaEnabled && /INVALID_ARGUMENT|400|schema/i.test(message);
+        if (!schemaRejected) throw error;
+        const { responseJsonSchema: _rejected, ...configWithoutSchema } = policy.config as Record<string, unknown>;
+        llmLog?.("[LLM RETRY] reference-analysis-without-schema", { model: policy.model, reason: message.slice(0, 200) });
+        return ai.models.generateContent({ model: policy.model, contents: { parts: requestParts }, config: configWithoutSchema as typeof policy.config });
+      }
+    };
+
+    let response = await generateAnalysis(parts);
     let rawAnalysis = parseJsonResponse<unknown>(response.text || "{}");
     let normalized = normalizeReferenceAnalysis(rawAnalysis);
 
@@ -1273,7 +1295,7 @@ export async function analyzeReferenceImageForScope({
         missingEvidence: normalized.evidenceCompleteness ?? null,
       });
       try {
-        response = await ai.models.generateContent({ model: policy.model, contents: { parts: retryParts }, config: policy.config });
+        response = await generateAnalysis(retryParts);
         rawAnalysis = parseJsonResponse<unknown>(response.text || "{}");
         const repaired = normalizeReferenceAnalysis(rawAnalysis);
         const repairImprovedEvidence = repaired.visualEvidenceConfidence !== "low"

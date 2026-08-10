@@ -425,7 +425,10 @@ export function formatStyleCharterContract(charter: StyleCharterV1 | null | unde
 
   const lines = [
     `STYLE CHARTER (v1, source: ${charter.source}${charter.referenceId ? `, reference: ${charter.referenceId}` : ""})`,
-    "These are constraints, not suggestions. They outrank your own reading of any attached image.",
+    // Precedence is stated by the caller's AUTHORITY line, which knows the
+    // generation mode. Asserting it here made the charter claim priority over
+    // a structural reference during exact recreation.
+    "Constraints derived from the reference this project was matched to.",
   ];
 
   if (charter.theme !== "unspecified") lines.push(`- Theme: ${charter.theme}.`);

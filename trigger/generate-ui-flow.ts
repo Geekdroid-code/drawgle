@@ -99,6 +99,7 @@ import {
   indexNavigationShell,
   normalizeNavigationPlan,
   sanitizeScreenCodeForSharedNavigation,
+  willRenderSharedNavigationShell,
 } from "@/lib/project-navigation";
 import { tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
 import { detectTokenDrift } from "@/lib/token-drift";
@@ -1664,11 +1665,15 @@ export const buildScreenTask = task({
     const finalizeGeneratedCode = (sourceCode: string) => {
       const sanitizedCode = sanitizeScreenCodeForSharedNavigation(sourceCode, payload.screenPlan, {
         projectNavigationEnabled: Boolean(payload.navigationPlan?.enabled),
+        navigationPlan: payload.navigationPlan ?? null,
       });
       const clearanceNormalization = normalizeSharedNavigationClearanceHtml({
         code: sanitizedCode,
         enabled: Boolean(
           payload.navigationPlan?.enabled &&
+          // Reserving bottom clearance for a shell that will not render leaves
+          // dead space under the content instead of room for navigation.
+          willRenderSharedNavigationShell(payload.navigationPlan) &&
           (payload.screenPlan.chromePolicy?.showPrimaryNavigation || payload.screenPlan.navigationItemId),
         ),
       });
@@ -2582,7 +2587,7 @@ export const generateUiFlowTask = task({
     const progressiveFirstScreen = isProgressiveFirstScreenEnabled()
       && !hasSeedScreens
       && planningMode === "project";
-    let remainingBriefsStarter: (() => Promise<ScreenPlan[]>) | null = null;
+    let remainingBriefsStarter: (() => Promise<{ screens: ScreenPlan[]; droppedScreenNames?: string[] }>) | null = null;
     let plan: PlannedUiFlow;
 
     if (hasSeedScreens) {
@@ -2762,7 +2767,7 @@ export const generateUiFlowTask = task({
             remainingBriefsReadyAt,
             stages: { remainingBriefs: performanceStage(remainingBriefsStartedAt, remainingBriefsStartedMs) },
           });
-          return result.screens;
+          return { screens: result.screens, droppedScreenNames: result.droppedScreenNames };
         };
       }
     } else {
@@ -2884,13 +2889,23 @@ export const generateUiFlowTask = task({
         },
 	      };
 	    }
+	    // The requested reference mode is a fact about the user's request and does
+	    // not depend on whether analysis succeeded. Deriving origin only from
+	    // referenceDna meant that any failed reference analysis persisted an
+	    // Image-to-UI project as `prompt`, so every later add-screen and edit
+	    // forgot the project had ever started from a reference.
+	    const requestedOrigin: NonNullable<ProjectCharter["projectOrigin"]> = referenceMode === "user_recreate"
+	      ? "image_to_ui"
+	      : referenceMode || referenceId
+	        ? "style_reference"
+	        : "prompt";
 	    const projectOrigin = existingCharter?.projectOrigin
 	      ?? payload.projectCharter?.projectOrigin
 	      ?? (projectReferenceDna?.referenceMode === "user_recreate" || plan.charter.referenceDna?.referenceMode === "user_recreate"
 	        ? "image_to_ui"
 	        : projectReferenceDna || plan.charter.referenceDna
 	          ? "style_reference"
-	          : "prompt");
+	          : requestedOrigin);
 	    plan.charter = { ...plan.charter, projectOrigin };
 	    const curatedNavigationFallback = referenceSource === "curated"
 	      ? getCuratedStyleReferenceById(referenceId)
@@ -3412,7 +3427,7 @@ export const generateUiFlowTask = task({
       }
     }
 
-    let remainingBriefsPromise: Promise<ScreenPlan[]> | null = null;
+    let remainingBriefsPromise: Promise<{ screens: ScreenPlan[]; droppedScreenNames?: string[] }> | null = null;
     const screenEntries = screenPlans.map((screenPlan, index) => ({ screenPlan, index }));
     let screenBatches = buildFirstScreenPriorityBatches(screenEntries, 2);
     for (let batchIndex = 0; batchIndex < screenBatches.length; batchIndex += 1) {
@@ -3908,10 +3923,29 @@ export const generateUiFlowTask = task({
       }
       }));
 
-      const pendingRemainingBriefs = remainingBriefsPromise as Promise<ScreenPlan[]> | null;
+      // The assignment happens inside a nested callback, so control-flow
+      // analysis narrows this to `never` without an explicit annotation.
+      const pendingRemainingBriefs = remainingBriefsPromise as Promise<{
+        screens: ScreenPlan[];
+        droppedScreenNames?: string[];
+      }> | null;
       if (batchIndex === 0 && pendingRemainingBriefs) {
         try {
-          const remainingScreens: ScreenPlan[] = await pendingRemainingBriefs;
+          const remainingResult = await pendingRemainingBriefs;
+          const remainingScreens: ScreenPlan[] = remainingResult.screens;
+          // Briefs the planner could not bring up to builder grade are real
+          // losses against the requested scope. Recording them keeps the run
+          // from reporting a clean completion for a partially delivered app.
+          if (remainingResult.droppedScreenNames?.length) {
+            await mergeGenerationRunMetadata(admin, payload.generationRunId, {
+              droppedScreenBriefs: remainingResult.droppedScreenNames,
+              droppedScreenBriefCount: remainingResult.droppedScreenNames.length,
+            });
+            logger.warn("Some screen briefs were dropped after the bounded planner repair", {
+              generationRunId: payload.generationRunId,
+              dropped: remainingResult.droppedScreenNames,
+            });
+          }
           screenPlans = [screenPlans[0], ...remainingScreens];
           projectRoadmap = buildProjectRoadmap({
             screens: screenPlans,
@@ -4024,6 +4058,13 @@ export const generateUiFlowTask = task({
           logger.error("Remaining screen planning failed after first builder handoff", {
             generationRunId: payload.generationRunId,
             error,
+          });
+          // The requested screens were never built. Record them so run
+          // accounting cannot present this as a completed full-scope run.
+          await mergeGenerationRunMetadata(admin, payload.generationRunId, {
+            droppedScreenBriefs: screenPlans.slice(1).map((screen) => screen.name),
+            droppedScreenBriefCount: Math.max(0, screenPlans.length - 1),
+            remainingBriefsError: error instanceof Error ? error.message : String(error),
           });
           screenPlans = screenPlans.slice(0, 1);
           plan.screens = screenPlans;

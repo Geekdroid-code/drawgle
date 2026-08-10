@@ -185,6 +185,30 @@ export function deriveRequiresBottomNav(navigationArchitecture?: NavigationArchi
   return normalized.primaryNavigation === "bottom-tabs" || normalized.rootChrome === "bottom-tabs";
 }
 
+/**
+ * Whether the structural reference visibly shows primary navigation on the
+ * screen this plan was mapped to. Only meaningful for exact recreation, where
+ * the image is the authority on chrome visibility.
+ */
+export function referenceShowsNavigationOnScreen({
+  screenPlan,
+  referenceAnalysis,
+  promptMode,
+}: {
+  screenPlan: Pick<ScreenPlan, "referenceScreenIndex">;
+  referenceAnalysis?: { primaryNavigation?: { present?: boolean; visibleOnScreenIndexes?: number[] } | null } | null;
+  promptMode?: string | null;
+}) {
+  if (promptMode !== "recreate") return false;
+  const navigation = referenceAnalysis?.primaryNavigation;
+  if (!navigation?.present) return false;
+  const visible = navigation.visibleOnScreenIndexes ?? [];
+  const index = screenPlan.referenceScreenIndex;
+  // A single-screen reference with visible navigation applies to that screen.
+  if (visible.length === 0) return false;
+  return typeof index === "number" ? visible.includes(index) : visible.length > 0;
+}
+
 export function shouldForceImmersiveScreen(screenPlan: Pick<ScreenPlan, "name" | "description">) {
   const name = screenPlan.name ?? "";
   const description = screenPlan.description ?? "";
@@ -195,9 +219,19 @@ export function shouldForceImmersiveScreen(screenPlan: Pick<ScreenPlan, "name" |
 export function resolveScreenChromePolicy({
   screenPlan,
   navigationArchitecture,
+  referenceNavigationVisible = false,
 }: {
   screenPlan: ScreenPlan;
   navigationArchitecture?: NavigationArchitecture | null;
+  /**
+   * The structural reference visibly shows primary navigation on this screen.
+   *
+   * Product-architecture heuristics classify screens like a charging session,
+   * player, or checkout as immersive and suppress navigation. That is right for
+   * prompt-generated apps and wrong for exact recreation: when the source image
+   * shows a dock on that screen, visible evidence owns chrome visibility.
+   */
+  referenceNavigationVisible?: boolean;
 }): ScreenChromePolicy {
   const normalizedArchitecture = createNavigationArchitecture({
     navigationArchitecture,
@@ -210,13 +244,17 @@ export function resolveScreenChromePolicy({
 
   let chrome = isScreenChromeKind(requestedPolicy?.chrome) ? requestedPolicy.chrome : fallbackChrome;
 
-  const shouldForceImmersive = shouldForceImmersiveScreen(screenPlan);
+  const shouldForceImmersive = shouldForceImmersiveScreen(screenPlan) && !referenceNavigationVisible;
 
   if (shouldForceImmersive) {
     chrome = "immersive";
   }
 
-  if (screenPlan.type !== "root" && chrome === "bottom-tabs") {
+  if (referenceNavigationVisible) {
+    chrome = "bottom-tabs";
+  }
+
+  if (screenPlan.type !== "root" && chrome === "bottom-tabs" && !referenceNavigationVisible) {
     chrome = normalizedArchitecture.detailChrome;
   }
 
@@ -240,11 +278,11 @@ export function resolveScreenChromePolicy({
     showsBackButton = false;
   }
 
-  if (screenPlan.type !== "root") {
+  if (screenPlan.type !== "root" && !referenceNavigationVisible) {
     showPrimaryNavigation = false;
   }
 
-  if (screenPlan.type === "detail" && chrome !== "modal-sheet") {
+  if (screenPlan.type === "detail" && chrome !== "modal-sheet" && !referenceNavigationVisible) {
     showsBackButton = requestedPolicy?.showsBackButton ?? true;
   }
 
