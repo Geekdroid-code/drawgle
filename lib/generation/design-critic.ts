@@ -12,8 +12,7 @@
  * rate is visible per rule. Nothing here triggers a paid builder retry.
  */
 
-import type { CheerioAPI, Cheerio } from "cheerio";
-import type { AnyNode } from "domhandler";
+import type { CheerioAPI } from "cheerio";
 
 import { contrastRatio } from "@/lib/color-math";
 import { buildTokenVariableMap } from "@/lib/generation/geometry-contract";
@@ -81,7 +80,7 @@ const topOffsetPx = (classes: string[], variables: Map<string, string>): number 
   return 0;
 };
 
-const selectorFor = ($: CheerioAPI, element: AnyNode) => {
+const selectorFor = ($: CheerioAPI, element: never) => {
   const node = $(element as never);
   const id = node.attr("data-drawgle-id");
   if (id) return `[data-drawgle-id="${id}"]`;
@@ -90,7 +89,7 @@ const selectorFor = ($: CheerioAPI, element: AnyNode) => {
   return firstClass ? `${tag}.${firstClass}` : tag;
 };
 
-const visibleTextLength = (node: Cheerio<AnyNode>) => node.text().replace(/\s+/g, " ").trim().length;
+const visibleTextLength = (node: ReturnType<CheerioAPI>) => node.text().replace(/\s+/g, " ").trim().length;
 
 const isGridRow = (classes: string[]) =>
   classes.includes("grid") || classes.some((name) => /^grid-cols-/.test(name));
@@ -151,7 +150,7 @@ const checkSiblingBalance = (
 
     findings.push({
       code: "sibling_imbalance",
-      selector: selectorFor($, element as AnyNode),
+      selector: selectorFor($, element as never),
       detail: `Siblings in one row do not share a baseline: ${reasons.join(", ")}. Cards in a row need identical anatomy and equal height.`,
       severity: "high",
     });
@@ -165,7 +164,7 @@ const isAmbientLayer = (classes: string[]) =>
   classes.some((name) => /^blur(?:-|$)/.test(name) || /^backdrop-blur(?:-|$)/.test(name))
   || classes.some((name) => /\/(?:[0-2]?\d)$/.test(name));
 
-const hasContent = ($: CheerioAPI, node: Cheerio<AnyNode>) =>
+const hasContent = ($: CheerioAPI, node: ReturnType<CheerioAPI>) =>
   visibleTextLength(node) > 0 || node.find("[data-asset-slot], img, svg, i[data-lucide]").length > 0;
 
 /**
@@ -190,7 +189,7 @@ const checkDecorativeDeadSpace = (
 
     findings.push({
       code: "decorative_dead_space",
-      selector: selectorFor($, element as AnyNode),
+      selector: selectorFor($, element as never),
       detail: `A ${height}px block holds no text, asset slot, icon, or chart geometry. Every region that tall must earn its height with content.`,
       severity: "high",
     });
@@ -225,7 +224,7 @@ const checkFabricatedObjectArt = (
 
     findings.push({
       code: "fabricated_object_art",
-      selector: selectorFor($, element as AnyNode),
+      selector: selectorFor($, element as never),
       detail: `A ${width}x${height}px solid floating shape with no content is CSS-drawn object art. Use an approved asset slot or an intentional placeholder surface instead.`,
       severity: "high",
     });
@@ -288,7 +287,7 @@ const checkRawSurfaceColors = (
 
     findings.push({
       code: "raw_surface_color",
-      selector: selectorFor($, element as AnyNode),
+      selector: selectorFor($, element as never),
       detail: `System surface uses a raw palette color (${offenders.join(", ")}) while an approved token role exists.${repairEnabled ? " Replaced with the token role." : ""}`,
       severity: "medium",
     });

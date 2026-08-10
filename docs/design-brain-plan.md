@@ -7,7 +7,7 @@ Shipped behavior and rollback switches are recorded in [updates.md](updates.md#2
 
 | Phase | Delivered in | State |
 |---|---|---|
-| 0 — measurement | — | **Blocked.** `screens.quality_diagnostics` confirmed absent in production; `SUPABASE_ACCESS_TOKEN` in `.env.local` returns 401, so the migration could not be applied from here. Analyzer serif hallucination confirmed instead from run metadata. |
+| 0 — measurement | `20260809000100_screen_quality_diagnostics.sql` | Done. Migration applied manually on 2026-08-10 after `SUPABASE_ACCESS_TOKEN` returned 401 from this environment; column verified live. Analyzer serif hallucination confirmed from run metadata. |
 | 1 — style charter | `lib/generation/style-charter.ts` | Done |
 | 2 — token relationships | `lib/design-tokens-relationships.ts`, `lib/color-math.ts` | Done |
 | 3 — concentric geometry | `lib/design-tokens.ts`, `lib/token-runtime.ts`, `lib/generation/geometry-contract.ts` | Done |

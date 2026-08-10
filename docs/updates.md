@@ -173,7 +173,7 @@ A "premium cosmetics" project matched to the curated reference `cosmetics-ecomme
 
 ### Rollout and rollback
 
-- No database migration. `screens.quality_diagnostics` is still absent in production, so critic output is dropped by the existing `PGRST204` compatibility path until `20260809000100_screen_quality_diagnostics.sql` is applied.
+- No new database migration. The previously outstanding `20260809000100_screen_quality_diagnostics.sql` was applied to production on 2026-08-10, so critic findings now persist under `screens.quality_diagnostics.static.critic`. The `PGRST204` compatibility path in `persist-safe.ts` remains as a deployment-order guard and no longer activates.
 - `DRAWGLE_TOKEN_RELATIONSHIPS_ENABLED=false` makes relationship checks diagnostics-only.
 - `DRAWGLE_GEOMETRY_CONTRACT_ENABLED=false` makes the concentric radius and gap rules diagnostics-only.
 - `DRAWGLE_UI_CONTRACT_REPAIR_ENABLED=false` continues to disable all normalizer repair including the two above.
