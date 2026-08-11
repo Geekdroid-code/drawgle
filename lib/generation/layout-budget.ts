@@ -300,6 +300,10 @@ export function formatLayoutBudgetContract({
   budget?: ScreenViewportBudget | null;
   regionContracts?: ScreenRegionContract[] | null;
 }): string | null {
+  // Shares the design-brain kill switch. This is prompt text like the charter
+  // and the spatial rules, so disabling that layer has to remove it too;
+  // otherwise the switch silently leaves most of the added prompt in place.
+  if (process.env.DRAWGLE_DESIGN_BRAIN_PROMPTS_ENABLED === "false") return null;
   if (!budget && !regionContracts?.length) return null;
 
   const lines: string[] = [];
