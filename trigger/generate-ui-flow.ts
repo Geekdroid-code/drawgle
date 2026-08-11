@@ -3941,6 +3941,21 @@ export const generateUiFlowTask = task({
               droppedScreenBriefs: remainingResult.droppedScreenNames,
               droppedScreenBriefCount: remainingResult.droppedScreenNames.length,
             });
+            // A dropped brief has no builder behind it. Leaving its roadmap row
+            // queued showed an endless "Writing brief" spinner the user could
+            // never resolve, which is worse than the silent loss it replaced.
+            const { error: droppedRoadmapError } = await admin
+              .from("project_screen_roadmap")
+              .update({ status: "failed" })
+              .eq("project_id", payload.projectId)
+              .in("name", remainingResult.droppedScreenNames)
+              .in("status", ["planned", "queued", "building"]);
+            if (droppedRoadmapError) {
+              logger.error("Failed to mark dropped screen briefs as failed", {
+                generationRunId: payload.generationRunId,
+                error: droppedRoadmapError,
+              });
+            }
             logger.warn("Some screen briefs were dropped after the bounded planner repair", {
               generationRunId: payload.generationRunId,
               dropped: remainingResult.droppedScreenNames,

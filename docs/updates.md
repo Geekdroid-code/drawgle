@@ -125,6 +125,39 @@ The normalized per-screen description and layout contract go to the builder. Raw
 - A later planning failure never rolls back a ready first screen. Outstanding reservations are released by normal run settlement.
 - `DRAWGLE_PROGRESSIVE_FIRST_SCREEN_ENABLED=false` restores the all-screen planning and project-wide asset-resolution path for new runs.
 
+## 2026-08-10 — Build Completion, Root Recovery, and Stream Stability
+
+### Symptom
+
+A three-screen run delivered one screen. The second failed outright, the third hung on "Writing brief" forever, and the canvas flickered heavily while streaming.
+
+### Root cause
+
+- `duplicated_screen_fragment` was classified unrecoverable, so a model that cleanly emitted the same screen twice failed the build with zero retries even though both copies were valid.
+- Partial brief acceptance recorded dropped screens in run metadata but left their roadmap rows at `queued`, producing a spinner the user could never resolve. This was strictly worse than the silent loss it replaced.
+- `ScreenNode` recomputed the streamed preview on every chunk, handing the iframe markup that ended mid-tag. The parser auto-closed a different tree each time and `ensureDrawgleIds` re-keyed nodes as that tree shifted, so layout re-solved continuously.
+
+### Change
+
+- Added `extractFirstScreenRoot()`. `sanitizeStaticDrawgleHtml` now recovers the first complete `min-h-screen` root before validation runs, and declines when the roots cannot be separated safely.
+- Dropped briefs mark their roadmap rows failed instead of leaving them queued.
+- Streamed markup is trimmed at the last complete tag before reaching the iframe.
+
+### Safety invariants
+
+- Recovery only applies when the extracted fragment contains exactly one root and still reads as a whole screen; otherwise the existing failure path is unchanged.
+- No additional model call or paid retry was introduced.
+- Trimming affects the live preview only; persisted HTML is untouched.
+
+### Verification
+
+- 52 files, 374 tests passed. `lib/generation/screen-recovery.test.ts` covers duplicate-root recovery, nested-div preservation, single-root passthrough, unbalanced refusal, and stream trimming.
+- Typecheck, lint, and production build pass.
+
+### Known gap
+
+The builder still never sees what it renders. Content-overflow faults — for example a `h-[152px]` card whose `aspect-square` tile plus two text lines total 146px inside 136px of available height — are invisible to every current check. The rendered-measurement path already exists (`quality_diagnostics.rendered`) but runs after persistence and feeds nothing back. Closing that loop is the outstanding systemic work; the static critic rules should not be extended further in its place.
+
 ## 2026-08-10 — Reference Fidelity Restoration
 
 ### Symptom

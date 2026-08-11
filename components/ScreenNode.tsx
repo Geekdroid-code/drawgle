@@ -670,7 +670,20 @@ export function ScreenNode({
   const streamedCode = useMemo(() => {
     const chunks = (triggerStreams as Record<string, string[]>)?.code;
     if (!chunks || chunks.length === 0) return null;
-    return stripFences(chunks.join(""));
+    const joined = stripFences(chunks.join(""));
+
+    // Stream chunks arrive mid-tag. Handing partial markup straight to the
+    // iframe made the HTML parser auto-close a different tree on every chunk
+    // and `ensureDrawgleIds` re-key nodes as that tree shifted, so the layout
+    // re-solved many times a second and the preview flickered.
+    //
+    // Cutting any trailing incomplete tag gives the parser a stable, closable
+    // fragment on each commit. Content still streams in; it just stops
+    // reflowing through half-written elements.
+    const lastOpen = joined.lastIndexOf("<");
+    if (lastOpen === -1) return joined;
+    const lastClose = joined.lastIndexOf(">");
+    return lastClose > lastOpen ? joined : joined.slice(0, lastOpen);
   }, [triggerStreams]);
   const hasStreamedBuildCode = Boolean(streamedCode?.trim());
   const showBuildPreloader = isBuilding && !hasStreamedBuildCode && !hasMeaningfulRenderableCode(canvasSafeCode);

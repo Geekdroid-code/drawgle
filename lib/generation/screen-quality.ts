@@ -39,7 +39,8 @@ export type SourceCompletionDiagnosticCode =
 export type StaticDrawgleHtmlSanitizationCode =
   | "script_tag"
   | "inline_event_handler"
-  | "javascript_url";
+  | "javascript_url"
+  | "duplicated_screen_root";
 
 const completionSentinelPattern = /<!--\s*DRAWGLE_GENERATION_COMPLETE\s*-->\s*$/i;
 
@@ -470,6 +471,49 @@ const addSanitizationCode = (
   }
 };
 
+/**
+ * Extracts the first complete `min-h-screen` root element.
+ *
+ * Models occasionally emit the whole screen twice in one response — a clean
+ * restart, not corrupted output. Treating that as unrecoverable failed the
+ * screen with zero retries and charged the user for nothing. Both copies are
+ * usually valid, so keeping the first is a faithful recovery rather than a
+ * guess.
+ *
+ * Returns null when the roots cannot be separated safely, in which case the
+ * existing failure path still applies.
+ */
+export function extractFirstScreenRoot(code: string): string | null {
+  const rootPattern = /<div\b[^>]*\bmin-h-screen\b[^>]*>/i;
+  const start = code.search(rootPattern);
+  if (start < 0) return null;
+
+  const openTag = rootPattern.exec(code.slice(start))?.[0];
+  if (!openTag) return null;
+  if (/\/>\s*$/.test(openTag)) return null;
+
+  // Walk div open/close tags from the root until depth returns to zero.
+  const tagPattern = /<(\/?)div\b[^>]*?(\/?)>/gi;
+  tagPattern.lastIndex = start;
+  let depth = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = tagPattern.exec(code)) !== null) {
+    const isClosing = match[1] === "/";
+    const isSelfClosing = match[2] === "/";
+    if (isSelfClosing) continue;
+    depth += isClosing ? -1 : 1;
+    if (depth === 0) {
+      const end = match.index + match[0].length;
+      const extracted = code.slice(start, end).trim();
+      // Only accept a recovery that still looks like a whole screen.
+      return extracted.length >= 200 ? extracted : null;
+    }
+  }
+
+  return null;
+}
+
 export function sanitizeStaticDrawgleHtml(code: string) {
   let nextCode = code;
   const removedCodes: StaticDrawgleHtmlSanitizationCode[] = [];
@@ -481,6 +525,17 @@ export function sanitizeStaticDrawgleHtml(code: string) {
       nextCode = replaced;
     }
   };
+
+  // Recover a screen the model emitted more than once before any validation
+  // sees it, so a clean restart does not fail an otherwise usable build.
+  const rootCount = (nextCode.match(/<div\b[^>]*\bmin-h-screen\b/gi) ?? []).length;
+  if (rootCount > 1) {
+    const firstRoot = extractFirstScreenRoot(nextCode);
+    if (firstRoot && (firstRoot.match(/<div\b[^>]*\bmin-h-screen\b/gi) ?? []).length === 1) {
+      addSanitizationCode(removedCodes, "duplicated_screen_root");
+      nextCode = firstRoot;
+    }
+  }
 
   replaceAndTrack(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, "", "script_tag");
   replaceAndTrack(/<script\b[^>]*\/?>/gi, "", "script_tag");
