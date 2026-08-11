@@ -1,0 +1,133 @@
+<div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden">
+  <!-- Header Profile Region (72px) -->
+  <header class="pt-[16px] px-[var(--dg-mobile-layout-screen-margin)] flex items-center justify-between h-[72px] shrink-0">
+    <div class="flex items-center gap-[var(--dg-spacing-xs)]">
+      <div class="w-[40px] h-[40px] rounded-[var(--dg-radii-pill)] bg-[var(--dg-color-text-low-emphasis)] flex items-center justify-center overflow-hidden">
+        <i data-lucide="user" class="w-[24px] h-[24px] text-[var(--dg-color-surface-card)]"></i>
+      </div>
+      <div class="flex flex-col">
+        <span class="dg-type-supporting dg-text-medium">Welcome back</span>
+        <span class="dg-type-section-title" style="font-size: 16px; line-height: 20px;">Alex Chen</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-[var(--dg-spacing-xxs)] px-[var(--dg-spacing-xs)] py-[var(--dg-spacing-xxs)] rounded-[var(--dg-radii-pill)] dg-action-primary">
+      <i data-lucide="flame" class="w-[18px] h-[18px] text-[var(--dg-color-action-on-primary-text)]"></i>
+      <span class="text-[var(--dg-color-action-on-primary-text)] dg-type-caption font-bold">24</span>
+    </div>
+  </header>
+
+  <!-- Main Scrollable Content -->
+  <main class="flex-1 overflow-y-auto px-[var(--dg-mobile-layout-screen-margin)] flex flex-col gap-[var(--dg-mobile-layout-section-gap)] pb-[var(--dg-mobile-layout-safe-area-bottom)]">
+    
+    <!-- Hero Metrics Region (220px) -->
+    <section class="h-[220px] dg-surface-card dg-radius-app dg-shadow-surface p-[var(--dg-spacing-md)] flex flex-col justify-between relative overflow-hidden">
+      <div class="flex flex-col gap-[var(--dg-spacing-xxs)]">
+        <span class="dg-type-supporting dg-text-medium uppercase tracking-wide">Weekly Volume</span>
+        <div class="flex items-baseline gap-[var(--dg-spacing-xs)]">
+          <span class="dg-type-metric-value text-[48px] leading-[48px] font-extrabold">12,450</span>
+          <span class="dg-type-section-title dg-text-medium">kg</span>
+        </div>
+      </div>
+      
+      <!-- Visual Bar Chart (7 days) -->
+      <div class="flex items-end gap-[6px] h-[80px] mt-auto">
+        <div class="flex-1 bg-[var(--dg-color-border-divider)] rounded-t-[4px] h-[40%]"></div>
+        <div class="flex-1 bg-[var(--dg-color-border-divider)] rounded-t-[4px] h-[60%]"></div>
+        <div class="flex-1 bg-[var(--dg-color-border-divider)] rounded-t-[4px] h-[45%]"></div>
+        <div class="flex-1 bg-[var(--dg-color-border-divider)] rounded-t-[4px] h-[80%]"></div>
+        <div class="flex-1 bg-[var(--dg-color-border-divider)] rounded-t-[4px] h-[65%]"></div>
+        <div class="flex-1 bg-[var(--dg-color-border-divider)] rounded-t-[4px] h-[90%]"></div>
+        <div class="flex-1 dg-action-primary rounded-t-[4px] h-[100%]"></div>
+      </div>
+      
+      <div class="flex items-center gap-[var(--dg-spacing-xs)] mt-[var(--dg-spacing-xs)]">
+        <i data-lucide="trending-up" class="w-[16px] h-[16px] text-[var(--dg-color-status-success-foreground)]"></i>
+        <span class="dg-type-supporting text-[var(--dg-color-status-success-foreground)]">+23% vs last week</span>
+      </div>
+    </section>
+
+    <!-- Daily Focus Region (200px) -->
+    <section class="h-[200px] flex flex-col gap-[var(--dg-mobile-layout-element-gap)]">
+      <div class="flex items-center justify-between">
+        <h2 class="dg-type-section-title">Today's Focus</h2>
+        <button class="dg-type-supporting dg-text-medium flex items-center gap-[var(--dg-spacing-xxs)]">
+          View All
+          <i data-lucide="chevron-right" class="w-[16px] h-[16px]"></i>
+        </button>
+      </div>
+      
+      <div class="flex gap-[var(--dg-mobile-layout-element-gap)] overflow-x-auto pb-[4px] snap-x">
+        <!-- Item 1 -->
+        <div class="w-[140px] shrink-0 dg-surface-card dg-radius-inner dg-shadow-surface p-[var(--dg-spacing-xs)] flex flex-col gap-[var(--dg-spacing-xs)] snap-start">
+          <div class="aspect-square w-full bg-[var(--dg-color-status-warning-surface)] rounded-[var(--dg-radii-inset-md)] flex items-center justify-center">
+            <i data-lucide="arrow-up" class="w-[32px] h-[32px] text-[var(--dg-color-status-warning-foreground)]"></i>
+          </div>
+          <div class="flex flex-col gap-[2px]">
+            <span class="dg-type-supporting font-bold truncate">Muscle-Up</span>
+            <span class="dg-type-caption dg-text-low truncate">5x3 reps</span>
+          </div>
+        </div>
+
+        <!-- Item 2 -->
+        <div class="w-[140px] shrink-0 dg-surface-card dg-radius-inner dg-shadow-surface p-[var(--dg-spacing-xs)] flex flex-col gap-[var(--dg-spacing-xs)] snap-start">
+          <div class="aspect-square w-full bg-[var(--dg-color-status-info-surface)] rounded-[var(--dg-radii-inset-md)] flex items-center justify-center">
+            <i data-lucide="minus" class="w-[32px] h-[32px] text-[var(--dg-color-status-info-foreground)]"></i>
+          </div>
+          <div class="flex flex-col gap-[2px]">
+            <span class="dg-type-supporting font-bold truncate">Front Lever</span>
+            <span class="dg-type-caption dg-text-low truncate">3x15s hold</span>
+          </div>
+        </div>
+
+        <!-- Item 3 -->
+        <div class="w-[140px] shrink-0 dg-surface-card dg-radius-inner dg-shadow-surface p-[var(--dg-spacing-xs)] flex flex-col gap-[var(--dg-spacing-xs)] snap-start">
+          <div class="aspect-square w-full bg-[var(--dg-color-status-success-surface)] rounded-[var(--dg-radii-inset-md)] flex items-center justify-center">
+            <i data-lucide="arrow-down" class="w-[32px] h-[32px] text-[var(--dg-color-status-success-foreground)]"></i>
+          </div>
+          <div class="flex flex-col gap-[2px]">
+            <span class="dg-type-supporting font-bold truncate">Handstand</span>
+            <span class="dg-type-caption dg-text-low truncate">5x30s hold</span>
+          </div>
+        </div>
+
+        <!-- Item 4 -->
+        <div class="w-[140px] shrink-0 dg-surface-card dg-radius-inner dg-shadow-surface p-[var(--dg-spacing-xs)] flex flex-col gap-[var(--dg-spacing-xs)] snap-start">
+          <div class="aspect-square w-full bg-[var(--dg-color-status-danger-surface)] rounded-[var(--dg-radii-inset-md)] flex items-center justify-center">
+            <i data-lucide="shield" class="w-[32px] h-[32px] text-[var(--dg-color-status-danger-foreground)]"></i>
+          </div>
+          <div class="flex flex-col gap-[2px]">
+            <span class="dg-type-supporting font-bold truncate">Planche</span>
+            <span class="dg-type-caption dg-text-low truncate">4x10s lean</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Skill Progress Chips (Additional context) -->
+    <section class="flex flex-col gap-[var(--dg-mobile-layout-element-gap)]">
+      <h2 class="dg-type-section-title">Skill Path</h2>
+      <div class="flex flex-wrap gap-[var(--dg-spacing-xs)]">
+        <div class="flex items-center gap-[var(--dg-spacing-xxs)] px-[var(--dg-spacing-xs)] py-[var(--dg-spacing-xxs)] rounded-[var(--dg-radii-inner)] bg-black text-white">
+          <i data-lucide="zap" class="w-[14px] h-[14px]"></i>
+          <span class="dg-type-caption font-bold">Strength</span>
+        </div>
+        <div class="flex items-center gap-[var(--dg-spacing-xxs)] px-[var(--dg-spacing-xs)] py-[var(--dg-spacing-xxs)] rounded-[var(--dg-radii-inner)] dg-surface-card border border-[var(--dg-color-border-divider)]">
+          <i data-lucide="clock" class="w-[14px] h-[14px] dg-text-medium"></i>
+          <span class="dg-type-caption dg-text-medium">Endurance</span>
+        </div>
+        <div class="flex items-center gap-[var(--dg-spacing-xxs)] px-[var(--dg-spacing-xs)] py-[var(--dg-spacing-xxs)] rounded-[var(--dg-radii-inner)] dg-surface-card border border-[var(--dg-color-border-divider)]">
+          <i data-lucide="target" class="w-[14px] h-[14px] dg-text-medium"></i>
+          <span class="dg-type-caption dg-text-medium">Skills</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Primary Action Region (Sticky Bottom) -->
+  <div class="sticky bottom-0 p-[var(--dg-mobile-layout-screen-margin)] dg-bg-primary/95 backdrop-blur-sm border-t border-[var(--dg-color-border-divider)]">
+    <button class="w-full h-[var(--dg-sizing-standard-button-height)] dg-action-primary dg-radius-inner dg-type-button-label flex items-center justify-center gap-[var(--dg-spacing-xs)] shadow-[var(--dg-shadows-surface)] active:scale-[0.98] transition-transform">
+      <i data-lucide="play" class="w-[20px] h-[20px] fill-current"></i>
+      Start Workout
+    </button>
+  </div>
+</div>
