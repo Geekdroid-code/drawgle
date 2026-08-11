@@ -266,29 +266,29 @@ const checkAboveFoldBudget = (
 
 const RAW_SURFACE_CLASS = /^(?:bg|text)-(?:white|black|gray|slate|zinc|neutral|stone)(?:-(?:50|100|200|300|400|500|600|700|800|900|950))?$/;
 
-const checkRawSurfaceColors = (
-  $: CheerioAPI,
-  findings: DesignCriticFinding[],
-  repairEnabled: boolean,
-) => {
+/**
+ * Reports raw palette colors. Never rewrites them.
+ *
+ * This rule previously mapped any neutral `bg-*` to `dg-surface-card` and any
+ * neutral `text-*` to `dg-text-high`, on every classed element, with no proof
+ * the element was a system surface. A deliberate `bg-black text-white` button
+ * therefore became a light card with dark text — a full inversion of the
+ * design, applied after the designer had finished designing.
+ *
+ * A color value carries no semantic meaning. Black can be a CTA, a nav dock, a
+ * hero, a chart mark, or intentional contrast. Ownership has to be declared by
+ * the builder (Phase 2), never inferred from appearance.
+ */
+const checkRawSurfaceColors = ($: CheerioAPI, findings: DesignCriticFinding[]) => {
   $("[class]").each((_, element) => {
-    const node = $(element as never);
-    const classes = classList(node.attr("class"));
+    const classes = classList($(element as never).attr("class"));
     const offenders = classes.filter((className) => RAW_SURFACE_CLASS.test(className));
     if (offenders.length === 0) return;
-
-    if (repairEnabled) {
-      const replaced = classes.map((className) => {
-        if (!RAW_SURFACE_CLASS.test(className)) return className;
-        return className.startsWith("bg-") ? "dg-surface-card" : "dg-text-high";
-      });
-      node.attr("class", [...new Set(replaced)].join(" "));
-    }
 
     findings.push({
       code: "raw_surface_color",
       selector: selectorFor($, element as never),
-      detail: `System surface uses a raw palette color (${offenders.join(", ")}) while an approved token role exists.${repairEnabled ? " Replaced with the token role." : ""}`,
+      detail: `Raw palette color (${offenders.join(", ")}) where a token role may apply. Reported only; semantic ownership cannot be inferred from a color value.`,
       severity: "medium",
     });
   });
@@ -351,14 +351,17 @@ const checkSurfaceTextContrast = (
   });
 };
 
+/**
+ * Pure diagnostics. This function must never mutate the DOM it is handed.
+ * Every finding is a report; repairs belong to the semantic-ownership layer,
+ * which knows what an element *is* rather than what it currently looks like.
+ */
 export function runDesignCritic({
   $,
   designTokens,
-  repairEnabled,
 }: {
   $: CheerioAPI;
   designTokens?: DesignTokens | null;
-  repairEnabled: boolean;
 }): DesignCriticReportV1 {
   const variables = buildTokenVariableMap(designTokens);
   const findings: DesignCriticFinding[] = [];
@@ -367,7 +370,7 @@ export function runDesignCritic({
   checkDecorativeDeadSpace($, variables, findings);
   checkFabricatedObjectArt($, variables, findings);
   checkAboveFoldBudget($, variables, findings);
-  checkRawSurfaceColors($, findings, repairEnabled);
+  checkRawSurfaceColors($, findings);
   checkRadiusVocabulary($, findings);
   checkSurfaceTextContrast($, designTokens, findings);
 

@@ -534,13 +534,14 @@ export function buildTokenPromptContext(
     const semanticMap = resolveSemanticMap(normalized.tokens);
 
     return [
-      "TOKEN CONTEXT: Approved project design tokens — use these for every visual decision.",
+      "TOKEN CONTEXT: Approved project design tokens.",
+      "Use them for SYSTEM UI so the project's live design system controls it: page backgrounds, system card/sheet/modal surfaces, the text hierarchy, standard actions and fields, navigation surfaces, standard borders, the radius vocabulary, spacing rhythm, and standard surface shadows.",
+      "You are free to design LOCAL ART with any CSS you want: hero treatments, charts, one-off gradients, decorative geometry, illustrations, maps, media compositions, intentional high-contrast sections, and deliberate asymmetry. These do not have to be token-derived.",
       "Prefer utility classes when the semantic role matches: dg-bg-primary, dg-bg-secondary, dg-surface-card, dg-surface-bottom-sheet, dg-surface-modal, dg-text-high, dg-text-medium, dg-text-low, dg-action-primary, dg-action-secondary, dg-gradient-action-primary, dg-gradient-app-background, dg-gradient-surface-highlight, dg-gradient-accent-ring, dg-border-divider, dg-border-focused, dg-radius-app, dg-radius-inner, dg-radius-pill, dg-radius-inset-xs, dg-radius-inset-sm, dg-radius-inset-md, dg-shadow-surface, dg-shadow-overlay, dg-type-nav-title, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-metric-value, dg-type-body, dg-type-supporting, dg-type-caption, dg-type-button-label.",
-      "Radius roles are strict: app is the outer surface radius, inner is the smaller nested/inset radius, and pill is only for true capsules or circles.",
-      "CONCENTRIC RADIUS LAW: a nested surface's radius equals its parent's radius minus the gap between their edges. Pad a dg-radius-app container by --dg-spacing-xs and its children use dg-radius-inset-xs; pad by --dg-spacing-md and they use dg-radius-inset-md. dg-radius-inner is the value for a child inset by the standard element gap.",
-      "Never let a child's gap exceed the padding of the container holding it; content then reads as escaping its box.",
+      "Radius vocabulary: app is the outer surface radius, inner is the smaller nested/inset radius, and pill is for capsules and circles. The project supplies the vocabulary; you choose which word fits each component. A capsule CTA is a legitimate choice.",
+      "Concentric guidance (not a law): a nested surface usually reads best at its parent's radius minus the gap between their edges, and dg-radius-inset-* provides that value per spacing step. Depart from it when the composition is better for it.",
       "For token values without a named utility, use CSS variables in Tailwind arbitrary classes, e.g. bg-[var(--dg-color-action-primary)], [background-image:var(--dg-gradient-action-primary)], p-[var(--dg-spacing-md)], rounded-[var(--dg-radii-inner)], shadow-[var(--dg-shadows-surface)], opacity-[var(--dg-opacities-disabled)].",
-      "Token gradients are canonical fills for expressive actions, app backgrounds, surface highlights, and accent rings. Use custom gradients only for deliberate one-off visual details such as charts, maps, illustrations, and special effects.",
+      "Token gradients are available for expressive actions and app backgrounds. Custom gradients are fully allowed for local art.",
       filteredReferences.length > 0 ? `Project token variables:\n${formatTokenReferences(filteredReferences, 200)}` : null,
       semanticMap,
     ].filter(Boolean).join("\n");

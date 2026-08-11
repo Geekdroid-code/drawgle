@@ -35,6 +35,8 @@ describe("generated UI contract normalization", () => {
   it("repairs exact aliases and confident radius roles without failing unknown variables", () => {
     const result = normalizeGeneratedUiContracts({
       designTokens: tokens,
+      // Explicit opt-in: HTML mutation is off by default after Phase 1.
+      repairEnabled: true,
       code: `<div style="gap:var(--dg-spacing-element-gap);color:var(--dg-unknown-color)">
         <input class="rounded-full border" />
         <button type="submit" class="dg-action-primary rounded-full">Save</button>
@@ -76,6 +78,7 @@ describe("generated UI contract normalization", () => {
 
     const normalized = normalizeGeneratedUiContracts({
       designTokens: tokens,
+      repairEnabled: true,
       code: `<div><span class="bg-red-100 text-red-700">Overdue</span><div class="bg-blue-500">Artwork</div></div>`,
     });
     expect(normalized.code).toContain("dg-color-status-danger-surface");

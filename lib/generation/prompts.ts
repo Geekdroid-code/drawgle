@@ -847,9 +847,9 @@ const buildStrictDesignContract = (designTokens?: DesignTokens | null) => {
     `- Outer surface radius: ${appRadius} (cards, sheets, panels, fields, and navigation shells)`,
     `- Inner container radius: ${innerRadius} (nested cards, inset panels, segmented tabs, and active navigation items)`,
     `- Pill radius: ${pillRadius} (use only for true capsules and circular wells)`,
-    "- CONCENTRIC RADIUS LAW: a nested surface's radius = its parent's radius minus the gap between their edges. Pick the inset token that matches the padding or margin you actually applied.",
+    "- Concentric guidance: a nested surface usually reads best at its parent's radius minus the gap between their edges, and the inset tokens below give that value. It is guidance, not a law — depart from it when the composition is better for it.",
     insetRadii.length ? `- Concentric inset radii: ${insetRadii.join("; ")}` : null,
-    "- Never place a child's gap wider than the padding of the surface containing it.",
+    "- Prefer not to place a child's gap wider than the padding of the surface containing it.",
     `- Field radius role: radii.${shapePolicy?.field ?? "app"}`,
     `- Standard button radius role: radii.${shapePolicy?.standardButton ?? "inner"}`,
     `- Primary CTA radius role: radii.${shapePolicy?.primaryCta ?? "inner"}`,
@@ -1365,7 +1365,7 @@ ${buildSpatialArithmeticContract(mode)}
 CRITICAL INSTRUCTION 1: LIVE DESIGN TOKENS
 You MUST use Drawgle live token utility classes and CSS variables for canonical colors, typography, spacing, sizing, radii, borders, and shadows.
 Preferred examples: dg-bg-primary, dg-surface-card, dg-text-high, dg-text-medium, dg-action-primary, dg-border-divider, dg-radius-app, dg-radius-inner, dg-radius-pill, dg-shadow-surface, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-body, dg-type-caption.
-For token values without a named utility, use Tailwind arbitrary values with CSS variables, e.g. bg-[var(--dg-color-action-primary)], [background-image:var(--dg-gradient-action-primary)], p-[var(--dg-spacing-md)], rounded-[var(--dg-radii-app)]. The component-role mapping in STRICT DESIGN CONTRACT is authoritative; do not improvise per-screen radii.
+For token values without a named utility, use Tailwind arbitrary values with CSS variables, e.g. bg-[var(--dg-color-action-primary)], [background-image:var(--dg-gradient-action-primary)], p-[var(--dg-spacing-md)], rounded-[var(--dg-radii-app)]. The component-role mapping in STRICT DESIGN CONTRACT is the default; choose a different radius from the project vocabulary when a component genuinely calls for it.
 Do NOT freeze project token values as raw hex or raw pixels when a token variable exists. Token gradients are canonical for expressive CTAs, app backgrounds, surface highlights, and accent rings. Raw/custom gradients are allowed only for deliberate one-off art details such as charts, maps, illustrations, or non-system lighting effects.
 Do NOT default to generic Tailwind palette values (e.g., bg-gray-900) if a design token exists for that purpose.
 Do NOT invent additional radius tiers, border widths, or shadow strengths. Use one geometry/elevation language across the entire screen.
@@ -1399,7 +1399,8 @@ ${buildSharedNavigationContract({ navigationInstruction, navigationPlan, screenP
 - Safe areas: top container pt-[${safeTop}]. Without shared navigation, bottom content may use pb-[${safeBottom}]. With shared navigation, use only the renderer-owned dg-shared-nav-clearance marker described above.
 - Clickable controls: min-h-[${minTouch}].
 - Text colors: use token classes/vars such as dg-text-high or text-[var(--dg-color-text-high-emphasis)] (current high text ${textHigh}).
-- Token lock: major app surfaces, backgrounds, cards, text, actions, nav-adjacent regions, radii, shadows, and spacing must use dg-* utilities or var(--dg-*). Do not use bg-white, bg-gray-*, text-black, raw hex/rgb, or arbitrary px values for system styling when an approved token role exists.
+- Token ownership: SYSTEM UI must use dg-* utilities or var(--dg-*) so the project's live design system controls it — page backgrounds, system card/sheet/modal surfaces, the text hierarchy, standard actions and fields, navigation surfaces, standard borders, radii, and spacing rhythm. Do not use bg-white, bg-gray-*, text-black or raw values for those.
+- LOCAL ART is yours: hero treatments, charts and data visualisation, one-off gradients, decorative geometry, illustrations, maps, media compositions, intentional high-contrast or monochrome sections, and deliberate asymmetry may use any CSS you want, including raw colors and custom values. Do not force them through tokens.
 - No phone frame, device mockup, notch, status bar, markdown fence, html/head/body tags, scripts, JSX, React, className, JS expressions, arrays, map(), template literals, or class/style objects.
 - Static HTML only. Manually expand repeated UI items. Return only the content HTML.
 - Icons: use Lucide via <i data-lucide="icon-name"></i> or static inline SVG.

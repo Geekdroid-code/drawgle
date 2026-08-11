@@ -241,7 +241,7 @@ describe("design critic catches the composition failures", () => {
       {},
       false,
     );
-    const report = runDesignCritic({ $, designTokens: tokens, repairEnabled: false });
+    const report = runDesignCritic({ $, designTokens: tokens });
     const finding = report.findings.find((entry) => entry.code === "sibling_imbalance");
 
     expect(finding).toBeDefined();
@@ -252,7 +252,7 @@ describe("design critic catches the composition failures", () => {
 
   it("flags a tall in-flow block holding nothing", () => {
     const $ = load(`<div class="h-[212px] dg-radius-inner bg-[var(--dg-color-background-secondary)]"></div>`, {}, false);
-    const report = runDesignCritic({ $, designTokens: tokens, repairEnabled: false });
+    const report = runDesignCritic({ $, designTokens: tokens });
     expect(report.findings.map((entry) => entry.code)).toContain("decorative_dead_space");
   });
 
@@ -267,7 +267,7 @@ describe("design critic catches the composition failures", () => {
       {},
       false,
     );
-    const report = runDesignCritic({ $, designTokens: tokens, repairEnabled: false });
+    const report = runDesignCritic({ $, designTokens: tokens });
     const fabricated = report.findings.filter((entry) => entry.code === "fabricated_object_art");
 
     // Only the solid bottle-shaped div is fabricated art; the blurred layer is
@@ -293,17 +293,19 @@ describe("design critic catches the composition failures", () => {
       {},
       false,
     );
-    const report = runDesignCritic({ $, designTokens: tokens, repairEnabled: false });
+    const report = runDesignCritic({ $, designTokens: tokens });
     expect(report.findings.map((entry) => entry.code)).not.toContain("radius_vocabulary_drift");
   });
 
-  it("replaces raw palette surfaces with token roles", () => {
+  it("reports raw palette surfaces without replacing them", () => {
+    // Phase 1 removed this rewrite. A color value carries no semantic meaning,
+    // so the same rule that "fixed" a white card also inverted black CTAs.
     const $ = load(`<div class="bg-white p-4"><span class="text-gray-900">Hi</span></div>`, {}, false);
-    const report = runDesignCritic({ $, designTokens: tokens, repairEnabled: true });
+    const report = runDesignCritic({ $, designTokens: tokens });
 
     expect(report.findings.map((entry) => entry.code)).toContain("raw_surface_color");
-    expect($("div").attr("class")).toContain("dg-surface-card");
-    expect($("span").attr("class")).toContain("dg-text-high");
+    expect($("div").attr("class")).toBe("bg-white p-4");
+    expect($("span").attr("class")).toBe("text-gray-900");
   });
 
   it("accepts a balanced row", () => {
@@ -315,7 +317,7 @@ describe("design critic catches the composition failures", () => {
       {},
       false,
     );
-    const report = runDesignCritic({ $, designTokens: tokens, repairEnabled: false });
+    const report = runDesignCritic({ $, designTokens: tokens });
     expect(report.findings.map((entry) => entry.code)).not.toContain("sibling_imbalance");
   });
 });

@@ -12,7 +12,7 @@ import {
   sanitizeTextForJson,
 } from "@/lib/generation/persist-safe";
 import { resolveBuilderProviderIdentity } from "@/lib/generation/builder-diagnostics";
-import { buildStaticScreenQualityDiagnostics, normalizeGeneratedUiContracts } from "@/lib/generation/ui-contract-normalizer";
+import { buildStaticScreenQualityDiagnostics, htmlMutationEnabled, normalizeGeneratedUiContracts } from "@/lib/generation/ui-contract-normalizer";
 import {
   getCuratedStyleReferenceById,
   loadCuratedStyleReferenceImage,
@@ -1681,7 +1681,15 @@ export const buildScreenTask = task({
         code: clearanceNormalization.code,
         designTokens: payload.designTokens,
       });
-      const tokenizedCode = tokenizeStaticDrawgleHtml(contractNormalization.code, payload.designTokens).code;
+      // Blind tokenization converts literals that merely *equal* a token value
+      // into global references, with no knowledge of what the element is. A
+      // deliberate local 16px becomes globally themed. Measurement showed the
+      // builder already authors 83-129 token references per screen unprompted
+      // while this contributed 2-7, so it is a thin backstop rather than the
+      // mechanism holding live editing together.
+      const tokenizedCode = htmlMutationEnabled()
+        ? tokenizeStaticDrawgleHtml(contractNormalization.code, payload.designTokens).code
+        : contractNormalization.code;
       const code = ensureDrawgleIds(tokenizedCode).code;
       const tokenDrift = detectTokenDrift(code, { scope: "screen" });
       return {

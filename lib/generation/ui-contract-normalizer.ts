@@ -94,10 +94,25 @@ export const hashUiCode = (code: string) => {
   return `fnv1a-${(hash >>> 0).toString(16).padStart(8, "0")}`;
 };
 
+/**
+ * Master kill switch for every non-safety mutation of builder HTML.
+ *
+ * Defaults to OFF. Deterministic code may inspect generated markup freely, but
+ * it may not redesign it: aesthetic decisions belong to the builder, and the
+ * repairs behind this switch were guessing intent from appearance.
+ *
+ * Precedence is explicit — when this is off, nothing below it can mutate,
+ * whatever the per-behaviour flags say. Enabling a specific repair while this
+ * is off does nothing, deliberately and visibly.
+ */
+export const htmlMutationEnabled = () =>
+  process.env.DRAWGLE_HTML_MUTATION_ENABLED === "true"
+  && process.env.DRAWGLE_UI_CONTRACT_REPAIR_ENABLED !== "false";
+
 export function normalizeGeneratedUiContracts({
   code,
   designTokens,
-  repairEnabled = process.env.DRAWGLE_UI_CONTRACT_REPAIR_ENABLED !== "false",
+  repairEnabled = htmlMutationEnabled(),
 }: {
   code: string;
   designTokens?: DesignTokens | null;
@@ -218,7 +233,7 @@ export function normalizeGeneratedUiContracts({
     (diagnostic.severity === "repaired" ? repairs : warnings).push(entry);
   }
 
-  const critic = runDesignCritic({ $, designTokens, repairEnabled });
+  const critic = runDesignCritic({ $, designTokens });
 
   $(CRITICAL_SELECTOR).each((_, element) => {
     const classes = $(element).attr("class") ?? "";
@@ -233,7 +248,15 @@ export function normalizeGeneratedUiContracts({
     warnings.push({ code: "navigation_chrome_conflict", selector: null, detail: "Back chrome and persistent primary navigation coexist." });
   }
 
-  normalizedCode = $.root().html() ?? normalizedCode;
+  // Byte preservation. Reserializing an unmodified DOM still rewrites attribute
+  // order, quoting, whitespace and void-element form, so diagnostics-only mode
+  // was never the true bypass it was documented to be. Only take the DOM back
+  // when a repair genuinely ran.
+  if (repairEnabled && repairs.length > 0) {
+    normalizedCode = $.root().html() ?? normalizedCode;
+  } else {
+    normalizedCode = code;
+  }
   const allowedVariables = new Set([
     ...flattenDesignTokensToCssVariables(designTokens).map((item) => item.name),
     ...RUNTIME_VARIABLES,

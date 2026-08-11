@@ -76,7 +76,7 @@ export function scoreDesignBenchmark({
     // repairEnabled false: scoring measures what the builder produced, not
     // what the normalizer could rescue.
     const geometry = applyGeometryContract({ $, designTokens, repairEnabled: false });
-    const critic = runDesignCritic({ $, designTokens, repairEnabled: false });
+    const critic = runDesignCritic({ $, designTokens });
 
     const codes = [
       ...geometry.map((diagnostic) => diagnostic.code as string),
