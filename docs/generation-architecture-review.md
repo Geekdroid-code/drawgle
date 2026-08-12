@@ -1,6 +1,6 @@
 # Design Generation Architecture Review
 
-Status: **Phases 1–2 implemented; design-brain prompt layer removed** (2026-08-11 to 2026-08-12). Phases 3–4 planned. See §10/§12 for handoff, §13 for the measurement that justified removal, §14 for what was deleted, and §11 for a live production issue still open.
+Status: **Phases 1–4 implemented; design-brain prompt layer removed** (2026-08-11 to 2026-08-12). Phase 3 is diagnostics only — no repair. Phase 4 is classification only — no data migration. See §10/§12/§16/§17 for handoff, §13 for the measurement that justified removal, §14 for what was deleted, §15 for the current quality baseline, and §11 for a live production issue still open.
 Scope: the full path from builder output to persisted screen, plus token schema, prompts, and edit flows.
 
 ## 0. Verified findings
@@ -273,36 +273,71 @@ Achieving that requires auditing on a cloned DOM and returning the original stri
 
 Files: `prompts.ts`, new `lib/generation/token-coverage.ts`, `drawgle-dom.ts`, `block-index.ts`.
 
-### Phase 3 — Rendered acceptance loop
+### Phase 3 — Rendered diagnostics only (revised 2026-08-12)
 
-Wire `lib/generation/rendered-geometry.ts` (already written) into the build:
+**Superseded.** The original Phase 3 proposed a rendered acceptance loop with one bounded builder repair and a better-of-two-candidates rule. That is deferred. It added a second LLM call per screen, latency, a new regression path, and another family of flags — and it let imperfect geometry heuristics redesign screens that were fine.
 
-1. Generate once.
-2. Render at 390×844 in the existing preview runtime.
-3. Measure: content overflow, horizontal overflow, clipped text, undersized targets, empty painted regions.
-4. If a **repair-triggering** failure exists, run **one** scoped builder repair: fix these measured failures, change nothing else.
-5. Re-render, then **persist whichever candidate measures better** — original or repaired — on severe-failure count. Never persist a repair that made the screen worse.
+The revised phase is measurement only:
 
-Both candidates and both measurements are retained for the run record. A repair that fixes one overflow while introducing three collisions must lose.
+```
+builder → normal safe processing → render → measure → record → persist original
+```
 
-**Repair triggers (high confidence only).** Content overflowing its container, horizontal viewport overflow, text physically clipped, elements colliding, an interactive control genuinely too small to operate.
+Hard constraints:
 
-**Diagnostics only, never a trigger.** `empty_visual_region` — negative space is frequently the design, and this rule already produced a false positive on legitimate ambient layers. `undersized_touch_target` on non-interactive or decorative iconography. Any density, balance, or symmetry judgement.
+- **Zero additional model or API calls.** Rendered geometry must never cause a generation.
+- **No second candidate, no repair, no retry, no scoring that selects HTML.**
+- Nothing in the rendered findings may modify HTML, layout, CSS, typography, spacing, radii, dimensions or content.
+- The original generated candidate is persisted unchanged.
 
-The measurement layer detects failures. It does not hold opinions.
+#### This is largely already built
 
-Hard bound: one repair, one re-render. No loops. Failure to improve still persists the screen — a measured-but-imperfect screen beats a failed generation.
+`components/ScreenNode.tsx` already runs an in-iframe audit after fonts are ready, posts results to `/api/screens/[screenId]/quality-diagnostics`, and writes `quality_diagnostics.rendered`. It costs nothing, runs in the owner's browser, and is already outside the generation critical path. Public and read-only previews never write telemetry.
 
-Files: `trigger/generate-ui-flow.ts`, `screen-quality.ts`, `rendered-geometry.ts`, `service.ts`.
+Phase 3 therefore does **not** build an orchestration layer. It corrects what that audit measures.
+
+#### Correction: no collision detector exists
+
+Earlier revisions of this plan listed "elements colliding" as a measured failure and a repair trigger. **There is no collision detector in the codebase.** `rendered-geometry.ts` measures container overflow, horizontal overflow, clipped text, undersized targets and empty painted regions. Collisions are not among them. The claim was wrong and is withdrawn; nothing should be built on it.
+
+#### Rendered findings are not automatically truth
+
+Every current detector has plausible false positives:
+
+| Finding | False positive |
+|---|---|
+| `content_overflows_container` | intentional `overflow-hidden` masking, hero/media artwork deliberately cropped |
+| `text_clipped` | deliberate `truncate` / `line-clamp` ellipsis |
+| `horizontal_overflow` | intentional horizontal compositions |
+| `undersized_touch_target` | compact icon controls whose effective hit area is larger |
+| `empty_visual_region` | negative space as design |
+
+Findings are therefore recorded with an `intentional` marker and a reason where the markup shows deliberate intent, rather than being dropped or trusted. They are data to learn from, not a verdict. They must not influence generation acceptance or persisted design.
+
+#### Simplification, not accumulation
+
+The audit currently also reports `nested_radius_violation`, `field_radius_mismatch` and `button_radius_mismatch`. Those measure conformance to the component radius policy that Phase 1 stopped enforcing and Phase 2 replaced with declared ownership. They are dead architecture measuring an abandoned rule and are removed.
+
+Net effect: three detectors removed, one added (`content_overflows_container`, the finding that actually correlates with the visual breakage at 2.4 per screen in §15).
+
+#### No new flags
+
+No rollout flag is added for rendered diagnostics. The audit already only runs for owners in a live preview and already fails soft. Rollback is git.
+
+### Phase 3B — deferred, data-gated
+
+A repair system is **not** in scope. If, after enough real production measurement, a small set of findings proves to correlate strongly with genuinely broken screens, a single bounded repair on that proven subset could be reconsidered. That decision must rest on collected data, not on assumptions about which heuristics are reliable.
 
 ### Phase 4 — Schema reclassification
 
 Execute section 3. Highest-risk phase because it touches persisted data and the editor; do it last, when quality has stabilized.
 
+**Implemented 2026-08-12 — see §17.** Shipped as a classification layer rather than a migration: persisted data is untouched, so the risk this paragraph anticipated was removed rather than managed.
+
 ## 5. Backward compatibility
 
 - **Existing screens are never rewritten.** No migration touches stored HTML.
-- **Schema is explicitly versioned** as `mobile_universal_core_v2` rather than silently changing what the current schema name means. Runtime branches on the version.
+- **Schema is explicitly versioned** as `mobile_universal_core_v2` rather than silently changing what the current schema name means. As implemented, nothing branches on the version — both are accepted and rendered identically. The stamp exists so a later migration can tell "authored before the classification" from "after"; claiming a runtime branch that does not exist would be worse than having none.
 - **Existing token sets keep parsing.** Removed keys are read-tolerated and ignored, not deleted from stored JSON. `normalizeDesignTokens` already tolerates unknown keys.
 - **Deprecated CSS variables remain runtime aliases.** A v1 screen referencing `--dg-sizing-min-touch-target` or a removed gradient must still render inside a v2 project. The variables keep being emitted; they simply stop appearing in builder prompts and in the editor UI.
 - **Runtime invariants keep emitting CSS variables** so old screens referencing `--dg-sizing-min-touch-target` continue to render; they simply stop being user-editable.
@@ -700,3 +735,159 @@ Two tests changed from asserting behaviour to asserting removal — `layout-budg
 It removes a measured regression. It does **not** fix content overflow — raw builder output still shows ~1 per screen with the layer gone. Prompts cannot reliably prevent overflow because the model never sees its own layout. That remains Phase 3's job, and §13 is the evidence for prioritising it.
 
 Also still open and unchanged: the §11 output-budget bug, costing roughly half of all screens.
+
+---
+
+## 15. Post-removal baseline — n=10, 2026-08-12
+
+Ten complete samples of one screen ("Weekly Schedule", detail) on the current post-removal prompt, rendered at 390×844 and measured. Both A/B arms are identical after §14, so this is 10 samples of one condition.
+
+Unlike every earlier sample these are complete, not truncated: 15–25KB each.
+
+### Result
+
+```
+mean weighted fault      10.6
+mean content overflow     2.4  per screen
+mean clipped text         0.4
+mean horizontal overflow  0.7
+mean undersized target    0.3
+```
+
+Per sample, sorted:
+
+```
+ 0   6   5   9   9   7  12  12  21  25
+```
+
+### Two findings
+
+**1. Content overflow survives the removal.** 2.4 per screen with the design-brain layer entirely gone. This confirms §13's caution: deleting the prompt layer removed a regression, it did not fix the underlying defect. The builder produces overflowing containers on its own because it cannot see its own layout. Only rendered feedback addresses that.
+
+**2. The variance is enormous — 0 to 25 on identical inputs.** One sample in ten is completely clean. Another has five content overflows, two clipped text nodes and two horizontal overflows. Same prompt, same screen, same model.
+
+That second finding is the strongest argument yet for Phase 3. If quality were uniformly mediocre, a rendered acceptance loop would have little to work with. It is not uniform: good output already exists in the distribution, and the loop's job is to detect the bad draws and re-roll them. A single bounded repair that moves a 25 toward the 0–9 cluster is a large expected gain, and the measurement to trigger it already exists.
+
+### What this is not
+
+**This is a baseline, not a before/after.** It cannot validate the removal. The only prompt comparison remains §13's n=1 on truncated samples of a *different* screen. Reading "13 → 10.6" as improvement would be comparing different screens, different sample counts and different completion states.
+
+The removal stands on §13 plus mechanism plus visual inspection — three weak-but-consistent signals — not on this run.
+
+### Provenance
+
+These samples came from an accidental invocation: `--n 0` clamps to 5 in `scripts/design-ab.ts`, so a run intended as a dry check generated 10 screens. The data is sound and the samples are complete, but the spend was unintentional. The clamp is worth fixing before the script is used routinely.
+
+---
+
+## 16. Phase 3 implemented as diagnostics only — 2026-08-12
+
+Auto-repair was dropped from Phase 3 before implementation. What shipped is measurement.
+
+### False-positive rate, measured
+
+Detectors now mark findings whose markup shows deliberate intent (`overflow-hidden`, `overflow-clip`, `text-overflow: ellipsis`, `line-clamp`). Across 10 real screens, 85 findings:
+
+| Finding | Total | Intentional | Rate |
+|---|---|---|---|
+| `text_clipped` | 8 | 8 | **100%** |
+| `horizontal_overflow` | 14 | 12 | **86%** |
+| `content_overflows_container` | 48 | 0 | 0% |
+| `empty_visual_region` | 9 | — | no intent signal |
+| `undersized_touch_target` | 6 | — | no intent signal |
+
+**Every** `text_clipped` finding is a deliberate ellipsis. Most horizontal overflows are deliberate clipping. Had these been wired to an automatic builder repair, roughly 20 of 85 findings would have summoned the model to redesign screens that were never broken — the precise failure mode this whole refactor exists to remove.
+
+`content_overflows_container` is the exception at 0% intentional. It is the one finding that currently looks like a clean signal, and it is the one that matches the visible breakage in §15. That makes it the only plausible future candidate for Phase 3B — on collected data, not on this single observation.
+
+### What changed
+
+**Removed** from the in-preview audit: `nested_radius_violation`, `field_radius_mismatch`, `button_radius_mismatch`. They measured conformance to the component radius policy that Phase 1 stopped enforcing and Phase 2 replaced with declared ownership — dead detectors reporting deviation from an abandoned rule. The `qualityRadius` and `qualityTokenPx` helpers went with them.
+
+**Added**: `content_overflows_container` to the in-preview audit, with intent marking.
+
+**Marked** rather than suppressed: intentional cases across both the in-preview audit and `rendered-geometry.ts`. Suppressing them would lose the data; trusting them would be wrong.
+
+Net: three detectors out, one in.
+
+### Cost and complexity
+
+- **Zero additional model or API calls.** The audit runs in the owner's browser after fonts settle, inside the preview that already exists.
+- **Zero generation latency.** It is not on the completion path; it runs when an owner views a screen.
+- **No new environment flag.** The audit already only runs for owners on live previews and already fails soft. Rollback is git.
+- **No orchestration layer, no second candidate, no scoring that selects HTML.**
+
+### What is explicitly not built
+
+Automatic scoped repair, a second LLM call, repaired-vs-original competition, severe-failure selection, collision repair, clipping repair, touch-target repair, repair thresholds, retry loops, and any rollout flag for rendered repair. None of it exists, and the plan no longer claims a collision detector, because there isn't one.
+
+### Verification
+
+387 tests pass, typecheck and lint clean.
+
+## 17. Phase 4 implemented as classification, not migration — 2026-08-12
+
+Section 3 called for reclassifying the token schema into four groups. It shipped as a **policy layer over the existing storage**: no stored key is deleted, no CSS variable stops being emitted, and no screen is rewritten. What changed is what we *show* and what we *say*, never what we store or paint.
+
+That framing is the whole risk control. A schema migration on the highest-value data in the product, run at the point where quality has only just stabilised, is how a cleanup turns into an outage.
+
+### The single source of truth
+
+`lib/design-token-classification.ts` answers one question — what is this token? — for every path, with longest-prefix-wins resolution:
+
+| Class | Meaning | Editable | In builder prompt | Emitted as CSS |
+|---|---|---|---|---|
+| `global` | project visual identity | yes | yes | yes |
+| `component-recipe` | component construction | no | no | yes |
+| `runtime-invariant` | device / engineering constant | no | no | yes |
+| `deprecated` | superseded or duplicated elsewhere | no | no | yes |
+
+Unknown paths default to `global`, so a new token is visible until someone classifies it — the failure mode is "too much offered", never "silently dropped".
+
+Every non-global entry carries a `why`. "Why is this not a design token" is the question the next reader will actually have.
+
+The distinction that mattered most: **navigation colours are identity; navigation construction is not**. `navigation.surface`/`content`/`active_*`/`border`/`shadow` stay global. `anatomy`, `container_height`, `item_gap`, `icon_size`, indicator dimensions and `sizing.bottom_nav_height` become component recipe. A floating glass dock and a flat tab rail belong to the same design system while differing completely there.
+
+### Three places that used to disagree, now one
+
+**`lib/token-runtime.ts`** — the builder prompt filter was a hand-maintained prefix list that had drifted from meaning. It was sending `sizing.bottom_nav_height`, all of `mobile_layout` including device safe areas, every gradient, and every legacy typography alias. It now filters on `isBuilderVisibleToken`.
+
+The hardcoded prose had drifted the same way and was the more damaging half: the "prefer these utility classes" sentence still named `dg-gradient-app-background`, `dg-gradient-surface-highlight` and `dg-gradient-accent-ring` — the three gradients section 3 demotes precisely because applying them to every project is why generated apps look like one recipe. Filtering the variable list while the prose still recommended them by name would have changed nothing. Also removed: the `dg-radius-inset-*` recommendation from the concentric line (the guidance survives; the utility is no longer pushed), the `opacity-[var(--dg-opacities-disabled)]` example, and the `OPACITY ROLES` block from the semantic map.
+
+Two prompt modes, `router_summary` and `full_generation`, were deleted along with `buildTokenUsageGuide`. Nothing in the codebase referenced either — every call site passes `compact_visual` or the default. The dead `full_generation` guide still carried the ALL-CAPS "CONCENTRIC RADIUS LAW" that Phase 1 downgraded to guidance, so it was also a live contradiction waiting to be reached.
+
+**`components/DesignSystemEditor.tsx`** — stopped offering `bottom_nav_height`, `color.action.on_surface_white_bg`, `color.action.primary_gradient_start`/`end`, `color.text.action_label`, the `opacities` state group, and the read-only `shadows.none` row. `StaticTokenRow`, `OpacityMetricRow`, `OpacityPreview` and the two opacity parse/serialise helpers went with them (155 lines out).
+
+Removing the gradient start/end fields **restores** a single source of truth rather than removing a capability: `buildActionGradient` already falls back to `action.primary` then `action.secondary`, both still editable, so editing Primary or Secondary moves the action gradient. Projects that stored explicit start/end values keep them and keep rendering.
+
+**`lib/design-tokens.ts`** — `RUNTIME_ONLY_TOKEN_PATHS` was a second hand-maintained list of the same idea. It now derives from the classification. `PLATFORM_CONSTRAINT_TOKENS` stays: it holds the constant *values*, which is a different question from what counts as one.
+
+### The two behavioural changes to generation
+
+1. **The optional gradients are optional again.** The token prompt required `app_background`, `action_primary`, `surface_highlight` and `accent_ring` as complete CSS strings. Now only `action_primary` is required; the other three must be omitted unless the evidence actually shows that treatment. Safe because `token-runtime.ts` already derives each from the colour tokens when absent — the utility classes keep working, they just stop being a mandatory gloss on every project. The response schema was already `.optional()` throughout, so nothing can 400.
+
+2. **Newly authored token sets stamp `mobile_universal_core_v2`**, from the generator prompt and from all ten curated style packs, via the shared constant rather than a literal. A stored `mobile_universal_core` is preserved verbatim, never silently upgraded. `isSupportedTokenSchema` accepts both.
+
+### Compatibility
+
+`isRuntimeEmittedToken()` returns `true` for every path, by design. A v1 screen referencing `--dg-sizing-min-touch-target`, `--dg-z-index-modal-dialog`, `--dg-navigation-container-height` or a demoted gradient renders identically inside a v2 project. Compatibility is a runtime concern; classification is an authoring one.
+
+A test asserts this directly: every one of those variables is still present in `buildDrawgleTokenCss`, and `normalizeDesignTokens` still returns `z_index`, `opacities`, `shadows.none` and `elevation` from stored JSON untouched.
+
+### Verification
+
+401 tests pass (14 new), typecheck clean, lint clean apart from one pre-existing warning in `CanvasArea.tsx`, production build succeeds.
+
+The load-bearing test is exhaustive rather than sampled: for a token set populating every group including the deprecated ones, **no** variable the classification calls non-global appears anywhere in the builder prompt, and **every** variable it calls global does. That is the assertion the old hand-maintained list could not make, and it fails loudly if the prose and the filter ever drift apart again.
+
+`lib/canvas-camera.test.ts` still reports as a failed *file* under vitest — it is written against `node:test` and its 7 tests pass under node's runner. Pre-existing, untouched.
+
+### What Phase 4 deliberately did not do
+
+- **Navigation recipe was not physically relocated** out of `design_tokens` into separate project config. The classification gives the behaviour section 3 wanted — users cannot theme it, the builder does not see it — without a data migration on the product's most valuable stored object. The move remains available later; nothing now depends on it not happening.
+- **Runtime invariants were not removed from the token-generation schema.** The model is still asked for `safe_area_top`/`bottom`, `min_touch_target`, `z_index` and `opacities`. Safe areas and min-touch are force-overridden by `PLATFORM_CONSTRAINT_TOKENS` regardless of what it returns, so those are already inert. `z_index` and `opacities` have no normalisation default, so dropping them from the schema would leave those variables undefined for new projects — a real if small regression risk for zero design benefit. Left as-is on purpose.
+- **No quality claim is attached to any of this.** Phase 4 removed prompt lines and editor controls; it was not measured against generated output and must not be reported as a quality improvement. The A/B result that justified deleting the design brain (§13) is the standard any such claim has to meet.
+
+### State after Phase 4
+
+Phases 1–4 are implemented. The remaining known production issue is unchanged and still untouched: §11's output-token budget lottery in `lib/generation/screen-budget.ts`, which cost 2 of 4 screens on 2026-08-11 and has no retry on `finish_reason: length`. It is the largest single quality loss still in the pipeline, and it is not a design problem.

@@ -1,3 +1,4 @@
+import { TOKEN_SCHEMA_V2, classifyTokenPath } from "@/lib/design-token-classification";
 import type {
   DesignComponentShapePolicy,
   DesignStylePack,
@@ -63,11 +64,13 @@ const PLATFORM_CONSTRAINT_TOKENS = {
   },
 } as const;
 
-const RUNTIME_ONLY_TOKEN_PATHS = new Set([
-  "mobile_layout.safe_area_top",
-  "mobile_layout.safe_area_bottom",
-  "sizing.min_touch_target",
-]);
+/**
+ * Which paths are runtime constants comes from the classification, not from a
+ * second hand-maintained list here. The values above are the constants
+ * themselves; `design-token-classification.ts` owns the question of what counts
+ * as one, so this file and the editor and the builder prompt cannot disagree.
+ */
+const isRuntimeOnlyTokenPath = (path: string) => classifyTokenPath(path).klass === "runtime-invariant";
 
 const deepClone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
@@ -551,7 +554,7 @@ const hasNonConstraintTokenValues = (value: unknown, path: string[] = []): boole
     const joinedPath = nextPath.join(".");
 
     if (typeof entryValue === "string" || typeof entryValue === "number") {
-      if (!RUNTIME_ONLY_TOKEN_PATHS.has(joinedPath)) {
+      if (!isRuntimeOnlyTokenPath(joinedPath)) {
         return true;
       }
       continue;
@@ -612,10 +615,14 @@ export const hasApprovedDesignTokens = (designTokens?: Partial<DesignTokens> | n
 export const sanitizeApprovedDesignTokens = (
   incoming: Partial<DesignTokens> | null | undefined,
 ): DesignTokens => {
+  // A stored schema identifier is preserved verbatim so v1 token sets stay v1
+  // and keep behaving exactly as they did. Only newly authored sets carry v2,
+  // which signals that the token classification applies. Every CSS variable is
+  // emitted under both versions, so this changes authoring, never rendering.
   const next: DesignTokens = {
     system_schema: typeof incoming?.system_schema === "string" && incoming.system_schema.trim()
       ? incoming.system_schema.trim()
-      : "mobile_universal_core",
+      : TOKEN_SCHEMA_V2,
   };
 
   const tokens = sanitizeTokenValues(incoming?.tokens);

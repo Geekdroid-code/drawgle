@@ -1,4 +1,5 @@
 import { createNavigationArchitecture, resolveScreenChromePolicy } from "@/lib/navigation";
+import { TOKEN_SCHEMA_V2 } from "@/lib/design-token-classification";
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { formatDesignStyleContract } from "@/lib/generation/design-styles";
 import { formatTokenOwnershipContract } from "@/lib/generation/token-ownership";
@@ -678,7 +679,7 @@ For shape and elevation, use one outer surface radius, one smaller inner/inset r
 
  REQUIRED JSON SCHEMA:
 {
-  "system_schema": "mobile_universal_core",
+  "system_schema": "${TOKEN_SCHEMA_V2}",
   "meta": {
     "recommendedFonts": ["Font Name", "Fallback Font Name"]
   },
@@ -716,10 +717,10 @@ For shape and elevation, use one outer surface radius, one smaller inner/inset r
     "border_widths": { "standard": "px" },
     "shadows": { "none": "none", "surface": "shadow string", "overlay": "shadow string" },
     "gradients": {
-      "app_background": "linear-gradient/radial-gradient CSS value for the main app background when the direction needs gradient depth",
       "action_primary": "linear-gradient CSS value for primary CTAs and brand/action moments",
-      "surface_highlight": "linear-gradient CSS value for elevated surface sheen/highlight when useful",
-      "accent_ring": "linear-gradient CSS value for thin accent borders/rings when useful"
+      "app_background": "OPTIONAL. Omit unless the direction genuinely reads as a gradient-depth app background.",
+      "surface_highlight": "OPTIONAL. Omit unless surfaces genuinely carry a sheen in this direction.",
+      "accent_ring": "OPTIONAL. Omit unless thin gradient rings are part of this direction."
     },
     "navigation": {
       "surface": "HEX navigation surface color",
@@ -763,8 +764,8 @@ Rules:
 - Use radii.pill for chips, badges, avatars, and circular icon wells. Primary CTAs and segmented items use it only when the deterministic component shape policy explicitly authorizes that role.
 - Use border_widths.standard as the default border weight across the app.
 - Use shadows.surface for standard elevated surfaces and shadows.overlay only for stronger overlays like sheets or floating panels.
-- Use gradients as first-class material tokens when the approved evidence or creative direction uses gradient depth. Provide app_background, action_primary, surface_highlight, and accent_ring values as complete CSS gradient strings. Keep them disciplined and role-based, not a grab bag of decorative effects.
-- If the visual direction is flat/minimal, gradients may be very subtle two-stop values derived from the flat color tokens rather than loud decorative fills.
+- gradients.action_primary is required. The other three are optional and must be omitted unless the approved evidence actually shows that treatment: a gradient background, sheen, or accent ring applied to every project is the single clearest reason generated apps all look like the same template. The runtime derives a subtle fallback from the color tokens when they are absent, so omitting them costs nothing.
+- If the visual direction is flat/minimal, omit the optional gradients entirely rather than inventing subtle ones.
 - Keep token relationships coherent. Example: airy systems should not use cramped section gaps; sharp systems should not use very soft pill-heavy radii except where intentionally contrasting.
 - Keep touch targets mobile-safe even when the visual style is compact.
 

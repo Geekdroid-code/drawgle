@@ -1,3 +1,4 @@
+import { isBuilderVisibleToken } from "@/lib/design-token-classification";
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import type { DesignTokens, DesignTokenValues } from "@/lib/types";
 
@@ -14,9 +15,7 @@ export type DrawgleTokenReference = CssVariable & {
 
 export type TokenPromptMode =
   | "none"
-  | "router_summary"
   | "compact_visual"
-  | "full_generation"
   | "runtime_css";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -394,77 +393,36 @@ ${typographyClass("button-label", "button-label", "body")}
 `.trim();
 }
 
-export function buildTokenUsageGuide(designTokens?: DesignTokens | null) {
-  const references = getDrawgleTokenReferences(designTokens);
-  const variableList = references
-    .slice(0, 80)
-    .map((reference) => `${reference.path}: var(${reference.name}) = ${reference.value}`)
-    .join("\n");
-
-  return [
-    "Use Drawgle's live project tokens for canonical styling.",
-    "Prefer these utility classes when they match the intended role: dg-bg-primary, dg-bg-secondary, dg-surface-card, dg-surface-bottom-sheet, dg-text-high, dg-text-medium, dg-text-low, dg-action-primary, dg-gradient-action-primary, dg-gradient-app-background, dg-gradient-surface-highlight, dg-gradient-accent-ring, dg-border-divider, dg-radius-app, dg-radius-inner, dg-radius-pill, dg-radius-inset-xs, dg-radius-inset-sm, dg-radius-inset-md, dg-shadow-surface, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-metric-value, dg-type-body, dg-type-caption, dg-type-button-label.",
-    "Use dg-radius-app for outer cards, sheets, panels, and navigation surfaces; dg-radius-inner for nested cards, inset panels, segmented tabs, and active navigation items; and dg-radius-pill only for true capsules and circles.",
-    "CONCENTRIC RADIUS LAW: a nested surface's radius equals its parent's radius minus the gap between their edges. When you pad or inset a dg-radius-app container by a spacing step, its direct children use the matching dg-radius-inset-* class: --dg-spacing-xs padding pairs with dg-radius-inset-xs, --dg-spacing-md padding with dg-radius-inset-md, and so on. Never pair a large outer radius with an unrelated inner radius; the corners will not read as concentric.",
-    "For token values without a named utility, use Tailwind arbitrary values with CSS variables, for example bg-[var(--dg-color-action-primary)], [background-image:var(--dg-gradient-action-primary)], text-[var(--dg-color-text-high-emphasis)], rounded-[var(--dg-radii-inner)], shadow-[var(--dg-shadows-surface)].",
-    "Use token gradients for canonical gradient fills. Use raw hex, raw pixels, and custom gradients only for deliberate one-off visual details such as charts, maps, illustrations, or non-system accent marks.",
-    variableList ? `Available token variables:\n${variableList}` : null,
-  ].filter(Boolean).join("\n");
-}
-
 const formatTokenReferences = (references: DrawgleTokenReference[], limit: number) =>
   references
     .slice(0, limit)
     .map((reference) => `${reference.path}: var(${reference.name}) = ${reference.value}`)
     .join("\n");
 
-const pickTokenReferences = (
-  references: DrawgleTokenReference[],
-  prefixes: string[],
-) => references.filter((reference) => prefixes.some((prefix) => reference.path === prefix || reference.path.startsWith(`${prefix}.`)));
-
-// Raw groups sent verbatim — each value is unique and semantically meaningful by name.
-// spacing, opacities, z_index are intentionally excluded; the semantic map replaces them.
-// Typography family roles are included explicitly so the builder sees the strict split.
-const compactVisualTokenPrefixes = [
-  "color.background",
-  "color.surface",
-  "color.text",
-  "color.action",
-  "color.border",
-  "color.status",
-  "typography.heading_font_family",
-  "typography.body_font_family",
-  "typography.nav_title",
-  "typography.screen_title",
-  "typography.section_title",
-  "typography.metric_value",
-  "typography.body",
-  "typography.supporting",
-  "typography.caption",
-  "typography.button_label",
-  "mobile_layout",
-  "sizing.standard_button_height",
-  "sizing.standard_input_height",
-  "sizing.icon_small",
-  "sizing.icon_standard",
-  "sizing.bottom_nav_height",
-  "radii",
-  "border_widths",
-  "shadows",
-  "gradients",
-];
+/**
+ * The builder sees global tokens only.
+ *
+ * This used to be a hand-maintained prefix list that drifted from what the
+ * tokens actually meant — it sent `sizing.bottom_nav_height` (component
+ * recipe), all of `mobile_layout` including device safe areas, every gradient,
+ * and every legacy typography alias. `design-token-classification.ts` is now
+ * the single source of truth, so the prompt cannot drift from the editor's view
+ * of the same schema.
+ */
+const isBuilderVisibleReference = (reference: DrawgleTokenReference) =>
+  isBuilderVisibleToken(reference.path);
 
 /**
- * Resolves spacing/opacities into a compact semantic map for the LLM prompt.
+ * Resolves the spacing rhythm into a compact semantic map for the LLM prompt.
  * Each entry has a self-describing role name + resolved pixel value so the LLM
  * can make visual hierarchy judgements without seeing the full raw scale.
- * z_index is omitted entirely — the LLM should use utility classes, not pick values.
+ *
+ * z_index and the opacity states are omitted: both are runtime/component
+ * concerns rather than project identity, and the editor no longer offers them.
  */
 function resolveSemanticMap(tokens: DesignTokenValues | undefined): string {
   const sp = tokens?.spacing ?? {};
   const ml = tokens?.mobile_layout ?? {};
-  const op = tokens?.opacities ?? {};
 
   const spacingEntries: Array<[string, string, string]> = [
     ["screen_edge_padding (outer horizontal padding of every screen)", "--dg-mobile-layout-screen-margin", ml.screen_margin ?? "16px"],
@@ -476,17 +434,9 @@ function resolveSemanticMap(tokens: DesignTokenValues | undefined): string {
     ["spacious (hero sections, large visual breathing room)", "--dg-spacing-xl", sp.xl ?? "32px"],
   ];
 
-  const opacityEntries: Array<[string, string, string]> = [
-    ["opacity_disabled", "--dg-opacities-disabled", op.disabled ?? "0.38"],
-    ["opacity_scrim_overlay", "--dg-opacities-scrim-overlay", op.scrim_overlay ?? "0.50"],
-    ["opacity_pressed_state", "--dg-opacities-pressed", op.pressed ?? "0.12"],
-  ];
-
   const lines = [
     "SPACING ROLES (use these — do not invent arbitrary pixel values):",
     ...spacingEntries.map(([role, variable, value]) => `  ${role}: var(${variable}) = ${value}`),
-    "OPACITY ROLES:",
-    ...opacityEntries.map(([role, variable, value]) => `  ${role}: var(${variable}) = ${value}`),
   ];
 
   return lines.join("\n");
@@ -511,49 +461,24 @@ export function buildTokenPromptContext(
     return "No approved project design tokens are available. Use refined neutral defaults and standard Tailwind CSS.";
   }
 
-  if (mode === "router_summary") {
-    const keyReferences = pickTokenReferences(references, [
-      "color.background.primary",
-      "color.surface.card",
-      "color.action.primary",
-      "color.action.secondary",
-      "color.text.high_emphasis",
-      "radii.app",
-      "radii.inner",
-      "shadows.surface",
-    ]);
-
-    return [
-      "Project design tokens are approved and should be used for visual UI changes.",
-      keyReferences.length > 0 ? `Key token handles:\n${formatTokenReferences(keyReferences, 12)}` : null,
-    ].filter(Boolean).join("\n");
-  }
-
-  if (mode === "compact_visual") {
-    const filteredReferences = pickTokenReferences(references, compactVisualTokenPrefixes);
-    const semanticMap = resolveSemanticMap(normalized.tokens);
-
-    return [
-      "TOKEN CONTEXT: Approved project design tokens.",
-      "Use them for SYSTEM UI so the project's live design system controls it: page backgrounds, system card/sheet/modal surfaces, the text hierarchy, standard actions and fields, navigation surfaces, standard borders, the radius vocabulary, spacing rhythm, and standard surface shadows.",
-      "You are free to design LOCAL ART with any CSS you want: hero treatments, charts, one-off gradients, decorative geometry, illustrations, maps, media compositions, intentional high-contrast sections, and deliberate asymmetry. These do not have to be token-derived.",
-      "Prefer utility classes when the semantic role matches: dg-bg-primary, dg-bg-secondary, dg-surface-card, dg-surface-bottom-sheet, dg-surface-modal, dg-text-high, dg-text-medium, dg-text-low, dg-action-primary, dg-action-secondary, dg-gradient-action-primary, dg-gradient-app-background, dg-gradient-surface-highlight, dg-gradient-accent-ring, dg-border-divider, dg-border-focused, dg-radius-app, dg-radius-inner, dg-radius-pill, dg-radius-inset-xs, dg-radius-inset-sm, dg-radius-inset-md, dg-shadow-surface, dg-shadow-overlay, dg-type-nav-title, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-metric-value, dg-type-body, dg-type-supporting, dg-type-caption, dg-type-button-label.",
-      "Radius vocabulary: app is the outer surface radius, inner is the smaller nested/inset radius, and pill is for capsules and circles. The project supplies the vocabulary; you choose which word fits each component. A capsule CTA is a legitimate choice.",
-      "Concentric guidance (not a law): a nested surface usually reads best at its parent's radius minus the gap between their edges, and dg-radius-inset-* provides that value per spacing step. Depart from it when the composition is better for it.",
-      "For token values without a named utility, use CSS variables in Tailwind arbitrary classes, e.g. bg-[var(--dg-color-action-primary)], [background-image:var(--dg-gradient-action-primary)], p-[var(--dg-spacing-md)], rounded-[var(--dg-radii-inner)], shadow-[var(--dg-shadows-surface)], opacity-[var(--dg-opacities-disabled)].",
-      "Token gradients are available for expressive actions and app backgrounds. Custom gradients are fully allowed for local art.",
-      filteredReferences.length > 0 ? `Project token variables:\n${formatTokenReferences(filteredReferences, 200)}` : null,
-      semanticMap,
-    ].filter(Boolean).join("\n");
-  }
+  const filteredReferences = references.filter(isBuilderVisibleReference);
 
   return [
-    "TOKEN CONTEXT MODE: full_generation",
-    "Approved design tokens are the source of truth for the generated UI. Use Drawgle token utility classes and CSS variables for canonical styling.",
-    `APPROVED DESIGN TOKENS:\n${JSON.stringify(normalized.tokens, null, 2)}`,
-    "LIVE TOKEN USAGE GUIDE:",
-    buildTokenUsageGuide(normalized),
-  ].join("\n\n");
+    "TOKEN CONTEXT: Approved project design tokens.",
+    "Use them for SYSTEM UI so the project's live design system controls it: page backgrounds, system card/sheet/modal surfaces, the text hierarchy, standard actions and fields, navigation surfaces, standard borders, the radius vocabulary, spacing rhythm, and standard surface shadows.",
+    "You are free to design LOCAL ART with any CSS you want: hero treatments, charts, one-off gradients, decorative geometry, illustrations, maps, media compositions, intentional high-contrast sections, and deliberate asymmetry. These do not have to be token-derived.",
+    // Deliberately lists only global-class utilities. The demoted gradients
+    // (app_background, surface_highlight, accent_ring) used to be named here,
+    // which is how every screen ended up wearing the same glossed recipe. They
+    // remain available as local art; they are no longer recommended as identity.
+    "Prefer utility classes when the semantic role matches: dg-bg-primary, dg-bg-secondary, dg-surface-card, dg-surface-bottom-sheet, dg-surface-modal, dg-text-high, dg-text-medium, dg-text-low, dg-action-primary, dg-action-secondary, dg-gradient-action-primary, dg-border-divider, dg-border-focused, dg-radius-app, dg-radius-inner, dg-radius-pill, dg-shadow-surface, dg-shadow-overlay, dg-type-nav-title, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-metric-value, dg-type-body, dg-type-supporting, dg-type-caption, dg-type-button-label.",
+    "Radius vocabulary: app is the outer surface radius, inner is the smaller nested/inset radius, and pill is for capsules and circles. The project supplies the vocabulary; you choose which word fits each component. A capsule CTA is a legitimate choice.",
+    "Concentric guidance (not a law): a nested surface usually reads best at its parent's radius minus the gap between their edges. Depart from it when the composition is better for it.",
+    "For token values without a named utility, use CSS variables in Tailwind arbitrary classes, e.g. bg-[var(--dg-color-action-primary)], [background-image:var(--dg-gradient-action-primary)], p-[var(--dg-spacing-md)], rounded-[var(--dg-radii-inner)], shadow-[var(--dg-shadows-surface)].",
+    "Token gradients are available for expressive actions. Custom gradients are fully allowed for local art.",
+    filteredReferences.length > 0 ? `Project token variables:\n${formatTokenReferences(filteredReferences, 200)}` : null,
+    resolveSemanticMap(normalized.tokens),
+  ].filter(Boolean).join("\n");
 }
 
 const normalizeComparableValue = (value: string) => value.trim().toLowerCase();

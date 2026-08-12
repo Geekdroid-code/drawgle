@@ -1,3 +1,4 @@
+import { TOKEN_SCHEMA_V2 } from "@/lib/design-token-classification";
 import type { DesignStyleId, DesignStylePack } from "@/lib/types";
 
 export const DESIGN_STYLE_AUTO_ID = "auto";
@@ -29,7 +30,7 @@ export const DESIGN_STYLE_PACKS: DesignStylePack[] = [
     premiumIntent: "Airy iOS utility with confident hierarchy, white surfaces, subtle cool neutrals, and practical elegance.",
     bestFor: ["finance", "productivity", "health", "booking", "consumer utilities", "marketplaces"],
     tokenSeed: {
-      system_schema: "mobile_universal_core",
+      system_schema: TOKEN_SCHEMA_V2,
       meta: { recommendedFonts: ["Inter", "SF Pro Display"] },
       tokens: {
         color: {
@@ -105,7 +106,7 @@ export const DESIGN_STYLE_PACKS: DesignStylePack[] = [
     premiumIntent: "Graphite command UI with luminous text, contained depth, and focused workflows.",
     bestFor: ["crypto", "security", "developer tools", "analytics", "media", "night-mode utilities"],
     tokenSeed: {
-      system_schema: "mobile_universal_core",
+      system_schema: TOKEN_SCHEMA_V2,
       meta: { recommendedFonts: ["Inter", "Satoshi"] },
       tokens: {
         color: {
@@ -181,7 +182,7 @@ export const DESIGN_STYLE_PACKS: DesignStylePack[] = [
     premiumIntent: "Magazine-like product UI with sparse cards, confident typography, and deliberate asymmetry.",
     bestFor: ["wellness", "content", "portfolio", "travel", "fashion", "premium services"],
     tokenSeed: {
-      system_schema: "mobile_universal_core",
+      system_schema: TOKEN_SCHEMA_V2,
       meta: { recommendedFonts: ["Newsreader", "Inter"] },
       tokens: {
         color: {
@@ -257,7 +258,7 @@ export const DESIGN_STYLE_PACKS: DesignStylePack[] = [
     premiumIntent: "Warm tactile UI with clay-like surfaces, soft inset depth, and approachable premium comfort.",
     bestFor: ["wellness", "food", "home", "education", "family", "creative tools"],
     tokenSeed: {
-      system_schema: "mobile_universal_core",
+      system_schema: TOKEN_SCHEMA_V2,
       meta: { recommendedFonts: ["Nunito Sans", "Inter"] },
       tokens: {
         color: {
@@ -334,7 +335,7 @@ export const DESIGN_STYLE_PACKS: DesignStylePack[] = [
     bestFor: ["creator tools", "events", "education", "social", "gaming", "youth brands"],
     avoidFor: ["serious banking", "medical compliance", "quiet enterprise"],
     tokenSeed: {
-      system_schema: "mobile_universal_core",
+      system_schema: TOKEN_SCHEMA_V2,
       meta: { recommendedFonts: ["Space Grotesk", "Inter"] },
       tokens: {
         color: {
@@ -410,7 +411,7 @@ export const DESIGN_STYLE_PACKS: DesignStylePack[] = [
     premiumIntent: "Restrained luxury product UI with quiet contrast, fine dividers, elegant type, and polished restraint.",
     bestFor: ["premium commerce", "finance", "hospitality", "fashion", "real estate", "concierge"],
     tokenSeed: {
-      system_schema: "mobile_universal_core",
+      system_schema: TOKEN_SCHEMA_V2,
       meta: { recommendedFonts: ["Cormorant Garamond", "Inter"] },
       tokens: {
         color: {
@@ -487,7 +488,7 @@ export const DESIGN_STYLE_PACKS: DesignStylePack[] = [
     bestFor: ["AI tools", "security", "gaming", "crypto", "mobility", "analytics"],
     avoidFor: ["calm wellness", "traditional banking", "family apps"],
     tokenSeed: {
-      system_schema: "mobile_universal_core",
+      system_schema: TOKEN_SCHEMA_V2,
       meta: { recommendedFonts: ["Space Grotesk", "Inter"] },
       tokens: {
         color: {
@@ -563,7 +564,7 @@ export const DESIGN_STYLE_PACKS: DesignStylePack[] = [
     premiumIntent: "Layered frosted utility UI with translucent sheets, floating controls, and clear content depth.",
     bestFor: ["travel", "weather", "finance", "wellness", "smart home", "maps"],
     tokenSeed: {
-      system_schema: "mobile_universal_core",
+      system_schema: TOKEN_SCHEMA_V2,
       meta: { recommendedFonts: ["Inter", "SF Pro Display"] },
       tokens: {
         color: {
@@ -640,7 +641,7 @@ export const DESIGN_STYLE_PACKS: DesignStylePack[] = [
     bestFor: ["kids", "learning", "creator tools", "social", "food", "habit apps"],
     avoidFor: ["serious enterprise", "high-risk finance", "medical compliance"],
     tokenSeed: {
-      system_schema: "mobile_universal_core",
+      system_schema: TOKEN_SCHEMA_V2,
       meta: { recommendedFonts: ["Nunito Sans", "Baloo 2"] },
       tokens: {
         color: {
@@ -716,7 +717,7 @@ export const DESIGN_STYLE_PACKS: DesignStylePack[] = [
     premiumIntent: "Dense professional mobile command center with compact rows, real charts, segmented controls, and scan-friendly hierarchy.",
     bestFor: ["analytics", "operations", "CRM", "logistics", "finance", "admin tools", "SaaS dashboards"],
     tokenSeed: {
-      system_schema: "mobile_universal_core",
+      system_schema: TOKEN_SCHEMA_V2,
       meta: { recommendedFonts: ["IBM Plex Sans", "Inter"] },
       tokens: {
         color: {

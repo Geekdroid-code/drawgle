@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { TOKEN_SCHEMA_V2 } from "@/lib/design-token-classification";
 import {
   buildCreativeDirectionInstruction,
   buildDesignInstruction,
@@ -83,7 +84,7 @@ describe("state-scoped prompt construction", () => {
   it("keeps the complete design-token schema and discipline in every mode", () => {
     const commonRules = [
       "comprehensive, production-grade Design Token System",
-      '"system_schema": "mobile_universal_core"',
+      `"system_schema": "${TOKEN_SCHEMA_V2}"`,
       '"recommendedFonts"',
       '"heading_font_family"',
       '"body_font_family"',
@@ -100,7 +101,10 @@ describe("state-scoped prompt construction", () => {
       "Primary CTAs and segmented items use it only when the deterministic component shape policy explicitly authorizes that role",
       "Use border_widths.standard as the default border weight",
       "Use shadows.surface for standard elevated surfaces",
-      "Use gradients as first-class material tokens",
+      // The optional gradients are the template tell: applied to every project
+      // they make every generated app look like the same recipe.
+      "gradients.action_primary is required",
+      "The other three are optional",
       "Keep token relationships coherent",
       "Keep touch targets mobile-safe",
       "Output ONLY valid JSON",

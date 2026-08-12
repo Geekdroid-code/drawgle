@@ -39,12 +39,10 @@ const TYPOGRAPHY_STYLES = [
 
 const SPACING_KEYS = ["xxs", "xs", "sm", "md", "lg", "xl", "xxl"] as const;
 const LAYOUT_KEYS = ["screen_margin", "section_gap", "element_gap"] as const;
-const SIZE_KEYS = ["standard_button_height", "standard_input_height", "icon_small", "icon_standard", "bottom_nav_height"] as const;
-const OPACITY_KEYS = [
-  { key: "disabled", label: "Disabled", fallback: "0.38" },
-  { key: "pressed", label: "Pressed", fallback: "0.12" },
-  { key: "scrim_overlay", label: "Scrim overlay", fallback: "0.50" },
-] as const;
+// `bottom_nav_height` is component-recipe, not identity: a compact dock and a
+// fixed tab rail legitimately differ, and the renderer derives content clearance
+// from the navigation recipe. See lib/design-token-classification.ts.
+const SIZE_KEYS = ["standard_button_height", "standard_input_height", "icon_small", "icon_standard"] as const;
 
 type EditorTab = "colors" | "type" | "spacing" | "shape";
 type MobileView = "tokens" | "preview";
@@ -89,13 +87,6 @@ const parsePixelToken = (value: string, fallback: number) => {
 const clampNumber = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 const serializePixelToken = (value: number, min: number, max: number) => `${clampNumber(Math.round(value), min, max)}px`;
-
-const parseOpacityToken = (value: string, fallback: number) => {
-  const parsed = Number.parseFloat(value.trim());
-  return Number.isFinite(parsed) ? clampNumber(parsed, 0, 1) : fallback;
-};
-
-const serializeOpacityToken = (value: number) => clampNumber(value, 0, 1).toFixed(2);
 
 type RgbColor = { r: number; g: number; b: number };
 type HsvColor = { h: number; s: number; v: number };
@@ -297,10 +288,6 @@ export function DesignSystemEditor({
   const actionSecondary = tokens.color?.action?.secondary || "#333333";
   const actionText = tokens.color?.action?.on_primary_text || "#ffffff";
   const raisedBg = tokens.color?.background?.surface_elevated || secondaryBg;
-  const actionLabel = tokens.color?.text?.action_label || actionPrimary;
-  const actionGradientStart = tokens.color?.action?.primary_gradient_start || actionPrimary;
-  const actionGradientEnd = tokens.color?.action?.primary_gradient_end || actionSecondary;
-  const actionOnSurface = tokens.color?.action?.on_surface_white_bg || actionPrimary;
   const cardBg = tokens.color?.surface?.card || "#ffffff";
   const borderDivider = tokens.color?.border?.divider || "#e5e7eb";
   const radius = tokens.radii?.app || "18px";
@@ -415,15 +402,11 @@ export function DesignSystemEditor({
                   <ColorField label="Primary text" value={primaryText} tokenPath={["color", "text", "high_emphasis"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "text", "high_emphasis"], nextValue)} />
                   <ColorField label="Muted text" value={mediumText} tokenPath={["color", "text", "medium_emphasis"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "text", "medium_emphasis"], nextValue)} />
                   <ColorField label="Subtle text" value={lowText} tokenPath={["color", "text", "low_emphasis"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "text", "low_emphasis"], nextValue)} />
-                  <ColorField label="Action label" value={actionLabel} tokenPath={["color", "text", "action_label"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "text", "action_label"], nextValue)} />
                 </TokenGroup>
                 <TokenGroup label="Actions" panel={isPanel}>
                   <ColorField label="Primary" value={actionPrimary} tokenPath={["color", "action", "primary"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "action", "primary"], nextValue)} />
                   <ColorField label="Secondary" value={actionSecondary} tokenPath={["color", "action", "secondary"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "action", "secondary"], nextValue)} />
                   <ColorField label="Foreground" value={actionText} tokenPath={["color", "action", "on_primary_text"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "action", "on_primary_text"], nextValue)} />
-                  <ColorField label="Surface action" value={actionOnSurface} tokenPath={["color", "action", "on_surface_white_bg"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "action", "on_surface_white_bg"], nextValue)} />
-                  <ColorField label="Gradient start" value={actionGradientStart} tokenPath={["color", "action", "primary_gradient_start"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "action", "primary_gradient_start"], nextValue)} />
-                  <ColorField label="Gradient end" value={actionGradientEnd} tokenPath={["color", "action", "primary_gradient_end"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "action", "primary_gradient_end"], nextValue)} />
                   <ColorField label="Disabled" value={tokens.color?.action?.disabled || "#e5e7eb"} tokenPath={["color", "action", "disabled"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "action", "disabled"], nextValue)} />
                 </TokenGroup>
                 <TokenGroup label="Navigation" panel={isPanel}>
@@ -446,18 +429,6 @@ export function DesignSystemEditor({
                     panel={isPanel}
                     onChange={(nextValue) => handleUpdateToken(["border_widths", "standard"], nextValue)}
                   />
-                </TokenGroup>
-                <TokenGroup label="States" panel={isPanel}>
-                  {OPACITY_KEYS.map(({ key, label, fallback }) => (
-                    <OpacityMetricRow
-                      key={key}
-                      label={label}
-                      value={tokens.opacities?.[key] || fallback}
-                      fallback={Number.parseFloat(fallback)}
-                      panel={isPanel}
-                      onChange={(nextValue) => handleUpdateToken(["opacities", key], nextValue)}
-                    />
-                  ))}
                 </TokenGroup>
               </div>
             ) : null}
@@ -654,12 +625,6 @@ export function DesignSystemEditor({
                     previewRadius={radius}
                     panel={isPanel}
                     onChange={(nextValue) => handleUpdateToken(["navigation", "shadow"], nextValue)}
-                  />
-                  <StaticTokenRow
-                    label="Flat shadow"
-                    value={tokens.shadows?.none || "none"}
-                    description="The no-elevation state used when a surface should stay flat."
-                    panel={isPanel}
                   />
                 </TokenGroup>
               </div>
@@ -1367,118 +1332,6 @@ function PanelControl({ label, description, children }: { label: string; descrip
         {description ? <span className="mt-0.5 block text-[11px] font-normal text-slate-500 dark:text-[#8f98aa]">{description}</span> : null}
       </div>
       {children}
-    </div>
-  );
-}
-
-function StaticTokenRow({
-  label,
-  value,
-  description,
-  panel = false,
-}: {
-  label: string;
-  value: string;
-  description: string;
-  panel?: boolean;
-}) {
-  if (panel) {
-    return (
-      <div className="flex min-h-[58px] items-center gap-3 bg-white px-3 py-2.5 dark:bg-[#1b1e25]">
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-[13px] font-semibold text-slate-900 dark:text-[#e7ebf3]">{label}</div>
-          <div className="mt-0.5 text-[11px] text-slate-500 dark:text-[#8f98aa]">{description}</div>
-        </div>
-        <span className="shrink-0 rounded-full bg-[#f1f3f6] px-2.5 py-1 font-mono text-[11px] text-slate-600 dark:bg-[#252a34] dark:text-[#c6cedb]">{value}</span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="col-span-full rounded-[12px] border border-slate-950/[0.08] bg-white px-2.5 py-2">
-      <div className="truncate text-[11px] font-medium uppercase tracking-[0.08em] text-slate-400">{label}</div>
-      <div className="mt-1 font-mono text-xs text-slate-900">{value}</div>
-      <div className="mt-1 text-[11px] text-slate-500">{description}</div>
-    </div>
-  );
-}
-
-function OpacityMetricRow({
-  label,
-  value,
-  fallback,
-  panel = false,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  fallback: number;
-  panel?: boolean;
-  onChange: (value: string) => void;
-}) {
-  const numericValue = parseOpacityToken(value, fallback);
-  const percentValue = Math.round(numericValue * 100);
-  const [expanded, setExpanded] = useState(false);
-  const updateValue = (nextPercent: number) => onChange(serializeOpacityToken(nextPercent / 100));
-
-  if (panel) {
-    return (
-      <div className="bg-white dark:bg-[#1b1e25]">
-        <button
-          type="button"
-          className="flex min-h-[52px] w-full items-center gap-3 px-3 py-2 text-left transition hover:bg-[#f8fafc] dark:hover:bg-[#222630]"
-          onClick={() => setExpanded((current) => !current)}
-        >
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-[13px] font-semibold capitalize text-slate-900 dark:text-[#e7ebf3]">{label}</div>
-            <div className="mt-0.5 font-mono text-[11px] text-slate-500 dark:text-[#8f98aa]">{percentValue}% opacity</div>
-          </div>
-          <OpacityPreview value={numericValue} compact />
-          <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition dark:text-[#6f7888] ${expanded ? "rotate-180" : ""}`} />
-        </button>
-        {expanded ? (
-          <div className="border-t border-slate-950/[0.06] bg-[#fbfbfc] px-3 py-3 dark:border-white/[0.08] dark:bg-[#151820]">
-            <ShadowSlider
-              label={label}
-              value={percentValue}
-              min={0}
-              max={100}
-              suffix="%"
-              panel
-              onChange={updateValue}
-            />
-          </div>
-        ) : null}
-      </div>
-    );
-  }
-
-  return (
-    <div className="col-span-full grid gap-2 rounded-[12px] border border-slate-950/[0.06] bg-white p-2 sm:grid-cols-[minmax(0,1fr)_154px_120px] sm:items-center">
-      <div className="min-w-0">
-        <div className="truncate text-xs font-medium capitalize text-slate-800">{label}</div>
-        <div className="mt-0.5 font-mono text-[11px] text-slate-400">{percentValue}% opacity</div>
-      </div>
-      <ShadowSlider
-        label={label}
-        value={percentValue}
-        min={0}
-        max={100}
-        suffix="%"
-        onChange={updateValue}
-      />
-      <OpacityPreview value={numericValue} />
-    </div>
-  );
-}
-
-function OpacityPreview({ value, compact = false }: { value: number; compact?: boolean }) {
-  return (
-    <div className={`${compact ? "h-11 w-20" : "h-12"} flex shrink-0 items-center justify-center rounded-[10px] bg-[linear-gradient(45deg,#e5e7eb_25%,transparent_25%),linear-gradient(-45deg,#e5e7eb_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#e5e7eb_75%),linear-gradient(-45deg,transparent_75%,#e5e7eb_75%)] bg-[length:12px_12px] bg-[position:0_0,0_6px,6px_-6px,-6px_0] dark:bg-[linear-gradient(45deg,#343a46_25%,transparent_25%),linear-gradient(-45deg,#343a46_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#343a46_75%),linear-gradient(-45deg,transparent_75%,#343a46_75%)]`}>
-      <div
-        className={`${compact ? "h-7 w-14" : "h-8 w-16"} rounded-[10px] bg-slate-950 dark:bg-[#d7ddea]`}
-        style={{ opacity: clampNumber(value, 0, 1) }}
-      />
     </div>
   );
 }
