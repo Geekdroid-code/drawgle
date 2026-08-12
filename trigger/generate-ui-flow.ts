@@ -2600,6 +2600,7 @@ export const generateUiFlowTask = task({
       && planningMode === "project";
     let remainingBriefsStarter: (() => Promise<{ screens: ScreenPlan[]; droppedScreenNames?: string[] }>) | null = null;
     let plan: PlannedUiFlow;
+    let promotedDroppedScreenNames: string[] = [];
 
     if (hasSeedScreens) {
       plan = {
@@ -2704,12 +2705,23 @@ export const generateUiFlowTask = task({
         firstBrief = firstResult.screens[0];
       } catch (error) {
         if (seedPlans.length === 1) throw error;
-        logger.warn("First screen brief failed; promoting the first valid remaining brief", {
+        logger.warn("First screen brief failed; re-briefing the whole slate and promoting the first valid screen", {
           screenName: seedPlans[0].name,
+          seedCount: seedPlans.length,
           error,
         });
+        // Re-brief every seed, not `slice(1)`. Passing the tail here dropped the
+        // failed screen from the project outright: a three-screen reference
+        // silently became two, a two-screen request became one, and every
+        // downstream counter agreed with the reduced number so the run reported
+        // success. The screen only needs to lose its turn at being built first,
+        // not its place in the project.
+        //
+        // This call carries the same cost as the tail-only one it replaces, and
+        // it is strictly less likely to fail outright: planScreenBriefsForBuild
+        // throws only when *no* brief survives, so more candidates is safer.
         const promoted = await planScreenBriefsForBuild({
-          screens: seedPlans.slice(1),
+          screens: seedPlans,
           prompt: payload.prompt,
           charter: blueprint.charter,
           navigationArchitecture: blueprint.navigationArchitecture,
@@ -2722,9 +2734,19 @@ export const generateUiFlowTask = task({
           force: true,
           llmLog: llmLogFor("promotedScreenBriefs"),
         });
+        if (promoted.screens.length === 0) throw error;
         seedPlans.splice(0, seedPlans.length, ...promoted.screens);
         firstBrief = seedPlans[0];
         remainingAlreadyPlanned = true;
+        // A screen that still cannot be briefed is a reportable loss, not a
+        // silent one. The tail-only path recorded nothing at all.
+        promotedDroppedScreenNames = promoted.droppedScreenNames ?? [];
+        if (promotedDroppedScreenNames.length > 0) {
+          logger.warn("Screens dropped while re-briefing after a failed first brief", {
+            dropped: promotedDroppedScreenNames,
+            retained: seedPlans.map((screen) => screen.name),
+          });
+        }
       }
       const firstBriefReadyAt = now();
       await mergeGenerationPerformance(admin, payload.generationRunId, {
@@ -3156,6 +3178,12 @@ export const generateUiFlowTask = task({
       intentContract: plan.intentContract ?? null,
       screenFamilyContract: plan.screenFamilyContract ?? null,
       plannedScreenCount: plan.screens.length,
+      ...(promotedDroppedScreenNames.length > 0
+        ? {
+            droppedScreenBriefs: promotedDroppedScreenNames,
+            droppedScreenBriefCount: promotedDroppedScreenNames.length,
+          }
+        : {}),
       navigationEnabled: plan.navigationPlan.enabled,
       generationPreview: {
         version: 1,

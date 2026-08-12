@@ -932,3 +932,66 @@ Raising the ceiling is close to free: `max_tokens` is a limit, not an allocation
 ### Required deployment step
 
 `DRAWGLE_OPENROUTER_MAX_TOKENS` is set explicitly in the deployed environment. **Raising it to at least 32000 in Vercel and Trigger.dev is required** — without it the clamp holds at 16,000 and the fix is inert in production. The new `clampedByGlobalCeiling` warning will say so in the logs if it is missed.
+
+## 19. The missing screen — diagnosed from production data, 2026-08-12
+
+Reported symptom: "I upload three screens in one image, it creates 2. I say build both screens, it creates one. Most of the time they are half coded."
+
+Two independent bugs, and neither is model randomness.
+
+### Evidence
+
+40 runs read from `generation_runs`. 26 carried an exact screen-count contract; **4 delivered fewer screens than the contract specified**, all between 2026-08-11 02:53 and 2026-08-12 04:32.
+
+| Project | Prompt | Contract named screens | Actually planned |
+|---|---|---|---|
+| `52700e40` | "Design these both premium screens" | Home Dashboard, **Doctor Detail** | Doctor Detail |
+| `66060ab8` | "design these app screens exactly as it is" | Home Overview, **Climate Control**, **Energy Usage** | Climate Control, Energy Usage |
+| `74559e50` | "Design these premium app screens exactly as it is" | Social Feed, **Map Discovery** | Map Discovery |
+| `7f94ce0b` | "Build 2 core screen of a creative shoe eco…" | 2 screens | 1 |
+
+Everything upstream was correct. For `52700e40` the reference analysis returned `screenCountEstimate: 2` at high confidence, the scope contract resolved `finalScreenCount: 2`, the intent contract recorded `exactScreenCount: 2` with reason "The user explicitly requested 2 screens", and the screen-count contract listed both names. The run still built one.
+
+**In every failure it was exactly the first screen that disappeared.** That is a deterministic bug, not a planner deciding differently.
+
+### Root cause
+
+`trigger/generate-ui-flow.ts`, the progressive first-screen path — on by default (`DRAWGLE_PROGRESSIVE_FIRST_SCREEN_ENABLED !== "false"`) for every new project.
+
+The blueprint produces `seedPlans`. Screen 1 is briefed alone so the builder can start early. If that brief fails strict validation twice, `planScreenBriefsForBuild` throws, and the recovery path did this:
+
+```ts
+const promoted = await planScreenBriefsForBuild({ screens: seedPlans.slice(1), … });
+seedPlans.splice(0, seedPlans.length, ...promoted.screens);
+```
+
+`slice(1)` **permanently removes the failed screen from the project.** The intent — visible in the log line "promoting the first valid remaining brief" — was that the screen should lose its *turn at being built first*. What it actually lost was its *place in the project*.
+
+`plannedScreenCount` is then recomputed from `plan.screens.length`, and `requested_screen_count` is overwritten with `plannedOutputCount`, so every counter agrees with the reduced number. The run completes green. Nothing is recorded in `droppedScreenBriefs` — that metadata is only written by the *remaining*-briefs path, not this one. The shortfall was invisible in run metadata for all four runs, which is why it read as randomness.
+
+Introduced in `2a94ee7` ("pipeline wait fix", 2026-08-09 20:28) — fourteen hours after `b1a876`, which is where the report placed it. Same day, same working session, next commit but one.
+
+It is intermittent because it only fires when the first screen's brief fails the builder-grade contract twice, which is why `2d6f9cf3` on the same day delivered all three screens correctly.
+
+### Fix
+
+Re-brief the **whole** slate, not the tail:
+
+```ts
+const promoted = await planScreenBriefsForBuild({ screens: seedPlans, … });
+if (promoted.screens.length === 0) throw error;
+```
+
+Same cost as the call it replaces — one planner call either way — and strictly safer, because `planScreenBriefsForBuild` only throws when *no* brief survives, so offering it more candidates reduces the chance of total failure. The first valid brief in seed order becomes the screen built first, which is what the recovery was always trying to do. If a screen still cannot be briefed, partial acceptance keeps its siblings and the names now land in `droppedScreenBriefs` / `droppedScreenBriefCount` instead of vanishing.
+
+### The second symptom: "half coded"
+
+That is §18, already fixed. `61267619` shows `failedScreens: 2` of 4 planned, `70d1af21` shows 1 of 5, `d471062f` shows a `Note Editor` screen persisted with status `failed`. Those are `incomplete_html` truncations from the 12,000-token ceiling, not planning losses.
+
+The two bugs compound: the planner silently drops one screen, then truncation kills another. A four-screen request delivering one is both faults in the same run.
+
+### Verification
+
+404 tests pass, typecheck and lint clean. Two source-level regression tests pin the exact defect — the recovery must pass `seedPlans`, never `seedPlans.slice(1)`, and it must record what it could not save. Source assertions rather than behavioural ones because the path is inline in a 4,000-line trigger task; they follow the precedent already set in `pipeline-regression.test.ts`.
+
+**Not verified against a live run.** The prediction is falsifiable: a reference image with N visible screens should now produce N planned screens, and any screen that still fails to brief should appear by name in `droppedScreenBriefs` rather than disappearing from the count.

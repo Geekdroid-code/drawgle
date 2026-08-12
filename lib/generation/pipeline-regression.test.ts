@@ -225,3 +225,39 @@ describe("#4 — visible reference navigation owns chrome in recreate", () => {
     expect(evidenceLed.showPrimaryNavigation).toBe(true);
   });
 });
+
+describe("L — a failed first brief must not shrink the project", () => {
+  /**
+   * Observed 2026-08-11/12 across four production runs. The scope contract, the
+   * intent contract and the screen-count contract were all correct down to the
+   * screen names, and the run still delivered one fewer screen than requested:
+   *
+   *   ["Home Overview", "Climate Control", "Energy Usage"] -> 2 screens
+   *   ["Home Dashboard", "Doctor Detail"]                  -> 1 screen
+   *   ["Social Feed", "Map Discovery"]                      -> 1 screen
+   *
+   * In every case exactly the first screen vanished. When the progressive
+   * first-screen brief failed strict validation, the recovery path re-briefed
+   * `seedPlans.slice(1)` and replaced the whole slate with the result, so the
+   * failed screen lost its place in the project rather than just its turn at
+   * being built first. Every downstream counter then agreed with the reduced
+   * number and the run reported success.
+   */
+  it("re-briefs the whole slate rather than the tail", async () => {
+    const { readFileSync } = await import("node:fs");
+    const source = readFileSync("trigger/generate-ui-flow.ts", "utf8");
+
+    expect(source).not.toContain("screens: seedPlans.slice(1),");
+    expect(source).toContain("screens: seedPlans,");
+  });
+
+  it("records screens the re-brief could not save", async () => {
+    const { readFileSync } = await import("node:fs");
+    const source = readFileSync("trigger/generate-ui-flow.ts", "utf8");
+
+    // A screen that still cannot be briefed is a reportable loss. The tail-only
+    // path recorded nothing, which is why the shortfall was invisible in run
+    // metadata for four runs.
+    expect(source).toContain("promotedDroppedScreenNames");
+  });
+});
