@@ -13,9 +13,7 @@ const issueCode = z.enum([
   "horizontal_overflow",
   "critical_text_truncation",
   "collapsed_token_gap",
-  "nested_radius_violation",
-  "field_radius_mismatch",
-  "button_radius_mismatch",
+  "content_overflows_container",
   "undersized_control",
   "style_runtime_degraded",
 ]);

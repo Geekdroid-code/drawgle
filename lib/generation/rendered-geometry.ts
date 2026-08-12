@@ -32,6 +32,12 @@ export type RenderedGeometryCode =
 
 export interface RenderedGeometryFinding {
   code: RenderedGeometryCode;
+  /**
+   * The markup shows this was deliberate — `overflow-hidden` masking, an
+   * intentional ellipsis, a clipped decorative layer. Such findings are
+   * recorded, never treated as defects.
+   */
+  intentional?: boolean;
   /** `data-drawgle-id` when present, otherwise a short CSS-ish path. */
   target: string;
   /** Measured pixels of overflow, or the measured size for size findings. */
@@ -79,14 +85,21 @@ export const RENDERED_GEOMETRY_SCRIPT = `(() => {
   for (const el of all) {
     const style = getComputedStyle(el);
     if (style.overflowY === 'auto' || style.overflowY === 'scroll') continue;
-    if (style.display === 'inline') continue;
+    if (style.display === 'inline' || style.position === 'absolute' || style.position === 'fixed') continue;
     const over = el.scrollHeight - el.clientHeight;
     if (el.clientHeight > 0 && over > TOLERANCE) {
+      // overflow-hidden and line-clamp are how premium designs mask artwork,
+      // crop hero media and clip decorative layers on purpose. Recorded as
+      // intentional rather than dropped, so the data stays complete.
+      const clamp = style.getPropertyValue('-webkit-line-clamp');
+      const deliberate = style.overflowY === 'hidden' || style.overflowY === 'clip' || (clamp && clamp !== 'none');
       findings.push({
         code: 'content_overflows_container',
         target: label(el),
         amountPx: Math.round(over),
-        detail: 'Content is ' + Math.round(over) + 'px taller than its container (' + el.scrollHeight + 'px in ' + el.clientHeight + 'px).',
+        intentional: Boolean(deliberate),
+        detail: 'Content is ' + Math.round(over) + 'px taller than its container (' + el.scrollHeight + 'px in ' + el.clientHeight + 'px)'
+          + (deliberate ? ', but the element clips deliberately.' : '.'),
       });
     }
   }
@@ -98,11 +111,14 @@ export const RENDERED_GEOMETRY_SCRIPT = `(() => {
     if (style.overflowX === 'auto' || style.overflowX === 'scroll') continue;
     const over = el.scrollWidth - el.clientWidth;
     if (el.clientWidth > 0 && over > TOLERANCE) {
+      const deliberate = style.overflowX === 'hidden' || style.overflowX === 'clip';
       findings.push({
         code: 'horizontal_overflow',
         target: label(el),
         amountPx: Math.round(over),
-        detail: 'Content is ' + Math.round(over) + 'px wider than its container.',
+        intentional: Boolean(deliberate),
+        detail: 'Content is ' + Math.round(over) + 'px wider than its container'
+          + (deliberate ? ', but the element clips deliberately.' : '.'),
       });
     }
   }
@@ -114,11 +130,18 @@ export const RENDERED_GEOMETRY_SCRIPT = `(() => {
     if (!content) continue;
     const cut = el.scrollWidth - el.clientWidth;
     if (el.clientWidth > 0 && cut > TOLERANCE) {
+      // truncate / text-ellipsis / line-clamp are deliberate typographic
+      // choices, not defects. Marked, not suppressed.
+      const style = getComputedStyle(el);
+      const clamp = style.getPropertyValue('-webkit-line-clamp');
+      const deliberate = style.textOverflow === 'ellipsis' || (clamp && clamp !== 'none');
       findings.push({
         code: 'text_clipped',
         target: label(el),
         amountPx: Math.round(cut),
-        detail: JSON.stringify(content.slice(0, 40)) + ' is clipped by ' + Math.round(cut) + 'px.',
+        intentional: Boolean(deliberate),
+        detail: JSON.stringify(content.slice(0, 40)) + ' is clipped by ' + Math.round(cut) + 'px'
+          + (deliberate ? ' by an intentional ellipsis.' : '.'),
       });
     }
   }

@@ -1245,13 +1245,6 @@ export function ScreenNode({
             return owned ? owned.getAttribute('data-drawgle-id') : null;
           }
 
-          function qualityRadius(element) {
-            return element ? parseFloat(window.getComputedStyle(element).borderTopLeftRadius || '0') || 0 : 0;
-          }
-
-          function qualityTokenPx(role) {
-            return parseFloat(window.getComputedStyle(document.documentElement).getPropertyValue('--dg-radii-' + role) || '0') || 0;
-          }
 
           function runRenderedQualityAudit(revision) {
             if (!currentQualityCodeHash || revision !== renderRevision) return;
@@ -1298,34 +1291,28 @@ export function ScreenNode({
               if (gap <= 0) add('collapsed_token_gap', element, { gap: gap });
             });
 
-            document.querySelectorAll('[role="tablist"]').forEach(function(parent) {
-              var parentRadius = qualityRadius(parent);
-              parent.querySelectorAll('[role="tab"]').forEach(function(tab) {
-                var childRadius = qualityRadius(tab);
-                if (parentRadius > 0 && childRadius >= parentRadius) {
-                  add('nested_radius_violation', tab, { parentRadius: parentRadius, childRadius: childRadius });
-                }
+            // Content taller than the box holding it. This is the fault that
+            // correlates with visible breakage: a card whose text escapes
+            // through its own rounded corner. Elements that mask deliberately
+            // are marked intentional rather than dropped — these findings are
+            // data to learn from, never a verdict on the design.
+            document.querySelectorAll('*').forEach(function(element) {
+              var style = window.getComputedStyle(element);
+              if (style.overflowY === 'auto' || style.overflowY === 'scroll') return;
+              if (style.display === 'inline' || style.position === 'absolute' || style.position === 'fixed') return;
+              var over = element.scrollHeight - element.clientHeight;
+              if (element.clientHeight <= 0 || over <= 2) return;
+              var clamp = style.getPropertyValue('-webkit-line-clamp');
+              var deliberate = style.overflowY === 'hidden' || style.overflowY === 'clip' || (clamp && clamp !== 'none');
+              add('content_overflows_container', element, {
+                scrollHeight: element.scrollHeight,
+                clientHeight: element.clientHeight,
+                overflowPx: Math.round(over),
+                intentional: deliberate ? 1 : 0
               });
             });
 
-            document.querySelectorAll('input,textarea,select').forEach(function(control) {
-              var expected = qualityTokenPx(currentQualityShapePolicy.field || 'app');
-              var actual = qualityRadius(control);
-              if (expected > 0 && Math.abs(actual - expected) > 1) add('field_radius_mismatch', control, { expected: expected, actual: actual });
-            });
-
             document.querySelectorAll('button,[role="button"]').forEach(function(control) {
-              var text = (control.textContent || '').replace(/\\s+/g, ' ').trim();
-              var iconOnly = !text || (control.getAttribute('aria-label') && text.length <= 2);
-              if (!iconOnly) {
-                var isPrimary = control.getAttribute('data-action-role') === 'primary'
-                  || /\\bdg-(?:action|gradient-action)-primary\\b/.test(control.getAttribute('class') || '')
-                  || control.getAttribute('type') === 'submit';
-                var role = isPrimary ? (currentQualityShapePolicy.primaryCta || 'inner') : (currentQualityShapePolicy.standardButton || 'inner');
-                var expected = qualityTokenPx(role);
-                var actual = qualityRadius(control);
-                if (expected > 0 && Math.abs(actual - expected) > 1) add('button_radius_mismatch', control, { expected: expected, actual: actual });
-              }
               var rect = control.getBoundingClientRect();
               if (rect.width > 0 && rect.height > 0 && (rect.width < 44 || rect.height < 44)) {
                 add('undersized_control', control, { width: Math.round(rect.width), height: Math.round(rect.height) });

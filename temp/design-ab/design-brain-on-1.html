@@ -1,133 +1,415 @@
 <div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden">
-  <!-- Header Profile Region (72px) -->
-  <header class="pt-[16px] px-[var(--dg-mobile-layout-screen-margin)] flex items-center justify-between h-[72px] shrink-0">
-    <div class="flex items-center gap-[var(--dg-spacing-xs)]">
-      <div class="w-[40px] h-[40px] rounded-[var(--dg-radii-pill)] bg-[var(--dg-color-text-low-emphasis)] flex items-center justify-center overflow-hidden">
-        <i data-lucide="user" class="w-[24px] h-[24px] text-[var(--dg-color-surface-card)]"></i>
-      </div>
-      <div class="flex flex-col">
-        <span class="dg-type-supporting dg-text-medium">Welcome back</span>
-        <span class="dg-type-section-title" style="font-size: 16px; line-height: 20px;">Alex Chen</span>
-      </div>
-    </div>
-    <div class="flex items-center gap-[var(--dg-spacing-xxs)] px-[var(--dg-spacing-xs)] py-[var(--dg-spacing-xxs)] rounded-[var(--dg-radii-pill)] dg-action-primary">
-      <i data-lucide="flame" class="w-[18px] h-[18px] text-[var(--dg-color-action-on-primary-text)]"></i>
-      <span class="text-[var(--dg-color-action-on-primary-text)] dg-type-caption font-bold">24</span>
-    </div>
+  <!-- Top Navigation Bar -->
+  <header class="flex items-center justify-between px-[var(--dg-mobile-layout-screen-margin)] pt-[16px] pb-[12px] shrink-0">
+    <button class="w-12 h-12 flex items-center justify-center rounded-full dg-bg-secondary" data-dg-role="secondary-action" aria-label="Go back">
+      <i data-lucide="chevron-left" class="w-6 h-6"></i>
+    </button>
+    <h1 class="dg-type-screen-title" style="font-family: var(--dg-typography-heading-font-family);">Weekly Schedule</h1>
+    <button class="w-12 h-12 flex items-center justify-center rounded-full dg-bg-secondary" aria-label="Settings">
+      <i data-lucide="settings" class="w-6 h-6"></i>
+    </button>
   </header>
 
-  <!-- Main Scrollable Content -->
-  <main class="flex-1 overflow-y-auto px-[var(--dg-mobile-layout-screen-margin)] flex flex-col gap-[var(--dg-mobile-layout-section-gap)] pb-[var(--dg-mobile-layout-safe-area-bottom)]">
-    
-    <!-- Hero Metrics Region (220px) -->
-    <section class="h-[220px] dg-surface-card dg-radius-app dg-shadow-surface p-[var(--dg-spacing-md)] flex flex-col justify-between relative overflow-hidden">
-      <div class="flex flex-col gap-[var(--dg-spacing-xxs)]">
-        <span class="dg-type-supporting dg-text-medium uppercase tracking-wide">Weekly Volume</span>
-        <div class="flex items-baseline gap-[var(--dg-spacing-xs)]">
-          <span class="dg-type-metric-value text-[48px] leading-[48px] font-extrabold">12,450</span>
-          <span class="dg-type-section-title dg-text-medium">kg</span>
-        </div>
+  <!-- Horizontal Day Selector Strip -->
+  <div class="px-[var(--dg-mobile-layout-screen-margin)] pb-[var(--dg-mobile-layout-element-gap)] shrink-0">
+    <div class="flex gap-[var(--dg-spacing-xs)] overflow-x-auto pb-2 scrollbar-hide">
+      <!-- Monday - Active -->
+      <div class="flex-shrink-0 w-[64px] h-[84px] rounded-[var(--dg-radii-app)] dg-action-primary dg-shadow-surface flex flex-col items-center justify-center gap-1 relative">
+        <span class="dg-type-caption uppercase tracking-[0.15em] font-semibold">Mon</span>
+        <span class="text-[24px] font-extrabold leading-none" style="font-family: var(--dg-typography-heading-font-family);">12</span>
+        <div class="w-1.5 h-1.5 rounded-full bg-black mt-1"></div>
+        <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-black"></div>
       </div>
       
-      <!-- Visual Bar Chart (7 days) -->
-      <div class="flex items-end gap-[6px] h-[80px] mt-auto">
-        <div class="flex-1 bg-[var(--dg-color-border-divider)] rounded-t-[4px] h-[40%]"></div>
-        <div class="flex-1 bg-[var(--dg-color-border-divider)] rounded-t-[4px] h-[60%]"></div>
-        <div class="flex-1 bg-[var(--dg-color-border-divider)] rounded-t-[4px] h-[45%]"></div>
-        <div class="flex-1 bg-[var(--dg-color-border-divider)] rounded-t-[4px] h-[80%]"></div>
-        <div class="flex-1 bg-[var(--dg-color-border-divider)] rounded-t-[4px] h-[65%]"></div>
-        <div class="flex-1 bg-[var(--dg-color-border-divider)] rounded-t-[4px] h-[90%]"></div>
-        <div class="flex-1 dg-action-primary rounded-t-[4px] h-[100%]"></div>
+      <!-- Tuesday -->
+      <div class="flex-shrink-0 w-[64px] h-[84px] rounded-[var(--dg-radii-app)] dg-surface-card dg-shadow-surface flex flex-col items-center justify-center gap-1">
+        <span class="dg-type-caption uppercase tracking-[0.15em] dg-text-medium font-semibold">Tue</span>
+        <span class="text-[24px] font-extrabold leading-none dg-text-high" style="font-family: var(--dg-typography-heading-font-family);">13</span>
       </div>
       
-      <div class="flex items-center gap-[var(--dg-spacing-xs)] mt-[var(--dg-spacing-xs)]">
-        <i data-lucide="trending-up" class="w-[16px] h-[16px] text-[var(--dg-color-status-success-foreground)]"></i>
-        <span class="dg-type-supporting text-[var(--dg-color-status-success-foreground)]">+23% vs last week</span>
-      </div>
-    </section>
-
-    <!-- Daily Focus Region (200px) -->
-    <section class="h-[200px] flex flex-col gap-[var(--dg-mobile-layout-element-gap)]">
-      <div class="flex items-center justify-between">
-        <h2 class="dg-type-section-title">Today's Focus</h2>
-        <button class="dg-type-supporting dg-text-medium flex items-center gap-[var(--dg-spacing-xxs)]">
-          View All
-          <i data-lucide="chevron-right" class="w-[16px] h-[16px]"></i>
-        </button>
+      <!-- Wednesday -->
+      <div class="flex-shrink-0 w-[64px] h-[84px] rounded-[var(--dg-radii-app)] dg-surface-card dg-shadow-surface flex flex-col items-center justify-center gap-1">
+        <span class="dg-type-caption uppercase tracking-[0.15em] dg-text-medium font-semibold">Wed</span>
+        <span class="text-[24px] font-extrabold leading-none dg-text-high" style="font-family: var(--dg-typography-heading-font-family);">14</span>
       </div>
       
-      <div class="flex gap-[var(--dg-mobile-layout-element-gap)] overflow-x-auto pb-[4px] snap-x">
-        <!-- Item 1 -->
-        <div class="w-[140px] shrink-0 dg-surface-card dg-radius-inner dg-shadow-surface p-[var(--dg-spacing-xs)] flex flex-col gap-[var(--dg-spacing-xs)] snap-start">
-          <div class="aspect-square w-full bg-[var(--dg-color-status-warning-surface)] rounded-[var(--dg-radii-inset-md)] flex items-center justify-center">
-            <i data-lucide="arrow-up" class="w-[32px] h-[32px] text-[var(--dg-color-status-warning-foreground)]"></i>
-          </div>
-          <div class="flex flex-col gap-[2px]">
-            <span class="dg-type-supporting font-bold truncate">Muscle-Up</span>
-            <span class="dg-type-caption dg-text-low truncate">5x3 reps</span>
-          </div>
-        </div>
-
-        <!-- Item 2 -->
-        <div class="w-[140px] shrink-0 dg-surface-card dg-radius-inner dg-shadow-surface p-[var(--dg-spacing-xs)] flex flex-col gap-[var(--dg-spacing-xs)] snap-start">
-          <div class="aspect-square w-full bg-[var(--dg-color-status-info-surface)] rounded-[var(--dg-radii-inset-md)] flex items-center justify-center">
-            <i data-lucide="minus" class="w-[32px] h-[32px] text-[var(--dg-color-status-info-foreground)]"></i>
-          </div>
-          <div class="flex flex-col gap-[2px]">
-            <span class="dg-type-supporting font-bold truncate">Front Lever</span>
-            <span class="dg-type-caption dg-text-low truncate">3x15s hold</span>
-          </div>
-        </div>
-
-        <!-- Item 3 -->
-        <div class="w-[140px] shrink-0 dg-surface-card dg-radius-inner dg-shadow-surface p-[var(--dg-spacing-xs)] flex flex-col gap-[var(--dg-spacing-xs)] snap-start">
-          <div class="aspect-square w-full bg-[var(--dg-color-status-success-surface)] rounded-[var(--dg-radii-inset-md)] flex items-center justify-center">
-            <i data-lucide="arrow-down" class="w-[32px] h-[32px] text-[var(--dg-color-status-success-foreground)]"></i>
-          </div>
-          <div class="flex flex-col gap-[2px]">
-            <span class="dg-type-supporting font-bold truncate">Handstand</span>
-            <span class="dg-type-caption dg-text-low truncate">5x30s hold</span>
-          </div>
-        </div>
-
-        <!-- Item 4 -->
-        <div class="w-[140px] shrink-0 dg-surface-card dg-radius-inner dg-shadow-surface p-[var(--dg-spacing-xs)] flex flex-col gap-[var(--dg-spacing-xs)] snap-start">
-          <div class="aspect-square w-full bg-[var(--dg-color-status-danger-surface)] rounded-[var(--dg-radii-inset-md)] flex items-center justify-center">
-            <i data-lucide="shield" class="w-[32px] h-[32px] text-[var(--dg-color-status-danger-foreground)]"></i>
-          </div>
-          <div class="flex flex-col gap-[2px]">
-            <span class="dg-type-supporting font-bold truncate">Planche</span>
-            <span class="dg-type-caption dg-text-low truncate">4x10s lean</span>
-          </div>
-        </div>
+      <!-- Thursday -->
+      <div class="flex-shrink-0 w-[64px] h-[84px] rounded-[var(--dg-radii-app)] dg-surface-card dg-shadow-surface flex flex-col items-center justify-center gap-1">
+        <span class="dg-type-caption uppercase tracking-[0.15em] dg-text-medium font-semibold">Thu</span>
+        <span class="text-[24px] font-extrabold leading-none dg-text-high" style="font-family: var(--dg-typography-heading-font-family);">15</span>
       </div>
-    </section>
-
-    <!-- Skill Progress Chips (Additional context) -->
-    <section class="flex flex-col gap-[var(--dg-mobile-layout-element-gap)]">
-      <h2 class="dg-type-section-title">Skill Path</h2>
-      <div class="flex flex-wrap gap-[var(--dg-spacing-xs)]">
-        <div class="flex items-center gap-[var(--dg-spacing-xxs)] px-[var(--dg-spacing-xs)] py-[var(--dg-spacing-xxs)] rounded-[var(--dg-radii-inner)] bg-black text-white">
-          <i data-lucide="zap" class="w-[14px] h-[14px]"></i>
-          <span class="dg-type-caption font-bold">Strength</span>
-        </div>
-        <div class="flex items-center gap-[var(--dg-spacing-xxs)] px-[var(--dg-spacing-xs)] py-[var(--dg-spacing-xxs)] rounded-[var(--dg-radii-inner)] dg-surface-card border border-[var(--dg-color-border-divider)]">
-          <i data-lucide="clock" class="w-[14px] h-[14px] dg-text-medium"></i>
-          <span class="dg-type-caption dg-text-medium">Endurance</span>
-        </div>
-        <div class="flex items-center gap-[var(--dg-spacing-xxs)] px-[var(--dg-spacing-xs)] py-[var(--dg-spacing-xxs)] rounded-[var(--dg-radii-inner)] dg-surface-card border border-[var(--dg-color-border-divider)]">
-          <i data-lucide="target" class="w-[14px] h-[14px] dg-text-medium"></i>
-          <span class="dg-type-caption dg-text-medium">Skills</span>
-        </div>
+      
+      <!-- Friday -->
+      <div class="flex-shrink-0 w-[64px] h-[84px] rounded-[var(--dg-radii-app)] dg-surface-card dg-shadow-surface flex flex-col items-center justify-center gap-1">
+        <span class="dg-type-caption uppercase tracking-[0.15em] dg-text-medium font-semibold">Fri</span>
+        <span class="text-[24px] font-extrabold leading-none dg-text-high" style="font-family: var(--dg-typography-heading-font-family);">16</span>
       </div>
-    </section>
-  </main>
-
-  <!-- Primary Action Region (Sticky Bottom) -->
-  <div class="sticky bottom-0 p-[var(--dg-mobile-layout-screen-margin)] dg-bg-primary/95 backdrop-blur-sm border-t border-[var(--dg-color-border-divider)]">
-    <button class="w-full h-[var(--dg-sizing-standard-button-height)] dg-action-primary dg-radius-inner dg-type-button-label flex items-center justify-center gap-[var(--dg-spacing-xs)] shadow-[var(--dg-shadows-surface)] active:scale-[0.98] transition-transform">
-      <i data-lucide="play" class="w-[20px] h-[20px] fill-current"></i>
-      Start Workout
-    </button>
+      
+      <!-- Saturday -->
+      <div class="flex-shrink-0 w-[64px] h-[84px] rounded-[var(--dg-radii-app)] dg-surface-card dg-shadow-surface flex flex-col items-center justify-center gap-1">
+        <span class="dg-type-caption uppercase tracking-[0.15em] dg-text-medium font-semibold">Sat</span>
+        <span class="text-[24px] font-extrabold leading-none dg-text-high" style="font-family: var(--dg-typography-heading-font-family);">17</span>
+      </div>
+      
+      <!-- Sunday -->
+      <div class="flex-shrink-0 w-[64px] h-[84px] rounded-[var(--dg-radii-app)] dg-surface-card dg-shadow-surface flex flex-col items-center justify-center gap-1">
+        <span class="dg-type-caption uppercase tracking-[0.15em] dg-text-medium font-semibold">Sun</span>
+        <span class="text-[24px] font-extrabold leading-none dg-text-high" style="font-family: var(--dg-typography-heading-font-family);">18</span>
+      </div>
+    </div>
   </div>
+
+  <!-- Main Scrollable Content -->
+  <div class="flex-1 overflow-y-auto px-[var(--dg-mobile-layout-screen-margin)] pb-[var(--dg-mobile-layout-safe-area-bottom)]">
+    
+    <!-- Today Focal Card -->
+    <div class="mb-[var(--dg-mobile-layout-section-gap)] rounded-[var(--dg-radii-app)] dg-surface-card dg-shadow-surface p-[var(--dg-spacing-md)] relative overflow-hidden" data-dg-role="system-card">
+      <!-- Decorative gradient blur -->
+      <div class="absolute -top-10 -right-10 w-40 h-40 bg-[#D4FF4D] opacity-20 rounded-full blur-3xl pointer-events-none"></div>
+      
+      <!-- Header Row -->
+      <div class="flex items-center justify-between mb-6 relative z-10">
+        <span class="dg-type-caption uppercase tracking-[0.2em] dg-text-medium font-semibold">Today</span>
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-full dg-action-primary">
+          <div class="w-2 h-2 rounded-full bg-black animate-pulse"></div>
+          <span class="dg-type-caption font-bold uppercase tracking-wider">Current</span>
+        </div>
+      </div>
+      
+      <!-- Workout Title -->
+      <h2 class="dg-type-section-title mb-8 relative z-10" style="font-family: var(--dg-typography-heading-font-family); line-height: 1.2;">Upper Body<br>Power Focus</h2>
+      
+      <!-- Progress Rings & Duration Grid -->
+      <div class="flex items-end justify-between mb-8 relative z-10">
+        <div class="flex gap-5">
+          <!-- Muscle-up Ring -->
+          <div class="relative w-[60px] h-[60px]">
+            <svg class="w-full h-full transform -rotate-90" viewBox="0 0 60 60">
+              <circle cx="30" cy="30" r="26" stroke="var(--dg-color-border-divider)" stroke-width="4" fill="none"></circle>
+              <circle cx="30" cy="30" r="26" stroke="#D4FF4D" stroke-width="4" fill="none" stroke-dasharray="163.36" stroke-dashoffset="40.84" stroke-linecap="round"></circle>
+            </svg>
+            <div class="absolute inset-0 flex items-center justify-center">
+              <span class="dg-type-caption font-bold">75%</span>
+            </div>
+            <span class="absolute -bottom-5 left-1/2 transform -translate-x-1/2 dg-type-caption dg-text-medium whitespace-nowrap">Muscle</span>
+          </div>
+          
+          <!-- HSPU Ring -->
+          <div class="relative w-[60px] h-[60px]">
+            <svg class="w-full h-full transform -rotate-90" viewBox="0 0 60 60">
+              <circle cx="30" cy="30" r="26" stroke="var(--dg-color-border-divider)" stroke-width="4" fill="none"></circle>
+              <circle cx="30" cy="30" r="26" stroke="#D4FF4D" stroke-width="4" fill="none" stroke-dasharray="163.36" stroke-dashoffset="81.68" stroke-linecap="round"></circle>
+            </svg>
+            <div class="absolute inset-0 flex items-center justify-center">
+              <span class="dg-type-caption font-bold">50%</span>
+            </div>
+            <span class="absolute -bottom-5 left-1/2 transform -translate-x-1/2 dg-type-caption dg-text-medium whitespace-nowrap">HSPU</span>
+          </div>
+          
+          <!-- Planche Ring -->
+          <div class="relative w-[60px] h-[60px]">
+            <svg class="w-full h-full transform -rotate-90" viewBox="0 0 60 60">
+              <circle cx="30" cy="30" r="26" stroke="var(--dg-color-border-divider)" stroke-width="4" fill="none"></circle>
+              <circle cx="30" cy="30" r="26" stroke="#D4FF4D" stroke-width="4" fill="none" stroke-dasharray="163.36" stroke-dashoffset="114.35" stroke-linecap="round"></circle>
+            </svg>
+            <div class="absolute inset-0 flex items-center justify-center">
+              <span class="dg-type-caption font-bold">30%</span>
+            </div>
+            <span class="absolute -bottom-5 left-1/2 transform -translate-x-1/2 dg-type-caption dg-text-medium whitespace-nowrap">Planche</span>
+          </div>
+        </div>
+        
+        <!-- Duration Metric -->
+        <div class="text-right pb-1">
+          <div class="dg-type-metric-value leading-none mb-1">45</div>
+          <div class="dg-type-caption uppercase tracking-[0.15em] dg-text-medium font-semibold">Minutes</div>
+        </div>
+      </div>
+      
+      <!-- Quick Stats Footer -->
+      <div class="flex gap-2 pt-6 mt-6 border-t border-[var(--dg-color-border-divider)] relative z-10">
+        <div class="flex-1">
+          <div class="dg-type-supporting font-bold text-[16px] mb-0.5">6</div>
+          <div class="dg-type-caption dg-text-medium uppercase tracking-wider">Exercises</div>
+        </div>
+        <div class="flex-1">
+          <div class="dg-type-supporting font-bold text-[16px] mb-0.5">4</div>
+          <div class="dg-type-caption dg-text-medium uppercase tracking-wider">Sets</div>
+        </div>
+        <div class="flex-1">
+          <div class="dg-type-supporting font-bold text-[16px] mb-0.5">High</div>
+          <div class="dg-type-caption dg-text-medium uppercase tracking-wider">Intensity</div>
+        </div>
+        <div class="flex-1 text-right">
+          <div class="dg-type-supporting font-bold text-[16px] mb-0.5">320</div>
+          <div class="dg-type-caption dg-text-medium uppercase tracking-wider">Kcal</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Monday Section -->
+    <section class="mb-[24px]">
+      <div class="flex items-center justify-between mb-[12px] px-1">
+        <h2 class="dg-type-section-title" style="font-family: var(--dg-typography-heading-font-family);">MONDAY</h2>
+        <span class="dg-type-caption dg-text-medium uppercase tracking-[0.2em] font-semibold">Push Focus</span>
+      </div>
+      
+      <!-- Workout Card 1 -->
+      <div class="rounded-[var(--dg-radii-app)] dg-surface-card dg-shadow-surface p-[var(--dg-spacing-md)] mb-[var(--dg-mobile-layout-element-gap)] relative overflow-hidden" data-dg-role="system-card">
+        <div class="flex items-start justify-between relative z-10">
+          <div class="flex gap-4 min-w-0">
+            <div class="w-12 h-12 rounded-[var(--dg-radii-inner)] dg-bg-secondary flex items-center justify-center flex-shrink-0">
+              <i data-lucide="flame" class="w-6 h-6"></i>
+            </div>
+            <div class="min-w-0 flex-1">
+              <h3 class="dg-type-supporting font-bold mb-1 truncate">Dynamic Push Circuit</h3>
+              <p class="dg-type-caption dg-text-medium uppercase tracking-wider mb-3">Chest & Triceps Volume</p>
+              <div class="flex gap-2 flex-wrap">
+                <span class="px-3 py-1.5 rounded-[var(--dg-radii-inner)] bg-[#EFEFEA] dg-type-caption font-semibold">Dips</span>
+                <span class="px-3 py-1.5 rounded-[var(--dg-radii-inner)] bg-[#EFEFEA] dg-type-caption font-semibold">Push-ups</span>
+              </div>
+            </div>
+          </div>
+          <div class="text-right flex-shrink-0 ml-4">
+            <div class="text-[24px] font-extrabold leading-none" style="font-family: var(--dg-typography-heading-font-family);">45</div>
+            <div class="dg-type-caption dg-text-medium uppercase tracking-wider mt-1">min</div>
+          </div>
+        </div>
+        <div class="mt-4 flex items-center gap-3">
+          <div class="flex-1 h-1.5 bg-[var(--dg-color-border-divider)] rounded-full overflow-hidden">
+            <div class="h-full w-0 dg-action-primary rounded-full"></div>
+          </div>
+          <span class="dg-type-caption font-bold dg-text-medium">0%</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tuesday Section -->
+    <section class="mb-[24px]">
+      <div class="flex items-center justify-between mb-[12px] px-1">
+        <h2 class="dg-type-section-title" style="font-family: var(--dg-typography-heading-font-family);">TUESDAY</h2>
+        <span class="dg-type-caption dg-text-medium uppercase tracking-[0.2em] font-semibold">Pull Focus</span>
+      </div>
+      
+      <!-- Workout Card -->
+      <div class="rounded-[var(--dg-radii-app)] dg-surface-card dg-shadow-surface p-[var(--dg-spacing-md)] mb-[var(--dg-mobile-layout-element-gap)]" data-dg-role="system-card">
+        <div class="flex items-start justify-between">
+          <div class="flex gap-4 min-w-0">
+            <div class="w-12 h-12 rounded-[var(--dg-radii-inner)] dg-bg-secondary flex items-center justify-center flex-shrink-0">
+              <i data-lucide="anchor" class="w-6 h-6"></i>
+            </div>
+            <div class="min-w-0 flex-1">
+              <h3 class="dg-type-supporting font-bold mb-1 truncate">Back & Biceps</h3>
+              <p class="dg-type-caption dg-text-medium uppercase tracking-wider mb-3">Horizontal Pulling</p>
+              <div class="flex gap-2 flex-wrap">
+                <span class="px-3 py-1.5 rounded-[var(--dg-radii-inner)] bg-[#EFEFEA] dg-type-caption font-semibold">Rows</span>
+                <span class="px-3 py-1.5 rounded-[var(--dg-radii-inner)] bg-[#EFEFEA] dg-type-caption font-semibold">Curls</span>
+              </div>
+            </div>
+          </div>
+          <div class="text-right flex-shrink-0 ml-4">
+            <div class="text-[24px] font-extrabold leading-none" style="font-family: var(--dg-typography-heading-font-family);">50</div>
+            <div class="dg-type-caption dg-text-medium uppercase tracking-wider mt-1">min</div>
+          </div>
+        </div>
+        <div class="mt-4 flex items-center gap-3">
+          <div class="flex-1 h-1.5 bg-[var(--dg-color-border-divider)] rounded-full overflow-hidden">
+            <div class="h-full w-0 dg-action-primary rounded-full"></div>
+          </div>
+          <span class="dg-type-caption font-bold dg-text-medium">0%</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Wednesday Section -->
+    <section class="mb-[24px]">
+      <div class="flex items-center justify-between mb-[12px] px-1">
+        <h2 class="dg-type-section-title" style="font-family: var(--dg-typography-heading-font-family);">WEDNESDAY</h2>
+        <span class="dg-type-caption dg-text-medium uppercase tracking-[0.2em] font-semibold">Skill Work</span>
+      </div>
+      
+      <!-- Workout Card -->
+      <div class="rounded-[var(--dg-radii-app)] dg-surface-card dg-shadow-surface p-[var(--dg-spacing-md)] mb-[var(--dg-mobile-layout-element-gap)]" data-dg-role="system-card">
+        <div class="flex items-start justify-between">
+          <div class="flex gap-4 min-w-0">
+            <div class="w-12 h-12 rounded-[var(--dg-radii-inner)] dg-bg-secondary flex items-center justify-center flex-shrink-0">
+              <i data-lucide="star" class="w-6 h-6"></i>
+            </div>
+            <div class="min-w-0 flex-1">
+              <h3 class="dg-type-supporting font-bold mb-1 truncate">Technique Mastery</h3>
+              <p class="dg-type-caption dg-text-medium uppercase tracking-wider mb-3">Static Holds</p>
+              <div class="flex gap-2 flex-wrap">
+                <span class="px-3 py-1.5 rounded-[var(--dg-radii-inner)] bg-[#EFEFEA] dg-type-caption font-semibold">Handstand</span>
+                <span class="px-3 py-1.5 rounded-[var(--dg-radii-inner)] bg-[#EFEFEA] dg-type-caption font-semibold">L-sit</span>
+              </div>
+            </div>
+          </div>
+          <div class="text-right flex-shrink-0 ml-4">
+            <div class="text-[24px] font-extrabold leading-none" style="font-family: var(--dg-typography-heading-font-family);">40</div>
+            <div class="dg-type-caption dg-text-medium uppercase tracking-wider mt-1">min</div>
+          </div>
+        </div>
+        <div class="mt-4 flex items-center gap-3">
+          <div class="flex-1 h-1.5 bg-[var(--dg-color-border-divider)] rounded-full overflow-hidden">
+            <div class="h-full w-0 dg-action-primary rounded-full"></div>
+          </div>
+          <span class="dg-type-caption font-bold dg-text-medium">0%</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Thursday Section -->
+    <section class="mb-[24px]">
+      <div class="flex items-center justify-between mb-[12px] px-1">
+        <h2 class="dg-type-section-title" style="font-family: var(--dg-typography-heading-font-family);">THURSDAY</h2>
+        <span class="dg-type-caption dg-text-medium uppercase tracking-[0.2em] font-semibold">Legs</span>
+      </div>
+      
+      <!-- Workout Card -->
+      <div class="rounded-[var(--dg-radii-app)] dg-surface-card dg-shadow-surface p-[var(--dg-spacing-md)] mb-[var(--dg-mobile-layout-element-gap)]" data-dg-role="system-card">
+        <div class="flex items-start justify-between">
+          <div class="flex gap-4 min-w-0">
+            <div class="w-12 h-12 rounded-[var(--dg-radii-inner)] dg-bg-secondary flex items-center justify-center flex-shrink-0">
+              <i data-lucide="zap" class="w-6 h-6"></i>
+            </div>
+            <div class="min-w-0 flex-1">
+              <h3 class="dg-type-supporting font-bold mb-1 truncate">Lower Body Power</h3>
+              <p class="dg-type-caption dg-text-medium uppercase tracking-wider mb-3">Squats & Plyos</p>
+              <div class="flex gap-2 flex-wrap">
+                <span class="px-3 py-1.5 rounded-[var(--dg-radii-inner)] bg-[#EFEFEA] dg-type-caption font-semibold">Pistol</span>
+                <span class="px-3 py-1.5 rounded-[var(--dg-radii-inner)] bg-[#EFEFEA] dg-type-caption font-semibold">Squats</span>
+              </div>
+            </div>
+          </div>
+          <div class="text-right flex-shrink-0 ml-4">
+            <div class="text-[24px] font-extrabold leading-none" style="font-family: var(--dg-typography-heading-font-family);">55</div>
+            <div class="dg-type-caption dg-text-medium uppercase tracking-wider mt-1">min</div>
+          </div>
+        </div>
+        <div class="mt-4 flex items-center gap-3">
+          <div class="flex-1 h-1.5 bg-[var(--dg-color-border-divider)] rounded-full overflow-hidden">
+            <div class="h-full w-0 dg-action-primary rounded-full"></div>
+          </div>
+          <span class="dg-type-caption font-bold dg-text-medium">0%</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Friday Section -->
+    <section class="mb-[24px]">
+      <div class="flex items-center justify-between mb-[12px] px-1">
+        <h2 class="dg-type-section-title" style="font-family: var(--dg-typography-heading-font-family);">FRIDAY</h2>
+        <span class="dg-type-caption dg-text-medium uppercase tracking-[0.2em] font-semibold">Full Body</span>
+      </div>
+      
+      <!-- Workout Card -->
+      <div class="rounded-[var(--dg-radii-app)] dg-surface-card dg-shadow-surface p-[var(--dg-spacing-md)] mb-[var(--dg-mobile-layout-element-gap)]" data-dg-role="system-card">
+        <div class="flex items-start justify-between">
+          <div class="flex gap-4 min-w-0">
+            <div class="w-12 h-12 rounded-[var(--dg-radii-inner)] dg-bg-secondary flex items-center justify-center flex-shrink-0">
+              <i data-lucide="activity" class="w-6 h-6"></i>
+            </div>
+            <div class="min-w-0 flex-1">
+              <h3 class="dg-type-supporting font-bold mb-1 truncate">High Intensity Circuit</h3>
+              <p class="dg-type-caption dg-text-medium uppercase tracking-wider mb-3">Endurance Focus</p>
+              <div class="flex gap-2 flex-wrap">
+                <span class="px-3 py-1.5 rounded-[var(--dg-radii-inner)] bg-[#EFEFEA] dg-type-caption font-semibold">Burpees</span>
+                <span class="px-3 py-1.5 rounded-[var(--dg-radii-inner)] bg-[#EFEFEA] dg-type-caption font-semibold">Mountain</span>
+              </div>
+            </div>
+          </div>
+          <div class="text-right flex-shrink-0 ml-4">
+            <div class="text-[24px] font-extrabold leading-none" style="font-family: var(--dg-typography-heading-font-family);">35</div>
+            <div class="dg-type-caption dg-text-medium uppercase tracking-wider mt-1">min</div>
+          </div>
+        </div>
+        <div class="mt-4 flex items-center gap-3">
+          <div class="flex-1 h-1.5 bg-[var(--dg-color-border-divider)] rounded-full overflow-hidden">
+            <div class="h-full w-0 dg-action-primary rounded-full"></div>
+          </div>
+          <span class="dg-type-caption font-bold dg-text-medium">0%</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Saturday Section -->
+    <section class="mb-[24px]">
+      <div class="flex items-center justify-between mb-[12px] px-1">
+        <h2 class="dg-type-section-title" style="font-family: var(--dg-typography-heading-font-family);">SATURDAY</h2>
+        <span class="dg-type-caption dg-text-medium uppercase tracking-[0.2em] font-semibold">Skills</span>
+      </div>
+      
+      <!-- Workout Card -->
+      <div class="rounded-[var(--dg-radii-app)] dg-surface-card dg-shadow-surface p-[var(--dg-spacing-md)] mb-[var(--dg-mobile-layout-element-gap)]" data-dg-role="system-card">
+        <div class="flex items-start justify-between">
+          <div class="flex gap-4 min-w-0">
+            <div class="w-12 h-12 rounded-[var(--dg-radii-inner)] dg-bg-secondary flex items-center justify-center flex-shrink-0">
+              <i data-lucide="target" class="w-6 h-6"></i>
+            </div>
+            <div class="min-w-0 flex-1">
+              <h3 class="dg-type-supporting font-bold mb-1 truncate">Advanced Skills</h3>
+              <p class="dg-type-caption dg-text-medium uppercase tracking-wider mb-3">Planche & Lever</p>
+              <div class="flex gap-2 flex-wrap">
+                <span class="px-3 py-1.5 rounded-[var(--dg-radii-inner)] bg-[#EFEFEA] dg-type-caption font-semibold">Tuck PL</span>
+                <span class="px-3 py-1.5 rounded-[var(--dg-radii-inner)] bg-[#EFEFEA] dg-type-caption font-semibold">Front Lever</span>
+              </div>
+            </div>
+          </div>
+          <div class="text-right flex-shrink-0 ml-4">
+            <div class="text-[24px] font-extrabold leading-none" style="font-family: var(--dg-typography-heading-font-family);">60</div>
+            <div class="dg-type-caption dg-text-medium uppercase tracking-wider mt-1">min</div>
+          </div>
+        </div>
+        <div class="mt-4 flex items-center gap-3">
+          <div class="flex-1 h-1.5 bg-[var(--dg-color-border-divider)] rounded-full overflow-hidden">
+            <div class="h-full w-0 dg-action-primary rounded-full"></div>
+          </div>
+          <span class="dg-type-caption font-bold dg-text-medium">0%</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Sunday Section -->
+    <section class="mb-[24px]">
+      <div class="flex items-center justify-between mb-[12px] px-1">
+        <h2 class="dg-type-section-title" style="font-family: var(--dg-typography-heading-font-family);">SUNDAY</h2>
+        <span class="dg-type-caption dg-text-medium uppercase tracking-[0.2em] font-semibold">Recovery</span>
+      </div>
+      
+      <!-- Workout Card -->
+      <div class="rounded-[var(--dg-radii-app)] dg-surface-card dg-shadow-surface p-[var(--dg-spacing-md)] mb-[var(--dg-mobile-layout-element-gap)]" data-dg-role="system-card">
+        <div class="flex items-start justify-between">
+          <div class="flex gap-4 min-w-0">
+            <div class="w-12 h-12 rounded-[var(--dg-radii-inner)] dg-bg-secondary flex items-center justify-center flex-shrink-0">
+              <i data-lucide="heart" class="w-6 h-6"></i>
+            </div>
+            <div class="min-w-0 flex-1">
+              <h3 class="dg-type-supporting font-bold mb-1 truncate">Mobility Flow</h3>
+              <p class="dg-type-caption dg-text-medium uppercase tracking-wider mb-3">Stretching & Yoga</p>
+              <div class="flex gap-2 flex-wrap">
+                <span class="px-3 py-1.5 rounded-[var(--dg-radii-inner)] bg-[#EFEFEA] dg-type-caption font-semibold">Stretch</span>
+                <span class="px-3 py-1.5 rounded-[var(--dg-radii-inner)] bg-[#EFEFEA] dg-type-caption font-semibold">Breathe</span>
+              </div>
+            </div>
+          </div>
+          <div class="text-right flex-shrink-0 ml-4">
+            <div class="text-[24px] font-extrabold leading-none" style="font-family: var(--dg-typography-heading-font-family);">30</div>
+            <div class="dg-type-caption dg-text-medium uppercase tracking-wider mt-1">min</div>
+          </div>
+        </div>
+        <div class="mt-4 flex items-center gap-3">
+          <div class="flex-1 h-1.5 bg-[var(--dg-color-border-divider)] rounded-full overflow-hidden">
+            <div class="h-full w-0 dg-action-primary rounded-full"></div>
+          </div>
+          <span class="dg-type-caption font-bold dg-text-medium">0%</span>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Floating Action Button -->
+  <button class="fixed bottom-[24px] right-[16px] w-14 h-14 rounded-full dg-action-primary dg-shadow-overlay flex items-center justify-center z-50 transition-transform active:scale-95" data-dg-role="primary-action" aria-label="Add new routine">
+    <i data-lucide="plus" class="w-7 h-7 text-black"></i>
+  </button>
 </div>

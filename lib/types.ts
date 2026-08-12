@@ -1235,13 +1235,25 @@ export interface UiContractNormalizationReportV1 {
   coverage?: unknown;
 }
 
+/**
+ * Rendered diagnostics. Measurement only — nothing here modifies a screen or
+ * influences whether it is accepted.
+ *
+ * The radius-conformance codes (`nested_radius_violation`,
+ * `field_radius_mismatch`, `button_radius_mismatch`) were removed on
+ * 2026-08-12: they measured adherence to the component radius policy that is
+ * no longer enforced, so they reported deviation from an abandoned rule.
+ *
+ * Findings can be false positives — deliberate `overflow-hidden` masking,
+ * intentional ellipsis, horizontal compositions, compact controls with a larger
+ * effective hit area. `measured.intentional` flags the cases where the markup
+ * shows deliberate intent. Treat all of it as data, not as truth.
+ */
 export type RenderedQualityIssueCode =
   | "horizontal_overflow"
   | "critical_text_truncation"
+  | "content_overflows_container"
   | "collapsed_token_gap"
-  | "nested_radius_violation"
-  | "field_radius_mismatch"
-  | "button_radius_mismatch"
   | "undersized_control"
   | "style_runtime_degraded";
 

@@ -1,0 +1,261 @@
+<div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden">
+  <!-- Top Bar with Back Button -->
+  <header class="px-[var(--dg-mobile-layout-screen-margin)] pt-[16px] pb-[var(--dg-mobile-layout-element-gap)] flex items-center gap-[var(--dg-mobile-layout-element-gap)] shrink-0">
+    <button class="min-h-[48px] min-w-[48px] flex items-center justify-center rounded-[var(--dg-radii-inner)] dg-surface-card dg-shadow-surface" data-dg-role="secondary-action">
+      <i data-lucide="arrow-left" class="w-[var(--dg-sizing-icon-standard)] h-[var(--dg-sizing-icon-standard)]"></i>
+    </button>
+    <h1 class="dg-type-screen-title flex-1" style="font-family: var(--dg-typography-heading-font-family);">Weekly Schedule</h1>
+    <button class="min-h-[48px] min-w-[48px] flex items-center justify-center rounded-[var(--dg-radii-inner)] dg-surface-card dg-shadow-surface">
+      <i data-lucide="calendar" class="w-[var(--dg-sizing-icon-standard)] h-[var(--dg-sizing-icon-standard)]"></i>
+    </button>
+  </header>
+
+  <!-- Horizontal Day Strip -->
+  <div class="px-[var(--dg-mobile-layout-screen-margin)] mb-[var(--dg-mobile-layout-section-gap)] shrink-0">
+    <div class="flex gap-[var(--dg-spacing-xs)] overflow-x-auto pb-2">
+      <button class="flex flex-col items-center min-w-[60px] p-[var(--dg-spacing-xs)] rounded-[var(--dg-radii-inner)] dg-surface-card dg-shadow-surface gap-1">
+        <span class="dg-type-caption uppercase tracking-[0.1em] text-[var(--dg-color-text-medium-emphasis)]">Mon</span>
+        <span class="dg-type-body font-bold">13</span>
+      </button>
+      <button class="flex flex-col items-center min-w-[60px] p-[var(--dg-spacing-xs)] rounded-[var(--dg-radii-inner)] dg-surface-card dg-shadow-surface gap-1">
+        <span class="dg-type-caption uppercase tracking-[0.1em] text-[var(--dg-color-text-medium-emphasis)]">Tue</span>
+        <span class="dg-type-body font-bold">14</span>
+      </button>
+      <button class="flex flex-col items-center min-w-[60px] p-[var(--dg-spacing-xs)] rounded-[var(--dg-radii-inner)] dg-action-primary dg-shadow-surface gap-1 relative">
+        <span class="dg-type-caption uppercase tracking-[0.1em] text-[var(--dg-color-action-on-primary-text)]">Wed</span>
+        <span class="dg-type-body font-bold text-[var(--dg-color-action-on-primary-text)]">15</span>
+        <span class="absolute -bottom-1 w-1 h-1 rounded-full bg-[var(--dg-color-action-primary)]"></span>
+      </button>
+      <button class="flex flex-col items-center min-w-[60px] p-[var(--dg-spacing-xs)] rounded-[var(--dg-radii-inner)] dg-surface-card dg-shadow-surface gap-1">
+        <span class="dg-type-caption uppercase tracking-[0.1em] text-[var(--dg-color-text-medium-emphasis)]">Thu</span>
+        <span class="dg-type-body font-bold">16</span>
+      </button>
+      <button class="flex flex-col items-center min-w-[60px] p-[var(--dg-spacing-xs)] rounded-[var(--dg-radii-inner)] dg-surface-card dg-shadow-surface gap-1">
+        <span class="dg-type-caption uppercase tracking-[0.1em] text-[var(--dg-color-text-medium-emphasis)]">Fri</span>
+        <span class="dg-type-body font-bold">17</span>
+      </button>
+      <button class="flex flex-col items-center min-w-[60px] p-[var(--dg-spacing-xs)] rounded-[var(--dg-radii-inner)] dg-surface-card dg-shadow-surface gap-1">
+        <span class="dg-type-caption uppercase tracking-[0.1em] text-[var(--dg-color-text-medium-emphasis)]">Sat</span>
+        <span class="dg-type-body font-bold">18</span>
+      </button>
+      <button class="flex flex-col items-center min-w-[60px] p-[var(--dg-spacing-xs)] rounded-[var(--dg-radii-inner)] dg-surface-card dg-shadow-surface gap-1">
+        <span class="dg-type-caption uppercase tracking-[0.1em] text-[var(--dg-color-text-medium-emphasis)]">Sun</span>
+        <span class="dg-type-body font-bold">19</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Scrollable Content -->
+  <div class="flex-1 overflow-y-auto px-[var(--dg-mobile-layout-screen-margin)] pb-[100px]">
+    
+    <!-- TODAY Section (Focal Card) -->
+    <section class="mb-[var(--dg-mobile-layout-section-gap)]">
+      <div class="flex items-center justify-between mb-[var(--dg-mobile-layout-element-gap)]">
+        <h2 class="dg-type-section-title" style="font-family: var(--dg-typography-heading-font-family);">Today</h2>
+        <span class="dg-type-caption uppercase tracking-[0.15em] text-[var(--dg-color-text-medium-emphasis)] font-semibold">JAN 15</span>
+      </div>
+      
+      <!-- Focal Today Card -->
+      <div class="dg-surface-card rounded-[var(--dg-radii-app)] p-[var(--dg-spacing-md)] dg-shadow-surface relative overflow-hidden" data-dg-role="system-card">
+        <!-- Current status hotspot -->
+        <div class="absolute top-[var(--dg-spacing-md)] right-[var(--dg-spacing-md)]">
+          <span class="inline-flex items-center gap-[var(--dg-spacing-xxs)] px-3 py-1.5 rounded-[var(--dg-radii-pill)] dg-action-primary dg-type-caption uppercase tracking-wider font-bold">
+            <span class="w-2 h-2 rounded-full bg-[var(--dg-color-action-on-primary-text)] animate-pulse"></span>
+            Current
+          </span>
+        </div>
+        
+        <!-- Card Content -->
+        <div class="mt-8">
+          <div class="flex items-baseline gap-1 mb-1">
+            <span class="dg-type-metric-value" style="font-family: var(--dg-typography-heading-font-family);">45</span>
+            <span class="dg-type-section-title text-[var(--dg-color-text-medium-emphasis)]">min</span>
+          </div>
+          <div class="dg-type-body font-bold text-[18px] mb-6">Pull & Core Foundation</div>
+          
+          <!-- Skills with progress rings -->
+          <div class="flex gap-[var(--dg-mobile-layout-element-gap)]">
+            <!-- Skill 1: Pull-ups -->
+            <div class="flex flex-col items-center gap-[var(--dg-spacing-xs)]">
+              <div class="relative w-16 h-16">
+                <svg class="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                  <path class="text-[var(--dg-color-border-divider)]" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="3"/>
+                  <path class="text-[var(--dg-color-action-primary)]" stroke-dasharray="75, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+                </svg>
+                <div class="absolute inset-0 flex items-center justify-center dg-type-caption font-bold" style="font-family: var(--dg-typography-body-font-family);">75%</div>
+              </div>
+              <span class="dg-type-caption text-[var(--dg-color-text-medium-emphasis)] uppercase tracking-wider font-semibold">Pull-ups</span>
+            </div>
+            
+            <!-- Skill 2: Core -->
+            <div class="flex flex-col items-center gap-[var(--dg-spacing-xs)]">
+              <div class="relative w-16 h-16">
+                <svg class="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                  <path class="text-[var(--dg-color-border-divider)]" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="3"/>
+                  <path class="text-[var(--dg-color-action-primary)]" stroke-dasharray="60, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+                </svg>
+                <div class="absolute inset-0 flex items-center justify-center dg-type-caption font-bold" style="font-family: var(--dg-typography-body-font-family);">60%</div>
+              </div>
+              <span class="dg-type-caption text-[var(--dg-color-text-medium-emphasis)] uppercase tracking-wider font-semibold">Core</span>
+            </div>
+            
+            <!-- Skill 3: Rows -->
+            <div class="flex flex-col items-center gap-[var(--dg-spacing-xs)]">
+              <div class="relative w-16 h-16">
+                <svg class="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                  <path class="text-[var(--dg-color-border-divider)]" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="3"/>
+                  <path class="text-[var(--dg-color-action-primary)]" stroke-dasharray="90, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+                </svg>
+                <div class="absolute inset-0 flex items-center justify-center dg-type-caption font-bold" style="font-family: var(--dg-typography-body-font-family);">90%</div>
+              </div>
+              <span class="dg-type-caption text-[var(--dg-color-text-medium-emphasis)] uppercase tracking-wider font-semibold">Rows</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Thursday Section -->
+    <section class="mb-[var(--dg-mobile-layout-section-gap)]">
+      <div class="flex items-center justify-between mb-[var(--dg-mobile-layout-element-gap)]">
+        <h2 class="dg-type-section-title" style="font-family: var(--dg-typography-heading-font-family);">Thursday</h2>
+        <span class="dg-type-caption uppercase tracking-[0.15em] text-[var(--dg-color-text-medium-emphasis)] font-semibold">JAN 16</span>
+      </div>
+      
+      <!-- Workout Card -->
+      <div class="dg-surface-card rounded-[var(--dg-radii-app)] p-[var(--dg-spacing-md)] dg-shadow-surface" data-dg-role="system-card">
+        <div class="flex justify-between items-start mb-4">
+          <div>
+            <div class="flex items-baseline gap-1 mb-1">
+              <span class="dg-type-metric-value text-[28px]" style="font-family: var(--dg-typography-heading-font-family);">60</span>
+              <span class="dg-type-supporting text-[var(--dg-color-text-medium-emphasis)]">min</span>
+            </div>
+            <div class="dg-type-body font-bold text-[17px]">Push & Dips Progression</div>
+          </div>
+          <div class="w-12 h-12 rounded-[var(--dg-radii-inner)] bg-[var(--dg-color-background-primary)] flex items-center justify-center">
+            <i data-lucide="trending-up" class="w-6 h-6 text-[var(--dg-color-text-medium-emphasis)]"></i>
+          </div>
+        </div>
+        
+        <!-- Exercise preview -->
+        <div class="flex items-center gap-[var(--dg-mobile-layout-element-gap)] mb-4 p-3 rounded-[var(--dg-radii-inner)] bg-[var(--dg-color-background-primary)]">
+          <div class="w-8 h-8 rounded-[var(--dg-radii-pill)] bg-[var(--dg-color-status-info-surface)] flex items-center justify-center shrink-0">
+            <i data-lucide="target" class="w-4 h-4 text-[var(--dg-color-status-info-foreground)]"></i>
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="dg-type-supporting font-semibold truncate">Weighted Dips 3×5</div>
+            <div class="dg-type-caption text-[var(--dg-color-text-low-emphasis)]">+10kg progression target</div>
+          </div>
+        </div>
+        
+        <div class="flex gap-2">
+          <span class="px-3 py-1.5 rounded-[var(--dg-radii-pill)] bg-[var(--dg-color-status-info-surface)] text-[var(--dg-color-status-info-foreground)] dg-type-caption font-bold uppercase tracking-wider">Skill Work</span>
+          <span class="px-3 py-1.5 rounded-[var(--dg-radii-pill)] bg-[var(--dg-color-background-primary)] text-[var(--dg-color-text-medium-emphasis)] dg-type-caption font-bold uppercase tracking-wider">High Volume</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Friday Section with Swipe Actions Revealed -->
+    <section class="mb-[var(--dg-mobile-layout-section-gap)]">
+      <div class="flex items-center justify-between mb-[var(--dg-mobile-layout-element-gap)]">
+        <h2 class="dg-type-section-title" style="font-family: var(--dg-typography-heading-font-family);">Friday</h2>
+        <span class="dg-type-caption uppercase tracking-[0.15em] text-[var(--dg-color-text-medium-emphasis)] font-semibold">JAN 17</span>
+      </div>
+      
+      <!-- Swipeable Card with Quick Actions -->
+      <div class="relative rounded-[var(--dg-radii-app)] overflow-hidden dg-shadow-surface h-[140px]">
+        <!-- Quick actions layer (behind) -->
+        <div class="absolute inset-0 flex justify-end items-center px-[var(--dg-spacing-md)] gap-[var(--dg-mobile-layout-element-gap)] bg-[var(--dg-color-status-danger-surface)]">
+          <button class="w-14 h-14 rounded-[var(--dg-radii-inner)] bg-[var(--dg-color-status-warning-surface)] flex items-center justify-center dg-shadow-surface">
+            <i data-lucide="clock" class="w-6 h-6 text-[var(--dg-color-status-warning-foreground)]"></i>
+          </button>
+          <button class="w-14 h-14 rounded-[var(--dg-radii-inner)] bg-[var(--dg-color-status-danger-surface)] flex items-center justify-center border-2 border-[var(--dg-color-status-danger-border)]">
+            <i data-lucide="trash-2" class="w-6 h-6 text-[var(--dg-color-status-danger-foreground)]"></i>
+          </button>
+        </div>
+        
+        <!-- Front card (offset to reveal actions) -->
+        <div class="dg-surface-card p-[var(--dg-spacing-md)] h-full relative z-10 mr-[140px] flex flex-col justify-center">
+          <div class="flex justify-between items-start">
+            <div>
+              <div class="flex items-baseline gap-1 mb-1">
+                <span class="dg-type-metric-value text-[28px]" style="font-family: var(--dg-typography-heading-font-family);">30</span>
+                <span class="dg-type-supporting text-[var(--dg-color-text-medium-emphasis)]">min</span>
+              </div>
+              <div class="dg-type-body font-bold text-[17px]">Active Recovery</div>
+              <div class="dg-type-supporting text-[var(--dg-color-text-low-emphasis)] mt-1">Mobility & Stretching Flow</div>
+            </div>
+            <div class="w-12 h-12 rounded-[var(--dg-radii-inner)] bg-[var(--dg-color-status-success-surface)] flex items-center justify-center">
+              <i data-lucide="activity" class="w-6 h-6 text-[var(--dg-color-status-success-foreground)]"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Saturday Section -->
+    <section class="mb-[var(--dg-mobile-layout-section-gap)]">
+      <div class="flex items-center justify-between mb-[var(--dg-mobile-layout-element-gap)]">
+        <h2 class="dg-type-section-title" style="font-family: var(--dg-typography-heading-font-family);">Saturday</h2>
+        <span class="dg-type-caption uppercase tracking-[0.15em] text-[var(--dg-color-text-medium-emphasis)] font-semibold">JAN 18</span>
+      </div>
+      
+      <div class="dg-surface-card rounded-[var(--dg-radii-app)] p-[var(--dg-spacing-md)] dg-shadow-surface" data-dg-role="system-card">
+        <div class="flex justify-between items-start mb-4">
+          <div>
+            <div class="flex items-baseline gap-1 mb-1">
+              <span class="dg-type-metric-value text-[28px]" style="font-family: var(--dg-typography-heading-font-family);">90</span>
+              <span class="dg-type-supporting text-[var(--dg-color-text-medium-emphasis)]">min</span>
+            </div>
+            <div class="dg-type-body font-bold text-[17px]">Legs & Conditioning</div>
+          </div>
+          <div class="w-12 h-12 rounded-[var(--dg-radii-inner)] dg-action-primary flex items-center justify-center">
+            <i data-lucide="flame" class="w-6 h-6 text-[var(--dg-color-action-on-primary-text)]"></i>
+          </div>
+        </div>
+        
+        <!-- Progress visualization bar -->
+        <div class="flex items-center gap-[var(--dg-mobile-layout-element-gap)] mb-3">
+          <div class="flex-1 h-3 bg-[var(--dg-color-background-primary)] rounded-[var(--dg-radii-pill)] overflow-hidden">
+            <div class="h-full w-[0%] bg-[var(--dg-color-action-primary)] rounded-[var(--dg-radii-pill)]"></div>
+          </div>
+          <span class="dg-type-caption text-[var(--dg-color-text-low-emphasis)] uppercase tracking-wider font-bold w-12 text-right">0%</span>
+        </div>
+        
+        <div class="flex items-center gap-[var(--dg-spacing-xs)] text-[var(--dg-color-text-low-emphasis)]">
+          <i data-lucide="dumbbell" class="w-4 h-4"></i>
+          <span class="dg-type-caption">Pistol Squats • Nordic Curls • Calf Raises</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Sunday Section (Rest Day) -->
+    <section class="mb-[var(--dg-mobile-layout-section-gap)]">
+      <div class="flex items-center justify-between mb-[var(--dg-mobile-layout-element-gap)]">
+        <h2 class="dg-type-section-title" style="font-family: var(--dg-typography-heading-font-family);">Sunday</h2>
+        <span class="dg-type-caption uppercase tracking-[0.15em] text-[var(--dg-color-text-medium-emphasis)] font-semibold">JAN 19</span>
+      </div>
+      
+      <div class="dg-surface-card rounded-[var(--dg-radii-app)] p-[var(--dg-spacing-md)] dg-shadow-surface border border-dashed border-[var(--dg-color-border-divider)]" data-dg-role="system-card">
+        <div class="flex items-center justify-center py-6 gap-[var(--dg-mobile-layout-element-gap)]">
+          <div class="w-12 h-12 rounded-[var(--dg-radii-pill)] bg-[var(--dg-color-background-primary)] flex items-center justify-center">
+            <i data-lucide="moon" class="w-6 h-6 text-[var(--dg-color-text-low-emphasis)]"></i>
+          </div>
+          <div class="text-center">
+            <div class="dg-type-body font-bold text-[var(--dg-color-text-medium-emphasis)]">Rest Day</div>
+            <div class="dg-type-caption text-[var(--dg-color-text-low-emphasis)]">Recovery & Nutrition Focus</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Floating Action Button -->
+  <div class="fixed bottom-[var(--dg-mobile-layout-safe-area-bottom)] right-[var(--dg-mobile-layout-screen-margin)] z-50">
+    <button class="w-[var(--dg-sizing-standard-button-height)] h-[var(--dg-sizing-standard-button-height)] rounded-[var(--dg-radii-app)] dg-action-primary dg-shadow-overlay flex items-center justify-center min-h-[48px] active:scale-95 transition-transform" data-dg-role="primary-action">
+      <i data-lucide="plus" class="w-[var(--dg-sizing-icon-standard)] h-[var(--dg-sizing-icon-standard)] text-[var(--dg-color-action-on-primary-text)]"></i>
+    </button>
+  </div>
+
+</div>

@@ -1,0 +1,271 @@
+<div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden">
+  <!-- Top Bar -->
+  <header class="px-[var(--dg-mobile-layout-screen-margin)] pt-[var(--dg-mobile-layout-safe-area-top)] pb-[var(--dg-spacing-md)] flex items-center justify-between shrink-0">
+    <button class="w-12 h-12 flex items-center justify-center rounded-[var(--dg-radii-inner)] dg-surface-card dg-shadow-surface" data-dg-role="secondary-action" aria-label="Go back">
+      <i data-lucide="arrow-left" class="w-6 h-6"></i>
+    </button>
+    <h1 class="dg-type-screen-title font-[var(--dg-typography-heading-font-family)]">Weekly Schedule</h1>
+    <button class="w-12 h-12 flex items-center justify-center rounded-[var(--dg-radii-inner)] dg-surface-card dg-shadow-surface" aria-label="More options">
+      <i data-lucide="more-horizontal" class="w-6 h-6"></i>
+    </button>
+  </header>
+
+  <!-- Day Selector Strip -->
+  <div class="px-[var(--dg-mobile-layout-screen-margin)] mb-[var(--dg-mobile-layout-section-gap)] shrink-0">
+    <div class="flex gap-[var(--dg-spacing-xs)] overflow-x-auto pb-2">
+      <!-- Monday -->
+      <button class="flex-shrink-0 w-[72px] h-[80px] rounded-[var(--dg-radii-inner)] dg-surface-card dg-shadow-surface flex flex-col items-center justify-center gap-1">
+        <span class="dg-type-caption font-[var(--dg-typography-body-font-family)] uppercase tracking-tight dg-text-medium">MON</span>
+        <span class="text-[24px] font-bold leading-none font-[var(--dg-typography-heading-font-family)] dg-text-high">12</span>
+      </button>
+      <!-- Tuesday -->
+      <button class="flex-shrink-0 w-[72px] h-[80px] rounded-[var(--dg-radii-inner)] dg-surface-card dg-shadow-surface flex flex-col items-center justify-center gap-1">
+        <span class="dg-type-caption font-[var(--dg-typography-body-font-family)] uppercase tracking-tight dg-text-medium">TUE</span>
+        <span class="text-[24px] font-bold leading-none font-[var(--dg-typography-heading-font-family)] dg-text-high">13</span>
+      </button>
+      <!-- Wednesday (Today - Active) -->
+      <button class="flex-shrink-0 w-[72px] h-[80px] rounded-[var(--dg-radii-inner)] dg-action-primary flex flex-col items-center justify-center gap-1 relative" data-dg-role="accent-surface">
+        <span class="dg-type-caption font-[var(--dg-typography-body-font-family)] uppercase tracking-tight text-[var(--dg-color-action-on-primary-text)]">WED</span>
+        <span class="text-[24px] font-bold leading-none font-[var(--dg-typography-heading-font-family)] text-[var(--dg-color-action-on-primary-text)]">14</span>
+        <div class="w-1.5 h-1.5 rounded-full bg-[var(--dg-color-action-on-primary-text)] mt-1"></div>
+      </button>
+      <!-- Thursday -->
+      <button class="flex-shrink-0 w-[72px] h-[80px] rounded-[var(--dg-radii-inner)] dg-surface-card dg-shadow-surface flex flex-col items-center justify-center gap-1">
+        <span class="dg-type-caption font-[var(--dg-typography-body-font-family)] uppercase tracking-tight dg-text-medium">THU</span>
+        <span class="text-[24px] font-bold leading-none font-[var(--dg-typography-heading-font-family)] dg-text-high">15</span>
+      </button>
+      <!-- Friday -->
+      <button class="flex-shrink-0 w-[72px] h-[80px] rounded-[var(--dg-radii-inner)] dg-surface-card dg-shadow-surface flex flex-col items-center justify-center gap-1">
+        <span class="dg-type-caption font-[var(--dg-typography-body-font-family)] uppercase tracking-tight dg-text-medium">FRI</span>
+        <span class="text-[24px] font-bold leading-none font-[var(--dg-typography-heading-font-family)] dg-text-high">16</span>
+      </button>
+      <!-- Saturday -->
+      <button class="flex-shrink-0 w-[72px] h-[80px] rounded-[var(--dg-radii-inner)] dg-surface-card dg-shadow-surface flex flex-col items-center justify-center gap-1">
+        <span class="dg-type-caption font-[var(--dg-typography-body-font-family)] uppercase tracking-tight dg-text-medium">SAT</span>
+        <span class="text-[24px] font-bold leading-none font-[var(--dg-typography-heading-font-family)] dg-text-high">17</span>
+      </button>
+      <!-- Sunday -->
+      <button class="flex-shrink-0 w-[72px] h-[80px] rounded-[var(--dg-radii-inner)] dg-surface-card dg-shadow-surface flex flex-col items-center justify-center gap-1">
+        <span class="dg-type-caption font-[var(--dg-typography-body-font-family)] uppercase tracking-tight dg-text-medium">SUN</span>
+        <span class="text-[24px] font-bold leading-none font-[var(--dg-typography-heading-font-family)] dg-text-high">18</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <main class="flex-1 overflow-y-auto px-[var(--dg-mobile-layout-screen-margin)] pb-[var(--dg-spacing-xl)]">
+    
+    <!-- Today Focal Card -->
+    <div class="mb-[var(--dg-mobile-layout-section-gap)]">
+      <div class="flex items-center gap-2 mb-[var(--dg-spacing-xs)]">
+        <div class="w-2 h-2 rounded-full dg-action-primary"></div>
+        <span class="dg-type-caption uppercase tracking-tight font-[var(--dg-typography-body-font-family)] dg-text-medium">Current Focus</span>
+      </div>
+      
+      <div class="rounded-[var(--dg-radii-app)] dg-surface-card dg-shadow-surface p-[var(--dg-spacing-md)] relative overflow-hidden" data-dg-role="system-card">
+        <div class="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-[#D4FF4D] to-transparent opacity-15 rounded-bl-full pointer-events-none"></div>
+        
+        <div class="relative z-10">
+          <div class="flex justify-between items-start mb-4">
+            <div class="min-w-0 flex-1">
+              <h2 class="dg-type-section-title font-[var(--dg-typography-heading-font-family)] mb-1">Strength Protocol</h2>
+              <p class="dg-type-supporting dg-text-medium truncate">Pull-ups & Dips Progression</p>
+            </div>
+            <!-- Progress Ring -->
+            <div class="relative w-16 h-16 shrink-0 ml-4">
+              <svg class="w-full h-full transform -rotate-90" viewBox="0 0 64 64">
+                <circle cx="32" cy="32" r="28" stroke="var(--dg-color-border-divider)" stroke-width="4" fill="none"></circle>
+                <circle cx="32" cy="32" r="28" stroke="#D4FF4D" stroke-width="4" fill="none" stroke-dasharray="175.9" stroke-dashoffset="44" stroke-linecap="round"></circle>
+              </svg>
+              <div class="absolute inset-0 flex items-center justify-center">
+                <span class="dg-type-caption font-bold font-[var(--dg-typography-body-font-family)]">75%</span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="flex items-end gap-4 mb-4">
+            <div>
+              <div class="dg-type-metric-value font-[var(--dg-typography-heading-font-family)]">45<span class="text-lg ml-1 dg-type-supporting font-normal dg-text-medium">min</span></div>
+              <div class="dg-type-caption uppercase tracking-tight dg-text-low font-[var(--dg-typography-body-font-family)]">Duration</div>
+            </div>
+            <div class="h-10 w-px bg-[var(--dg-color-border-divider)]"></div>
+            <div>
+              <div class="dg-type-metric-value font-[var(--dg-typography-heading-font-family)]">12<span class="text-lg ml-1 dg-type-supporting font-normal dg-text-medium">sets</span></div>
+              <div class="dg-type-caption uppercase tracking-tight dg-text-low font-[var(--dg-typography-body-font-family)]">Volume</div>
+            </div>
+            <div class="h-10 w-px bg-[var(--dg-color-border-divider)]"></div>
+            <div>
+              <div class="dg-type-metric-value font-[var(--dg-typography-heading-font-family)]">4<span class="text-lg ml-1 dg-type-supporting font-normal dg-text-medium">skills</span></div>
+              <div class="dg-type-caption uppercase tracking-tight dg-text-low font-[var(--dg-typography-body-font-family)]">Targets</div>
+            </div>
+          </div>
+          
+          <!-- Skill Tags -->
+          <div class="flex flex-wrap gap-2">
+            <span class="px-3 py-1.5 rounded-[var(--dg-radii-pill)] bg-[var(--dg-color-background-primary)] dg-type-caption uppercase tracking-tight font-[var(--dg-typography-body-font-family)]">Muscle-ups</span>
+            <span class="px-3 py-1.5 rounded-[var(--dg-radii-pill)] bg-[var(--dg-color-background-primary)] dg-type-caption uppercase tracking-tight font-[var(--dg-typography-body-font-family)]">Front Lever</span>
+            <span class="px-3 py-1.5 rounded-[var(--dg-radii-pill)] bg-[var(--dg-color-background-primary)] dg-type-caption uppercase tracking-tight font-[var(--dg-typography-body-font-family)]">L-sit</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Upcoming Days List -->
+    <div class="flex flex-col gap-[var(--dg-mobile-layout-section-gap)]">
+      
+      <!-- Thursday -->
+      <section>
+        <div class="flex items-center justify-between mb-[var(--dg-spacing-sm)]">
+          <h3 class="dg-type-section-title font-[var(--dg-typography-heading-font-family)]">Thursday</h3>
+          <span class="dg-type-caption dg-text-low uppercase tracking-tight font-[var(--dg-typography-body-font-family)]">Tomorrow</span>
+        </div>
+        
+        <!-- Workout Card with Swipe Actions Revealed -->
+        <div class="relative h-[180px]">
+          <!-- Swipe Actions Layer (Behind) -->
+          <div class="absolute inset-y-0 right-0 flex gap-1 w-full h-full rounded-[var(--dg-radii-app)] overflow-hidden">
+            <div class="flex-1 bg-[var(--dg-color-status-info-surface)] flex items-center justify-start pl-6">
+              <div class="flex flex-col items-center text-[var(--dg-color-status-info-foreground)]">
+                <i data-lucide="copy" class="w-6 h-6 mb-1"></i>
+                <span class="dg-type-caption uppercase tracking-tight font-[var(--dg-typography-body-font-family)]">Duplicate</span>
+              </div>
+            </div>
+            <button class="w-24 bg-[var(--dg-color-status-warning-surface)] flex items-center justify-center text-[var(--dg-color-status-warning-foreground)]">
+              <div class="flex flex-col items-center">
+                <i data-lucide="pencil" class="w-6 h-6 mb-1"></i>
+                <span class="dg-type-caption uppercase tracking-tight font-[var(--dg-typography-body-font-family)]">Edit</span>
+              </div>
+            </button>
+            <button class="w-24 bg-[var(--dg-color-status-danger-surface)] flex items-center justify-center text-[var(--dg-color-status-danger-foreground)]">
+              <div class="flex flex-col items-center">
+                <i data-lucide="trash-2" class="w-6 h-6 mb-1"></i>
+                <span class="dg-type-caption uppercase tracking-tight font-[var(--dg-typography-body-font-family)]">Delete</span>
+              </div>
+            </button>
+          </div>
+          
+          <!-- Card Content (Foreground) -->
+          <div class="absolute inset-y-0 left-0 right-24 rounded-[var(--dg-radii-app)] dg-surface-card dg-shadow-surface p-[var(--dg-spacing-md)] flex flex-col justify-between">
+            <div class="flex justify-between items-start">
+              <div class="min-w-0 flex-1">
+                <h4 class="dg-type-body font-bold font-[var(--dg-typography-body-font-family)] mb-1 truncate">Skill Acquisition</h4>
+                <p class="dg-type-supporting dg-text-medium truncate">Planche & Handstand Technique</p>
+              </div>
+              <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--dg-radii-pill)] bg-[var(--dg-color-status-info-surface)] shrink-0 ml-2">
+                <div class="w-1.5 h-1.5 rounded-full bg-[var(--dg-color-status-info-foreground)]"></div>
+                <span class="dg-type-caption text-[var(--dg-color-status-info-foreground)] uppercase tracking-tight font-[var(--dg-typography-body-font-family)]">Tech</span>
+              </div>
+            </div>
+            
+            <div class="flex items-center gap-3">
+              <div class="dg-type-metric-value font-[var(--dg-typography-heading-font-family)] text-[24px]">60<span class="text-sm dg-type-supporting font-normal dg-text-medium">min</span></div>
+              <div class="flex-1 h-2 bg-[var(--dg-color-border-divider)] rounded-full overflow-hidden">
+                <div class="h-full w-1/3 bg-[#D4FF4D] rounded-full"></div>
+              </div>
+            </div>
+            
+            <!-- Mini Progress Rings -->
+            <div class="flex gap-6">
+              <div class="flex items-center gap-2">
+                <div class="relative w-10 h-10">
+                  <svg class="w-full h-full transform -rotate-90" viewBox="0 0 32 32">
+                    <circle cx="16" cy="16" r="12" stroke="var(--dg-color-border-divider)" stroke-width="2.5" fill="none"></circle>
+                    <circle cx="16" cy="16" r="12" stroke="#D4FF4D" stroke-width="2.5" fill="none" stroke-dasharray="75.4" stroke-dashoffset="19" stroke-linecap="round"></circle>
+                  </svg>
+                </div>
+                <div>
+                  <div class="dg-type-caption font-bold font-[var(--dg-typography-body-font-family)]">Planche</div>
+                  <div class="dg-type-caption dg-text-low">75%</div>
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <div class="relative w-10 h-10">
+                  <svg class="w-full h-full transform -rotate-90" viewBox="0 0 32 32">
+                    <circle cx="16" cy="16" r="12" stroke="var(--dg-color-border-divider)" stroke-width="2.5" fill="none"></circle>
+                    <circle cx="16" cy="16" r="12" stroke="#D4FF4D" stroke-width="2.5" fill="none" stroke-dasharray="75.4" stroke-dashoffset="38" stroke-linecap="round"></circle>
+                  </svg>
+                </div>
+                <div>
+                  <div class="dg-type-caption font-bold font-[var(--dg-typography-body-font-family)]">Handstand</div>
+                  <div class="dg-type-caption dg-text-low">50%</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Friday -->
+      <section>
+        <h3 class="dg-type-section-title font-[var(--dg-typography-heading-font-family)] mb-[var(--dg-spacing-sm)]">Friday</h3>
+        
+        <div class="rounded-[var(--dg-radii-app)] dg-surface-card dg-shadow-surface p-[var(--dg-spacing-md)] mb-[var(--dg-spacing-sm)]" data-dg-role="system-card">
+          <div class="flex justify-between items-start mb-4">
+            <div class="min-w-0 flex-1">
+              <h4 class="dg-type-body font-bold font-[var(--dg-typography-body-font-family)] mb-1">Endurance Circuit</h4>
+              <p class="dg-type-supporting dg-text-medium truncate">High Volume Push/Pull Supersets</p>
+            </div>
+            <div class="px-3 py-1.5 rounded-[var(--dg-radii-pill)] dg-action-primary shrink-0 ml-2" data-dg-role="accent-surface">
+              <span class="dg-type-caption font-bold uppercase tracking-tight text-[var(--dg-color-action-on-primary-text)] font-[var(--dg-typography-body-font-family)]">INTENSE</span>
+            </div>
+          </div>
+          
+          <div class="flex items-center gap-6 mb-4">
+            <div>
+              <div class="dg-type-metric-value font-[var(--dg-typography-heading-font-family)]">90<span class="text-lg ml-1 dg-type-supporting font-normal dg-text-medium">min</span></div>
+            </div>
+            <div class="flex-1 flex gap-1.5">
+              <div class="h-3 flex-1 rounded-full bg-[#D4FF4D]"></div>
+              <div class="h-3 flex-1 rounded-full bg-[#D4FF4D]"></div>
+              <div class="h-3 flex-1 rounded-full bg-[#D4FF4D]"></div>
+              <div class="h-3 flex-1 rounded-full bg-[var(--dg-color-border-divider)]"></div>
+            </div>
+          </div>
+          
+          <div class="flex gap-2">
+            <span class="px-3 py-1.5 rounded-[var(--dg-radii-pill)] bg-[var(--dg-color-background-primary)] dg-type-caption uppercase tracking-tight font-[var(--dg-typography-body-font-family)]">Dips</span>
+            <span class="px-3 py-1.5 rounded-[var(--dg-radii-pill)] bg-[var(--dg-color-background-primary)] dg-type-caption uppercase tracking-tight font-[var(--dg-typography-body-font-family)]">Rows</span>
+            <span class="px-3 py-1.5 rounded-[var(--dg-radii-pill)] bg-[var(--dg-color-background-primary)] dg-type-caption uppercase tracking-tight font-[var(--dg-typography-body-font-family)]">Push-ups</span>
+          </div>
+        </div>
+
+        <div class="rounded-[var(--dg-radii-app)] dg-surface-card dg-shadow-surface p-[var(--dg-spacing-md)] opacity-[var(--dg-opacities-disabled)]" data-dg-role="system-card">
+          <div class="flex justify-between items-center">
+            <div class="min-w-0 flex-1">
+              <h4 class="dg-type-body font-bold font-[var(--dg-typography-body-font-family)] mb-1">Mobility Flow</h4>
+              <p class="dg-type-supporting dg-text-medium truncate">Recovery & Flexibility Routine</p>
+            </div>
+            <span class="dg-type-caption dg-text-low uppercase tracking-tight font-[var(--dg-typography-body-font-family)] shrink-0 ml-2">20 min</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Saturday -->
+      <section>
+        <h3 class="dg-type-section-title font-[var(--dg-typography-heading-font-family)] mb-[var(--dg-spacing-sm)]">Saturday</h3>
+        
+        <div class="rounded-[var(--dg-radii-app)] dg-surface-card dg-shadow-surface p-[var(--dg-spacing-md)] border-2 border-dashed border-[var(--dg-color-border-divider)] flex items-center justify-center min-h-[140px] gap-3 cursor-pointer hover:bg-[var(--dg-color-background-secondary)] transition-colors">
+          <i data-lucide="plus" class="w-6 h-6 dg-text-low"></i>
+          <span class="dg-type-supporting dg-text-medium font-[var(--dg-typography-body-font-family)]">Add Workout</span>
+        </div>
+      </section>
+
+      <!-- Sunday -->
+      <section>
+        <h3 class="dg-type-section-title font-[var(--dg-typography-heading-font-family)] mb-[var(--dg-spacing-sm)]">Sunday</h3>
+        
+        <div class="rounded-[var(--dg-radii-app)] dg-surface-card dg-shadow-surface p-[var(--dg-spacing-md)] border-2 border-dashed border-[var(--dg-color-border-divider)] flex items-center justify-center min-h-[140px] gap-3 cursor-pointer hover:bg-[var(--dg-color-background-secondary)] transition-colors">
+          <i data-lucide="plus" class="w-6 h-6 dg-text-low"></i>
+          <span class="dg-type-supporting dg-text-medium font-[var(--dg-typography-body-font-family)]">Add Workout</span>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- Floating Action Button -->
+  <button class="fixed bottom-6 right-6 w-[var(--dg-sizing-standard-button-height)] h-[var(--dg-sizing-standard-button-height)] rounded-[var(--dg-radii-pill)] dg-action-primary dg-shadow-overlay flex items-center justify-center z-50" data-dg-role="primary-action" aria-label="Add routine">
+    <i data-lucide="plus" class="w-6 h-6 text-[var(--dg-color-action-on-primary-text)]"></i>
+  </button>
+
+</div>
