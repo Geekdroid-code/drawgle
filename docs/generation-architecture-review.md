@@ -1,6 +1,6 @@
 # Design Generation Architecture Review
 
-Status: **Phase 1 implemented 2026-08-11.** Phases 2–4 are planned, not started. See §10 for the exact handoff state.
+Status: **Phases 1–2 implemented; design-brain prompt layer removed** (2026-08-11 to 2026-08-12). Phases 3–4 planned. See §10/§12 for handoff, §13 for the measurement that justified removal, §14 for what was deleted, and §11 for a live production issue still open.
 Scope: the full path from builder output to persisted screen, plus token schema, prompts, and edit flows.
 
 ## 0. Verified findings
@@ -429,3 +429,274 @@ The tokenizer measurement in §0b already resolved the sequencing gate: blind to
 First task is the role vocabulary. Check whether `lib/drawgle-dom.ts` and `lib/generation/block-index.ts` already carry semantic information Phase 2 can reuse rather than duplicate — that is open question 2 in §9 and it is unanswered.
 
 Before writing Phase 2 code, run the A/B: `pnpm run design:ab -- --project <id> --n 5` on a Phase 1 build versus the pre-Phase-1 commit. Phase 1's whole premise is that removing mutation improves output. That premise is currently **unmeasured on rendered results** — it is verified only as "the pipeline no longer alters the HTML", which is a different claim.
+
+---
+
+## 11. Post-Phase-1 production observation — 2026-08-11
+
+Project `61267619-6a11-4d7f-9639-d2eb850326b1`, prompt-only fitness app, style reference. First run on a Phase 1 build. 2 of 4 screens failed.
+
+**Recorded for later comparison. Not fixed, deliberately — this is baseline evidence for evaluating the completed plan.**
+
+### What the run actually produced
+
+| Screen | Status | Requested budget | Completion tokens | Finish | Result |
+|---|---|---|---|---|---|
+| Progress Analytics | ready | 26,000 | 7,999 | `stop` | 11,358 chars, sentinel present |
+| Nutrition Tracker | ready | 12,000 | 9,406 | `stop` | 12,034 chars, sentinel present |
+| Workout Library | **failed** | 12,000 | **12,000** | `length` | truncated mid-tag at 14,508 chars |
+| User Profile | **failed** | 12,000 | none recorded | none recorded | 130 chars, empty stream |
+
+Prompt size was ~9,120 tokens for all four, so the inputs were effectively identical.
+
+### Root cause: the output budget is a keyword lottery
+
+`lib/generation/screen-budget.ts`:
+
+```ts
+const dense = screenPlan.description.length > 6000
+  || /\b(dashboard|analytics|chart|map|calendar|timeline|table|...)\b/i.test(evidence);
+if (dense) return 26000;
+return screenPlan.description.length < 2800 ? 12000 : 18000;
+```
+
+The budget is derived from **the length of the brief and whether it contains one of a fixed list of words** — not from the complexity of the screen being built.
+
+"Progress **Analytics**" matched the regex and received 26,000. "Workout Library" and "User Profile" matched nothing and received 12,000. Those are precisely the two that failed. A screen's survival depended on whether its name happened to contain a keyword.
+
+Brief length is also a poor proxy for output length: a short brief can describe a dense list-and-grid screen. Workout Library's brief was under 2,800 chars and its screen needed more than 12,000 completion tokens.
+
+**Observed range for this builder: 7,999–12,000+ completion tokens.** A 12,000 cap sits inside the normal working range, so it is not a safety limit — it is a coin flip. Nutrition Tracker survived on 9,406 with 2,594 to spare; Workout Library did not.
+
+### Secondary finding: the env cap makes the top tier unreachable
+
+`.env.local` sets `DRAWGLE_OPENROUTER_MAX_TOKENS="16000"`, and `lib/ai/provider.ts` applies `Math.min(maxOutputTokens, getOpenRouterMaxTokens())`.
+
+So the `dense → 26000` branch can never deliver more than 16,000 in this environment. The diagnostics record the *requested* 26,000, not the 16,000 actually sent, which makes the logs misleading about what the model was given.
+
+### Third finding: no retry on the most retryable failure there is
+
+Both failures show `attempt: 1`, `retryReason: "initial"`. A `finish_reason: length` truncation is close to the ideal retry candidate — the same request with a larger budget would very likely succeed. Nothing retries.
+
+This is the same gap recorded for `duplicated_screen_fragment` in the 2026-08-11 entry of `updates.md`: recoverable model-level failures terminate the screen instead of being recovered.
+
+### Fourth finding: User Profile is a different failure
+
+130 characters, `usage: null`, `finishReasons: []`. That is not truncation — the stream produced essentially nothing and reported no usage. It is grouped under the same user-facing "Generation failed" message, which hides the distinction. Whether it is a provider abort, an early disconnect, or something else is unknown and needs its own investigation.
+
+### Did Phase 1 cause this?
+
+**Not the mechanism.** The budget function is pre-existing and untouched by Phase 1. Input tokens do not consume the output budget, so the ~700-token prompt growth from the Phase 1 edits does not explain a completion-token ceiling.
+
+**Possibly a contributing factor, untested.** Phase 1 deliberately freed the builder — "local art is yours, use any CSS you want" replaced "use tokens for every visual decision". A less constrained builder plausibly writes longer, more elaborate HTML. If output verbosity rose, a 12,000 cap that was previously marginal would begin failing.
+
+Evidence against Phase 1 being the primary cause: Nutrition Tracker completed comfortably at 9,406 tokens under the same freed prompt. The variance is screen-to-screen, and the cap is what converts normal variance into a hard failure.
+
+**This is a hypothesis, not a finding.** The A/B in §10 would settle it: compare mean completion tokens per screen on a pre-Phase-1 build against a Phase 1 build, same prompts. Until that runs, prompt-driven verbosity remains unmeasured, exactly like the quality claim it sits next to.
+
+### Why this is being left alone
+
+Fixing the budget now would confound the Phase 1 evaluation. The A/B needs a stable build on both sides. Two failure modes are now queued behind that measurement:
+
+1. Output budget allocated by keyword match rather than screen complexity, with a cap inside the builder's normal working range.
+2. No retry on recoverable model-level failures — truncation and duplicated roots both terminate a paid screen.
+
+Both belong to the same family as the rendered-acceptance work in Phase 3: the pipeline detects a failure it could recover from, and discards the screen instead.
+
+---
+
+## 12. Phase 2 — implemented 2026-08-12
+
+### Open question 2, answered
+
+**There is no existing semantic layer to reuse.** `data-drawgle-id` in `lib/drawgle-dom.ts` is identity only. `ScreenBlockKind` in `lib/generation/block-index.ts` looks promising but is derived from `KEYWORD_HINTS` regexes over class names and text — inference from appearance, the same error class this phase exists to eliminate. It is fine for editor selection targeting; reusing it for token ownership would reintroduce guessing.
+
+Phase 2 therefore introduces a genuinely builder-*declared* attribute.
+
+### What was built
+
+**`lib/generation/token-ownership.ts`** — the vocabulary and the per-property ownership table.
+
+Nine roles: `system-card`, `system-sheet`, `system-modal`, `primary-action`, `secondary-action`, `field`, `navigation`, `inverse-surface`, `accent-surface`. Plus `data-dg-scope="local"`.
+
+Three design constraints, each answering a specific way this could have gone wrong:
+
+1. **No generic `card` role.** A premium screen carries a normal card, an inverse card, an accent card and a media card. One role forcing `surface.card` would re-flatten exactly what this work exists to stop.
+2. **Required bindings name exactly one token.** `field` has no required fill, because a field may sit on the card surface *or* the page background — a genuine "A or B", so it is reported and never repaired.
+3. **`inverse-surface` and `accent-surface` carry no required binding at all.** The schema has no inverse-surface token. Inventing one would fabricate a rule. They exist so the builder can declare intent and the audit stops treating them as unclassified. They gain bindings in Phase 4 only if the schema grows to support them.
+
+**`lib/generation/token-coverage.ts`** — the audit. Inspection only.
+
+For each roled element it asks whether the owned property references the owning token, accepting either the `dg-*` utility or a `var(--dg-*)` binding. An element that does not set the property at all is not a violation — inheriting from a parent is legitimate. Findings carry the element, role, property, expected token and a `deterministicallyRepairable` flag that is true only when exactly one token owns the property.
+
+`repairOwnedProperties` exists but is gated behind `DRAWGLE_TOKEN_COVERAGE_REPAIR=true` **and** the Phase 1 master switch, both off by default.
+
+### Verification
+
+11 new tests. The ones that matter most are the negative cases, because Phase 2's whole risk is replacing blind color inference with blind role enforcement:
+
+- A `rounded-full h-16 w-full shadow-2xl` primary CTA produces **zero** findings — only fill and foreground are owned.
+- A repair binds the background and leaves `rounded-full`, `h-16`, `w-full`, `shadow-2xl` untouched.
+- An unroled `bg-black text-white` button produces **zero** findings. That is the Phase 1 defect restated: with no role, it is local art.
+- Everything inside `data-dg-scope="local"` produces zero findings, including a roled element contradicting its own scope.
+
+Against the real stored `Training Dashboard` (generated before Phase 2 existed):
+
+```
+roles declared         0
+local scopes           0
+DOM unchanged          true
+findings by code       {"unclassified_system_surface": 6}
+repairable             0
+```
+
+The expected baseline: no roles yet, six surfaces whose ownership is unverifiable, nothing repairable, nothing touched.
+
+Suite: 390 passed, 54 files. Typecheck and lint clean.
+
+### What this does not do yet
+
+- **No screen has roles.** The builder has only just been told to emit them. Until real generations carry `data-dg-role`, the audit reports `unclassified_system_surface` and little else. That is correct behaviour, not a bug.
+- **Repair is off.** It should stay off until roled output exists and the findings can be eyeballed.
+- **`componentShapePolicy` still exists** as a token-schema field. The prompt now frames radius as vocabulary rather than law, but the field itself moves to the navigation/component recipe in Phase 4.
+
+### Known state carried forward
+
+Two items remain open and are **not** addressed by Phase 2:
+
+1. **Phase 1 is still unvalidated on rendered results.** The A/B in §10 has not run. Phase 1's premise — that removing mutation improves output — remains unmeasured.
+2. **The output-budget bug in §11 is still live.** `screenBuildOutputTokenBudget` allocates 12,000 tokens by keyword match, inside the builder's 7,999–12,000+ working range. Production lost 2 of 4 screens to it on 2026-08-11. It was recommended as the next fix and deferred in favour of Phase 2.
+
+Both were raised before starting Phase 2 and consciously deferred. They are recorded here so the sequencing decision stays visible rather than becoming an accident.
+
+### Starting Phase 3
+
+Phase 3 is the rendered acceptance loop. `lib/generation/rendered-geometry.ts` already exists and is wired into `scripts/design-ab.ts`; it needs wiring into the build with the repair-trigger allowlist from §4 and the better-of-two-candidates rule.
+
+Before that, the §11 budget bug is worth clearing — a rendered loop that re-renders truncated screens will measure truncation artefacts rather than design quality.
+
+---
+
+## 13. Phase 1 validation — measured 2026-08-12
+
+### The question splits in two
+
+Phase 1 changed two different kinds of thing, and they need different experiments:
+
+| Question | Method | Cost |
+|---|---|---|
+| **A.** Did removing the mutation layer improve output? | Same raw HTML through both pipelines, render both, measure | **Free** — no generation |
+| **B.** Did the prompt de-conflicting improve output? | Generate N per arm, render, measure | ~10 generations |
+
+A is a controlled comparison: the input HTML is byte-identical in both arms, so every difference is attributable to the mutation layer alone and there is no model stochasticity to average out. n=1 is already meaningful.
+
+`scripts/mutation-impact.ts` (`pnpm run design:mutation-impact`) answers A.
+
+### Result for A: the mutation layer was quality-neutral
+
+Two raw builder samples, run through the pre-Phase-1 pipeline and the post-Phase-1 pipeline:
+
+```
+Metric (lower is better)        OLD      NEW
+Content overflow / screen      2.50     2.50
+Clipped text / screen          0.00     0.00
+Horizontal overflow / screen   0.50     0.50
+WEIGHTED FAULT SCORE          10.50    10.50
+```
+
+Identical. The old pipeline applied 1 and 5 repairs respectively; **none of them changed anything measurable in the rendered result.** The only difference in the findings list is cosmetic — `pt-[var(--dg-spacing-xs)]` against `pt-[8px]`, which compute to the same layout.
+
+### What this means, stated plainly
+
+**Phase 1 did not improve rendered quality.** It also did not harm it. On these samples the mutation layer was not the thing degrading screens.
+
+This is consistent with §0b, where `raw_surface_color` fired on 0 of 5 cosmetics screens. The dangerous rule rarely fires; when it does not fire, removing it changes nothing.
+
+So Phase 1's real value is **risk removal, not measured gain**: it eliminates a latent failure that inverts black CTAs into white cards, and it restores builder authorship of the output. Both are worth having. Neither is the fix for the quality complaint that started this work.
+
+Revision 1 of this document, and the external diagnosis it was reviewing, both assumed the mutation layer was actively degrading output. On this evidence it was not. That assumption should not be carried into later phases.
+
+### Caveats
+
+- n=2, both prompt-only, both samples truncated by the §11 budget bug.
+- Neither sample contained a black CTA or a capsule radius, so the catastrophic inversion case is **untested here**. Absence of harm on these samples is not proof of absence generally.
+- The 5 repairs on one sample were radius and alias rewrites, which are cosmetically invisible by nature.
+
+### The finding that actually matters
+
+Raw builder output measures **2.5 content overflows and 0.5 horizontal overflows per screen** before anything touches it.
+
+That is the real defect, it is present in the model's own output, and neither Phase 1 nor Phase 2 addresses it. It is precisely what Phase 3's rendered acceptance loop exists to catch. This measurement is the strongest evidence so far that Phase 3 is the phase that will move visual quality.
+
+### Question B remains open
+
+The prompt de-conflicting is still unmeasured. Run:
+
+```
+DRAWGLE_OPENROUTER_HARD_TIMEOUT_MS=600000 pnpm run design:ab -- --project <id> --n 5
+```
+
+Note this compares the design-brain prompt layer on/off, not pre/post-Phase-1 prompts exactly. A true Phase 1 prompt A/B needs the pre-Phase-1 `prompts.ts` and `token-runtime.ts` as the baseline arm. Worth building only if the answer would change a decision — the §11 budget bug and Phase 3 both rank higher.
+
+### Correction to §13: the average concealed the prompt signal
+
+§13 reported "10.50 vs 10.50" and concluded the mutation layer was quality-neutral. That conclusion stands — but the figure was averaged across **both prompt arms**, which hid the comparison that matters. Broken out per sample:
+
+| Sample | Weighted fault | Findings |
+|---|---|---|
+| design-brain **OFF** | **8** | 3 undersized targets, 1 horizontal overflow, 1 content overflow |
+| design-brain **ON** | **13** | 1 undersized target, **4 content overflows** |
+
+Identical across old/new pipeline in both cases, confirming the mutation finding. But the design-brain prompt arm scores **62% worse**, and the entire gap is `content_overflows_container` — the most severe code, weight 3.
+
+Three independent lines now point the same way:
+
+1. **Visual.** The design-brain-ON frames show cards with clipped labels and content spilling past its container; the OFF frames render cleanly.
+2. **Measured.** 4 content overflows against 1.
+3. **Mechanism.** The design-brain spatial rules declare region min/max heights, equal-height siblings and copy budgets. Fixed-height containers whose content does not fit is the predicted failure of exactly that instruction set — the same 146px-in-136px arithmetic documented earlier.
+
+**Confound, stated honestly:** both samples were truncated by the §11 budget bug, and design-brain-ON was the shorter of the two (8,678 vs 11,956 chars). Truncation removes the *tail* of a document; it does not make mid-document cards overflow fixed heights, so it is an unlikely explanation for this specific code. But n=1 per arm is not conclusive, and the A/B should be re-run on complete samples once the budget bug is cleared.
+
+**Action taken on this evidence:** disable the design-brain prompt layer in production via `DRAWGLE_DESIGN_BRAIN_PROMPTS_ENABLED=false` while the confirming measurement is pending. The flag is instantly reversible and the deterministic token-generation work is unaffected by it.
+
+---
+
+## 14. Design brain prompt layer removed — 2026-08-12
+
+Deleted rather than flagged off, on the §13 evidence: 62% worse rendered fault score with the entire gap in `content_overflows_container`, matching both the visual inspection and the predicted failure of its own spatial rules.
+
+### Removed
+
+| What | Where |
+|---|---|
+| `buildStyleCharterSection` | `prompts.ts` — charter text in the builder and edit prompts |
+| `buildSpatialArithmeticContract` | `prompts.ts` — region heights, equal-height siblings, copy budgets |
+| `formatLayoutBudgetContract` | `layout-budget.ts` — viewport budget text in the builder prompt |
+| Charter text in both planner prompts | `service.ts` blueprint and screen-brief steps |
+| `DRAWGLE_DESIGN_BRAIN_PROMPTS_ENABLED` | gone entirely; nothing reads it |
+
+### Deliberately kept
+
+The deletion is scoped to **screen-shaping prompt text**. The harm was measured in screen HTML, so anything that shapes the token system was left alone:
+
+- **`style-charter.ts`** — the charter object still drives `validateTokenRelationships`, which produced the coherent spacing ladder, tinted card surface, 1px border and contrast ramp. `formatStyleCharterContract` is still used by creative direction and token generation, both of which measured better.
+- **`design-tokens-relationships.ts`** — separately flagged, separately evidenced.
+- **`rendered-geometry.ts`** — Phase 3's foundation.
+- **`design-critic.ts`** — pure diagnostics since Phase 1.
+- **`layout-budget.ts` resolvers** — `resolveViewportBudget` and `resolveRegionContracts` stay so stored v3 plans keep normalizing. Only the prompt formatter went.
+
+### Verification
+
+387 tests pass, typecheck and lint clean. `pipeline-regression.test.ts` now asserts the *absence* of the three exports and that no source file reads the flag, so the layer cannot quietly return.
+
+Two tests changed from asserting behaviour to asserting removal — `layout-budget.test.ts`'s formatter block was deleted, and the design-brain describe in `pipeline-regression.test.ts` was replaced.
+
+### Consequence for tooling
+
+`scripts/design-ab.ts` toggled the deleted flag, so **both of its arms now produce an identical prompt**. It is documented in-file as a 2N sample generator rather than an A/B, and prints a notice at runtime. It stays useful for Phase 3 validation: it captures raw builder output and renders it at 390×844 with objective measurement.
+
+### What this does and does not fix
+
+It removes a measured regression. It does **not** fix content overflow — raw builder output still shows ~1 per screen with the layer gone. Prompts cannot reliably prevent overflow because the model never sees its own layout. That remains Phase 3's job, and §13 is the evidence for prioritising it.
+
+Also still open and unchanged: the §11 output-budget bug, costing roughly half of all screens.

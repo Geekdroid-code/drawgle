@@ -3,6 +3,7 @@ import { load } from "cheerio";
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { runDesignCritic } from "@/lib/generation/design-critic";
 import { applyGeometryContract } from "@/lib/generation/geometry-contract";
+import { auditTokenCoverage, repairOwnedProperties } from "@/lib/generation/token-coverage";
 import { flattenDesignTokensToCssVariables } from "@/lib/token-runtime";
 import type {
   DesignComponentShapePolicy,
@@ -235,6 +236,19 @@ export function normalizeGeneratedUiContracts({
 
   const critic = runDesignCritic({ $, designTokens });
 
+  // Declared ownership. Unlike every rule above it, this asks what an element
+  // *is* rather than what it looks like, so its repairs are unambiguous.
+  const coverage = auditTokenCoverage({ $, designTokens });
+  if (repairEnabled && process.env.DRAWGLE_TOKEN_COVERAGE_REPAIR === "true") {
+    for (const finding of repairOwnedProperties({ $, report: coverage })) {
+      repairs.push({
+        code: "owned_property_bound",
+        selector: finding.selector,
+        detail: `${finding.role} ${finding.property} → ${finding.expectedToken}`,
+      });
+    }
+  }
+
   $(CRITICAL_SELECTOR).each((_, element) => {
     const classes = $(element).attr("class") ?? "";
     if (/\b(?:truncate|text-ellipsis|line-clamp-\d+)\b/.test(classes)) {
@@ -278,6 +292,7 @@ export function normalizeGeneratedUiContracts({
     repairs: dedupeDiagnostics(repairs),
     warnings: dedupeDiagnostics(warnings),
     critic,
+    coverage,
   };
   return { code: normalizedCode, report };
 }

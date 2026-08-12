@@ -9,7 +9,6 @@
 import { describe, expect, it } from "vitest";
 
 import { buildBuilderProjectContract } from "@/lib/generation/builder-product-contract";
-import { buildStyleCharterSection } from "@/lib/generation/prompts";
 import { resolveGenerationPromptMode } from "@/lib/generation/prompt-routing";
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import {
@@ -136,52 +135,30 @@ describe("C — navigation is never stripped without a replacement", () => {
   });
 });
 
-describe("D — the design brain yields to structural evidence", () => {
-  const tokens = normalizeDesignTokens({
-    tokens: { color: { background: { primary: "#FFFFFF" }, surface: { card: "#FFFFFF" } } },
-    meta: {
-      styleCharter: {
-        version: 1,
-        source: "curated-catalog",
-        referenceId: "test-ref",
-        theme: "light",
-        density: "balanced",
-        elevation: "flat",
-        maxShadowBlurPx: 12,
-        maxShadowAlpha: 0.08,
-        allowGlass: false,
-        allowGradientBackground: true,
-        headingClass: "sans",
-        baseColor: null,
-        maxAccentChroma: null,
-        sectionGapRangePx: [20, 32],
-        appRadiusRangePx: null,
-        required: ["Headings use a geometric sans family."],
-        forbidden: ["Glass or frosted surfaces."],
-        userOverrides: [],
-        rationale: "test",
-      },
-    },
+describe("D — the design brain prompt layer is gone", () => {
+  it("exports no charter, spatial or layout-budget prompt builder", async () => {
+    // Removed 2026-08-12. Measured 62% worse on rendered fault score, with the
+    // entire gap in content_overflows_container — fixed-height containers whose
+    // content does not fit, the predicted failure of its own spatial rules.
+    //
+    // The charter OBJECT survives and still constrains token generation, which
+    // measured better. Only its screen-shaping prompt text was removed.
+    const prompts = await import("@/lib/generation/prompts");
+    const layoutBudget = await import("@/lib/generation/layout-budget");
+
+    expect("buildStyleCharterSection" in prompts).toBe(false);
+    expect("buildSpatialArithmeticContract" in prompts).toBe(false);
+    expect("formatLayoutBudgetContract" in layoutBudget).toBe(false);
+
+    // The resolvers stay: stored v3 plans must keep normalizing.
+    expect(typeof layoutBudget.resolveViewportBudget).toBe("function");
+    expect(typeof layoutBudget.resolveRegionContracts).toBe("function");
   });
 
-  it("declares the image authoritative in recreate mode", () => {
-    const section = buildStyleCharterSection(tokens, "recreate");
-    expect(section).toMatch(/attached structural reference outranks/i);
-    expect(section).not.toMatch(/outrank[^.]*attached image/i);
-  });
-
-  it("keeps charter authority for prompt-only builds", () => {
-    expect(buildStyleCharterSection(tokens, "prompt")).toMatch(/these constraints outrank/i);
-  });
-
-  it("can be disabled entirely", () => {
-    const previous = process.env.DRAWGLE_DESIGN_BRAIN_PROMPTS_ENABLED;
-    process.env.DRAWGLE_DESIGN_BRAIN_PROMPTS_ENABLED = "false";
-    try {
-      expect(buildStyleCharterSection(tokens, "prompt")).toBe("");
-    } finally {
-      if (previous === undefined) delete process.env.DRAWGLE_DESIGN_BRAIN_PROMPTS_ENABLED;
-      else process.env.DRAWGLE_DESIGN_BRAIN_PROMPTS_ENABLED = previous;
+  it("no longer reads the design-brain flag anywhere", async () => {
+    const { readFileSync } = await import("node:fs");
+    for (const file of ["lib/generation/prompts.ts", "lib/generation/layout-budget.ts", "lib/token-runtime.ts"]) {
+      expect(readFileSync(file, "utf8")).not.toContain("DRAWGLE_DESIGN_BRAIN_PROMPTS_ENABLED");
     }
   });
 });

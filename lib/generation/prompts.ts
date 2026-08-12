@@ -1,8 +1,7 @@
 import { createNavigationArchitecture, resolveScreenChromePolicy } from "@/lib/navigation";
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { formatDesignStyleContract } from "@/lib/generation/design-styles";
-import { formatLayoutBudgetContract } from "@/lib/generation/layout-budget";
-import { formatStyleCharterContract, type StyleCharterV1 } from "@/lib/generation/style-charter";
+import { formatTokenOwnershipContract } from "@/lib/generation/token-ownership";
 import type { GenerationPromptMode } from "@/lib/generation/prompt-routing";
 import { formatReferenceTransferContract } from "@/lib/generation/reference-transfer";
 import { DRAWGLE_GENERATION_COMPLETE_SENTINEL } from "@/lib/generation/screen-quality";
@@ -908,41 +907,10 @@ const buildScreenLayoutContract = (screenPlan?: ScreenPlan | null) => {
       "- Target regions (the only legal targets for local reference motifs):",
       ...contract.regions.map((region) => `  - ${region.id} [${region.contentKind}]: ${region.purpose}`),
     ].join("\n") : null,
-    formatLayoutBudgetContract({
-      budget: contract.viewportBudget,
-      regionContracts: contract.regionContracts,
-    }),
     contract.antiPatterns.length ? `- Avoid: ${contract.antiPatterns.join(" | ")}` : null,
   ].filter(Boolean).join("\n");
 };
 
-/**
- * Renders the style charter with an authority statement matched to the mode.
- *
- * The charter is a *substitute* for missing visual evidence, never a
- * replacement for evidence we actually have. Declaring it superior to "the
- * attached image" was correct for prompt-only runs and flatly wrong for
- * Image-to-UI: it told the builder to ignore the screenshot it was
- * simultaneously told to reproduce, which is how recreate output collapsed
- * into generic card grids.
- */
-export const buildStyleCharterSection = (
-  designTokens?: DesignTokens | null,
-  mode: GenerationPromptMode = "prompt",
-) => {
-  if (process.env.DRAWGLE_DESIGN_BRAIN_PROMPTS_ENABLED === "false") return "";
-  const charter = normalizeDesignTokens(designTokens).meta?.styleCharter as StyleCharterV1 | undefined;
-  const contract = formatStyleCharterContract(charter ?? null);
-  if (!contract) return "";
-
-  const authority = mode === "recreate"
-    ? "AUTHORITY: the attached structural reference outranks every line above. Where the image and this charter disagree, build what the image shows. Treat the charter only as guidance for details the image does not determine."
-    : mode === "style"
-      ? "AUTHORITY: approved reference-transfer evidence outranks this charter for anything it explicitly preserves. Elsewhere these constraints hold over generic phrasing in the screen description or project memory."
-      : "AUTHORITY: these constraints outrank conflicting phrasing in the screen description or project memory.";
-
-  return `${contract}\n${authority}`;
-};
 
 const formatAssetManifestLine = (asset: ScreenAssetManifest, index: number) => {
   const fields = [
@@ -1155,8 +1123,6 @@ export const buildEditSystemInstruction = ({
 STRICT DESIGN CONTRACT:
 ${buildStrictDesignContract(designTokens)}
 
-${buildStyleCharterSection(designTokens)}
-
 ${buildTokenPromptContext(designTokens, "compact_visual")}
 
 NAVIGATION ARCHITECTURE CONTRACT:
@@ -1183,45 +1149,6 @@ Additional rules:
 // BUILD — Screen Code Generator
 // ---------------------------------------------------------------------------
 
-/**
- * Spatial rules exist to stop the builder inventing filler when nothing better
- * is available. When real visual evidence *is* available, that evidence is the
- * better source and these rules must yield to it.
- *
- * Applying them unconditionally told recreate builds to normalize away the
- * asymmetry, tall media, and uneven pairings that a reference legitimately
- * contains — turning faithful reproduction into a uniform grid.
- */
-const buildSpatialArithmeticContract = (mode: GenerationPromptMode) => {
-  if (process.env.DRAWGLE_DESIGN_BRAIN_PROMPTS_ENABLED === "false") return "";
-
-  if (mode === "recreate") {
-    return `CRITICAL INSTRUCTION 0.8: SPATIAL ARITHMETIC (SUBORDINATE TO THE REFERENCE)
-The structural reference owns composition. Use the SCREEN LAYOUT CONTRACT only where the image is silent.
-- If the reference shows asymmetric cards, uneven columns, staggered offsets, or differing media heights, reproduce them exactly. They are intentional, not defects.
-- If the reference shows a large image, video, map, or empty expressive area, reproduce it at that scale. Do not shrink it to satisfy a declared budget or fill it with substitute content.
-- Declared region heights are guidance for regions the reference does not determine. Never contradict the image to satisfy a number.
-- Still avoid genuine construction faults: text colliding with icons, clipped CTAs, horizontal overflow, and blank chart or map panels that the reference shows as populated.`;
-  }
-
-  if (mode === "style") {
-    return `CRITICAL INSTRUCTION 0.8: SPATIAL ARITHMETIC (SUBORDINATE TO APPROVED TRANSFER EVIDENCE)
-Work inside the SCREEN LAYOUT CONTRACT, but approved reference-transfer evidence outranks it.
-- Where the transfer contract preserves a composition principle, honor that principle even when it produces uneven or asymmetric arrangements.
-- The frame is 390x844. Where the contract is silent, fit content inside the declared region heights by cutting copy or moving content below the fold rather than growing a region.
-- Items sharing one row are read as a set. Unless the transfer contract explicitly preserves an uneven pairing, give siblings the same media aspect ratio, element order, and text-line count, and use items-stretch or h-full so their bottoms align.
-- A region taller than 120px must hold real content: text, an approved asset slot, chart geometry, or controls. Do not fill space with abstract shapes, blurred circles, floating rounded rectangles, or centered decorative blobs.
-- Respect the copy budget. Shorten copy rather than shrinking type or letting one sibling wrap to a line its partner does not have.`;
-  }
-
-  return `CRITICAL INSTRUCTION 0.8: SPATIAL ARITHMETIC BEFORE COMPOSITION
-Before writing any container, do the arithmetic the SCREEN LAYOUT CONTRACT gives you.
-- The frame is 390x844. Regions have declared minimum and maximum heights. Fit inside them by cutting copy or moving content below the fold; never by growing a region past its maximum.
-- Items sharing one row are read as a set. In an equal-height region every item uses the same media aspect ratio, the same element order, the same number of text lines, and the same internal padding. Use items-stretch or h-full so their bottoms align.
-- Do not fake asymmetry by offsetting one card vertically, giving siblings different media heights, or splitting a two-column grid into unequal fractional tracks with different content in each. Deliberate asymmetry is fine when the brief calls for it and the result still shares a baseline.
-- Every region taller than 120px must be filled by real content: text, an approved asset slot, a chart with visible marks, or a control group. If you have nothing to put there, the region is too tall — shrink it. Do not fill it with abstract shapes, blurred circles, floating rounded rectangles, or centered decorative blobs.
-- Respect the copy budget. If a title exceeds its character budget, shorten the copy; do not shrink the type or let it wrap into a second line that its sibling does not have.`;
-};
 
 const CHART_BUILD_RULE =
   "If building any chart, draw real visible marks inside a definite-height plot area; never use percentage-height bars in auto-height wrappers or leave empty axes.";
@@ -1360,7 +1287,6 @@ Every compact card, list row, chip row, and nav-adjacent area must be designed f
 Every chart, map, gauge, progress ring, or visual panel must contain visible constructed geometry. Do not leave blank chart cards, empty axes, empty map panels, or placeholder rectangles.
 If a row/card contains more than two text lines plus controls, increase its height, simplify the copy, or move secondary metadata into a separate line so the surface breathes.
 
-${buildSpatialArithmeticContract(mode)}
 
 CRITICAL INSTRUCTION 1: LIVE DESIGN TOKENS
 You MUST use Drawgle live token utility classes and CSS variables for canonical colors, typography, spacing, sizing, radii, borders, and shadows.
@@ -1372,8 +1298,6 @@ Do NOT invent additional radius tiers, border widths, or shadow strengths. Use o
 
 STRICT DESIGN CONTRACT:
 ${buildStrictDesignContract(designTokens)}
-
-${buildStyleCharterSection(designTokens, mode)}
 
 ${designStyleContract ? `STYLE CONTRACT:\n${designStyleContract}\n` : ""}
 
@@ -1399,6 +1323,8 @@ ${buildSharedNavigationContract({ navigationInstruction, navigationPlan, screenP
 - Safe areas: top container pt-[${safeTop}]. Without shared navigation, bottom content may use pb-[${safeBottom}]. With shared navigation, use only the renderer-owned dg-shared-nav-clearance marker described above.
 - Clickable controls: min-h-[${minTouch}].
 - Text colors: use token classes/vars such as dg-text-high or text-[var(--dg-color-text-high-emphasis)] (current high text ${textHigh}).
+${formatTokenOwnershipContract()}
+
 - Token ownership: SYSTEM UI must use dg-* utilities or var(--dg-*) so the project's live design system controls it — page backgrounds, system card/sheet/modal surfaces, the text hierarchy, standard actions and fields, navigation surfaces, standard borders, radii, and spacing rhythm. Do not use bg-white, bg-gray-*, text-black or raw values for those.
 - LOCAL ART is yours: hero treatments, charts and data visualisation, one-off gradients, decorative geometry, illustrations, maps, media compositions, intentional high-contrast or monochrome sections, and deliberate asymmetry may use any CSS you want, including raw colors and custom values. Do not force them through tokens.
 - No phone frame, device mockup, notch, status bar, markdown fence, html/head/body tags, scripts, JSX, React, className, JS expressions, arrays, map(), template literals, or class/style objects.

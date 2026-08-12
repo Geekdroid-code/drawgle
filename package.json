@@ -29,7 +29,8 @@
     "trigger:dev": "npx trigger.dev@4.4.5 dev",
     "trigger:deploy": "npx trigger.dev@4.4.5 deploy",
     "clean": "next clean",
-    "design:ab": "tsx --env-file-if-exists=.env.local --conditions=react-server scripts/design-ab.ts"
+    "design:ab": "tsx --env-file-if-exists=.env.local --conditions=react-server scripts/design-ab.ts",
+    "design:mutation-impact": "tsx --env-file-if-exists=.env.local --conditions=react-server scripts/mutation-impact.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.0",

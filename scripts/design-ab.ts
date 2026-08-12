@@ -18,6 +18,14 @@
  * markup and is blind to whether content fit its box, which is the failure that
  * actually shows up on screen.
  *
+ * NOTE (2026-08-12): the design-brain prompt layer was deleted after measuring
+ * 62% worse rendered fault score. `DRAWGLE_DESIGN_BRAIN_PROMPTS_ENABLED` no
+ * longer exists, so BOTH ARMS NOW PRODUCE AN IDENTICAL PROMPT. The script
+ * remains useful as a sample generator: it captures raw builder output and
+ * renders it at 390x844 with objective measurement, which is what Phase 3
+ * validation needs. Treat the two arms as 2N samples of one condition until a
+ * new variable is wired in.
+ *
  * Usage:
  *   pnpm run design:ab -- --project <uuid> [--screen "Name"] [--n 5]
  */
@@ -438,6 +446,8 @@ const main = async () => {
   console.log(`Fixture: "${fixture.screenPlan.name}" (${fixture.screenPlan.type}) from project ${PROJECT_ID}`);
 
   const promptSizes = {} as Record<ArmName, number>;
+  console.log("NOTE: the design-brain prompt layer was removed; both arms are now identical.
+");
   const arms: ArmName[] = ["design-brain-on", "design-brain-off"];
   const messagesByArm = {} as Record<ArmName, OpenRouterChatMessage[]>;
   for (const arm of arms) {

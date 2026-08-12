@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   CONTENT_JUSTIFICATION_HEIGHT_PX,
-  formatLayoutBudgetContract,
   resolveRegionContracts,
   resolveViewportBudget,
   type LayoutBudgetDiagnostic,
@@ -124,32 +123,5 @@ describe("resolveRegionContracts", () => {
     const contracts = resolveRegionContracts({ supplied: null, regions, diagnostics: diagnose() });
     expect(contracts.map((contract) => contract.id)).toEqual(regions.map((region) => region.id));
     expect(contracts.every((contract) => contract.arrangement.length > 0)).toBe(true);
-  });
-});
-
-describe("formatLayoutBudgetContract", () => {
-  it("renders the equal-height rule the builder must follow", () => {
-    const diagnostics = diagnose();
-    const budget = resolveViewportBudget({ supplied: null, regions, navigationEnabled: false, diagnostics });
-    const contracts = resolveRegionContracts({
-      supplied: [{
-        id: "collection-grid",
-        arrangement: "two-column",
-        itemCount: 2,
-        itemAnatomy: ["media 4:5", "eyebrow", "title", "body"],
-      }],
-      regions,
-      diagnostics,
-    });
-
-    const text = formatLayoutBudgetContract({ budget, regionContracts: contracts }) ?? "";
-    expect(text).toContain("Vertical budget");
-    expect(text).toContain("equal height, identical internal anatomy");
-    expect(text).toMatch(/never give siblings different media heights/i);
-    expect(text).toContain("title <= 22 chars");
-  });
-
-  it("returns null when there is nothing to say", () => {
-    expect(formatLayoutBudgetContract({ budget: null, regionContracts: [] })).toBeNull();
   });
 });

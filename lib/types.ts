@@ -1193,7 +1193,8 @@ export type UiContractDiagnosticCode =
   | "critical_truncation_risk"
   | "navigation_chrome_conflict"
   | "concentric_radius_repaired"
-  | "nested_gap_exceeds_padding";
+  | "nested_gap_exceeds_padding"
+  | "owned_property_bound";
 
 export type DesignCriticFindingCode =
   | "sibling_imbalance"
@@ -1230,6 +1231,8 @@ export interface UiContractNormalizationReportV1 {
   repairs: UiContractDiagnostic[];
   warnings: UiContractDiagnostic[];
   critic?: DesignCriticReportV1 | null;
+  /** TokenCoverageReportV1 — declared semantic ownership audit. Typed loosely to avoid a cycle. */
+  coverage?: unknown;
 }
 
 export type RenderedQualityIssueCode =

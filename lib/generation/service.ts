@@ -33,7 +33,6 @@ import {
   buildEditSystemInstruction,
   buildCreativeDirectionInstruction,
   buildDesignInstruction,
-  buildStyleCharterSection,
   plannerBlueprintStepInstruction,
   plannerScreenBriefStepInstruction,
   buildNavigationArchitectureContract,
@@ -3122,7 +3121,6 @@ export async function planScreenBriefsForBuild({
         `User request:\n${prompt}`,
         projectContext?.trim() ? `Project context:\n${projectContext.trim()}` : null,
         designStyleContract ? `Design style contract:\n${designStyleContract}` : null,
-        buildStyleCharterSection(designTokens) || null,
         tokenContext ? `Design tokens:\n${tokenContext}` : null,
         "SCREEN PLANNING TASK: Reference direction, design system, and project blueprint already exist for this project.",
         "Create builder-ready screen briefs for ONLY the locked screens below. Treat suggestion text as intent only — expand into full construction briefs.",
@@ -3485,10 +3483,6 @@ async function planUiFlowInternal({
   }
 
   if (designTokens?.tokens) {
-    const charterSection = buildStyleCharterSection(designTokens);
-    if (charterSection) {
-      parts.push({ text: charterSection });
-    }
     parts.push({
       text: `Approved Token Context:\n${buildTokenPromptContext(designTokens, "compact_visual")}`,
     });
