@@ -410,7 +410,30 @@ const formatTokenReferences = (references: DrawgleTokenReference[], limit: numbe
  * of the same schema.
  */
 const isBuilderVisibleReference = (reference: DrawgleTokenReference) =>
-  isBuilderVisibleToken(reference.path);
+  isBuilderVisibleToken(reference.path) && !isPresentedAsRoles(reference.path);
+
+/**
+ * Groups the raw variable list must not repeat.
+ *
+ * This is not a classification question — `spacing` is global, user-editable
+ * project identity and belongs in the editor. It is a *presentation* question:
+ * `resolveSemanticMap` already sends these values with role names and stated
+ * intent ("screen_edge_padding (outer horizontal padding of every screen)"),
+ * which is strictly better guidance than a bare ladder of interchangeable
+ * pixel values.
+ *
+ * Sending both is what broke project 8dcc913a on 2026-08-12: the builder used
+ * `--dg-spacing-*` 33 times on that screen and the screen-margin role zero
+ * times, so content ran edge to edge. The screen before the regression used the
+ * role twice and the raw ladder not at all. A menu of eight numbers displaces a
+ * named role every time.
+ *
+ * Phase 4 lost this by replacing "which prefixes does the builder need" with
+ * "which tokens are global". Those are different questions.
+ */
+const ROLE_PRESENTED_GROUPS = new Set(["spacing"]);
+
+const isPresentedAsRoles = (path: string) => ROLE_PRESENTED_GROUPS.has(path.split(".")[0]);
 
 /**
  * Resolves the spacing rhythm into a compact semantic map for the LLM prompt.

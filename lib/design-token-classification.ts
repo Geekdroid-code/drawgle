@@ -187,6 +187,24 @@ const CLASSIFICATION: Array<{ prefix: string; klass: TokenClass; why?: string }>
 // (component-recipe), and `color.action.primary` beats `color.action`.
 const ORDERED = [...CLASSIFICATION].sort((left, right) => right.prefix.length - left.prefix.length);
 
+/**
+ * Matching respects dot-path segment boundaries.
+ *
+ * Raw string prefixes are wrong here: `navigation.surface_material` starts with
+ * `navigation.surface`, so it was inheriting that entry's "global identity"
+ * classification and reaching the builder prompt as if a glass-vs-solid dock
+ * material were brand colour. It is component recipe, and only the boundary
+ * check puts it there.
+ *
+ * A prefix ending in `_` is the deliberate exception — a key-name prefix rather
+ * than a path segment, used by `radii.inset_` to cover `inset_xs`, `inset_md`
+ * and any other step a token set happens to define.
+ */
+const matchesPrefix = (path: string, prefix: string) =>
+  path === prefix
+  || path.startsWith(`${prefix}.`)
+  || (prefix.endsWith("_") && path.startsWith(prefix));
+
 export interface TokenClassification {
   klass: TokenClass;
   why?: string;
@@ -194,7 +212,7 @@ export interface TokenClassification {
 
 /** Classifies a dot path. Unknown paths default to global — new tokens are visible until classified. */
 export function classifyTokenPath(path: string): TokenClassification {
-  const match = ORDERED.find((entry) => path === entry.prefix || path.startsWith(entry.prefix));
+  const match = ORDERED.find((entry) => matchesPrefix(path, entry.prefix));
   return match ? { klass: match.klass, why: match.why } : { klass: "global" };
 }
 

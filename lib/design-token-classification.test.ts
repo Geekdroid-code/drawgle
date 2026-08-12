@@ -48,6 +48,20 @@ describe("classification", () => {
     expect(classifyTokenPath("sizing.bottom_nav_height").klass).toBe("component-recipe");
   });
 
+  it("matches on path segments, not raw string prefixes", () => {
+    // `navigation.surface_material` starts with `navigation.surface`, so raw
+    // prefix matching classified a glass-vs-solid dock material as brand colour
+    // and shipped it to the builder. Observed in the prompt for project
+    // 8dcc913a on 2026-08-12.
+    expect(classifyTokenPath("navigation.surface_material").klass).toBe("component-recipe");
+    expect(classifyTokenPath("navigation.surface").klass).toBe("global");
+
+    // A prefix ending in `_` stays a key-name prefix on purpose.
+    expect(classifyTokenPath("radii.inset_xs").klass).toBe("deprecated");
+    expect(classifyTokenPath("radii.inset_xxs").klass).toBe("deprecated");
+    expect(classifyTokenPath("radii.app").klass).toBe("global");
+  });
+
   it("treats device and engineering constants as runtime invariants", () => {
     for (const path of [
       "mobile_layout.safe_area_top",
@@ -186,13 +200,32 @@ describe("consumers agree with the classification", () => {
 
     expect(leaked).toEqual([]);
 
-    // ...and the global ones are all still there, so this is a filter and not a mute button.
+    // ...and the global ones are all still there, so this is a filter and not a
+    // mute button. `spacing` is the one exception: it is global and editable,
+    // but the prompt carries it as named roles instead of a raw ladder.
     const missing = getDrawgleTokenReferences(full)
       .filter((reference) => isBuilderVisibleToken(reference.path))
+      .filter((reference) => !reference.path.startsWith("spacing."))
       .filter((reference) => !context.includes(reference.name))
       .map((reference) => reference.path);
 
     expect(missing).toEqual([]);
+  });
+
+  it("sends the spacing rhythm as roles, never as a raw ladder", () => {
+    // Regression, project 8dcc913a on 2026-08-12. Phase 4 started sending both.
+    // The builder then used --dg-spacing-* 33 times on one screen and the
+    // screen-margin role zero times, so every block ran edge to edge. A menu of
+    // eight interchangeable numbers displaces a named role.
+    const context = buildTokenPromptContext(tokens, "compact_visual");
+
+    expect(context).toContain("SPACING ROLES");
+    expect(context).toContain("screen_edge_padding (outer horizontal padding of every screen)");
+    expect(context).toContain("--dg-mobile-layout-screen-margin");
+
+    expect(context).not.toContain("spacing.md: var(--dg-spacing-md)");
+    expect(context).not.toContain("spacing.lg: var(--dg-spacing-lg)");
+    expect(context).not.toMatch(/^spacing\./m);
   });
 
   it("does not offer non-global tokens for editing", () => {
