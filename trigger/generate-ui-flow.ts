@@ -1473,11 +1473,18 @@ export const buildScreenTask = task({
       completion,
     }));
 
-    if (!completion.valid && generationEngineVersion === "v1") {
+    // Not gated on engine version. A response that stopped at the output limit
+    // or ended mid-tag is the most retryable failure in the pipeline — nothing
+    // about it says the screen was a bad idea, only that it was cut off. v2 was
+    // inheriting a v1-only gate and hard-failing instead, discarding a screen
+    // the user had already paid to generate.
+    if (!completion.valid) {
       logger.warn("Screen build failed completion guard; retrying once", {
         screenId: payload.screenId,
         screenName: payload.screenPlan.name,
+        generationEngineVersion,
         issues: completion.issues,
+        completionCodes: completion.codes,
         finishReasons: build.finishReasons,
         diagnostics: attempts[attempts.length - 1],
       });
@@ -1521,13 +1528,9 @@ export const buildScreenTask = task({
       }
     }
 
-    if (!completion.valid) {
-      await appendScreenBuildDiagnostics(admin, payload.generationRunId, payload.screenId, attempts);
-      return failWithoutSavingGeneratedCode({
-        error: `[screen_generation:incomplete_html] ${completion.issues.join(" | ")}`,
-        metadata: { attempts, generationEngineVersion, completionCodes: completion.codes, finishReasons: build.finishReasons },
-      });
-    }
+    // Past this point completion is valid: the block above either never ran or
+    // returned. The second identical guard that used to live here was reachable
+    // only while the retry was gated to v1.
 
     extractedCode = stripGenerationCompleteSentinel(extractedCode);
     let normalization = normalizeStaticDrawgleHtml(extractedCode);

@@ -7,7 +7,8 @@ import { GENERATION_V2_BENCHMARK_CASES } from "@/lib/generation/benchmark-cases"
 import { DESIGN_STYLE_PACKS } from "@/lib/generation/design-styles";
 import { normalizeReferenceAnalysis, parsePromptScreenIntent, resolveGenerationScopeContract } from "@/lib/generation/scope-contract";
 import { resolveReferenceImageAttachment, shouldAttachReferenceImage } from "@/lib/generation/reference-image";
-import { screenBuildOutputTokenBudget } from "@/lib/generation/screen-budget";
+import { SCREEN_BUILD_OUTPUT_TOKEN_BUDGET, screenBuildOutputTokenBudget } from "@/lib/generation/screen-budget";
+import { getOpenRouterMaxTokens } from "@/lib/env/server";
 import { buildApprovedDesignTokens } from "@/lib/generation/service";
 import { renderDeterministicNavigationShell } from "@/lib/project-navigation";
 import { buildDrawgleTokenCss, tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
@@ -164,9 +165,29 @@ describe("production generation V2 contracts", () => {
     expect(resolveReferenceImageAttachment({ image, referenceMode: "user_recreate" })).toMatchObject({ attach: true, role: "structural-reference" });
   });
 
-  it("caps simple screens lower while preserving room for dense screens", () => {
-    expect(screenBuildOutputTokenBudget({ name: "Login", type: "detail", description: "Focused email and password form." })).toBe(12000);
-    expect(screenBuildOutputTokenBudget({ name: "Analytics Dashboard", type: "root", description: "Dense analytics chart and data visualization." })).toBe(26000);
+  it("gives every screen the same output ceiling, well above observed output", () => {
+    // The old tiering guessed length from keywords in the description and put
+    // most screens on a 12,000 ceiling — inside the builder's observed 8,000 to
+    // 12,000+ range, so ordinary screens were truncated and discarded.
+    const simple = screenBuildOutputTokenBudget({ name: "Login", type: "detail", description: "Focused email and password form." });
+    const dense = screenBuildOutputTokenBudget({ name: "Analytics Dashboard", type: "root", description: "Dense analytics chart and data visualization." });
+
+    expect(simple).toBe(SCREEN_BUILD_OUTPUT_TOKEN_BUDGET);
+    expect(dense).toBe(SCREEN_BUILD_OUTPUT_TOKEN_BUDGET);
+    expect(simple).toBeGreaterThan(12000);
+  });
+
+  it("does not let the global ceiling clamp the per-screen budget", () => {
+    // A deployed DRAWGLE_OPENROUTER_MAX_TOKENS below the screen budget silently
+    // cancels it, which is exactly how the 12,000 truncations happened.
+    const previous = process.env.DRAWGLE_OPENROUTER_MAX_TOKENS;
+    delete process.env.DRAWGLE_OPENROUTER_MAX_TOKENS;
+    try {
+      expect(getOpenRouterMaxTokens()).toBeGreaterThanOrEqual(SCREEN_BUILD_OUTPUT_TOKEN_BUDGET);
+    } finally {
+      if (previous === undefined) delete process.env.DRAWGLE_OPENROUTER_MAX_TOKENS;
+      else process.env.DRAWGLE_OPENROUTER_MAX_TOKENS = previous;
+    }
   });
 
   it("preserves explicit navigation tokens through runtime CSS and shell rendering", () => {

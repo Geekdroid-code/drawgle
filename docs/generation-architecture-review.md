@@ -1,6 +1,6 @@
 # Design Generation Architecture Review
 
-Status: **Phases 1–4 implemented; design-brain prompt layer removed** (2026-08-11 to 2026-08-12). Phase 3 is diagnostics only — no repair. Phase 4 is classification only — no data migration. See §10/§12/§16/§17 for handoff, §13 for the measurement that justified removal, §14 for what was deleted, §15 for the current quality baseline, and §11 for a live production issue still open.
+Status: **Phases 1–4 implemented; design-brain prompt layer removed; output-budget truncation fixed** (2026-08-11 to 2026-08-12). Phase 3 is diagnostics only — no repair. Phase 4 is classification only — no data migration. See §10/§12/§16/§17 for handoff, §13 for the measurement that justified removal, §14 for what was deleted, §15 for the current quality baseline, and §18 for the truncation fix (**which needs an env change in Vercel and Trigger to take effect**).
 Scope: the full path from builder output to persisted screen, plus token schema, prompts, and edit flows.
 
 ## 0. Verified findings
@@ -531,6 +531,8 @@ Evidence against Phase 1 being the primary cause: Nutrition Tracker completed co
 
 ### Why this is being left alone
 
+**Superseded 2026-08-12 — fixed, see §18.** The reasoning below was sound while a Phase 1 A/B was imminent. That A/B has still not been run, and the cost of holding the fix for it turned out to be paid screens, every run, for a measurement nobody scheduled.
+
 Fixing the budget now would confound the Phase 1 evaluation. The A/B needs a stable build on both sides. Two failure modes are now queued behind that measurement:
 
 1. Output budget allocated by keyword match rather than screen complexity, with a cap inside the builder's normal working range.
@@ -891,3 +893,42 @@ The load-bearing test is exhaustive rather than sampled: for a token set populat
 ### State after Phase 4
 
 Phases 1–4 are implemented. The remaining known production issue is unchanged and still untouched: §11's output-token budget lottery in `lib/generation/screen-budget.ts`, which cost 2 of 4 screens on 2026-08-11 and has no retry on `finish_reason: length`. It is the largest single quality loss still in the pipeline, and it is not a design problem.
+
+## 18. Output-budget truncation fixed — 2026-08-12
+
+§11 recorded this as a keyword lottery with a cap inside the builder's working range, and as "no retry on the most retryable failure there is". Re-reading the code before fixing it turned up a third fact §11 did not have: **the retry existed, and production could not reach it.**
+
+### What was actually wrong
+
+**1. The ceiling sat inside normal operation.** `screenBuildOutputTokenBudget` returned 26,000 if the name or description matched `dashboard|analytics|chart|map|calendar|timeline|table|...`, 12,000 if the description was under 2,800 characters, 18,000 otherwise. The builder's observed output is roughly 8,000–12,000+ tokens for an ordinary screen, so most screens ran against a 12,000 ceiling they could cross at any time. Crossing it did not degrade a screen; it truncated one mid-tag and threw it away.
+
+**2. The global ceiling cancelled the per-screen budget.** `getOpenRouterMaxTokens()` defaulted to 16,000 and `.env` set 16,000, and `provider.ts` applies `Math.min(budget, ceiling)`. The 18,000 and 26,000 tiers were unreachable in every environment. Nothing logged that the clamp had fired, so the per-screen budget looked like it was working.
+
+**3. Both retries were gated to an engine version production does not run.** `getGenerationEngineVersion()` returns `v2` unless `DRAWGLE_GENERATION_ENGINE_VERSION === "v1"`. Both `if (!completion.valid && generationEngineVersion === "v1")` and the structural retry below it are therefore dead in production. A truncated screen went straight to `failWithoutSavingGeneratedCode`. The retry machinery — non-streaming, project context dropped, an explicit "do not stop early, end with the sentinel" instruction — was already written, already correct, and simply unreachable.
+
+That is the worst of the three. The other two make truncation likely; this one makes it fatal.
+
+### What changed
+
+**One ceiling, no tiering.** `SCREEN_BUILD_OUTPUT_TOKEN_BUDGET = 32000` for every screen. Guessing a screen's eventual length from words in its description is the same class of error as inferring design meaning from a hex value — a heuristic standing in for information we do not have. Deleting it also removes a keyword list nobody was going to maintain.
+
+Raising the ceiling is close to free: `max_tokens` is a limit, not an allocation, and output tokens are billed on what the model actually emits. A screen that finishes at 9,000 costs the same under either number. The ceiling now exists only to bound a runaway response, which is what a ceiling is for.
+
+**The global cap moved to 32,000** in `lib/env/server.ts`, `.env.example` and `.env.local`, and `provider.ts` now emits `requestedMaxTokens` and `clampedByGlobalCeiling` at `warn` level when the cap actually reduces a request. A stale deployed value is now visible in the logs instead of silently reintroducing the bug.
+
+**The completion retry is no longer gated on engine version.** A response that stopped at the output limit or ended mid-tag says nothing about whether the screen was a good idea — only that it was cut off. The second, identical failure guard that followed the retry block was unreachable once the gate came off, and was removed rather than left as decoration.
+
+### Deliberately not changed
+
+- **The structural retry stays v1-only.** It injects validator issue text into the screen description, which is a design-affecting prompt change, not a recovery. Different failure mode, different risk, separate decision.
+- **No new flag.** The fix is a smaller codebase than before it: one constant replacing a keyword table, one gate removed, one dead guard deleted.
+
+### Verification
+
+402 tests pass, typecheck clean, build clean. Two tests replace the one that pinned the old lottery: every screen now gets the same ceiling and it is above 12,000, and the global cap default is asserted to be at least the screen budget so the clamp cannot silently return.
+
+**This is not measured against production.** The reasoning is from the code and the 2026-08-11 trigger logs; whether truncation actually stops requires a real run. The prediction is specific and falsifiable: `max_tokens_finish` should disappear from screen diagnostics, and any screen that still hits it should now show two attempts instead of one.
+
+### Required deployment step
+
+`DRAWGLE_OPENROUTER_MAX_TOKENS` is set explicitly in the deployed environment. **Raising it to at least 32000 in Vercel and Trigger.dev is required** — without it the clamp holds at 16,000 and the fix is inert in production. The new `clampedByGlobalCeiling` warning will say so in the logs if it is missed.

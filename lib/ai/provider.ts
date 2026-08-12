@@ -255,9 +255,14 @@ export async function* generateScreenBuilderContentStream({
 
     const primaryModel = task === "selected_region_edit" ? getScreenEditorModel() : getOpenRouterScreenBuildModel();
     const models = distinctModels(primaryModel, getOpenRouterFallbackModels());
+    const globalMaxTokens = getOpenRouterMaxTokens();
     const maxTokens = typeof maxOutputTokens === "number"
-      ? Math.min(maxOutputTokens, getOpenRouterMaxTokens())
-      : getOpenRouterMaxTokens();
+      ? Math.min(maxOutputTokens, globalMaxTokens)
+      : globalMaxTokens;
+    // A deployed DRAWGLE_OPENROUTER_MAX_TOKENS below the per-screen budget
+    // silently cancels it, which is how the builder ended up truncating inside
+    // normal operation. Surface it rather than letting it be invisible.
+    const clampedByGlobalCeiling = typeof maxOutputTokens === "number" && maxOutputTokens > globalMaxTokens;
     const messages = buildOpenRouterMessages({ systemInstruction, history, contents });
     const providerPreferences = openRouterProviderPreferences();
     const timeouts = getOpenRouterStreamTimeouts();
@@ -268,13 +273,15 @@ export async function* generateScreenBuilderContentStream({
 
     onProviderEvent?.({
       event: "openrouter:request_prepared",
-      level: "info",
+      level: clampedByGlobalCeiling ? "warn" : "info",
       task,
       model: primaryModel,
       modelCount: models.length,
       messageCount: messages.length,
       hasImage: messages.some((message) => hasImageContent(message.content)),
       maxTokens,
+      requestedMaxTokens: typeof maxOutputTokens === "number" ? maxOutputTokens : null,
+      clampedByGlobalCeiling,
       temperature: temperature ?? null,
       provider: providerPreferences,
       timeouts,

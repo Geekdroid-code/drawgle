@@ -101,8 +101,17 @@ export const getOpenRouterFallbackModels = () =>
     .map((model) => model.trim())
     .filter(Boolean);
 
+/**
+ * Global output ceiling, applied on top of the per-request budget.
+ *
+ * The default was 16,000, which silently clamped every screen-build budget
+ * above it — the per-screen intent could never take effect. It must stay at or
+ * above `SCREEN_BUILD_OUTPUT_TOKEN_BUDGET`, or the clamp reintroduces the
+ * truncation this exists to prevent. `provider.ts` logs when the clamp actually
+ * bites, so a stale deployed value is visible instead of silent.
+ */
 export const getOpenRouterMaxTokens = () =>
-  getServerEnvInt("DRAWGLE_OPENROUTER_MAX_TOKENS", 16000);
+  getServerEnvInt("DRAWGLE_OPENROUTER_MAX_TOKENS", 32000);
 
 export const getOpenRouterStreamTimeouts = () => ({
   headerTimeoutMs: getServerEnvInt("DRAWGLE_OPENROUTER_HEADER_TIMEOUT_MS", 15000),
