@@ -471,6 +471,34 @@ const addSanitizationCode = (
   }
 };
 
+/** Presence test only — never a count. See `countTopLevelScreenRoots`. */
+const SCREEN_ROOT_PATTERN = /<div\b[^>]*\bmin-h-screen\b/i;
+
+/**
+ * Counts screen roots structurally: elements at the top level of the fragment
+ * carrying `min-h-screen`.
+ *
+ * `min-h-screen` is a Tailwind utility, not a structural marker. Counting how
+ * many times the class appears anywhere in the string treated any *inner*
+ * full-height element — a hero, an empty state, a full-bleed map panel — as a
+ * second screen and failed the whole build with `duplicated_screen_fragment`.
+ *
+ * Production run 2026-08-13: a screen that finished cleanly (`finishReasons:
+ * ["stop"]`, sentinel present, 9,827 chars, well inside the token ceiling) was
+ * rejected for "2 min-h-screen root fragments". The duplicate-root repair
+ * declined because extracting the first root still contained both matches —
+ * which is exactly what happens when the second one is nested rather than a
+ * sibling restart. The engine runs v2, where the structural retry is gated off,
+ * so the screen died on its only attempt.
+ *
+ * A duplicated screen is two roots side by side. A nested full-height element
+ * is a design decision, and this must not have an opinion about it.
+ */
+const countTopLevelScreenRoots = (code: string) => {
+  const { $ } = parseHtmlFragment(code);
+  return $.root().children().filter((_index, element) => $(element).hasClass("min-h-screen")).length;
+};
+
 /**
  * Extracts the first complete `min-h-screen` root element.
  *
@@ -528,7 +556,11 @@ export function sanitizeStaticDrawgleHtml(code: string) {
 
   // Recover a screen the model emitted more than once before any validation
   // sees it, so a clean restart does not fail an otherwise usable build.
-  const rootCount = (nextCode.match(/<div\b[^>]*\bmin-h-screen\b/gi) ?? []).length;
+  //
+  // Counted structurally, matching the validator: only sibling roots are a
+  // duplicated screen. A nested full-height element never reaches the
+  // extraction attempt, which used to run and silently decline.
+  const rootCount = countTopLevelScreenRoots(nextCode);
   if (rootCount > 1) {
     const firstRoot = extractFirstScreenRoot(nextCode);
     if (firstRoot && (firstRoot.match(/<div\b[^>]*\bmin-h-screen\b/gi) ?? []).length === 1) {
@@ -591,17 +623,20 @@ export function validateStaticDrawgleHtml({
     pushDiagnostic(issues, codes, "rendered_code_text", "Screen code contains rendered JavaScript/JSX text.");
   }
 
-  const screenRootMatches = trimmedCode.match(/<div\b[^>]*\bmin-h-screen\b/gi) ?? [];
-  if (screenRootMatches.length > 1) {
+  const topLevelScreenRoots = countTopLevelScreenRoots(trimmedCode);
+  if (topLevelScreenRoots > 1) {
     pushDiagnostic(
       issues,
       codes,
       "duplicated_screen_fragment",
-      `Screen code contains ${screenRootMatches.length} min-h-screen root fragments.`,
+      `Screen code contains ${topLevelScreenRoots} sibling min-h-screen roots.`,
     );
   }
 
-  if (requireSingleScreenRoot && screenRootMatches.length === 0) {
+  // Presence stays a text test on purpose. A root wrapped in an extra container
+  // is a different defect with its own handling, and turning "missing root" into
+  // a structural check here would start failing screens that render correctly.
+  if (requireSingleScreenRoot && !SCREEN_ROOT_PATTERN.test(trimmedCode)) {
     pushDiagnostic(issues, codes, "duplicated_screen_fragment", "Screen code is missing the expected min-h-screen root.");
   }
 

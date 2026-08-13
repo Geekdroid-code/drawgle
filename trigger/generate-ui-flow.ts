@@ -305,7 +305,24 @@ type GenerationAttemptDiagnostics = {
   navigationClearanceAmbiguousOwnerCount: number;
   htmlNormalized: boolean;
   htmlParseErrors: string[];
+  /**
+   * The markup that failed, truncated. Only present on a rejected attempt.
+   *
+   * A rejected screen is discarded by `failWithoutSavingGeneratedCode`, so
+   * until now the evidence for why it was rejected did not survive the run.
+   * Diagnosing the 2026-08-13 `duplicated_screen_fragment` failure meant
+   * reasoning by elimination from counters, because the markup was gone.
+   */
+  rejectedCodePreview?: string;
 };
+
+/** Enough to see the root, the head of the document, and where it went wrong. */
+const REJECTED_CODE_PREVIEW_LIMIT = 6000;
+
+const buildRejectedCodePreview = (code: string) =>
+  code.length > REJECTED_CODE_PREVIEW_LIMIT
+    ? `${code.slice(0, REJECTED_CODE_PREVIEW_LIMIT)}\n<!-- truncated: ${code.length - REJECTED_CODE_PREVIEW_LIMIT} more characters -->`
+    : code;
 
 const collectUsageMetadata = (chunk: unknown, usage: GeminiUsageMetadata) => {
   if (!chunk || typeof chunk !== "object") {
@@ -388,6 +405,9 @@ const buildAttemptDiagnostics = ({
     navigationClearanceAmbiguousOwnerCount: 0,
     htmlNormalized: false,
     htmlParseErrors: [],
+    ...((completion && !completion.valid) || (staticQuality && !staticQuality.valid) || (quality && !quality.valid)
+      ? { rejectedCodePreview: buildRejectedCodePreview(build.extractedCode) }
+      : {}),
   };
 };
 
@@ -1558,6 +1578,10 @@ export const buildScreenTask = task({
       qualityIssues: quality.issues,
       qualityWarnings: quality.warnings,
       missingAnchors: quality.missingAnchors,
+      // Post-sanitize markup, which is what the validators actually judged.
+      ...(!staticQuality.valid || !quality.valid
+        ? { rejectedCodePreview: buildRejectedCodePreview(extractedCode) }
+        : {}),
     };
 
     if ((!staticQuality.valid || !quality.valid) && generationEngineVersion === "v1") {

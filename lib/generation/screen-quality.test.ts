@@ -416,3 +416,77 @@ describe("screen asset slot hydration", () => {
       .toBe(false);
   });
 });
+
+describe("screen roots are counted structurally, not by class occurrence", () => {
+  /**
+   * Production run 2026-08-13. A screen that finished cleanly — finishReasons
+   * ["stop"], sentinel present, 9,827 characters, well inside a 32,000 token
+   * ceiling — was rejected with "Screen code contains 2 min-h-screen root
+   * fragments" and no retry, and the markup was discarded.
+   *
+   * `min-h-screen` is a Tailwind utility. Counting the class as text made any
+   * inner full-height element a second screen.
+   */
+  const innerFullHeight = `<div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden">
+  <main class="flex-1">
+    <section class="min-h-screen flex items-center justify-center">
+      <p class="dg-type-body">Nothing here yet</p>
+    </section>
+  </main>
+</div>`;
+
+  // Deliberately full-size: `extractFirstScreenRoot` refuses to accept a
+  // recovery under 200 characters, so a toy fixture would exercise the wrong
+  // branch and prove nothing about the real path.
+  const screenBody = (marker: string) => `
+  <header class="flex items-center justify-between px-[var(--dg-mobile-layout-screen-margin)]">
+    <h1 class="dg-type-screen-title">${marker} header</h1>
+    <button type="button" class="dg-action-primary">Action</button>
+  </header>
+  <main class="flex-1 px-[var(--dg-mobile-layout-screen-margin)]">
+    <section class="dg-surface-card dg-radius-app p-[var(--dg-spacing-md)]">
+      <p class="dg-type-body">${marker} body copy for the card.</p>
+    </section>
+  </main>`;
+
+  const twoSiblingScreens = `<div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden">${screenBody("First")}
+</div>
+<div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden">${screenBody("Second")}
+</div>`;
+
+  it("accepts a nested full-height element", () => {
+    const result = validateStaticDrawgleHtml({ code: innerFullHeight, requireSingleScreenRoot: true });
+
+    expect(result.codes).not.toContain("duplicated_screen_fragment");
+    expect(result.valid).toBe(true);
+  });
+
+  it("does not try to repair a screen that was never duplicated", () => {
+    // The extraction used to run and silently decline here, because pulling the
+    // first root out returns the whole document when the second match is inside
+    // it. That decline is what left the screen failing with no recovery.
+    const sanitized = sanitizeStaticDrawgleHtml(innerFullHeight);
+
+    expect(sanitized.removedCodes).not.toContain("duplicated_screen_root");
+    expect(sanitized.code).toBe(innerFullHeight);
+  });
+
+  it("still catches a genuinely duplicated screen", () => {
+    expect(validateStaticDrawgleHtml({ code: twoSiblingScreens, requireSingleScreenRoot: true }).codes)
+      .toContain("duplicated_screen_fragment");
+  });
+
+  it("still recovers a duplicated screen by keeping the first root", () => {
+    const sanitized = sanitizeStaticDrawgleHtml(twoSiblingScreens);
+
+    expect(sanitized.removedCodes).toContain("duplicated_screen_root");
+    expect(sanitized.code).toContain("First");
+    expect(sanitized.code).not.toContain("Second");
+    expect(validateStaticDrawgleHtml({ code: sanitized.code, requireSingleScreenRoot: true }).valid).toBe(true);
+  });
+
+  it("still reports a fragment with no screen root at all", () => {
+    expect(validateStaticDrawgleHtml({ code: `<section><p>Just a fragment</p></section>`, requireSingleScreenRoot: true }).codes)
+      .toContain("duplicated_screen_fragment");
+  });
+});

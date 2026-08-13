@@ -1058,3 +1058,66 @@ Nothing is fabricated. These destinations were declared by the planner from the 
 One existing assertion changed rather than being deleted. `lib/navigation.test.ts` asserted that an unlinked "Saved" destination was absent from the shell. That was the old filtering behaviour, incidental to what that test is named for — product labels rather than the reference dock's labels, which still passes. It now asserts the new contract: Saved renders, marked planned and inert, alongside three interactive tabs.
 
 **Not verified against a live run.** Falsifiable: regenerating `8dcc913a` should show the four-tab dock on Home Dashboard, with Home active and Schedule / Messages / Settings visible but non-interactive.
+
+## 21. A Tailwind class was being counted as document structure — 2026-08-13
+
+Production run `run_06fvhmnau3ah9uj2jdvsujus01`, project `6f1813c1`. One screen planned, and it failed.
+
+### What the diagnostics proved
+
+The build was healthy. `finishReasons: ["stop"]`, `sentinelPresent: true`, `extractedLength: 9827`, `maxOutputTokens: 32000`, `candidatesTokenCount: 6538`. The model finished cleanly with room to spare — §18 is working and this was not truncation.
+
+It was rejected by:
+
+```
+staticCodes:   ["duplicated_screen_fragment"]
+qualityIssues: ["Screen code contains 2 min-h-screen root fragments."]
+retryReason:   "initial"      // one attempt, engine v2
+```
+
+No `sanitizedCodes` on the attempt, so the duplicate-root repair did not fire.
+
+### Root cause
+
+`validateStaticDrawgleHtml` counted screen roots like this:
+
+```ts
+const screenRootMatches = trimmedCode.match(/<div\b[^>]*\bmin-h-screen\b/gi) ?? [];
+if (screenRootMatches.length > 1) → duplicated_screen_fragment
+```
+
+`min-h-screen` is a Tailwind utility, not a structural marker. Counting its occurrences anywhere in the string treats any *inner* full-height element — a hero, an empty state, a full-bleed map panel — as a second screen.
+
+The repair could not save it either. `sanitizeStaticDrawgleHtml` only accepts a recovery when extracting the first root leaves exactly one match; when the second `min-h-screen` is nested inside the first, extraction returns the whole document, still two matches, and the repair silently declines. That decline is invisible — nothing is recorded when a repair chooses not to act.
+
+The engine runs v2, where the structural retry is gated off, so a screen that was probably fine died on its only attempt and the markup was discarded.
+
+That the second root was nested rather than a sibling is an inference, not a reading: the markup was thrown away by `failWithoutSavingGeneratedCode`. It is a strong inference. Normalization ran first and re-serialized through a real parser (`htmlNormalized: true`), so the malformed attributes were already repaired before the extraction walked the tree; a genuine sibling restart would have been extracted cleanly. Declining is precisely the nested signature. §21b exists so the next one does not need inference.
+
+### What changed
+
+`countTopLevelScreenRoots` counts elements carrying `min-h-screen` **at the top level of the fragment**, using the parse we already perform. Two roots side by side is a duplicated screen. A nested full-height element is a design decision, and this check now has no opinion about it.
+
+`sanitizeStaticDrawgleHtml` uses the same count, so the extraction is only attempted for genuine siblings instead of running and declining.
+
+Presence is deliberately left as a text test. A root wrapped in an extra container is a different defect with its own handling, and making "missing root" structural here would start failing screens that render correctly — a new failure mode in exchange for tidiness.
+
+### §21b — rejected markup now survives the run
+
+`GenerationAttemptDiagnostics.rejectedCodePreview` carries up to 6,000 characters of the markup that failed, on rejected attempts only. On the main path it captures the post-sanitize markup, which is what the validators actually judged.
+
+Diagnosing this failure meant reasoning by elimination from counters because the evidence was deleted at the moment of rejection. The next one is readable.
+
+### Verification
+
+415 tests pass, typecheck, lint and production build clean. Five new fixtures: a nested full-height element is accepted and not "repaired"; two sibling screens are still caught and still recovered by keeping the first root; a fragment with no root at all is still reported.
+
+One test caught a fixture bug in itself, which is worth recording: `extractFirstScreenRoot` refuses any recovery under 200 characters, so the first sibling fixture exercised the wrong branch. The fixture is now full-size rather than the threshold being lowered — that floor is a reasonable guard against accepting a scrap as a whole screen.
+
+**Not verified against a live run.** Falsifiable: a screen using `min-h-screen` on an inner section should now build, and any screen still rejected will carry `rejectedCodePreview` showing exactly what the validator saw.
+
+### Still open
+
+The structural retry remains gated to v1 at `generate-ui-flow.ts:1583`, so v2 still has no second attempt after a hard HTML rejection. Deliberately untouched here: that retry injects validator text into the screen description, which can shift the design, and this change removes the reason it would have been needed in this case. It is the obvious next candidate if a rejection reappears.
+
+The screen-count shortfall in the same run has a separate cause. `screenCountContract` named `["Dashboard", "Doctor Detail"]` and `droppedScreenBriefs: ["Dashboard"]` — the brief failed the builder-grade contract, which requires seven exact literal section markers plus 700 characters plus three objects. Missing one marker deletes a screen from the project. §19's fix made that loss visible and stopped it silently eating the first screen; it did not make the contract less brittle.
