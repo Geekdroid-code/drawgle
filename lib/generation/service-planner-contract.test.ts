@@ -15,6 +15,7 @@ import {
   parsePlannerProjectBlueprint,
   planProjectBlueprint,
   planUiFlow,
+  reconcileBlueprintInitialBatch,
 } from "@/lib/generation/service";
 import type {
   GenerationIntentContract,
@@ -182,6 +183,160 @@ describe("planner contract resilience", () => {
       source: "prompt_count",
     });
     expect(contract.namedScreens).toBeUndefined();
+  });
+
+  it("promotes meaningful roadmap items to the open-app minimum", async () => {
+    const openAppBlueprint = structuredClone(malformedNavigationBlueprint);
+    openAppBlueprint.roadmap.initial_batch_keys = ["screen:support-inbox"];
+    generateContent.mockResolvedValueOnce({ text: JSON.stringify(openAppBlueprint) });
+
+    const blueprint = await planProjectBlueprint({
+      prompt: "Build a hyper-local pet grooming and vet visits app the premium one",
+      referenceMode: "user_style",
+      scopeContract: {
+        version: 2,
+        referenceMode: "user_style",
+        promptScreenCount: null,
+        namedScreenCount: null,
+        imageScreenCount: 2,
+        finalScreenCount: null,
+        countSource: "open_project",
+        confidence: "high",
+        conflictResolution: null,
+        allScreensRequested: false,
+        reason: "No exact screen count was requested; planner may choose the initial app slate.",
+        diagnostics: [],
+        screens: [],
+      },
+      projectContext: "New project; no prior screens exist.",
+    });
+
+    expect(generateContent).toHaveBeenCalledTimes(1);
+    expect(blueprint.intentContract).toMatchObject({
+      kind: "full_app",
+      exactScreenCount: null,
+      minInitialScreens: 2,
+      referenceScreenCount: 2,
+    });
+    expect(blueprint.screenCountContract).toMatchObject({ exactCount: 2, minScreens: 2, maxScreens: 5 });
+    expect(blueprint.screenCountEnforcement).toBe("expanded");
+    expect(blueprint.screenSeeds.map((seed) => seed.name)).toEqual(["Support Inbox", "Knowledge Search"]);
+  });
+
+  it("orders promoted initial screens after their roadmap dependencies", () => {
+    const result = reconcileBlueprintInitialBatch({
+      roadmap: {
+        requested_parent_count: 2,
+        items: [
+          { stable_key: "screen:home", name: "Home", type: "root", summary: "Start the core product workflow from a focused home surface.", priority: "core", dependency_keys: [] },
+          { stable_key: "screen:booking", name: "Booking", type: "detail", summary: "Choose a provider and complete the product booking workflow.", priority: "core", dependency_keys: ["screen:home"] },
+        ],
+        initial_batch_keys: ["screen:booking"],
+      },
+      minScreens: 2,
+      maxScreens: 5,
+    });
+
+    expect(result).toMatchObject({ meetsMinimum: true, expanded: true });
+    expect(result.initialBatchKeys).toEqual(["screen:home", "screen:booking"]);
+  });
+
+  it("repairs an undersized open-app roadmap once", async () => {
+    const undersized = structuredClone(malformedNavigationBlueprint);
+    undersized.roadmap.items = undersized.roadmap.items.slice(0, 1);
+    undersized.roadmap.initial_batch_keys = ["screen:support-inbox"];
+    const repaired = structuredClone(malformedNavigationBlueprint);
+    repaired.roadmap.initial_batch_keys = ["screen:support-inbox", "screen:knowledge-search"];
+    generateContent
+      .mockResolvedValueOnce({ text: JSON.stringify(undersized) })
+      .mockResolvedValueOnce({ text: JSON.stringify(repaired) });
+
+    const blueprint = await planProjectBlueprint({
+      prompt: "Build a premium support operations app",
+      referenceMode: "user_style",
+      scopeContract: {
+        version: 2,
+        referenceMode: "user_style",
+        promptScreenCount: null,
+        namedScreenCount: null,
+        imageScreenCount: null,
+        finalScreenCount: null,
+        countSource: "open_project",
+        confidence: "high",
+        conflictResolution: null,
+        allScreensRequested: false,
+        reason: "Open project scope.",
+        diagnostics: [],
+        screens: [],
+      },
+      projectContext: "New project; no prior screens exist.",
+    });
+
+    expect(generateContent).toHaveBeenCalledTimes(2);
+    expect(blueprint.screenSeeds).toHaveLength(2);
+    expect(blueprint.screenCountEnforcement).toBe("expanded");
+  });
+
+  it("rejects an open-app roadmap that remains undersized after one repair", async () => {
+    const undersized = structuredClone(malformedNavigationBlueprint);
+    undersized.roadmap.items = undersized.roadmap.items.slice(0, 1);
+    undersized.roadmap.initial_batch_keys = ["screen:support-inbox"];
+    generateContent.mockResolvedValue({ text: JSON.stringify(undersized) });
+
+    await expect(planProjectBlueprint({
+      prompt: "Build a premium support operations app",
+      referenceMode: "user_style",
+      scopeContract: {
+        version: 2,
+        referenceMode: "user_style",
+        promptScreenCount: null,
+        namedScreenCount: null,
+        imageScreenCount: null,
+        finalScreenCount: null,
+        countSource: "open_project",
+        confidence: "high",
+        conflictResolution: null,
+        allScreensRequested: false,
+        reason: "Open project scope.",
+        diagnostics: [],
+        screens: [],
+      },
+      projectContext: "New project; no prior screens exist.",
+    })).rejects.toThrow("could not satisfy the approved screen minimum after one repair attempt");
+    expect(generateContent).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not expand an explicitly requested one-screen app", async () => {
+    const oneScreen = structuredClone(malformedNavigationBlueprint);
+    oneScreen.roadmap.items = oneScreen.roadmap.items.slice(0, 1);
+    oneScreen.roadmap.requested_parent_count = 1;
+    oneScreen.roadmap.initial_batch_keys = ["screen:support-inbox"];
+    generateContent.mockResolvedValueOnce({ text: JSON.stringify(oneScreen) });
+
+    const blueprint = await planProjectBlueprint({
+      prompt: "Build a premium support operations app with one screen",
+      referenceMode: "user_style",
+      scopeContract: {
+        version: 2,
+        referenceMode: "user_style",
+        promptScreenCount: 1,
+        namedScreenCount: null,
+        imageScreenCount: 2,
+        finalScreenCount: 1,
+        countSource: "prompt_count",
+        confidence: "high",
+        conflictResolution: { policy: "user_wins", promptScreenCount: 1, imageScreenCount: 2, resolvedCount: 1, reason: "Explicit screen count wins." },
+        allScreensRequested: false,
+        reason: "The user explicitly requested 1 screen.",
+        diagnostics: [],
+        screens: [{ index: 1, name: "Screen 1", kind: "screen" }],
+      },
+      projectContext: "New project; no prior screens exist.",
+    });
+
+    expect(generateContent).toHaveBeenCalledTimes(1);
+    expect(blueprint.screenSeeds).toHaveLength(1);
+    expect(blueprint.screenCountContract).toMatchObject({ exactCount: 1, minScreens: 1 });
   });
 
   it("normalizes harmless navigation omissions without discarding the blueprint", () => {

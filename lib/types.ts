@@ -1141,6 +1141,7 @@ export interface GenerationIntentContract {
   source: "planning_mode" | "prompt" | "reference_image" | "image_reference_mode";
   reason: string;
   exactScreenCount?: number | null;
+  minInitialScreens?: number | null;
   maxInitialScreens?: number | null;
   explicitScreenCount?: number | null;
   referenceScreenCount?: number | null;
@@ -1282,10 +1283,11 @@ export interface ScreenCountContract {
   namedScreens?: string[];
   referenceScreenCount?: number | null;
   disableSharedNavigation?: boolean;
+  minScreens?: number | null;
   maxScreens?: number | null;
 }
 
-export type ScreenCountEnforcement = "none" | "trimmed" | "filled";
+export type ScreenCountEnforcement = "none" | "trimmed" | "filled" | "expanded";
 
 export interface PlannedUiFlow {
   requiresBottomNav: boolean;

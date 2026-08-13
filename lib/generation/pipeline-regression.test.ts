@@ -332,3 +332,17 @@ describe("M — the dock is the app's IA, not a count of built screens", () => {
     expect(validateNavigationShell(renderDeterministicNavigationShell(healthAppPlan), healthAppPlan)).toBe(true);
   });
 });
+
+describe("N - structured roadmap actions own their scope", () => {
+  it("resolves persisted roadmap IDs before semantic preflight", async () => {
+    const { readFileSync } = await import("node:fs");
+    const source = readFileSync("app/api/generations/route.ts", "utf8");
+    const roadmapResolution = source.indexOf("if (payload.roadmapBuild)");
+    const semanticPreflight = source.indexOf("const preflight = await preflightGenerationScope");
+
+    expect(roadmapResolution).toBeGreaterThan(-1);
+    expect(semanticPreflight).toBeGreaterThan(roadmapResolution);
+    expect(source).toContain("buildRoadmapSelectionScopeContract");
+    expect(source).toContain("requestedOutputCount: authoritativeRequestedOutputCount");
+  });
+});

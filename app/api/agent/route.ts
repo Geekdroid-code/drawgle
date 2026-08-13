@@ -27,6 +27,7 @@ import { createNavigationArchitecture } from "@/lib/navigation";
 import { resolveProjectReferenceDna, selectProjectReferenceImagePath } from "@/lib/generation/reference-dna";
 import { readScreenPlanProposal, readScreenStateProposal, type AgentStepMetadata, type ScreenStateProposalMetadata } from "@/lib/agent/message-metadata";
 import { approveScreenPlanProposal, ScreenPlanApprovalError } from "@/lib/agent/screen-plan-approval";
+import { buildScreenSuggestionSummary } from "@/lib/agent/screen-plan-proposal";
 import { findExactPlannedStateCandidate, resolveScreenStateProposal } from "@/lib/agent/screen-state-proposal";
 import { classifyHistoryNeed, HISTORY_LIMITS } from "@/lib/agent/history-policy";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -309,18 +310,8 @@ const buildProposalStep = (screenPlan: ScreenPlan): AgentStepMetadata => ({
   title: screenPlan.name,
   detail: screenPlan.description,
   targetLabel: screenPlan.type,
-  processLines: [
-    `Screen type: ${screenPlan.type}`,
-    screenPlan.chromePolicy?.chrome ? `Chrome: ${screenPlan.chromePolicy.chrome}` : "Chrome: project default",
-    "Approve to run full screen planning and asset resolution, then build.",
-  ],
+  processLines: null,
 });
-
-const conciseSuggestionSummary = (role: string | null | undefined, instruction: string) => {
-  const source = role?.trim() || instruction.trim();
-  const sentences = source.replace(/\s+/g, " ").split(/(?<=[.!?])\s+/).filter(Boolean).slice(0, 2);
-  return (sentences.join(" ") || "A new screen that follows the existing project direction.").slice(0, 240);
-};
 
 const inferSuggestionName = (routerName: string | null | undefined, instruction: string) => {
   if (routerName?.trim()) return routerName.trim().slice(0, 80);
@@ -993,6 +984,7 @@ export async function POST(request: Request) {
     if (projectError || !project || project.owner_id !== user.id) {
       return NextResponse.json({ error: "Project not found." }, { status: 404 });
     }
+    const projectCharter = (project.project_charter as ProjectCharter | null) ?? null;
 
     const [{ data: screens, error: screensError }, { data: projectNavigation }, activeGeneration, projectMessages] = await Promise.all([
       admin
@@ -1093,6 +1085,10 @@ export async function POST(request: Request) {
       project: {
         id: project.id,
         name: project.name,
+        originalPrompt: compactMessageContent(project.prompt ?? ""),
+        appType: projectCharter?.appType ?? null,
+        targetAudience: projectCharter?.targetAudience ?? null,
+        keyFeatures: projectCharter?.keyFeatures?.slice(0, 12) ?? [],
         hasDesignTokens: Boolean(project.design_tokens),
       },
       selectedTarget: {
@@ -1849,10 +1845,9 @@ export async function POST(request: Request) {
         return NextResponse.json({ intent: "chat_response", message, routerDecision }, { status: 409 });
       }
 
-      const projectCharter = (project.project_charter as ProjectCharter | null) ?? null;
       const planningAck = whiteLabelAgentMessage(
         prompt,
-        "Got it. I prepared a short screen suggestion for approval. Full planning begins only after Build.",
+        "Got it. I prepared a screen suggestion for approval.",
       );
       const ackMessage = await insertProjectMessage(admin, {
         projectId: payload.projectId,
@@ -1890,7 +1885,18 @@ export async function POST(request: Request) {
         });
       const imagePath = uploadedImagePath ?? inheritedImagePath;
       const suggestionName = inferSuggestionName(routerDecision.screenSuggestion?.name, generationPrompt);
-      const suggestionSummary = conciseSuggestionSummary(routerDecision.screenSuggestion?.role, generationPrompt);
+      const suggestionSummary = buildScreenSuggestionSummary({
+        screenName: suggestionName,
+        routerRole: routerDecision.screenSuggestion?.role,
+        instruction: generationPrompt,
+        product: {
+          projectName: project.name,
+          projectPrompt: project.prompt,
+          appType: projectCharter?.appType,
+          targetAudience: projectCharter?.targetAudience,
+          keyFeatures: projectCharter?.keyFeatures,
+        },
+      });
       const suggestionType = inferSuggestionType(suggestionName, routerDecision.screenSuggestion?.role);
       const screenPlan: ScreenPlan = {
         name: suggestionName,
@@ -1953,8 +1959,8 @@ export async function POST(request: Request) {
       };
       const stateCount = stateVariants.length;
       const proposalText = stateCount > 0
-        ? `Suggested next screen: ${screenPlan.name}, with ${stateCount} optional state${stateCount === 1 ? "" : "s"}. Approve to plan the full brief, resolve assets, and build.`
-        : `Suggested next screen: ${screenPlan.name}. Approve to plan the full brief, resolve assets, and build.`;
+        ? `Suggested next screen: ${screenPlan.name}, with ${stateCount} optional state${stateCount === 1 ? "" : "s"}.`
+        : `Suggested next screen: ${screenPlan.name}.`;
       const proposalBaseMetadata = {
         ...routerMetadata,
         serverReconciliation: {

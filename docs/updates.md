@@ -76,6 +76,13 @@ The normalized per-screen description and layout contract go to the builder. Raw
 - It contains product identity, the current target screen and named regions, product-owned navigation, screen-family rules, and the approved component-shape policy.
 - It never contains raw planner/roadmap JSON, `Planner Brief`, another screen's detailed topology, reference-domain content, or a duplicated original prompt.
 
+### Add-screen approval
+
+- The add-screen router receives the project's original prompt, app type, audience, key features, and existing screen summaries.
+- Its approval preview must be a product-specific description of the screen's job, primary content or workflow, and user outcome. Generic or thin labels are rejected deterministically and replaced from the project charter.
+- The approval card shows the screen name and user-facing purpose only. Screen type, chrome defaults, asset resolution, and planner execution notes remain internal.
+- Approval still launches the same builder-grade screen planner used for project creation; the preview is an intent seed, not a substitute for the full construction brief.
+
 ### Prompt scope and image requirements
 
 - Numbers describing layout anatomy (for example, a 2-column grid), quantities, cards, images, rows, and steps inside one screen never become screen counts.
@@ -498,6 +505,77 @@ A plant-care prompt mentioned a `2-column image grid`, described a Home screen a
 ### Rollout and rollback
 
 Deploy the web application as well as Trigger tasks. A Trigger-only GitHub Action deployment cannot update the project reader or iframe runtime. The changes require no database migration and do not rewrite existing screens.
+
+## 2026-08-13 — Deterministic App Scope and Roadmap Builds
+
+### Symptom
+
+The prompt `Build a hyper-local pet grooming and vet visits app the premium one` used a two-panel style reference but planned one parent screen. Building its suggested `Pet Selector` state then returned a scope-confirmation error without creating a generation run.
+
+### Root cause
+
+- A trailing-number heuristic treated the final word `one` as a screen count even though it was not attached to `screen`, `page`, or `view`. That false exact count overrode the otherwise open app scope.
+- Open-ended app requests had only a five-screen ceiling, so a one-item roadmap was accepted.
+- The generation route ran semantic free-text preflight before resolving authenticated roadmap IDs, allowing generated button copy to veto a structured state build.
+
+### Change
+
+- Exact counts now require explicit screen-shaped syntax. Open-ended app creation receives a two-to-five parent-screen initial contract.
+- Blueprint selection promotes existing meaningful items to the minimum, makes one bounded product-scope repair when the roadmap is undersized, and fails before builders or credits if the minimum remains unsatisfied.
+- Structured roadmap builds derive their scope and output count from persisted roadmap rows before semantic preflight.
+- Failed brief names remain failed roadmap outputs and the requested count is not silently reduced.
+- A dry-run-first, incident-fingerprinted repair command can restore `Provider Booking` to the affected project's roadmap without rewriting its historical run or spending credits.
+
+### Safety invariants
+
+- `1 screen`, `two pages`, and named `Screen N` sections remain authoritative.
+- Style references contribute visual DNA and diagnostics only; their panel count does not define app topology.
+- Modal sheets and local states do not satisfy the parent-screen minimum.
+- Stale, unauthorized, mixed-parent, and dependency-blocked roadmap IDs remain rejected.
+
+### Verification
+
+- Regression coverage includes the exact pet-app prompt, trailing version/option wording, explicit counts, dependency-ordered batch expansion, bounded scope repair, and authoritative multi-state selection.
+- The guarded production repair dry-run matched the known incident run, ready dashboard, and planned Pet Selector state.
+
+### Rollout and rollback
+
+Deploy the web application and Trigger worker together. No database migration is required. Run the project repair in dry-run mode before `--apply`; it writes a backup and only accepts the exact known incident fingerprint.
+
+## 2026-08-13 — Product-Specific Add-Screen Approvals
+
+### Symptom
+
+An additional `Weekly Schedule` request for a premium calisthenics tracker displayed only `planner screen` in the approval card, followed by internal `Screen type`, `Chrome`, and asset-planning steps.
+
+### Root cause
+
+- The router received the project name and existing screen summaries but not the original product prompt or charter fields.
+- `screenRole` was optional and accepted any short text, and the server copied it directly into the persisted planning seed.
+- Proposal execution metadata was rendered through the same `Show steps` treatment as actual background work.
+
+### Change
+
+- The router now receives compact product context and must return a specific screen name and role.
+- A deterministic quality gate rejects generic, thin, or product-unrelated roles and derives a two-sentence fallback from the app type, audience, and best-matching key feature.
+- Proposal cards suppress process logs at both persistence and rendering layers, including cards saved before this release.
+- Approval copy no longer exposes deferred planning or asset-resolution mechanics.
+
+### Safety invariants
+
+- The quality gate contains no screen-name or domain-specific exception; `Weekly Schedule` is a regression fixture, not a production branch.
+- A good product-specific router summary is preserved unchanged.
+- Full planning after approval continues to use the project charter, navigation, tokens, reference policy, and layout-contract planner.
+
+### Verification
+
+- The exact production run was inspected read-only: its weak `planner screen` seed was expanded after approval into a complete Weekly Schedule construction brief and a ready screen.
+- Unit coverage checks generic rejection, preservation of a concrete role, product-aware fallback content, and thin-role expansion.
+- All Vitest suites, the separate Node canvas suite, typecheck, and targeted lint pass.
+
+### Rollout and rollback
+
+Deploy the web application for the router, API, and historical-card rendering changes. No database migration or existing-message rewrite is required.
 
 ## Future Entry Template
 

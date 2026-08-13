@@ -462,6 +462,9 @@ const BuilderScreenPlanSchema = ScreenPlanSchema.extend({
   asset_needs: z.array(AssetNeedSchema).max(4),
 });
 
+const INITIAL_PROJECT_SCREEN_LIMIT = 5;
+const OPEN_APP_MINIMUM_INITIAL_SCREENS = 2;
+
 const ProjectRoadmapSchema = z.object({
   requested_parent_count: z.coerce.number().int().min(1).max(200).nullable().optional(),
   items: z.array(z.object({
@@ -699,6 +702,7 @@ const PlanSchema = z.object({
 });
 
 const ProjectBlueprintSchema = PlanSchema.omit({ screens: true });
+type ParsedProjectRoadmap = z.infer<typeof ProjectRoadmapSchema>;
 
 const ScreenBriefsSchema = z.object({
   screens: z.array(BuilderScreenPlanSchema).min(1).max(5),
@@ -706,6 +710,67 @@ const ScreenBriefsSchema = z.object({
 
 export const parsePlannerProjectBlueprint = (value: unknown) =>
   ProjectBlueprintSchema.safeParse(value);
+
+export const reconcileBlueprintInitialBatch = ({
+  roadmap,
+  minScreens,
+  maxScreens = INITIAL_PROJECT_SCREEN_LIMIT,
+}: {
+  roadmap: ParsedProjectRoadmap;
+  minScreens: number;
+  maxScreens?: number | null;
+}) => {
+  const cappedMaximum = Math.max(1, Math.min(INITIAL_PROJECT_SCREEN_LIMIT, maxScreens ?? INITIAL_PROJECT_SCREEN_LIMIT));
+  const requiredMinimum = Math.max(1, Math.min(cappedMaximum, minScreens));
+  const itemByKey = new Map(roadmap.items.map((item) => [item.stable_key, item]));
+  const dependencyOrderedKeys: string[] = [];
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+
+  const visit = (key: string) => {
+    if (visited.has(key) || visiting.has(key)) return;
+    const item = itemByKey.get(key);
+    if (!item) return;
+    visiting.add(key);
+    for (const dependencyKey of item.dependency_keys ?? []) visit(dependencyKey);
+    visiting.delete(key);
+    visited.add(key);
+    dependencyOrderedKeys.push(key);
+  };
+
+  for (const item of roadmap.items) visit(item.stable_key);
+
+  const requestedKeys = Array.from(new Set(roadmap.initial_batch_keys.filter((key) => itemByKey.has(key))));
+  const selectedSet = new Set<string>();
+  const selecting = new Set<string>();
+  const selectWithDependencies = (key: string) => {
+    if (selectedSet.has(key) || selecting.has(key)) return;
+    const item = itemByKey.get(key);
+    if (!item) return;
+    selecting.add(key);
+    for (const dependencyKey of item.dependency_keys ?? []) selectWithDependencies(dependencyKey);
+    selecting.delete(key);
+    selectedSet.add(key);
+  };
+  for (const key of requestedKeys) selectWithDependencies(key);
+  for (const key of dependencyOrderedKeys) {
+    if (selectedSet.size >= requiredMinimum) break;
+    selectedSet.add(key);
+  }
+
+  const selectedKeys = dependencyOrderedKeys
+    .filter((key) => selectedSet.has(key))
+    .slice(0, cappedMaximum);
+  const originalValidCount = requestedKeys.slice(0, cappedMaximum).length;
+
+  return {
+    initialBatchKeys: selectedKeys,
+    meetsMinimum: selectedKeys.length >= requiredMinimum,
+    expanded: selectedKeys.length > originalValidCount,
+    requiredMinimum,
+    maxScreens: cappedMaximum,
+  };
+};
 
 type ParsedCreativeDirection = z.infer<typeof CreativeDirectionSchema>;
 
@@ -1277,12 +1342,10 @@ const clampScreenCount = (value: number | null | undefined) => {
   return Math.min(200, Math.max(1, Math.round(value as number)));
 };
 
-const INITIAL_PROJECT_SCREEN_LIMIT = 5;
-
 const hasFullAppIntent = (prompt: string) =>
   /\b(?:full|complete|entire|whole)\s+(?:app|application|product|prototype)\b/i.test(prompt) ||
   /\b(?:multi[-\s]?screen|app\s+flow|prototype|full\s+flow|multiple\s+screens)\b/i.test(prompt) ||
-  /\b(?:create|build|design|make)\s+(?:an?\s+)?(?:mobile\s+)?(?:app|application|product)\b/i.test(prompt);
+  /\b(?:create|build|design|make)\b[^.!?\n]{0,160}\b(?:app|application|product|prototype)\b/i.test(prompt);
 
 const compileGenerationIntentContract = ({
   prompt,
@@ -1317,6 +1380,7 @@ const compileGenerationIntentContract = ({
       source: "planning_mode",
       reason: "Single-screen planning mode queues exactly one additional screen.",
       exactScreenCount: 1,
+      minInitialScreens: 1,
       maxInitialScreens: 1,
       explicitScreenCount: explicitCount,
       referenceScreenCount,
@@ -1338,6 +1402,7 @@ const compileGenerationIntentContract = ({
           ? `The uploaded reference appears to contain ${referenceScreenCount} visible screen${referenceScreenCount === 1 ? "" : "s"}.`
           : "The user asked to recreate the uploaded reference, so uncertain reference count defaults to one visible screen."),
       exactScreenCount,
+      minInitialScreens: exactScreenCount,
       maxInitialScreens: INITIAL_PROJECT_SCREEN_LIMIT,
       explicitScreenCount: explicitCount,
       referenceScreenCount,
@@ -1351,10 +1416,13 @@ const compileGenerationIntentContract = ({
     return {
       kind: "full_app",
       source: explicitCount ? "prompt" : "prompt",
-      reason: scopeContract?.reason ?? (explicitCount
-        ? `The user requested a multi-screen app with ${explicitCount} screen${explicitCount === 1 ? "" : "s"}.`
-        : `The user asked for a full app/product experience; initial generation is capped at ${INITIAL_PROJECT_SCREEN_LIMIT} screens.`),
+      reason: requestedCount
+        ? scopeContract?.reason ?? `The user explicitly requested ${requestedCount} screen${requestedCount === 1 ? "" : "s"}.`
+        : `The user asked to build an app/product experience; the initial slate must contain ${OPEN_APP_MINIMUM_INITIAL_SCREENS}-${INITIAL_PROJECT_SCREEN_LIMIT} coherent parent screens.`,
       exactScreenCount: requestedCount ? Math.min(requestedCount, INITIAL_PROJECT_SCREEN_LIMIT) : null,
+      minInitialScreens: requestedCount
+        ? Math.min(requestedCount, INITIAL_PROJECT_SCREEN_LIMIT)
+        : OPEN_APP_MINIMUM_INITIAL_SCREENS,
       maxInitialScreens: INITIAL_PROJECT_SCREEN_LIMIT,
       explicitScreenCount: explicitCount,
       referenceScreenCount,
@@ -1368,6 +1436,9 @@ const compileGenerationIntentContract = ({
     source: referenceMode === "user_style" || referenceMode === "curated_style" ? "image_reference_mode" : "prompt",
     reason: `No exact recreate contract was detected; initial app planning is capped at ${INITIAL_PROJECT_SCREEN_LIMIT} screens.`,
     exactScreenCount: scopeExactCount || explicitCount
+      ? Math.min(scopeExactCount ?? explicitCount ?? INITIAL_PROJECT_SCREEN_LIMIT, INITIAL_PROJECT_SCREEN_LIMIT)
+      : null,
+    minInitialScreens: scopeExactCount || explicitCount
       ? Math.min(scopeExactCount ?? explicitCount ?? INITIAL_PROJECT_SCREEN_LIMIT, INITIAL_PROJECT_SCREEN_LIMIT)
       : null,
     maxInitialScreens: INITIAL_PROJECT_SCREEN_LIMIT,
@@ -1408,6 +1479,7 @@ export const buildScreenCountContract = ({
       namedScreens,
       referenceScreenCount: intentContract.referenceScreenCount,
       disableSharedNavigation: !intentContract.allowSharedNavigation,
+      minScreens: intentContract.exactScreenCount,
       maxScreens: intentContract.maxInitialScreens ?? null,
     };
   }
@@ -1418,6 +1490,7 @@ export const buildScreenCountContract = ({
     reason: intentContract.reason,
     referenceScreenCount: intentContract.referenceScreenCount,
     disableSharedNavigation: !intentContract.allowSharedNavigation,
+    minScreens: intentContract.minInitialScreens ?? null,
     maxScreens: intentContract.maxInitialScreens ?? null,
   };
 };
@@ -1427,7 +1500,11 @@ const formatScreenCountContract = (contract: ScreenCountContract) => {
     "Screen count contract:",
     contract.exactCount
       ? `- Return exactly ${contract.exactCount} screen${contract.exactCount === 1 ? "" : "s"}.`
-      : "- Screen count is open; choose only the screens genuinely needed by the app brief.",
+      : contract.minScreens && contract.maxScreens
+        ? `- Return between ${contract.minScreens} and ${contract.maxScreens} coherent parent screens for the initial app slate.`
+        : contract.minScreens
+          ? `- Return at least ${contract.minScreens} coherent parent screen${contract.minScreens === 1 ? "" : "s"}.`
+          : "- Screen count is open; choose only the screens genuinely needed by the app brief.",
     `- Authority: ${contract.source}. ${contract.reason}`,
     contract.namedScreens?.length
       ? `- Named screens to preserve when possible: ${contract.namedScreens.join(", ")}.`
@@ -1435,7 +1512,7 @@ const formatScreenCountContract = (contract: ScreenCountContract) => {
     contract.disableSharedNavigation
       ? "- Shared project navigation is disabled for this run. If the reference has visible tabs, treat them as static visual chrome inside the planned screen, not as extra screens."
       : "- Navigation must not create additional screens beyond this contract.",
-    !contract.exactCount && contract.maxScreens
+    !contract.exactCount && contract.maxScreens && !contract.minScreens
       ? `- Return no more than ${contract.maxScreens} screen${contract.maxScreens === 1 ? "" : "s"} for this initial generation.`
       : null,
   ].filter(Boolean);
@@ -1450,6 +1527,7 @@ const screenCountContractJson = (contract: ScreenCountContract): JsonValue => ({
   namedScreens: contract.namedScreens ?? [],
   referenceScreenCount: contract.referenceScreenCount ?? null,
   disableSharedNavigation: Boolean(contract.disableSharedNavigation),
+  minScreens: contract.minScreens ?? null,
   maxScreens: contract.maxScreens ?? null,
 });
 
@@ -1458,6 +1536,7 @@ const intentContractJson = (contract: GenerationIntentContract): JsonValue => ({
   source: contract.source,
   reason: contract.reason,
   exactScreenCount: contract.exactScreenCount ?? null,
+  minInitialScreens: contract.minInitialScreens ?? null,
   maxInitialScreens: contract.maxInitialScreens ?? null,
   explicitScreenCount: contract.explicitScreenCount ?? null,
   referenceScreenCount: contract.referenceScreenCount ?? null,
@@ -1669,6 +1748,11 @@ const enforceScreenCountContract = ({
 }): { screens: ScreenPlan[]; enforcement: ScreenCountEnforcement } => {
   const exactCount = contract.exactCount;
   if (!exactCount) {
+    if (contract.minScreens && screens.length < contract.minScreens) {
+      throw new Error(
+        `Screen planner returned ${screens.length} parent screen${screens.length === 1 ? "" : "s"}; the approved minimum is ${contract.minScreens}.`,
+      );
+    }
     if (contract.maxScreens && screens.length > contract.maxScreens) {
       return { screens: screens.slice(0, contract.maxScreens), enforcement: "trimmed" };
     }
@@ -1680,6 +1764,11 @@ const enforceScreenCountContract = ({
   }
 
   if (screens.length < exactCount) {
+    if (contract.source === "open_project" && contract.minScreens) {
+      throw new Error(
+        `Screen planner returned ${screens.length} of ${exactCount} locked roadmap screens. Refusing to fabricate generic replacements.`,
+      );
+    }
     const nextScreens = [...screens];
     for (let index = screens.length; index < exactCount; index++) {
       const fallback = screenPlanFromReferenceScreen({
@@ -1697,6 +1786,11 @@ const enforceScreenCountContract = ({
 
   return { screens, enforcement: "none" };
 };
+
+const combineScreenCountEnforcement = (
+  contractEnforcement: ScreenCountEnforcement,
+  blueprintEnforcement: ScreenCountEnforcement,
+): ScreenCountEnforcement => contractEnforcement === "none" ? blueprintEnforcement : contractEnforcement;
 
 export const reconcileScreensWithScope = ({
   prompt,
@@ -3541,6 +3635,7 @@ async function planUiFlowInternal({
     blueprintJsonError = error instanceof Error ? error.message : String(error);
   }
   let parsedBlueprint = parsePlannerProjectBlueprint(rawBlueprint);
+  let blueprintCountEnforcement: ScreenCountEnforcement = "none";
 
   if (!parsedBlueprint.success) {
     const initialIssues = [
@@ -3604,6 +3699,89 @@ async function planUiFlowInternal({
       throw new Error(
         `Project blueprint failed schema validation after one repair attempt: ${repairedIssues.join("; ")}`,
       );
+    }
+  }
+
+  if (parsedBlueprint.success && screenCountContract.minScreens) {
+    const requiredMinimum = Math.max(1, Math.min(
+      screenCountContract.minScreens,
+      screenCountContract.maxScreens ?? INITIAL_PROJECT_SCREEN_LIMIT,
+    ));
+    const initialScope = parsedBlueprint.data.roadmap
+      ? reconcileBlueprintInitialBatch({
+          roadmap: parsedBlueprint.data.roadmap,
+          minScreens: screenCountContract.minScreens,
+          maxScreens: screenCountContract.maxScreens,
+        })
+      : {
+          initialBatchKeys: [] as string[],
+          meetsMinimum: false,
+          expanded: false,
+          requiredMinimum,
+          maxScreens: screenCountContract.maxScreens ?? INITIAL_PROJECT_SCREEN_LIMIT,
+        };
+    if (!initialScope.meetsMinimum) {
+      llmLog?.("[planUiFlow] blueprint scope repair requested", {
+        requiredMinimum: initialScope.requiredMinimum,
+        roadmapItemCount: parsedBlueprint.data.roadmap?.items.length ?? 0,
+        initialBatchCount: initialScope.initialBatchKeys.length,
+      });
+      const scopeRepairResponse = await ai.models.generateContent({
+        model: policy.model,
+        contents: {
+          parts: [
+            ...parts,
+            {
+              text: [
+                "PROJECT BLUEPRINT SCOPE REPAIR. Return the complete project blueprint JSON without screens.",
+                `The approved initial app slate requires at least ${initialScope.requiredMinimum} and at most ${initialScope.maxScreens} meaningful parent screens.`,
+                `The prior blueprint can supply only ${initialScope.initialBatchKeys.length}.`,
+                "Add distinct, product-specific route or destination canvases that complete the core workflow. Modal sheets, pickers, tabs, confirmations, and local UI states do not count as parent screens.",
+                "Preserve every valid charter, product, navigation, dependency, and roadmap decision. The style reference supplies visual craft only and must not supply screen topology or destination names.",
+                "Undersized blueprint: " + JSON.stringify(parsedBlueprint.data, null, 2),
+              ].join("\n"),
+            },
+          ],
+        },
+        config: policy.config,
+      });
+      if (llmLog && scopeRepairResponse.usageMetadata) {
+        llmLog("[TOKEN USAGE] plan-ui-flow-blueprint-scope-repair", scopeRepairResponse.usageMetadata as Record<string, unknown>);
+      }
+
+      let repairedRaw: unknown = {};
+      let repairedJsonError: string | null = null;
+      try {
+        repairedRaw = parseJsonResponse<unknown>(scopeRepairResponse.text || "{}");
+      } catch (error) {
+        repairedJsonError = error instanceof Error ? error.message : String(error);
+      }
+      const repairedBlueprint = parsePlannerProjectBlueprint(repairedRaw);
+      const repairedScope = repairedBlueprint.success && repairedBlueprint.data.roadmap
+        ? reconcileBlueprintInitialBatch({
+            roadmap: repairedBlueprint.data.roadmap,
+            minScreens: screenCountContract.minScreens,
+            maxScreens: screenCountContract.maxScreens,
+          })
+        : null;
+      if (!repairedBlueprint.success || !repairedScope?.meetsMinimum) {
+        const issues = repairedBlueprint.success
+          ? [`scope: blueprint still supplies ${repairedScope?.initialBatchKeys.length ?? 0}/${initialScope.requiredMinimum} required parent screens`]
+          : [
+              ...(repairedJsonError ? [`root: ${repairedJsonError}`] : []),
+              ...repairedBlueprint.error.issues.map((issue) => `${issue.path.join(".") || "root"}: ${issue.message}`),
+            ];
+        llmLog?.("[planUiFlow] blueprint scope repair rejected", { issues });
+        throw new Error(`Project blueprint could not satisfy the approved screen minimum after one repair attempt: ${issues.join("; ")}`);
+      }
+
+      rawBlueprint = repairedRaw;
+      parsedBlueprint = repairedBlueprint;
+      blueprintCountEnforcement = "expanded";
+      llmLog?.("[planUiFlow] blueprint scope repair accepted", {
+        requiredMinimum: repairedScope.requiredMinimum,
+        initialBatchCount: repairedScope.initialBatchKeys.length,
+      });
     }
   }
 
@@ -3699,19 +3877,42 @@ async function planUiFlowInternal({
 
   let selectedBlueprintKeys: string[] = [];
   if (parsedBlueprint.success && parsedBlueprint.data.roadmap) {
-    const scopeOwnsBatchSelection = resolvedScopeContract.screens?.length
+    const scopeOwnsBatchSelection = Boolean(resolvedScopeContract.screens?.length
       && (resolvedScopeContract.countSource === "named_screens"
         || (resolvedScopeContract.countSource === "prompt_count" && Boolean(screenCountContract.namedScreens?.length))
-        || planningMode === "single-screen");
-    selectedBlueprintKeys = scopeOwnsBatchSelection
-      ? (resolvedScopeContract.screens ?? []).slice(0, INITIAL_PROJECT_SCREEN_LIMIT).map((screen) => screenRoadmapKey(screen.name))
-      : parsedBlueprint.data.roadmap.initial_batch_keys.slice(0, INITIAL_PROJECT_SCREEN_LIMIT);
+        || planningMode === "single-screen"));
+    if (scopeOwnsBatchSelection) {
+      selectedBlueprintKeys = (resolvedScopeContract.screens ?? [])
+        .slice(0, INITIAL_PROJECT_SCREEN_LIMIT)
+        .map((screen) => screenRoadmapKey(screen.name));
+    } else if (screenCountContract.minScreens) {
+      const reconciledBatch = reconcileBlueprintInitialBatch({
+        roadmap: parsedBlueprint.data.roadmap,
+        minScreens: screenCountContract.minScreens,
+        maxScreens: screenCountContract.maxScreens,
+      });
+      if (!reconciledBatch.meetsMinimum) {
+        throw new Error(
+          `Project blueprint selected ${reconciledBatch.initialBatchKeys.length}/${reconciledBatch.requiredMinimum} required parent screens after scope repair.`,
+        );
+      }
+      selectedBlueprintKeys = reconciledBatch.initialBatchKeys;
+      parsedBlueprint.data.roadmap.initial_batch_keys = selectedBlueprintKeys;
+      if (reconciledBatch.expanded) blueprintCountEnforcement = "expanded";
+    } else {
+      selectedBlueprintKeys = parsedBlueprint.data.roadmap.initial_batch_keys.slice(0, INITIAL_PROJECT_SCREEN_LIMIT);
+    }
     const selectedNames = selectedBlueprintKeys.flatMap((key) => {
       const roadmapItem = parsedBlueprint.data.roadmap?.items.find((item) => item.stable_key === key);
       if (roadmapItem) return [roadmapItem.name];
       const scopedScreen = resolvedScopeContract?.screens?.find((screen) => screenRoadmapKey(screen.name) === key);
       return scopedScreen ? [scopedScreen.name] : [];
     });
+    if (screenCountContract.minScreens && selectedNames.length < screenCountContract.minScreens) {
+      throw new Error(
+        `Project blueprint resolved ${selectedNames.length}/${screenCountContract.minScreens} required parent screen names.`,
+      );
+    }
     if (selectedNames.length > 0) {
       screenCountContract = {
         ...screenCountContract,
@@ -3848,7 +4049,7 @@ async function planUiFlowInternal({
         screenCountContract: screenCountContractJson(adjustedContract),
         intentContract: intentContractJson(intentContract),
         screenFamilyContract: screenFamilyContract as unknown as JsonValue,
-        screenCountEnforcement: enforced.enforcement,
+        screenCountEnforcement: combineScreenCountEnforcement(enforced.enforcement, blueprintCountEnforcement),
         notes: ["Detailed screen topology is intentionally deferred to the bounded screen-brief planner."],
       },
     }));
@@ -3883,7 +4084,7 @@ async function planUiFlowInternal({
       screenSeeds,
       scopeContract: resolvedScopeContract,
       screenCountContract: adjustedContract,
-      screenCountEnforcement: enforced.enforcement,
+      screenCountEnforcement: combineScreenCountEnforcement(enforced.enforcement, blueprintCountEnforcement),
       intentContract,
       screenFamilyContract,
       roadmap: roadmapResult.roadmap,
@@ -4150,7 +4351,7 @@ async function planUiFlowInternal({
       screenCountContract: screenCountContractJson(adjustedContract),
       intentContract: intentContractJson(intentContract),
       screenFamilyContract: screenFamilyContract as unknown as JsonValue,
-      screenCountEnforcement: enforced.enforcement,
+      screenCountEnforcement: combineScreenCountEnforcement(enforced.enforcement, blueprintCountEnforcement),
       notes: [
         "Recovered planner output independently instead of replacing the whole charter with generic fallback.",
         salvaged.screens.length > 0 ? "Screen plans came from valid planner screen objects." : "Screen plans came from reference analysis fallback because no usable planner screens were recovered.",
@@ -4180,7 +4381,7 @@ async function planUiFlowInternal({
       }),
       scopeContract: resolvedScopeContract,
       screenCountContract: adjustedContract,
-      screenCountEnforcement: enforced.enforcement,
+      screenCountEnforcement: combineScreenCountEnforcement(enforced.enforcement, blueprintCountEnforcement),
       intentContract,
       screenFamilyContract,
       roadmap: roadmapResult.roadmap,
@@ -4358,7 +4559,7 @@ async function planUiFlowInternal({
     screens: plannedScreens,
     scopeContract: resolvedScopeContract,
     screenCountContract: adjustedContract,
-    screenCountEnforcement: enforced.enforcement,
+    screenCountEnforcement: combineScreenCountEnforcement(enforced.enforcement, blueprintCountEnforcement),
     intentContract,
     screenFamilyContract,
     roadmap: roadmapResult.roadmap,

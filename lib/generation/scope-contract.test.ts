@@ -5,6 +5,7 @@ import {
   deferNewProjectScopeConfirmation,
   hasExplicitFiniteScreenScopeSyntax,
   normalizeReferenceAnalysis,
+  parsePromptScreenIntent,
   resolveGenerationScopeContract,
 } from "@/lib/generation/scope-contract";
 
@@ -46,6 +47,25 @@ describe("generation scope reference provenance", () => {
   it("retains direct bounded screen requests", () => {
     expect(hasExplicitFiniteScreenScopeSyntax("Create a home screen and a plant details screen.")).toBe(true);
     expect(hasExplicitFiniteScreenScopeSyntax("Build the following screens: Home, Plant Details, Settings.")).toBe(true);
+  });
+
+  it("does not mistake trailing product wording for a screen count", () => {
+    for (const prompt of [
+      "Build a hyper-local pet grooming and vet visits app the premium one",
+      "Build a budgeting app version two",
+      "Create the luxury option one",
+      "Design the first one",
+    ]) {
+      expect(parsePromptScreenIntent(prompt)).toMatchObject({
+        promptScreenCount: null,
+        source: null,
+      });
+    }
+  });
+
+  it("still accepts counts attached to explicit screen nouns", () => {
+    expect(parsePromptScreenIntent("Build the premium app with one screen").promptScreenCount).toBe(1);
+    expect(parsePromptScreenIntent("Create two pages for the booking flow").promptScreenCount).toBe(2);
   });
 
   it("preserves prompt-only internal style instead of labeling it as curated style", () => {

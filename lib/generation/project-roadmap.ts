@@ -3,12 +3,14 @@ import "server-only";
 import type { createAdminClient } from "@/lib/supabase/admin";
 import type { Database, ProjectScreenRoadmapRow } from "@/lib/supabase/database.types";
 import type {
+  GenerationScopeContract,
   NavigationPlan,
   ProjectRoadmap,
   RoadmapBuildRecommendation,
   ProjectRoadmapItem,
   ScreenPlan,
   ScreenStateVariantPlan,
+  ReferenceMode,
 } from "@/lib/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
@@ -533,7 +535,13 @@ export function resolveRoadmapBuildSelection({
   rows: ProjectScreenRoadmapRow[];
   kind: RoadmapBuildRecommendation["kind"];
   roadmapItemIds: string[];
-}): { plannedScreens: ScreenPlan[]; parentScreenId: string | null } {
+}): {
+  plannedScreens: ScreenPlan[];
+  parentScreenId: string | null;
+  parentScreenCount: number;
+  outputCount: number;
+  outputNames: string[];
+} {
   const uniqueIds = Array.from(new Set(roadmapItemIds));
   if (uniqueIds.length === 0 || uniqueIds.length > 3) throw new Error("Select between one and three suggested screens.");
   const rowById = new Map(rows.map((row) => [row.id, row]));
@@ -550,7 +558,13 @@ export function resolveRoadmapBuildSelection({
 
   if (kind === "parent_batch") {
     if (selectedRows.some((row) => row.kind !== "screen")) throw new Error("The selected screen batch is invalid.");
-    return { plannedScreens: selectedRows.map((row) => screenPlanFromRoadmap(row)), parentScreenId: null };
+    return {
+      plannedScreens: selectedRows.map((row) => screenPlanFromRoadmap(row)),
+      parentScreenId: null,
+      parentScreenCount: selectedRows.length,
+      outputCount: selectedRows.length,
+      outputNames: selectedRows.map((row) => row.name),
+    };
   }
 
   if (selectedRows.some((row) => row.kind !== "state")) throw new Error("The selected state batch is invalid.");
@@ -563,6 +577,47 @@ export function resolveRoadmapBuildSelection({
   return {
     plannedScreens: [screenPlanFromRoadmap(parent, selectedRows.map(stateVariantFromRoadmap))],
     parentScreenId: parent.generated_screen_id,
+    parentScreenCount: 1,
+    outputCount: selectedRows.length,
+    outputNames: selectedRows.map((row) => row.state_label ?? row.name),
+  };
+}
+
+export function buildRoadmapSelectionScopeContract({
+  kind,
+  selection,
+  referenceMode,
+}: {
+  kind: RoadmapBuildRecommendation["kind"];
+  selection: ReturnType<typeof resolveRoadmapBuildSelection>;
+  referenceMode: ReferenceMode;
+}): GenerationScopeContract {
+  const parentNames = selection.plannedScreens.map((screen) => screen.name);
+  const operationLabel = kind === "state_batch" ? "state" : "parent screen";
+  return {
+    version: 2,
+    referenceMode,
+    promptScreenCount: selection.parentScreenCount,
+    namedScreenCount: selection.parentScreenCount,
+    imageScreenCount: null,
+    finalScreenCount: selection.parentScreenCount,
+    countSource: "planning_mode",
+    confidence: "high",
+    conflictResolution: null,
+    allScreensRequested: true,
+    reason: `The server resolved ${selection.outputCount} persisted roadmap ${operationLabel} output${selection.outputCount === 1 ? "" : "s"}.`,
+    diagnostics: [
+      `Structured roadmap ${kind} selected ${selection.outputCount} output${selection.outputCount === 1 ? "" : "s"}: ${selection.outputNames.join(", ")}.`,
+      "Persisted roadmap IDs are authoritative; semantic prompt confirmation was skipped.",
+    ],
+    groups: [],
+    screens: parentNames.map((name, index) => ({
+      index: index + 1,
+      name,
+      kind: kind === "state_batch" ? "state_parent" : "roadmap_screen",
+    })),
+    ambiguities: [],
+    requiresConfirmation: false,
   };
 }
 

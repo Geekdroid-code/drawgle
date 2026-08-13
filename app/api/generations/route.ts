@@ -12,7 +12,7 @@ import { normalizeReferenceImage } from "@/lib/generation/reference-image";
 import { findLatestProjectPromptImagePath } from "@/lib/generation/prompt-reference-storage";
 import { isGenerationReferencePolicy, resolveGenerationReferencePolicy } from "@/lib/generation/reference-policy";
 import { determineGenerationRetryScope } from "@/lib/generation/retry-scope";
-import { resolveRoadmapBuildSelection } from "@/lib/generation/project-roadmap";
+import { buildRoadmapSelectionScopeContract, resolveRoadmapBuildSelection } from "@/lib/generation/project-roadmap";
 import { releaseGenerationCreditRemainder } from "@/lib/generation/credit-reservations";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -528,6 +528,78 @@ export async function POST(request: Request) {
     }
     const isExistingProjectRequest = Boolean(payload.projectId);
     const generationEngineVersion = getGenerationEngineVersion();
+    let scopeContract = (payload.scopeContract ?? null) as GenerationScopeContract | null;
+    let plannedScreens = (payload.plannedScreens ?? null) as ScreenPlan[] | null;
+    let screenPlanningSeeds = (payload.screenPlanningSeeds ?? null) as ScreenPlanningSeed[] | null;
+    const projectRoadmap = (payload.roadmap ?? null) as ProjectRoadmap | null;
+    let authoritativeRequestedOutputCount: number | null = null;
+    let structuredScopeMetadata: Record<string, unknown> | null = null;
+    let existingProject: Pick<Database["public"]["Tables"]["projects"]["Row"], "id" | "owner_id" | "design_tokens"> | null = null;
+
+    if (payload.projectId) {
+      const { data: project, error: projectError } = await admin
+        .from("projects")
+        .select("id, owner_id, design_tokens")
+        .eq("id", payload.projectId)
+        .single();
+
+      if (projectError || !project || project.owner_id !== ownerId) {
+        return NextResponse.json({ error: "Project not found" }, { status: 404 });
+      }
+      existingProject = project;
+
+      const activeGenerationRun = await findActiveGenerationRun(admin, payload.projectId);
+      if (activeGenerationRun) {
+        throw new DuplicateGenerationError(
+          "A generation is already queued or building for this project.",
+          activeGenerationRun.id,
+          activeGenerationRun.status,
+        );
+      }
+
+      if (payload.roadmapBuild) {
+        const uniqueItemIds = Array.from(new Set(payload.roadmapBuild.roadmapItemIds));
+        const { data: roadmapItems, error: roadmapError } = await admin
+          .from("project_screen_roadmap")
+          .select("*")
+          .eq("project_id", payload.projectId)
+          .eq("owner_id", ownerId);
+        if (roadmapError) throw roadmapError;
+        try {
+          const selection = resolveRoadmapBuildSelection({
+            rows: (roadmapItems ?? []) as ProjectScreenRoadmapRow[],
+            kind: payload.roadmapBuild.kind,
+            roadmapItemIds: uniqueItemIds,
+          });
+          plannedScreens = selection.plannedScreens;
+          authoritativeRequestedOutputCount = selection.outputCount;
+          scopeContract = buildRoadmapSelectionScopeContract({
+            kind: payload.roadmapBuild.kind,
+            selection,
+            referenceMode: "user_style",
+          });
+          structuredScopeMetadata = {
+            source: "persisted_roadmap_ids",
+            kind: payload.roadmapBuild.kind,
+            parentScreenCount: selection.parentScreenCount,
+            outputCount: selection.outputCount,
+            outputNames: selection.outputNames,
+          };
+          if (payload.roadmapBuild.kind === "state_batch" && selection.parentScreenId) {
+            retryContext = {
+              sourceGenerationRunId: selection.parentScreenId,
+              mode: "state_variants",
+              parentScreenId: selection.parentScreenId,
+            };
+          }
+        } catch (error) {
+          return NextResponse.json({
+            error: error instanceof Error ? error.message : "The selected suggestions are no longer available.",
+          }, { status: 409 });
+        }
+      }
+    }
+
     const normalizedReference = payload.image ? await normalizeReferenceImage(payload.image) : null;
     const promptImage = normalizedReference?.image ?? null;
     const deterministicPromptIntent = parsePromptScreenIntent(payload.prompt);
@@ -540,7 +612,6 @@ export async function POST(request: Request) {
     const designStyle = stylePreset?.stylePack ?? (isDesignStyleId(payload.designStyleId) && !promptImage
       ? getDesignStylePack(payload.designStyleId)
       : null);
-    let scopeContract = (payload.scopeContract ?? null) as GenerationScopeContract | null;
     let referenceAnalysis: ReferenceAnalysis | null = null;
     if (!scopeContract && generationEngineVersion === "v2" && !canDeferImagePreflight) {
       const preflight = await preflightGenerationScope({
@@ -564,9 +635,6 @@ export async function POST(request: Request) {
     const requestedDesignTokens = payload.designTokens
       ? normalizeDesignTokens(payload.designTokens as DesignTokens)
       : null;
-    let plannedScreens = (payload.plannedScreens ?? null) as ScreenPlan[] | null;
-    let screenPlanningSeeds = (payload.screenPlanningSeeds ?? null) as ScreenPlanningSeed[] | null;
-    const projectRoadmap = (payload.roadmap ?? null) as ProjectRoadmap | null;
     const initialReferenceImagePath = !isExistingProjectRequest && promptImage && normalizedReference
       ? `${ownerId}/prompt-images/${normalizedReference.sha256}.webp`
       : null;
@@ -594,56 +662,11 @@ export async function POST(request: Request) {
     }
 
     if (projectId) {
-      const { data: project, error: projectError } = await admin
-        .from("projects")
-        .select("id, owner_id, design_tokens")
-        .eq("id", projectId)
-        .single();
-
-      if (projectError || !project || project.owner_id !== ownerId) {
-        return NextResponse.json({ error: "Project not found" }, { status: 404 });
-      }
+      const project = existingProject;
+      if (!project) throw new Error("Existing project was not resolved before generation preflight.");
 
       if (!designTokens && project.design_tokens) {
         designTokens = normalizeDesignTokens(project.design_tokens as DesignTokens);
-      }
-
-      const activeGenerationRun = await findActiveGenerationRun(admin, projectId);
-      if (activeGenerationRun) {
-        throw new DuplicateGenerationError(
-          "A generation is already queued or building for this project.",
-          activeGenerationRun.id,
-          activeGenerationRun.status,
-        );
-      }
-
-      if (payload.roadmapBuild) {
-        const uniqueItemIds = Array.from(new Set(payload.roadmapBuild.roadmapItemIds));
-        const { data: roadmapItems, error: roadmapError } = await admin
-          .from("project_screen_roadmap")
-          .select("*")
-          .eq("project_id", projectId)
-          .eq("owner_id", ownerId);
-        if (roadmapError) throw roadmapError;
-        try {
-          const selection = resolveRoadmapBuildSelection({
-            rows: (roadmapItems ?? []) as ProjectScreenRoadmapRow[],
-            kind: payload.roadmapBuild.kind,
-            roadmapItemIds: uniqueItemIds,
-          });
-          plannedScreens = selection.plannedScreens;
-          if (payload.roadmapBuild.kind === "state_batch" && selection.parentScreenId) {
-          retryContext = {
-              sourceGenerationRunId: selection.parentScreenId,
-            mode: "state_variants",
-              parentScreenId: selection.parentScreenId,
-          };
-          }
-        } catch (error) {
-          return NextResponse.json({
-            error: error instanceof Error ? error.message : "The selected suggestions are no longer available.",
-          }, { status: 409 });
-        }
       }
 
       const projectUpdate: Database["public"]["Tables"]["projects"]["Update"] = {
@@ -755,7 +778,7 @@ export async function POST(request: Request) {
         owner_id: ownerId,
         prompt: payload.prompt,
         image_path: imagePath,
-        requested_screen_count: scopeContract?.finalScreenCount ?? null,
+        requested_screen_count: authoritativeRequestedOutputCount ?? scopeContract?.finalScreenCount ?? null,
         client_request_id: payload.clientRequestId ?? null,
         status: "queued",
         metadata: {
@@ -774,6 +797,7 @@ export async function POST(request: Request) {
           requestedStylePresetVersion: stylePreset?.version ?? null,
           designStyle: summarizeDesignStyle(designStyle),
           scopeContract,
+          structuredScope: structuredScopeMetadata,
           navigationArchitecture,
           navigationPlan,
           plannedScreens,
@@ -849,6 +873,7 @@ export async function POST(request: Request) {
         retryContext,
         projectRoadmap,
         initialBatchItemKeys: payload.initialBatchItemKeys ?? [],
+        requestedOutputCount: authoritativeRequestedOutputCount,
         isNewProject: !isExistingProjectRequest,
       },
       {

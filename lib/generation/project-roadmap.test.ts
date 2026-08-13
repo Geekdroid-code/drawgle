@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import {
+  buildRoadmapSelectionScopeContract,
   PROJECT_ROADMAP_UPSERT_OPTIONS,
   buildProjectRoadmap,
   buildProjectRoadmapUpsertRows,
@@ -335,6 +336,32 @@ describe("project roadmap", () => {
 
     expect(selection.plannedScreens).toHaveLength(1);
     expect(selection.plannedScreens[0]).toMatchObject({ name: "Checkout", roadmapItemId: checkout.id });
+    expect(selection).toMatchObject({ parentScreenCount: 1, outputCount: 1, outputNames: ["Checkout"] });
+  });
+
+  it("turns persisted state selections into a confirmation-free authoritative scope", () => {
+    const parent = roadmapRow({ id: "parent", stable_key: "screen:home", name: "Home", status: "ready", generated_screen_id: "screen-home" });
+    const firstState = roadmapRow({ id: "state-a", stable_key: "screen:home:state:a", name: "Pet Selector", state_label: "Pet Selector", kind: "state", parent_item_id: parent.id, dependency_keys: [parent.stable_key] });
+    const secondState = roadmapRow({ id: "state-b", stable_key: "screen:home:state:b", name: "Visit Confirmation", state_label: "Visit Confirmation", kind: "state", parent_item_id: parent.id, dependency_keys: [parent.stable_key] });
+    const selection = resolveRoadmapBuildSelection({
+      rows: [parent, firstState, secondState],
+      kind: "state_batch",
+      roadmapItemIds: [firstState.id, secondState.id],
+    });
+    const scope = buildRoadmapSelectionScopeContract({
+      kind: "state_batch",
+      selection,
+      referenceMode: "user_style",
+    });
+
+    expect(selection).toMatchObject({ parentScreenCount: 1, outputCount: 2, outputNames: ["Pet Selector", "Visit Confirmation"] });
+    expect(scope).toMatchObject({
+      countSource: "planning_mode",
+      finalScreenCount: 1,
+      requiresConfirmation: false,
+      confidence: "high",
+    });
+    expect(scope.diagnostics.join(" ")).toContain("Persisted roadmap IDs are authoritative");
   });
 
   it("rejects stale selections and states from different parents", () => {

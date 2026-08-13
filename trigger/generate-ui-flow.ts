@@ -138,6 +138,7 @@ type GenerateUiFlowPayload = {
   retryContext?: GenerationRetryContext | null;
   projectRoadmap?: ProjectRoadmap | null;
   initialBatchItemKeys?: string[] | null;
+  requestedOutputCount?: number | null;
   isNewProject?: boolean;
 };
 
@@ -2425,7 +2426,7 @@ export const generateUiFlowTask = task({
 
 
     await updateGenerationRun(admin, payload.generationRunId, {
-      requested_screen_count: scopeContract.finalScreenCount ?? null,
+      requested_screen_count: payload.requestedOutputCount ?? scopeContract.finalScreenCount ?? null,
     });
 
     await mergeGenerationRunMetadata(admin, payload.generationRunId, {
@@ -2901,6 +2902,7 @@ export const generateUiFlowTask = task({
         force: true,
         llmLog: llmLogFor("screenBriefs"),
       });
+      promotedDroppedScreenNames = plannedBriefs.droppedScreenNames ?? [];
       plan = {
         ...plan,
         screens: plannedBriefs.screens,
@@ -2998,6 +3000,15 @@ export const generateUiFlowTask = task({
 	      ownerId: payload.ownerId,
 	      roadmap: projectRoadmap,
 	    }) as ProjectScreenRoadmapRow[];
+	    if (promotedDroppedScreenNames.length > 0) {
+	      const { error: droppedRoadmapError } = await admin
+	        .from("project_screen_roadmap")
+	        .update({ status: "failed" })
+	        .eq("project_id", payload.projectId)
+	        .in("name", promotedDroppedScreenNames)
+	        .in("status", ["planned", "queued", "building"]);
+	      if (droppedRoadmapError) throw droppedRoadmapError;
+	    }
 	    const roadmapByKey = new Map(persistedRoadmapRows.map((item) => [item.stable_key, item]));
 	    plan.screens = plan.screens.slice(0, 5).map((screenPlan) => {
 	      const stableKey = screenPlan.roadmapStableKey ?? screenRoadmapKey(screenPlan.name);
@@ -3201,7 +3212,7 @@ export const generateUiFlowTask = task({
       screenCountEnforcement: plan.screenCountEnforcement ?? "none",
       intentContract: plan.intentContract ?? null,
       screenFamilyContract: plan.screenFamilyContract ?? null,
-      plannedScreenCount: plan.screens.length,
+      plannedScreenCount: Math.max(plan.screens.length, plan.screenCountContract?.exactCount ?? 0),
       ...(promotedDroppedScreenNames.length > 0
         ? {
             droppedScreenBriefs: promotedDroppedScreenNames,
@@ -3386,7 +3397,10 @@ export const generateUiFlowTask = task({
     let screenPlans = retryOnlyStateVariants ? [] : resolvedScreenPlans;
 
 	    let stateVariantCount = selectedStateGroups.reduce((total, group) => total + group.variants.length, 0);
-	    let plannedOutputCount = screenPlans.length + stateVariantCount;
+	    const authoritativeParentCount = retryOnlyStateVariants
+	      ? 0
+	      : Math.max(screenPlans.length, plan.screenCountContract?.exactCount ?? 0);
+	    let plannedOutputCount = authoritativeParentCount + stateVariantCount;
 
     await postStatusMessage(
       admin,
@@ -3440,7 +3454,7 @@ export const generateUiFlowTask = task({
     // after, and so on — giving the user continuous visible progress
     // rather than a long wait for all screens to finish simultaneously.
     let successfulScreens = 0;
-    let failedScreens = 0;
+    let failedScreens = promotedDroppedScreenNames.length;
     let successfulStateVariants = 0;
     let failedStateVariants = 0;
     let sanitizerActions = 0;
@@ -4000,6 +4014,7 @@ export const generateUiFlowTask = task({
           // losses against the requested scope. Recording them keeps the run
           // from reporting a clean completion for a partially delivered app.
           if (remainingResult.droppedScreenNames?.length) {
+            failedScreens += remainingResult.droppedScreenNames.length;
             await mergeGenerationRunMetadata(admin, payload.generationRunId, {
               droppedScreenBriefs: remainingResult.droppedScreenNames,
               droppedScreenBriefCount: remainingResult.droppedScreenNames.length,
@@ -4096,7 +4111,7 @@ export const generateUiFlowTask = task({
               };
               selectedStateGroups = [...selectedStateGroups, ...discoveredStateGroups];
               stateVariantCount = selectedStateGroups.reduce((total, group) => total + group.variants.length, 0);
-              plannedOutputCount = screenPlans.length + stateVariantCount;
+              plannedOutputCount = authoritativeParentCount + stateVariantCount;
             } catch (error) {
               if (!(error instanceof CreditReservationError) || error.code !== "insufficient_credits") throw error;
               logger.warn("Skipping optional state variants because incremental credits are unavailable", {

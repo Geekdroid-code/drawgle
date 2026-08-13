@@ -506,24 +506,6 @@ export function parsePromptScreenIntent(prompt: string): PromptScreenIntent {
     };
   }
 
-  const trailingActionCount = normalized.match(new RegExp(`\\b(?:${ACTION_WORDS})\\b[\\s\\S]{0,80}\\b${token}\\s*$`, "i"));
-  const trailingCount = numberFromToken(trailingActionCount?.[1]);
-  if (trailingCount) {
-    diagnostics.push(`Detected prompt-requested screen count ${trailingCount} from trailing action count.`);
-    return {
-      promptScreenCount: trailingCount,
-      namedScreenCount: null,
-      source: "prompt_count",
-      allScreensRequested: /\b(all|every|each)\b/i.test(normalized),
-      diagnostics,
-      groups: [{ kind: "screen", count: trailingCount, orderedNames: [], sourceText: trailingActionCount?.[0] ?? normalized, surfaceKind: "screen" }],
-      screens: screensFromGroups([{ kind: "screen", count: trailingCount, orderedNames: [], sourceText: trailingActionCount?.[0] ?? normalized, surfaceKind: "screen" }]),
-      confidence: "medium",
-      ambiguities: [],
-      requiresConfirmation: false,
-    };
-  }
-
   const allScreensRequested = /\b(?:all|every|each)\b[\s\S]{0,80}\b(?:screens?|pages?|views?|panels?|states?|shown|visible|image|reference)\b/i.test(normalized)
     || /\b(?:build|create|generate|make|design|recreate|convert)\b[\s\S]{0,80}\b(?:them|these|those)\s+all\b/i.test(normalized);
 

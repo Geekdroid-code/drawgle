@@ -276,6 +276,7 @@ Blueprint rules:
 - Produce a compact product roadmap before any detailed screen briefs. Roadmap items are route or destination canvases, including root and detail screens; local modal, sheet, picker, active-tab, and confirmation states are not parent roadmap items.
 - For an explicit finite request, preserve every requested parent screen and order. For an open-ended complete app, choose the smallest credible roadmap covering entry, primary destinations, and the critical workflow. Return at most 24 parent items in one tranche.
 - initial_batch_keys selects at most five parent screens. Prefer explicitly requested screens, required entry points, primary destinations, and a coherent critical path in dependency order.
+- When the Screen Count Contract declares a minimum, roadmap.items and initial_batch_keys must contain at least that many distinct, meaningful parent screens.
 - If more than five parent screens are requested, keep them in roadmap.items and select only the first production-worthy batch. Never silently discard them.
 - requested_parent_count is the explicit requested parent total when known; otherwise use the roadmap item count. Do not include card counts, navigation tabs, products, or local UI states.
 - Stable keys use screen:<short-kebab-name> and must be unique. Dependencies refer only to stable keys in the same roadmap.

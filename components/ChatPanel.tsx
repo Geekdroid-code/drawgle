@@ -1322,7 +1322,11 @@ function ActionCard({
     return false;
   };
 
-  const rawProcessLines = step.processLines?.length ? step.processLines : [];
+  // Proposal cards are an approval surface, not an execution log. Suppressing
+  // these lines here also cleans up proposals persisted by older server builds.
+  const rawProcessLines = step.kind === "proposal"
+    ? []
+    : step.processLines?.length ? step.processLines : [];
   const processLines = rawProcessLines.filter((line) => !isGenericBusyNoise(line));
   const hasDistinctDetail = Boolean(
     step.detail &&
