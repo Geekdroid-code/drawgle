@@ -165,6 +165,12 @@ describe("ScreenNode element selection messaging", () => {
     const { container } = render(<ScreenNode screen={screen} />);
     const srcDoc = container.querySelector("iframe")?.getAttribute("srcdoc") ?? "";
 
+    const initialMarkupIndex = srcDoc.indexOf('id="drawgle-initial-screen-template"');
+    const initialMarkupBootstrapIndex = srcDoc.indexOf("bootstrapInitialMarkup");
+    const tailwindRuntimeIndex = srcDoc.indexOf('id="drawgle-tailwind-cdn"');
+    expect(initialMarkupIndex).toBeGreaterThan(-1);
+    expect(initialMarkupBootstrapIndex).toBeGreaterThan(initialMarkupIndex);
+    expect(tailwindRuntimeIndex).toBeGreaterThan(initialMarkupBootstrapIndex);
     expect(srcDoc).toContain("html:not([data-drawgle-style-ready]) #root");
     expect(srcDoc).toContain("function isTailwindCssApplied()");
     expect(srcDoc).toContain("if (styleRuntimeReady && isTailwindCssApplied())");
@@ -206,6 +212,13 @@ describe("ScreenNode element selection messaging", () => {
     const completedDocument = container.querySelector("iframe")?.getAttribute("srcdoc") ?? "";
     expect(completedDocument).toContain("Saved final screen");
     expect(completedDocument).not.toContain("data-drawgle-build-placeholder");
+    const finalMarkupTemplateIndex = completedDocument.indexOf(
+      'id="drawgle-initial-screen-template"',
+    );
+    const finalTailwindRuntimeIndex = completedDocument.indexOf('id="drawgle-tailwind-cdn"');
+    expect(
+      completedDocument.slice(finalMarkupTemplateIndex, finalTailwindRuntimeIndex),
+    ).toContain("Saved final screen");
   });
 
   it("persists one bounded rendered-quality report per code hash and viewport", async () => {

@@ -78,6 +78,15 @@ const hasMeaningfulRenderableCode = (code: string) => {
 const serializeForInlineScript = (value: string | null | undefined) =>
   JSON.stringify(value ?? "").replace(/</g, "\\u003c");
 
+/**
+ * Keep generated fragments inert while they are embedded in srcDoc. The
+ * bootstrap copies template.innerHTML into the preview before Tailwind loads,
+ * so utility discovery sees the real screen DOM without allowing a generated
+ * </template> token to escape its inert container.
+ */
+const serializeForInertTemplate = (value: string | null | undefined) =>
+  (value ?? "").replace(/<\/template/gi, "&lt;/template");
+
 const hashUiCodeForClient = (code: string) => {
   let hash = 0x811c9dc5;
   for (let index = 0; index < code.length; index += 1) {
@@ -1144,9 +1153,6 @@ export function ScreenNode({
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <script id="drawgle-tailwind-cdn" src="https://cdn.tailwindcss.com" onerror="window.__drawgleTailwindLoadFailed = true"><\/script>
-        ${buildDrawgleTailwindConfigScript()}
-        <script src="https://unpkg.com/lucide@latest"><\/script>
         ${initialGoogleFontAssetLinks}
         <style>
           html, body { width: 100%; margin: 0; padding: 0; overscroll-behavior: none; }
@@ -1238,6 +1244,31 @@ export function ScreenNode({
           <div id="drawgle-screen-content"></div>
           <div id="drawgle-navigation-host"></div>
         </div>
+        <template id="drawgle-initial-screen-template">${serializeForInertTemplate(initialScreenCode)}</template>
+        <template id="drawgle-initial-navigation-template">${serializeForInertTemplate(initialNavigationCode)}</template>
+        <script>
+          // Tailwind Play scans the DOM that exists when its runtime starts.
+          // Materialize the inert generated fragments first so a successful
+          // probe means the screen utilities came from the same compiler pass.
+          (function bootstrapInitialMarkup() {
+            var screenTemplate = document.getElementById('drawgle-initial-screen-template');
+            var navigationTemplate = document.getElementById('drawgle-initial-navigation-template');
+            var screenHost = document.getElementById('drawgle-screen-content');
+            var navigationHost = document.getElementById('drawgle-navigation-host');
+            if (screenTemplate && screenHost) screenHost.innerHTML = screenTemplate.innerHTML;
+            if (navigationTemplate && navigationHost) navigationHost.innerHTML = navigationTemplate.innerHTML;
+            if (screenTemplate) screenTemplate.remove();
+            if (navigationTemplate) navigationTemplate.remove();
+          })();
+        <\/script>
+        <div
+          id="drawgle-tailwind-style-probe"
+          aria-hidden="true"
+          class="pointer-events-none fixed -left-[9999px] top-0 flex h-[13px] w-[17px] rounded-[9px] bg-[#123456] p-[7px] opacity-0"
+        ></div>
+        <script id="drawgle-tailwind-cdn" src="https://cdn.tailwindcss.com" onerror="window.__drawgleTailwindLoadFailed = true"><\/script>
+        ${buildDrawgleTailwindConfigScript()}
+        <script src="https://unpkg.com/lucide@latest"><\/script>
         <script>
           var initialScreenCode = ${serializeForInlineScript(initialScreenCode)};
           var initialNavigationCode = ${serializeForInlineScript(initialNavigationCode)};

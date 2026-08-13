@@ -707,6 +707,30 @@ Focused tests cover malformed streaming fragments, void/self-closing tags, compl
 
 This is a web-canvas change only. No Trigger worker deployment, database migration, or saved-screen rewrite is required.
 
+## 2026-08-13 - Tailwind Bootstrap Ordering Follow-up
+
+### Production incident
+
+Project `1dc94969-0933-4961-97a5-0ceeafafbfde` completed three screens with valid saved utility-class HTML, but all three remained as raw document flow until refresh. The first CSS handoff fix rebuilt the iframe at completion, yet the failure was still reproducible.
+
+### Root cause
+
+The rebuilt `srcDoc` contained final screen code only as a serialized JavaScript string. Its visible content host was empty when the Tailwind Play runtime loaded. The generic style probe could compile and declare the iframe ready before the final screen markup was inserted with `innerHTML`; therefore rebuilding the document did not actually give Tailwind an initial scan of the saved screen.
+
+### Change
+
+- Final/bootstrap screen and navigation fragments are embedded in inert `<template>` elements and materialized into their real hosts before the Tailwind runtime script starts.
+- The Tailwind probe is also present before runtime startup, so the probe and the actual generated screen utilities are compiled by the same initial pass.
+- Generated fragments remain inert until the controlled bootstrap copy, and `</template>` sequences are escaped to prevent a fragment from breaking its container.
+
+### Verification
+
+Focused iframe tests assert the real saved markup is positioned and materialized before the Tailwind runtime, including the streaming-to-persisted transition. The ScreenNode test suite and TypeScript validation pass.
+
+### Rollout
+
+This remains a web-canvas-only change. It requires no Trigger worker deployment, database migration, or saved-screen rewrite.
+
 ## Future Entry Template
 
 ## YYYY-MM-DD — Short title
