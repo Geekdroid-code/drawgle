@@ -679,6 +679,34 @@ Regression coverage checks composition freedom, optional multi-rail spacing norm
 
 Deploy the web application and Trigger worker together. Existing saved screens are not rewritten; retry or regenerate them after deployment. No database migration is required.
 
+## 2026-08-13 - Stable Canvas Streaming and Final CSS Handoff
+
+### Production incident
+
+Project `64a97a16-42da-4d4b-8ee3-b01487e793c7` showed two canvas-only failures: streamed HTML flashed repeatedly while Weekly Schedule was building, and completed screens appeared as unstyled document flow until the page was refreshed. The saved screen code was complete and remained correct in storage.
+
+### Root causes
+
+- Every streamed chunk removed the iframe's style-ready flag. The guard that prevents an unstyled first paint therefore hid and revealed the entire root for every model chunk.
+- Partial streams were cut at an unfinished tag but their open ancestors were left for the browser to repair, so the parsed tree could change shape between chunks.
+- Every chunk was painted immediately, repeatedly replacing the iframe tree and competing with Tailwind's DOM observer.
+- The iframe bootstrap document was frozen at its first placeholder/source. Completion injected final HTML dynamically, while a manual refresh worked because Tailwind saw the final HTML during its initial scan.
+
+### Change
+
+- Streaming fragments now drop an unfinished trailing tag and receive deterministic closing tags for their open ancestors.
+- Iframe paints are capped to one latest-frame commit per 180ms during generation.
+- The style gate is first-paint-only; an already styled screen remains visible while later utility classes compile.
+- Persisted code changes rebuild the iframe document with the complete saved HTML in its initial payload. Streaming updates still reuse one iframe, while generation completion and later saved edits get the same reliable CSS bootstrap as a page refresh.
+
+### Verification
+
+Focused tests cover malformed streaming fragments, void/self-closing tags, completed fenced output, first-paint gating, and the transition from a building placeholder to final persisted HTML. TypeScript and targeted lint pass.
+
+### Rollout
+
+This is a web-canvas change only. No Trigger worker deployment, database migration, or saved-screen rewrite is required.
+
 ## Future Entry Template
 
 ## YYYY-MM-DD — Short title

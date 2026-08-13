@@ -170,6 +170,42 @@ describe("ScreenNode element selection messaging", () => {
     expect(srcDoc).toContain("if (styleRuntimeReady && isTailwindCssApplied())");
     expect(srcDoc).not.toContain("if (window.tailwind && !window.__drawgleTailwindLoadFailed)");
     expect(srcDoc).toContain("Preview styling could not load. Refresh to retry; the saved screen is safe.");
+    expect(srcDoc).toContain("if (!styleRuntimeReady) setStyleRuntimePending();");
+    expect(srcDoc).not.toContain("currentQualityShapePolicy = payload.qualityShapePolicy || initialQualityShapePolicy;\n            setStyleRuntimePending();");
+  });
+
+  it("rebuilds the iframe document with final persisted HTML after streaming completes", () => {
+    triggerState.streams = {
+      code: ['<div class="min-h-screen bg-indigo-500"><h1>Streaming preview</h1></div>'],
+    };
+    const buildingScreen: ScreenData = {
+      ...screen,
+      code: '<div data-drawgle-build-placeholder="true">Building</div>',
+      status: "building",
+      triggerRunId: "run_building",
+      streamPublicToken: "public-token",
+    };
+    const { container, rerender } = render(<ScreenNode screen={buildingScreen} />);
+    const streamingDocument = container.querySelector("iframe")?.getAttribute("srcdoc") ?? "";
+
+    expect(streamingDocument).toContain("data-drawgle-build-placeholder");
+    expect(streamingDocument).not.toContain("Saved final screen");
+
+    triggerState.streams = null;
+    rerender(
+      <ScreenNode
+        screen={{
+          ...buildingScreen,
+          code: '<div class="min-h-screen bg-emerald-500"><h1>Saved final screen</h1></div>',
+          status: "ready",
+          updatedAt: "2026-01-02",
+        }}
+      />,
+    );
+
+    const completedDocument = container.querySelector("iframe")?.getAttribute("srcdoc") ?? "";
+    expect(completedDocument).toContain("Saved final screen");
+    expect(completedDocument).not.toContain("data-drawgle-build-placeholder");
   });
 
   it("persists one bounded rendered-quality report per code hash and viewport", async () => {

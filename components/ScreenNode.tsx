@@ -23,6 +23,9 @@ import {
   type CanvasTool,
 } from "@/lib/canvas-interactions";
 import { cleanErrorMessage } from "@/lib/errors/user-facing";
+import { stabilizeStreamedHtml } from "@/lib/streamed-html";
+
+const STREAM_RENDER_INTERVAL_MS = 180;
 
 /** Data sent from the iframe when the user clicks an element in selection mode. */
 export interface SelectedElementInfo {
@@ -670,20 +673,7 @@ export function ScreenNode({
   const streamedCode = useMemo(() => {
     const chunks = (triggerStreams as Record<string, string[]>)?.code;
     if (!chunks || chunks.length === 0) return null;
-    const joined = stripFences(chunks.join(""));
-
-    // Stream chunks arrive mid-tag. Handing partial markup straight to the
-    // iframe made the HTML parser auto-close a different tree on every chunk
-    // and `ensureDrawgleIds` re-key nodes as that tree shifted, so the layout
-    // re-solved many times a second and the preview flickered.
-    //
-    // Cutting any trailing incomplete tag gives the parser a stable, closable
-    // fragment on each commit. Content still streams in; it just stops
-    // reflowing through half-written elements.
-    const lastOpen = joined.lastIndexOf("<");
-    if (lastOpen === -1) return joined;
-    const lastClose = joined.lastIndexOf(">");
-    return lastClose > lastOpen ? joined : joined.slice(0, lastOpen);
+    return stabilizeStreamedHtml(chunks.join(""));
   }, [triggerStreams]);
   const hasStreamedBuildCode = Boolean(streamedCode?.trim());
   const showBuildPreloader = isBuilding && !hasStreamedBuildCode && !hasMeaningfulRenderableCode(canvasSafeCode);
@@ -726,8 +716,14 @@ export function ScreenNode({
     () => JSON.stringify(DRAWGLE_STYLE_PROPERTY_CONFIGS.map((config) => config.property)),
     [],
   );
-  const [bootstrapContent] = useState(() => ({
-    screenCode: displayCode,
+  // Keep streaming updates inside one long-lived iframe, but rebuild the
+  // document once persisted code changes. Tailwind's browser runtime then
+  // sees the complete saved screen during its initial scan, exactly as it does
+  // after a manual page refresh. This is the deterministic stream -> saved
+  // source handoff; relying on a mutation scan here left final screens bare.
+  const bootstrapScreenCode = isBuilding ? canvasSafeCode : displayCode;
+  const bootstrapContent = useMemo(() => ({
+    screenCode: bootstrapScreenCode,
     navigationShellCode,
     activeNavigationItemId,
     tokenCss,
@@ -735,9 +731,21 @@ export function ScreenNode({
     googleFontAssetLinks,
     qualityCodeHash,
     qualityShapePolicy,
-  }));
+  }), [
+    activeNavigationItemId,
+    bootstrapScreenCode,
+    googleFontAssetLinks,
+    googleFontHref,
+    navigationShellCode,
+    qualityCodeHash,
+    qualityShapePolicy,
+    tokenCss,
+  ]);
   const iframeReadyRef = useRef(false);
   const reportedQualityRef = useRef(new Set<string>());
+  const pendingRenderTimerRef = useRef<number | null>(null);
+  const latestRenderCallbackRef = useRef<() => void>(() => {});
+  const lastStreamRenderAtRef = useRef(0);
 
   const postCurrentRenderState = useCallback((force = false) => {
     const iframe = iframeRef.current;
@@ -830,8 +838,37 @@ export function ScreenNode({
   }, [navigationShellCode]);
 
   useEffect(() => {
-    postCurrentRenderState();
+    latestRenderCallbackRef.current = () => postCurrentRenderState();
   }, [postCurrentRenderState]);
+
+  useEffect(() => {
+    if (!isBuilding) {
+      if (pendingRenderTimerRef.current !== null) {
+        window.clearTimeout(pendingRenderTimerRef.current);
+        pendingRenderTimerRef.current = null;
+      }
+      postCurrentRenderState();
+      return;
+    }
+
+    // Trigger can deliver dozens of tiny chunks per second. Painting every
+    // chunk repeatedly replaces the iframe tree and starves Tailwind's own DOM
+    // observer. Keep the newest payload, but commit at a readable frame rate.
+    if (pendingRenderTimerRef.current !== null) return;
+    const elapsed = Date.now() - lastStreamRenderAtRef.current;
+    const delay = Math.max(0, STREAM_RENDER_INTERVAL_MS - elapsed);
+    pendingRenderTimerRef.current = window.setTimeout(() => {
+      pendingRenderTimerRef.current = null;
+      lastStreamRenderAtRef.current = Date.now();
+      latestRenderCallbackRef.current();
+    }, delay);
+  }, [isBuilding, postCurrentRenderState]);
+
+  useEffect(() => () => {
+    if (pendingRenderTimerRef.current !== null) {
+      window.clearTimeout(pendingRenderTimerRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -1815,7 +1852,11 @@ export function ScreenNode({
             var revision = ++renderRevision;
             currentQualityCodeHash = payload.qualityCodeHash || '';
             currentQualityShapePolicy = payload.qualityShapePolicy || initialQualityShapePolicy;
-            setStyleRuntimePending();
+            // The gate protects the first paint only. Hiding an already styled
+            // root for every streamed mutation creates a full-screen flash on
+            // every model chunk. Keep the previous frame visible while the
+            // runtime compiles any newly introduced utility classes.
+            if (!styleRuntimeReady) setStyleRuntimePending();
             applyGoogleFontHref(payload.googleFontHref || '');
             applyDesignTokenCss(payload.tokenCss || '');
             renderScreenContent(payload.code || '');
