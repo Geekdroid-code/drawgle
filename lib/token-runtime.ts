@@ -271,6 +271,8 @@ const buildCompatibilityAliasVariables = () => `
   --screen-margin: var(--dg-mobile-layout-screen-margin, 16px);
   --section-gap: var(--dg-mobile-layout-section-gap, 24px);
   --element-gap: var(--dg-mobile-layout-element-gap, 12px);
+  --dg-spacing-section-gap: var(--dg-mobile-layout-section-gap, 24px);
+  --dg-spacing-element-gap: var(--dg-mobile-layout-element-gap, 12px);
   --safe-area-top: var(--dg-mobile-layout-safe-area-top, 0px);
   --safe-area-bottom: var(--dg-mobile-layout-safe-area-bottom, 0px);
   --icon-small: var(--dg-sizing-icon-small, 20px);
@@ -288,6 +290,12 @@ const buildCompatibilityAliasVariables = () => `
   --dg-gradient-accent-ring: var(--dg-gradients-accent-ring, linear-gradient(135deg, var(--dg-color-action-primary, #2563eb) 0%, var(--dg-color-action-secondary, #0f172a) 100%));
   --font-heading: var(--dg-typography-heading-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
   --font-body: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  --dg-typography-font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  --dg-typography-title-font-family: var(--dg-typography-heading-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  --dg-color-status-error: var(--dg-color-status-danger-foreground, #991B1B);
+  --dg-color-status-success: var(--dg-color-status-success-foreground, #166534);
+  --dg-color-status-warning: var(--dg-color-status-warning-foreground, #92400E);
+  --dg-color-status-info: var(--dg-color-status-info-foreground, #1E40AF);
 ${TYPOGRAPHY_TOKEN_KEYS.map((key) => {
   const name = key.replace(/_/g, "-");
   return `  --${name}-size: var(--dg-type-${name}-size);
@@ -379,6 +387,13 @@ ${buildCompatibilityAliasVariables()}
 .dg-shadow-surface { box-shadow: var(--dg-shadows-surface); }
 .dg-shadow-overlay { box-shadow: var(--dg-shadows-overlay); }
 .dg-screen-padding { padding-left: var(--dg-mobile-layout-screen-margin); padding-right: var(--dg-mobile-layout-screen-margin); }
+/* A screen rail may own the outer inset only once. This compatibility rule
+   also repairs already-saved screens produced by the repeatable-hook bug. */
+.dg-screen-padding .dg-screen-padding,
+[class~="px-[var(--dg-mobile-layout-screen-margin)]"] .dg-screen-padding {
+  padding-left: 0;
+  padding-right: 0;
+}
 .dg-section-gap { gap: var(--dg-mobile-layout-section-gap); }
 .dg-element-gap { gap: var(--dg-mobile-layout-element-gap); }
 ${typographyClass("nav-title", "nav-title", "heading")}

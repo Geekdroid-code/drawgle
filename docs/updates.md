@@ -40,8 +40,15 @@ The normalized per-screen description and layout contract go to the builder. Raw
 ### Token relationships
 
 - Token sets are validated as a system after normalization and before persistence: surface/background hue and lightness relationship, charter conformance, spacing-scale coherence, layout-gap membership in that scale, macro/micro gap ratio, border width and divider visibility, type scale against the 844px frame, and the text contrast ramp.
+- An approved style-charter section-gap band outranks the derived macro/micro ratio. When an airy macro gap would exceed the 2x ratio, the element gap moves to the next valid scale member instead of shrinking the section gap outside its approved band.
 - High and medium emphasis text targets 4.5:1. Low emphasis targets 3:1 — raising it further collapses the emphasis ladder into two indistinguishable tiers.
 - Repairs are idempotent. `DRAWGLE_TOKEN_RELATIONSHIPS_ENABLED=false` makes them diagnostics-only.
+
+### Spacing ownership and compatibility
+
+- A normal-width content rail owns the screen margin once. Explicit canonical padding and `data-drawgle-content-rail` are alternative declarations; nested rail markers never accumulate another screen inset.
+- A macro section gap belongs only to a flex/grid owner. Existing canonical gap utilities and `data-drawgle-section-stack` are alternative declarations; individual sections and non-layout wrappers are not rewritten into gap owners.
+- Exact legacy token aliases are compatibility data, not aesthetic decisions. They resolve in runtime CSS for saved screens and canonicalize before new HTML is persisted even when aesthetic HTML mutation is disabled.
 
 ### Concentric geometry
 
@@ -730,6 +737,34 @@ Focused iframe tests assert the real saved markup is positioned and materialized
 ### Rollout
 
 This remains a web-canvas-only change. It requires no Trigger worker deployment, database migration, or saved-screen rewrite.
+
+## 2026-08-13 - Single-Owner Screen Rhythm
+
+### Production incident
+
+Project `496f8f6d-05cf-4a6b-a598-4cf86783dff6` exposed three related spacing failures on Habit Journey. Its outer content wrapper already owned `px-[var(--dg-mobile-layout-screen-margin)]`, but six nested blocks received `dg-screen-padding`; the Milestone Medallions rail used the known legacy `--dg-spacing-element-gap` variable and rendered with a measured zero gap; and the approved airy 32px section gap had been reduced to 24px despite a 28-40px style-charter band.
+
+### Root causes
+
+- The builder prompt simultaneously asked for explicit screen-margin/section-gap utilities and repeatable spacing markers. The layout-role normalizer then added canonical classes to every marker without checking whether the element or an ancestor already owned that spacing.
+- Exact token alias correction was incorrectly grouped with aesthetic HTML mutation. The master mutation switch protected composition, but also left a known invalid variable unresolved; rendered telemetry recorded `collapsed_token_gap` and the build still completed.
+- The macro/micro ratio rule ran after charter conformance and overwrote the charter-approved section gap instead of adapting the element gap.
+
+### Change
+
+- Screen-margin and section-gap instructions now define exclusive ownership: use the canonical utility or the metadata hook, never both. Inner cards, section headings, individual sections, and non-flex/grid wrappers cannot own these hooks.
+- Layout-role normalization checks self and ancestors before adding screen padding, removes only a redundant semantic helper, and applies section gap only to a real flex/grid owner without an existing canonical gap.
+- Known aliases always canonicalize by exact string mapping. Runtime compatibility variables keep already-saved screens usable without rewriting their HTML.
+- Runtime CSS suppresses nested `dg-screen-padding` beneath an existing canonical rail, repairing affected saved previews and exports after web deployment.
+- Charter-approved macro rhythm is preserved; the micro element gap moves to a valid spacing-scale member when necessary.
+
+### Verification
+
+The exact Habit Journey HTML changes from six nested screen-padding helpers to zero and from one broken gap alias to zero under the corrected pipeline. Revalidating its stored token input yields the intended 32px section gap and a coherent 16px element gap. Focused layout-role, UI-normalization, mutation-boundary, token-runtime, and design-brain suites pass.
+
+### Rollout
+
+Deploy the web application and Trigger worker together because both prompt/normalization and runtime compatibility changed. No database migration is required; runtime compatibility fixes existing nested padding and legacy gap aliases, while newly generated tokens receive the corrected charter precedence.
 
 ## Future Entry Template
 

@@ -50,15 +50,16 @@ describe("generated UI contract normalization", () => {
     expect(result.report.warnings).toContainEqual(expect.objectContaining({ code: "unknown_token_reference" }));
   });
 
-  it("supports diagnostics-only rollback mode", () => {
+  it("keeps aesthetic repairs disabled while always resolving exact compatibility aliases", () => {
     const result = normalizeGeneratedUiContracts({
       designTokens: tokens,
       repairEnabled: false,
       code: `<input class="rounded-full" style="gap:var(--dg-spacing-element-gap)" />`,
     });
     expect(result.code).toContain("rounded-full");
-    expect(result.code).toContain("--dg-spacing-element-gap");
-    expect(result.report.warnings.length).toBeGreaterThan(0);
+    expect(result.code).toContain("--dg-mobile-layout-element-gap");
+    expect(result.code).not.toContain("--dg-spacing-element-gap");
+    expect(result.report.repairs).toContainEqual(expect.objectContaining({ code: "known_token_alias" }));
   });
 
   it("requires explicit CTA or segmented evidence before using pill radii", () => {

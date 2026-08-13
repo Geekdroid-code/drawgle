@@ -69,6 +69,34 @@ describe("generated screen layout roles", () => {
     expect(result.codes).toEqual([]);
   });
 
+  it("does not compound screen padding inside an existing canonical rail", () => {
+    const result = normalizeAndValidateScreenLayoutRoles({
+      screenPlan,
+      code: `<div class="px-[var(--dg-mobile-layout-screen-margin)] space-y-[var(--dg-mobile-layout-section-gap)]">
+        <section data-drawgle-content-rail="true" class="dg-screen-padding">
+          <div data-drawgle-content-rail="true">Milestone medallions</div>
+        </section>
+      </div>`,
+    });
+
+    expect(result.valid).toBe(true);
+    expect(result.code).not.toContain("dg-screen-padding");
+  });
+
+  it("adds section gap only to a real flex or grid owner without an existing canonical gap", () => {
+    const result = normalizeAndValidateScreenLayoutRoles({
+      screenPlan,
+      code: `<div>
+        <section data-drawgle-section-stack="true"><div>Header</div><div>Cards</div></section>
+        <div class="flex flex-col" data-drawgle-section-stack="true"><section>One</section><section>Two</section></div>
+        <div class="grid gap-[var(--dg-mobile-layout-section-gap)]" data-drawgle-section-stack="true"><section>Three</section><section>Four</section></div>
+      </div>`,
+    });
+
+    expect(result.valid).toBe(true);
+    expect(result.code.match(/dg-section-gap/g)).toHaveLength(1);
+  });
+
   it("still blocks quarantined source-domain copy", () => {
     const result = normalizeAndValidateScreenLayoutRoles({
       screenPlan,

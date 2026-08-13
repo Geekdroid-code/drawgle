@@ -418,7 +418,8 @@ export function validateTokenRelationships({
     const sectionGap = px(readPath(next, "mobile_layout.section_gap"));
     if (sectionGap !== null && (sectionGap < min || sectionGap > max)) {
       const clamped = Math.min(max, Math.max(min, sectionGap));
-      const snapped = scaleMembers.length > 0 ? nearest(clamped, scaleMembers) : clamped;
+      const inBandScaleMembers = scaleMembers.filter((member) => member >= min && member <= max);
+      const snapped = inBandScaleMembers.length > 0 ? nearest(clamped, inBandScaleMembers) : clamped;
       set("mobile_layout.section_gap", formatPx(snapped), "macro_micro_ratio_clamped",
         `Charter density "${charter.density}" bounds section gap to ${min}-${max}px.`);
     }
@@ -426,13 +427,34 @@ export function validateTokenRelationships({
 
   // Macro rhythm must stay legible against micro rhythm. Beyond 2x the page
   // stops reading as one system and starts reading as disconnected islands.
+  // An approved charter density band is stronger evidence than this derived
+  // ratio: preserve its macro rhythm and raise the micro gap to a scale member
+  // instead of silently pushing an airy design below its approved range.
   const elementGap = px(readPath(next, "mobile_layout.element_gap"));
   const sectionGap = px(readPath(next, "mobile_layout.section_gap"));
   if (elementGap !== null && sectionGap !== null && sectionGap > elementGap * 2) {
-    const clamped = elementGap * 2;
-    const snapped = scaleMembers.length > 0 ? nearest(clamped, scaleMembers) : clamped;
-    set("mobile_layout.section_gap", formatPx(snapped), "macro_micro_ratio_clamped",
-      `Section gap was ${(sectionGap / elementGap).toFixed(1)}x the element gap; the ceiling is 2x.`);
+    const [charterMin, charterMax] = charter?.sectionGapRangePx ?? [null, null];
+    const sectionGapIsCharterApproved = charterMin !== null
+      && charterMax !== null
+      && sectionGap >= charterMin
+      && sectionGap <= charterMax;
+
+    if (sectionGapIsCharterApproved) {
+      const minimumElementGap = sectionGap / 2;
+      const eligibleMicroGaps = scaleMembers.filter((member) =>
+        member >= minimumElementGap && member < sectionGap,
+      );
+      const repairedElementGap = eligibleMicroGaps.length > 0
+        ? Math.min(...eligibleMicroGaps)
+        : minimumElementGap;
+      set("mobile_layout.element_gap", formatPx(repairedElementGap), "macro_micro_ratio_clamped",
+        `Section gap ${sectionGap}px is inside the approved ${charterMin}-${charterMax}px charter band; element gap rises to preserve the 2x rhythm ceiling.`);
+    } else {
+      const clamped = elementGap * 2;
+      const snapped = scaleMembers.length > 0 ? nearest(clamped, scaleMembers) : clamped;
+      set("mobile_layout.section_gap", formatPx(snapped), "macro_micro_ratio_clamped",
+        `Section gap was ${(sectionGap / elementGap).toFixed(1)}x the element gap; the ceiling is 2x.`);
+    }
   }
 
   // -------------------------------------------------------------------------

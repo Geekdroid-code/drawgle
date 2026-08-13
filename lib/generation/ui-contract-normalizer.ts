@@ -123,15 +123,15 @@ export function normalizeGeneratedUiContracts({
   const warnings: UiContractDiagnostic[] = [];
   let normalizedCode = code;
 
+  // Exact aliases are compatibility repair, not aesthetic mutation. Leaving a
+  // known legacy spacing variable unresolved collapses gap to zero; correcting
+  // the name cannot change the builder's intended value or composition.
   for (const [legacy, canonical] of Object.entries(EXACT_TOKEN_ALIASES)) {
     if (!normalizedCode.includes(legacy)) continue;
-    if (repairEnabled) {
-      normalizedCode = normalizedCode.replaceAll(legacy, canonical);
-      repairs.push({ code: "known_token_alias", selector: null, detail: `${legacy} → ${canonical}` });
-    } else {
-      warnings.push({ code: "unknown_token_reference", selector: null, detail: `${legacy} should resolve to ${canonical}` });
-    }
+    normalizedCode = normalizedCode.replaceAll(legacy, canonical);
+    repairs.push({ code: "known_token_alias", selector: null, detail: `${legacy} → ${canonical}` });
   }
+  const compatibilityRepairCount = repairs.length;
 
   const $ = load(normalizedCode, {}, false);
   const shapePolicy = shapePolicyFor(designTokens);
@@ -266,9 +266,9 @@ export function normalizeGeneratedUiContracts({
   // order, quoting, whitespace and void-element form, so diagnostics-only mode
   // was never the true bypass it was documented to be. Only take the DOM back
   // when a repair genuinely ran.
-  if (repairEnabled && repairs.length > 0) {
+  if (repairEnabled && repairs.length > compatibilityRepairCount) {
     normalizedCode = $.root().html() ?? normalizedCode;
-  } else {
+  } else if (compatibilityRepairCount === 0) {
     normalizedCode = code;
   }
   const allowedVariables = new Set([

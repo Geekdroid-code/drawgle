@@ -140,6 +140,26 @@ describe("token relationship validator repairs the shipped token set", () => {
     expect(sectionGap).toBeLessThanOrEqual(32);
   });
 
+  it("preserves an approved airy macro gap and raises its micro gap instead", () => {
+    const airyCharter = {
+      ...charter,
+      density: "airy" as const,
+      sectionGapRangePx: [28, 40] as [number, number],
+    };
+    const airy = validateTokenRelationships({
+      tokens: {
+        ...shippedTokens,
+        spacing: { none: "0px", xxs: "4px", xs: "8px", sm: "12px", md: "16px", lg: "24px", xl: "32px", xxl: "48px" },
+        mobile_layout: { ...shippedTokens.mobile_layout, section_gap: "32px", element_gap: "12px" },
+      },
+      charter: airyCharter,
+      repairEnabled: true,
+    }).tokens;
+
+    expect(airy.mobile_layout?.section_gap).toBe("32px");
+    expect(airy.mobile_layout?.element_gap).toBe("16px");
+  });
+
   it("snaps the sub-pixel border and makes the divider visible", () => {
     expect(repaired.border_widths?.standard).toBe("1px");
     expect(codes).toContain("divider_alpha_raised");

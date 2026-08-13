@@ -33,6 +33,8 @@ describe("production generation V2 contracts", () => {
   it("uses a 16px content rail across every built-in design style", () => {
     expect(DESIGN_STYLE_PACKS.every((style) => style.tokenSeed.tokens?.mobile_layout?.screen_margin === "16px")).toBe(true);
     expect(buildDrawgleTokenCss(null)).toContain("--screen-margin: var(--dg-mobile-layout-screen-margin, 16px)");
+    expect(buildDrawgleTokenCss(null)).toContain("--dg-spacing-element-gap: var(--dg-mobile-layout-element-gap, 12px)");
+    expect(buildDrawgleTokenCss(null)).toContain('[class~="px-[var(--dg-mobile-layout-screen-margin)]"] .dg-screen-padding');
   });
   it("derives and validates a backward-compatible inner radius hierarchy", () => {
     const legacy = normalizeDesignTokens({

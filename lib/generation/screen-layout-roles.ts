@@ -28,12 +28,53 @@ type SelectedNode = {
   attr(name: string, value: string): unknown;
 };
 
+const classesFor = (node: SelectedNode) =>
+  new Set((node.attr("class") ?? "").split(/\s+/).filter(Boolean));
+
 const addClass = (node: SelectedNode, className: string) => {
-  const classes = new Set((node.attr("class") ?? "").split(/\s+/).filter(Boolean));
+  const classes = classesFor(node);
   const before = classes.size;
   classes.add(className);
   node.attr("class", [...classes].join(" "));
   return classes.size !== before;
+};
+
+const removeClass = (node: SelectedNode, className: string) => {
+  const classes = classesFor(node);
+  if (!classes.delete(className)) return false;
+  node.attr("class", [...classes].join(" "));
+  return true;
+};
+
+const ownsCanonicalScreenMargin = (node: SelectedNode) => {
+  const classes = classesFor(node);
+  const style = node.attr("style") ?? "";
+  const hasInlinePadding = /padding-inline\s*:\s*var\(\s*--dg-mobile-layout-screen-margin\s*\)/i.test(style);
+  const hasLeftPadding = /padding-left\s*:\s*var\(\s*--dg-mobile-layout-screen-margin\s*\)/i.test(style);
+  const hasRightPadding = /padding-right\s*:\s*var\(\s*--dg-mobile-layout-screen-margin\s*\)/i.test(style);
+  return classes.has("dg-screen-padding")
+    || classes.has("px-[var(--dg-mobile-layout-screen-margin)]")
+    || hasInlinePadding
+    || hasLeftPadding && hasRightPadding;
+};
+
+const ownsCanonicalSectionGap = (node: SelectedNode) => {
+  const classes = classesFor(node);
+  const style = node.attr("style") ?? "";
+  return classes.has("dg-section-gap")
+    || classes.has("gap-[var(--dg-mobile-layout-section-gap)]")
+    || classes.has("space-y-[var(--dg-mobile-layout-section-gap)]")
+    || /(?:^|;)\s*(?:gap|row-gap)\s*:\s*var\(\s*--dg-mobile-layout-section-gap\s*\)/i.test(style);
+};
+
+const acceptsCssGap = (node: SelectedNode) => {
+  const classes = classesFor(node);
+  const style = node.attr("style") ?? "";
+  return classes.has("grid")
+    || classes.has("inline-grid")
+    || classes.has("flex")
+    || classes.has("inline-flex")
+    || /display\s*:\s*(?:grid|inline-grid|flex|inline-flex)\b/i.test(style);
 };
 
 const visibleText = ($: ReturnType<typeof load>) => {
@@ -90,11 +131,28 @@ export const normalizeAndValidateScreenLayoutRoles = ({
   };
 
   $("[data-drawgle-content-rail='true']").each((_index, element) => {
-    changed = addClass($(element), "dg-screen-padding") || changed;
+    const rail = $(element);
+    const ancestorAlreadyOwnsMargin = rail.parents().toArray().some((ancestor) =>
+      ownsCanonicalScreenMargin($(ancestor)),
+    );
+
+    // Screen margin is an outer-rail responsibility, never card padding. A
+    // repeated marker below an already padded rail must not accumulate another
+    // inset. Arbitrary padding and local composition remain untouched.
+    if (ancestorAlreadyOwnsMargin) {
+      changed = removeClass(rail, "dg-screen-padding") || changed;
+      return;
+    }
+
+    if (!ownsCanonicalScreenMargin(rail)) {
+      changed = addClass(rail, "dg-screen-padding") || changed;
+    }
   });
 
   $("[data-drawgle-section-stack='true']").each((_index, element) => {
-    changed = addClass($(element), "dg-section-gap") || changed;
+    const stack = $(element);
+    if (ownsCanonicalSectionGap(stack) || !acceptsCssGap(stack)) return;
+    changed = addClass(stack, "dg-section-gap") || changed;
   });
 
   const text = visibleText($);
