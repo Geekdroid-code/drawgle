@@ -1,6 +1,5 @@
 import { load } from "cheerio";
 
-import { validateProductRequirementCoverage } from "@/lib/generation/product-contract";
 import { findSourceContentQuarantineLeaks } from "@/lib/generation/reference-transfer";
 import type { ScreenPlan } from "@/lib/types";
 
@@ -27,8 +26,6 @@ export type ScreenLayoutRoleResult = {
 type SelectedNode = {
   attr(name: string): string | undefined;
   attr(name: string, value: string): unknown;
-  find(selector: string): { length: number };
-  text(): string;
 };
 
 const addClass = (node: SelectedNode, className: string) => {
@@ -38,10 +35,6 @@ const addClass = (node: SelectedNode, className: string) => {
   node.attr("class", [...classes].join(" "));
   return classes.size !== before;
 };
-
-const hasMeaningfulContent = (node: SelectedNode) =>
-  node.text().replace(/\s+/g, " ").trim().length >= 2
-  || node.find("img,svg,canvas,video,[role='img'],i[data-lucide]").length > 0;
 
 const visibleText = ($: ReturnType<typeof load>) => {
   const copy = $.root().clone();
@@ -71,9 +64,10 @@ const allowedProductText = (screenPlan: ScreenPlan) => {
 };
 
 /**
- * Narrow deterministic normalizer for newly generated screens. It only adds
- * the two canonical spacing utility classes to explicitly marked containers;
- * it never guesses a wrapper, rewrites layout, or mutates arbitrary margins.
+ * Composition-neutral normalizer for newly generated screens. It only adds
+ * canonical spacing utility classes to containers the builder explicitly
+ * marks. Markers are optional and repeatable: absence or a different topology
+ * is never a reason to reject an otherwise usable design.
  */
 export const normalizeAndValidateScreenLayoutRoles = ({
   code,
@@ -95,38 +89,13 @@ export const normalizeAndValidateScreenLayoutRoles = ({
     issues.push(message);
   };
 
-  const rails = $("[data-drawgle-content-rail='true']");
-  if (rails.length === 0) report("missing_content_rail", "Missing data-drawgle-content-rail=\"true\" on the normal-width content rail.");
-  else if (rails.length > 1) report("duplicate_content_rail", `Expected one content rail marker; found ${rails.length}.`);
-  else changed = addClass(rails.eq(0), "dg-screen-padding") || changed;
+  $("[data-drawgle-content-rail='true']").each((_index, element) => {
+    changed = addClass($(element), "dg-screen-padding") || changed;
+  });
 
-  const stacks = $("[data-drawgle-section-stack='true']");
-  if (stacks.length === 0) report("missing_section_stack", "Missing data-drawgle-section-stack=\"true\" on the macro-section parent.");
-  else if (stacks.length > 1) report("duplicate_section_stack", `Expected one section stack marker; found ${stacks.length}.`);
-  else {
-    const stack = stacks.eq(0);
-    const className = stack.attr("class") ?? "";
-    const style = stack.attr("style") ?? "";
-    const classes = new Set(className.split(/\s+/).filter(Boolean));
-    const verticalFlow = classes.has("grid")
-      || classes.has("flex") && classes.has("flex-col")
-      || /display\s*:\s*grid/i.test(style)
-      || /display\s*:\s*flex/i.test(style) && /flex-direction\s*:\s*column/i.test(style);
-    if (!verticalFlow) report("section_stack_not_flow", "The section stack marker must use a vertical flex/grid flow.");
-    else changed = addClass(stack, "dg-section-gap") || changed;
-  }
-
-  const plannedRegions = screenPlan.layoutContract?.regions ?? [];
-  for (const region of plannedRegions) {
-    const nodes = $(`[data-drawgle-region="${region.id.replace(/"/g, "\\\"")}"]`);
-    if (nodes.length === 0) report("missing_planned_region", `Missing planned region marker: ${region.id}.`);
-    else if (nodes.length > 1) report("duplicate_planned_region", `Planned region ${region.id} appears ${nodes.length} times.`);
-    else if (!hasMeaningfulContent(nodes.eq(0))) report("empty_planned_region", `Planned region ${region.id} has no meaningful visible content.`);
-  }
-
-  for (const issue of validateProductRequirementCoverage(screenPlan)) {
-    report("product_requirement_coverage", issue);
-  }
+  $("[data-drawgle-section-stack='true']").each((_index, element) => {
+    changed = addClass($(element), "dg-section-gap") || changed;
+  });
 
   const text = visibleText($);
   const leaked = findSourceContentQuarantineLeaks({

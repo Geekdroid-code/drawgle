@@ -647,6 +647,38 @@ Regression tests cover uploaded-reference failure, no-image prompt-only acceptan
 
 Deploy the web application and Trigger worker together. No database migration or saved-screen rewrite is required.
 
+## 2026-08-13 - Restore Builder Composition Freedom
+
+### Production incident
+
+Project `8a275e68-4f2a-4b40-8732-023ad164cde9` produced one sparse screen and one failed screen. The successful builder received a prescriptive layout contract (fixed 44px header, 300px hero, 80px rows, low density, named regions, and exact marker topology) and generated a visibly under-filled result. The second builder returned no content and hit the OpenRouter hard timeout after 240 seconds; the canvas then preserved its transient `BUILDING` placeholder as if it were generated HTML.
+
+### Root causes
+
+- Product completeness, style provenance, spacing normalization, and final composition had been collapsed into one contract. That made planner geometry authoritative even in style-reference mode.
+- Layout-role validation required exactly one content rail, one vertical section stack, and every named region, so expressive DOM structures could be rejected despite satisfying the product.
+- Source-content quarantine included generic UI actions such as `Add`, `Pause`, `Stop`, and `Next`, suppressing legitimate target controls.
+- Production had one OpenRouter builder model and no configured model fallback. A zero-content timeout therefore failed the screen outright.
+- Failure settlement treated any `<div>` placeholder as durable generated HTML and retained the spinner.
+
+### Change
+
+- Product requirements remain immutable, but planner layout metadata is no longer sent as builder authority in style-reference or prompt-only modes. Structural layout authority remains limited to Image-to-UI recreation.
+- Builder briefs explicitly grant freedom over grouping, section order, density, overlap, scrolling, layering, and spatial composition while requiring complete usable product content.
+- Screen-margin and section-gap markers are repeatable normalization metadata on conventional rails/flows, with explicit full-bleed and overlap exceptions. The deterministic normalizer adds canonical spacing classes when markers are present but never rejects a different composition.
+- Reference images now inform hierarchy, balance, proportion, density, negative space, layering, materials, typography, navigation treatment, and component craft. Source product content remains quarantined.
+- Quarantine now contains literal source-specific copy only; generic UI actions and target-required language are allowed.
+- OpenRouter receives a default zero-content fallback chain, while explicit deployment configuration still takes precedence.
+- Transient build placeholders are tagged and excluded from durable generated HTML, including compatibility detection for older spinner markup.
+
+### Verification
+
+Regression coverage checks composition freedom, optional multi-rail spacing normalization, source-copy isolation, generic target control allowance, prompt authority boundaries, default provider fallbacks, and failed-placeholder settlement. Rebuilding the incident input locally confirms the style builder no longer contains `SCREEN LAYOUT CONTRACT`, the fixed 300px hero instruction, or mandatory region markers.
+
+### Rollout
+
+Deploy the web application and Trigger worker together. Existing saved screens are not rewritten; retry or regenerate them after deployment. No database migration is required.
+
 ## Future Entry Template
 
 ## YYYY-MM-DD — Short title

@@ -81,6 +81,7 @@ export const findSourceContentQuarantineLeaks = ({
 // remapped to a target-owned region and functional purpose.
 const SOURCE_ANATOMY_CUE_PATTERN = /\b(section order|followed by|object positions?|exact coordinates?|same coordinates?|spine|connected cards?|paired (?:cards?|modules?|panels?)|hero scaffold|card topology|full[- ]screen anatomy|source[- ]specific anatomy|literal component arrangement|exact geometry|grid placement|panel placement)\b|\b(?:source|reference|same|exact)\b.{0,36}\b(?:layout|composition|anatomy|section|position|arrangement|topology)\b|\b(?:one|two|three|four|five|six|\d+)\s+(?:specific\s+)?(?:cards?|modules?|panels?|sections?)\b/i;
 const STRUCTURAL_COPY_PATTERN = /\b(copy|clone|same|exact|point[\s-]to[\s-]point)\b.*\b(layout|composition|anatomy|screen|reference)\b/i;
+const GENERIC_UI_ACTION = /^(?:add|back|cancel|close|continue|delete|done|edit|filter|home|next|open|pause|retry|save|search|select|settings|share|skip|start|stop|submit|view)$/i;
 
 export function buildPortableReferenceContext(referenceAnalysis: ReferenceAnalysis) {
   const analysis = ensureSemanticCompositionPrimitives(referenceAnalysis);
@@ -331,14 +332,16 @@ export function createReferenceTransferContract({
   screenLayoutRegions?: ScreenLayoutRegion[];
 }): ReferenceTransferContract {
   const signals = referenceAnalysis?.designSystemSignals;
+  const targetLanguage = `${screenName} ${screenDescription}`.replace(/\s+/g, " ").trim().toLowerCase();
   const sourceContentQuarantine = unique([
-    referenceAnalysis?.sourceContentEvidence?.domainSummary,
     ...(referenceAnalysis?.sourceContentEvidence?.terms ?? []),
     ...(referenceAnalysis?.sourceContentEvidence?.entities ?? []),
     ...(referenceAnalysis?.sourceContentEvidence?.actions ?? []),
     ...(referenceAnalysis?.sourceContentEvidence?.copyFragments ?? []),
-    ...(referenceAnalysis?.screenReferences.flatMap((screen) => screen.copyPatterns ?? []) ?? []),
-  ], 40);
+  ], 40).filter((term) =>
+    !GENERIC_UI_ACTION.test(term)
+    && !containsWholeSourceTerm(targetLanguage, term.toLowerCase()),
+  );
   const rawSemanticPlan = mode === "style" && referenceAnalysis
     ? buildSemanticTransferPlan({ referenceAnalysis, screenName, screenDescription, screenType })
     : emptySemanticPlan({ screenName, screenDescription, screenType });
@@ -595,25 +598,32 @@ export function normalizeReferenceTransferContract({
 export function formatReferenceTransferContract(contract?: ReferenceTransferContract | null) {
   if (!contract) return "";
 
+  // The builder also receives the calibrated image and complete product brief.
+  // Keep this boundary concise: it is a content/provenance firewall and craft
+  // summary, not a second planner that dictates regions and coordinates.
+  const craft = unique([
+    ...contract.preserve,
+    ...(contract.visualInvariants ?? []),
+  ], 8);
+  const adaptations = unique(contract.adapt, 5);
+  const forbidden = unique([
+    ...contract.reject,
+    ...(contract.forbiddenLiteralTransfers ?? []),
+  ], 8);
+  const localMotifs = (contract.localMotifs ?? [])
+    .filter((item) => item.decision === "allow-local")
+    .slice(0, 3);
+
   return [
     `- Contract version: ${contract.version ?? 1}`,
-    `- Layout authority: ${contract.layoutSource}`,
+    `- Content authority: target product; reference role: ${contract.layoutSource === "reference" ? "structural" : "design calibration"}`,
     contract.targetCapabilities.length ? `- Target capabilities: ${contract.targetCapabilities.join(", ")}` : null,
-    contract.preserve.length ? `- Preserve visual invariants: ${contract.preserve.join(" | ")}` : "- Preserve: product-approved tokens and explicit user constraints.",
-    contract.semanticDecisions.length ? [
-      "- Semantic composition decisions:",
-      ...contract.semanticDecisions.map((decision) =>
-        `  - ${decision.primitiveId}: ${decision.decision.toUpperCase()} (${decision.suitabilityScore}/100 for ${decision.targetCapability}). ${decision.rationale}${decision.adaptation ? ` Adaptation: ${decision.adaptation}` : ""}`,
-      ),
-    ].join("\n") : null,
-    contract.adapt.length ? `- Approved adaptations: ${contract.adapt.join(" | ")}` : null,
-    contract.reject.length ? `- Rejected transfer: ${contract.reject.join(" | ")}` : null,
-    contract.premiumQualityTargets.length ? `- Premium quality targets: ${contract.premiumQualityTargets.join(" | ")}` : null,
-    contract.visualInvariants?.length ? `- Exact visual invariants: ${contract.visualInvariants.join(" | ")}` : null,
-    contract.compositionAdaptations?.length ? `- Region-scoped composition: ${contract.compositionAdaptations.map((item) => `${item.targetRegionIds.join(",") || "no approved region"}: ${item.principle}`).join(" | ")}` : null,
-    contract.localMotifs?.length ? `- Local motif policy: ${contract.localMotifs.map((item) => `${item.motifId}=${item.decision}${item.targetRegionIds.length ? ` only in ${item.targetRegionIds.join(",")}` : ""}`).join(" | ")}` : null,
-    contract.forbiddenLiteralTransfers?.length ? `- Forbidden literal transfer: ${contract.forbiddenLiteralTransfers.join(" | ")}` : null,
+    craft.length ? `- Design craft to carry forward: ${craft.join(" | ")}` : "- Preserve product-approved tokens and explicit user constraints.",
+    adaptations.length ? `- Useful design interpretations: ${adaptations.join(" | ")}` : null,
+    forbidden.length ? `- Never import from the source: ${forbidden.join(" | ")}` : null,
+    contract.premiumQualityTargets.length ? `- Quality bar: ${contract.premiumQualityTargets.slice(0, 6).join(" | ")}` : null,
+    localMotifs.length ? `- Optional motifs when functionally useful: ${localMotifs.map((item) => item.motifId).join(" | ")}` : null,
     contract.sourceContentQuarantine?.length ? `- SOURCE CONTENT QUARANTINE (must not appear in target copy/content): ${contract.sourceContentQuarantine.join(" | ")}` : null,
-    `- Rationale: ${contract.rationale}`,
+    "- The builder chooses the final target-native composition. Do not treat this record as a wireframe or fixed region topology.",
   ].filter(Boolean).join("\n");
 }

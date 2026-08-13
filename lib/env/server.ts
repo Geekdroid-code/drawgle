@@ -95,8 +95,11 @@ export const getOpenRouterProviders = () =>
 export const getOpenRouterAllowFallbacks = () =>
   process.env.DRAWGLE_OPENROUTER_ALLOW_FALLBACKS !== "false";
 
+const DEFAULT_OPENROUTER_FALLBACK_MODELS = "qwen/qwen3.6-plus,moonshotai/kimi-k2.5";
+
 export const getOpenRouterFallbackModels = () =>
-  (process.env.DRAWGLE_OPENROUTER_FALLBACK_MODELS ?? "")
+  (getOptionalServerEnv(process.env.DRAWGLE_OPENROUTER_FALLBACK_MODELS)
+    ?? DEFAULT_OPENROUTER_FALLBACK_MODELS)
     .split(",")
     .map((model) => model.trim())
     .filter(Boolean);

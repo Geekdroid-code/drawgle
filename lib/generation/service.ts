@@ -2931,10 +2931,10 @@ const isStyleReferenceMode = (referenceMode?: ReferenceMode | null) =>
   normalizeReferenceMode(referenceMode) !== "user_recreate";
 
 const styleReferenceInstruction = [
-  "Style reference mode: use the image only for visual DNA and premium craft.",
-  "Preserve material quality, shadows, radii, blur/glass, typography character, icon weight, color rhythm, polish, micro-shapes, navigation treatment, and component craftsmanship.",
-  "Do not preserve exact section order, object positions, domain content, data values, full layout structure, or literal screen anatomy.",
-  "Build the actual screen structure from the user prompt, planned screen role, project charter, navigation plan, and approved tokens.",
+  "Style reference mode: use the image for design taste and compositional intelligence, never for the source product's content.",
+  "Study hierarchy, balance, proportion, density, negative space, layering, material quality, typography character, icon weight, color rhythm, navigation treatment, polish, micro-shapes, and component craftsmanship.",
+  "Reinterpret those decisions around the target screen's real user job and content. Do not copy source-domain text, entities, values, features, or branding, and do not blindly clone the full screenshot anatomy.",
+  "The builder owns the final screen structure and may adapt, combine, or relocate visual principles to create the best usable target design.",
 ].join(" ");
 
 const userRecreateReferenceInstruction = "Use the uploaded sketch or wireframe as structural visual evidence while still honoring the provided design tokens. Preserve visible layer order, containment, layout mechanics, edge/depth treatment, and component construction instead of treating the image as loose style inspiration.";
@@ -5147,8 +5147,8 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
       text: [
         "STYLE CALIBRATION EVIDENCE — NON-STRUCTURAL.",
         styleReferenceInstruction,
-        "The target regions and version-2 reference-transfer contract in the system instruction are already locked. The image may refine only approved visual invariants, optical density, proportion, type relationships, material restraint, control construction, and region-scoped motifs.",
-        "Never add a component, information region, decorative system, text, value, brand, or domain object merely because it appears in the image. A local motif is legal only in the target region named by its allow-local rule.",
+        "Use the reference-transfer contract as a content firewall, not a wireframe. It protects the target product from source-domain leakage while leaving you free to make strong composition decisions.",
+        "Never add a product feature, text, value, brand, or domain object merely because it appears in the image.",
         `Reference id: ${input.referenceId ?? "style-reference"}.`,
       ].join(" "),
     });

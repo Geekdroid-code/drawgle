@@ -26,8 +26,8 @@ Non-negotiable output discipline:
 - Do not plan text, cards, maps, charts, nav shells, or CTAs that cannot fit the viewport.
 - Do not make each screen feel like a different app. Distinct compositions are allowed; inconsistent padding, line-height, card radii, and nav rhythm are not.
 - Every screen brief must include these labels inside description: Reference DNA, Visual Goal, Layout Anatomy, Key Components, Visual Styling, Interaction Notes, Must Preserve.
-- Every screen must also include layout_contract: compact, app-specific construction rules covering viewport budget, focal hierarchy, macro/micro spacing, component density, CTA weight, and anti-patterns, plus the version-3 numeric viewport_budget and region_contracts.
-- Think spatially before you think descriptively. A screen brief that names components without assigning them vertical space and content budgets is not a plan; it is a wish list, and the builder will fill the gaps with decoration.
+- Every screen must also include layout_contract as planning metadata: a concise hierarchy/rhythm intent and a semantic mapping from product requirements to functional areas. It is not a fixed template and must not prescribe pixel heights, item counts, column counts, or a required DOM topology.
+- Think in terms of meaningful content, hierarchy, interaction, and visual opportunity. Leave final spatial composition to the builder, which sees the complete product contract, design system, and any approved style image.
 - Every screen must include reference_transfer. It records which evidence owns layout, which visual invariants transfer, which semantic composition principles are preserved/reinterpreted/rejected after target-role suitability checks, the premium craft targets, and which source anatomy is forbidden.
 - Each screen brief must be builder-ready, not a product summary. Describe background layer, content rail, parent-child containment, spacing, edge treatment, type roles, and overflow/wrapping policy.
 - COMPOSITIONAL DIRECTION: Push past generic list layouts. Define the specific spatial orchestration required by the approved evidence: note intentional depth, structural asymmetry, and varying visual density.
@@ -158,32 +158,15 @@ const plannerScreensJsonContract = `Return JSON with this exact top-level shape:
 	      "roadmap_stable_key": "screen:short-name",
 	      "description": "Reference DNA: ...\\nVisual Goal: ...\\nLayout Anatomy: ...\\nKey Components: ...\\nVisual Styling: ...\\nInteraction Notes: ...\\nMust Preserve: ...",
       "layout_contract": {
-        "version": 3,
-        "viewport_plan": "Header/content/nav budget and scroll behavior in one sentence",
+        "version": 2,
+        "viewport_plan": "Content priority and scroll behavior without fixed pixel heights or a required section order",
         "focal_hierarchy": "What dominates first, second, third, and how scale/contrast/position creates that",
         "section_rhythm": "Macro spacing between sections versus micro spacing inside groups",
-        "component_density": "How chips, rows, forms, cards, charts, and controls should pack content",
-        "cta_policy": "Primary/secondary action weight, placement, size, and when not to overpower content",
-        "anti_patterns": ["Specific bad layout habit to avoid for this screen"],
+        "component_density": "How chips, rows, forms, cards, charts, and controls should balance information and breathing room",
+        "cta_policy": "Primary/secondary action weight and prominence without fixing coordinates",
+        "anti_patterns": ["Specific bad design habit to avoid for this screen"],
         "regions": [
-          { "id": "stable-region-id", "purpose": "What target-screen job this region performs", "content_kind": "header | focal | chart | list | form | media | action | supporting | other", "product_requirement_ids": ["exact-id-from-product-contract"] }
-        ],
-        "viewport_budget": {
-          "frame_height_px": 844,
-          "above_fold_region_ids": ["stable-region-id"],
-          "regions": [
-            { "id": "stable-region-id", "min_h_px": 220, "max_h_px": 320, "priority": "focal | primary | secondary" }
-          ]
-        },
-        "region_contracts": [
-          {
-            "id": "stable-region-id",
-            "arrangement": "single | two-column | three-column | grid | horizontal-scroll | stacked-rows",
-            "sibling_balance": "equal-height | independent",
-            "item_count": 2,
-            "item_anatomy": ["media 4:5", "eyebrow", "title", "body", "text-link"],
-            "copy_budget": { "title_max_chars": 22, "body_max_lines": 2 }
-          }
+          { "id": "stable-region-id", "purpose": "What target-screen job this functional area performs", "content_kind": "header | focal | chart | list | form | media | action | supporting | other", "product_requirement_ids": ["exact-id-from-product-contract"] }
         ]
       },
       "reference_transfer": {
@@ -351,20 +334,14 @@ Rules:
 - Renderer-owned navigation: when the blueprint has shared primary navigation, do not describe its bottom dock/tab-bar/nav-pill anatomy, spacer, clearance height, or padding formula inside any screen description. Bottom navigation from approved evidence belongs to navigation_plan/design, not to screen content.
 - Reference provenance: reference_transfer is a decision record, not decorative metadata. Evaluate every supplied semantic primitive against the target screen capability. Preserve or reinterpret the principle only when its purpose serves the target; reject it otherwise. Preserve why it worked (hierarchy, rhythm, disclosure, depth, comparison), never its coordinates or object topology. reject overrides any conflicting phrase in Description or existing project memory.
 - Cross-screen differentiation: family resemblance comes from tokens, type, material, icon, spacing, and interaction tone. Each route must have a task-native information architecture and dominant composition; never turn a previous screen's cards, connector, hero, chart, or decorative scaffold into a universal shell.
-- Description quality: each description should usually be 900-1800 chars, include all seven labels, and be detailed enough for the builder without seeing the image. Write as a construction brief from background forward through layout, containment, components, typography, materials, depth/edges, imagery/charts/maps, interaction states, and must-preserve construction cues.
-- layout_contract is not prose decoration. It is the compact architecture the builder must obey before writing HTML. Give every target region a stable id and functional content_kind; reference_transfer may approve a source motif only inside one of these named regions: no generic stacked blocks, empty chart/card shells, oversized CTA unless action priority demands it, or primitive chip grids with large macro gaps and cramped internal padding.
-- Product authority: each locked screen supplies an immutable product_contract. Do not add, remove, rename, reinterpret, or replace its requirements. Map every requirement id to one or more target-owned layout regions through product_requirement_ids. Unknown ids and uncovered requirements are invalid.
-- SPATIAL ARITHMETIC (layout_contract v3). Prose alone is not a layout. Do the numbers:
-  - viewport_budget assigns every region a min_h_px and max_h_px against the 844px frame, and names which regions occupy the first fold. The above-fold minimums plus roughly 44px of top chrome (plus about 96px when shared navigation is enabled) must fit inside 844px. If they do not, move the lowest-priority region below the fold rather than shrinking everything.
-  - Every region whose min_h_px exceeds 120px must be carried by real content: media, a chart with visible marks, a list, a form, or a focal content cluster. A tall region with nothing in it is where decorative filler comes from. If you cannot name the content, lower the height.
-  - region_contracts declares how each region packs. Any two-column, three-column, or grid arrangement MUST use sibling_balance "equal-height", one shared item_anatomy list, and a copy_budget. Items in one row are read as a set; different media heights, different internal anatomy, or a vertical offset on one item makes the row rag.
-  - Use "independent" sibling balance only for horizontal-scroll rails, where items are not compared side by side.
-  - Set copy_budget from the real column width: a two-column card on a 390px frame holds roughly 22 title characters and two body lines, not a paragraph.
-  - Never describe an "asymmetric grid" without saying exactly what differs and why the target task needs it. Unexplained asymmetry becomes a ragged row.
+- Description quality: each description should usually be 900-1800 chars, include all seven labels, and give the builder rich product content, interaction states, hierarchy, materials, depth/edges, imagery/charts/maps, and craft opportunities. Do not turn it into coordinates, fixed heights, exact item counts, or a mandatory stack/grid recipe.
+- layout_contract is semantic planning metadata, not builder geometry. Give every functional area a stable id and map every immutable product requirement through product_requirement_ids, but do not decide the final DOM, section order, number of columns, or component dimensions.
+- Product authority: each locked screen supplies an immutable product_contract. Do not add, remove, rename, reinterpret, or replace its requirements. Unknown ids and uncovered requirements are invalid. Requirements define what must be usable; they do not dictate how the builder composes it.
+- Creative latitude: identify the most important information, credible real-world content, and the visual/interaction opportunities that make the screen feel complete. The builder may merge, overlap, juxtapose, scroll, layer, or spatially reorganize functional areas when that produces a better usable design.
 - Component specificity: name concrete structures/states when relevant: headers, hero regions, surfaces, containers, lists, rows, sheets, charts, progress rings, segmented controls, tabs, chips, icon buttons, badges, avatar stacks, maps, media areas, text groups, and CTA placement.
 - Material specificity: call out typography, imagery, chart geometry, background, rounded shapes, elevation, edge treatment, inner/outer borders, highlight edges, bevels, glass/frosting, and must-preserve composition cues. Avoid weak phrases like "clean dashboard" or "stats cards" unless immediately followed by exact anatomy.
 - Copy/anatomy: preserve real copy when it anchors layout; use placeholders only for volatile names, numbers, and dates. Do not duplicate anatomy across screens unless the approved product shell or evidence clearly reuses it.
-- Viewport fit: include a 390px fit note and how the screen avoids overflow and text collision. On shared-navigation screens, the renderer supplies the bottom content clearance; the plan must not assign a numeric value or spacer.
+- Viewport fit: explain how the experience remains usable at 390px without assigning fixed section heights. Rich screens may scroll; do not solve fit by deleting useful content or creating decorative empty space. On shared-navigation screens, the renderer supplies bottom clearance.
 - Asset planning: plan bitmap groups in asset_needs; use [] when none. Declare subject, semanticCategory, semanticTags, type, priority, placementHint, slotCount, and reusePolicy. Eight similar image-bearing cards are one need with slotCount=8 and reusePolicy=repeat, not eight needs. Use distinct for different people or explicitly different named products.
 - Asset sourcePreference: internal_library for transparent foreground cutouts; stock for non-transparent photos/textures; user_upload only for explicit user-owned logo/product/brand/person/private image. Never output "ai_generated"; placeholders are resolved later. Do not request bitmaps for icons, decorative blobs, CSS gradients, HTML/CSS charts, simple cards, or generic chrome.
 - State proposals: state_variants are optional local states of the same route shell, not destinations. Suggest at most three meaningful states opened by visible controls: modal/dialog/sheet/popover, active tab with a distinct content body, filtered/search results, selected detail panel, or a concrete form flow. Never use onboarding, auth, profile/settings routes, checkout, navigation destinations, theme/dark mode, hover/focus styling, or generic loading/empty states as local paid states. Set explicitly_requested and default_selected true only when the user prompt explicitly requires that visible state, except for the additional recreate-mode evidence rule above. Every edit_instruction must preserve the parent shell, navigation, tokens, typography, spacing, and overall layout.
@@ -1243,7 +1220,10 @@ const buildScreenInstruction = ({
   const hasAssetEntries = Boolean(assetManifest?.length || assetRequirements?.length);
   const designStyleContract = formatDesignStyleContract(designStyle);
   const chartBuildInstruction = hasChartBuildIntent({ screenPlan, prompt }) ? `${CHART_BUILD_RULE}\n` : "";
-  const screenLayoutContract = buildScreenLayoutContract(screenPlan);
+  // Only recreate mode has structural layout authority. In style and prompt
+  // modes the planner's layout metadata is useful upstream, but feeding it to
+  // the builder as a contract turns one proposed composition into a template.
+  const screenLayoutContract = mode === "recreate" ? buildScreenLayoutContract(screenPlan) : "";
   const screenDescription = navigationPlan?.enabled
     ? stripRendererOwnedNavigationFromBrief(screenPlan.description)
     : screenPlan.description;
@@ -1277,9 +1257,9 @@ const buildScreenInstruction = ({
     : mode === "style"
       ? [
         "MODE CONTRACT: STYLE_REFERENCE. The application has confirmed reusable visual evidence from an uploaded reference, approved style contract, or project reference memory.",
-        "When a guarded style-calibration image is attached, inspect it only inside the version-2 reference-transfer contract. It is optical evidence, never layout authority.",
-        "Build from the validated screen brief, target-region layout contract, product-owned navigation semantics, reference-transfer contract, creative direction, and tokens. The image may refine approved craft but cannot introduce source anatomy or unplanned regions.",
-        "Do not clone a curated or uploaded style screenshot's domain content, section order, object positions, or full layout anatomy.",
+        "When a guarded style-calibration image is attached, study its composition intelligence and craft: hierarchy, balance, proportion, density, negative space, layering, typography, materials, navigation treatment, and component construction.",
+        "Reinterpret those design decisions around the target product requirements. The builder owns the final composition; the image must not introduce source-domain features, copy, entities, or data.",
+        "Do not literally clone the screenshot's domain content or full page anatomy, but do use its design taste rather than reducing it to colors and radii.",
       ].join(" ")
       : [
         "MODE CONTRACT: PROMPT_ONLY. The application has confirmed that no reference image or style contract exists for this invocation. Do not invent image-observed details.",
@@ -1304,16 +1284,18 @@ ${chartBuildInstruction}
 ${modeInstruction}
 
 CRITICAL INSTRUCTION 0: SCREEN SPEC FIDELITY
-Treat Screen Description as a concrete implementation spec, not loose inspiration.
-Priority order: explicit user/product requirements; target layout regions and navigation semantics; approved reference-transfer calibration; design tokens and creative direction; then raw image observation only where the calibration contract permits it.
-Before using it, reconcile it against REFERENCE TRANSFER CONTRACT. If a brief or project-memory phrase asks for a rejected source motif, the reject rule wins: redesign that region from the target screen's user task while preserving the approved visual invariants.
+${mode === "recreate"
+  ? "Treat Screen Description and structural reference as a concrete implementation spec. Preserve their visible composition while satisfying the product requirements."
+  : "Treat Screen Description as a rich content-and-craft brief, not a fixed wireframe. Preserve its product requirements, interaction intent, and quality bar while freely improving section order, grouping, scale, overlap, density, and spatial composition."}
+Priority order: explicit user/product requirements; navigation semantics; approved reference craft and creative direction; design tokens; then planner composition suggestions.
+Before using visual evidence, reconcile it against REFERENCE TRANSFER CONTRACT. Source-domain content remains forbidden, but approved design principles may be reinterpreted wherever they best serve the target screen.
 ${mode === "style"
   ? "Family resemblance MUST come from tokens, typography, materials, iconography, density, and interaction tone, not repeated section order, card topology, connector lines, hero scaffolds, or decorative geometry from another screen. The target screen's content model owns composition: conversations are designed as conversations, forms as forms, editorial feeds as reading systems, maps as spatial tools, and dashboards as decision surfaces."
   : mode === "recreate"
     ? "The structural reference and its transfer contract own composition; adapt only the copy and product details permitted by the brief."
     : "The user brief and target screen's content model own composition; do not imply that any detail was observed in an image."}
 
-If it describes relative placement, overlap, floating surfaces, nested containment, bottom sheets, large typography, map backgrounds, charts, progress rings, segmented controls, avatar stacks, icon/text groups, edge treatments, bevels, glass/frosting, or CTA construction, you MUST recreate those details faithfully.
+If it requires a bottom sheet, map, chart, progress view, form, media region, control, or other functional component, build that capability completely. In non-recreate modes, suggested placement and dimensions are starting ideas rather than mandatory geometry.
 Do NOT flatten a highly specific composition into a generic dashboard, generic card layout, or evenly stacked block layout.
 
 CRITICAL INSTRUCTION 0.25: STRUCTURAL DEPTH
@@ -1324,9 +1306,9 @@ Avoid generic AI-app defaults like stacking identical blocks down the screen. Ca
 
 CRITICAL INSTRUCTION 0.75: HUMAN LAYOUT PREFLIGHT
 Mentally plan spatial orchestration before writing HTML.
-Preflight checklist: establish viewport budget (header, focal center, nav clearance), build flexible containers for real text wraps, and strictly contrast micro-groupings (tight gaps) with macro-sections (section-gap tokens).
-Use one horizontal rail across the app, normally px-[var(--dg-mobile-layout-screen-margin)] unless the brief explicitly calls for full-bleed media.
-Use one vertical rhythm from the tokens: major sections use gap-[var(--dg-mobile-layout-section-gap)], card internals use p-[var(--dg-spacing-md)] or a clearly tighter token, and small icon/label groups use gap-[var(--dg-spacing-xs)].
+Preflight checklist: establish the first-read hierarchy and nav clearance, build flexible containers for real text wraps, and strictly contrast micro-groupings (tight gaps) with macro-sections (section-gap tokens).
+Normal-width content uses the screen-margin token. Full-bleed media, intentional edge treatments, overlaps, layered canvases, and spatial compositions may break that rail deliberately.
+Standard major-section flows use the section-gap token; card internals use p-[var(--dg-spacing-md)] or a clearly tighter token; small icon/label groups use gap-[var(--dg-spacing-xs)]. These spacing roles do not require a single vertical stack.
 If shared bottom navigation is injected, mark exactly one real scroll/main content wrapper with dg-shared-nav-clearance and data-drawgle-nav-clearance-owner="true". The renderer supplies its padding; never add a manual bottom-padding formula or empty spacer.
 Every compact card, list row, chip row, and nav-adjacent area must be designed for real text: use min-w-0 on flex text groups, truncate or wrap intentionally, avoid fixed heights that cannot contain the copy, and never let labels collide with icons, badges, prices, or chevrons.
 Every chart, map, gauge, progress ring, or visual panel must contain visible constructed geometry. Do not leave blank chart cards, empty axes, empty map panels, or placeholder rectangles.
@@ -1376,11 +1358,11 @@ ${formatTokenOwnershipContract()}
 - Static HTML only. Manually expand repeated UI items. Return only the content HTML.
 - Icons: use Lucide via <i data-lucide="icon-name"></i> or static inline SVG.
 - Match supplied project memory, creative direction, naming, IA, and interaction patterns without cloning an unrelated screen.
-- Build every named requirement in Screen Description: all cards, metrics, controls, labels, charts, avatar stacks, CTAs, and visual panels.
+- Build every product requirement and every functional component named in Screen Description. The screen must contain credible usable content, not merely one example item per requirement.
 - Allow vertical scrolling for long content; do not clip required bottom content with overflow-hidden.
 - Main content should normally use px-[var(--dg-mobile-layout-screen-margin)] and gap-[var(--dg-mobile-layout-section-gap)] unless the brief requires full-bleed media/maps.
-- Mark every planned layout region with data-drawgle-region="exact-region-id". Each marker must contain meaningful visible content serving its mapped product requirement ids.
-- Mark exactly one normal-width content rail with data-drawgle-content-rail="true" and exactly one vertical macro-section parent with data-drawgle-section-stack="true". Full-bleed media may sit outside the rail. The section stack must use flex/grid flow; do not fake vertical rhythm with repeated margins.
+- Spacing hooks are normalization metadata, not layout authority: mark every conventional normal-width rail with data-drawgle-content-rail="true" and every conventional flex/grid macro-section flow with data-drawgle-section-stack="true". Multiple hooks are allowed. Drawgle adds canonical margin/gap classes without changing composition. Omit a hook only from genuinely full-bleed or intentionally overlapping local art; never create a wrapper merely to satisfy a hook.
+- Composition completeness: use the viewport meaningfully. Prefer useful controls, context, and supporting content over blank lower-screen space; when complete content needs more room, make it scroll instead of deleting it to satisfy an imagined fold.
 - Final self-audit: no horizontal overflow, nav overlap, clipped CTA, unreadable/empty chart, blank visual panel, text-icon collision, or random spacing drift.
 - Bitmap assets: declare only APPROVED VISUAL ASSET MANIFEST slots. Never write remote bitmap URLs. Inline data:image/svg+xml is allowed only for simple vector geometry.
 - End with sentinel on its own final line: ${DRAWGLE_GENERATION_COMPLETE_SENTINEL}`;

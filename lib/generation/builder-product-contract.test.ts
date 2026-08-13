@@ -38,7 +38,11 @@ describe("builder project contract", () => {
       },
     });
     const formatted = formatBuilderProjectContract(contract);
-    expect(formatted).toContain("invoice-summary");
+    expect(formatted).toContain("Product: Invoice utility");
+    expect(formatted).toContain("Audience: Freelancers");
+    expect(formatted).toContain("Current screen: Invoice Detail");
+    expect(formatted).not.toContain("invoice-summary");
+    expect(formatted).not.toContain("Pale bordered cards");
     expect(formatted).not.toContain("SECRET ORIGINAL PROMPT");
     expect(formatted).not.toContain("Planner Brief");
   });

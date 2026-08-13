@@ -148,7 +148,7 @@ describe("state-scoped prompt construction", () => {
       "SCREEN BRIEFS ONLY",
       "Description quality",
       "900-1800 chars",
-      "no generic stacked blocks",
+      "Creative latitude",
       "Component specificity",
       "Material specificity",
       "Viewport fit",
@@ -209,8 +209,8 @@ describe("state-scoped prompt construction", () => {
     expect(recreate).toContain("prioritize its exact original structure and material choices");
     expect(style).toContain("MODE CONTRACT: STYLE_REFERENCE");
     expect(style).toContain("When a guarded style-calibration image is attached");
-    expect(style).toContain("It is optical evidence, never layout authority");
-    expect(style).toContain("Do not clone a curated or uploaded style screenshot's domain content");
+    expect(style).toContain("study its composition intelligence and craft");
+    expect(style).toContain("do use its design taste rather than reducing it to colors and radii");
     expect(style).not.toContain("prioritize its exact original structure and material choices");
     expect(prompt).toContain("MODE CONTRACT: PROMPT_ONLY");
     expect(prompt).not.toContain("When a style reference image is attached");
@@ -227,6 +227,31 @@ describe("state-scoped prompt construction", () => {
     expect(instruction).toContain("When a guarded style-calibration image is attached");
     expect(instruction).not.toContain("MODE CONTRACT: IMAGE_TO_UI");
     expect(instruction).not.toContain("MODE CONTRACT: PROMPT_ONLY");
+  });
+
+  it("keeps planner geometry out of style and prompt builder authority", () => {
+    const constrainedPlan: ScreenPlan = {
+      ...screenPlan,
+      layoutContract: {
+        version: 3,
+        viewportPlan: "Fixed 44px header, 300px hero, and 80px rows.",
+        focalHierarchy: "One prescribed hero followed by rows.",
+        sectionRhythm: "24px only.",
+        componentDensity: "Low density.",
+        ctaPolicy: "Bottom-right action.",
+        antiPatterns: [],
+        regions: [{ id: "fixed-hero", purpose: "Prescribed hero", contentKind: "focal" }],
+      },
+    };
+
+    const style = buildStyleScreenInstruction({ ...screenInput, screenPlan: constrainedPlan });
+    const prompt = buildPromptScreenInstruction({ ...screenInput, screenPlan: constrainedPlan });
+    const recreate = buildRecreateScreenInstruction({ ...screenInput, screenPlan: constrainedPlan });
+
+    expect(style).not.toContain("SCREEN LAYOUT CONTRACT");
+    expect(style).not.toContain("Fixed 44px header, 300px hero");
+    expect(prompt).not.toContain("SCREEN LAYOUT CONTRACT");
+    expect(recreate).toContain("SCREEN LAYOUT CONTRACT");
   });
 
   it("carries suitability decisions and premium craft targets through planner and builder prompts", () => {
@@ -271,10 +296,12 @@ describe("state-scoped prompt construction", () => {
       },
     });
 
-    expect(instruction).toContain("Semantic composition decisions");
-    expect(instruction).toContain("progressive-sequence-screen-1: REJECT");
-    expect(instruction).toContain("layered-depth-screen-1: PRESERVE");
-    expect(instruction).toContain("Premium quality targets");
+    expect(instruction).toContain("Design craft to carry forward");
+    expect(instruction).toContain("Electric-blue emphasis on charcoal surfaces");
+    expect(instruction).toContain("Never import from the source");
+    expect(instruction).toContain("Ordinary conversation has no staged dependency");
+    expect(instruction).toContain("Quality bar");
+    expect(instruction).toContain("Limit elevation to a small, legible set of planes");
   });
 
   it("gives every builder an exact deterministic asset-slot contract", () => {

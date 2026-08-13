@@ -194,11 +194,19 @@ const buildPlaceholderCode = (screenName: string, designTokens?: DesignTokens | 
   const background = designTokens?.tokens?.color?.background?.primary ?? "#f8fafc";
   const foreground = designTokens?.tokens?.color?.text?.high_emphasis ?? "#111827";
 
-  return `<div class="min-h-screen w-full flex flex-col items-center justify-center gap-4" style="background:${background};color:${foreground}">
+  return `<div data-drawgle-build-placeholder="true" class="min-h-screen w-full flex flex-col items-center justify-center gap-4" style="background:${background};color:${foreground}">
     <div class="w-10 h-10 rounded-full border-4 border-black/10 border-t-black/70 animate-spin"></div>
     <div class="text-sm font-semibold tracking-wide uppercase">Building</div>
     <div class="text-lg font-medium">${escapeHtml(screenName)}</div>
   </div>`;
+};
+
+const shouldPreserveFailedScreenCode = (code: string) => {
+  const transientPlaceholder = code.includes('data-drawgle-build-placeholder="true"')
+    || code.includes("animate-spin") && />\s*Building\s*</i.test(code);
+  if (transientPlaceholder) return false;
+  return code.includes("data-drawgle-id")
+    || code.includes("<div") && !code.includes("Generation failed");
 };
 
 const buildErrorCode = (message: string) => {
@@ -1613,7 +1621,7 @@ export const buildScreenTask = task({
           "STRUCTURAL HTML RETRY: The previous response was rejected before save because the HTML structure was invalid.",
           staticQuality.issues.length > 0 ? `Hard static issues to fix: ${staticQuality.issues.join(" | ")}` : null,
           quality.issues.length > 0 ? `Hard quality/parser issues to fix: ${quality.issues.join(" | ")}` : null,
-          !layoutRoles.valid ? "LAYOUT CONTRACT REPAIR: Preserve the product contract. Add every exact data-drawgle-region marker with meaningful target content, exactly one data-drawgle-content-rail=\"true\", and exactly one vertical flex/grid data-drawgle-section-stack=\"true\". Remove quarantined source-domain copy. Do not change the planned requirements or invent regions." : null,
+          !layoutRoles.valid ? "CONTENT PROVENANCE REPAIR: Preserve the target product requirements and composition, but remove every quarantined source-domain term. Replace it with credible target-product copy. Do not add layout markers or restructure the screen merely to satisfy this repair." : null,
           "Return one complete static HTML screen with exactly one min-h-screen root. Do not include JSX, scripts, duplicate roots, duplicate data-drawgle-id values, or unbalanced tags.",
           "End with <!-- DRAWGLE_GENERATION_COMPLETE --> on its own final line.",
         ].filter(Boolean).join("\n\n"),
@@ -3832,11 +3840,8 @@ export const generateUiFlowTask = task({
               .eq("id", screenId)
               .maybeSingle();
             const existingCode = typeof failedRow?.code === "string" ? failedRow.code : "";
-            const looksLikeGeneratedHtml =
-              existingCode.includes("data-drawgle-id") ||
-              (existingCode.includes("<div") && !existingCode.includes("Generation failed"));
             const failurePatch = buildScreenPersistPatch({
-              code: looksLikeGeneratedHtml ? existingCode : buildErrorCode(completedScreenError),
+              code: shouldPreserveFailedScreenCode(existingCode) ? existingCode : buildErrorCode(completedScreenError),
               status: "failed",
               error: completedScreenError,
             });
@@ -3943,14 +3948,11 @@ export const generateUiFlowTask = task({
             .eq("id", screenId)
             .maybeSingle();
           const existingCode = typeof failedRow?.code === "string" ? failedRow.code : "";
-          const looksLikeGeneratedHtml =
-            existingCode.includes("data-drawgle-id") ||
-            (existingCode.includes("<div") && !existingCode.includes("Generation failed"));
           await admin
             .from("screens")
             .update(
               buildScreenPersistPatch({
-                code: looksLikeGeneratedHtml ? existingCode : buildErrorCode(message),
+                code: shouldPreserveFailedScreenCode(existingCode) ? existingCode : buildErrorCode(message),
                 status: "failed",
                 error: message,
               }),
@@ -4002,14 +4004,11 @@ export const generateUiFlowTask = task({
             .eq("id", screenId)
             .maybeSingle();
           const existingCode = typeof failedRow?.code === "string" ? failedRow.code : "";
-          const looksLikeGeneratedHtml =
-            existingCode.includes("data-drawgle-id") ||
-            (existingCode.includes("<div") && !existingCode.includes("Generation failed"));
           await admin
             .from("screens")
             .update(
               buildScreenPersistPatch({
-                code: looksLikeGeneratedHtml ? existingCode : buildErrorCode(message),
+                code: shouldPreserveFailedScreenCode(existingCode) ? existingCode : buildErrorCode(message),
                 status: "failed",
                 error: message,
               }),

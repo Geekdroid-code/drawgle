@@ -346,3 +346,15 @@ describe("N - structured roadmap actions own their scope", () => {
     expect(source).toContain("requestedOutputCount: authoritativeRequestedOutputCount");
   });
 });
+
+describe("O - provider failures never preserve a fake building screen", () => {
+  it("marks transient placeholders and excludes them from durable generated HTML", async () => {
+    const { readFileSync } = await import("node:fs");
+    const source = readFileSync("trigger/generate-ui-flow.ts", "utf8");
+
+    expect(source).toContain('data-drawgle-build-placeholder="true"');
+    expect(source).toContain("shouldPreserveFailedScreenCode(existingCode)");
+    expect(source).toContain('code.includes("animate-spin")');
+    expect(source).not.toContain("const looksLikeGeneratedHtml =");
+  });
+});

@@ -85,6 +85,12 @@ export function buildBuilderProjectContract({
 
 export const formatBuilderProjectContract = (contract: BuilderProjectContractV1) => [
   "BUILDER PRODUCT CONTRACT V1 — PRODUCT CONTINUITY, NOT A SCREEN TEMPLATE",
-  JSON.stringify(contract, null, 2),
-  "The target screen purpose and named regions own layout. Do not import another screen's topology or source-reference domain content.",
-].join("\n");
+  `Product: ${contract.product.appType}`,
+  `Audience: ${contract.product.targetAudience}`,
+  contract.product.keyFeatures.length ? `Durable capabilities: ${contract.product.keyFeatures.join(" | ")}` : null,
+  `Current screen: ${contract.screen.name} (${contract.screen.type}) â€” ${contract.screen.purpose}`,
+  contract.navigation.enabled
+    ? `Navigation destinations: ${contract.navigation.destinations.map((item) => item.label).join(" | ")}; current=${contract.navigation.currentItemId ?? "none"}`
+    : "Navigation: no persistent primary destinations on this screen.",
+  "Use this only for product continuity. The product requirements in the system instruction define what must work; you choose the best composition.",
+].filter(Boolean).join("\n");

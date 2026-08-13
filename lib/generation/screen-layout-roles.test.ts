@@ -49,31 +49,32 @@ const screenPlan: ScreenPlan = {
 };
 
 describe("generated screen layout roles", () => {
-  it("applies canonical spacing only to explicit valid markers", () => {
+  it("applies canonical spacing to every explicit marker without choosing the topology", () => {
     const result = normalizeAndValidateScreenLayoutRoles({
       screenPlan,
-      code: `<div class="w-full min-h-screen"><main data-drawgle-content-rail="true"><div class="flex flex-col" data-drawgle-section-stack="true"><section data-drawgle-region="pet-header">Milo's care</section><section data-drawgle-region="care-services">Grooming and vet visits <button>Book care</button></section></div></main></div>`,
+      code: `<div class="w-full min-h-screen"><header data-drawgle-content-rail="true">Milo's care</header><main data-drawgle-content-rail="true"><div class="grid" data-drawgle-section-stack="true"><section>Grooming</section><section>Vet visits</section></div></main></div>`,
     });
     expect(result.valid).toBe(true);
-    expect(result.code).toContain("dg-screen-padding");
+    expect(result.code.match(/dg-screen-padding/g)).toHaveLength(2);
     expect(result.code).toContain("dg-section-gap");
   });
 
-  it("fails missing regions and quarantined source-domain copy", () => {
+  it("accepts an expressive composition with no planner-owned layout markers", () => {
     const result = normalizeAndValidateScreenLayoutRoles({
       screenPlan,
-      code: `<div class="w-full min-h-screen"><main data-drawgle-content-rail="true"><div class="flex flex-col" data-drawgle-section-stack="true"><section data-drawgle-region="pet-header">Calories today</section></div></main></div>`,
+      code: `<div class="w-full min-h-screen"><main class="relative overflow-hidden"><section class="absolute inset-0">Milo's care</section><aside class="grid grid-cols-2">Grooming and vet visits <button>Book care</button></aside></main></div>`,
     });
-    expect(result.valid).toBe(false);
-    expect(result.codes).toEqual(expect.arrayContaining(["missing_planned_region", "source_content_leak"]));
+    expect(result.valid).toBe(true);
+    expect(result.changed).toBe(false);
+    expect(result.codes).toEqual([]);
   });
 
-  it("does not mistake the default horizontal flex direction for a vertical section flow", () => {
+  it("still blocks quarantined source-domain copy", () => {
     const result = normalizeAndValidateScreenLayoutRoles({
       screenPlan,
-      code: `<div class="w-full min-h-screen"><main data-drawgle-content-rail="true"><div style="display:flex" data-drawgle-section-stack="true"><section data-drawgle-region="pet-header">Milo's care</section><section data-drawgle-region="care-services">Grooming and vet visits <button>Book care</button></section></div></main></div>`,
+      code: `<div class="w-full min-h-screen"><main data-drawgle-content-rail="true"><section>Calories today</section></main></div>`,
     });
     expect(result.valid).toBe(false);
-    expect(result.codes).toContain("section_stack_not_flow");
+    expect(result.codes).toEqual(["source_content_leak"]);
   });
 });

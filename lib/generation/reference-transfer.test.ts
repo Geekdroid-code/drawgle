@@ -94,6 +94,29 @@ describe("reference transfer boundary", () => {
     expect(`${contract.preserve.join(" ")} ${contract.adapt.join(" ")}`).not.toContain("Calories");
   });
 
+  it("does not quarantine generic controls or copy explicitly required by the target", () => {
+    const contract = createReferenceTransferContract({
+      mode: "style",
+      screenName: "Calorie Goal",
+      screenDescription: "Show calories remaining and provide a quick add action.",
+      referenceAnalysis: {
+        ...analysis,
+        sourceContentEvidence: {
+          domainSummary: "Fitness tracker",
+          terms: ["Calories", "Morning Run"],
+          entities: [],
+          actions: ["Add", "Pause", "Log workout"],
+          copyFragments: ["Daily goal"],
+        },
+      },
+    });
+
+    expect(contract.sourceContentQuarantine).not.toContain("Calories");
+    expect(contract.sourceContentQuarantine).not.toContain("Add");
+    expect(contract.sourceContentQuarantine).not.toContain("Pause");
+    expect(contract.sourceContentQuarantine).toEqual(expect.arrayContaining(["Morning Run", "Log workout", "Daily goal"]));
+  });
+
   it("does not apply the style-only content quarantine to structural recreation", () => {
     const contract = createReferenceTransferContract({
       mode: "recreate",
