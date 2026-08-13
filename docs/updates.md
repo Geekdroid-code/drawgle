@@ -617,6 +617,36 @@ Style-reference projects could produce attractive but incomplete or source-shape
 
 Deploy the web application and Trigger worker together. The behavior applies to newly planned/built screens; existing saved HTML is not rewritten. `DRAWGLE_LAYOUT_ROLE_ENFORCEMENT_DISABLED=true` is the narrow emergency kill switch for marker enforcement while preserving the product/style planning split.
 
+## 2026-08-13 — Restore Prompt-Only Curated Reference Selection
+
+### Symptom
+
+A new prompt-only project returned `reference_analysis_incomplete` before generation and never reached the internal curated-style matcher.
+
+### Root cause
+
+The uploaded-reference completeness guard treated the legitimate no-image preflight result as failed reference analysis. The same guard also treated an optional curated catalog image as if it were a user-uploaded reference whose structural evidence must be complete.
+
+### Change
+
+- Reference-analysis blocking now requires both a real image and a user-reference mode (`user_recreate` or `user_style`).
+- No-image prompt-only preflight and curated catalog calibration are explicitly non-blocking.
+- The existing curated matcher, selected image loading, visual analysis, creative-direction use, and builder attachment remain intact.
+
+### Safety invariants
+
+- Actual uploaded references still fail safely after one bounded repair when screen count and real frame evidence remain inconsistent.
+- Prompt-only requests always reach curated selection; a weak optional curated analysis cannot reject the user's product request.
+- Curated images remain visual calibration only and cannot enter the product-only blueprint input.
+
+### Verification
+
+Regression tests cover uploaded-reference failure, no-image prompt-only acceptance, and non-blocking curated calibration independently.
+
+### Rollout and rollback
+
+Deploy the web application and Trigger worker together. No database migration or saved-screen rewrite is required.
+
 ## Future Entry Template
 
 ## YYYY-MM-DD — Short title

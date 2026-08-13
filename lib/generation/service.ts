@@ -3613,8 +3613,12 @@ async function planUiFlowInternal({
           diagnostics: ["Reference analysis was provided by caller."],
         }
       : null);
-  const unusableReferenceEvidence = blockingReferenceAnalysisIssues(referenceAnalysisResult);
-  if (image && unusableReferenceEvidence.length > 0) {
+  const unusableReferenceEvidence = blockingReferenceAnalysisIssues({
+    result: referenceAnalysisResult,
+    referenceMode: resolvedReferenceMode,
+    imagePresent: Boolean(image),
+  });
+  if (unusableReferenceEvidence.length > 0) {
     throw new Error(
       `Reference analysis remained structurally incomplete after one repair: ${unusableReferenceEvidence.join("; ")}`,
     );

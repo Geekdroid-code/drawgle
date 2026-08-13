@@ -644,15 +644,20 @@ export async function POST(request: Request) {
       : null);
     let referenceAnalysis: ReferenceAnalysis | null = null;
     if (!scopeContract && generationEngineVersion === "v2" && !canDeferImagePreflight) {
+      const preflightReferenceMode = promptImage
+        ? payload.imageReferenceMode === "style" ? "user_style" as const : "user_recreate" as const
+        : isExistingProjectRequest ? "user_style" as const : "internal_style" as const;
       const preflight = await preflightGenerationScope({
         prompt: payload.prompt,
         image: promptImage,
-        referenceMode: promptImage
-          ? payload.imageReferenceMode === "style" ? "user_style" : "user_recreate"
-          : isExistingProjectRequest ? "user_style" : "internal_style",
+        referenceMode: preflightReferenceMode,
         planningMode: "project",
       });
-      const blockingReferenceIssues = blockingReferenceAnalysisIssues(preflight.referenceAnalysisResult);
+      const blockingReferenceIssues = blockingReferenceAnalysisIssues({
+        result: preflight.referenceAnalysisResult,
+        referenceMode: preflightReferenceMode,
+        imagePresent: Boolean(promptImage),
+      });
       if (blockingReferenceIssues.length > 0) {
         return NextResponse.json({
           error: `The reference image could not be analyzed consistently: ${blockingReferenceIssues.join("; ")}`,

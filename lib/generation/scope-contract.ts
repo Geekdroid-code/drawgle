@@ -935,8 +935,21 @@ const evidenceDiagnostics = (raw: Record<string, unknown>, analysis: ReferenceAn
   return { evidenceCompleteness: { geometry, navigation, motifs }, visualEvidenceConfidence };
 };
 
-export const blockingReferenceAnalysisIssues = (result?: ReferenceAnalysisResult | null) => {
-  if (!result) return [];
+export const blockingReferenceAnalysisIssues = ({
+  result,
+  referenceMode,
+  imagePresent,
+}: {
+  result?: ReferenceAnalysisResult | null;
+  referenceMode: ReferenceMode;
+  imagePresent: boolean;
+}) => {
+  // Curated references are optional visual calibration selected after the
+  // user's prompt is accepted. Only an actual user-supplied reference may
+  // block the request when its structural evidence remains inconsistent.
+  const userReferenceRequiresEvidence = imagePresent
+    && (referenceMode === "user_recreate" || referenceMode === "user_style");
+  if (!userReferenceRequiresEvidence || !result) return [];
 
   const issues = (result.validationIssues ?? []).filter((issue) =>
     /screenCountEstimate must equal|No usable screenReferences/i.test(issue));

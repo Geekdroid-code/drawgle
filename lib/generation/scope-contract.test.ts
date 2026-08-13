@@ -182,15 +182,37 @@ describe("reference visual evidence diagnostics", () => {
     expect(result.validationIssues).toContain("No usable screenReferences array was present.");
   });
 
-  it("blocks a count-only fallback because it has no real frame evidence", () => {
+  const countOnlyResult = {
+    analysis: null,
+    screenCountEstimate: 2,
+    screenReferenceCount: null,
+    confidence: "medium" as const,
+    source: "count_only" as const,
+    diagnostics: ["Count-only fallback estimated two screens."],
+  };
+
+  it("blocks a count-only fallback for an actual uploaded reference", () => {
     expect(blockingReferenceAnalysisIssues({
-      analysis: null,
-      screenCountEstimate: 2,
-      screenReferenceCount: null,
-      confidence: "medium",
-      source: "count_only",
-      diagnostics: ["Count-only fallback estimated two screens."],
+      result: countOnlyResult,
+      referenceMode: "user_style",
+      imagePresent: true,
     })).toContain("No usable screenReferences array was present after bounded analysis.");
+  });
+
+  it("never blocks prompt-only entry when no reference image exists", () => {
+    expect(blockingReferenceAnalysisIssues({
+      result: countOnlyResult,
+      referenceMode: "internal_style",
+      imagePresent: false,
+    })).toEqual([]);
+  });
+
+  it("keeps optional curated calibration non-blocking", () => {
+    expect(blockingReferenceAnalysisIssues({
+      result: countOnlyResult,
+      referenceMode: "curated_style",
+      imagePresent: true,
+    })).toEqual([]);
   });
 
   it("treats explicitly absent navigation as complete evidence", () => {

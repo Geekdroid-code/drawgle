@@ -2432,8 +2432,12 @@ export const generateUiFlowTask = task({
         });
     const scopeContract = scopePreflight.scopeContract;
     const referenceAnalysis = scopePreflight.referenceAnalysis;
-    const blockingReferenceIssues = blockingReferenceAnalysisIssues(scopePreflight.referenceAnalysisResult);
-    if (promptImage && blockingReferenceIssues.length > 0) {
+    const blockingReferenceIssues = blockingReferenceAnalysisIssues({
+      result: scopePreflight.referenceAnalysisResult,
+      referenceMode,
+      imagePresent: Boolean(promptImage),
+    });
+    if (blockingReferenceIssues.length > 0) {
       throw new Error(`Reference analysis remained structurally incomplete after one repair: ${blockingReferenceIssues.join("; ")}`);
     }
     const promptMode = resolveGenerationPromptMode({
