@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   analyzePromptScreenIntent,
+  blockingReferenceAnalysisIssues,
   deferNewProjectScopeConfirmation,
   hasExplicitFiniteScreenScopeSyntax,
   normalizeReferenceAnalysis,
@@ -168,6 +169,28 @@ describe("reference visual evidence diagnostics", () => {
     expect(result.scopeConfidence).toBe("high");
     expect(result.visualEvidenceConfidence).toBe("low");
     expect(result.evidenceCompleteness).toMatchObject({ geometry: "missing", navigation: "missing", motifs: "missing" });
+  });
+
+  it("does not fabricate per-screen descriptions from a count-only analysis", () => {
+    const result = normalizeReferenceAnalysis({
+      ...base,
+      screenCountEstimate: 2,
+      screenReferences: [],
+    });
+    expect(result.analysis?.screenCountEstimate).toBe(2);
+    expect(result.analysis?.screenReferences).toEqual([]);
+    expect(result.validationIssues).toContain("No usable screenReferences array was present.");
+  });
+
+  it("blocks a count-only fallback because it has no real frame evidence", () => {
+    expect(blockingReferenceAnalysisIssues({
+      analysis: null,
+      screenCountEstimate: 2,
+      screenReferenceCount: null,
+      confidence: "medium",
+      source: "count_only",
+      diagnostics: ["Count-only fallback estimated two screens."],
+    })).toContain("No usable screenReferences array was present after bounded analysis.");
   });
 
   it("treats explicitly absent navigation as complete evidence", () => {

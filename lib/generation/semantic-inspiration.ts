@@ -41,7 +41,7 @@ const PRIMITIVE_KINDS: SemanticCompositionPrimitiveKind[] = [
 
 const capabilitySet = new Set(CAPABILITIES);
 const primitiveKindSet = new Set(PRIMITIVE_KINDS);
-const SOURCE_SPECIFIC_ANATOMY = /\b(connector|spine|section order|object position|exact geometry|hero scaffold|card topology|grid placement|panel placement)\b|\b(?:one|two|three|four|five|six|\d+)\s+(?:cards?|modules?|panels?|sections?)\b|\b(?:stack|row|grid|cluster|connect(?:ed|ing)?)\b.{0,40}\b(cards?|modules?|panels?)\b|\b(cards?|modules?|panels?)\b.{0,40}\b(?:stack|row|grid|cluster|connect(?:ed|ing)?)\b/i;
+const SOURCE_SPECIFIC_ANATOMY = /\b(connector spine|section order|object positions?|exact coordinates?|exact geometry|hero scaffold|card topology|grid placement|panel placement|literal component arrangement|full[- ]screen anatomy)\b|\b(?:source|reference|same|exact)\b.{0,36}\b(?:layout|composition|anatomy|section|position|arrangement|topology)\b|\b(?:one|two|three|four|five|six|\d+)\s+(?:specific\s+)?(?:cards?|modules?|panels?|sections?)\b/i;
 
 const compact = (value: unknown, fallback = "", limit = 360) => {
   const text = typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";

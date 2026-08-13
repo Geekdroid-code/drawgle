@@ -577,6 +577,46 @@ An additional `Weekly Schedule` request for a premium calisthenics tracker displ
 
 Deploy the web application for the router, API, and historical-card rendering changes. No database migration or existing-message rewrite is required.
 
+## 2026-08-13 — Product-First Style Reference Planning and Screen Contract Enforcement
+
+### Symptom
+
+Style-reference projects could produce attractive but incomplete or source-shaped screens. One screen in a multi-screen run could omit the established outer margin or section rhythm, new screens approved from chat could receive materially thinner planning than initial screens, and keyword chrome heuristics could override an approved navigation decision. The same ambiguity also let planners choose an active/in-progress default state when the user had requested the product rather than that state.
+
+### Root cause
+
+- Product topology and visual evidence were sent through the same blueprint input, so source screenshot concepts could influence what the target app contained.
+- Screen briefs had no immutable, typed product obligation contract and layout regions were not required to account for product requirements.
+- Spacing instructions were prose-only; generated markup did not expose deterministic content-rail and section-stack roles.
+- Reference analysis mixed literal source content with transferable craft and fabricated generic per-screen descriptions when only a panel count survived.
+- Immersive keyword inference ran after explicit chrome planning.
+
+### Change
+
+- Style-reference blueprints now run through a product-only input containing prompt, scope, product charter/IA facts, and existing screen identities. The call cannot see the screenshot, reference analysis, creative direction, tokens, style pack, or rendered visual memory. Visual planning happens afterward against the locked blueprint.
+- Every roadmap screen owns `ScreenProductContractV1`: user job, default lifecycle, entry condition, typed product requirements, primary action, outcome, and next step. Initial active/result states are deterministically reduced to `ready` unless the prompt explicitly requests that visible lifecycle.
+- Every visual layout region must map to product requirement IDs. The visual planner cannot add or replace product requirements, and incomplete/unknown mappings fail before build.
+- Reference analysis now inventories source-domain terms/entities/actions/copy as quarantine evidence, retains portable grouping/layering/hierarchy/component grammar, repairs count/reference mismatches once, and never manufactures fake screen-reference descriptions.
+- Builders must mark every planned region plus exactly one content rail and vertical section stack. A narrow normalizer adds the existing `dg-screen-padding` and `dg-section-gap` classes only to those markers. Missing roles, empty regions, uncovered requirements, or quarantined source copy receive one bounded repair and then fail without saving.
+- Explicit planner/navigation chrome now outranks fallback immersive keyword inference.
+
+### Safety invariants
+
+- Style screenshots remain attached to the token/art-direction and builder stages; only product topology is blind to them.
+- In style-reference mode, reference content cannot define target labels, entities, actions, requirements, or copy. Reference craft can only decorate target-owned named regions.
+- There is no domain-, screen-name-, or phrase-specific production branch. `premium`, pet care, interview coaching, calories, and similar terms appear only in regression fixtures.
+- The spacing normalizer never guesses wrappers, rewrites arbitrary margins, or mutates full-bleed regions.
+- Product contracts persist in existing roadmap/generation JSON metadata; no database migration or existing-screen rewrite is required.
+
+### Verification
+
+- Tests cover product/visual input isolation, generic lifecycle correction, complete requirement-to-region mapping, portable style grammar, source-content quarantine, no fabricated reference frames, exact marker normalization, bounded layout rejection, and navigation-plan precedence.
+- Full TypeScript validation and the application Vitest suite (with the standalone Node canvas test run through its existing script) are required before rollout.
+
+### Rollout and rollback
+
+Deploy the web application and Trigger worker together. The behavior applies to newly planned/built screens; existing saved HTML is not rewritten. `DRAWGLE_LAYOUT_ROLE_ENFORCEMENT_DISABLED=true` is the narrow emergency kill switch for marker enforcement while preserving the product/style planning split.
+
 ## Future Entry Template
 
 ## YYYY-MM-DD — Short title

@@ -738,6 +738,31 @@ export interface ScreenPlanningSeed {
   dependencyKeys?: string[];
   referenceScreenIndex?: number | null;
   referenceScreenCount?: number | null;
+  productContract?: ScreenProductContractV1 | null;
+}
+
+export type ScreenLifecycleState = "entry" | "ready" | "in-progress" | "result";
+export type ScreenProductRequirementKind = "context" | "content" | "input" | "action" | "status" | "outcome";
+
+export interface ScreenProductRequirement {
+  id: string;
+  kind: ScreenProductRequirementKind;
+  purpose: string;
+}
+
+/**
+ * Product-only screen intent. This contract is planned before visual evidence
+ * is introduced and remains the authority for what a screen must let a user do.
+ */
+export interface ScreenProductContractV1 {
+  version: 1;
+  userJob: string;
+  defaultLifecycle: ScreenLifecycleState;
+  entryCondition: string;
+  requirements: ScreenProductRequirement[];
+  primaryActionId: string;
+  actionOutcome: string;
+  nextStep: string;
 }
 
 export interface ScreenPlan {
@@ -756,6 +781,7 @@ export interface ScreenPlan {
   referenceScreenIndex?: number | null;
   referenceScreenCount?: number | null;
   referenceTransfer?: ReferenceTransferContract | null;
+  productContract?: ScreenProductContractV1 | null;
 }
 
 export interface ScreenLayoutContract {
@@ -823,6 +849,8 @@ export interface ScreenLayoutRegion {
   id: string;
   purpose: string;
   contentKind: "header" | "focal" | "chart" | "list" | "form" | "media" | "action" | "supporting" | "other";
+  /** Product requirements rendered by this target-owned region. */
+  productRequirementIds?: string[];
 }
 
 export type ScreenSemanticCapability =
@@ -900,6 +928,8 @@ export interface ReferenceTransferContract {
   compositionAdaptations?: ReferenceCompositionAdaptation[];
   localMotifs?: ReferenceLocalMotifRule[];
   forbiddenLiteralTransfers?: string[];
+  /** Literal source-domain evidence that must never leak into target copy/content. */
+  sourceContentQuarantine?: string[];
 }
 
 export interface ReferenceCompositionAdaptation {
@@ -1050,6 +1080,15 @@ export interface ReferenceMotifEvidence {
   sourceScreenIndexes: number[];
   scope: "global-material" | "component-local" | "screen-local-decoration";
 }
+
+/** Literal/product-semantic evidence observed in a reference image. */
+export interface ReferenceSourceContentEvidence {
+  domainSummary: string;
+  terms: string[];
+  entities: string[];
+  actions: string[];
+  copyFragments: string[];
+}
 export interface ReferenceAnalysis {
   overallVisualStyle: string;
   screenCountEstimate: number;
@@ -1059,6 +1098,7 @@ export interface ReferenceAnalysis {
   semanticCompositionPrimitives?: SemanticCompositionPrimitive[];
   geometryProfile?: ReferenceGeometryProfile;
   motifs?: ReferenceMotifEvidence[];
+  sourceContentEvidence?: ReferenceSourceContentEvidence | null;
 }
 
 export interface ReferenceAnalysisResult {

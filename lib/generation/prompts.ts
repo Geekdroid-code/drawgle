@@ -6,6 +6,7 @@ import { formatTokenOwnershipContract } from "@/lib/generation/token-ownership";
 import type { GenerationPromptMode } from "@/lib/generation/prompt-routing";
 import { formatReferenceTransferContract } from "@/lib/generation/reference-transfer";
 import { DRAWGLE_GENERATION_COMPLETE_SENTINEL } from "@/lib/generation/screen-quality";
+import { formatScreenProductContract } from "@/lib/generation/product-contract";
 import { buildTokenPromptContext } from "@/lib/token-runtime";
 import type { AssetRequirement, BuildScreenInput, DesignTokens, NavigationArchitecture, ScreenAssetManifest, ScreenPlan, NavigationPlan } from "@/lib/types";
 
@@ -67,7 +68,21 @@ const plannerBlueprintJsonContract = `Return JSON with this exact top-level shap
         "summary": "Primary ride booking and active-trip overview.",
         "priority": "core",
         "explicitly_requested": true,
-        "dependency_keys": []
+        "dependency_keys": [],
+        "product_contract": {
+          "version": 1,
+          "user_job": "Understand ride availability and begin a booking with confidence.",
+          "default_lifecycle": "ready",
+          "entry_condition": "The user has opened the app and no ride is currently active.",
+          "requirements": [
+            { "id": "pickup-context", "kind": "context", "purpose": "Show the current pickup context and let the user verify it." },
+            { "id": "ride-options", "kind": "content", "purpose": "Present credible available ride choices with decision-making details." },
+            { "id": "request-ride", "kind": "action", "purpose": "Let the user request the selected ride." }
+          ],
+          "primary_action_id": "request-ride",
+          "action_outcome": "A ride request is created for the selected pickup and option.",
+          "next_step": "Move to driver matching and active-trip status."
+        }
       },
       {
         "stable_key": "screen:trip-receipt",
@@ -76,7 +91,21 @@ const plannerBlueprintJsonContract = `Return JSON with this exact top-level shap
         "summary": "Completed trip fare and receipt details.",
         "priority": "recommended",
         "explicitly_requested": false,
-        "dependency_keys": ["screen:ride-dashboard"]
+        "dependency_keys": ["screen:ride-dashboard"],
+        "product_contract": {
+          "version": 1,
+          "user_job": "Review a completed trip and retain or share its receipt.",
+          "default_lifecycle": "result",
+          "entry_condition": "The user explicitly opens a completed trip from history.",
+          "requirements": [
+            { "id": "trip-summary", "kind": "context", "purpose": "Identify the completed trip being reviewed." },
+            { "id": "fare-breakdown", "kind": "outcome", "purpose": "Explain the charged total and its components." },
+            { "id": "share-receipt", "kind": "action", "purpose": "Let the user share or save the receipt." }
+          ],
+          "primary_action_id": "share-receipt",
+          "action_outcome": "The receipt is exported through the chosen destination.",
+          "next_step": "Return to trip history or support."
+        }
       }
     ],
     "initial_batch_keys": ["screen:ride-dashboard"]
@@ -137,7 +166,7 @@ const plannerScreensJsonContract = `Return JSON with this exact top-level shape:
         "cta_policy": "Primary/secondary action weight, placement, size, and when not to overpower content",
         "anti_patterns": ["Specific bad layout habit to avoid for this screen"],
         "regions": [
-          { "id": "stable-region-id", "purpose": "What target-screen job this region performs", "content_kind": "header | focal | chart | list | form | media | action | supporting | other" }
+          { "id": "stable-region-id", "purpose": "What target-screen job this region performs", "content_kind": "header | focal | chart | list | form | media | action | supporting | other", "product_requirement_ids": ["exact-id-from-product-contract"] }
         ],
         "viewport_budget": {
           "frame_height_px": 844,
@@ -182,6 +211,7 @@ const plannerScreensJsonContract = `Return JSON with this exact top-level shape:
           { "motif_id": "source motif id", "decision": "allow-local | reject", "target_region_ids": ["stable-region-id"], "required_function": "Equivalent target function", "repetition": "once | per-approved-region", "rationale": "Why locality is safe or why transfer is rejected" }
         ],
         "forbidden_literal_transfers": ["Source text, values, branding, coordinates, section order, and unrelated anatomy"],
+        "source_content_quarantine": ["Literal source-domain terms supplied by the analysis; never target copy"],
         "rationale": "Why this transfer creates family resemblance without cloning"
       },
       "chrome_policy": {
@@ -281,6 +311,9 @@ Blueprint rules:
 - requested_parent_count is the explicit requested parent total when known; otherwise use the roadmap item count. Do not include card counts, navigation tabs, products, or local UI states.
 - Stable keys use screen:<short-kebab-name> and must be unique. Dependencies refer only to stable keys in the same roadmap.
 - Give every roadmap item one concise, user-facing sentence describing its purpose, and map dependency_keys to the screen that naturally precedes it in the product workflow.
+- Every roadmap item must include product_contract. This is the immutable product authority for that screen: user_job, default_lifecycle, entry_condition, 3-10 product requirements, a primary action requirement, action_outcome, and next_step.
+- Product requirements describe usable content, context, input, action, status, and outcome obligations. They must be specific enough to design a complete real screen, not generic labels such as "header", "card", or "details".
+- Default lifecycle is normally "entry" or "ready". Use "in-progress" or "result" only when the user explicitly requested that visible state; an app category or workflow implication is not enough.
 - Screen Count Contract controls the initial generated parent batch only. Navigation destinations and later roadmap items are not created or charged in this run.
 - Navigation requires positive evidence: an explicit prompt request or a clearly described product architecture with peer root areas. Screen count and app category are never sufficient.
 - Explicit no-navigation intent and finite immersive flows always use decision "none", evidence.source null, no items, and design null.
@@ -320,6 +353,7 @@ Rules:
 - Cross-screen differentiation: family resemblance comes from tokens, type, material, icon, spacing, and interaction tone. Each route must have a task-native information architecture and dominant composition; never turn a previous screen's cards, connector, hero, chart, or decorative scaffold into a universal shell.
 - Description quality: each description should usually be 900-1800 chars, include all seven labels, and be detailed enough for the builder without seeing the image. Write as a construction brief from background forward through layout, containment, components, typography, materials, depth/edges, imagery/charts/maps, interaction states, and must-preserve construction cues.
 - layout_contract is not prose decoration. It is the compact architecture the builder must obey before writing HTML. Give every target region a stable id and functional content_kind; reference_transfer may approve a source motif only inside one of these named regions: no generic stacked blocks, empty chart/card shells, oversized CTA unless action priority demands it, or primitive chip grids with large macro gaps and cramped internal padding.
+- Product authority: each locked screen supplies an immutable product_contract. Do not add, remove, rename, reinterpret, or replace its requirements. Map every requirement id to one or more target-owned layout regions through product_requirement_ids. Unknown ids and uncovered requirements are invalid.
 - SPATIAL ARITHMETIC (layout_contract v3). Prose alone is not a layout. Do the numbers:
   - viewport_budget assigns every region a min_h_px and max_h_px against the 844px frame, and names which regions occupy the first fold. The above-fold minimums plus roughly 44px of top chrome (plus about 96px when shared navigation is enabled) must fit inside 844px. If they do not, move the lowest-priority region below the fold rather than shrinking everything.
   - Every region whose min_h_px exceeds 120px must be carried by real content: media, a chart with visible marks, a list, a form, or a focal content cluster. A tall region with nothing in it is where decorative filler comes from. If you cannot name the content, lower the height.
@@ -532,6 +566,13 @@ Return strictly valid JSON in this format after inspecting the image with an exp
     "componentGrammar": "Portable component construction rules beyond colors/radius/shadow",
     "spacingLogic": "How macro spacing, micro gaps, internal padding, and touch target sizes relate",
     "antiPatterns": "What would make a generated UI look cheap or generic when applying this reference"
+  },
+  "sourceContentEvidence": {
+    "domainSummary": "What product/domain the source image visibly depicts",
+    "terms": ["Visible source-domain terms that must not transfer"],
+    "entities": ["Visible names, brands, products, people, places, or categories"],
+    "actions": ["Visible source-specific actions and verbs"],
+    "copyFragments": ["Short literal copy fragments visible in the source"]
   }
 }
 
@@ -643,6 +684,7 @@ Rules:
 - Return exactly one screenReferences entry for every visible phone screen or app frame counted by screenCountEstimate. boundingBox uses normalized 0-1 image coordinates.
 - Extract material quality, shadows, radii, blur/glass, typography character, icon weight, color rhythm, polish, micro-shapes, navigation treatment, component craftsmanship, spacing density, and viewport fit constraints.
 - Do not preserve exact section order, object positions, domain content, data values, product objects, literal copy, or full screenshot anatomy.
+- Populate sourceContentEvidence from what is actually visible. This is a quarantine inventory for downstream leak detection, not inspiration; keep it separate from all visual-system fields.
 - Translate visible structure into portable principles: "floating dock with active pill and generous safe-area clearance", not "put this exact dock in the same place with the same labels".
 - Inspect the reference like a design-system sample: identify repeatable surface recipes, elevation levels, border/highlight behavior, corner radius rhythm, icon framing, control sizing, card density, and how text is grouped inside surfaces.
 - Capture hierarchy mechanics, not just style words: what creates the focal point, how secondary content recedes, how dense areas stay readable, how empty space is budgeted, and how the eye moves through the screen.
@@ -1253,6 +1295,7 @@ Screen Type: ${screenPlan.type}
 Screen Description: ${screenDescription}
 ${screenLayoutContract ? `SCREEN LAYOUT CONTRACT:\n${screenLayoutContract}` : ""}
 ${screenPlan.referenceTransfer ? `REFERENCE TRANSFER CONTRACT (higher priority than conflicting screen-description or memory prose):\n${formatReferenceTransferContract(screenPlan.referenceTransfer)}` : ""}
+${screenPlan.productContract ? `IMMUTABLE PRODUCT CONTRACT (higher priority than all visual evidence):\n${formatScreenProductContract(screenPlan.productContract)}` : ""}
 ${mode === "recreate" && screenPlan.referenceScreenIndex && screenPlan.referenceScreenCount && screenPlan.referenceScreenCount > 1
       ? `Reference Target: Build visible reference screen ${screenPlan.referenceScreenIndex} of ${screenPlan.referenceScreenCount}, mapped left-to-right unless the screen brief says otherwise.`
       : ""}
@@ -1336,6 +1379,8 @@ ${formatTokenOwnershipContract()}
 - Build every named requirement in Screen Description: all cards, metrics, controls, labels, charts, avatar stacks, CTAs, and visual panels.
 - Allow vertical scrolling for long content; do not clip required bottom content with overflow-hidden.
 - Main content should normally use px-[var(--dg-mobile-layout-screen-margin)] and gap-[var(--dg-mobile-layout-section-gap)] unless the brief requires full-bleed media/maps.
+- Mark every planned layout region with data-drawgle-region="exact-region-id". Each marker must contain meaningful visible content serving its mapped product requirement ids.
+- Mark exactly one normal-width content rail with data-drawgle-content-rail="true" and exactly one vertical macro-section parent with data-drawgle-section-stack="true". Full-bleed media may sit outside the rail. The section stack must use flex/grid flow; do not fake vertical rhythm with repeated margins.
 - Final self-audit: no horizontal overflow, nav overlap, clipped CTA, unreadable/empty chart, blank visual panel, text-icon collision, or random spacing drift.
 - Bitmap assets: declare only APPROVED VISUAL ASSET MANIFEST slots. Never write remote bitmap URLs. Inline data:image/svg+xml is allowed only for simple vector geometry.
 - End with sentinel on its own final line: ${DRAWGLE_GENERATION_COMPLETE_SENTINEL}`;

@@ -34,6 +34,7 @@ import {
 } from "@/lib/agent/state-variant-build";
 import { executeModifyScreenTask } from "@/lib/generation/edit-runner";
 import { buildScreenSummaryLocally } from "@/lib/generation/embeddings";
+import { normalizeAndValidateScreenLayoutRoles } from "@/lib/generation/screen-layout-roles";
 import {
   buildScreenHealthError,
   detectScreenHealth,
@@ -63,7 +64,7 @@ import {
   screenPlansNeedBuildEnrichment,
 } from "@/lib/generation/service";
 import { screenBuildOutputTokenBudget } from "@/lib/generation/screen-budget";
-import { analyzeReferenceImageForScope, preflightGenerationScope } from "@/lib/generation/scope-contract";
+import { analyzeReferenceImageForScope, blockingReferenceAnalysisIssues, preflightGenerationScope } from "@/lib/generation/scope-contract";
 import { planVisualAssets, resolveProjectAssets } from "@/lib/generation/visual-assets";
 import { resolveReferenceImageAttachment } from "@/lib/generation/reference-image";
 import { resolveGenerationPromptMode } from "@/lib/generation/prompt-routing";
@@ -306,6 +307,7 @@ type GenerationAttemptDiagnostics = {
   navigationClearanceAmbiguousOwnerCount: number;
   htmlNormalized: boolean;
   htmlParseErrors: string[];
+  layoutRoleCodes: string[];
   /**
    * The markup that failed, truncated. Only present on a rejected attempt.
    *
@@ -352,6 +354,7 @@ const buildAttemptDiagnostics = ({
   quality,
   tokenDrift,
   sanitizedCodes = [],
+  layoutRoleCodes = [],
 }: {
   attempt: number;
   retryReason: GenerationAttemptDiagnostics["retryReason"];
@@ -362,6 +365,7 @@ const buildAttemptDiagnostics = ({
   quality?: ReturnType<typeof validateGeneratedScreenCode> | null;
   tokenDrift?: ReturnType<typeof detectTokenDrift> | null;
   sanitizedCodes?: string[];
+  layoutRoleCodes?: string[];
 }): GenerationAttemptDiagnostics => {
   return {
     attempt,
@@ -406,6 +410,7 @@ const buildAttemptDiagnostics = ({
     navigationClearanceAmbiguousOwnerCount: 0,
     htmlNormalized: false,
     htmlParseErrors: [],
+    layoutRoleCodes,
     ...((completion && !completion.valid) || (staticQuality && !staticQuality.valid) || (quality && !quality.valid)
       ? { rejectedCodePreview: buildRejectedCodePreview(build.extractedCode) }
       : {}),
@@ -1570,8 +1575,13 @@ export const buildScreenTask = task({
     extractedCode = normalization.code;
     let sanitization = sanitizeStaticDrawgleHtml(extractedCode);
     extractedCode = sanitization.code;
+    let layoutRoles = normalizeAndValidateScreenLayoutRoles({ code: extractedCode, screenPlan: payload.screenPlan });
+    extractedCode = layoutRoles.code;
     let staticQuality = validateStaticDrawgleHtml({ code: extractedCode, requireSingleScreenRoot: true });
     let quality = validateGeneratedScreenCode({ code: extractedCode, screenPlan: payload.screenPlan });
+    if (!layoutRoles.valid) {
+      quality = { ...quality, valid: false, issues: [...quality.issues, ...layoutRoles.issues] };
+    }
     attempts[attempts.length - 1] = {
       ...attempts[attempts.length - 1],
       sanitizedCodes: sanitization.removedCodes,
@@ -1579,13 +1589,14 @@ export const buildScreenTask = task({
       qualityIssues: quality.issues,
       qualityWarnings: quality.warnings,
       missingAnchors: quality.missingAnchors,
+      layoutRoleCodes: layoutRoles.codes,
       // Post-sanitize markup, which is what the validators actually judged.
       ...(!staticQuality.valid || !quality.valid
         ? { rejectedCodePreview: buildRejectedCodePreview(extractedCode) }
         : {}),
     };
 
-    if ((!staticQuality.valid || !quality.valid) && generationEngineVersion === "v1") {
+    if ((!staticQuality.valid || !quality.valid) && (generationEngineVersion === "v1" || !layoutRoles.valid)) {
       logger.warn("Screen build failed hard HTML validation; retrying once with structural repair instructions", {
         screenId: payload.screenId,
         screenName: payload.screenPlan.name,
@@ -1602,6 +1613,7 @@ export const buildScreenTask = task({
           "STRUCTURAL HTML RETRY: The previous response was rejected before save because the HTML structure was invalid.",
           staticQuality.issues.length > 0 ? `Hard static issues to fix: ${staticQuality.issues.join(" | ")}` : null,
           quality.issues.length > 0 ? `Hard quality/parser issues to fix: ${quality.issues.join(" | ")}` : null,
+          !layoutRoles.valid ? "LAYOUT CONTRACT REPAIR: Preserve the product contract. Add every exact data-drawgle-region marker with meaningful target content, exactly one data-drawgle-content-rail=\"true\", and exactly one vertical flex/grid data-drawgle-section-stack=\"true\". Remove quarantined source-domain copy. Do not change the planned requirements or invent regions." : null,
           "Return one complete static HTML screen with exactly one min-h-screen root. Do not include JSX, scripts, duplicate roots, duplicate data-drawgle-id values, or unbalanced tags.",
           "End with <!-- DRAWGLE_GENERATION_COMPLETE --> on its own final line.",
         ].filter(Boolean).join("\n\n"),
@@ -1618,6 +1630,7 @@ export const buildScreenTask = task({
       let structuralStaticQuality: ReturnType<typeof validateStaticDrawgleHtml> | null = null;
       let structuralQuality: ReturnType<typeof validateGeneratedScreenCode> | null = null;
       let structuralSanitization: ReturnType<typeof sanitizeStaticDrawgleHtml> | null = null;
+      let structuralLayoutRoles: ReturnType<typeof normalizeAndValidateScreenLayoutRoles> | null = null;
       if (completion.valid) {
         extractedCode = stripGenerationCompleteSentinel(extractedCode);
         normalization = normalizeStaticDrawgleHtml(extractedCode);
@@ -1625,8 +1638,17 @@ export const buildScreenTask = task({
         structuralSanitization = sanitizeStaticDrawgleHtml(extractedCode);
         extractedCode = structuralSanitization.code;
         if (normalization.valid) {
+          structuralLayoutRoles = normalizeAndValidateScreenLayoutRoles({ code: extractedCode, screenPlan: structuralRetryPlan });
+          extractedCode = structuralLayoutRoles.code;
           structuralStaticQuality = validateStaticDrawgleHtml({ code: extractedCode, requireSingleScreenRoot: true });
           structuralQuality = validateGeneratedScreenCode({ code: extractedCode, screenPlan: structuralRetryPlan });
+          if (!structuralLayoutRoles.valid) {
+            structuralQuality = {
+              ...structuralQuality,
+              valid: false,
+              issues: [...structuralQuality.issues, ...structuralLayoutRoles.issues],
+            };
+          }
         }
       }
 
@@ -1639,6 +1661,7 @@ export const buildScreenTask = task({
         staticQuality: structuralStaticQuality,
         quality: structuralQuality,
         sanitizedCodes: structuralSanitization?.removedCodes ?? [],
+        layoutRoleCodes: structuralLayoutRoles?.codes ?? [],
       }));
       const structuralAttempt = attempts.at(-1);
       if (structuralAttempt && completion.valid) {
@@ -1668,6 +1691,7 @@ export const buildScreenTask = task({
 
       staticQuality = structuralStaticQuality!;
       quality = structuralQuality!;
+      layoutRoles = structuralLayoutRoles!;
 
       if (!staticQuality.valid || !quality.valid) {
         await appendScreenBuildDiagnostics(admin, payload.generationRunId, payload.screenId, attempts);
@@ -2408,6 +2432,10 @@ export const generateUiFlowTask = task({
         });
     const scopeContract = scopePreflight.scopeContract;
     const referenceAnalysis = scopePreflight.referenceAnalysis;
+    const blockingReferenceIssues = blockingReferenceAnalysisIssues(scopePreflight.referenceAnalysisResult);
+    if (promptImage && blockingReferenceIssues.length > 0) {
+      throw new Error(`Reference analysis remained structurally incomplete after one repair: ${blockingReferenceIssues.join("; ")}`);
+    }
     const promptMode = resolveGenerationPromptMode({
       referenceMode,
       hasImage: Boolean(promptImage),
@@ -2568,6 +2596,7 @@ export const generateUiFlowTask = task({
           type: seed.type,
           description: seed.summary,
           roadmapStableKey: seed.roadmapStableKey ?? null,
+          productContract: seed.productContract ?? null,
           stateVariants: [],
           assetNeeds: [],
         }))
@@ -2703,6 +2732,7 @@ export const generateUiFlowTask = task({
         explicitlyRequested: seed.explicitlyRequested,
         referenceScreenIndex: seed.referenceScreenIndex ?? null,
         referenceScreenCount: seed.referenceScreenCount ?? null,
+        productContract: seed.productContract ?? null,
         stateVariants: [],
         assetNeeds: [],
       }));

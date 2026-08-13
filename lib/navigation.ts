@@ -244,7 +244,11 @@ export function resolveScreenChromePolicy({
 
   let chrome = isScreenChromeKind(requestedPolicy?.chrome) ? requestedPolicy.chrome : fallbackChrome;
 
-  const shouldForceImmersive = shouldForceImmersiveScreen(screenPlan) && !referenceNavigationVisible;
+  // A typed planner/navigation decision is explicit architecture. Keyword
+  // heuristics are only a fallback when no chrome policy was supplied.
+  const shouldForceImmersive = !requestedPolicy
+    && shouldForceImmersiveScreen(screenPlan)
+    && !referenceNavigationVisible;
 
   if (shouldForceImmersive) {
     chrome = "immersive";

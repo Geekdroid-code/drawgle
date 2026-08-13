@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildPortableReferenceContext,
   createReferenceTransferContract,
+  findSourceContentQuarantineLeaks,
   normalizeReferenceTransferContract,
   toPortableCreativeDirection,
 } from "@/lib/generation/reference-transfer";
@@ -57,6 +58,77 @@ describe("reference transfer boundary", () => {
     expect(context).not.toContain(analysis.designSystemSignals.layoutGrammar!);
     expect(context).not.toContain(analysis.screenReferences[0].layoutSummary);
     expect(context).not.toContain("connector spine");
+  });
+
+  it("keeps portable grouping grammar without treating it as a source template", () => {
+    const portable = buildPortableReferenceContext({
+      ...analysis,
+      designSystemSignals: {
+        ...analysis.designSystemSignals,
+        layoutGrammar: "Balanced two-column grouping with one dominant and one supporting plane.",
+        componentGrammar: "Rows use aligned icon, text, metadata, and trailing-action relationships.",
+        spacingLogic: "Macro section gaps are visibly larger than internal row gaps.",
+      },
+    });
+    expect(portable).toContain("Balanced two-column grouping");
+    expect(portable).toContain("aligned icon, text, metadata");
+    expect(portable).toContain("Macro section gaps");
+  });
+
+  it("carries literal source copy into quarantine, never preserve/adapt", () => {
+    const contract = createReferenceTransferContract({
+      mode: "style",
+      screenName: "Pet Care Home",
+      referenceAnalysis: {
+        ...analysis,
+        sourceContentEvidence: {
+          domainSummary: "Fitness calorie tracker",
+          terms: ["Calories"],
+          entities: ["Morning Run"],
+          actions: ["Log workout"],
+          copyFragments: ["Daily goal"],
+        },
+      },
+    });
+    expect(contract.sourceContentQuarantine).toEqual(expect.arrayContaining(["Calories", "Morning Run", "Log workout", "Daily goal"]));
+    expect(`${contract.preserve.join(" ")} ${contract.adapt.join(" ")}`).not.toContain("Calories");
+  });
+
+  it("does not apply the style-only content quarantine to structural recreation", () => {
+    const contract = createReferenceTransferContract({
+      mode: "recreate",
+      screenName: "Referenced Screen",
+      referenceAnalysis: {
+        ...analysis,
+        sourceContentEvidence: {
+          domainSummary: "Fitness calorie tracker",
+          terms: ["Calories"],
+          entities: [],
+          actions: ["Log workout"],
+          copyFragments: ["Daily goal"],
+        },
+      },
+    });
+    expect(contract.sourceContentQuarantine).toEqual([]);
+  });
+
+  it("matches quarantined copy on term boundaries rather than inside target words", () => {
+    const contract = createReferenceTransferContract({
+      mode: "style",
+      screenName: "Pet Care Home",
+      referenceAnalysis: {
+        ...analysis,
+        sourceContentEvidence: {
+          domainSummary: "Planning tool",
+          terms: ["Plan"],
+          entities: [],
+          actions: [],
+          copyFragments: [],
+        },
+      },
+    });
+    expect(findSourceContentQuarantineLeaks({ text: "A helpful planner", contract })).not.toContain("plan");
+    expect(findSourceContentQuarantineLeaks({ text: "Open the plan", contract })).toContain("plan");
   });
 
   it("makes the target screen purpose authoritative in style mode", () => {
@@ -114,6 +186,7 @@ describe("reference transfer boundary", () => {
         adapt: [],
         reject: [],
         rationale: "Copy the onboarding layout.",
+        source_content_quarantine: ["Chat Interface"],
       },
     });
 
@@ -121,6 +194,7 @@ describe("reference transfer boundary", () => {
     expect(contract.reject.join(" ")).toMatch(/section order|connector/i);
     expect(contract.rationale).not.toContain("Copy the onboarding layout");
     expect(contract.rationale).toContain("user job owns layout");
+    expect(contract.sourceContentQuarantine).not.toContain("Chat Interface");
   });
 
   it("recomputes region assignments and ignores planner-authored unrelated mappings", () => {

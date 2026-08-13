@@ -43,7 +43,7 @@ const MAX_INITIAL_VISIBLE_SCREENS = 5;
 
 const REFERENCE_ANALYSIS_RESPONSE_JSON_SCHEMA = {
   type: "object",
-  required: ["overallVisualStyle", "screenCountEstimate", "screenReferences", "primaryNavigation", "geometryProfile", "motifs", "designSystemSignals"],
+  required: ["overallVisualStyle", "screenCountEstimate", "screenReferences", "primaryNavigation", "geometryProfile", "motifs", "designSystemSignals", "sourceContentEvidence"],
   properties: {
     overallVisualStyle: { type: "string" },
     screenCountEstimate: { type: "integer", minimum: 1, maximum: 12 },
@@ -196,6 +196,18 @@ const REFERENCE_ANALYSIS_RESPONSE_JSON_SCHEMA = {
       },
     },
     designSystemSignals: { type: "object", additionalProperties: true },
+    sourceContentEvidence: {
+      type: "object",
+      required: ["domainSummary", "terms", "entities", "actions", "copyFragments"],
+      properties: {
+        domainSummary: { type: "string" },
+        terms: { type: "array", maxItems: 24, items: { type: "string" } },
+        entities: { type: "array", maxItems: 24, items: { type: "string" } },
+        actions: { type: "array", maxItems: 24, items: { type: "string" } },
+        copyFragments: { type: "array", maxItems: 24, items: { type: "string" } },
+      },
+      additionalProperties: false,
+    },
     semanticCompositionPrimitives: { type: "array", maxItems: 8, items: { type: "object", additionalProperties: true } },
   },
   additionalProperties: true,
@@ -923,6 +935,25 @@ const evidenceDiagnostics = (raw: Record<string, unknown>, analysis: ReferenceAn
   return { evidenceCompleteness: { geometry, navigation, motifs }, visualEvidenceConfidence };
 };
 
+export const blockingReferenceAnalysisIssues = (result?: ReferenceAnalysisResult | null) => {
+  if (!result) return [];
+
+  const issues = (result.validationIssues ?? []).filter((issue) =>
+    /screenCountEstimate must equal|No usable screenReferences/i.test(issue));
+  const screenReferenceCount = result.screenReferenceCount
+    ?? result.analysis?.screenReferences.length
+    ?? 0;
+
+  if (!result.analysis || screenReferenceCount === 0) {
+    issues.push("No usable screenReferences array was present after bounded analysis.");
+  }
+  if (result.screenCountEstimate && screenReferenceCount > 0 && result.screenCountEstimate !== screenReferenceCount) {
+    issues.push("screenCountEstimate must equal the number of screenReferences entries.");
+  }
+
+  return [...new Set(issues)];
+};
+
 export const normalizeReferenceAnalysis = (raw: unknown): ReferenceAnalysisResult => {
   const diagnostics: string[] = [];
   const validationIssues: string[] = [];
@@ -1046,19 +1077,9 @@ export const normalizeReferenceAnalysis = (raw: unknown): ReferenceAnalysisResul
   const analysis: ReferenceAnalysis = ensureSemanticCompositionPrimitives({
     overallVisualStyle: textField(raw, ["overallVisualStyle", "overall_visual_style", "visualStyle", "visual_style"], "Reference visual style was not described by the model.", 3000),
     screenCountEstimate,
-    screenReferences: screenReferences.length > 0
-      ? screenReferences
-      : Array.from({ length: screenCountEstimate }, (_, index) => ({
-          index: index + 1,
-          suggestedRole: `Reference Screen ${index + 1}`,
-          layoutSummary: "Visible screen count was detected, but detailed layout analysis was not available.",
-          visualHierarchy: "Use the uploaded reference image directly for structural hierarchy.",
-          components: ["Use visible components from the uploaded reference image."],
-          stylingCues: ["Use visible styling cues from the uploaded reference image."],
-          interactionCues: [],
-          copyPatterns: [],
-          implementationNotes: ["Builder must inspect the attached full reference image for this target screen."],
-        })),
+    // Never fabricate per-screen evidence. A count-only result remains visibly
+    // incomplete and is repaired/fails through the bounded analysis path.
+    screenReferences,
     primaryNavigation,
     designSystemSignals: {
       palette: textField(signals, ["palette", "colors", "color"], "Use visible palette cues from the reference.", 1200),
@@ -1080,9 +1101,31 @@ export const normalizeReferenceAnalysis = (raw: unknown): ReferenceAnalysisResul
       diagnostics,
     ),
     motifs: normalizeReferenceMotifs(readField(raw, ["motifs", "localMotifs", "local_motifs"])),
+    sourceContentEvidence: (() => {
+      const evidence = readField(raw, ["sourceContentEvidence", "source_content_evidence", "contentEvidence", "content_evidence"]);
+      if (!isRecord(evidence)) {
+        validationIssues.push("Missing sourceContentEvidence quarantine data.");
+        return {
+          domainSummary: screenReferences.map((screen) => screen.suggestedRole).filter(Boolean).join("; ") || "Unclassified source domain",
+          terms: [],
+          entities: [],
+          actions: textArray(screenReferences.flatMap((screen) => screen.interactionCues ?? []), [], 24, 120),
+          copyFragments: textArray(screenReferences.flatMap((screen) => screen.copyPatterns ?? []), [], 24, 160),
+        };
+      }
+      return {
+        domainSummary: textField(evidence, ["domainSummary", "domain_summary"], "Unclassified source domain", 500),
+        terms: textArray(readField(evidence, ["terms", "domainTerms", "domain_terms"]), [], 24, 120),
+        entities: textArray(readField(evidence, ["entities", "names", "brands"]), [], 24, 120),
+        actions: textArray(readField(evidence, ["actions", "verbs"]), [], 24, 120),
+        copyFragments: textArray(readField(evidence, ["copyFragments", "copy_fragments", "copy"]), [], 24, 160),
+      };
+    })(),
   });
   const evidence = evidenceDiagnostics(raw, analysis);
-  const scopeConfidence = validationIssues.length === 0 ? "high" as const : "medium" as const;
+  const scopeValidationIssues = validationIssues.filter((issue) =>
+    /screenCountEstimate|screenReferences/i.test(issue));
+  const scopeConfidence = scopeValidationIssues.length === 0 ? "high" as const : "medium" as const;
 
   return {
     analysis,
@@ -1230,9 +1273,11 @@ export async function analyzeReferenceImageForScope({
       ...(schemaEnabled ? { responseJsonSchema: REFERENCE_ANALYSIS_RESPONSE_JSON_SCHEMA } : {}),
       temperature: 0.1,
     });
-    const promptPartText = prompt.trim()
-      ? `User/Product Intent: "${prompt}"`
-      : "Analyze the mobile UI reference image and describe the visible screen anatomy.";
+    const promptPartText = isStyleReferenceMode(resolvedReferenceMode)
+      ? "Analyze only the uploaded source UI. Extract its complete visual system and separately inventory every visible source-domain term, entity, action, and copy fragment for quarantine. Do not infer or adapt anything for the target product."
+      : prompt.trim()
+        ? `User/Product Intent: "${prompt}"`
+        : "Analyze the mobile UI reference image and describe the visible screen anatomy.";
     const parts: Array<Record<string, unknown>> = [
       inlineImage,
       {
@@ -1267,9 +1312,13 @@ export async function analyzeReferenceImageForScope({
     let rawAnalysis = parseJsonResponse<unknown>(response.text || "{}");
     let normalized = normalizeReferenceAnalysis(rawAnalysis);
 
-    if (!normalized.screenCountEstimate || normalized.visualEvidenceConfidence === "low") {
+    const needsEvidenceRepair = !normalized.screenCountEstimate
+      || normalized.visualEvidenceConfidence === "low"
+      || Boolean(normalized.validationIssues?.length)
+      || normalized.screenCountEstimate !== normalized.screenReferenceCount;
+    if (needsEvidenceRepair) {
       const retryParts = [...parts, {
-        text: "The previous response omitted required visual evidence. Re-inspect the same image and return the complete schema, especially primaryNavigation.appearance, geometryProfile.measurements, and motifs. Use explicit absence values instead of omitting fields.",
+        text: "The previous response omitted or contradicted required evidence. Re-inspect the same image and return the complete schema. screenCountEstimate MUST equal screenReferences.length; provide one real evidence entry per visible screen, plus primaryNavigation.appearance, geometryProfile.measurements, motifs, and sourceContentEvidence. Use explicit absence values instead of omitting fields; never fabricate placeholder screen descriptions.",
       }];
       llmLog?.("[LLM INPUT] reference-analysis-repair", {
         model: policy.model,
@@ -1282,7 +1331,10 @@ export async function analyzeReferenceImageForScope({
         const repaired = normalizeReferenceAnalysis(rawAnalysis);
         const repairImprovedEvidence = repaired.visualEvidenceConfidence !== "low"
           && normalized.visualEvidenceConfidence === "low";
-        if (repaired.screenCountEstimate && (!normalized.screenCountEstimate || repairImprovedEvidence)) normalized = repaired;
+        const repairResolvedValidation = (repaired.validationIssues?.length ?? 0) < (normalized.validationIssues?.length ?? 0);
+        const repairResolvedCount = repaired.screenCountEstimate === repaired.screenReferenceCount
+          && normalized.screenCountEstimate !== normalized.screenReferenceCount;
+        if (repaired.screenCountEstimate && (!normalized.screenCountEstimate || repairImprovedEvidence || repairResolvedValidation || repairResolvedCount)) normalized = repaired;
       } catch (repairError) {
         normalized = {
           ...normalized,

@@ -815,11 +815,20 @@ export function normalizeNavigationPlan({
   }
 
   const screenByName = new Map(screens.map((screen) => [screen.name.toLowerCase(), screen]));
+  const plannedChromeForScreen = (screen: ScreenPlan) => navigationPlan.screenChrome?.find(
+    (entry) => entry.screenName.toLowerCase() === screen.name.toLowerCase(),
+  );
+  const explicitlyUsesPrimaryNavigation = (screen: ScreenPlan) => {
+    const planned = plannedChromeForScreen(screen);
+    return planned?.chrome === "bottom-tabs" && Boolean(planned.navigationItemId);
+  };
+  const eligibleRootScreen = (screen: ScreenPlan) => screen.type === "root"
+    && (explicitlyUsesPrimaryNavigation(screen) || !shouldForceImmersiveScreen(screen));
   const plannedScreenForItem = new Map<string, ScreenPlan>();
   for (const chrome of navigationPlan.screenChrome ?? []) {
     if (!chrome.navigationItemId) continue;
     const screen = screenByName.get(chrome.screenName.toLowerCase());
-    if (screen && screen.type === "root" && !shouldForceImmersiveScreen(screen)) {
+    if (screen && eligibleRootScreen(screen)) {
       plannedScreenForItem.set(chrome.navigationItemId, screen);
     }
   }
@@ -841,8 +850,7 @@ export function normalizeNavigationPlan({
     const itemTerms = meaningfulTerms(`${label} ${role}`);
     return screens
       .filter((screen) =>
-        screen.type === "root"
-        && !shouldForceImmersiveScreen(screen)
+        eligibleRootScreen(screen)
         && !generatedScreenNames.has(screen.name.toLowerCase()))
       .map((screen) => {
         const screenTerms = meaningfulTerms(`${screen.name} ${screen.description}`);
@@ -882,8 +890,7 @@ export function normalizeNavigationPlan({
       ?? plannedScreenForItem.get(rawItem.id)
       ?? inferScreenForNavigationItem(label, role);
     const validGeneratedScreen = matchedScreen &&
-      matchedScreen.type === "root" &&
-      !shouldForceImmersiveScreen(matchedScreen) &&
+      eligibleRootScreen(matchedScreen) &&
       !generatedScreenNames.has(matchedScreen.name.toLowerCase())
       ? matchedScreen
       : null;
@@ -917,8 +924,7 @@ export function normalizeNavigationPlan({
   // product with no navigation at all.
   if (generatedScreenNames.size < LEGACY_MIN_SHARED_NAV_ITEMS) {
     const eligibleScreens = screens.filter((screen) =>
-      screen.type === "root"
-      && !shouldForceImmersiveScreen(screen)
+      eligibleRootScreen(screen)
       && !generatedScreenNames.has(screen.name.toLowerCase()));
 
     if (generatedScreenNames.size + eligibleScreens.length >= LEGACY_MIN_SHARED_NAV_ITEMS) {
@@ -976,8 +982,9 @@ export function normalizeNavigationPlan({
     visualBrief,
     screenChrome: screens.map((screen) => {
       const matchingItem = itemForScreen(screen);
-      const forcedImmersive = shouldForceImmersiveScreen(screen);
       const planned = navigationPlan.screenChrome?.find((entry) => entry.screenName.toLowerCase() === screen.name.toLowerCase());
+      const hasExplicitChrome = Boolean(screen.chromePolicy?.chrome || planned?.chrome);
+      const forcedImmersive = !hasExplicitChrome && shouldForceImmersiveScreen(screen);
       const fallbackPolicy = resolveScreenChromePolicy({
         screenPlan: screen,
         navigationArchitecture: createNavigationArchitecture({ navigationArchitecture }),

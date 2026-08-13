@@ -11,7 +11,9 @@ import type {
   ScreenPlan,
   ScreenStateVariantPlan,
   ReferenceMode,
+  JsonValue,
 } from "@/lib/types";
+import { normalizeScreenProductContract } from "@/lib/generation/product-contract";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 type ProjectScreenRoadmapInsert = Database["public"]["Tables"]["project_screen_roadmap"]["Insert"];
@@ -136,6 +138,9 @@ export function buildProjectRoadmap({
           showsBackButton: screen.chromePolicy.showsBackButton,
         } : null,
         navigationItemId: screen.navigationItemId ?? null,
+        productContract: screen.productContract
+          ? screen.productContract as unknown as JsonValue
+          : null,
       },
     };
     if (existingIndex >= 0) items[existingIndex] = parent;
@@ -458,6 +463,7 @@ export const screenPlanFromRoadmap = (
     explicitlyRequested: row.explicitly_requested,
     chromePolicy: Object.keys(chromePolicy).length > 0 ? chromePolicy as unknown as ScreenPlan["chromePolicy"] : undefined,
     navigationItemId: typeof metadata.navigationItemId === "string" ? metadata.navigationItemId : null,
+    productContract: normalizeScreenProductContract(metadata.productContract),
     stateVariants,
   };
 };

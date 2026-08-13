@@ -4,6 +4,21 @@ vi.mock("server-only", () => ({}));
 
 import { enforceNavigationEvidencePolicy } from "@/lib/generation/service";
 
+const productContract = (name: string) => ({
+  version: 1 as const,
+  user_job: `Use ${name} to complete its primary product task.`,
+  default_lifecycle: "ready" as const,
+  entry_condition: `The user intentionally opens ${name}.`,
+  requirements: [
+    { id: "screen-context", kind: "context" as const, purpose: "Provide the context needed to understand this destination." },
+    { id: "screen-content", kind: "content" as const, purpose: "Provide complete product-specific information for the task." },
+    { id: "primary-action", kind: "action" as const, purpose: "Let the user complete the primary task." },
+  ],
+  primary_action_id: "primary-action",
+  action_outcome: "The requested product task is completed.",
+  next_step: "Continue to the next appropriate product destination.",
+});
+
 const navigationPlan = (source: "explicit-prompt" | "reference") => ({
   version: 2 as const,
   decision: source === "reference" ? "reference-derived" as const : "project-native" as const,
@@ -45,6 +60,7 @@ const roadmap = (names: string[]) => ({
     priority: index === 0 ? "core" as const : "required" as const,
     explicitly_requested: true,
     dependency_keys: [],
+    product_contract: productContract(name),
   })),
   initial_batch_keys: [names[0].toLowerCase().replace(/\s+/g, "-")],
 });

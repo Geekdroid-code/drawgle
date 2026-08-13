@@ -68,6 +68,45 @@ const v2Plan = (
 });
 
 describe("Production Navigation V2", () => {
+  it("lets an explicit planned chrome policy outrank immersive keywords", () => {
+    const activeSession: ScreenPlan = {
+      name: "AI Assistant Session",
+      type: "root",
+      description: "An active assistant conversation with listening controls.",
+      chromePolicy: { chrome: "bottom-tabs", showPrimaryNavigation: true, showsBackButton: false },
+    };
+    expect(resolveScreenChromePolicy({ screenPlan: activeSession, navigationArchitecture: architecture }).chrome)
+      .toBe("bottom-tabs");
+    expect(resolveScreenChromePolicy({
+      screenPlan: { ...activeSession, chromePolicy: null },
+      navigationArchitecture: architecture,
+    }).chrome).toBe("immersive");
+  });
+
+  it("keeps a typed blueprint destination even when its name matches an immersive heuristic", () => {
+    const screens: ScreenPlan[] = [
+      { name: "AI Assistant", type: "root", description: "Primary product workspace" },
+      { name: "Library", type: "root", description: "Browse saved knowledge" },
+      { name: "Activity", type: "root", description: "Review recent work" },
+    ];
+    const source = v2Plan([
+      { id: "assistant", label: "Assist", icon: "sparkles", role: "Use the primary assistant workspace", linkedScreenName: "AI Assistant" },
+      { id: "library", label: "Library", icon: "library", role: "Browse saved knowledge", linkedScreenName: "Library" },
+      { id: "activity", label: "Activity", icon: "history", role: "Review recent work", linkedScreenName: "Activity" },
+    ]);
+    source.screenChrome = [
+      { screenName: "AI Assistant", chrome: "bottom-tabs", navigationItemId: "assistant" },
+      { screenName: "Library", chrome: "bottom-tabs", navigationItemId: "library" },
+      { screenName: "Activity", chrome: "bottom-tabs", navigationItemId: "activity" },
+    ];
+    const normalized = normalizeNavigationPlan({ navigationPlan: source, screens, navigationArchitecture: architecture });
+    expect(normalized.items.find((item) => item.id === "assistant")).toMatchObject({
+      availability: "generated",
+      linkedScreenName: "AI Assistant",
+    });
+    expect(normalized.screenChrome[0]).toMatchObject({ chrome: "bottom-tabs", navigationItemId: "assistant" });
+  });
+
   it("never fabricates default navigation", () => {
     const screens: ScreenPlan[] = [{ name: "Dashboard", type: "root", description: "Focused dashboard" }];
     expect(createFallbackNavigationPlan({ screens, navigationArchitecture: architecture, requiresBottomNav: true }).enabled).toBe(false);

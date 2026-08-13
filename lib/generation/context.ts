@@ -15,6 +15,39 @@ type MatchedScreen = Database["public"]["Functions"]["match_screens"]["Returns"]
 
 const DEFAULT_MATCH_COUNT = 5;
 const DEFAULT_MATCH_THRESHOLD = 0.55;
+
+/**
+ * Keep only product/IA facts for the product-blueprint call. Visual memory,
+ * reference DNA, creative direction, typography, and rendered HTML stay in the
+ * later visual-planning call where they cannot redefine screen purpose.
+ */
+export const toProductPlanningContext = (context: string | null | undefined): string => {
+  const value = context?.trim();
+  if (!value) return "";
+
+  const blocks = value.split(/\n\n(?=[A-Z][A-Z ]+\n)/);
+  const retained = blocks.flatMap((block) => {
+    if (block.startsWith("PROJECT CHARTER\n")) {
+      const lines = block.split("\n").filter((line) =>
+        !/^Image reference:/i.test(line)
+        && !/^Design rationale:/i.test(line));
+      return [lines.join("\n")];
+    }
+    if (block.startsWith("NAVIGATION ARCHITECTURE\n")) {
+      return [block.split("\n").filter((line) =>
+        !/^Rationale:/i.test(line)
+        && !/^Consistency rules:/i.test(line)).join("\n")];
+    }
+    if (block.startsWith("APPROVED NAVIGATION PLAN\n")) {
+      return [block.split("\n").filter((line) => !/^Visual brief:/i.test(line)).join("\n")];
+    }
+    if (block.startsWith("RELEVANT EXISTING SCREENS\n")) return [block];
+    return [];
+  });
+
+  return retained.join("\n\n");
+};
+
 const formatCharter = (charter: ProjectCharter, portableReference = false) => [
   `Original intent: ${charter.originalPrompt}`,
   !portableReference && charter.imageReferenceSummary ? `Image reference: ${charter.imageReferenceSummary}` : null,

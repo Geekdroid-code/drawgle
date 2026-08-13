@@ -54,16 +54,25 @@ import { validateTokenRelationships } from "@/lib/design-tokens-relationships";
 import { getCuratedStyleReferenceById } from "@/lib/generation/curated-style-catalog";
 import {
   buildPortableReferenceContext,
+  findSourceContentQuarantineLeaks,
   normalizeReferenceTransferContract,
   toPortableCreativeDirection,
   type ReferenceTransferMode,
 } from "@/lib/generation/reference-transfer";
 import { appendRequiredAnchors, DRAWGLE_GENERATION_COMPLETE_SENTINEL, extractRequiredAnchors, normalizeStaticDrawgleHtml, stripGenerationCompleteSentinel, validateSourceCompletion } from "@/lib/generation/screen-quality";
 import { buildRepairSurroundingContext, type RepairTarget } from "@/lib/generation/screen-repair";
+import { toProductPlanningContext } from "@/lib/generation/context";
+import {
+  normalizeScreenProductContract,
+  ScreenProductContractPlannerSchema,
+  toPlannerProductContract,
+  validateProductRequirementCoverage,
+} from "@/lib/generation/product-contract";
 import { createProjectReferenceDna } from "@/lib/generation/reference-dna";
 import { buildProjectRoadmap, roadmapSlug, screenRoadmapKey } from "@/lib/generation/project-roadmap";
 import {
   analyzeReferenceImageForScope,
+  blockingReferenceAnalysisIssues,
   preflightGenerationScope,
   resolveGenerationScopeContract,
 } from "@/lib/generation/scope-contract";
@@ -326,9 +335,10 @@ const ScreenLayoutContractSchema = z.object({
   cta_policy: z.string().trim().min(1).max(500),
   anti_patterns: z.array(z.string().trim().min(1).max(260)).max(8).default([]).optional(),
   regions: z.array(z.object({
-    id: z.string().trim().min(1).max(80),
+    id: z.string().trim().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(80),
     purpose: z.string().trim().min(1).max(400),
     content_kind: z.enum(["header", "focal", "chart", "list", "form", "media", "action", "supporting", "other"]),
+    product_requirement_ids: z.array(z.string().trim().min(1).max(80)).min(1).max(10),
   })).min(1).max(12).optional(),
   // v3 spatial arithmetic. Optional so v1/v2 stored plans keep parsing; the
   // layout-budget resolver derives anything the planner omits.
@@ -397,6 +407,7 @@ const ReferenceTransferContractValueSchema = z.object({
     rationale: z.string().trim().min(1).max(600),
   })).max(12).default([]).optional(),
   forbidden_literal_transfers: z.array(z.string().trim().min(1).max(700)).max(12).default([]).optional(),
+  source_content_quarantine: z.array(z.string().trim().min(1).max(160)).max(40).default([]).optional(),
 });
 
 const ReferenceTransferContractSchema = ReferenceTransferContractValueSchema.optional();
@@ -475,6 +486,7 @@ const ProjectRoadmapSchema = z.object({
     priority: z.enum(["core", "required", "recommended", "optional"]),
     explicitly_requested: BooleanishSchema.optional(),
     dependency_keys: z.array(z.string().trim().min(1).max(100)).max(8).default([]).optional(),
+    product_contract: ScreenProductContractPlannerSchema,
   })).min(1).max(24),
   initial_batch_keys: z.array(z.string().trim().min(1).max(100)).min(1).max(5),
 });
@@ -687,7 +699,7 @@ const PlanSchema = z.object({
   requires_bottom_nav: BooleanishSchema.optional(),
   navigation_architecture: NavigationArchitectureSchema.optional(),
   navigation_plan: NavigationPlanSchema,
-  roadmap: ProjectRoadmapSchema.optional(),
+  roadmap: ProjectRoadmapSchema,
   charter: z.object({
     originalPrompt: z.string().trim().min(1).max(10000),
     imageReferenceSummary: z.string().trim().max(6000).nullable().optional(),
@@ -800,6 +812,9 @@ export const compileProjectRoadmap = ({
         sequence: index,
         tranche: 1,
         dependencyKeys: item.dependency_keys ?? [],
+        metadata: {
+          productContract: normalizeScreenProductContract(item.product_contract) as unknown as JsonValue,
+        },
       }))
     : [];
   const exactScopedParents = Boolean(
@@ -2316,11 +2331,25 @@ const salvageProjectCharterFromRawPlan = ({
 const hasBuilderGradeBrief = (description: string) =>
   BUILDER_BRIEF_MARKERS.every((marker) => description.includes(marker));
 
+export const toProductContractPlanningIntent = (
+  screen: Pick<ScreenPlan, "name" | "type" | "description">,
+) => {
+  const description = screen.description.replace(/\s+/g, " ").trim();
+  const containsVisualBriefStructure = description.length > 700
+    || BUILDER_BRIEF_MARKERS.some((marker) => screen.description.includes(marker));
+  return containsVisualBriefStructure
+    ? `Define the product behavior for the locked ${screen.type} screen named ${screen.name} from the user request and product charter.`
+    : description.slice(0, 700);
+};
+
 /** True when a plan is a suggestion seed / not builder-grade (must be planned before build). */
 export const screenPlanNeedsBuildEnrichment = (screen: ScreenPlan): boolean => {
+  if (!screen.productContract) return true;
+  if (!screen.layoutContract || !screen.referenceTransfer || !Array.isArray(screen.assetNeeds)) return true;
   const description = screen.description?.replace(/\s+/g, " ").trim() ?? "";
   if (description.length < 700) return true;
   if (!hasBuilderGradeBrief(description)) return true;
+  if (validateProductRequirementCoverage(screen).length > 0) return true;
   return false;
 };
 
@@ -2483,6 +2512,7 @@ const normalizeScreenLayoutContract = (
           id: region.id,
           purpose: region.purpose,
           content_kind: region.contentKind,
+          product_requirement_ids: region.productRequirementIds,
         } : region) : undefined,
       }
     : raw;
@@ -2495,6 +2525,7 @@ const normalizeScreenLayoutContract = (
     id: region.id,
     purpose: region.purpose,
     contentKind: region.content_kind,
+    productRequirementIds: region.product_requirement_ids,
   })) ?? deriveScreenLayoutRegions([
     parsed.data.viewport_plan,
     parsed.data.focal_hierarchy,
@@ -2604,6 +2635,7 @@ const rawReferenceTransfer = (value: unknown, screenName: string): ScreenPlan["r
         composition_adaptations: value.compositionAdaptations,
         local_motifs: value.localMotifs,
         forbidden_literal_transfers: value.forbiddenLiteralTransfers,
+        source_content_quarantine: value.sourceContentQuarantine,
       }
     : value;
   const parsed = ReferenceTransferContractSchema.safeParse(input);
@@ -2641,6 +2673,7 @@ const rawReferenceTransfer = (value: unknown, screenName: string): ScreenPlan["r
       rationale: item.rationale,
     })),
     forbiddenLiteralTransfers: parsed.data.forbidden_literal_transfers ?? [],
+    sourceContentQuarantine: parsed.data.source_content_quarantine ?? [],
   };
 };
 
@@ -3120,6 +3153,115 @@ export const extractCode = (text: string) => {
   return output;
 };
 
+const ProductContractBatchSchema = z.object({
+  screens: z.array(z.object({
+    name: z.string().trim().min(1).max(100),
+    product_contract: ScreenProductContractPlannerSchema,
+  })).min(1).max(5),
+});
+
+const planMissingScreenProductContracts = async ({
+  screens,
+  prompt,
+  charter,
+  navigationArchitecture,
+  navigationPlan,
+  projectContext,
+  llmLog,
+}: {
+  screens: ScreenPlan[];
+  prompt: string;
+  charter: ProjectCharter;
+  navigationArchitecture: NavigationArchitecture;
+  navigationPlan?: NavigationPlan | null;
+  projectContext?: string | null;
+  llmLog?: LlmLogFn;
+}): Promise<ScreenPlan[]> => {
+  const missing = screens.filter((screen) => !screen.productContract);
+  if (missing.length === 0) return screens;
+
+  const ai = createGeminiClient();
+  const policy = geminiPolicyForTask("project_planning", {
+    systemInstruction: [
+      "You are a senior mobile product architect. Return strict JSON only.",
+      "Plan product behavior and usable content, never visual style. You have no access to and must not infer from screenshots, reference analysis, creative direction, design tokens, rendered HTML, or visual memory.",
+      "For each locked screen, return a version-1 product_contract with user_job, default_lifecycle, entry_condition, 3-10 requirements, primary_action_id, action_outcome, and next_step.",
+      "Requirement ids are unique kebab-case. primary_action_id must reference a requirement whose kind is action.",
+      "Requirements must make the screen complete and realistically usable: include the context, content/input, status/outcome, and action obligations relevant to the user job.",
+      "Default to entry or ready. Use in-progress or result only when the user explicitly asks to show that visible lifecycle state.",
+      "Do not change screen names, invent sibling screens, or return any design/layout fields.",
+      "Shape: {\"screens\":[{\"name\":\"Exact locked name\",\"product_contract\":{\"version\":1,\"user_job\":\"...\",\"default_lifecycle\":\"entry|ready|in-progress|result\",\"entry_condition\":\"...\",\"requirements\":[{\"id\":\"...\",\"kind\":\"context|content|input|action|status|outcome\",\"purpose\":\"...\"}],\"primary_action_id\":\"...\",\"action_outcome\":\"...\",\"next_step\":\"...\"}}]}",
+    ].join("\n"),
+    responseMimeType: "application/json",
+    temperature: 0.05,
+  });
+  const productContext = toProductPlanningContext(projectContext);
+  const locked = missing.map((screen) => ({
+    name: screen.name,
+    type: screen.type,
+    product_intent: toProductContractPlanningIntent(screen),
+  }));
+  const parts = [{
+    text: [
+      `User request:\n${prompt}`,
+      `Product charter:\n${JSON.stringify({
+        appType: charter.appType,
+        targetAudience: charter.targetAudience,
+        keyFeatures: charter.keyFeatures,
+        navigationModel: charter.navigationModel,
+      }, null, 2)}`,
+      `Navigation architecture:\n${JSON.stringify({
+        kind: navigationArchitecture.kind,
+        primaryNavigation: navigationArchitecture.primaryNavigation,
+        destinations: navigationPlan?.items.map((item) => ({ label: item.label, role: item.role })) ?? [],
+      }, null, 2)}`,
+      productContext ? `Existing product-only context:\n${productContext}` : null,
+      `Locked screens:\n${JSON.stringify(locked, null, 2)}`,
+    ].filter(Boolean).join("\n\n"),
+  }];
+
+  let lastIssues: string[] = [];
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const contents = attempt === 0
+      ? { parts }
+      : { parts: [...parts, { text: `REPAIR: ${lastIssues.join("; ")}. Return the complete corrected JSON for every locked screen.` }] };
+    llmLog?.("[LLM INPUT] plan-screen-product-contracts", {
+      model: policy.model,
+      attempt,
+      screenNames: missing.map((screen) => screen.name),
+      productContext,
+    });
+    const response = await ai.models.generateContent({ model: policy.model, contents, config: policy.config });
+    if (llmLog && response.usageMetadata) {
+      llmLog("[TOKEN USAGE] plan-screen-product-contracts", response.usageMetadata as Record<string, unknown>);
+    }
+    let raw: unknown = {};
+    try {
+      raw = parseJsonResponse<unknown>(response.text || "{}");
+    } catch (error) {
+      lastIssues = [error instanceof Error ? error.message : String(error)];
+      continue;
+    }
+    const parsed = ProductContractBatchSchema.safeParse(raw);
+    if (!parsed.success) {
+      lastIssues = parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`);
+      continue;
+    }
+    const byName = new Map(parsed.data.screens.map((item) => [screenRoadmapKey(item.name), item.product_contract]));
+    const upgraded = screens.map((screen) => {
+      if (screen.productContract) return screen;
+      const rawContract = byName.get(screenRoadmapKey(screen.name));
+      const productContract = normalizeScreenProductContract(rawContract, prompt);
+      return productContract ? { ...screen, productContract } : screen;
+    });
+    const stillMissing = upgraded.filter((screen) => !screen.productContract);
+    if (stillMissing.length === 0) return upgraded;
+    lastIssues = [`Missing valid contracts for ${stillMissing.map((screen) => screen.name).join(", ")}`];
+  }
+
+  throw new Error(`Product-only screen planning failed after one repair: ${lastIssues.join("; ")}`);
+};
+
 /**
  * Full screen-brief planning step (same quality bar as project-creation planning).
  * Uses existing charter/nav/tokens as fixed blueprint. Seeds only lock name/type identity.
@@ -3157,9 +3299,19 @@ export async function planScreenBriefsForBuild({
   if (!screens.length) {
     return { screens, planned: false };
   }
-  if (!force && !screenPlansNeedBuildEnrichment(screens)) {
+  if (!force && !screenPlansNeedBuildEnrichment(screens) && screens.every((screen) => screen.productContract)) {
     return { screens, planned: false };
   }
+
+  screens = await planMissingScreenProductContracts({
+    screens,
+    prompt,
+    charter,
+    navigationArchitecture,
+    navigationPlan,
+    projectContext,
+    llmLog,
+  });
 
   const ai = createGeminiClient();
   const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
@@ -3207,6 +3359,7 @@ export async function planScreenBriefsForBuild({
     suggestion: screen.description,
     chrome: screen.chromePolicy?.chrome ?? null,
     roadmap_stable_key: screen.roadmapStableKey ?? screenRoadmapKey(screen.name),
+    product_contract: screen.productContract ? toPlannerProductContract(screen.productContract) : null,
   }));
 
   const parts: Array<Record<string, unknown>> = [
@@ -3312,15 +3465,30 @@ export async function planScreenBriefsForBuild({
       mode: plannerMode,
       referenceAnalysis: charter.referenceDna?.analysis,
     });
-    const invalidScreens = mergedWithTransfer.filter((screen) =>
-      screenPlanNeedsBuildEnrichment(screen)
-      || !screen.layoutContract
-      || !screen.referenceTransfer
-      || !Array.isArray(screen.assetNeeds));
+    const contractIssuesByName = new Map(mergedWithTransfer.map((screen) => {
+      const allowedProductText = JSON.stringify(screen.productContract ?? {});
+      const issues = [
+        ...(screenPlanNeedsBuildEnrichment(screen) ? ["brief is not builder-grade"] : []),
+        ...(!screen.layoutContract ? ["missing layout contract"] : []),
+        ...(!screen.referenceTransfer ? ["missing reference transfer contract"] : []),
+        ...(!Array.isArray(screen.assetNeeds) ? ["missing explicit asset-needs array"] : []),
+        ...validateProductRequirementCoverage(screen),
+        ...findSourceContentQuarantineLeaks({
+          text: screen.description,
+          contract: screen.referenceTransfer,
+          allowedProductText,
+        }).map((term) => `quarantined source content in brief: ${term}`),
+      ];
+      return [screen.name, issues] as const;
+    }));
+    const invalidScreens = mergedWithTransfer.filter((screen) => (contractIssuesByName.get(screen.name)?.length ?? 0) > 0);
     if (mergedWithTransfer.length !== screens.length || invalidScreens.length > 0) {
       const invalidNames = new Set(invalidScreens.map((screen) => screen.name));
       const validScreens = mergedWithTransfer.filter((screen) => !invalidNames.has(screen.name));
-      const summary = `Screen planner returned ${mergedWithTransfer.length}/${screens.length} complete briefs; ${invalidScreens.length} failed the builder-grade contract.`;
+      const summary = [
+        `Screen planner returned ${mergedWithTransfer.length}/${screens.length} complete briefs; ${invalidScreens.length} failed the builder-grade contract.`,
+        ...invalidScreens.map((screen) => `${screen.name}: ${contractIssuesByName.get(screen.name)?.join(" | ")}`),
+      ].join(" ");
 
       // On the first attempt, fail the whole tranche so the bounded repair gets
       // a chance to return a complete set.
@@ -3358,7 +3526,7 @@ export async function planScreenBriefsForBuild({
     if (repairAttempt < 1) {
       return planScreenBriefsForBuild({
         screens,
-        prompt: `${prompt}\n\nPLANNER REPAIR: The first brief failed strict validation: ${message}. Return every locked screen with all seven labeled description sections, a complete layout_contract, reference_transfer, and an explicit asset_needs array.`,
+        prompt: `${prompt}\n\nPLANNER REPAIR: The first brief failed strict validation: ${message}. Return every locked screen with all seven labeled description sections, a complete layout_contract, reference_transfer, and an explicit asset_needs array. Map every immutable product requirement id to target-owned layout regions and remove all source-content quarantine terms from target copy.`,
         charter,
         navigationArchitecture,
         navigationPlan,
@@ -3445,6 +3613,12 @@ async function planUiFlowInternal({
           diagnostics: ["Reference analysis was provided by caller."],
         }
       : null);
+  const unusableReferenceEvidence = blockingReferenceAnalysisIssues(referenceAnalysisResult);
+  if (image && unusableReferenceEvidence.length > 0) {
+    throw new Error(
+      `Reference analysis remained structurally incomplete after one repair: ${unusableReferenceEvidence.join("; ")}`,
+    );
+  }
   const resolvedScopeContract = scopeContract ?? resolveGenerationScopeContract({
     prompt,
     image,
@@ -3479,7 +3653,9 @@ async function planUiFlowInternal({
   const fallbackRequiresBottomNav = screenCountContract.disableSharedNavigation ? false : inferLegacyRequiresBottomNav({
     prompt,
     planningMode,
-    referenceAnalysis,
+    // Style evidence never owns product navigation. Visible reference chrome
+    // is calibrated later by the visual/navigation appearance contracts.
+    referenceAnalysis: plannerMode === "recreate" ? referenceAnalysis : null,
   });
   const creativeDirection = projectContext?.trim()
     ? null
@@ -3594,8 +3770,42 @@ async function planUiFlowInternal({
     });
   }
 
+  const productPlanningContext = toProductPlanningContext(projectContext);
+  const productOnlyIntentContract = plannerMode === "style"
+    ? {
+        ...intentContractJson(intentContract) as Record<string, JsonValue>,
+        source: intentContract.source === "image_reference_mode" ? "prompt" : intentContract.source,
+        reason: intentContract.source === "image_reference_mode"
+          ? "Plan the smallest credible initial product slate from the user request."
+          : intentContract.reason,
+        referenceScreenCount: null,
+      }
+    : intentContractJson(intentContract);
+  const productOnlyBlueprintParts: Array<Record<string, unknown>> = [
+    { text: prompt.trim() ? `User Prompt: "${prompt}"` : "Plan a usable mobile product." },
+    { text: formatScreenCountContract(screenCountContract) },
+    { text: `Generation Intent Contract:\n${JSON.stringify(productOnlyIntentContract, null, 2)}` },
+  ];
+  if (forceFiniteFlowWithoutPersistentNav) {
+    productOnlyBlueprintParts.push({ text: "This is a finite flow, not evidence for persistent primary navigation." });
+  }
+  if (productPlanningContext) {
+    productOnlyBlueprintParts.push({ text: `Current Product Context (product and IA facts only):\n${productPlanningContext}` });
+  }
+  if (planningMode === "single-screen") {
+    productOnlyBlueprintParts.push({ text: "Planning Mode: Return exactly 1 additional screen for an existing project." });
+  }
+  const blueprintParts: Array<Record<string, unknown>> = plannerMode === "style"
+    ? productOnlyBlueprintParts
+    : parts;
+
   const policy = geminiPolicyForTask("project_planning", {
-    systemInstruction: plannerBlueprintStepInstruction(plannerMode),
+    systemInstruction: [
+      plannerBlueprintStepInstruction(plannerMode === "style" ? "prompt" : plannerMode),
+      plannerMode === "style"
+        ? "PRODUCT-ONLY INVOCATION: You have deliberately not received the style screenshot, reference analysis, creative direction, tokens, or visual memory. Set charter.imageReferenceSummary and charter.creativeDirection to null. Keep charter.designRationale limited to product usability, information hierarchy, viewport feasibility, and navigation behavior; do not invent art direction."
+        : null,
+    ].filter(Boolean).join("\n\n"),
     responseMimeType: "application/json",
     temperature: 0.1,
   });
@@ -3611,14 +3821,14 @@ async function planUiFlowInternal({
       screenCountContract: screenCountContractJson(screenCountContract),
       systemInstructionLength: si.length,
       systemInstruction: si,
-      userPartCount: parts.length,
-      userParts: parts.map((p) => (typeof p.text === "string" ? p.text : "[image]")),
+      userPartCount: blueprintParts.length,
+      userParts: blueprintParts.map((p) => (typeof p.text === "string" ? p.text : "[non-product input omitted]")),
     });
   }
 
   const response = await ai.models.generateContent({
     model: policy.model,
-    contents: { parts },
+    contents: { parts: blueprintParts },
     config: policy.config,
   });
 
@@ -3650,7 +3860,7 @@ async function planUiFlowInternal({
       model: policy.model,
       contents: {
         parts: [
-          ...parts,
+          ...blueprintParts,
           {
             text: [
               "PROJECT BLUEPRINT STRUCTURE REPAIR. Return the complete project blueprint JSON without screens.",
@@ -3730,7 +3940,7 @@ async function planUiFlowInternal({
         model: policy.model,
         contents: {
           parts: [
-            ...parts,
+            ...blueprintParts,
             {
               text: [
                 "PROJECT BLUEPRINT SCOPE REPAIR. Return the complete project blueprint JSON without screens.",
@@ -3796,7 +4006,7 @@ async function planUiFlowInternal({
         model: policy.model,
         contents: {
           parts: [
-            ...parts,
+            ...blueprintParts,
             {
               text: [
                 "NAVIGATION V2 REPAIR ONLY. Return the complete project blueprint JSON without screens.",
@@ -3872,6 +4082,53 @@ async function planUiFlowInternal({
           reason: evidenceAdjustedNavigation?.evidence.reason ?? null,
         });
       }
+    }
+  }
+
+  if (parsedBlueprint.success) {
+    const lifecycleCorrections: Array<{ screenName: string; from: string; to: string }> = [];
+    const normalizedItems = parsedBlueprint.data.roadmap.items.map((item) => {
+      const normalized = normalizeScreenProductContract(item.product_contract, prompt);
+      if (!normalized) {
+        throw new Error(`Project blueprint contained an invalid product contract for ${item.name}.`);
+      }
+      if (normalized.defaultLifecycle !== item.product_contract.default_lifecycle) {
+        lifecycleCorrections.push({
+          screenName: item.name,
+          from: item.product_contract.default_lifecycle,
+          to: normalized.defaultLifecycle,
+        });
+      }
+      return { ...item, product_contract: toPlannerProductContract(normalized) };
+    });
+    const productNormalizedBlueprint = {
+      ...parsedBlueprint.data,
+      roadmap: { ...parsedBlueprint.data.roadmap, items: normalizedItems },
+    };
+    const validatedProductNormalizedBlueprint = parsePlannerProjectBlueprint(productNormalizedBlueprint);
+    if (!validatedProductNormalizedBlueprint.success) {
+      throw new Error("Product lifecycle normalization produced an invalid project blueprint.");
+    }
+    rawBlueprint = productNormalizedBlueprint;
+    parsedBlueprint = validatedProductNormalizedBlueprint;
+    if (lifecycleCorrections.length > 0) {
+      llmLog?.("[planUiFlow] normalized implicit screen lifecycle", { lifecycleCorrections });
+    }
+  }
+
+  if (parsedBlueprint.success && plannerMode === "style") {
+    const productOnlyBlueprint = {
+      ...parsedBlueprint.data,
+      charter: {
+        ...parsedBlueprint.data.charter,
+        imageReferenceSummary: null,
+        creativeDirection: null,
+      },
+    };
+    const validatedProductOnlyBlueprint = parsePlannerProjectBlueprint(productOnlyBlueprint);
+    if (validatedProductOnlyBlueprint.success) {
+      rawBlueprint = productOnlyBlueprint;
+      parsedBlueprint = validatedProductOnlyBlueprint;
     }
   }
 
@@ -3967,6 +4224,9 @@ async function planUiFlowInternal({
         roadmapPriority: roadmapItem?.priority ?? "required",
         explicitlyRequested: roadmapItem?.explicitly_requested ?? Boolean(scopedScreen),
         assetNeeds: [],
+        productContract: roadmapItem
+          ? normalizeScreenProductContract(roadmapItem.product_contract, prompt)
+          : null,
       }];
     });
 
@@ -4072,6 +4332,7 @@ async function planUiFlowInternal({
         dependencyKeys: roadmapItem.dependencyKeys,
         referenceScreenIndex: screen.referenceScreenIndex ?? null,
         referenceScreenCount: screen.referenceScreenCount ?? null,
+        productContract: screen.productContract ?? null,
       }];
     });
 
@@ -4158,12 +4419,76 @@ async function planUiFlowInternal({
       return { raw, items, result, jsonError };
     };
 
+    const expectedBriefNames = screenCountContract.namedScreens?.length
+      ? screenCountContract.namedScreens.slice(0, INITIAL_PROJECT_SCREEN_LIMIT)
+      : selectedBlueprintKeys.flatMap((stableKey) => {
+          const item = parsedBlueprint.data.roadmap.items.find((candidate) => candidate.stable_key === stableKey);
+          return item ? [item.name] : [];
+        });
+    const expectedBriefCount = screenCountContract.exactCount ?? expectedBriefNames.length;
+
+    const screenBriefContractIssues = (briefs: ReturnType<typeof parseScreenBriefResponse>) => {
+      if (!briefs.result.success) return [];
+      const identityIssues: string[] = [];
+      if (expectedBriefCount > 0 && briefs.result.data.screens.length !== expectedBriefCount) {
+        identityIssues.push(
+          `Screen brief batch returned ${briefs.result.data.screens.length}/${expectedBriefCount} locked screens.`,
+        );
+      }
+      for (let index = 0; index < Math.min(expectedBriefNames.length, briefs.result.data.screens.length); index += 1) {
+        const expectedName = expectedBriefNames[index];
+        const actualName = briefs.result.data.screens[index].name;
+        if (normalizeScreenName(actualName) !== normalizeScreenName(expectedName)) {
+          identityIssues.push(`Screen brief ${index + 1} must be ${expectedName}; received ${actualName}.`);
+        }
+      }
+
+      return [
+        ...identityIssues,
+        ...briefs.result.data.screens.flatMap((rawScreen) => {
+          const roadmapItem = parsedBlueprint.data.roadmap.items.find((item) =>
+            item.stable_key === rawScreen.roadmap_stable_key
+            || normalizeScreenName(item.name) === normalizeScreenName(rawScreen.name));
+          const productContract = roadmapItem
+            ? normalizeScreenProductContract(roadmapItem.product_contract, prompt)
+            : null;
+          const coerced = coerceScreenPlanFromRawItem(rawScreen);
+          if (!coerced) return [`${rawScreen.name}: screen brief could not be normalized.`];
+          const screenPlan: ScreenPlan = {
+            ...coerced,
+            productContract,
+            referenceTransfer: normalizeReferenceTransferContract({
+              value: coerced.referenceTransfer,
+              mode: plannerMode,
+              screenName: coerced.name,
+              screenDescription: coerced.description,
+              screenType: coerced.type,
+              referenceAnalysis,
+              screenLayoutRegions: coerced.layoutContract?.regions ?? [],
+            }),
+          };
+          return [
+            ...validateProductRequirementCoverage(screenPlan).map((issue) => `${screenPlan.name}: ${issue}`),
+            ...findSourceContentQuarantineLeaks({
+              text: screenPlan.description,
+              contract: screenPlan.referenceTransfer,
+              allowedProductText: JSON.stringify(productContract ?? {}),
+            }).map((term) => `${screenPlan.name}: quarantined source content in brief: ${term}`),
+          ];
+        }),
+      ];
+    };
+
     const initialScreenText = screenResponse.text || "{}";
     let screenBriefResult = parseScreenBriefResponse(initialScreenText);
-    if (!screenBriefResult.result.success) {
+    const initialContractIssues = screenBriefContractIssues(screenBriefResult);
+    if (!screenBriefResult.result.success || initialContractIssues.length > 0) {
       const initialIssues = [
         ...(screenBriefResult.jsonError ? [`root: ${screenBriefResult.jsonError}`] : []),
-        ...screenBriefResult.result.error.issues.map((issue) => `${issue.path.join(".") || "root"}: ${issue.message}`),
+        ...(screenBriefResult.result.success
+          ? []
+          : screenBriefResult.result.error.issues.map((issue) => `${issue.path.join(".") || "root"}: ${issue.message}`)),
+        ...initialContractIssues,
       ];
       llmLog?.("[planUiFlow] screen brief schema repair requested", {
         issues: initialIssues,
@@ -4180,6 +4505,7 @@ async function planUiFlowInternal({
                 "The prior response failed the required schema: " + initialIssues.join("; ") + ".",
                 "Preserve the approved blueprint, exact roadmap.initial_batch_keys order, and every valid product decision.",
                 "Return every required screen with a product-specific name and purpose, all seven description sections, layout_contract, reference_transfer, chrome_policy, asset_needs, and state_variants.",
+                "Map every immutable product requirement id to target-owned layout_contract.regions.product_requirement_ids. Remove every quarantined source-domain term from target copy and descriptions.",
                 "Invalid response: " + initialScreenText.slice(0, 24000),
               ].join("\n"),
             },
@@ -4194,7 +4520,8 @@ async function planUiFlowInternal({
         );
       }
       const repairedScreenBriefs = parseScreenBriefResponse(screenRepairResponse.text || "{}");
-      if (repairedScreenBriefs.result.success) {
+      const repairedContractIssues = screenBriefContractIssues(repairedScreenBriefs);
+      if (repairedScreenBriefs.result.success && repairedContractIssues.length === 0) {
         screenBriefResult = repairedScreenBriefs;
         llmLog?.("[planUiFlow] screen brief schema repair accepted", {
           screenCount: repairedScreenBriefs.result.data.screens.length,
@@ -4202,7 +4529,10 @@ async function planUiFlowInternal({
       } else {
         const repairedIssues = [
           ...(repairedScreenBriefs.jsonError ? [`root: ${repairedScreenBriefs.jsonError}`] : []),
-          ...repairedScreenBriefs.result.error.issues.map((issue) => `${issue.path.join(".") || "root"}: ${issue.message}`),
+          ...(repairedScreenBriefs.result.success
+            ? []
+            : repairedScreenBriefs.result.error.issues.map((issue) => `${issue.path.join(".") || "root"}: ${issue.message}`)),
+          ...repairedContractIssues,
         ];
         llmLog?.("[planUiFlow] screen brief schema repair rejected", {
           initialIssues,
@@ -4454,6 +4784,9 @@ async function planUiFlowInternal({
       roadmapStableKey: roadmapItem?.stable_key ?? screenPlan.roadmap_stable_key ?? screenRoadmapKey(screenPlan.name),
       roadmapPriority: roadmapItem?.priority,
       explicitlyRequested: roadmapItem?.explicitly_requested ?? false,
+      productContract: roadmapItem
+        ? normalizeScreenProductContract(roadmapItem.product_contract, prompt)
+        : null,
       stateVariants: normalizeScreenStateVariants(screenPlan.state_variants, base),
       layoutContract: normalizeScreenLayoutContract(screenPlan.layout_contract),
       referenceTransfer: rawReferenceTransfer(screenPlan.reference_transfer, screenPlan.name),
@@ -4481,6 +4814,7 @@ async function planUiFlowInternal({
       referenceTransfer: screenPlan.referenceTransfer ?? null,
       assetNeeds: screenPlan.assetNeeds ?? [],
       chromePolicy: screenPlan.chromePolicy ?? null,
+      productContract: screenPlan.productContract ?? null,
     },
     navigationArchitecture,
   }));
@@ -4500,11 +4834,23 @@ async function planUiFlowInternal({
         referenceTransfer: screenPlan.referenceTransfer ?? null,
         assetNeeds: screenPlan.assetNeeds ?? [],
         chromePolicy: screenPlan.chromePolicy ?? null,
+        productContract: screenPlan.productContract ?? null,
       },
       navigationArchitecture,
     })),
     referenceAnalysis,
   );
+  const visualPlanningContractIssues = navigationAwareScreens.flatMap((screen) => [
+    ...validateProductRequirementCoverage(screen).map((issue) => `${screen.name}: ${issue}`),
+    ...findSourceContentQuarantineLeaks({
+      text: screen.description,
+      contract: screen.referenceTransfer,
+      allowedProductText: JSON.stringify(screen.productContract ?? {}),
+    }).map((term) => `${screen.name}: quarantined source content in brief: ${term}`),
+  ]);
+  if (visualPlanningContractIssues.length > 0) {
+    throw new Error(`Visual planner violated the immutable product/region boundary: ${visualPlanningContractIssues.join("; ")}`);
+  }
   const screens = normalizeScreenBriefsWithFamilyContract({
     prompt,
     screenFamilyContract,

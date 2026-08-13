@@ -16,6 +16,7 @@ import {
   planProjectBlueprint,
   planUiFlow,
   reconcileBlueprintInitialBatch,
+  toProductContractPlanningIntent,
 } from "@/lib/generation/service";
 import type {
   GenerationIntentContract,
@@ -53,6 +54,21 @@ const promptCountScope: GenerationScopeContract = {
     { index: 3, name: "Screen 3", kind: "screen" },
   ],
 };
+
+const productContract = (name: string) => ({
+  version: 1 as const,
+  user_job: `Use ${name} to complete its primary product task.`,
+  default_lifecycle: "ready" as "entry" | "ready" | "in-progress" | "result",
+  entry_condition: `The user intentionally opens ${name}.`,
+  requirements: [
+    { id: "screen-context", kind: "context" as const, purpose: "Provide the context needed to understand this destination." },
+    { id: "screen-content", kind: "content" as const, purpose: "Provide complete product-specific information for the task." },
+    { id: "primary-action", kind: "action" as const, purpose: "Let the user complete the primary task." },
+  ],
+  primary_action_id: "primary-action",
+  action_outcome: "The requested product task is completed.",
+  next_step: "Continue to the next appropriate product destination.",
+});
 
 const malformedNavigationBlueprint = {
   requires_bottom_nav: true,
@@ -99,9 +115,9 @@ const malformedNavigationBlueprint = {
   roadmap: {
     requested_parent_count: 3,
     items: [
-      { stable_key: "screen:support-inbox", name: "Support Inbox", type: "root", summary: "Triage and continue active customer support conversations.", priority: "core", explicitly_requested: true, dependency_keys: [] },
-      { stable_key: "screen:knowledge-search", name: "Knowledge Search", type: "root", summary: "Find approved answers and reusable troubleshooting guidance.", priority: "core", explicitly_requested: true, dependency_keys: [] },
-      { stable_key: "screen:resolution-activity", name: "Resolution Activity", type: "root", summary: "Review escalations, outcomes, and recently resolved cases.", priority: "core", explicitly_requested: true, dependency_keys: [] },
+      { stable_key: "screen:support-inbox", name: "Support Inbox", type: "root", summary: "Triage and continue active customer support conversations.", priority: "core", explicitly_requested: true, dependency_keys: [], product_contract: productContract("Support Inbox") },
+      { stable_key: "screen:knowledge-search", name: "Knowledge Search", type: "root", summary: "Find approved answers and reusable troubleshooting guidance.", priority: "core", explicitly_requested: true, dependency_keys: [], product_contract: productContract("Knowledge Search") },
+      { stable_key: "screen:resolution-activity", name: "Resolution Activity", type: "root", summary: "Review escalations, outcomes, and recently resolved cases.", priority: "core", explicitly_requested: true, dependency_keys: [], product_contract: productContract("Resolution Activity") },
     ],
     initial_batch_keys: ["screen:support-inbox", "screen:knowledge-search", "screen:resolution-activity"],
   },
@@ -146,6 +162,12 @@ const completeScreenBrief = ({
     component_density: "Favor information-dense but readable rows with explicit wrapping and minimum touch targets.",
     cta_policy: "Use one peak-emphasis action only when the workflow has a true commitment step.",
     anti_patterns: ["No equal-weight dashboard card grid.", "No copied source hero or connector scaffold."],
+    regions: [{
+      id: "primary-workspace",
+      purpose: "Provide the complete target-owned product workspace and primary action.",
+      content_kind: "focal",
+      product_requirement_ids: ["screen-context", "screen-content", "primary-action"],
+    }],
   },
   reference_transfer: {
     layout_source: "screen-purpose",
@@ -167,6 +189,25 @@ const completeScreenBrief = ({
 });
 
 describe("planner contract resilience", () => {
+  it("removes visual brief prose from legacy product-contract planning inputs", () => {
+    const intent = toProductContractPlanningIntent({
+      name: "Pet Care Home",
+      type: "root",
+      description: [
+        "Reference DNA: CALORIE_SOURCE_STYLE and a copied fitness scaffold.",
+        "Visual Goal: Create a pet-care home.",
+        "Layout Anatomy: Use a source-shaped hero.",
+        "Key Components: Pet services.",
+        "Visual Styling: Purple glass.",
+        "Interaction Notes: Book care.",
+        "Must Preserve: Source depth.",
+      ].join("\n"),
+    });
+    expect(intent).toContain("Pet Care Home");
+    expect(intent).not.toContain("CALORIE_SOURCE_STYLE");
+    expect(intent).not.toContain("fitness scaffold");
+  });
+
   beforeEach(() => {
     generateContent.mockReset();
   });
@@ -193,6 +234,46 @@ describe("planner contract resilience", () => {
     const blueprint = await planProjectBlueprint({
       prompt: "Build a hyper-local pet grooming and vet visits app the premium one",
       referenceMode: "user_style",
+      referenceAnalysis: {
+        overallVisualStyle: "CALORIE_SOURCE_STYLE with electric purple fitness surfaces.",
+        screenCountEstimate: 2,
+        screenReferences: [{
+          index: 1,
+          suggestedRole: "Fitness dashboard",
+          layoutSummary: "CALORIE_SOURCE_LAYOUT",
+          visualHierarchy: "Workout ring then calorie cards.",
+          components: ["calorie ring"],
+          stylingCues: ["electric purple edge light"],
+          interactionCues: [],
+          copyPatterns: ["Calories"],
+          implementationNotes: [],
+        }, {
+          index: 2,
+          suggestedRole: "Workout history",
+          layoutSummary: "Workout rows.",
+          visualHierarchy: "History first.",
+          components: ["workout row"],
+          stylingCues: ["electric purple edge light"],
+          interactionCues: [],
+          copyPatterns: ["Daily goal"],
+          implementationNotes: [],
+        }],
+        designSystemSignals: {
+          palette: "electric purple",
+          typography: "condensed",
+          surfaces: "dark glass",
+          iconography: "outlined",
+          density: "compact",
+          motionTone: "energetic",
+        },
+        sourceContentEvidence: {
+          domainSummary: "Fitness calorie tracker",
+          terms: ["Calories"],
+          entities: [],
+          actions: ["Log workout"],
+          copyFragments: ["Daily goal"],
+        },
+      },
       scopeContract: {
         version: 2,
         referenceMode: "user_style",
@@ -208,7 +289,12 @@ describe("planner contract resilience", () => {
         diagnostics: [],
         screens: [],
       },
-      projectContext: "New project; no prior screens exist.",
+      projectContext: [
+        "PROJECT CHARTER\nOriginal intent: Extend the pet-care product.\nApp type: Pet care\nAudience: Pet owners\nNavigation model: Hierarchical\nKey features: Booking, care history",
+        "CREATIVE DIRECTION\nCALORIE_SOURCE_CREATIVE",
+        "PROJECT REFERENCE DNA\nCALORIE_SOURCE_DNA",
+        "RELEVANT EXISTING SCREENS\n1. Existing Booking (90% match; retrieve for product continuity, not layout reuse)",
+      ].join("\n\n"),
     });
 
     expect(generateContent).toHaveBeenCalledTimes(1);
@@ -221,6 +307,13 @@ describe("planner contract resilience", () => {
     expect(blueprint.screenCountContract).toMatchObject({ exactCount: 2, minScreens: 2, maxScreens: 5 });
     expect(blueprint.screenCountEnforcement).toBe("expanded");
     expect(blueprint.screenSeeds.map((seed) => seed.name)).toEqual(["Support Inbox", "Knowledge Search"]);
+    const blueprintInput = JSON.stringify(generateContent.mock.calls[0]?.[0]?.contents);
+    expect(blueprintInput).toContain("Existing Booking");
+    expect(blueprintInput).not.toContain("CALORIE_SOURCE");
+    expect(blueprintInput).not.toContain("electric purple");
+    expect(blueprintInput).not.toContain("CREATIVE DIRECTION");
+    expect(blueprintInput).not.toContain('"referenceScreenCount": 2');
+    expect(blueprintInput).not.toContain("image_reference_mode");
   });
 
   it("orders promoted initial screens after their roadmap dependencies", () => {
@@ -228,8 +321,8 @@ describe("planner contract resilience", () => {
       roadmap: {
         requested_parent_count: 2,
         items: [
-          { stable_key: "screen:home", name: "Home", type: "root", summary: "Start the core product workflow from a focused home surface.", priority: "core", dependency_keys: [] },
-          { stable_key: "screen:booking", name: "Booking", type: "detail", summary: "Choose a provider and complete the product booking workflow.", priority: "core", dependency_keys: ["screen:home"] },
+          { stable_key: "screen:home", name: "Home", type: "root", summary: "Start the core product workflow from a focused home surface.", priority: "core", dependency_keys: [], product_contract: productContract("Home") },
+          { stable_key: "screen:booking", name: "Booking", type: "detail", summary: "Choose a provider and complete the product booking workflow.", priority: "core", dependency_keys: ["screen:home"], product_contract: productContract("Booking") },
         ],
         initial_batch_keys: ["screen:booking"],
       },
@@ -365,9 +458,11 @@ describe("planner contract resilience", () => {
   });
 
   it("continues from a normalized blueprint into distinct screen briefs", async () => {
+    const lifecycleBlueprint = structuredClone(malformedNavigationBlueprint);
+    lifecycleBlueprint.roadmap.items[0].product_contract.default_lifecycle = "in-progress";
     generateContent
       .mockResolvedValueOnce({
-        text: JSON.stringify(malformedNavigationBlueprint),
+        text: JSON.stringify(lifecycleBlueprint),
       })
       .mockResolvedValueOnce({
         text: JSON.stringify({
@@ -409,6 +504,8 @@ describe("planner contract resilience", () => {
     ]);
     expect(plan.screens.map((screen) => screen.name)).not.toContain("Screen 1");
     expect(plan.screens.every((screen) => !screen.description.includes("Planner Brief"))).toBe(true);
+    expect(plan.screens[0].productContract?.defaultLifecycle).toBe("ready");
+    expect(JSON.stringify(generateContent.mock.calls[1]?.[0]?.contents)).not.toContain('"default_lifecycle": "in-progress"');
   });
 
   it("returns ordered planning seeds without invoking the detailed screen planner", async () => {
@@ -450,6 +547,30 @@ describe("planner contract resilience", () => {
       .mockResolvedValueOnce({ text: JSON.stringify(malformedNavigationBlueprint) })
       .mockResolvedValueOnce({ text: JSON.stringify(weakScreens) })
       .mockResolvedValueOnce({ text: JSON.stringify(weakScreens) });
+
+    await expect(planUiFlow({
+      prompt: "Build an AI assistant for support chat with 3 core screens",
+      referenceMode: "user_style",
+      scopeContract: promptCountScope,
+      projectContext: "New project; no prior screens exist.",
+    })).rejects.toThrow("no builder-grade screen briefs after one repair attempt");
+
+    expect(generateContent).toHaveBeenCalledTimes(3);
+  });
+
+  it("repairs and rejects an incomplete but otherwise builder-grade locked batch", async () => {
+    const oneCompleteBrief = {
+      screens: [completeScreenBrief({
+        name: "Support Inbox",
+        stableKey: "screen:support-inbox",
+        visualGoal: "Triage active support conversations by urgency, ownership, and waiting time.",
+        components: "Use a conversation queue, urgency markers, ownership badges, search, and compact status filters.",
+      })],
+    };
+    generateContent
+      .mockResolvedValueOnce({ text: JSON.stringify(malformedNavigationBlueprint) })
+      .mockResolvedValueOnce({ text: JSON.stringify(oneCompleteBrief) })
+      .mockResolvedValueOnce({ text: JSON.stringify(oneCompleteBrief) });
 
     await expect(planUiFlow({
       prompt: "Build an AI assistant for support chat with 3 core screens",

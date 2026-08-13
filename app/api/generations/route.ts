@@ -7,7 +7,7 @@ import { z } from "zod";
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { getDesignStylePack, isDesignStyleId, summarizeDesignStyle } from "@/lib/generation/design-styles";
 import { VISUAL_ASSET_SEMANTIC_CATEGORIES } from "@/lib/generation/asset-semantics";
-import { deferNewProjectScopeConfirmation, parsePromptScreenIntent, preflightGenerationScope } from "@/lib/generation/scope-contract";
+import { blockingReferenceAnalysisIssues, deferNewProjectScopeConfirmation, parsePromptScreenIntent, preflightGenerationScope } from "@/lib/generation/scope-contract";
 import { normalizeReferenceImage } from "@/lib/generation/reference-image";
 import { findLatestProjectPromptImagePath } from "@/lib/generation/prompt-reference-storage";
 import { isGenerationReferencePolicy, resolveGenerationReferencePolicy } from "@/lib/generation/reference-policy";
@@ -39,6 +39,34 @@ import type { generateUiFlowTask } from "@/trigger/generate-ui-flow";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const screenProductContractSchema = z.object({
+  version: z.literal(1),
+  userJob: z.string().trim().min(16).max(700),
+  defaultLifecycle: z.enum(["entry", "ready", "in-progress", "result"]),
+  entryCondition: z.string().trim().min(8).max(500),
+  requirements: z.array(z.object({
+    id: z.string().trim().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(80),
+    kind: z.enum(["context", "content", "input", "action", "status", "outcome"]),
+    purpose: z.string().trim().min(8).max(500),
+  })).min(3).max(10),
+  primaryActionId: z.string().trim().min(1).max(80),
+  actionOutcome: z.string().trim().min(8).max(500),
+  nextStep: z.string().trim().min(8).max(500),
+}).superRefine((contract, ctx) => {
+  const ids = contract.requirements.map((requirement) => requirement.id);
+  if (new Set(ids).size !== ids.length) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["requirements"], message: "Requirement ids must be unique." });
+  }
+  const primary = contract.requirements.find((requirement) => requirement.id === contract.primaryActionId);
+  if (!primary || primary.kind !== "action") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["primaryActionId"],
+      message: "primaryActionId must reference an action requirement.",
+    });
+  }
+});
 
 const requestSchema = z.object({
   clientRequestId: z.string().uuid().optional(),
@@ -114,6 +142,7 @@ const requestSchema = z.object({
         navigationItemId: z.string().trim().min(1).max(80).nullable().optional(),
         referenceScreenIndex: z.number().int().min(1).max(12).nullable().optional(),
         referenceScreenCount: z.number().int().min(1).max(12).nullable().optional(),
+        productContract: screenProductContractSchema.nullable().optional(),
         layoutContract: z.object({
           viewportPlan: z.string().trim().min(1).max(2400),
           focalHierarchy: z.string().trim().min(1).max(2400),
@@ -134,6 +163,7 @@ screenPlanningSeeds: z.array(z.object({
     summary: z.string().trim().min(1).max(400),
     prompt: z.string().max(10000),
     roadmapStableKey: z.string().trim().min(1).max(100).nullable().optional(),
+    productContract: screenProductContractSchema.nullable().optional(),
   })).min(1).max(5).nullable().optional(),
   requiresBottomNav: z.boolean().optional(),
   navigationArchitecture: z.object({
@@ -622,6 +652,13 @@ export async function POST(request: Request) {
           : isExistingProjectRequest ? "user_style" : "internal_style",
         planningMode: "project",
       });
+      const blockingReferenceIssues = blockingReferenceAnalysisIssues(preflight.referenceAnalysisResult);
+      if (blockingReferenceIssues.length > 0) {
+        return NextResponse.json({
+          error: `The reference image could not be analyzed consistently: ${blockingReferenceIssues.join("; ")}`,
+          code: "reference_analysis_incomplete",
+        }, { status: 422 });
+      }
       scopeContract = deferNewProjectScopeConfirmation(preflight.scopeContract, isExistingProjectRequest);
       referenceAnalysis = preflight.referenceAnalysis;
       if (scopeContract.requiresConfirmation) {

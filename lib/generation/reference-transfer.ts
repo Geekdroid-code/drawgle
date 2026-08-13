@@ -53,7 +53,33 @@ const stringArray = (value: unknown, limit: number) =>
     limit,
   );
 
-const SOURCE_ANATOMY_CUE_PATTERN = /\b(layout|section order|object position|connector|spine|hero scaffold|connected cards?|card (?:stack|arrangement|topology)|component topology|grid placement|panel placement|exact geometry)\b|\b(?:stack|row|grid|cluster|connect(?:ed|ing)?)\b.{0,40}\b(cards?|modules?|panels?)\b|\b(cards?|modules?|panels?)\b.{0,40}\b(?:stack|row|grid|cluster|connect(?:ed|ing)?)\b/i;
+const containsWholeSourceTerm = (text: string, term: string) => {
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+  return new RegExp(`(?:^|[^a-z0-9])${escaped}(?=$|[^a-z0-9])`).test(text);
+};
+
+export const findSourceContentQuarantineLeaks = ({
+  text,
+  contract,
+  allowedProductText = "",
+}: {
+  text: string;
+  contract?: ReferenceTransferContract | null;
+  allowedProductText?: string;
+}) => {
+  const haystack = text.replace(/\s+/g, " ").trim().toLowerCase();
+  const allowed = allowedProductText.replace(/\s+/g, " ").trim().toLowerCase();
+  return (contract?.sourceContentQuarantine ?? [])
+    .map((term) => term.replace(/\s+/g, " ").trim().toLowerCase())
+    .filter((term) => term.length >= 4 && term.length <= 120)
+    .filter((term) => !containsWholeSourceTerm(allowed, term) && containsWholeSourceTerm(haystack, term))
+    .filter((term, index, all) => all.indexOf(term) === index);
+};
+
+// Reject literal source anatomy, not useful design grammar. Relationships such
+// as grouping, rows, grids, layering, and hierarchy are portable when they are
+// remapped to a target-owned region and functional purpose.
+const SOURCE_ANATOMY_CUE_PATTERN = /\b(section order|followed by|object positions?|exact coordinates?|same coordinates?|spine|connected cards?|paired (?:cards?|modules?|panels?)|hero scaffold|card topology|full[- ]screen anatomy|source[- ]specific anatomy|literal component arrangement|exact geometry|grid placement|panel placement)\b|\b(?:source|reference|same|exact)\b.{0,36}\b(?:layout|composition|anatomy|section|position|arrangement|topology)\b|\b(?:one|two|three|four|five|six|\d+)\s+(?:specific\s+)?(?:cards?|modules?|panels?|sections?)\b/i;
 const STRUCTURAL_COPY_PATTERN = /\b(copy|clone|same|exact|point[\s-]to[\s-]point)\b.*\b(layout|composition|anatomy|screen|reference)\b/i;
 
 export function buildPortableReferenceContext(referenceAnalysis: ReferenceAnalysis) {
@@ -73,6 +99,20 @@ export function buildPortableReferenceContext(referenceAnalysis: ReferenceAnalys
     .slice(0, 16) ?? [];
   const motifPolicy = (analysis.motifs ?? []).map((motif) =>
     `${motif.id} is ${motif.scope}; function=${motif.functionalPurpose}; never treat it as project-wide anatomy unless scope is global-material.`);
+  const sourceQuarantine = unique([
+    analysis.sourceContentEvidence?.domainSummary,
+    ...(analysis.sourceContentEvidence?.terms ?? []),
+    ...(analysis.sourceContentEvidence?.entities ?? []),
+    ...(analysis.sourceContentEvidence?.actions ?? []),
+    ...(analysis.sourceContentEvidence?.copyFragments ?? []),
+    ...analysis.screenReferences.flatMap((screen) => screen.copyPatterns ?? []),
+  ], 40);
+  const portableLayoutGrammar = !signals.layoutGrammar || SOURCE_ANATOMY_CUE_PATTERN.test(signals.layoutGrammar)
+    ? null
+    : signals.layoutGrammar;
+  const portableComponentGrammar = !signals.componentGrammar || SOURCE_ANATOMY_CUE_PATTERN.test(signals.componentGrammar)
+    ? null
+    : signals.componentGrammar;
 
   return [
     "PORTABLE REFERENCE INVARIANTS",
@@ -82,11 +122,15 @@ export function buildPortableReferenceContext(referenceAnalysis: ReferenceAnalys
     `Surfaces/materials: ${signals.surfaces}`,
     `Iconography: ${signals.iconography}`,
     `Density: ${signals.density}`,
+    portableLayoutGrammar ? `Portable layout relationships: ${portableLayoutGrammar}` : null,
+    portableComponentGrammar ? `Portable component grammar: ${portableComponentGrammar}` : null,
+    signals.spacingLogic ? `Macro/micro spacing logic: ${signals.spacingLogic}` : null,
     `Motion tone: ${signals.motionTone}`,
     craftCues.length ? `Portable craft recipes: ${craftCues.join("; ")}` : null,
     measuredGeometry.length ? `Trusted app-UI measurements: ${measuredGeometry.join("; ")}` : null,
     motifPolicy.length ? `Motif locality evidence: ${motifPolicy.join("; ")}` : null,
     signals.antiPatterns ? `Avoid: ${signals.antiPatterns}` : null,
+    sourceQuarantine.length ? `SOURCE-CONTENT QUARANTINE (never use as target product content, labels, entities, actions, requirements, or copy): ${sourceQuarantine.join(" | ")}` : null,
     formatSemanticCompositionLibrary(analysis),
   ].filter(Boolean).join("\n");
 }
@@ -287,6 +331,14 @@ export function createReferenceTransferContract({
   screenLayoutRegions?: ScreenLayoutRegion[];
 }): ReferenceTransferContract {
   const signals = referenceAnalysis?.designSystemSignals;
+  const sourceContentQuarantine = unique([
+    referenceAnalysis?.sourceContentEvidence?.domainSummary,
+    ...(referenceAnalysis?.sourceContentEvidence?.terms ?? []),
+    ...(referenceAnalysis?.sourceContentEvidence?.entities ?? []),
+    ...(referenceAnalysis?.sourceContentEvidence?.actions ?? []),
+    ...(referenceAnalysis?.sourceContentEvidence?.copyFragments ?? []),
+    ...(referenceAnalysis?.screenReferences.flatMap((screen) => screen.copyPatterns ?? []) ?? []),
+  ], 40);
   const rawSemanticPlan = mode === "style" && referenceAnalysis
     ? buildSemanticTransferPlan({ referenceAnalysis, screenName, screenDescription, screenType })
     : emptySemanticPlan({ screenName, screenDescription, screenType });
@@ -324,6 +376,9 @@ export function createReferenceTransferContract({
       compositionAdaptations: [],
       localMotifs: [],
       forbiddenLiteralTransfers: ["Unseen source content and unrelated product-domain details."],
+      // Recreate mode intentionally treats the selected source frame as
+      // structural/content evidence. Literal quarantine is a style-mode wall.
+      sourceContentQuarantine: [],
     };
   }
 
@@ -369,6 +424,7 @@ export function createReferenceTransferContract({
         "Exact coordinates, section order, object positions, and full-screen anatomy.",
         "Any decorative motif outside an explicitly approved target region.",
       ],
+      sourceContentQuarantine,
     };
   }
 
@@ -388,6 +444,7 @@ export function createReferenceTransferContract({
     compositionAdaptations: [],
     localMotifs: [],
     forbiddenLiteralTransfers: ["Invented reference evidence or source-specific anatomy."],
+    sourceContentQuarantine: [],
   };
 }
 
@@ -529,6 +586,9 @@ export function normalizeReferenceTransferContract({
       ...stringArray(record.forbidden_literal_transfers ?? record.forbiddenLiteralTransfers, 12),
       ...(fallback.forbiddenLiteralTransfers ?? []),
     ], 12),
+    // Literal source content is analyzer-owned evidence. The visual planner may
+    // neither delete it nor add target-product terms to the deny-list.
+    sourceContentQuarantine: fallback.sourceContentQuarantine ?? [],
   };
 }
 
@@ -553,6 +613,7 @@ export function formatReferenceTransferContract(contract?: ReferenceTransferCont
     contract.compositionAdaptations?.length ? `- Region-scoped composition: ${contract.compositionAdaptations.map((item) => `${item.targetRegionIds.join(",") || "no approved region"}: ${item.principle}`).join(" | ")}` : null,
     contract.localMotifs?.length ? `- Local motif policy: ${contract.localMotifs.map((item) => `${item.motifId}=${item.decision}${item.targetRegionIds.length ? ` only in ${item.targetRegionIds.join(",")}` : ""}`).join(" | ")}` : null,
     contract.forbiddenLiteralTransfers?.length ? `- Forbidden literal transfer: ${contract.forbiddenLiteralTransfers.join(" | ")}` : null,
+    contract.sourceContentQuarantine?.length ? `- SOURCE CONTENT QUARANTINE (must not appear in target copy/content): ${contract.sourceContentQuarantine.join(" | ")}` : null,
     `- Rationale: ${contract.rationale}`,
   ].filter(Boolean).join("\n");
 }
