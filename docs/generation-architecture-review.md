@@ -995,3 +995,66 @@ The two bugs compound: the planner silently drops one screen, then truncation ki
 404 tests pass, typecheck and lint clean. Two source-level regression tests pin the exact defect — the recovery must pass `seedPlans`, never `seedPlans.slice(1)`, and it must record what it could not save. Source assertions rather than behavioural ones because the path is inline in a 4,000-line trigger task; they follow the precedent already set in `pipeline-regression.test.ts`.
 
 **Not verified against a live run.** The prediction is falsifiable: a reference image with N visible screens should now produce N planned screens, and any screen that still fails to brief should appear by name in `droppedScreenBriefs` rather than disappearing from the count.
+
+## 20. The dock is the app's architecture, not a count of built screens — 2026-08-12
+
+Reported on project `8dcc913a`: the reference image shows a four-tab dock on the first screen; the recreated screen showed none.
+
+### What actually happened
+
+Nothing was stripped and nothing failed. Every piece of navigation state was correct:
+
+- `project_navigation` held a `bottom-tabs` plan with four destinations
+- `requires_bottom_nav: true`, `navigationEnabled: true`, anatomy `floating-dock`, `evidenceSource: "reference"`
+- Home Dashboard carried `chrome_policy: { chrome: "bottom-tabs", showPrimaryNavigation: true }` and `navigation_item_id: "nav-home"`
+- the generated markup correctly marked the clearance owner
+
+The run metadata records the decisive number itself: `plannedDestinations: 3, generatedDestinations: 1`.
+
+`resolveRenderableSharedNavigationItems` dropped every `planned` destination for V3 plans, leaving one item. One is below `LEGACY_MIN_SHARED_NAV_ITEMS`, so the shell returned nothing. Meanwhile the builder had been told by `showPrimaryNavigation: true` that the renderer owned navigation, so it drew none either.
+
+**Navigation fell between the two.** The builder deferred; the renderer declined; nobody was wrong locally.
+
+### Why the rule was wrong
+
+Gating the dock on how many destinations happen to exist as screens ties a design decision to a build artifact. A health app's architecture is Home / Schedule / Messages / Settings whether one screen exists or ten. On an exact recreate of a reference that visibly shows a four-tab dock, dropping the dock is a fidelity failure: the reference has it, the recreation does not.
+
+The codebase had already won this argument once, at linking time. From `normalizeNavigationPlan`:
+
+> Navigation pointing at the right screens in the planner's own order is strictly better than a product with no navigation at all.
+
+The same reasoning was never applied at render time.
+
+### The capability already existed
+
+`renderDeterministicNavigationShell` has always been able to draw a not-yet-built destination. Those buttons carry `data-nav-availability="planned"`, `aria-disabled="true"`, `tabindex="-1"`, and a `cursor:default` rule. That code was simply unreachable for V3 plans, because the filter removed planned items before the renderer saw them.
+
+So this was not a missing feature. It was a working feature suppressed by one line.
+
+### What changed
+
+`resolveRenderableSharedNavigationItems` now returns the full declared destination list for V3, with one condition: **at least one destination must be real.** With no real destination at all, a dock of entirely dead tabs replacing a screen's own working navigation is worse than leaving that navigation alone — the regression the "keeps local navigation" fixture guards, which still passes unchanged.
+
+`validateNavigationShell` now derives its expected ids from the same resolver instead of repeating the filter, so the validator cannot disagree with the shell about what belongs in the dock.
+
+Nothing is fabricated. These destinations were declared by the planner from the product architecture; they are shown as declared, and the ones without screens are visibly inert.
+
+### Answers to the questions this raised
+
+**Can the system build shared navigation at any time, after the fact?** Yes. `project_navigation` is a project-level row, and `hasSharedNavigation({ screen, projectNavigation })` is evaluated in `ScreenNode` at *render* time, not baked into stored HTML. When a plan becomes renderable, every eligible existing screen picks up the dock on the next render with no regeneration.
+
+**Will a later screen get the correct active tab?** Yes. `activeNavigationItemId` is `screen.navigationItemId`, resolved per screen from its own column, so each screen highlights its own destination. `normalizeNavigationPlan` promotes `planned` to `generated` and links destinations to root screens as they appear.
+
+**Will a screen built during a no-nav window end up with two navs?** No. When the shared shell becomes active, `stripSharedNavigationMarkup` removes a screen's local navigation at display time, and `sanitizeScreenCodeForSharedNavigation` refuses to strip it while the shell would render nothing.
+
+### What this does not fix
+
+`chromePolicy.showPrimaryNavigation` is still decided without consulting `willRenderSharedNavigationShell`. That split is what let navigation fall between builder and renderer in the first place. After this change the two can only disagree when zero destinations are real — and a screen reaches `hasSharedNavigation` only when it is itself a linked destination, which implies at least one. The window is closed in practice, not by construction. Worth closing properly if it ever reappears.
+
+### Verification
+
+410 tests pass, typecheck and lint clean. Four new fixtures cover the reported case: a four-destination plan with one generated renders all four, the three unbuilt ones are inert and carry no screen link, a plan with nothing built still declines, and the validator agrees with the shell.
+
+One existing assertion changed rather than being deleted. `lib/navigation.test.ts` asserted that an unlinked "Saved" destination was absent from the shell. That was the old filtering behaviour, incidental to what that test is named for — product labels rather than the reference dock's labels, which still passes. It now asserts the new contract: Saved renders, marked planned and inert, alongside three interactive tabs.
+
+**Not verified against a live run.** Falsifiable: regenerating `8dcc913a` should show the four-tab dock on Home Dashboard, with Home active and Schedule / Messages / Settings visible but non-interactive.

@@ -257,8 +257,17 @@ describe("Production Navigation V2", () => {
     expect(shell).toContain("--dg-navigation-anatomy-height:56px");
     expect(shell).toContain("calc(100% - (2 * 20px))");
     expect(shell).toContain("var(--dg-navigation-max-width");
-    expect(shell).not.toContain("Saved");
-    expect(shell).not.toContain("aria-disabled");
+
+    // Changed 2026-08-12. "Saved" is a destination the product declared and has
+    // not built yet, and it used to be filtered out of the dock entirely. The
+    // dock now renders the declared architecture: all four tabs, with the
+    // unbuilt one inert. The subject of this test — product labels, never the
+    // reference dock's labels — is unaffected.
+    expect(shell).toContain("Saved");
+    expect(shell).toContain('data-nav-item-id="saved"');
+    expect(shell).toContain('aria-disabled="true"');
+    expect((shell.match(/data-nav-availability="planned"/g) ?? []).length).toBe(1);
+    expect((shell.match(/data-nav-availability="generated"/g) ?? []).length).toBe(3);
   });
 
   it("uses project token geometry for project-native V3 navigation", () => {

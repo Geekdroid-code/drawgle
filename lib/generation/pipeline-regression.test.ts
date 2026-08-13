@@ -19,6 +19,7 @@ import {
   normalizeNavigationPlan,
   renderDeterministicNavigationShell,
   sanitizeScreenCodeForSharedNavigation,
+  validateNavigationShell,
   willRenderSharedNavigationShell,
 } from "@/lib/project-navigation";
 import type { NavigationPlan, ProjectCharter, ScreenPlan } from "@/lib/types";
@@ -259,5 +260,75 @@ describe("L — a failed first brief must not shrink the project", () => {
     // path recorded nothing, which is why the shortfall was invisible in run
     // metadata for four runs.
     expect(source).toContain("promotedDroppedScreenNames");
+  });
+});
+
+describe("M — the dock is the app's IA, not a count of built screens", () => {
+  /**
+   * Reported 2026-08-12 on project 8dcc913a. The reference image shows a
+   * four-tab dock; the recreated screen showed none. Nothing was stripped and
+   * nothing failed: the plan held four destinations with one generated and
+   * three planned, V3 filtered every planned destination out before rendering,
+   * one item is below the two-item minimum, and so the shell declined. The
+   * builder had already been told the renderer would supply navigation, so it
+   * drew none either.
+   *
+   * Gating a design decision on how many screens happen to exist yet is the
+   * wrong axis. The renderer could always draw a not-yet-built destination as
+   * an inert tab; that path was simply unreachable for V3.
+   */
+  const planWithItems = (items: NavigationPlan["items"]): NavigationPlan => ({
+    version: 3,
+    decision: "project-native",
+    evidence: { source: "product-architecture", reason: "test" },
+    design: null,
+    appearance: { primary: { anatomy: "floating-dock" } } as NavigationPlan["appearance"],
+    enabled: true,
+    kind: "bottom-tabs",
+    items,
+    visualBrief: "test",
+    screenChrome: [],
+  });
+
+  const healthAppPlan = planWithItems([
+    { id: "nav-home", label: "Home", icon: "home", role: "Dashboard", availability: "generated", linkedScreenName: "Home Dashboard" },
+    { id: "nav-schedule", label: "Schedule", icon: "calendar", role: "Appointments", availability: "planned", linkedScreenName: null },
+    { id: "nav-messages", label: "Messages", icon: "mail", role: "Communication", availability: "planned", linkedScreenName: null },
+    { id: "nav-settings", label: "Settings", icon: "settings", role: "Profile", availability: "planned", linkedScreenName: null },
+  ]);
+
+  it("renders the full declared dock when only one destination exists", () => {
+    expect(willRenderSharedNavigationShell(healthAppPlan)).toBe(true);
+
+    const shell = renderDeterministicNavigationShell(healthAppPlan);
+    for (const id of ["nav-home", "nav-schedule", "nav-messages", "nav-settings"]) {
+      expect(shell).toContain(`data-nav-item-id="${id}"`);
+    }
+  });
+
+  it("marks not-yet-built destinations inert rather than interactive", () => {
+    const shell = renderDeterministicNavigationShell(healthAppPlan);
+
+    expect(shell).toContain('data-nav-availability="generated"');
+    expect(shell).toContain('data-nav-availability="planned"');
+    expect(shell).toContain('aria-disabled="true"');
+    // Only the real destination carries a screen link.
+    expect((shell.match(/data-linked-screen-name=/g) ?? []).length).toBe(1);
+  });
+
+  it("still declines when no destination is real at all", () => {
+    // A dock of entirely dead tabs replacing a screen's own working navigation
+    // is worse than leaving that navigation alone.
+    const nothingBuilt = planWithItems([
+      { id: "nav-home", label: "Home", icon: "home", role: "Dashboard", availability: "planned", linkedScreenName: null },
+      { id: "nav-search", label: "Search", icon: "search", role: "Search", availability: "planned", linkedScreenName: null },
+    ]);
+
+    expect(willRenderSharedNavigationShell(nothingBuilt)).toBe(false);
+    expect(renderDeterministicNavigationShell(nothingBuilt)).toBe("");
+  });
+
+  it("keeps the validator agreeing with what the shell emits", () => {
+    expect(validateNavigationShell(renderDeterministicNavigationShell(healthAppPlan), healthAppPlan)).toBe(true);
   });
 });

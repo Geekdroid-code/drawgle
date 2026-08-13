@@ -372,15 +372,40 @@ const disabledNavigationPlan = (
  * The items the shared shell would actually render, after the V3 rule that a
  * destination must be generated and linked to a real screen.
  */
+/**
+ * The dock is the app's declared information architecture, not a count of what
+ * has been generated so far.
+ *
+ * V3 used to drop every `planned` destination before rendering, which tied a
+ * design decision to a build artifact: a health app whose IA is Home / Schedule
+ * / Messages / Settings got no navigation at all until two of those four
+ * happened to exist as screens. On an exact recreate of a reference that
+ * visibly shows a four-tab dock, that is a fidelity failure — the reference has
+ * the dock, the recreation does not.
+ *
+ * The renderer has always been able to draw a not-yet-built destination: those
+ * buttons carry `data-nav-availability="planned"`, `aria-disabled`,
+ * `tabindex="-1"` and a non-interactive cursor. That code was simply
+ * unreachable for V3 plans. Nothing is fabricated here — these destinations
+ * were declared by the planner from the product architecture.
+ *
+ * One anchor is still required. With no real destination at all, a dock of
+ * entirely dead tabs replacing a screen's own working navigation is worse than
+ * leaving that navigation alone, which is the regression the "keeps local
+ * navigation" fixture guards.
+ */
 export function resolveRenderableSharedNavigationItems(navigationPlan: NavigationPlan) {
   if (!navigationPlan.enabled || navigationPlan.kind === "none" || navigationPlan.items.length < LEGACY_MIN_SHARED_NAV_ITEMS) {
     return [];
   }
+  const navItems = navigationPlan.items.slice(0, MAX_SHARED_NAV_ITEMS);
+  if (navItems.length < LEGACY_MIN_SHARED_NAV_ITEMS) return [];
+
   const isV3 = navigationPlan.version === 3 && Boolean(navigationPlan.appearance?.primary);
-  const navItems = (isV3
-    ? navigationPlan.items.filter((item) => item.availability !== "planned" && Boolean(item.linkedScreenName))
-    : navigationPlan.items).slice(0, MAX_SHARED_NAV_ITEMS);
-  return navItems.length < LEGACY_MIN_SHARED_NAV_ITEMS ? [] : navItems;
+  if (!isV3) return navItems;
+
+  const hasRealDestination = navItems.some((item) => item.availability !== "planned" && Boolean(item.linkedScreenName));
+  return hasRealDestination ? navItems : [];
 }
 
 /**
@@ -1008,9 +1033,9 @@ export function validateNavigationShell(shellCode: string, navigationPlan: Navig
   const navRootCount = (shellCode.match(/<nav\b[^>]*\bdata-drawgle-primary-nav\b/gi) ?? []).length;
   if (navRootCount !== 1 || /<\/?(?:html|head|body)\b/i.test(shellCode) || /<script\b/i.test(shellCode)) return false;
 
-  const expectedIds = (navigationPlan.version === 3
-    ? navigationPlan.items.filter((item) => item.availability !== "planned" && Boolean(item.linkedScreenName))
-    : navigationPlan.items).map((item) => item.id);
+  // Derived from the same resolver the renderer uses, so the validator cannot
+  // disagree with the shell about which destinations belong in the dock.
+  const expectedIds = resolveRenderableSharedNavigationItems(navigationPlan).map((item) => item.id);
   const actualIds = Array.from(shellCode.matchAll(/\bdata-nav-item-id\s*=\s*(?:"([^"]+)"|'([^']+)')/gi))
     .map((match) => match[1] ?? match[2])
     .filter(Boolean);
