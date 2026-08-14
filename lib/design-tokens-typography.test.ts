@@ -12,7 +12,7 @@ describe("dual-font typography contract", () => {
     const css = buildDrawgleTokenCss(normalized);
     expect(css).toContain("--dg-typography-heading-font-family");
     expect(css).toContain("--dg-typography-body-font-family");
-    expect(css).not.toContain("--dg-typography-font-family:");
+    expect(css).toContain("--dg-typography-font-family: var(--dg-typography-body-font-family");
   });
 
   it("loads distinct role fonts in one Google Fonts request", () => {

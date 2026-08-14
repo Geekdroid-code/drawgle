@@ -45,6 +45,18 @@ describe("HTML production compiler", () => {
     expect(compiled).toContain("gap-[var(--element-gap)]");
   });
 
+  it("compiles compatibility radius classes through the canonical semantic vocabulary", () => {
+    const compiled = compileHtmlForProduction(
+      `<div class="rounded-app"><span class="rounded-inner"></span><button class="rounded-pill">Save</button></div>`,
+      designTokens,
+    );
+
+    expect(compiled).toContain("rounded-lg");
+    expect(compiled).toContain("rounded-md");
+    expect(compiled).toContain("rounded-full");
+    expect(compiled).not.toContain("rounded-pill");
+  });
+
   it("resolves arbitrary Tailwind variable classes", () => {
     const rawHtml = `<div class="bg-[var(--dg-color-background-primary)] px-[var(--dg-mobile-layout-screen-margin)] pb-[calc(var(--dg-mobile-layout-screen-margin)+96px)]"></div>`;
     const compiled = compileHtmlForProduction(rawHtml, designTokens);

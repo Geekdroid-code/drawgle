@@ -260,7 +260,7 @@ describe("export pipeline", () => {
 
     expect(files[".drawgle/navigation.html"]).not.toContain("STALE V2 SHELL");
     expect(files[".drawgle/navigation.html"]).toContain("--dg-navigation-visual-height");
-    expect(files[".drawgle/navigation.html"]).toContain("var(--dg-radii-inner");
+    expect(files[".drawgle/navigation.html"]).toContain("var(--dg-radii-app");
     expect(files[".drawgle/screens/home.html"]).toContain("dg-shared-nav-clearance");
     expect(files[".drawgle/screens/home.html"]).not.toContain("112px");
     expect(files[".drawgle/screens/home.html"]).not.toContain("96px");

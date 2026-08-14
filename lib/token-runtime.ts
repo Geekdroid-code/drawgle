@@ -1,5 +1,9 @@
 import { isBuilderVisibleToken } from "@/lib/design-token-classification";
 import { normalizeDesignTokens } from "@/lib/design-tokens";
+import {
+  buildCorruptedTokenRecoveryVariables,
+  buildNormalizedRuntimeAliasVariables,
+} from "@/lib/token-compatibility";
 import type { DesignTokens, DesignTokenValues } from "@/lib/types";
 
 type CssVariable = {
@@ -246,7 +250,7 @@ const typographyClass = (name: string, tokenKey: string, role: "heading" | "body
   line-height: var(--dg-type-${tokenKey}-line-height);
 }`;
 
-const buildCompatibilityAliasVariables = () => `
+const buildCompatibilityAliasVariablesWithFallbacks = () => `
   --background: var(--dg-color-background-primary, #ffffff);
   --muted: var(--dg-color-background-secondary, #f5f5f5);
   --card: var(--dg-color-surface-card, #ffffff);
@@ -303,6 +307,13 @@ ${TYPOGRAPHY_TOKEN_KEYS.map((key) => {
   --${name}-line-height: var(--dg-type-${name}-line-height);`;
 }).join("\n")}
 `.trimEnd();
+
+const buildCompatibilityAliasVariables = () => {
+  const aliasesWithFallbacks = buildCompatibilityAliasVariablesWithFallbacks();
+  return `${aliasesWithFallbacks}
+${buildNormalizedRuntimeAliasVariables(aliasesWithFallbacks)}
+${buildCorruptedTokenRecoveryVariables()}`.trimEnd();
+};
 export function buildDrawgleTokenCss(designTokens?: DesignTokens | null) {
   const variables = flattenDesignTokensToCssVariables(designTokens);
   const variableCss = variables
@@ -366,6 +377,10 @@ ${buildCompatibilityAliasVariables()}
 .dg-radius-app { border-radius: var(--dg-radii-app); }
 .dg-radius-inner { border-radius: var(--dg-radii-inner); }
 .dg-radius-pill { border-radius: var(--dg-radii-pill); }
+/* Known semantic aliases emitted by older builders. */
+.rounded-app { border-radius: var(--dg-radii-app); }
+.rounded-inner { border-radius: var(--dg-radii-inner); }
+.rounded-pill { border-radius: var(--dg-radii-pill); }
 .dg-radius-inset-xxs { border-radius: var(--dg-radii-inset-xxs, var(--dg-radii-inner)); }
 .dg-radius-inset-xs { border-radius: var(--dg-radii-inset-xs, var(--dg-radii-inner)); }
 .dg-radius-inset-sm { border-radius: var(--dg-radii-inset-sm, var(--dg-radii-inner)); }

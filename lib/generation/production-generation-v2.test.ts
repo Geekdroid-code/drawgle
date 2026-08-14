@@ -11,6 +11,7 @@ import { SCREEN_BUILD_OUTPUT_TOKEN_BUDGET, screenBuildOutputTokenBudget } from "
 import { getOpenRouterMaxTokens } from "@/lib/env/server";
 import { buildApprovedDesignTokens } from "@/lib/generation/service";
 import { renderDeterministicNavigationShell } from "@/lib/project-navigation";
+import { DRAWGLE_TO_NORMALIZED_VAR, SEMANTIC_CLASS_ALIASES } from "@/lib/token-compatibility";
 import { buildDrawgleTokenCss, tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
 import type { NavigationPlan, PromptImagePayload, ReferenceTransferContract } from "@/lib/types";
 
@@ -34,7 +35,21 @@ describe("production generation V2 contracts", () => {
     expect(DESIGN_STYLE_PACKS.every((style) => style.tokenSeed.tokens?.mobile_layout?.screen_margin === "16px")).toBe(true);
     expect(buildDrawgleTokenCss(null)).toContain("--screen-margin: var(--dg-mobile-layout-screen-margin, 16px)");
     expect(buildDrawgleTokenCss(null)).toContain("--dg-spacing-element-gap: var(--dg-mobile-layout-element-gap, 12px)");
+    expect(buildDrawgleTokenCss(null)).toContain("--spacing-xs: var(--dg-spacing-xs)");
+    expect(buildDrawgleTokenCss(null)).toContain("--z-index-modal-dialog: var(--dg-z-index-modal-dialog)");
+    expect(buildDrawgleTokenCss(null)).toContain("--opacity-disabled: var(--dg-opacities-disabled)");
+    expect(buildDrawgleTokenCss(null)).toContain("--dg-color-status-info-foreground-surface: var(--dg-color-status-info-surface)");
+    expect(buildDrawgleTokenCss(null)).toContain(".rounded-pill { border-radius: var(--dg-radii-pill); }");
     expect(buildDrawgleTokenCss(null)).toContain('[class~="px-[var(--dg-mobile-layout-screen-margin)]"] .dg-screen-padding');
+  });
+  it("defines every variable and semantic class alias that downstream compilers can emit", () => {
+    const css = buildDrawgleTokenCss(null);
+    for (const normalizedName of new Set(DRAWGLE_TO_NORMALIZED_VAR.values())) {
+      expect(css, `missing runtime variable ${normalizedName}`).toContain(`${normalizedName}:`);
+    }
+    for (const alias of Object.keys(SEMANTIC_CLASS_ALIASES)) {
+      expect(css, `missing runtime class .${alias}`).toContain(`.${alias} {`);
+    }
   });
   it("derives and validates a backward-compatible inner radius hierarchy", () => {
     const legacy = normalizeDesignTokens({

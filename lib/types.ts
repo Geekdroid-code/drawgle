@@ -1225,6 +1225,7 @@ export interface BuilderProjectContractV1 {
 
 export type UiContractDiagnosticCode =
   | "known_token_alias"
+  | "known_class_alias"
   | "unknown_token_reference"
   | "unknown_token_reference_with_fallback"
   | "status_role_repaired"

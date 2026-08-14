@@ -63,6 +63,64 @@ describe("generated UI contract normalization", () => {
     expect(result.report.repairs).toContainEqual(expect.objectContaining({ code: "known_token_alias" }));
   });
 
+  it("matches legacy variables at identifier boundaries without corrupting compound status tokens", () => {
+    const code = `<div class="bg-[var(--dg-color-status-info-surface)] text-[var(--dg-color-status-info-foreground)] border-[var(--dg-color-status-info-border)]"></div>`;
+    const result = normalizeGeneratedUiContracts({
+      designTokens: tokens,
+      repairEnabled: false,
+      geometryRepairEnabled: false,
+      code,
+    });
+
+    expect(result.code).toBe(code);
+    expect(result.code).not.toContain("foreground-surface");
+    expect(result.report.repairs).toHaveLength(0);
+  });
+
+  it("recovers status variables corrupted by the former prefix replacement", () => {
+    const result = normalizeGeneratedUiContracts({
+      designTokens: tokens,
+      repairEnabled: false,
+      geometryRepairEnabled: false,
+      code: `<div style="background:var(--dg-color-status-success-foreground-surface);color:var(--dg-color-status-success-foreground-foreground);border-color:var(--dg-color-status-success-foreground-border)"></div>`,
+    });
+
+    expect(result.code).toContain("--dg-color-status-success-surface");
+    expect(result.code).toContain("--dg-color-status-success-foreground");
+    expect(result.code).toContain("--dg-color-status-success-border");
+    expect(result.code).not.toContain("foreground-surface");
+    expect(result.code).not.toContain("foreground-foreground");
+    expect(result.report.repairs).toContainEqual(expect.objectContaining({ code: "known_token_alias" }));
+  });
+
+  it("canonicalizes known semantic class aliases even when aesthetic mutation is disabled", () => {
+    const result = normalizeGeneratedUiContracts({
+      designTokens: tokens,
+      repairEnabled: false,
+      geometryRepairEnabled: false,
+      code: `<div class="rounded-app"><button class="rounded-pill">Filter</button><span class="rounded-inner"></span></div>`,
+    });
+
+    expect(result.code).toContain("dg-radius-app");
+    expect(result.code).toContain("dg-radius-inner");
+    expect(result.code).toContain("dg-radius-pill");
+    expect(result.code).not.toContain("rounded-pill");
+    expect(result.report.repairs).toContainEqual(expect.objectContaining({ code: "known_class_alias" }));
+  });
+
+  it("accepts runtime aliases and locally declared variables while warning on truly unknown variables", () => {
+    const result = normalizeGeneratedUiContracts({
+      designTokens: tokens,
+      repairEnabled: false,
+      geometryRepairEnabled: false,
+      code: `<style>:root{--ring-progress:42%}</style><div style="gap:var(--spacing-xs);padding:var(--surface-muted);font-size:var(--nav-title-size);width:var(--ring-progress);height:var(--missing-layout-var)"></div>`,
+    });
+
+    expect(result.report.warnings.filter((item) => item.code === "unknown_token_reference")).toEqual([
+      expect.objectContaining({ detail: "--missing-layout-var has no CSS fallback" }),
+    ]);
+  });
+
   it("requires explicit CTA or segmented evidence before using pill radii", () => {
     expect(deriveComponentShapePolicy({ prompt: "Use a premium pill-shaped design." }).primaryCta).toBe("inner");
     expect(deriveComponentShapePolicy({ prompt: "Use a capsule primary CTA button." }).primaryCta).toBe("pill");

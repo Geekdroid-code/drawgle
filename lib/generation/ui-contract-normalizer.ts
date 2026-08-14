@@ -4,7 +4,12 @@ import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { runDesignCritic } from "@/lib/generation/design-critic";
 import { applyGeometryContract } from "@/lib/generation/geometry-contract";
 import { auditTokenCoverage, repairOwnedProperties } from "@/lib/generation/token-coverage";
-import { flattenDesignTokensToCssVariables } from "@/lib/token-runtime";
+import {
+  applyExactTokenAliases,
+  EXACT_TOKEN_ALIASES,
+  SEMANTIC_CLASS_ALIASES,
+} from "@/lib/token-compatibility";
+import { buildDrawgleTokenCss } from "@/lib/token-runtime";
 import type {
   DesignComponentShapePolicy,
   DesignTokens,
@@ -12,17 +17,6 @@ import type {
   UiContractDiagnostic,
   UiContractNormalizationReportV1,
 } from "@/lib/types";
-
-const EXACT_TOKEN_ALIASES: Record<string, string> = {
-  "--dg-spacing-element-gap": "--dg-mobile-layout-element-gap",
-  "--dg-spacing-section-gap": "--dg-mobile-layout-section-gap",
-  "--dg-typography-font-family": "--dg-typography-body-font-family",
-  "--dg-typography-title-font-family": "--dg-typography-heading-font-family",
-  "--dg-color-status-error": "--dg-color-status-danger-foreground",
-  "--dg-color-status-success": "--dg-color-status-success-foreground",
-  "--dg-color-status-warning": "--dg-color-status-warning-foreground",
-  "--dg-color-status-info": "--dg-color-status-info-foreground",
-};
 
 const RUNTIME_VARIABLES = new Set([
   "--dg-preview-background",
@@ -121,20 +115,37 @@ export function normalizeGeneratedUiContracts({
 }) {
   const repairs: UiContractDiagnostic[] = [];
   const warnings: UiContractDiagnostic[] = [];
-  let normalizedCode = code;
+  const tokenAliasResult = applyExactTokenAliases(code);
+  let normalizedCode = tokenAliasResult.code;
 
   // Exact aliases are compatibility repair, not aesthetic mutation. Leaving a
   // known legacy spacing variable unresolved collapses gap to zero; correcting
   // the name cannot change the builder's intended value or composition.
-  for (const [legacy, canonical] of Object.entries(EXACT_TOKEN_ALIASES)) {
-    if (!normalizedCode.includes(legacy)) continue;
-    normalizedCode = normalizedCode.replaceAll(legacy, canonical);
+  for (const [legacy, canonical] of tokenAliasResult.applied) {
     repairs.push({ code: "known_token_alias", selector: null, detail: `${legacy} → ${canonical}` });
   }
-  const compatibilityRepairCount = repairs.length;
+  const stringCompatibilityRepairCount = repairs.length;
 
   const $ = load(normalizedCode, {}, false);
   const shapePolicy = shapePolicyFor(designTokens);
+  let domCompatibilityMutated = false;
+
+  $("[class]").each((_, element) => {
+    const classes = String($(element).attr("class") ?? "").split(/\s+/).filter(Boolean);
+    const applied = new Set<string>();
+    const next = classes.map((className) => {
+      const canonical = SEMANTIC_CLASS_ALIASES[className];
+      if (!canonical) return className;
+      applied.add(`${className} → ${canonical}`);
+      return canonical;
+    });
+    if (applied.size === 0) return;
+    $(element).attr("class", Array.from(new Set(next)).join(" "));
+    domCompatibilityMutated = true;
+    for (const detail of applied) {
+      repairs.push({ code: "known_class_alias", selector: selectorFor(element), detail });
+    }
+  });
 
   const applyRadiusRole = (element: any, role: "app" | "inner" | "pill", reason: string) => {
     const classes = String($(element).attr("class") ?? "").split(/\s+/).filter(Boolean);
@@ -287,19 +298,28 @@ export function normalizeGeneratedUiContracts({
   // order, quoting, whitespace and void-element form, so diagnostics-only mode
   // was never the true bypass it was documented to be. Only take the DOM back
   // when a repair genuinely ran.
-  if ((repairEnabled || geometryRepairEnabled) && repairs.length > compatibilityRepairCount) {
+  if (domCompatibilityMutated
+    || ((repairEnabled || geometryRepairEnabled) && repairs.length > stringCompatibilityRepairCount)) {
     normalizedCode = $.root().html() ?? normalizedCode;
-  } else if (compatibilityRepairCount === 0) {
+  } else if (stringCompatibilityRepairCount === 0) {
     normalizedCode = code;
   }
+  const declaredVariables = new Set(
+    Array.from(normalizedCode.matchAll(/(--[a-zA-Z0-9_-]+)\s*:/g), (match) => match[1]),
+  );
+  const runtimeVariables = new Set(
+    Array.from(buildDrawgleTokenCss(designTokens).matchAll(/(--[a-zA-Z0-9_-]+)\s*:/g), (match) => match[1]),
+  );
   const allowedVariables = new Set([
-    ...flattenDesignTokensToCssVariables(designTokens).map((item) => item.name),
+    ...runtimeVariables,
     ...RUNTIME_VARIABLES,
+    ...Object.keys(EXACT_TOKEN_ALIASES),
     ...Object.values(EXACT_TOKEN_ALIASES),
+    ...declaredVariables,
   ]);
-  const variablePattern = /var\(\s*(--dg-[a-z0-9-]+)\s*(,\s*[^)]+)?\)/gi;
+  const variablePattern = /var\(\s*(--[a-z0-9-]+)\s*(,\s*[^)]+)?\)/gi;
   for (const match of normalizedCode.matchAll(variablePattern)) {
-    if (allowedVariables.has(match[1])) continue;
+    if (allowedVariables.has(match[1]) || match[1].startsWith("--tw-")) continue;
     warnings.push({
       code: match[2] ? "unknown_token_reference_with_fallback" : "unknown_token_reference",
       selector: null,

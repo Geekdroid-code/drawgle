@@ -1,4 +1,5 @@
 import type { DesignTokens } from "@/lib/types";
+import { canonicalizeSemanticClassName } from "@/lib/token-compatibility";
 import { flattenDesignTokensToCssVariables } from "@/lib/token-runtime";
 
 // ---------------------------------------------------------------------------
@@ -816,7 +817,7 @@ function splitByCommasIgnoringParentheses(str: string): string[] {
 }
 
 export function parseStyles(element: HTMLElement, varMap: Map<string, string>, cssRules?: CssRule[]): ParsedStyles {
-  const classes = Array.from(element.classList);
+  const classes = Array.from(element.classList).map(canonicalizeSemanticClassName);
   
   // 1. Gather all declarations from matching stylesheet rules
   const declarations = new Map<string, string>();

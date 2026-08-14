@@ -782,6 +782,41 @@ The exact Habit Journey HTML changes from six nested screen-padding helpers to z
 
 Deploy the web application and Trigger worker together because both prompt/normalization and runtime compatibility changed. No database migration is required; runtime compatibility fixes existing nested padding and legacy gap aliases, while newly generated tokens receive the corrected charter precedence.
 
+## 2026-08-14 - Boundary-Safe Token and Class Compatibility
+
+### Production incident
+
+Project `37a85e83-90c2-443d-8057-e74e8f78a8c7` rendered compressed match/price tags, square inner feature blocks, and missing semantic status fills. An audit of the latest 150 ready screens found 99 unresolved portable spacing references, 302 status variables corrupted into `foreground-surface`, `foreground-foreground`, or `foreground-border`, and 30 unsupported `rounded-pill` classes.
+
+### Root cause
+
+- The HTML compiler could emit portable variables such as `--spacing-xs`, but the canvas runtime did not define the full compiler vocabulary.
+- Exact status-token compatibility used prefix-unsafe `replaceAll`. Mapping the legacy scalar `--dg-color-status-info` also rewrote the prefix of valid compound tokens such as `--dg-color-status-info-surface`.
+- The builder occasionally emitted semantic radius aliases (`rounded-pill`) instead of the documented `dg-radius-pill`; Tailwind has no built-in `rounded-pill` utility.
+- Unknown-variable diagnostics inspected only `--dg-*`, so unresolved portable names were invisible.
+
+### Change
+
+- One shared compatibility module now owns compiler variable names, exact legacy aliases, corrupted-token recovery, and semantic class aliases.
+- Exact token replacement observes CSS identifier boundaries and repairs already-corrupted status names before save without making layout or aesthetic decisions.
+- The runtime defines every portable variable the compiler can emit and supplies recovery definitions for already-saved corrupted status variables.
+- `rounded-app`, `rounded-inner`, and `rounded-pill` are canonicalized during generation and production compilation, supported directly in runtime CSS for existing screens, and recognized by the mobile transpiler.
+- Unknown-variable diagnostics now inspect all CSS custom-property references while allowing runtime aliases, Tailwind internals, and variables declared by the screen itself.
+
+### Safety invariants
+
+- A scalar compatibility alias can never match a longer compound token.
+- Compatibility repairs may restore a known token or class spelling only; they do not infer padding, composition, color intent, or radius role.
+- Every portable variable emitted by the production compiler must have a runtime declaration. A regression test iterates the shared map to enforce this invariant.
+
+### Verification
+
+Focused normalizer tests preserve valid compound status tokens byte-for-byte, recover the three historical corruption shapes, canonicalize all supported semantic radius aliases with aesthetic mutation disabled, and distinguish local/runtime variables from truly unknown names. Compiler/runtime integration tests cover the shared variable and class maps.
+
+### Rollout
+
+Deploy the web application and Trigger worker together. No database migration or saved-screen rewrite is required: existing spacing, status, and radius-alias failures recover through runtime compatibility after deployment; newly saved screens are canonicalized at the generation boundary.
+
 ## Future Entry Template
 
 ## YYYY-MM-DD — Short title

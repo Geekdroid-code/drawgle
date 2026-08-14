@@ -1,84 +1,8 @@
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { buildDrawgleTailwindConfigScript } from "@/lib/drawgle-html-runtime";
+import { canonicalizeSemanticClassName, DRAWGLE_TO_NORMALIZED_VAR } from "@/lib/token-compatibility";
 import { flattenDesignTokensToCssVariables, normalizeLegacyTypographyFontMarkup } from "@/lib/token-runtime";
 import type { DesignTokens } from "@/lib/types";
-
-const DRAWGLE_TO_NORMALIZED_VAR = new Map<string, string>([
-  // Colors
-  ["--dg-color-background-primary", "--background"],
-  ["--dg-color-background-secondary", "--muted"],
-  ["--dg-color-background-surface-elevated", "--muted"],
-  ["--dg-color-surface-card", "--card"],
-  ["--dg-color-surface-modal", "--popover"],
-  ["--dg-color-surface-bottom-sheet", "--card"],
-  ["--dg-color-text-high-emphasis", "--foreground"],
-  ["--dg-color-text-medium-emphasis", "--muted-foreground"],
-  ["--dg-color-text-low-emphasis", "--low-foreground"],
-  ["--dg-color-action-primary", "--primary"],
-  ["--dg-color-action-on-primary-text", "--primary-foreground"],
-  ["--dg-color-action-secondary", "--secondary"],
-  ["--dg-color-border-divider", "--border"],
-  ["--dg-color-border-focused", "--ring"],
-  ["--dg-color-action-disabled", "--action-disabled"],
-  ["--dg-color-functional-tints-blue-base", "--tint-blue"],
-  ["--dg-color-functional-tints-cyan-base", "--tint-cyan"],
-  ["--dg-color-functional-tints-orange-base", "--tint-orange"],
-  ["--dg-color-functional-tints-purple-base", "--tint-purple"],
-  
-  // Radii
-  ["--dg-radii-app", "--radius"],
-  ["--dg-radii-inner", "--radius-inner"],
-  ["--dg-radii-pill", "--radius-pill"],
-  
-  // Layout
-  ["--dg-mobile-layout-screen-margin", "--screen-margin"],
-  ["--dg-mobile-layout-section-gap", "--section-gap"],
-  ["--dg-mobile-layout-element-gap", "--element-gap"],
-  ["--dg-mobile-layout-safe-area-top", "--safe-area-top"],
-  ["--dg-mobile-layout-safe-area-bottom", "--safe-area-bottom"],
-  
-  // Sizing
-  ["--dg-sizing-icon-small", "--icon-small"],
-  ["--dg-sizing-icon-standard", "--icon-standard"],
-  ["--dg-sizing-bottom-nav-height", "--bottom-nav-height"],
-  ["--dg-sizing-standard-input-height", "--standard-input-height"],
-  ["--dg-sizing-standard-button-height", "--standard-button-height"],
-  ["--dg-sizing-min-touch-target", "--min-touch-target"],
-
-  // Shadows
-  ["--dg-shadows-surface", "--shadow-surface"],
-  ["--dg-shadows-overlay", "--shadow-overlay"],
-  ["--dg-shadows-none", "--shadow-none"],
-
-  // Spacing
-  ["--dg-spacing-none", "--spacing-none"],
-  ["--dg-spacing-xxs", "--spacing-xxs"],
-  ["--dg-spacing-xs", "--spacing-xs"],
-  ["--dg-spacing-sm", "--spacing-sm"],
-  ["--dg-spacing-md", "--spacing-md"],
-  ["--dg-spacing-lg", "--spacing-lg"],
-  ["--dg-spacing-xl", "--spacing-xl"],
-  ["--dg-spacing-xxl", "--spacing-xxl"],
-
-  // Z-indices
-  ["--dg-z-index-base", "--z-index-base"],
-  ["--dg-z-index-sticky-header", "--z-index-sticky-header"],
-  ["--dg-z-index-bottom-nav", "--z-index-bottom-nav"],
-  ["--dg-z-index-bottom-sheet", "--z-index-bottom-sheet"],
-  ["--dg-z-index-modal-dialog", "--z-index-modal-dialog"],
-  ["--dg-z-index-toast-snackbar", "--z-index-toast-snackbar"],
-
-  // Opacities
-  ["--dg-opacities-opaque", "--opacity-opaque"],
-  ["--dg-opacities-pressed", "--opacity-pressed"],
-  ["--dg-opacities-disabled", "--opacity-disabled"],
-  ["--dg-opacities-transparent", "--opacity-transparent"],
-  ["--dg-opacities-scrim-overlay", "--opacity-scrim-overlay"],
-  
-  // Typography families
-  ["--dg-typography-heading-font-family", "--font-heading"],
-  ["--dg-typography-body-font-family", "--font-body"],
-]);
 
 function normalizeVarName(varName: string): string {
   if (DRAWGLE_TO_NORMALIZED_VAR.has(varName)) {
@@ -699,7 +623,7 @@ function compileElement(element: Element, varMap: Map<string, string>) {
 
   // 2. Resolve custom dg- utility classes and reverse-engineer arbitrary values in classList
   const classAttr = element.getAttribute("class") || "";
-  let classList = classAttr.split(/\s+/).filter(Boolean);
+  let classList = classAttr.split(/\s+/).filter(Boolean).map(canonicalizeSemanticClassName);
 
   const nextClassList: string[] = [];
   for (const cls of classList) {
