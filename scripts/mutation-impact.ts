@@ -82,7 +82,7 @@ const oldPipeline = (raw: string, tokens: DesignTokens) => {
 
 /** The pipeline after Phase 1: inspect, never redesign. */
 const newPipeline = (raw: string, tokens: DesignTokens) => {
-  const normalized = normalizeGeneratedUiContracts({ code: raw, designTokens: tokens, repairEnabled: false });
+  const normalized = normalizeGeneratedUiContracts({ code: raw, designTokens: tokens, repairEnabled: false, geometryRepairEnabled: false });
   return { code: normalized.code, repairs: normalized.report.repairs.length };
 };
 

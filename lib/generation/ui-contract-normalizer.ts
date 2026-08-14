@@ -100,11 +100,9 @@ export const hashUiCode = (code: string) => {
  *
  * Defaults to OFF. Deterministic code may inspect generated markup freely, but
  * it may not redesign it: aesthetic decisions belong to the builder, and the
- * repairs behind this switch were guessing intent from appearance.
- *
- * Precedence is explicit — when this is off, nothing below it can mutate,
- * whatever the per-behaviour flags say. Enabling a specific repair while this
- * is off does nothing, deliberately and visibly.
+ * repairs behind this switch were guessing intent from appearance. Exact
+ * compatibility aliases and the independently gated concentric-radius rule
+ * are not aesthetic redesigns, so they remain outside this broad switch.
  */
 export const htmlMutationEnabled = () =>
   process.env.DRAWGLE_HTML_MUTATION_ENABLED === "true"
@@ -114,10 +112,12 @@ export function normalizeGeneratedUiContracts({
   code,
   designTokens,
   repairEnabled = htmlMutationEnabled(),
+  geometryRepairEnabled = process.env.DRAWGLE_GEOMETRY_CONTRACT_ENABLED !== "false",
 }: {
   code: string;
   designTokens?: DesignTokens | null;
   repairEnabled?: boolean;
+  geometryRepairEnabled?: boolean;
 }) {
   const repairs: UiContractDiagnostic[] = [];
   const warnings: UiContractDiagnostic[] = [];
@@ -239,8 +239,14 @@ export function normalizeGeneratedUiContracts({
   // Runs after the role-based rules on purpose. Role assignment cannot see
   // nesting, so a correct concentric radius would otherwise be rewritten back
   // to the generic `radii.inner` by the rule above.
-  const geometryRepairEnabled = repairEnabled && process.env.DRAWGLE_GEOMETRY_CONTRACT_ENABLED !== "false";
-  for (const diagnostic of applyGeometryContract({ $, designTokens, repairEnabled: geometryRepairEnabled })) {
+  for (const diagnostic of applyGeometryContract({
+    $,
+    designTokens,
+    repairEnabled: geometryRepairEnabled,
+    // Gap rewriting changes composition. Keep it behind the broad mutation
+    // switch; the default-on geometry guard repairs concentric corners only.
+    gapRepairEnabled: repairEnabled && geometryRepairEnabled,
+  })) {
     const entry: UiContractDiagnostic = {
       code: diagnostic.code,
       selector: diagnostic.selector,
@@ -281,7 +287,7 @@ export function normalizeGeneratedUiContracts({
   // order, quoting, whitespace and void-element form, so diagnostics-only mode
   // was never the true bypass it was documented to be. Only take the DOM back
   // when a repair genuinely ran.
-  if (repairEnabled && repairs.length > compatibilityRepairCount) {
+  if ((repairEnabled || geometryRepairEnabled) && repairs.length > compatibilityRepairCount) {
     normalizedCode = $.root().html() ?? normalizedCode;
   } else if (compatibilityRepairCount === 0) {
     normalizedCode = code;

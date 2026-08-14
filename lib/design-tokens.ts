@@ -257,10 +257,11 @@ const normalizeRadiusHierarchy = (value: UnknownRecord, standardInsetGapPx: numb
     && (app === 0 ? suppliedInner === 0 : suppliedInner < app);
 
   // `inner` means "the radius of a surface nested at the standard component inset".
-  // With a known inset the concentric law owns it, and an authored value survives
-  // only when it already satisfies that law within a 2px optical tolerance — a
-  // freely chosen inner radius is the single most common source of the "nested
-  // corner looks tighter than its parent" defect.
+  // With a known inset the concentric law owns it exactly. Keeping an authored
+  // value merely because it was within a small optical tolerance allowed the
+  // production 26px / 16px pair to survive even though spacing.xs was 8px and
+  // the required inner radius was 18px. A freely chosen inner radius is the
+  // single most common source of the "nested corner looks tighter" defect.
   //
   // Without an inset there is nothing to be concentric with, so the original
   // proportional derivation stands and previously stored token sets keep their
@@ -271,8 +272,7 @@ const normalizeRadiusHierarchy = (value: UnknownRecord, standardInsetGapPx: numb
       const delta = Math.min(8, Math.max(4, Math.round(app / 3)));
       return suppliedInnerIsSane ? suppliedInner! : Math.max(0, app - delta);
     }
-    const derived = concentricInsetRadius(app, standardInsetGapPx);
-    return suppliedInnerIsSane && Math.abs(suppliedInner! - derived) <= 2 ? suppliedInner! : derived;
+    return concentricInsetRadius(app, standardInsetGapPx);
   })();
 
   return {

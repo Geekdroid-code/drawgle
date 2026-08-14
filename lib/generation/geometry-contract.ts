@@ -31,8 +31,8 @@ export interface GeometryDiagnostic {
   severity: "repaired" | "warning";
 }
 
-/** Optical tolerance. Below this the mismatch is not perceptible. */
-const RADIUS_TOLERANCE_PX = 2;
+/** Rounding tolerance only; known concentric geometry follows the exact law. */
+const RADIUS_TOLERANCE_PX = 0.5;
 
 /** Gap must exceed padding by this factor before it counts as a rhythm inversion. */
 const GAP_INVERSION_FACTOR = 1.5;
@@ -333,10 +333,12 @@ export function applyGeometryContract({
   $,
   designTokens,
   repairEnabled,
+  gapRepairEnabled = repairEnabled,
 }: {
   $: CheerioAPI;
   designTokens?: DesignTokens | null;
   repairEnabled: boolean;
+  gapRepairEnabled?: boolean;
 }): GeometryDiagnostic[] {
   const variables = buildTokenVariableMap(designTokens);
   const diagnostics: GeometryDiagnostic[] = [];
@@ -404,7 +406,7 @@ export function applyGeometryContract({
       const selector = selectorFor($, element as never);
       const detail = `Children are separated by ${gap.value}px inside a surface padded ${verticalPadding}px; content reads as escaping its container.`;
 
-      if (!repairEnabled) {
+      if (!gapRepairEnabled) {
         diagnostics.push({ code: "nested_gap_exceeds_padding", selector, detail, severity: "warning" });
         break;
       }

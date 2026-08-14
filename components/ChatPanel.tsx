@@ -2004,7 +2004,7 @@ export function ChatPanel({
   onClearSelectedElement?: () => void;
   onDeleteSelectedElement?: () => void | Promise<void>;
 }) {
-  const { messages, isLoading } = useProjectMessages(project.id);
+  const { messages, isLoading, refreshMessages } = useProjectMessages(project.id);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const reduceMotion = Boolean(useReducedMotion());
   const [pendingTurn, setPendingTurn] = useState<PendingTurn | null>(null);
@@ -2067,7 +2067,22 @@ export function ChatPanel({
     setPendingTick(0);
 
     try {
-      return await onSubmit?.({ ...options, clientTurnId: turn.id }) ?? false;
+      const submitted = await onSubmit?.({ ...options, clientTurnId: turn.id }) ?? false;
+      if (submitted) {
+        try {
+          // The POST response is the durable reconciliation point. Realtime is
+          // an accelerator, not the only way a sent turn becomes visible.
+          await refreshMessages();
+        } catch (error) {
+          console.error("Failed to reconcile submitted chat turn", error);
+        }
+        window.setTimeout(() => {
+          void refreshMessages().catch((error) => {
+            console.error("Failed to complete submitted chat reconciliation", error);
+          });
+        }, 750);
+      }
+      return submitted;
     } finally {
       window.setTimeout(() => {
         setPendingTurn((current) => current?.id === turn.id ? null : current);

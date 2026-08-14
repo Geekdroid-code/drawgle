@@ -414,6 +414,35 @@ describe("Production Navigation V2", () => {
     expect(shell).toContain('data-navigation-active-treatment="underline"');
   });
 
+  it("uses active content color for tint so a transparent active surface cannot erase the tab", () => {
+    const productPlan = normalizeNavigationPlan({
+      navigationPlan: {
+        ...v2Plan([
+          { id: "home", label: "Home", icon: "home", role: "Dashboard", linkedScreenName: "Home" },
+          { id: "products", label: "Products", icon: "archive", role: "Inventory", linkedScreenName: "Products" },
+          { id: "profile", label: "Profile", icon: "user", role: "Account", linkedScreenName: "Profile" },
+        ]),
+        design: { ...design(), activeTreatment: "tint" },
+      },
+      screens: [
+        { name: "Home", type: "root", description: "Dashboard" },
+        { name: "Products", type: "root", description: "Inventory" },
+        { name: "Profile", type: "root", description: "Account" },
+      ],
+      navigationArchitecture: architecture,
+    });
+    const shell = renderDeterministicNavigationShell(
+      applyReferenceNavigationAppearance({ navigationPlan: productPlan }),
+    );
+
+    expect(shell).toContain(
+      '.dg-nav-item[data-active="true"]{color:var(--dg-navigation-active-content,var(--dg-color-action-primary,#111827));}',
+    );
+    expect(shell).not.toContain(
+      '.dg-nav-item[data-active="true"]{color:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));}',
+    );
+  });
+
   it.each([
     ["fixed-tab-rail", "attached-edge-rail"],
     ["floating-dock", "floating-content-dock"],

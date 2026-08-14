@@ -69,6 +69,16 @@ describe("production generation V2 contracts", () => {
       inset_sm: "4px",
     });
   });
+  it("enforces the exact standard inset instead of preserving a near miss", () => {
+    const tokens = normalizeDesignTokens({
+      tokens: {
+        radii: { app: "26px", inner: "16px", pill: "9999px" },
+        spacing: { xs: "8px" },
+      },
+    });
+
+    expect(tokens.tokens?.radii?.inner).toBe("18px");
+  });
   it("tokenizes equal numeric spacing and radius values by CSS property role", () => {
     const tokens = normalizeDesignTokens({
       tokens: {

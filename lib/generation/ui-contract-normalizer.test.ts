@@ -54,6 +54,7 @@ describe("generated UI contract normalization", () => {
     const result = normalizeGeneratedUiContracts({
       designTokens: tokens,
       repairEnabled: false,
+      geometryRepairEnabled: false,
       code: `<input class="rounded-full" style="gap:var(--dg-spacing-element-gap)" />`,
     });
     expect(result.code).toContain("rounded-full");
@@ -85,6 +86,37 @@ describe("generated UI contract normalization", () => {
 
     expect(result.code).toContain("dg-radius-inset-xxs");
     expect(result.report.repairs).toContainEqual(expect.objectContaining({ code: "concentric_radius_repaired" }));
+  });
+
+  it("repairs concentric geometry by default without enabling broad HTML mutation", () => {
+    const previousMaster = process.env.DRAWGLE_HTML_MUTATION_ENABLED;
+    const previousGeometry = process.env.DRAWGLE_GEOMETRY_CONTRACT_ENABLED;
+    process.env.DRAWGLE_HTML_MUTATION_ENABLED = "false";
+    delete process.env.DRAWGLE_GEOMETRY_CONTRACT_ENABLED;
+    try {
+      const result = normalizeGeneratedUiContracts({
+        designTokens: normalizeDesignTokens({
+          tokens: {
+            radii: { app: "26px", inner: "16px", pill: "9999px" },
+            spacing: { xxs: "4px", xs: "8px", sm: "12px" },
+          },
+        }),
+        code: `<div class="dg-radius-app p-[var(--dg-spacing-xxs)] bg-slate-950 flex flex-col gap-[12px]">
+          <button aria-pressed="true" class="dg-radius-inner bg-[var(--dg-color-action-primary)]">All</button>
+          <button aria-pressed="false" class="dg-radius-inner">This Week</button>
+        </div>`,
+      });
+
+      expect(result.code).toContain("dg-radius-inset-xxs");
+      expect(result.code).toContain("gap-[12px]");
+      expect(result.report.repairs).toContainEqual(expect.objectContaining({ code: "concentric_radius_repaired" }));
+      expect(result.report.warnings).toContainEqual(expect.objectContaining({ code: "nested_gap_exceeds_padding" }));
+    } finally {
+      if (previousMaster === undefined) delete process.env.DRAWGLE_HTML_MUTATION_ENABLED;
+      else process.env.DRAWGLE_HTML_MUTATION_ENABLED = previousMaster;
+      if (previousGeometry === undefined) delete process.env.DRAWGLE_GEOMETRY_CONTRACT_ENABLED;
+      else process.env.DRAWGLE_GEOMETRY_CONTRACT_ENABLED = previousGeometry;
+    }
   });
 
   it("supplies accessible semantic status roles and repairs only semantically identified status colors", () => {

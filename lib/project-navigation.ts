@@ -662,7 +662,7 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
     : design.activeTreatment === "compact-chip"
       ? `[data-drawgle-primary-nav] .dg-nav-item[data-active="true"]{background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));color:var(--dg-navigation-active-content,var(--dg-color-action-on-primary-text,#fff));border-radius:${activeRadius};}`
       : design.activeTreatment === "tint"
-        ? "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"]{color:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));}"
+        ? "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"]{color:var(--dg-navigation-active-content,var(--dg-color-action-primary,#111827));}"
         : `[data-drawgle-primary-nav] .dg-nav-item[data-active="true"] .dg-nav-icon{width:${activeWidth};height:${activeHeight};border-radius:${activeRadius};background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));color:var(--dg-navigation-active-content,var(--dg-color-action-on-primary-text,#fff));}`;
 
   const items = navItems.map((item) => {

@@ -53,8 +53,8 @@ The normalized per-screen description and layout contract go to the builder. Raw
 ### Concentric geometry
 
 - A nested surface's radius equals its parent's radius minus the gap between their edges. `radii.inner` is derived from `spacing.xs`, the standard component inset; the page-level sibling `element_gap` never determines a child corner. `radii.inset_*` provides one correct value per spacing step, exposed as `dg-radius-inset-*`.
-- The normalizer walks real DOM nesting and repairs radii that violate the law, running after the role-based rules so a correct value is not rewritten back to the generic token. Interactive controls and primary CTAs keep their shape-policy radius; selected items inside segmented `tablist` or `group` controls use the group's actual padding.
-- A child gap wider than the padding of the surface containing it is a rhythm inversion and is corrected. `DRAWGLE_GEOMETRY_CONTRACT_ENABLED=false` makes both diagnostics-only.
+- The normalizer walks real DOM nesting and repairs radii that violate the law, running after the role-based rules so a correct value is not rewritten back to the generic token. This deterministic radius repair remains on when broad aesthetic HTML mutation is off. Interactive controls and primary CTAs keep their shape-policy radius; selected items inside segmented `tablist` or `group` controls use the group's actual padding.
+- A child gap wider than the padding of the surface containing it is reported as a rhythm inversion. Gap rewriting remains behind the broad HTML-mutation switch because it changes composition; radius correction does not enable it. `DRAWGLE_GEOMETRY_CONTRACT_ENABLED=false` makes concentric-radius repair diagnostics-only.
 
 ### Layout contract v3
 
@@ -134,7 +134,14 @@ The normalized per-screen description and layout contract go to the builder. Raw
 - QA telemetry is an optional side effect, never a screen-persistence dependency. If the telemetry migration or PostgREST schema cache is unavailable, the same screen write is retried once without `quality_diagnostics`; normal screen reads do not select the optional field.
 - A failed screen query is an unavailable workspace, never an empty project. The project route stops and offers a retry instead of replacing persisted screens with an empty canvas.
 - Generated iframe content remains hidden behind a style-runtime gate until a computed-style probe confirms Tailwind utilities are active. A Tailwind JavaScript global alone is not considered proof that CSS exists; bounded CDN retries run before a visible degraded-state message.
-- `DRAWGLE_UI_CONTRACT_REPAIR_ENABLED=false` changes the normalizer to diagnostics-only mode without removing telemetry.
+- `DRAWGLE_UI_CONTRACT_REPAIR_ENABLED=false` disables role/status aesthetic repair without removing telemetry. Exact compatibility aliases and the independently controlled concentric-radius guard still run; `DRAWGLE_GEOMETRY_CONTRACT_ENABLED=false` disables the latter.
+
+### Production radius, active tint, and chat durability — 2026-08-14
+
+- Production project `caba58b8-946e-4f16-9a5e-8a1904dc86a9` exposed three independent failures. Its saved 26px outer / 16px inner token pair survived a 2px tolerance even though `spacing.xs=8px` requires 18px, and selected 4px-inset segments require 22px. Token normalization and DOM concentric checks now follow the exact subtraction rule, with tolerance reserved only for fractional rounding.
+- Concentric-radius correction is default-on without re-enabling broad color, role, status, grid, or gap rewriting. This keeps the repair deterministic and prevents the geometry fix from constraining unrelated layout decisions.
+- The shared navigation plan correctly marked `nav-home` active. The tint renderer nevertheless used `navigation.active_surface` as foreground color; that token was legitimately `transparent`, making the active icon and label invisible. Tint now uses `navigation.active_content`, while surface-paint treatments continue using `active_surface`.
+- The reported chat turns and model replies were present in `project_messages`; the client lost them when an older fetch snapshot replaced a newer realtime insert, then removed the temporary pending bubble. Message snapshots now merge by id, the realtime subscription reconciles when live, and every successful submit explicitly refetches so realtime is an accelerator rather than the sole delivery path.
 
 ### Progressive planning, assets, and billing
 

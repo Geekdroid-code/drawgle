@@ -46,21 +46,29 @@ describe("byte preservation", () => {
       code: INTENTIONAL_DESIGN,
       designTokens: tokens,
       repairEnabled: false,
+      geometryRepairEnabled: false,
     });
 
     // The assertion that never existed.
     expect(result.code).toBe(INTENTIONAL_DESIGN);
   });
 
-  it("preserves the design by default, because mutation is off by default", () => {
+  it("keeps aesthetic mutation off while applying the deterministic geometry contract by default", () => {
     const previous = process.env.DRAWGLE_HTML_MUTATION_ENABLED;
+    const previousGeometry = process.env.DRAWGLE_GEOMETRY_CONTRACT_ENABLED;
     delete process.env.DRAWGLE_HTML_MUTATION_ENABLED;
+    delete process.env.DRAWGLE_GEOMETRY_CONTRACT_ENABLED;
     try {
       const result = normalizeGeneratedUiContracts({ code: INTENTIONAL_DESIGN, designTokens: tokens });
-      expect(result.code).toBe(INTENTIONAL_DESIGN);
+      expect(result.code).toContain("bg-black text-white rounded-full");
+      expect(result.code).toContain("grid-cols-[1.2fr_.8fr]");
+      expect(result.code).toContain("dg-radius-inner");
+      expect(result.report.repairs).toContainEqual(expect.objectContaining({ code: "concentric_radius_repaired" }));
     } finally {
       if (previous === undefined) delete process.env.DRAWGLE_HTML_MUTATION_ENABLED;
       else process.env.DRAWGLE_HTML_MUTATION_ENABLED = previous;
+      if (previousGeometry === undefined) delete process.env.DRAWGLE_GEOMETRY_CONTRACT_ENABLED;
+      else process.env.DRAWGLE_GEOMETRY_CONTRACT_ENABLED = previousGeometry;
     }
   });
 
@@ -69,6 +77,7 @@ describe("byte preservation", () => {
       code: INTENTIONAL_DESIGN,
       designTokens: tokens,
       repairEnabled: false,
+      geometryRepairEnabled: false,
     });
 
     expect(result.code).toBe(INTENTIONAL_DESIGN);
@@ -79,9 +88,11 @@ describe("byte preservation", () => {
   it("the master switch overrides the legacy per-behaviour flag", () => {
     const previousMaster = process.env.DRAWGLE_HTML_MUTATION_ENABLED;
     const previousLegacy = process.env.DRAWGLE_UI_CONTRACT_REPAIR_ENABLED;
+    const previousGeometry = process.env.DRAWGLE_GEOMETRY_CONTRACT_ENABLED;
     // Legacy flag "enabled", master off: nothing may mutate.
     delete process.env.DRAWGLE_UI_CONTRACT_REPAIR_ENABLED;
     process.env.DRAWGLE_HTML_MUTATION_ENABLED = "false";
+    process.env.DRAWGLE_GEOMETRY_CONTRACT_ENABLED = "false";
     try {
       const result = normalizeGeneratedUiContracts({ code: INTENTIONAL_DESIGN, designTokens: tokens });
       expect(result.code).toBe(INTENTIONAL_DESIGN);
@@ -90,6 +101,8 @@ describe("byte preservation", () => {
       else process.env.DRAWGLE_HTML_MUTATION_ENABLED = previousMaster;
       if (previousLegacy === undefined) delete process.env.DRAWGLE_UI_CONTRACT_REPAIR_ENABLED;
       else process.env.DRAWGLE_UI_CONTRACT_REPAIR_ENABLED = previousLegacy;
+      if (previousGeometry === undefined) delete process.env.DRAWGLE_GEOMETRY_CONTRACT_ENABLED;
+      else process.env.DRAWGLE_GEOMETRY_CONTRACT_ENABLED = previousGeometry;
     }
   });
 });
