@@ -182,8 +182,23 @@ export function normalizeGeneratedUiContracts({
     );
   });
 
-  $("[role='tablist']").each((_, element) => applyRadiusRole(element, shapePolicy.segmentedContainer, "segmented-control container"));
-  $("[role='tab']").each((_, element) => applyRadiusRole(element, shapePolicy.segmentedItem, "segmented-control item"));
+  // Builders do not always use formal tab roles for two-to-five option
+  // segmented controls; `role=group` plus aria-pressed buttons is equally
+  // valid markup. Treat both forms as the same component so radius repair can
+  // derive the item curve from the group's real padding.
+  const segmentedGroups = $("[role='tablist'],[role='group']").filter((_, element) => {
+    const node = $(element);
+    if (node.attr("role") === "tablist") return true;
+    const buttons = node.children("button,[role='tab']");
+    return buttons.length >= 2
+      && buttons.length <= 5
+      && buttons.toArray().every((button) => $(button).attr("aria-pressed") !== undefined);
+  });
+  segmentedGroups.each((_, element) => {
+    applyRadiusRole(element, shapePolicy.segmentedContainer, "segmented-control container");
+    $(element).children("button,[role='tab']").each((__, item) =>
+      applyRadiusRole(item, shapePolicy.segmentedItem, "segmented-control item"));
+  });
 
   $("*").each((_, element) => {
     const node = $(element);

@@ -52,6 +52,23 @@ describe("production generation V2 contracts", () => {
     });
     expect(sharp.tokens?.radii).toMatchObject({ app: "0px", inner: "0px" });
   });
+  it("derives the standard inner radius from component inset rather than sibling element gap", () => {
+    const tokens = normalizeDesignTokens({
+      tokens: {
+        radii: { app: "16px", inner: "4px", pill: "9999px" },
+        spacing: { xxs: "4px", xs: "8px", sm: "12px" },
+        mobile_layout: { element_gap: "16px" },
+      },
+    });
+
+    expect(tokens.tokens?.radii).toMatchObject({
+      app: "16px",
+      inner: "8px",
+      inset_xxs: "12px",
+      inset_xs: "8px",
+      inset_sm: "4px",
+    });
+  });
   it("tokenizes equal numeric spacing and radius values by CSS property role", () => {
     const tokens = normalizeDesignTokens({
       tokens: {

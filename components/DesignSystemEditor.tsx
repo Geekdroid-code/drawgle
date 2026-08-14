@@ -601,6 +601,7 @@ export function DesignSystemEditor({
                   <RadiusHierarchyPreview
                     outerRadius={radius}
                     innerRadius={radiusInner}
+                    standardInset={tokens.spacing?.xs || "8px"}
                     panel={isPanel}
                   />
                 </TokenGroup>
@@ -1395,23 +1396,26 @@ function ShapeMetricRow({
 function RadiusHierarchyPreview({
   outerRadius,
   innerRadius,
+  standardInset,
   panel = false,
 }: {
   outerRadius: string;
   innerRadius: string;
+  standardInset: string;
   panel?: boolean;
 }) {
+  const insetPx = clampNumber(parsePixelToken(standardInset, 8), 2, 16);
   return (
     <div className={`${panel ? "bg-white px-3 py-3 dark:bg-[#1b1e25]" : "col-span-full rounded-[12px] border border-slate-950/[0.06] bg-white p-3"} flex items-center gap-3`}>
       <div className="min-w-0 flex-1">
         <div className="text-[12px] font-semibold text-slate-800 dark:text-[#e7ebf3]">Nested radius relationship</div>
         <div className="mt-0.5 text-[11px] leading-4 text-slate-500 dark:text-[#8f98aa]">
-          Inner containers stay visually inside the outer surface.
+          Standard inner = outer - spacing.xs ({standardInset}). Other padding steps derive their own inner radius.
         </div>
       </div>
       <div
-        className="flex h-16 w-24 shrink-0 items-center justify-center border border-slate-950/[0.08] bg-[#eef1f5] p-2 dark:border-white/[0.10] dark:bg-[#252a34]"
-        style={{ borderRadius: outerRadius }}
+        className="flex h-16 w-24 shrink-0 items-center justify-center border border-slate-950/[0.08] bg-[#eef1f5] dark:border-white/[0.10] dark:bg-[#252a34]"
+        style={{ borderRadius: outerRadius, padding: insetPx }}
       >
         <div
           className="h-full w-full border border-slate-950/[0.08] bg-white shadow-sm dark:border-white/[0.10] dark:bg-[#171a21]"

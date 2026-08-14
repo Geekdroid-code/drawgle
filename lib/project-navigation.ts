@@ -230,24 +230,25 @@ export function applyReferenceNavigationAppearance({
     : fallback;
   const structuredPrimary = referenceEvidence?.appearance?.primary;
   const projectNavigationTokens = designTokens?.tokens?.navigation;
-  const projectTokenPrimary = projectNavigationTokens ? normalizeNavigationDesignContract({
+  // The planner has already compared navigation families against the product
+  // and written the chosen construction into `base`. Design tokens may supply
+  // missing implementation measurements, but they must not replace that
+  // decision. The old merge overwrote anatomy, labels, active treatment and
+  // material with token-schema defaults after planning; the stored visual
+  // brief would say "fixed glass rail; floating dock rejected" while the
+  // renderer received a floating solid dock.
+  const projectPlanPrimary = projectNavigationTokens ? normalizeNavigationDesignContract({
     ...base,
-    anatomy: projectNavigationTokens.anatomy ?? base.anatomy,
-    width: projectNavigationTokens.width ?? base.width,
-    labels: projectNavigationTokens.labels ?? base.labels,
-    activeTreatment: projectNavigationTokens.active_treatment ?? base.activeTreatment,
-    surface: projectNavigationTokens.surface_material ?? base.surface,
     containerHeightPx: tokenPx(projectNavigationTokens.container_height) ?? base.containerHeightPx,
     maxWidthPx: tokenPx(projectNavigationTokens.max_width) ?? base.maxWidthPx,
-    safeAreaOffsetPx: tokenPx(projectNavigationTokens.safe_area_offset) ?? base.safeAreaOffsetPx,
     horizontalInsetPx: tokenPx(projectNavigationTokens.horizontal_inset) ?? base.horizontalInsetPx,
     horizontalPaddingPx: tokenPx(projectNavigationTokens.horizontal_padding) ?? base.horizontalPaddingPx,
     verticalPaddingPx: tokenPx(projectNavigationTokens.vertical_padding) ?? base.verticalPaddingPx,
-    itemGapPx: tokenPx(projectNavigationTokens.item_gap) ?? base.itemGapPx,
-    iconSizePx: tokenPx(projectNavigationTokens.icon_size) ?? base.iconSizePx,
     labelSizePx: tokenPx(projectNavigationTokens.label_size) ?? base.labelSizePx,
     labelWeight: Number(projectNavigationTokens.label_weight) || base.labelWeight,
-    blurPx: tokenPx(projectNavigationTokens.backdrop_blur) ?? base.blurPx,
+    blurPx: base.surface === "glass"
+      ? Math.max(12, tokenPx(projectNavigationTokens.backdrop_blur) ?? base.blurPx ?? 0)
+      : tokenPx(projectNavigationTokens.backdrop_blur) ?? base.blurPx,
     activeIndicatorWidthPx: tokenPx(projectNavigationTokens.active_indicator_width) ?? base.activeIndicatorWidthPx,
     activeIndicatorHeightPx: tokenPx(projectNavigationTokens.active_indicator_height) ?? base.activeIndicatorHeightPx,
   }, visualBrief) : base;
@@ -277,9 +278,10 @@ export function applyReferenceNavigationAppearance({
       ? normalizeNavigationDesignContract({
           ...base,
           anatomy: curatedAnatomy,
-          surface: curatedSurface === "glass" && !(base.blurPx && base.blurPx > 0) ? "translucent" : curatedSurface,
+          surface: curatedSurface,
+          blurPx: curatedSurface === "glass" ? Math.max(12, base.blurPx ?? 0) : base.blurPx,
         }, visualBrief)
-      : projectTokenPrimary;
+      : projectPlanPrimary;
   const geometryMeasurementFields = referenceAnalysis
     ? (referenceAnalysis.geometryProfile?.measurements ?? [])
         .filter((measurement) => measurement.confidence !== "low" && measurement.sourceLayer === "app-ui" && measurement.role.startsWith("navigation"))
@@ -294,8 +296,11 @@ export function applyReferenceNavigationAppearance({
     ...(referenceEvidence?.appearance?.measuredFields ?? []),
     ...geometryMeasurementFields,
   ]));
-  const safePrimary = primary.surface === "glass" && !(primary.blurPx && primary.blurPx > 0)
-    ? { ...primary, surface: "translucent" as const, blurPx: 0 }
+  // Glass is a material decision, not a request to silently fall back to a
+  // generic translucent surface. A missing blur measurement receives only the
+  // minimum implementation value; measured reference blur still wins.
+  const safePrimary = primary.surface === "glass"
+    ? { ...primary, blurPx: Math.max(12, primary.blurPx ?? 0) }
     : primary;
   const contextualMeasurement = referenceAnalysis ? {
     heightPx: trustedReferenceMeasurement(referenceAnalysis, "row-height"),
@@ -332,7 +337,7 @@ export function applyReferenceNavigationAppearance({
         : "medium",
       geometryOwner: useReference && measuredFields.length > 0
         ? "reference-measurements"
-        : "project-tokens",
+        : "navigation-plan",
       measuredFields,
       primary: safePrimary,
       contextualChrome,
@@ -340,7 +345,7 @@ export function applyReferenceNavigationAppearance({
         ? "Product destinations are preserved while visible reference navigation supplies appearance only."
         : useCuratedFallback
           ? "Structured extraction was incomplete; curated tags select coarse anatomy/material while project tokens own every dimension."
-        : "No usable reference navigation appearance was visible; project navigation tokens own the native appearance.",
+        : "No usable reference navigation appearance was visible; the product planner owns navigation construction while project tokens supply visual identity.",
     },
   };
 }
@@ -428,9 +433,14 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
   const isV3 = navigationPlan.version === 3 && Boolean(navigationPlan.appearance?.primary);
   const design = normalizeNavigationDesignContract(navigationPlan.appearance?.primary ?? navigationPlan.design, navigationPlan.visualBrief);
   const itemCount = navItems.length;
-  const radiusDelta = Math.min(8, Math.max(4, Math.round(design.radiusPx / 3)));
-  const innerRadiusPx = design.radiusPx === 0 ? 0 : Math.max(0, design.radiusPx - radiusDelta);
-  const overlapBufferPx = isV3 ? Math.max(4, design.safeAreaOffsetPx) : design.anatomy === "center-action-dock" ? 20 : 8;
+  const renderedLabels = design.anatomy === "compact-icon-rail" ? "hidden" : design.labels;
+  const horizontalPaddingPx = design.horizontalPaddingPx ?? 8;
+  const verticalPaddingPx = design.verticalPaddingPx ?? 6;
+  const actualItemInsetPx = Math.min(horizontalPaddingPx, verticalPaddingPx);
+  const innerRadiusPx = design.radiusPx === 0 ? 0 : Math.max(0, design.radiusPx - actualItemInsetPx);
+  const overlapBufferPx = isV3
+    ? design.anatomy === "center-action-dock" ? 16 : 4
+    : design.anatomy === "center-action-dock" ? 20 : 8;
   const contentWidth = Math.min(356, itemCount * 70 + 32);
   const requestedWidth = design.width === "full"
     ? "100%"
@@ -441,33 +451,103 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
     ? design.centerActionItemId ?? navItems[Math.floor(itemCount / 2)]?.id ?? null
     : null;
 
-  const referenceMeasuredFields = new Set(navigationPlan.appearance?.measuredFields ?? []);
-  const referenceOwnsGeometryField = (field: string) =>
-    navigationPlan.appearance?.geometryOwner === "reference-measurements" && referenceMeasuredFields.has(field);
-  const geometryValue = (token: string, field: string, measured: number | null | undefined, fallback: number) =>
-    referenceOwnsGeometryField(field) ? `${measured ?? fallback}px` : `var(${token},${measured ?? fallback}px)`;
-  const maxWidthValue = referenceOwnsGeometryField("maxWidthPx")
-    ? `${design.maxWidthPx ?? contentWidth}px`
-    : `var(--dg-navigation-max-width,${design.maxWidthPx ?? contentWidth}px)`;
-  const horizontalInsetValue = referenceOwnsGeometryField("horizontalInsetPx")
-    ? `${design.horizontalInsetPx ?? 16}px`
-    : `var(--dg-navigation-horizontal-inset,${design.horizontalInsetPx ?? 16}px)`;
-  const anatomyLayout = isV3 ? {
-    key: "contract-driven",
-    width: design.width === "full"
-      ? "100%"
-      : `min(${maxWidthValue},calc(100% - (2 * ${horizontalInsetValue})))`,
-    height: geometryValue("--dg-navigation-container-height", "containerHeightPx", design.containerHeightPx, 68),
-    margin: "0 auto calc(var(--dg-navigation-safe-offset) + var(--dg-effective-safe-area-bottom))",
-    padding: `${geometryValue("--dg-navigation-vertical-padding", "verticalPaddingPx", design.verticalPaddingPx, 6)} ${geometryValue("--dg-navigation-horizontal-padding", "horizontalPaddingPx", design.horizontalPaddingPx, 8)}`,
-    radius: referenceOwnsGeometryField("radiusPx") ? `${design.radiusPx}px` : "var(--dg-radii-app)",
-    innerDisplay: design.itemLayout === "stacked"
-      ? `grid;grid-template-columns:repeat(${itemCount},minmax(0,1fr))`
-      : "flex;justify-content:center",
-    itemDirection: design.itemLayout === "inline" ? "row" : "column",
-    itemPadding: "0",
-    iconBox: design.activeIndicatorWidthPx ?? design.iconSizePx,
-  } : (() => {
+  // Navigation recipe values are finalized by the planner/reference pass.
+  // Reading the generic token recipe again here used to overwrite those
+  // values a second time at paint time. Global navigation colours, typography
+  // and shadows remain live CSS variables; construction stays plan-owned.
+  const geometryValue = (_token: string, _field: string, measured: number | null | undefined, fallback: number) =>
+    `${measured ?? fallback}px`;
+  const horizontalInsetValue = `${design.horizontalInsetPx ?? 16}px`;
+  const availableWidthPx = Math.max(160, 390 - (2 * (design.horizontalInsetPx ?? 16)));
+  const estimatedLabelWidthPx = renderedLabels === "hidden"
+    ? 0
+    : Math.max(...navItems.map((item) => Math.min(108, Math.max(44, item.label.length * (design.labelSizePx ?? 11) * 0.58))));
+  const labelSafeWidthPx = Math.min(
+    availableWidthPx,
+    Math.ceil(itemCount * Math.max(52, estimatedLabelWidthPx) + (itemCount - 1) * design.itemGapPx + horizontalPaddingPx * 2),
+  );
+  const resolvedMaxWidthValue = `${Math.max(design.maxWidthPx ?? contentWidth, labelSafeWidthPx)}px`;
+  const contractWidth = design.width === "full"
+    ? "100%"
+    : design.width === "inset"
+      ? `calc(100% - (2 * ${horizontalInsetValue}))`
+      : `min(${resolvedMaxWidthValue},calc(100% - (2 * ${horizontalInsetValue})))`;
+  const contractHeight = geometryValue("--dg-navigation-container-height", "containerHeightPx", design.containerHeightPx, 68);
+  const contractPadding = `${verticalPaddingPx}px ${horizontalPaddingPx}px`;
+  const contractDisplay = design.itemLayout === "inline"
+    ? "flex;justify-content:center"
+    : `grid;grid-template-columns:repeat(${itemCount},minmax(0,1fr))`;
+  const contractDirection = design.itemLayout === "inline" ? "row" : "column";
+  const contractRadius = `${design.radiusPx}px`;
+  const anatomyLayout = isV3 ? (() => {
+    switch (design.anatomy) {
+      case "fixed-tab-rail":
+        return {
+          key: "attached-edge-rail",
+          width: "100%",
+          height: contractHeight,
+          margin: "0 auto var(--dg-effective-safe-area-bottom)",
+          padding: contractPadding,
+          radius: "0",
+          innerDisplay: `grid;grid-template-columns:repeat(${itemCount},minmax(0,1fr))`,
+          itemDirection: design.itemLayout === "inline" ? "row" : "column",
+          itemPadding: "0 2px",
+          iconBox: Math.max(28, design.iconSizePx + 6),
+        };
+      case "compact-icon-rail":
+        return {
+          key: "compact-icon-capsule",
+          width: `min(${Math.min(availableWidthPx, design.maxWidthPx ?? itemCount * 56 + horizontalPaddingPx * 2)}px,calc(100% - (2 * ${horizontalInsetValue})))`,
+          height: contractHeight,
+          margin: "0 auto calc(var(--dg-navigation-safe-offset) + var(--dg-effective-safe-area-bottom))",
+          padding: contractPadding,
+          radius: "var(--dg-radii-pill,9999px)",
+          innerDisplay: "flex;justify-content:center",
+          itemDirection: "row",
+          itemPadding: "0",
+          iconBox: Math.max(36, design.iconSizePx + 12),
+        };
+      case "center-action-dock":
+        return {
+          key: "lifted-center-action",
+          width: contractWidth,
+          height: contractHeight,
+          margin: "0 auto calc(var(--dg-navigation-safe-offset) + var(--dg-effective-safe-area-bottom))",
+          padding: contractPadding,
+          radius: contractRadius,
+          innerDisplay: `grid;grid-template-columns:repeat(${itemCount},minmax(0,1fr))`,
+          itemDirection: contractDirection,
+          itemPadding: "0",
+          iconBox: Math.max(28, design.iconSizePx + 8),
+        };
+      case "glass-dock":
+        return {
+          key: "inset-glass-ribbon",
+          width: contractWidth,
+          height: contractHeight,
+          margin: "0 auto calc(var(--dg-navigation-safe-offset) + var(--dg-effective-safe-area-bottom))",
+          padding: contractPadding,
+          radius: contractRadius,
+          innerDisplay: contractDisplay,
+          itemDirection: contractDirection,
+          itemPadding: "0",
+          iconBox: Math.max(28, design.iconSizePx + 6),
+        };
+      default:
+        return {
+          key: "floating-content-dock",
+          width: contractWidth,
+          height: contractHeight,
+          margin: "0 auto calc(var(--dg-navigation-safe-offset) + var(--dg-effective-safe-area-bottom))",
+          padding: contractPadding,
+          radius: contractRadius,
+          innerDisplay: contractDisplay,
+          itemDirection: contractDirection,
+          itemPadding: "0",
+          iconBox: Math.max(28, design.iconSizePx + 8),
+        };
+    }
+  })() : (() => {
     switch (design.anatomy) {
       case "fixed-tab-rail":
         return {
@@ -559,29 +639,30 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
   const borderCss = design.anatomy === "fixed-tab-rail"
     ? `border:0;${design.border ? `border-top:${borderValue};` : ""}`
     : `border:${design.border ? borderValue : "0"};`;
-  const labelCss = design.labels === "hidden"
+  const labelCss = renderedLabels === "hidden"
     ? "display:none;"
-    : design.labels === "active-only"
+    : renderedLabels === "active-only"
       ? "display:none;"
       : "";
-  const activeOnlyCss = design.labels === "active-only"
+  const activeOnlyCss = renderedLabels === "active-only"
     ? "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"] .dg-nav-label{display:block;}"
     : "";
   const activeWidth = isV3 ? geometryValue("--dg-navigation-active-indicator-width", "activeIndicatorWidthPx", design.activeIndicatorWidthPx, 30) : `${design.activeIndicatorWidthPx ?? 30}px`;
   const activeHeight = isV3 ? geometryValue("--dg-navigation-active-indicator-height", "activeIndicatorHeightPx", design.activeIndicatorHeightPx, 30) : `${design.activeIndicatorHeightPx ?? 30}px`;
-  const activeRadius = isV3
-    ? referenceOwnsGeometryField("activeIndicatorRadiusPx") && design.activeIndicatorRadiusPx !== null && design.activeIndicatorRadiusPx !== undefined
-      ? `${design.activeIndicatorRadiusPx}px`
-      : "var(--dg-radii-inner)"
-    : `${design.activeIndicatorRadiusPx ?? innerRadiusPx}px`;
+  const itemRadius = design.anatomy === "compact-icon-rail"
+    ? "var(--dg-radii-pill,9999px)"
+    : `${innerRadiusPx}px`;
+  const activeRadius = design.activeIndicatorRadiusPx !== null && design.activeIndicatorRadiusPx !== undefined
+    ? `${design.activeIndicatorRadiusPx}px`
+    : design.activeTreatment === "icon-fill" || design.activeTreatment === "underline"
+      ? "var(--dg-radii-pill,9999px)"
+      : itemRadius;
   const activeCss = design.activeTreatment === "underline"
-    ? isV3
-      ? `[data-drawgle-primary-nav] .dg-nav-item[data-active="true"]::after{content:"";position:absolute;left:50%;bottom:0;width:${activeWidth};height:${activeHeight};transform:translateX(-50%);border-radius:${activeRadius} ${activeRadius} 0 0;background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));}`
-      : "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"]::after{content:\"\";position:absolute;left:24%;right:24%;bottom:-1px;height:3px;border-radius:3px 3px 0 0;background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));}"
+    ? `[data-drawgle-primary-nav] .dg-nav-item[data-active="true"]::after{content:"";position:absolute;left:50%;bottom:0;width:min(${activeWidth},48px);height:3px;transform:translateX(-50%);border-radius:${activeRadius};background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));}`
     : design.activeTreatment === "compact-chip"
       ? `[data-drawgle-primary-nav] .dg-nav-item[data-active="true"]{background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));color:var(--dg-navigation-active-content,var(--dg-color-action-on-primary-text,#fff));border-radius:${activeRadius};}`
       : design.activeTreatment === "tint"
-        ? "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"]{color:var(--dg-navigation-content,var(--dg-color-action-primary,#111827));background:color-mix(in srgb,var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827)) 10%,transparent);}"
+        ? "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"]{color:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));}"
         : `[data-drawgle-primary-nav] .dg-nav-item[data-active="true"] .dg-nav-icon{width:${activeWidth};height:${activeHeight};border-radius:${activeRadius};background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));color:var(--dg-navigation-active-content,var(--dg-color-action-on-primary-text,#fff));}`;
 
   const items = navItems.map((item) => {
@@ -600,17 +681,17 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
   }).join("\n");
 
   return [
-    `<nav data-drawgle-primary-nav data-navigation-version="${navigationPlan.version ?? 1}" data-navigation-anatomy="${design.anatomy}" data-navigation-layout="${anatomyLayout.key}" data-navigation-clearance-owner="renderer" class="dg-nav-shell" aria-label="Primary navigation">`,
+    `<nav data-drawgle-primary-nav data-navigation-version="${navigationPlan.version ?? 1}" data-navigation-anatomy="${design.anatomy}" data-navigation-layout="${anatomyLayout.key}" data-navigation-active-treatment="${design.activeTreatment}" data-navigation-labels="${renderedLabels}" data-navigation-clearance-owner="renderer" class="dg-nav-shell" aria-label="Primary navigation">`,
     "<style>",
-    `:root{--dg-navigation-visual-height:clamp(64px,var(--dg-sizing-bottom-nav-height,72px),88px);--dg-navigation-anatomy-height:${anatomyLayout.height};--dg-effective-safe-area-bottom:max(env(safe-area-inset-bottom,0px),var(--dg-mobile-layout-safe-area-bottom,0px));--dg-navigation-safe-offset:${isV3 ? geometryValue("--dg-navigation-safe-area-offset", "safeAreaOffsetPx", design.safeAreaOffsetPx, 16) : `${design.safeAreaOffsetPx}px`};--dg-navigation-overlap-buffer:${overlapBufferPx}px;--dg-navigation-clearance:calc(var(--dg-navigation-visual-height) + var(--dg-navigation-safe-offset) + var(--dg-effective-safe-area-bottom) + var(--dg-navigation-overlap-buffer));}`,
+    `:root{--dg-navigation-anatomy-height:${anatomyLayout.height};--dg-navigation-visual-height:${isV3 ? "var(--dg-navigation-anatomy-height)" : "clamp(64px,var(--dg-sizing-bottom-nav-height,72px),88px)"};--dg-effective-safe-area-bottom:max(env(safe-area-inset-bottom,0px),var(--dg-mobile-layout-safe-area-bottom,0px));--dg-navigation-safe-offset:${isV3 ? geometryValue("--dg-navigation-safe-area-offset", "safeAreaOffsetPx", design.safeAreaOffsetPx, 16) : `${design.safeAreaOffsetPx}px`};--dg-navigation-overlap-buffer:${overlapBufferPx}px;--dg-navigation-clearance:calc(var(--dg-navigation-visual-height) + var(--dg-navigation-safe-offset) + var(--dg-effective-safe-area-bottom) + var(--dg-navigation-overlap-buffer));}`,
     `[data-drawgle-primary-nav].dg-nav-shell{box-sizing:border-box;width:${anatomyLayout.width};max-width:100%;min-height:var(--dg-navigation-anatomy-height);margin:${anatomyLayout.margin};padding:${anatomyLayout.padding};border-radius:${anatomyLayout.radius};background:${background};${borderCss}box-shadow:${shadow};${blur}pointer-events:auto;}`,
-    `[data-drawgle-primary-nav] .dg-nav-shell-inner{display:${anatomyLayout.innerDisplay};align-items:stretch;gap:${isV3 ? geometryValue("--dg-navigation-item-gap", "itemGapPx", design.itemGapPx, 4) : `${design.itemGapPx}px`};min-height:calc(var(--dg-navigation-anatomy-height) - var(--dg-spacing-xs,8px));}`,
-    `[data-drawgle-primary-nav] .dg-nav-item{position:relative;appearance:none;border:0;background:transparent;color:var(--dg-navigation-muted-content,var(--dg-color-text-low-emphasis,#94a3b8));min-width:0;min-height:var(--dg-sizing-min-touch-target,48px);padding:${anatomyLayout.itemPadding};display:flex;flex:1 1 0;flex-direction:${anatomyLayout.itemDirection};align-items:center;justify-content:center;gap:var(--dg-spacing-xxs,4px);border-radius:var(--dg-radii-inner,${innerRadiusPx}px);font-family:var(--dg-typography-body-font-family,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);font-size:var(--dg-navigation-label-size,11px);line-height:1;font-weight:var(--dg-navigation-label-weight,500);letter-spacing:0;cursor:pointer;}`,
+    `[data-drawgle-primary-nav] .dg-nav-shell-inner{display:${anatomyLayout.innerDisplay};align-items:stretch;gap:${isV3 ? geometryValue("--dg-navigation-item-gap", "itemGapPx", design.itemGapPx, 4) : `${design.itemGapPx}px`};min-height:calc(var(--dg-navigation-anatomy-height) - ${verticalPaddingPx * 2}px);}`,
+    `[data-drawgle-primary-nav] .dg-nav-item{box-sizing:border-box;position:relative;appearance:none;border:0;background:transparent;color:var(--dg-navigation-muted-content,var(--dg-color-text-low-emphasis,#94a3b8));min-width:0;min-height:var(--dg-sizing-min-touch-target,48px);padding:${anatomyLayout.itemPadding};display:flex;flex:1 1 0;flex-direction:${anatomyLayout.itemDirection};align-items:center;justify-content:center;gap:var(--dg-spacing-xxs,4px);border-radius:${itemRadius};font-family:var(--dg-typography-body-font-family,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);font-size:${isV3 ? geometryValue("--dg-navigation-label-size", "labelSizePx", design.labelSizePx, 11) : "12px"};line-height:1.15;font-weight:${isV3 ? design.labelWeight ?? 500 : 500};letter-spacing:0;cursor:pointer;overflow:hidden;}`,
     "[data-drawgle-primary-nav] .dg-nav-item[data-availability=\"planned\"]{cursor:default;}",
     "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"]{color:var(--dg-navigation-content,var(--dg-color-action-primary,#111827));}",
-    `[data-drawgle-primary-nav] .dg-nav-icon{display:flex;height:${isV3 ? activeWidth : `${anatomyLayout.iconBox}px`};width:${isV3 ? activeWidth : `${anatomyLayout.iconBox}px`};flex:0 0 ${isV3 ? activeWidth : `${anatomyLayout.iconBox}px`};align-items:center;justify-content:center;border-radius:var(--dg-radii-pill,9999px);background:transparent;color:currentColor;}`,
+    `[data-drawgle-primary-nav] .dg-nav-icon{display:flex;height:${anatomyLayout.iconBox}px;width:${anatomyLayout.iconBox}px;flex:0 0 ${anatomyLayout.iconBox}px;align-items:center;justify-content:center;border-radius:var(--dg-radii-pill,9999px);background:transparent;color:currentColor;}`,
     `[data-drawgle-primary-nav] .dg-nav-icon svg{height:${isV3 ? geometryValue("--dg-navigation-icon-size", "iconSizePx", design.iconSizePx, 20) : `${design.iconSizePx}px`};width:${isV3 ? geometryValue("--dg-navigation-icon-size", "iconSizePx", design.iconSizePx, 20) : `${design.iconSizePx}px`};stroke-width:2;}`,
-    `[data-drawgle-primary-nav] .dg-nav-label{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:currentColor;font-size:${isV3 ? geometryValue("--dg-navigation-label-size", "labelSizePx", design.labelSizePx, 11) : "12px"};font-weight:${isV3 ? `var(--dg-navigation-label-weight,${design.labelWeight ?? 500})` : "500"};${labelCss}}`,
+    `[data-drawgle-primary-nav] .dg-nav-label{display:block;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:currentColor;font-size:inherit;font-weight:inherit;line-height:1.15;${labelCss}}`,
     activeOnlyCss,
     activeCss,
     isV3
@@ -1336,7 +1417,9 @@ export function parseStoredNavigationPlan(value: unknown): NavigationPlan {
             : undefined,
           geometryOwner: value.appearance.geometryOwner === "reference-measurements"
             ? "reference-measurements"
-            : "project-tokens",
+            : value.appearance.geometryOwner === "navigation-plan"
+              ? "navigation-plan"
+              : "project-tokens",
           measuredFields: Array.isArray(value.appearance.measuredFields)
             ? value.appearance.measuredFields.filter((item): item is string => typeof item === "string").slice(0, 24)
             : [],

@@ -97,7 +97,7 @@ describe("state-scoped prompt construction", () => {
       "one outer surface radius",
       "one smaller inner/inset radius",
       "Use radii.app for outer cards",
-      "Use radii.inner for nested cards",
+      "Use radii.inner only for a child inset from its parent by spacing.xs",
       "Primary CTAs and segmented items use it only when the deterministic component shape policy explicitly authorizes that role",
       "Use border_widths.standard as the default border weight",
       "Use shadows.surface for standard elevated surfaces",

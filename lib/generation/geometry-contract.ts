@@ -53,7 +53,7 @@ const PILL_THRESHOLD_PX = 500;
 
 const CONTROL_TAGS = new Set(["input", "textarea", "select"]);
 
-const SURFACE_HINT = /\b(?:bg-|dg-surface|dg-bg-|border(?:$|-)|ring-|dg-shadow|shadow-)/;
+const SURFACE_HINT = /\b(?:bg-|dg-surface|dg-bg-|dg-action-|border(?:$|-)|ring-|dg-shadow|shadow-)/;
 
 type Insets = { top: number; right: number; bottom: number; left: number } | null;
 
@@ -257,7 +257,14 @@ const isShapeOwnedControl = ($: CheerioAPI, element: never) => {
   const node = $(element);
   const tagName = ((element as unknown as { tagName?: string }).tagName ?? "").toLowerCase();
   if (CONTROL_TAGS.has(tagName)) return true;
-  if (node.attr("role") === "tab" || node.attr("role") === "tablist") return true;
+  // A selected segment is both a button and a nested painted surface. Its
+  // curve is owned by the actual tablist/group inset, not by the generic
+  // button role. Let the concentric pass evaluate it even when the selected
+  // state carries the primary-action class.
+  const segmentedItem = node.attr("role") === "tab"
+    || (node.attr("aria-pressed") !== undefined && /^(?:tablist|group)$/.test(node.parent().attr("role") ?? ""));
+  if (segmentedItem) return false;
+  if (node.attr("role") === "tablist") return true;
   // Primary CTAs get their shape from the component shape policy, not from the
   // container they happen to sit in.
   const classes = classList(node.attr("class")).join(" ");

@@ -600,7 +600,7 @@ export interface NavigationAppearanceContract {
   source: "reference" | "project-native";
   evidenceSource?: "structured-reference" | "curated-catalog" | "project-native";
   evidenceConfidence?: "high" | "medium" | "low";
-  geometryOwner?: "reference-measurements" | "project-tokens";
+  geometryOwner?: "reference-measurements" | "navigation-plan" | "project-tokens";
   measuredFields?: string[];
   primary: NavigationDesignContract | null;
   contextualChrome: ContextualChromeAppearanceContract | null;

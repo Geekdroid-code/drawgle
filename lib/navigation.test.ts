@@ -292,10 +292,10 @@ describe("Production Navigation V2", () => {
     expect(styled.items.map((item) => item.label)).toEqual(["Catalog", "Search", "Saved", "Account"]);
     expect(styled.items.map((item) => item.label)).not.toContain("Finance Home");
     const shell = renderDeterministicNavigationShell(styled);
-    expect(shell).toContain('data-navigation-layout="contract-driven"');
+    expect(shell).toContain('data-navigation-layout="floating-content-dock"');
     expect(shell).toContain("--dg-navigation-anatomy-height:56px");
     expect(shell).toContain("calc(100% - (2 * 20px))");
-    expect(shell).toContain("var(--dg-navigation-max-width");
+    expect(shell).toContain("min(312px,calc(100% - (2 * 20px)))");
 
     // Changed 2026-08-12. "Saved" is a destination the product declared and has
     // not built yet, and it used to be filtered out of the dock entirely. The
@@ -309,7 +309,7 @@ describe("Production Navigation V2", () => {
     expect((shell.match(/data-nav-availability="generated"/g) ?? []).length).toBe(3);
   });
 
-  it("uses project token geometry for project-native V3 navigation", () => {
+  it("keeps planner construction while using project tokens only for missing V3 measurements", () => {
     const productPlan = normalizeNavigationPlan({
       navigationPlan: v2Plan([
         { id: "home", label: "Home", icon: "home", role: "Home overview", linkedScreenName: "Home" },
@@ -340,16 +340,112 @@ describe("Production Navigation V2", () => {
       },
     });
     const shell = renderDeterministicNavigationShell(styled);
-    expect(styled.appearance?.geometryOwner).toBe("project-tokens");
+    expect(styled.appearance?.geometryOwner).toBe("navigation-plan");
     expect(styled.appearance?.primary).toMatchObject({
-      anatomy: "compact-icon-rail",
-      labels: "hidden",
-      activeTreatment: "underline",
-      surface: "translucent",
+      anatomy: "floating-dock",
+      labels: "always",
+      activeTreatment: "icon-fill",
+      surface: "solid",
+      containerHeightPx: 60,
+      maxWidthPx: 300,
+      horizontalInsetPx: 18,
     });
-    expect(shell).toContain("var(--dg-navigation-container-height");
-    expect(shell).toContain("var(--dg-navigation-horizontal-inset");
-    expect(shell).toContain("border-radius:var(--dg-radii-inner)");
+    expect(shell).toContain('data-navigation-layout="floating-content-dock"');
+    expect(shell).toContain("--dg-navigation-anatomy-height:60px");
+    expect(shell).toContain("calc(100% - (2 * 18px))");
+    expect(shell).toContain("border-radius:18px");
+    expect(shell).toContain("border-radius:var(--dg-radii-pill,9999px)");
+  });
+
+  it("does not overwrite a planner-selected fixed glass rail with generic floating token defaults", () => {
+    const productPlan = normalizeNavigationPlan({
+      navigationPlan: {
+        ...v2Plan([
+          { id: "today", label: "Today", icon: "activity", role: "Daily activity", linkedScreenName: "Today" },
+          { id: "workouts", label: "Workouts", icon: "dumbbell", role: "Workout library", linkedScreenName: "Workouts" },
+          { id: "progress", label: "Progress", icon: "chart-line", role: "Progress analysis", linkedScreenName: "Progress" },
+        ], "project-native", "fixed-tab-rail"),
+        visualBrief: "Use a fixed-tab rail with a glass surface; a floating dock was rejected because labels need the width.",
+        design: {
+          ...design("fixed-tab-rail"),
+          width: "full",
+          surface: "glass",
+          activeTreatment: "underline",
+          radiusPx: 0,
+        },
+      },
+      screens: [
+        { name: "Today", type: "root", description: "Today" },
+        { name: "Workouts", type: "root", description: "Workouts" },
+        { name: "Progress", type: "root", description: "Progress" },
+      ],
+      navigationArchitecture: architecture,
+    });
+    const styled = applyReferenceNavigationAppearance({
+      navigationPlan: productPlan,
+      designTokens: {
+        tokens: {
+          navigation: {
+            anatomy: "floating-dock",
+            width: "inset",
+            labels: "always",
+            active_treatment: "tint",
+            surface_material: "solid",
+            container_height: "72px",
+            horizontal_inset: "24px",
+            horizontal_padding: "8px",
+            vertical_padding: "4px",
+          },
+        },
+      },
+    });
+
+    expect(styled.appearance?.primary).toMatchObject({
+      anatomy: "fixed-tab-rail",
+      width: "full",
+      surface: "glass",
+      activeTreatment: "underline",
+      radiusPx: 0,
+    });
+    const shell = renderDeterministicNavigationShell(styled);
+    expect(shell).toContain('data-navigation-layout="attached-edge-rail"');
+    expect(shell).toContain("width:100%");
+    expect(shell).toContain("border-radius:0");
+    expect(shell).toContain('data-navigation-active-treatment="underline"');
+  });
+
+  it.each([
+    ["fixed-tab-rail", "attached-edge-rail"],
+    ["floating-dock", "floating-content-dock"],
+    ["glass-dock", "inset-glass-ribbon"],
+    ["compact-icon-rail", "compact-icon-capsule"],
+    ["center-action-dock", "lifted-center-action"],
+  ] as Array<[NavigationAnatomy, string]>)
+  ("keeps the V3 %s anatomy as a distinct construction", (anatomy, layout) => {
+    const productPlan = normalizeNavigationPlan({
+      navigationPlan: v2Plan([
+        { id: "today", label: "Today", icon: "activity", role: "Daily activity", linkedScreenName: "Today" },
+        { id: "progress", label: "Progress", icon: "chart-line", role: "Progress analysis", linkedScreenName: "Progress" },
+        { id: "profile", label: "Profile", icon: "user", role: "Manage profile", linkedScreenName: "Profile" },
+      ], "project-native", anatomy),
+      screens: [
+        { name: "Today", type: "root", description: "Today" },
+        { name: "Progress", type: "root", description: "Progress" },
+        { name: "Profile", type: "root", description: "Profile" },
+      ],
+      navigationArchitecture: architecture,
+    });
+    const styled = applyReferenceNavigationAppearance({ navigationPlan: productPlan });
+    const shell = renderDeterministicNavigationShell(styled);
+
+    expect(styled.version).toBe(3);
+    expect(styled.appearance?.primary?.anatomy).toBe(anatomy);
+    expect(shell).toContain(`data-navigation-layout="${layout}"`);
+    expect(shell).toContain("--dg-navigation-visual-height:var(--dg-navigation-anatomy-height)");
+    if (anatomy === "fixed-tab-rail") expect(shell).toContain("width:100%;");
+    if (anatomy === "glass-dock") expect(shell).toContain("backdrop-filter:blur(12px)");
+    if (anatomy === "compact-icon-rail") expect(shell).toContain('data-navigation-labels="hidden"');
+    if (anatomy === "center-action-dock") expect(shell).toContain("dg-nav-item-center-action");
   });
 
   it("does not combine explicit back chrome with persistent navigation", () => {
@@ -458,7 +554,7 @@ describe("Production Navigation V2", () => {
       } as Record<NavigationAnatomy, string>)[anatomy]}"`);
       expect(shell.match(/data-nav-item-id=/g)).toHaveLength(count);
       expect(shell).toContain("--dg-navigation-visual-height:clamp(64px");
-      expect(shell).toContain("border-radius:var(--dg-radii-inner,");
+      expect(shell).toMatch(/\.dg-nav-item\{[^}]*border-radius:(?:\d+px|var\(--dg-radii-pill,9999px\))/);
       expect(shell).toContain("border-radius:var(--dg-radii-pill,9999px)");
       expect(shell).toContain(`--dg-navigation-overlap-buffer:${anatomy === "center-action-dock" ? 20 : 8}px`);
       if (anatomy === "fixed-tab-rail") expect(shell).toContain("width:100%;");

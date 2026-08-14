@@ -188,11 +188,11 @@ describe("token relationship validator repairs the shipped token set", () => {
 describe("concentric radius law on the shipped markup", () => {
   const tokens = normalizeDesignTokens({ tokens: shippedTokens });
 
-  it("repairs a 16px well inset 8px inside a 32px card", () => {
+  it("repairs a standard-inner well when the actual inset is 4px", () => {
     // Verbatim from the Discover Feed build.
     const $ = load(
       `<article class="dg-surface-card dg-shadow-surface dg-radius-app overflow-hidden min-w-0">
-         <div class="relative h-[212px] dg-radius-inner m-[var(--dg-spacing-xs)] overflow-hidden bg-[var(--dg-color-background-secondary)]"></div>
+         <div class="relative h-[212px] dg-radius-inner m-[var(--dg-spacing-xxs)] overflow-hidden bg-[var(--dg-color-background-secondary)]"></div>
        </article>`,
       {},
       false,
@@ -200,15 +200,15 @@ describe("concentric radius law on the shipped markup", () => {
     const diagnostics = applyGeometryContract({ $, designTokens: tokens, repairEnabled: true });
 
     expect(diagnostics.map((entry) => entry.code)).toContain("concentric_radius_repaired");
-    // radii.app 32px minus an 8px gap is 24px, which is radii.inset_xs.
-    expect($("div").attr("class")).toContain("dg-radius-inset-xs");
+    // radii.app 32px minus a 4px gap is 28px, which is radii.inset_xxs.
+    expect($("div").attr("class")).toContain("dg-radius-inset-xxs");
     expect($("div").attr("class")).not.toContain("dg-radius-inner");
   });
 
   it("repairs list rows inset inside a padded card", () => {
     // Verbatim from the User Profile build.
     const $ = load(
-      `<div class="dg-surface-card dg-radius-app p-[var(--dg-spacing-xs)]">
+      `<div class="dg-surface-card dg-radius-app p-[var(--dg-spacing-xxs)]">
          <div class="flex flex-col gap-[var(--dg-mobile-layout-element-gap)]">
            <button class="w-full dg-radius-inner px-[var(--dg-spacing-md)] bg-[var(--dg-color-background-primary)]">Order history</button>
          </div>
@@ -220,8 +220,8 @@ describe("concentric radius law on the shipped markup", () => {
     const codes = diagnostics.map((entry) => entry.code);
 
     expect(codes).toContain("concentric_radius_repaired");
-    expect($("button").attr("class")).toContain("dg-radius-inset-xs");
-    // 16px of child gap inside 8px of padding is a rhythm inversion.
+    expect($("button").attr("class")).toContain("dg-radius-inset-xxs");
+    // 16px of child gap inside 4px of padding is a rhythm inversion.
     expect(codes).toContain("nested_gap_exceeds_padding");
   });
 

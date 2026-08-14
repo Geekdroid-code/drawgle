@@ -256,13 +256,13 @@ const normalizeRadiusHierarchy = (value: UnknownRecord, standardInsetGapPx: numb
     && suppliedInner >= 0
     && (app === 0 ? suppliedInner === 0 : suppliedInner < app);
 
-  // `inner` means "the radius of a surface nested at the standard element gap".
-  // With a known gap the concentric law owns it, and an authored value survives
+  // `inner` means "the radius of a surface nested at the standard component inset".
+  // With a known inset the concentric law owns it, and an authored value survives
   // only when it already satisfies that law within a 2px optical tolerance — a
   // freely chosen inner radius is the single most common source of the "nested
   // corner looks tighter than its parent" defect.
   //
-  // Without a gap there is nothing to be concentric with, so the original
+  // Without an inset there is nothing to be concentric with, so the original
   // proportional derivation stands and previously stored token sets keep their
   // exact hierarchy.
   const inner = (() => {
@@ -428,7 +428,16 @@ const enforcePlatformConstraints = (tokens: DesignTokenValues | undefined) => {
     isGradientValue(legacyGradients.action_primary) ? legacyGradients.action_primary : undefined,
     buildActionGradient(next),
   );
-  const standardInsetGapPx = parsePixelValue(next.mobile_layout?.element_gap);
+  // `radii.inner` is the standard *component inset* relationship, not the
+  // distance between sibling elements. Using `mobile_layout.element_gap` here
+  // made a perfectly ordinary 16px outer radius collapse to 4px whenever the
+  // page rhythm happened to use a 12px element gap. Components such as
+  // segmented controls are usually inset by spacing.xxs/xs (4-8px), while
+  // element_gap describes the space *between* those controls. Prefer the
+  // canonical xs inset; keep element_gap only as a legacy fallback for token
+  // sets that do not carry a spacing scale.
+  const standardInsetGapPx = parsePixelValue(next.spacing?.xs)
+    ?? parsePixelValue(next.mobile_layout?.element_gap);
   const normalizedRadii = normalizeRadiusHierarchy(legacyRadii, standardInsetGapPx);
 
   next.mobile_layout = {

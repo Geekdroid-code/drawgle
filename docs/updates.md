@@ -52,8 +52,8 @@ The normalized per-screen description and layout contract go to the builder. Raw
 
 ### Concentric geometry
 
-- A nested surface's radius equals its parent's radius minus the gap between their edges. `radii.inner` is derived from the element gap; `radii.inset_*` provides one correct value per spacing step, exposed as `dg-radius-inset-*`.
-- The normalizer walks real DOM nesting and repairs radii that violate the law, running after the role-based rules so a correct value is not rewritten back to the generic token. Interactive controls and primary CTAs keep their shape-policy radius.
+- A nested surface's radius equals its parent's radius minus the gap between their edges. `radii.inner` is derived from `spacing.xs`, the standard component inset; the page-level sibling `element_gap` never determines a child corner. `radii.inset_*` provides one correct value per spacing step, exposed as `dg-radius-inset-*`.
+- The normalizer walks real DOM nesting and repairs radii that violate the law, running after the role-based rules so a correct value is not rewritten back to the generic token. Interactive controls and primary CTAs keep their shape-policy radius; selected items inside segmented `tablist` or `group` controls use the group's actual padding.
 - A child gap wider than the padding of the surface containing it is a rhythm inversion and is corrected. `DRAWGLE_GEOMETRY_CONTRACT_ENABLED=false` makes both diagnostics-only.
 
 ### Layout contract v3
@@ -109,11 +109,20 @@ The normalized per-screen description and layout contract go to the builder. Raw
 - Product architecture owns whether navigation exists, its destinations, labels, links, and root/detail roles.
 - Reference evidence may supply appearance without supplying destination semantics.
 - A root dock remains valid appearance evidence even when detail reference screens intentionally omit it.
-- Version-3 navigation renders from an appearance recipe rather than an anatomy-specific dimension template.
+- Version-3 navigation renders distinct fixed-rail, floating-dock, glass-ribbon, compact-icon, and center-action compositions from the approved appearance recipe; anatomy is never collapsed into one shared grid template.
 - Legacy version-1 and version-2 stored plans remain readable and render through their compatibility behavior.
-- New project-native V3 dimensions come from navigation/design tokens. Reference-owned dimensions come only from validated measurements. Curated catalog tags may select coarse anatomy/material but never invent pixel measurements.
-- Planned-but-unbuilt destinations remain in roadmap semantics and are not rendered as disabled V3 items.
+- The product planner owns project-native navigation anatomy, width mode, label policy, active treatment, material, radius, item gap, icon size, and safe-area decision. Global tokens own navigation color, typography, border, elevation identity, and bounded implementation dimensions such as container height and padding. Generic token-recipe defaults never overwrite a completed planner choice. Reference-owned dimensions come only from validated measurements; curated catalog tags may select coarse anatomy/material but never invent pixel measurements.
+- Planned-but-unbuilt destinations remain visible as inert items once the shell has at least one real destination, preserving the declared information architecture without fabricating routes.
 - Explicit back, modal, immersive, checkout, authentication, or finite-flow chrome suppresses the bottom dock.
+
+### Navigation fidelity and radius ownership — 2026-08-14
+
+- Production audit: 27 of 33 recent enabled projects stored `floating-dock`. In project `86ea9c57-700d-462a-a3b3-a0daaf3eb650`, the planner explicitly selected a fixed glass rail and rejected a floating dock, then generic navigation-token defaults replaced that choice with `floating-dock / inset / tint / solid`.
+- The post-planner appearance pass may supply bounded implementation dimensions from the token recipe. It cannot replace planner-owned anatomy, width, labels, active treatment, surface, radius, item gap, icon size, or safe-area decision.
+- The V3 renderer now preserves anatomy-specific width, attachment, radius, label, and item-layout behavior. Base icon boxes are independent from active-indicator dimensions, preventing a default 48px rounded well around every icon.
+- Active treatments are semantically distinct: `tint` changes color only, `icon-fill` paints the active icon well, `compact-chip` paints the item, and `underline` renders a bounded 3px indicator.
+- Content-width navigation estimates its minimum label-safe width against the 390px viewport and still applies deterministic ellipsis as the last-resort overflow behavior.
+- A standard inner radius is `outer - spacing.xs`; component-specific children, including segmented selections and navigation items, use `outer - actual component padding`. This fixes the 16px outer / 4px inner mismatch without hard-coding a radius for any project.
 
 ### UI contract repair and QA
 

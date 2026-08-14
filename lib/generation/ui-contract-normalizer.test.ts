@@ -68,6 +68,25 @@ describe("generated UI contract normalization", () => {
     expect(deriveComponentShapePolicy({ prompt: "Use pill-shaped segmented tabs." }).segmentedItem).toBe("pill");
   });
 
+  it("uses the actual segmented-control inset for selected item radii", () => {
+    const result = normalizeGeneratedUiContracts({
+      designTokens: normalizeDesignTokens({
+        tokens: {
+          radii: { app: "16px", inner: "8px", pill: "9999px" },
+          spacing: { xxs: "4px", xs: "8px", sm: "12px" },
+        },
+      }),
+      repairEnabled: true,
+      code: `<div role="group" class="dg-radius-app p-[var(--dg-spacing-xxs)] bg-slate-100">
+        <button aria-pressed="true" class="dg-action-primary dg-radius-inner">Week</button>
+        <button aria-pressed="false" class="dg-radius-inner">Month</button>
+      </div>`,
+    });
+
+    expect(result.code).toContain("dg-radius-inset-xxs");
+    expect(result.report.repairs).toContainEqual(expect.objectContaining({ code: "concentric_radius_repaired" }));
+  });
+
   it("supplies accessible semantic status roles and repairs only semantically identified status colors", () => {
     const status = normalizeDesignTokens({
       tokens: { color: { background: { primary: "#ffffff" }, status: {

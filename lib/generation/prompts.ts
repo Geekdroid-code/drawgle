@@ -733,7 +733,7 @@ For shape and elevation, use one outer surface radius, one smaller inner/inset r
     "spacing": { "none": "0px", "xxs": "px", "xs": "px", "sm": "px", "md": "px", "lg": "px", "xl": "px", "xxl": "px" },
     "mobile_layout": { "screen_margin": "px", "safe_area_top": "16px", "safe_area_bottom": "16px", "section_gap": "px", "element_gap": "px" },
     "sizing": { "min_touch_target": "48px", "standard_button_height": "px", "standard_input_height": "px", "icon_small": "px", "icon_standard": "px", "bottom_nav_height": "px" },
-    "radii": { "app": "px", "inner": "px smaller than app", "pill": "9999px" },
+    "radii": { "app": "px", "inner": "app radius minus spacing.xs (the standard component inset)", "pill": "9999px" },
     "border_widths": { "standard": "px" },
     "shadows": { "none": "none", "surface": "shadow string", "overlay": "shadow string" },
     "gradients": {
@@ -780,7 +780,7 @@ Rules:
 - spacing and mobile_layout must be chosen intentionally from the approved evidence, but should still read as one consistent rhythm system across the product. screen_margin defaults to 16px and needs explicit measured evidence to be larger.
 - radii, border_widths, and shadows must define one coherent app-wide geometry/elevation language, not multiple interchangeable options.
 - Use radii.app for outer cards, sheets, panels, inputs, and navigation shells.
-- Use radii.inner for nested cards, inset panels, standard buttons, segmented items, and active navigation items. It must be smaller than radii.app unless both are 0px in a sharp system.
+- Use radii.inner only for a child inset from its parent by spacing.xs, the standard component inset. It must equal max(0px, radii.app - spacing.xs). A child using another padding step uses the matching concentric inset value instead; never reuse radii.inner merely because the child is nested.
 - Use radii.pill for chips, badges, avatars, and circular icon wells. Primary CTAs and segmented items use it only when the deterministic component shape policy explicitly authorizes that role.
 - Use border_widths.standard as the default border weight across the app.
 - Use shadows.surface for standard elevated surfaces and shadows.overlay only for stronger overlays like sheets or floating panels.
@@ -865,7 +865,7 @@ const buildStrictDesignContract = (designTokens?: DesignTokens | null) => {
 
   return [
     `- Outer surface radius: ${appRadius} (cards, sheets, panels, fields, and navigation shells)`,
-    `- Inner container radius: ${innerRadius} (nested cards, inset panels, segmented tabs, and active navigation items)`,
+    `- Standard inner radius: ${innerRadius} (only for a child inset by spacing.xs)`,
     `- Pill radius: ${pillRadius} (use only for true capsules and circular wells)`,
     "- Concentric guidance: a nested surface usually reads best at its parent's radius minus the gap between their edges, and the inset tokens below give that value. It is guidance, not a law — depart from it when the composition is better for it.",
     insetRadii.length ? `- Concentric inset radii: ${insetRadii.join("; ")}` : null,
@@ -873,7 +873,7 @@ const buildStrictDesignContract = (designTokens?: DesignTokens | null) => {
     `- Field radius role: radii.${shapePolicy?.field ?? "app"}`,
     `- Standard button radius role: radii.${shapePolicy?.standardButton ?? "inner"}`,
     `- Primary CTA radius role: radii.${shapePolicy?.primaryCta ?? "inner"}`,
-    `- Segmented container/item radius roles: radii.${shapePolicy?.segmentedContainer ?? "app"} / radii.${shapePolicy?.segmentedItem ?? "inner"}`,
+    `- Segmented container radius role: radii.${shapePolicy?.segmentedContainer ?? "app"}. Its selected item uses the concentric inset radius matching the control's actual padding; radii.${shapePolicy?.segmentedItem ?? "inner"} is valid only when that padding is spacing.xs.`,
     `- Shape evidence: ${shapePolicy?.evidenceSource ?? "default"}; ${shapePolicy?.rationale ?? "No explicit capsule exception was approved."}`,
     `- Standard border width: ${standardBorder}`,
     `- Standard surface shadow: ${surfaceShadow}`,
