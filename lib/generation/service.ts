@@ -1330,13 +1330,12 @@ const formatScreenFamilyContract = (contract: ScreenFamilyContract) => [
     : null,
 ].filter(Boolean).join("\n");
 
-const normalizeScreenBriefsWithFamilyContract = ({
+const normalizeScreenBriefs = ({
   screens,
   prompt,
 }: {
   screens: ScreenPlan[];
   prompt: string;
-  screenFamilyContract?: ScreenFamilyContract;
 }) => screens.map((screen) => {
   const profileContext = /\b(profile|settings|account|user)\b/i.test(screen.name)
     ? [
@@ -3470,9 +3469,8 @@ export async function planUiFlow({
       enforced.screens.map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture })),
       referenceAnalysis,
     );
-    const screens = normalizeScreenBriefsWithFamilyContract({
+    const screens = normalizeScreenBriefs({
       prompt,
-      screenFamilyContract,
       screens: ensureBuilderGradeScreenBriefs({
         referenceAnalysis,
         mode: plannerMode,
@@ -3677,9 +3675,8 @@ export async function planUiFlow({
     })),
     referenceAnalysis,
   );
-  const screens = normalizeScreenBriefsWithFamilyContract({
+  const screens = normalizeScreenBriefs({
     prompt,
-    screenFamilyContract,
     screens: ensureBuilderGradeScreenBriefs({
       referenceAnalysis,
       mode: plannerMode,
