@@ -1333,11 +1333,10 @@ const formatScreenFamilyContract = (contract: ScreenFamilyContract) => [
 const normalizeScreenBriefsWithFamilyContract = ({
   screens,
   prompt,
-  screenFamilyContract,
 }: {
   screens: ScreenPlan[];
   prompt: string;
-  screenFamilyContract: ScreenFamilyContract;
+  screenFamilyContract?: ScreenFamilyContract;
 }) => screens.map((screen) => {
   const profileContext = /\b(profile|settings|account|user)\b/i.test(screen.name)
     ? [
@@ -1347,19 +1346,13 @@ const normalizeScreenBriefsWithFamilyContract = ({
       ].join("\n")
     : null;
 
-  const familyAppendix = [
-    "Shared product family requirements:",
-    formatScreenFamilyContract(screenFamilyContract),
-    profileContext,
-  ].filter(Boolean).join("\n\n");
-
-  if (screen.description.includes("Shared product family requirements:")) {
+  if (!profileContext || screen.description.includes("Contextual profile/settings repair:")) {
     return screen;
   }
 
   return {
     ...screen,
-    description: `${screen.description}\n\n${familyAppendix}`.slice(0, 9000),
+    description: `${screen.description}\n\n${profileContext}`.slice(0, 9000),
   };
 });
 
