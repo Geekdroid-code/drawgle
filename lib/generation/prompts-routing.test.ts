@@ -140,6 +140,8 @@ describe("state-scoped prompt construction", () => {
     ];
     const screenRules = [
       "SCREEN BRIEFS ONLY",
+      "Human design language vs. tokens",
+      "Layout geometry vs. token implementation",
       "Description quality",
       "900-1800 chars",
       "no generic stacked blocks",
@@ -152,6 +154,8 @@ describe("state-scoped prompt construction", () => {
     for (const mode of modes) {
       expectContainsEvery(plannerBlueprintStepInstruction(mode), blueprintRules);
       expectContainsEvery(plannerScreenBriefStepInstruction(mode), [...blueprintRules.slice(0, 9), ...screenRules]);
+      expect(plannerScreenBriefStepInstruction(mode)).toContain("Do not output Drawgle utility names, CSS variables, Tailwind classes, token identifiers");
+      expect(plannerScreenBriefStepInstruction(mode)).toContain("Layout geometry is the planner responsibility");
     }
   });
 

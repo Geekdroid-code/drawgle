@@ -2762,9 +2762,6 @@ export async function planScreenBriefsForBuild({
   });
   const resolvedDesignStyle = designStyle ?? getDesignStylePack(charter.designStyle?.id) ?? null;
   const designStyleContract = formatDesignStyleContract(resolvedDesignStyle);
-  const tokenContext = designTokens && hasApprovedDesignTokens(designTokens)
-    ? buildTokenPromptContext(designTokens)
-    : null;
 
   const blueprint = {
     requires_bottom_nav: Boolean(navigationPlan?.enabled),
@@ -2798,7 +2795,6 @@ export async function planScreenBriefsForBuild({
         `User request:\n${prompt}`,
         projectContext?.trim() ? `Project context:\n${projectContext.trim()}` : null,
         designStyleContract ? `Design style contract:\n${designStyleContract}` : null,
-        tokenContext ? `Design tokens:\n${tokenContext}` : null,
         "SCREEN PLANNING TASK: Reference direction, design system, and project blueprint already exist for this project.",
         "Create builder-ready screen briefs for ONLY the locked screens below. Treat suggestion text as intent only — expand into full construction briefs.",
         "Keep names and types. Fill all seven description labels, layout_contract, reference_transfer, and asset_needs (use [] only when no bitmaps are needed).",
@@ -3339,7 +3335,7 @@ export async function planUiFlow({
 
   if (parsedBlueprint.success) {
     const screenParts: Array<Record<string, unknown>> = [
-      ...parts,
+      ...parts.filter((part) => typeof part.text !== "string" || !part.text.startsWith("Approved Token Context:\n")),
       {
         text: `Approved Project Blueprint:\n${JSON.stringify(parsedBlueprint.data, null, 2)}`,
       },

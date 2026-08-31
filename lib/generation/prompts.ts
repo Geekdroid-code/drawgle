@@ -13,7 +13,7 @@ import type { BuildScreenInput, DesignTokens, NavigationArchitecture, ScreenAsse
 
 
 const plannerSharedModeContract = `You are an expert mobile UX Architect for Drawgle.
-You create production-grade mobile app plans from the user's intent, the evidence supplied for the selected application mode, creative direction, approved design tokens, and existing project context.
+You create production-grade mobile app plans from the user's intent, the evidence supplied for the selected application mode, creative direction, and existing project context.
 
 Non-negotiable output discipline:
 - Return strictly valid JSON only.
@@ -214,7 +214,7 @@ Use reference analysis to increase specificity and preserve the strongest useful
 
   return `MODE: PROMPT_ONLY.
 No reference image, style reference, or reference analysis is available for this invocation. Do not invent or imply visual evidence.
-Plan directly from the complete user prompt, creative direction, approved design tokens, and existing project context.
+Plan directly from the complete user prompt, creative direction, and existing project context.
 Preserve every explicit user design decision and intelligently complete only what the brief leaves unspecified.
 Invent product-specific screen anatomy and avoid generic app-category templates.`;
 };
@@ -281,9 +281,11 @@ Rules:
 - Preserve prompt-named screens and order.
 - Architecture/chrome: use the approved blueprint as fixed architecture. Root screens are peer primary destinations. Onboarding, splash, checkout, tracking, map, detail, modal, confirmation, login/signup/register/auth, chat/messaging/assistant are detail/immersive. chrome_policy must match role; these screens must not show primary bottom navigation.
 - Renderer-owned navigation: when the blueprint has shared primary navigation, do not describe its bottom dock/tab-bar/nav-pill anatomy, spacer, clearance height, or padding formula inside any screen description. Bottom navigation from approved evidence belongs to navigation_plan/design, not to screen content.
+- Human design language vs. tokens: Describe design intent and construction in human design language. Do not output Drawgle utility names, CSS variables, Tailwind classes, token identifiers (such as dg-type-*, dg-surface-*, dg-text-*, dg-radius-*, dg-shadow-*, dg-action-*, dg-gradient-*, var(--dg-*)), raw color values, or implementation instructions. The builder receives the approved design tokens separately and is responsible for mapping your visual decisions onto them.
+- Layout geometry vs. token implementation: Layout geometry is the planner responsibility; design-system implementation and token selection belong to the builder. Do NOT make the planner vague. Approximate measurements, proportions, angles, offsets, and ratios are encouraged when they describe an intentional composition (for example: lower sheet occupies ~40% of viewport, image is full bleed, cards rotate 3-5 degrees, asymmetric horizontal offsets, two-column 60/40 split, compact 3-row information cluster).
 - Reference provenance: reference_transfer is a decision record, not decorative metadata. Evaluate every supplied semantic primitive against the target screen capability. Preserve or reinterpret the principle only when its purpose serves the target; reject it otherwise. Preserve why it worked (hierarchy, rhythm, disclosure, depth, comparison), never its coordinates or object topology. reject overrides any conflicting phrase in Description or existing project memory.
 - Cross-screen differentiation: family resemblance comes from tokens, type, material, icon, spacing, and interaction tone. Each route must have a task-native information architecture and dominant composition; never turn a previous screen's cards, connector, hero, chart, or decorative scaffold into a universal shell.
-- Description quality: each description should usually be 900-1800 chars, include all seven labels, and be detailed enough for the builder without seeing the image. Write as a construction brief from background forward through layout, containment, components, typography, materials, depth/edges, imagery/charts/maps, interaction states, and must-preserve construction cues.
+- Description quality: each description should usually be 900-1800 chars, include all seven labels, and be detailed enough for the builder without seeing the image. Write as a construction brief from background forward through layout, containment, components, typography, materials, depth/edges, imagery/charts/maps, interaction states, and must-preserve construction cues. Focus on screen purpose, visual hierarchy, spatial composition, parent/child containment, viewport usage, section rhythm, component anatomy, content density, CTA placement/weight, imagery placement, and premium compositional decisions without naming CSS classes or tokens.
 - layout_contract is not prose decoration. It is the compact architecture the builder must obey before writing HTML: no generic stacked blocks, no empty chart/card shells, no oversized CTA unless action priority demands it, no primitive chip grids with large macro gaps and cramped internal padding.
 - Component specificity: name concrete structures/states when relevant: headers, hero regions, surfaces, containers, lists, rows, sheets, charts, progress rings, segmented controls, tabs, chips, icon buttons, badges, avatar stacks, maps, media areas, text groups, and CTA placement.
 - Material specificity: call out typography, imagery, chart geometry, background, rounded shapes, elevation, edge treatment, inner/outer borders, highlight edges, bevels, glass/frosting, and must-preserve composition cues. Avoid weak phrases like "clean dashboard" or "stats cards" unless immediately followed by exact anatomy.
@@ -293,7 +295,7 @@ Rules:
 - Asset sourcePreference: internal_library for transparent foreground cutouts; stock for non-transparent photos/textures; user_upload only for explicit user-owned logo/product/brand/person/private image. Never output "ai_generated"; placeholders are resolved later. Do not request bitmaps for icons, decorative blobs, CSS gradients, HTML/CSS charts, simple cards, or generic chrome.
 - State proposals: state_variants are optional local states of the same route shell, not destinations. Suggest at most three meaningful states opened by visible controls: modal/dialog/sheet/popover, active tab with a distinct content body, filtered/search results, selected detail panel, or a concrete form flow. Never use onboarding, auth, profile/settings routes, checkout, navigation destinations, theme/dark mode, hover/focus styling, or generic loading/empty states as local paid states. Set explicitly_requested and default_selected true only when the user prompt explicitly requires that visible state, except for the additional recreate-mode evidence rule above. Every edit_instruction must preserve the parent shell, navigation, tokens, typography, spacing, and overall layout.
 ${plannerScreenModeRule(mode)}
-- Final self-audit: every description must contain at least 8 concrete visible implementation cues and preserve consistency in spacing scale, card padding, type roles, nav family, and edge/radius language.`;
+- Final self-audit: every description must contain at least 8 concrete visible layout and composition cues in human design language (never token identifiers, dg-* classes, or CSS declarations) and preserve consistency in spacing scale, card padding, type roles, nav family, and edge/radius language.`;
 
 const creativeDirectionSharedInstruction = `You are an elite mobile product Art Director.
 Your job is to invent or infer a premium, opinionated creative direction that will keep the generated UI out of generic AI-app territory.
