@@ -130,7 +130,7 @@ describe("state-scoped prompt construction", () => {
       "Return strictly valid JSON only",
       "390px mobile viewport",
       "one spacing scale, typography hierarchy, surface language, icon rhythm, and navigation family",
-      "Every screen brief must include these labels",
+      "Every screen brief must include these exact uppercase section labels",
       "Every screen must also include layout_contract",
       "Each screen brief must be builder-ready",
       "Push past generic list layouts",
@@ -140,9 +140,17 @@ describe("state-scoped prompt construction", () => {
     ];
     const screenRules = [
       "SCREEN BRIEFS ONLY",
+      "SCREEN PURPOSE:",
+      "INFORMATION HIERARCHY:",
+      "LAYOUT ANATOMY:",
+      "KEY COMPONENTS:",
+      "PREMIUM DESIGN DECISIONS:",
+      "INTERACTION:",
+      "MUST PRESERVE:",
+      "ScreenFamilyContract is CONTEXT, not OUTPUT",
+      "Screen-specific decisions over vague placeholders",
       "Human design language vs. tokens",
       "Layout geometry vs. token implementation",
-      "Description quality",
       "900-1800 chars",
       "no generic stacked blocks",
       "Component specificity",
@@ -156,6 +164,8 @@ describe("state-scoped prompt construction", () => {
       expectContainsEvery(plannerScreenBriefStepInstruction(mode), [...blueprintRules.slice(0, 9), ...screenRules]);
       expect(plannerScreenBriefStepInstruction(mode)).toContain("Do not output Drawgle utility names, CSS variables, Tailwind classes, token identifiers");
       expect(plannerScreenBriefStepInstruction(mode)).toContain("Layout geometry is the planner responsibility");
+      expect(plannerScreenBriefStepInstruction(mode)).toContain("ScreenFamilyContract is CONTEXT, not OUTPUT");
+      expect(plannerScreenBriefStepInstruction(mode)).toContain("NEVER restate, echo, or summarize them inside the screen description");
     }
   });
 

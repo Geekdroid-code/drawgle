@@ -2004,6 +2004,16 @@ const salvageProjectCharterFromRawPlan = ({
 };
 
 const BUILDER_BRIEF_MARKERS = [
+  "SCREEN PURPOSE:",
+  "INFORMATION HIERARCHY:",
+  "LAYOUT ANATOMY:",
+  "KEY COMPONENTS:",
+  "PREMIUM DESIGN DECISIONS:",
+  "INTERACTION:",
+  "MUST PRESERVE:",
+] as const;
+
+const LEGACY_BUILDER_BRIEF_MARKERS = [
   "Reference DNA:",
   "Visual Goal:",
   "Layout Anatomy:",
@@ -2014,7 +2024,8 @@ const BUILDER_BRIEF_MARKERS = [
 ] as const;
 
 const hasBuilderGradeBrief = (description: string) =>
-  BUILDER_BRIEF_MARKERS.every((marker) => description.includes(marker));
+  BUILDER_BRIEF_MARKERS.every((marker) => description.includes(marker)) ||
+  LEGACY_BUILDER_BRIEF_MARKERS.every((marker) => description.includes(marker));
 
 /** True when a plan is a suggestion seed / not builder-grade (must be planned before build). */
 export const screenPlanNeedsBuildEnrichment = (screen: ScreenPlan): boolean => {
@@ -2057,18 +2068,19 @@ const ensureBuilderGradeScreenBriefs = ({
 
     const enrichedDescription = mode === "recreate"
       ? [
-          `Reference DNA: Rebuild this as a premium Drawgle screen using reference screen ${referenceScreen.index} (${referenceScreen.suggestedRole}) as the strongest visual and structural cue.`,
+          `SCREEN PURPOSE: Rebuild this as a premium Drawgle screen using reference screen ${referenceScreen.index} (${referenceScreen.suggestedRole}) as the primary structural and layout cue.`,
+          `INFORMATION HIERARCHY: Anchor the primary task and key metrics immediately in the initial viewport, followed by supporting workflow controls.`,
           buildStructuredScreenDescription(referenceScreen),
           `Planner Brief:\n${screen.description}`,
         ].join("\n\n").slice(0, 8000)
       : [
-          "Reference DNA: Preserve only the approved palette, typography, materials, iconography, and density; source anatomy is not a layout template.",
-          `Visual Goal: Design ${screen.name} around its primary user task and product content model.`,
-          "Layout Anatomy: Invent a task-native hierarchy and dominant composition; do not repeat the reference screen's section order, connector/decorative scaffold, hero structure, or card topology.",
-          "Key Components: Use only components required by this screen's workflow, with project-consistent construction and states.",
-          `Visual Styling: ${referenceAnalysis?.designSystemSignals.surfaces ?? "Use approved project surfaces."} ${referenceAnalysis?.designSystemSignals.typography ?? "Use approved project typography."}`,
-          "Interaction Notes: Make controls and feedback native to this screen's workflow instead of imitating source interactions.",
-          "Must Preserve: Approved tokens, type roles, spacing rhythm, icon weight, material quality, and readable 390px viewport fit.",
+          `SCREEN PURPOSE: Help users accomplish ${screen.name.toLowerCase()} tasks with a focused, intuitive mobile workflow.`,
+          `INFORMATION HIERARCHY: Prioritize primary actions and core data in the top viewport, followed by supporting sections and scannable content.`,
+          `LAYOUT ANATOMY: Top-to-bottom structured mobile layout with focused header region, primary content body, and clear action placements.`,
+          `KEY COMPONENTS: Task-specific controls, structured cards, data rows, and input surfaces tailored to ${screen.name}.`,
+          `PREMIUM DESIGN DECISIONS: Intentional spatial grouping, balanced density, and clear focal progression without generic template patterns.`,
+          `INTERACTION: Direct touch targets, clear active and pressed states, and immediate feedback for user inputs.`,
+          `MUST PRESERVE: Screen-specific information hierarchy, workflow progression, and focal layout anchors.`,
           `Planner Brief:\n${screen.description}`,
         ].join("\n\n").slice(0, 8000);
 
@@ -2797,7 +2809,7 @@ export async function planScreenBriefsForBuild({
         designStyleContract ? `Design style contract:\n${designStyleContract}` : null,
         "SCREEN PLANNING TASK: Reference direction, design system, and project blueprint already exist for this project.",
         "Create builder-ready screen briefs for ONLY the locked screens below. Treat suggestion text as intent only — expand into full construction briefs.",
-        "Keep names and types. Fill all seven description labels, layout_contract, reference_transfer, and asset_needs (use [] only when no bitmaps are needed).",
+        "Keep names and types. Fill all seven description labels (SCREEN PURPOSE, INFORMATION HIERARCHY, LAYOUT ANATOMY, KEY COMPONENTS, PREMIUM DESIGN DECISIONS, INTERACTION, MUST PRESERVE), layout_contract, reference_transfer, and asset_needs (use [] only when no bitmaps are needed).",
         `Locked screens:\n${JSON.stringify(seedScreens, null, 2)}`,
       ].filter(Boolean).join("\n\n"),
     },
