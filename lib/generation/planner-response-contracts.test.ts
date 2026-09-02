@@ -4,10 +4,11 @@ vi.mock("server-only", () => ({}));
 
 import {
   normalizePlannerBlueprintResponse,
-  plannerBlueprintResponseJsonSchema,
-  plannerScreenBriefsResponseJsonSchema,
 } from "@/lib/generation/planner-response-contracts";
-import { canonicalizePlannerBlueprintForScreenPlanning } from "@/lib/generation/service";
+import {
+  canonicalizePlannerBlueprintForScreenPlanning,
+  canonicalizePlannerBlueprintResponseText,
+} from "@/lib/generation/service";
 
 const baseBlueprint = () => ({
   requires_bottom_nav: true,
@@ -118,6 +119,14 @@ describe("planner response production contracts", () => {
     expect(canonical.issues.some((issue) => issue.startsWith("roadmap.items"))).toBe(true);
   });
 
+  it("turns truncated planner JSON into a repairable validation result", () => {
+    const canonical = canonicalizePlannerBlueprintResponseText('{"roadmap":{"items":[');
+
+    expect(canonical.blueprint).toBeNull();
+    expect(canonical.navigationRecovered).toBe(false);
+    expect(canonical.issues).toEqual(["response: The model did not return valid JSON."]);
+  });
+
   it("normalizes navigation aliases without changing unrelated blueprint content", () => {
     const raw = baseBlueprint();
     const normalized = normalizePlannerBlueprintResponse({
@@ -134,17 +143,5 @@ describe("planner response production contracts", () => {
       label: "Portfolio",
       role: "Portfolio destination and primary product area.",
     });
-  });
-
-  it("declares required structured-output fields for both planning stages", () => {
-    const blueprintRequired = plannerBlueprintResponseJsonSchema.required;
-    const screenRequired = plannerScreenBriefsResponseJsonSchema
-      .properties.screens.items.required;
-
-    expect(blueprintRequired).toContain("navigation_plan");
-    expect(blueprintRequired).toContain("roadmap");
-    expect(screenRequired).toContain("layout_contract");
-    expect(screenRequired).toContain("reference_transfer");
-    expect(screenRequired).toContain("asset_needs");
   });
 });

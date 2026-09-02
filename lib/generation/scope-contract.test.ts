@@ -20,6 +20,35 @@ describe("generation scope reference provenance", () => {
     expect(llmCalls).toBe(0);
   });
 
+  it("locks ordinary numbered screen lists without an LLM call", async () => {
+    let llmCalls = 0;
+    const intent = await analyzePromptScreenIntent({
+      prompt: [
+        "Design a premium travel app.",
+        "Create these screens:",
+        "1. Trips — upcoming and past trips.",
+        "2. Trip Overview — dates, travelers, and saved places.",
+        "3. Edit Trip — edit dates and privacy.",
+        "4. Place Details — photos, ratings, and votes.",
+        "5. Day Itinerary — a rearrangeable timeline.",
+      ].join("\n\n"),
+      llmLog: () => {
+        llmCalls += 1;
+      },
+    });
+
+    expect(intent.promptScreenCount).toBe(5);
+    expect(intent.namedScreenCount).toBe(5);
+    expect(intent.screens?.map((screen) => screen.name)).toEqual([
+      "Trips",
+      "Trip Overview",
+      "Edit Trip",
+      "Place Details",
+      "Day Itinerary",
+    ]);
+    expect(llmCalls).toBe(0);
+  });
+
   it("keeps single-screen mode deterministic without semantic interpretation", async () => {
     let llmCalls = 0;
     const intent = await analyzePromptScreenIntent({

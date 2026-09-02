@@ -9,6 +9,7 @@ import { getOpenRouterScreenBuildModel, getScreenBuilderProvider, getScreenEdito
 import { hasApprovedDesignTokens, normalizeDesignTokens } from "@/lib/design-tokens";
 import { applyEdits } from "@/lib/diff-engine";
 import { buildScopedEditContext } from "@/lib/generation/block-index";
+import { parseNumberedScreenSections } from "@/lib/generation/explicit-screen-sections";
 import { filterMeaningfulStateVariants } from "@/lib/agent/state-variant-guardrails";
 import {
   inferSemanticCategory,
@@ -49,11 +50,7 @@ import { appendRequiredAnchors, DRAWGLE_GENERATION_COMPLETE_SENTINEL, extractReq
 import { buildRepairSurroundingContext, type RepairTarget } from "@/lib/generation/screen-repair";
 import { createProjectReferenceDna } from "@/lib/generation/reference-dna";
 import { buildProjectRoadmap, roadmapSlug, screenRoadmapKey } from "@/lib/generation/project-roadmap";
-import {
-  normalizePlannerBlueprintResponse,
-  plannerBlueprintResponseJsonSchema,
-  plannerScreenBriefsResponseJsonSchema,
-} from "@/lib/generation/planner-response-contracts";
+import { normalizePlannerBlueprintResponse } from "@/lib/generation/planner-response-contracts";
 import {
   analyzeReferenceImageForScope,
   preflightGenerationScope,
@@ -556,7 +553,7 @@ const ScreenBriefsSchema = z.object({
   screens: z.array(ScreenPlanSchema).min(1).max(5),
 });
 
-type CanonicalBlueprintResult = {
+export type CanonicalBlueprintResult = {
   blueprint: z.infer<typeof ProjectBlueprintSchema> | null;
   normalizedRaw: unknown;
   navigationRecovered: boolean;
@@ -619,6 +616,22 @@ export const canonicalizePlannerBlueprintForScreenPlanning = (raw: unknown): Can
       ? issues
       : [...issues, ...recovered.error.issues.map((issue) => `${issue.path.join(".") || "root"}: ${issue.message}`)],
   };
+};
+
+export const canonicalizePlannerBlueprintResponseText = (
+  text: string,
+): CanonicalBlueprintResult => {
+  try {
+    return canonicalizePlannerBlueprintForScreenPlanning(parseJsonResponse<unknown>(text || "{}"));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      blueprint: null,
+      normalizedRaw: {},
+      navigationRecovered: false,
+      issues: [`response: ${message}`],
+    };
+  }
 };
 
 type ParsedCreativeDirection = z.infer<typeof CreativeDirectionSchema>;
@@ -1020,21 +1033,11 @@ const stripGlobalNavigationBrief = (sectionText: string) => {
 };
 
 const parseExplicitScreenSections = (prompt: string): ExplicitScreenSection[] => {
-  const matches = Array.from(prompt.matchAll(/(?:^|\n)\s*Screen\s+(\d{1,2})\s*:\s*([^\n.]+?)(?:\.|\n|$)/gi));
-  if (matches.length === 0) {
-    return [];
-  }
-
-  return matches.map((match, index) => {
-    const nextMatch = matches[index + 1];
-    const start = match.index ?? 0;
-    const end = nextMatch?.index ?? prompt.length;
-    const sectionText = stripGlobalNavigationBrief(prompt.slice(start, end).trim());
-    const rawName = (match[2] ?? `Screen ${match[1]}`).trim().replace(/^The\s+/i, "");
-
+  return parseNumberedScreenSections(prompt).map((section) => {
+    const sectionText = stripGlobalNavigationBrief(section.text);
     return {
-      index: Number(match[1]),
-      name: rawName.slice(0, 100),
+      index: section.index,
+      name: section.name,
       description: sectionText.slice(0, 7000),
       anchors: extractRequiredAnchors(sectionText),
     };
@@ -1192,9 +1195,9 @@ const compileGenerationIntentContract = ({
     return {
       kind: "full_app",
       source: explicitCount ? "prompt" : "prompt",
-      reason: scopeContract?.reason ?? (explicitCount
+      reason: explicitCount
         ? `The user requested a multi-screen app with ${explicitCount} screen${explicitCount === 1 ? "" : "s"}.`
-        : `The user asked for a full app/product experience; initial generation is capped at ${INITIAL_PROJECT_SCREEN_LIMIT} screens.`),
+        : scopeContract?.reason ?? `The user asked for a full app/product experience; initial generation is capped at ${INITIAL_PROJECT_SCREEN_LIMIT} screens.`,
       exactScreenCount: requestedCount ? Math.min(requestedCount, INITIAL_PROJECT_SCREEN_LIMIT) : null,
       maxInitialScreens: INITIAL_PROJECT_SCREEN_LIMIT,
       explicitScreenCount: explicitCount,
@@ -1229,6 +1232,8 @@ const buildScreenCountContract = ({
   scopeContract?: GenerationScopeContract | null;
 }): ScreenCountContract => {
   if (intentContract.exactScreenCount) {
+    const scopedNames = scopeContract?.screens?.map((screen) => screen.name) ?? [];
+    const explicitNames = explicitScreenSections.map((section) => section.name);
     const source: ScreenCountContract["source"] =
       intentContract.kind === "add_screen"
         ? "planning_mode"
@@ -1240,7 +1245,7 @@ const buildScreenCountContract = ({
       exactCount: intentContract.exactScreenCount,
       source,
       reason: intentContract.reason,
-      namedScreens: scopeContract?.screens?.map((screen) => screen.name) ?? explicitScreenSections.map((section) => section.name),
+      namedScreens: scopedNames.length > 0 ? scopedNames : explicitNames,
       referenceScreenCount: intentContract.referenceScreenCount,
       disableSharedNavigation: !intentContract.allowSharedNavigation,
       maxScreens: intentContract.maxInitialScreens ?? null,
@@ -2898,7 +2903,6 @@ export async function planScreenBriefsForBuild({
   const screenPolicy = geminiPolicyForTask("project_planning", {
     systemInstruction: plannerScreenBriefStepInstruction(plannerMode),
     responseMimeType: "application/json",
-    responseJsonSchema: plannerScreenBriefsResponseJsonSchema,
     temperature: 0.15,
   });
 
@@ -3243,7 +3247,6 @@ export async function planUiFlow({
   const policy = geminiPolicyForTask("project_planning", {
     systemInstruction: plannerBlueprintStepInstruction(plannerMode),
     responseMimeType: "application/json",
-    responseJsonSchema: plannerBlueprintResponseJsonSchema,
     temperature: 0.1,
   });
   if (llmLog) {
@@ -3273,8 +3276,7 @@ export async function planUiFlow({
     llmLog(`[TOKEN USAGE] plan-ui-flow-blueprint`, response.usageMetadata as Record<string, unknown>);
   }
 
-  let rawBlueprint = parseJsonResponse<unknown>(response.text || "{}");
-  let canonicalBlueprint = canonicalizePlannerBlueprintForScreenPlanning(rawBlueprint);
+  let canonicalBlueprint = canonicalizePlannerBlueprintResponseText(response.text || "{}");
   if (!canonicalBlueprint.blueprint) {
     llmLog?.("[planUiFlow] blueprint core invalid — retrying structured planning", {
       issues: canonicalBlueprint.issues,
@@ -3299,8 +3301,7 @@ export async function planUiFlow({
     if (llmLog && response.usageMetadata) {
       llmLog("[TOKEN USAGE] plan-ui-flow-blueprint-retry", response.usageMetadata as Record<string, unknown>);
     }
-    rawBlueprint = parseJsonResponse<unknown>(response.text || "{}");
-    canonicalBlueprint = canonicalizePlannerBlueprintForScreenPlanning(rawBlueprint);
+    canonicalBlueprint = canonicalizePlannerBlueprintResponseText(response.text || "{}");
   }
 
   if (!canonicalBlueprint.blueprint) {
@@ -3317,7 +3318,7 @@ export async function planUiFlow({
     });
   }
 
-  rawBlueprint = canonicalBlueprint.blueprint;
+  let rawBlueprint: unknown = canonicalBlueprint.blueprint;
   let parsedBlueprint = ProjectBlueprintSchema.safeParse(rawBlueprint);
 
   if (parsedBlueprint.success) {
@@ -3486,7 +3487,6 @@ export async function planUiFlow({
     const screenPolicy = geminiPolicyForTask("project_planning", {
       systemInstruction: plannerScreenBriefStepInstruction(plannerMode),
       responseMimeType: "application/json",
-      responseJsonSchema: plannerScreenBriefsResponseJsonSchema,
       temperature: 0.1,
     });
 
@@ -3546,7 +3546,13 @@ export async function planUiFlow({
         );
       }
 
-      const rawScreenBriefs = parseJsonResponse<unknown>(screenResponse.text || "{}");
+      let rawScreenBriefs: unknown;
+      try {
+        rawScreenBriefs = parseJsonResponse<unknown>(screenResponse.text || "{}");
+      } catch (error) {
+        screenPlanningFailure = error instanceof Error ? error.message : String(error);
+        continue;
+      }
       const rawScreenItems = extractRawScreenArray(rawScreenBriefs);
       const candidate = ScreenBriefsSchema.safeParse(
         rawScreenItems.length > 0 ? { screens: rawScreenItems } : rawScreenBriefs,

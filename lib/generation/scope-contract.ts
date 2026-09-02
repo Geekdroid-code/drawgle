@@ -6,6 +6,7 @@ import {
   ensureSemanticCompositionPrimitives,
   normalizeSemanticCompositionPrimitives,
 } from "@/lib/generation/semantic-inspiration";
+import { parseNumberedScreenSections } from "@/lib/generation/explicit-screen-sections";
 import type {
   GenerationScopeContract,
   GenerationScopeCountSource,
@@ -197,16 +198,9 @@ const toInlineImage = (image?: PromptImagePayload | null) => {
 };
 
 const extractNamedScreenCount = (prompt: string) => {
-  const matches = Array.from(prompt.matchAll(/(?:^|\n)\s*Screen\s+(\d{1,2})\s*:/gi));
-  if (matches.length === 0) {
-    return null;
-  }
-
-  const indexes = matches
-    .map((match) => clampScopeScreenCount(match[1]))
-    .filter((value): value is number => Boolean(value));
-
-  return indexes.length > 0 ? Math.max(...indexes) : matches.length;
+  const sections = parseNumberedScreenSections(prompt);
+  if (sections.length === 0) return null;
+  return Math.max(...sections.map((section) => section.index), sections.length);
 };
 
 const titleCase = (value: string) => value
@@ -289,13 +283,13 @@ export function parsePromptScreenIntent(prompt: string): PromptScreenIntent {
   const namedScreenCount = extractNamedScreenCount(normalized);
 
   if (namedScreenCount) {
-    const namedMatches = Array.from(normalized.matchAll(/(?:^|\n)\s*Screen\s+(\d{1,2})\s*:\s*([^\n.]+)/gi));
-    const screens = namedMatches.map((match, index) => ({
+    const namedSections = parseNumberedScreenSections(normalized);
+    const screens = namedSections.map((section, index) => ({
       index: index + 1,
-      name: (match[2] || `Screen ${index + 1}`).trim().slice(0, 100),
-      kind: inferGroupKind(match[2] || "screen"),
+      name: section.name,
+      kind: inferGroupKind(section.name),
     }));
-    diagnostics.push(`Detected ${namedScreenCount} named Screen N sections.`);
+    diagnostics.push(`Detected ${namedScreenCount} explicitly numbered screen sections.`);
     return {
       promptScreenCount: namedScreenCount,
       namedScreenCount,
