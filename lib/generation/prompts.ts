@@ -101,6 +101,35 @@ const plannerBlueprintJsonContract = `Return JSON with this exact top-level shap
   }
 }
 
+When navigation is enabled, every navigation item and screen-chrome entry MUST use these exact keys:
+{
+  "items": [
+    {
+      "id": "discover",
+      "label": "Discover",
+      "icon": "Search",
+      "role": "Browse and filter the product catalog",
+      "availability": "generated",
+      "linked_screen_name": "Discover"
+    },
+    {
+      "id": "saved",
+      "label": "Saved",
+      "icon": "Bookmark",
+      "role": "Review saved products",
+      "availability": "planned",
+      "linked_screen_name": null
+    }
+  ],
+  "screen_chrome": [
+    {
+      "screen_name": "Discover",
+      "chrome": "bottom-tabs",
+      "navigation_item_id": "discover"
+    }
+  ]
+}
+
 When navigation is enabled, design is REQUIRED and must use this shape:
 {
   "anatomy": "fixed-tab-rail | floating-dock | glass-dock | compact-icon-rail | center-action-dock",

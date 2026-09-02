@@ -2908,11 +2908,10 @@ export const generateUiFlowTask = task({
     const shouldSendBuildContext = Boolean(payload.plannedScreens?.length || payload.screenPlanningSeeds?.length) || (payload.planningMode ?? "project") === "single-screen";
     const buildContext = shouldSendBuildContext ? compactBuildContext(planningContext) : null;
 
-    const baseScreenPlans: ScreenPlan[] = plan.screens.length > 0 ? plan.screens : [{
-      name: "New Screen",
-      type: "root",
-      description: payload.prompt,
-    }];
+	  if (plan.screens.length === 0) {
+	    throw new Error("Screen planning returned no production-ready screens; refusing to create a generic fallback screen.");
+	  }
+	  const baseScreenPlans: ScreenPlan[] = plan.screens;
 	    const referenceTargetCount = plan.scopeContract?.finalScreenCount ?? plan.scopeContract?.imageScreenCount ?? baseScreenPlans.length;
     const resolvedScreenPlans: ScreenPlan[] = referenceMode === "user_recreate"
       ? baseScreenPlans.map((screenPlan, index) => ({

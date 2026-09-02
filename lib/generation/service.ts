@@ -50,6 +50,11 @@ import { buildRepairSurroundingContext, type RepairTarget } from "@/lib/generati
 import { createProjectReferenceDna } from "@/lib/generation/reference-dna";
 import { buildProjectRoadmap, roadmapSlug, screenRoadmapKey } from "@/lib/generation/project-roadmap";
 import {
+  normalizePlannerBlueprintResponse,
+  plannerBlueprintResponseJsonSchema,
+  plannerScreenBriefsResponseJsonSchema,
+} from "@/lib/generation/planner-response-contracts";
+import {
   analyzeReferenceImageForScope,
   preflightGenerationScope,
   resolveGenerationScopeContract,
@@ -502,6 +507,14 @@ const NavigationPlanSchema = z.object({
     chrome: ScreenChromeKindSchema,
     navigation_item_id: z.string().trim().min(1).max(80).nullable().optional(),
   })).default([]),
+}).superRefine((plan, context) => {
+  if (plan.decision !== "none" && !plan.design) {
+    context.addIssue({
+      code: "custom",
+      path: ["design"],
+      message: "Navigation design is required when persistent navigation is enabled.",
+    });
+  }
 }).optional();
 type ParsedNavigationPlan = NonNullable<z.infer<typeof NavigationPlanSchema>>;
 
@@ -537,10 +550,76 @@ const PlanSchema = z.object({
 });
 
 const ProjectBlueprintSchema = PlanSchema.omit({ screens: true });
+const ProjectBlueprintCoreSchema = ProjectBlueprintSchema.omit({ navigation_plan: true });
 
 const ScreenBriefsSchema = z.object({
   screens: z.array(ScreenPlanSchema).min(1).max(5),
 });
+
+type CanonicalBlueprintResult = {
+  blueprint: z.infer<typeof ProjectBlueprintSchema> | null;
+  normalizedRaw: unknown;
+  navigationRecovered: boolean;
+  issues: string[];
+};
+
+const disabledPlannerNavigationPlan = (reason: string): ParsedNavigationPlan => ({
+  version: 2,
+  decision: "none",
+  evidence: { source: null, reason },
+  enabled: false,
+  kind: "none",
+  items: [],
+  design: null,
+  visual_brief: "No persistent primary navigation. Use screen-purpose-specific chrome.",
+  screen_chrome: [],
+});
+
+/**
+ * Keep screen planning alive when only the planner's navigation DTO is bad.
+ * The core blueprint remains authoritative; navigation is independently
+ * normalized and, if still unusable, safely disabled for this planning pass.
+ */
+export const canonicalizePlannerBlueprintForScreenPlanning = (raw: unknown): CanonicalBlueprintResult => {
+  const normalizedRaw = normalizePlannerBlueprintResponse(raw);
+  const parsed = ProjectBlueprintSchema.safeParse(normalizedRaw);
+  if (parsed.success) {
+    return { blueprint: parsed.data, normalizedRaw, navigationRecovered: false, issues: [] };
+  }
+
+  const issues = parsed.error.issues.map((issue) => `${issue.path.join(".") || "root"}: ${issue.message}`);
+  const core = ProjectBlueprintCoreSchema.safeParse(normalizedRaw);
+  if (!core.success) {
+    return { blueprint: null, normalizedRaw, navigationRecovered: false, issues };
+  }
+
+  const recoveryReason = "Persistent navigation was disabled because its planner metadata could not be validated; screen planning continued from the valid project roadmap.";
+  const recovered = ProjectBlueprintSchema.safeParse({
+    ...core.data,
+    requires_bottom_nav: false,
+    navigation_architecture: {
+      kind: "hierarchical",
+      primary_navigation: "none",
+      root_chrome: "top-bar",
+      detail_chrome: "top-bar-back",
+      consistency_rules: [
+        "Use screen-purpose-specific top chrome.",
+        "Use explicit back navigation for detail screens.",
+      ],
+      rationale: recoveryReason,
+    },
+    navigation_plan: disabledPlannerNavigationPlan(recoveryReason),
+  });
+
+  return {
+    blueprint: recovered.success ? recovered.data : null,
+    normalizedRaw,
+    navigationRecovered: recovered.success,
+    issues: recovered.success
+      ? issues
+      : [...issues, ...recovered.error.issues.map((issue) => `${issue.path.join(".") || "root"}: ${issue.message}`)],
+  };
+};
 
 type ParsedCreativeDirection = z.infer<typeof CreativeDirectionSchema>;
 
@@ -887,7 +966,7 @@ const fallbackCreativeDirection = ({
 });
 
 const fallbackScreenPlan = (prompt: string): ScreenPlan => ({
-  name: "New Screen",
+  name: "Planned Screen",
   type: "root",
   description: prompt.trim() || "Convert this concept into a polished mobile screen.",
 });
@@ -2819,6 +2898,7 @@ export async function planScreenBriefsForBuild({
   const screenPolicy = geminiPolicyForTask("project_planning", {
     systemInstruction: plannerScreenBriefStepInstruction(plannerMode),
     responseMimeType: "application/json",
+    responseJsonSchema: plannerScreenBriefsResponseJsonSchema,
     temperature: 0.15,
   });
 
@@ -3163,6 +3243,7 @@ export async function planUiFlow({
   const policy = geminiPolicyForTask("project_planning", {
     systemInstruction: plannerBlueprintStepInstruction(plannerMode),
     responseMimeType: "application/json",
+    responseJsonSchema: plannerBlueprintResponseJsonSchema,
     temperature: 0.1,
   });
   if (llmLog) {
@@ -3182,7 +3263,7 @@ export async function planUiFlow({
     });
   }
 
-  const response = await ai.models.generateContent({
+  let response = await ai.models.generateContent({
     model: policy.model,
     contents: { parts },
     config: policy.config,
@@ -3193,10 +3274,56 @@ export async function planUiFlow({
   }
 
   let rawBlueprint = parseJsonResponse<unknown>(response.text || "{}");
+  let canonicalBlueprint = canonicalizePlannerBlueprintForScreenPlanning(rawBlueprint);
+  if (!canonicalBlueprint.blueprint) {
+    llmLog?.("[planUiFlow] blueprint core invalid — retrying structured planning", {
+      issues: canonicalBlueprint.issues,
+    });
+    response = await ai.models.generateContent({
+      model: policy.model,
+      contents: {
+        parts: [
+          ...parts,
+          {
+            text: [
+              "BLUEPRINT REPAIR: The previous project blueprint could not be used for screen planning.",
+              "Return the complete blueprint again using the required JSON schema.",
+              "Preserve the requested product scope and ensure roadmap.items and roadmap.initial_batch_keys are complete.",
+              `Validation issues: ${canonicalBlueprint.issues.join("; ")}`,
+            ].join("\n"),
+          },
+        ],
+      },
+      config: policy.config,
+    });
+    if (llmLog && response.usageMetadata) {
+      llmLog("[TOKEN USAGE] plan-ui-flow-blueprint-retry", response.usageMetadata as Record<string, unknown>);
+    }
+    rawBlueprint = parseJsonResponse<unknown>(response.text || "{}");
+    canonicalBlueprint = canonicalizePlannerBlueprintForScreenPlanning(rawBlueprint);
+  }
+
+  if (!canonicalBlueprint.blueprint) {
+    throw new Error(`Project blueprint planning failed before screen planning: ${canonicalBlueprint.issues.join("; ")}`);
+  }
+
+  if (canonicalBlueprint.navigationRecovered) {
+    console.warn("[planUiFlow] Navigation metadata recovered without blocking screen planning", {
+      issues: canonicalBlueprint.issues,
+    });
+    llmLog?.("[planUiFlow] navigation isolated from screen planning", {
+      issues: canonicalBlueprint.issues,
+      screenPlanningWillRun: true,
+    });
+  }
+
+  rawBlueprint = canonicalBlueprint.blueprint;
   let parsedBlueprint = ProjectBlueprintSchema.safeParse(rawBlueprint);
 
   if (parsedBlueprint.success) {
-    const navigationIssues = navigationBlueprintIssues(parsedBlueprint.data.navigation_plan);
+    const navigationIssues = canonicalBlueprint.navigationRecovered
+      ? canonicalBlueprint.issues
+      : navigationBlueprintIssues(parsedBlueprint.data.navigation_plan);
     if (navigationIssues.length > 0) {
       llmLog?.("[navigation:v2] blueprint repair requested", {
         issues: navigationIssues,
@@ -3213,7 +3340,11 @@ export async function planUiFlow({
                 "The previous navigation plan failed validation: " + navigationIssues.join("; ") + ".",
                 "Keep the approved charter and architecture unless they conflict with the positive-evidence policy.",
                 "Do not create generated screens. Add meaningful planned destinations only when product evidence supports them.",
-                "Invalid blueprint: " + JSON.stringify(parsedBlueprint.data, null, 2),
+                "Invalid blueprint: " + JSON.stringify(
+                  canonicalBlueprint.navigationRecovered ? canonicalBlueprint.normalizedRaw : parsedBlueprint.data,
+                  null,
+                  2,
+                ),
               ].join("\n"),
             },
           ],
@@ -3223,7 +3354,7 @@ export async function planUiFlow({
       if (llmLog && repairResponse.usageMetadata) {
         llmLog("[TOKEN USAGE] plan-ui-flow-navigation-repair", repairResponse.usageMetadata as Record<string, unknown>);
       }
-      const repairedRaw = parseJsonResponse<unknown>(repairResponse.text || "{}");
+      const repairedRaw = normalizePlannerBlueprintResponse(parseJsonResponse<unknown>(repairResponse.text || "{}"));
       const repairedBlueprint = ProjectBlueprintSchema.safeParse(repairedRaw);
       if (repairedBlueprint.success && navigationBlueprintIssues(repairedBlueprint.data.navigation_plan).length === 0) {
         rawBlueprint = repairedRaw;
@@ -3355,6 +3486,7 @@ export async function planUiFlow({
     const screenPolicy = geminiPolicyForTask("project_planning", {
       systemInstruction: plannerScreenBriefStepInstruction(plannerMode),
       responseMimeType: "application/json",
+      responseJsonSchema: plannerScreenBriefsResponseJsonSchema,
       temperature: 0.1,
     });
 
@@ -3375,26 +3507,92 @@ export async function planUiFlow({
       });
     }
 
-    const screenResponse = await ai.models.generateContent({
-      model: screenPolicy.model,
-      contents: { parts: screenParts },
-      config: screenPolicy.config,
-    });
+    const expectedScreenCount = Math.max(1, Math.min(
+      INITIAL_PROJECT_SCREEN_LIMIT,
+      screenCountContract.exactCount
+        ?? (selectedBlueprintKeys.length > 0 ? selectedBlueprintKeys.length : null)
+        ?? (resolvedScopeContract.screens?.length ? resolvedScopeContract.screens.length : null)
+        ?? 1,
+    ));
+    const expectedScreenNames = screenCountContract.namedScreens?.slice(0, expectedScreenCount) ?? [];
+    let parsedScreenBriefs: z.infer<typeof ScreenBriefsSchema> | null = null;
+    let screenPlanningFailure = "The screen planner did not return a valid batch.";
 
-    if (llmLog && screenResponse.usageMetadata) {
-      llmLog(`[TOKEN USAGE] plan-ui-flow-screen-briefs`, screenResponse.usageMetadata as Record<string, unknown>);
+    for (let attempt = 0; attempt < 2 && !parsedScreenBriefs; attempt += 1) {
+      const attemptParts = attempt === 0
+        ? screenParts
+        : [
+            ...screenParts,
+            {
+              text: [
+                "SCREEN BRIEF REPAIR: The previous response failed the production screen contract.",
+                `Return exactly ${expectedScreenCount} complete screen brief${expectedScreenCount === 1 ? "" : "s"}.`,
+                expectedScreenNames.length > 0 ? `Required names in order: ${expectedScreenNames.join(", ")}.` : null,
+                "Every screen requires all seven labeled description sections, layout_contract, reference_transfer, chrome_policy, asset_needs (use [] when none), and state_variants (use [] when none).",
+                `Previous failure: ${screenPlanningFailure}`,
+              ].filter(Boolean).join("\n"),
+            },
+          ];
+      const screenResponse = await ai.models.generateContent({
+        model: screenPolicy.model,
+        contents: { parts: attemptParts },
+        config: screenPolicy.config,
+      });
+
+      if (llmLog && screenResponse.usageMetadata) {
+        llmLog(
+          attempt === 0 ? "[TOKEN USAGE] plan-ui-flow-screen-briefs" : "[TOKEN USAGE] plan-ui-flow-screen-briefs-retry",
+          screenResponse.usageMetadata as Record<string, unknown>,
+        );
+      }
+
+      const rawScreenBriefs = parseJsonResponse<unknown>(screenResponse.text || "{}");
+      const rawScreenItems = extractRawScreenArray(rawScreenBriefs);
+      const candidate = ScreenBriefsSchema.safeParse(
+        rawScreenItems.length > 0 ? { screens: rawScreenItems } : rawScreenBriefs,
+      );
+      if (!candidate.success) {
+        screenPlanningFailure = candidate.error.issues
+          .map((issue) => `${issue.path.join(".") || "root"}: ${issue.message}`)
+          .join("; ");
+        continue;
+      }
+
+      if (candidate.data.screens.length !== expectedScreenCount) {
+        screenPlanningFailure = `Expected ${expectedScreenCount} screens but received ${candidate.data.screens.length}.`;
+        continue;
+      }
+
+      if (expectedScreenNames.length === expectedScreenCount) {
+        const namesMatch = candidate.data.screens.every((screen, index) =>
+          screenRoadmapKey(screen.name) === screenRoadmapKey(expectedScreenNames[index]));
+        if (!namesMatch) {
+          screenPlanningFailure = `Expected screens ${expectedScreenNames.join(", ")} in order; received ${candidate.data.screens.map((screen) => screen.name).join(", ")}.`;
+          continue;
+        }
+      }
+
+      const incomplete = candidate.data.screens.filter((screen) =>
+        !hasBuilderGradeBrief(screen.description)
+        || !screen.layout_contract
+        || !screen.reference_transfer
+        || !Array.isArray(screen.asset_needs)
+        || !Array.isArray(screen.state_variants));
+      if (incomplete.length > 0) {
+        screenPlanningFailure = `Incomplete builder-grade contracts for: ${incomplete.map((screen) => screen.name).join(", ")}.`;
+        continue;
+      }
+
+      parsedScreenBriefs = candidate.data;
     }
 
-    const rawScreenBriefs = parseJsonResponse<unknown>(screenResponse.text || "{}");
-    const rawScreenItems = extractRawScreenArray(rawScreenBriefs);
-    const parsedScreenBriefs = ScreenBriefsSchema.safeParse(
-      rawScreenItems.length > 0 ? { screens: rawScreenItems } : rawScreenBriefs,
-    );
+    if (!parsedScreenBriefs) {
+      throw new Error(`Screen planning failed before build after one structured retry: ${screenPlanningFailure}`);
+    }
+
     rawPlan = {
       ...parsedBlueprint.data,
-      screens: parsedScreenBriefs.success
-        ? parsedScreenBriefs.data.screens
-        : rawScreenItems,
+      screens: parsedScreenBriefs.screens,
     };
     parsed = PlanSchema.safeParse(rawPlan);
   }
@@ -3405,161 +3603,17 @@ export async function planUiFlow({
     const rawScreenCount = isRecord(rawPlan) && Array.isArray((rawPlan as Record<string, unknown>).screens)
       ? ((rawPlan as Record<string, unknown>).screens as unknown[]).length
       : 0;
-    // -----------------------------------------------------------------------
-    // DIAGNOSTIC: Log the exact Zod issues so silent fallbacks become visible.
-    // -----------------------------------------------------------------------
     console.error(
-      "[planUiFlow] PlanSchema validation failed — attempting screen salvage",
+      "[planUiFlow] Production plan validation failed — refusing false-success fallback",
       {
         zodIssues: validationIssues,
         rawPlanKeys: rawPlanKeys.length > 0 ? rawPlanKeys : typeof rawPlan,
         rawScreenCount,
       },
     );
-
-    // -------------------------------------------------------------------
-    // SALVAGE: Try to independently recover the screens array even though
-    // the full plan schema failed (e.g. a charter field was too long).
-    // -------------------------------------------------------------------
-    const salvaged = salvageScreensFromRawPlan(rawPlan);
-
-    const navigationArchitecture = screenCountContract.disableSharedNavigation || forceFiniteFlowWithoutPersistentNav
-      ? createNavigationArchitecture({ requiresBottomNav: false })
-      : coerceNavigationArchitecture({
-          parsedNavigationArchitecture: salvaged.navigationArchitecture,
-          existingNavigationArchitecture: existingCharter?.navigationArchitecture,
-          requiresBottomNav: salvaged.requiresBottomNav ?? fallbackRequiresBottomNav,
-          lockToExistingArchitecture: Boolean(projectContext?.trim() && existingCharter?.navigationArchitecture),
-        });
-
-    const salvageSource = salvaged.screens.length > 0 ? "salvaged" : "fallback";
-    const rawScreens = salvaged.screens.length > 0
-      ? salvaged.screens.map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture }))
-      : fallbackScreensFromReference({
-          prompt,
-          planningMode,
-          referenceAnalysis,
-          mode: plannerMode,
-        }).map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture }));
-    const reconciledScreens = reconcileScreensWithScope({
-      prompt,
-      screens: rawScreens,
-      planningMode,
-      scopeContract: resolvedScopeContract,
-    }).map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture }));
-    const adjustedContract = { ...screenCountContract };
-    if (
-      adjustedContract.exactCount === 1 &&
-      adjustedContract.source === "reference_image" &&
-      rawScreenCount > 1
-    ) {
-      // The contract defaulted to 1 because no explicit count was detected,
-      // but the LLM actually planned more screens. Trust the LLM's plan.
-      adjustedContract.exactCount = Math.min(rawScreenCount, adjustedContract.maxScreens ?? INITIAL_PROJECT_SCREEN_LIMIT);
-      adjustedContract.source = "open_project";
-      adjustedContract.reason = `Overridden: raw plan contained ${rawScreenCount} screens but the screen count contract defaulted to 1.`;
-    }
-
-    const enforced = enforceScreenCountContract({
-      screens: reconciledScreens,
-      contract: adjustedContract,
-      prompt,
-      referenceAnalysis,
-    });
-    const navigationAwareScreens = applyReferenceNavigationRolesToScreens(
-      enforced.screens.map((screenPlan) => resolvePlannedScreen({ screenPlan, navigationArchitecture })),
-      referenceAnalysis,
+    throw new Error(
+      `Screen planning produced an invalid production plan after structured retry; no fallback screen was created: ${validationIssues.join("; ")}`,
     );
-    const screens = normalizeScreenBriefs({
-      prompt,
-      screens: ensureBuilderGradeScreenBriefs({
-        referenceAnalysis,
-        mode: plannerMode,
-        screens: ensureReferenceTransferContracts({
-          screens: navigationAwareScreens,
-          mode: plannerMode,
-          referenceAnalysis,
-        }),
-      }),
-    });
-    const suppliedNavigationPlan = salvaged.navigationPlan ?? (planningMode === "single-screen" ? existingNavigationPlan : null);
-    const referenceNavigationPlan = plannerMode === "recreate"
-      ? deriveReferenceNavigationPlan({ screens, referenceAnalysis })
-      : null;
-    const navigationCandidate = suppliedNavigationPlan && (
-      suppliedNavigationPlan.enabled
-      || (suppliedNavigationPlan.version === 2 && suppliedNavigationPlan.decision !== "none")
-    )
-      ? suppliedNavigationPlan
-      : referenceNavigationPlan;
-    const navigationPlan = normalizeNavigationPlan({
-      navigationPlan: adjustedContract.disableSharedNavigation || forceFiniteFlowWithoutPersistentNav ? null : navigationCandidate,
-      screens,
-      navigationArchitecture,
-      requiresBottomNav: deriveRequiresBottomNav(navigationArchitecture),
-      strictScreenLinks: planningMode !== "single-screen",
-    });
-    const plannedScreens = applyNavigationPlanToScreens(screens, navigationPlan);
-    const roadmapResult = compileProjectRoadmap({
-      rawRoadmap: isRecord(rawPlan) ? rawPlan.roadmap : null,
-      screens: plannedScreens,
-      navigationPlan,
-      scopeContract: resolvedScopeContract,
-    });
-
-    console.warn(
-      `[planUiFlow] Using ${salvageSource} screens (${screens.length}) after PlanSchema failure`,
-      { salvageSource, screenCount: screens.length, screenNames: screens.map((s) => s.name) },
-    );
-
-    const planningDiagnostics: NonNullable<ProjectCharter["planningDiagnostics"]> = {
-      source: salvaged.screens.length > 0 ? "partial_planner" : "reference_fallback",
-      validationIssues,
-      rawPlanKeys,
-      rawScreenCount,
-      recoveredScreens: plannedScreens.length,
-      scopeContract: resolvedScopeContract as unknown as JsonValue,
-      screenCountContract: screenCountContractJson(adjustedContract),
-      intentContract: intentContractJson(intentContract),
-      screenFamilyContract: screenFamilyContract as unknown as JsonValue,
-      screenCountEnforcement: enforced.enforcement,
-      notes: [
-        "Recovered planner output independently instead of replacing the whole charter with generic fallback.",
-        salvaged.screens.length > 0 ? "Screen plans came from valid planner screen objects." : "Screen plans came from reference analysis fallback because no usable planner screens were recovered.",
-      ],
-    };
-
-    return {
-      requiresBottomNav: navigationPlan.enabled,
-      navigationArchitecture,
-      navigationPlan,
-      charter: withReferenceDna(salvageProjectCharterFromRawPlan({
-        rawPlan,
-        prompt,
-        image,
-        referenceMode: resolvedReferenceMode,
-        referenceAnalysis,
-        creativeDirection: resolvedCreativeDirection,
-        designStyle: resolvedDesignStyle,
-        navigationArchitecture,
-        existingCharter,
-        diagnostics: planningDiagnostics,
-      })),
-      screens: attachReferenceScreenTargets({
-        screens: plannedScreens,
-        referenceMode: resolvedReferenceMode,
-        scopeContract: resolvedScopeContract,
-      }),
-      scopeContract: resolvedScopeContract,
-      screenCountContract: adjustedContract,
-      screenCountEnforcement: enforced.enforcement,
-      intentContract,
-      screenFamilyContract,
-      roadmap: roadmapResult.roadmap,
-      initialBatchItemKeys: roadmapResult.initialBatchItemKeys,
-      requestedParentCount: roadmapResult.roadmap.requestedParentCount,
-      remainingUnplannedCount: roadmapResult.roadmap.remainingUnplannedCount,
-    };
   }
 
   const adjustedContract = { ...screenCountContract };
