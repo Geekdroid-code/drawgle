@@ -16,6 +16,12 @@ import { getDesignStylePack, isDesignStyleId, summarizeDesignStyle } from "@/lib
 import { CURATED_STYLE_EMBEDDING_MODEL } from "@/lib/generation/curated-style-index-core";
 import { indexScreenCode } from "@/lib/generation/block-index";
 import { buildFirstScreenPriorityBatches } from "@/lib/generation/build-scheduler";
+import {
+  extractTopChromeContinuityEvidence,
+  rememberFirstRunChromeEvidence,
+  supportsTopChromeContinuity,
+  type RunChromeEvidence,
+} from "@/lib/generation/top-chrome-continuity";
 import { assembleProjectContext } from "@/lib/generation/context";
 import { transitionGenerationJournalPhase as setJournalPhase } from "@/lib/generation/journal";
 import {
@@ -95,7 +101,7 @@ import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
 import { getGenerationEngineVersion } from "@/lib/env/server";
 import { enrichScreenMemoryTask } from "@/trigger/enrich-screen-memory";
 import type { Database, ProjectScreenRoadmapRow } from "@/lib/supabase/database.types";
-import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationPreviewMetadata, GenerationReferencePolicy, GenerationRetryContext, GenerationScopeContract, ImageReferenceMode, LlmProviderEvent, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, ProjectRoadmap, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenBaseStatePlan, ScreenPlan, ScreenPlanningSeed, ScreenStateVariantPlan } from "@/lib/types";
+import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationPreviewMetadata, GenerationReferencePolicy, GenerationRetryContext, GenerationScopeContract, ImageReferenceMode, LlmProviderEvent, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, ProjectRoadmap, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenBaseStatePlan, ScreenPlan, ScreenPlanningSeed, ScreenStateVariantPlan, TopChromeContinuityEvidence } from "@/lib/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -149,6 +155,7 @@ type BuildScreenTaskPayload = {
   assetManifest?: ScreenAssetManifest[];
   projectCharter?: ProjectCharter | null;
   projectContext?: string | null;
+  topChromeContinuityEvidence?: TopChromeContinuityEvidence | null;
   isFirstScreen?: boolean;
 };
 
@@ -1054,6 +1061,7 @@ async function collectScreenBuild(
       navigationPlan: input.navigationPlan,
       assetManifest: input.assetManifest,
       projectContext: input.projectContext,
+      topChromeContinuityEvidence: input.topChromeContinuityEvidence,
       onProviderEvent: logProviderEvent,
       onResponseChunk: (chunk) => {
         collectFinishReasons(chunk, finishReasons);
@@ -1116,6 +1124,7 @@ async function collectNonStreamingScreenBuild(input: BuildScreenTaskPayload, scr
     navigationPlan: input.navigationPlan,
     assetManifest: input.assetManifest,
     projectContext: input.projectContext,
+    topChromeContinuityEvidence: input.topChromeContinuityEvidence,
     onProviderEvent: logProviderEvent,
     onResponseChunk: (responseChunk) => {
       collectFinishReasons(responseChunk, finishReasons);
@@ -1261,6 +1270,14 @@ export const buildScreenTask = task({
       projectContext: compactBuildContext(payload.projectContext),
     };
     const attempts: GenerationAttemptDiagnostics[] = [];
+
+    logger.info("Top chrome continuity build context", {
+      screenName: payload.screenPlan.name,
+      chromeKind: payload.screenPlan.chromePolicy?.chrome ?? null,
+      evidenceSupplied: Boolean(payload.topChromeContinuityEvidence),
+      sourceScreen: payload.topChromeContinuityEvidence?.screenName ?? null,
+      evidenceCharacterCount: payload.topChromeContinuityEvidence?.html.length ?? 0,
+    });
 
     // Pipe the first Gemini async generator so the frontend can subscribe
     // via useRealtimeRunWithStreams and render partial HTML in real time.
@@ -1756,6 +1773,19 @@ export const buildScreenTask = task({
 
     await appendScreenBuildDiagnostics(admin, payload.generationRunId, payload.screenId, attempts);
 
+    const topChromeEvidence = extractTopChromeContinuityEvidence({
+      screenName: payload.screenPlan.name,
+      chromeKind: payload.screenPlan.chromePolicy?.chrome,
+      code,
+      blockIndex,
+    });
+    logger.info("Top chrome continuity capture", {
+      screenName: payload.screenPlan.name,
+      chromeKind: payload.screenPlan.chromePolicy?.chrome ?? null,
+      captured: Boolean(topChromeEvidence),
+      evidenceCharacterCount: topChromeEvidence?.html.length ?? 0,
+    });
+
     // Queue one non-blocking retrieval-memory refresh. The task reads the
     // latest saved source, so stale task payloads cannot overwrite newer edits.
     await enrichScreenMemoryTask.trigger(
@@ -1781,6 +1811,7 @@ export const buildScreenTask = task({
         hydration: assetHydration.outcomes,
         usesByRequirement: assetPolicy.usesByRequirement,
       },
+      topChromeEvidence,
       usageByAttempt: attempts.map((attempt) => attempt.usageMetadata).filter(Boolean),
     };
   },
@@ -2959,6 +2990,7 @@ export const generateUiFlowTask = task({
     const postBuildAssetOutcomes: Record<string, unknown> = {};
     const successfulRoadmapItemIds = new Set<string>();
     const readyParentScreenIds = new Map<string, string>();
+    const runChromeEvidence: RunChromeEvidence = {};
     let settlementQueue: Promise<void> = Promise.resolve();
     let journalWriteQueue: Promise<void> = Promise.resolve();
     const postGenerationJournalSerial = () => {
@@ -2999,7 +3031,8 @@ export const generateUiFlowTask = task({
     const screenEntries = screenPlans.map((screenPlan, index) => ({ screenPlan, index }));
     const screenBatches = buildFirstScreenPriorityBatches(screenEntries, 2);
     for (const batch of screenBatches) {
-      await Promise.all(batch.map(async ({ screenPlan, index }) => {
+      const batchChromeEvidence: RunChromeEvidence = { ...runChromeEvidence };
+      const capturedBatchEvidence = await Promise.all(batch.map(async ({ screenPlan, index }) => {
       const parentRoadmapStableKey = screenPlan.roadmapStableKey ?? screenRoadmapKey(screenPlan.name);
       const outputKey = generationOutputKey(payload.generationRunId, "screen", parentRoadmapStableKey);
       const selectedStateGroup = selectedStateGroups.find((group) =>
@@ -3011,6 +3044,7 @@ export const generateUiFlowTask = task({
       ] ?? null;
       const screenId = reusableScreenId ?? randomUUID();
       let rowInserted = false;
+      let capturedTopChromeEvidence: TopChromeContinuityEvidence | null = null;
 
       try {
         const attachReferenceImage = shouldAttachReferenceImage({
@@ -3085,6 +3119,10 @@ export const generateUiFlowTask = task({
         if (index === 0) {
           await mergeGenerationPerformance(admin, payload.generationRunId, { firstScreenRowAt: now() });
         }
+        const chromeKind = screenPlan.chromePolicy?.chrome;
+        const topChromeContinuityEvidence = supportsTopChromeContinuity(chromeKind)
+          ? batchChromeEvidence[chromeKind] ?? null
+          : null;
         const handle = await (buildScreenTask as any).trigger(
           {
             generationRunId: payload.generationRunId,
@@ -3107,6 +3145,7 @@ export const generateUiFlowTask = task({
             assetManifest: projectAssetManifest.assetsByScreen[screenPlan.name] ?? [],
             projectCharter: plan.charter,
             projectContext: buildContext,
+            topChromeContinuityEvidence,
             isFirstScreen: index === 0,
           },
           {
@@ -3186,6 +3225,7 @@ export const generateUiFlowTask = task({
           usedResolvedAssetCount?: number;
           ignoredResolvedAssetIds?: string[];
           assetOutcomes?: Record<string, unknown>;
+          topChromeEvidence?: TopChromeContinuityEvidence | null;
           usageByAttempt?: Array<Record<string, unknown>>;
         } | undefined;
         for (const usageMetadata of buildOutput?.usageByAttempt ?? []) {
@@ -3277,6 +3317,7 @@ export const generateUiFlowTask = task({
             );
           } else {
             successfulScreens += 1;
+            capturedTopChromeEvidence = buildOutput?.topChromeEvidence ?? null;
             if (index === 0) {
               await mergeGenerationPerformance(admin, payload.generationRunId, { firstReadyAt: now() });
             }
@@ -3443,7 +3484,11 @@ export const generateUiFlowTask = task({
           rowInserted ? screenId : undefined,
         );
       }
+      return capturedTopChromeEvidence;
       }));
+      for (const evidence of capturedBatchEvidence) {
+        rememberFirstRunChromeEvidence(runChromeEvidence, evidence);
+      }
     }
     await journalWriteQueue;
     await settlementQueue;

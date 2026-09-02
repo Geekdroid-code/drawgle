@@ -57,6 +57,7 @@ import {
 import { buildTokenPromptContext } from "@/lib/token-runtime";
 import { detectTokenDrift } from "@/lib/token-drift";
 import { screenBuildOutputTokenBudget } from "@/lib/generation/screen-budget";
+import { buildTopChromeContinuityEvidenceSection } from "@/lib/generation/top-chrome-continuity";
 import type {
   BuildScreenInput,
   LlmInputSnapshot,
@@ -3898,6 +3899,12 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
   if (compactProjectContext) {
     parts.push({
       text: `Compact Existing Project Memory:\n${compactProjectContext}`,
+    });
+  }
+
+  if (input.topChromeContinuityEvidence) {
+    parts.push({
+      text: buildTopChromeContinuityEvidenceSection(input.topChromeContinuityEvidence),
     });
   }
 

@@ -469,6 +469,12 @@ export interface ScreenChromePolicy {
   showsBackButton: boolean;
 }
 
+export interface TopChromeContinuityEvidence {
+  chromeKind: ScreenChromeKind;
+  screenName: string;
+  html: string;
+}
+
 export interface NavigationArchitecture {
   kind: "bottom-tabs-app" | "hierarchical" | "single-screen";
   primaryNavigation: PrimaryNavigationKind;
@@ -1178,6 +1184,7 @@ export interface BuildScreenInput {
   navigationPlan?: NavigationPlan | null;
   assetManifest?: ScreenAssetManifest[];
   projectContext?: string | null;
+  topChromeContinuityEvidence?: TopChromeContinuityEvidence | null;
   onResponseChunk?: (chunk: unknown) => void;
   onProviderEvent?: (event: LlmProviderEvent) => void;
   onLlmInput?: (snapshot: LlmInputSnapshot) => void;
