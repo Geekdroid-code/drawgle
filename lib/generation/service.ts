@@ -3278,7 +3278,7 @@ export async function planUiFlow({
 
   let canonicalBlueprint = canonicalizePlannerBlueprintResponseText(response.text || "{}");
   if (!canonicalBlueprint.blueprint) {
-    llmLog?.("[planUiFlow] blueprint core invalid — retrying structured planning", {
+    llmLog?.("[planUiFlow] blueprint core invalid — retrying JSON planning", {
       issues: canonicalBlueprint.issues,
     });
     response = await ai.models.generateContent({
@@ -3593,7 +3593,7 @@ export async function planUiFlow({
     }
 
     if (!parsedScreenBriefs) {
-      throw new Error(`Screen planning failed before build after one structured retry: ${screenPlanningFailure}`);
+      throw new Error(`Screen planning failed before build after one JSON repair attempt: ${screenPlanningFailure}`);
     }
 
     rawPlan = {
