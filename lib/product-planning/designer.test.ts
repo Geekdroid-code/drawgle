@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProductPlanning } from "./model";
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/generation/message-memory", () => ({ persistProjectMessageMemoryPair: async () => true }));
-const mocks = vi.hoisted(() => ({ generate: vi.fn(), assess: vi.fn(), review: vi.fn(), state: null as ProductPlanning | null, messages: [] as Array<Record<string, unknown>>, save: vi.fn() }));
+const mocks = vi.hoisted(() => ({ generate: vi.fn(), assess: vi.fn(), review: vi.fn(), loadReference: vi.fn(), state: null as ProductPlanning | null, messages: [] as Array<Record<string, unknown>>, save: vi.fn() }));
 vi.mock("./assess-evidence", () => ({ assessProductEvidence: mocks.assess }));
 vi.mock("./functional-store", () => ({ readFunctionalRoadmap: async () => [], updateFunctionalRoadmap: vi.fn(), snapshotFunctionalScope: async (_a: unknown, _p: string, _o: string, state: ProductPlanning) => ({ ...state, scope: { ...state.scope!, manifest: [functionalFixture()] } }) }));
 vi.mock("@/lib/ai/gemini", () => ({ createGeminiClient: () => ({ models: { generateContent: mocks.generate } }) }));
 vi.mock("./store", async (original) => ({ ...await original<typeof import("./store")>(), loadProductPlanning: async () => structuredClone(mocks.state), saveProductPlanning: mocks.save }));
-vi.mock("./references", () => ({ loadPlanningReference: async () => null, storePlanningReference: async () => "owner/new.webp" }));
+vi.mock("./references", () => ({ loadPlanningReference: mocks.loadReference, storePlanningReference: async () => "owner/new.webp" }));
 vi.mock("./readiness", () => ({ reviewProductReadiness: mocks.review }));
 vi.mock("@/lib/agent/project-tools", () => ({ projectReadToolDeclarations: [], createProjectReadToolExecutor: () => async () => ({ ok: true, data: { screens: [] } }) }));
 vi.mock("@/lib/supabase/queries", () => ({
@@ -26,6 +26,7 @@ const functionResponse = (calls: Array<{ name: string; args: unknown }>) => ({ f
 describe("product designer tool loop", () => {
   beforeEach(() => {
     mocks.generate.mockReset();
+    mocks.loadReference.mockReset().mockResolvedValue(null);
     mocks.assess.mockReset().mockResolvedValue({ turnId: "initial:project", mode: "product", productReady: true, experienceReady: true, gaps: [], delegation: "", rationale: "Detailed test brief" });
     mocks.review.mockReset().mockResolvedValue({ ready: true, issues: [] });
     mocks.state = createProductPlanning({ imagePath: null, imageReferenceMode: "style", stylePresetSlug: null });
@@ -62,6 +63,42 @@ describe("product designer tool loop", () => {
     await runProductDesigner({ ...options, initialize: false, clientTurnId: "skip-turn", productAnswers: { messageId, answers: [{ kind: "skip" }] } });
     expect(mocks.state?.blueprint.facts.find(fact => fact.id === "personalization")?.source).toBe("assumption");
     expect(mocks.messages.find(message => message.role === "user" && (message.metadata as Record<string, unknown>).clientTurnId === "skip-turn")?.metadata).toMatchObject({ productAnswerEvidence: [] });
+  });
+  it("repairs a persisted no-image recreation default before assessment and keeps normal turns from changing mode", async () => {
+    mocks.state!.input.imageReferenceMode = "recreate";
+    delete mocks.state!.input.referenceSource;
+    mocks.generate.mockResolvedValueOnce({ text: "Let's understand the product." });
+    await runProductDesigner({ ...options, imageReferenceMode: "recreate" });
+    expect(mocks.assess.mock.calls[0][0].state.input).toMatchObject({ imageReferenceMode: "style", referenceSource: "none", imagePath: null });
+    expect(mocks.state!.input.imageReferenceMode).toBe("style");
+  });
+  it.each(["style", "recreate"] as const)("keeps a saved upload's %s mode on a text-only follow-up", async mode => {
+    mocks.state!.input = { imagePath: "owner/prompt-images/reference.webp", imageReferenceMode: mode, stylePresetSlug: null };
+    mocks.loadReference.mockResolvedValue({ data: "real-pixels", mimeType: "image/webp" });
+    mocks.generate.mockResolvedValueOnce({ text: "Continuing with your product." });
+    await runProductDesigner({ ...options, initialize: false, clientTurnId: "follow-up", imageReferenceMode: mode === "style" ? "recreate" : "style" });
+    expect(mocks.state!.input).toMatchObject({ imageReferenceMode: mode, referenceSource: "user" });
+    expect(mocks.assess.mock.calls[0][0].reference.data).toBe("real-pixels");
+  });
+  it("uses the selected image control mode for a new upload", async () => {
+    mocks.generate.mockResolvedValueOnce({ text: "I'll use your reference." });
+    await runProductDesigner({ ...options, initialize: false, image: { data: "new-pixels", mimeType: "image/png" }, imageReferenceMode: "recreate" });
+    expect(mocks.state!.input).toMatchObject({ imageReferenceMode: "recreate", referenceSource: "user" });
+    expect(mocks.assess.mock.calls[0][0].reference.data).toBe("new-pixels");
+  });
+  it("does not silently reinterpret a missing saved upload as a prompt-only project", async () => {
+    mocks.state!.input.imagePath = "owner/prompt-images/missing.webp";
+    mocks.state!.input.imageReferenceMode = "recreate";
+    await expect(runProductDesigner(options)).rejects.toThrow(/saved reference/);
+    expect(mocks.assess).not.toHaveBeenCalled();
+    expect(mocks.state!.input.imageReferenceMode).toBe("recreate");
+    expect(mocks.state!.lease).toBeNull();
+  });
+  it("cannot switch project mode from assessment output", async () => {
+    mocks.assess.mockResolvedValueOnce({ turnId: "turn", mode: "recreate", modeChangeEvidence: "Design only onboarding.", productReady: true, experienceReady: true, gaps: [], delegation: "", rationale: "Model mistake" });
+    mocks.generate.mockResolvedValueOnce({ text: "Product context retained." });
+    await runProductDesigner(options);
+    expect(mocks.state!.input.imageReferenceMode).toBe("style");
   });
   it("updates product and scope in multiple tools before proposing, with one continuous conversation", async () => {
     const fixture = productFixture();

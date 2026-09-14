@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizePlanningInput } from "./reference-context";
 import { decisionProvenanceSchema, evidenceAssessmentSchema, evidenceAllowsProposal } from "./evidence";
 import { experienceSchema } from "./experience";
 import { functionalItemSchema, validateFunctionalPlan } from "./functional-plan";
@@ -50,6 +51,7 @@ export const productPlanningSchema = z.object({
   initialTurnComplete: z.boolean(),
   input: z.object({
     imagePath: z.string().nullable(),
+    referenceSource: z.enum(["none", "user", "curated"]).optional(),
     imageReferenceMode: z.enum(["style", "recreate"]),
     stylePresetSlug: z.string().nullable(),
   }),
@@ -64,7 +66,7 @@ export function readProductPlanning(value: unknown): ProductPlanning | null {
 }
 
 export function createProductPlanning(input: ProductPlanning["input"]): ProductPlanning {
-  return { version: 1, designerVersion: 2, evidenceAssessment: null, revision: 0, phase: "discovery", blueprint: { facts: [] }, scope: null, initialTurnComplete: false, input, lease: null };
+  return { version: 1, designerVersion: 2, evidenceAssessment: null, revision: 0, phase: "discovery", blueprint: { facts: [] }, scope: null, initialTurnComplete: false, input: normalizePlanningInput({ input }), lease: null };
 }
 
 export const productOperationSchema = z.discriminatedUnion("op", [

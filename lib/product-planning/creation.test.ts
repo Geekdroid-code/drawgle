@@ -8,7 +8,7 @@ vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ rpc: mocks.
 vi.mock("./references", () => ({ storePlanningReference: mocks.store }));
 import { POST } from "@/app/api/projects/route";
 const projectId = "11111111-1111-4111-8111-111111111111";
-const request = () => new Request("http://localhost/api/projects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clientRequestId: projectId, prompt: "Tacozz T-shirts", stylePresetSlug: "minimal" }) });
+const request = (extra: Record<string, unknown> = {}) => new Request("http://localhost/api/projects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clientRequestId: projectId, prompt: "Tacozz T-shirts", stylePresetSlug: "minimal", ...extra }) });
 describe("real project creation before generation", () => {
   beforeEach(() => { vi.clearAllMocks(); mocks.existing = null; mocks.user = { id: "owner" }; mocks.rpc.mockResolvedValue({ data: projectId, error: null }); });
   it("atomically persists the initial prompt and planning state without requesting generation", async () => {
@@ -21,6 +21,16 @@ describe("real project creation before generation", () => {
       input_message_metadata: { action: "product_initial_prompt", clientTurnId: `initial:${projectId}` },
     }]);
     expect(mocks.rpc).toHaveBeenCalledOnce();
+  });
+  it("corrects the real lobby payload with recreate selected but no uploaded image", async () => {
+    expect((await POST(request({ image: null, imageReferenceMode: "recreate" }))).status).toBe(201);
+    expect(mocks.rpc.mock.calls[0][1].input_product_planning.input).toMatchObject({ imagePath: null, imageReferenceMode: "style", referenceSource: "none" });
+    expect(mocks.store).not.toHaveBeenCalled();
+  });
+  it.each(["style", "recreate"])("preserves the selected %s mode when an image exists", async mode => {
+    mocks.store.mockResolvedValueOnce("owner/prompt-images/upload.webp");
+    expect((await POST(request({ image: { data: "pixels", mimeType: "image/png" }, imageReferenceMode: mode }))).status).toBe(201);
+    expect(mocks.rpc.mock.calls[0][1].input_product_planning.input).toMatchObject({ imageReferenceMode: mode, referenceSource: "user" });
   });
   it("returns the original project on retry and refuses another owner's request ID", async () => {
     mocks.existing = { id: projectId, owner_id: "owner" };

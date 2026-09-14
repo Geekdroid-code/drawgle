@@ -64,6 +64,16 @@ Implementation follows `product-designer-upgrade-plan.md`. Premium reference-to-
 - Styled `[ Skip ]` as a distinct secondary button; skipping delegates a tentative recommendation that is recorded as an assumption rather than confirmed product truth.
 - Visual smoke test verified with `scripts/preview-product-question-card.tsx` across light and dark themes. Full unit and regression coverage passed.
 
+## Phase 6.2 — Authoritative project mode and missing-image regression (2026-09-15)
+
+- Traced the production screenshot to a deterministic bug: ProjectLobby sent its default `recreate` even without an image; creation persisted it; the assessment returned `product`, and the mismatch fallback fabricated a supplied-screen mode card. This was application logic, not solely an LLM hallucination.
+- Project creation now normalizes no-image input to product design, regardless of stale client defaults. Prompt-only submissions no longer send a recreation selection. Existing invalid inputs are repaired under the normal planning turn lease before assessment.
+- Added a small reference-context module: actual persisted image presence, selected image mode, and user-versus-curated provenance determine the application mode. Optional provenance in existing project JSON is backward compatible; no new database migration is required. Reinspection preserves curated reference identity.
+- Removed mode classification and switching from the assessment output and designer. Models receive authoritative mode, source, and pixel availability. They assess product/experience gaps, never choose an application mode. Invalid mode cards are internally repaired once, then fail safely instead of being shown. Actual saved uploads that cannot load fail with a recoverable error rather than silently changing modes.
+- Existing erroneous cards display a one-click Continue planning recovery. No automatic reinitialization/polling loop is introduced. Submissions from old deployed clients resume without promoting their false premise to confirmed evidence or changing the selected mode.
+- Regression coverage exercises the real no-image/recreate creation payload, both image selections, legacy state repair, style presets, curated provenance across reinspection, ordinary follow-ups, fresh uploads, missing files, conflicting model output, rejected mode questions, and old-card recovery. Existing approval and generation boundaries remain in place.
+- Validation: full Vitest regression **64 suites / 393 tests passed**; Node camera runner **7/7 passed**. `pnpm.cmd run check` passed (curated index current, lint zero errors with the pre-existing CanvasArea dependency warning, TypeScript clean); final TypeScript and diff whitespace checks passed. This patch is local; no production deployment or production project mutation has been performed. More varied live product briefs remain necessary to evaluate the usefulness of recommendations; these checks do not establish that an LLM can never hallucinate.
+
 ## Test-environment rollout order
 
 1. Apply the new `20260914104053_product_designer_execution.sql` migration after the existing planning/roadmap/credit migrations. It preserves legacy records and separates the active coordinator index from the active child index.

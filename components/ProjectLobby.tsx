@@ -218,7 +218,7 @@ export function ProjectLobby({
       creationRequestId.current ??= crypto.randomUUID();
       const response = await fetch("/api/projects", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientRequestId: creationRequestId.current, prompt: prompt.trim(), image, imageReferenceMode, stylePresetSlug }),
+        body: JSON.stringify({ clientRequestId: creationRequestId.current, prompt: prompt.trim(), image, imageReferenceMode: image ? imageReferenceMode : "style", stylePresetSlug }),
       });
       const payload = await response.json();
       if (!response.ok || !payload.projectId) throw new Error(readApiError(payload, "Could not create your project."));

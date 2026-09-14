@@ -47,7 +47,7 @@ export function PromptBox({
     if ((!prompt.trim() && !image) || disabled || isProcessing) return;
     const userPrompt = prompt.trim();
     setPrompt("");
-    await onSend({ prompt: userPrompt, image, imageReferenceMode: image ? imageReferenceMode : "recreate" });
+    await onSend({ prompt: userPrompt, image, imageReferenceMode: image ? imageReferenceMode : undefined });
     setImage(null);
     setImageReferenceMode("recreate");
   };

@@ -13,6 +13,7 @@ import { reviewProductReadiness } from "./readiness";
 import { persistProjectMessageMemoryPair } from "@/lib/generation/message-memory";
 import { assessProductEvidence } from "./assess-evidence";
 import { confirmedMessageEvidence, productMessageContext, readProductQuestions, resolveProductAnswers, type ProductAnswers } from "./questions";
+import { normalizePlanningInput, planningReferenceContext } from "./reference-context";
 import { evidenceAllowsProposal } from "./evidence";
 import { inspectProductReference } from "./inspect-reference";
 import { readFunctionalRoadmap, updateFunctionalRoadmap, snapshotFunctionalScope } from "./functional-store";
@@ -38,7 +39,7 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, im
   }
   if (state.lease && Date.parse(state.lease.expiresAt) > Date.now()) throw new PlanningConflict("Drawgle is finishing the current product turn. Please try again shortly.");
   state = await saveProductPlanning(admin, projectId, ownerId, state, {
-    ...state, lease: { id: clientTurnId, expiresAt: new Date(Date.now() + 240_000).toISOString() },
+    ...state, input: normalizePlanningInput(state), lease: { id: clientTurnId, expiresAt: new Date(Date.now() + 240_000).toISOString() },
     evidenceAssessment: null,
     scope: state.scope?.status === "proposed" ? { ...state.scope, status: "draft" } : state.scope,
   });
@@ -57,19 +58,15 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, im
     const effectivePrompt = initialize ? initialMessage?.content ?? prompt : prompt;
     if (image) {
       const imagePath = await storePlanningReference(admin, ownerId, image);
-      await persist({ ...state, contentRevision: (state.contentRevision ?? 0) + 1, experience: null, input: { ...state.input, imagePath, imageReferenceMode, stylePresetSlug: null }, scope: state.scope ? { ...state.scope, status: "draft" } : null });
+      await persist({ ...state, contentRevision: (state.contentRevision ?? 0) + 1, experience: null, input: { ...state.input, imagePath, referenceSource: "user", imageReferenceMode, stylePresetSlug: null }, scope: state.scope ? { ...state.scope, status: "draft" } : null });
     }
     const reference = image ?? await loadPlanningReference(admin, state.input.imagePath, ownerId);
+    if (state.input.imagePath && !reference) throw new Error("The saved reference could not be loaded. Retry or replace it using the image controls.");
     const assessment = await assessProductEvidence({ state, prompt: effectivePrompt, turnId: clientTurnId,
       history: history.map(message => ({ role: message.role, content: productMessageContext(message) })), reference });
-    const requestedMode = assessment.mode === "recreate" ? "recreate" : "style";
-    if (assessment.mode !== "clarify_mode" && assessment.modeChangeEvidence && requestedMode !== state.input.imageReferenceMode) {
-      await persist({ ...state, contentRevision: (state.contentRevision ?? 0) + 1, experience: null,
-        input: { ...state.input, imageReferenceMode: requestedMode }, scope: state.scope ? { ...state.scope, status: "draft" } : null });
-    }
     await persist({ ...state, designerVersion: 2, evidenceAssessment: assessment });
     const contents: Content[] = [{ role: "user", parts: [
-      { text: JSON.stringify({ currentProduct: { ...state, blueprint: { facts: activeFacts(state) } }, history: history.map((message) => ({ id: message.id, role: message.role, content: productMessageContext(message).slice(0, 6000) })), userMessage: effectivePrompt }) },
+      { text: JSON.stringify({ referenceContext: planningReferenceContext(state), currentProduct: { ...state, blueprint: { facts: activeFacts(state) } }, history: history.map((message) => ({ id: message.id, role: message.role, content: productMessageContext(message).slice(0, 6000) })), userMessage: effectivePrompt }) },
       { text: `Independent evidence assessment: ${JSON.stringify(assessment)}. These user-dependent gaps cannot be resolved by inventing facts this turn. The chat automatically renders the questions and choices as optional interactive cards. Do not repeat them or add prose questions. Update known product truth first. Do not present a final screen list or claim readiness while gaps remain.` },
       ...(reference ? [{ inlineData: { data: reference.data, mimeType: reference.mimeType } }] : []),
     ] }];
@@ -137,6 +134,7 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, im
             const inspected = await inspectProductReference(admin, ownerId, state, String(call.args?.request ?? effectivePrompt));
             await persist({ ...state, contentRevision: (state.contentRevision ?? 0) + 1, experience: inspected.experience,
               input: { ...state.input, imagePath: inspected.experience.referencePath,
+                referenceSource: inspected.experience.referenceId || state.input.referenceSource === "curated" ? "curated" : "user",
                 imageReferenceMode: state.input.imagePath ? state.input.imageReferenceMode : "style" },
               scope: state.scope ? { ...state.scope, status: "draft" } : null });
             result = { ok: true, experience: inspected.experience };

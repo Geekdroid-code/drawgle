@@ -29,6 +29,13 @@ describe("reference-backed experience reasoning", () => {
     expect(result.experience.referenceId).toBe("editorial-1");
     expect(result.experience.referencePath).toBe("owner/prompt-images/curated.webp");
   });
+  it("preserves curated provenance on repeated inspection", async () => {
+    mocks.load.mockResolvedValue({ data: "library-pixels", mimeType: "image/webp" });
+    const state = designerFixture(); state.experience!.referenceId = "curated-original";
+    const result = await inspectProductReference({}, "owner", state, "Refine the visual hierarchy");
+    expect(result.experience.referenceId).toBe("curated-original");
+    expect(mocks.match).not.toHaveBeenCalled();
+  });
   it("fails closed if the reference is unavailable", async () => {
     mocks.load.mockResolvedValue(null);
     mocks.match.mockResolvedValue({ reference: { id: "missing" } });

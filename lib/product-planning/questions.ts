@@ -29,9 +29,17 @@ export function readProductQuestions(metadata: Record<string, unknown>): Product
   return parsed.success ? parsed.data : null;
 }
 
+// Compatibility for the application-generated mode card shipped before mode was server-owned.
+export function isObsoleteModeQuestion(questions: ProductQuestions) {
+  return questions.some(item => item.question === "Should I recreate the supplied screens, or adapt their design to your product?");
+}
+
+export const resumeProductPlanningPrompt = "Continue planning my product using the mode I selected. Ask about how my product works where needed.";
+
 export function productMessageContext(message: { content: string; metadata: Record<string, unknown> }) {
   const questions = readProductQuestions(message.metadata);
   if (!questions) return message.content;
+  if (isObsoleteModeQuestion(questions)) return "An obsolete application mode question was shown here. It did not establish user intent or image availability. Use current project referenceContext.";
   return `${message.content}\n\n${questions.map(question => `${question.question}\n${question.consequence}\n${question.choices.map((choice, index) =>
     `${index === 0 ? "Recommended: " : ""}${choice.label} — ${choice.description}`).join("\n")}`).join("\n\n")}`;
 }
@@ -58,6 +66,9 @@ export function resolveProductAnswers(history: Array<{ id: string; role: string;
     || (message.role === "model" && message.metadata.productTurnComplete && message.metadata.productTurnComplete !== turnId))) {
     throw new Error("These questions have changed. Continue with the latest message in chat.");
   }
+  // Old deployed clients can still submit this card. Resume safely without treating
+  // its false premise or selected option as a user decision about reference mode.
+  if (isObsoleteModeQuestion(questions)) return { content: resumeProductPlanningPrompt, confirmed: [] };
   return formatProductAnswers(questions, input.answers);
 }
 

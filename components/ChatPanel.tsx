@@ -1,7 +1,8 @@
 "use client";
 
+import { PlanningModeRecovery } from "@/components/product-planning/PlanningModeRecovery";
 import { ProductQuestionCard } from "@/components/product-planning/ProductQuestionCard";
-import { readProductQuestions, type ProductQuestions, type ProductAnswers } from "@/lib/product-planning/questions";
+import { isObsoleteModeQuestion, readProductQuestions, type ProductQuestions, type ProductAnswers } from "@/lib/product-planning/questions";
 import { PlanningConversation } from "@/components/product-planning/PlanningConversation";
 import { ProductExecutionCard } from "@/components/product-planning/ProductExecutionCard";
 import { usePlanningLease } from "@/hooks/use-planning-lease";
@@ -2313,11 +2314,14 @@ export function ChatPanel({
                     return (
                       <motion.div key={item.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
                         <AssistantMessage content={item.content} isError={item.isError} />
-                        {item.questions && item.messageId && <ProductQuestionCard
+                        {item.questions && item.messageId && (isObsoleteModeQuestion(item.questions) ? <PlanningModeRecovery
+                          active={!messages.slice(messages.findIndex(message => message.id === item.messageId) + 1).some(message => message.role === "user" || Boolean(message.metadata.productTurnComplete))}
+                          disabled={disabled || isBusy || planningBusy || !onSubmit} onSubmit={handleSubmit}
+                        /> : <ProductQuestionCard
                           questions={item.questions} messageId={item.messageId}
                           active={!messages.slice(messages.findIndex(message => message.id === item.messageId) + 1).some(message => message.role === "user" || Boolean(message.metadata.productTurnComplete))}
                           disabled={disabled || isBusy || planningBusy || !onSubmit} onSubmit={handleSubmit}
-                        />}
+                        />)}
                       </motion.div>
                     );
                   })

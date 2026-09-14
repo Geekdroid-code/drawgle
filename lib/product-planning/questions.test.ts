@@ -26,6 +26,13 @@ describe("product question answers", () => {
     expect(skipped.confirmed).toEqual([]);
     expect(confirmedMessageEvidence({ content: skipped.content, metadata: { productAnswers: {}, productAnswerEvidence: [] } })).toEqual([]);
   });
+  it("recovers old mode-card submissions without accepting their false premise", () => {
+    const old = { ...message, metadata: { productQuestions: [{ ...questionFixture[0], question: "Should I recreate the supplied screens, or adapt their design to your product?" }] } };
+    const result = resolveProductAnswers([old], { messageId, answers: [{ kind: "choice", index: 0 }] }, "turn");
+    expect(result.confirmed).toEqual([]);
+    expect(result.content).toContain("Continue planning my product");
+    expect(result.content).not.toContain("supplied screens");
+  });
   it("requires an explicit custom answer or skip for every question", () => {
     expect(() => formatProductAnswers([...questionFixture, ...questionFixture], [{ kind: "skip" }])).toThrow(/each/);
     expect(productAnswersSchema.safeParse({ messageId, answers: [{ kind: "custom", text: "   " }] }).success).toBe(false);
