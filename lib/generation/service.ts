@@ -1,4 +1,7 @@
 import "server-only";
+import { INITIAL_PROJECT_SCREEN_LIMIT } from "@/lib/generation/limits";
+import { type ProductPlanning, activeFacts } from "@/lib/product-planning/model";
+import { formatProductTruth, groundCharterInProduct, productScopeContract } from "@/lib/product-planning/generation-context";
 
 import { z } from "zod";
 
@@ -1120,8 +1123,6 @@ const clampScreenCount = (value: number | null | undefined) => {
 
   return Math.min(200, Math.max(1, Math.round(value as number)));
 };
-
-const INITIAL_PROJECT_SCREEN_LIMIT = 5;
 
 const hasFullAppIntent = (prompt: string) =>
   /\b(?:full|complete|entire|whole)\s+(?:app|application|product|prototype)\b/i.test(prompt) ||
@@ -3029,6 +3030,7 @@ export async function planScreenBriefsForBuild({
 }
 
 export async function planUiFlow({
+  productPlanning,
   prompt,
   image,
   referenceMode,
@@ -3047,6 +3049,7 @@ export async function planUiFlow({
   llmLog,
   onProgress,
 }: {
+  productPlanning?: ProductPlanning | null;
   prompt: string;
   image?: PromptImagePayload | null;
   referenceMode?: ReferenceMode | null;
@@ -3065,6 +3068,12 @@ export async function planUiFlow({
   llmLog?: LlmLogFn;
   onProgress?: (event: UiFlowPlanningProgress) => void | Promise<void>;
 }): Promise<PlannedUiFlow> {
+  if (productPlanning) {
+    if (productPlanning.scope?.status !== "approved") throw new Error("Product scope requires approval before screen planning.");
+    scopeContract = productScopeContract(productPlanning, referenceMode ?? "internal_style");
+    projectContext = [formatProductTruth(productPlanning, true), projectContext].filter(Boolean).join("\n\n");
+    if (existingCharter) existingCharter = groundCharterInProduct(existingCharter, productPlanning);
+  }
   const ai = createGeminiClient();
   const parts: Array<Record<string, unknown>> = [];
   const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
@@ -3113,6 +3122,10 @@ export async function planUiFlow({
     requestedScreenCount,
     scopeContract: resolvedScopeContract,
   });
+  if (productPlanning && resolvedReferenceMode === "user_recreate") {
+    intentContract.kind = "exact_recreate";
+    intentContract.reason = "Recreate the user-approved supplied screens; product discovery must not redesign their architecture.";
+  }
   let screenCountContract = buildScreenCountContract({
     intentContract,
     explicitScreenSections,
@@ -3480,7 +3493,7 @@ export async function planUiFlow({
         text: `Initial batch contract:\n${formatScreenCountContract(screenCountContract)}\n${parsedBlueprint.data.roadmap
           ? planningMode === "single-screen"
             ? `Return exactly the requested additional screen${screenCountContract.namedScreens?.[0] ? ` named ${screenCountContract.namedScreens[0]}` : ""}. The blueprint roadmap is project context only; do not substitute one of its pre-existing screens.`
-            : "Return screen briefs only for roadmap.initial_batch_keys, in that exact order."
+            : productPlanning ? "Return only the named screens from the approved scope contract, in that exact order. Roadmap items outside this scope are future context only." : "Return screen briefs only for roadmap.initial_batch_keys, in that exact order."
           : "Return only the parent screens selected by this contract, in exact prompt order."}`,
       },
     ];
@@ -3645,7 +3658,7 @@ export async function planUiFlow({
         lockToExistingArchitecture: Boolean(projectContext?.trim() && existingCharter?.navigationArchitecture),
       });
 
-  const charter = withReferenceDna(enrichProjectCharter({
+  const charter = groundCharterInProduct(withReferenceDna(enrichProjectCharter({
     base: {
       ...parsed.data.charter,
       creativeDirection: parsed.data.charter.creativeDirection ?? resolvedCreativeDirection,
@@ -3667,8 +3680,15 @@ export async function planUiFlow({
       intentContract: intentContractJson(intentContract),
       screenFamilyContract: screenFamilyContract as unknown as JsonValue,
     },
-  }));
+  })), productPlanning);
 
+  if (productPlanning?.scope) {
+    const allowedNames = new Set(productPlanning.scope.surfaceIds.map((id) =>
+      activeFacts(productPlanning, "surfaces").find((fact) => fact.id === id)!.label.toLowerCase()));
+    if (parsed.data.screens.some((screen) => !allowedNames.has(screen.name.toLowerCase()))) {
+      throw new Error("Screen planning contradicted the approved product scope. No screens were built.");
+    }
+  }
   const parsedScreens = planningMode === "single-screen"
       ? parsed.data.screens.slice(0, 1)
       : parsed.data.screens;

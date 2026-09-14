@@ -1,4 +1,6 @@
 "use client";
+import { PlanningConversation } from "@/components/product-planning/PlanningConversation";
+import { usePlanningLease } from "@/hooks/use-planning-lease";
 
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -2001,6 +2003,7 @@ export function ChatPanel({
   onDeleteSelectedElement?: () => void | Promise<void>;
 }) {
   const { messages, isLoading } = useProjectMessages(project.id);
+  const planningBusy = usePlanningLease(project.productPlanning?.lease);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const reduceMotion = Boolean(useReducedMotion());
   const [pendingTurn, setPendingTurn] = useState<PendingTurn | null>(null);
@@ -2317,6 +2320,7 @@ export function ChatPanel({
                   />
                 </div>
               ) : null}
+              <PlanningConversation project={project} disabled={disabled || isBusy} />
               <div ref={messagesEndRef} />
             </div>
             <div className="dg-chat-footer shrink-0 px-2 py-2">
@@ -2327,7 +2331,7 @@ export function ChatPanel({
                 onClearSelectedScreen={onClearSelectedScreen}
                 onDeleteSelectedScreen={onDeleteSelectedScreen}
                 onSubmit={handleSubmit}
-                disabled={disabled}
+                disabled={disabled || planningBusy}
                 submitStatusText="Thinking..."
                 selectionMode={selectionMode}
                 onToggleSelectionMode={onToggleSelectionMode}

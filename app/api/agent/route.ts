@@ -3,6 +3,9 @@ import { Buffer } from "node:buffer";
 import { tasks } from "@trigger.dev/sdk";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { runProductDesigner } from "@/lib/product-planning/designer";
+import { readProductPlanning } from "@/lib/product-planning/model";
+import { PlanningConflict } from "@/lib/product-planning/store";
 
 import {
   routeAgentPrompt,
@@ -51,9 +54,11 @@ import type { enrichScreenMemoryTask } from "@/trigger/enrich-screen-memory";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 const requestSchema = z.object({
   projectId: z.string().uuid(),
+  initializePlanning: z.boolean().optional(),
   prompt: z.string().trim().max(10000),
   image: z
     .object({
@@ -92,7 +97,7 @@ const requestSchema = z.object({
   }).nullable().optional(),
   clientTurnId: z.string().trim().max(120).nullable().optional(),
 }).superRefine((value, ctx) => {
-  if (!value.prompt.trim() && !value.image) {
+  if (!value.prompt.trim() && !value.image && !value.initializePlanning) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: "Provide a prompt or image.",
@@ -984,12 +989,26 @@ export async function POST(request: Request) {
 
     const { data: project, error: projectError } = await admin
       .from("projects")
-      .select("id, owner_id, name, prompt, design_tokens, project_charter")
+      .select("id, owner_id, name, prompt, design_tokens, project_charter, product_planning")
       .eq("id", payload.projectId)
       .maybeSingle();
 
     if (projectError || !project || project.owner_id !== user.id) {
       return NextResponse.json({ error: "Project not found." }, { status: 404 });
+    }
+
+    const productPlanning = readProductPlanning(project.product_planning);
+    if (productPlanning?.phase === "discovery" || (productPlanning && payload.initializePlanning)) {
+      try {
+        return NextResponse.json(await runProductDesigner({
+          admin, projectId: project.id, ownerId: user.id, prompt: prompt || project.prompt,
+          image: payload.image, imageReferenceMode: payload.imageReferenceMode,
+          clientTurnId: payload.initializePlanning ? `initial:${project.id}` : payload.clientTurnId || crypto.randomUUID(),
+          initialize: payload.initializePlanning,
+        }));
+      } catch (error) {
+        return NextResponse.json({ error: error instanceof Error ? error.message : "Could not update the product plan." }, { status: error instanceof PlanningConflict ? 409 : 500 });
+      }
     }
 
     const [{ data: screens, error: screensError }, { data: projectNavigation }, activeGeneration, projectMessages] = await Promise.all([
@@ -1084,7 +1103,7 @@ export async function POST(request: Request) {
       ...activeSelection,
       outerHTML: activeSelection.outerHTML ? compactMessageContent(activeSelection.outerHTML) : null,
     };
-    const agentV2Enabled = isProjectAgentV2Enabled(payload.projectId);
+    const agentV2Enabled = Boolean(productPlanning) || isProjectAgentV2Enabled(payload.projectId);
     const agentContextVersion = agentV2Enabled ? "agent-project-tools-v2" : "agent-lightweight-v1";
     const lightweightAgentContext: Record<string, unknown> = {
       version: agentContextVersion,
@@ -1092,6 +1111,7 @@ export async function POST(request: Request) {
         id: project.id,
         name: project.name,
         hasDesignTokens: Boolean(project.design_tokens),
+        hasProductBlueprint: Boolean(productPlanning),
       },
       selectedTarget: {
         activeScreenId: selectedScreenId,
@@ -1248,6 +1268,13 @@ export async function POST(request: Request) {
         },
       }) : undefined,
     });
+    if (routerDecision.action === "plan_product" && productPlanning) {
+      return NextResponse.json(await runProductDesigner({
+        admin, projectId: project.id, ownerId: user.id, prompt,
+        image: payload.image, imageReferenceMode: payload.imageReferenceMode, clientTurnId,
+        existingUserMessageId: userMessage.id,
+      }));
+    }
     if (routerDecision.action === "draft_new_screen_plan" || routerDecision.action === "modify_existing_ui") {
       const { data: stateRoadmapRows, error: stateRoadmapError } = await admin
         .from("project_screen_roadmap")

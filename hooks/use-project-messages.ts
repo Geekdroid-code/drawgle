@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { isProjectRefresh, PROJECT_REFRESH_EVENT } from "@/lib/project-refresh";
 
 import { createClient } from "@/lib/supabase/client";
 import type { ProjectMessageRow } from "@/lib/supabase/database.types";
@@ -57,6 +58,8 @@ export function useProjectMessages(projectId: string) {
     };
 
     void loadMessages();
+    const onRefresh = (event: Event) => { if (isProjectRefresh(event, projectId)) void loadMessages(); };
+    window.addEventListener(PROJECT_REFRESH_EVENT, onRefresh);
 
     const channel = supabase
       .channel(`project-messages:${projectId}`)
@@ -88,6 +91,7 @@ export function useProjectMessages(projectId: string) {
 
     return () => {
       cancelled = true;
+      window.removeEventListener(PROJECT_REFRESH_EVENT, onRefresh);
       void supabase.removeChannel(channel);
     };
   }, [projectId]);

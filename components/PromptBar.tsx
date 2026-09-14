@@ -1,14 +1,15 @@
 import { useState } from "react";
+import { ReferenceAttachment } from "@/components/product-planning/ReferenceAttachment";
 import { Loader2, Palette, Pencil, Send, Trash, X } from "lucide-react";
 
 import { AgentThinkingIndicator } from "@/components/AgentBall";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import type { ProjectData, ScreenData } from "@/lib/types";
+import type { ImageReferenceMode, PromptImagePayload, ProjectData, ScreenData } from "@/lib/types";
 
 export type AgentComposerProps = {
-  onSubmit?: (options: { prompt: string }) => Promise<boolean>;
+  onSubmit?: (options: { prompt: string; image?: PromptImagePayload | null; imageReferenceMode?: ImageReferenceMode }) => Promise<boolean>;
   project?: ProjectData;
   disabled?: boolean;
   submitStatusText?: string;
@@ -51,6 +52,8 @@ export function AgentComposer({
   variant = "floating",
 }: AgentComposerProps) {
   const [prompt, setPrompt] = useState("");
+  const [image, setImage] = useState<PromptImagePayload | null>(null);
+  const [imageReferenceMode, setImageReferenceMode] = useState<ImageReferenceMode>("style");
   const [isGenerating, setIsGenerating] = useState(false);
   const [agentStatus, setAgentStatus] = useState("");
   const hasSelectedElement = Boolean(
@@ -66,7 +69,7 @@ export function AgentComposer({
   const handleGenerate = async () => {
     const nextPrompt = prompt.trim();
 
-    if (!nextPrompt || disabled || isGenerating || !onSubmit) {
+    if ((!nextPrompt && !image) || disabled || isGenerating || !onSubmit) {
       return;
     }
 
@@ -76,10 +79,13 @@ export function AgentComposer({
     try {
       const didSubmit = await onSubmit({
         prompt: nextPrompt,
+        image,
+        imageReferenceMode,
       });
 
       if (didSubmit) {
         setPrompt("");
+        setImage(null);
       }
     } catch (error) {
       console.error("Pipeline error:", error);
@@ -200,6 +206,7 @@ export function AgentComposer({
         </div>
       ) : null}
 
+      <ReferenceAttachment image={image} mode={imageReferenceMode} disabled={disabled || isGenerating} onChange={setImage} onModeChange={setImageReferenceMode} />
       <Textarea
         placeholder={
           hasSelectedElement
@@ -235,7 +242,7 @@ export function AgentComposer({
               size="icon"
               className="absolute bottom-3 right-3 h-10 w-10 rounded-full dg-button-primary text-white shadow-[0_12px_28px_rgba(15,23,42,0.28)] hover:dg-button-primary"
               onClick={() => void handleGenerate()}
-              disabled={disabled || isGenerating || !prompt.trim()}
+              disabled={disabled || isGenerating || (!prompt.trim() && !image)}
               aria-label="Send"
             >
               {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}

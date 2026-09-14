@@ -1042,6 +1042,7 @@ export interface ScreenBlockIndex {
 }
 
 export interface ProjectData {
+  productPlanning?: import("@/lib/product-planning/model").ProductPlanning | null;
   id: string;
   ownerId?: string;
   userId: string;

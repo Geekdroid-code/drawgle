@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { isProjectRefresh, PROJECT_REFRESH_EVENT } from "@/lib/project-refresh";
 
 import { createClient } from "@/lib/supabase/client";
 import { fetchGenerationRuns } from "@/lib/supabase/queries";
@@ -57,6 +58,8 @@ export function useGenerationRuns(projectId: string, initialRuns: GenerationRunD
     })();
 
     const supabase = createClient();
+    const onRefresh = (event: Event) => { if (isProjectRefresh(event, projectId)) void refreshGenerationRuns(); };
+    window.addEventListener(PROJECT_REFRESH_EVENT, onRefresh);
     const channel = supabase
       .channel(`generation-runs:${projectId}`)
       .on(
@@ -75,6 +78,7 @@ export function useGenerationRuns(projectId: string, initialRuns: GenerationRunD
 
     return () => {
       cancelled = true;
+      window.removeEventListener(PROJECT_REFRESH_EVENT, onRefresh);
       void supabase.removeChannel(channel);
     };
   }, [projectId, refreshGenerationRuns]);

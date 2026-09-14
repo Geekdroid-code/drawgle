@@ -3,6 +3,9 @@ import { Buffer } from "node:buffer";
 import { tasks } from "@trigger.dev/sdk";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { prepareProductApproval } from "@/lib/product-planning/approval";
+import { PlanningConflict } from "@/lib/product-planning/store";
+import { readProductPlanning } from "@/lib/product-planning/model";
 
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { getDesignStylePack, isDesignStyleId, summarizeDesignStyle } from "@/lib/generation/design-styles";
@@ -311,6 +314,8 @@ export async function POST(request: Request) {
   let retrySourceRun: Database["public"]["Tables"]["generation_runs"]["Row"] | null = null;
   let authenticatedOwnerId: string | null = null;
   let requestClientId: string | null = null;
+  let productApproval: Awaited<ReturnType<typeof prepareProductApproval>> = null;
+  let dispatched = false;
 
   try {
     const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -326,6 +331,22 @@ export async function POST(request: Request) {
       ? (rawRequestBody as Record<string, unknown>).clientRequestId as string
       : null;
     let requestBody = rawRequestBody;
+    if (!rawRequestBody?.projectId) {
+      return NextResponse.json({ error: "Create a project and approve its design scope in chat before generation.", code: "product_planning_required" }, { status: 409 });
+    }
+    if (requestClientId) {
+      const { data: previousRun, error } = await admin.from("generation_runs")
+        .select("id, project_id, trigger_run_id, status")
+        .eq("owner_id", ownerId).eq("project_id", rawRequestBody.projectId)
+        .eq("client_request_id", requestClientId).maybeSingle();
+      if (error) throw error;
+      if (previousRun) return NextResponse.json({ projectId: previousRun.project_id, generationRunId: previousRun.id,
+        triggerRunId: previousRun.trigger_run_id, status: previousRun.status, idempotent: true }, { status: 202 });
+    }
+    if (rawRequestBody?.projectId) {
+      productApproval = await prepareProductApproval(admin, ownerId, rawRequestBody);
+      if (productApproval) requestBody = productApproval.body;
+    }
     const retryCoordinates = retryCoordinatesSchema.safeParse(rawRequestBody);
     const requestedSourceRunId = rawRequestBody && typeof rawRequestBody === "object" && !Array.isArray(rawRequestBody)
       ? (rawRequestBody as Record<string, unknown>).sourceGenerationRunId
@@ -527,6 +548,10 @@ export async function POST(request: Request) {
       }
     }
     const isExistingProjectRequest = Boolean(payload.projectId);
+    const isInitialProductGeneration = productApproval?.initialGeneration === true;
+    const retryMetadata = retrySourceRun?.metadata && typeof retrySourceRun.metadata === "object" && !Array.isArray(retrySourceRun.metadata)
+      ? retrySourceRun.metadata as Record<string, unknown> : {};
+    const productSnapshot = productApproval?.snapshot ?? readProductPlanning(retryMetadata.productPlanning);
     const generationEngineVersion = getGenerationEngineVersion();
     const normalizedReference = payload.image ? await normalizeReferenceImage(payload.image) : null;
     const promptImage = normalizedReference?.image ?? null;
@@ -744,7 +769,7 @@ export async function POST(request: Request) {
       hasCurrentUserImage: Boolean(promptImage),
       hasProjectReferenceImage: referencePolicy === "project_reference" && Boolean(imagePath),
       hasExplicitStyle: Boolean(designStyle),
-      isExistingProject: isExistingProjectRequest,
+      isExistingProject: isExistingProjectRequest && !isInitialProductGeneration,
       requestedPolicy: referencePolicy,
     });
 
@@ -762,7 +787,8 @@ export async function POST(request: Request) {
           generationEngineVersion,
           requestedFrom: payload.sourceGenerationRunId ? "retry" : "nextjs-route",
           sourceGenerationRunId: payload.sourceGenerationRunId ?? null,
-          isNewProject: !isExistingProjectRequest,
+          isNewProject: !isExistingProjectRequest || isInitialProductGeneration,
+          productPlanning: productSnapshot,
           performanceV1: {
             version: 1,
             requestAcceptedAt,
@@ -798,6 +824,7 @@ export async function POST(request: Request) {
     }
 
     generationRunId = generationRun.id;
+    if (productApproval) await productApproval.queued(generationRun.id);
 
     if (!payload.projectId) {
       // Only insert the initial user message for a newly created project
@@ -843,19 +870,22 @@ export async function POST(request: Request) {
         navigationArchitecture,
         navigationPlan,
         projectCharter,
+        productPlanning: productSnapshot,
         planningMode: payload.planningMode,
         baseState: payload.baseState ?? null,
         stateVariants: payload.stateVariants ?? [],
         retryContext,
         projectRoadmap,
         initialBatchItemKeys: payload.initialBatchItemKeys ?? [],
-        isNewProject: !isExistingProjectRequest,
+        isNewProject: !isExistingProjectRequest || isInitialProductGeneration,
       },
       {
         concurrencyKey: ownerId,
         ttl: "30m",
       },
     );
+
+    dispatched = true;
 
     const { error: triggerUpdateError } = await admin
       .from("generation_runs")
@@ -883,6 +913,16 @@ export async function POST(request: Request) {
     );
   } catch (error: any) {
     console.error("Generation queue route error", error);
+
+    // The worker owns execution after dispatch. A later metadata write failure must
+    // not falsely mark an accepted job failed or reopen its already-used approval.
+    if (dispatched && generationRunId && projectId) {
+      return NextResponse.json({ projectId, generationRunId, status: "queued" }, { status: 202 });
+    }
+
+    if (error instanceof PlanningConflict) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
 
     if (error instanceof DuplicateGenerationError) {
       return NextResponse.json(
@@ -977,5 +1017,7 @@ export async function POST(request: Request) {
       },
       { status: 500 },
     );
+  } finally {
+    if (productApproval && !dispatched) await productApproval.rollback().catch((error) => console.error("Could not restore product scope after queue failure", error));
   }
 }

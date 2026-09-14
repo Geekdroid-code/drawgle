@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { readProductPlanning } from "@/lib/product-planning/model";
 
 import { assembleProjectContext } from "@/lib/generation/context";
 import { loadCuratedStyleReferenceImage, matchCuratedStyleReference } from "@/lib/generation/curated-style-references";
@@ -67,7 +68,7 @@ export async function POST(req: Request) {
     if (payload.projectId) {
       const { data: project, error: projectError } = await admin
         .from("projects")
-        .select("id, owner_id, project_charter")
+        .select("id, owner_id, project_charter, product_planning")
         .eq("id", payload.projectId)
         .maybeSingle();
 
@@ -76,6 +77,9 @@ export async function POST(req: Request) {
       }
 
       existingCharter = (project.project_charter as ProjectCharter | null) ?? null;
+      if (readProductPlanning(project.product_planning)?.phase === "discovery") {
+        return NextResponse.json({ error: "Approve the product scope in chat before planning screens." }, { status: 409 });
+      }
       if (!payload.image) {
         cachedReferenceDna = resolveProjectReferenceDna(existingCharter);
         if (cachedReferenceDna?.cacheSource === "legacy_reconstruction" && existingCharter) {

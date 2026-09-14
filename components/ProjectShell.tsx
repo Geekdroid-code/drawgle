@@ -10,6 +10,8 @@ import { ExportMenu } from "@/components/ExportMenu";
 import { ProjectCanvasLoading } from "@/components/ProjectCanvasLoading";
 import { PreviewShareDialog } from "@/components/PreviewShareDialog";
 import { ChatPanel } from "@/components/ChatPanel";
+import { PlanningEmptyCanvas } from "@/components/product-planning/PlanningEmptyCanvas";
+import { notifyProjectChanged } from "@/lib/project-refresh";
 import { ColorPickerButton } from "@/components/DesignSystemEditor";
 import type { ElementSelectionLostReason, SelectedElementInfo, SelectedElementPreviewPayload } from "@/components/ScreenNode";
 import { Button } from "@/components/ui/button";
@@ -2079,8 +2081,9 @@ export function ProjectShell({
         }),
       });
       const payload = await agentRes.json().catch(() => ({}));
+      if (project.productPlanning) notifyProjectChanged(project.id);
 
-      if (!agentRes.ok && agentRes.status !== 409) {
+      if (!agentRes.ok) {
         throw new Error(payload.error ?? "Drawgle agent could not process the request.");
       }
 
@@ -2117,7 +2120,7 @@ export function ProjectShell({
         return false;
       }
 
-      return true;
+      return false;
     } finally {
       setIsQueueingGeneration(false);
     }
@@ -2866,6 +2869,8 @@ export function ProjectShell({
             onClearSelectedElement={clearEditSession}
             onDeleteSelectedElement={handleDeleteSelectedElement}
           />
+
+          {project.productPlanning?.phase === "discovery" && screens.length === 0 && !isGenerationActive ? <PlanningEmptyCanvas /> : null}
 
           {canvasTool === "element-select" && (!isMobile || Boolean(editSession)) ? (
             <SelectedElementInspectorSidebar

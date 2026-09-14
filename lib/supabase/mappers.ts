@@ -1,4 +1,5 @@
 import { parseStoredNavigationPlan } from "@/lib/project-navigation";
+import { readProductPlanning } from "@/lib/product-planning/model";
 import type { User } from "@supabase/supabase-js";
 
 import type {
@@ -43,6 +44,7 @@ export function mapProjectRow(row: ProjectRow): ProjectData {
     prompt: row.prompt,
     status: row.status,
     charter: (row.project_charter as ProjectCharter | null) ?? null,
+    productPlanning: readProductPlanning(row.product_planning),
     designTokens: (row.design_tokens as DesignTokens | null) ?? null,
     publicPreviewToken: row.public_preview_token,
     publicPreviewEnabled: row.public_preview_enabled,

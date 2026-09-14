@@ -16,6 +16,9 @@ import { getDesignStylePack, isDesignStyleId, summarizeDesignStyle } from "@/lib
 import { CURATED_STYLE_EMBEDDING_MODEL } from "@/lib/generation/curated-style-index-core";
 import { indexScreenCode } from "@/lib/generation/block-index";
 import { buildFirstScreenPriorityBatches } from "@/lib/generation/build-scheduler";
+import { readProductPlanning, type ProductPlanning } from "@/lib/product-planning/model";
+import { INITIAL_PROJECT_SCREEN_LIMIT } from "@/lib/generation/limits";
+import { groundCharterInProduct } from "@/lib/product-planning/generation-context";
 import {
   extractTopChromeContinuityEvidence,
   rememberFirstRunChromeEvidence,
@@ -122,6 +125,7 @@ type GenerateUiFlowPayload = {
   navigationArchitecture?: NavigationArchitecture | null;
   navigationPlan?: NavigationPlan | null;
   projectCharter?: ProjectCharter | null;
+  productPlanning?: ProductPlanning | null;
   scopeContract?: GenerationScopeContract | null;
   referenceAnalysis?: ReferenceAnalysis | null;
   planningMode?: PlanningMode;
@@ -1960,10 +1964,11 @@ export const generateUiFlowTask = task({
     let designTokens = payload.designTokens ?? null;
     const { data: existingProject } = await admin
       .from("projects")
-      .select("project_charter, design_tokens")
+      .select("project_charter, design_tokens, product_planning")
       .eq("id", payload.projectId)
       .maybeSingle();
     const existingCharter = (existingProject?.project_charter as ProjectCharter | null) ?? null;
+    const productPlanning = payload.productPlanning ?? readProductPlanning(existingProject?.product_planning);
     const projectReferenceDna = resolveProjectReferenceDna(payload.projectCharter ?? existingCharter)?.dna ?? null;
     if (!designTokens && existingProject?.design_tokens) {
       designTokens = existingProject.design_tokens as DesignTokens;
@@ -2011,6 +2016,7 @@ export const generateUiFlowTask = task({
     const referenceStartedAt = now();
     const referenceStartedMs = Date.now();
     const planningContextPromise = assembleProjectContext({
+      productPlanning: payload.productPlanning,
       admin,
       projectId: payload.projectId,
       userPrompt: payload.prompt,
@@ -2413,6 +2419,7 @@ export const generateUiFlowTask = task({
           remainingUnplannedCount: payload.projectRoadmap?.remainingUnplannedCount ?? 0,
         }
       : await planUiFlow({
+          productPlanning: payload.productPlanning,
           prompt: payload.prompt,
           image: promptImage,
           referenceMode,
@@ -2538,6 +2545,9 @@ export const generateUiFlowTask = task({
 	          : "prompt");
 	    plan.charter = { ...plan.charter, projectOrigin };
 	    plan.screens = applyNavigationPlanToScreens(plan.screens, plan.navigationPlan);
+      if (payload.productPlanning && !payload.retryContext) {
+        plan.screens = plan.screens.map((screen) => ({ ...screen, stateVariants: (screen.stateVariants ?? []).map((variant) => ({ ...variant, defaultSelected: false, explicitlyRequested: false })) }));
+      }
 	    if (payload.stateVariants?.length && plan.screens.length === 1) {
 	      plan.screens[0] = { ...plan.screens[0], stateVariants: payload.stateVariants };
 	    }
@@ -2561,7 +2571,7 @@ export const generateUiFlowTask = task({
 	      roadmap: projectRoadmap,
 	    }) as ProjectScreenRoadmapRow[];
 	    const roadmapByKey = new Map(persistedRoadmapRows.map((item) => [item.stable_key, item]));
-	    plan.screens = plan.screens.slice(0, 5).map((screenPlan) => {
+	    plan.screens = plan.screens.slice(0, INITIAL_PROJECT_SCREEN_LIMIT).map((screenPlan) => {
 	      const stableKey = screenPlan.roadmapStableKey ?? screenRoadmapKey(screenPlan.name);
 	      const roadmapItem = roadmapByKey.get(stableKey);
 	      const variants = (screenPlan.stateVariants ?? []).map((variant) => {
@@ -2718,6 +2728,7 @@ export const generateUiFlowTask = task({
     }
 
     if (plan.charter) {
+      plan.charter = groundCharterInProduct(plan.charter, productPlanning);
       await updateProject(admin, payload.projectId, {
         project_charter: plan.charter as never,
       });

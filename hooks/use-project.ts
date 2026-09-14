@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { isProjectRefresh, PROJECT_REFRESH_EVENT } from "@/lib/project-refresh";
 
 import { createClient } from "@/lib/supabase/client";
 import type { ProjectRow } from "@/lib/supabase/database.types";
@@ -52,6 +53,8 @@ export function useProject(projectId: string, initialProject: ProjectData | null
     };
 
     void loadProject();
+    const onRefresh = (event: Event) => { if (isProjectRefresh(event, projectId)) void loadProject(); };
+    window.addEventListener(PROJECT_REFRESH_EVENT, onRefresh);
 
     const channel = supabase
       .channel(`project:${projectId}`)
@@ -76,6 +79,7 @@ export function useProject(projectId: string, initialProject: ProjectData | null
 
     return () => {
       cancelled = true;
+      window.removeEventListener(PROJECT_REFRESH_EVENT, onRefresh);
       void supabase.removeChannel(channel);
     };
   }, [projectId]);

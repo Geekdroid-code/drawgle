@@ -37,6 +37,7 @@ export type AgentEditOperation =
   | "unknown";
 export type AgentExecutionIntent = "chat" | "plan" | "edit" | "approve" | "clarify" | "refuse";
 export type AgentAction =
+  | "plan_product"
   | "answer_or_discuss"
   | "draft_new_screen_plan"
   | "propose_screen_state"
@@ -205,6 +206,7 @@ const safeJson = (value: unknown, limit = 6500) => {
 };
 
 const routerSystemInstruction = [
+  "For projects with hasProductBlueprint, call plan_product for product decisions/corrections, roadmap discussion, current design scope changes or requests for a new flow (such as add the orders flow). This maintains durable product truth and presents a scope approval. Continue using normal editing/state tools for existing canvas edits. For new individual screens, use product planning when they change product behavior; simple existing product screen additions can use draft_new_screen_plan with project facts from get_project_overview.",
   "You are Drawgle AI inside a mobile app design canvas.",
   "Act as a project agent, not a classifier. Answer directly, inspect project data with read tools, or call one action tool for real work.",
   "Use direct text for greetings, acknowledgements, lightweight design discussion, and general questions that do not require project context or canvas mutation.",
@@ -230,6 +232,11 @@ const stringProperty = (description: string) => ({ type: Type.STRING, descriptio
 
 const toolDeclarations: FunctionDeclaration[] = [
   ...projectReadToolDeclarations,
+  {
+    name: "plan_product",
+    description: "Discuss or update durable product decisions and roadmap, or propose a new design scope/flow for a project that has a Product Blueprint. Does not edit existing UI.",
+    parameters: { type: Type.OBJECT, properties: { instruction: stringProperty("Product change or requested design scope.") } },
+  },
   {
     name: "draft_new_screen_plan",
     description: "Draft a proposal for a new screen to be approved before building. Use for new screen creation or planning requests.",
@@ -433,6 +440,8 @@ const parseToolDecision = (input: AgentRouterInput, call: FunctionCall): AgentRo
   const instruction = args.instruction?.trim() || input.prompt.trim() || null;
   const reason = args.reason?.trim() || `Gemini selected ${name}.`;
 
+  if (name === "plan_product") return { ...directTextDecision(input.prompt, "Let's update the product plan."), action: "plan_product", executionIntent: "plan", targetType: "project", instruction };
+
   if (name === "draft_new_screen_plan") {
     return {
       action: "draft_new_screen_plan",
@@ -602,7 +611,9 @@ export async function routeAgentPrompt(input: AgentRouterInput): Promise<AgentRo
     let modelCallCount = 0;
 
     while (modelCallCount < 3) {
-      const availableTools = supportsReadTools && readRounds < 2 ? toolDeclarations : actionToolDeclarations;
+      const project = input.agentContext?.project as { hasProductBlueprint?: boolean } | undefined;
+      const availableTools = (supportsReadTools && readRounds < 2 ? toolDeclarations : actionToolDeclarations)
+        .filter((tool) => tool.name !== "plan_product" || project?.hasProductBlueprint);
       const response = await generateRouterResponse(contents, availableTools);
       modelCallCount += 1;
       const calls = response.functionCalls ?? [];

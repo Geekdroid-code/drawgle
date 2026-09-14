@@ -173,7 +173,7 @@ export function createProjectReadToolExecutor({
   const assertProject = async () => {
     const { data, error } = await admin
       .from("projects")
-      .select("id, name, prompt, project_charter, design_tokens")
+      .select("id, name, prompt, project_charter, design_tokens, product_planning")
       .eq("id", projectId)
       .eq("owner_id", ownerId)
       .maybeSingle();
@@ -205,6 +205,7 @@ export function createProjectReadToolExecutor({
         const sections = new Set(args.sections?.length ? args.sections : ["charter", "navigation", "roadmap", "plans", "generation"]);
         const project = await assertProject();
         const output: Record<string, unknown> = { project: { id: project.id, name: project.name, prompt: compact(project.prompt, 600) } };
+        output.productPlanning = project.product_planning;
         const jobs: Promise<void>[] = [];
         if (sections.has("charter")) output.charter = project.project_charter;
         if (sections.has("tokens")) output.designTokens = project.design_tokens;

@@ -67,6 +67,7 @@ export interface Database {
           prompt: string;
           status: ProjectStatus;
           project_charter: Json | null;
+          product_planning: Json | null;
           design_tokens: Json | null;
           public_preview_token: string | null;
           public_preview_enabled: boolean;
@@ -83,6 +84,7 @@ export interface Database {
           prompt?: string;
           status?: ProjectStatus;
           project_charter?: Json | null;
+          product_planning?: Json | null;
           design_tokens?: Json | null;
           public_preview_token?: string | null;
           public_preview_enabled?: boolean;
@@ -99,6 +101,7 @@ export interface Database {
           prompt?: string;
           status?: ProjectStatus;
           project_charter?: Json | null;
+          product_planning?: Json | null;
           design_tokens?: Json | null;
           public_preview_token?: string | null;
           public_preview_enabled?: boolean;
@@ -842,6 +845,10 @@ export interface Database {
     };
     Views: {};
     Functions: {
+      create_planning_project: {
+        Args: { input_project_id: string; input_owner_id: string; input_name: string; input_prompt: string; input_product_planning: Json; input_message_metadata: Json };
+        Returns: string;
+      };
       reconcile_project_roadmap_manifest: {
         Args: {
           input_owner_id: string;

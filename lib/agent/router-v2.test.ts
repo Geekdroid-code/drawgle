@@ -27,6 +27,16 @@ const input = (): AgentRouterInput => ({
 describe("bounded project agent loop", () => {
   beforeEach(() => mocks.generateContent.mockReset());
 
+  it("exposes product planning in mixed canvas mode only for projects with a blueprint", async () => {
+    mocks.generateContent.mockResolvedValue({ functionCalls: [{ name: "plan_product", args: { instruction: "Add the orders flow" } }] });
+    const decision = await routeAgentPrompt({ ...input(), prompt: "Add the orders flow", agentContext: { project: { hasProductBlueprint: true } } });
+    expect(decision.action).toBe("plan_product");
+    expect(mocks.generateContent.mock.calls[0][0].config.tools[0].functionDeclarations.some((tool: { name: string }) => tool.name === "plan_product")).toBe(true);
+    mocks.generateContent.mockResolvedValueOnce({ text: "Hello" });
+    await routeAgentPrompt(input());
+    expect(mocks.generateContent.mock.calls[1][0].config.tools[0].functionDeclarations.some((tool: { name: string }) => tool.name === "plan_product")).toBe(false);
+  });
+
   it("inspects a source region before returning one target edit action", async () => {
     mocks.generateContent
       .mockResolvedValueOnce({

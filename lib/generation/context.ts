@@ -1,4 +1,6 @@
 import "server-only";
+import { readProductPlanning, type ProductPlanning } from "@/lib/product-planning/model";
+import { formatProductTruth, groundCharterInProduct } from "@/lib/product-planning/generation-context";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
@@ -467,6 +469,7 @@ export function formatAgentContextSnapshot(snapshot: AgentContextSnapshot) {
 }
 
 export async function assembleProjectContext({
+  productPlanning,
   admin,
   projectId,
   userPrompt,
@@ -474,6 +477,7 @@ export async function assembleProjectContext({
   matchThreshold = DEFAULT_MATCH_THRESHOLD,
   retrieveScreenMemory = true,
 }: {
+  productPlanning?: ProductPlanning | null;
   admin?: AdminClient;
   projectId: string;
   userPrompt: string;
@@ -485,7 +489,7 @@ export async function assembleProjectContext({
 
   const { data: project, error: projectError } = await client
     .from("projects")
-    .select("prompt, project_charter, design_tokens")
+    .select("prompt, project_charter, design_tokens, product_planning")
     .eq("id", projectId)
     .maybeSingle();
 
@@ -497,7 +501,8 @@ export async function assembleProjectContext({
     return "";
   }
 
-  const charter = (project.project_charter as ProjectCharter | null) ?? null;
+  const productTruth = productPlanning ?? readProductPlanning(project.product_planning);
+  const charter = project.project_charter ? groundCharterInProduct(project.project_charter as ProjectCharter, productTruth) : null;
   const referenceDna = resolveProjectReferenceDna(charter)?.dna ?? null;
   const portableReferenceMemory = Boolean(referenceDna && referenceDna.referenceMode !== "user_recreate");
   const { data: projectNavigation } = await client
@@ -541,6 +546,7 @@ export async function assembleProjectContext({
   const navigationPlanSummary = formatNavigationPlan(navigationPlan);
 
   const sections = [
+    productTruth ? formatProductTruth(productTruth, Boolean(productPlanning)) : null,
     charter ? `PROJECT CHARTER
 ${formatCharter(charter, portableReferenceMemory)}` : null,
     charter?.navigationArchitecture
