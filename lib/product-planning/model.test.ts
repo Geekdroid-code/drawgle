@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { activeFacts, applyProductPatch, approveProductScope, createProductPlanning, proposeProductScope, readinessIssues, readProductPlanning } from "./model";
 import { formatProductTruth, groundCharterInProduct, productScopeContract, scopedGenerationPrompt } from "./generation-context";
-import { productFixture } from "./test-fixtures";
+import { productFixture, designerFixture } from "./test-fixtures";
 import type { ProjectCharter } from "@/lib/types";
 
 const messageId = "11111111-1111-4111-8111-111111111111";
@@ -48,9 +48,11 @@ describe("durable product truth and scope", () => {
     expect(readinessIssues(resolved)).toEqual([]);
   });
   it("lets narrow image recreation propose immediately without inventing a full product", () => {
-    const state = createProductPlanning({ imagePath: "owner/reference.webp", imageReferenceMode: "recreate", stylePresetSlug: null });
+    const state = designerFixture();
+    state.input.imageReferenceMode = "recreate";
+    state.evidenceAssessment!.mode = "recreate";
+    state.scope!.manifest![0].referenceScreenIndex = 1;
     state.blueprint.facts = productFixture().blueprint.facts.filter((fact) => ["identity", "surfaces"].includes(fact.section));
-    state.scope = productFixture().scope;
     expect(proposeProductScope(state).scope?.status).toBe("proposed");
     expect(readinessIssues({ ...state, input: { ...state.input, imageReferenceMode: "style" } })).toContain("Clarify the product's actors.");
   });

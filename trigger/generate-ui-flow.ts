@@ -18,6 +18,9 @@ import { indexScreenCode } from "@/lib/generation/block-index";
 import { buildFirstScreenPriorityBatches } from "@/lib/generation/build-scheduler";
 import { readProductPlanning, type ProductPlanning } from "@/lib/product-planning/model";
 import { INITIAL_PROJECT_SCREEN_LIMIT } from "@/lib/generation/limits";
+import { functionalStateVariant } from "@/lib/product-planning/functional-plan";
+import { executionOutputs, scopeParents } from "@/lib/product-planning/scope-outputs";
+import { loadExecutionRoadmap } from "@/lib/product-planning/execution-roadmap";
 import { groundCharterInProduct } from "@/lib/product-planning/generation-context";
 import {
   extractTopChromeContinuityEvidence,
@@ -108,7 +111,7 @@ import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, Generati
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
-type GenerateUiFlowPayload = {
+export type GenerateUiFlowPayload = {
   generationRunId: string;
   projectId: string;
   ownerId: string;
@@ -126,6 +129,8 @@ type GenerateUiFlowPayload = {
   navigationPlan?: NavigationPlan | null;
   projectCharter?: ProjectCharter | null;
   productPlanning?: ProductPlanning | null;
+  productExecutionKeys?: string[];
+  productAttempt?: number;
   scopeContract?: GenerationScopeContract | null;
   referenceAnalysis?: ReferenceAnalysis | null;
   planningMode?: PlanningMode;
@@ -422,6 +427,10 @@ async function updateProject(admin: AdminClient, projectId: string, patch: Datab
 }
 
 async function settleProjectStatus(admin: AdminClient, projectId: string, runSucceeded: boolean) {
+  const { data: active, error: activeError } = await admin.from("generation_runs").select("id")
+    .eq("project_id", projectId).in("status", ["queued", "planning", "building"]).limit(1).maybeSingle();
+  if (activeError) throw activeError;
+  if (active) { await updateProject(admin, projectId, { status: "generating" }); return; }
   if (runSucceeded) {
     await updateProject(admin, projectId, { status: "completed" });
     return;
@@ -2420,6 +2429,7 @@ export const generateUiFlowTask = task({
         }
       : await planUiFlow({
           productPlanning: payload.productPlanning,
+          productExecutionKeys: payload.productExecutionKeys,
           prompt: payload.prompt,
           image: promptImage,
           referenceMode,
@@ -2499,7 +2509,7 @@ export const generateUiFlowTask = task({
           screens: plannedBriefs.screens,
           navigationArchitecture: plan.navigationArchitecture,
           requiresBottomNav: deriveRequiresBottomNav(plan.navigationArchitecture),
-          strictScreenLinks: planningMode !== "single-screen",
+          strictScreenLinks: planningMode !== "single-screen" && !payload.productExecutionKeys,
         }),
       };
       setJournalPhase(
@@ -2545,7 +2555,21 @@ export const generateUiFlowTask = task({
 	          : "prompt");
 	    plan.charter = { ...plan.charter, projectOrigin };
 	    plan.screens = applyNavigationPlanToScreens(plan.screens, plan.navigationPlan);
-      if (payload.productPlanning && !payload.retryContext) {
+      if (payload.productPlanning?.scope?.manifest?.length) {
+        const manifest = executionOutputs(payload.productPlanning, payload.productExecutionKeys);
+        const expected = scopeParents(payload.productPlanning, payload.productExecutionKeys);
+        if (plan.screens.length !== expected.length || expected.some(item => !plan.screens.some(screen => screen.name === item.name))) {
+          throw new Error("Detailed screen planning changed the approved output identities. Review the plan before generation.");
+        }
+        plan.screens = plan.screens.map(screen => {
+          const item = expected.find(item => item.name === screen.name)!;
+          return { ...screen, roadmapStableKey: item.stableKey,
+            ...(item.referenceScreenIndex == null ? {} : { referenceScreenIndex: item.referenceScreenIndex,
+              referenceScreenCount: Math.max(referenceAnalysis?.screenReferences.length ?? 0,
+                ...payload.productPlanning!.scope!.manifest!.map(output => output.referenceScreenIndex ?? 0)) }),
+            stateVariants: manifest.filter(state => state.parentStableKey === item.stableKey).map(functionalStateVariant) };
+        });
+      } else if (payload.productPlanning && !payload.retryContext) {
         plan.screens = plan.screens.map((screen) => ({ ...screen, stateVariants: (screen.stateVariants ?? []).map((variant) => ({ ...variant, defaultSelected: false, explicitlyRequested: false })) }));
       }
 	    if (payload.stateVariants?.length && plan.screens.length === 1) {
@@ -2564,7 +2588,9 @@ export const generateUiFlowTask = task({
 	      tranche: roadmapSeed.tranche,
 	      plannedItems: roadmapSeed.items,
 	    });
-	    const persistedRoadmapRows = await persistProjectRoadmap({
+	    const persistedRoadmapRows = payload.productPlanning && payload.productExecutionKeys
+        ? await loadExecutionRoadmap(admin, payload.projectId, payload.ownerId, payload.productPlanning, payload.productExecutionKeys)
+        : await persistProjectRoadmap({
 	      admin,
 	      projectId: payload.projectId,
 	      ownerId: payload.ownerId,
@@ -3650,7 +3676,9 @@ export const generateUiFlowTask = task({
       },
     );
 
-    const completionMessage = finishedStatus === "completed"
+    const completionMessage = payload.productExecutionKeys
+      ? `This batch delivered ${successfulScreens} of ${plannedScreenCount} approved outputs. Overall flow progress is shown in chat; remaining approved work continues automatically unless paused.`
+      : finishedStatus === "completed"
       ? partialFailure
         ? `Done - I created ${successfulScreens} of ${plannedScreenCount} screens and added ${successfulScreens === 1 ? "it" : "them"} to the canvas. ${failedScreens} screen${failedScreens === 1 ? "" : "s"} failed during generation.`
         : `Done - I created ${successfulScreens} screen${successfulScreens === 1 ? "" : "s"} and added ${successfulScreens === 1 ? "it" : "them"} to the canvas.`
@@ -3681,7 +3709,7 @@ export const generateUiFlowTask = task({
       });
     }
 
-    if (finishedStatus === "completed" && roadmapRecommendation) {
+    if (finishedStatus === "completed" && roadmapRecommendation && !payload.productExecutionKeys) {
       const { data: existingRecommendation } = await admin
         .from("project_messages")
         .select("id")

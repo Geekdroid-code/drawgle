@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
 vi.mock("server-only", () => ({}));
 const mocks = vi.hoisted(() => ({ load: vi.fn(), save: vi.fn(), image: vi.fn(), message: vi.fn() }));
 vi.mock("./store", async (original) => ({ ...await original<typeof import("./store")>(), loadProductPlanning: mocks.load, saveProductPlanning: mocks.save }));
@@ -7,7 +8,7 @@ vi.mock("@/lib/supabase/queries", () => ({ insertProjectMessage: mocks.message }
 vi.mock("@/lib/credits", () => ({ adminCreditService: { hasCredits: async () => ({ hasCredits: true, currentBalance: 500 }) } }));
 import { prepareProductApproval } from "./approval";
 import { proposeProductScope } from "./model";
-import { productFixture } from "./test-fixtures";
+import { productFixture, designerFixture, functionalFixture } from "./test-fixtures";
 const projectId = "11111111-1111-4111-8111-111111111111";
 const query = { select: () => query, eq: () => query, in: () => query, limit: () => query, maybeSingle: vi.fn() };
 const admin = { from: vi.fn(() => query) };
@@ -68,5 +69,18 @@ describe("server product scope approval", () => {
     expect(await prepareProductApproval(admin, "owner", { projectId })).toBeNull();
     mocks.load.mockResolvedValue({ ...productFixture(), phase: "canvas" });
     expect(await prepareProductApproval(admin, "owner", { projectId })).toBeNull();
+  });
+  it("verifies the reference and freezes every approved output beyond five screens", async () => {
+    const state = designerFixture();
+    state.scope!.manifest = Array.from({ length: 7 }, (_, index) => functionalFixture(`screen:${index}`, `Screen ${index}`, index));
+    state.experience!.referenceHash = createHash("sha256").update("pixels").digest("hex");
+    mocks.load.mockResolvedValue(proposeProductScope(state));
+    mocks.image.mockResolvedValue({ data: "changed-pixels", mimeType: "image/webp" });
+    await expect(prepareProductApproval(admin, "owner", { projectId, productApproval: { revision: state.revision } })).rejects.toThrow(/reference changed/i);
+    expect(mocks.save).not.toHaveBeenCalled();
+    mocks.image.mockResolvedValue({ data: "pixels", mimeType: "image/webp" });
+    const approval = await prepareProductApproval(admin, "owner", { projectId, productApproval: { revision: state.revision } });
+    expect(approval?.snapshot.scope?.manifest).toHaveLength(7);
+    expect(approval?.body.scopeContract.finalScreenCount).toBe(7);
   });
 });

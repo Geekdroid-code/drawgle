@@ -1,8 +1,9 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { ACTIVE_GENERATION_STATUSES } from "@/lib/types";
 import { adminCreditService } from "@/lib/credits";
-import { INITIAL_PROJECT_SCREEN_LIMIT } from "@/lib/generation/limits";
+import { scopeQuote } from "./scope-outputs";
 import { insertProjectMessage } from "@/lib/supabase/queries";
 import { approveProductScope, type ProductPlanning } from "./model";
 import { productScopeContract, scopedGenerationPrompt } from "./generation-context";
@@ -26,11 +27,14 @@ export async function prepareProductApproval(admin: PlanningStore, ownerId: stri
     .eq("project_id", projectId).in("status", [...ACTIVE_GENERATION_STATUSES]).limit(1).maybeSingle();
   if (error) throw error;
   if (active) throw new PlanningConflict("A generation is already running. Wait for it to finish before approving another scope.");
-  const requiredCredits = Math.min(approved.scope!.surfaceIds.length, INITIAL_PROJECT_SCREEN_LIMIT) * 20;
+  const requiredCredits = scopeQuote(approved).credits;
   const creditCheck = await adminCreditService.hasCredits(ownerId, requiredCredits);
-  if (!creditCheck.hasCredits) throw new PlanningConflict(`This batch needs ${requiredCredits} credits; your balance is ${creditCheck.currentBalance}. Add credits before approving.`);
+  if (!creditCheck.hasCredits) throw new PlanningConflict(`This scope needs ${requiredCredits} credits; your balance is ${creditCheck.currentBalance}. Add credits before approving.`);
   // Load evidence before claiming; storage failure leaves the approval available for retry.
   const image = await loadPlanningReference(admin, state.input.imagePath, ownerId);
+  if (state.designerVersion === 2 && (!image || createHash("sha256").update(image.data).digest("hex") !== state.experience?.referenceHash)) {
+    throw new PlanningConflict("The reference changed or could not be verified. Inspect it again before approving.");
+  }
   const leaseId = crypto.randomUUID();
   let current = await saveProductPlanning(admin, projectId, ownerId, state, {
     ...approved, lease: { id: leaseId, expiresAt: new Date(Date.now() + 240_000).toISOString() },
@@ -40,7 +44,7 @@ export async function prepareProductApproval(admin: PlanningStore, ownerId: stri
     snapshot: approved,
     initialGeneration: state.phase === "discovery",
     body: {
-      projectId, clientRequestId: body.clientRequestId, prompt: scopedGenerationPrompt(approved),
+      projectId, clientRequestId: body.clientRequestId, prompt: approved.scope?.manifest?.length ? approved.scope.goal : scopedGenerationPrompt(approved),
       image, imageReferenceMode: state.input.imageReferenceMode, stylePresetSlug: state.input.stylePresetSlug,
       scopeContract: productScopeContract(approved, referenceMode),
     },

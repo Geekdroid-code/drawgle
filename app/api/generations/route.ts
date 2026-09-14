@@ -6,6 +6,7 @@ import { z } from "zod";
 import { prepareProductApproval } from "@/lib/product-planning/approval";
 import { PlanningConflict } from "@/lib/product-planning/store";
 import { readProductPlanning } from "@/lib/product-planning/model";
+import { resumeProductGeneration } from "@/lib/product-planning/resume-generation";
 
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { getDesignStylePack, isDesignStyleId, summarizeDesignStyle } from "@/lib/generation/design-styles";
@@ -38,7 +39,6 @@ import {
   type ScreenPlan,
   type ScreenPlanningSeed,
 } from "@/lib/types";
-import type { generateUiFlowTask } from "@/trigger/generate-ui-flow";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -316,6 +316,7 @@ export async function POST(request: Request) {
   let requestClientId: string | null = null;
   let productApproval: Awaited<ReturnType<typeof prepareProductApproval>> = null;
   let dispatched = false;
+  let retainedProductApproval = false;
 
   try {
     const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -387,6 +388,12 @@ export async function POST(request: Request) {
       }
       if (navigationResult.error) throw navigationResult.error;
       if (screensResult.error) throw screensResult.error;
+      const productRetryMetadata = sourceRunResult.data.metadata as Record<string, unknown>;
+      const sourceProduct = readProductPlanning(productRetryMetadata?.productPlanning);
+      if (sourceProduct?.scope?.manifest?.length || typeof productRetryMetadata?.productApprovalId === "string") {
+        const approvalId = typeof productRetryMetadata.productApprovalId === "string" ? productRetryMetadata.productApprovalId : sourceRunResult.data.id;
+        return NextResponse.json(await resumeProductGeneration(admin, ownerId, retryCoordinates.data.projectId, approvalId, requestClientId ?? crypto.randomUUID()), { status: 202 });
+      }
 
       const sourceScreens = screensResult.data ?? [];
       const baseScreens = sourceScreens.filter((screen) => !screen.parent_screen_id);
@@ -824,6 +831,9 @@ export async function POST(request: Request) {
     }
 
     generationRunId = generationRun.id;
+    // Once the immutable product approval owns a run, an uncertain dispatch is
+    // recovered from that run. Reopening approval here could create a second bill.
+    retainedProductApproval = Boolean(productSnapshot?.scope?.manifest?.length);
     if (productApproval) await productApproval.queued(generationRun.id);
 
     if (!payload.projectId) {
@@ -849,8 +859,8 @@ export async function POST(request: Request) {
       }
     }
 
-    const handle = await tasks.trigger<typeof generateUiFlowTask>(
-      "generate-ui-flow",
+    const handle = await tasks.trigger(
+      productSnapshot?.scope?.manifest?.length ? "generate-product-flow" : "generate-ui-flow",
       {
         generationRunId: generationRunId!,
         projectId: projectId!,
@@ -881,6 +891,8 @@ export async function POST(request: Request) {
       },
       {
         concurrencyKey: ownerId,
+        idempotencyKey: `generation:${generationRunId}`,
+        idempotencyKeyTTL: "30d",
         ttl: "30m",
       },
     );
@@ -1018,6 +1030,6 @@ export async function POST(request: Request) {
       { status: 500 },
     );
   } finally {
-    if (productApproval && !dispatched) await productApproval.rollback().catch((error) => console.error("Could not restore product scope after queue failure", error));
+    if (productApproval && !dispatched && !retainedProductApproval) await productApproval.rollback().catch((error) => console.error("Could not restore product scope after queue failure", error));
   }
 }

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, cleanup } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProductScopeCard } from "./ProductScopeCard";
-import { productFixture } from "@/lib/product-planning/test-fixtures";
+import { productFixture, designerFixture, functionalFixture } from "@/lib/product-planning/test-fixtures";
 import { proposeProductScope } from "@/lib/product-planning/model";
 afterEach(cleanup);
 describe("product scope approval card", () => {
@@ -24,5 +24,17 @@ describe("product scope approval card", () => {
     expect(onApprove).not.toHaveBeenCalled();
     rerender(<ProductScopeCard state={productFixture()} onApprove={onApprove} />);
     expect(screen.queryByRole("button")).toBeNull();
+  });
+  it("shows the complete parent/state quote and reference-backed direction", () => {
+    const state = designerFixture();
+    const parent = functionalFixture();
+    state.scope!.manifest = [parent, ...Array.from({ length: 6 }, (_, index) => functionalFixture(`screen:${index}`, `Screen ${index}`, index + 1)),
+      ...Array.from({ length: 4 }, (_, index) => ({ ...functionalFixture(`state:${index}`, `State ${index}`, index + 8), kind: "state" as const,
+        parentStableKey: parent.stableKey, stateKey: `state-${index}`, triggerLabel: "Change options", editInstruction: "Show updated options" }))];
+    render(<ProductScopeCard state={proposeProductScope(state)} onApprove={vi.fn()} />);
+    expect(screen.getByText(/7 screens \+ 4 states · 180 credits/)).toBeTruthy();
+    expect(screen.getByText("Design direction & reference")).toBeTruthy();
+    expect(screen.getByText(/7\. Screen 5/)).toBeTruthy();
+    expect(screen.getByText(/State 3: Change options/)).toBeTruthy();
   });
 });

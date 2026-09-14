@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { decisionProvenanceSchema, evidenceAssessmentSchema, evidenceAllowsProposal } from "./evidence";
+import { experienceSchema } from "./experience";
+import { functionalItemSchema, validateFunctionalPlan } from "./functional-plan";
 
 const text = z.string().trim().min(1).max(2400);
 const id = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,79}$/);
@@ -12,6 +15,7 @@ export const productFactSchema = z.object({
   label: z.string().trim().min(1).max(120),
   detail: text,
   source: z.enum(["user", "assumption"]),
+  provenance: decisionProvenanceSchema.optional(),
   evidence: z.string().trim().max(1000).default(""),
   links: z.array(id).max(30).default([]),
   blocking: z.boolean().default(false),
@@ -22,7 +26,12 @@ export const productFactSchema = z.object({
 export type ProductFact = z.infer<typeof productFactSchema>;
 export const designScopeSchema = z.object({
   goal: text,
-  surfaceIds: z.array(id).min(1).max(24),
+  surfaceIds: z.array(id).min(1).max(500),
+  outputKeys: z.array(z.string()).max(500).optional(),
+  manifest: z.array(functionalItemSchema).max(500).optional(),
+  existingOutputs: z.array(z.object({ item: functionalItemSchema, screenId: z.string().uuid() })).max(500).optional(),
+  boundaries: z.array(z.object({ key: z.string(), name: z.string(), outcome: z.string() })).max(500).optional(),
+  reviewedContentRevision: z.number().int().nonnegative().optional(),
   rationale: text,
   status: z.enum(["draft", "proposed", "approved"]),
   approvedRevision: z.number().int().nullable().default(null),
@@ -30,6 +39,10 @@ export const designScopeSchema = z.object({
 });
 export const productPlanningSchema = z.object({
   version: z.literal(1),
+  designerVersion: z.literal(2).optional(),
+  contentRevision: z.number().int().nonnegative().optional(),
+  evidenceAssessment: evidenceAssessmentSchema.nullable().optional(),
+  experience: experienceSchema.nullable().optional(),
   revision: z.number().int().nonnegative(),
   phase: z.enum(["discovery", "canvas"]),
   blueprint: z.object({ facts: z.array(productFactSchema).max(500) }),
@@ -51,13 +64,14 @@ export function readProductPlanning(value: unknown): ProductPlanning | null {
 }
 
 export function createProductPlanning(input: ProductPlanning["input"]): ProductPlanning {
-  return { version: 1, revision: 0, phase: "discovery", blueprint: { facts: [] }, scope: null, initialTurnComplete: false, input, lease: null };
+  return { version: 1, designerVersion: 2, evidenceAssessment: null, revision: 0, phase: "discovery", blueprint: { facts: [] }, scope: null, initialTurnComplete: false, input, lease: null };
 }
 
 export const productOperationSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("put_fact"), fact: productFactSchema.omit({ status: true, supersededBy: true, messageId: true }) }),
   z.object({ op: z.literal("supersede_fact"), id, replacement: productFactSchema.omit({ status: true, supersededBy: true, messageId: true }).nullable() }),
-  z.object({ op: z.literal("set_scope"), goal: text, surfaceIds: z.array(id).min(1).max(24), rationale: text }),
+  z.object({ op: z.literal("set_scope"), goal: text, surfaceIds: z.array(id).min(1).max(500), rationale: text,
+    outputKeys: z.array(z.string()).max(500).optional() }),
 ]);
 export const productPatchSchema = z.object({ operations: z.array(productOperationSchema).min(1).max(40) });
 
@@ -67,6 +81,7 @@ export const activeFacts = (state: ProductPlanning, section?: ProductFact["secti
 export function applyProductPatch(state: ProductPlanning, value: unknown, messageId: string): ProductPlanning {
   const { operations } = productPatchSchema.parse(value);
   const next = structuredClone(state);
+  next.contentRevision = (state.contentRevision ?? 0) + 1;
   for (const operation of operations) {
     if (operation.op === "set_scope") {
       next.scope = { ...operation, surfaceIds: [...new Set(operation.surfaceIds)], status: "draft", approvedRevision: null, generationRunId: null };
@@ -110,6 +125,10 @@ export function applyProductPatch(state: ProductPlanning, value: unknown, messag
 export function readinessIssues(state: ProductPlanning): string[] {
   const issues: string[] = [];
   const recreation = Boolean(state.input.imagePath && state.input.imageReferenceMode === "recreate");
+  if (recreation && state.designerVersion === 2 && state.scope?.manifest?.length) {
+    const frames = state.scope.manifest.filter(item => item.kind === "screen").map(item => item.referenceScreenIndex);
+    if (frames.some(index => index == null) || new Set(frames).size !== frames.length) issues.push("Map each requested recreation screen to its distinct source frame before proposing.");
+  }
   for (const section of recreation ? ["identity"] as const : ["identity", "actors", "jobs", "journeys"] as const) {
     if (!activeFacts(state, section).length) issues.push(`Clarify the product's ${section}.`);
   }
@@ -123,12 +142,24 @@ export function readinessIssues(state: ProductPlanning): string[] {
 }
 
 export function proposeProductScope(state: ProductPlanning): ProductPlanning {
+  if (state.designerVersion === 2 && !evidenceAllowsProposal(state.evidenceAssessment)) throw new Error("Discuss the unresolved product or experience decisions with the user before proposing a scope.");
+  if (state.designerVersion === 2) {
+    if (!state.experience) throw new Error("Inspect a reference before proposing designs.");
+    if (!state.scope?.manifest?.length) throw new Error("Map concrete screens and states on the roadmap, then select their output keys.");
+    validateFunctionalPlan(state.scope.manifest, (state.scope.existingOutputs ?? []).map(output => output.item), state.scope.boundaries?.map(item => item.key));
+  }
   const issues = readinessIssues(state);
   if (issues.length) throw new Error(issues.join(" "));
-  return { ...state, scope: { ...state.scope!, status: "proposed", approvedRevision: null, generationRunId: null } };
+  return { ...state, scope: { ...state.scope!, status: "proposed", reviewedContentRevision: state.contentRevision ?? 0, approvedRevision: null, generationRunId: null } };
 }
 
 export function approveProductScope(state: ProductPlanning, revision: number): ProductPlanning {
+  if (state.designerVersion === 2 && !evidenceAllowsProposal(state.evidenceAssessment)) throw new Error("Product understanding requires another conversation before approval.");
+  if (state.designerVersion === 2) {
+    if (state.scope?.reviewedContentRevision !== (state.contentRevision ?? 0)) throw new Error("Product decisions changed after review.");
+    if (!state.experience || state.experience.referencePath !== state.input.imagePath || !state.scope?.manifest?.length) throw new Error("Reference or functional scope changed. Review the updated plan.");
+    validateFunctionalPlan(state.scope.manifest, (state.scope.existingOutputs ?? []).map(output => output.item), state.scope.boundaries?.map(item => item.key));
+  }
   if (state.revision !== revision || state.scope?.status !== "proposed" || (state.lease && Date.parse(state.lease.expiresAt) > Date.now())) {
     throw new Error("This plan changed or is already being processed. Review the current scope before approving.");
   }

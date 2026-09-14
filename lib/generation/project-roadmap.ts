@@ -149,7 +149,9 @@ export function buildProjectRoadmap({
         roadmapIdentityFingerprint(item.stateKey ?? item.stateLabel ?? item.name) === roadmapIdentityFingerprint(variant.stateKey || variant.stateLabel)
       );
       const child = existingChildIndex >= 0
-        ? { ...proposedChild, stableKey: items[existingChildIndex].stableKey, sequence: items[existingChildIndex].sequence }
+        ? { ...proposedChild, stableKey: items[existingChildIndex].stableKey, sequence: items[existingChildIndex].sequence,
+            dependencyKeys: [...new Set([...items[existingChildIndex].dependencyKeys, ...proposedChild.dependencyKeys])],
+            metadata: { ...items[existingChildIndex].metadata, ...proposedChild.metadata } }
         : proposedChild;
       if (existingChildIndex >= 0) items[existingChildIndex] = child;
       else if (!seen.has(child.stableKey)) {

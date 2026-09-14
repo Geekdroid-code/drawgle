@@ -2,6 +2,7 @@ import "server-only";
 import { INITIAL_PROJECT_SCREEN_LIMIT } from "@/lib/generation/limits";
 import { type ProductPlanning, activeFacts } from "@/lib/product-planning/model";
 import { formatProductTruth, groundCharterInProduct, productScopeContract } from "@/lib/product-planning/generation-context";
+import { scopeParents } from "@/lib/product-planning/scope-outputs";
 
 import { z } from "zod";
 
@@ -3031,6 +3032,7 @@ export async function planScreenBriefsForBuild({
 
 export async function planUiFlow({
   productPlanning,
+  productExecutionKeys,
   prompt,
   image,
   referenceMode,
@@ -3050,6 +3052,7 @@ export async function planUiFlow({
   onProgress,
 }: {
   productPlanning?: ProductPlanning | null;
+  productExecutionKeys?: string[];
   prompt: string;
   image?: PromptImagePayload | null;
   referenceMode?: ReferenceMode | null;
@@ -3070,8 +3073,10 @@ export async function planUiFlow({
 }): Promise<PlannedUiFlow> {
   if (productPlanning) {
     if (productPlanning.scope?.status !== "approved") throw new Error("Product scope requires approval before screen planning.");
-    scopeContract = productScopeContract(productPlanning, referenceMode ?? "internal_style");
-    projectContext = [formatProductTruth(productPlanning, true), projectContext].filter(Boolean).join("\n\n");
+    scopeContract = productScopeContract(productPlanning, referenceMode ?? "internal_style", productExecutionKeys);
+    projectContext = [formatProductTruth(productPlanning, true),
+      productExecutionKeys ? `EXECUTION SELECTION: ${JSON.stringify(productExecutionKeys)}. Implement only this batch. The full approved flow above governs shared navigation, transitions and design continuity; other approved outputs will be built in subsequent batches. Do not shrink the product navigation to the number of screens in this batch.` : null,
+      projectContext].filter(Boolean).join("\n\n");
     if (existingCharter) existingCharter = groundCharterInProduct(existingCharter, productPlanning);
   }
   const ai = createGeminiClient();
@@ -3126,6 +3131,16 @@ export async function planUiFlow({
     intentContract.kind = "exact_recreate";
     intentContract.reason = "Recreate the user-approved supplied screens; product discovery must not redesign their architecture.";
   }
+  if (productExecutionKeys && resolvedReferenceMode !== "user_recreate") {
+    // A one-parent execution chunk is not evidence that the product has no
+    // shared navigation. The approved experience and full flow govern that.
+    intentContract.allowSharedNavigation = true;
+  }
+  if (productExecutionKeys) {
+    intentContract.exactScreenCount = resolvedScopeContract.finalScreenCount;
+    intentContract.maxInitialScreens = resolvedScopeContract.finalScreenCount;
+    intentContract.reason = "Execute these approved identities from the complete product flow. This is an execution chunk, not a product screen-count target.";
+  }
   let screenCountContract = buildScreenCountContract({
     intentContract,
     explicitScreenSections,
@@ -3138,7 +3153,7 @@ export async function planUiFlow({
     hasReferenceAnalysis: Boolean(referenceAnalysis),
     hasProjectVisualMemory: Boolean(providedReferenceDna || existingCharter?.referenceDna),
   });
-  const forceFiniteFlowWithoutPersistentNav = looksLikeFiniteFlowWithoutPersistentNav(prompt, explicitScreenSections);
+  const forceFiniteFlowWithoutPersistentNav = !productExecutionKeys && looksLikeFiniteFlowWithoutPersistentNav(prompt, explicitScreenSections);
   const fallbackRequiresBottomNav = screenCountContract.disableSharedNavigation ? false : inferLegacyRequiresBottomNav({
     prompt,
     planningMode,
@@ -3683,8 +3698,9 @@ export async function planUiFlow({
   })), productPlanning);
 
   if (productPlanning?.scope) {
-    const allowedNames = new Set(productPlanning.scope.surfaceIds.map((id) =>
-      activeFacts(productPlanning, "surfaces").find((fact) => fact.id === id)!.label.toLowerCase()));
+    const allowedNames = new Set(productPlanning.scope.manifest?.length
+      ? scopeParents(productPlanning, productExecutionKeys).map(item => item.name.toLowerCase())
+      : productPlanning.scope.surfaceIds.map((id) => activeFacts(productPlanning, "surfaces").find((fact) => fact.id === id)!.label.toLowerCase()));
     if (parsed.data.screens.some((screen) => !allowedNames.has(screen.name.toLowerCase()))) {
       throw new Error("Screen planning contradicted the approved product scope. No screens were built.");
     }
@@ -3768,7 +3784,8 @@ export async function planUiFlow({
       }),
     }),
   });
-  const suppliedNavigationPlan = toNavigationPlan(parsed.data.navigation_plan) ?? (planningMode === "single-screen" ? existingNavigationPlan : null);
+  const suppliedNavigationPlan = (productExecutionKeys && existingNavigationPlan?.enabled ? existingNavigationPlan : null)
+    ?? toNavigationPlan(parsed.data.navigation_plan) ?? (planningMode === "single-screen" ? existingNavigationPlan : null);
   const referenceNavigationPlan = plannerMode === "recreate"
     ? deriveReferenceNavigationPlan({ screens, referenceAnalysis })
     : null;
@@ -3783,7 +3800,7 @@ export async function planUiFlow({
     screens,
     navigationArchitecture,
     requiresBottomNav: deriveRequiresBottomNav(navigationArchitecture),
-    strictScreenLinks: planningMode !== "single-screen",
+    strictScreenLinks: planningMode !== "single-screen" && !productExecutionKeys,
   });
   const plannedScreens = attachReferenceScreenTargets({
     screens: applyNavigationPlanToScreens(screens, navigationPlan),

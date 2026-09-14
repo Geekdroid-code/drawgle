@@ -4,8 +4,8 @@ import type { createAdminClient } from "@/lib/supabase/admin";
 import type { CreditReservationRow } from "@/lib/supabase/database.types";
 import type { CreditReservationSummary, JsonValue } from "@/lib/types";
 
-export const SCREEN_GENERATION_CREDIT_COST = 20;
-export const STATE_GENERATION_CREDIT_COST = 10;
+import { SCREEN_GENERATION_CREDIT_COST } from "./pricing";
+export { SCREEN_GENERATION_CREDIT_COST, STATE_GENERATION_CREDIT_COST } from "./pricing";
 export const MAX_TOTAL_OUTPUTS_PER_RUN = 8;
 
 type AdminClient = ReturnType<typeof createAdminClient>;

@@ -1,5 +1,6 @@
 "use client";
 import { PlanningConversation } from "@/components/product-planning/PlanningConversation";
+import { ProductExecutionCard } from "@/components/product-planning/ProductExecutionCard";
 import { usePlanningLease } from "@/hooks/use-planning-lease";
 
 import Image from "next/image";
@@ -2321,6 +2322,7 @@ export function ChatPanel({
                 </div>
               ) : null}
               <PlanningConversation project={project} disabled={disabled || isBusy} />
+              <ProductExecutionCard projectId={project.id} runs={generationRuns} screens={screens} />
               <div ref={messagesEndRef} />
             </div>
             <div className="dg-chat-footer shrink-0 px-2 py-2">

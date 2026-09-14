@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProductPlanning } from "./model";
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/generation/message-memory", () => ({ persistProjectMessageMemoryPair: async () => true }));
-const mocks = vi.hoisted(() => ({ generate: vi.fn(), review: vi.fn(), state: null as ProductPlanning | null, messages: [] as Array<Record<string, unknown>>, save: vi.fn() }));
+const mocks = vi.hoisted(() => ({ generate: vi.fn(), assess: vi.fn(), review: vi.fn(), state: null as ProductPlanning | null, messages: [] as Array<Record<string, unknown>>, save: vi.fn() }));
+vi.mock("./assess-evidence", () => ({ assessProductEvidence: mocks.assess }));
+vi.mock("./functional-store", () => ({ readFunctionalRoadmap: async () => [], updateFunctionalRoadmap: vi.fn(), snapshotFunctionalScope: async (_a: unknown, _p: string, _o: string, state: ProductPlanning) => ({ ...state, scope: { ...state.scope!, manifest: [functionalFixture()] } }) }));
 vi.mock("@/lib/ai/gemini", () => ({ createGeminiClient: () => ({ models: { generateContent: mocks.generate } }) }));
 vi.mock("./store", async (original) => ({ ...await original<typeof import("./store")>(), loadProductPlanning: async () => structuredClone(mocks.state), saveProductPlanning: mocks.save }));
 vi.mock("./references", () => ({ loadPlanningReference: async () => null, storePlanningReference: async () => "owner/new.webp" }));
@@ -17,15 +19,17 @@ vi.mock("@/lib/supabase/queries", () => ({
 }));
 import { runProductDesigner } from "./designer";
 import { createProductPlanning } from "./model";
-import { productFixture } from "./test-fixtures";
+import { productFixture, experienceFixture, functionalFixture } from "./test-fixtures";
 
 const options = { admin: {}, projectId: "project", ownerId: "owner", prompt: "Design only onboarding.", clientTurnId: "initial:project", initialize: true };
 const functionResponse = (calls: Array<{ name: string; args: unknown }>) => ({ functionCalls: calls, candidates: [{ content: { role: "model", parts: calls.map((call) => ({ functionCall: call })) } }] });
 describe("product designer tool loop", () => {
   beforeEach(() => {
     mocks.generate.mockReset();
+    mocks.assess.mockReset().mockResolvedValue({ turnId: "initial:project", mode: "product", productReady: true, experienceReady: true, gaps: [], delegation: "", rationale: "Detailed test brief" });
     mocks.review.mockReset().mockResolvedValue({ ready: true, issues: [] });
     mocks.state = createProductPlanning({ imagePath: null, imageReferenceMode: "style", stylePresetSlug: null });
+    mocks.state.experience = experienceFixture();
     mocks.messages = [{ id: "11111111-1111-4111-8111-111111111111", role: "user", content: "Design only onboarding.", metadata: { action: "product_initial_prompt" } }];
     mocks.save.mockReset().mockImplementation(async (_admin, _project, _owner, previous, next) => {
       if (previous.revision !== mocks.state!.revision) throw new Error("Conflict");
@@ -86,10 +90,27 @@ describe("product designer tool loop", () => {
   });
   it("does not expose an approval when readiness rejects product architecture", async () => {
     mocks.state = productFixture();
+    mocks.state.experience = experienceFixture();
     mocks.review.mockResolvedValueOnce({ ready: false, issues: ["Map how the user's core job reaches completion."] });
     mocks.generate.mockResolvedValueOnce(functionResponse([{ name: "propose_scope", args: {} }])).mockResolvedValueOnce({ text: "We need to map the purchase outcome before deciding the first scope." });
     await runProductDesigner({ ...options, initialize: false, clientTurnId: "review" });
-    expect(mocks.state?.scope?.status).toBe("draft");
+    expect(mocks.state?.scope?.status).not.toBe("proposed");
     expect(mocks.messages.at(-1)?.metadata).toMatchObject({ productScopeProposal: null });
+  });
+  it("cannot clear evidence gaps by filling the blueprint with invented facts", async () => {
+    mocks.assess.mockResolvedValue({ turnId: "initial:project", mode: "product", productReady: false, experienceReady: true, gaps: [{ area: "product", question: "What does onboarding do?", consequence: "Changes the shopping journey" }], delegation: "", rationale: "The user gave only a category and aesthetic." });
+    const fixture = productFixture();
+    mocks.generate.mockResolvedValueOnce(functionResponse([
+      { name: "update_product", args: { facts: fixture.blueprint.facts, supersessions: [] } },
+      { name: "set_design_scope", args: fixture.scope },
+      { name: "propose_scope", args: {} },
+    ])).mockResolvedValueOnce({ text: "Should onboarding introduce the brand or collect information used while shopping?" });
+    await runProductDesigner(options);
+    expect(mocks.state?.scope).toBeNull();
+    expect(mocks.review).not.toHaveBeenCalled();
+    const declarations = mocks.generate.mock.calls[0][0].config.tools[0].functionDeclarations;
+    expect(declarations.some((tool: { name: string }) => tool.name === "propose_scope")).toBe(false);
+    expect(mocks.state?.evidenceAssessment?.gaps).toHaveLength(1);
+    expect(mocks.messages.at(-1)?.content).toContain("isn’t ready for approval");
   });
 });

@@ -158,18 +158,18 @@ export async function fetchScreenMessages(client: Client, screenId: string): Pro
 }
 
 export async function fetchGenerationRuns(client: Client, projectId: string, limit = 6): Promise<GenerationRunData[]> {
-  const { data, error } = await client
-    .from("generation_runs")
-    .select("*")
-    .eq("project_id", projectId)
-    .order("created_at", { ascending: false })
-    .limit(limit);
-
-  if (error) {
-    throw error;
-  }
-
-  return (data ?? []).map(mapGenerationRunRow);
+  // Continuation can create more children than the recent-run window. Keep the
+  // latest product approval visible so progress/resume and active-run locks survive.
+  const [recent, product] = await Promise.all([
+    client.from("generation_runs").select("*").eq("project_id", projectId).order("created_at", { ascending: false }).limit(limit),
+    client.from("generation_runs").select("*").eq("project_id", projectId)
+      .not("metadata->productPlanning->scope->manifest", "is", null).is("metadata->productApprovalId", null)
+      .order("created_at", { ascending: false }).limit(1),
+  ]);
+  if (recent.error) throw recent.error;
+  if (product.error) throw product.error;
+  const rows = new Map([...(recent.data ?? []), ...(product.data ?? [])].map(row => [row.id, row]));
+  return [...rows.values()].sort((a,b) => b.created_at.localeCompare(a.created_at)).map(mapGenerationRunRow);
 }
 
 export async function createProject(

@@ -32,6 +32,18 @@ export type ProjectMessageType =
 export interface Database {
   public: {
     Tables: {
+      product_output_fulfillments: {
+        Row: { approval_id: string; output_key: string; owner_id: string; project_id: string; generation_run_id: string; screen_id: string | null; status: "claimed" | "ready" | "failed" | "blocked" };
+        Insert: { approval_id: string; output_key: string; owner_id: string; project_id: string; generation_run_id: string; screen_id?: string | null; status?: "claimed" | "ready" | "failed" | "blocked" };
+        Update: { generation_run_id?: string; screen_id?: string | null; status?: "claimed" | "ready" | "failed" | "blocked" };
+        Relationships: [
+          { foreignKeyName: "product_output_fulfillments_approval_id_fkey"; columns: ["approval_id"]; isOneToOne: false; referencedRelation: "generation_runs"; referencedColumns: ["id"] },
+          { foreignKeyName: "product_output_fulfillments_project_id_fkey"; columns: ["project_id"]; isOneToOne: false; referencedRelation: "projects"; referencedColumns: ["id"] },
+          { foreignKeyName: "product_output_fulfillments_generation_run_id_fkey"; columns: ["generation_run_id"]; isOneToOne: false; referencedRelation: "generation_runs"; referencedColumns: ["id"] },
+          { foreignKeyName: "product_output_fulfillments_screen_id_fkey"; columns: ["screen_id"]; isOneToOne: false; referencedRelation: "screens"; referencedColumns: ["id"] },
+          { foreignKeyName: "product_output_fulfillments_owner_id_fkey"; columns: ["owner_id"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] }
+        ];
+      };
       profiles: {
         Row: {
           id: string;
@@ -845,6 +857,26 @@ export interface Database {
     };
     Views: {};
     Functions: {
+      update_product_functional_plan: {
+        Args: { input_project_id: string; input_owner_id: string; input_revision: number; input_state: Json; input_items: Json; input_remove_keys: string[] };
+        Returns: undefined;
+      };
+      claim_product_generation_batch: {
+        Args: { input_approval_id: string; input_owner_id: string; input_keys: string[]; input_attempt?: number };
+        Returns: string;
+      };
+      set_product_generation_progress: {
+        Args: { input_approval_id: string; input_owner_id: string; input_attempt: number; input_status: string | null; input_progress: Json | null; input_error: string | null };
+        Returns: boolean;
+      };
+      resume_product_generation: {
+        Args: { input_approval_id: string; input_owner_id: string; input_request_id: string };
+        Returns: number;
+      };
+      cancel_product_generation: {
+        Args: { input_approval_id: string; input_owner_id: string; input_project_id: string };
+        Returns: boolean;
+      };
       create_planning_project: {
         Args: { input_project_id: string; input_owner_id: string; input_name: string; input_prompt: string; input_product_planning: Json; input_message_metadata: Json };
         Returns: string;
