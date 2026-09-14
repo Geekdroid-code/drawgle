@@ -3,6 +3,7 @@ import { Buffer } from "node:buffer";
 import { tasks } from "@trigger.dev/sdk";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { productAnswersSchema } from "@/lib/product-planning/questions";
 import { runProductDesigner } from "@/lib/product-planning/designer";
 import { readProductPlanning } from "@/lib/product-planning/model";
 import { PlanningConflict } from "@/lib/product-planning/store";
@@ -59,6 +60,7 @@ export const maxDuration = 300;
 const requestSchema = z.object({
   projectId: z.string().uuid(),
   initializePlanning: z.boolean().optional(),
+  productAnswers: productAnswersSchema.optional(),
   prompt: z.string().trim().max(10000),
   image: z
     .object({
@@ -998,13 +1000,14 @@ export async function POST(request: Request) {
     }
 
     const productPlanning = readProductPlanning(project.product_planning);
-    if (productPlanning?.phase === "discovery" || (productPlanning && payload.initializePlanning)) {
+    if (productPlanning?.phase === "discovery" || (productPlanning && (payload.initializePlanning || payload.productAnswers))) {
       try {
         return NextResponse.json(await runProductDesigner({
           admin, projectId: project.id, ownerId: user.id, prompt: prompt || project.prompt,
           image: payload.image, imageReferenceMode: payload.imageReferenceMode,
           clientTurnId: payload.initializePlanning ? `initial:${project.id}` : payload.clientTurnId || crypto.randomUUID(),
           initialize: payload.initializePlanning,
+          productAnswers: payload.productAnswers,
         }));
       } catch (error) {
         return NextResponse.json({ error: error instanceof Error ? error.message : "Could not update the product plan." }, { status: error instanceof PlanningConflict ? 409 : 500 });

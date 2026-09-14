@@ -37,6 +37,32 @@ describe("product designer tool loop", () => {
       return structuredClone(mocks.state);
     });
   });
+  it("persists interactive questions instead of a prose question dump", async () => {
+    const gap = { area: "product", question: "How should shopping begin?", consequence: "Changes the first journey.", choices: [
+      { label: "Brand introduction", description: "A short welcome before shopping." },
+      { label: "Shop immediately", description: "Show products right away." },
+      { label: "Useful preferences", description: "Personalize product recommendations." },
+    ] };
+    mocks.assess.mockResolvedValue({ turnId: "initial:project", mode: "product", productReady: false, experienceReady: true, gaps: [gap], delegation: "", rationale: "A material choice" });
+    mocks.generate.mockResolvedValueOnce({ text: "Question 1: How should shopping begin? Question 2: What features?" });
+    await runProductDesigner(options);
+    expect(mocks.messages.at(-1)?.metadata).toMatchObject({ productQuestions: [{ question: gap.question, choices: gap.choices }] });
+    expect(mocks.messages.at(-1)?.content).not.toContain("Question 1");
+    expect(mocks.state?.scope).toBeNull();
+  });
+  it("does not turn skipped question text into user-confirmed product truth", async () => {
+    const messageId = "33333333-3333-4333-8333-333333333333";
+    mocks.messages.push({ id: messageId, role: "model", content: "Choose below", metadata: { productQuestions: [{
+      question: "Users receive personalized recommendations", consequence: "Affects onboarding",
+      choices: [{ label: "Brand", description: "Brand introduction" }, { label: "Preferences", description: "Collect useful preferences" }, { label: "Shop", description: "Shop immediately" }],
+    }] } });
+    mocks.generate.mockResolvedValueOnce(functionResponse([{ name: "update_product", args: { facts: [{
+      id: "personalization", section: "decisions", label: "Personalization", detail: "Users receive personalized recommendations", source: "user", evidence: "Users receive personalized recommendations",
+    }], supersessions: [] } }])).mockResolvedValueOnce({ text: "I'll keep that tentative." });
+    await runProductDesigner({ ...options, initialize: false, clientTurnId: "skip-turn", productAnswers: { messageId, answers: [{ kind: "skip" }] } });
+    expect(mocks.state?.blueprint.facts.find(fact => fact.id === "personalization")?.source).toBe("assumption");
+    expect(mocks.messages.find(message => message.role === "user" && (message.metadata as Record<string, unknown>).clientTurnId === "skip-turn")?.metadata).toMatchObject({ productAnswerEvidence: [] });
+  });
   it("updates product and scope in multiple tools before proposing, with one continuous conversation", async () => {
     const fixture = productFixture();
     mocks.generate

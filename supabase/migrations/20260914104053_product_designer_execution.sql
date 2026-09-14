@@ -2,12 +2,14 @@
 -- The approval coordinator stays active while its one execution child runs.
 -- Retain one active top-level generation and one active child per project.
 drop index if exists public.generation_runs_project_single_active_idx;
-create unique index generation_runs_project_single_active_idx on public.generation_runs(project_id)
+create unique index if not exists generation_runs_project_single_active_idx on public.generation_runs(project_id)
   where status in ('queued','planning','building') and metadata->>'productApprovalId' is null;
-create unique index generation_runs_product_batch_single_active_idx on public.generation_runs(project_id)
+
+drop index if exists public.generation_runs_product_batch_single_active_idx;
+create unique index if not exists generation_runs_product_batch_single_active_idx on public.generation_runs(project_id)
   where status in ('queued','planning','building') and metadata->>'productApprovalId' is not null;
 
-create function public.update_product_functional_plan(
+create or replace function public.update_product_functional_plan(
   input_project_id uuid, input_owner_id uuid, input_revision integer,
   input_state jsonb, input_items jsonb, input_remove_keys text[]
 ) returns void language plpgsql security invoker set search_path = public as $$
@@ -54,7 +56,7 @@ end $$;
 revoke all on function public.update_product_functional_plan(uuid,uuid,integer,jsonb,jsonb,text[]) from public, anon, authenticated;
 grant execute on function public.update_product_functional_plan(uuid,uuid,integer,jsonb,jsonb,text[]) to service_role;
 
-create table public.product_output_fulfillments (
+create table if not exists public.product_output_fulfillments (
   approval_id uuid not null references public.generation_runs(id) on delete cascade,
   output_key text not null,
   owner_id uuid not null references public.profiles(id),
@@ -67,10 +69,11 @@ create table public.product_output_fulfillments (
 alter table public.product_output_fulfillments enable row level security;
 grant select on public.product_output_fulfillments to authenticated;
 grant all on public.product_output_fulfillments to service_role;
+drop policy if exists "Owners read product fulfillment" on public.product_output_fulfillments;
 create policy "Owners read product fulfillment" on public.product_output_fulfillments for select to authenticated using ((select auth.uid()) = owner_id);
-create index product_fulfillment_run_idx on public.product_output_fulfillments(generation_run_id);
+create index if not exists product_fulfillment_run_idx on public.product_output_fulfillments(generation_run_id);
 
-create function public.claim_product_generation_batch(input_approval_id uuid, input_owner_id uuid, input_keys text[], input_attempt integer default 0)
+create or replace function public.claim_product_generation_batch(input_approval_id uuid, input_owner_id uuid, input_keys text[], input_attempt integer default 0)
 returns uuid language plpgsql security invoker set search_path = public as $$
 declare approval generation_runs; batch_id uuid; existing_run uuid;
 begin
@@ -99,21 +102,21 @@ grant execute on function public.claim_product_generation_batch(uuid,uuid,text[]
 
 -- Update only this coordinator attempt. A canceled/resumed approval cannot be
 -- overwritten by an older task returning from its child run.
-create function public.set_product_generation_progress(input_approval_id uuid, input_owner_id uuid,
+create or replace function public.set_product_generation_progress(input_approval_id uuid, input_owner_id uuid,
   input_attempt integer, input_status text, input_progress jsonb, input_error text)
 returns boolean language plpgsql security invoker set search_path = public as $$
 declare changed_project uuid;
 begin
   if input_status is not null and input_status not in ('building','completed','failed') then raise exception 'Invalid coordinator status'; end if;
-  update generation_runs set status = coalesce(input_status,status), error = input_error,
+  update generation_runs set status = coalesce(input_status::public.generation_status,status), error = input_error,
     completed_at = case when input_status in ('completed','failed') then now() else completed_at end,
     metadata = metadata || case when input_progress is null then '{}'::jsonb else jsonb_build_object('productProgress',input_progress) end
     where id = input_approval_id and owner_id = input_owner_id and status <> 'canceled'
       and coalesce((metadata->>'productAttempt')::integer,0) = input_attempt returning project_id into changed_project;
   if changed_project is null then return false; end if;
   if input_status is not null then
-    update projects set status = case when input_status = 'building' then 'generating'
-      when input_status = 'completed' or exists(select 1 from screens where project_id = changed_project and status = 'ready') then 'completed' else 'failed' end,
+    update projects set status = case when input_status = 'building' then 'generating'::public.project_status
+      when input_status = 'completed' or exists(select 1 from screens where project_id = changed_project and status = 'ready') then 'completed'::public.project_status else 'failed'::public.project_status end,
       updated_at = now() where id = changed_project and owner_id = input_owner_id;
   end if;
   return true;
@@ -121,7 +124,7 @@ end $$;
 revoke all on function public.set_product_generation_progress(uuid,uuid,integer,text,jsonb,text) from public, anon, authenticated;
 grant execute on function public.set_product_generation_progress(uuid,uuid,integer,text,jsonb,text) to service_role;
 
-create function public.resume_product_generation(input_approval_id uuid, input_owner_id uuid, input_request_id uuid)
+create or replace function public.resume_product_generation(input_approval_id uuid, input_owner_id uuid, input_request_id uuid)
 returns integer language plpgsql security invoker set search_path = public as $$
 declare approval generation_runs; attempt integer;
 begin
@@ -152,7 +155,7 @@ end $$;
 revoke all on function public.resume_product_generation(uuid,uuid,uuid) from public, anon, authenticated;
 grant execute on function public.resume_product_generation(uuid,uuid,uuid) to service_role;
 
-create function public.cancel_product_generation(input_approval_id uuid, input_owner_id uuid, input_project_id uuid)
+create or replace function public.cancel_product_generation(input_approval_id uuid, input_owner_id uuid, input_project_id uuid)
 returns boolean language plpgsql security invoker set search_path = public as $$
 begin
   update generation_runs set status = 'canceled', completed_at = now()
@@ -161,7 +164,7 @@ begin
       and status in ('queued','planning','building','failed');
   if not found then return false; end if;
   if not exists(select 1 from generation_runs where project_id = input_project_id and status in ('queued','planning','building')) then
-    update projects set status = case when exists(select 1 from screens where project_id = input_project_id and status = 'ready') then 'completed' else 'draft' end,
+    update projects set status = case when exists(select 1 from screens where project_id = input_project_id and status = 'ready') then 'completed'::public.project_status else 'draft'::public.project_status end,
       updated_at = now() where id = input_project_id and owner_id = input_owner_id;
   end if;
   return true;

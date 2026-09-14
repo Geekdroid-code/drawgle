@@ -15,11 +15,25 @@ import type { GenerateUiFlowPayload, generateUiFlowTask } from "./generate-ui-fl
 // not required to finish an approved scope. Trigger replay reuses database claims.
 export const generateProductFlowTask = task({
   id: "generate-product-flow", maxDuration: 7200,
-  retry: { maxAttempts: 3, minTimeoutInMs: 2000, maxTimeoutInMs: 10000, factor: 2 },
   onFailure: async ({ payload, error }: { payload: GenerateUiFlowPayload; error: unknown }) => {
     const admin = createAdminClient();
-    await saveExecutionProgress(admin, payload.generationRunId, payload.ownerId, payload.productAttempt ?? 0, "failed", null,
-      error instanceof Error ? error.message : "Product generation interrupted");
+    const errorMessage = error instanceof Error
+      ? error.message
+      : typeof error === "object" && error !== null && "message" in error && typeof (error as any).message === "string"
+        ? (error as any).message
+        : typeof error === "string"
+          ? error
+          : "Product generation interrupted";
+    try {
+      await saveExecutionProgress(admin, payload.generationRunId, payload.ownerId, payload.productAttempt ?? 0, "failed", null, errorMessage);
+    } catch (saveError) {
+      console.error("Failed to update execution progress via RPC in onFailure, applying direct fallback", saveError);
+      await admin.from("generation_runs").update({
+        status: "failed",
+        error: errorMessage,
+        completed_at: new Date().toISOString(),
+      }).eq("id", payload.generationRunId);
+    }
   },
   run: async (payload: GenerateUiFlowPayload) => {
     const admin = createAdminClient();

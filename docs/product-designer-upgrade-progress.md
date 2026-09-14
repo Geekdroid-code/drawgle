@@ -48,13 +48,21 @@ Implementation follows `product-designer-upgrade-plan.md`. Premium reference-to-
 
 ## Phase 6 — Local verification complete; staging and visual gates pending
 
-- Final broad regression run: **60 suites / 361 tests passed** (`pnpm.cmd exec vitest run --exclude lib/canvas-camera.test.ts`). The camera file uses Node's runner and passed separately: **7/7** (`pnpm.cmd exec tsx --test lib/canvas-camera.test.ts`).
+- Final broad regression run: **62 suites / 372 tests passed** (`pnpm.cmd exec vitest run --exclude lib/canvas-camera.test.ts`). The camera file uses Node's runner and passed separately: **7/7** (`pnpm.cmd exec tsx --test lib/canvas-camera.test.ts`).
 - `pnpm.cmd run check` passed: curated embedding index current (56 references), lint zero errors, TypeScript clean. Lint retains the pre-existing `CanvasArea.tsx:667` missing `handleRetryScreen` dependency warning. `git diff --check` passed.
 - The isolated PostgreSQL migration harness passes atomic revision/roadmap rollback, owner isolation, cross-run claims, completed-output preservation, queued-dispatch recovery, cancellation and stale-coordinator fencing. It includes the existing active-run index and the actual reserve/capture/release functions, verifying failed retry refunds and no duplicate debit/capture. The original product-planning migration harness also passes.
 - Gemini access recovered after the earlier prepayment error. Live Tacozz conversation and exact-recreation samples have now run. They exposed tool identity/validation problems, unsupported delegation quotes and misleading proposal text; fixes and observed outcomes are documented in [the evaluation record](product-designer-upgrade-evaluation.md).
 - Scope snapshots now preserve navigation boundaries to deferred outputs instead of forcing the agent to rewrite the broader roadmap. Tests cover that separation and decision supersession.
-- No production database migration, Vercel release or Trigger deployment has been performed. Application, new migration and matching workers need a coordinated test-environment deployment before production rollout.
-- Premium design parity is not yet demonstrated. Evaluate useful question quality, distinct product mechanics, actual reference adaptation, cross-screen navigation and parent/state visual fidelity on complete journeys.
+
+## Phase 6.1 — Interactive product decision cards UX (completed)
+
+- Replaced prose question dumps with structured, optional interactive question cards in `ChatPanel`.
+- Structured questions present three distinct choices with the primary grounded recommendation marked with a `Recommended` badge.
+- Added a 4th write-in choice ("Write my own answer…") that expands an inline custom answer field with submit/cancel controls.
+- Added frictionless keyboard shortcuts: keys `1`, `2`, `3` immediately choose corresponding options, key `4` triggers custom input, and `Escape` cancels custom input.
+- Added visual number shortcut pills (`[1]`, `[2]`, `[3]`, `[4]`) on the right of each row matching reference specifications.
+- Styled `[ Skip ]` as a distinct secondary button; skipping delegates a tentative recommendation that is recorded as an assumption rather than confirmed product truth.
+- Visual smoke test verified with `scripts/preview-product-question-card.tsx` across light and dark themes. Full unit and regression coverage passed.
 
 ## Test-environment rollout order
 

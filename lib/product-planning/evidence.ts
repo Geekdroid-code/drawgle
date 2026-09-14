@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { questionChoicesSchema } from "./questions";
 
 export const evidenceAssessmentSchema = z.object({
   turnId: z.string(),
@@ -10,6 +11,7 @@ export const evidenceAssessmentSchema = z.object({
     area: z.enum(["product", "experience", "mode"]),
     question: z.string().min(1).max(600),
     consequence: z.string().min(1).max(1000),
+    choices: questionChoicesSchema.optional(),
   })).max(6),
   delegation: z.string().max(1000).default(""),
   rationale: z.string().min(1).max(2000),

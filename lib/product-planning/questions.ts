@@ -1,0 +1,69 @@
+import { z } from "zod";
+
+export const questionChoicesSchema = z.array(z.object({
+  label: z.string().trim().min(1).max(100),
+  description: z.string().trim().min(1).max(240),
+})).length(3).refine(choices => new Set(choices.map(choice => choice.label.toLowerCase())).size === 3, "Offer three distinct answers.");
+
+export const productQuestionsSchema = z.array(z.object({
+  question: z.string().min(1).max(600),
+  consequence: z.string().min(1).max(1000),
+  // First answer is the recommendation. It is never selected automatically.
+  choices: questionChoicesSchema,
+})).min(1).max(2);
+export type ProductQuestions = z.infer<typeof productQuestionsSchema>;
+
+export const productAnswersSchema = z.object({
+  messageId: z.string().uuid(),
+  answers: z.array(z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("choice"), index: z.number().int().min(0).max(2) }),
+    z.object({ kind: z.literal("custom"), text: z.string().trim().min(1).max(2000) }),
+    z.object({ kind: z.literal("skip") }),
+  ])).min(1).max(2),
+});
+export type ProductAnswers = z.infer<typeof productAnswersSchema>;
+export type ProductAnswer = ProductAnswers["answers"][number];
+
+export function readProductQuestions(metadata: Record<string, unknown>): ProductQuestions | null {
+  const parsed = productQuestionsSchema.safeParse(metadata.productQuestions);
+  return parsed.success ? parsed.data : null;
+}
+
+export function productMessageContext(message: { content: string; metadata: Record<string, unknown> }) {
+  const questions = readProductQuestions(message.metadata);
+  if (!questions) return message.content;
+  return `${message.content}\n\n${questions.map(question => `${question.question}\n${question.consequence}\n${question.choices.map((choice, index) =>
+    `${index === 0 ? "Recommended: " : ""}${choice.label} — ${choice.description}`).join("\n")}`).join("\n\n")}`;
+}
+
+export function formatProductAnswers(questions: ProductQuestions, answers: ProductAnswers["answers"]) {
+  if (questions.length !== answers.length) throw new Error("Answer or skip each displayed question.");
+  const confirmed: string[] = [];
+  const content = questions.map((question, index) => {
+    const answer = answers[index];
+    if (answer.kind === "skip") return `${question.question}\nSkipped — recommend a reasonable direction for this question and keep it as an assumption. I can revise it later.`;
+    const text = answer.kind === "custom" ? answer.text : `${question.choices[answer.index].label}: ${question.choices[answer.index].description}`;
+    confirmed.push(text);
+    return `${question.question}\n${text}`;
+  }).join("\n\n");
+  return { content, confirmed };
+}
+
+// Resolve against project-owned history, never trust answer labels supplied by a client.
+export function resolveProductAnswers(history: Array<{ id: string; role: string; content: string; metadata: Record<string, unknown> }>, input: ProductAnswers, turnId: string) {
+  const index = history.findIndex(message => message.id === input.messageId && message.role === "model");
+  const questions = index < 0 ? null : readProductQuestions(history[index].metadata);
+  if (!questions || history.slice(index + 1).some(message =>
+    (message.role === "user" && message.metadata.clientTurnId !== turnId)
+    || (message.role === "model" && message.metadata.productTurnComplete && message.metadata.productTurnComplete !== turnId))) {
+    throw new Error("These questions have changed. Continue with the latest message in chat.");
+  }
+  return formatProductAnswers(questions, input.answers);
+}
+
+export function confirmedMessageEvidence(message: { content: string; metadata: Record<string, unknown> }): string[] {
+  // Question text and skipped recommendations are not user-confirmed facts.
+  if (message.metadata.productAnswers) return Array.isArray(message.metadata.productAnswerEvidence)
+    ? message.metadata.productAnswerEvidence.filter((value): value is string => typeof value === "string") : [];
+  return [message.content];
+}

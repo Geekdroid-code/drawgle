@@ -1,4 +1,7 @@
 "use client";
+
+import { ProductQuestionCard } from "@/components/product-planning/ProductQuestionCard";
+import { readProductQuestions, type ProductQuestions, type ProductAnswers } from "@/lib/product-planning/questions";
 import { PlanningConversation } from "@/components/product-planning/PlanningConversation";
 import { ProductExecutionCard } from "@/components/product-planning/ProductExecutionCard";
 import { usePlanningLease } from "@/hooks/use-planning-lease";
@@ -93,7 +96,7 @@ type PendingTurn = {
 
 type ConversationItem =
   | { id: string; kind: "user"; content: string; image?: PromptImagePayload | null; timestamp?: string }
-  | { id: string; kind: "assistant"; content: string; timestamp?: string; isError?: boolean }
+  | { id: string; kind: "assistant"; content: string; timestamp?: string; isError?: boolean; questions?: ProductQuestions | null; messageId?: string }
   | { id: string; kind: "thinking"; summary: ThinkingSummaryMetadata; timestamp?: string; live?: boolean }
   | { id: string; kind: "generation_journal"; journal: GenerationJournalMetadata; timestamp?: string }
   | { id: string; kind: "screen_suggestions"; recommendation: RoadmapBuildRecommendation; messageId: string; timestamp?: string }
@@ -827,6 +830,8 @@ function buildConversationItems({
         id: `assistant-${message.id}`,
         kind: "assistant",
         content: isError ? cleanErrorMessage(message.content) : message.content,
+        questions: readProductQuestions(message.metadata),
+        messageId: message.id,
         timestamp: message.timestamp,
         isError,
       });
@@ -1988,7 +1993,7 @@ export function ChatPanel({
   onCancelPlan?: () => void;
   isCollapsed: boolean;
   onCollapseChange: (collapsed: boolean) => void;
-  onSubmit?: (options: { prompt: string; image?: PromptImagePayload | null; imageReferenceMode?: ImageReferenceMode; clientTurnId?: string }) => Promise<boolean>;
+  onSubmit?: (options: { prompt: string; image?: PromptImagePayload | null; imageReferenceMode?: ImageReferenceMode; clientTurnId?: string; productAnswers?: ProductAnswers }) => Promise<boolean>;
   disabled?: boolean;
   selectionMode?: boolean;
   onToggleSelectionMode?: () => void;
@@ -2056,9 +2061,9 @@ export function ChatPanel({
     collapsedTitle = selectedScreen.name;
   }
 
-  const handleSubmit = async (options: { prompt: string; image?: PromptImagePayload | null; imageReferenceMode?: ImageReferenceMode }) => {
+  const handleSubmit = async (options: { prompt: string; image?: PromptImagePayload | null; imageReferenceMode?: ImageReferenceMode; productAnswers?: ProductAnswers; clientTurnId?: string }) => {
     const turn: PendingTurn = {
-      id: crypto.randomUUID(),
+      id: options.clientTurnId ?? crypto.randomUUID(),
       prompt: options.prompt,
       image: options.image ?? null,
       startedAt: Date.now(),
@@ -2308,6 +2313,11 @@ export function ChatPanel({
                     return (
                       <motion.div key={item.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
                         <AssistantMessage content={item.content} isError={item.isError} />
+                        {item.questions && item.messageId && <ProductQuestionCard
+                          questions={item.questions} messageId={item.messageId}
+                          active={!messages.slice(messages.findIndex(message => message.id === item.messageId) + 1).some(message => message.role === "user" || Boolean(message.metadata.productTurnComplete))}
+                          disabled={disabled || isBusy || planningBusy || !onSubmit} onSubmit={handleSubmit}
+                        />}
                       </motion.div>
                     );
                   })

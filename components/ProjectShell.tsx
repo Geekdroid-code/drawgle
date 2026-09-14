@@ -1,5 +1,7 @@
 "use client";
 
+import type { ProductAnswers } from "@/lib/product-planning/questions";
+
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Sparkles, Check, ChevronDown, ImageIcon, Loader2, Palette, RotateCcw, Upload, X, HelpCircle, Megaphone, Play, Share2, LogOut, FolderSync, CircleDollarSign, User, CreditCard, Download, Mail, MessageCircle, Trash } from "lucide-react";
@@ -2005,7 +2007,7 @@ export function ProjectShell({
     prompt: string;
     image?: PromptImagePayload | null;
     imageReferenceMode?: ImageReferenceMode;
-    clientTurnId?: string;
+    clientTurnId?: string; productAnswers?: ProductAnswers;
   }) => {
     if (!project || isCanvasInteractionLocked) {
       return false;
@@ -2078,6 +2080,7 @@ export function ProjectShell({
               freshness: null,
             },
           clientTurnId: options.clientTurnId ?? null,
+          productAnswers: options.productAnswers,
         }),
       });
       const payload = await agentRes.json().catch(() => ({}));

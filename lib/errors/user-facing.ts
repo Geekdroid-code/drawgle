@@ -69,6 +69,15 @@ const isTechnicalInternalError = (message: string) => {
     lower.includes("econnreset") ||
     lower.includes("socket hang up") ||
     lower.includes("unexpected token") ||
+    lower.includes("[object object]") ||
+    lower.includes("coalesce") ||
+    lower.includes("cannot be matched") ||
+    lower.includes("generation_status") ||
+    lower.includes("project_status") ||
+    lower.includes("plpgsql") ||
+    lower.includes("syntax error") ||
+    /\b42\d{3}\b/.test(message) ||
+    /code["':\s]+42\d{3}/i.test(message) ||
     /at\s+\S+\s+\(/.test(message) || // stack-ish
     looksLikeSerializedJson(message)
   );
