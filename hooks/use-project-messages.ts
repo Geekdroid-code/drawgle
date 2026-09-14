@@ -43,7 +43,7 @@ export function useProjectMessages(projectId: string) {
 
     const loadMessages = async () => {
       try {
-        setIsLoading(true);
+        // Preserve the visible conversation during background refreshes.
         const nextMessages = await fetchProjectMessages(supabase, projectId);
         if (!cancelled) {
           setMessages(nextMessages);

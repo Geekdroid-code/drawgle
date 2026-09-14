@@ -22,10 +22,9 @@ export function useProject(projectId: string, initialProject: ProjectData | null
 
   if (prevProjectId !== projectId) {
     setPrevProjectId(projectId);
-    if (!projectId) {
-      setProject(null);
-      setIsLoading(false);
-    }
+    const nextInitial = initialProject?.id === projectId ? initialProject : null;
+    setProject(nextInitial);
+    setIsLoading(Boolean(projectId && !nextInitial));
   }
 
   useEffect(() => {
@@ -35,12 +34,15 @@ export function useProject(projectId: string, initialProject: ProjectData | null
     if (!supabase) return;
 
     let cancelled = false;
+    let requestVersion = 0;
 
     const loadProject = async () => {
+      const version = ++requestVersion;
       try {
-        setIsLoading(true);
+        // Refresh in place. Toggling initial loading here unmounts the canvas/chat,
+        // which starts planning again and creates a refresh -> 409 -> refresh loop.
         const nextProject = await fetchProject(supabase, projectId);
-        if (!cancelled) {
+        if (!cancelled && version === requestVersion) {
           setProject(nextProject);
         }
       } catch (error) {
@@ -67,6 +69,10 @@ export function useProject(projectId: string, initialProject: ProjectData | null
           filter: `id=eq.${projectId}`,
         },
         (payload: any) => {
+          if (cancelled) return;
+          // A fetch started before this event must not restore an older blueprint.
+          requestVersion += 1;
+          setIsLoading(false);
           if (payload.eventType === "DELETE") {
             setProject(null);
             return;
