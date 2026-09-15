@@ -42,6 +42,8 @@ describe("product designer tool loop", () => {
   });
   it("repairs a rejected scope internally before persisting or claiming approval", async () => {
     mocks.state = { ...productFixture(), experience: experienceFixture() };
+    mocks.state.input.imagePath = experienceFixture().referencePath;
+    mocks.loadReference.mockResolvedValue({ data: "pixels", mimeType: "image/webp" });
     mocks.snapshot.mockRejectedValueOnce(new ProductToolError("A state is missing", "SCOPE_OUTPUTS_MISSING", { missingKeys: ["state:welcome:complete"] }));
     mocks.generate.mockResolvedValueOnce(functionResponse([{ name: "set_design_scope", args: {
       goal: "Invalid scope", rationale: "Will be rejected", surfaceIds: ["onboarding"], outputKeys: ["state:welcome:complete"],
@@ -58,6 +60,8 @@ describe("product designer tool loop", () => {
   });
   it("bounds unsuccessful repair and saves a controlled diagnostic with a recovery action", async () => {
     mocks.state = { ...productFixture(), experience: experienceFixture() };
+    mocks.state.input.imagePath = experienceFixture().referencePath;
+    mocks.loadReference.mockResolvedValue({ data: "pixels", mimeType: "image/webp" });
     mocks.snapshot.mockRejectedValue({ code: "23514", message: "internal database detail" });
     mocks.generate.mockResolvedValueOnce(functionResponse([{ name: "set_design_scope", args: {
       goal: "Rejected", rationale: "Invalid", surfaceIds: ["onboarding"], outputKeys: ["state:unknown:complete"],
@@ -141,6 +145,8 @@ describe("product designer tool loop", () => {
     expect(mocks.state!.input.imageReferenceMode).toBe("style");
   });
   it("updates product and scope in multiple tools before proposing, with one continuous conversation", async () => {
+    mocks.state!.input.imagePath = experienceFixture().referencePath;
+    mocks.loadReference.mockResolvedValue({ data: "pixels", mimeType: "image/webp" });
     const fixture = productFixture();
     mocks.generate
       .mockResolvedValueOnce(functionResponse([
@@ -216,4 +222,43 @@ describe("product designer tool loop", () => {
     expect(mocks.state?.evidenceAssessment?.gaps).toHaveLength(1);
     expect(mocks.messages.at(-1)?.content).toContain("generation has not started");
   });
+  it("records explicit no-reference intent through the actual native tool loop", async () => {
+    const prompt = "Do not use any visual references; use my own design specification.";
+    mocks.generate.mockResolvedValueOnce(functionResponse([{ name: "set_reference_preference", args: { mode: "none", evidence: prompt } }]))
+      .mockResolvedValueOnce({ text: '{"supported":true}' }).mockResolvedValueOnce({ text: "I'll use your design direction." });
+    await runProductDesigner({ ...options, initialize: false, prompt });
+    expect(mocks.state!.input.referencePreference).toMatchObject({ mode: "none", evidence: prompt });
+    expect(mocks.state!.experience).toBeNull();
+    expect(mocks.state!.input.imagePath).toBeNull();
+    expect(mocks.state!.scope?.status).not.toBe("approved");
+  });
+  it("does not treat prompt-only input or delegation as a reference opt-out", async () => {
+    const prompt = "Prompt only, use your best judgment.";
+    mocks.generate.mockResolvedValueOnce(functionResponse([{ name: "set_reference_preference", args: { mode: "none", evidence: prompt } }]))
+      .mockResolvedValueOnce({ text: '{"supported":false}' });
+    await runProductDesigner({ ...options, initialize: false, prompt });
+    expect(mocks.state!.input.referencePreference).toBeUndefined();
+  });
+  it("resolves a recovery card's explicit choice without inventing user intent", async () => {
+    const { referenceRecoveryQuestions } = await import("./reference-preference");
+    const messageId = "33333333-3333-4333-8333-333333333333";
+    mocks.messages.push({ id: messageId, role: "model", content: "Choose evidence", metadata: { referenceRecovery: true, productQuestions: referenceRecoveryQuestions } });
+    await runProductDesigner({ ...options, initialize: false, productAnswers: { messageId, answers: [{ kind: "choice", index: 2 }] } });
+    expect(mocks.state!.input.referencePreference?.mode).toBe("none");
+    expect(mocks.state!.scope?.status).not.toBe("approved");
+  });
+  it("skipping reference recovery never opts out", async () => {
+    const { referenceRecoveryQuestions } = await import("./reference-preference");
+    const messageId = "33333333-3333-4333-8333-333333333333";
+    mocks.messages.push({ id: messageId, role: "model", content: "Choose evidence", metadata: { referenceRecovery: true, productQuestions: referenceRecoveryQuestions } });
+    await runProductDesigner({ ...options, initialize: false, productAnswers: { messageId, answers: [{ kind: "skip" }] } });
+    expect(mocks.state!.input.referencePreference).toBeUndefined();
+  });
+  it("new explicit uploads clear earlier no-reference choices and retain the chosen mode", async () => {
+    mocks.state!.input.referencePreference = { mode: "none", evidence: "No references", messageId: "11111111-1111-4111-8111-111111111111" };
+    await runProductDesigner({ ...options, initialize: false, image: { data: "new", mimeType: "image/png" }, imageReferenceMode: "recreate" });
+    expect(mocks.state!.input.referencePreference).toBeUndefined();
+    expect(mocks.state!.input.imageReferenceMode).toBe("recreate");
+  });
+
 });

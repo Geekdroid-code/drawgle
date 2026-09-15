@@ -5,6 +5,7 @@ import { geminiPolicyForTask } from "@/lib/ai/model-policy";
 import { createProjectReadToolExecutor, projectReadToolDeclarations } from "@/lib/agent/project-tools";
 import { fetchProjectMessages, insertProjectMessage } from "@/lib/supabase/queries";
 import type { PromptImagePayload } from "@/lib/types";
+import { referenceRecoveryQuestions, validateReferencePreference } from "./reference-preference";
 import { reviewFactEvidence } from "./review-fact-evidence";
 import { prepareDesignerPatch } from "./designer-patch";
 import { describeToolFailure, ProductToolError, type PlanningFailure } from "./tool-failure";
@@ -63,9 +64,18 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
       ...history.map(message => ({ role: message.role, content: productMessageContext(message) })),
     ];
     const effectivePrompt = initialize ? initialMessage?.content ?? prompt : prompt;
+    const originalRequest = state.input.originalRequest ?? initialMessage?.content ?? originalPrompt ?? effectivePrompt;
+    const recreationChange = !initialize && !productAnswers && state.input.imageReferenceMode === "recreate" && effectivePrompt.trim()
+      ? `\n\nSubsequent user request: ${effectivePrompt}` : "";
+    if (!state.input.originalRequest || recreationChange) await persist({ ...state, input: { ...state.input, originalRequest: (originalRequest + recreationChange).slice(-30000) } });
+    // Resolve the server-owned recovery choice only after history/revision validation.
+    const recoveryMessage = productAnswers && history.find(message => message.id === productAnswers.messageId);
+    if (recoveryMessage?.metadata.referenceRecovery === true && productAnswers?.answers[0]?.kind === "choice" && productAnswers.answers[0].index === 2) {
+      await persist(applyProductPatch(state, { operations: [{ op: "set_reference_preference", mode: "none", evidence: resolvedAnswers!.confirmed[0] }] }, userMessageId));
+    }
     if (image) {
-      const imagePath = await storePlanningReference(admin, ownerId, image);
-      await persist({ ...state, contentRevision: (state.contentRevision ?? 0) + 1, experience: null, input: { ...state.input, imagePath, referenceSource: "user", imageReferenceMode, stylePresetSlug: null }, scope: state.scope ? { ...state.scope, status: "draft" } : null });
+      const imagePath = await storePlanningReference(admin, ownerId, image, imageReferenceMode);
+      await persist({ ...state, contentRevision: (state.contentRevision ?? 0) + 1, experience: null, input: { ...state.input, imagePath, referenceSource: "user", imageReferenceMode, stylePresetSlug: null, referencePreference: undefined }, scope: state.scope ? { ...state.scope, status: "draft" } : null });
     }
     const reference = image ?? await loadPlanningReference(admin, state.input.imagePath, ownerId);
     if (state.input.imagePath && !reference) throw new Error("The saved reference could not be loaded. Retry or replace it using the image controls.");
@@ -92,12 +102,13 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
     let attemptedProposal = false;
     const failures = new Map<string, PlanningFailure>();
     let repairRequests = 0;
+    let referenceRecovery = false;
     for (let round = 0; round < 8; round += 1) {
       const response = await ai.models.generateContent({ model: policy.model, config: policy.config, contents });
       const calls = response.functionCalls ?? [];
       onTrace?.({ round, finishReason: response.candidates?.[0]?.finishReason, tools: calls.map((call) => call.name), hasReply: !calls.length && Boolean(response.text?.trim()) });
       if (!calls.length) {
-        if (failures.size && assessment.productReady && repairRequests < 2 && round < 7) {
+        if (failures.size && !referenceRecovery && assessment.productReady && repairRequests < 2 && round < 7) {
           repairRequests += 1;
           if (response.candidates?.[0]?.content) contents.push(response.candidates[0].content);
           contents.push({ role: "user", parts: [{ text: "The previous tools failed. Repair the saved plan using the returned errors and current roadmap before replying. Read persisted keys; do not invent missing state identities or repeat a rejected delta unchanged. Preserve the user's requested extent. Do not ask cosmetic questions or claim approval succeeded." }] });
@@ -123,20 +134,29 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
             result = { ok: true, revision: state.revision, facts: activeFacts(state), scope: state.scope,
               ...(assumptions.length ? { warning: "These facts were saved as assumptions because their cited evidence did not support the entire claim. Split supported requirements from speculative additions. Do not describe them as confirmed.", assumptionIds: assumptions } : {}),
             };
+          } else if (call.name === "set_reference_preference") {
+            const operation = await validateReferencePreference(call.args, resolvedAnswers ? resolvedAnswers.confirmed : [effectivePrompt]);
+            await persist(applyProductPatch(state, { operations: [operation] }, userMessageId));
+            referenceRecovery = false;
+            failures.delete("inspect_reference");
+            result = { ok: true, preference: state.input.referencePreference, message: "Establish the updated experience direction with inspect_reference before proposing." };
           } else if (call.name === "read_functional_plan") {
             result = { ok: true, items: await readFunctionalRoadmap(admin, projectId, ownerId) };
           } else if (call.name === "update_functional_plan") {
             state = await updateFunctionalRoadmap(admin, projectId, ownerId, state, call.args);
             result = { ok: true, revision: state.revision };
           } else if (call.name === "inspect_reference") {
+            if (referenceRecovery) throw new ProductToolError("Wait for the user to choose a recovery direction. Do not repeat reference search this turn.", "NO_COMPATIBLE_REFERENCE");
             const inspected = await inspectProductReference(admin, ownerId, state, String(call.args?.request ?? effectivePrompt));
             await persist({ ...state, contentRevision: (state.contentRevision ?? 0) + 1, experience: inspected.experience,
               input: { ...state.input, imagePath: inspected.experience.referencePath,
-                referenceSource: inspected.experience.referenceId || state.input.referenceSource === "curated" ? "curated" : "user",
+                referenceSource: !inspected.experience.referencePath ? "none" : inspected.experience.referenceId || state.input.referenceSource === "curated" ? "curated" : "user",
                 imageReferenceMode: state.input.imagePath ? state.input.imageReferenceMode : "style" },
               scope: state.scope ? { ...state.scope, status: "draft" } : null });
             result = { ok: true, experience: inspected.experience };
-            responses.push({ inlineData: { data: inspected.image.data, mimeType: inspected.image.mimeType } });
+            if (inspected.image) {
+              responses.push({ inlineData: { data: inspected.image.data, mimeType: inspected.image.mimeType } });
+            }
           } else if (call.name === "propose_scope") {
             if (!evidenceAllowsProposal(state.evidenceAssessment)) throw new Error("Discuss the evidence assessment's unresolved questions with the user first.");
             if (!state.experience) throw new Error("Inspect a reference and establish an experience direction before proposing designs.");
@@ -156,6 +176,7 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
           } else result = { ...await executeRead(call) };
         } catch (error) {
           if (error instanceof PlanningConflict) throw error;
+          if (error instanceof ProductToolError && error.code === "NO_COMPATIBLE_REFERENCE") referenceRecovery = true;
           const failure = describeToolFailure(call.name ?? "unknown", error);
           failures.set(call.name ?? "unknown", failure.diagnostic);
           console.warn("Product planning tool rejected", { projectId, clientTurnId, ...failure.diagnostic });
@@ -178,13 +199,14 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
     });
     const failure = [...failures.values()].at(-1);
     if (failure) reply = `${failure.summary} Your saved product decisions are intact. Continue below to finish planning; generation has not started.`;
-    const questions = readProductQuestions({ productQuestions: assessment.gaps });
+    const questions = referenceRecovery ? referenceRecoveryQuestions : readProductQuestions({ productQuestions: assessment.gaps });
+    if (referenceRecovery) reply = "The references I inspected don�t support your saved direction well enough. Your requirements are preserved. Choose how to continue below.";
     if (questions && !attemptedProposal && !failure) reply = "Let’s shape how this works. Choose an answer below, write your own, or skip and I’ll recommend a direction.";
     if (!reply && state.scope?.status === "proposed") reply = "The current scope is ready to review. Use the approval card when you'd like me to start.";
     if (!reply) throw new Error("I couldn't complete this product turn. Your saved decisions are intact; please try again.");
     const modelMessage = await insertProjectMessage(admin, { projectId, ownerId, role: "model", content: reply, metadata: {
       clientTurnId, userMessageId, productTurnComplete: clientTurnId,
-      ...(questions && !failure ? { productQuestions: questions } : {}),
+      ...(questions && (!failure || referenceRecovery) ? { productQuestions: questions, ...(referenceRecovery ? { referenceRecovery: true } : {}) } : {}),
       ...(failure ? { productPlanningFailure: failure } : {}),
       productScopeProposal: state.scope?.status === "proposed" ? { scope: state.scope, revision: state.revision, surfaces: activeFacts(state, "surfaces") } : null,
     } });

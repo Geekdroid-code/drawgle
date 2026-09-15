@@ -174,6 +174,8 @@ export interface AssetResolutionDiagnostic {
 export type ImageReferenceMode = "recreate" | "style";
 
 export type GenerationReferencePolicy =
+  | "curated_evidence"
+  | "no_reference"
   | "user_upload"
   | "project_reference"
   | "explicit_style"
@@ -1170,6 +1172,7 @@ export interface LlmInputSnapshot {
 }
 
 export interface BuildScreenInput {
+  sourceDetail?: PromptImagePayload | null;
   productContent?: string | null;
   screenPlan: ScreenPlan;
   designTokens?: DesignTokens | null;

@@ -1,7 +1,7 @@
 import type { GenerationReferencePolicy } from "@/lib/types";
 
 export const isGenerationReferencePolicy = (value: unknown): value is GenerationReferencePolicy =>
-  value === "user_upload"
+  value === "curated_evidence" || value === "no_reference" || value === "user_upload"
   || value === "project_reference"
   || value === "explicit_style"
   || value === "project_memory"
@@ -21,6 +21,7 @@ export function resolveGenerationReferencePolicy({
   requestedPolicy?: GenerationReferencePolicy | null;
 }): GenerationReferencePolicy {
   if (hasCurrentUserImage) return "user_upload";
+  if (requestedPolicy === "curated_evidence" || requestedPolicy === "no_reference") return requestedPolicy;
   if (hasProjectReferenceImage) return "project_reference";
   if (requestedPolicy) return requestedPolicy;
   if (hasExplicitStyle) return "explicit_style";
@@ -29,4 +30,4 @@ export function resolveGenerationReferencePolicy({
 }
 
 export const usesCuratedReferenceImage = (policy: GenerationReferencePolicy) =>
-  policy === "curated_fallback";
+  policy === "curated_fallback" || policy === "curated_evidence";

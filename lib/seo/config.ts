@@ -26,7 +26,7 @@ export const siteConfig = {
   publicRoutes: [
     {
       path: "/",
-      title: "AI Mobile App Designer for Editable UI | Drawgle",
+      title: "AI Mobile App UI Designer for Modern Apps | Drawgle",
       description:
         "Design editable mobile app UI from prompts, screenshots, or visual references. Keep screens consistent with shared tokens and export Tailwind HTML plus an Agent Pack.",
       changeFrequency: "weekly",

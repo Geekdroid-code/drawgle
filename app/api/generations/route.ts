@@ -4,7 +4,9 @@ import { tasks } from "@trigger.dev/sdk";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prepareProductApproval } from "@/lib/product-planning/approval";
-import { PlanningConflict } from "@/lib/product-planning/store";
+import { productReferenceExecution } from "@/lib/product-planning/reference-execution";
+import { compileProductContent } from "@/lib/product-planning/content-contract";
+import { loadProductPlanning, PlanningConflict } from "@/lib/product-planning/store";
 import { readProductPlanning } from "@/lib/product-planning/model";
 import { resumeProductGeneration } from "@/lib/product-planning/resume-generation";
 
@@ -13,7 +15,7 @@ import { getDesignStylePack, isDesignStyleId, summarizeDesignStyle } from "@/lib
 import { VISUAL_ASSET_SEMANTIC_CATEGORIES } from "@/lib/generation/asset-semantics";
 import { parsePromptScreenIntent, preflightGenerationScope } from "@/lib/generation/scope-contract";
 import { normalizeReferenceImage } from "@/lib/generation/reference-image";
-import { findLatestProjectPromptImagePath } from "@/lib/generation/prompt-reference-storage";
+import { findLatestProjectReference } from "@/lib/generation/prompt-reference-storage";
 import { isGenerationReferencePolicy, resolveGenerationReferencePolicy } from "@/lib/generation/reference-policy";
 import { determineGenerationRetryScope } from "@/lib/generation/retry-scope";
 import { resolveRoadmapBuildSelection } from "@/lib/generation/project-roadmap";
@@ -559,9 +561,16 @@ export async function POST(request: Request) {
     const retryMetadata = retrySourceRun?.metadata && typeof retrySourceRun.metadata === "object" && !Array.isArray(retrySourceRun.metadata)
       ? retrySourceRun.metadata as Record<string, unknown> : {};
     const productSnapshot = productApproval?.snapshot ?? readProductPlanning(retryMetadata.productPlanning);
+    let productContextSnapshot = productSnapshot ?? (payload.sourceGenerationRunId
+      ? readProductPlanning(retryMetadata.productContextSnapshot)
+      : payload.projectId ? await loadProductPlanning(admin, payload.projectId, ownerId) : null);
+    if (productContextSnapshot && !productSnapshot && !payload.sourceGenerationRunId) {
+      productContextSnapshot = { ...productContextSnapshot, input: { ...productContextSnapshot.input, imageReferenceMode: payload.image ? payload.imageReferenceMode : "style" } };
+    }
+    const productContent = typeof retryMetadata.productContent === "string" ? retryMetadata.productContent : compileProductContent(productContextSnapshot);
     const generationEngineVersion = getGenerationEngineVersion();
-    const normalizedReference = payload.image ? await normalizeReferenceImage(payload.image) : null;
-    const promptImage = normalizedReference?.image ?? null;
+    const normalizedReference = payload.image && !productSnapshot ? await normalizeReferenceImage(payload.image, payload.imageReferenceMode) : null;
+    const promptImage = productSnapshot ? payload.image ?? null : normalizedReference?.image ?? null;
     const deterministicPromptIntent = parsePromptScreenIntent(payload.prompt);
     const canDeferImagePreflight = Boolean(promptImage) && (
       payload.imageReferenceMode === "recreate"
@@ -756,18 +765,28 @@ export async function POST(request: Request) {
       referencePolicy = "user_upload";
     }
 
-    if (!imagePath && isExistingProjectRequest && payload.roadmapBuild?.kind === "state_batch") {
+    if (!productSnapshot && !payload.sourceGenerationRunId && !promptImage && productContextSnapshot?.input.referencePreference?.mode === "none") {
+      referencePolicy = "no_reference";
+      imagePath = null;
+      effectiveImageReferenceMode = "style";
+    } else if (!productSnapshot && !payload.sourceGenerationRunId && !promptImage && productContextSnapshot?.input.imagePath) {
+      const inherited = productReferenceExecution(productContextSnapshot);
+      referencePolicy = inherited.source === "curated" ? "curated_evidence" : "project_reference";
+      imagePath = inherited.imagePath;
+      effectiveImageReferenceMode = "style";
+    } else if (!productSnapshot && !payload.sourceGenerationRunId && !imagePath && isExistingProjectRequest && payload.roadmapBuild?.kind === "state_batch") {
       referencePolicy = "project_memory";
       effectiveImageReferenceMode = "style";
-    } else if (!imagePath && isExistingProjectRequest) {
-      imagePath = await findLatestProjectPromptImagePath({
+    } else if (!productSnapshot && !payload.sourceGenerationRunId && !imagePath && isExistingProjectRequest) {
+      const inherited = await findLatestProjectReference({
         admin,
         projectId: projectId!,
         ownerId,
         excludeGenerationRunId: payload.sourceGenerationRunId,
       });
-      if (imagePath) {
-        referencePolicy = "project_reference";
+      imagePath = inherited?.imagePath ?? null;
+      if (inherited) {
+        referencePolicy = inherited.policy;
         effectiveImageReferenceMode = "style";
       }
     }
@@ -779,6 +798,12 @@ export async function POST(request: Request) {
       isExistingProject: isExistingProjectRequest && !isInitialProductGeneration,
       requestedPolicy: referencePolicy,
     });
+    if (productSnapshot) {
+      const approvedReference = productReferenceExecution(productSnapshot);
+      referencePolicy = approvedReference.policy;
+      imagePath = approvedReference.imagePath;
+      effectiveImageReferenceMode = productSnapshot.input.imageReferenceMode;
+    }
 
     const { data: generationRun, error: generationRunError } = await admin
       .from("generation_runs")
@@ -796,6 +821,7 @@ export async function POST(request: Request) {
           sourceGenerationRunId: payload.sourceGenerationRunId ?? null,
           isNewProject: !isExistingProjectRequest || isInitialProductGeneration,
           productPlanning: productSnapshot,
+          productContextSnapshot,
           performanceV1: {
             version: 1,
             requestAcceptedAt,
@@ -817,7 +843,7 @@ export async function POST(request: Request) {
           selectedStateVariantIds: (payload.stateVariants ?? []).map((variant) => variant.id),
           retryContext,
           parentRevisionHash: typeof retryMetadata.parentRevisionHash === "string" ? retryMetadata.parentRevisionHash : undefined,
-          productContent: typeof retryMetadata.productContent === "string" ? retryMetadata.productContent : undefined,
+          productContent,
           roadmapBuild: payload.roadmapBuild ?? null,
           roadmap: projectRoadmap,
           initialBatchItemKeys: payload.initialBatchItemKeys ?? [],
@@ -883,12 +909,13 @@ export async function POST(request: Request) {
         navigationPlan,
         projectCharter,
         productPlanning: productSnapshot,
+          productContextSnapshot,
         planningMode: payload.planningMode,
         baseState: payload.baseState ?? null,
         stateVariants: payload.stateVariants ?? [],
         retryContext,
         parentRevisionHash: typeof retryMetadata.parentRevisionHash === "string" ? retryMetadata.parentRevisionHash : undefined,
-        productContent: typeof retryMetadata.productContent === "string" ? retryMetadata.productContent : undefined,
+        productContent,
         projectRoadmap,
         initialBatchItemKeys: payload.initialBatchItemKeys ?? [],
         isNewProject: !isExistingProjectRequest || isInitialProductGeneration,

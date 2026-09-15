@@ -13,6 +13,7 @@ import {
   CURATED_STYLE_EMBEDDING_DIMENSIONS,
   CURATED_STYLE_EMBEDDING_MODEL,
   CURATED_STYLE_INDEX_VERSION,
+  CURATED_STYLE_MIN_SIMILARITY,
   extractExplicitStyleConstraints,
   mergeNormalizedEmbeddings,
   normalizeEmbedding,
@@ -207,4 +208,18 @@ export async function matchCuratedStyleReference(input: {
     });
     return null;
   }
+}
+
+// One embedding query, bounded pixel inspection by the caller. This does not
+// replace the established selector for other generation callers.
+export async function shortlistCuratedStyleReferences(prompt: string): Promise<CuratedStyleReferenceMatch[]> {
+  const index = loadRuntimeIndex();
+  if (!index || !prompt.trim()) return [];
+  const chunks = chunkCuratedStyleQuery(prompt);
+  const embeddings = await generateEmbeddings(chunks, "RETRIEVAL_QUERY");
+  const queryVector = mergeNormalizedEmbeddings(embeddings.map(normalizeEmbedding));
+  return rankCuratedStyleReferencesByEmbedding({ prompt, queryVector, entries: index.entries })
+    .filter(item => item.similarity >= CURATED_STYLE_MIN_SIMILARITY).slice(0, 3)
+    .map(item => ({ ...item, score: Math.round(item.similarity * 100), runnerUp: null,
+      constraints: extractExplicitStyleConstraints(prompt), catalogHash: index.catalogHash }));
 }

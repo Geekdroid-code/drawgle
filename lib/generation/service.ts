@@ -2,6 +2,7 @@ import "server-only";
 import { INITIAL_PROJECT_SCREEN_LIMIT } from "@/lib/generation/limits";
 import { type ProductPlanning, activeFacts } from "@/lib/product-planning/model";
 import { formatProductTruth, groundCharterInProduct, productScopeContract } from "@/lib/product-planning/generation-context";
+import { reconcileScreenBriefsWithDesignRequirements } from "@/lib/product-planning/reconcile-design";
 import { scopeParents } from "@/lib/product-planning/scope-outputs";
 
 import { z } from "zod";
@@ -3073,6 +3074,15 @@ export async function planUiFlow({
   llmLog?: LlmLogFn;
   onProgress?: (event: UiFlowPlanningProgress) => void | Promise<void>;
 }): Promise<PlannedUiFlow> {
+  if (referenceMode === "user_recreate") {
+    // Source reconstruction must never ingest adaptive memory from prior work.
+    projectContext = null;
+    existingCharter = null;
+    existingNavigationPlan = null;
+    providedReferenceDna = null;
+    providedScreenFamilyContract = null;
+    designStyle = null;
+  }
   const executionBatchLimit = productExecutionKeys ? Math.min(8, productExecutionKeys.length) : INITIAL_PROJECT_SCREEN_LIMIT;
   if (productPlanning) {
     if (productPlanning.scope?.status !== "approved") throw new Error("Product scope requires approval before screen planning.");
@@ -3754,8 +3764,11 @@ export async function planUiFlow({
     },
     navigationArchitecture,
   }));
+  const candidateScreens = productPlanning
+    ? await reconcileScreenBriefsWithDesignRequirements(reconciledScreens, productPlanning)
+    : reconciledScreens;
   const enforced = enforceScreenCountContract({
-    screens: reconciledScreens,
+    screens: candidateScreens,
     contract: adjustedContract,
     prompt,
     referenceAnalysis,
@@ -3843,6 +3856,7 @@ export async function generateDesignTokens({
   referenceId,
   designStyle,
   referenceAnalysis: providedReferenceAnalysis,
+  designRequirements,
   llmLog,
 }: {
   prompt: string;
@@ -3851,6 +3865,7 @@ export async function generateDesignTokens({
   referenceId?: string | null;
   designStyle?: DesignStylePack | null;
   referenceAnalysis?: ReferenceAnalysis | null;
+  designRequirements?: string | null;
   llmLog?: LlmLogFn;
 }) {
   try {
@@ -3900,6 +3915,12 @@ export async function generateDesignTokens({
           text: `${styleReferenceInstruction} Derive reusable tokens from the reference image's visual DNA only.`,
         });
       }
+    }
+
+    if (designRequirements) {
+      parts.push({
+        text: `Authoritative Design Constraints (highest precedence):\n${designRequirements}\nExplicit user constraints MUST override any conflicting styles or reference cues.`,
+      });
     }
 
     parts.push({
@@ -3996,15 +4017,18 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
     ].join("\n"),
   });
 
-  if (input.productContent) parts.push({ text: input.productContent });
-  const compactProjectContext = input.projectContext?.trim().slice(0, 6000);
+  if (resolvedReferenceMode === "user_recreate" && input.sourceDetail) {
+    parts.push({ text: "Verified detail crop of this output's target frame. Use it for fine detail; the original composite above remains authoritative for context and anything outside this crop." }, toInlineImage(input.sourceDetail)!);
+  }
+  if (resolvedReferenceMode !== "user_recreate" && input.productContent) parts.push({ text: input.productContent });
+  const compactProjectContext = resolvedReferenceMode === "user_recreate" ? null : input.projectContext?.trim().slice(0, 6000);
   if (compactProjectContext) {
     parts.push({
       text: `Compact Existing Project Memory:\n${compactProjectContext}`,
     });
   }
 
-  if (input.topChromeContinuityEvidence) {
+  if (resolvedReferenceMode !== "user_recreate" && input.topChromeContinuityEvidence) {
     parts.push({
       text: buildTopChromeContinuityEvidenceSection(input.topChromeContinuityEvidence),
     });

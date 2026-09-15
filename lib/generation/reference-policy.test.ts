@@ -49,4 +49,28 @@ describe("generation reference policy", () => {
       isExistingProject: false,
     })).toBe("curated_fallback");
   });
+
+  it("honors approved curated_evidence even if a cached image exists in the project slot", () => {
+    expect(resolveGenerationReferencePolicy({
+      hasCurrentUserImage: false,
+      hasProjectReferenceImage: false,
+      hasExplicitStyle: false,
+      isExistingProject: false,
+      requestedPolicy: "curated_evidence",
+    })).toBe("curated_evidence");
+  });
+
+  it("honors approved no_reference even if an image exists in storage", () => {
+    expect(resolveGenerationReferencePolicy({
+      hasCurrentUserImage: false,
+      hasProjectReferenceImage: false,
+      hasExplicitStyle: false,
+      isExistingProject: false,
+      requestedPolicy: "no_reference",
+    })).toBe("no_reference");
+  });
+  it("a new explicit upload overrides a previous no-reference choice", () => {
+    expect(resolveGenerationReferencePolicy({ hasCurrentUserImage: true, hasProjectReferenceImage: false,
+      hasExplicitStyle: false, isExistingProject: true, requestedPolicy: "no_reference" })).toBe("user_upload");
+  });
 });

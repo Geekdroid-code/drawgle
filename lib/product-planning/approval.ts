@@ -4,6 +4,7 @@ import { z } from "zod";
 import { ACTIVE_GENERATION_STATUSES } from "@/lib/types";
 import { adminCreditService } from "@/lib/credits";
 import { scopeQuote } from "./scope-outputs";
+import { productReferenceExecution } from "./reference-execution";
 import { insertProjectMessage } from "@/lib/supabase/queries";
 import { approveProductScope, type ProductPlanning } from "./model";
 import { productScopeContract, scopedGenerationPrompt } from "./generation-context";
@@ -35,15 +36,16 @@ export async function prepareProductApproval(admin: PlanningStore, ownerId: stri
   const creditCheck = await adminCreditService.hasCredits(ownerId, requiredCredits);
   if (!creditCheck.hasCredits) throw new PlanningConflict(`This scope needs ${requiredCredits} credits; your balance is ${creditCheck.currentBalance}. Add credits before approving.`);
   // Load evidence before claiming; storage failure leaves the approval available for retry.
-  const image = await loadPlanningReference(admin, state.input.imagePath, ownerId);
-  if (state.designerVersion === 2 && (!image || createHash("sha256").update(image.data).digest("hex") !== state.experience?.referenceHash)) {
+  const isNoReference = state.input.referencePreference?.mode === "none";
+  const image = isNoReference ? null : await loadPlanningReference(admin, state.input.imagePath, ownerId);
+  if (state.designerVersion === 2 && !isNoReference && (!image || createHash("sha256").update(image.data).digest("hex") !== state.experience?.referenceHash)) {
     throw new PlanningConflict("The reference changed or could not be verified. Inspect it again before approving.");
   }
   const leaseId = crypto.randomUUID();
   let current = await saveProductPlanning(admin, projectId, ownerId, state, {
     ...approved, lease: { id: leaseId, expiresAt: new Date(Date.now() + 240_000).toISOString() },
   });
-  const referenceMode = image ? state.input.imageReferenceMode === "recreate" ? "user_recreate" : "user_style" : "internal_style";
+  const referenceMode = productReferenceExecution(approved).mode;
   return {
     snapshot: approved,
     initialGeneration: state.phase === "discovery",

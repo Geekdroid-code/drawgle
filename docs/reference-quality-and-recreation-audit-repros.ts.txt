@@ -1,0 +1,62 @@
+import { beforeEach, expect, it, vi } from "vitest";
+vi.mock("server-only", () => ({}));
+const mocks = vi.hoisted(() => ({ generate: vi.fn(), load: vi.fn(), store: vi.fn(), shortlist: vi.fn(), curated: vi.fn() }));
+vi.mock("@/lib/ai/gemini", () => ({ createGeminiClient: () => ({ models: { generateContent: mocks.generate } }) }));
+vi.mock("./references", () => ({ loadPlanningReference: mocks.load, storePlanningReference: mocks.store }));
+vi.mock("@/lib/generation/curated-style-references", () => ({ shortlistCuratedStyleReferences: mocks.shortlist, loadCuratedStyleReferenceImage: mocks.curated, matchCuratedStyleReference: vi.fn() }));
+import { designerFixture, experienceFixture } from "./test-fixtures";
+import { applyProductPatch, proposeProductScope, approveProductScope } from "./model";
+import { reconcileTokensWithDesignRequirements, reconcileScreenBriefsWithDesignRequirements, designRequirementsKey } from "./design-requirements";
+import { inspectProductReference } from "./inspect-reference";
+import { designerToolDeclarations } from "./designer-tools";
+
+const messageId = "11111111-1111-4111-8111-111111111111";
+const stateWith = (detail: string) => applyProductPatch(designerFixture(), { operations: [{ op: "put_fact", fact: {
+  id: "audit-pref", section: "preferences", label: "Design", detail, evidence: detail, source: "user", links: [],
+} }] }, messageId);
+const tokens = () => ({ tokens: { color: { background: { screen: "#FFFFFF" }, action: { primary: "#00AA00" } } } });
+beforeEach(() => {
+  vi.resetAllMocks();
+  mocks.load.mockResolvedValueOnce(null).mockResolvedValue({ data: "saved", mimeType: "image/webp" });
+  mocks.store.mockResolvedValue("owner/prompt-images/saved.webp");
+  mocks.shortlist.mockResolvedValue([{ reference: { id: "bad-one" }, catalogHash: "cat" }, { reference: { id: "bad-two" }, catalogHash: "cat" }]);
+  mocks.curated.mockResolvedValue({ data: "pixels", mimeType: "image/png" });
+});
+
+it("does not force dark mode when the user explicitly excludes it", () => {
+  expect(reconcileTokensWithDesignRequirements(tokens(), stateWith("No dark mode; keep the white background")).tokens?.color?.background?.screen).toBe("#FFFFFF");
+});
+it("binds an explicit primary color to its own value, not the first hex in the brief", () => {
+  expect(reconcileTokensWithDesignRequirements(tokens(), stateWith("Background #FFFFFF and brand primary #10B981")).tokens?.color?.action?.primary).toBe("#10B981");
+});
+it("does not map ice cream product content to a cream screen palette", () => {
+  expect(reconcileTokensWithDesignRequirements(tokens(), stateWith("Show ice cream photographs on the white product cards")).tokens?.color?.background?.screen).toBe("#FFFFFF");
+});
+it("preserves exact recreation tokens against product preference rewriting", () => {
+  const state = stateWith("Warm cream palette"); state.input.imageReferenceMode = "recreate";
+  expect(reconcileTokensWithDesignRequirements(tokens(), state)).toEqual(tokens());
+});
+it("preserves exact recreation screen briefs against preference rewriting", () => {
+  const state = stateWith("No gradients"); state.input.imageReferenceMode = "recreate";
+  const screens = [{ name: "Source", type: "root" as const, description: "Recreate the visible gradient background" }];
+  expect(reconcileScreenBriefsWithDesignRequirements(screens, state)).toEqual(screens);
+});
+it("rejects a shortlist when every inspected candidate conflicts", async () => {
+  mocks.generate.mockResolvedValue({ text: JSON.stringify({ ...experienceFixture(), compatibility: { compatible: false, conflicts: ["Wrong palette"], transfer: "", rationale: "Cannot transfer" } }) });
+  const state = stateWith("White background"); state.input.imagePath = null;
+  await expect(inspectProductReference({} as never, "owner", state, "Preserve white")).rejects.toThrow();
+});
+it("does not interpret a missing compatibility verdict as approval", async () => {
+  mocks.generate.mockResolvedValue({ text: JSON.stringify(experienceFixture()) });
+  const state = stateWith("White background"); state.input.imagePath = null;
+  await expect(inspectProductReference({} as never, "owner", state, "Preserve white")).rejects.toThrow();
+});
+it("rejects a stale incompatible reference at scope approval", () => {
+  const state = stateWith("White background");
+  state.experience = { ...state.experience!, requirementsKey: "stale", compatibility: { compatible: false, conflicts: ["White conflicts with source"], transfer: "", rationale: "Wrong palette" } };
+  expect(designRequirementsKey(state)).not.toBe(state.experience.requirementsKey);
+  expect(() => { const proposed = proposeProductScope(state); approveProductScope(proposed, proposed.revision); }).toThrow();
+});
+it("exposes the no-reference choice through an actual agent tool", () => {
+  expect(designerToolDeclarations.some(tool => tool.name === "set_reference_preference" || JSON.stringify(tool.parameters).includes("set_reference_preference"))).toBe(true);
+});

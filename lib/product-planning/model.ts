@@ -2,6 +2,7 @@ import { z } from "zod";
 import { journeyCoverageSchema } from "./flow-review";
 import { normalizePlanningInput } from "./reference-context";
 import { decisionProvenanceSchema, evidenceAssessmentSchema, evidenceAllowsProposal } from "./evidence";
+import { designRequirementsKey } from "./design-requirements";
 import { experienceSchema } from "./experience";
 import { functionalItemSchema, validateFunctionalPlan } from "./functional-plan";
 
@@ -56,6 +57,14 @@ export const productPlanningSchema = z.object({
   scope: designScopeSchema.nullable(),
   initialTurnComplete: z.boolean(),
   input: z.object({
+    originalRequest: z.string().max(30000).optional(),
+    recreationRequest: z.string().max(10000).optional(),
+    recreationChanges: z.array(z.object({ messageId: z.string().uuid(), request: z.string().max(10000) })).max(100).optional(),
+    referencePreference: z.object({
+      mode: z.enum(["auto", "none"]),
+      evidence: z.string().min(1).max(1000),
+      messageId: z.string().uuid(),
+    }).optional(),
     imagePath: z.string().nullable(),
     referenceSource: z.enum(["none", "user", "curated"]).optional(),
     imageReferenceMode: z.enum(["style", "recreate"]),
@@ -80,6 +89,7 @@ export const productOperationSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("supersede_fact"), id, replacement: productFactSchema.omit({ status: true, supersededBy: true, messageId: true }).nullable() }),
   z.object({ op: z.literal("set_scope"), goal: text, surfaceIds: z.array(id).min(1).max(500), rationale: text,
     outputKeys: z.array(z.string()).max(500).optional() }),
+  z.object({ op: z.literal("set_reference_preference"), mode: z.enum(["auto", "none"]), evidence: z.string().min(1).max(1000) }),
 ]);
 export const productPatchSchema = z.object({ operations: z.array(productOperationSchema).min(1).max(40) });
 
@@ -91,6 +101,19 @@ export function applyProductPatch(state: ProductPlanning, value: unknown, messag
   const next = structuredClone(state);
   next.contentRevision = (state.contentRevision ?? 0) + 1;
   for (const operation of operations) {
+    if (operation.op === "set_reference_preference") {
+      next.input = {
+        ...next.input,
+        referencePreference: {
+          mode: operation.mode,
+          evidence: operation.evidence,
+          messageId,
+        },
+        ...(operation.mode === "none" ? { imagePath: null, referenceSource: "none" as const, imageReferenceMode: "style" as const, stylePresetSlug: null } : {}),
+      };
+      next.experience = null;
+      continue;
+    }
     if (operation.op === "set_scope") {
       next.scope = { ...operation, surfaceIds: [...new Set(operation.surfaceIds)], status: "draft", approvedRevision: null, generationRunId: null };
       continue;
@@ -130,6 +153,10 @@ export function applyProductPatch(state: ProductPlanning, value: unknown, messag
     next.scope.approvedRevision = null;
     next.scope.generationRunId = null;
   }
+  // Keep source provenance for re-selection, but never approve stale visual evidence.
+  if (designRequirementsKey(state) !== designRequirementsKey(next) && next.experience) {
+    next.experience = { ...next.experience, requirementsKey: state.experience?.requirementsKey ?? designRequirementsKey(state) };
+  }
   return productPlanningSchema.parse(next);
 }
 
@@ -152,10 +179,27 @@ export function readinessIssues(state: ProductPlanning): string[] {
   return issues;
 }
 
+export function assertExperienceReady(state: ProductPlanning) {
+  const experience = state.experience;
+  if (!experience) throw new Error("Establish an experience direction before proposing designs.");
+  if (!state.input.imagePath && state.input.referencePreference?.mode !== "none") throw new Error("Inspect visual evidence or record the explicit no-reference choice before approval.");
+  if (experience.referencePath !== state.input.imagePath) throw new Error("Reference changed. Inspect the current evidence before approval.");
+  if (state.input.imageReferenceMode === "recreate" && state.input.imagePath) return;
+  const key = designRequirementsKey(state);
+  if ((experience.requirementsKey !== undefined && experience.requirementsKey !== key)
+    || (experience.requirementsKey === undefined && key !== "[]")) {
+    throw new Error("Design requirements changed. Reinspect the reference against the current requirements.");
+  }
+  if (experience.compatibility?.compatible === false
+    || (experience.requirementsKey !== undefined && !experience.compatibility)) {
+    throw new Error("The visual direction has not passed compatibility review. Choose compatible evidence or explicitly continue without references.");
+  }
+}
+
 export function proposeProductScope(state: ProductPlanning): ProductPlanning {
   if (state.designerVersion === 2 && !evidenceAllowsProposal(state.evidenceAssessment)) throw new Error("Discuss the unresolved product or experience decisions with the user before proposing a scope.");
   if (state.designerVersion === 2) {
-    if (!state.experience) throw new Error("Inspect a reference before proposing designs.");
+    assertExperienceReady(state);
     if (!state.scope?.manifest?.length) throw new Error("Map concrete screens and states on the roadmap, then select their output keys.");
     validateFunctionalPlan(state.scope.manifest, (state.scope.existingOutputs ?? []).map(output => output.item), state.scope.boundaries?.map(item => item.key));
   }
@@ -167,8 +211,13 @@ export function proposeProductScope(state: ProductPlanning): ProductPlanning {
 export function approveProductScope(state: ProductPlanning, revision: number): ProductPlanning {
   if (state.designerVersion === 2 && !evidenceAllowsProposal(state.evidenceAssessment)) throw new Error("Product understanding requires another conversation before approval.");
   if (state.designerVersion === 2) {
+    assertExperienceReady(state);
     if (state.scope?.reviewedContentRevision !== (state.contentRevision ?? 0)) throw new Error("Product decisions changed after review.");
-    if (!state.experience || state.experience.referencePath !== state.input.imagePath || !state.scope?.manifest?.length) throw new Error("Reference or functional scope changed. Review the updated plan.");
+    const isNoRef = state.input.referencePreference?.mode === "none";
+    const refPathMatch = isNoRef
+      ? state.experience?.referencePath === null
+      : state.experience?.referencePath === state.input.imagePath;
+    if (!state.experience || !refPathMatch || !state.scope?.manifest?.length) throw new Error("Reference or functional scope changed. Review the updated plan.");
     validateFunctionalPlan(state.scope.manifest, (state.scope.existingOutputs ?? []).map(output => output.item), state.scope.boundaries?.map(item => item.key));
   }
   if (state.revision !== revision || state.scope?.status !== "proposed" || (state.lease && Date.parse(state.lease.expiresAt) > Date.now())) {

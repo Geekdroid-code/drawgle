@@ -23,8 +23,8 @@ export async function POST(request: Request) {
     const { data: existing, error: lookupError } = await admin.from("projects").select("id, owner_id").eq("id", input.clientRequestId).maybeSingle();
     if (lookupError) throw lookupError;
     if (existing) return NextResponse.json(existing.owner_id === user.id ? { projectId: existing.id } : { error: "Request already used." }, { status: existing.owner_id === user.id ? 200 : 409 });
-    const imagePath = input.image ? await storePlanningReference(admin, user.id, input.image) : null;
-    const planning = createProductPlanning({ imagePath, imageReferenceMode: input.imageReferenceMode, stylePresetSlug: input.stylePresetSlug ?? null });
+    const imagePath = input.image ? await storePlanningReference(admin, user.id, input.image, input.imageReferenceMode) : null;
+    const planning = createProductPlanning({ originalRequest: input.prompt, recreationRequest: input.image && input.imageReferenceMode === "recreate" ? input.prompt : undefined, imagePath, imageReferenceMode: input.imageReferenceMode, stylePresetSlug: input.stylePresetSlug ?? null });
     const { data: projectId, error } = await admin.rpc("create_planning_project", {
       input_project_id: input.clientRequestId, input_owner_id: user.id,
       input_name: input.prompt.split(/\s+/).slice(0, 7).join(" ").slice(0, 100) || "New project",

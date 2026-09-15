@@ -2,7 +2,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 const mocks = vi.hoisted(() => ({ generate: vi.fn() }));
 vi.mock("@/lib/ai/gemini", () => ({ createGeminiClient: () => ({ models: { generateContent: mocks.generate } }) }));
-vi.mock("./references", () => ({ loadPlanningReference: async () => null, storePlanningReference: vi.fn() }));
+vi.mock("./references", () => ({ loadPlanningReference: async () => ({ data: "pixels", mimeType: "image/webp" }), storePlanningReference: vi.fn() }));
 vi.mock("@/lib/agent/project-tools", () => ({ projectReadToolDeclarations: [], createProjectReadToolExecutor: () => vi.fn() }));
 vi.mock("@/lib/generation/message-memory", () => ({ persistProjectMessageMemoryPair: vi.fn() }));
 import { runProductDesigner } from "./designer";
@@ -23,6 +23,7 @@ it("repairs failed inline-flow persistence through the real stores, assessment, 
   review.journeys[0].completionKeys = [roadmap[0].stableKey];
   const initial = createProductPlanning({ imagePath: null, imageReferenceMode: "style", stylePresetSlug: null });
   initial.experience = experienceFixture();
+  initial.input.imagePath = initial.experience.referencePath;
   const tables: Record<string, Array<Record<string, unknown>>> = {
     projects: [{ id: "project", owner_id: "owner", product_planning: initial }], project_screen_roadmap: [], project_messages: [],
   };

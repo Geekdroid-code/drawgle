@@ -1,5 +1,6 @@
 import "server-only";
 import { createHash } from "node:crypto";
+import { designRequirementsKey } from "./design-requirements";
 import type { PlannedUiFlow } from "@/lib/types";
 import type { ProductPlanning } from "./model";
 import type { PlanningStore } from "./store";
@@ -9,8 +10,9 @@ import type { PlanningStore } from "./store";
 export function preparedPlanKey(state: ProductPlanning, keys: string[], shared: unknown) {
   const canonical = (value: unknown): unknown => Array.isArray(value) ? value.map(canonical)
     : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => [k, canonical(v)])) : value;
-  return createHash("sha256").update(JSON.stringify(canonical({ version: 1, approval: state.scope?.approvedRevision,
+  return createHash("sha256").update(JSON.stringify(canonical({ version: 3, approval: state.scope?.approvedRevision,
     contentRevision: state.contentRevision, manifest: state.scope?.manifest, reference: state.experience?.referenceHash,
+    requirementsKey: designRequirementsKey(state), sourceFrames: state.experience?.sourceFrames,
     input: state.input, keys, shared }))).digest("hex");
 }
 

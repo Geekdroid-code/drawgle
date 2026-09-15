@@ -13,6 +13,7 @@ import type { PromptImagePayload } from "@/lib/types";
 export { CURATED_STYLE_REFERENCES } from "@/lib/generation/curated-style-catalog";
 export {
   matchCuratedStyleReference,
+  shortlistCuratedStyleReferences,
 } from "@/lib/generation/curated-style-selection";
 export type {
   CuratedStyleReferenceMatch,

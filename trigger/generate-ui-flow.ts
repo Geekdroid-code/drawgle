@@ -21,13 +21,16 @@ import { INITIAL_PROJECT_SCREEN_LIMIT } from "@/lib/generation/limits";
 import { reviewScreenContent } from "@/lib/product-planning/review-screen-content";
 import { recreationFrameChrome } from "@/lib/product-planning/recreation-frames";
 import { preparedPlanKey, readPreparedPlan, savePreparedPlan } from "@/lib/product-planning/prepared-plans";
-import { scopedGenerationPrompt, productScopeContract } from "@/lib/product-planning/generation-context";
+import { scopedGenerationPrompt, productScopeContract, groundCharterInProduct } from "@/lib/product-planning/generation-context";
 import { compileProductContent } from "@/lib/product-planning/content-contract";
 import { approvedOutputKind, validateExecutionProduct } from "@/lib/product-planning/execution-contract";
 import { bindApprovedScreenPlans } from "@/lib/product-planning/screen-plan-contract";
 import { executionOutputs } from "@/lib/product-planning/scope-outputs";
 import { loadExecutionRoadmap } from "@/lib/product-planning/execution-roadmap";
-import { groundCharterInProduct } from "@/lib/product-planning/generation-context";
+import { productReferenceExecution } from "@/lib/product-planning/reference-execution";
+import { loadSourceDetail } from "@/lib/product-planning/source-detail";
+import { compileDesignRequirements } from "@/lib/product-planning/design-requirements";
+import { reconcileTokensWithDesignRequirements } from "@/lib/product-planning/reconcile-design";
 import {
   extractTopChromeContinuityEvidence,
   rememberFirstRunChromeEvidence,
@@ -135,6 +138,7 @@ export type GenerateUiFlowPayload = {
   navigationPlan?: NavigationPlan | null;
   projectCharter?: ProjectCharter | null;
   productPlanning?: ProductPlanning | null;
+  productContextSnapshot?: ProductPlanning | null;
   productExecutionKeys?: string[];
   productLookaheadKeys?: string[];
   productAttempt?: number;
@@ -160,6 +164,7 @@ type BuildScreenTaskPayload = {
   prompt: string;
   designTokens?: DesignTokens | null;
   image?: PromptImagePayload | null;
+  sourceDetail?: PromptImagePayload | null;
   referenceMode?: ReferenceMode;
   referenceSource?: ReferenceSource | null;
   referenceId?: string | null;
@@ -1089,6 +1094,7 @@ async function collectScreenBuild(
       assetManifest: input.assetManifest,
       projectContext: input.projectContext,
       productContent: input.productContent,
+      sourceDetail: input.sourceDetail,
       topChromeContinuityEvidence: input.topChromeContinuityEvidence,
       onProviderEvent: logProviderEvent,
       onResponseChunk: (chunk) => {
@@ -1153,6 +1159,7 @@ async function collectNonStreamingScreenBuild(input: BuildScreenTaskPayload, scr
     assetManifest: input.assetManifest,
     projectContext: input.projectContext,
       productContent: input.productContent,
+      sourceDetail: input.sourceDetail,
     topChromeContinuityEvidence: input.topChromeContinuityEvidence,
     onProviderEvent: logProviderEvent,
     onResponseChunk: (responseChunk) => {
@@ -1992,15 +1999,25 @@ export const generateUiFlowTask = task({
       .select("project_charter, design_tokens, product_planning")
       .eq("id", payload.projectId)
       .maybeSingle();
-    const existingCharter = (existingProject?.project_charter as ProjectCharter | null) ?? null;
-    const productPlanning = payload.productPlanning ?? readProductPlanning(existingProject?.product_planning);
+    const exactRecreation = Boolean(payload.imagePath && payload.imageReferenceMode === "recreate" && payload.referencePolicy !== "curated_evidence" && payload.referencePolicy !== "no_reference");
+    const existingCharter = exactRecreation ? null : (existingProject?.project_charter as ProjectCharter | null) ?? null;
+    const productPlanning = payload.productPlanning ?? payload.productContextSnapshot ?? readProductPlanning(existingProject?.product_planning);
     if (payload.productPlanning?.scope?.status === "approved") {
       payload.imageReferenceMode = payload.productPlanning.input.imageReferenceMode;
-      payload.imagePath = payload.productPlanning.input.imagePath;
-      if (payload.imagePath) payload.referencePolicy = "user_upload";
+      const approvedReference = productReferenceExecution(payload.productPlanning);
+      payload.imagePath = approvedReference.imagePath;
+      payload.referencePolicy = approvedReference.policy;
+    }
+    if (exactRecreation) {
+      // Supplied sources own their visual system, including coordinator batches.
+      designTokens = null;
+      payload.projectCharter = null;
+      payload.navigationArchitecture = null;
+      payload.navigationPlan = null;
+      payload.requiresBottomNav = false;
     }
     const projectReferenceDna = resolveProjectReferenceDna(payload.projectCharter ?? existingCharter)?.dna ?? null;
-    if (!designTokens && existingProject?.design_tokens) {
+    if (!exactRecreation && !designTokens && existingProject?.design_tokens) {
       designTokens = existingProject.design_tokens as DesignTokens;
     }
     const requestedNavigationArchitecture = createNavigationArchitecture({
@@ -2046,7 +2063,7 @@ export const generateUiFlowTask = task({
     const referenceStartedAt = now();
     const referenceStartedMs = Date.now();
     const planningContextPromise = assembleProjectContext({
-      productPlanning: payload.productPlanning,
+      productPlanning,
       admin,
       projectId: payload.projectId,
       userPrompt: payload.prompt,
@@ -2076,12 +2093,14 @@ export const generateUiFlowTask = task({
       : null);
     const hasInheritedProjectImage = payload.referencePolicy === "project_reference";
     let referencePolicy = resolveGenerationReferencePolicy({
-      hasCurrentUserImage: Boolean(storedPromptImage) && !hasInheritedProjectImage,
+      hasCurrentUserImage: Boolean(storedPromptImage) && !hasInheritedProjectImage && payload.referencePolicy !== "curated_evidence" && payload.referencePolicy !== "no_reference",
       hasProjectReferenceImage: Boolean(storedPromptImage) && hasInheritedProjectImage,
       hasExplicitStyle: Boolean(designStyle),
       isExistingProject: payload.isNewProject !== true,
       requestedPolicy: payload.referencePolicy,
     });
+    const approvedReference = payload.productPlanning?.scope?.status === "approved" ? productReferenceExecution(payload.productPlanning) : null;
+    if (approvedReference) referencePolicy = approvedReference.policy;
     if (referencePolicy === "project_reference" && !storedPromptImage) {
       referencePolicy = "project_memory";
     }
@@ -2097,7 +2116,16 @@ export const generateUiFlowTask = task({
     let referenceCatalogHash: string | null = null;
     const curatedStyleSelectionDiagnostics: CuratedStyleSelectionDiagnostics[] = [];
 
-    if (referencePolicy === "user_upload") {
+    if (referencePolicy === "curated_evidence") {
+      if (!storedPromptImage) throw new Error("The approved curated evidence is unavailable. Restore the saved reference before retrying.");
+      referenceMode = "curated_style";
+      referenceSource = "curated";
+      referenceId = approvedReference?.referenceId ?? productPlanning?.experience?.referenceId ?? null;
+      referenceCatalogHash = approvedReference?.catalogHash ?? productPlanning?.experience?.catalogHash ?? null;
+    } else if (referencePolicy === "no_reference") {
+      promptImage = null;
+      referenceMode = "internal_style";
+    } else if (referencePolicy === "user_upload") {
       referenceMode = payload.imageReferenceMode === "style" ? "user_style" : "user_recreate";
       referenceSource = "user_upload";
     } else if (referencePolicy === "project_reference") {
@@ -2166,7 +2194,7 @@ export const generateUiFlowTask = task({
     });
 
     const curatedStyleSelectionDiagnostic = curatedStyleSelectionDiagnostics[0] ?? null;
-    const reusableProjectReferenceDna = projectReferenceDna && (
+    const reusableProjectReferenceDna = referencePolicy !== "no_reference" && referenceMode !== "user_recreate" && projectReferenceDna && (
       referencePolicy === "project_reference"
       || referencePolicy === "project_memory"
       || Boolean(payload.plannedScreens?.length || payload.screenPlanningSeeds?.length)
@@ -2181,17 +2209,23 @@ export const generateUiFlowTask = task({
         ? referenceMode === "user_recreate"
           ? "Using the uploaded image as structural UI evidence."
           : "Using the uploaded image as style direction."
-        : referencePolicy === "project_reference"
-          ? "Using the project's persisted user reference as visual style direction."
-          : referencePolicy === "project_memory"
-            ? "Using the existing project's screens, charter, and design tokens as visual direction."
-            : referencePolicy === "explicit_style"
-              ? `Using the explicitly selected design style${referenceId ? `: ${referenceId}` : ""}.`
-              : referenceId
-                ? `Matched internal style reference: ${referenceId}.`
-                : curatedStyleSelectionDiagnostic?.rejectionReason === "constraint_conflict"
-                  ? "No curated reference satisfied the user's explicit design constraints; using prompt-only design direction."
-                  : "No curated reference passed the confidence checks; using prompt-only design direction.",
+        : referencePolicy === "curated_evidence"
+          ? referenceId
+            ? `Using curated visual evidence for style direction: ${referenceId}.`
+            : "Using curated visual evidence for style direction."
+          : referencePolicy === "no_reference"
+            ? "Using prompt-only design direction without external visual reference."
+            : referencePolicy === "project_reference"
+              ? "Using the project's persisted user reference as visual style direction."
+              : referencePolicy === "project_memory"
+                ? "Using the existing project's screens, charter, and design tokens as visual direction."
+                : referencePolicy === "explicit_style"
+                  ? `Using the explicitly selected design style${referenceId ? `: ${referenceId}` : ""}.`
+                  : referenceId
+                    ? `Matched internal style reference: ${referenceId}.`
+                    : curatedStyleSelectionDiagnostic?.rejectionReason === "constraint_conflict"
+                      ? "No curated reference satisfied the user's explicit design constraints; using prompt-only design direction."
+                      : "No curated reference passed the confidence checks; using prompt-only design direction.",
     );
     await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
@@ -2310,8 +2344,13 @@ export const generateUiFlowTask = task({
         referenceId,
         designStyle,
         referenceAnalysis,
+        designRequirements: compileDesignRequirements(productPlanning),
         llmLog: llmLogFor("design"),
       });
+
+      if (productPlanning) {
+        designTokens = await reconcileTokensWithDesignRequirements(designTokens, productPlanning);
+      }
 
       await updateProject(admin, payload.projectId, {
         design_tokens: designTokens as never,
@@ -2337,6 +2376,9 @@ export const generateUiFlowTask = task({
       setJournalPhase(generationJournal, "design", "completed", "Design tokens are ready for the build.");
       await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
     } else {
+      if (productPlanning && designTokens) {
+        designTokens = await reconcileTokensWithDesignRequirements(designTokens, productPlanning);
+      }
       setJournalPhase(generationJournal, "design", "completed", "Using the approved project design tokens.");
       await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
     }
@@ -3219,6 +3261,7 @@ export const generateUiFlowTask = task({
             prompt: payload.prompt,
             designTokens,
             image: attachReferenceImage ? promptImage : null,
+            sourceDetail: attachReferenceImage && promptImage ? await loadSourceDetail(admin, payload.ownerId, promptImage, productPlanning?.experience, screenPlan.referenceScreenIndex ?? index + 1) : null,
             referenceMode,
             referenceSource,
             referenceId,
@@ -3232,7 +3275,7 @@ export const generateUiFlowTask = task({
             assetManifest: projectAssetManifest.assetsByScreen[screenPlan.name] ?? [],
             projectCharter: plan.charter,
             projectContext: buildContext,
-            productContent: compileProductContent(productPlanning),
+            productContent: payload.productContent ?? compileProductContent(productPlanning),
             topChromeContinuityEvidence,
             isFirstScreen: index === 0,
           },

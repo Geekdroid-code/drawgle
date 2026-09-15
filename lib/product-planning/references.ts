@@ -4,8 +4,8 @@ import { normalizeReferenceImage } from "@/lib/generation/reference-image";
 import type { PromptImagePayload } from "@/lib/types";
 import type { PlanningStore } from "./store";
 
-export async function storePlanningReference(admin: PlanningStore, ownerId: string, image: PromptImagePayload) {
-  const normalized = await normalizeReferenceImage(image);
+export async function storePlanningReference(admin: PlanningStore, ownerId: string, image: PromptImagePayload, mode: "style" | "recreate" = "style") {
+  const normalized = await normalizeReferenceImage(image, mode);
   const path = `${ownerId}/prompt-images/${normalized.sha256}.webp`;
   const { error } = await admin.storage.from("generation-assets").upload(path, Buffer.from(normalized.image.data, "base64"), {
     contentType: normalized.image.mimeType, upsert: true,

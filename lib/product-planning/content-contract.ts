@@ -1,3 +1,4 @@
+import { compileDesignRequirements } from "./design-requirements";
 import { activeFacts, type ProductPlanning } from "./model";
 
 export function compileProductContent(state?: ProductPlanning | null): string | null {
@@ -6,6 +7,7 @@ export function compileProductContent(state?: ProductPlanning | null): string | 
   const sections = ["identity", "actors", "jobs", "entities", "capabilities", "content", "constraints"] as const;
   return ["PRODUCT CONTENT CONTRACT — applies to visible UI copy, sample data, labels and claims on every screen.",
     "Write for the actual audience doing its jobs. Visual reference styling never establishes the product's domain, vocabulary, audience or capabilities. Use consistent entity and action names across the app, natural reading level and plausible units. Do not invent technical telemetry, security/privacy guarantees, biometric claims or performance statistics. Technical language is appropriate only when the actual product and audience justify it. Assumptions are tentative, not user promises.",
+    compileDesignRequirements(state),
     ...sections.map(section => `${section}: ${JSON.stringify(activeFacts(state, section).map(({ label, detail, source }) => ({ label, detail, source })))}`),
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 }

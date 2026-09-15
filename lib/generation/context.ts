@@ -502,6 +502,9 @@ export async function assembleProjectContext({
   }
 
   const productTruth = productPlanning ?? readProductPlanning(project.product_planning);
+  if (productTruth?.input.imagePath && productTruth.input.imageReferenceMode === "recreate") {
+    return formatProductTruth(productTruth, Boolean(productPlanning));
+  }
   const charter = project.project_charter ? groundCharterInProduct(project.project_charter as ProjectCharter, productTruth) : null;
   const referenceDna = resolveProjectReferenceDna(charter)?.dna ?? null;
   const portableReferenceMemory = Boolean(referenceDna && referenceDna.referenceMode !== "user_recreate");
