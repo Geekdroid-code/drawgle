@@ -12,7 +12,7 @@ vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ rpc: mocks.
     if (patch) rows.forEach(row => Object.assign(row, patch));
     return { data: structuredClone(single ? rows[0] : rows), error: null };
   };
-  const query = { select: () => query, eq: (key: string, value: unknown) => { filters.push(row => row[key] === value); return query; },
+  const query = { select: () => query, order: () => query, eq: (key: string, value: unknown) => { filters.push(row => row[key] === value); return query; },
     neq: (key: string, value: unknown) => { filters.push(row => row[key] !== value); return query; },
     in: (key: string, values: unknown[]) => { filters.push(row => values.includes(row[key])); return query; },
     update: (value: Record<string, any>) => { patch = value; return query; }, single: async () => execute(true), maybeSingle: async () => execute(true),
@@ -50,10 +50,11 @@ describe("durable approved-flow coordinator", () => {
     });
     mocks.child.mockImplementation(async (_name, payload) => {
       const stateOnly = payload.retryContext?.mode === "state_variants";
+      mocks.tables.project_screen_roadmap = payload.productPlanning.scope.manifest.map((item: { stableKey: string }) => ({ id: item.stableKey, stable_key: item.stableKey, project_id: project, owner_id: owner }));
       const outputs = payload.productPlanning.scope.manifest.filter((item: { stableKey: string; kind: string }) => payload.productExecutionKeys.includes(item.stableKey) && (!stateOnly || item.kind === "state"));
-      mocks.tables.screens.push(...outputs.map((item: { name: string; kind: string; stateKey: string }, index: number) => ({
+      mocks.tables.screens.push(...outputs.map((item: { name: string; kind: string; stateKey: string; stableKey: string }, index: number) => ({
         id: `${payload.generationRunId}-${index}`, generation_run_id: payload.generationRunId, project_id: project,
-        name: item.name, parent_screen_id: item.kind === "state" ? "parent" : null, state_key: item.kind === "state" ? item.stateKey : "base", status: "ready",
+        roadmap_item_id: item.stableKey, name: item.name, parent_screen_id: item.kind === "state" ? "parent" : null, state_key: item.kind === "state" ? item.stateKey : "base", status: "ready",
       })));
       return { ok: true };
     });
@@ -64,19 +65,19 @@ describe("durable approved-flow coordinator", () => {
     const approved = approveProductScope(proposeProductScope(state), state.revision);
     return { generationRunId: rootId, projectId: project, ownerId: owner, prompt: "Build", productPlanning: approved };
   };
-  it("finishes more than five screens across child runs and reports overall completion", async () => {
+  it("finishes seven approved screens together in one bounded child run and reports overall completion", async () => {
     expect(await invoke(payload())).toEqual({ completed: true });
-    expect(mocks.child).toHaveBeenCalledTimes(7);
+    expect(mocks.child).toHaveBeenCalledTimes(1);
     for (const [, child] of mocks.child.mock.calls) {
       expect(child.productPlanning.scope.manifest).toHaveLength(7);
-      expect(child.productExecutionKeys).toHaveLength(1);
-      expect(child.scopeContract.finalScreenCount).toBe(1);
+      expect(child.productExecutionKeys).toHaveLength(7);
+      expect(child.scopeContract.finalScreenCount).toBe(7);
     }
     expect(mocks.tables.product_output_fulfillments.every(row => row.status === "ready")).toBe(true);
     expect(mocks.tables.generation_runs[0].status).toBe("completed");
     expect(mocks.tables.generation_runs[0].metadata.productProgress.delivered).toBe(7);
     await invoke(payload());
-    expect(mocks.child).toHaveBeenCalledTimes(7);
+    expect(mocks.child).toHaveBeenCalledTimes(1);
   });
   it("pauses before claiming or dispatching a batch with insufficient credit", async () => {
     mocks.credits.mockResolvedValue({ hasCredits: false });
@@ -84,6 +85,18 @@ describe("durable approved-flow coordinator", () => {
     expect(mocks.rpc.mock.calls.some(([name]) => name === "claim_product_generation_batch")).toBe(false);
     expect(mocks.child).not.toHaveBeenCalled();
     expect(mocks.tables.generation_runs[0].status).toBe("failed");
+  });
+  it("prepares the next batch selection without truncating a thirteen-screen approval", async () => {
+    const input = payload();
+    input.productPlanning.scope!.manifest = Array.from({ length: 13 }, (_, index) => functionalFixture(`screen:${index}`, `Screen ${index}`, index));
+    expect(await invoke(input)).toEqual({ completed: true });
+    const first = mocks.child.mock.calls[0][1];
+    const second = mocks.child.mock.calls[1][1];
+    expect(first.productExecutionKeys).toHaveLength(8);
+    expect(first.productLookaheadKeys).toEqual(second.productExecutionKeys);
+    expect(second.productExecutionKeys).toHaveLength(5);
+    expect(second.productLookaheadKeys).toEqual([]);
+    expect(mocks.tables.product_output_fulfillments).toHaveLength(13);
   });
   it("delivers parent states across the eight-output limit before moving to another parent", async () => {
     const input = payload();

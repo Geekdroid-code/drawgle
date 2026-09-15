@@ -100,6 +100,7 @@ function ScreenLabelBar({
   onDelete,
   onShowCode,
   onRetry,
+  onCreateState,
   readOnly,
 }: {
   screen: ScreenData;
@@ -111,6 +112,7 @@ function ScreenLabelBar({
   onDelete: () => void;
   onShowCode: () => void;
   onRetry?: () => void;
+  onCreateState?: () => void;
   readOnly?: boolean;
 }) {
   return (
@@ -277,6 +279,7 @@ function ScreenLabelBar({
                 </Button>
               }
               items={[
+                ...(screen.status === "ready" && !screen.parentScreenId && onCreateState ? [{ id: "create-state", label: "Create state", icon: Copy, onClick: () => onCreateState() }] : []),
                 ...(screen.status === "failed" && onRetry
                   ? [
                       {
@@ -558,6 +561,7 @@ export function ScreenNode({
   onDeleteSelectedElement,
   onDuplicateSelectedElement,
   onRetryScreen,
+  onCreateState,
   readOnly,
 }: {
   screen: ScreenData;
@@ -586,6 +590,7 @@ export function ScreenNode({
   onDuplicateSelectedElement?: (screenId: string, drawgleId: string) => void;
   /** Retry a failed screen generation. */
   onRetryScreen?: (screen: ScreenData) => void;
+  onCreateState?: (screen: ScreenData) => void;
   readOnly?: boolean;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -2305,6 +2310,7 @@ export function ScreenNode({
         onDelete={handleDelete}
         onShowCode={() => setIsCodeOpen(true)}
         onRetry={onRetryScreen ? () => onRetryScreen(screen) : undefined}
+        onCreateState={onCreateState ? () => onCreateState(screen) : undefined}
         readOnly={readOnly}
       />
 

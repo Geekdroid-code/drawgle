@@ -1,3 +1,4 @@
+import { compileProductContent } from "./content-contract";
 import type { GenerationScopeContract, ProjectCharter, ReferenceMode } from "@/lib/types";
 import { activeFacts, type ProductPlanning } from "./model";
 import { scopeParents, outputPrompt } from "./scope-outputs";
@@ -6,6 +7,7 @@ export function formatProductTruth(state: ProductPlanning, includeScope = false)
   return [
     "AUTHORITATIVE PRODUCT BLUEPRINT: product architecture comes before visual interpretation. Preserve active user decisions; assumptions remain assumptions. Superseded decisions are not product truth. References govern design, never invent or remove product capabilities because of a visual style.",
     JSON.stringify(activeFacts(state)),
+    compileProductContent(state),
     state.experience ? `APPROVED EXPERIENCE DIRECTION: ${JSON.stringify(state.experience)}` : null,
     includeScope && state.scope ? `APPROVED DESIGN SCOPE (generate the selected output manifest; existingOutputs are already built context and other product surfaces remain in the roadmap): ${JSON.stringify(state.scope)}` : null,
   ].filter(Boolean).join("\n");

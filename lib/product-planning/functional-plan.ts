@@ -17,6 +17,7 @@ export const functionalItemSchema = z.object({
   editInstruction: z.string().max(5000).default(""),
   sequence: z.number().int().nonnegative(),
   referenceScreenIndex: z.number().int().positive().nullable().default(null),
+  rendering: z.enum(["product_screen", "reference_frame", "derived_state"]).optional(),
 });
 export type FunctionalItem = z.infer<typeof functionalItemSchema>;
 export const functionalDeltaSchema = z.object({ items: z.array(functionalItemSchema).max(40), removeKeys: z.array(key).max(40).default([]) });
@@ -72,4 +73,4 @@ export function functionalStateVariant(item: FunctionalItem): ScreenStateVariant
 
 export const functionalBrief = (item: FunctionalItem) => [item.description, `Information: ${item.information}`, `Entry: ${item.entryCondition}`,
   `Outcome: ${item.outcome}`, `Actions: ${JSON.stringify(item.actions)}`, `Inline states: ${item.inlineStates.join("; ")}`,
-  item.referenceScreenIndex == null ? "" : `Recreate source frame ${item.referenceScreenIndex} from the supplied image; preserve that frame's composition.`].filter(Boolean).join("\n");
+  item.rendering !== "reference_frame" || item.referenceScreenIndex == null ? "" : `Recreate source frame ${item.referenceScreenIndex} from the supplied image; preserve that frame's composition.`].filter(Boolean).join("\n");

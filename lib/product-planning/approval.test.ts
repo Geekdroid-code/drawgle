@@ -44,6 +44,15 @@ describe("server product scope approval", () => {
     await expect(prepareProductApproval(admin, "owner", { projectId, productApproval: { revision: 0 } })).rejects.toThrow(/already running/);
     expect(mocks.save).not.toHaveBeenCalled();
   });
+  it("requires a refreshed draft instead of silently removing old automatic states", async () => {
+    const state = designerFixture();
+    state.scope!.manifest!.push({ ...functionalFixture("state:empty", "Empty", 1), kind: "state", parentStableKey: "screen:onboarding", stateKey: "empty" });
+    mocks.load.mockResolvedValue(state);
+    await expect(prepareProductApproval(admin, "owner", { projectId, productApproval: { revision: state.revision } })).rejects.toThrow(/refresh the scope/);
+    expect(state.scope!.manifest).toHaveLength(2);
+    expect(mocks.save).not.toHaveBeenCalled();
+    expect(admin.from).not.toHaveBeenCalled();
+  });
   it("restores a proposal after queue failure without overwriting newer product work", async () => {
     const approval = await prepareProductApproval(admin, "owner", { projectId, productApproval: { revision: 0 } });
     mocks.load.mockResolvedValue({ ...proposeProductScope(productFixture()), revision: 1 });

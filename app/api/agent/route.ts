@@ -27,9 +27,9 @@ import { findLatestProjectPromptImagePath } from "@/lib/generation/prompt-refere
 import { resolveGenerationReferencePolicy } from "@/lib/generation/reference-policy";
 import { createNavigationArchitecture } from "@/lib/navigation";
 import { resolveProjectReferenceDna, selectProjectReferenceImagePath } from "@/lib/generation/reference-dna";
-import { readScreenPlanProposal, readScreenStateProposal, type AgentStepMetadata, type ScreenStateProposalMetadata } from "@/lib/agent/message-metadata";
+import { readScreenPlanProposal, readScreenStateProposal, type AgentStepMetadata } from "@/lib/agent/message-metadata";
 import { approveScreenPlanProposal, ScreenPlanApprovalError } from "@/lib/agent/screen-plan-approval";
-import { findExactPlannedStateCandidate, resolveScreenStateProposal } from "@/lib/agent/screen-state-proposal";
+import { findExactPlannedStateCandidate } from "@/lib/agent/screen-state-proposal";
 import { classifyHistoryNeed, HISTORY_LIMITS } from "@/lib/agent/history-policy";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -1655,183 +1655,10 @@ export async function POST(request: Request) {
     }
 
     if (routerDecision.action === "propose_screen_state") {
-      const requestedState = routerDecision.stateProposal;
-      if (!requestedState || !routerDecision.instruction || !routerDecision.targetScreenId) {
-        return saveClarification({
-          message: "Which existing screen should this state belong to?",
-          instruction: routerDecision.instruction?.trim() || prompt,
-          missingFields: ["parent_screen"],
-          lastKnownTarget: buildDecisionTarget(routerDecision),
-        });
-      }
-
-      let roadmapRows = stateRoadmapRowsForTurn;
-      if (!roadmapRows) {
-        const { data, error: roadmapError } = await admin
-          .from("project_screen_roadmap")
-          .select("*")
-          .eq("project_id", payload.projectId)
-          .eq("owner_id", user.id);
-        if (roadmapError) throw roadmapError;
-        roadmapRows = (data ?? []) as ProjectScreenRoadmapRow[];
-      }
-
-      let resolvedState;
-      try {
-        resolvedState = resolveScreenStateProposal({
-          request: {
-            targetScreenId: routerDecision.targetScreenId,
-            parentScreenName: requestedState.parentScreenName,
-            existingRoadmapItemId: requestedState.existingRoadmapItemId,
-            stateLabel: requestedState.stateLabel,
-            stateRole: requestedState.stateRole,
-            triggerLabel: requestedState.triggerLabel,
-            description: requestedState.description,
-            editInstruction: routerDecision.instruction,
-          },
-          screens: screenContext.map((screen) => ({
-            id: screen.id,
-            name: screen.name,
-            status: screen.status,
-            roadmap_item_id: screen.roadmapItemId,
-          })),
-          roadmapRows,
-        });
-      } catch (error) {
-        return saveClarification({
-          message: error instanceof Error ? error.message : "I could not safely resolve the parent screen for that state.",
-          instruction: routerDecision.instruction,
-          missingFields: ["verified_parent_screen"],
-          lastKnownTarget: buildDecisionTarget(routerDecision),
-          status: 409,
-          metadata: {
-            serverReconciliation: {
-              finalAction: "ask_clarification",
-              reason: "state_parent_resolution_failed",
-            },
-          },
-        });
-      }
-
-      const stateProposal: ScreenStateProposalMetadata = {
-        version: 1,
-        prompt: prompt || routerDecision.instruction,
-        parentScreenId: resolvedState.parentScreen.id,
-        parentScreenName: resolvedState.parentScreen.name,
-        parentRoadmapItemId: resolvedState.parentRoadmapItem.id,
-        existingRoadmapItemId: resolvedState.existingStateItem?.id ?? null,
-        state: resolvedState.state,
-        status: "pending",
-        expiresAt: new Date(Date.now() + 1000 * 60 * 45).toISOString(),
-      };
-      for (const message of projectMessages) {
-        const oldStateProposal = readScreenStateProposal(message.metadata);
-        if (
-          oldStateProposal?.status === "pending" &&
-          oldStateProposal.parentScreenId === resolvedState.parentScreen.id &&
-          oldStateProposal.state.stateKey === resolvedState.state.stateKey
-        ) {
-          await admin.from("project_messages").update({
-            metadata: {
-              ...message.metadata,
-              screenStateProposal: { ...oldStateProposal, status: "expired" },
-              repairDiagnostic: "Superseded by a newer proposal for the same screen state.",
-            } as never,
-          }).eq("id", message.id);
-          continue;
-        }
-        const oldProposal = readScreenPlanProposal(message.metadata);
-        if (!oldProposal || oldProposal.status !== "pending") continue;
-        const proposedName = oldProposal.screenPlan.name.replace(/\bstate\b/gi, "");
-        if (proposedName.toLowerCase().replace(/[^a-z0-9]+/g, "") !== resolvedState.state.stateLabel.toLowerCase().replace(/[^a-z0-9]+/g, "")) continue;
-        await admin.from("project_messages").update({
-          metadata: {
-            ...message.metadata,
-            screenPlanProposal: { ...oldProposal, status: "expired" },
-            repairDiagnostic: "Superseded by a verified existing-screen state proposal.",
-          } as never,
-        }).eq("id", message.id);
-      }
-      const proposalText = `${resolvedState.state.stateLabel} is a state of ${resolvedState.parentScreen.name}. It will clone the current screen and apply only the ${resolvedState.state.stateRole} interaction after you approve it.`;
-      const proposalBaseMetadata = {
-        ...routerMetadata,
-        serverReconciliation: {
-          finalAction: "propose_screen_state",
-          finalScope: "existing_screen_state",
-          parentScreenId: resolvedState.parentScreen.id,
-          parentRoadmapItemId: resolvedState.parentRoadmapItem.id,
-          existingRoadmapItemId: resolvedState.existingStateItem?.id ?? null,
-        },
-      };
-
-      await updateAgentProgress({
-        step: buildAgentProgressStep({
-          status: "completed",
-          title: "State ready for review",
-          detail: `Verified ${resolvedState.parentScreen.name} as the parent screen.`,
-          processLines: [...progressLines(), "Prepared one state approval without running the screen planner."],
-        }),
-        metadata: proposalBaseMetadata,
-      });
-      const modelMessage = await insertProjectMessage(admin, {
-        projectId: payload.projectId,
-        ownerId: user.id,
-        screenId: resolvedState.parentScreen.id,
-        role: "model",
-        content: proposalText,
-        messageType: "chat",
-        metadata: {
-          ...proposalBaseMetadata,
-          ui: { variant: "chat" },
-          action: "screen_state_proposed_intro",
-          userMessageId: userMessage.id,
-        },
-      });
-      const proposalMessage = await insertProjectMessage(admin, {
-        projectId: payload.projectId,
-        ownerId: user.id,
-        screenId: resolvedState.parentScreen.id,
-        role: "system",
-        content: `Screen state: ${resolvedState.state.stateLabel}`,
-        messageType: "chat",
-        metadata: {
-          ...proposalBaseMetadata,
-          ui: { variant: "action_card" },
-          action: "screen_state_proposed",
-          userMessageId: userMessage.id,
-          screenStateProposal: stateProposal,
-          agentStep: {
-            kind: "proposal",
-            status: "completed",
-            title: resolvedState.state.stateLabel,
-            detail: resolvedState.state.description,
-            targetLabel: resolvedState.parentScreen.name,
-            processLines: [
-              `State of ${resolvedState.parentScreen.name}`,
-              `Trigger: ${resolvedState.state.triggerLabel}`,
-              "Review this state before I build it.",
-            ],
-          } satisfies AgentStepMetadata,
-        },
-      });
-
-      await persistProjectMessageMemoryPair({
-        admin,
-        userMessageId: userMessage.id,
-        userContent: prompt || "[state request]",
-        modelMessageId: modelMessage.id,
-        modelContent: proposalText,
-      }).catch((error) => {
-        console.error("Failed to persist screen state proposal memory", error);
-      });
-
-      return NextResponse.json({
-        intent: "screen_state_proposed",
-        proposalMessageId: proposalMessage.id,
-        parentScreenId: resolvedState.parentScreen.id,
-        state: resolvedState.state,
-        routerDecision,
-      });
+      const message = "To create an additional state, open the main screen's More actions menu, then Create state. Describe what changes there and review the credit cost before creating it.";
+      await insertProjectMessage(admin, { projectId: payload.projectId, ownerId: user.id, role: "model", content: message,
+        metadata: { userMessageId: userMessage.id, action: "manual_state_guidance" } });
+      return NextResponse.json({ intent: "chat_response", message, routerDecision });
     }
 
     if (routerDecision.action === "draft_new_screen_plan") {

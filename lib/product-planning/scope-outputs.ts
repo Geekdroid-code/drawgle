@@ -1,3 +1,4 @@
+import { outputRendering } from "./output-policy";
 import type { ProductPlanning } from "./model";
 import { functionalBrief, type FunctionalItem } from "./functional-plan";
 import { SCREEN_GENERATION_CREDIT_COST, STATE_GENERATION_CREDIT_COST } from "@/lib/generation/pricing";
@@ -20,9 +21,10 @@ export function executionOutputs(state: ProductPlanning, keys?: string[]) {
 export function scopeParents(state: ProductPlanning, keys?: string[]) {
   const outputs = executionOutputs(state, keys);
   const all = [...(state.scope?.manifest ?? []), ...(state.scope?.existingOutputs ?? []).map(output => output.item)];
-  const parentKeys = new Set(outputs.map(item => item.kind === "screen" ? item.stableKey : item.parentStableKey));
-  return all.filter(item => item.kind === "screen" && parentKeys.has(item.stableKey));
+  const recreate = state.input.imageReferenceMode === "recreate" && Boolean(state.input.imagePath);
+  const parentKeys = new Set(outputs.map(item => outputRendering(item, recreate) !== "derived_state" ? item.stableKey : item.parentStableKey));
+  return all.filter(item => parentKeys.has(item.stableKey));
 }
 export function outputPrompt(items: FunctionalItem[]) {
-  return items.filter(item => item.kind === "screen").map((item, index) => `${index + 1}. ${item.name}\n${functionalBrief(item)}`).join("\n\n");
+  return items.map((item, index) => `${index + 1}. ${item.name}\n${functionalBrief(item)}`).join("\n\n");
 }

@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Sparkles, Check, ChevronDown, ImageIcon, Loader2, Palette, RotateCcw, Upload, X, HelpCircle, Megaphone, Play, Share2, LogOut, FolderSync, CircleDollarSign, User, CreditCard, Download, Mail, MessageCircle, Trash } from "lucide-react";
 
 import { AnimatedThemeToggle } from "@/components/AnimatedThemeToggle";
+import { CreateStateDialog } from "@/components/CreateStateDialog";
 import { CanvasStage } from "@/components/CanvasArea";
 import { ExportMenu } from "@/components/ExportMenu";
 import { ProjectCanvasLoading } from "@/components/ProjectCanvasLoading";
@@ -2176,6 +2177,7 @@ export function ProjectShell({
     }
   };
 
+  const [stateParent, setStateParent] = useState<ScreenData | null>(null);
   const handleApproveScreenState = async (proposalMessageId: string) => {
     if (!project || isCanvasInteractionLocked) return;
 
@@ -2698,6 +2700,12 @@ export function ProjectShell({
         </div>
 
         <div className="relative h-full min-w-0 flex-1">
+          {stateParent && project && <CreateStateDialog key={stateParent.id} screen={stateParent} projectId={project.id}
+            busy={isCanvasInteractionLocked} onClose={() => setStateParent(null)} onQueued={async runId => {
+              setPendingQueuedRunId(runId); setPendingAddScreenRunId(runId);
+              addScreenRefreshAttemptedRunIdRef.current = null;
+              await refreshGenerationRuns();
+            }} />}
           <CanvasStage
             screens={screens}
             projectNavigation={projectNavigation}
@@ -2728,6 +2736,7 @@ export function ProjectShell({
             onDuplicateSelectedElement={handleDuplicateSelectedElement}
             onScreenSourceNeeded={loadScreenSource}
             onRetryScreen={handleRetryScreen}
+            onCreateState={setStateParent}
             onExportCode={(...exportArgs) => {
               const screenName = exportArgs[2];
               const matchedScreen = screens.find((s) => s.name === screenName);

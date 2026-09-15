@@ -12,8 +12,15 @@ import { createProductPlanning, readProductPlanning } from "./model";
 import { experienceFixture } from "./test-fixtures";
 
 beforeEach(() => { mocks.generate.mockReset(); });
-it("repairs failed state persistence through the real stores, assessment, scope snapshot and flow reviewer", async () => {
+it("repairs failed inline-flow persistence through the real stores, assessment, scope snapshot and flow reviewer", async () => {
   const { state: mapped, roadmap, review } = appointmentFlow();
+  // Ordinary confirmation is inline, not a paid state frame in a new scope.
+  const removed = roadmap.pop()!;
+  roadmap[0].actions = [{ label: "Reserve", destinationKey: null, outcome: removed.outcome }];
+  roadmap[0].inlineStates.push(removed.description);
+  mapped.scope!.outputKeys = [roadmap[0].stableKey];
+  review.journeys[0].outputKeys = [roadmap[0].stableKey];
+  review.journeys[0].completionKeys = [roadmap[0].stableKey];
   const initial = createProductPlanning({ imagePath: null, imageReferenceMode: "style", stylePresetSlug: null });
   initial.experience = experienceFixture();
   const tables: Record<string, Array<Record<string, unknown>>> = {

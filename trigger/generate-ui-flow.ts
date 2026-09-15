@@ -1,4 +1,4 @@
-import { randomUUID } from "crypto";
+import { randomUUID, createHash } from "crypto";
 
 import { logger, runs, streams, task } from "@trigger.dev/sdk";
 
@@ -15,11 +15,17 @@ import type { CuratedStyleSelectionDiagnostics } from "@/lib/generation/curated-
 import { getDesignStylePack, isDesignStyleId, summarizeDesignStyle } from "@/lib/generation/design-styles";
 import { CURATED_STYLE_EMBEDDING_MODEL } from "@/lib/generation/curated-style-index-core";
 import { indexScreenCode } from "@/lib/generation/block-index";
-import { buildFirstScreenPriorityBatches } from "@/lib/generation/build-scheduler";
+import { runRollingBuilds } from "@/lib/generation/build-scheduler";
 import { readProductPlanning, type ProductPlanning } from "@/lib/product-planning/model";
 import { INITIAL_PROJECT_SCREEN_LIMIT } from "@/lib/generation/limits";
-import { functionalStateVariant } from "@/lib/product-planning/functional-plan";
-import { executionOutputs, scopeParents } from "@/lib/product-planning/scope-outputs";
+import { reviewScreenContent } from "@/lib/product-planning/review-screen-content";
+import { recreationFrameChrome } from "@/lib/product-planning/recreation-frames";
+import { preparedPlanKey, readPreparedPlan, savePreparedPlan } from "@/lib/product-planning/prepared-plans";
+import { scopedGenerationPrompt, productScopeContract } from "@/lib/product-planning/generation-context";
+import { compileProductContent } from "@/lib/product-planning/content-contract";
+import { approvedOutputKind, validateExecutionProduct } from "@/lib/product-planning/execution-contract";
+import { bindApprovedScreenPlans } from "@/lib/product-planning/screen-plan-contract";
+import { executionOutputs } from "@/lib/product-planning/scope-outputs";
 import { loadExecutionRoadmap } from "@/lib/product-planning/execution-roadmap";
 import { groundCharterInProduct } from "@/lib/product-planning/generation-context";
 import {
@@ -130,7 +136,10 @@ export type GenerateUiFlowPayload = {
   projectCharter?: ProjectCharter | null;
   productPlanning?: ProductPlanning | null;
   productExecutionKeys?: string[];
+  productLookaheadKeys?: string[];
   productAttempt?: number;
+  productContent?: string | null;
+  parentRevisionHash?: string;
   scopeContract?: GenerationScopeContract | null;
   referenceAnalysis?: ReferenceAnalysis | null;
   planningMode?: PlanningMode;
@@ -164,6 +173,7 @@ type BuildScreenTaskPayload = {
   assetManifest?: ScreenAssetManifest[];
   projectCharter?: ProjectCharter | null;
   projectContext?: string | null;
+  productContent?: string | null;
   topChromeContinuityEvidence?: TopChromeContinuityEvidence | null;
   isFirstScreen?: boolean;
 };
@@ -573,12 +583,15 @@ async function buildStateVariantsForParent({
       .from("screens")
       .select("id, name, prompt, code, block_index, chrome_policy, navigation_item_id, roadmap_item_id")
       .eq("id", parentScreenId)
+      .eq("project_id", payload.projectId)
+      .eq("owner_id", payload.ownerId)
       .maybeSingle();
 
     if (parentError || !parentScreen?.code) {
       throw parentError ?? new Error("Parent screen source was not available for state variants.");
     }
 
+    if (payload.parentRevisionHash && createHash("sha256").update(parentScreen.code).digest("hex") !== payload.parentRevisionHash) throw new Error("The parent changed before state creation. Create a new request from its latest revision.");
     const reservedSlots = await reserveScreenSlots(admin, payload.projectId, variants.length);
 
     for (let index = 0; index < variants.length; index++) {
@@ -586,7 +599,8 @@ async function buildStateVariantsForParent({
       const variantRoadmapStableKey = variant.roadmapStableKey
         ?? stateRoadmapKey(parentRoadmapStableKey, variant.stateKey);
       const outputKey = generationOutputKey(payload.generationRunId, "state", variantRoadmapStableKey);
-      const reusableVariantScreenId = payload.retryContext?.reuseStateVariantIdsByKey?.[variant.stateKey] ?? null;
+      const reusableVariantScreenId = payload.retryContext?.reuseStateVariantIdsByKey?.[variantRoadmapStableKey]
+        ?? payload.retryContext?.reuseStateVariantIdsByKey?.[variant.stateKey] ?? null;
       const variantScreenId = reusableVariantScreenId ?? randomUUID();
       const variantName = stateVariantScreenName(parentScreen.name, variant.stateLabel);
       const instruction = buildStateVariantEditInstruction(parentScreen.name, variant);
@@ -704,7 +718,7 @@ async function buildStateVariantsForParent({
           targetScope: "whole_screen",
           editOperation: "content_change",
           editStrategy: "screen_root_region_replace",
-          conversationContext: null,
+          conversationContext: payload.productContent || payload.productPlanning ? [{ role: "system", content: payload.productContent ?? compileProductContent(payload.productPlanning)! }] : null,
           recoveryContext: {
             kind: "state_variant_edit",
             parentScreenId: parentScreen.id,
@@ -1074,6 +1088,7 @@ async function collectScreenBuild(
       navigationPlan: input.navigationPlan,
       assetManifest: input.assetManifest,
       projectContext: input.projectContext,
+      productContent: input.productContent,
       topChromeContinuityEvidence: input.topChromeContinuityEvidence,
       onProviderEvent: logProviderEvent,
       onResponseChunk: (chunk) => {
@@ -1137,6 +1152,7 @@ async function collectNonStreamingScreenBuild(input: BuildScreenTaskPayload, scr
     navigationPlan: input.navigationPlan,
     assetManifest: input.assetManifest,
     projectContext: input.projectContext,
+      productContent: input.productContent,
     topChromeContinuityEvidence: input.topChromeContinuityEvidence,
     onProviderEvent: logProviderEvent,
     onResponseChunk: (responseChunk) => {
@@ -1978,6 +1994,11 @@ export const generateUiFlowTask = task({
       .maybeSingle();
     const existingCharter = (existingProject?.project_charter as ProjectCharter | null) ?? null;
     const productPlanning = payload.productPlanning ?? readProductPlanning(existingProject?.product_planning);
+    if (payload.productPlanning?.scope?.status === "approved") {
+      payload.imageReferenceMode = payload.productPlanning.input.imageReferenceMode;
+      payload.imagePath = payload.productPlanning.input.imagePath;
+      if (payload.imagePath) payload.referencePolicy = "user_upload";
+    }
     const projectReferenceDna = resolveProjectReferenceDna(payload.projectCharter ?? existingCharter)?.dna ?? null;
     if (!designTokens && existingProject?.design_tokens) {
       designTokens = existingProject.design_tokens as DesignTokens;
@@ -2068,6 +2089,7 @@ export const generateUiFlowTask = task({
       throw new Error("The uploaded reference image is unavailable. Please attach it again and retry.");
     }
 
+    validateExecutionProduct(payload.productPlanning, storedPromptImage);
     let promptImage = storedPromptImage;
     let referenceMode: ReferenceMode = "user_recreate";
     let referenceSource: ReferenceSource | null = null;
@@ -2360,8 +2382,8 @@ export const generateUiFlowTask = task({
     const hasPlanningSeeds = planningSeeds.length > 0;
     // New approval payloads are always intent-only seeds. Legacy compact plans are
     // also upgraded before build, while old builder-grade retry payloads stay compatible.
-    const shouldPlanScreenBriefsFromSeeds = hasPlanningSeeds
-      || (legacyPlannedScreens.length > 0 && screenPlansNeedBuildEnrichment(legacyPlannedScreens));
+    const shouldPlanScreenBriefsFromSeeds = payload.retryContext?.mode !== "state_variants"
+      && (hasPlanningSeeds || (legacyPlannedScreens.length > 0 && screenPlansNeedBuildEnrichment(legacyPlannedScreens)));
     const blueprintStartedAt = now();
     const blueprintStartedMs = Date.now();
     let screenBriefsStartedAt: string | null = shouldPlanScreenBriefsFromSeeds ? now() : null;
@@ -2404,7 +2426,12 @@ export const generateUiFlowTask = task({
       });
     }
 
-    let plan = hasSeedScreens
+    const preparationRootId = payload.productExecutionKeys ? payload.retryContext?.sourceGenerationRunId : null;
+    const preparationKey = payload.productPlanning && payload.productExecutionKeys
+      ? preparedPlanKey(payload.productPlanning, payload.productExecutionKeys, { designTokens, navigationPlan: payload.navigationPlan ?? null, charter: payload.projectCharter ?? null }) : null;
+    const preparedPlan = preparationRootId && preparationKey
+      ? await readPreparedPlan(admin, preparationRootId, payload.ownerId, preparationKey) : null;
+    let plan = preparedPlan ?? (hasSeedScreens
       ? {
           requiresBottomNav: Boolean(payload.navigationPlan?.enabled),
           navigationArchitecture: requestedNavigationArchitecture,
@@ -2481,9 +2508,9 @@ export const generateUiFlowTask = task({
             }
           },
           llmLog: llmLogFor("blueprint"),
-        });
+        }));
 
-    if (shouldPlanScreenBriefsFromSeeds) {
+    if (!preparedPlan && shouldPlanScreenBriefsFromSeeds) {
       if (!requestedCharter) {
         throw new Error("Add-screen planning requires the existing project charter before any build can begin.");
       }
@@ -2522,6 +2549,15 @@ export const generateUiFlowTask = task({
       );
       await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
     }
+    if (!preparedPlan && payload.productPlanning && referenceMode !== "user_recreate") {
+      plan.screens = await reviewScreenContent(plan.screens, compileProductContent(payload.productPlanning)!);
+    }
+    if (!preparedPlan && preparationRootId && preparationKey) {
+      await savePreparedPlan(admin, preparationRootId, payload.ownerId, payload.productAttempt ?? 0, preparationKey, {
+        ...plan, scopeContract: plan.scopeContract ?? undefined, screenCountContract: plan.screenCountContract ?? undefined,
+        intentContract: plan.intentContract ?? undefined, screenFamilyContract: plan.screenFamilyContract ?? undefined,
+      });
+    }
     if (screenBriefsStartedAt && screenBriefsStartedMs !== null) {
       await mergeGenerationPerformance(admin, payload.generationRunId, {
         stages: {
@@ -2555,20 +2591,13 @@ export const generateUiFlowTask = task({
 	          : "prompt");
 	    plan.charter = { ...plan.charter, projectOrigin };
 	    plan.screens = applyNavigationPlanToScreens(plan.screens, plan.navigationPlan);
+      if (payload.productExecutionKeys && referenceMode === "user_recreate") {
+        plan = { ...plan, ...recreationFrameChrome(plan.screens) };
+        plan.charter = { ...plan.charter, navigationArchitecture: plan.navigationArchitecture };
+      }
       if (payload.productPlanning?.scope?.manifest?.length) {
-        const manifest = executionOutputs(payload.productPlanning, payload.productExecutionKeys);
-        const expected = scopeParents(payload.productPlanning, payload.productExecutionKeys);
-        if (plan.screens.length !== expected.length || expected.some(item => !plan.screens.some(screen => screen.name === item.name))) {
-          throw new Error("Detailed screen planning changed the approved output identities. Review the plan before generation.");
-        }
-        plan.screens = plan.screens.map(screen => {
-          const item = expected.find(item => item.name === screen.name)!;
-          return { ...screen, roadmapStableKey: item.stableKey,
-            ...(item.referenceScreenIndex == null ? {} : { referenceScreenIndex: item.referenceScreenIndex,
-              referenceScreenCount: Math.max(referenceAnalysis?.screenReferences.length ?? 0,
-                ...payload.productPlanning!.scope!.manifest!.map(output => output.referenceScreenIndex ?? 0)) }),
-            stateVariants: manifest.filter(state => state.parentStableKey === item.stableKey).map(functionalStateVariant) };
-        });
+        plan.screens = bindApprovedScreenPlans(payload.productPlanning, payload.productExecutionKeys, plan.screens,
+          referenceMode === "user_recreate" ? referenceAnalysis?.screenReferences.length ?? 0 : 0);
       } else if (payload.productPlanning && !payload.retryContext) {
         plan.screens = plan.screens.map((screen) => ({ ...screen, stateVariants: (screen.stateVariants ?? []).map((variant) => ({ ...variant, defaultSelected: false, explicitlyRequested: false })) }));
       }
@@ -2597,7 +2626,7 @@ export const generateUiFlowTask = task({
 	      roadmap: projectRoadmap,
 	    }) as ProjectScreenRoadmapRow[];
 	    const roadmapByKey = new Map(persistedRoadmapRows.map((item) => [item.stable_key, item]));
-	    plan.screens = plan.screens.slice(0, INITIAL_PROJECT_SCREEN_LIMIT).map((screenPlan) => {
+	    plan.screens = (payload.productExecutionKeys ? plan.screens : plan.screens.slice(0, INITIAL_PROJECT_SCREEN_LIMIT)).map((screenPlan) => {
 	      const stableKey = screenPlan.roadmapStableKey ?? screenRoadmapKey(screenPlan.name);
 	      const roadmapItem = roadmapByKey.get(stableKey);
 	      const variants = (screenPlan.stateVariants ?? []).map((variant) => {
@@ -2638,10 +2667,11 @@ export const generateUiFlowTask = task({
 	      ...parentOutputs.map((screenPlan) => ({
 	        outputKey: generationOutputKey(
 	          payload.generationRunId,
-	          "screen",
+	          approvedOutputKind(payload.productPlanning, screenPlan.roadmapStableKey ?? screenRoadmapKey(screenPlan.name)),
 	          screenPlan.roadmapStableKey ?? screenRoadmapKey(screenPlan.name),
 	        ),
-	        outputKind: "screen" as const,
+	        outputKind: approvedOutputKind(payload.productPlanning, screenPlan.roadmapStableKey ?? screenRoadmapKey(screenPlan.name)),
+            ...(approvedOutputKind(payload.productPlanning, screenPlan.roadmapStableKey ?? screenRoadmapKey(screenPlan.name)) === "state" ? { amount: STATE_GENERATION_CREDIT_COST } : {}),
 	        roadmapItemId: screenPlan.roadmapItemId ?? null,
 	        metadata: { screenName: screenPlan.name },
 	      })),
@@ -2721,7 +2751,11 @@ export const generateUiFlowTask = task({
     }));
     await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
-    if (!retryOnlyStateVariants) {
+    const { data: savedNavigation } = payload.productExecutionKeys ? await admin.from("project_navigation").select("plan, shell_code, status")
+      .eq("project_id", payload.projectId).maybeSingle() : { data: null };
+    const sharedNavigationReady = savedNavigation?.status === "ready" && typeof savedNavigation.shell_code === "string"
+      && JSON.stringify(savedNavigation.plan) === JSON.stringify(plan.navigationPlan);
+    if (!retryOnlyStateVariants && !sharedNavigationReady) {
       const rawNavigationShellCode = await buildNavigationShellCode({
         navigationPlan: plan.navigationPlan,
         designTokens,
@@ -2942,6 +2976,25 @@ export const generateUiFlowTask = task({
     };
     await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
+    // Prepare the next bounded batch while this batch renders. No child run,
+    // output rows or credit reservations are created by lookahead.
+    const lookahead = payload.productPlanning && payload.productLookaheadKeys?.length && preparationRootId
+      ? (async () => {
+          const keys = payload.productLookaheadKeys!;
+          const shared = { designTokens, navigationPlan: plan.navigationPlan, charter: plan.charter };
+          const key = preparedPlanKey(payload.productPlanning!, keys, shared);
+          if (await readPreparedPlan(admin, preparationRootId, payload.ownerId, key)) return;
+          const nextPlan = await planUiFlow({ productPlanning: payload.productPlanning, productExecutionKeys: keys,
+            prompt: scopedGenerationPrompt(payload.productPlanning!, keys), image: promptImage, referenceMode,
+            referenceId, referenceCatalogHash, designStyle, designTokens,
+            scopeContract: productScopeContract(payload.productPlanning!, referenceMode, keys), referenceAnalysis,
+            referenceDna: plan.charter.referenceDna, screenFamilyContract: plan.screenFamilyContract,
+            projectContext: planningContext, existingCharter: plan.charter, existingNavigationPlan: plan.navigationPlan,
+            planningMode: "project", llmLog: llmLogFor("lookahead") });
+          if (referenceMode !== "user_recreate") nextPlan.screens = await reviewScreenContent(nextPlan.screens, compileProductContent(payload.productPlanning)!);
+          await savePreparedPlan(admin, preparationRootId, payload.ownerId, payload.productAttempt ?? 0, key, nextPlan);
+        })().catch(error => logger.warn("Prepared briefs unavailable; next batch will plan normally", { error })) : Promise.resolve();
+
     const shouldSendBuildContext = Boolean(payload.plannedScreens?.length || payload.screenPlanningSeeds?.length) || (payload.planningMode ?? "project") === "single-screen";
     const buildContext = shouldSendBuildContext ? compactBuildContext(planningContext) : null;
 
@@ -3065,12 +3118,10 @@ export const generateUiFlowTask = task({
     }
 
     const screenEntries = screenPlans.map((screenPlan, index) => ({ screenPlan, index }));
-    const screenBatches = buildFirstScreenPriorityBatches(screenEntries, 2);
-    for (const batch of screenBatches) {
+    await runRollingBuilds(screenEntries, async ({ screenPlan, index }) => {
       const batchChromeEvidence: RunChromeEvidence = { ...runChromeEvidence };
-      const capturedBatchEvidence = await Promise.all(batch.map(async ({ screenPlan, index }) => {
       const parentRoadmapStableKey = screenPlan.roadmapStableKey ?? screenRoadmapKey(screenPlan.name);
-      const outputKey = generationOutputKey(payload.generationRunId, "screen", parentRoadmapStableKey);
+      const outputKey = generationOutputKey(payload.generationRunId, approvedOutputKind(payload.productPlanning, parentRoadmapStableKey), parentRoadmapStableKey);
       const selectedStateGroup = selectedStateGroups.find((group) =>
         (group.parent.roadmapStableKey ?? screenRoadmapKey(group.parent.name)) === parentRoadmapStableKey,
       );
@@ -3156,7 +3207,7 @@ export const generateUiFlowTask = task({
           await mergeGenerationPerformance(admin, payload.generationRunId, { firstScreenRowAt: now() });
         }
         const chromeKind = screenPlan.chromePolicy?.chrome;
-        const topChromeContinuityEvidence = supportsTopChromeContinuity(chromeKind)
+        const topChromeContinuityEvidence = referenceMode !== "user_recreate" && supportsTopChromeContinuity(chromeKind)
           ? batchChromeEvidence[chromeKind] ?? null
           : null;
         const handle = await (buildScreenTask as any).trigger(
@@ -3181,6 +3232,7 @@ export const generateUiFlowTask = task({
             assetManifest: projectAssetManifest.assetsByScreen[screenPlan.name] ?? [],
             projectCharter: plan.charter,
             projectContext: buildContext,
+            productContent: compileProductContent(productPlanning),
             topChromeContinuityEvidence,
             isFirstScreen: index === 0,
           },
@@ -3520,14 +3572,32 @@ export const generateUiFlowTask = task({
           rowInserted ? screenId : undefined,
         );
       }
-      return capturedTopChromeEvidence;
-      }));
-      for (const evidence of capturedBatchEvidence) {
-        rememberFirstRunChromeEvidence(runChromeEvidence, evidence);
-      }
-    }
+      rememberFirstRunChromeEvidence(runChromeEvidence, capturedTopChromeEvidence);
+    }, { concurrency: 2, anchorFirst: referenceMode !== "user_recreate" && payload.isNewProject === true,
+      canStart: async () => {
+        const { data, error } = await admin.from("generation_runs").select("status").eq("id", payload.generationRunId).single();
+        if (error) throw error;
+        return data.status !== "canceled";
+      },
+    });
     await journalWriteQueue;
     await settlementQueue;
+    await lookahead;
+    if (referenceMode === "user_recreate" && payload.productPlanning?.scope?.manifest) {
+      const { data: linkedRows, error: linkReadError } = await admin.from("project_screen_roadmap")
+        .select("stable_key, generated_screen_id").eq("project_id", payload.projectId).eq("owner_id", payload.ownerId);
+      if (linkReadError) throw linkReadError;
+      for (const item of payload.productPlanning.scope.manifest.filter(item => item.kind === "state")) {
+        const screenId = linkedRows?.find(row => row.stable_key === item.stableKey)?.generated_screen_id;
+        const parentId = linkedRows?.find(row => row.stable_key === item.parentStableKey)?.generated_screen_id;
+        if (screenId && parentId) {
+          const { error } = await admin.from("screens").update({ parent_screen_id: parentId, state_key: item.stateKey, state_label: item.name, state_role: "reference_frame" })
+            .eq("id", screenId).eq("project_id", payload.projectId).eq("owner_id", payload.ownerId);
+          if (error) throw error;
+        }
+      }
+    }
+
 
     if (!retryOnlyStateVariants) {
       for (const stateGroup of selectedStateGroups) {

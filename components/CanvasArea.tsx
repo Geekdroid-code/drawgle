@@ -127,6 +127,7 @@ type ScreenCanvasNodeData = {
   onDeleteSelectedElement?: (screenId: string, drawgleId: string) => void;
   onDuplicateSelectedElement?: (screenId: string, drawgleId: string) => void;
   onRetryScreen?: (screen: ScreenData) => void;
+  onCreateState?: (screen: ScreenData) => void;
 };
 
 type ScreenCanvasNode = Node<ScreenCanvasNodeData, "screen">;
@@ -218,6 +219,7 @@ const ScreenCanvasNodeView = memo(({ data, dragging }: NodeProps<ScreenCanvasNod
         onDeleteSelectedElement={data.onDeleteSelectedElement}
         onDuplicateSelectedElement={data.onDuplicateSelectedElement}
         onRetryScreen={data.onRetryScreen}
+        onCreateState={data.onCreateState}
       />
     </div>
   );
@@ -279,6 +281,7 @@ type CanvasStageProps = {
   onDuplicateSelectedElement?: (screenId: string, drawgleId: string) => void;
   onScreenSourceNeeded?: (screenId: string) => void;
   onRetryScreen?: (screen: ScreenData) => void;
+  onCreateState?: (screen: ScreenData) => void;
 };
 
 export function CanvasStage(props: CanvasStageProps) {
@@ -318,6 +321,7 @@ function CanvasStageContent({
   onDuplicateSelectedElement,
   onScreenSourceNeeded,
   onRetryScreen,
+  onCreateState,
 }: CanvasStageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const flowRef = useRef<ReactFlowInstance<CanvasNode> | null>(null);
@@ -339,6 +343,7 @@ function CanvasStageContent({
     onDuplicateSelectedElement,
     onScreenSourceNeeded,
     onRetryScreen,
+  onCreateState,
   });
   const [viewportSize, setViewportSize] = useState<CanvasViewport | null>(null);
   const [workspaceInsets, setWorkspaceInsets] =
@@ -390,8 +395,9 @@ function CanvasStageContent({
       onDuplicateSelectedElement,
       onScreenSourceNeeded,
       onRetryScreen,
+  onCreateState,
     };
-  }, [onElementSelected, onElementSelectionLost, onExportCode, onDeleteSelectedElement, onDuplicateSelectedElement, onScreenSourceNeeded, onRetryScreen]);
+  }, [onElementSelected, onElementSelectionLost, onExportCode, onDeleteSelectedElement, onDuplicateSelectedElement, onScreenSourceNeeded, onRetryScreen, onCreateState]);
 
   const reportCommand = useCallback(async (name: string, command: () => Promise<boolean>) => {
     const succeeded = await command();
@@ -562,6 +568,7 @@ function CanvasStageContent({
     (screenId) => callbackRefs.current.onScreenSourceNeeded?.(screenId),
     [],
   );
+  const handleCreateState = useCallback((screen: ScreenData) => callbackRefs.current.onCreateState?.(screen), []);
   const handleRetryScreen = useCallback<NonNullable<ScreenCanvasNodeData["onRetryScreen"]>>(
     (screen) => callbackRefs.current.onRetryScreen?.(screen),
     [],
@@ -603,6 +610,7 @@ function CanvasStageContent({
           onDuplicateSelectedElement: readOnly ? undefined : handleDuplicateSelectedElement,
           onScreenSourceNeeded: handleScreenSourceNeeded,
           onRetryScreen: readOnly ? undefined : handleRetryScreen,
+          onCreateState: readOnly ? undefined : handleCreateState,
         };
 
         if (current?.type === "screen") {
@@ -676,6 +684,8 @@ function CanvasStageContent({
     handleElementSelectionLost,
     handleExportCode,
     handleScreenSourceNeeded,
+    handleCreateState,
+    handleRetryScreen,
     isTemporaryPan,
     projectNavigation,
     readOnly,

@@ -5,6 +5,7 @@ import { geminiPolicyForTask } from "@/lib/ai/model-policy";
 import { createProjectReadToolExecutor, projectReadToolDeclarations } from "@/lib/agent/project-tools";
 import { fetchProjectMessages, insertProjectMessage } from "@/lib/supabase/queries";
 import type { PromptImagePayload } from "@/lib/types";
+import { reviewFactEvidence } from "./review-fact-evidence";
 import { prepareDesignerPatch } from "./designer-patch";
 import { describeToolFailure, ProductToolError, type PlanningFailure } from "./tool-failure";
 import { activeFacts, applyProductPatch, proposeProductScope, readinessIssues } from "./model";
@@ -115,12 +116,12 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
           if (!assessment.productReady && ["set_design_scope", "update_functional_plan"].includes(call.name ?? "")) throw new Error("Resolve the material product questions with the user before choosing concrete screens.");
           if (call.name === "update_product" || call.name === "set_design_scope") {
             const userEvidence = [...(originalPrompt ? [originalPrompt] : []), ...history.filter(message => message.role === "user").flatMap(confirmedMessageEvidence), ...(resolvedAnswers ? resolvedAnswers.confirmed : [effectivePrompt])];
-            const { patch, assumptions } = prepareDesignerPatch(call.name, call.args, userEvidence, history, assessment);
+            const { patch, assumptions } = await reviewFactEvidence(prepareDesignerPatch(call.name, call.args, userEvidence, history, assessment), history);
             let next = applyProductPatch(state, patch, userMessageId);
             if (call.name === "set_design_scope") next = await snapshotFunctionalScope(admin, projectId, ownerId, next);
             await persist(next);
             result = { ok: true, revision: state.revision, facts: activeFacts(state), scope: state.scope,
-              ...(assumptions.length ? { warning: "These facts were saved as assumptions because their evidence did not quote a user message. Do not describe them as confirmed.", assumptionIds: assumptions } : {}),
+              ...(assumptions.length ? { warning: "These facts were saved as assumptions because their cited evidence did not support the entire claim. Split supported requirements from speculative additions. Do not describe them as confirmed.", assumptionIds: assumptions } : {}),
             };
           } else if (call.name === "read_functional_plan") {
             result = { ok: true, items: await readFunctionalRoadmap(admin, projectId, ownerId) };

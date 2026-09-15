@@ -857,6 +857,14 @@ export interface Database {
     };
     Views: {};
     Functions: {
+      claim_screen_state_generation: {
+        Args: { input_project_id: string; input_owner_id: string; input_message_id: string; input_parent_hash: string };
+        Returns: Json;
+      };
+      save_product_prepared_plan: {
+        Args: { input_approval_id: string; input_owner_id: string; input_attempt: number; input_key: string; input_plan: Json };
+        Returns: boolean;
+      };
       update_product_functional_plan: {
         Args: { input_project_id: string; input_owner_id: string; input_revision: number; input_state: Json; input_items: Json; input_remove_keys: string[] };
         Returns: undefined;

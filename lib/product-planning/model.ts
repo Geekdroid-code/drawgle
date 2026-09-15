@@ -9,7 +9,7 @@ const text = z.string().trim().min(1).max(2400);
 const id = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,79}$/);
 export const productSectionSchema = z.enum([
   "identity", "actors", "jobs", "capabilities", "entities", "journeys",
-  "surfaces", "constraints", "decisions", "questions", "preferences", "roadmap",
+  "surfaces", "constraints", "decisions", "questions", "preferences", "roadmap", "content",
 ]);
 export const productFactSchema = z.object({
   id,
@@ -27,6 +27,7 @@ export const productFactSchema = z.object({
 });
 export type ProductFact = z.infer<typeof productFactSchema>;
 export const designScopeSchema = z.object({
+  outputPolicy: z.literal("manual_states_v1").optional(),
   goal: text,
   surfaceIds: z.array(id).min(1).max(500),
   outputKeys: z.array(z.string()).max(500).optional(),
@@ -136,7 +137,7 @@ export function readinessIssues(state: ProductPlanning): string[] {
   const issues: string[] = [];
   const recreation = Boolean(state.input.imagePath && state.input.imageReferenceMode === "recreate");
   if (recreation && state.designerVersion === 2 && state.scope?.manifest?.length) {
-    const frames = state.scope.manifest.filter(item => item.kind === "screen").map(item => item.referenceScreenIndex);
+    const frames = state.scope.manifest.map(item => item.referenceScreenIndex);
     if (frames.some(index => index == null) || new Set(frames).size !== frames.length) issues.push("Map each requested recreation screen to its distinct source frame before proposing.");
   }
   for (const section of recreation ? ["identity"] as const : ["identity", "actors", "jobs", "journeys"] as const) {

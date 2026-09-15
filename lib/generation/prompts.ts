@@ -271,8 +271,8 @@ ${plannerBlueprintJsonContract}
 Blueprint rules:
 - Produce a compact product roadmap before any detailed screen briefs. Roadmap items are route or destination canvases, including root and detail screens; local modal, sheet, picker, active-tab, and confirmation states are not parent roadmap items.
 - For an explicit finite request, preserve every requested parent screen and order. For an open-ended complete app, choose the smallest credible roadmap covering entry, primary destinations, and the critical workflow. Return at most 24 parent items in one tranche.
-- initial_batch_keys selects at most five parent screens. Prefer explicitly requested screens, required entry points, primary destinations, and a coherent critical path in dependency order.
-- If more than five parent screens are requested, keep them in roadmap.items and select only the first production-worthy batch. Never silently discard them.
+- For legacy unapproved planning, initial_batch_keys selects at most five parent screens. An authoritative approved execution contract overrides that default: include ALL named outputs in that bounded batch (up to eight); never truncate or replace approved identities. Prefer explicitly requested screens, required entry points, primary destinations, and a coherent critical path in dependency order.
+- In legacy unapproved planning, if more than five parent screens are requested, keep them in roadmap.items and select only the first production-worthy batch. Never silently discard them.
 - requested_parent_count is the explicit requested parent total when known; otherwise use the roadmap item count. Do not include card counts, navigation tabs, products, or local UI states.
 - Stable keys use screen:<short-kebab-name> and must be unique. Dependencies refer only to stable keys in the same roadmap.
 - Give every roadmap item one concise, user-facing sentence describing its purpose, and map dependency_keys to the screen that naturally precedes it in the product workflow.
@@ -1050,6 +1050,7 @@ const buildScreenInstruction = ({
   });
 
   const navigationInstruction = (() => {
+    if (mode === "recreate" && !navigationPlan?.enabled) return "Reproduce the target frame's visible chrome, navigation, overlays and back/dismiss affordances exactly from the supplied pixels. Ignore generic chrome categories when they contradict that frame. Do not invent a top bar, bottom sheet or navigation shell. Navigation visible in the reference belongs inside this output.";
     switch (screenChrome.chrome) {
       case "bottom-tabs":
         return navigationPlan?.enabled
@@ -1139,7 +1140,7 @@ ${buildStrictDesignContract(designTokens)}
 ${designStyleContract ? `STYLE CONTRACT:\n${designStyleContract}\n` : ""}
 
 NAVIGATION ARCHITECTURE CONTRACT:
-${buildNavigationArchitectureContract({
+${mode === "recreate" && !navigationPlan?.enabled ? navigationInstruction : buildNavigationArchitectureContract({
         navigationArchitecture: resolvedNavigationArchitecture,
         screenPlan,
         requiresBottomNav,

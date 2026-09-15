@@ -1,10 +1,11 @@
 import "server-only";
 import type { PlanningStore } from "./store";
 import type { FunctionalItem } from "./functional-plan";
+import { outputRendering } from "./output-policy";
 
 // Reuse failed canvas frame identities through the existing worker retry path.
 // Ready outputs are protected by approval fulfillment and never reset here.
-export async function reusableProductOutputs(admin: PlanningStore, projectId: string, ownerId: string, batch: FunctionalItem[]) {
+export async function reusableProductOutputs(admin: PlanningStore, projectId: string, ownerId: string, batch: FunctionalItem[], recreate = false) {
   const { data: rows, error } = await admin.from("project_screen_roadmap").select("id, stable_key")
     .eq("project_id", projectId).eq("owner_id", ownerId).in("stable_key", batch.map(item => item.stableKey));
   if (error) throw error;
@@ -19,8 +20,8 @@ export async function reusableProductOutputs(admin: PlanningStore, projectId: st
     const roadmap = rows.find((row: { stable_key: string }) => row.stable_key === item.stableKey);
     const screen = screens?.find((row: { roadmap_item_id: string }) => row.roadmap_item_id === roadmap?.id);
     if (!screen) continue;
-    if (item.kind === "screen") reuseScreenIdsByName[item.name.trim().toLowerCase().replace(/\s+/g, " ")] = screen.id;
-    else reuseStateVariantIdsByKey[item.stateKey!] = screen.id;
+    if (outputRendering(item, recreate) !== "derived_state") reuseScreenIdsByName[item.name.trim().toLowerCase().replace(/\s+/g, " ")] = screen.id;
+    else reuseStateVariantIdsByKey[item.stableKey] = screen.id;
   }
   return { reuseScreenIdsByName, reuseStateVariantIdsByKey };
 }

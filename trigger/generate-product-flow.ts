@@ -27,12 +27,8 @@ export const generateProductFlowTask = task({
     try {
       await saveExecutionProgress(admin, payload.generationRunId, payload.ownerId, payload.productAttempt ?? 0, "failed", null, errorMessage);
     } catch (saveError) {
-      console.error("Failed to update execution progress via RPC in onFailure, applying direct fallback", saveError);
-      await admin.from("generation_runs").update({
-        status: "failed",
-        error: errorMessage,
-        completed_at: new Date().toISOString(),
-      }).eq("id", payload.generationRunId);
+      // Never bypass attempt/cancellation fencing when persistence is unavailable.
+      console.error("Could not persist product failure; the approved run remains recoverable", saveError);
     }
   },
   run: async (payload: GenerateUiFlowPayload) => {
@@ -40,6 +36,7 @@ export const generateProductFlowTask = task({
     const state = readProductPlanning(payload.productPlanning);
     if (!state?.scope?.manifest?.length || state.scope.status !== "approved") throw new Error("An approved functional scope is required.");
     const manifest = state.scope.manifest;
+    const recreate = state.input.imageReferenceMode === "recreate" && Boolean(state.input.imagePath);
     const rootId = payload.generationRunId;
     const attempt = payload.productAttempt ?? 0;
     const update = async (status: "building" | "completed" | "failed", summary: string) => {
@@ -63,7 +60,7 @@ export const generateProductFlowTask = task({
         return { completed: true };
       }
       const existingOutputs = state.scope.existingOutputs ?? [];
-      const batch = nextProductBatch(manifest, claims, 8, existingOutputs.map(output => output.item.stableKey));
+      const batch = nextProductBatch(manifest, claims, 8, existingOutputs.map(output => output.item.stableKey), recreate);
       if (!batch.length) {
         await update("failed", "The remaining approved work is blocked by a failed prerequisite. Completed screens are preserved; retry the failed work to continue.");
         return { blocked: true };
@@ -82,7 +79,7 @@ export const generateProductFlowTask = task({
       if (claimError) throw claimError;
       const parent = batch.find(item => item.kind === "screen") ?? [...manifest, ...existingOutputs.map(output => output.item)].find(item => item.stableKey === batch[0].parentStableKey)!;
       if (!parent) throw new Error("State parent is missing from the approved manifest.");
-      const stateOnly = batch.every(item => item.kind === "state");
+      const stateOnly = !recreate && batch.every(item => item.kind === "state");
       const parentId = claims.find(c => c.output_key === parent.stableKey)?.screen_id ?? existingOutputs.find(output => output.item.stableKey === parent.stableKey)?.screenId;
       if (stateOnly && !parentId) throw new Error("The approved state's parent is not ready.");
       const { data: project, error: projectError } = await admin.from("projects").select("project_charter, design_tokens").eq("id", payload.projectId).eq("owner_id", payload.ownerId).single();
@@ -90,10 +87,14 @@ export const generateProductFlowTask = task({
       const { data: navigation, error: navigationError } = await admin.from("project_navigation").select("plan").eq("project_id", payload.projectId).maybeSingle();
       if (navigationError) throw navigationError;
       const executionKeys = batch.map(item => item.stableKey);
-      const reusableOutputs = await reusableProductOutputs(admin, payload.projectId, payload.ownerId, batch);
+      const reusableOutputs = await reusableProductOutputs(admin, payload.projectId, payload.ownerId, batch, recreate);
       const child: GenerateUiFlowPayload = {
-        ...payload, generationRunId: batchId, productPlanning: state, productExecutionKeys: executionKeys,
-        prompt: scopedGenerationPrompt(state, executionKeys), scopeContract: productScopeContract(state, payload.imageReferenceMode === "recreate" ? "user_recreate" : "user_style", executionKeys),
+        ...payload, imageReferenceMode: state.input.imageReferenceMode, imagePath: state.input.imagePath, generationRunId: batchId, productPlanning: state, productExecutionKeys: executionKeys,
+        productLookaheadKeys: nextProductBatch(manifest, [
+          ...claims.filter(claim => !executionKeys.includes(claim.output_key)),
+          ...batch.map(item => ({ output_key: item.stableKey, generation_run_id: batchId, status: "ready" as const, screen_id: null })),
+        ], 8, existingOutputs.map(output => output.item.stableKey), recreate).filter(item => item.kind === "screen" || recreate).map(item => item.stableKey),
+        prompt: scopedGenerationPrompt(state, executionKeys), scopeContract: productScopeContract(state, recreate ? "user_recreate" : "user_style", executionKeys),
         isNewProject: payload.isNewProject === true && claims.length === 0 && !existingOutputs.length, projectCharter: project.project_charter ?? payload.projectCharter,
         designTokens: project.design_tokens ?? payload.designTokens,
         navigationPlan: navigation?.plan ?? payload.navigationPlan,
@@ -109,11 +110,15 @@ export const generateProductFlowTask = task({
       const result = await tasks.triggerAndWait<typeof generateUiFlowTask>("generate-ui-flow", child, {
         idempotencyKey: `product-batch:${batchId}`, idempotencyKeyTTL: "30d", concurrencyKey: payload.ownerId,
       });
-      const { data: screens, error: screensError } = await admin.from("screens").select("id, name, parent_screen_id, state_key, status")
+      const { data: screens, error: screensError } = await admin.from("screens").select("id, name, parent_screen_id, state_key, status, roadmap_item_id")
         .eq("generation_run_id", batchId).eq("project_id", payload.projectId);
       if (screensError) throw screensError;
+      const { data: roadmapLinks, error: roadmapError } = await admin.from("project_screen_roadmap").select("id, stable_key")
+        .eq("project_id", payload.projectId).eq("owner_id", payload.ownerId).in("stable_key", executionKeys);
+      if (roadmapError) throw roadmapError;
       for (const item of batch) {
-        const screen = (screens ?? []).find((row: { name: string; parent_screen_id: string | null; state_key: string | null }) => item.kind === "screen" ? row.name === item.name && !row.parent_screen_id : Boolean(row.parent_screen_id) && row.state_key === item.stateKey);
+        const roadmapId = roadmapLinks?.find(row => row.stable_key === item.stableKey)?.id;
+        const screen = roadmapId ? (screens ?? []).find(row => row.roadmap_item_id === roadmapId) : undefined;
         const { error: settleError } = await admin.from("product_output_fulfillments").update({ status: screen?.status === "ready" ? "ready" : "failed", screen_id: screen?.id ?? null })
           .eq("approval_id", rootId).eq("output_key", item.stableKey).eq("generation_run_id", batchId);
         if (settleError) throw settleError;

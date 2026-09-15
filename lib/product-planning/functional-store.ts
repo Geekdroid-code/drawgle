@@ -3,6 +3,7 @@ import { functionalDeltaSchema, functionalItemSchema, validateFunctionalPlan, ty
 import { type PlanningStore, PlanningConflict } from "./store";
 import { activeFacts, type ProductPlanning } from "./model";
 import { ProductToolError } from "./tool-failure";
+import { outputRendering, validateNewOutputPolicy } from "./output-policy";
 
 export async function readFunctionalRoadmap(admin: PlanningStore, projectId: string, ownerId: string): Promise<FunctionalItem[]> {
   const { data, error } = await admin.from("project_screen_roadmap").select("metadata")
@@ -13,6 +14,9 @@ export async function readFunctionalRoadmap(admin: PlanningStore, projectId: str
 
 export async function updateFunctionalRoadmap(admin: PlanningStore, projectId: string, ownerId: string, state: ProductPlanning, value: unknown) {
   const delta = functionalDeltaSchema.parse(value);
+  const recreate = Boolean(state.input.imagePath && state.input.imageReferenceMode === "recreate");
+  validateNewOutputPolicy(delta.items, recreate);
+  delta.items.forEach(item => { item.rendering = outputRendering(item, recreate); });
   const current = await readFunctionalRoadmap(admin, projectId, ownerId);
   const byKey = new Map(current.map(item => [item.stableKey, item]));
   for (const id of delta.removeKeys) byKey.delete(id);
@@ -48,6 +52,9 @@ export async function snapshotFunctionalScope(admin: PlanningStore, projectId: s
     return item;
   });
   const activeIds = new Set(activeFacts(state).map(f => f.id));
+  const recreate = Boolean(state.input.imagePath && state.input.imageReferenceMode === "recreate");
+  validateNewOutputPolicy(manifest, recreate);
+  manifest.forEach(item => { item.rendering = outputRendering(item, recreate); });
   for (const item of manifest) {
     if ([...item.surfaceIds, ...item.journeyIds, ...item.decisionIds].some(id => !activeIds.has(id))) throw new Error(`${item.name} relies on changed product facts. Update the functional roadmap before approval.`);
   }
@@ -62,5 +69,5 @@ export async function snapshotFunctionalScope(admin: PlanningStore, projectId: s
   const destinations = new Set(manifest.flatMap(item => item.actions.flatMap(action => action.destinationKey && !included.has(action.destinationKey) ? [action.destinationKey] : [])));
   const boundaries = items.filter(item => destinations.has(item.stableKey)).map(item => ({ key: item.stableKey, name: item.name, outcome: item.outcome }));
   validateFunctionalPlan(manifest, existingOutputs.map((output: { item: FunctionalItem }) => output.item), boundaries.map(item => item.key));
-  return { ...state, scope: { ...state.scope!, manifest, existingOutputs, boundaries } };
+  return { ...state, scope: { ...state.scope!, outputPolicy: "manual_states_v1" as const, manifest, existingOutputs, boundaries } };
 }

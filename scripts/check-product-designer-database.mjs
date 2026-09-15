@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
+import { checkManualStateDatabase } from "./lib/check-manual-state-database.mjs";
 const { PGlite } = createRequire(resolve(process.argv[2] || "package.json"))("@electric-sql/pglite");
 const db = new PGlite();
 const owner = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -118,6 +119,7 @@ try {
   assert.equal((await db.query(cancel, [root, "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", project])).rows[0].canceled, false);
   assert.equal((await db.query(cancel, [root, owner, project])).rows[0].canceled, true);
   await assert.rejects(db.query(claim, [root, owner, ["screen:next"]]), /unavailable/);
+  await checkManualStateDatabase(db, { owner, project });
   await db.exec(`reset role; set role authenticated; set request.jwt.claim.sub = '${owner}';`);
   assert.equal((await db.query("select * from product_output_fulfillments")).rows.length, 2);
   await assert.rejects(db.query(claim, [root, owner, [item.stableKey]]), /permission denied/);

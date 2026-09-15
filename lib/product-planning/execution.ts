@@ -4,19 +4,26 @@ export type ProductFulfillment = { output_key: string; generation_run_id: string
 
 // The complete manifest has no batch-size target. This selects only the next
 // bounded execution chunk, prioritizing states whose parent is already ready.
-export function nextProductBatch(manifest: FunctionalItem[], claims: ProductFulfillment[], capacity = 8, existingKeys: string[] = []) {
+export function nextProductBatch(manifest: FunctionalItem[], claims: ProductFulfillment[], capacity = 8, existingKeys: string[] = [], recreate = false) {
   const byKey = new Map(claims.map(claim => [claim.output_key, claim]));
   const outstanding = claims.find(claim => claim.status === "claimed");
   if (outstanding) return manifest.filter(item => byKey.get(item.stableKey)?.generation_run_id === outstanding.generation_run_id);
   const ready = new Set([...existingKeys, ...claims.filter(claim => claim.status === "ready").map(claim => claim.output_key)]);
   const pending = manifest.filter(item => !byKey.has(item.stableKey)).sort((a, b) => a.sequence - b.sequence);
+  if (recreate) return pending.filter(item => item.referenceScreenIndex != null).slice(0, capacity);
   const dependenciesReady = (item: FunctionalItem) => item.dependencyKeys.every(key => ready.has(key));
   const state = pending.find(item => item.kind === "state" && ready.has(item.parentStableKey!) && dependenciesReady(item));
   if (state) return pending.filter(item => item.kind === "state" && item.parentStableKey === state.parentStableKey && dependenciesReady(item)).slice(0, capacity);
   const parent = pending.find(item => item.kind === "screen" && dependenciesReady(item));
   if (!parent) return [];
-  return [parent, ...pending.filter(item => item.kind === "state" && item.parentStableKey === parent.stableKey
-    && item.dependencyKeys.every(key => key === parent.stableKey || ready.has(key))).slice(0, capacity - 1)];
+  const batch: FunctionalItem[] = [];
+  for (const candidate of pending.filter(item => item.kind === "screen" && dependenciesReady(item))) {
+    if (batch.length >= capacity) break;
+    batch.push(candidate);
+    batch.push(...pending.filter(item => item.kind === "state" && item.parentStableKey === candidate.stableKey
+      && item.dependencyKeys.every(key => key === candidate.stableKey || ready.has(key))).slice(0, capacity - batch.length));
+  }
+  return batch;
 }
 
 export function productExecutionProgress(manifest: FunctionalItem[], claims: ProductFulfillment[]) {

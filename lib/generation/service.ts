@@ -373,7 +373,7 @@ const ProjectRoadmapSchema = z.object({
     explicitly_requested: BooleanishSchema.optional(),
     dependency_keys: z.array(z.string().trim().min(1).max(100)).max(8).default([]).optional(),
   })).min(1).max(24),
-  initial_batch_keys: z.array(z.string().trim().min(1).max(100)).min(1).max(5),
+  initial_batch_keys: z.array(z.string().trim().min(1).max(100)).min(1).max(8),
 });
 
 const NavigationArchitectureSchema = z.object({
@@ -547,14 +547,14 @@ const PlanSchema = z.object({
     designRationale: z.string().trim().min(1).max(8000),
     creativeDirection: CreativeDirectionSchema.nullable().optional(),
   }),
-  screens: z.array(ScreenPlanSchema).min(1).max(5),
+  screens: z.array(ScreenPlanSchema).min(1).max(8),
 });
 
 const ProjectBlueprintSchema = PlanSchema.omit({ screens: true });
 const ProjectBlueprintCoreSchema = ProjectBlueprintSchema.omit({ navigation_plan: true });
 
 const ScreenBriefsSchema = z.object({
-  screens: z.array(ScreenPlanSchema).min(1).max(5),
+  screens: z.array(ScreenPlanSchema).min(1).max(8),
 });
 
 export type CanonicalBlueprintResult = {
@@ -645,11 +645,13 @@ export const compileProjectRoadmap = ({
   screens,
   navigationPlan,
   scopeContract,
+  batchLimit = INITIAL_PROJECT_SCREEN_LIMIT,
 }: {
   rawRoadmap: unknown;
   screens: ScreenPlan[];
   navigationPlan: NavigationPlan;
   scopeContract?: GenerationScopeContract | null;
+  batchLimit?: number;
 }) => {
   const parsed = ProjectRoadmapSchema.safeParse(rawRoadmap);
   const parsedItems: ProjectRoadmapItem[] = parsed.success
@@ -732,25 +734,25 @@ export const compileProjectRoadmap = ({
     plannedItems,
   });
   const scopedInitialKeys = exactScopedParents
-    ? screens.slice(0, 5).map((screen) => screen.roadmapStableKey ?? screenRoadmapKey(screen.name))
+    ? screens.slice(0, batchLimit).map((screen) => screen.roadmapStableKey ?? screenRoadmapKey(screen.name))
     : scopeContract?.screens?.length && (
     scopeContract.countSource === "prompt_count"
     || scopeContract.countSource === "named_screens"
     || scopeContract.countSource === "planning_mode"
   )
-    ? (scopeContract.screens ?? []).slice(0, 5).map((screen) => screenRoadmapKey(screen.name))
+    ? (scopeContract.screens ?? []).slice(0, batchLimit).map((screen) => screenRoadmapKey(screen.name))
     : [];
   const initialBatchItemKeys = scopedInitialKeys.length > 0
     ? scopedInitialKeys
     : parsed.success
-      ? parsed.data.initial_batch_keys.filter((key) => roadmap.items.some((item) => item.kind === "screen" && item.stableKey === key)).slice(0, 5)
-      : screens.map((screen) => screen.roadmapStableKey ?? screenRoadmapKey(screen.name)).slice(0, 5);
+      ? parsed.data.initial_batch_keys.filter((key) => roadmap.items.some((item) => item.kind === "screen" && item.stableKey === key)).slice(0, batchLimit)
+      : screens.map((screen) => screen.roadmapStableKey ?? screenRoadmapKey(screen.name)).slice(0, batchLimit);
 
   return {
     roadmap,
     initialBatchItemKeys: initialBatchItemKeys.length > 0
       ? initialBatchItemKeys
-      : screens.map((screen) => screen.roadmapStableKey ?? screenRoadmapKey(screen.name)).slice(0, 5),
+      : screens.map((screen) => screen.roadmapStableKey ?? screenRoadmapKey(screen.name)).slice(0, batchLimit),
   };
 };
 
@@ -3071,6 +3073,7 @@ export async function planUiFlow({
   llmLog?: LlmLogFn;
   onProgress?: (event: UiFlowPlanningProgress) => void | Promise<void>;
 }): Promise<PlannedUiFlow> {
+  const executionBatchLimit = productExecutionKeys ? Math.min(8, productExecutionKeys.length) : INITIAL_PROJECT_SCREEN_LIMIT;
   if (productPlanning) {
     if (productPlanning.scope?.status !== "approved") throw new Error("Product scope requires approval before screen planning.");
     scopeContract = productScopeContract(productPlanning, referenceMode ?? "internal_style", productExecutionKeys);
@@ -3452,8 +3455,8 @@ export async function planUiFlow({
         || resolvedScopeContract.countSource === "named_screens"
         || planningMode === "single-screen");
     selectedBlueprintKeys = scopeOwnsBatchSelection
-      ? (resolvedScopeContract.screens ?? []).slice(0, INITIAL_PROJECT_SCREEN_LIMIT).map((screen) => screenRoadmapKey(screen.name))
-      : parsedBlueprint.data.roadmap.initial_batch_keys.slice(0, INITIAL_PROJECT_SCREEN_LIMIT);
+      ? (resolvedScopeContract.screens ?? []).slice(0, executionBatchLimit).map((screen) => screenRoadmapKey(screen.name))
+      : parsedBlueprint.data.roadmap.initial_batch_keys.slice(0, executionBatchLimit);
     const selectedNames = selectedBlueprintKeys.flatMap((key) => {
       const roadmapItem = parsedBlueprint.data.roadmap?.items.find((item) => item.stable_key === key);
       if (roadmapItem) return [roadmapItem.name];
@@ -3465,7 +3468,7 @@ export async function planUiFlow({
         ...screenCountContract,
         exactCount: selectedNames.length,
         namedScreens: selectedNames,
-        maxScreens: INITIAL_PROJECT_SCREEN_LIMIT,
+        maxScreens: executionBatchLimit,
         reason: `${screenCountContract.reason} The project roadmap selected ${selectedNames.length} parent screen${selectedNames.length === 1 ? "" : "s"} for this batch.`,
       };
     }
@@ -3475,7 +3478,7 @@ export async function planUiFlow({
     const previewKeys = selectedBlueprintKeys.length > 0
       ? selectedBlueprintKeys
       : (resolvedScopeContract.screens ?? [])
-          .slice(0, INITIAL_PROJECT_SCREEN_LIMIT)
+          .slice(0, executionBatchLimit)
           .map((screen) => screenRoadmapKey(screen.name));
     const previewScreens = previewKeys.flatMap((stableKey, index) => {
       const roadmapItem = roadmapItems.find((item) => item.stable_key === stableKey);
@@ -3536,7 +3539,7 @@ export async function planUiFlow({
     }
 
     const expectedScreenCount = Math.max(1, Math.min(
-      INITIAL_PROJECT_SCREEN_LIMIT,
+      executionBatchLimit,
       screenCountContract.exactCount
         ?? (selectedBlueprintKeys.length > 0 ? selectedBlueprintKeys.length : null)
         ?? (resolvedScopeContract.screens?.length ? resolvedScopeContract.screens.length : null)
@@ -3659,7 +3662,7 @@ export async function planUiFlow({
   ) {
     // The contract defaulted to 1 because no explicit count was detected,
     // but the LLM actually planned more screens. Trust the LLM's plan.
-    adjustedContract.exactCount = Math.min(rawScreenCount, adjustedContract.maxScreens ?? INITIAL_PROJECT_SCREEN_LIMIT);
+    adjustedContract.exactCount = Math.min(rawScreenCount, adjustedContract.maxScreens ?? executionBatchLimit);
     adjustedContract.source = "open_project";
     adjustedContract.reason = `Overridden: raw plan contained ${rawScreenCount} screens but the screen count contract defaulted to 1.`;
   }
@@ -3812,6 +3815,7 @@ export async function planUiFlow({
     screens: plannedScreens,
     navigationPlan,
     scopeContract: resolvedScopeContract,
+    batchLimit: executionBatchLimit,
   });
 
   return {
@@ -3992,6 +3996,7 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
     ].join("\n"),
   });
 
+  if (input.productContent) parts.push({ text: input.productContent });
   const compactProjectContext = input.projectContext?.trim().slice(0, 6000);
   if (compactProjectContext) {
     parts.push({

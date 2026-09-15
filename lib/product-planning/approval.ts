@@ -19,6 +19,10 @@ export async function prepareProductApproval(admin: PlanningStore, ownerId: stri
     return null;
   }
   const { revision } = z.object({ revision: z.number().int().nonnegative() }).parse(body.productApproval);
+  if (state.scope?.status !== "approved" && state.input.imageReferenceMode !== "recreate"
+    && state.scope?.manifest?.some(item => item.kind === "state")) {
+    throw new PlanningConflict("This older draft includes automatic state frames. Ask Drawgle to refresh the scope with inline behavior and main product tasks before approving. Additional states are now created from the canvas.");
+  }
   let approved: ProductPlanning;
   try { approved = approveProductScope(state, revision); } catch (error) {
     throw new PlanningConflict(error instanceof Error ? error.message : "Review the current scope before approving.");

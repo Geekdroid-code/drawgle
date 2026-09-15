@@ -1170,6 +1170,7 @@ export interface LlmInputSnapshot {
 }
 
 export interface BuildScreenInput {
+  productContent?: string | null;
   screenPlan: ScreenPlan;
   designTokens?: DesignTokens | null;
   prompt: string;

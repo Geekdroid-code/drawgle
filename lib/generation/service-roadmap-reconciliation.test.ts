@@ -82,6 +82,12 @@ const navigationPlan: NavigationPlan = {
 };
 
 describe("project roadmap reconciliation", () => {
+  it("retains all eight execution keys when compiling a prepared product batch", () => {
+    const screens = Array.from({ length: 8 }, (_, index) => ({ ...plannedScreens[0], name: `Screen ${index}`, roadmapStableKey: `screen:${index}` }));
+    const result = compileProjectRoadmap({ rawRoadmap: null, screens, navigationPlan, batchLimit: 8 });
+    expect(result.initialBatchItemKeys).toEqual(screens.map(screen => screen.roadmapStableKey));
+    expect(compileProjectRoadmap({ rawRoadmap: null, screens, navigationPlan }).initialBatchItemKeys).toHaveLength(5);
+  });
   it("keeps meaningful planner names when count-only scope names are generic", () => {
     const reconciled = reconcileScreensWithScope({
       prompt: "Create two luxury skincare screens.",
