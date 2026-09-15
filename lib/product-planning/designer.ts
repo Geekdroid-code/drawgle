@@ -200,8 +200,8 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
     const failure = [...failures.values()].at(-1);
     if (failure) reply = `${failure.summary} Your saved product decisions are intact. Continue below to finish planning; generation has not started.`;
     const questions = referenceRecovery ? referenceRecoveryQuestions : readProductQuestions({ productQuestions: assessment.gaps });
-    if (referenceRecovery) reply = "The references I inspected don�t support your saved direction well enough. Your requirements are preserved. Choose how to continue below.";
-    if (questions && !attemptedProposal && !failure) reply = "Let’s shape how this works. Choose an answer below, write your own, or skip and I’ll recommend a direction.";
+    if (referenceRecovery) reply = "The references I inspected don't support your saved direction well enough. Your requirements are preserved. Choose how to continue below.";
+    if (questions && !attemptedProposal && !failure) reply = "Let's shape how this works. Choose an answer below, write your own, or skip and I'll recommend a direction.";
     if (!reply && state.scope?.status === "proposed") reply = "The current scope is ready to review. Use the approval card when you'd like me to start.";
     if (!reply) throw new Error("I couldn't complete this product turn. Your saved decisions are intact; please try again.");
     const modelMessage = await insertProjectMessage(admin, { projectId, ownerId, role: "model", content: reply, metadata: {
