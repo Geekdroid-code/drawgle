@@ -6,6 +6,7 @@ export const questionChoicesSchema = z.array(z.object({
 })).length(3).refine(choices => new Set(choices.map(choice => choice.label.toLowerCase())).size === 3, "Offer three distinct answers.");
 
 export const productQuestionsSchema = z.array(z.object({
+  decisionKey: z.string().max(100).optional(),
   question: z.string().min(1).max(600),
   consequence: z.string().min(1).max(1000),
   // First answer is the recommendation. It is never selected automatically.
@@ -77,4 +78,16 @@ export function confirmedMessageEvidence(message: { content: string; metadata: R
   if (message.metadata.productAnswers) return Array.isArray(message.metadata.productAnswerEvidence)
     ? message.metadata.productAnswerEvidence.filter((value): value is string => typeof value === "string") : [];
   return [message.content];
+}
+
+export function resolvedDecisionKeys(history: Array<{ id: string; role: string; metadata: Record<string, unknown> }>) {
+  const resolved = new Set<string>();
+  for (const message of history) {
+    const answers = productAnswersSchema.safeParse(message.metadata.productAnswers);
+    if (message.role !== "user" || !answers.success) continue;
+    const original = history.find(entry => entry.id === answers.data.messageId && entry.role === "model");
+    const questions = original && readProductQuestions(original.metadata);
+    questions?.forEach((question, index) => { if (question.decisionKey && answers.data.answers[index]) resolved.add(question.decisionKey); });
+  }
+  return [...resolved];
 }

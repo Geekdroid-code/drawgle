@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { decisionClassificationSchema, designerRecommendationSchema } from "./discovery-decisions";
 import { questionChoicesSchema } from "./questions";
 
 export const evidenceAssessmentSchema = z.object({
@@ -12,7 +13,9 @@ export const evidenceAssessmentSchema = z.object({
     question: z.string().min(1).max(600),
     consequence: z.string().min(1).max(1000),
     choices: questionChoicesSchema.optional(),
+    ...decisionClassificationSchema.partial().shape,
   })).max(6),
+  recommendations: z.array(designerRecommendationSchema).max(12).optional(),
   delegation: z.string().max(1000).default(""),
   rationale: z.string().min(1).max(2000),
 });

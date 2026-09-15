@@ -239,3 +239,14 @@ Live behavioral evaluations, with repeated runs rather than a single happy path:
 End-to-end visual evaluation must inspect a complete approved journey, including meaningful states. Review task completion, information hierarchy, transition consistency, parent/state fidelity and reference adherence. Compare against the current baseline. Question count, JSON validity and passing unit tests alone are not measures of product-designer quality.
 
 Do not claim the quality upgrade is validated until these live conversation and generated-flow checks have actually passed. If provider access blocks them, report that limitation explicitly.
+
+
+## Incident-driven refinement — 2026-09-15
+
+The Tacozz audit showed that optional answer cards alone did not improve decision quality. Treat product behavior and completed user jobs as the planning objective across all domains; do not implement named-screen requirements by industry. The follow-up implementation and checks are recorded in phase 6.3 of `product-designer-upgrade-progress.md`.
+
+- Classify each proposed question by the actual user-dependent product decision. Visual/component decisions are tentative designer recommendations. Persist answered/skipped decision identities to avoid recursive questioning.
+- Review complete job-to-outcome paths, including screen states, shared context and transitions, against the original request and later corrections. Whole-product requests must not silently become a sample of attractive screens. Partial design scopes are legitimate when user-selected and do not erase the product map.
+- Validate scope against actual persisted roadmap identities before writing it. Return precise internal repair feedback; bound repairs and offer explicit continuation when unfinished.
+- Include reviewed journey coverage in the existing approval snapshot and downstream product context. Keep reference/recreation distinctions and credit/approval boundaries intact.
+- Verify coupled agent/persistence behavior and real database identity constraints. Preserve a clear distinction between deterministic guarantees, model-based semantic review and live visual-quality evaluation.

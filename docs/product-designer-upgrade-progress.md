@@ -74,9 +74,46 @@ Implementation follows `product-designer-upgrade-plan.md`. Premium reference-to-
 - Regression coverage exercises the real no-image/recreate creation payload, both image selections, legacy state repair, style presets, curated provenance across reinspection, ordinary follow-ups, fresh uploads, missing files, conflicting model output, rejected mode questions, and old-card recovery. Existing approval and generation boundaries remain in place.
 - Validation: full Vitest regression **64 suites / 393 tests passed**; Node camera runner **7/7 passed**. `pnpm.cmd run check` passed (curated index current, lint zero errors with the pre-existing CanvasArea dependency warning, TypeScript clean); final TypeScript and diff whitespace checks passed. This patch is local; no production deployment or production project mutation has been performed. More varied live product briefs remain necessary to evaluate the usefulness of recommendations; these checks do not establish that an LLM can never hallucinate.
 
+## Phase 6.3 — Product outcomes, decision quality and recoverable planning (2026-09-15)
+
+### Step 1 — Trace the incident and tighten the requirement
+
+Reviewed the persisted conversation, blueprint, roadmap and request evidence recorded in `product-planning-project-audit-f81bf82e.md`, then traced assessment, function calls, roadmap persistence, proposal validation and ChatPanel rendering. The defect is incomplete product behavior and recursive cosmetic questioning, not the absence of any particular named commerce screen. Existing reference selection, image inspection, execution manifests and generation workers remain the architecture to build on.
+
+### Step 2 — Separate product decisions from design judgment
+
+Added a small validated decision-classification module. Each new assessment gap must explain the user-specific rule that materially changes the product. Cosmetic and component-level questions become tentative recommendations, while material access, behavior and business questions retain the optional cards. Stable decision keys are stored with questions and remembered in project JSON after answers/skips, including the current turn; they do not imply generation approval. The designer persists useful recommendations as assumption facts through the existing incremental tools. The original project request is passed explicitly even when it has fallen outside the recent message window.
+
+### Step 3 — Review whole-app behavior before approval
+
+The independent readiness reviewer now returns actor/job/journey coverage with real output identities, entry and completion points, outcome meaning, and an exact user quote establishing full or focused scope. A separate graph validator checks active facts, saved outputs, navigable/state transitions and whole-product inclusion. Generation dependency order cannot stand in for navigation. Existing generated outputs count as context; user-selected partial work retains the broader roadmap. Focused work checks its selected journey portions without demanding detailed screen plans for unrelated deferred jobs. Exact recreation bypasses this broad product review and retains its existing frame validation.
+
+Reviewed coverage is stored in the existing design scope snapshot and displayed compactly inside the existing scope card. The existing `formatProductTruth(..., true)` already carries that snapshot to planning and generation; no competing planner or scope system was added. Changes to facts or functional outputs invalidate coverage. Semantic review remains necessary to judge whether an action's destination actually achieves its promised outcome; graph connectivity alone cannot prove that.
+
+### Step 4 — Repair before presenting a failure
+
+`set_design_scope` now validates its prospective selection against the persisted functional roadmap before saving. Missing-state errors return exact missing and available identities to the agent. Typed internal feedback preserves database error codes, while logs and message metadata contain controlled summaries and turn identifiers. Within the existing eight-round tool budget, the agent can receive up to two additional repair prompts if it tries to stop after failed tools. Successful proposal clears resolved failures; unresolved work produces a persisted recovery action.
+
+A small recovery component reuses the existing ChatPanel conventions, including legacy failed messages. Continue planning explicitly routes to the product agent, preserves retry identity, and never approves generation. It sends no automatic requests and does not refresh or recreate the project. Fact/evidence normalization was extracted into its own module to keep the designer runtime manageable.
+
+### Step 5 — Exercise actual persistence constraints
+
+A coupled test runs the actual assessment parser, designer, project/message stores, functional store, snapshot and semantic/graph review with synthetic model responses and an injected state-write rejection. It verifies repair retains the parent and state, creates one continuous conversation, presents approval only after review and creates no screens or generation runs.
+
+The isolated PostgreSQL harness now loads actual status enums, the existing enum-cast repair migration and the canonical roadmap identity trigger. This exposed a real conflict when two different parents have identically named states: the old RPC inserted them both with a temporary NULL parent. New migration `20260915030014_product_functional_state_parents.sql` writes parents first and inserts/updates states with their parent already attached. It keeps ownership, CAS, approved-output immutability and canonical identity protections. Tests cover same-name states on different parents, state revision, missing-parent rollback, same-parent duplicate rejection and server-only RPC access. The historical incident's exact earlier SQL error remains unknown.
+
+### Step 6 — Verification and rollout boundary
+
+- Final full regression: **68 Vitest suites / 411 tests passed** (`pnpm.cmd exec vitest run --exclude lib/canvas-camera.test.ts`); camera Node runner **7/7 passed** (`pnpm.cmd exec tsx --test lib/canvas-camera.test.ts`).
+- `pnpm.cmd run check` passed: curated index current, lint zero errors with the pre-existing `CanvasArea.tsx:667` dependency warning, TypeScript clean. Final whitespace check passed.
+- A final focused-scope compatibility refinement passed its targeted flow/reviewer/persistence run: **3 suites / 12 tests**. It verifies that an explicit partial request does not force concrete planning of unrelated future jobs.
+- The original planning migration harness passed. The execution harness passes after using production enum types and applying the new parent-identity migration; it verifies atomic updates and existing credit/continuation guards.
+- No application deployment, worker deployment or production project mutation was performed. Apply the new migration before deploying this application patch. The patch does not require a worker change beyond the already-planned matching worker rollout.
+- Live repeated conversations and rendered app flows still need evaluation. Tests establish filtering, persistence, validation, recovery and compatibility behavior; they do not establish premium visual parity or guarantee that model judgments are always correct.
+
 ## Test-environment rollout order
 
-1. Apply the new `20260914104053_product_designer_execution.sql` migration after the existing planning/roadmap/credit migrations. It preserves legacy records and separates the active coordinator index from the active child index.
+1. Apply `20260914104053_product_designer_execution.sql`, the existing `20260914233000_fix_product_generation_progress_coalesce.sql` repair, and `20260915030014_product_functional_state_parents.sql` after the existing planning/roadmap/credit migrations. It preserves legacy records and separates the active coordinator index from the active child index.
 2. Deploy matching `generate-product-flow` and `generate-ui-flow` workers, then the application that creates v2 scopes. Keep old workers compatible with existing v1 payloads while their runs finish.
 3. Exercise empty-project conversation and exact recreation, then approve a scope crossing the execution limit. Verify parent/state ordering, total delivered count and actual ledger entries.
 4. Exercise interruption before and after dispatch, partial failure, credit shortage, stop/resume and browser reload. Verify the same canvas/chat survives and no completed output is charged again.

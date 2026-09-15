@@ -8,7 +8,7 @@ import { productFixture } from "./test-fixtures";
 describe("bounded product readiness review", () => {
   beforeEach(() => mocks.generate.mockReset());
   it("assesses product completeness independently of visual scope preferences", async () => {
-    mocks.generate.mockResolvedValueOnce({ text: JSON.stringify({ ready: false, issues: ["The purchase journey ends at browsing; map how a shopper completes a purchase even if it will be designed later."] }) });
+    mocks.generate.mockResolvedValueOnce({ text: JSON.stringify({ requestedScope: "focused", scopeEvidence: "Only onboarding for now", journeys: [], ready: false, issues: ["The purchase journey ends at browsing; map how a shopper completes a purchase even if it will be designed later."] }) });
     const result = await reviewProductReadiness(productFixture(), "Only onboarding for now");
     expect(result.ready).toBe(false);
     const request = mocks.generate.mock.calls[0][0];
@@ -29,7 +29,7 @@ describe("bounded product readiness review", () => {
     await expect(reviewProductReadiness(productFixture(), "Start")).rejects.toThrow("unavailable");
   });
   it("does not accept a contradictory ready flag alongside unresolved gaps", async () => {
-    mocks.generate.mockResolvedValueOnce({ text: JSON.stringify({ ready: true, issues: ["A core journey has no outcome."] }) });
+    mocks.generate.mockResolvedValueOnce({ text: JSON.stringify({ requestedScope: "whole_product", scopeEvidence: "Start", journeys: [], ready: true, issues: ["A core journey has no outcome."] }) });
     expect((await reviewProductReadiness(productFixture(), "Start")).ready).toBe(false);
   });
 });

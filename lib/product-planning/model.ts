@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { journeyCoverageSchema } from "./flow-review";
 import { normalizePlanningInput } from "./reference-context";
 import { decisionProvenanceSchema, evidenceAssessmentSchema, evidenceAllowsProposal } from "./evidence";
 import { experienceSchema } from "./experience";
@@ -32,6 +33,9 @@ export const designScopeSchema = z.object({
   manifest: z.array(functionalItemSchema).max(500).optional(),
   existingOutputs: z.array(z.object({ item: functionalItemSchema, screenId: z.string().uuid() })).max(500).optional(),
   boundaries: z.array(z.object({ key: z.string(), name: z.string(), outcome: z.string() })).max(500).optional(),
+  journeyCoverage: z.array(journeyCoverageSchema).max(100).optional(),
+  requestedScope: z.enum(["whole_product", "focused"]).optional(),
+  scopeEvidence: z.string().max(1500).optional(),
   reviewedContentRevision: z.number().int().nonnegative().optional(),
   rationale: text,
   status: z.enum(["draft", "proposed", "approved"]),
@@ -43,6 +47,7 @@ export const productPlanningSchema = z.object({
   designerVersion: z.literal(2).optional(),
   contentRevision: z.number().int().nonnegative().optional(),
   evidenceAssessment: evidenceAssessmentSchema.nullable().optional(),
+  resolvedDecisionKeys: z.array(z.string().max(100)).max(500).optional(),
   experience: experienceSchema.nullable().optional(),
   revision: z.number().int().nonnegative(),
   phase: z.enum(["discovery", "canvas"]),
@@ -117,6 +122,9 @@ export function applyProductPatch(state: ProductPlanning, value: unknown, messag
   if (next.scope) {
     const surfaces = new Set(activeFacts(next, "surfaces").map((fact) => fact.id));
     if (next.scope.surfaceIds.some((surfaceId) => !surfaces.has(surfaceId))) throw new Error("Scope must reference active product surfaces. Update the scope in the same patch when removing a surface.");
+    next.scope.journeyCoverage = undefined;
+    next.scope.requestedScope = undefined;
+    next.scope.scopeEvidence = undefined;
     next.scope.status = "draft";
     next.scope.approvedRevision = null;
     next.scope.generationRunId = null;

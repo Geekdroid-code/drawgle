@@ -23,6 +23,13 @@ export function ProductScopeCard({ state, projectId, disabled, onApprove }: {
       <p className="font-semibold">{manifest ? "Your design scope" : "Design first"}</p>
       <p className="mt-1 text-xs leading-5 text-slate-500">{state.scope.goal}</p>
       {manifest && <p className="mt-2 text-xs leading-5 text-slate-500">Journeys: {activeFacts(state, "journeys").filter(f => manifest.some(item => item.journeyIds.includes(f.id))).map(f => f.label).join(", ")}</p>}
+      {!!state.scope.journeyCoverage?.length && <details className="mt-2 text-xs leading-5 text-slate-500">
+        <summary className="cursor-pointer">Product outcomes & scope</summary>
+        <p>{state.scope.requestedScope === "whole_product" ? "Complete product flow" : "Selected part of the product"}</p>
+        {state.scope.journeyCoverage.map((journey, index) => <p key={`${journey.journeyId}-${index}`} className="mt-1">
+          {journey.outcome}{journey.outputKeys.some(key => !state.scope!.outputKeys?.includes(key) && !state.scope!.existingOutputs?.some(output => output.item.stableKey === key)) ? " — includes later work" : ""}
+        </p>)}
+      </details>}
       <ol className="mt-3 space-y-2">
         {manifest ? scopeParents(state).map((item, index) => <li key={item.stableKey}>
           <details><summary className="cursor-pointer">{index + 1}. {item.name}</summary>

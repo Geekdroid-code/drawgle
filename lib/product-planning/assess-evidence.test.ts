@@ -16,7 +16,7 @@ describe("evidence assessment boundary", () => {
     expect(parts[0].text).toContain("No accounts");
   });
   it("cannot clear a returned gap using contradictory ready flags", async () => {
-    mocks.generate.mockResolvedValue({ text: JSON.stringify({ ...ready, gaps: [{ area: "product", question: "What does onboarding do?", consequence: "Changes the required steps", choices: [{ label: "Introduce", description: "Brand introduction" }, { label: "Personalize", description: "Useful preferences" }, { label: "Shop", description: "Begin shopping" }] }] }) });
+    mocks.generate.mockResolvedValue({ text: JSON.stringify({ ...ready, gaps: [{ decisionKey: "onboarding-purpose", decisionType: "product_behavior", requiresUserInput: true, whyUserMustDecide: "Whether onboarding changes recommendations or just introduces the product", area: "product", question: "What does onboarding do?", consequence: "Changes the required steps", choices: [{ label: "Introduce", description: "Brand introduction" }, { label: "Personalize", description: "Useful preferences" }, { label: "Shop", description: "Begin shopping" }] }] }) });
     const assessment = await assessProductEvidence({ state: designerFixture(), prompt: "Premium T-shirts", turnId: "turn", history: [], reference: null });
     expect(evidenceAllowsProposal(assessment)).toBe(false);
   });

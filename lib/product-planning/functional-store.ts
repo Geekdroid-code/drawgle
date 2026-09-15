@@ -2,6 +2,7 @@ import "server-only";
 import { functionalDeltaSchema, functionalItemSchema, validateFunctionalPlan, type FunctionalItem } from "./functional-plan";
 import { type PlanningStore, PlanningConflict } from "./store";
 import { activeFacts, type ProductPlanning } from "./model";
+import { ProductToolError } from "./tool-failure";
 
 export async function readFunctionalRoadmap(admin: PlanningStore, projectId: string, ownerId: string): Promise<FunctionalItem[]> {
   const { data, error } = await admin.from("project_screen_roadmap").select("metadata")
@@ -24,7 +25,7 @@ export async function updateFunctionalRoadmap(admin: PlanningStore, projectId: s
     if (item.surfaceIds.some(id => !surfaces.has(id)) || item.journeyIds.some(id => !journeys.has(id))) throw new Error(`${item.name} must link to active product surfaces and journeys.`);
     if (item.decisionIds.some(id => !facts.has(id))) throw new Error(`${item.name} refers to a superseded product decision. Update the affected behavior.`);
   }
-  const next = { ...state, revision: state.revision + 1, contentRevision: (state.contentRevision ?? 0) + 1, scope: state.scope ? { ...state.scope, status: "draft" as const, manifest: undefined, approvedRevision: null } : null };
+  const next = { ...state, revision: state.revision + 1, contentRevision: (state.contentRevision ?? 0) + 1, scope: state.scope ? { ...state.scope, status: "draft" as const, manifest: undefined, journeyCoverage: undefined, requestedScope: undefined, scopeEvidence: undefined, approvedRevision: null } : null };
   const { error } = await admin.rpc("update_product_functional_plan", {
     input_project_id: projectId, input_owner_id: ownerId, input_revision: state.revision,
     input_state: next, input_items: delta.items, input_remove_keys: delta.removeKeys,
@@ -36,7 +37,11 @@ export async function updateFunctionalRoadmap(admin: PlanningStore, projectId: s
 export async function snapshotFunctionalScope(admin: PlanningStore, projectId: string, ownerId: string, state: ProductPlanning) {
   const items = await readFunctionalRoadmap(admin, projectId, ownerId);
   const keys = state.scope?.outputKeys;
-  if (!keys?.length) throw new Error("Select concrete roadmap outputKeys before proposing.");
+  const missingKeys = keys?.filter(key => !items.some(item => item.stableKey === key)) ?? [];
+  if (!keys?.length || missingKeys.length) throw new ProductToolError("Save the required screens and states before selecting their exact roadmap keys. The scope was not saved.", "SCOPE_OUTPUTS_MISSING", {
+    missingKeys, availableKeys: items.map(item => item.stableKey),
+    hint: "Read the roadmap and save missing outputs with update_functional_plan, then select scope. Do not drop required outputs to pass validation.",
+  });
   const manifest = keys.map(key => {
     const item = items.find(item => item.stableKey === key);
     if (!item) throw new Error(`The selected output ${key} is not on the active roadmap.`);

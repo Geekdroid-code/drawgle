@@ -2007,7 +2007,7 @@ export function ProjectShell({
     prompt: string;
     image?: PromptImagePayload | null;
     imageReferenceMode?: ImageReferenceMode;
-    clientTurnId?: string; productAnswers?: ProductAnswers;
+    clientTurnId?: string; continueProductPlanning?: boolean; productAnswers?: ProductAnswers;
   }) => {
     if (!project || isCanvasInteractionLocked) {
       return false;
@@ -2081,6 +2081,7 @@ export function ProjectShell({
             },
           clientTurnId: options.clientTurnId ?? null,
           productAnswers: options.productAnswers,
+          continueProductPlanning: options.continueProductPlanning,
         }),
       });
       const payload = await agentRes.json().catch(() => ({}));

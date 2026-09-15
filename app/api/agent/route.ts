@@ -61,6 +61,7 @@ const requestSchema = z.object({
   projectId: z.string().uuid(),
   initializePlanning: z.boolean().optional(),
   productAnswers: productAnswersSchema.optional(),
+  continueProductPlanning: z.boolean().optional(),
   prompt: z.string().trim().max(10000),
   image: z
     .object({
@@ -1000,10 +1001,10 @@ export async function POST(request: Request) {
     }
 
     const productPlanning = readProductPlanning(project.product_planning);
-    if (productPlanning?.phase === "discovery" || (productPlanning && (payload.initializePlanning || payload.productAnswers))) {
+    if (productPlanning?.phase === "discovery" || (productPlanning && (payload.initializePlanning || payload.productAnswers || payload.continueProductPlanning))) {
       try {
         return NextResponse.json(await runProductDesigner({
-          admin, projectId: project.id, ownerId: user.id, prompt: prompt || project.prompt,
+          admin, projectId: project.id, ownerId: user.id, prompt: prompt || project.prompt, originalPrompt: project.prompt,
           image: payload.image, imageReferenceMode: payload.imageReferenceMode,
           clientTurnId: payload.initializePlanning ? `initial:${project.id}` : payload.clientTurnId || crypto.randomUUID(),
           initialize: payload.initializePlanning,
@@ -1273,7 +1274,7 @@ export async function POST(request: Request) {
     });
     if (routerDecision.action === "plan_product" && productPlanning) {
       return NextResponse.json(await runProductDesigner({
-        admin, projectId: project.id, ownerId: user.id, prompt,
+        admin, projectId: project.id, ownerId: user.id, prompt, originalPrompt: project.prompt,
         image: payload.image, imageReferenceMode: payload.imageReferenceMode, clientTurnId,
         existingUserMessageId: userMessage.id,
       }));

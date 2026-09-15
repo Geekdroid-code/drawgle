@@ -17,6 +17,15 @@ function fixture() {
   return { state, tables, admin: productDesignerMemoryStore(tables) };
 }
 describe("functional roadmap scope snapshots", () => {
+  it("reports exact missing state identities without mutating the saved scope", async () => {
+    const { state, tables, admin } = fixture();
+    const before = structuredClone(tables);
+    const prospective = { ...state, scope: { ...state.scope!, outputKeys: ["screen:onboarding", "state:onboarding:complete"] } };
+    await expect(snapshotFunctionalScope(admin, "project", "owner", prospective)).rejects.toMatchObject({
+      code: "SCOPE_OUTPUTS_MISSING", repair: { missingKeys: ["state:onboarding:complete"], availableKeys: ["screen:onboarding", "screen:shop"] },
+    });
+    expect(tables).toEqual(before);
+  });
   it("narrows approval while preserving a navigation link to an unbuilt future screen", async () => {
     const { state, tables, admin } = fixture();
     const before = structuredClone(tables.project_screen_roadmap);
