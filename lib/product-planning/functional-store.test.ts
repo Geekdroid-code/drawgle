@@ -50,4 +50,35 @@ describe("functional roadmap scope snapshots", () => {
     expect(tables.project_screen_roadmap).toHaveLength(2);
     expect((tables.projects[0].product_planning as { revision: number }).revision).toBe(next.revision);
   });
+  it("auto-provisions missing surfaces and journeys when updating roadmap", async () => {
+    const { state, tables, admin } = fixture();
+    // Clear existing surfaces to simulate project 6fcd43ee-7f80-4e94-9d64-64c9a4a1605e
+    state.blueprint.facts = state.blueprint.facts.filter(f => f.section !== "surfaces");
+    const item = {
+      ...functionalFixture("screen:passenger-home", "Passenger Home", 1),
+      surfaceIds: ["surface-passenger-booking"],
+      journeyIds: ["journey-priority-passenger-v1"],
+      decisionIds: ["nonexistent-or-superseded-decision-id"],
+      actions: [{ label: "Profile", destinationKey: "screen:profile-external", outcome: "View profile" }],
+    };
+    const next = await updateFunctionalRoadmap(admin, "project", "owner", state, { items: [item], removeKeys: [] });
+    expect(next.blueprint.facts.some(f => f.id === "surface-passenger-booking" && f.section === "surfaces")).toBe(true);
+    expect(next.blueprint.facts.some(f => f.id === "journey-priority-passenger-v1" && f.section === "journeys")).toBe(true);
+    expect(tables.project_screen_roadmap.some(r => r.stable_key === "screen:passenger-home")).toBe(true);
+  });
+  it("normalizes kind state to screen in non-recreation mode without crashing", async () => {
+    const { state, tables, admin } = fixture();
+    state.input.imageReferenceMode = "style";
+    const stateItem = {
+      ...functionalFixture("screen:results", "Search Results", 2),
+      kind: "state" as const,
+      parentStableKey: "screen:onboarding",
+      stateKey: "results",
+      triggerLabel: "Search",
+      editInstruction: "Show results",
+    };
+    const next = await updateFunctionalRoadmap(admin, "project", "owner", state, { items: [stateItem], removeKeys: [] });
+    const saved = tables.project_screen_roadmap.find(r => r.stable_key === "screen:results");
+    expect((saved?.metadata as any)?.functional?.kind).toBe("screen");
+  });
 });

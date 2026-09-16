@@ -88,14 +88,14 @@ export async function inspectProductReference(admin: PlanningStore, ownerId: str
     return { experience, image: null };
   }
 
-  // A curated asset is reusable only under the same confirmed requirements and
+  // A reference asset is reusable under the same confirmed requirements and
   // exact stored pixels. Stale/rejected candidates return to bounded selection.
-  if (image && planningReferenceContext(state).source === "curated") {
+  if (image) {
     if (state.experience?.requirementsKey === reqKey && state.experience.compatibility?.compatible === true
       && state.experience.referenceHash === createHash("sha256").update(image.data).digest("hex")) {
       return { experience: state.experience, image };
     }
-    image = null;
+    if (planningReferenceContext(state).source === "curated") image = null;
   }
   if (!image) {
     const preset = state.input.stylePresetSlug ? await resolvePublishedStylePreset(state.input.stylePresetSlug) : null;

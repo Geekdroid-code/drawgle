@@ -13,8 +13,16 @@ vi.mock("@/lib/agent/project-tools", () => ({ projectReadToolDeclarations: [], c
 vi.mock("@/lib/supabase/queries", () => ({
   fetchProjectMessages: async () => mocks.messages,
   insertProjectMessage: async (_admin: unknown, input: Record<string, unknown>) => {
-    const message = { ...input, id: "22222222-2222-4222-8222-222222222222" };
+    const message = { ...input, id: (input.id as string) ?? crypto.randomUUID() };
     mocks.messages.push(message); return message;
+  },
+  updateProjectMessage: async (_admin: unknown, input: Record<string, unknown>) => {
+    const message = mocks.messages.find(m => m.id === input.messageId);
+    if (message) {
+      if (input.content !== undefined) message.content = input.content;
+      if (input.metadata !== undefined) message.metadata = input.metadata;
+    }
+    return message;
   },
 }));
 import { runProductDesigner } from "./designer";

@@ -37,7 +37,13 @@ export function scopedGenerationPrompt(state: ProductPlanning, executionKeys?: s
     explicitRequirements,
     "Keep the approved screen identities and functional requirements. Do not add or merge outputs.",
   ].filter(Boolean).join("\n\n");
-  const surfaces = state.scope.surfaceIds.map((id) => activeFacts(state, "surfaces").find((fact) => fact.id === id)!);
+  const surfaces = state.scope.surfaceIds.map((id) =>
+    activeFacts(state, "surfaces").find((fact) => fact.id === id) ?? {
+      id, section: "surfaces" as const, label: id.replace(/[-_:]+/g, " "), detail: id,
+      source: "assumption" as const, evidence: "", provenance: { basis: "inferred" as const, recommendationMessageId: null },
+      links: [], status: "active" as const, supersededBy: null, messageId: null,
+    }
+  );
   const identity = activeFacts(state, "identity").map((fact) => fact.detail).join(" ").slice(0, 500);
   const preferences = activeFacts(state, "preferences").map((fact) => fact.detail).join(" ").slice(0, 500);
   return [identity, state.scope.goal.slice(0, 1000), `Design exactly ${surfaces.length} screens in the following order:`,
@@ -50,7 +56,9 @@ export function scopedGenerationPrompt(state: ProductPlanning, executionKeys?: s
 export function productScopeContract(state: ProductPlanning, referenceMode: ReferenceMode, executionKeys?: string[]): GenerationScopeContract {
   const ids = state.scope?.surfaceIds ?? [];
   if (!ids.length) throw new Error("No approved design surfaces.");
-  const names = state.scope?.manifest?.length ? scopeParents(state, executionKeys).map(item => item.name) : ids.map(id => activeFacts(state, "surfaces").find(fact => fact.id === id)!.label);
+  const names = state.scope?.manifest?.length
+    ? scopeParents(state, executionKeys).map(item => item.name)
+    : ids.map(id => activeFacts(state, "surfaces").find(fact => fact.id === id)?.label ?? id.replace(/[-_:]+/g, " "));
   return {
     version: 2, referenceMode, promptScreenCount: names.length, namedScreenCount: names.length,
     imageScreenCount: null, finalScreenCount: names.length, countSource: "named_screens", confidence: "high",

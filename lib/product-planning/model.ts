@@ -141,7 +141,7 @@ export function applyProductPatch(state: ProductPlanning, value: unknown, messag
   }
   const ids = new Set(activeFacts(next).map((fact) => fact.id));
   for (const fact of activeFacts(next)) {
-    if (fact.links.some((link) => !ids.has(link))) throw new Error(`Update links on ${fact.id} when superseding linked facts.`);
+    fact.links = fact.links.filter((link) => ids.has(link));
   }
   if (next.scope) {
     const surfaces = new Set(activeFacts(next, "surfaces").map((fact) => fact.id));

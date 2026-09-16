@@ -61,8 +61,12 @@ it("repairs failed inline-flow persistence through the real stores, assessment, 
   expect(saved.scope?.requestedScope).toBe("whole_product");
   expect(saved.phase).toBe("discovery");
   expect(saved.lease).toBeNull();
-  expect(tables.project_messages).toHaveLength(2);
-  expect(tables.project_messages[1].metadata).not.toHaveProperty("productPlanningFailure");
+  const modelMessage = tables.project_messages.find(m => m.role === "model");
+  expect(modelMessage).toBeDefined();
+  expect(modelMessage?.metadata).not.toHaveProperty("productPlanningFailure");
+  const progressMessage = tables.project_messages.find(m => (m.metadata as Record<string, unknown>)?.action === "agent_turn_progress");
+  expect(progressMessage).toBeDefined();
+  expect((progressMessage?.metadata as Record<string, unknown>)?.agentStep).toMatchObject({ status: "completed" });
   expect(tables.generation_runs ?? []).toHaveLength(0);
   expect(tables.screens ?? []).toHaveLength(0);
 });

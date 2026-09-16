@@ -22,6 +22,83 @@ export const functionalItemSchema = z.object({
 export type FunctionalItem = z.infer<typeof functionalItemSchema>;
 export const functionalDeltaSchema = z.object({ items: z.array(functionalItemSchema).max(40), removeKeys: z.array(key).max(40).default([]) });
 
+export function healFunctionalPlan(items: FunctionalItem[], existing: FunctionalItem[] = [], boundaryKeys: string[] = []): FunctionalItem[] {
+  const byKey = new Map([...items, ...existing].map(item => [item.stableKey, item]));
+  if (byKey.size !== items.length + existing.length) {
+    // Deduplicate stable keys if needed
+    for (let i = 0; i < items.length; i++) {
+      let candidate = items[i].stableKey;
+      let suffix = 2;
+      while (byKey.has(candidate) && byKey.get(candidate) !== items[i]) {
+        candidate = `${items[i].stableKey}-${suffix++}`;
+      }
+      items[i].stableKey = candidate;
+      byKey.set(candidate, items[i]);
+    }
+  }
+
+  // Deduplicate screen names
+  const seenNames = new Map<string, number>();
+  for (const item of items) {
+    if (item.kind === "screen") {
+      const lower = item.name.toLowerCase();
+      const count = seenNames.get(lower) ?? 0;
+      if (count > 0) {
+        item.name = `${item.name} (${count + 1})`;
+      }
+      seenNames.set(lower, count + 1);
+    }
+  }
+
+  // Deduplicate state keys
+  const seenStates = new Map<string, number>();
+  for (const item of items) {
+    if (item.kind === "state" && item.parentStableKey && item.stateKey) {
+      const stateId = `${item.parentStableKey}:${item.stateKey}`;
+      const count = seenStates.get(stateId) ?? 0;
+      if (count > 0) {
+        item.stateKey = `${item.stateKey}_${count + 1}`;
+      }
+      seenStates.set(stateId, count + 1);
+    }
+  }
+
+  for (const item of items) {
+    if (item.kind === "screen" && item.parentStableKey) item.parentStableKey = null;
+
+    // Filter unbuilt dependencies instead of throwing fatal planning error
+    item.dependencyKeys = item.dependencyKeys.filter(dep => byKey.has(dep));
+
+    // Clear missing action destinations so unmapped future screens don't crash
+    for (const action of item.actions) {
+      if (action.destinationKey && !byKey.has(action.destinationKey) && !boundaryKeys.includes(action.destinationKey)) {
+        action.destinationKey = null;
+      }
+    }
+  }
+
+  // Break circular dependencies instead of throwing
+  const visiting = new Set<string>();
+  const visited = new Set(existing.map(item => item.stableKey));
+  function visit(id: string) {
+    if (visiting.has(id)) {
+      const item = byKey.get(id);
+      if (item) item.dependencyKeys = [];
+      return;
+    }
+    if (visited.has(id)) return;
+    visiting.add(id);
+    const item = byKey.get(id);
+    if (item) {
+      for (const dep of [...item.dependencyKeys, ...(item.parentStableKey ? [item.parentStableKey] : [])]) visit(dep);
+    }
+    visiting.delete(id);
+    visited.add(id);
+  }
+  items.forEach(item => visit(item.stableKey));
+  return items;
+}
+
 export function validateFunctionalPlan(items: FunctionalItem[], existing: FunctionalItem[] = [], boundaryKeys: string[] = []) {
   const byKey = new Map([...items, ...existing].map(item => [item.stableKey, item]));
   if (byKey.size !== items.length + existing.length) throw new Error("Functional items need unique stable keys.");

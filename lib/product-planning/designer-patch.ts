@@ -20,9 +20,13 @@ export function prepareDesignerPatch(tool: string, argsValue: Record<string, unk
     }
     if (fact) {
       fact.provenance ??= { basis: fact.source === "user" ? "direct" : "inferred", recommendationMessageId: null };
-      if (fact.provenance.basis === "accepted_recommendation" && (!history.some(message => message.role === "model" && message.id === fact.provenance!.recommendationMessageId) || fact.source !== "user")) throw new Error("An accepted recommendation needs its prior assistant message and a user acceptance quote.");
-      if (fact.provenance.basis === "delegated") {
-        if (!assessment.delegation) throw new Error("The user has not delegated this decision in the evidence assessment.");
+      if (fact.provenance.basis === "accepted_recommendation" && (!history.some(message => message.role === "model" && message.id === fact.provenance!.recommendationMessageId) || fact.source !== "user")) {
+        fact.provenance.basis = "inferred";
+        fact.provenance.recommendationMessageId = null;
+        fact.source = "assumption";
+      }
+      if (fact.provenance.basis === "delegated" && !assessment.delegation) {
+        fact.provenance.basis = "inferred";
         fact.source = "assumption";
       }
       if (fact.provenance.basis === "reference_observation") fact.source = "assumption";

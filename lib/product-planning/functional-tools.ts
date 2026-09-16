@@ -9,7 +9,7 @@ export const functionalTools: FunctionDeclaration[] = [
         stableKey: { ...text, description: "Stable screen:slug or state:parent:slug key. Reuse for updates." },
         kind: { type: Type.STRING, enum: ["screen", "state"] }, name: text, description: text,
         parentStableKey: { ...text, nullable: true, description: "For a state, exact stableKey of its parent screen. Null only for a screen. Include new parents and linked new outputs in this same delta." },
-        surfaceIds: { ...strings, description: "IDs of existing blueprint facts in section surfaces, NOT screen: roadmap keys. Read the IDs returned by update_product." },
+        surfaceIds: { ...strings, description: "IDs of blueprint facts in section surfaces (e.g. 'surface-main', 'surface-passenger'). If not previously declared in update_product, they are automatically registered." },
         journeyIds: { ...strings, description: "IDs of existing blueprint facts in section journeys." },
         decisionIds: { ...strings, description: "Active product fact IDs that establish this screen/state's behavior. Superseded decisions invalidate the functional item until updated." },
         dependencyKeys: { ...strings, description: "Only actual render prerequisites. Usually empty for main screens: navigation from onboarding to dashboard is NOT a generation dependency. Put navigation in actions. No cycles." },

@@ -3,7 +3,7 @@ import { createPartFromFunctionResponse, type Content, type Part } from "@google
 import { createGeminiClient } from "@/lib/ai/gemini";
 import { geminiPolicyForTask } from "@/lib/ai/model-policy";
 import { createProjectReadToolExecutor, projectReadToolDeclarations } from "@/lib/agent/project-tools";
-import { fetchProjectMessages, insertProjectMessage } from "@/lib/supabase/queries";
+import { fetchProjectMessages, insertProjectMessage, updateProjectMessage } from "@/lib/supabase/queries";
 import type { PromptImagePayload } from "@/lib/types";
 import { referenceRecoveryQuestions, validateReferencePreference } from "./reference-preference";
 import { reviewFactEvidence } from "./review-fact-evidence";
@@ -54,12 +54,56 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
       : next!;
     state = await saveProductPlanning(admin, projectId, ownerId, state!, renewed);
   };
+  let progressMessageId: string | null = null;
+  let currentProgressUserMessageId = existingUserMessageId;
+  const reportProgress = async (
+    title: string,
+    detail: string,
+    status: "thinking" | "completed" = "thinking",
+  ) => {
+    try {
+      const metadata = {
+        action: "agent_turn_progress",
+        ui: { variant: "action_card" },
+        userMessageId: currentProgressUserMessageId,
+        clientTurnId,
+        agentStep: {
+          kind: "system",
+          status,
+          title,
+          detail,
+        },
+      };
+      if (progressMessageId) {
+        await updateProjectMessage(admin, {
+          messageId: progressMessageId,
+          content: title,
+          metadata,
+        }).catch(() => undefined);
+      } else {
+        const inserted = await insertProjectMessage(admin, {
+          projectId,
+          ownerId,
+          role: "system",
+          content: title,
+          metadata,
+        }).catch(() => undefined);
+        if (inserted?.id) {
+          progressMessageId = inserted.id;
+        }
+      }
+    } catch {
+      // Observational progress updates should never interrupt or break the planning turn
+    }
+  };
   try {
     const initialMessage = history.find((message) => message.metadata.action === "product_initial_prompt");
     const previousUser = history.find((message) => message.role === "user" && message.metadata.clientTurnId === clientTurnId);
     const userMessageId = existingUserMessageId ?? (initialize ? initialMessage?.id : previousUser?.id) ?? (await insertProjectMessage(admin, {
       projectId, ownerId, role: "user", content: prompt || "[image]", metadata: { action: "agent_turn_user", clientTurnId, image: image ?? null, ...(productAnswers ? { productAnswers, productAnswerEvidence: resolvedAnswers!.confirmed } : {}) },
     })).id;
+    currentProgressUserMessageId = userMessageId;
+    await reportProgress("Reviewing product requirements", "Reviewing your product vision and user goals...");
     const conversation = [
       ...(originalPrompt ? [{ role: "user", content: originalPrompt }] : []),
       ...history.map(message => ({ role: message.role, content: productMessageContext(message) })),
@@ -104,8 +148,26 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
     const answeredKeys = [...new Set([...(state.resolvedDecisionKeys ?? []), ...resolvedDecisionKeys([
       ...history, ...(productAnswers ? [{ id: userMessageId, role: "user", metadata: { productAnswers } }] : []),
     ])])].slice(-500);
-    const assessment = await assessProductEvidence({ state, prompt: effectivePrompt, turnId: clientTurnId,
-      history: conversation, reference, resolvedDecisionKeys: answeredKeys });
+    await reportProgress("Evaluating product scope", "Checking core capabilities, actors, and constraints...");
+    const assessment = productAnswers
+      ? {
+          turnId: clientTurnId,
+          mode: (state.input.imageReferenceMode === "recreate" ? "recreate" : "product") as "product" | "recreate",
+          productReady: true,
+          experienceReady: true,
+          gaps: [],
+          recommendations: [],
+          delegation: "",
+          rationale: "User provided answers to previous product questions.",
+        }
+      : await assessProductEvidence({
+          state,
+          prompt: effectivePrompt,
+          turnId: clientTurnId,
+          history: conversation,
+          reference,
+          resolvedDecisionKeys: answeredKeys,
+        });
     await persist({ ...state, designerVersion: 2, resolvedDecisionKeys: answeredKeys, evidenceAssessment: assessment });
     const isReconstruction = state.input.imageReferenceMode === "recreate" && Boolean(state.input.imagePath);
     const productContext = isReconstruction ? reconstructionProductContext(state) : { ...state, blueprint: { facts: activeFacts(state) } };
@@ -120,13 +182,23 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
       systemInstruction: isReconstruction ? reconstructionInstructions : designerInstructions,
       tools: [{ functionDeclarations: [...designerToolDeclarations.filter(tool =>
         (tool.name !== "propose_scope" || evidenceAllowsProposal(assessment))
-        && (assessment.productReady || !["set_design_scope", "update_functional_plan"].includes(tool.name ?? ""))), ...projectReadToolDeclarations] }],
+        && (assessment.productReady || !["set_design_scope", "update_functional_plan"].includes(tool.name ?? ""))), ...(state.phase === "canvas" ? projectReadToolDeclarations : [])] }],
     });
     let reply = "";
     let attemptedProposal = false;
     const failures = new Map<string, PlanningFailure>();
     let repairRequests = 0;
     let referenceRecovery = false;
+    const toolProgressLabels: Record<string, { title: string; detail: string }> = {
+      inspect_reference: { title: "Analyzing design reference", detail: "Observing layout hierarchy and visual language..." },
+      update_product: { title: "Formulating product blueprint", detail: "Recording product capabilities and user jobs..." },
+      update_functional_plan: { title: "Structuring screens & flows", detail: "Mapping screens, navigation, and user journeys..." },
+      set_design_scope: { title: "Configuring design scope", detail: "Selecting active product surfaces to design..." },
+      propose_scope: { title: "Reviewing screen flow", detail: "Verifying journey completion and transitions..." },
+      set_reference_preference: { title: "Setting reference preference", detail: "Applying your design reference choice..." },
+      read_functional_plan: { title: "Reading project plan", detail: "Checking existing roadmap items..." },
+      read_product: { title: "Reading product specification", detail: "Checking blueprint architecture and facts..." },
+    };
     for (let round = 0; round < 8; round += 1) {
       const response = await ai.models.generateContent({ model: policy.model, config: policy.config, contents });
       const calls = response.functionCalls ?? [];
@@ -138,8 +210,15 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
           contents.push({ role: "user", parts: [{ text: "The previous tools failed. Repair the saved plan using the returned errors and current roadmap before replying. Read persisted keys; do not invent missing state identities or repeat a rejected delta unchanged. Preserve the user's requested extent. Do not ask cosmetic questions or claim approval succeeded." }] });
           continue;
         }
+        await reportProgress("Composing recommendations", "Preparing design direction and questions...");
         reply = response.text?.trim() ?? ""; break;
       }
+      const primaryCall = calls.find(call => toolProgressLabels[call.name ?? ""]) ?? calls[0];
+      const progressInfo = toolProgressLabels[primaryCall?.name ?? ""] ?? {
+        title: "Refining product plan",
+        detail: "Updating product specifications...",
+      };
+      await reportProgress(progressInfo.title, progressInfo.detail);
       const content = response.candidates?.[0]?.content;
       if (content) contents.push(content);
       const responses: Part[] = [];
@@ -178,9 +257,6 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
                 imageReferenceMode: state.input.imagePath ? state.input.imageReferenceMode : "style" },
               scope: state.scope ? { ...state.scope, status: "draft" } : null });
             result = { ok: true, experience: inspected.experience };
-            if (inspected.image) {
-              responses.push({ inlineData: { data: inspected.image.data, mimeType: inspected.image.mimeType } });
-            }
           } else if (call.name === "propose_scope") {
             if (!evidenceAllowsProposal(state.evidenceAssessment)) throw new Error("Discuss the evidence assessment's unresolved questions with the user first.");
             if (!state.experience) throw new Error("Inspect a reference and establish an experience direction before proposing designs.");
@@ -235,10 +311,14 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
       productScopeProposal: state.scope?.status === "proposed" ? { scope: state.scope, revision: state.revision, surfaces: activeFacts(state, "surfaces") } : null,
     } });
     await persist({ ...state, initialTurnComplete: true, lease: null });
+    await reportProgress("Product design ready", reply, "completed");
     if (enqueueMemory) await persistProjectMessageMemoryPair({ admin, userMessageId, userContent: effectivePrompt, modelMessageId: modelMessage.id, modelContent: productMessageContext({ content: reply, metadata: { productQuestions: questions } }) })
       .catch((error) => console.error("Could not enqueue product conversation memory", error));
     return { intent: "product_planning", message: reply };
   } finally {
+    if (progressMessageId) {
+      await reportProgress("Turn complete", "", "completed").catch(() => undefined);
+    }
     if (state.lease?.id === clientTurnId) await persist({ ...state, lease: null }).catch(() => undefined);
   }
 }
