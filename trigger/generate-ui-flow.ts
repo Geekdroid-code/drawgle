@@ -2641,7 +2641,14 @@ export const generateUiFlowTask = task({
       await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
     }
     if (!preparedPlan && payload.productPlanning && referenceMode !== "user_recreate") {
-      plan.screens = await reviewScreenContent(plan.screens, compileProductContent(payload.productPlanning)!);
+      try {
+        const contentContract = compileProductContent(payload.productPlanning);
+        if (contentContract) {
+          plan.screens = await reviewScreenContent(plan.screens, contentContract);
+        }
+      } catch (error) {
+        logger.warn("Screen content review skipped; proceeding with planned briefs", { error });
+      }
     }
     if (!preparedPlan && preparationRootId && preparationKey) {
       await savePreparedPlan(admin, preparationRootId, payload.ownerId, payload.productAttempt ?? 0, preparationKey, {
@@ -3082,7 +3089,12 @@ export const generateUiFlowTask = task({
             referenceDna: plan.charter.referenceDna, screenFamilyContract: plan.screenFamilyContract,
             projectContext: planningContext, existingCharter: plan.charter, existingNavigationPlan: plan.navigationPlan,
             planningMode: "project", llmLog: llmLogFor("lookahead") });
-          if (referenceMode !== "user_recreate") nextPlan.screens = await reviewScreenContent(nextPlan.screens, compileProductContent(payload.productPlanning)!);
+          if (referenceMode !== "user_recreate") {
+            const contentContract = compileProductContent(payload.productPlanning);
+            if (contentContract) {
+              nextPlan.screens = await reviewScreenContent(nextPlan.screens, contentContract);
+            }
+          }
           await savePreparedPlan(admin, preparationRootId, payload.ownerId, payload.productAttempt ?? 0, key, nextPlan);
         })().catch(error => logger.warn("Prepared briefs unavailable; next batch will plan normally", { error })) : Promise.resolve();
 

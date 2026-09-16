@@ -77,6 +77,9 @@ describe("audience and evidence boundaries", () => {
     expect(applyScreenCopyReview(screens, { edits: [{ screenName: "Today", from: "COMMIT PROTOCOL", to: "Add habit" }] })[0].description).toBe("CONTENT: Add habit. LAYOUT: glass cards.");
     expect(screens[0].description).toContain("COMMIT PROTOCOL");
     expect(() => applyScreenCopyReview(screens, { edits: [{ screenName: "Missing", from: "x", to: "y" }] })).toThrow(/outside/);
+    expect(applyScreenCopyReview(screens, { edits: [{ screenName: "Missing", from: "x", to: "y" }] }, false)).toEqual(screens);
+    expect(applyScreenCopyReview(screens, { edits: [{ screenName: "Today", from: "NONEXISTENT", to: "y" }] }, false)).toEqual(screens);
+    expect(applyScreenCopyReview(screens, { edits: [{ screenName: "today ", from: "COMMIT PROTOCOL", to: "Add habit" }] }, false)[0].description).toBe("CONTENT: Add habit. LAYOUT: glass cards.");
   });
   it("invalidates prepared briefs when approval, pixels, content or shared context changes", () => {
     const state = designerFixture(); const key = preparedPlanKey(state, ["screen:onboarding"], { tokens: 1, nav: 2 });
