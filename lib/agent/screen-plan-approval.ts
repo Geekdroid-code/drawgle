@@ -184,6 +184,8 @@ export async function approveScreenPlanProposal({
         stateVariants: selectedStateVariants,
         selectedStateVariantIds: selectedVariantIds,
         screenPlanningSeeds: [proposal.planningSeed],
+        productContextSnapshot: proposal.productContextSnapshot ?? null,
+        productContent: proposal.productContent ?? null,
       } as never,
       created_at: now(),
       updated_at: now(),
@@ -264,6 +266,8 @@ export async function approveScreenPlanProposal({
       baseState: proposal.baseState ?? null,
       stateVariants: selectedStateVariants,
       approvalUserMessageId: userMessageId,
+      productContextSnapshot: proposal.productContextSnapshot ?? null,
+      productContent: proposal.productContent ?? null,
     },
     {
       concurrencyKey: ownerId,

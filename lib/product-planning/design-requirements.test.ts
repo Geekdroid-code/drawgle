@@ -74,4 +74,28 @@ describe("design-requirements", () => {
     const key2 = preparedPlanKey(withReq, ["screen:onboarding"], null);
     expect(key1).not.toBe(key2);
   });
+
+  it("suppresses design requirements when referenceMode is user_recreate even if project state is style", () => {
+    const base = productFixture();
+    base.input.imageReferenceMode = "style";
+    const withReq = applyProductPatch(base, {
+      operations: [
+        {
+          op: "put_fact",
+          fact: {
+            id: "cream-pref",
+            section: "preferences",
+            label: "Palette",
+            detail: "Cream background",
+            source: "user",
+            evidence: "cream background",
+            links: [],
+          },
+        },
+      ],
+    }, messageId);
+
+    expect(compileDesignRequirements(withReq)).toContain("Cream background");
+    expect(compileDesignRequirements(withReq, "user_recreate")).toBeNull();
+  });
 });

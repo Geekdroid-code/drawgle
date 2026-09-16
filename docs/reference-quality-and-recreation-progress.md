@@ -152,5 +152,53 @@ All 8 findings from the Codex audit (`docs/reference-quality-and-recreation-audi
    - Executed: `npx vitest run lib/generation/`
    - Result: **24 test files passed, 156 tests passed (100% pass rate)**.
 
-All phases and audit remediation items from `docs/reference-quality-and-recreation-plan.md` and `docs/reference-quality-and-recreation-audit.md` are implemented, verified, and cross-checked against the repository.
+---
+
+## Phase 7 — Continuation Review Fixes (All 6 Gaps Resolved)
+
+Following the independent continuation review (`docs/reference-quality-continuation-review.md`), all 6 remaining gaps have been completely resolved and verified:
+
+1. **Gap 1 (P1 — Normal Canvas Chat Reference Policy & Snapshot Bypass)**:
+   - Updated `app/api/agent/route.ts` to use `findLatestProjectReference()` instead of legacy `findLatestProjectPromptImagePath()`.
+   - Connected `no_reference` opt-out and `curated_evidence` preservation to the canvas chat suggestion path, preventing resurrection of discarded references.
+   - Attached `productContextSnapshot` and compiled `productContent` to `proposalMetadata`.
+   - Updated `ScreenPlanProposalMetadata` and `readScreenPlanProposal` in `lib/agent/message-metadata.ts` to deserialize snapshot fields.
+   - Updated `lib/agent/screen-plan-approval.ts` to record snapshots in generation run metadata and forward them to the worker payload and retries.
+   - Verified with unit tests in `lib/generation/prompt-reference-storage.test.ts`.
+
+2. **Gap 2 (P1 — Corrected Tokens Not Persisted to Canvas)**:
+   - In `trigger/generate-ui-flow.ts`, the existing-tokens branch now persists reconciled token edits to `projects.design_tokens` via `updateProject()`, ensuring that live canvas and export CSS immediately render reconciled tokens.
+   - Run metadata snapshots (`mergeGenerationRunMetadata`) are consistently updated in both branches.
+
+3. **Gap 3 (P1 — Existing-Project Recreation Receiving Adaptive Product Requirements)**:
+   - In `trigger/generate-ui-flow.ts`, enforced source-only behavior at every mutation boundary when `referenceMode === "user_recreate"`:
+     - `compileDesignRequirements` explicitly returns `null` for `user_recreate`.
+     - `productPlanning.input.imageReferenceMode` is overridden to `"recreate"` in the worker.
+     - `reconcileTokensWithDesignRequirements` is bypassed for `user_recreate`.
+     - `groundCharterInProduct` is bypassed for `user_recreate`.
+   - Verified with unit test in `lib/product-planning/design-requirements.test.ts`.
+
+4. **Gap 4 (P2 — Dedicated Reconstruction Module Wire-Up)**:
+   - Wired `reconstructionInstructions` and `reconstructionProductContext` into `lib/product-planning/designer.ts`.
+   - When in recreation mode (`imageReferenceMode === "recreate"` with image present), the designer uses `reconstructionInstructions` as `systemInstruction` and restricts blueprint facts to `reconstructionProductContext` (identity, surfaces, journeys only).
+   - Verified with unit test in `lib/product-planning/designer.test.ts` (`recreation uses the reconstruction-only runtime`).
+
+5. **Gap 5 (P1 — New Recreation Source Losing Explicit Request Downstream)**:
+   - In `lib/product-planning/designer.ts`, uploading a new recreation image captures `recreationRequest: prompt` without overwriting or polluting `originalRequest`.
+   - Recreation follow-up turns append to `recreationChanges` with idempotent `messageId` tracking.
+   - Updated `scopedGenerationPrompt()` in `lib/product-planning/generation-context.ts` to prioritize `recreationRequest` and `recreationChanges`.
+   - Updated `inspectProductReference()` in `lib/product-planning/inspect-reference.ts` to consume `recreationRequest` and `recreationChanges`.
+   - Verified with unit test in `lib/product-planning/designer.test.ts` (`a new source preserves its actual recreation request downstream`).
+
+6. **Gap 6 (P2 — Recreation Retries/Batches Discarding Same-Source Tokens)**:
+   - In `trigger/generate-ui-flow.ts`, newly generated recreation tokens are stamped with `meta.sourceHash = currentSourceHash`.
+   - Same-source recreation batches and retries verify `meta.sourceHash === currentSourceHash` and reuse existing tokens instead of nullifying them.
+   - Different sources or un-stamped project tokens trigger fresh extraction without overwriting unrelated screens.
+   - Verified with unit tests in `lib/generation/token-persistence.test.ts`.
+
+### Final Verification Results
+- **`pnpm run check`**: Passed (curated style index 56 references, ESLint clean, TypeScript clean).
+- **`npx vitest run --exclude lib/canvas-camera.test.ts`**: **81 test files passed, 486 tests passed (100% pass rate)**.
+- **`pnpm run test:canvas`**: **7/7 Node camera tests + 6/6 Vitest canvas tests passed**.
+- **`pnpm run build`**: **Compiled successfully in 14.8s; all 58 static and dynamic routes generated cleanly**.
 

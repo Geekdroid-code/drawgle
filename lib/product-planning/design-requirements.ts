@@ -12,7 +12,8 @@ export function designRequirementsKey(state: ProductPlanning) {
   return JSON.stringify(explicitDesignRequirements(state).sort((a, b) => a.id.localeCompare(b.id)));
 }
 
-export function compileDesignRequirements(state?: ProductPlanning | null): string | null {
+export function compileDesignRequirements(state?: ProductPlanning | null, referenceMode?: string): string | null {
+  if (referenceMode === "user_recreate") return null;
   if (!state || (state.input.imageReferenceMode === "recreate" && state.input.imagePath)) return null;
   const requirements = explicitDesignRequirements(state);
   if (!requirements.length) return null;

@@ -1,6 +1,7 @@
 import { isMeaningfulStateVariantForContext } from "@/lib/agent/state-variant-guardrails";
 import { isGenerationReferencePolicy } from "@/lib/generation/reference-policy";
 import type { GenerationReferencePolicy, ImageReferenceMode, NavigationArchitecture, NavigationPlan, ScreenBaseStatePlan, ScreenPlan, ScreenPlanningSeed, ScreenStateVariantPlan } from "@/lib/types";
+import { readProductPlanning, type ProductPlanning } from "@/lib/product-planning/model";
 
 export type AgentStepStatus = "queued" | "thinking" | "editing" | "completed" | "failed";
 
@@ -67,6 +68,8 @@ export type ScreenPlanProposalMetadata = {
   imagePath?: string | null;
   imageReferenceMode?: ImageReferenceMode | null;
   referencePolicy?: GenerationReferencePolicy | null;
+  productContextSnapshot?: ProductPlanning | null;
+  productContent?: string | null;
   baseState?: ScreenBaseStatePlan | null;
   stateVariants?: ScreenStateVariantPlan[];
   selectedStateVariantIds?: string[];
@@ -294,6 +297,8 @@ export function readScreenPlanProposal(metadata: Record<string, unknown>): Scree
     imagePath: asString(proposal.imagePath),
     imageReferenceMode: asImageReferenceMode(proposal.imageReferenceMode),
     referencePolicy: asGenerationReferencePolicy(proposal.referencePolicy),
+    productContextSnapshot: readProductPlanning(proposalRecord.productContextSnapshot),
+    productContent: asString(proposalRecord.productContent),
     baseState: asBaseState(proposal.baseState),
     stateVariants: asStateVariants(proposal.stateVariants, { prompt, screenPlan: proposal.screenPlan }),
     selectedStateVariantIds: asStringArray(proposal.selectedStateVariantIds) ?? [],

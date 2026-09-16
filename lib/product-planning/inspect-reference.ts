@@ -169,10 +169,16 @@ export async function inspectProductReference(admin: PlanningStore, ownerId: str
   }
 
   const referenceHash = createHash("sha256").update(image.data).digest("hex");
+  const recreationFullRequest = recreation
+    ? [
+        state.input.recreationRequest || state.input.originalRequest || request,
+        ...(state.input.recreationChanges ?? []).map(c => `Subsequent user request: ${c.request}`),
+      ].filter(Boolean).join("\n\n")
+    : request;
   const response = await createGeminiClient().models.generateContent({
     model: policy.model, config: policy.config, contents: [{
       role: "user", parts: [
-        { text: JSON.stringify({ facts: recreation ? [] : activeFacts(state), explicitRequirements: recreation ? [] : explicitReqs, scope: recreation ? state.scope?.manifest : state.scope, request: recreation ? state.input.originalRequest || request : request, mode: state.input.imageReferenceMode, referenceSource: referenceId ? "curated" : planningReferenceContext(state).source }) },
+        { text: JSON.stringify({ facts: recreation ? [] : activeFacts(state), explicitRequirements: recreation ? [] : explicitReqs, scope: recreation ? state.scope?.manifest : state.scope, request: recreationFullRequest, mode: state.input.imageReferenceMode, referenceSource: referenceId ? "curated" : planningReferenceContext(state).source }) },
         { inlineData: { data: image.data, mimeType: image.mimeType } },
       ],
     }],

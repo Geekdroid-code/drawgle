@@ -23,11 +23,13 @@ import { applyDeterministicEdits, ensureDrawgleIds, type DeterministicEditOperat
 import { indexScreenCode } from "@/lib/generation/block-index";
 import { persistProjectMessageMemoryPair } from "@/lib/generation/message-memory";
 import { findRepairTarget } from "@/lib/generation/screen-repair";
-import { findLatestProjectPromptImagePath } from "@/lib/generation/prompt-reference-storage";
+import { findLatestProjectReference } from "@/lib/generation/prompt-reference-storage";
+import { productReferenceExecution } from "@/lib/product-planning/reference-execution";
+import { compileProductContent } from "@/lib/product-planning/content-contract";
 import { resolveGenerationReferencePolicy } from "@/lib/generation/reference-policy";
 import { createNavigationArchitecture } from "@/lib/navigation";
 import { resolveProjectReferenceDna, selectProjectReferenceImagePath } from "@/lib/generation/reference-dna";
-import { readScreenPlanProposal, readScreenStateProposal, type AgentStepMetadata } from "@/lib/agent/message-metadata";
+import { readScreenPlanProposal, readScreenStateProposal, type AgentStepMetadata, type ScreenPlanProposalMetadata } from "@/lib/agent/message-metadata";
 import { approveScreenPlanProposal, ScreenPlanApprovalError } from "@/lib/agent/screen-plan-approval";
 import { findExactPlannedStateCandidate } from "@/lib/agent/screen-state-proposal";
 import { classifyHistoryNeed, HISTORY_LIMITS } from "@/lib/agent/history-policy";
@@ -40,6 +42,7 @@ import { storeUserImageAssetFromRemoteUrl } from "@/lib/user-image-assets";
 import {
   ACTIVE_GENERATION_STATUSES,
   type DesignTokens,
+  type GenerationReferencePolicy,
   type GenerationStatus,
   type ImageReferenceMode,
   type NavigationPlan,
@@ -1738,13 +1741,41 @@ export async function POST(request: Request) {
         ownerId: user.id,
         image: payload.image ?? null,
       });
-      const inheritedImagePath = projectCharter?.referenceDna?.sourceImagePath
-        ?? await findLatestProjectPromptImagePath({
+
+      let imagePath: string | null = uploadedImagePath;
+      let referencePolicy: GenerationReferencePolicy = uploadedImagePath ? "user_upload" : "project_memory";
+      let effectiveImageReferenceMode: ImageReferenceMode = payload.image ? payload.imageReferenceMode : "style";
+
+      if (!uploadedImagePath && productPlanning?.input.referencePreference?.mode === "none") {
+        referencePolicy = "no_reference";
+        imagePath = null;
+        effectiveImageReferenceMode = "style";
+      } else if (!uploadedImagePath && productPlanning?.input.imagePath) {
+        const inherited = productReferenceExecution(productPlanning);
+        referencePolicy = inherited.source === "curated" ? "curated_evidence" : "project_reference";
+        imagePath = inherited.imagePath;
+        effectiveImageReferenceMode = "style";
+      } else if (!uploadedImagePath) {
+        const inherited = await findLatestProjectReference({
           admin,
           projectId: payload.projectId,
           ownerId: user.id,
         });
-      const imagePath = uploadedImagePath ?? inheritedImagePath;
+        imagePath = inherited?.imagePath ?? null;
+        if (inherited) {
+          referencePolicy = inherited.policy;
+          effectiveImageReferenceMode = "style";
+        }
+      }
+
+      referencePolicy = resolveGenerationReferencePolicy({
+        hasCurrentUserImage: Boolean(payload.image),
+        hasProjectReferenceImage: referencePolicy === "project_reference" && Boolean(imagePath),
+        hasExplicitStyle: false,
+        isExistingProject: true,
+        requestedPolicy: referencePolicy,
+      });
+
       const suggestionName = inferSuggestionName(routerDecision.screenSuggestion?.name, generationPrompt);
       const suggestionSummary = conciseSuggestionSummary(routerDecision.screenSuggestion?.role, generationPrompt);
       const suggestionType = inferSuggestionType(suggestionName, routerDecision.screenSuggestion?.role);
@@ -1780,18 +1811,7 @@ export async function POST(request: Request) {
         visualBrief: "No shared navigation is required.",
         screenChrome: [{ screenName: suggestionName, chrome: navigationArchitecture.detailChrome, navigationItemId: null }],
       };
-      const referencePolicy = resolveGenerationReferencePolicy({
-        hasCurrentUserImage: Boolean(payload.image),
-        hasProjectReferenceImage: Boolean(inheritedImagePath),
-        hasExplicitStyle: false,
-        isExistingProject: true,
-      });
-      const effectiveImageReferenceMode: ImageReferenceMode = payload.image
-        ? payload.imageReferenceMode
-        : inheritedImagePath
-          ? "style"
-          : payload.imageReferenceMode;
-      const proposalMetadata = {
+      const proposalMetadata: ScreenPlanProposalMetadata = {
         prompt: generationPrompt,
         screenPlan,
         planningSeed,
@@ -1801,6 +1821,8 @@ export async function POST(request: Request) {
         imagePath,
         imageReferenceMode: effectiveImageReferenceMode,
         referencePolicy,
+        productContextSnapshot: productPlanning,
+        productContent: compileProductContent(productPlanning),
         baseState,
         stateVariants,
         selectedStateVariantIds,

@@ -2001,25 +2001,45 @@ export const generateUiFlowTask = task({
       .maybeSingle();
     const exactRecreation = Boolean(payload.imagePath && payload.imageReferenceMode === "recreate" && payload.referencePolicy !== "curated_evidence" && payload.referencePolicy !== "no_reference");
     const existingCharter = exactRecreation ? null : (existingProject?.project_charter as ProjectCharter | null) ?? null;
-    const productPlanning = payload.productPlanning ?? payload.productContextSnapshot ?? readProductPlanning(existingProject?.product_planning);
+    let productPlanning = payload.productPlanning ?? payload.productContextSnapshot ?? readProductPlanning(existingProject?.product_planning);
     if (payload.productPlanning?.scope?.status === "approved") {
       payload.imageReferenceMode = payload.productPlanning.input.imageReferenceMode;
       const approvedReference = productReferenceExecution(payload.productPlanning);
       payload.imagePath = approvedReference.imagePath;
       payload.referencePolicy = approvedReference.policy;
     }
+    if (exactRecreation && productPlanning) {
+      productPlanning = {
+        ...productPlanning,
+        input: {
+          ...productPlanning.input,
+          imageReferenceMode: "recreate",
+          imagePath: payload.imagePath ?? productPlanning.input.imagePath,
+        },
+      };
+    }
+    const projectTokens = existingProject?.design_tokens as DesignTokens | null | undefined;
+    const candidateTokens = designTokens ?? projectTokens ?? null;
+    const currentSourceHash = productPlanning?.experience?.referenceHash
+      ?? (payload.imagePath ? createHash("sha256").update(payload.imagePath).digest("hex") : null);
+
+    const isSameSourceTokens = Boolean(
+      exactRecreation
+      && currentSourceHash
+      && (candidateTokens as any)?.meta?.sourceHash === currentSourceHash
+    );
+
     if (exactRecreation) {
-      // Supplied sources own their visual system, including coordinator batches.
-      designTokens = null;
+      // Supplied sources own their visual system. Reuse tokens only if already extracted from the same source hash.
+      designTokens = isSameSourceTokens ? candidateTokens : null;
       payload.projectCharter = null;
       payload.navigationArchitecture = null;
       payload.navigationPlan = null;
       payload.requiresBottomNav = false;
+    } else if (!designTokens && projectTokens) {
+      designTokens = projectTokens;
     }
     const projectReferenceDna = resolveProjectReferenceDna(payload.projectCharter ?? existingCharter)?.dna ?? null;
-    if (!exactRecreation && !designTokens && existingProject?.design_tokens) {
-      designTokens = existingProject.design_tokens as DesignTokens;
-    }
     const requestedNavigationArchitecture = createNavigationArchitecture({
       navigationArchitecture: payload.navigationArchitecture ?? payload.projectCharter?.navigationArchitecture ?? existingCharter?.navigationArchitecture ?? null,
       requiresBottomNav: payload.requiresBottomNav ?? deriveRequiresBottomNav(existingCharter?.navigationArchitecture),
@@ -2184,6 +2204,16 @@ export const generateUiFlowTask = task({
         referenceCatalogHash = curatedImage ? match.catalogHash : null;
       }
     }
+    if (referenceMode === "user_recreate" && productPlanning) {
+      productPlanning = {
+        ...productPlanning,
+        input: {
+          ...productPlanning.input,
+          imageReferenceMode: "recreate",
+          imagePath: payload.imagePath ?? productPlanning.input.imagePath,
+        },
+      };
+    }
     const planningContextResult = await planningContextPromise;
     const planningContext = planningContextResult.value;
     await mergeGenerationPerformance(admin, payload.generationRunId, {
@@ -2344,11 +2374,21 @@ export const generateUiFlowTask = task({
         referenceId,
         designStyle,
         referenceAnalysis,
-        designRequirements: compileDesignRequirements(productPlanning),
+        designRequirements: referenceMode === "user_recreate" ? null : compileDesignRequirements(productPlanning, referenceMode),
         llmLog: llmLogFor("design"),
       });
 
-      if (productPlanning) {
+      if (exactRecreation && currentSourceHash) {
+        designTokens = {
+          ...designTokens,
+          meta: {
+            ...designTokens.meta,
+            sourceHash: currentSourceHash,
+          },
+        };
+      }
+
+      if (productPlanning && referenceMode !== "user_recreate") {
         designTokens = await reconcileTokensWithDesignRequirements(designTokens, productPlanning);
       }
 
@@ -2376,9 +2416,18 @@ export const generateUiFlowTask = task({
       setJournalPhase(generationJournal, "design", "completed", "Design tokens are ready for the build.");
       await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
     } else {
-      if (productPlanning && designTokens) {
-        designTokens = await reconcileTokensWithDesignRequirements(designTokens, productPlanning);
+      if (productPlanning && designTokens && referenceMode !== "user_recreate") {
+        const reconciled = await reconcileTokensWithDesignRequirements(designTokens, productPlanning);
+        if (reconciled !== designTokens) {
+          designTokens = reconciled;
+          await updateProject(admin, payload.projectId, {
+            design_tokens: designTokens as never,
+          });
+        }
       }
+      await mergeGenerationRunMetadata(admin, payload.generationRunId, {
+        designTokenSnapshot: designTokens,
+      });
       setJournalPhase(generationJournal, "design", "completed", "Using the approved project design tokens.");
       await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
     }
@@ -2830,7 +2879,7 @@ export const generateUiFlowTask = task({
     }
 
     if (plan.charter) {
-      plan.charter = groundCharterInProduct(plan.charter, productPlanning);
+      plan.charter = referenceMode === "user_recreate" ? plan.charter : groundCharterInProduct(plan.charter, productPlanning);
       await updateProject(admin, payload.projectId, {
         project_charter: plan.charter as never,
       });

@@ -21,6 +21,7 @@ import { normalizePlanningInput, planningReferenceContext } from "./reference-co
 import { evidenceAllowsProposal } from "./evidence";
 import { inspectProductReference } from "./inspect-reference";
 import { readFunctionalRoadmap, updateFunctionalRoadmap, snapshotFunctionalScope } from "./functional-store";
+import { reconstructionInstructions, reconstructionProductContext } from "./reconstruction";
 
 export async function runProductDesigner({ admin, projectId, ownerId, prompt, originalPrompt, image, imageReferenceMode = "style", clientTurnId, productAnswers, initialize = false, existingUserMessageId, onTrace, enqueueMemory = true }: {
   admin: PlanningStore; projectId: string; ownerId: string; prompt: string; originalPrompt?: string;
@@ -65,9 +66,16 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
     ];
     const effectivePrompt = initialize ? initialMessage?.content ?? prompt : prompt;
     const originalRequest = state.input.originalRequest ?? initialMessage?.content ?? originalPrompt ?? effectivePrompt;
-    const recreationChange = !initialize && !productAnswers && state.input.imageReferenceMode === "recreate" && effectivePrompt.trim()
-      ? `\n\nSubsequent user request: ${effectivePrompt}` : "";
-    if (!state.input.originalRequest || recreationChange) await persist({ ...state, input: { ...state.input, originalRequest: (originalRequest + recreationChange).slice(-30000) } });
+    if (!state.input.originalRequest) {
+      await persist({ ...state, input: { ...state.input, originalRequest: originalRequest.slice(0, 30000) } });
+    }
+    if (!initialize && !productAnswers && !image && state.input.imageReferenceMode === "recreate" && effectivePrompt.trim()) {
+      const existingChanges = state.input.recreationChanges ?? [];
+      if (!existingChanges.some(change => change.messageId === userMessageId)) {
+        const nextChanges = [...existingChanges, { messageId: userMessageId, request: effectivePrompt }].slice(-100);
+        await persist({ ...state, input: { ...state.input, recreationChanges: nextChanges } });
+      }
+    }
     // Resolve the server-owned recovery choice only after history/revision validation.
     const recoveryMessage = productAnswers && history.find(message => message.id === productAnswers.messageId);
     if (recoveryMessage?.metadata.referenceRecovery === true && productAnswers?.answers[0]?.kind === "choice" && productAnswers.answers[0].index === 2) {
@@ -75,7 +83,21 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
     }
     if (image) {
       const imagePath = await storePlanningReference(admin, ownerId, image, imageReferenceMode);
-      await persist({ ...state, contentRevision: (state.contentRevision ?? 0) + 1, experience: null, input: { ...state.input, imagePath, referenceSource: "user", imageReferenceMode, stylePresetSlug: null, referencePreference: undefined }, scope: state.scope ? { ...state.scope, status: "draft" } : null });
+      await persist({
+        ...state,
+        contentRevision: (state.contentRevision ?? 0) + 1,
+        experience: null,
+        input: {
+          ...state.input,
+          imagePath,
+          referenceSource: "user",
+          imageReferenceMode,
+          stylePresetSlug: null,
+          referencePreference: undefined,
+          ...(imageReferenceMode === "recreate" ? { recreationRequest: prompt || effectivePrompt, recreationChanges: [] } : {}),
+        },
+        scope: state.scope ? { ...state.scope, status: "draft" } : null,
+      });
     }
     const reference = image ?? await loadPlanningReference(admin, state.input.imagePath, ownerId);
     if (state.input.imagePath && !reference) throw new Error("The saved reference could not be loaded. Retry or replace it using the image controls.");
@@ -85,15 +107,17 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
     const assessment = await assessProductEvidence({ state, prompt: effectivePrompt, turnId: clientTurnId,
       history: conversation, reference, resolvedDecisionKeys: answeredKeys });
     await persist({ ...state, designerVersion: 2, resolvedDecisionKeys: answeredKeys, evidenceAssessment: assessment });
+    const isReconstruction = state.input.imageReferenceMode === "recreate" && Boolean(state.input.imagePath);
+    const productContext = isReconstruction ? reconstructionProductContext(state) : { ...state, blueprint: { facts: activeFacts(state) } };
     const contents: Content[] = [{ role: "user", parts: [
-      { text: JSON.stringify({ originalUserRequest: originalPrompt, referenceContext: planningReferenceContext(state), currentProduct: { ...state, blueprint: { facts: activeFacts(state) } }, history: history.map((message) => ({ id: message.id, role: message.role, content: productMessageContext(message).slice(0, 6000) })), userMessage: effectivePrompt }) },
+      { text: JSON.stringify({ originalUserRequest: isReconstruction ? (state.input.recreationRequest || originalPrompt) : originalPrompt, referenceContext: planningReferenceContext(state), currentProduct: productContext, history: history.map((message) => ({ id: message.id, role: message.role, content: productMessageContext(message).slice(0, 6000) })), userMessage: effectivePrompt }) },
       { text: `Independent evidence assessment: ${JSON.stringify(assessment)}. These user-dependent gaps cannot be resolved by inventing facts this turn. The chat automatically renders the questions and choices as optional interactive cards. Do not repeat them or add prose questions. Update known product truth first. Save useful designer-owned recommendations as tentative preference facts, superseding any earlier conflicting recommendation; never treat them as user-confirmed or ask for cosmetic decisions. Do not present a final screen list or claim readiness while gaps remain.` },
       ...(reference ? [{ inlineData: { data: reference.data, mimeType: reference.mimeType } }] : []),
     ] }];
     const executeRead = createProjectReadToolExecutor({ admin, projectId, ownerId });
     const ai = createGeminiClient();
     const policy = geminiPolicyForTask("project_planning", {
-      systemInstruction: designerInstructions,
+      systemInstruction: isReconstruction ? reconstructionInstructions : designerInstructions,
       tools: [{ functionDeclarations: [...designerToolDeclarations.filter(tool =>
         (tool.name !== "propose_scope" || evidenceAllowsProposal(assessment))
         && (assessment.productReady || !["set_design_scope", "update_functional_plan"].includes(tool.name ?? ""))), ...projectReadToolDeclarations] }],

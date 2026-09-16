@@ -260,5 +260,21 @@ describe("product designer tool loop", () => {
     expect(mocks.state!.input.referencePreference).toBeUndefined();
     expect(mocks.state!.input.imageReferenceMode).toBe("recreate");
   });
-
+  it("recreation uses the reconstruction-only runtime", async () => {
+    const { reconstructionInstructions } = await import("./reconstruction");
+    mocks.state!.input.imagePath = "owner/prompt-images/source.webp";
+    mocks.state!.input.imageReferenceMode = "recreate";
+    mocks.loadReference.mockResolvedValue({ data: "pixels", mimeType: "image/webp" });
+    await runProductDesigner({ ...options, initialize: false, prompt: "Recreate both visible frames exactly." });
+    expect(mocks.generate.mock.calls[0][0].config.systemInstruction).toBe(reconstructionInstructions);
+  });
+  it("a new source preserves its actual recreation request downstream", async () => {
+    const { scopedGenerationPrompt } = await import("./generation-context");
+    mocks.state = productFixture();
+    mocks.state.input.originalRequest = "Build a shopping app.";
+    mocks.state.input.imageReferenceMode = "style";
+    const request = "Recreate this timer screenshot exactly, changing only its title to Focus.";
+    await runProductDesigner({ ...options, initialize: false, prompt: request, image: { data: "new-source", mimeType: "image/png" }, imageReferenceMode: "recreate" });
+    expect(scopedGenerationPrompt(mocks.state!)).toContain(request);
+  });
 });

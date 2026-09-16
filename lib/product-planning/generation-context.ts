@@ -21,7 +21,10 @@ export function formatProductTruth(state: ProductPlanning, includeScope = false)
 export function scopedGenerationPrompt(state: ProductPlanning, executionKeys?: string[]) {
   if (!state.scope) throw new Error("No design scope exists.");
   if (state.input.imageReferenceMode === "recreate" && state.input.imagePath) {
-    return [state.input.originalRequest || state.scope.goal,
+    const recreationBase = state.input.recreationRequest || state.input.originalRequest || state.scope.goal;
+    const changes = (state.input.recreationChanges ?? []).map(c => `Subsequent user request: ${c.request}`).join("\n\n");
+    const recreationPrompt = [recreationBase, changes].filter(Boolean).join("\n\n");
+    return [recreationPrompt,
       "Recreate only these supplied frames in this execution batch. Preserve their source indices:",
       outputPrompt(scopeParents(state, executionKeys)),
     ].join("\n\n");
