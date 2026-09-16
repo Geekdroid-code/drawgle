@@ -5,7 +5,8 @@ type ExportRuntimeCssOptions = {
 export function buildDrawgleTailwindConfigScript(): string {
   return `
     <script>
-      tailwind.config = {
+      window.tailwind = window.tailwind || {};
+      window.tailwind.config = {
         theme: {
           extend: {
             fontFamily: {

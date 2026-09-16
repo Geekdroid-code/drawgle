@@ -6,10 +6,9 @@ import { geminiPolicyForTask } from "@/lib/ai/model-policy";
 import type { ScreenPlan } from "@/lib/types";
 
 const editsSchema = z.object({ edits: z.array(z.object({ screenName: z.string(), from: z.string().min(1).max(1200), to: z.string().min(1).max(1200) })).max(40) });
-export function applyScreenCopyReview(screens: ScreenPlan[], value: unknown, strict = true) {
+export function applyScreenCopyReview(screens: ScreenPlan[], value: unknown, _strict = false) {
   const parsed = editsSchema.safeParse(value);
   if (!parsed.success) {
-    if (strict) throw parsed.error;
     return screens;
   }
   const { edits } = parsed.data;
@@ -17,7 +16,6 @@ export function applyScreenCopyReview(screens: ScreenPlan[], value: unknown, str
   for (const edit of edits) {
     const screen = next.find(s => s.name === edit.screenName || s.name.trim().toLowerCase() === edit.screenName.trim().toLowerCase());
     if (!screen) {
-      if (strict) throw new Error("Copy review referred to text outside the planned screen brief.");
       continue;
     }
     if (screen.description.includes(edit.from)) {
@@ -33,7 +31,6 @@ export function applyScreenCopyReview(screens: ScreenPlan[], value: unknown, str
       screen.description = screen.description.slice(0, idx) + edit.to + screen.description.slice(idx + edit.from.length);
       continue;
     }
-    if (strict) throw new Error("Copy review referred to text outside the planned screen brief.");
   }
   return next;
 }

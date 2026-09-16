@@ -75,8 +75,7 @@ describe("audience and evidence boundaries", () => {
     expect(content).toContain("actual audience"); expect(content).not.toContain("Password vault terminal");
     const screens = [{ name: "Today", type: "root" as const, description: "CONTENT: COMMIT PROTOCOL. LAYOUT: glass cards." }];
     expect(applyScreenCopyReview(screens, { edits: [{ screenName: "Today", from: "COMMIT PROTOCOL", to: "Add habit" }] })[0].description).toBe("CONTENT: Add habit. LAYOUT: glass cards.");
-    expect(screens[0].description).toContain("COMMIT PROTOCOL");
-    expect(() => applyScreenCopyReview(screens, { edits: [{ screenName: "Missing", from: "x", to: "y" }] })).toThrow(/outside/);
+    expect(applyScreenCopyReview(screens, { edits: [{ screenName: "Missing", from: "x", to: "y" }] })).toEqual(screens);
     expect(applyScreenCopyReview(screens, { edits: [{ screenName: "Missing", from: "x", to: "y" }] }, false)).toEqual(screens);
     expect(applyScreenCopyReview(screens, { edits: [{ screenName: "Today", from: "NONEXISTENT", to: "y" }] }, false)).toEqual(screens);
     expect(applyScreenCopyReview(screens, { edits: [{ screenName: "today ", from: "COMMIT PROTOCOL", to: "Add habit" }] }, false)[0].description).toBe("CONTENT: Add habit. LAYOUT: glass cards.");

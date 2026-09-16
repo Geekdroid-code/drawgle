@@ -1056,10 +1056,17 @@ export function ScreenNode({
         <script src="https://unpkg.com/lucide@latest"><\/script>
         ${initialGoogleFontAssetLinks}
         <style>
+          *, *::before, *::after { box-sizing: border-box; }
           html, body { width: 100%; margin: 0; padding: 0; overscroll-behavior: none; }
           ::-webkit-scrollbar { display: none; width: 0; height: 0; }
           * { -ms-overflow-style: none; scrollbar-width: none; }
           #root { position: relative; width: 100%; background: transparent; }
+          body, #root, #drawgle-screen-content, button, input, select, textarea {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          }
+          h1, h2, h3, h4, h5, h6 {
+            font-family: inherit;
+          }
 
           /* Full height mode (default) */
           html:not([data-viewport-mode="true"]), 
@@ -1218,7 +1225,12 @@ export function ScreenNode({
             var attempts = 0;
             var startedAt = Date.now();
             function check() {
-              if (window.tailwind && !window.__drawgleTailwindLoadFailed) {
+              var tailwindReady = Boolean(
+                window.tailwind &&
+                (typeof window.tailwind.refresh === 'function' || document.getElementById('tailwindcss') || isTailwindCssApplied()) &&
+                !window.__drawgleTailwindLoadFailed
+              );
+              if (tailwindReady) {
                 window.setTimeout(function() {
                   styleRuntimeReady = true;
                   tailwindRuntimeDegraded = false;
@@ -1247,7 +1259,7 @@ export function ScreenNode({
                 return;
               }
 
-              if (Date.now() - startedAt < 2500) {
+              if (Date.now() - startedAt < 12000) {
                 window.setTimeout(check, 120);
                 return;
               }
@@ -1327,23 +1339,21 @@ export function ScreenNode({
           }
 
           function applyDesignTokenCss(cssText) {
+            if (!cssText || !cssText.trim()) return;
             var styleEl = document.getElementById('drawgle-project-tokens');
             if (!styleEl) {
               styleEl = document.createElement('style');
               styleEl.id = 'drawgle-project-tokens';
               document.head.appendChild(styleEl);
             }
-            if (styleEl.textContent !== (cssText || '')) {
-              styleEl.textContent = cssText || '';
+            if (styleEl.textContent !== cssText) {
+              styleEl.textContent = cssText;
             }
           }
 
           function applyGoogleFontHref(href) {
+            if (!href || !href.trim()) return;
             var existing = document.getElementById('drawgle-google-font');
-            if (!href) {
-              if (existing) existing.remove();
-              return;
-            }
 
             if (!document.querySelector('link[data-drawgle-font-preconnect="googleapis"]')) {
               var googleApis = document.createElement('link');
@@ -1619,8 +1629,11 @@ export function ScreenNode({
             applyDesignTokenCss(payload.tokenCss || '');
             renderScreenContent(payload.code || '');
             renderNavigation(payload.navigationCode || '', payload.activeNavigationItemId || '');
-            if (wasStyleReady || tailwindRuntimeDegraded) {
-              markStyleRuntimeReady(tailwindRuntimeDegraded ? 'degraded' : 'ready');
+            if (window.tailwind && typeof window.tailwind.refresh === 'function') {
+              try { window.tailwind.refresh(); } catch (e) {}
+            }
+            if (wasStyleReady && isTailwindCssApplied()) {
+              markStyleRuntimeReady('ready');
             } else {
               waitForRenderedStylesReady(revision);
             }

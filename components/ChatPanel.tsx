@@ -55,6 +55,7 @@ import { cn } from "@/lib/utils";
 import type {
   GenerationRunData,
   GenerationJournalMetadata,
+  GenerationJournalScreen,
   DesignTokens,
   ImageReferenceMode,
   NavigationArchitecture,
@@ -486,6 +487,24 @@ const conversationHasLiveWork = (items: ConversationItem[]) =>
     return false;
   });
 
+function mergeJournalScreens(
+  existing?: GenerationJournalScreen[],
+  incoming?: GenerationJournalScreen[],
+): GenerationJournalScreen[] {
+  if (!existing?.length) return incoming ? [...incoming] : [];
+  if (!incoming?.length) return [...existing];
+  const byName = new Map<string, GenerationJournalScreen>();
+  for (const s of existing) {
+    byName.set(s.name.trim().toLowerCase(), s);
+  }
+  for (const s of incoming) {
+    const key = s.name.trim().toLowerCase();
+    const prev = byName.get(key);
+    byName.set(key, prev ? { ...prev, ...s } : s);
+  }
+  return Array.from(byName.values());
+}
+
 function buildConversationItems({
   messages,
   screens,
@@ -639,6 +658,47 @@ function buildConversationItems({
 
     if (generationJournal || uiVariant === "generation_journal") {
       if (generationJournal) {
+        // Consolidate generation journal cards after the latest user message so
+        // multi-batch generations display as one unified progressive plan with all screen briefs.
+        let lastUserIndex = -1;
+        for (let i = items.length - 1; i >= 0; i -= 1) {
+          if (items[i].kind === "user") {
+            lastUserIndex = i;
+            break;
+          }
+        }
+        let existingJournalItem: (typeof items[number] & { kind: "generation_journal" }) | null = null;
+        for (let i = items.length - 1; i > lastUserIndex; i -= 1) {
+          if (items[i].kind === "generation_journal") {
+            existingJournalItem = items[i] as typeof items[number] & { kind: "generation_journal" };
+            break;
+          }
+        }
+
+        if (existingJournalItem) {
+          const mergedScreens = mergeJournalScreens(existingJournalItem.journal.screens, generationJournal.screens);
+          const isMergedBusy =
+            generationJournal.status === "building" ||
+            generationJournal.status === "planning" ||
+            generationJournal.status === "queued" ||
+            existingJournalItem.journal.status === "building" ||
+            existingJournalItem.journal.status === "planning";
+          const allMergedReady = mergedScreens.length > 0 && mergedScreens.every((s) => s.status === "ready");
+
+          existingJournalItem.journal = {
+            ...generationJournal,
+            status: allMergedReady && generationJournal.status === "completed"
+              ? "completed"
+              : isMergedBusy
+                ? "building"
+                : generationJournal.status,
+            screens: mergedScreens,
+            generationRunId: generationJournal.generationRunId || existingJournalItem.journal.generationRunId,
+          };
+          existingJournalItem.timestamp = message.timestamp;
+          continue;
+        }
+
         items.push({
           id: `generation-journal-${message.id}`,
           kind: "generation_journal",
@@ -928,7 +988,27 @@ function buildConversationItems({
     .filter((run) => (run.status === "failed" || run.status === "canceled") && !retriedRunIds.has(run.id))
     .sort((left, right) => new Date(right.completedAt ?? right.updatedAt).getTime() - new Date(left.completedAt ?? left.updatedAt).getTime())[0] ?? null;
 
-  if (!generationRun && latestRetryRun) {
+  const hasSubsequentCompletedRun = Boolean(latestRetryRun && generationRuns.some((run) => {
+    if (run.status !== "completed") return false;
+    const retryTime = new Date(latestRetryRun.completedAt ?? latestRetryRun.updatedAt).getTime();
+    const runTime = new Date(run.completedAt ?? run.updatedAt).getTime();
+    return runTime >= retryTime;
+  }));
+
+  const allScreensReady = screens.length > 0 && screens.every((s) => s.status === "ready");
+
+  const hasRetryableWork = Boolean(latestRetryRun && generationRunHasRetryableWork({
+    runStatus: latestRetryRun.status,
+    screens: screens
+      .filter((screen) => screen.generationRunId === latestRetryRun.id)
+      .map((screen) => ({
+        status: screen.status ?? "failed",
+        parent_screen_id: screen.parentScreenId ?? null,
+      })),
+    requestedScreenCount: latestRetryRun.requestedScreenCount ?? null,
+  }));
+
+  if (!generationRun && latestRetryRun && !hasSubsequentCompletedRun && !allScreensReady && hasRetryableWork) {
     const alreadyShown = items.some((item) =>
       item.kind === "action" && item.step.detail === latestRetryRun.error
     );
