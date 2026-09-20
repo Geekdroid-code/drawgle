@@ -8,9 +8,10 @@ export function validateExecutionProduct(state?: ProductPlanning | null, image?:
   if (state.scope.status !== "approved") throw new Error("Generation requires an approved product scope.");
   if (state.experience?.requirementsKey !== undefined) {
     assertExperienceReady(state);
-    if (state.input.imagePath && (!image || createHash("sha256").update(image.data).digest("hex") !== state.experience.referenceHash)) throw new Error("Approved reference evidence changed. Restore the saved source before retrying.");
+    if (!state.screenReference && state.input.imagePath && (!image || createHash("sha256").update(image.data).digest("hex") !== state.experience.referenceHash)) throw new Error("Approved reference evidence changed. Restore the saved source before retrying.");
   }
-  const recreate = Boolean(state.input.imagePath && state.input.imageReferenceMode === "recreate");
+  if (state.phase === "canvas" && state.screenReference && (!image || createHash("sha256").update(image.data).digest("hex") !== state.screenReference.hash)) throw new Error("The approved request attachment could not be verified.");
+  const recreate = state.phase !== "canvas" && Boolean(state.input.imagePath && state.input.imageReferenceMode === "recreate");
   if (state.scope.outputPolicy === "manual_states_v1") validateNewOutputPolicy(state.scope.manifest, recreate);
   if (recreate && (!image || !state.experience || createHash("sha256").update(image.data).digest("hex") !== state.experience.referenceHash)) throw new Error("Approved recreation reference could not be verified. Restore the original source before retrying.");
 }

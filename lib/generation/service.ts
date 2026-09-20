@@ -1,3 +1,4 @@
+import { SCREEN_REFERENCE_INSTRUCTION } from "./reference-authority";
 import "server-only";
 import { INITIAL_PROJECT_SCREEN_LIMIT } from "@/lib/generation/limits";
 import { type ProductPlanning, activeFacts } from "@/lib/product-planning/model";
@@ -2811,6 +2812,7 @@ export const extractCode = (text: string) => {
  */
 export async function planScreenBriefsForBuild({
   screens,
+  requestImage,
   prompt,
   charter,
   navigationArchitecture,
@@ -2825,6 +2827,7 @@ export async function planScreenBriefsForBuild({
   repairAttempt = 0,
 }: {
   screens: ScreenPlan[];
+  requestImage?: PromptImagePayload | null;
   prompt: string;
   charter: ProjectCharter;
   navigationArchitecture: NavigationArchitecture;
@@ -2904,6 +2907,8 @@ export async function planScreenBriefsForBuild({
         : `Initial batch contract:\nReturn screen briefs only for the locked screens, in that exact order.`,
     },
   ];
+
+  if (requestImage) parts.push({ text: "Request-local image: adapt its relevant layout and content to the approved tokens and navigation. This is not a new project design system." }, { inlineData: requestImage });
 
   const screenPolicy = geminiPolicyForTask("project_planning", {
     systemInstruction: plannerScreenBriefStepInstruction(plannerMode),
@@ -3015,6 +3020,7 @@ export async function planScreenBriefsForBuild({
     if (repairAttempt < 1) {
       return planScreenBriefsForBuild({
         screens,
+        requestImage,
         prompt: `${prompt}\n\nPLANNER REPAIR: The first brief failed strict validation: ${message}. Return every locked screen with all seven labeled description sections, a complete layout_contract, reference_transfer, and an explicit asset_needs array.`,
         charter,
         navigationArchitecture,
@@ -3998,7 +4004,7 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
   if (inlineImage) {
     parts.push(inlineImage);
     parts.push({
-      text: isStyleReferenceMode(resolvedReferenceMode)
+      text: input.referenceScope === "screen" ? SCREEN_REFERENCE_INSTRUCTION : isStyleReferenceMode(resolvedReferenceMode)
         ? `${styleReferenceInstruction} Reference id: ${input.referenceId ?? "user-upload"}.`
         : [
             userRecreateReferenceInstruction,

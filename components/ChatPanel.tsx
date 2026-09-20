@@ -1356,9 +1356,7 @@ function ActionCard({
   const stateVariants = useMemo(() => proposal?.stateVariants ?? [], [proposal]);
   const defaultStateVariantIds = useMemo(() => {
     if (!proposal || stateVariants.length === 0) return [];
-    const selectedIds = proposal.selectedStateVariantIds?.length
-      ? proposal.selectedStateVariantIds
-      : stateVariants.filter((variant) => variant.defaultSelected).map((variant) => variant.id);
+    const selectedIds = proposal.selectedStateVariantIds ?? [];
     const validIds = new Set(stateVariants.map((variant) => variant.id));
     return Array.from(new Set(selectedIds.filter((id) => validIds.has(id))));
   }, [proposal, stateVariants]);

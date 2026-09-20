@@ -1178,6 +1178,7 @@ export interface BuildScreenInput {
   designTokens?: DesignTokens | null;
   prompt: string;
   image?: PromptImagePayload | null;
+  referenceScope?: "project" | "screen";
   referenceMode?: ReferenceMode;
   referenceSource?: ReferenceSource | null;
   referenceId?: string | null;

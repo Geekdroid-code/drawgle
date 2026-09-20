@@ -1,3 +1,4 @@
+import { productReferenceExecution } from "@/lib/product-planning/reference-execution";
 import { task, tasks } from "@trigger.dev/sdk";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { adminCreditService } from "@/lib/credits";
@@ -36,7 +37,8 @@ export const generateProductFlowTask = task({
     const state = readProductPlanning(payload.productPlanning);
     if (!state?.scope?.manifest?.length || state.scope.status !== "approved") throw new Error("An approved functional scope is required.");
     const manifest = state.scope.manifest;
-    const recreate = state.input.imageReferenceMode === "recreate" && Boolean(state.input.imagePath);
+    const reference = productReferenceExecution(state);
+    const recreate = state.phase !== "canvas" && reference.mode === "user_recreate";
     const rootId = payload.generationRunId;
     const attempt = payload.productAttempt ?? 0;
     const update = async (status: "building" | "completed" | "failed", summary: string) => {
@@ -89,7 +91,7 @@ export const generateProductFlowTask = task({
       const executionKeys = batch.map(item => item.stableKey);
       const reusableOutputs = await reusableProductOutputs(admin, payload.projectId, payload.ownerId, batch, recreate);
       const child: GenerateUiFlowPayload = {
-        ...payload, imageReferenceMode: state.input.imageReferenceMode, imagePath: state.input.imagePath, generationRunId: batchId, productPlanning: state, productExecutionKeys: executionKeys,
+        ...payload, referenceScope: state.phase === "canvas" ? "screen" : "project", imageReferenceMode: recreate ? "recreate" : "style", imagePath: reference.imagePath, generationRunId: batchId, productPlanning: state, productExecutionKeys: executionKeys,
         productLookaheadKeys: nextProductBatch(manifest, [
           ...claims.filter(claim => !executionKeys.includes(claim.output_key)),
           ...batch.map(item => ({ output_key: item.stableKey, generation_run_id: batchId, status: "ready" as const, screen_id: null })),

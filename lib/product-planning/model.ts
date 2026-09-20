@@ -51,6 +51,8 @@ export const productPlanningSchema = z.object({
   evidenceAssessment: evidenceAssessmentSchema.nullable().optional(),
   resolvedDecisionKeys: z.array(z.string().max(100)).max(500).optional(),
   experience: experienceSchema.nullable().optional(),
+  // Request-local evidence, never the product source or design-system authority.
+  screenReference: z.object({ imagePath: z.string().min(1), hash: z.string().min(1) }).nullable().optional(),
   revision: z.number().int().nonnegative(),
   phase: z.enum(["discovery", "canvas"]),
   blueprint: z.object({ facts: z.array(productFactSchema).max(500) }),

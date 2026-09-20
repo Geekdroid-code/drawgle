@@ -36,13 +36,13 @@ describe("state variant approval selection", () => {
     expect(result.selectedVariants.map((selected) => selected.id)).toEqual(["filters"]);
   });
 
-  it("falls back to default selected variants when no stored selection exists", () => {
+  it("does not authorize model defaults when no selection exists", () => {
     const result = selectStateVariantsForApproval({
       stateVariants: [variant("analytics", false), variant("filters", true)],
     });
 
-    expect(result.selectedIds).toEqual(["filters"]);
-    expect(result.selectedVariants.map((selected) => selected.id)).toEqual(["filters"]);
+    expect(result.selectedIds).toEqual([]);
+    expect(result.selectedVariants.map((selected) => selected.id)).toEqual([]);
   });
 
   it("reports ids that are not in the proposal", () => {

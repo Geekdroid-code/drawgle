@@ -1,4 +1,6 @@
 import "server-only";
+import { createHash } from "node:crypto";
+import { SCREEN_REFERENCE_INSTRUCTION } from "@/lib/generation/reference-authority";
 import { createPartFromFunctionResponse, type Content, type Part } from "@google/genai";
 import { createGeminiClient } from "@/lib/ai/gemini";
 import { geminiPolicyForTask } from "@/lib/ai/model-policy";
@@ -125,7 +127,14 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
     if (recoveryMessage?.metadata.referenceRecovery === true && productAnswers?.answers[0]?.kind === "choice" && productAnswers.answers[0].index === 2) {
       await persist(applyProductPatch(state, { operations: [{ op: "set_reference_preference", mode: "none", evidence: resolvedAnswers!.confirmed[0] }] }, userMessageId));
     }
-    if (image) {
+    if (image && state.phase === "canvas") {
+      const imagePath = await storePlanningReference(admin, ownerId, image, "style");
+      const stored = await loadPlanningReference(admin, imagePath, ownerId);
+      if (!stored) throw new Error("The attached image could not be saved. Please retry.");
+      await persist({ ...state, screenReference: { imagePath, hash: createHash("sha256").update(stored.data).digest("hex") },
+        contentRevision: (state.contentRevision ?? 0) + 1,
+        scope: state.scope ? { ...state.scope, status: "draft" } : null });
+    } else if (image) {
       const imagePath = await storePlanningReference(admin, ownerId, image, imageReferenceMode);
       await persist({
         ...state,
@@ -143,7 +152,7 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
         scope: state.scope ? { ...state.scope, status: "draft" } : null,
       });
     }
-    const reference = image ?? await loadPlanningReference(admin, state.input.imagePath, ownerId);
+    const reference = (state.phase === "canvas" ? null : image) ?? await loadPlanningReference(admin, state.input.imagePath, ownerId);
     if (state.input.imagePath && !reference) throw new Error("The saved reference could not be loaded. Retry or replace it using the image controls.");
     const answeredKeys = [...new Set([...(state.resolvedDecisionKeys ?? []), ...resolvedDecisionKeys([
       ...history, ...(productAnswers ? [{ id: userMessageId, role: "user", metadata: { productAnswers } }] : []),
@@ -169,11 +178,14 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
           resolvedDecisionKeys: answeredKeys,
         });
     await persist({ ...state, designerVersion: 2, resolvedDecisionKeys: answeredKeys, evidenceAssessment: assessment });
-    const isReconstruction = state.input.imageReferenceMode === "recreate" && Boolean(state.input.imagePath);
+    const isReconstruction = state.phase !== "canvas" && state.input.imageReferenceMode === "recreate" && Boolean(state.input.imagePath);
     const productContext = isReconstruction ? reconstructionProductContext(state) : { ...state, blueprint: { facts: activeFacts(state) } };
+    const screenReference = state.phase === "canvas" && state.screenReference
+      ? await loadPlanningReference(admin, state.screenReference.imagePath, ownerId) : null;
     const contents: Content[] = [{ role: "user", parts: [
       { text: JSON.stringify({ originalUserRequest: isReconstruction ? (state.input.recreationRequest || originalPrompt) : originalPrompt, referenceContext: planningReferenceContext(state), currentProduct: productContext, history: history.map((message) => ({ id: message.id, role: message.role, content: productMessageContext(message).slice(0, 6000) })), userMessage: effectivePrompt }) },
       { text: `Independent evidence assessment: ${JSON.stringify(assessment)}. These user-dependent gaps cannot be resolved by inventing facts this turn. The chat automatically renders the questions and choices as optional interactive cards. Do not repeat them or add prose questions. Update known product truth first. Save useful designer-owned recommendations as tentative preference facts, superseding any earlier conflicting recommendation; never treat them as user-confirmed or ask for cosmetic decisions. Do not present a final screen list or claim readiness while gaps remain.` },
+      ...(screenReference ? [{ text: SCREEN_REFERENCE_INSTRUCTION }, { inlineData: { data: screenReference.data, mimeType: screenReference.mimeType } }, { text: "The following image, if present, is the established PROJECT reference, not the current attachment." }] : []),
       ...(reference ? [{ inlineData: { data: reference.data, mimeType: reference.mimeType } }] : []),
     ] }];
     const executeRead = createProjectReadToolExecutor({ admin, projectId, ownerId });
@@ -231,6 +243,10 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
           if (call.name === "update_product" || call.name === "set_design_scope") {
             const userEvidence = [...(originalPrompt ? [originalPrompt] : []), ...history.filter(message => message.role === "user").flatMap(confirmedMessageEvidence), ...(resolvedAnswers ? resolvedAnswers.confirmed : [effectivePrompt])];
             const { patch, assumptions } = await reviewFactEvidence(prepareDesignerPatch(call.name, call.args, userEvidence, history, assessment), history);
+            if (screenReference && patch.operations.some(operation => {
+              const fact = operation.op === "put_fact" ? operation.fact : operation.op === "supersede_fact" ? operation.replacement : null;
+              return fact && (fact.provenance?.basis === "reference_observation" || (fact.section === "preferences" && fact.source !== "user"));
+            })) throw new Error("The attachment is request-local guidance. Do not save image-derived product facts or inferred project-wide visual preferences. Only record product changes supported by the user's words.");
             let next = applyProductPatch(state, patch, userMessageId);
             if (call.name === "set_design_scope") next = await snapshotFunctionalScope(admin, projectId, ownerId, next);
             await persist(next);
@@ -250,7 +266,9 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
             result = { ok: true, revision: state.revision };
           } else if (call.name === "inspect_reference") {
             if (referenceRecovery) throw new ProductToolError("Wait for the user to choose a recovery direction. Do not repeat reference search this turn.", "NO_COMPATIBLE_REFERENCE");
-            const inspected = await inspectProductReference(admin, ownerId, state, String(call.args?.request ?? effectivePrompt));
+            const inspected = state.phase === "canvas" && state.screenReference && state.experience
+              ? { experience: state.experience }
+              : await inspectProductReference(admin, ownerId, state, String(call.args?.request ?? effectivePrompt));
             await persist({ ...state, contentRevision: (state.contentRevision ?? 0) + 1, experience: inspected.experience,
               input: { ...state.input, imagePath: inspected.experience.referencePath,
                 referenceSource: !inspected.experience.referencePath ? "none" : inspected.experience.referenceId || state.input.referenceSource === "curated" ? "curated" : "user",

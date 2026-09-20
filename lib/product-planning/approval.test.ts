@@ -79,6 +79,22 @@ describe("server product scope approval", () => {
     mocks.load.mockResolvedValue({ ...productFixture(), phase: "canvas" });
     expect(await prepareProductApproval(admin, "owner", { projectId })).toBeNull();
   });
+  it("freezes the scoped attachment for execution but clears it from future project input", async () => {
+    const state = designerFixture();
+    state.phase = "canvas";
+    state.experience!.referenceHash = createHash("sha256").update("project-pixels").digest("hex");
+    state.screenReference = { imagePath: "owner/chat.webp", hash: createHash("sha256").update("chat-pixels").digest("hex") };
+    mocks.load.mockResolvedValue(proposeProductScope(state));
+    mocks.image.mockImplementation(async (_a, path) => ({ data: path === "owner/chat.webp" ? "chat-pixels" : "project-pixels", mimeType: "image/webp" }));
+    const approval = await prepareProductApproval(admin, "owner", { projectId, productApproval: { revision: state.revision } });
+    expect(approval!.body.image!.data).toBe("chat-pixels");
+    expect(approval!.body.imageReferenceMode).toBe("style");
+    expect(approval!.snapshot.input.imagePath).toBe(state.input.imagePath);
+    expect(approval!.snapshot.screenReference).toEqual(state.screenReference);
+    await approval!.queued(projectId);
+    expect(mocks.save.mock.calls.at(-1)![4].screenReference).toBeNull();
+    expect(mocks.save.mock.calls.at(-1)![4].input.imagePath).toBe(state.input.imagePath);
+  });
   it("verifies the reference and freezes every approved output beyond five screens", async () => {
     const state = designerFixture();
     state.scope!.manifest = Array.from({ length: 7 }, (_, index) => functionalFixture(`screen:${index}`, `Screen ${index}`, index));

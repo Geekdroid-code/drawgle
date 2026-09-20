@@ -1,3 +1,5 @@
+import { retainApprovedStates } from "@/lib/generation/approved-states";
+import { resolveReferenceScope, SCREEN_REFERENCE_INSTRUCTION, type ReferenceScope } from "@/lib/generation/reference-authority";
 import { randomUUID, createHash } from "crypto";
 
 import { logger, runs, streams, task } from "@trigger.dev/sdk";
@@ -129,6 +131,7 @@ export type GenerateUiFlowPayload = {
   imagePath?: string | null;
   imageReferenceMode?: ImageReferenceMode;
   referencePolicy?: GenerationReferencePolicy | null;
+  referenceScope?: ReferenceScope;
   designStyleId?: string | null;
   stylePresetSlug?: string | null;
   plannedScreens?: ScreenPlan[] | null;
@@ -165,6 +168,7 @@ type BuildScreenTaskPayload = {
   designTokens?: DesignTokens | null;
   image?: PromptImagePayload | null;
   sourceDetail?: PromptImagePayload | null;
+  referenceScope?: ReferenceScope;
   referenceMode?: ReferenceMode;
   referenceSource?: ReferenceSource | null;
   referenceId?: string | null;
@@ -1083,6 +1087,7 @@ async function collectScreenBuild(
       designStyle: input.designStyle,
       prompt: input.prompt,
       image: input.image,
+      referenceScope: input.referenceScope,
       referenceMode: input.referenceMode,
       referenceSource: input.referenceSource,
       referenceId: input.referenceId,
@@ -1148,6 +1153,7 @@ async function collectNonStreamingScreenBuild(input: BuildScreenTaskPayload, scr
     designStyle: input.designStyle,
     prompt: input.prompt,
     image: input.image,
+    referenceScope: input.referenceScope,
     referenceMode: input.referenceMode,
     referenceSource: input.referenceSource,
     referenceId: input.referenceId,
@@ -1999,15 +2005,30 @@ export const generateUiFlowTask = task({
       .select("project_charter, design_tokens, product_planning")
       .eq("id", payload.projectId)
       .maybeSingle();
-    const exactRecreation = Boolean(payload.imagePath && payload.imageReferenceMode === "recreate" && payload.referencePolicy !== "curated_evidence" && payload.referencePolicy !== "no_reference");
+    const referenceScope = resolveReferenceScope({
+      referenceScope: payload.referenceScope, isNewProject: payload.isNewProject,
+      productPhase: payload.productPlanning?.phase,
+      hasProjectDesign: Boolean(existingProject?.design_tokens || existingProject?.project_charter),
+    });
+    const screenScoped = referenceScope === "screen";
+    payload.referenceScope = referenceScope;
+    if (screenScoped) {
+      payload.imageReferenceMode = "style";
+      payload.prompt = `${payload.prompt}\n\n${SCREEN_REFERENCE_INSTRUCTION}`;
+      // Current project edits outrank a stale proposal's token snapshot.
+      designTokens = (existingProject?.design_tokens as DesignTokens | null) ?? designTokens;
+      payload.projectCharter = (existingProject?.project_charter as ProjectCharter | null) ?? null;
+    }
+    const exactRecreation = !screenScoped && Boolean(payload.imagePath && payload.imageReferenceMode === "recreate" && payload.referencePolicy !== "curated_evidence" && payload.referencePolicy !== "no_reference");
     const existingCharter = exactRecreation ? null : (existingProject?.project_charter as ProjectCharter | null) ?? null;
     let productPlanning = payload.productPlanning ?? payload.productContextSnapshot ?? readProductPlanning(existingProject?.product_planning);
     if (payload.productPlanning?.scope?.status === "approved") {
-      payload.imageReferenceMode = payload.productPlanning.input.imageReferenceMode;
+      payload.imageReferenceMode = screenScoped ? "style" : payload.productPlanning.input.imageReferenceMode;
       const approvedReference = productReferenceExecution(payload.productPlanning);
       payload.imagePath = approvedReference.imagePath;
       payload.referencePolicy = approvedReference.policy;
     }
+    const localAttachment = screenScoped && payload.referencePolicy === "user_upload" && Boolean(payload.imagePath);
     if (exactRecreation && productPlanning) {
       productPlanning = {
         ...productPlanning,
@@ -2039,6 +2060,12 @@ export const generateUiFlowTask = task({
     } else if (!designTokens && projectTokens) {
       designTokens = projectTokens;
     }
+    if (localAttachment) {
+      const { data: navigation, error: navigationError } = await admin.from("project_navigation").select("plan").eq("project_id", payload.projectId).maybeSingle();
+      if (navigationError) throw navigationError;
+      if (navigation?.plan) payload.navigationPlan = navigation.plan as NavigationPlan;
+      payload.navigationArchitecture = existingCharter?.navigationArchitecture ?? payload.navigationArchitecture;
+    }
     const projectReferenceDna = resolveProjectReferenceDna(payload.projectCharter ?? existingCharter)?.dna ?? null;
     const requestedNavigationArchitecture = createNavigationArchitecture({
       navigationArchitecture: payload.navigationArchitecture ?? payload.projectCharter?.navigationArchitecture ?? existingCharter?.navigationArchitecture ?? null,
@@ -2049,11 +2076,11 @@ export const generateUiFlowTask = task({
       status: "generating",
     };
 
-    if (designTokens) {
+    if (designTokens && !screenScoped) {
       projectUpdate.design_tokens = designTokens as never;
     }
 
-    if (payload.projectCharter !== undefined) {
+    if (payload.projectCharter !== undefined && !localAttachment) {
       projectUpdate.project_charter = (payload.projectCharter ?? null) as never;
     }
 
@@ -2224,7 +2251,7 @@ export const generateUiFlowTask = task({
     });
 
     const curatedStyleSelectionDiagnostic = curatedStyleSelectionDiagnostics[0] ?? null;
-    const reusableProjectReferenceDna = referencePolicy !== "no_reference" && referenceMode !== "user_recreate" && projectReferenceDna && (
+    const reusableProjectReferenceDna = !(screenScoped && payload.imagePath && referencePolicy === "user_upload") && referencePolicy !== "no_reference" && referenceMode !== "user_recreate" && projectReferenceDna && (
       referencePolicy === "project_reference"
       || referencePolicy === "project_memory"
       || Boolean(payload.plannedScreens?.length || payload.screenPlanningSeeds?.length)
@@ -2304,6 +2331,7 @@ export const generateUiFlowTask = task({
     });
 
     await mergeGenerationRunMetadata(admin, payload.generationRunId, {
+      referenceScope,
       requestedImageReferenceMode: payload.imageReferenceMode ?? "recreate",
       referencePolicy,
       requestedDesignStyleId: payload.designStyleId ?? null,
@@ -2351,6 +2379,7 @@ export const generateUiFlowTask = task({
 
     const designStartedAt = now();
     const designStartedMs = Date.now();
+    if (!designTokens && screenScoped) throw new Error("Establish the project design system before generating additional screens. This attachment cannot replace project tokens.");
     if (!designTokens) {
       setJournalPhase(generationJournal, "design", "active", "Extracting the visual system and token direction.");
       await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
@@ -2388,11 +2417,11 @@ export const generateUiFlowTask = task({
         };
       }
 
-      if (productPlanning && referenceMode !== "user_recreate") {
+      if (!screenScoped && productPlanning && referenceMode !== "user_recreate") {
         designTokens = await reconcileTokensWithDesignRequirements(designTokens, productPlanning);
       }
 
-      await updateProject(admin, payload.projectId, {
+      if (!screenScoped) await updateProject(admin, payload.projectId, {
         design_tokens: designTokens as never,
       });
 
@@ -2416,7 +2445,7 @@ export const generateUiFlowTask = task({
       setJournalPhase(generationJournal, "design", "completed", "Design tokens are ready for the build.");
       await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
     } else {
-      if (productPlanning && designTokens && referenceMode !== "user_recreate") {
+      if (!screenScoped && productPlanning && designTokens && referenceMode !== "user_recreate") {
         const reconciled = await reconcileTokensWithDesignRequirements(designTokens, productPlanning);
         if (reconciled !== designTokens) {
           designTokens = reconciled;
@@ -2606,6 +2635,7 @@ export const generateUiFlowTask = task({
         throw new Error("Add-screen planning requires the existing project charter before any build can begin.");
       }
       const plannedBriefs = await planScreenBriefsForBuild({
+        requestImage: screenScoped && referencePolicy === "user_upload" ? promptImage : null,
         screens: plan.screens,
         prompt: payload.prompt,
         charter: requestedCharter,
@@ -2650,6 +2680,15 @@ export const generateUiFlowTask = task({
         logger.warn("Screen content review skipped; proceeding with planned briefs", { error });
       }
     }
+    if (localAttachment && existingCharter) {
+      plan.charter = existingCharter;
+      if (payload.navigationPlan) {
+        plan.navigationPlan = normalizeNavigationPlan({ navigationPlan: payload.navigationPlan, screens: plan.screens,
+          navigationArchitecture: requestedNavigationArchitecture, requiresBottomNav: Boolean(payload.navigationPlan.enabled), strictScreenLinks: false });
+        plan.navigationArchitecture = requestedNavigationArchitecture;
+        plan.requiresBottomNav = Boolean(payload.navigationPlan.enabled);
+      }
+    }
     if (!preparedPlan && preparationRootId && preparationKey) {
       await savePreparedPlan(admin, preparationRootId, payload.ownerId, payload.productAttempt ?? 0, preparationKey, {
         ...plan, scopeContract: plan.scopeContract ?? undefined, screenCountContract: plan.screenCountContract ?? undefined,
@@ -2665,7 +2704,8 @@ export const generateUiFlowTask = task({
     }
 
 	    if (
-      !payload.plannedScreens?.length
+      !screenScoped
+      && !payload.plannedScreens?.length
       && !payload.screenPlanningSeeds?.length
       && plan.charter.referenceDna
       && !plan.charter.referenceDna.sourceImagePath
@@ -2703,6 +2743,9 @@ export const generateUiFlowTask = task({
 	      plan.screens[0] = { ...plan.screens[0], stateVariants: payload.stateVariants };
 	    }
 
+	    // Only the approval payload owns paid state outputs; model defaults never do.
+	    plan.screens = retainApprovedStates(plan.screens, payload.stateVariants);
+
 	    const roadmapSeed = payload.projectRoadmap ?? plan.roadmap ?? buildProjectRoadmap({
 	      screens: plan.screens,
 	      navigationPlan: plan.navigationPlan,
@@ -2713,7 +2756,9 @@ export const generateUiFlowTask = task({
 	      navigationPlan: plan.navigationPlan,
 	      requestedParentCount: roadmapSeed.requestedParentCount,
 	      tranche: roadmapSeed.tranche,
-	      plannedItems: roadmapSeed.items,
+	      plannedItems: roadmapSeed.items.filter(item => item.kind !== "state"
+          || (payload.stateVariants ?? []).some(variant => variant.roadmapStableKey === item.stableKey)
+          || payload.productPlanning?.scope?.manifest?.some(output => output.kind === "state" && output.stableKey === item.stableKey)),
 	    });
 	    const persistedRoadmapRows = payload.productPlanning && payload.productExecutionKeys
         ? await loadExecutionRoadmap(admin, payload.projectId, payload.ownerId, payload.productPlanning, payload.productExecutionKeys)
@@ -2748,9 +2793,7 @@ export const generateUiFlowTask = task({
 	    const stateGroups = plan.screens.map((screenPlan) => ({
 	      parent: screenPlan,
 	      variants: (screenPlan.stateVariants ?? []).filter((variant) =>
-	        payload.stateVariants?.length
-	          ? payload.stateVariants.some((selected) => selected.id === variant.id)
-	          : variant.defaultSelected || variant.explicitlyRequested,
+	        (payload.stateVariants ?? []).some((selected) => selected.id === variant.id),
 	      ),
 	    }));
 	    const parentOutputs = retryOnlyStateVariants ? [] : plan.screens;
@@ -2849,11 +2892,11 @@ export const generateUiFlowTask = task({
     }));
     await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
-    const { data: savedNavigation } = payload.productExecutionKeys ? await admin.from("project_navigation").select("plan, shell_code, status")
+    const { data: savedNavigation } = (screenScoped || payload.productExecutionKeys) ? await admin.from("project_navigation").select("plan, shell_code, status")
       .eq("project_id", payload.projectId).maybeSingle() : { data: null };
     const sharedNavigationReady = savedNavigation?.status === "ready" && typeof savedNavigation.shell_code === "string"
       && JSON.stringify(savedNavigation.plan) === JSON.stringify(plan.navigationPlan);
-    if (!retryOnlyStateVariants && !sharedNavigationReady) {
+    if (!localAttachment && !retryOnlyStateVariants && !sharedNavigationReady) {
       const rawNavigationShellCode = await buildNavigationShellCode({
         navigationPlan: plan.navigationPlan,
         designTokens,
@@ -2885,7 +2928,8 @@ export const generateUiFlowTask = task({
       }
     }
 
-    if (plan.charter) {
+    if (localAttachment && existingCharter) plan.charter = existingCharter;
+    if (plan.charter && !localAttachment) {
       plan.charter = referenceMode === "user_recreate" ? plan.charter : groundCharterInProduct(plan.charter, productPlanning);
       await updateProject(admin, payload.projectId, {
         project_charter: plan.charter as never,
@@ -3083,7 +3127,7 @@ export const generateUiFlowTask = task({
           const key = preparedPlanKey(payload.productPlanning!, keys, shared);
           if (await readPreparedPlan(admin, preparationRootId, payload.ownerId, key)) return;
           const nextPlan = await planUiFlow({ productPlanning: payload.productPlanning, productExecutionKeys: keys,
-            prompt: scopedGenerationPrompt(payload.productPlanning!, keys), image: promptImage, referenceMode,
+            prompt: [scopedGenerationPrompt(payload.productPlanning!, keys), screenScoped ? SCREEN_REFERENCE_INSTRUCTION : null].filter(Boolean).join("\n\n"), image: promptImage, referenceMode,
             referenceId, referenceCatalogHash, designStyle, designTokens,
             scopeContract: productScopeContract(payload.productPlanning!, referenceMode, keys), referenceAnalysis,
             referenceDna: plan.charter.referenceDna, screenFamilyContract: plan.screenFamilyContract,
@@ -3238,6 +3282,7 @@ export const generateUiFlowTask = task({
 
       try {
         const attachReferenceImage = shouldAttachReferenceImage({
+          screenGuidance: screenScoped && referencePolicy === "user_upload",
           engineVersion: generationEngineVersion,
           image: promptImage,
           referenceMode,
@@ -3322,7 +3367,8 @@ export const generateUiFlowTask = task({
             prompt: payload.prompt,
             designTokens,
             image: attachReferenceImage ? promptImage : null,
-            sourceDetail: attachReferenceImage && promptImage ? await loadSourceDetail(admin, payload.ownerId, promptImage, productPlanning?.experience, screenPlan.referenceScreenIndex ?? index + 1) : null,
+            referenceScope,
+            sourceDetail: !screenScoped && attachReferenceImage && promptImage ? await loadSourceDetail(admin, payload.ownerId, promptImage, productPlanning?.experience, screenPlan.referenceScreenIndex ?? index + 1) : null,
             referenceMode,
             referenceSource,
             referenceId,

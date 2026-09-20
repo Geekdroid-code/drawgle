@@ -1,4 +1,5 @@
 "use client";
+import { actionGradientStops, updateActionGradient } from "@/lib/action-gradient";
 
 import { useLayoutEffect, useRef, useState, type ComponentType, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -298,8 +299,8 @@ export function DesignSystemEditor({
   const actionText = tokens.color?.action?.on_primary_text || "#ffffff";
   const raisedBg = tokens.color?.background?.surface_elevated || secondaryBg;
   const actionLabel = tokens.color?.text?.action_label || actionPrimary;
-  const actionGradientStart = tokens.color?.action?.primary_gradient_start || actionPrimary;
-  const actionGradientEnd = tokens.color?.action?.primary_gradient_end || actionSecondary;
+  const actionGradientStart = actionGradientStops(tokens).start || actionPrimary;
+  const actionGradientEnd = actionGradientStops(tokens).end || actionPrimary;
   const actionOnSurface = tokens.color?.action?.on_surface_white_bg || actionPrimary;
   const cardBg = tokens.color?.surface?.card || "#ffffff";
   const borderDivider = tokens.color?.border?.divider || "#e5e7eb";
@@ -338,6 +339,7 @@ export function DesignSystemEditor({
       }
 
       current[path[path.length - 1]] = nextValue;
+      if (path[0] === "color" && path[1] === "action") updateActionGradient(draft.tokens!, path[2], nextValue);
     });
   };
 

@@ -19,9 +19,7 @@ export function selectStateVariantsForApproval(
   const variantById = new Map(variants.map((variant) => [variant.id, variant]));
   const requestedIds = selectedStateVariantIds !== undefined
     ? selectedStateVariantIds
-    : proposal.selectedStateVariantIds && proposal.selectedStateVariantIds.length > 0
-      ? proposal.selectedStateVariantIds
-      : variants.filter((variant) => variant.defaultSelected).map((variant) => variant.id);
+    : proposal.selectedStateVariantIds ?? [];
 
   const selectedIds = Array.from(new Set(requestedIds.map((id) => id.trim()).filter(Boolean))).slice(0, 3);
   const invalidIds = selectedIds.filter((id) => !variantById.has(id));

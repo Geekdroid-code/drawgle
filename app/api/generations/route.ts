@@ -1,3 +1,4 @@
+import { resolveReferenceScope } from "@/lib/generation/reference-authority";
 import { Buffer } from "node:buffer";
 
 import { tasks } from "@trigger.dev/sdk";
@@ -561,6 +562,12 @@ export async function POST(request: Request) {
     const retryMetadata = retrySourceRun?.metadata && typeof retrySourceRun.metadata === "object" && !Array.isArray(retrySourceRun.metadata)
       ? retrySourceRun.metadata as Record<string, unknown> : {};
     const productSnapshot = productApproval?.snapshot ?? readProductPlanning(retryMetadata.productPlanning);
+    const referenceScope = resolveReferenceScope({
+      referenceScope: retryMetadata.referenceScope === "screen" || retryMetadata.referenceScope === "project" ? retryMetadata.referenceScope : null,
+      isNewProject: !isExistingProjectRequest || isInitialProductGeneration,
+      productPhase: productSnapshot?.phase, hasProjectDesign: isExistingProjectRequest,
+    });
+    if (referenceScope === "screen") payload.imageReferenceMode = "style";
     let productContextSnapshot = productSnapshot ?? (payload.sourceGenerationRunId
       ? readProductPlanning(retryMetadata.productContextSnapshot)
       : payload.projectId ? await loadProductPlanning(admin, payload.projectId, ownerId) : null);
@@ -645,7 +652,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Project not found" }, { status: 404 });
       }
 
-      if (!designTokens && project.design_tokens) {
+      if ((referenceScope === "screen" || !designTokens) && project.design_tokens) {
         designTokens = normalizeDesignTokens(project.design_tokens as DesignTokens);
       }
 
@@ -692,11 +699,11 @@ export async function POST(request: Request) {
         updated_at: now(),
       };
 
-      if (payload.designTokens !== undefined || !project.design_tokens) {
+      if (referenceScope !== "screen" && (payload.designTokens !== undefined || !project.design_tokens)) {
         projectUpdate.design_tokens = designTokens as never;
       }
 
-      if (payload.projectCharter !== undefined) {
+      if (referenceScope !== "screen" && payload.projectCharter !== undefined) {
         projectUpdate.project_charter = projectCharter as never;
       }
 
@@ -770,7 +777,7 @@ export async function POST(request: Request) {
       imagePath = null;
       effectiveImageReferenceMode = "style";
     } else if (!productSnapshot && !payload.sourceGenerationRunId && !promptImage && productContextSnapshot?.input.imagePath) {
-      const inherited = productReferenceExecution(productContextSnapshot);
+      const inherited = productReferenceExecution(productContextSnapshot, false);
       referencePolicy = inherited.source === "curated" ? "curated_evidence" : "project_reference";
       imagePath = inherited.imagePath;
       effectiveImageReferenceMode = "style";
@@ -791,6 +798,7 @@ export async function POST(request: Request) {
       }
     }
 
+    if (referenceScope === "screen") effectiveImageReferenceMode = "style";
     referencePolicy = resolveGenerationReferencePolicy({
       hasCurrentUserImage: Boolean(promptImage),
       hasProjectReferenceImage: referencePolicy === "project_reference" && Boolean(imagePath),
@@ -802,7 +810,7 @@ export async function POST(request: Request) {
       const approvedReference = productReferenceExecution(productSnapshot);
       referencePolicy = approvedReference.policy;
       imagePath = approvedReference.imagePath;
-      effectiveImageReferenceMode = productSnapshot.input.imageReferenceMode;
+      effectiveImageReferenceMode = referenceScope === "screen" ? "style" : productSnapshot.input.imageReferenceMode;
     }
 
     const { data: generationRun, error: generationRunError } = await admin
@@ -828,6 +836,7 @@ export async function POST(request: Request) {
           },
           requestedImageReferenceMode: effectiveImageReferenceMode,
           referencePolicy,
+          referenceScope,
           requestedDesignStyleId: designStyle?.id ?? null,
           requestedStylePresetSlug: stylePreset?.slug ?? null,
           requestedStylePresetVersion: stylePreset?.version ?? null,
@@ -897,6 +906,7 @@ export async function POST(request: Request) {
         imagePath,
         imageReferenceMode: effectiveImageReferenceMode,
         referencePolicy,
+        referenceScope,
         designStyleId: designStyle?.id ?? null,
         stylePresetSlug: stylePreset?.slug ?? null,
         designTokens,

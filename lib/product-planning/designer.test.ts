@@ -132,6 +132,22 @@ describe("product designer tool loop", () => {
     expect(mocks.state!.input).toMatchObject({ imageReferenceMode: mode, referenceSource: "user" });
     expect(mocks.assess.mock.calls[0][0].reference.data).toBe("real-pixels");
   });
+  it("keeps canvas uploads outside project input, experience and blueprint", async () => {
+    mocks.state = { ...productFixture(), phase: "canvas", experience: experienceFixture() };
+    mocks.state.input.imagePath = "owner/project.webp";
+    const input = { ...mocks.state.input };
+    const blueprint = structuredClone(mocks.state.blueprint);
+    mocks.loadReference.mockImplementation(async (_admin, path) => ({ data: path === "owner/project.webp" ? "project-pixels" : "chat-pixels", mimeType: "image/webp" }));
+    await runProductDesigner({ ...options, initialize: false, image: { data: "chat-pixels", mimeType: "image/png" }, imageReferenceMode: "recreate" });
+    expect(mocks.state!.input.imagePath).toBe(input.imagePath);
+    expect(mocks.state!.input.imageReferenceMode).toBe(input.imageReferenceMode);
+    expect(mocks.state!.experience).toEqual(experienceFixture());
+    expect(mocks.state!.blueprint).toEqual(blueprint);
+    expect(mocks.state!.screenReference).toMatchObject({ imagePath: "owner/new.webp" });
+    expect(mocks.assess.mock.calls[0][0].reference.data).toBe("project-pixels");
+    expect(JSON.stringify(mocks.generate.mock.calls[0][0].contents)).toContain("chat-pixels");
+    expect(JSON.stringify(mocks.generate.mock.calls[0][0].contents)).toContain("ATTACHMENT AUTHORITY");
+  });
   it("uses the selected image control mode for a new upload", async () => {
     mocks.generate.mockResolvedValueOnce({ text: "I'll use your reference." });
     await runProductDesigner({ ...options, initialize: false, image: { data: "new-pixels", mimeType: "image/png" }, imageReferenceMode: "recreate" });

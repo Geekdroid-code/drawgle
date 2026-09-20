@@ -80,7 +80,7 @@ export function AgentComposer({
       const didSubmit = await onSubmit({
         prompt: nextPrompt,
         image,
-        imageReferenceMode,
+        imageReferenceMode: project?.productPlanning?.phase === "discovery" ? imageReferenceMode : "style",
       });
 
       if (didSubmit) {
@@ -206,7 +206,7 @@ export function AgentComposer({
         </div>
       ) : null}
 
-      <ReferenceAttachment image={image} mode={imageReferenceMode} disabled={disabled || isGenerating} onChange={setImage} onModeChange={setImageReferenceMode} />
+      <ReferenceAttachment screenScoped={project?.productPlanning?.phase !== "discovery"} image={image} mode={imageReferenceMode} disabled={disabled || isGenerating} onChange={setImage} onModeChange={setImageReferenceMode} />
       <Textarea
         placeholder={
           hasSelectedElement

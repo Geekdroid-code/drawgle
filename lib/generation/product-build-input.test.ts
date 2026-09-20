@@ -29,6 +29,14 @@ describe("actual builder input contracts", () => {
     expect(input.configOverride.systemInstruction).toContain("Ignore generic chrome categories");
     expect(() => bindApprovedScreenPlans(state, undefined, plans, 1)).toThrow(/observed source/);
   });
+  it("passes a local image to the builder with explicit project-preserving authority", async () => {
+    const image = { data: "local-layout", mimeType: "image/png" };
+    await buildScreenCode({ screenPlan: { name: "Paywall", type: "detail", description: "Four plans" },
+      prompt: "Add paywall", image, referenceScope: "screen", referenceMode: "user_style", requiresBottomNav: false });
+    const parts = mocks.stream.mock.calls.at(-1)![0].contents.parts;
+    expect(parts).toContainEqual({ inlineData: image });
+    expect(JSON.stringify(parts)).toContain("Do not import its palette");
+  });
   it("keeps product copy guidance after project context is dropped on a build retry", async () => {
     await buildScreenCode({ screenPlan: { name: "Today", type: "root", description: "Daily habit progress" }, prompt: "Habit tracker",
       referenceMode: "user_style", requiresBottomNav: false, projectContext: null,

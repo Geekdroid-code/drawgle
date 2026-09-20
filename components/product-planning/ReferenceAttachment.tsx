@@ -3,8 +3,8 @@ import { useRef, useState } from "react";
 import { ImagePlus, X } from "lucide-react";
 import type { ImageReferenceMode, PromptImagePayload } from "@/lib/types";
 
-export function ReferenceAttachment({ image, mode, disabled, onChange, onModeChange }: {
-  image: PromptImagePayload | null; mode: ImageReferenceMode; disabled?: boolean;
+export function ReferenceAttachment({ image, mode, disabled, screenScoped = false, onChange, onModeChange }: {
+  image: PromptImagePayload | null; mode: ImageReferenceMode; disabled?: boolean; screenScoped?: boolean;
   onChange: (image: PromptImagePayload | null) => void; onModeChange: (mode: ImageReferenceMode) => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
@@ -24,10 +24,10 @@ export function ReferenceAttachment({ image, mode, disabled, onChange, onModeCha
         reader.readAsDataURL(file);
       }} />
       {image && <>
-        <span className="text-xs text-[var(--dg-text-muted)]">Reference attached</span>
-        <select aria-label="Reference use" value={mode} disabled={disabled} onChange={(event) => onModeChange(event.target.value as ImageReferenceMode)} className="min-w-0 bg-transparent text-xs">
+        <span className="text-xs text-[var(--dg-text-muted)]">{screenScoped ? "For this request · keeps project design" : "Reference attached"}</span>
+        {!screenScoped && <select aria-label="Reference use" value={mode} disabled={disabled} onChange={(event) => onModeChange(event.target.value as ImageReferenceMode)} className="min-w-0 bg-transparent text-xs">
           <option value="style">Style reference</option><option value="recreate">Recreate screens</option>
-        </select>
+        </select>}
         <button type="button" aria-label="Remove reference" disabled={disabled} onClick={() => onChange(null)}><X className="h-3.5 w-3.5" /></button>
       </>}
     </div>

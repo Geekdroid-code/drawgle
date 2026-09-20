@@ -1,136 +1,40 @@
-﻿import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 import { findLatestProjectReference } from "./prompt-reference-storage";
 
-describe("findLatestProjectReference", () => {
-  it("returns no_reference when the latest run explicitly opted out", async () => {
-    const admin = {
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              order: vi.fn().mockReturnValue({
-                limit: vi.fn().mockReturnValue({
-                  maybeSingle: vi.fn().mockResolvedValue({
-                    data: {
-                      image_path: null,
-                      metadata: { referencePolicy: "no_reference" },
-                    },
-                    error: null,
-                  }),
-                }),
-              }),
-            }),
-          }),
-        }),
-      }),
-    };
-
-    const result = await findLatestProjectReference({
-      admin: admin as never,
-      projectId: "project-1",
-      ownerId: "owner-1",
-    });
-
-    expect(result).toEqual({ imagePath: null, policy: "no_reference" });
+const lookup = (rows: Array<{ image_path: string | null; metadata: Record<string, unknown> }>) => {
+  let offset = 0;
+  const query = { select: () => query, eq: () => query, order: () => query, range: (start: number) => { offset = start; return query; },
+    then: (resolve: (result: unknown) => unknown) => Promise.resolve({ data: rows.slice(offset, offset + 100), error: null }).then(resolve) };
+  return findLatestProjectReference({ admin: { from: () => query } as never, projectId: "project", ownerId: "owner" });
+};
+describe("project reference inheritance", () => {
+  it("respects opt-out after skipping newer screen attachments", async () => {
+    expect(await lookup([
+      { image_path: "chat.webp", metadata: { referenceScope: "screen" } },
+      { image_path: null, metadata: { referencePolicy: "no_reference" } },
+      { image_path: "old.webp", metadata: {} },
+    ])).toEqual({ imagePath: null, policy: "no_reference" });
   });
-
-  it("preserves curated_evidence policy when the latest run was curated", async () => {
-    const admin = {
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              order: vi.fn().mockReturnValue({
-                limit: vi.fn().mockReturnValue({
-                  maybeSingle: vi.fn().mockResolvedValue({
-                    data: {
-                      image_path: "owner-1/prompt-images/curated.webp",
-                      metadata: { referencePolicy: "curated_evidence" },
-                    },
-                    error: null,
-                  }),
-                }),
-              }),
-            }),
-          }),
-        }),
-      }),
-    };
-
-    const result = await findLatestProjectReference({
-      admin: admin as never,
-      projectId: "project-1",
-      ownerId: "owner-1",
-    });
-
-    expect(result).toEqual({
-      imagePath: "owner-1/prompt-images/curated.webp",
-      policy: "curated_evidence",
-    });
+  it("does not promote new or legacy canvas uploads into project references", async () => {
+    expect(await lookup([
+      { image_path: "new.webp", metadata: { referenceScope: "screen" } },
+      { image_path: "legacy.webp", metadata: { requestedFrom: "agent-screen-plan-approval" } },
+      { image_path: "curated.webp", metadata: { referencePolicy: "curated_evidence" } },
+    ])).toEqual({ imagePath: "curated.webp", policy: "curated_evidence" });
   });
-
-  it("returns project_reference for standard project uploads", async () => {
-    const admin = {
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              order: vi.fn().mockReturnValue({
-                limit: vi.fn().mockReturnValue({
-                  maybeSingle: vi.fn().mockResolvedValue({
-                    data: {
-                      image_path: "owner-1/prompt-images/upload.webp",
-                      metadata: { referencePolicy: "user_upload" },
-                    },
-                    error: null,
-                  }),
-                }),
-              }),
-            }),
-          }),
-        }),
-      }),
-    };
-
-    const result = await findLatestProjectReference({
-      admin: admin as never,
-      projectId: "project-1",
-      ownerId: "owner-1",
-    });
-
-    expect(result).toEqual({
-      imagePath: "owner-1/prompt-images/upload.webp",
-      policy: "project_reference",
-    });
+  it("finds the original reference beyond a page of local runs", async () => {
+    expect(await lookup([
+      ...Array.from({ length: 101 }, () => ({ image_path: "chat.webp", metadata: { referenceScope: "screen" } })),
+      { image_path: "original.webp", metadata: { referencePolicy: "user_upload" } },
+    ])).toEqual({ imagePath: "original.webp", policy: "project_reference" });
   });
-
-  it("returns null when no previous runs exist", async () => {
-    const admin = {
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              order: vi.fn().mockReturnValue({
-                limit: vi.fn().mockReturnValue({
-                  maybeSingle: vi.fn().mockResolvedValue({
-                    data: null,
-                    error: null,
-                  }),
-                }),
-              }),
-            }),
-          }),
-        }),
-      }),
-    };
-
-    const result = await findLatestProjectReference({
-      admin: admin as never,
-      projectId: "project-1",
-      ownerId: "owner-1",
-    });
-
-    expect(result).toBeNull();
+  it("preserves genuine initial user uploads", async () => {
+    expect(await lookup([{ image_path: "initial.webp", metadata: { referenceScope: "project" } }]))
+      .toEqual({ imagePath: "initial.webp", policy: "project_reference" });
+  });
+  it("returns no reference for a project containing only local attachments", async () => {
+    expect(await lookup([{ image_path: "chat.webp", metadata: { referenceScope: "screen" } }])).toBeNull();
+    expect(await lookup([])).toBeNull();
   });
 });

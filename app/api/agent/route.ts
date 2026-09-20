@@ -1744,14 +1744,14 @@ export async function POST(request: Request) {
 
       let imagePath: string | null = uploadedImagePath;
       let referencePolicy: GenerationReferencePolicy = uploadedImagePath ? "user_upload" : "project_memory";
-      let effectiveImageReferenceMode: ImageReferenceMode = payload.image ? payload.imageReferenceMode : "style";
+      let effectiveImageReferenceMode: ImageReferenceMode = "style";
 
       if (!uploadedImagePath && productPlanning?.input.referencePreference?.mode === "none") {
         referencePolicy = "no_reference";
         imagePath = null;
         effectiveImageReferenceMode = "style";
       } else if (!uploadedImagePath && productPlanning?.input.imagePath) {
-        const inherited = productReferenceExecution(productPlanning);
+        const inherited = productReferenceExecution(productPlanning, false);
         referencePolicy = inherited.source === "curated" ? "curated_evidence" : "project_reference";
         imagePath = inherited.imagePath;
         effectiveImageReferenceMode = "style";

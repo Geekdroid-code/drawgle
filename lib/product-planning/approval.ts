@@ -41,6 +41,12 @@ export async function prepareProductApproval(admin: PlanningStore, ownerId: stri
   if (state.designerVersion === 2 && !isNoReference && (!image || createHash("sha256").update(image.data).digest("hex") !== state.experience?.referenceHash)) {
     throw new PlanningConflict("The reference changed or could not be verified. Inspect it again before approving.");
   }
+  const executionReference = productReferenceExecution(approved);
+  const executionImage = state.phase === "canvas" && state.screenReference
+    ? await loadPlanningReference(admin, state.screenReference.imagePath, ownerId) : image;
+  if (state.phase === "canvas" && state.screenReference && (!executionImage || createHash("sha256").update(executionImage.data).digest("hex") !== state.screenReference.hash)) {
+    throw new PlanningConflict("The request attachment changed or is unavailable. Attach it again before approving.");
+  }
   const leaseId = crypto.randomUUID();
   let current = await saveProductPlanning(admin, projectId, ownerId, state, {
     ...approved, lease: { id: leaseId, expiresAt: new Date(Date.now() + 240_000).toISOString() },
@@ -51,12 +57,12 @@ export async function prepareProductApproval(admin: PlanningStore, ownerId: stri
     initialGeneration: state.phase === "discovery",
     body: {
       projectId, clientRequestId: body.clientRequestId, prompt: approved.scope?.manifest?.length ? approved.scope.goal : scopedGenerationPrompt(approved),
-      image, imageReferenceMode: state.input.imageReferenceMode, stylePresetSlug: state.input.stylePresetSlug,
+      image: executionImage, imageReferenceMode: executionReference.mode === "user_recreate" ? "recreate" : "style", stylePresetSlug: state.input.stylePresetSlug,
       scopeContract: productScopeContract(approved, referenceMode),
     },
     async queued(generationRunId: string) {
       current = await saveProductPlanning(admin, projectId, ownerId, current, {
-        ...current, phase: "canvas", lease: null, scope: { ...current.scope!, generationRunId },
+        ...current, phase: "canvas", lease: null, screenReference: null, scope: { ...current.scope!, generationRunId },
         input: { ...current.input, imageReferenceMode: "style" },
       });
       await insertProjectMessage(admin, { projectId, ownerId, role: "user", content: `Approved: ${approved.scope!.goal}`, metadata: {
