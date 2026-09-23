@@ -60,6 +60,65 @@ describe("visual asset planning groups", () => {
     ]);
   });
 
+  it("resolves independent requirements concurrently while keeping the manifest in input order", async () => {
+    let active = 0;
+    let peak = 0;
+    const admin = { from: () => {
+      let assetId = "";
+      const query = {
+        select: () => query,
+        eq: (field: string, value: string) => { if (field === "id") assetId = value; return query; },
+        maybeSingle: async () => {
+          active += 1;
+          peak = Math.max(peak, active);
+          await new Promise(resolve => setTimeout(resolve, assetId.endsWith("1") ? 25 : 5));
+          active -= 1;
+          return { data: null, error: null };
+        },
+      };
+      return query;
+    } };
+    const requirements = Array.from({ length: 6 }, (_, index) => ({
+      ...requirement("Gallery", `asset-${index + 1}`), sourcePreference: "user_upload" as const,
+      userAssetId: `00000000-0000-4000-8000-00000000000${index + 1}`,
+    }));
+    const progress: number[] = [];
+    const manifest = await resolveProjectAssets({ admin: admin as never, ownerId: "owner", projectId: "project",
+      generationRunId: "run", requirements, onProgress: update => { progress.push(update.completed); } });
+    expect(peak).toBeGreaterThan(1);
+    expect(peak).toBeLessThanOrEqual(4);
+    expect(manifest.assetsByScreen.Gallery.map(asset => asset.requirementId)).toEqual(requirements.map(item => item.id));
+    expect(manifest.diagnostics?.map(item => item.requirementId)).toEqual(requirements.map(item => item.id));
+    expect(progress).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+
+  it("releases a screen's ordered assets before another screen finishes resolving", async () => {
+    const admin = { from: () => {
+      let assetId = "";
+      const query = {
+        select: () => query,
+        eq: (field: string, value: string) => { if (field === "id") assetId = value; return query; },
+        maybeSingle: async () => {
+          await new Promise(resolve => setTimeout(resolve, assetId.endsWith("1") ? 35 : 2));
+          return { data: null, error: null };
+        },
+      };
+      return query;
+    } };
+    const requirements = [
+      { ...requirement("Slow", "slow"), sourcePreference: "user_upload" as const, userAssetId: "00000000-0000-4000-8000-000000000001" },
+      { ...requirement("Fast", "fast"), sourcePreference: "user_upload" as const, userAssetId: "00000000-0000-4000-8000-000000000002" },
+    ];
+    const ready: string[] = [];
+    const manifest = await resolveProjectAssets({ admin: admin as never, ownerId: "owner", projectId: "project",
+      generationRunId: "run", requirements, onScreenReady: (name, assets) => {
+        ready.push(name);
+        expect(assets[0].requirementId).toBe(name.toLowerCase());
+      } });
+    expect(ready).toEqual(["Fast", "Slow"]);
+    expect(manifest.requirements).toEqual(requirements);
+  });
+
   it("keeps an eight-card repeat group as one resolution requirement", async () => {
     const screens: ScreenPlan[] = [{
       name: "Bakery",

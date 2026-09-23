@@ -16,6 +16,7 @@ export const evidenceAssessmentSchema = z.object({
     ...decisionClassificationSchema.partial().shape,
   })).max(6),
   recommendations: z.array(designerRecommendationSchema).max(12).optional(),
+  screenFlowPreview: z.array(z.string().min(1).max(180)).max(4).optional(),
   delegation: z.string().max(1000).default(""),
   rationale: z.string().min(1).max(2000),
 });

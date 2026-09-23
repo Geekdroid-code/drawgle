@@ -48,6 +48,19 @@ describe("product designer tool loop", () => {
       return structuredClone(mocks.state);
     });
   });
+  it("shows a prompt-grounded draft before the slower detailed planning rounds", async () => {
+    mocks.assess.mockResolvedValue({ turnId: "initial:project", mode: "product", productReady: true,
+      experienceReady: true, gaps: [], recommendations: [], delegation: "", rationale: "Screens are clear",
+      screenFlowPreview: ["Today shows today's tasks", "Calendar opens the selected day"] });
+    mocks.generate.mockImplementationOnce(async () => {
+      expect(mocks.messages.some(message => (message.metadata as Record<string, unknown>)?.action === "product_flow_preview")).toBe(true);
+      return { text: "Detailed planning complete." };
+    });
+    await runProductDesigner(options);
+    const preview = mocks.messages.find(message => (message.metadata as Record<string, unknown>)?.action === "product_flow_preview");
+    expect(preview?.content).toContain("Today shows today's tasks");
+    expect(preview?.metadata).not.toHaveProperty("productTurnComplete");
+  });
   it("repairs a rejected scope internally before persisting or claiming approval", async () => {
     mocks.state = { ...productFixture(), experience: experienceFixture() };
     mocks.state.input.imagePath = experienceFixture().referencePath;
@@ -63,7 +76,7 @@ describe("product designer tool loop", () => {
     expect(mocks.save.mock.calls.some(call => call[4].scope?.goal === "Invalid scope")).toBe(false);
     expect(mocks.state?.scope?.status).toBe("proposed");
     expect(mocks.messages.at(-1)?.metadata).not.toHaveProperty("productPlanningFailure");
-    expect(mocks.generate).toHaveBeenCalledTimes(4);
+    expect(mocks.generate).toHaveBeenCalledTimes(3);
     expect(JSON.stringify(mocks.generate.mock.calls[2][0].contents)).toContain("state:welcome:complete");
   });
   it("bounds unsuccessful repair and saves a controlled diagnostic with a recovery action", async () => {
@@ -142,6 +155,23 @@ describe("product designer tool loop", () => {
     expect(mocks.messages.at(-1)?.metadata).toMatchObject({ productQuestions: [{ question: gap.question, choices: gap.choices }] });
     expect(mocks.messages.at(-1)?.content).not.toContain("Question 1");
     expect(mocks.state?.scope).toBeNull();
+  });
+  it("returns a validated screen-flow question without waiting for the detailed planner", async () => {
+    mocks.assess.mockResolvedValue({ turnId: "initial:project", mode: "product", productReady: false,
+      experienceReady: false, delegation: "", recommendations: [], rationale: "A visible flow choice",
+      gaps: [{ area: "product", decisionKey: "today-entry", decisionType: "screen_flow", requiresUserInput: true,
+        whyUserMustDecide: "This changes where the Today action leads.", question: "Which screen opens when a parent taps a task on Today?",
+        consequence: "Changes the task-detail flow.", choices: [
+          { label: "Task detail", description: "Open a task detail screen." },
+          { label: "Inline expansion", description: "Expand the task within Today." },
+          { label: "Calendar day", description: "Open the relevant calendar day." },
+        ] }],
+    });
+    await runProductDesigner(options);
+    expect(mocks.generate).not.toHaveBeenCalled();
+    expect(mocks.messages.at(-1)?.metadata).toMatchObject({ productQuestions: [{ decisionKey: "today-entry" }] });
+    expect(mocks.state?.initialTurnComplete).toBe(true);
+    expect(mocks.state?.lease).toBeNull();
   });
   it("does not turn skipped question text into user-confirmed product truth", async () => {
     const messageId = "33333333-3333-4333-8333-333333333333";
@@ -228,7 +258,7 @@ describe("product designer tool loop", () => {
     expect(mocks.messages.filter((message) => message.role === "user")).toHaveLength(1);
     expect(mocks.messages.at(-1)?.metadata).toMatchObject({ productTurnComplete: "initial:project" });
     await runProductDesigner(options);
-    expect(mocks.generate).toHaveBeenCalledTimes(2);
+    expect(mocks.generate).toHaveBeenCalledTimes(1);
   });
   it("does not label an invented preference as user-confirmed", async () => {
     mocks.generate.mockResolvedValueOnce(functionResponse([{ name: "update_product", args: { facts: [{

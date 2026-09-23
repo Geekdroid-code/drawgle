@@ -1125,6 +1125,7 @@ export async function resolveProjectAssets({
   generationRunId,
   requirements,
   onProgress,
+  onScreenReady,
 }: {
   admin: AdminClient;
   ownerId: string;
@@ -1132,76 +1133,98 @@ export async function resolveProjectAssets({
   generationRunId: string;
   requirements: AssetRequirement[];
   onProgress?: (progress: ProjectAssetResolutionProgress) => void | Promise<void>;
+  onScreenReady?: (screenName: string, assets: ScreenAssetManifest[]) => void;
 }): Promise<ProjectAssetManifest> {
   const assetsByScreen: ProjectAssetManifest["assetsByScreen"] = {};
   const failures: NonNullable<ProjectAssetManifest["failures"]> = [];
   const diagnostics: NonNullable<ProjectAssetManifest["diagnostics"]> = [];
   const memoryCache = new Map<string, VisualAssetRow[]>();
+  type Outcome = { resolved: ResolvedRequirement; failure: NonNullable<ProjectAssetManifest["failures"]>[number] | null };
+  const outcomes: Outcome[] = new Array(requirements.length);
+  const screenIndexes = new Map<string, number[]>();
+  requirements.forEach((requirement, index) => {
+    const indexes = screenIndexes.get(requirement.screenName) ?? [];
+    indexes.push(index);
+    screenIndexes.set(requirement.screenName, indexes);
+  });
+  const remainingByScreen = new Map([...screenIndexes].map(([name, indexes]) => [name, indexes.length]));
+  const groups = new Map<string, Array<{ requirement: AssetRequirement; index: number }>>();
+  requirements.forEach((requirement, index) => {
+    // Requirements that can share the in-memory match cache must resolve in
+    // order. Unrelated screens can search independently without waiting.
+    const key = requirement.userAssetId || requirement.sourcePreference === "user_upload"
+      ? `upload:${index}`
+      : `${requirement.sourcePreference}:${semanticRequirementKey(requirement)}:${requirement.reusePolicy}:${requirement.reusePolicy === "distinct" ? requirement.slotCount : 1}`;
+    const group = groups.get(key) ?? [];
+    group.push({ requirement, index });
+    groups.set(key, group);
+  });
+  const independentGroups = [...groups.values()];
   let completed = 0;
-
-  for (const requirement of requirements) {
-    try {
-      const resolved = await resolveRequirement({ admin, ownerId, projectId, requirement, memoryCache });
-      diagnostics.push(resolved.diagnostic);
-      assetsByScreen[requirement.screenName] = [
-        ...(assetsByScreen[requirement.screenName] ?? []),
-        ...resolved.manifests,
-      ];
-      for (const assetId of new Set(resolved.assetIds)) {
-        await recordUsage({ admin, projectId, generationRunId, requirement, assetId });
+  let resolvedCount = 0;
+  let placeholderCount = 0;
+  let failureCount = 0;
+  let nextGroup = 0;
+  let progressQueue = Promise.resolve();
+  const settle = (index: number, outcome: Outcome) => {
+    outcomes[index] = outcome;
+    const screenName = requirements[index].screenName;
+    const remaining = remainingByScreen.get(screenName)! - 1;
+    remainingByScreen.set(screenName, remaining);
+    if (remaining === 0) {
+      // A screen receives a fixed, ordered manifest before its builder starts.
+      try {
+        onScreenReady?.(screenName, screenIndexes.get(screenName)!
+          .flatMap((screenIndex) => outcomes[screenIndex].resolved.manifests));
+      } catch (error) {
+        console.warn("[visual-assets] Screen readiness callback failed", { screenName, error });
       }
-      if (resolved.manifests.every((manifest) => manifest.placeholder)) {
-        failures.push({
-          requirementId: requirement.id,
-          screenName: requirement.screenName,
-          subject: requirement.subject,
-          priority: requirement.priority,
-          reason: resolved.diagnostic.rejectionCode ?? "No visual asset resolved.",
-          fatal: false,
-        });
-      }
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      failures.push({
-        requirementId: requirement.id,
-        screenName: requirement.screenName,
-        subject: requirement.subject,
-        priority: requirement.priority,
-        reason,
-        fatal: false,
-      });
-      diagnostics.push({
-        ...createDiagnostic(requirement, Date.now()),
-        selectedVia: "placeholder",
-        selectedSource: "placeholder",
-        rejectionCode: "resolver_error",
-      });
-      assetsByScreen[requirement.screenName] = [
-        ...(assetsByScreen[requirement.screenName] ?? []),
-        placeholderManifest(requirement, reason),
-      ];
-      console.warn("[visual-assets] Requirement failed", { requirementId: requirement.id, error: reason });
     }
     completed += 1;
+    resolvedCount += outcome.resolved.manifests.filter(asset => !asset.placeholder && asset.url).length;
+    placeholderCount += outcome.resolved.manifests.filter(asset => asset.placeholder).length;
+    if (outcome.failure) failureCount += 1;
     if (onProgress) {
-      const manifests = Object.values(assetsByScreen).flat();
-      try {
-        await onProgress({
-          completed,
-          total: requirements.length,
-          resolved: manifests.filter((asset) => !asset.placeholder && asset.url).length,
-          placeholders: manifests.filter((asset) => asset.placeholder).length,
-          failures: failures.length,
-        });
-      } catch (error) {
-        console.warn("[visual-assets] Progress callback failed", {
-          completed,
-          total: requirements.length,
-          error,
-        });
+      const progress = { completed, total: requirements.length, resolved: resolvedCount, placeholders: placeholderCount, failures: failureCount };
+      progressQueue = progressQueue.then(async () => {
+        try { await onProgress(progress); }
+        catch (error) { console.warn("[visual-assets] Progress callback failed", { completed: progress.completed, total: requirements.length, error }); }
+      });
+    }
+  };
+  const work = async () => {
+    while (nextGroup < independentGroups.length) {
+      const group = independentGroups[nextGroup++];
+      for (const { requirement, index } of group) {
+        try {
+          const resolved = await resolveRequirement({ admin, ownerId, projectId, requirement, memoryCache });
+          for (const assetId of new Set(resolved.assetIds)) {
+            await recordUsage({ admin, projectId, generationRunId, requirement, assetId });
+          }
+          settle(index, { resolved, failure: resolved.manifests.every(asset => asset.placeholder) ? {
+            requirementId: requirement.id, screenName: requirement.screenName, subject: requirement.subject,
+            priority: requirement.priority, reason: resolved.diagnostic.rejectionCode ?? "No visual asset resolved.", fatal: false,
+          } : null });
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : String(error);
+          settle(index, { resolved: {
+            manifests: [placeholderManifest(requirement, reason)], assetIds: [],
+            diagnostic: { ...createDiagnostic(requirement, Date.now()), selectedVia: "placeholder", selectedSource: "placeholder", rejectionCode: "resolver_error" },
+          }, failure: { requirementId: requirement.id, screenName: requirement.screenName, subject: requirement.subject,
+            priority: requirement.priority, reason, fatal: false } });
+          console.warn("[visual-assets] Requirement failed", { requirementId: requirement.id, error: reason });
+        }
       }
     }
-  }
+  };
+  await Promise.all(Array.from({ length: Math.min(4, independentGroups.length) }, () => work()));
+  await progressQueue;
+  requirements.forEach((requirement, index) => {
+    const outcome = outcomes[index];
+    diagnostics.push(outcome.resolved.diagnostic);
+    assetsByScreen[requirement.screenName] = [...(assetsByScreen[requirement.screenName] ?? []), ...outcome.resolved.manifests];
+    if (outcome.failure) failures.push(outcome.failure);
+  });
 
   return { requirements, assetsByScreen, failures, diagnostics };
 }

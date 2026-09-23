@@ -3075,16 +3075,27 @@ export const generateUiFlowTask = task({
     const assetResolutionStartedAt = now();
     const assetResolutionStartedMs = Date.now();
     let lastAssetJournalPostMs = 0;
-
-    const projectAssetManifest: ProjectAssetManifest = retryOnlyStateVariants
-      ? { requirements: [], assetsByScreen: {}, failures: [], diagnostics: [] }
-      : await resolveProjectAssets({
+    let assetBuildStarted = false;
+    let assetJournalWrite: Promise<void> = Promise.resolve();
+    const screenAssetResolvers = new Map<string, (assets: ScreenAssetManifest[]) => void>();
+    const screenAssetReady = new Map<string, Promise<ScreenAssetManifest[]>>();
+    for (const requirement of assetRequirements) {
+      if (screenAssetReady.has(requirement.screenName)) continue;
+      screenAssetReady.set(requirement.screenName, new Promise(resolve => {
+        screenAssetResolvers.set(requirement.screenName, resolve);
+      }));
+    }
+    const assetResolution: Promise<ProjectAssetManifest> = retryOnlyStateVariants
+      ? Promise.resolve({ requirements: [], assetsByScreen: {}, failures: [], diagnostics: [] })
+      : resolveProjectAssets({
           admin,
           ownerId: payload.ownerId,
           projectId: payload.projectId,
           generationRunId: payload.generationRunId,
           requirements: assetRequirements,
+          onScreenReady: (screenName, assets) => screenAssetResolvers.get(screenName)?.(assets),
           onProgress: async (progress) => {
+            if (assetBuildStarted) return;
             const timestampMs = Date.now();
             const shouldPost = progress.completed === 1
               || progress.completed === progress.total
@@ -3100,78 +3111,24 @@ export const generateUiFlowTask = task({
               placeholders: progress.placeholders,
               failures: progress.failures,
             };
-            await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
+            const write = postGenerationJournal(admin, payload.projectId, payload.ownerId, structuredClone(generationJournal));
+            assetJournalWrite = write.then(() => undefined, () => undefined);
+            await write;
           },
         });
-    const assetDiagnostics = projectAssetManifest.diagnostics ?? [];
-    await mergeGenerationPerformance(admin, payload.generationRunId, {
-      stages: { assetResolution: performanceStage(assetResolutionStartedAt, assetResolutionStartedMs) },
-    });
-
-    const requirementCount = Math.max(assetRequirements.length, 1);
-    const assetLaunchMetrics = {
-      curatedHitRate: assetDiagnostics.filter((item) => item.selectedVia === "curated").length / requirementCount,
-      stockFallbackRate: assetDiagnostics.filter((item) => item.selectedSource === "stock").length / requirementCount,
-      placeholderRate: assetDiagnostics.filter((item) => item.selectedSource === "placeholder").length / requirementCount,
-      semanticRejectionRate: assetDiagnostics.filter((item) => Boolean(item.rejectionCode)).length / requirementCount,
-      cacheHitRate: assetDiagnostics.filter((item) => item.cacheHit).length / requirementCount,
-      apiCalls: assetDiagnostics.reduce((sum, item) => sum + item.apiCallCount, 0),
-      r2Writes: assetDiagnostics.reduce((sum, item) => sum + item.r2WriteCount, 0),
-      sanitizerActions: 0,
-      repairedMetadataCount: 0,
-      hydratedAssetCount: 0,
-      postBuildPlaceholderCount: 0,
-      usedResolvedAssetCount: 0,
-      ignoredResolvedAssetCount: 0,
-      resolvedToUsedRate: 0,
-    };
-
-    await mergeGenerationRunMetadata(admin, payload.generationRunId, {
-      generationEngineVersion,
-      assetRequirements,
-      assetManifest: projectAssetManifest,
-      assetResolutionDiagnostics: assetDiagnostics,
-      assetLaunchMetrics,
-    });
-
-    const resolvedAssetCount = Object.values(projectAssetManifest.assetsByScreen)
-      .flat()
-      .filter((asset) => !asset.placeholder && asset.url)
-      .length;
-    const placeholderAssetCount = Object.values(projectAssetManifest.assetsByScreen)
-      .flat()
-      .filter((asset) => asset.placeholder)
-      .length;
-    const assetStatusTitle = assetRequirements.length === 0
-      ? "No bitmap assets requested by planner"
-      : resolvedAssetCount === 0 && placeholderAssetCount > 0
-        ? "Bitmap assets requested, no match found, placeholders used"
-        : placeholderAssetCount > 0
-          ? `Resolved ${resolvedAssetCount} visual asset${resolvedAssetCount === 1 ? "" : "s"}, using ${placeholderAssetCount} placeholder${placeholderAssetCount === 1 ? "" : "s"}`
-          : `Resolved ${resolvedAssetCount} visual asset${resolvedAssetCount === 1 ? "" : "s"}`;
-
-    await postStatusMessage(
-      admin,
-      payload.projectId,
-      payload.ownerId,
-      assetStatusTitle,
-      "generation_completed",
-      {
-        generationRunId: payload.generationRunId,
-        activityKey: `run:${payload.generationRunId}:assets`,
-        assetRequirementCount: assetRequirements.length,
-        resolvedAssetCount,
-        placeholderAssetCount,
-      },
-    );
-    setJournalPhase(generationJournal, "assets", "completed", assetStatusTitle);
-    generationJournal.assetSummary = {
-      requested: assetRequirements.length,
-      resolved: resolvedAssetCount,
-      placeholders: placeholderAssetCount,
-      failures: projectAssetManifest.failures?.length ?? 0,
-    };
-    await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
+    // Every builder waits only for its own immutable asset manifest. The
+    // aggregate promise is still awaited before recording final run metrics.
+    let assetResolutionStage: ReturnType<typeof performanceStage> | null = null;
+    void assetResolution.then(() => {
+      assetResolutionStage = performanceStage(assetResolutionStartedAt, assetResolutionStartedMs);
+    }, () => undefined);
+    void assetResolution.catch(() => undefined);
+    const assetsForScreen = (name: string) => screenAssetReady.has(name)
+      ? Promise.race([
+          screenAssetReady.get(name)!,
+          assetResolution.then(manifest => manifest.assetsByScreen[name] ?? []),
+        ])
+      : Promise.resolve([] as ScreenAssetManifest[]);
 
     // Prepare the next bounded batch while this batch renders. No child run,
     // output rows or credit reservations are created by lookahead.
@@ -3259,15 +3216,18 @@ export const generateUiFlowTask = task({
       } satisfies GenerationPreviewMetadata,
     });
     await mergeGenerationPerformance(admin, payload.generationRunId, { buildStartedAt });
+    assetBuildStarted = true;
+    await assetJournalWrite;
     generationJournal.status = "building";
-    setJournalPhase(generationJournal, "build", "active", `Building ${plannedOutputCount} screen${plannedOutputCount === 1 ? "" : "s"} on the canvas.`);
+    const buildDetail = `Building ${plannedOutputCount} screen${plannedOutputCount === 1 ? "" : "s"} on the canvas.`;
+    generationJournal.phases = generationJournal.phases.map(phase =>
+      phase.id === "build" ? { ...phase, status: "active", detail: buildDetail, startedAt: phase.startedAt ?? buildStartedAt } : phase);
+    generationJournal.activePhase = "build";
+    generationJournal.detail = buildDetail;
     await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
-    // Sequential build: each screen is triggered, inserted, and polled to
-    // completion before the next one starts.  This means Screen 1 appears
-    // on the canvas as soon as it is ready, Screen 2 starts immediately
-    // after, and so on — giving the user continuous visible progress
-    // rather than a long wait for all screens to finish simultaneously.
+    // The existing rolling builder admits two screens, or first establishes
+    // the anchor screen where continuity requires it.
     let successfulScreens = 0;
     let failedScreens = 0;
     let successfulStateVariants = 0;
@@ -3336,6 +3296,11 @@ export const generateUiFlowTask = task({
       let capturedTopChromeEvidence: TopChromeContinuityEvidence | null = null;
 
       try {
+        const assetManifest = await assetsForScreen(screenPlan.name);
+        const { data: currentRun, error: currentRunError } = await admin.from("generation_runs")
+          .select("status").eq("id", payload.generationRunId).single();
+        if (currentRunError) throw currentRunError;
+        if (currentRun.status === "canceled") return;
         const attachReferenceImage = shouldAttachReferenceImage({
           screenGuidance: screenScoped && referencePolicy === "user_upload",
           engineVersion: generationEngineVersion,
@@ -3434,7 +3399,7 @@ export const generateUiFlowTask = task({
             requiresBottomNav: plan.requiresBottomNav,
             navigationArchitecture: plan.navigationArchitecture,
             navigationPlan: plan.navigationPlan,
-            assetManifest: projectAssetManifest.assetsByScreen[screenPlan.name] ?? [],
+            assetManifest,
             projectCharter: plan.charter,
             projectContext: buildContext,
             productContent: payload.productContent ?? compileProductContent(productPlanning),
@@ -3795,6 +3760,55 @@ export const generateUiFlowTask = task({
     });
     await journalWriteQueue;
     await settlementQueue;
+    const projectAssetManifest = await assetResolution;
+    const assetDiagnostics = projectAssetManifest.diagnostics ?? [];
+    await mergeGenerationPerformance(admin, payload.generationRunId, {
+      stages: { assetResolution: assetResolutionStage ?? performanceStage(assetResolutionStartedAt, assetResolutionStartedMs) },
+    });
+    const requirementCount = Math.max(assetRequirements.length, 1);
+    const assetLaunchMetrics = {
+      curatedHitRate: assetDiagnostics.filter(item => item.selectedVia === "curated").length / requirementCount,
+      stockFallbackRate: assetDiagnostics.filter(item => item.selectedSource === "stock").length / requirementCount,
+      placeholderRate: assetDiagnostics.filter(item => item.selectedSource === "placeholder").length / requirementCount,
+      semanticRejectionRate: assetDiagnostics.filter(item => Boolean(item.rejectionCode)).length / requirementCount,
+      cacheHitRate: assetDiagnostics.filter(item => item.cacheHit).length / requirementCount,
+      apiCalls: assetDiagnostics.reduce((sum, item) => sum + item.apiCallCount, 0),
+      r2Writes: assetDiagnostics.reduce((sum, item) => sum + item.r2WriteCount, 0),
+    };
+    await mergeGenerationRunMetadata(admin, payload.generationRunId, {
+      generationEngineVersion,
+      assetRequirements,
+      assetManifest: projectAssetManifest,
+      assetResolutionDiagnostics: assetDiagnostics,
+      assetLaunchMetrics,
+    });
+    const resolvedAssetCount = Object.values(projectAssetManifest.assetsByScreen)
+      .flat().filter(asset => !asset.placeholder && asset.url).length;
+    const placeholderAssetCount = Object.values(projectAssetManifest.assetsByScreen)
+      .flat().filter(asset => asset.placeholder).length;
+    const assetStatusTitle = assetRequirements.length === 0
+      ? "No bitmap assets requested by planner"
+      : resolvedAssetCount === 0 && placeholderAssetCount > 0
+        ? "Bitmap assets requested, no match found, placeholders used"
+        : placeholderAssetCount > 0
+          ? `Resolved ${resolvedAssetCount} visual asset${resolvedAssetCount === 1 ? "" : "s"}, using ${placeholderAssetCount} placeholder${placeholderAssetCount === 1 ? "" : "s"}`
+          : `Resolved ${resolvedAssetCount} visual asset${resolvedAssetCount === 1 ? "" : "s"}`;
+    await postStatusMessage(admin, payload.projectId, payload.ownerId, assetStatusTitle, "generation_completed", {
+      generationRunId: payload.generationRunId,
+      activityKey: `run:${payload.generationRunId}:assets`,
+      assetRequirementCount: assetRequirements.length,
+      resolvedAssetCount,
+      placeholderAssetCount,
+    });
+    generationJournal.phases = generationJournal.phases.map(phase =>
+      phase.id === "assets" ? { ...phase, status: "completed", detail: assetStatusTitle, completedAt: now() } : phase);
+    generationJournal.assetSummary = {
+      requested: assetRequirements.length,
+      resolved: resolvedAssetCount,
+      placeholders: placeholderAssetCount,
+      failures: projectAssetManifest.failures?.length ?? 0,
+    };
+    await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
     await lookahead;
     if (referenceMode === "user_recreate" && payload.productPlanning?.scope?.manifest) {
       const { data: linkedRows, error: linkReadError } = await admin.from("project_screen_roadmap")

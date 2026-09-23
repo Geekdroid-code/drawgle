@@ -115,7 +115,8 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
     await reportProgress("Reviewing product requirements", "Reviewing your product vision and user goals...");
     const conversation = [
       ...(originalPrompt ? [{ role: "user", content: originalPrompt }] : []),
-      ...history.map(message => ({ role: message.role, content: productMessageContext(message) })),
+      ...history.filter(message => message.metadata.action !== "product_flow_preview")
+        .map(message => ({ role: message.role, content: productMessageContext(message) })),
     ];
     const effectivePrompt = initialize ? initialMessage?.content ?? prompt : prompt;
     const originalRequest = state.input.originalRequest ?? initialMessage?.content ?? originalPrompt ?? effectivePrompt;
@@ -185,12 +186,38 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
           resolvedDecisionKeys: answeredKeys,
         });
     await persist({ ...state, designerVersion: 2, resolvedDecisionKeys: answeredKeys, evidenceAssessment: assessment });
+    if (!assessment.productReady && assessment.gaps.length > 0) {
+      const questions = readProductQuestions({ productQuestions: assessment.gaps });
+      if (questions) {
+        const reply = "Let's shape the screens and flow. Choose an answer below, write your own, or skip and I'll recommend a direction.";
+        const modelMessage = await insertProjectMessage(admin, { projectId, ownerId, role: "model", content: reply, metadata: {
+          clientTurnId, userMessageId, productTurnComplete: clientTurnId, productQuestions: questions, productScopeProposal: null,
+        } });
+        await persist({ ...state, initialTurnComplete: true, lease: null });
+        await reportProgress("Product design ready", reply, "completed");
+        if (enqueueMemory) await persistProjectMessageMemoryPair({ admin, userMessageId, userContent: effectivePrompt,
+          modelMessageId: modelMessage.id, modelContent: productMessageContext({ content: reply, metadata: { productQuestions: questions } }) })
+          .catch((error) => console.error("Could not enqueue product conversation memory", error));
+        return { intent: "product_planning", message: reply };
+      }
+    }
+    const earlyFlow = "screenFlowPreview" in assessment && Array.isArray(assessment.screenFlowPreview)
+      ? assessment.screenFlowPreview.filter((item): item is string => typeof item === "string" && Boolean(item.trim())).slice(0, 4)
+      : [];
+    if (state.phase === "discovery" && assessment.productReady && earlyFlow.length > 0 && !history.some(message =>
+      message.metadata.action === "product_flow_preview" && message.metadata.clientTurnId === clientTurnId)) {
+      await insertProjectMessage(admin, {
+        projectId, ownerId, role: "model",
+        content: `From your brief, I’m shaping this screen flow:\n\n${earlyFlow.map(item => `• ${item}`).join("\n")}\n\nThis is a draft while I check the detailed flow. No screens have been generated.`,
+        metadata: { action: "product_flow_preview", clientTurnId, userMessageId },
+      });
+    }
     const isReconstruction = state.phase !== "canvas" && state.input.imageReferenceMode === "recreate" && Boolean(state.input.imagePath);
     const productContext = isReconstruction ? reconstructionProductContext(state) : { ...state, blueprint: { facts: activeFacts(state) } };
     const screenReference = state.phase === "canvas" && state.screenReference
       ? await loadPlanningReference(admin, state.screenReference.imagePath, ownerId) : null;
     const contents: Content[] = [{ role: "user", parts: [
-      { text: JSON.stringify({ originalUserRequest: isReconstruction ? (state.input.recreationRequest || originalPrompt) : originalPrompt, referenceContext: planningReferenceContext(state), currentProduct: productContext, history: history.map((message) => ({ id: message.id, role: message.role, content: productMessageContext(message).slice(0, 6000) })), userMessage: effectivePrompt }) },
+      { text: JSON.stringify({ originalUserRequest: isReconstruction ? (state.input.recreationRequest || originalPrompt) : originalPrompt, referenceContext: planningReferenceContext(state), currentProduct: productContext, history: history.filter(message => message.metadata.action !== "product_flow_preview").map((message) => ({ id: message.id, role: message.role, content: productMessageContext(message).slice(0, 6000) })), userMessage: effectivePrompt }) },
       { text: `Independent evidence assessment: ${JSON.stringify(assessment)}. These user-dependent gaps cannot be resolved by inventing facts this turn. The chat automatically renders the questions and choices as optional interactive cards. Do not repeat them or add prose questions. Update known product truth first. Save useful designer-owned recommendations as tentative preference facts, superseding any earlier conflicting recommendation; never treat them as user-confirmed or ask for cosmetic decisions. Do not present a final screen list or claim readiness while gaps remain.` },
       ...(screenReference ? [{ text: SCREEN_REFERENCE_INSTRUCTION }, { inlineData: { data: screenReference.data, mimeType: screenReference.mimeType } }, { text: "The following image, if present, is the established PROJECT reference, not the current attachment." }] : []),
       ...(reference ? [{ inlineData: { data: reference.data, mimeType: reference.mimeType } }] : []),
@@ -332,6 +359,12 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
         onTrace?.({ tool: call.name, ok: result.ok, error: result.error });
       }
       contents.push({ role: "user", parts: responses });
+      if (attemptedProposal && state.scope?.status === "proposed" && failures.size === 0) {
+        // The approval card is the authoritative response. A further model
+        // round only paraphrases that saved scope and delays the first reply.
+        reply = "The screen flow is ready to review. Use the approval card to start generation.";
+        break;
+      }
     }
     if (attemptedProposal && state.scope?.status !== "proposed" && !failures.size) failures.set("propose_scope", {
       stage: "propose_scope", code: "REVIEW_INCOMPLETE", summary: "The updated flow still needs a final review.", retryable: true,
